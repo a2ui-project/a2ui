@@ -261,12 +261,18 @@ export enum RpcErrorCode {
 
   /** Missing outbound message listener required to transmit agent function calls. */
   NO_LISTENER = 'NO_LISTENER',
+
+  /** Pending renderer function call limit reached. */
+  TOO_MANY_PENDING = 'TOO_MANY_PENDING',
 }
 
 /**
  * Error thrown when an A2UI RPC operation fails, times out, or is cancelled.
  */
 export class A2uiRpcError extends A2uiError {
+  /** Unprefixed human-readable error message. */
+  public readonly rawMessage: string;
+
   /**
    * Initializes a new `A2uiRpcError` instance.
    *
@@ -286,5 +292,6 @@ export class A2uiRpcError extends A2uiError {
     const resolvedCode = code || RpcErrorCode.UNKNOWN_ERROR;
     super(`[${resolvedCode}] ${message}`, resolvedCode);
     this.name = 'A2uiRpcError';
+    this.rawMessage = message;
   }
 }

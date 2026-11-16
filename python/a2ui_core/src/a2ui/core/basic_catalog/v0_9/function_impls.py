@@ -22,6 +22,7 @@ from urllib.parse import urlparse
 from ...resolution.data_context import DataContext
 from ...resolution.validation_result_coercion import coerce_dynamic_boolean
 from ...common.events import AbortSignal
+from ...common.regex_subset import regex_test
 from ...exceptions import A2uiExpressionError
 from ...catalog.functions import (
     FunctionImplementation,
@@ -99,10 +100,8 @@ def _regex_execute(
 ) -> bool:
     pattern = _to_str(args.get("pattern", ""))
     val = _to_str(args.get("value", ""))
-    try:
-        return bool(re.search(pattern, val))
-    except re.error as e:
-        raise A2uiExpressionError(f"Invalid regex pattern '{pattern}': {e}") from e
+    matched = regex_test(pattern, val)
+    return False if matched is None else matched
 
 
 RegexImplementation = create_function_implementation(RegexApi, _regex_execute)

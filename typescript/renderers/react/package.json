@@ -78,9 +78,10 @@
     "test": "wireit",
     "test:unit": "wireit",
     "test:integration": "wireit",
+    "test:react17": "./scripts/test-react17.sh",
     "test:react18": "./scripts/test-react18.sh",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "wireit",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
@@ -95,8 +96,8 @@
     "zod": "^3.25.76"
   },
   "peerDependencies": {
-    "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0",
+    "react": "^17.0.0 || ^18.0.0 || ^19.0.0",
+    "react-dom": "^17.0.0 || ^18.0.0 || ^19.0.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -142,14 +143,30 @@
       "files": [
         "src/**/*",
         "tsconfig.json",
+        "tsup.config.ts",
         "scripts/**/*"
       ],
       "output": [
         "dist/"
       ]
     },
+    "typecheck": {
+      "command": "tsc --noEmit",
+      "dependencies": [
+        "build",
+        "../../core/web_core:build",
+        "../markdown-it:build"
+      ],
+      "files": [
+        "src/**/*",
+        "tests/**/*",
+        "tsconfig.json"
+      ],
+      "output": []
+    },
     "test": {
       "dependencies": [
+        "typecheck",
         "test:unit",
         "test:integration"
       ]
@@ -164,6 +181,7 @@
         "tests/**/*",
         "../../../conformance/core/accessibility.yaml",
         "../../../conformance/core/adapter_conformance.yaml",
+        "../../../conformance/adapter/adapter_conformance_v0_9.yaml",
         "../../../catalogs/basic/v1/catalog.json",
         "tsconfig.json"
       ]

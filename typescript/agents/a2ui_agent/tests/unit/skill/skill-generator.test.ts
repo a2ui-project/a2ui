@@ -22,6 +22,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {
   CatalogConfig,
+  DirectJsonFormat,
   ExpressFormat,
   InMemoryCatalogProvider,
   InferenceFormat,
@@ -350,6 +351,33 @@ describe('SkillGenerator', () => {
     expect(examplesPerSkill).toEqual([0, 0, 1]);
     // Each catalog's examples are loaded and transformed once.
     expect(generateExamplesMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("doesn't repeat the Direct JSON protocol schemas per catalog", () => {
+    const vegachart = CatalogConfig.fromPath(
+      path.join(REPO_ROOT, 'catalogs', 'vegachart', 'v1', 'catalog.json'),
+    ).transformedCatalog;
+    const gen = new SkillGenerator(new DirectJsonFormat([catalog, vegachart]));
+    const count = (text: string, section: string) => text.split(section).length - 1;
+    const a2r = '### Agent to Renderer Schema:';
+    const catalogSection = '### Catalog Schema:';
+
+    const mono = gen.generateSkill().content;
+    expect(count(mono, a2r)).toBe(1);
+    expect(count(mono, catalogSection)).toBe(2);
+
+    const skillSet = gen.generateSkillSet();
+    const core = skillSet.get('a2ui-core/SKILL.md')?.content ?? '';
+    expect(count(core, a2r)).toBe(1);
+    expect(count(core, catalogSection)).toBe(0);
+    const catalogSkills = [...skillSet]
+      .filter(([filename]) => filename !== 'a2ui-core/SKILL.md')
+      .map(([, skill]) => skill.content);
+    expect(catalogSkills).toHaveLength(2);
+    for (const content of catalogSkills) {
+      expect(count(content, a2r)).toBe(0);
+      expect(count(content, catalogSection)).toBe(1);
+    }
   });
 
   it('supports Skill options constructor and SkillSet iteration and collection methods', () => {

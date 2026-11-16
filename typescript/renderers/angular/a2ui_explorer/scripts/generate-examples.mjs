@@ -48,6 +48,68 @@ Options:
   -h, --help             Show this help message
 `;
 
+const EXAMPLE_ORDER = [
+  'scaffold-simple-text.json',
+  'scaffold-row-layout.json',
+  'scaffold-interactive-button.json',
+  'scaffold-simple-login-form.json',
+  'scaffold-complex-layout.json',
+  'scaffold-formatted-text.json',
+  'scaffold-incremental.json',
+  'flight-status.json',
+  'email-compose.json',
+  'calendar-day.json',
+  'weather-current.json',
+  'product-card.json',
+  'music-player.json',
+  'task-card.json',
+  'user-profile.json',
+  'login-form.json',
+  'notification-permission.json',
+  'purchase-complete.json',
+  'chat-message.json',
+  'coffee-order.json',
+  'sports-player.json',
+  'account-balance.json',
+  'workout-summary.json',
+  'event-detail.json',
+  'track-list.json',
+  'software-purchase.json',
+  'restaurant-card.json',
+  'shipping-status.json',
+  'credit-card.json',
+  'step-counter.json',
+  'recipe-card.json',
+  'contact-card.json',
+  'podcast-episode.json',
+  'stats-card.json',
+  'countdown-timer.json',
+  'movie-card.json',
+  'modal-sample.json',
+  'live-invitation-builder.json',
+  'incremental-dashboard.json',
+  'advanced-form-validator.json',
+  'financial-data-grid.json',
+  'child-list-template.json',
+  'markdown-text.json',
+  'modal.json',
+  'native-grid.json',
+  'mcp-app-3d-geometry.json',
+];
+
+const EXAMPLE_ORDER_INDEX = new Map(EXAMPLE_ORDER.map((name, index) => [name, index]));
+
+function compareExampleFilenames(a, b) {
+  const indexA = EXAMPLE_ORDER_INDEX.get(a);
+  const indexB = EXAMPLE_ORDER_INDEX.get(b);
+  if (indexA !== undefined && indexB !== undefined) {
+    return indexA - indexB;
+  }
+  if (indexA !== undefined) return -1;
+  if (indexB !== undefined) return 1;
+  return a.localeCompare(b);
+}
+
 const MCP_EXAMPLES = [
   {
     filePath: '../../../../catalogs/mcp/v1/examples/mcp-app-3d-geometry.json',
@@ -62,7 +124,7 @@ function readExampleFile(filePath, catalog, version) {
     const data = JSON.parse(content);
     const nameFromFile = file
       .replace('.json', '')
-      .replace(/^[0-9]+_/, '')
+      .replace(/^(?:scaffold-|[0-9]+_)/, '')
       .replace(/[-_]/g, ' ')
       .replace(/\b\w/g, l => l.toUpperCase());
 
@@ -140,15 +202,19 @@ async function main() {
 
   const catalogs = values.catalog;
 
-  const examplesV08 = readExamples('../../../../specification/v0_8/json/catalogs', catalogs, '0.8');
+  const examplesV08 = readExamples(
+    '../../../../specification/v0_8/json/catalogs',
+    catalogs,
+    '0.8',
+  ).sort((a, b) => compareExampleFilenames(a.filename, b.filename));
   const examplesV09 = [
     ...readExamples('../../../../specification/v0_9/catalogs', catalogs, '0.9'),
     ...MCP_EXAMPLES.map(({filePath, catalog}) => readExampleFile(filePath, catalog, '0.9')),
-  ];
+  ].sort((a, b) => compareExampleFilenames(a.filename, b.filename));
   const examplesV10 = [
     ...readExamples('../../../../../catalogs/basic/v1/examples', catalogs, '1.0'),
     ...MCP_EXAMPLES.map(({filePath, catalog}) => readExampleFile(filePath, catalog, '1.0')),
-  ];
+  ].sort((a, b) => compareExampleFilenames(a.filename, b.filename));
 
   // Generate the file now!
   const tsContent = `/**

@@ -34,15 +34,16 @@ export interface A2uiWebComponentElement extends HTMLElement {
    * should treat an assignment as the signal to (re)bind to the data model,
    * props, and event handlers exposed by the context, and must tolerate it being
    * unset while the element is detached or rendered standalone.
+   *
+   * @deprecated Assign `node` instead.
    */
   context?: ComponentContext;
   /**
    * The resolved node this element renders.
    *
-   * A renderer that resolves its surface through a `NodeResolver` assigns it
-   * together with `context` (`node.context`), so elements that only read
-   * `context` keep working. When both are set, `node` wins: an element that
-   * supports it takes its context and its children from the node.
+   * A renderer that resolves its surface through a `NodeResolver` assigns
+   * `node` to the element; when both `node` and `context` are set, `node`
+   * wins and the element takes its properties and its children from the node.
    */
   node?: ComponentNode;
 }

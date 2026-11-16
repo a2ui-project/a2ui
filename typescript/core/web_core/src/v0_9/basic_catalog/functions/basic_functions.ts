@@ -66,7 +66,20 @@ import {
 } from '../../../common/basic_functions.js';
 
 export {isSafeRegex, type SafeRegexOptions} from './safe_regex.js';
-export * from './legacy_functions_api.js';
+export {
+  AddApi,
+  SubtractApi,
+  MultiplyApi,
+  DivideApi,
+  EqualsApi,
+  NotEqualsApi,
+  GreaterThanApi,
+  LessThanApi,
+  ContainsApi,
+  StartsWithApi,
+  EndsWithApi,
+  LEGACY_V09_FUNCTION_APIS,
+} from './legacy_functions_api.js';
 
 // Legacy arithmetic, comparison, and string functions. See
 // `legacy_functions_api.ts` for why they are kept.

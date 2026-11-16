@@ -132,7 +132,7 @@ class TestExpressIntegration(unittest.TestCase):
                     "component": "TextField",
                     "label": "Name",
                     "value": {"path": "/name"},
-                    "checks": [{
+                    "@checks": [{
                         "condition": {
                             "call": "required",
                             "args": {"value": {"path": "/name"}},

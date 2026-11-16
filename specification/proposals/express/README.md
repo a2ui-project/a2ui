@@ -6,7 +6,7 @@ A2UI Express is a compact, token-efficient declarative syntax designed for dynam
 
 ## Environment Variable Gate
 
-To prevent pollution of the stable v1.0 baseline workspace during development, all A2UI Express code imports and command-line utilities are gated behind the environment variable `A2UI_EXPRESS_ENABLED`.
+To prevent pollution of the v1.0 baseline workspace during development, all A2UI Express code imports and command-line utilities are gated behind the environment variable `A2UI_EXPRESS_ENABLED`.
 
 You **must** prepend `A2UI_EXPRESS_ENABLED=true` to all python command invocations.
 
@@ -34,7 +34,7 @@ To run inference and compiler validation using a standard remote Gemini model (e
 
    # Run inference against Gemini API (using the a2ui_agent project environment)
    A2UI_EXPRESS_ENABLED=true uv run --project ../../../python/a2ui_agent scripts/run_inference.py \
-     ../../../catalogs/basic/v1/examples/01_flight-status.json \
+     ../../../catalogs/basic/v1/examples/flight-status.json \
      --model gemini-3.1-flash-lite
    ```
 
@@ -77,7 +77,7 @@ A2UI_EXPRESS_ENABLED=true uv run --project ../../../python/a2ui_agent scripts/ru
 Convert a standard A2UI v1.0 JSON example back into compact A2UI Express code. The script takes the components of the example's first `updateComponents` message, wraps them in a `createSurface` for the basic catalog, and prints the resulting `surface(...)` block:
 
 ```bash
-A2UI_EXPRESS_ENABLED=true uv run --project ../../../python/a2ui_agent scripts/run_decompiler.py ../../../catalogs/basic/v1/examples/01_flight-status.json
+A2UI_EXPRESS_ENABLED=true uv run --project ../../../python/a2ui_agent scripts/run_decompiler.py ../../../catalogs/basic/v1/examples/flight-status.json
 ```
 
 ### Regenerate documentation examples

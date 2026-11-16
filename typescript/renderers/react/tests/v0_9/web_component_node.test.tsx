@@ -25,11 +25,8 @@ import {
   NodeResolver,
   SurfaceModel,
   peekValue,
-} from '@a2ui/web_core/v0_9';
-import type {
-  A2uiWebComponentElement,
-  WebComponentImplementation,
-} from '@a2ui/web_core/v0_9/universal';
+} from '@a2ui/web_core';
+import type {A2uiWebComponentElement, WebComponentImplementation} from '@a2ui/web_core/universal';
 import {WebComponentNode} from '../../src/web_component_node';
 
 const TestComp: WebComponentImplementation = {
@@ -59,7 +56,7 @@ describe('WebComponentNode', () => {
     for (const resolver of resolvers.splice(0)) resolver.dispose();
   });
 
-  it('defines the element and hands it the node and its context', () => {
+  it('defines the element and hands it the node without setting context', () => {
     const node = rootNode('surf-1');
 
     const {container, rerender} = render(<WebComponentNode node={node} />);
@@ -67,11 +64,11 @@ describe('WebComponentNode', () => {
     expect(customElements.get(TestComp.tagName)).toBe(TestComp.element);
     const el = container.querySelector(TestComp.tagName) as A2uiWebComponentElement;
     expect(el.node).toBe(node);
-    expect(el.context).toBe(node.context);
+    expect(el.context).toBeUndefined();
 
     const other = rootNode('surf-2');
     rerender(<WebComponentNode node={other} />);
     expect(el.node).toBe(other);
-    expect(el.context).toBe(other.context);
+    expect(el.context).toBeUndefined();
   });
 });

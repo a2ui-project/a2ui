@@ -13,6 +13,7 @@
 # limitations under the License.
 
 - name: test_function_format_date_tr35_tokens
+  features: [F-CORE-19, F-CORE-22]
   description: Verifies formatDate TR35 token expansion (yyyy-MM-dd).
   catalog:
     protocolVersion: "1.0"
@@ -40,6 +41,7 @@
             text: "2026-09-04"
 
 - name: test_function_format_currency_locale_and_symbol
+  features: [F-CORE-19, F-CORE-22]
   description: Verifies formatCurrency with currency symbol, decimals, and grouping separators.
   catalog:
     protocolVersion: "1.0"
@@ -68,6 +70,7 @@
             text: "$1,234.50"
 
 - name: test_function_pluralize_categories
+  features: [F-CORE-19, F-CORE-22]
   description: Verifies pluralize resolving CLDR categories (one, other).
   catalog:
     protocolVersion: "1.0"
@@ -110,6 +113,7 @@
             text: "5 items"
 
 - name: test_function_logical_and_or_not
+  features: [F-CORE-22]
   description: Verifies and, or, and not logical function evaluations.
   catalog:
     protocolVersion: "1.0"
@@ -183,6 +187,7 @@
 
 # --- RequiredFunction (D20) ---
 - name: test_evaluate_function_required_string_valid
+  features: [F-CORE-22]
   description: Verifies required returns true for non-empty string.
   action: evaluate_function
   function: required
@@ -191,6 +196,7 @@
   expect: true
 
 - name: test_evaluate_function_required_string_empty
+  features: [F-CORE-22]
   description: Verifies required returns false for empty string.
   action: evaluate_function
   function: required
@@ -199,6 +205,7 @@
   expect: false
 
 - name: test_evaluate_function_required_null
+  features: [F-CORE-22]
   description: Verifies required returns false for null.
   action: evaluate_function
   function: required
@@ -232,6 +239,7 @@
 
 # --- RegexFunction (D21) ---
 - name: test_evaluate_function_regex_match
+  features: [F-CORE-20, F-CORE-22]
   description: Verifies regex returns true on matching string.
   action: evaluate_function
   function: regex
@@ -241,6 +249,7 @@
   expect: true
 
 - name: test_evaluate_function_regex_mismatch
+  features: [F-CORE-20, F-CORE-22]
   description: Verifies regex returns false on non-matching string.
   action: evaluate_function
   function: regex
@@ -250,6 +259,7 @@
   expect: false
 
 - name: test_evaluate_function_regex_invalid_pattern
+  features: [F-CORE-20, F-CORE-22]
   description: Verifies regex raises ExpressionError on invalid regex pattern (D21).
   action: evaluate_function
   function: regex
@@ -259,8 +269,363 @@
   expectError:
     category: ExpressionError
 
+# --- A2UI Regex Dialect & Static Safety Guard ---
+- name: test_evaluate_function_regex_v10_dollar_does_not_match_before_trailing_newline
+  description: Verifies $ matches only at the very end of the string and not before a trailing newline.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "^abc$"
+    value: "abc\n"
+  expect:
+    valid: false
+
+- name: test_evaluate_function_regex_v10_digit_class_ascii_only
+  description: Verifies \d matches only ASCII digits 0-9 and rejects non-ASCII decimal digits.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "^\\d+$"
+    value: "١٢٣"
+  expect:
+    valid: false
+
+- name: test_evaluate_function_regex_v10_word_class_ascii_only
+  description: Verifies \w matches only ASCII word characters [A-Za-z0-9_].
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "^\\w+$"
+    value: "café"
+  expect:
+    valid: false
+
+- name: test_evaluate_function_regex_v10_dot_excludes_newline
+  description: Verifies . does not match across line terminators.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "^a.b$"
+    value: "a\nb"
+  expect:
+    valid: false
+
+- name: test_evaluate_function_regex_v10_case_sensitive
+  description: Verifies regex matching is case-sensitive.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "^abc$"
+    value: "ABC"
+  expect:
+    valid: false
+
+- name: test_evaluate_function_regex_v10_word_boundary_ascii_only
+  description: Verifies \b uses ASCII word boundaries and does not treat non-ASCII letters as word characters.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "\\b"
+    value: "é"
+  expect:
+    valid: false
+
+- name: test_evaluate_function_regex_v10_search_semantics
+  description: Verifies regex uses substring search semantics when unanchored.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "abc"
+    value: "xxabcxx"
+  expect:
+    valid: true
+
+- name: test_evaluate_function_regex_v10_astral_dot_matches_single_code_point
+  description: Verifies . matches a single astral Unicode code point in Unicode mode.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "^.$"
+    value: "😀"
+  expect:
+    valid: true
+
+- name: test_evaluate_function_regex_v10_braced_unicode_escape
+  description: Verifies braced Unicode code point escapes (\u{H...}) match astral characters.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "^\\u{1F600}+$"
+    value: "😀😀"
+  expect:
+    valid: true
+
+- name: test_evaluate_function_regex_v10_rejects_backreference
+  description: Verifies backreferences are rejected with UNSUPPORTED_SYNTAX.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "(a)\\1"
+    value: "aa"
+  expectError:
+    category: ExpressionError
+    message: "UNSUPPORTED_SYNTAX"
+
+- name: test_evaluate_function_regex_v10_rejects_lookbehind
+  description: Verifies lookbehind assertions are rejected with UNSUPPORTED_SYNTAX.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "(?<=a)b"
+    value: "ab"
+  expectError:
+    category: ExpressionError
+    message: "UNSUPPORTED_SYNTAX"
+
+- name: test_evaluate_function_regex_v10_rejects_named_group
+  description: Verifies named capture groups are rejected with UNSUPPORTED_SYNTAX.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "(?<n>a)"
+    value: "a"
+  expectError:
+    category: ExpressionError
+    message: "UNSUPPORTED_SYNTAX"
+
+- name: test_evaluate_function_regex_v10_rejects_inline_flag
+  description: Verifies inline flag modifiers are rejected with UNSUPPORTED_SYNTAX.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "(?i)a"
+    value: "a"
+  expectError:
+    category: ExpressionError
+    message: "UNSUPPORTED_SYNTAX"
+
+- name: test_evaluate_function_regex_v10_rejects_unicode_property
+  description: Verifies Unicode property escapes are rejected with UNSUPPORTED_SYNTAX.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "\\p{L}"
+    value: "a"
+  expectError:
+    category: ExpressionError
+    message: "UNSUPPORTED_SYNTAX"
+
+- name: test_evaluate_function_regex_v10_rejects_nested_quantifier_plus
+  description: Verifies unbounded quantifier nesting (a+)+$ is rejected with NESTED_QUANTIFIER.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "(a+)+$"
+    value: "aaa"
+  expectError:
+    category: ExpressionError
+    message: "NESTED_QUANTIFIER"
+
+- name: test_evaluate_function_regex_v10_rejects_nested_quantifier_bounded_outer
+  description: Verifies bounded quantifier with upper bound > 1 over unbounded inner quantifier is rejected with NESTED_QUANTIFIER.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "(a*){2,5}"
+    value: "aaa"
+  expectError:
+    category: ExpressionError
+    message: "NESTED_QUANTIFIER"
+
+- name: test_evaluate_function_regex_v10_rejects_overlapping_alternation_prefix
+  description: Verifies unbounded repetition of alternation with overlapping first sets (a|ab)*c is rejected with OVERLAPPING_ALTERNATION.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "(a|ab)*c"
+    value: "abc"
+  expectError:
+    category: ExpressionError
+    message: "OVERLAPPING_ALTERNATION"
+
+- name: test_evaluate_function_regex_v10_rejects_overlapping_alternation_class
+  description: Verifies unbounded repetition of alternation with overlapping character classes (\d|[0-5])+ is rejected with OVERLAPPING_ALTERNATION.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "(\\d|[0-5])+"
+    value: "123"
+  expectError:
+    category: ExpressionError
+    message: "OVERLAPPING_ALTERNATION"
+
+- name: test_evaluate_function_regex_v10_rejects_adjacent_overlap_direct
+  description: Verifies adjacent unbounded quantifiers with overlapping character sets \d+\d+ are rejected with ADJACENT_OVERLAP.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "\\d+\\d+"
+    value: "12"
+  expectError:
+    category: ExpressionError
+    message: "ADJACENT_OVERLAP"
+
+- name: test_evaluate_function_regex_v10_rejects_adjacent_overlap_across_nullable
+  description: Verifies unbounded quantifiers with overlapping character sets separated only by nullable items \d+\s*\d+ are rejected with ADJACENT_OVERLAP.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "\\d+\\s*\\d+"
+    value: "12"
+  expectError:
+    category: ExpressionError
+    message: "ADJACENT_OVERLAP"
+
+- name: test_evaluate_function_regex_v10_accepts_optional_outer_group
+  description: Verifies optional outer group over unbounded inner quantifier (?:ab+)?c is accepted.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "(?:ab+)?c"
+    value: "abbc"
+  expect:
+    valid: true
+
+- name: test_evaluate_function_regex_v10_accepts_disjoint_alternation
+  description: Verifies unbounded repetition over disjoint alternation (a|b)*c is accepted.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "(a|b)*c"
+    value: "abac"
+  expect:
+    valid: true
+
+- name: test_evaluate_function_regex_v10_accepts_non_nullable_separator
+  description: Verifies unbounded quantifiers separated by a non-nullable disjoint item \w+\s+\w+ are accepted.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "\\w+\\s+\\w+"
+    value: "hello world"
+  expect:
+    valid: true
+
+- name: test_evaluate_function_regex_v10_accepts_anchored_email_like
+  description: Verifies standard anchored email-like pattern ^[a-z]+@[a-z]+\.com$ is accepted.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "^[a-z]+@[a-z]+\\.com$"
+    value: "ada@example.com"
+  expect:
+    valid: true
+
+- name: test_evaluate_function_regex_v10_accepts_lookahead_password_like
+  description: Verifies positive lookahead before unbounded dot ^(?=.*\d).{8,}$ is accepted.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "^(?=.*\\d).{8,}$"
+    value: "secret42"
+  expect:
+    valid: true
+
+- name: test_evaluate_function_regex_v10_accepts_256_code_point_pattern
+  description: Verifies a 256-code-point pattern at the maximum pattern length boundary is accepted.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    value: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  expect:
+    valid: true
+
+- name: test_evaluate_function_regex_v10_rejects_257_code_point_pattern
+  description: Verifies a 257-code-point pattern exceeding the 256-code-point limit is rejected with PATTERN_TOO_LONG.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    value: "a"
+  expectError:
+    category: ExpressionError
+    message: "PATTERN_TOO_LONG"
+
+- name: test_evaluate_function_regex_v10_accepts_4096_code_point_value
+  description: Verifies a 4,096-code-point value at the maximum value length boundary is matched normally.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "^a+$"
+    value: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  expect:
+    valid: true
+
+- name: test_evaluate_function_regex_v10_value_exceeding_4096_code_points_returns_invalid
+  description: Verifies a 4,097-code-point value exceeding the 4,096-code-point cap returns invalid without raising an error.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "^a+$"
+    value: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  expect:
+    valid: false
+
+- name: test_evaluate_function_regex_v09_rejects_nested_quantifier
+  description: Verifies the static regex safety guard also rejects unsafe patterns on v0.9 with NESTED_QUANTIFIER.
+  protocolVersion: "v0.9"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "(a+)+$"
+    value: "aaa"
+  expectError:
+    category: ExpressionError
+    message: "NESTED_QUANTIFIER"
+
+- name: test_evaluate_function_regex_v09_value_exceeding_4096_code_points_returns_false
+  description: Verifies a 4,097-code-point value exceeding the 4,096-code-point cap returns false on v0.9 without raising an error.
+  protocolVersion: "v0.9"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "^a+$"
+    value: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  expect: false
+
 # --- EmailFunction (D22) ---
 - name: test_evaluate_function_email_valid
+  features: [F-CORE-22]
   description: Verifies email returns true on standard email address.
   action: evaluate_function
   function: email
@@ -286,6 +651,7 @@
 
 # --- LengthFunction (D24) ---
 - name: test_evaluate_function_length_string_valid
+  features: [F-CORE-22]
   description: Verifies length returns true when string is within bounds.
   action: evaluate_function
   function: length
@@ -354,6 +720,7 @@
 
 # --- NumericFunction (D23) ---
 - name: test_evaluate_function_numeric_valid_float
+  features: [F-CORE-22]
   description: Verifies numeric returns true for float within bounds.
   action: evaluate_function
   function: numeric
@@ -892,6 +1259,82 @@
     category: CatalogError
     message: "has no default catalogId"
 
+- name: test_evaluate_function_v10_format_string_template_call_inherits_catalog_without_default
+  description: >-
+    Verifies a function call inside a formatString ${...} template expression inherits the catalogId that formatString itself resolved to. Because ${...} has no syntax for naming a catalogId, a template call such as ${pluralize(...)} runs in formatString's catalog even when the surface has no default catalog.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface: {}
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "Count: ${pluralize(value: 2, one: 'drop', other: 'drops')}"
+  expect: "Count: drops"
+
+- name: test_evaluate_function_v10_format_string_template_call_inherits_named_catalog_over_default
+  description: >-
+    Verifies a function call inside a formatString ${...} template expression runs in the catalog that formatString names rather than the surface default catalog. The surface default is the conformance custom catalog, which declares no pluralize; formatString names the basic catalog, so ${pluralize(...)} resolves in the basic catalog.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+    - "conformance/test_data/catalogs/custom_catalog_v1_0.json"
+  surface:
+    catalogId: "conformance/custom"
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "Count: ${pluralize(value: 2, one: 'drop', other: 'drops')}"
+  expect: "Count: drops"
+
+- name: test_evaluate_function_v10_format_string_template_call_inherits_catalog_nested
+  description: >-
+    Verifies nested function calls at multiple depths inside a formatString ${...} template expression all inherit the catalogId that formatString itself resolved to on a defaultless surface.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface: {}
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "Count: ${pluralize(value: 1, one: formatNumber(value: 42, grouping: false), other: 'many')} (${not(value: not(value: true))})"
+  expect: "Count: 42 (true)"
+
+- name: test_evaluate_function_v10_format_string_template_call_missing_in_inherited_catalog_errors
+  description: >-
+    Verifies a formatString ${...} template call missing from the inherited catalog fails with an ExpressionError naming the missing function, rather than a CatalogError complaining that the surface has no default catalogId.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface: {}
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "${noSuchFn()}"
+  expectError:
+    category: ExpressionError
+    message: "noSuchFn"
+
+- name: test_evaluate_function_v10_format_string_index_stays_catalogless_without_default
+  description: >-
+    Verifies ${@index()} inside a formatString call on a defaultless v1.0 surface remains catalogless and fails with the collection-scope ExpressionError at root rather than an error for stamping a catalogId onto @index.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface: {}
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "${@index()}"
+  expectError:
+    category: ExpressionError
+    message: "@index function can only be evaluated inside a collection template iteration scope."
+
 - name: test_evaluate_function_v09_ignores_call_catalog_id
   description: >-
     Verifies a catalogId on a call is ignored before v1.0. On a v0.9 surface the call runs in the surface catalog, so naming a catalog the client does not have is not an error.
@@ -959,6 +1402,7 @@
   expect: "1,234"
 
 - name: test_evaluate_function_v10_validation_result_coerced_in_not_operand_on_surface
+  features: [F-CORE-27]
   description: >-
     Verifies a ValidationResult resolved from a nested validation call into not's DynamicBoolean operand is read by its validity when the call runs on a surface.
   action: evaluate_function
@@ -976,6 +1420,7 @@
   expect: true
 
 - name: test_evaluate_function_v10_validation_result_coerced_in_and_operands_on_surface
+  features: [F-CORE-27]
   description: >-
     Verifies the ValidationResults resolved from nested validation calls into and's DynamicBoolean operands are read by their validity when the call runs on a surface, as in the specification's enable-when-valid example.
   action: evaluate_function
@@ -1009,6 +1454,7 @@
 # renderer refuses it before running it.
 
 - name: test_evaluate_function_v10_agent_only_function_errors
+  features: [F-CORE-34]
   description: >-
     Verifies a v1.0 call on a surface to a function whose allowedCallers is agentOnly fails with an ExpressionError and does not run.
   action: evaluate_function

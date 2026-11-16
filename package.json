@@ -18,7 +18,6 @@
     "samples/client/lit",
     "samples/client/lit/*",
     "samples/client/react/*",
-    "samples/personalized_learning",
     "samples/vegachart",
     "specification/*/test",
     "tools/*",

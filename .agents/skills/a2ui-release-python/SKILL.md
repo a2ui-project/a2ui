@@ -1,6 +1,8 @@
 ---
 name: a2ui-release-python
 description: Releases the Python SDKs (a2ui-core, a2ui-agent-sdk, a2ui-a2a, a2ui-adk) to PyPI by running preflight checks, dispatching the release workflow as a dry run, confirming with the maintainer, publishing, and following the changelog pull request through to merge. Use when asked to cut, publish, or release a Python SDK version.
+metadata:
+  internal: true
 ---
 
 # Releasing the A2UI Python SDKs

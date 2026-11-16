@@ -22,9 +22,9 @@ license = { text = "Apache-2.0" }
 keywords = ["a2ui", "adk", "agent", "ui"]
 dependencies = [
   # 0.8.0 is the last agent SDK release that still ships `a2ui.a2a` and
-  # `a2ui.adk` itself. Installing it next to this package would make two
-  # distributions write the same files, so require a later release.
-  "a2ui-agent-sdk>0.8.0",
+  # `a2ui.adk` itself, and 0.10.0 is the last one that does not ship
+  # `a2ui.rpc`.
+  "a2ui-agent-sdk>0.10.0",
   "google-adk>=1.28.1",
   "google-genai>=1.27.0",
 ]
@@ -39,7 +39,7 @@ Issues = "https://github.com/a2ui-project/a2ui/issues"
 # The ADK-to-A2A converters (`a2ui.adk.a2a`) and the A2A subagent orchestration
 # helpers (`a2ui.adk.orchestration`) need the A2A extension.
 a2a = [
-  "a2ui-a2a>=0.1.0",
+  "a2ui-a2a>0.2.0",
   "google-adk[a2a]>=1.28.1",
 ]
 
@@ -59,7 +59,7 @@ build-backend = "hatchling.build"
 # used.
 [tool.hatch.version]
 source = "vcs"
-fallback-version = "0.1.0"
+fallback-version = "0.3.0"
 
 [tool.hatch.version.raw-options]
 root = "../.."

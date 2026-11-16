@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-import {useCallback, useId, useMemo} from 'react';
-import type * as Types from '@a2ui/web_core/types/types';
+import {useCallback, useMemo} from 'react';
 import type * as Primitives from '@a2ui/web_core/types/primitives';
+import type * as Types from '@a2ui/web_core/types/types';
 import {useA2UIActions, useA2UIState} from '../core/A2UIProvider';
 import {useTheme} from '../theme/ThemeContext';
+import {useIdCompat} from './useIdCompat';
 
 /**
  * Result returned by the useA2UIComponent hook.
@@ -84,7 +85,7 @@ export function useA2UIComponent<T extends Types.AnyComponentNode>(
   // Use stable actions - won't cause re-renders when version changes
   const actions = useA2UIActions();
   const theme = useTheme();
-  const baseId = useId();
+  const baseId = useIdCompat();
 
   // Subscribe to data model version - triggers re-render when data changes via setData.
   // This ensures components with path bindings see updated values.
@@ -220,7 +221,7 @@ export function useA2UIComponent<T extends Types.AnyComponentNode>(
 
   /**
    * Generate a unique ID for accessibility purposes.
-   * Uses React's useId() for SSR and Concurrent Mode compatibility.
+   * Uses React's useId() when available, with a client-side fallback on React 17.
    */
   const getUniqueId = useCallback(
     (prefix: string) => {

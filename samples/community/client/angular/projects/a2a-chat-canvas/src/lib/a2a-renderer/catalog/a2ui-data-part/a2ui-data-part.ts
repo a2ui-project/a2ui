@@ -29,7 +29,7 @@ import {ChangeDetectionStrategy, Component, computed, inject, input} from '@angu
  * Component responsible for rendering an A2UI surface embedded within an A2A message part.
  * Supports both A2UI v0.8 and v0.9 rendering pipelines:
  * - For v0.8 (legacy): Extracts the surface ID from the 'beginRendering' message and renders using the legacy `Surface` component.
- * - For v0.9 (latest): Extracts the surface ID from the 'createSurface' message and renders using the `SurfaceComponent` from the v0.9 package.
+ * - For v0.9: Extracts the surface ID from the 'createSurface' message and renders using the `SurfaceComponent` from the v0.9 package.
  */
 @Component({
   selector: 'a2ui-data-part',

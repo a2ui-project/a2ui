@@ -59,7 +59,7 @@ Every argument is required, and a `null` or missing argument is rejected by vali
 
 `split` and `regexCapture` take a single string or an array of strings in `value`, and apply the operation to each element of an array. A `null` element reads as the empty string, and a capture group that did not take part in the match reads as the empty string too.
 
-Patterns use a portable subset of regular expressions that every renderer can implement: JavaScript syntax without lookahead or lookbehind assertions (`(?=`, `(?!`, `(?<=`, `(?<!`) and without backreferences (`\1` to `\9`, `\k<name>`). Patterns are compiled without flags, after a check with `redos-detector` (the same check as the basic catalog's `regex` function) rules out catastrophic backtracking. A pattern outside the subset, unsafe or not valid JavaScript syntax raises an `A2uiExpressionError`. RE2-only syntax such as the `(?i)` inline flag is rejected. To test whether a string matches a pattern, use the basic catalog's `regex` function.
+Patterns use the A2UI regex dialect: a portable subset of ECMAScript pattern syntax in Unicode mode (`u`) with no other flags (no lookbehind assertions `(?<=`, `(?<!`, backreferences `\1` to `\9` or `\k<name>`, named groups `(?<name>`, `\p{...}`, or inline flags). Patterns are validated with `analyzeRegex` from `@a2ui/web_core` (the same parser and static safety check as the basic catalog's `regex` function) to rule out unsupported syntax and catastrophic backtracking. A pattern outside the dialect, unsafe, or longer than 256 code points raises an `A2uiExpressionError`. To test whether a string matches a pattern, use the basic catalog's `regex` function.
 
 ### Why these four
 
@@ -109,7 +109,10 @@ const myCatalog = new Catalog(
   [ParseCsvImplementation],
 );
 
-const processor = new MessageProcessor([basicCatalog, mcpCatalog, myCatalog], onAction);
+const processor = new MessageProcessor([basicCatalog, mcpCatalog, myCatalog], undefined, {
+  outboundListener: send,
+  unifiedOutbound: true,
+});
 ```
 
 A payload calls it with that `catalogId`, and it composes with the MCP functions like any other call:
@@ -156,8 +159,9 @@ await client.connect(new SSEClientTransport(new URL('http://127.0.0.1:8000/sse')
 import {basicCatalog, MessageProcessor} from '@a2ui/web_core/v1_0';
 import {configureMcpCatalog, mcpCatalog} from '@a2ui/catalog-mcp';
 
-const processor = new MessageProcessor([basicCatalog, mcpCatalog], async action => {
-  console.log('A2UI action triggered:', action);
+const processor = new MessageProcessor([basicCatalog, mcpCatalog], undefined, {
+  outboundListener: send, // forward to your agent; feed its replies to processor.processMessages
+  unifiedOutbound: true,
 });
 
 configureMcpCatalog({
@@ -187,7 +191,8 @@ const processor = new MessageProcessor(
       [...basicCatalog.functions.values(), ...mcpCatalog.functions.values()],
     ),
   ],
-  onAction,
+  undefined,
+  {outboundListener: send, unifiedOutbound: true},
 );
 configureMcpCatalog({getMcpClientForTool: () => client, processor});
 ```
@@ -484,8 +489,7 @@ The component owns its bridge: `McpAppBridge` (`src/components/mcp_app_bridge.ts
 | `src/functions/update_data_model.ts`   | `updateDataModel`                                                                                                                                                                    |
 | `src/functions/split.ts`               | `split`                                                                                                                                                                              |
 | `src/functions/regex_capture.ts`       | `regexCapture`                                                                                                                                                                       |
-| `src/functions/regex_support.ts`       | `isPortableRegex`, `compileSafeRegex` (the cached compilation behind the portability and `isSafeRegex` checks) and `mapTextValue`, the string-or-array mapping of the text functions |
-| `src/functions/safe_regex.ts`          | `isSafeRegex`, the `redos-detector` check for catastrophic backtracking, the same check as the basic catalog's `regex` function                                                      |
+| `src/functions/regex_support.ts`       | `compileSafeRegex` (the cached Unicode compilation validated with `analyzeRegex` from `@a2ui/web_core`) and `mapTextValue`, the string-or-array mapping of the text functions        |
 | `src/dynamic-values.ts`                | Resolution of dynamic values nested in literal containers                                                                                                                            |
 | `src/components/mcp_app.ts`            | The `McpApp` universal component and its API                                                                                                                                         |
 | `src/components/mcp_app_bridge.ts`     | `McpAppBridge`: `AppBridge` setup, tool calls, function calls and data model sync                                                                                                    |

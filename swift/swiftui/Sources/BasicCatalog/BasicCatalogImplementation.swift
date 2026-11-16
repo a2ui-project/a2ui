@@ -56,10 +56,13 @@ public enum BasicCatalogImplementation: Sendable {
 
   /// Returns a new SwiftUI `Catalog<ComponentImplementation>` instance for the specified A2UI
   /// protocol version whose `formatNumber`, `formatCurrency` and `pluralize` functions use
-  /// `locale`, which defaults to `BasicFunctions.defaultLocale` (`en_US`).
+  /// `locale`, which defaults to `BasicFunctions.defaultLocale` (`en_US`), and whose `openUrl`
+  /// function passes the resolved URL to `openURLHandler`. The handler is held weakly, so keep a
+  /// strong reference to it for as long as the catalog is in use.
   public static func makeCatalog(
     version: A2UIProtocolVersion,
-    locale: Locale = BasicFunctions.defaultLocale
+    locale: Locale = BasicFunctions.defaultLocale,
+    openURLHandler: (any OpenURLHandler)? = nil
   ) -> Catalog<ComponentImplementation> {
     switch version {
     case .v09, .v091:
@@ -67,7 +70,7 @@ public enum BasicCatalogImplementation: Sendable {
         id: BasicCatalog.catalogURI(version: version),
         protocolVersion: version,
         components: allComponents,
-        functions: V09BasicFunctions.makeFunctions(locale: locale),
+        functions: V09BasicFunctions.makeFunctions(locale: locale, openURLHandler: openURLHandler),
         themeSchema: V09BasicCatalog.themeSchema
       )
     case .v10:
@@ -75,7 +78,7 @@ public enum BasicCatalogImplementation: Sendable {
         id: BasicCatalog.catalogURI(version: .v10),
         protocolVersion: .v10,
         components: v10Components,
-        functions: V10BasicFunctions.makeFunctions(locale: locale),
+        functions: V10BasicFunctions.makeFunctions(locale: locale, openURLHandler: openURLHandler),
         themeSchema: nil
       )
     }

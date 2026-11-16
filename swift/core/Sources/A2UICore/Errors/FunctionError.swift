@@ -30,7 +30,22 @@ public enum FunctionError: Error, Sendable, Equatable, CustomStringConvertible, 
   case noListener(name: String)
   case callerDisallowed(name: String, caller: String)
   case userActivationRequired(name: String)
-  case remoteError(code: String, message: String)
+  case remoteError(code: String, message: String, callID: String? = nil)
+
+  /// The `functionCallId` associated with this error, if it originated from an RPC call.
+  public var functionCallID: String? {
+    switch self {
+    case .timeout(let callID),
+      .cancelled(let callID),
+      .disposed(let callID),
+      .duplicate(let callID):
+      return callID
+    case .remoteError(_, _, let callID):
+      return callID
+    default:
+      return nil
+    }
+  }
 
   /// Standardized RPC error code corresponding to this error.
   public var rpcCode: String {
@@ -54,7 +69,7 @@ public enum FunctionError: Error, Sendable, Equatable, CustomStringConvertible, 
       return "DUPLICATE"
     case .noListener:
       return "NO_LISTENER"
-    case .remoteError(let code, _):
+    case .remoteError(let code, _, _):
       return code
     }
   }
@@ -87,7 +102,7 @@ public enum FunctionError: Error, Sendable, Equatable, CustomStringConvertible, 
       return "Function '\(name)' cannot be called by \(caller)"
     case .userActivationRequired(let name):
       return "Function '\(name)' requires user activation context to execute."
-    case .remoteError(let code, let message):
+    case .remoteError(let code, let message, _):
       return "Remote function error (\(code)): \(message)"
     }
   }

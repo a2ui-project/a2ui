@@ -52,9 +52,9 @@ _UNRESOLVED_ARGUMENT_MESSAGE = "An argument of the function call could not be re
 class _PendingAgentCall:
     """Record of a pending outbound callAgentFunction request matching TS interface."""
 
-    surface_id: str
     resolve: Callable[[Any], None]
     reject: Callable[[BaseException], None]
+    surface_id: str = ""
 
 
 @dataclass
@@ -130,10 +130,15 @@ class RpcHandler:
         return self._is_disposed
 
     def dispose(self, reason: str = "RpcHandler has been disposed.") -> None:
-        """Cancels all pending outbound RPC calls and marks the instance disposed."""
+        """Cancels all pending outbound RPC calls and marks the instance disposed.
+
+        Pending calls fail with `CANCELLED`, later calls with `DISPOSED`, and
+        the outbound listener is removed.
+        """
         if self._is_disposed:
             return
         self._is_disposed = True
+        self.outbound_listener = None
 
         for call_id, pending in list(self._pending_agent_calls.items()):
             pending.reject(
@@ -145,19 +150,20 @@ class RpcHandler:
             )
         self._pending_agent_calls.clear()
 
-    def cancel_surface_calls(self, surface_id: str) -> None:
-        """Cancels all pending outbound RPC calls belonging to the given surface."""
+    def cancel_surface_calls(self, surface_id: str | None = None) -> None:
+        """Cancels pending outbound RPC calls for the given surface, or all surfaces if None."""
         for call_id, pending in list(self._pending_agent_calls.items()):
-            if pending.surface_id != surface_id:
-                continue
-            self._pending_agent_calls.pop(call_id, None)
-            pending.reject(
-                A2uiRpcError(
-                    f"Pending calls for surface '{surface_id}' were cancelled.",
-                    function_call_id=call_id,
-                    code=RpcErrorCode.CANCELLED.value,
+            if surface_id is None or pending.surface_id == surface_id:
+                self._pending_agent_calls.pop(call_id, None)
+                pending.reject(
+                    A2uiRpcError(
+                        f"Pending calls for surface '{surface_id}' were cancelled."
+                        if surface_id is not None
+                        else f"Call '{call_id}' was cancelled.",
+                        function_call_id=call_id,
+                        code=RpcErrorCode.CANCELLED.value,
+                    )
                 )
-            )
 
     def resolve_catalog(self, catalog_id: str | None = None) -> CatalogApi | None:
         """Looks up a catalog by catalog_id, applying no default.
@@ -375,7 +381,12 @@ class RpcHandler:
                 if (
                     expression_error is None
                     and isinstance(err, dict)
-                    and err.get("code") in ("EXPRESSION_ERROR", "EXECUTION_ERROR")
+                    and err.get("code")
+                    in (
+                        "CATALOG_ERROR",
+                        "EXPRESSION_ERROR",
+                        "EXECUTION_ERROR",
+                    )
                 ):
                     expression_error = str(
                         err.get("message") or _UNRESOLVED_ARGUMENT_MESSAGE
@@ -487,6 +498,25 @@ class RpcHandler:
         self._emit_outbound_response(resp.model_dump(by_alias=True, exclude_unset=True))
         return resp
 
+    @staticmethod
+    def _scope_call_context(
+        context: DataContext | None, matched_catalog: Any
+    ) -> DataContext | None:
+        """Returns `context` scoped to `matched_catalog`'s ID when available."""
+        if context is None or matched_catalog is None:
+            return context
+        catalog_id = getattr(matched_catalog, "catalog_id", None)
+        with_catalog = getattr(context, "with_active_catalog_id", None)
+        if isinstance(catalog_id, str) and callable(with_catalog):
+            try:
+                return cast(
+                    DataContext,
+                    with_catalog(catalog_id, catalog=matched_catalog),
+                )
+            except TypeError:
+                return cast(DataContext, with_catalog(catalog_id))
+        return context
+
     def _execute_function_safely(
         self,
         fn: Any,
@@ -499,6 +529,7 @@ class RpcHandler:
     ) -> RendererFunctionResponseMessage:
         """Safely executes a function implementation synchronously, returning response model."""
         effective_context = self._ensure_data_context(context, matched_catalog, call_id)
+        call_context = self._scope_call_context(effective_context, matched_catalog)
         prepared = self._prepare_target_function(
             matched_catalog,
             call_name,
@@ -506,7 +537,7 @@ class RpcHandler:
             fn,
             call_id,
             version,
-            context=effective_context,
+            context=call_context,
         )
         if prepared.error_response is not None:
             return prepared.error_response
@@ -519,10 +550,10 @@ class RpcHandler:
             )
             has_pos_context, has_kw_context = self._inspect_call_signature(target_fn)
             raw_res = (
-                target_fn(fn_args, effective_context)
+                target_fn(fn_args, call_context)
                 if has_pos_context
                 else (
-                    target_fn(fn_args, context=effective_context)
+                    target_fn(fn_args, context=call_context)
                     if has_kw_context
                     else target_fn(fn_args)
                 )
@@ -570,6 +601,7 @@ class RpcHandler:
     ) -> RendererFunctionResponseMessage:
         """Safely executes a function implementation asynchronously, returning response model."""
         effective_context = self._ensure_data_context(context, matched_catalog, call_id)
+        call_context = self._scope_call_context(effective_context, matched_catalog)
         prepared = self._prepare_target_function(
             matched_catalog,
             call_name,
@@ -577,7 +609,7 @@ class RpcHandler:
             fn,
             call_id,
             version,
-            context=effective_context,
+            context=call_context,
         )
         if prepared.error_response is not None:
             return prepared.error_response
@@ -590,10 +622,10 @@ class RpcHandler:
             )
             has_pos_context, has_kw_context = self._inspect_call_signature(target_fn)
             raw_res = (
-                target_fn(fn_args, effective_context)
+                target_fn(fn_args, call_context)
                 if has_pos_context
                 else (
-                    target_fn(fn_args, context=effective_context)
+                    target_fn(fn_args, context=call_context)
                     if has_kw_context
                     else target_fn(fn_args)
                 )
@@ -849,9 +881,9 @@ class RpcHandler:
     def _register_pending_call(
         self,
         call_id: str,
-        surface_id: str,
         future: asyncio.Future[Any],
         timer_handle: asyncio.TimerHandle | None,
+        surface_id: str = "",
     ) -> _PendingAgentCall:
         """Creates and registers a _PendingAgentCall with done callback cleanup."""
 
@@ -881,7 +913,7 @@ class RpcHandler:
                     pass
 
         pending = _PendingAgentCall(
-            surface_id=surface_id, resolve=resolve, reject=reject
+            resolve=resolve, reject=reject, surface_id=surface_id
         )
         self._pending_agent_calls[call_id] = pending
         return pending
@@ -958,7 +990,9 @@ class RpcHandler:
         timer_handle = self._create_timeout_timer(
             call_id, call.call, effective_timeout, loop
         )
-        pending = self._register_pending_call(call_id, surface_id, future, timer_handle)
+        pending = self._register_pending_call(
+            call_id, future, timer_handle, surface_id=surface_id
+        )
         self._send_outbound_message(outbound_msg, call_id, pending, loop)
         return future
 

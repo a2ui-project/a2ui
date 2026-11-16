@@ -135,6 +135,31 @@ void main() {
       'allowedCallers': 'rendererOrAgent',
     });
 
+    // Catalog.fromJson rejects a JSON document combining
+    // requiresUserActivation: true with allowedCallers != 'rendererOnly', so
+    // construct an in-memory CatalogApi directly to exercise the processor's
+    // defense-in-depth user-activation check on callRendererFunction.
+    final FunctionApi openUrlSignature = catalog.functions['openUrl']!;
+    final CatalogApi openUrlByAgent = Catalog(
+      id: catalog.id,
+      components: catalog.components.values.toList(),
+      functions: [
+        for (final FunctionApi fn in catalog.functions.values)
+          if (fn.name == 'openUrl')
+            FunctionApi(
+              name: openUrlSignature.name,
+              argumentSchema: openUrlSignature.argumentSchema,
+              returnType: openUrlSignature.returnType,
+              allowedCallers: AllowedCallers.rendererOrAgent,
+              requiresUserActivation: true,
+            )
+          else
+            fn,
+      ],
+      protocolVersion: catalog.protocolVersion,
+      definitions: catalog.definitions,
+    );
+
     final Map<String, Object?> formatHello = callRendererFunction({
       '@call': 'formatString',
       'args': {'value': 'Hello'},
@@ -189,9 +214,7 @@ void main() {
 
     test('rejects a call needing a user activation without one', () {
       final MessageProcessor<ComponentApi> processor = forAgent(
-        catalogs: [
-          declaring('openUrl', {'allowedCallers': 'rendererOrAgent'}),
-        ],
+        catalogs: [openUrlByAgent],
       );
       final Map<String, Object?> openUrl = callRendererFunction({
         '@call': 'openUrl',
@@ -320,9 +343,7 @@ void main() {
 
       test('rejects a call needing a user activation without one', () {
         final MessageProcessor<ComponentApi> processor = forAgent(
-          catalogs: [
-            declaring('openUrl', {'allowedCallers': 'rendererOrAgent'}),
-          ],
+          catalogs: [openUrlByAgent],
         );
         final CallRendererFunctionMessage openUrl = message(
           callRendererFunction({

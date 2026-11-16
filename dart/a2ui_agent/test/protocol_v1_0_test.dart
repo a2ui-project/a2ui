@@ -396,7 +396,7 @@ void main() {
             {
               'id': 'root',
               'component': 'Text',
-              'catalogId': basic.id,
+              '@catalogId': basic.id,
               'text': 'Hello',
             },
           ]),
@@ -649,7 +649,7 @@ void main() {
           {
             'id': 'root',
             'component': 'Gauge',
-            'catalogId': custom.id,
+            '@catalogId': custom.id,
             'value': 1,
           },
         ]),
@@ -702,7 +702,7 @@ void main() {
             {
               'id': 'root',
               'component': 'Gauge',
-              'catalogId': 'https://example.com/elsewhere.json',
+              '@catalogId': 'https://example.com/elsewhere.json',
               'value': 1,
             },
           ]),
@@ -886,7 +886,7 @@ void main() {
         '@call': 'formatString',
         'args': {'value': 'Name'},
       });
-      expect(component['checks'], [
+      expect(component['@checks'], [
         {
           'condition': {
             '@call': 'required',
@@ -1158,13 +1158,13 @@ void main() {
         {
           'id': 'root',
           'component': 'Column',
-          'catalogId': basic.id,
+          '@catalogId': basic.id,
           'children': ['root_children_0'],
         },
         {
           'id': 'root_children_0',
           'component': 'Gauge',
-          'catalogId': custom.id,
+          '@catalogId': custom.id,
           'value': 50,
         },
       ]);
@@ -1188,7 +1188,7 @@ void main() {
       );
       expect(
         (components('root = Text("Hi", catalogId="${custom.id}")').single
-            as Map)['catalogId'],
+            as Map)['@catalogId'],
         custom.id,
       );
     });
@@ -1205,7 +1205,7 @@ void main() {
                 '$field${basic.id}", [?required({catalogId: "${basic.id}"})])',
               ).single
               as Map;
-      expect(((component['checks']! as List).single as Map)['condition'], {
+      expect(((component['@checks']! as List).single as Map)['condition'], {
         '@call': 'required',
         'catalogId': basic.id,
         'args': {
@@ -1252,16 +1252,16 @@ void main() {
               {
                 'id': 'root',
                 'component': 'Column',
-                'catalogId': basic.id,
+                '@catalogId': basic.id,
                 'children': ['name', 'gauge'],
               },
               {
                 'id': 'name',
                 'component': 'TextField',
-                'catalogId': basic.id,
+                '@catalogId': basic.id,
                 'label': 'Name',
                 'value': {'@path': '/name'},
-                'checks': [
+                '@checks': [
                   {
                     'condition': {
                       '@call': 'required',
@@ -1277,7 +1277,7 @@ void main() {
               {
                 'id': 'gauge',
                 'component': 'Gauge',
-                'catalogId': custom.id,
+                '@catalogId': custom.id,
                 'value': 1,
               },
             ],
@@ -1318,7 +1318,7 @@ void main() {
               {
                 'id': 'root',
                 'component': 'Text',
-                'catalogId': basic.id,
+                '@catalogId': basic.id,
                 'text': {
                   '@call': 'percent',
                   'catalogId': custom.id,
@@ -1346,7 +1346,7 @@ void main() {
                 {
                   'id': 'root',
                   'component': 'Text',
-                  'catalogId': basic.id,
+                  '@catalogId': basic.id,
                   'text': {
                     '@call': 'formatString',
                     'args': {'value': 'Hi'},
@@ -1468,7 +1468,7 @@ void main() {
           {
             'id': 'root',
             'component': 'Text',
-            'catalogId': 'https://example.com/elsewhere.json',
+            '@catalogId': 'https://example.com/elsewhere.json',
             'text': 'Hello',
           },
         ]),
@@ -1524,7 +1524,7 @@ void main() {
               'id': 'root',
               'component': 'Text',
               'text': 'Hello',
-              'metadata': {
+              '@metadata': {
                 'extensions': {
                   'tracking': {'@call': 'track', 'catalogId': 'vendor'},
                 },
@@ -1554,6 +1554,114 @@ void main() {
             'value': {'@path': '/name'},
           }, surfaceId: 's'),
         ]),
+      );
+    });
+
+    test('dual-reads legacy bare component envelope keys on v1.0 and preserves '
+        'custom properties with envelope names', () {
+      final CatalogApi customProps = Catalog.fromJson({
+        'catalogId': 'https://example.com/custom_props.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'Inspector': {
+            'type': 'object',
+            'allOf': [
+              {r'$ref': r'common_types.json#/$defs/Checkable'},
+              {
+                'type': 'object',
+                'properties': {
+                  'component': {'const': 'Inspector'},
+                  'metadata': {
+                    r'$ref': r'common_types.json#/$defs/DynamicString',
+                  },
+                  'catalogId': {'type': 'string'},
+                  'accessibility': {'type': 'string'},
+                  'checks': {'type': 'integer'},
+                  'value': {r'$ref': r'common_types.json#/$defs/DataBinding'},
+                },
+                'required': ['component', 'metadata'],
+              },
+            ],
+          },
+        },
+        'functions': {
+          'required': {
+            'type': 'object',
+            'returnType': 'validationResult',
+            'properties': {
+              '@call': {'const': 'required'},
+              'args': {
+                'type': 'object',
+                'properties': {'value': <String, Object?>{}},
+                'required': ['value'],
+                'unevaluatedProperties': false,
+              },
+            },
+            'required': ['@call', 'args'],
+          },
+        },
+      });
+
+      final parser = ExpressParser([basic, customProps]);
+      final List<AgentToRendererMessage> compiled = parser.compile(
+        r'root = Inspector("meta-val", "cat-prop", "a11y-prop", 3, $/name, '
+        'catalogId="${customProps.id}", extensions={trace: "t1"}, '
+        '[?required("Needed", {catalogId: "${customProps.id}"})])',
+      );
+      final comp =
+          compiled.single.toJson()['createSurface']! as Map<String, Object?>;
+      expect(comp['components'], [
+        {
+          'id': 'root',
+          'component': 'Inspector',
+          '@catalogId': customProps.id,
+          '@metadata': {
+            'extensions': {'trace': 't1'},
+          },
+          'metadata': 'meta-val',
+          'catalogId': 'cat-prop',
+          'accessibility': 'a11y-prop',
+          'checks': 3,
+          'value': {'@path': '/name'},
+          '@checks': [
+            {
+              'condition': {
+                '@call': 'required',
+                'catalogId': customProps.id,
+                'args': {
+                  'value': {'@path': '/name'},
+                },
+              },
+              'message': 'Needed',
+            },
+          ],
+        },
+      ]);
+      final String decompiled = parser.decompile(compiled);
+      expect(json(parser.compile(decompiled)), json(compiled));
+
+      // Nested function calls inside a custom `metadata` property are still
+      // validated by validatePayload.
+      expect(
+        () => validatePayload(
+          [callable, customProps],
+          [
+            message(
+              createSurface(catalogId: customProps.id, [
+                {
+                  'id': 'root',
+                  'component': 'Inspector',
+                  'metadata': {
+                    '@call': 'formatString',
+                    'catalogId': 'https://example.com/unknown.json',
+                    'args': {'value': 'Hi'},
+                  },
+                },
+              ]),
+            ),
+          ],
+        ),
+        throwsError<A2uiValidationError>(),
       );
     });
   });

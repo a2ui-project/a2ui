@@ -141,26 +141,26 @@ def test_hand_written_second_catalog_component(parser: ElementalParser) -> None:
     assert comps["root"] == {
         "id": "root",
         "component": "Column",
-        "catalogId": PRI,
+        "@catalogId": PRI,
         "children": ["n", "w", "p"],
     }
     assert comps["n"] == {
         "id": "n",
         "component": "Note",
-        "catalogId": SEC,
+        "@catalogId": SEC,
         "body": "from-sec",
     }
     # The same component name resolves against a different schema per catalog.
     assert comps["w"] == {
         "id": "w",
         "component": "Widget",
-        "catalogId": SEC,
+        "@catalogId": SEC,
         "secondaryArg": "from-sec",
     }
     assert comps["p"] == {
         "id": "p",
         "component": "Widget",
-        "catalogId": PRI,
+        "@catalogId": PRI,
         "primaryArg": "from-pri",
     }
 
@@ -233,8 +233,8 @@ def test_unannotated_unique_check_resolves_across_catalogs(
             "components": [{
                 "id": "root",
                 "component": "Widget",
-                "catalogId": SEC,
-                "checks": [{
+                "@catalogId": SEC,
+                "@checks": [{
                     "condition": {
                         "@call": "openUrl",
                         "catalogId": PRI,
@@ -250,6 +250,55 @@ def test_unannotated_unique_check_resolves_across_catalogs(
     assert _compile(parser, decompiled) == [payload]
 
 
+def test_v1_0_decompile_accepts_legacy_bare_envelope_keys(
+    parser: ElementalParser,
+) -> None:
+    check = {
+        "condition": {"@call": "openUrl", "catalogId": PRI, "args": {"url": "x"}},
+        "message": "Bad",
+    }
+
+    def payload(catalog_key: str, checks_key: str) -> dict[str, Any]:
+        return {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "main",
+                "components": [{
+                    "id": "root",
+                    "component": "Widget",
+                    catalog_key: SEC,
+                    checks_key: [check],
+                }],
+            },
+        }
+
+    decompiled = parser.decompile(to_message_models(payload("catalogId", "checks")))
+    assert f'catalog-id="{SEC}"' in decompiled
+    assert "openUrl(url: 'x', message: 'Bad')" in decompiled
+    assert _compile(parser, decompiled) == [payload("@catalogId", "@checks")]
+
+
+def test_v1_0_decompile_prefers_at_keys_over_legacy_bare_keys(
+    parser: ElementalParser,
+) -> None:
+    payload = {
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "main",
+            "components": [{
+                "id": "root",
+                "component": "Widget",
+                "@catalogId": SEC,
+                "catalogId": PRI,
+                "secondaryArg": "s",
+            }],
+        },
+    }
+    decompiled = parser.decompile(to_message_models(payload))
+    assert f'catalog-id="{SEC}"' in decompiled
+    assert PRI not in decompiled
+
+
 def test_explicit_function_catalog_for_shared_function_round_trips(
     parser: ElementalParser,
 ) -> None:
@@ -260,7 +309,7 @@ def test_explicit_function_catalog_for_shared_function_round_trips(
             "components": [{
                 "id": "root",
                 "component": "Widget",
-                "catalogId": SEC,
+                "@catalogId": SEC,
                 "label": {
                     "@call": "sharedFn",
                     "catalogId": SEC,
@@ -282,7 +331,9 @@ def test_update_components_round_trip_on_non_default_surface(
             "version": "1.0",
             "createSurface": {
                 "surfaceId": "s2",
-                "components": [{"id": "root", "component": "Widget", "catalogId": SEC}],
+                "components": [
+                    {"id": "root", "component": "Widget", "@catalogId": SEC}
+                ],
             },
         },
         {
@@ -292,7 +343,7 @@ def test_update_components_round_trip_on_non_default_surface(
                 "components": [{
                     "id": "root",
                     "component": "Widget",
-                    "catalogId": SEC,
+                    "@catalogId": SEC,
                     "secondaryArg": "z",
                 }],
             },
@@ -318,7 +369,7 @@ def test_update_components_without_create_round_trips(
             "components": [{
                 "id": "root",
                 "component": "Text",
-                "catalogId": PRI,
+                "@catalogId": PRI,
                 "text": "new",
             }],
         },
@@ -357,7 +408,7 @@ def test_root_data_update_after_create_replaces_data_model(
                 "components": [{
                     "id": "root",
                     "component": "Text",
-                    "catalogId": PRI,
+                    "@catalogId": PRI,
                     "text": "t",
                 }],
                 "dataModel": {"a": 1, "b": 2},
@@ -393,7 +444,7 @@ def test_update_body_with_components_and_data(parser: ElementalParser) -> None:
                 "components": [{
                     "id": "root",
                     "component": "Text",
-                    "catalogId": PRI,
+                    "@catalogId": PRI,
                     "text": {"@path": "/count"},
                 }],
             },
@@ -541,13 +592,13 @@ def test_attribute_values_with_quotes_round_trip(
                     {
                         "id": _ODD,
                         "component": "Text",
-                        "catalogId": PRI,
+                        "@catalogId": PRI,
                         "text": f"say {_ODD} 'hi'",
                     },
                     {
                         "id": "t2",
                         "component": "Text",
-                        "catalogId": PRI,
+                        "@catalogId": PRI,
                         "text": {
                             "@call": "sharedFn",
                             "catalogId": PRI,
@@ -557,7 +608,7 @@ def test_attribute_values_with_quotes_round_trip(
                     {
                         "id": "root",
                         "component": "Column",
-                        "catalogId": PRI,
+                        "@catalogId": PRI,
                         "children": [_ODD, "t2"],
                     },
                 ],
@@ -571,7 +622,7 @@ def test_attribute_values_with_quotes_round_trip(
                 "components": [{
                     "id": "t2",
                     "component": "Text",
-                    "catalogId": PRI,
+                    "@catalogId": PRI,
                     "text": _ODD,
                 }],
             },
@@ -623,7 +674,7 @@ def test_catalog_ids_with_quotes_round_trip() -> None:
                 "components": [{
                     "id": "root",
                     "component": "Box",
-                    "catalogId": odd_catalog,
+                    "@catalogId": odd_catalog,
                     "label": "l",
                 }],
             },
@@ -802,7 +853,7 @@ def test_v1_0_multi_catalog_omits_catalog_id_on_create_surface() -> None:
             "components": [{
                 "id": "root",
                 "component": "Text",
-                "catalogId": PRI,
+                "@catalogId": PRI,
                 "text": {"@path": "/a"},
             }],
             "dataModel": {"a": "x"},
@@ -866,7 +917,7 @@ def test_undeclared_function_call_and_check_with_single_catalog_round_trips() ->
     )
     comp = _components(messages)["root"]
     assert comp["label"] == {"@call": "undeclaredFn", "args": {"foo": "bar"}}
-    assert comp["checks"] == [{
+    assert comp["@checks"] == [{
         "condition": {"@call": "undeclaredCheck", "args": {"x": 1}},
         "message": "Bad",
     }]

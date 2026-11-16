@@ -23,10 +23,11 @@
 
 import {AgentToRendererMessage, CatalogApi, isAtLeastVersion} from '../../internal/web-core.js';
 import {PromptGenerator} from '../../prompt/generator.js';
+import {agentCallableFunctions} from '../../utils/agent-callable.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 import {buildSchemaHelpers, catalogsDefining, resolveExpressVersion} from './catalogs.js';
 import {ExpressDecompiler, RawNumber} from './decompiler.js';
-import {CatalogSchemaHelper, commonDefName} from './schema-helper.js';
+import {CatalogSchemaHelper, commonDefName, getEnvelopeValue} from './schema-helper.js';
 
 const EVENT_RULE_V10 = `8. Action events: represent server-side actions using the Event helper, \`Event(name, context?, userMessage=...)\`:
    Event("save_deal", {rep: $/form/rep})
@@ -133,6 +134,25 @@ function exampleRootComponent(catalogs: readonly CatalogApi[]): string | undefin
   return undefined;
 }
 
+function renumberRules(text: string): string {
+  let ruleIndex = 0;
+  return text.replace(
+    /(?<=\n\n)(\d+\. )([^\n]*(?:\n(?!\n)[^\n]*)*)/g,
+    (_match, oldPrefix: string, body: string) => {
+      ruleIndex += 1;
+      const newPrefix = `${ruleIndex}. `;
+      const adjustedBody =
+        oldPrefix.length === newPrefix.length
+          ? body
+          : body.replace(
+              new RegExp(`\\n {${oldPrefix.length}}`, 'g'),
+              '\n' + ' '.repeat(newPrefix.length),
+            );
+      return `${newPrefix}${adjustedBody}`;
+    },
+  );
+}
+
 /** The message types a fenced JSON example may contain to be rewritten as Express. */
 const TRANSLATABLE_MESSAGE_TYPES = [
   'createSurface',
@@ -178,22 +198,50 @@ function getSchemaEnum(propSchema: unknown): string[] | undefined {
   return undefined;
 }
 
-function applyDefaultCatalogToValue(val: unknown, defaultCatalogId: string): unknown {
+function applyDefaultCatalogToCalls(val: unknown, defaultCatalogId: string): unknown {
   if (val instanceof RawNumber || !val || typeof val !== 'object') {
     return val;
   }
   if (Array.isArray(val)) {
-    return val.map(item => applyDefaultCatalogToValue(item, defaultCatalogId));
+    return val.map(item => applyDefaultCatalogToCalls(item, defaultCatalogId));
   }
   const obj = val as Record<string, unknown>;
   const copy: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
-    copy[k] = applyDefaultCatalogToValue(v, defaultCatalogId);
+    copy[k] = applyDefaultCatalogToCalls(v, defaultCatalogId);
   }
-  const isComponent = typeof copy.component === 'string';
-  const isCall = typeof copy.call === 'string' || typeof copy['@call'] === 'string';
-  if ((isComponent || isCall) && !copy.catalogId) {
+  const callName =
+    typeof copy['@call'] === 'string'
+      ? copy['@call']
+      : typeof copy.call === 'string'
+        ? copy.call
+        : undefined;
+  // A system function, such as `@index`, belongs to no catalog.
+  const isCatalogCall = callName !== undefined && !callName.startsWith('@');
+  if (isCatalogCall && !copy.catalogId) {
     copy.catalogId = defaultCatalogId;
+  }
+  return copy;
+}
+
+function applyDefaultCatalogToComponent(
+  comp: unknown,
+  defaultCatalogId: string,
+  atLeastV10: boolean,
+  helper?: CatalogSchemaHelper,
+): unknown {
+  const transformed = applyDefaultCatalogToCalls(comp, defaultCatalogId);
+  if (!transformed || typeof transformed !== 'object' || Array.isArray(transformed)) {
+    return transformed;
+  }
+  const copy = transformed as Record<string, unknown>;
+  const compName = typeof copy.component === 'string' ? copy.component : undefined;
+  if (!compName) {
+    return copy;
+  }
+  const customProps = helper?.getCustomEnvelopeProperties(compName);
+  if (getEnvelopeValue(copy, 'catalogId', atLeastV10, customProps) === undefined) {
+    copy[atLeastV10 ? '@catalogId' : 'catalogId'] = defaultCatalogId;
   }
   return copy;
 }
@@ -204,6 +252,8 @@ function applyDefaultCatalogToValue(val: unknown, defaultCatalogId: string): unk
 function withDefaultCatalog(
   messages: AgentToRendererMessage[],
   defaultCatalogId?: string,
+  atLeastV10 = true,
+  helper?: CatalogSchemaHelper,
 ): AgentToRendererMessage[] {
   if (!defaultCatalogId) {
     return messages;
@@ -232,15 +282,13 @@ function withDefaultCatalog(
       const uc = copy.updateComponents as Record<string, unknown>;
       const sid =
         typeof uc.surfaceId === 'string' && uc.surfaceId ? uc.surfaceId : 'default_surface';
-      if (!createdSurfaces.has(sid)) {
-        copy.updateComponents = applyDefaultCatalogToValue(uc, defaultCatalogId);
-      }
-    } else if (copy.updateDataModel && typeof copy.updateDataModel === 'object') {
-      const udm = copy.updateDataModel as Record<string, unknown>;
-      const sid =
-        typeof udm.surfaceId === 'string' && udm.surfaceId ? udm.surfaceId : 'default_surface';
-      if (!createdSurfaces.has(sid)) {
-        copy.updateDataModel = applyDefaultCatalogToValue(udm, defaultCatalogId);
+      if (!createdSurfaces.has(sid) && Array.isArray(uc.components)) {
+        copy.updateComponents = {
+          ...uc,
+          components: uc.components.map(comp =>
+            applyDefaultCatalogToComponent(comp, defaultCatalogId, atLeastV10, helper),
+          ),
+        };
       }
     } else if (copy.callRendererFunction && typeof copy.callRendererFunction === 'object') {
       const crf = copy.callRendererFunction as Record<string, unknown>;
@@ -364,10 +412,21 @@ export class ExpressPromptGenerator extends PromptGenerator {
     const allowedMessages = this.allowedMessages;
     let rules = isAtLeastVersion(this.version, '1.0') ? EXPRESS_RULES : EXPRESS_RULES_PRE_V10;
     let wantsComponentsOrData = true;
+    let wantsComponents = true;
+    const callableFns = isAtLeastVersion(this.version, '1.0')
+      ? agentCallableFunctions(this.catalogs)
+      : [];
+    const callRendererAllowed =
+      !allowedMessages ||
+      allowedMessages.includes('callRendererFunction') ||
+      allowedMessages.includes('CallRendererFunctionMessage');
 
     if (allowedMessages) {
       // Filter rule 12 if deleteSurface is disallowed
-      if (!allowedMessages.includes('deleteSurface')) {
+      if (
+        !allowedMessages.includes('deleteSurface') &&
+        !allowedMessages.includes('DeleteSurfaceMessage')
+      ) {
         rules = rules.replace(
           /\n\n12\. To delete a user interface surface, output the standalone `deleteSurface\(surfaceId\)` command \(no variable assignment\):\n {4}deleteSurface\("dashboard-surface-1"\)/,
           '',
@@ -375,7 +434,10 @@ export class ExpressPromptGenerator extends PromptGenerator {
       }
 
       // Filter rule 10 if updateDataModel is disallowed
-      if (!allowedMessages.includes('updateDataModel')) {
+      if (
+        !allowedMessages.includes('updateDataModel') &&
+        !allowedMessages.includes('UpdateDataModelMessage')
+      ) {
         rules = rules.replace(
           /\n\n10\. Data model population: Assign a value directly to an absolute data path \(e\.g\. \$\/path\/to\/key = "value"\) to populate or initialize values inside the shared dataModel\. The value can be a primitive, array, or map\./,
           '',
@@ -386,9 +448,15 @@ export class ExpressPromptGenerator extends PromptGenerator {
       // target a surface. Its `root = ...` line applies only to components, and the rule
       // goes when neither kind of statement is allowed.
       const writesComponents =
-        allowedMessages.includes('createSurface') || allowedMessages.includes('updateComponents');
-      const writesData = allowedMessages.includes('updateDataModel');
+        allowedMessages.includes('createSurface') ||
+        allowedMessages.includes('CreateSurfaceMessage') ||
+        allowedMessages.includes('updateComponents') ||
+        allowedMessages.includes('UpdateComponentsMessage');
+      const writesData =
+        allowedMessages.includes('updateDataModel') ||
+        allowedMessages.includes('UpdateDataModelMessage');
       wantsComponentsOrData = writesComponents || writesData;
+      wantsComponents = writesComponents;
       if (!writesComponents) {
         rules = rules.replace(/\n {4}root = ComponentA\(\.\.\.\)$/, '');
         if (!writesData) {
@@ -400,16 +468,65 @@ export class ExpressPromptGenerator extends PromptGenerator {
       }
     }
 
+    const hasCallableRule = callRendererAllowed && callableFns.length > 0;
+    if (hasCallableRule) {
+      const formatted = callableFns.map(name => `\`${name}\``).join(', ');
+      const callRule =
+        'To have the renderer run a function right away, output the call as a standalone command (no variable assignment):\n' +
+        `    ${callableFns[0]}(...)\n` +
+        `    Only these functions can be called this way: ${formatted}.`;
+      rules = rules.replace(
+        /\n\n13\. Static properties:/,
+        `\n\n13. ${callRule}\n\n14. Static properties:`,
+      );
+    }
+
     const rootComponent = exampleRootComponent(this.catalogs);
     if (rootComponent !== undefined) {
       rules = rules.replace(ROOT_EXAMPLE_LINE, `root = ${rootComponent}(...)`);
     }
 
+    const hasMultiCatalogRules = this.catalogs.length > 1 && wantsComponentsOrData;
     const lines = [rules];
-    if (this.catalogs.length > 1 && wantsComponentsOrData) {
+    if (hasMultiCatalogRules) {
       lines.push(this.multiCatalogRules());
     }
-    return lines.join('\n');
+    let combined = lines.join('\n');
+    if (allowedMessages !== undefined || hasCallableRule || hasMultiCatalogRules) {
+      combined = renumberRules(combined);
+    }
+    if (wantsComponents) {
+      const systemFunctions = this.generateSystemFunctionSignatures();
+      if (systemFunctions) {
+        combined += `\n\n${systemFunctions}`;
+      }
+    }
+    return combined;
+  }
+
+  /**
+   * Lists the system functions of the target version, such as `@index`.
+   *
+   * System functions are defined by the protocol rather than a catalog, so they are
+   * listed once, in the same signature format as catalog functions, and only for a
+   * version that defines them.
+   *
+   * @returns The section, or an empty string if the version defines none.
+   */
+  private generateSystemFunctionSignatures(): string {
+    const helper = this.catalogs.length > 0 ? this.getHelper(this.catalogs[0]) : undefined;
+    if (!helper || helper.systemFunctions.size === 0) {
+      return '';
+    }
+    const sigs = this.formatFunctionSignatures(
+      helper,
+      Array.from(helper.systemFunctions.keys()).sort(),
+    );
+    return (
+      '## System Functions\n\nThese functions are defined by the A2UI protocol, not by a' +
+      ' catalog. Call them by their `@` name, like any function, and never add a' +
+      ` \`catalogId\` to them:\n${sigs}`
+    );
   }
 
   protected renderCatalogInstructions(catalog: CatalogApi): string {
@@ -614,7 +731,11 @@ export class ExpressPromptGenerator extends PromptGenerator {
   }
 
   generateFunctionSignatures(helper: CatalogSchemaHelper): string {
-    const fnNames = Array.from(helper.functions.keys()).sort();
+    return this.formatFunctionSignatures(helper, Array.from(helper.functions.keys()).sort());
+  }
+
+  /** Writes one signature, with its descriptions, for each named function. */
+  private formatFunctionSignatures(helper: CatalogSchemaHelper, fnNames: string[]): string {
     return fnNames
       .map(name => {
         const props = helper.getFunctionProperties(name);
@@ -684,7 +805,8 @@ export class ExpressPromptGenerator extends PromptGenerator {
    */
   private decompileMessages(messages: AgentToRendererMessage[], catalog?: CatalogApi): string {
     const decompiler = new ExpressDecompiler(this.catalogs, this.version);
-    const normalized = withDefaultCatalog(messages, catalog?.id);
+    const helper = catalog ? this.getHelper(catalog) : undefined;
+    const normalized = withDefaultCatalog(messages, catalog?.id, this.version === '1.0', helper);
     return decompiler.wrap([
       {type: 'a2ui', a2uiRaw: decompiler.decompile(normalized), isFinal: true},
     ]);
@@ -703,9 +825,12 @@ export class ExpressPromptGenerator extends PromptGenerator {
     if (Array.isArray(exampleMessages) && exampleMessages.length > 0) {
       if (Array.isArray(exampleMessages[0])) {
         const decompiler = new ExpressDecompiler(this.catalogs, this.version);
+        const helper = this.getHelper(catalog);
         const blocks: string[] = [];
         for (const turn of exampleMessages as AgentToRendererMessage[][]) {
-          const dsl = decompiler.decompile(withDefaultCatalog(turn, catalog.id));
+          const dsl = decompiler.decompile(
+            withDefaultCatalog(turn, catalog.id, this.version === '1.0', helper),
+          );
           if (dsl) {
             blocks.push(decompiler.wrap([{type: 'a2ui', a2uiRaw: dsl, isFinal: true}]));
           }

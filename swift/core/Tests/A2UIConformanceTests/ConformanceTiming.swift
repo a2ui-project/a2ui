@@ -18,19 +18,21 @@ import Foundation
 /// `conformance/agent/direct_json/scaling.yaml` describes.
 ///
 /// The timing cases are slow and depend on the machine and its load, so they run only when the
-/// `A2UI_RUN_TIMING` environment variable is `1`, apart from the other tests:
+/// `A2UI_PERFORMANCE` or `A2UI_RUN_TIMING` environment variable is `1`, apart from the other tests:
 ///
 /// ```bash
-/// A2UI_RUN_TIMING=1 swift test -c release -Xswiftc -enable-testing \
+/// A2UI_PERFORMANCE=1 swift test -c release -Xswiftc -enable-testing \
 ///   --filter MessageProcessorScalingConformanceTests
 /// ```
 ///
 /// `A2UI_TIMING_RUNS` sets how many times each call is timed, and `A2UI_TIMING_CASE` runs only
 /// the cases whose name contains its value.
 public enum ConformanceTiming {
-  /// Whether the timing cases run, which the `A2UI_RUN_TIMING` environment variable asks for.
+  /// Whether the timing cases run, which the `A2UI_PERFORMANCE` or `A2UI_RUN_TIMING` environment
+  /// variable asks for.
   public static var isEnabled: Bool {
-    ProcessInfo.processInfo.environment["A2UI_RUN_TIMING"] == "1"
+    ProcessInfo.processInfo.environment["A2UI_PERFORMANCE"] == "1"
+      || ProcessInfo.processInfo.environment["A2UI_RUN_TIMING"] == "1"
   }
 
   /// How many times each call is timed: 5, or the value of the `A2UI_TIMING_RUNS` environment

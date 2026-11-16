@@ -17,14 +17,35 @@
 // Phase 0: Foundations
 export {type ProtocolVersion} from './types.js';
 
-// The v1.0 agent-to-renderer protocol message. Re-exported because it appears in public
-// signatures -- notably the `examples` parameter of `A2uiGenerator` -- so callers must be
-// able to name it.
-export type {AgentToRendererMessage} from './internal/web-core.js';
+// The v1.0 agent-to-renderer and renderer-to-agent protocol messages. Re-exported because
+// they appear in public signatures -- notably `A2uiGenerator`,
+// `RendererToAgentMessageProcessor`, and `RendererFunctionCalls`.
+export type {
+  ActionMessage,
+  AgentFunctionResponseMessage,
+  AgentToRendererMessage,
+  CallAgentFunctionMessage,
+  CallRendererFunctionMessage,
+  ErrorMessage,
+  RendererFunctionResponseMessage,
+  RendererToAgentMessage,
+} from './internal/web-core.js';
 
 // The renderer capabilities a request is negotiated against. Re-exported because
 // `A2uiGenerator.createProcessor` and `resolveCatalogs` take it.
 export type {RendererCapabilities} from './internal/web-core.js';
+
+export {
+  AgentFunction,
+  type AgentFunctionContext,
+  type AgentFunctionHandler,
+  type AgentFunctionInit,
+  Catalog,
+  type CatalogApi,
+  type CatalogInterface,
+  type CopyWithCatalogOptions,
+  isAgentFunction,
+} from './internal/web-core.js';
 
 export {
   A2uiError,
@@ -34,6 +55,8 @@ export {
   A2uiStateError,
   A2uiIntegrityError,
   A2uiRecursionError,
+  A2uiRpcError,
+  RpcErrorCode,
   ParseError,
   A2uiCompilationError,
   A2uiCompilationParseError,
@@ -80,7 +103,13 @@ export {
 
 export {CatalogConfig} from './processor/catalog-config.js';
 
+export {agentCallableFunctions} from './utils/agent-callable.js';
 export {resolveCatalogs} from './utils/catalog-resolver.js';
+export {
+  A2UI_CLIENT_CAPABILITIES_KEY,
+  A2UI_RENDERER_CAPABILITIES_KEY,
+  readRendererCapabilities,
+} from './utils/renderer-capabilities.js';
 
 // Renderer state and payload validation
 export {RendererState} from './utils/renderer-state.js';
@@ -161,3 +190,21 @@ export {
   SkillGenerator,
   SkillSet,
 } from './skill/index.js';
+
+// Renderer-to-agent messages
+export {
+  type ProcessResult,
+  type RendererMessageCallback,
+  RendererToAgentMessageProcessor,
+  type RendererToAgentMessageProcessorOptions,
+} from './rpc/renderer-to-agent-message-processor.js';
+
+// The agent's calls to renderer functions
+export {
+  type CallRendererFunctionOptions,
+  type CancellablePromise,
+  DEFAULT_RENDERER_CALL_TIMEOUT_MS,
+  type PendingRendererCall,
+  RendererFunctionCalls,
+  type RendererFunctionCallsOptions,
+} from './rpc/renderer-function-calls.js';

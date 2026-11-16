@@ -34,6 +34,12 @@ public final class RPCHandler {
 
   private var pendingCalls: [String: PendingCall] = [:]
 
+  /// The number of outbound calls still awaiting the agent's response.
+  public var pendingCallCount: Int { pendingCalls.count }
+  /// Whether ``disposeAllPendingCalls()`` has run. A disposed handler rejects new outbound
+  /// calls and answers inbound calls with `DISPOSED`.
+  public private(set) var isDisposed = false
+
   public init() {}
 
   // MARK: - Incoming Calls (Agent -> Renderer)
@@ -53,6 +59,16 @@ public final class RPCHandler {
     dataContext: DataContext? = nil,
     userActivationPresent: Bool = false
   ) async -> RendererFunctionResponseMessage {
+    guard !isDisposed else {
+      return RendererFunctionResponseMessage(
+        functionCallID: message.functionCallID,
+        error: FunctionErrorPayload(
+          code: FunctionError.disposed(callID: message.functionCallID).rpcCode,
+          message: "The renderer's RPC state was disposed."
+        ),
+        version: message.version
+      )
+    }
     let callName = message.callFunction.call
     let targetCatalogID = message.callFunction.catalogID
 
@@ -151,7 +167,8 @@ public final class RPCHandler {
     let fallbackHandler = DummyContextFunctionHandler(catalogs: catalogs)
     let argHandler = RPCArgumentFunctionHandler(
       delegate: dataContext?.functionHandler,
-      fallback: fallbackHandler
+      fallback: fallbackHandler,
+      standaloneCatalog: catalog
     )
     let argResolutionContext = DataContext(
       dataModel: dataContext?.dataModel ?? DataModel(),
@@ -161,15 +178,24 @@ public final class RPCHandler {
       index: dataContext?.index,
       isUserActivated: userActivationPresent
     )
-    let effectiveContext =
-      dataContext
-      ?? DataContext(
-        dataModel: argResolutionContext.dataModel,
-        path: "",
-        functionHandler: argHandler,
-        protocolVersion: message.version,
-        isUserActivated: userActivationPresent
-      )
+    argResolutionContext.activeFunctionCatalogID = catalog.id
+    // `RPCArgumentFunctionHandler` intentionally omits `agentFunctionCatalogID` and
+    // `agentFunctionValue`: an agent-initiated `callRendererFunction` cannot wait on another
+    // outbound call back to the agent, so any unimplemented nested call fails locally.
+    let executionHandler = RPCArgumentFunctionHandler(
+      delegate: dataContext?.functionHandler,
+      fallback: fallbackHandler,
+      standaloneCatalog: catalog
+    )
+    let effectiveContext = DataContext(
+      dataModel: argResolutionContext.dataModel,
+      path: dataContext?.path ?? "",
+      functionHandler: executionHandler,
+      protocolVersion: dataContext?.protocolVersion ?? message.version,
+      index: dataContext?.index,
+      isUserActivated: userActivationPresent
+    )
+    effectiveContext.activeFunctionCatalogID = catalog.id
 
     var resolvedArgs: [String: JSONValue] = [:]
     for (key, val) in rawArgs {
@@ -179,7 +205,10 @@ public final class RPCHandler {
     if let capturedError = argHandler.capturedError {
       let errorPayload = FunctionErrorPayload(
         code: .executionError,
-        message: Self.argumentErrorMessage(capturedError)
+        message: Self.errorMessage(
+          capturedError,
+          fallback: "An argument of the function call could not be resolved."
+        )
       )
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
@@ -213,7 +242,10 @@ public final class RPCHandler {
     } catch {
       let errorPayload = FunctionErrorPayload(
         code: .executionError,
-        message: "An error occurred during function execution."
+        message: Self.errorMessage(
+          error,
+          fallback: "An error occurred during function execution."
+        )
       )
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
@@ -223,9 +255,9 @@ public final class RPCHandler {
     }
   }
 
-  /// The message of an error that a nested argument of an agent-initiated call failed with, or a
-  /// descriptive fallback when the error has none.
-  private static func argumentErrorMessage(_ error: any Error) -> String {
+  /// The message of an error thrown while answering an agent-initiated call, or `fallback` when
+  /// the error has no message.
+  private static func errorMessage(_ error: any Error, fallback: String) -> String {
     let message: String
     if let a2uiError = error as? any A2UIError {
       message = a2uiError.message
@@ -235,7 +267,7 @@ public final class RPCHandler {
       message = String(describing: error)
     }
     guard message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return message }
-    return "An argument of the function call could not be resolved."
+    return fallback
   }
 
   // MARK: - Outgoing Calls (Renderer -> Agent)
@@ -262,6 +294,9 @@ public final class RPCHandler {
     sendOutbound: @escaping @Sendable (RendererToAgentMessage) -> Void
   ) async throws -> JSONValue {
     let callID = functionCallID ?? UUID().uuidString
+    guard !isDisposed else {
+      throw FunctionError.disposed(callID: callID)
+    }
     let payload = CallFunctionPayload(
       call: functionName,
       catalogID: catalogID,
@@ -326,7 +361,11 @@ public final class RPCHandler {
 
     if let error = response.error {
       pending.continuation.resume(
-        throwing: FunctionError.remoteError(code: error.code, message: error.message)
+        throwing: FunctionError.remoteError(
+          code: error.code,
+          message: error.message,
+          callID: response.functionCallID
+        )
       )
     } else if let value = response.value {
       pending.continuation.resume(returning: value)
@@ -339,7 +378,8 @@ public final class RPCHandler {
   /// `FunctionError.surfaceCallsCancelled`.
   public func cancelPendingCalls(forSurfaceID surfaceID: String) {
     let error = FunctionError.surfaceCallsCancelled(surfaceID: surfaceID)
-    for (callID, pending) in pendingCalls where pending.surfaceID == surfaceID {
+    let callsToCancel = pendingCalls.filter { $0.value.surfaceID == surfaceID }
+    for (callID, pending) in callsToCancel {
       pendingCalls.removeValue(forKey: callID)
       pending.timeoutTask?.cancel()
       pending.continuation.resume(throwing: error)
@@ -355,11 +395,13 @@ public final class RPCHandler {
     pendingCalls.removeAll()
   }
 
-  /// Disposes all active pending calls, throwing `FunctionError.disposed`.
+  /// Disposes the handler: rejects every in-flight call with `FunctionError.cancelled`
+  /// (`CANCELLED`), and makes later calls fail with `FunctionError.disposed` (`DISPOSED`).
   public func disposeAllPendingCalls() {
+    isDisposed = true
     for (callID, pending) in pendingCalls {
       pending.timeoutTask?.cancel()
-      pending.continuation.resume(throwing: FunctionError.disposed(callID: callID))
+      pending.continuation.resume(throwing: FunctionError.cancelled(callID: callID))
     }
     pendingCalls.removeAll()
   }
@@ -368,18 +410,31 @@ public final class RPCHandler {
 private final class RPCArgumentFunctionHandler: FunctionHandler {
   private let delegate: FunctionHandler?
   private let fallback: DummyContextFunctionHandler
+  private let standaloneCatalog: AnyCatalog?
   private(set) var capturedError: Error?
 
-  init(delegate: FunctionHandler?, fallback: DummyContextFunctionHandler) {
+  init(
+    delegate: FunctionHandler?,
+    fallback: DummyContextFunctionHandler,
+    standaloneCatalog: AnyCatalog? = nil
+  ) {
     self.delegate = delegate
     self.fallback = fallback
+    self.standaloneCatalog = standaloneCatalog
   }
 
   func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
-    if let delegate {
+    guard let delegate else {
+      return fallback.function(named: name, catalogID: catalogID)
+    }
+    guard let catalogID,
+      let standaloneCatalog,
+      catalogID == standaloneCatalog.id,
+      (try? delegate.validateFunctionCatalog(id: catalogID, functionName: name)) == nil
+    else {
       return delegate.function(named: name, catalogID: catalogID)
     }
-    return fallback.function(named: name, catalogID: catalogID)
+    return standaloneCatalog.functions[name]
   }
 
   func handleFunctionError(_ error: Error, functionName: String) {
@@ -390,11 +445,31 @@ private final class RPCArgumentFunctionHandler: FunctionHandler {
   }
 
   func validateFunctionCatalog(id catalogID: String?, functionName: String) throws {
-    if let delegate {
-      try delegate.validateFunctionCatalog(id: catalogID, functionName: functionName)
-    } else {
+    guard let delegate else {
       try fallback.validateFunctionCatalog(id: catalogID, functionName: functionName)
+      return
     }
+    do {
+      try delegate.validateFunctionCatalog(id: catalogID, functionName: functionName)
+    } catch {
+      if let standaloneCatalog, catalogID == standaloneCatalog.id {
+        return
+      }
+      throw error
+    }
+  }
+
+  func resolvedFunctionCatalogID(forCallCatalogID catalogID: String?) -> String? {
+    if let delegate {
+      if let standaloneCatalog,
+        catalogID == standaloneCatalog.id,
+        (try? delegate.validateFunctionCatalog(id: catalogID, functionName: "")) == nil
+      {
+        return standaloneCatalog.id
+      }
+      return delegate.resolvedFunctionCatalogID(forCallCatalogID: catalogID)
+    }
+    return fallback.resolvedFunctionCatalogID(forCallCatalogID: catalogID)
   }
 }
 

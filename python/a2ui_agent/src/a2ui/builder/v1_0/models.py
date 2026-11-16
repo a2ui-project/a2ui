@@ -15,7 +15,7 @@
 """Protocol v1.0 data models, bindings, actions, and type aliases for A2UI builders.
 
 Re-exports ``AccessibilityAttributes``, ``ActionEvent``, ``CheckRule``,
-``DataBinding``, and ``FunctionCall`` from ``a2ui.core.schema.v1_0``.
+``DataBinding``, ``Extensions``, and ``FunctionCall`` from ``a2ui.core.schema.v1_0``.
 Defines ``ComponentBuilderNode``, ``Action``, and ``DynamicChildList`` locally
 for ergonomic authoring.
 """
@@ -23,12 +23,14 @@ for ergonomic authoring.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, Self, TypeAlias
+import copy
+from typing import Any, ClassVar, Self, TypeAlias
 
 from pydantic import (
     AliasChoices,
     AliasPath,
     Field,
+    PydanticUndefinedAnnotation,
     StrictBool,
     StrictFloat,
     StrictInt,
@@ -44,7 +46,7 @@ from a2ui.core.schema.v1_0 import (
     ComponentCommonMetadata,
     CreateSurfaceMetadata,
     DataBinding as DataBinding,
-    Extensions,
+    Extensions as Extensions,
     FunctionCall as FunctionCall,
     LiteralObject,
 )
@@ -52,19 +54,148 @@ from ..core.base_model import BuilderBaseModel
 from ..core.base_node import ComponentBuilderNode as CoreComponentBuilderNode
 from ..core.child import Child
 
+_UNSET_CATALOG_ID: Any = object()
+
+# From v1.0 the `ComponentCommon` envelope mixins serialize under `@`-prefixed
+# wire keys. Validation also accepts the bare keys of pre-cutover payloads.
+_CATALOG_ID_SERIALIZATION_ALIAS = "@catalogId"
+
+
+def _catalog_id_validation_alias() -> AliasChoices:
+    return AliasChoices("@catalogId", "catalogId")
+
 
 class ComponentBuilderNode(CoreComponentBuilderNode):
-    """Base class for A2UI Protocol v1.0 component builders with envelope attributes."""
+    """Base class for A2UI Protocol v1.0 component builders with envelope attributes.
 
-    catalog_id: str | None = Field(default=None, alias="catalogId")
-    accessibility: AccessibilityAttributes | None = None
+    Custom catalog builders may bind a default ``catalogId`` once on a shared
+    base class via ``class FooCatalogNode(ComponentBuilderNode, catalog_id=FOO_CID): ...``.
+
+    The envelope attributes serialize as ``@catalogId``, ``@accessibility`` and
+    ``@metadata``, and validation accepts both those keys and their bare forms.
+    """
+
+    _default_catalog_id: ClassVar[str | None] = None
+
+    catalog_id: str | None = Field(
+        default=None,
+        serialization_alias=_CATALOG_ID_SERIALIZATION_ALIAS,
+        validation_alias=_catalog_id_validation_alias(),
+    )
+    accessibility: AccessibilityAttributes | None = Field(
+        default=None,
+        serialization_alias="@accessibility",
+        validation_alias=AliasChoices("@accessibility", "accessibility"),
+    )
     extensions: Extensions | None = Field(
         default=None,
-        serialization_alias="metadata",
+        serialization_alias="@metadata",
         validation_alias=AliasChoices(
-            "extensions", AliasPath("metadata", "extensions")
+            "extensions",
+            AliasPath("@metadata", "extensions"),
+            AliasPath("metadata", "extensions"),
         ),
     )
+
+    def __init_subclass__(
+        cls,
+        *,
+        catalog_id: str | None = _UNSET_CATALOG_ID,
+        **kwargs: Any,
+    ) -> None:
+        super().__init_subclass__(**kwargs)
+        if catalog_id is not _UNSET_CATALOG_ID:
+            cls._default_catalog_id = catalog_id
+
+    @classmethod
+    def __pydantic_init_subclass__(
+        cls,
+        *,
+        catalog_id: str | None = _UNSET_CATALOG_ID,
+        **kwargs: Any,
+    ) -> None:
+        super().__pydantic_init_subclass__(**kwargs)
+        if catalog_id is not _UNSET_CATALOG_ID:
+            cls._default_catalog_id = catalog_id
+
+        custom_wire_aliases = {
+            f.alias or f.serialization_alias
+            for name, f in cls.model_fields.items()
+            if name not in ("catalog_id", "accessibility", "extensions")
+            and (f.alias or f.serialization_alias) is not None
+        }
+
+        needs_rebuild = False
+
+        cat_field = cls.model_fields.get("catalog_id")
+        if cat_field is not None:
+            new_field = copy.copy(cat_field)
+            cat_changed = False
+
+            inherited_cid = cls._default_catalog_id
+            defines_own_field = (
+                "catalog_id" in cls.__dict__ or "catalog_id" in cls.__annotations__
+            )
+            if not defines_own_field and new_field.default != inherited_cid:
+                new_field.default = inherited_cid
+                cat_changed = True
+
+            if new_field.alias is None:
+                expected_cat_val_alias: str | AliasChoices = (
+                    _CATALOG_ID_SERIALIZATION_ALIAS
+                    if "catalogId" in custom_wire_aliases
+                    else _catalog_id_validation_alias()
+                )
+                if new_field.validation_alias is None or (
+                    "catalogId" in custom_wire_aliases
+                    and new_field.validation_alias != expected_cat_val_alias
+                ):
+                    new_field.validation_alias = expected_cat_val_alias
+                    cat_changed = True
+                if new_field.serialization_alias is None:
+                    new_field.serialization_alias = _CATALOG_ID_SERIALIZATION_ALIAS
+                    cat_changed = True
+
+            if cat_changed:
+                cls.model_fields["catalog_id"] = new_field
+                needs_rebuild = True
+
+        if "accessibility" in custom_wire_aliases:
+            a11y_field = cls.model_fields.get("accessibility")
+            if (
+                a11y_field is not None
+                and a11y_field.validation_alias != "@accessibility"
+            ):
+                new_a11y = copy.copy(a11y_field)
+                new_a11y.validation_alias = "@accessibility"
+                cls.model_fields["accessibility"] = new_a11y
+                needs_rebuild = True
+
+        if "metadata" in custom_wire_aliases or "extensions" in custom_wire_aliases:
+            ext_field = cls.model_fields.get("extensions")
+            choices: list[str | AliasPath] = []
+            if "extensions" not in custom_wire_aliases:
+                choices.append("extensions")
+            choices.append(AliasPath("@metadata", "extensions"))
+            if "metadata" not in custom_wire_aliases:
+                choices.append(AliasPath("metadata", "extensions"))
+            at_only_ext_alias: str | AliasPath | AliasChoices = (
+                choices[0] if len(choices) == 1 else AliasChoices(*choices)
+            )
+            if (
+                ext_field is not None
+                and ext_field.validation_alias != at_only_ext_alias
+            ):
+                new_ext = copy.copy(ext_field)
+                new_ext.validation_alias = at_only_ext_alias
+                cls.model_fields["extensions"] = new_ext
+                needs_rebuild = True
+
+        if needs_rebuild:
+            try:
+                cls.model_rebuild(force=True, raise_errors=True)
+            except PydanticUndefinedAnnotation:
+                cls.model_rebuild(force=True, raise_errors=False)
 
     @field_serializer("extensions")
     def _serialize_extensions(
@@ -216,6 +347,7 @@ __all__ = [
     "DynamicString",
     "DynamicStringList",
     "DynamicValue",
+    "Extensions",
     "FunctionCall",
     "set_surface_extensions",
 ]

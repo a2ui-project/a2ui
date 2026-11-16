@@ -171,8 +171,8 @@ struct UserActivationActionTests {
     #expect(actionHandler.capturedActions.isEmpty)
     #expect(actionHandler.capturedErrors.isEmpty)
 
-    let legacyAction = try #require(root.action(for: "action"))
-    legacyAction()
+    let defaultAction = try #require(root.action(for: "action"))
+    defaultAction()
 
     #expect(gatedFunction.callCount == 2)
     #expect(actionHandler.capturedErrors.isEmpty)
@@ -312,11 +312,7 @@ struct UserActivationActionTests {
     programmaticEvent()
     #expect(gatedFunction.callCount == 0)
     #expect(actionHandler.capturedErrors.count == 3)
-    if case .event(_, let context, _) = actionHandler.capturedActions.last?.identity {
-      #expect(context?["secret"] == .null)
-    } else {
-      Issue.record("Expected dispatched event action")
-    }
+    #expect(actionHandler.capturedActions.isEmpty)
 
     let gestureEvent = try #require(eventRoot.action(for: "action", userActivation: true))
     gestureEvent()

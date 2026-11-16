@@ -157,7 +157,7 @@ void main() {
       expect(root.catalog, 'cat-b');
       expect(surface().resolveCatalog(root.catalog),
           same(processor.catalogFor('cat-b')));
-      expect(root.toJson()['catalogId'], 'cat-b');
+      expect(root.toJson()['@catalogId'], 'cat-b');
     });
 
     test('an update that resolves to another catalog replaces the model', () {

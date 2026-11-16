@@ -45,7 +45,7 @@ class ValidationConfig {
   ///
   /// v0.9 has no way to remove a component, so a placeholder swapped out by
   /// re-sending its parent with new children stays on the surface with nothing
-  /// pointing at it. The basic catalog's `31_incremental-dashboard` example
+  /// pointing at it. The basic catalog's `incremental-dashboard` example
   /// does exactly that.
   final bool allowOrphanComponents;
 

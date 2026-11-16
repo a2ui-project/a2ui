@@ -156,7 +156,7 @@ export function usingRenderers(...renderers: readonly RendererEntry[]): Renderer
 /**
  * Configures the Chat/Canvas to use A2UI Renderers.
  *
- * This function supports configuring both A2UI v0.8 (legacy) and A2UI v0.9 (latest) rendering pipelines
+ * This function supports configuring both A2UI v0.8 (legacy) and A2UI v0.9 rendering pipelines
  * simultaneously. If the client or agent sends payloads matching either version, the appropriate
  * renderer and catalog are selected.
  *

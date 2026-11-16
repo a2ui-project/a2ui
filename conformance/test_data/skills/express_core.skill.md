@@ -66,3 +66,10 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 15. Surface targeting: Output `surface(surfaceId)` to specify or target a user interface surface:
     surface("dashboard-surface-1")
     root = Card(...)
+
+## System Functions
+
+These functions are defined by the A2UI protocol, not by a catalog. Call them by their `@` name, like any function, and never add a `catalogId` to them:
+• @index(offset?)
+  - Description: Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.
+  - offset: Optional. An offset to add to the 0-based index (e.g., 1 for 1-based indexing). Defaults to 0.

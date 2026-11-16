@@ -75,7 +75,7 @@ public struct A2UICheckBox: View {
       .accessibilityRepresentation {
         Toggle(labelText, isOn: isOn)
       }
-      .accessibilityIdentifier("A2UICheckBox_\(node.id)")
+      .accessibilityIdentifier("a2ui-\(node.id)")
       .a2uiAccessibilityControl(for: node)
 
       A2UICheckMessage(node: node, identifierPrefix: "A2UICheckBox")

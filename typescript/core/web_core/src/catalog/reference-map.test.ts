@@ -425,4 +425,195 @@ describe('reference-map schema introspection', () => {
     assert.deepStrictEqual(Array.from(refMap.Tabs.listRefs), ['tabItems']);
     assert.ok(refMap.Tabs.nestedRefs?.tabItems.has('child'));
   });
+
+  it('includes z.object({}) containers in componentRefMap while keeping strict and raw empty schemas empty', () => {
+    const emptyContainerApi: ComponentApi = {
+      name: 'EmptyBox',
+      schema: z.object({}),
+    };
+    const strictEmptyApi: ComponentApi = {
+      name: 'StrictEmptyLeaf',
+      schema: z.object({}).strict(),
+    };
+    const rawEmptyLeafApi = {
+      name: 'RawEmptyLeaf',
+      schema: {type: 'object'},
+    } as unknown as ComponentApi;
+    const rawOpenApi = {
+      name: 'RawOpenBox',
+      schema: {type: 'object', additionalProperties: true},
+    } as unknown as ComponentApi;
+    const openApi: ComponentApi = {
+      name: 'OpenBox',
+      schema: z.object({title: z.string().optional()}).passthrough(),
+    };
+    const catchallApi: ComponentApi = {
+      name: 'CatchallBox',
+      schema: z.object({}).catchall(z.unknown()),
+    };
+    const recordApi: ComponentApi = {
+      name: 'RecordBox',
+      schema: z.record(z.unknown()),
+    };
+    const intersectedOpenApi: ComponentApi = {
+      name: 'IntersectedOpenBox',
+      schema: z.object({title: z.string().optional()}).and(z.record(z.unknown())),
+    };
+    const unmarkedAndWrappedApi: ComponentApi = {
+      name: 'UnmarkedAndWrapped',
+      schema: z
+        .object({
+          child: z.string().optional(),
+          children: z
+            .union([z.array(z.string()), z.object({componentId: z.string(), path: z.string()})])
+            .catch([])
+            .pipe(z.any()),
+          incompatiblePipedSlot: z.string().describe('REF:#/$defs/Child').pipe(z.number()),
+        })
+        .and(
+          z.object({
+            extraSlot: z.string().describe('REF:#/$defs/Child').catch('fallback').pipe(z.string()),
+          }),
+        ),
+    };
+
+    const catalog = new Catalog('aligned-cat', '1.0', [
+      emptyContainerApi,
+      strictEmptyApi,
+      rawEmptyLeafApi,
+      rawOpenApi,
+      openApi,
+      catchallApi,
+      recordApi,
+      intersectedOpenApi,
+      unmarkedAndWrappedApi,
+    ]);
+    const refMap = catalog.componentRefMap;
+
+    for (const leafName of ['StrictEmptyLeaf', 'RawEmptyLeaf']) {
+      assert.strictEqual(refMap[leafName].singleRefs.size, 0, `${leafName}.singleRefs`);
+      assert.strictEqual(refMap[leafName].listRefs.size, 0, `${leafName}.listRefs`);
+    }
+
+    for (const openName of [
+      'EmptyBox',
+      'RawOpenBox',
+      'OpenBox',
+      'CatchallBox',
+      'RecordBox',
+      'IntersectedOpenBox',
+    ]) {
+      assert.deepStrictEqual(
+        Array.from(refMap[openName].singleRefs),
+        ['child'],
+        `${openName}.singleRefs`,
+      );
+      assert.deepStrictEqual(
+        Array.from(refMap[openName].listRefs),
+        ['children'],
+        `${openName}.listRefs`,
+      );
+    }
+
+    assert.deepStrictEqual(Array.from(refMap.UnmarkedAndWrapped.singleRefs).sort(), [
+      'child',
+      'extraSlot',
+    ]);
+    assert.deepStrictEqual(Array.from(refMap.UnmarkedAndWrapped.listRefs), ['children']);
+  });
+
+  it('analyzes ZodPipeline, ZodIntersection, and ZodDiscriminatedUnion in analyzeChildRefSchema', () => {
+    const childSchema = z.string().describe('REF:#/$defs/Child');
+    const childListSchema = z.array(childSchema).describe('REF:#/$defs/ChildList');
+
+    assert.deepStrictEqual(
+      analyzeChildRefSchema(childSchema.pipe(z.string()), V10_CHILD_REF_OPTIONS),
+      {isChild: true, isChildList: false},
+    );
+    assert.deepStrictEqual(
+      analyzeChildRefSchema(z.any().pipe(childSchema), V10_CHILD_REF_OPTIONS),
+      {
+        isChild: true,
+        isChildList: false,
+      },
+    );
+    assert.deepStrictEqual(
+      analyzeChildRefSchema(childSchema.pipe(z.number()), V10_CHILD_REF_OPTIONS),
+      {isChild: false, isChildList: false},
+    );
+    assert.deepStrictEqual(
+      analyzeChildRefSchema(z.number().pipe(childSchema), V10_CHILD_REF_OPTIONS),
+      {isChild: false, isChildList: false},
+    );
+
+    // Narrowing `Child | ChildList` with `z.string()` preserves `isChild: true`.
+    assert.deepStrictEqual(
+      analyzeChildRefSchema(
+        z.union([childSchema, childListSchema]).and(z.string()),
+        V10_CHILD_REF_OPTIONS,
+      ),
+      {isChild: true, isChildList: false},
+    );
+    // Intersecting `Child` with `z.array(Child)` is unsatisfiable.
+    assert.deepStrictEqual(
+      analyzeChildRefSchema(childSchema.and(z.array(childSchema)), V10_CHILD_REF_OPTIONS),
+      {isChild: false, isChildList: false},
+    );
+
+    const discriminatedRef = z.discriminatedUnion('kind', [
+      z.object({kind: z.literal('tpl'), componentId: z.string(), path: z.string()}),
+      z.object({kind: z.literal('empty')}),
+    ]);
+    assert.deepStrictEqual(analyzeChildRefSchema(discriminatedRef, V10_CHILD_REF_OPTIONS), {
+      isChild: false,
+      isChildList: true,
+    });
+  });
+
+  it('terminates cleanly on wrapped recursive z.lazy arrays and unions in analyzeChildRefSchema', () => {
+    const childSchema = z.string().describe('REF:#/$defs/Child');
+    const childListSchema = z.array(childSchema).describe('REF:#/$defs/ChildList');
+
+    const RecursiveOptionalArray: z.ZodTypeAny = z.lazy(() =>
+      z.array(RecursiveOptionalArray.optional()),
+    );
+    assert.deepStrictEqual(analyzeChildRefSchema(RecursiveOptionalArray, V10_CHILD_REF_OPTIONS), {
+      isChild: false,
+      isChildList: false,
+    });
+
+    const RecursiveNullableUnion: z.ZodTypeAny = z.lazy(() =>
+      z.union([z.string(), RecursiveNullableUnion.nullable()]),
+    );
+    assert.deepStrictEqual(analyzeChildRefSchema(RecursiveNullableUnion, V10_CHILD_REF_OPTIONS), {
+      isChild: false,
+      isChildList: false,
+    });
+
+    const RecursiveUnionWithChild: z.ZodTypeAny = z.lazy(() =>
+      z.union([RecursiveUnionWithChild.optional(), childSchema]),
+    );
+    assert.deepStrictEqual(analyzeChildRefSchema(RecursiveUnionWithChild, V10_CHILD_REF_OPTIONS), {
+      isChild: true,
+      isChildList: false,
+    });
+
+    const RecursiveUnionWithChildList: z.ZodTypeAny = z.lazy(() =>
+      z.union([RecursiveUnionWithChildList.optional(), childListSchema]),
+    );
+    assert.deepStrictEqual(
+      analyzeChildRefSchema(RecursiveUnionWithChildList, V10_CHILD_REF_OPTIONS),
+      {
+        isChild: false,
+        isChildList: true,
+      },
+    );
+
+    // Sibling union branches reusing the same schema instance remain analyzed.
+    const sharedChild = childSchema.optional();
+    assert.deepStrictEqual(
+      analyzeChildRefSchema(z.union([sharedChild, sharedChild]), V10_CHILD_REF_OPTIONS),
+      {isChild: true, isChildList: false},
+    );
+  });
 });

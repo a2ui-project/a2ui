@@ -15,28 +15,22 @@
 import A2UICore
 import SwiftUI
 
-/// Environment key for propagating the active component catalogs through
-/// the SwiftUI view hierarchy.
+/// Environment key storing the active A2UI component catalogs for SwiftUI rendering.
+@available(*, deprecated, message: "Use EnvironmentValues.a2uiCatalogs instead.")
 public struct A2UICatalogsKey: EnvironmentKey {
   public static let defaultValue: [String: Catalog<ComponentImplementation>] = [:]
 }
 
-/// Environment key for propagating the default catalog ID through
-/// the SwiftUI view hierarchy.
+/// Environment key storing the default catalog ID used for unqualified component lookups.
+@available(*, deprecated, message: "Use EnvironmentValues.a2uiDefaultCatalogID instead.")
 public struct A2UIDefaultCatalogIDKey: EnvironmentKey {
   public static let defaultValue: String? = nil
 }
 
 extension EnvironmentValues {
   /// The active A2UI component catalogs for SwiftUI rendering.
-  public var a2uiCatalogs: [String: Catalog<ComponentImplementation>] {
-    get { self[A2UICatalogsKey.self] }
-    set { self[A2UICatalogsKey.self] = newValue }
-  }
+  @Entry public var a2uiCatalogs: [String: Catalog<ComponentImplementation>] = [:]
 
   /// The default catalog ID used for unqualified component lookups.
-  public var a2uiDefaultCatalogID: String? {
-    get { self[A2UIDefaultCatalogIDKey.self] }
-    set { self[A2UIDefaultCatalogIDKey.self] = newValue }
-  }
+  @Entry public var a2uiDefaultCatalogID: String? = nil
 }

@@ -47,6 +47,7 @@ from a2ui.inference_formats._shared import (
     to_message_models,
 )
 from a2ui.inference_formats.express import SurfaceOperation
+from a2ui.utils.component_envelope import ENVELOPE_MIXIN_NAMES, envelope_key
 
 from .expression_parser import ElementalExpressionParser
 
@@ -1137,6 +1138,29 @@ class ElementalCompiler:
             return {"functionCall": call_dict}
         return call_dict
 
+    def _to_envelope_wire_keys(
+        self,
+        comp_dict: dict[str, Any],
+        comp_name: str,
+        helper: CatalogSchemaHelper,
+    ) -> dict[str, Any]:
+        """Renames a v1.0 component's envelope mixin properties to their `@` keys.
+
+        The markup names `checks`, `metadata` and `accessibility` bare; on the
+        wire they are `@checks`, `@metadata` and `@accessibility`, unless the
+        component declares a property of that bare name itself. The order of
+        the properties is kept.
+        """
+        custom = helper.get_custom_envelope_properties(comp_name)
+        return {
+            (
+                envelope_key(k, True)
+                if k in ENVELOPE_MIXIN_NAMES and k != "catalogId" and k not in custom
+                else k
+            ): v
+            for k, v in comp_dict.items()
+        }
+
     def _compile_node(self, node: Node, ctx: _CompileContext) -> str | None:
         """Compiles a DOM node into a component and returns its ID."""
         if not node.tag.startswith(TAG_PREFIX):
@@ -1157,7 +1181,7 @@ class ElementalCompiler:
 
         comp_dict: dict[str, Any] = {"id": comp_id, "component": comp_name}
         if comp_catalog_id:
-            comp_dict["catalogId"] = comp_catalog_id
+            comp_dict[envelope_key("catalogId", self.at_least_v10)] = comp_catalog_id
 
         # Track sibling value path for implicit validation injection
         sibling_value_path = None
@@ -1509,5 +1533,7 @@ class ElementalCompiler:
                         }
                     }
 
+        if self.at_least_v10:
+            comp_dict = self._to_envelope_wire_keys(comp_dict, comp_name, comp_helper)
         ctx.components.append(comp_dict)
         return comp_id

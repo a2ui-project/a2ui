@@ -27,9 +27,9 @@ import {createFunctionImplementation, FunctionImplementation} from '../catalog/t
 import {coerceDynamicBoolean} from '../catalog/validation_result_coercion.js';
 import {A2uiExpressionError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
-import {withoutAgentRouting} from '../resolution/data-context-internal.js';
+import {activeCallCatalogId, withoutAgentRouting} from '../resolution/data-context-internal.js';
 import {isAtLeastVersion} from './semver.js';
-import {isSafeRegex} from '../v0_9/basic_catalog/functions/safe_regex.js';
+import {MAX_REGEX_VALUE_CODE_POINTS, analyzeRegex, countCodePoints} from './regex_subset.js';
 
 export {isSafeRegex, type SafeRegexOptions} from '../v0_9/basic_catalog/functions/safe_regex.js';
 
@@ -115,23 +115,58 @@ export function validateRequired(val: unknown): ValidationResult {
   };
 }
 
-/** Validates that a string value matches a regular expression pattern. */
-export function validateRegex(val: unknown, pattern: string): ValidationResult {
-  if (!isSafeRegex(pattern)) {
+const MAX_REGEX_CACHE_ENTRIES = 256;
+const compiledRegexCache = new Map<string, RegExp>();
+
+function getCompiledRegex(pattern: string): RegExp {
+  const cached = compiledRegexCache.get(pattern);
+  if (cached !== undefined) {
+    compiledRegexCache.delete(pattern);
+    compiledRegexCache.set(pattern, cached);
+    return cached;
+  }
+  const analysis = analyzeRegex(pattern);
+  if (!analysis.ok) {
     throw new A2uiExpressionError(
-      `Unsafe regex pattern (catastrophic backtracking risk): ${pattern}`,
+      `Invalid or unsafe regex pattern (${analysis.reason}): ${pattern}`,
       'regex',
     );
   }
+  let compiled: RegExp;
   try {
-    const isValid = new RegExp(pattern).test(String(val ?? ''));
-    return {
-      valid: isValid,
-      ...(isValid ? {} : {message: 'Value does not match required pattern.'}),
-    };
+    compiled = new RegExp(pattern, 'u');
   } catch (e) {
-    throw new A2uiExpressionError(`Invalid regex pattern: ${pattern}`, 'regex', e);
+    throw new A2uiExpressionError(
+      `Invalid regex pattern (UNSUPPORTED_SYNTAX): ${pattern}`,
+      'regex',
+      e,
+    );
   }
+  if (compiledRegexCache.size >= MAX_REGEX_CACHE_ENTRIES) {
+    const oldestKey = compiledRegexCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      compiledRegexCache.delete(oldestKey);
+    }
+  }
+  compiledRegexCache.set(pattern, compiled);
+  return compiled;
+}
+
+/** Validates that a string value matches a regular expression pattern. */
+export function validateRegex(val: unknown, pattern: string): ValidationResult {
+  const compiled = getCompiledRegex(pattern);
+  const strVal = String(val ?? '');
+  if (countCodePoints(strVal) > MAX_REGEX_VALUE_CODE_POINTS) {
+    return {
+      valid: false,
+      message: 'Value exceeds the maximum length for pattern matching.',
+    };
+  }
+  const isValid = compiled.test(strVal);
+  return {
+    valid: isValid,
+    ...(isValid ? {} : {message: 'Value does not match required pattern.'}),
+  };
 }
 
 /** Validates that string or array length falls within an optional range. */
@@ -412,23 +447,50 @@ export function executeNot(value: unknown, truthy: TruthyFn = coerceDynamicBoole
   return !truthy(value);
 }
 
-function adaptAstPartForV10(part: any): any {
-  if (typeof part !== 'object' || part === null || Array.isArray(part)) {
+function defineOwn(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, {value, enumerable: true, writable: true, configurable: true});
+}
+
+function adaptAstPartForV10(part: any, catalogId?: string): any {
+  if (Array.isArray(part)) {
+    return part.map(item => adaptAstPartForV10(item, catalogId));
+  }
+  if (typeof part !== 'object' || part === null) {
     return part;
   }
-  if ('path' in part && typeof part.path === 'string' && !('@path' in part)) {
+  if (
+    typeof part.path === 'string' &&
+    part.componentId === undefined &&
+    part['@path'] === undefined
+  ) {
     return {'@path': part.path};
   }
-  if ('call' in part && typeof part.call === 'string' && !('@call' in part)) {
+  const hasCall = typeof part.call === 'string';
+  const hasAtCall = typeof part['@call'] === 'string';
+  const callName: string | undefined =
+    hasCall && !hasAtCall ? part.call : hasAtCall ? part['@call'] : undefined;
+  if (callName !== undefined) {
     const args: Record<string, unknown> = {};
-    if (part.args && typeof part.args === 'object') {
+    if (part.args && typeof part.args === 'object' && !Array.isArray(part.args)) {
       for (const [k, v] of Object.entries(part.args)) {
-        args[k] = adaptAstPartForV10(v);
+        defineOwn(args, k, adaptAstPartForV10(v, catalogId));
       }
     }
-    return {'@call': part.call, args, returnType: part.returnType};
+    const resolvedCatalogId: unknown =
+      part.catalogId !== undefined && part.catalogId !== null
+        ? part.catalogId
+        : catalogId !== undefined && !callName.startsWith('@')
+          ? catalogId
+          : undefined;
+    return resolvedCatalogId !== undefined
+      ? {'@call': callName, args, catalogId: resolvedCatalogId}
+      : {'@call': callName, args};
   }
-  return part;
+  const adaptedObj: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(part)) {
+    defineOwn(adaptedObj, k, adaptAstPartForV10(v, catalogId));
+  }
+  return adaptedObj;
 }
 
 /** Formats a template string by resolving embedded expressions. */
@@ -441,10 +503,14 @@ export function executeFormatString(
 
   if (parts.length === 0) return '';
 
-  const atLeastV10 = isAtLeastVersion(
-    context.surface?.protocolVersion ?? context.surface?.defaultCatalog?.protocolVersion,
-    '1.0',
-  );
+  const atLeastV10 =
+    typeof context.atLeastV10 === 'boolean'
+      ? context.atLeastV10
+      : isAtLeastVersion(
+          context.surface?.protocolVersion ?? context.surface?.defaultCatalog?.protocolVersion,
+          '1.0',
+        );
+  const catalogId = atLeastV10 ? activeCallCatalogId(context) : undefined;
   // A template part never waits for the agent: from v1.0, a part that calls
   // a function the renderer does not implement fails with an
   // `EXPRESSION_ERROR` naming it, sends nothing, and renders empty.
@@ -453,7 +519,7 @@ export function executeFormatString(
     if (typeof part !== 'object' || part === null || Array.isArray(part)) {
       return part;
     }
-    const adapted = atLeastV10 ? adaptAstPartForV10(part) : part;
+    const adapted = atLeastV10 ? adaptAstPartForV10(part, catalogId) : part;
     return partContext.resolveSignal(adapted);
   });
 

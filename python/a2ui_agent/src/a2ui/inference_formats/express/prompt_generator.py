@@ -36,6 +36,7 @@ from a2ui.inference_formats._shared import (
     surface_catalog_id,
 )
 from a2ui.prompt import PromptGenerator
+from a2ui.utils.agent_callable import agent_callable_functions
 
 # Envelope keys of the messages a JSON example may hold to be decompiled.
 _EXAMPLE_MESSAGE_KEYS = (
@@ -260,25 +261,78 @@ def _get_schema_enum(prop_schema: Any) -> list[str] | None:
     return None
 
 
+def _renderer_call_rule(callable_fns: Sequence[str]) -> str:
+    """Formats the Express grammar rule for standalone renderer function calls."""
+    formatted = ", ".join(f"`{name}`" for name in callable_fns)
+    return (
+        "To have the renderer run a function right away, output the call as a"
+        " standalone command (no variable assignment):\n"
+        f"{callable_fns[0]}(...)\n"
+        f"Only these functions can be called this way: {formatted}."
+    )
+
+
+def _strip_rule_prefix(rule: str) -> str:
+    match = re.match(r"^(\d+\. )", rule)
+    if not match:
+        return rule
+    prefix_len = len(match.group(1))
+    return re.sub(rf"\n {{{prefix_len}}}", "\n", rule[prefix_len:])
+
+
+def _renumber_rules(text: str) -> str:
+    """Renumbers all numbered rule paragraphs sequentially starting from 1."""
+    rule_index = 0
+
+    def _replace(match: re.Match[str]) -> str:
+        nonlocal rule_index
+        rule_index += 1
+        old_prefix = match.group(1)
+        body = match.group(2)
+        new_prefix = f"{rule_index}. "
+        if len(old_prefix) != len(new_prefix):
+            body = re.sub(
+                rf"\n {{{len(old_prefix)}}}",
+                "\n" + (" " * len(new_prefix)),
+                body,
+            )
+        return f"{new_prefix}{body}"
+
+    return re.sub(
+        r"(?<=\n\n)(\d+\. )([^\n]*(?:\n(?!\n)[^\n]*)*)",
+        _replace,
+        text,
+    )
+
+
 def _filter_express_rules(
-    allowed_messages: Sequence[str], *, rules_source: str = EXPRESS_RULES
+    allowed_messages: Sequence[str] | None,
+    callable_fns: Sequence[str] = (),
+    *,
+    rules_source: str = EXPRESS_RULES,
 ) -> str:
     """Filters Express rules to only the rules for the allowed message types."""
     rules_source = rules_source.replace("\r\n", "\n")
-    allowed = set(allowed_messages)
-    creates = "createSurface" in allowed or "CreateSurfaceMessage" in allowed
-    components = (
-        creates or "updateComponents" in allowed or "UpdateComponentsMessage" in allowed
-    )
-    data = "updateDataModel" in allowed or "UpdateDataModelMessage" in allowed
-    delete = "deleteSurface" in allowed or "DeleteSurfaceMessage" in allowed
+    if allowed_messages is None:
+        creates = components = data = delete = call_renderer = True
+    else:
+        allowed = set(allowed_messages)
+        creates = "createSurface" in allowed or "CreateSurfaceMessage" in allowed
+        components = (
+            creates
+            or "updateComponents" in allowed
+            or "UpdateComponentsMessage" in allowed
+        )
+        data = "updateDataModel" in allowed or "UpdateDataModelMessage" in allowed
+        delete = "deleteSurface" in allowed or "DeleteSurfaceMessage" in allowed
+        call_renderer = (
+            "callRendererFunction" in allowed
+            or "CallRendererFunctionMessage" in allowed
+        )
 
     contract, _, rules_block = rules_source.partition("## Grammar Rules\n\n")
     raw_rules = re.split(r"\n\n(?=\d+\. )", rules_block.strip())
-    rule_bodies = [
-        re.sub(r"^\d+\. ", "", r).replace("\n   ", "\n").replace("\n    ", "\n ")
-        for r in raw_rules
-    ]
+    rule_bodies = [_strip_rule_prefix(r) for r in raw_rules]
     # rule_bodies indices (0-based, matching rules 1..15):
     # 0: components, 1: root, 2..5: values, 6..8: calls, 9: dataModel,
     # 10: template, 11: deleteSurface, 12..13: arguments, 14: surface
@@ -296,6 +350,8 @@ def _filter_express_rules(
         selected.append(rule_bodies[10])
     if delete:
         selected.append(rule_bodies[11])
+    if call_renderer and callable_fns:
+        selected.append(_renderer_call_rule(callable_fns))
     if components:
         selected.extend(rule_bodies[12:14])
     if components or data:
@@ -340,8 +396,8 @@ class ExpressPromptGenerator(PromptGenerator):
             list(allowed_messages) if allowed_messages is not None else None
         )
         self._version = version or catalogs_protocol_version(checked)
-        self._helpers = build_catalog_helpers(self._catalogs)
-        self._decompiler = ExpressDecompiler(self._catalogs)
+        self._helpers = build_catalog_helpers(self._catalogs, self._version)
+        self._decompiler = ExpressDecompiler(self._catalogs, version=self._version)
 
     @property
     def catalogs(self) -> list[CatalogApi]:
@@ -358,6 +414,11 @@ class ExpressPromptGenerator(PromptGenerator):
         effective_allowed = (
             allowed_messages if allowed_messages is not None else self._allowed_messages
         )
+        callable_fns = (
+            agent_callable_functions(self.catalogs)
+            if is_at_least_version(self._version, ProtocolVersion.V1_0)
+            else []
+        )
         source_rules = (
             EXPRESS_RULES
             if is_at_least_version(self._version, ProtocolVersion.V1_0)
@@ -365,30 +426,56 @@ class ExpressPromptGenerator(PromptGenerator):
         ).replace("\r\n", "\n")
         base = (
             source_rules
-            if effective_allowed is None
-            else _filter_express_rules(effective_allowed, rules_source=source_rules)
+            if effective_allowed is None and not callable_fns
+            else _filter_express_rules(
+                effective_allowed, callable_fns, rules_source=source_rules
+            )
         )
         root_component = _example_root_component(self.catalogs)
         if root_component is not None:
             base = base.replace(_ROOT_EXAMPLE_LINE, f"root = {root_component}(...)")
-        if len(self.catalogs) <= 1:
-            return base
-        if effective_allowed is not None:
-            allowed_set = set(effective_allowed)
-            has_comp_or_data = any(
-                m in allowed_set
-                for m in (
-                    "createSurface",
-                    "CreateSurfaceMessage",
-                    "updateComponents",
-                    "UpdateComponentsMessage",
-                    "updateDataModel",
-                    "UpdateDataModelMessage",
-                )
-            )
-            if not has_comp_or_data:
-                return base
-        return f"{base}\n\n{_multi_catalog_rules(self.helpers)}"
+        allowed_set = set(effective_allowed) if effective_allowed is not None else None
+
+        def allows(*messages: str) -> bool:
+            return allowed_set is None or any(m in allowed_set for m in messages)
+
+        component_messages = (
+            "createSurface",
+            "CreateSurfaceMessage",
+            "updateComponents",
+            "UpdateComponentsMessage",
+        )
+        data_messages = ("updateDataModel", "UpdateDataModelMessage")
+        prompt = base
+        if len(self.catalogs) > 1 and allows(*component_messages, *data_messages):
+            prompt = _renumber_rules(f"{base}\n\n{_multi_catalog_rules(self.helpers)}")
+        sections = [prompt]
+        if allows(*component_messages):
+            system_functions = self._generate_system_function_signatures()
+            if system_functions:
+                sections.append(system_functions)
+        return "\n\n".join(sections)
+
+    def _generate_system_function_signatures(self) -> str:
+        """Lists the system functions of the target version, such as `@index`.
+
+        System functions are defined by the protocol rather than a catalog, so
+        they are listed once, in the same signature format as catalog
+        functions, and only for a version that defines them.
+
+        Returns:
+            The section, or an empty string if the version defines none.
+        """
+        h = next(iter(self.helpers.values()), None)
+        if h is None or not h.system_functions:
+            return ""
+        sigs = self._format_function_signatures(h, sorted(h.system_functions))
+        return (
+            "## System Functions\n\nThese functions are defined by the A2UI"
+            " protocol, not by a catalog. Call them by their `@` name, like any"
+            " function, and never add a `catalogId` to them:\n"
+            f"{sigs}"
+        )
 
     def generate_catalog_instructions(
         self,
@@ -552,8 +639,15 @@ class ExpressPromptGenerator(PromptGenerator):
         h = helper or next(iter(self.helpers.values()), None)
         if not h:
             return ""
+        return self._format_function_signatures(h, sorted(h.function_properties))
+
+    @staticmethod
+    def _format_function_signatures(
+        h: CatalogSchemaHelper, names: Sequence[str]
+    ) -> str:
+        """Writes one signature, with its descriptions, for each named function."""
         signatures = []
-        for name in sorted(h.function_properties.keys()):
+        for name in names:
             props = h.get_function_properties(name)
             reqs = h.get_function_required(name)
 
@@ -563,7 +657,7 @@ class ExpressPromptGenerator(PromptGenerator):
             ordered_args = []
             prop_details = []
 
-            func_schema = h.functions.get(name, {})
+            func_schema = h.functions.get(name) or h.system_functions.get(name, {})
             args_properties = (
                 func_schema.get("properties", {}).get("args", {}).get("properties", {})
             )
@@ -608,7 +702,8 @@ class ExpressPromptGenerator(PromptGenerator):
             return ""
 
         h = (
-            self.helpers.get(catalog.catalog_id) or CatalogSchemaHelper(catalog)
+            self.helpers.get(catalog.catalog_id)
+            or CatalogSchemaHelper(catalog, self._version)
             if catalog
             else next(iter(self.helpers.values()), None)
         )
@@ -720,21 +815,3 @@ class ExpressPromptGenerator(PromptGenerator):
             result,
             flags=re.DOTALL,
         )
-
-    def generate(self) -> str:
-        """Assembles the prompt snippet for A2UI Express."""
-        parts: list[str] = []
-
-        rules = self.generate_base_rules()
-        if rules:
-            parts.append(f"## Workflow Description:\n{rules}")
-
-        catalog_inst = self.generate_catalog_instructions(include_schema=True)
-        if catalog_inst:
-            parts.append(catalog_inst)
-
-        examples = self.generate_examples()
-        if examples:
-            parts.append(f"### Examples:\n{examples}")
-
-        return "\n\n".join(parts)

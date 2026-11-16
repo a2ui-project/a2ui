@@ -96,6 +96,16 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
     }
   }
 
+  /// Validates that all functions in this catalog satisfy caller and user activation constraints.
+  ///
+  /// - Throws: ``A2UICatalogError`` if any function sets `requiresUserActivation` to `true`
+  ///   while `allowedCallers` is not `.rendererOnly`.
+  public func validateFunctionCallerConstraints() throws {
+    for function in functions.values {
+      try function.api.validateCallerConstraints()
+    }
+  }
+
   /// Erases this catalog's components to their name and schema.
   public func eraseToAnyCatalog() -> Catalog<AnyComponentAPI> {
     Catalog<AnyComponentAPI>(

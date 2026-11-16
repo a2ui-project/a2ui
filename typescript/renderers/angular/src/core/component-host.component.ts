@@ -39,15 +39,19 @@ import {
   ResolvedBinding,
   SurfaceModel,
   Subscription,
+  effect as webCoreEffect,
   getValue,
   isComponentNode,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
 import {
+  A2UI_ELEMENT_CONNECTED_EVENT,
   bindHostAccessibility,
+  dispatchA2uiElementConnected,
   isWebComponentImplementation,
   registerUniversalElement,
+  type A2uiWebComponentElement,
   type WebComponentImplementation,
-} from '@a2ui/web_core/v0_9/universal';
+} from '@a2ui/web_core/universal';
 import {A2UI_ACCESSIBILITY_TARGETS, provideAccessibilityTargets} from './accessibility';
 import {A2uiRendererService} from './a2ui-renderer.service';
 import {Child, ComponentBinder} from './component-binder.service';
@@ -55,13 +59,21 @@ import {SurfaceNodeResolver} from './surface-node-resolver.service';
 import {BoundProperty} from './types';
 
 import type {AngularCatalog, AngularComponentImplementation} from '../catalog/types';
+import {registerUniversalHostInjector} from '../catalog/angular_wc_host';
 import {CatalogComponentInstance} from './catalog_component_instance';
 
 interface UniversalComponentHostElement extends HTMLElement {
   node?: ComponentNode;
-  context: ComponentContext;
+  /** @deprecated Assign `node` instead. */
+  context?: ComponentContext;
   injector?: Injector;
 }
+
+/**
+ * Connected events a `ComponentHostComponent` already handed to `onElementConnected`.
+ * Ancestor hosts skip these instead of stopping propagation, so other listeners still see them.
+ */
+const handledConnectedEvents = new WeakSet<Event>();
 
 /** The key of the component to render: an ID string or a {@link Child} reference. */
 export type ComponentKey = string | Child;
@@ -131,6 +143,9 @@ function findNodeInList(
   providers: [provideAccessibilityTargets()],
   host: {
     style: 'display: contents;',
+    // Marks a host that renders nothing (its component has not resolved), so a container that
+    // wraps each child in an item element can drop that item too (see ListComponent).
+    '[attr.data-a2ui-empty]': 'componentType() ? null : ""',
   },
   // The quotes around the input keys passed to *ngComponentOutlet are critical to survive Closure
   // minification. Prettier keeps them (`quoteProps: "preserve"` in the root `.prettierrc`).
@@ -169,7 +184,9 @@ export class ComponentHostComponent {
     return mirror?.inputs.some(i => i.templateName === 'metadata') ?? false;
   });
   protected readonly componentInputs = computed<Record<string, unknown>>(() => {
+    // prettier-ignore
     const inputs: Record<string, unknown> = {
+      // Quoted to prevent property renaming under Closure Compiler.
       'props': this.props(),
       'surfaceId': this.surfaceId(),
       'componentId': this.resolvedComponentId,
@@ -190,12 +207,18 @@ export class ComponentHostComponent {
   protected resolvedComponentId: string = '';
   protected resolvedDataContextPath: string = '/';
 
-  private propsSub?: Subscription;
-  private metadataSub?: Subscription;
+  private stopProps?: () => void;
+  private stopMetadata?: () => void;
   private surfaceSub?: Subscription;
   private stopAccessibility?: () => void;
 
   constructor() {
+    registerUniversalHostInjector(this.elementRef.nativeElement, this.injector);
+    this.elementRef.nativeElement.addEventListener(
+      A2UI_ELEMENT_CONNECTED_EVENT,
+      this.onElementConnected,
+    );
+
     effect(() => {
       const key = this.componentKey();
       const surfaceId = this.surfaceId();
@@ -214,11 +237,35 @@ export class ComponentHostComponent {
     });
 
     this.destroyRef.onDestroy(() => {
+      registerUniversalHostInjector(this.elementRef.nativeElement, undefined);
+      this.elementRef.nativeElement.removeEventListener(
+        A2UI_ELEMENT_CONNECTED_EVENT,
+        this.onElementConnected,
+      );
       this.resetState();
       this.ownResolver?.ngOnDestroy();
       this.ownResolver = undefined;
     });
   }
+
+  /**
+   * Hands a universal element that connected below this host to its catalog entry's
+   * `onElementConnected` callback. The nearest host marks the event as handled, so ancestor
+   * hosts skip it while other listeners above can still observe it.
+   */
+  private readonly onElementConnected = (event: Event): void => {
+    if (handledConnectedEvents.has(event)) return;
+    // The event is composed, so `event.target` is retargeted to the outermost shadow host
+    // in this tree. The first entry of the composed path is the element that dispatched it.
+    const element = event.composedPath()[0] as A2uiWebComponentElement | undefined;
+    const context = element?.context ?? element?.node?.context;
+    const componentModel = context?.componentModel;
+    if (!element || !context || !componentModel) return;
+    handledConnectedEvents.add(event);
+    const catalog = componentModel.catalog as AngularCatalog;
+    const entry = catalog?.components?.get(componentModel.type);
+    entry?.onElementConnected?.(element, context, this.injector);
+  };
 
   private waitForSurface(surfaceId: string): void {
     this.resetState();
@@ -336,10 +383,24 @@ export class ComponentHostComponent {
       this.accessibilityTargets,
     );
 
-    this.propsSub = node.context!.componentModel.onUpdated.subscribe(() => {
-      this.ngZone.run(() => this.updateProps());
+    let lastProps = getValue(node.props);
+    this.stopProps = webCoreEffect(() => {
+      const nextProps = getValue(node.props);
+      if (nextProps === lastProps) return;
+      lastProps = nextProps;
+      this.ngZone.run(() => {
+        if (this.hasSameBoundKeys(nextProps, node.context?.componentModel.properties)) {
+          this.cdr.markForCheck();
+        } else {
+          this.updateProps();
+        }
+      });
     });
-    this.metadataSub = node.context!.componentModel.onMetadataChanged.subscribe(nextMeta => {
+    let lastMeta = getValue(node.metadata);
+    this.stopMetadata = webCoreEffect(() => {
+      const nextMeta = getValue(node.metadata);
+      if (nextMeta === lastMeta) return;
+      lastMeta = nextMeta;
       this.ngZone.run(() => {
         this.metadata.set(nextMeta);
         this.cdr.markForCheck();
@@ -359,6 +420,21 @@ export class ComponentHostComponent {
     this.cdr.markForCheck();
   }
 
+  private hasSameBoundKeys(
+    nextProps: Record<string, unknown>,
+    rawProps?: Record<string, unknown>,
+  ): boolean {
+    if (!this.currentBoundProps) return false;
+    const boundKeys = Object.keys(this.currentBoundProps);
+    const nextKeys = Object.keys(nextProps);
+    if (boundKeys.length !== nextKeys.length) return false;
+    return nextKeys.every(
+      key =>
+        Object.prototype.hasOwnProperty.call(this.currentBoundProps, key) &&
+        (!rawProps || this.currentBoundProps![key].raw === rawProps[key]),
+    );
+  }
+
   private setupWebComponent(implementation: WebComponentImplementation, node: AngularNode): void {
     this.componentType.set(null);
     this.props.set({});
@@ -369,17 +445,10 @@ export class ComponentHostComponent {
     const el = document.createElement(tagName) as UniversalComponentHostElement;
     el.injector = this.injector;
     el.node = node;
-    el.context = node.context!;
     this.mountedWcEl = el;
     this.elementRef.nativeElement.appendChild(el);
-
-    this.propsSub = node.context!.componentModel.onUpdated.subscribe(() => {
-      this.ngZone.run(() => {
-        if (this.mountedWcEl) {
-          this.mountedWcEl.node = node;
-        }
-      });
-    });
+    // Lit elements report themselves on connect; this covers elements of any other base class.
+    dispatchA2uiElementConnected(el);
   }
 
   /**
@@ -388,10 +457,10 @@ export class ComponentHostComponent {
    * a new component is being loaded.
    */
   private resetState(): void {
-    this.propsSub?.unsubscribe();
-    this.propsSub = undefined;
-    this.metadataSub?.unsubscribe();
-    this.metadataSub = undefined;
+    this.stopProps?.();
+    this.stopProps = undefined;
+    this.stopMetadata?.();
+    this.stopMetadata = undefined;
     this.surfaceSub?.unsubscribe();
     this.surfaceSub = undefined;
     this.stopAccessibility?.();

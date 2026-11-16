@@ -34,7 +34,10 @@ public struct ComponentNodeView: View {
 
   public var body: some View {
     let _ = (node.properties, node.metadata)
-    if let renderedView = Surface.render(
+    if node.state != .resolved {
+      // A pending, unknown-type, or cyclic placeholder renders nothing.
+      EmptyView()
+    } else if let renderedView = Surface.render(
       node: node, using: catalogs, defaultCatalogID: defaultCatalogID)
     {
       renderedView

@@ -129,6 +129,7 @@ Object? _evaluateOnSurface(Map<String, Object?> testCase) {
   );
   addTearDown(surface.dispose);
 
+  final reported = <A2uiExpressionError>[];
   final context = DataContext(
     _withCaseData(surface.dataModel, testCase),
     (name, args, context) =>
@@ -136,13 +137,22 @@ Object? _evaluateOnSurface(Map<String, Object?> testCase) {
     '/',
     protocolVersion: protocolVersion,
     invokerForCatalog: (catalogId) => surface.resolveCatalog(catalogId).invoke,
+    onError: reported.add,
   );
-  return context.resolveDynamicValue(<String, Object?>{
+  Object? result = context.resolveDynamicValue(<String, Object?>{
     atLeastV1 ? '@call' : 'call': testCase['function'],
     if (testCase['catalogId'] case final String catalogId)
       'catalogId': catalogId,
     'args': testCase['args'] ?? const <String, Object?>{},
   });
+  if (result is ReadonlySignal<Object?>) result = result.value;
+  if (reported.isNotEmpty) {
+    final A2uiExpressionError first = reported.first;
+    throw first.code == 'CATALOG_ERROR'
+        ? A2uiCatalogError(first.message, cause: first.cause)
+        : first;
+  }
+  return result;
 }
 
 const Map<String, Set<String>> _knownKeys = {
@@ -183,6 +193,19 @@ void main() {
   });
 }
 
+Object? _comparable(Object? value, Object? expected) {
+  if (value is ValidationResult) {
+    return <String, Object?>{
+      'valid': value.valid,
+      if (value.message != null &&
+          expected is Map<String, Object?> &&
+          expected.containsKey('message'))
+        'message': value.message,
+    };
+  }
+  return value;
+}
+
 void _runFunctionCase(Map<String, Object?> testCase) {
   final action = testCase['action']! as String;
   switch (action) {
@@ -206,7 +229,8 @@ void _runFunctionCase(Map<String, Object?> testCase) {
         _assertFunctionError(testCase, expectError);
         return;
       }
-      expect(_evaluate(testCase), equals(testCase['expect']));
+      final Object? expected = testCase['expect'];
+      expect(_comparable(_evaluate(testCase), expected), equals(expected));
     default:
       fail('Unhandled action $action in functions.yaml.');
   }
@@ -228,8 +252,10 @@ void _assertFunctionError(
       predicate(
         (Object? e) {
           final bool matchesType = switch (category) {
-            'CatalogError' => e is A2uiCatalogError,
-            'ExpressionError' => e is A2uiExpressionError,
+            'CatalogError' => e is A2uiCatalogError &&
+                (e is! A2uiCatalogResolutionError || e.functionName == null),
+            'ExpressionError' => e is A2uiExpressionError ||
+                (e is A2uiCatalogResolutionError && e.functionName != null),
             'ValidationError' => e is A2uiValidationError,
             _ => e.runtimeType == expectedType,
           };

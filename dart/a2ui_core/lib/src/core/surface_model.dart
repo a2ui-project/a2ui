@@ -19,6 +19,7 @@ import '../primitives/event_notifier.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/semver.dart';
 import '../primitives/uax31.dart';
+import '../resolution/data_context.dart' show disposeSurfaceAgentCalls;
 import 'catalog.dart';
 import 'common.dart';
 import 'component_model.dart';
@@ -148,6 +149,12 @@ class SurfaceModel<T extends ComponentApi> {
 
   final AgentFunctionCaller? _callAgentFunction;
 
+  /// How many settled agent call answers the surface keeps, so a binding
+  /// that evaluates again with the same arguments reads the answer instead
+  /// of sending the call again. The oldest answer is evicted first; calls
+  /// still waiting for an answer don't count.
+  final int maxAgentCallCacheEntries;
+
   final _onAction = EventNotifier<A2uiRendererAction>();
   final _onError = EventNotifier<A2uiRendererError>();
   final _onWarning = EventNotifier<A2uiWarning>();
@@ -184,7 +191,8 @@ class SurfaceModel<T extends ComponentApi> {
   ///
   /// Throws [A2uiCatalogError] when two different catalogs share an id, or
   /// when a catalog's [Catalog.protocolVersion] is incompatible with
-  /// [protocolVersion]: one surface cannot mix protocol versions.
+  /// [protocolVersion]: one surface cannot mix protocol versions. Throws
+  /// [ArgumentError] when [maxAgentCallCacheEntries] is less than 1.
   SurfaceModel(
     this.id, {
     this.defaultCatalog,
@@ -195,6 +203,7 @@ class SurfaceModel<T extends ComponentApi> {
     this.rootId = 'root',
     Map<String, Object?>? metadata,
     AgentFunctionCaller? callAgentFunction,
+    this.maxAgentCallCacheEntries = 256,
   })  : _callAgentFunction = callAgentFunction,
         availableCatalogs = Map.unmodifiable(
           _indexCatalogs(
@@ -208,6 +217,13 @@ class SurfaceModel<T extends ComponentApi> {
         ),
         dataModel = DataModel(),
         componentsModel = SurfaceComponentsModel(catalog: defaultCatalog) {
+    if (maxAgentCallCacheEntries < 1) {
+      throw ArgumentError.value(
+        maxAgentCallCacheEntries,
+        'maxAgentCallCacheEntries',
+        'Must be at least 1.',
+      );
+    }
     validateMetadata(metadata);
     _metadata = signal(cloneMetadata(metadata));
   }
@@ -437,6 +453,7 @@ class SurfaceModel<T extends ComponentApi> {
   /// Disposes of the surface and its resources.
   void dispose() {
     _disposed = true;
+    disposeSurfaceAgentCalls(this);
     dataModel.dispose();
     componentsModel.dispose();
     _onMetadataChanged.dispose();

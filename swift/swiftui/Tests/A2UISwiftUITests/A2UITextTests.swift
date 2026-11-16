@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import A2UICore
-import BasicCatalogSwiftUI
+@_spi(Testing) import BasicCatalogSwiftUI
 import SwiftUI
 import Testing
 
@@ -53,6 +53,21 @@ struct A2UITextTests {
     _ = A2UIText(node: node).body
   }
 
+  @Test func rendersDuplicateMarkdownBlocksAndSingleLineTripleBackticks() {
+    let node = Node(
+      id: "markdown_duplicates",
+      type: "Text",
+      properties: [
+        "text": "# Repeated\n\n# Repeated\n\n- Same item\n- Same item\n\n```inline```"
+      ]
+    )
+    let textView = A2UIText(node: node)
+    _ = textView.body
+    let summary = textView.renderedMarkdown
+    #expect(summary.visibleText == "Repeated Repeated Same item Same item inline")
+    #expect(summary.presentSemantics == ["heading", "list_item", "code"])
+  }
+
   // MARK: - Accessibility headings
 
   @Test func headingVariantsAreAccessibilityHeadings() {
@@ -68,11 +83,13 @@ struct A2UITextTests {
     #expect(headingLevels(text: "# Title") == [.h1])
     #expect(headingLevels(text: "### Title") == [.h3])
     #expect(headingLevels(text: "###### Title") == [.h6])
-    #expect(headingLevels(text: "####### Title") == [.h6])
+    #expect(headingLevels(text: "###") == [.h3])
   }
 
   @Test func bodyAndCaptionTextAreNotAccessibilityHeadings() {
     #expect(headingLevels(text: "Title").isEmpty)
+    #expect(headingLevels(text: "####### Title").isEmpty)
+    #expect(headingLevels(text: "#hashtag").isEmpty)
     #expect(headingLevels(text: "Title", variant: "body").isEmpty)
     #expect(headingLevels(text: "Title", variant: "caption").isEmpty)
     #expect(headingLevels(text: "- One\n- Two").isEmpty)
