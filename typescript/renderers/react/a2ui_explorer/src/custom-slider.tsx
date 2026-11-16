@@ -15,9 +15,10 @@
  */
 
 import type {ChangeEvent} from 'react';
-import {createComponentImplementation} from '@a2ui/react/v0_9';
+import {createComponentImplementation} from '@a2ui/react';
 import z from 'zod';
-import {type ComponentApi, DynamicStringSchema, DynamicNumberSchema} from '@a2ui/web_core/v0_9';
+import type {ComponentApi} from '@a2ui/web_core';
+import {DynamicStringSchema, DynamicNumberSchema} from '@a2ui/web_core/v0_9';
 
 export const customSliderApi = {
   name: 'CustomSlider',

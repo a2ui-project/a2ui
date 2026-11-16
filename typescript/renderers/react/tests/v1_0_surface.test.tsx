@@ -567,7 +567,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
   });
 
   it('reports a component whose catalog lacks its type on a surface with no default catalog', async () => {
-    const surface = new SurfaceModel(
+    const surface = new SurfaceModel<ReactCatalogComponent>(
       'no-catalog',
       undefined,
       undefined,

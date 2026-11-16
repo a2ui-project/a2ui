@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import type {ComponentContext, ComponentNode} from '@a2ui/web_core/v0_9';
-import {type A2uiWebComponentElement, bindHostAccessibility} from '@a2ui/web_core/v0_9/universal';
+import type {ComponentContext, ComponentNode} from '@a2ui/web_core';
+import {type A2uiWebComponentElement, bindHostAccessibility} from '@a2ui/web_core/universal';
 import {HostRegistry, isReactRendered, ownerAbove} from '../host_registry';
 import type {ReactComponentImplementation} from '../react_component_implementation';
 import {hostRefsOf} from './host_accessibility';
