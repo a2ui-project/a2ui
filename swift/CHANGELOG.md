@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.11.0
+
 - **BREAKING CHANGE**: Enforce object-level (`anyOf`, `additionalProperties: false`) and
   array-level (`minItems`, `maxItems`, `prefixItems`) JSON Schema constraints on function arguments
   containing dynamic bindings in `PayloadValidator`, validate declared `returnType` values on nested
