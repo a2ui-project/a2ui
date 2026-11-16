@@ -436,11 +436,10 @@ function hasSingleChildObjectField(
 }
 
 function isDynamicDef(defName: string, typeName?: string): boolean {
-  return (
-    (defName === 'DataBinding' || defName === 'FunctionCall' || defName.startsWith('Dynamic')) &&
-    typeName !== 'ZodObject' &&
-    typeName !== 'ZodArray'
-  );
+  if (defName === 'DataBinding' || defName === 'FunctionCall') {
+    return true;
+  }
+  return defName.startsWith('Dynamic') && typeName !== 'ZodObject' && typeName !== 'ZodArray';
 }
 
 function isBooleanOrNullishOption(option: z.ZodTypeAny): boolean {

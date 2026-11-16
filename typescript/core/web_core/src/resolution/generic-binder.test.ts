@@ -783,6 +783,39 @@ describe('GenericBinder Checkable Trait', () => {
     assert.deepStrictEqual(binder.snapshot.section.validationErrors, ['Required']);
   });
 
+  it('resolves a property declared directly as DataBindingSchema or FunctionCallSchema and synthesizes its setter (#3809)', () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/signature', 'Alice');
+
+    const schema = z.object({
+      value: CommonSchemas.DataBinding,
+      isSigned: CommonSchemas.FunctionCall.optional(),
+    });
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c_sig',
+        'SignaturePad',
+        {
+          value: {path: '/signature'},
+          isSigned: {call: 'required', args: {value: {path: '/signature'}}},
+        },
+        catalog,
+      ),
+    );
+
+    const binder = new GenericBinder<ResolveA2uiProps<z.infer<typeof schema>>>(
+      new ComponentContext(surface, 'c_sig'),
+      schema,
+    );
+
+    assert.strictEqual(binder.snapshot.value, 'Alice');
+    assert.strictEqual(binder.snapshot.isSigned, true);
+    assert.strictEqual(typeof binder.snapshot.setValue, 'function');
+
+    binder.snapshot.setValue('Bob');
+    assert.strictEqual(surface.dataModel.get('/signature'), 'Bob');
+  });
+
   describe('scrapeSchemaBehavior schema inference', () => {
     it('should infer behavior from schema descriptions', () => {
       // Description-based matching across formats (relative, URI, pipe-annotated)
