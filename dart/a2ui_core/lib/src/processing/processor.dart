@@ -762,7 +762,12 @@ class MessageProcessor<T extends ComponentApi> {
         final Map<String, Object?> json = envelope.cast<String, Object?>();
         return (
           json: json,
-          operations: adapterRegistry.resolve(json).toOperations(json),
+          operations: adapterRegistry.resolve(json).toOperations(
+                json,
+                // Without a config unknown elements are tolerated, as in
+                // validatorFor.
+                allowUnknownElements: _config?.allowUnknownElements ?? true,
+              ),
         );
       default:
         throw A2uiValidationError(
