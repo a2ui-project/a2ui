@@ -27,6 +27,7 @@ from typing import Any
 import pytest
 
 from a2ui_eval.runner import (
+    RunnerOptions,
     SUPPORTED_FORMATS,
     SUPPORTED_STRATEGIES,
     _WorkerPool,
@@ -234,6 +235,65 @@ def test_parse_and_validate_express_v10() -> None:
     )
     assert res["compiled_jsons"]
     assert {m["version"] for m in res["compiled_jsons"]} == {"1.0"}
+
+
+def test_parse_and_validate_vertical_v091_and_v10() -> None:
+    v091_prompt = generate_prompt("vertical", "0.9.1", V091_CATALOG)
+    assert "# A2UI Vertical Output Contract" in v091_prompt
+    v091_res = parse_and_validate(
+        format_name="vertical",
+        version="0.9.1",
+        resolved_catalog_path=V091_CATALOG,
+        surface_id="main",
+        completion='<a2ui>\nText("Hello Vertical v0.9.1")\n</a2ui>',
+        require_complete_tags=True,
+    )
+    assert len(v091_res["compiled_jsons"]) == 2
+    assert {m["version"] for m in v091_res["compiled_jsons"]} == {"v0.9.1"}
+
+    v10_prompt = generate_prompt("vertical", "1.0", V10_CATALOG)
+    assert "# A2UI Vertical Output Contract" in v10_prompt
+    v10_res = parse_and_validate(
+        format_name="vertical",
+        version="1.0",
+        resolved_catalog_path=V10_CATALOG,
+        surface_id="main",
+        completion='<a2ui>\nText("Hello Vertical v1.0")\n</a2ui>',
+        require_complete_tags=True,
+    )
+    assert len(v10_res["compiled_jsons"]) == 1
+    assert v10_res["compiled_jsons"][0]["version"] == "1.0"
+
+    # Multi-block Vertical completion and pre-seeded initial_renderer_state
+    multi_res = parse_and_validate(
+        format_name="vertical",
+        version="1.0",
+        resolved_catalog_path=V10_CATALOG,
+        surface_id="main",
+        completion=(
+            'First:\n<a2ui>\nText("Block 1")\n</a2ui>\n'
+            'Second:\n<a2ui>\nText("Block 2")\n</a2ui>'
+        ),
+        options=RunnerOptions(
+            initial_renderer_state=(
+                {
+                    "version": "1.0",
+                    "createSurface": {
+                        "surfaceId": "main",
+                        "catalogId": (
+                            "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+                        ),
+                        "components": [
+                            {"id": "root", "component": "Text", "text": "Seeded"}
+                        ],
+                    },
+                },
+            ),
+            stream_chunk_size=12,
+        ),
+    )
+    surfaces = [m["createSurface"]["surfaceId"] for m in multi_res["compiled_jsons"]]
+    assert surfaces == ["main_1", "main_2"]
 
 
 def test_require_complete_tags_express() -> None:

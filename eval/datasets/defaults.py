@@ -40,3 +40,9 @@ Additional Rules:
 2. If components are defined, ensure there is one root component with id: 'root'.
 3. Always wrap every A2UI block in both the literal opening <a2ui> tag and closing </a2ui> tag. Do NOT wrap the tags in backticks or replace the opening <a2ui> tag with a markdown code fence (such as ```a2ui).
 """
+
+VERTICAL_WORKFLOW_DESCRIPTION = """
+Additional Rules:
+1. Always wrap every A2UI block in both the literal opening <a2ui> tag and closing </a2ui> tag. Do NOT wrap the tags in backticks or replace the opening <a2ui> tag with a markdown code fence (such as ```a2ui).
+2. Emit only standalone component constructor or function calls inside <a2ui> ... </a2ui>; the runtime manages surface IDs and component IDs automatically.
+"""

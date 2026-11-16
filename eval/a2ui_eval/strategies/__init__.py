@@ -78,6 +78,7 @@ STRATEGIES: dict[str, Callable[..., list[Solver]]] = {
     "skill_mode": _skill_mode,
     "elemental": _format_strategy("elemental"),
     "atom": _format_strategy("atom"),
+    "vertical": _format_strategy("vertical"),
 }
 
 

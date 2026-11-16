@@ -38,6 +38,7 @@ from datasets.defaults import (
     DEFAULT_WORKFLOW_DESCRIPTION,
     FORMAT_AGNOSTIC_ROLE_DESCRIPTION,
     FORMAT_AGNOSTIC_WORKFLOW_DESCRIPTION,
+    VERTICAL_WORKFLOW_DESCRIPTION,
 )
 
 SCHEMA_PATH = GIT_ROOT / "eval" / "datasets" / "dataset_schema.json"
@@ -282,11 +283,12 @@ def load_a2ui_dataset(
                 if is_json
                 else FORMAT_AGNOSTIC_ROLE_DESCRIPTION
             )
-            default_workflow = (
-                DEFAULT_WORKFLOW_DESCRIPTION
-                if is_json
-                else FORMAT_AGNOSTIC_WORKFLOW_DESCRIPTION
-            )
+            if is_json:
+                default_workflow = DEFAULT_WORKFLOW_DESCRIPTION
+            elif format_name == "vertical":
+                default_workflow = VERTICAL_WORKFLOW_DESCRIPTION
+            else:
+                default_workflow = FORMAT_AGNOSTIC_WORKFLOW_DESCRIPTION
 
             protocol_role = (
                 item.get("protocol_role")

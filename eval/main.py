@@ -326,9 +326,9 @@ def main() -> None:
         action="append",
         help=(
             "Evaluation strategies to run (choices: direct, subagent_tool,"
-            " express, skill_mode, elemental, atom). Can be comma-separated or"
-            " specified multiple times. Defaults to the production strategies"
-            " direct, subagent_tool and express."
+            " express, skill_mode, elemental, atom, vertical). Can be"
+            " comma-separated or specified multiple times. Defaults to the"
+            " production strategies direct, subagent_tool and express."
         ),
     )
     parser.add_argument(
