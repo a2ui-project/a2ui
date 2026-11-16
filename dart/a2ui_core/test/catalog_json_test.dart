@@ -111,6 +111,114 @@ void main() {
     });
   });
 
+  group('allOf combiner branches', () {
+    final Map<String, Object?> modeBranches = {
+      'oneOf': [
+        {
+          'properties': {
+            'href': {'type': 'string'},
+          },
+          'required': ['href'],
+        },
+        {
+          'properties': {
+            'mode': {'const': 'none'},
+          },
+          'required': ['mode'],
+        },
+      ],
+    };
+    final Map<String, Object?> toneBranches = {
+      'anyOf': [
+        {
+          'properties': {
+            'tone': {'type': 'string'},
+          },
+        },
+      ],
+    };
+
+    /// A v1.0 catalog whose `Link` nests [modeBranches] in an inline `allOf`
+    /// member and [toneBranches] in one reached through a local reference.
+    CatalogApi linkCatalog() => Catalog.fromJson({
+          'catalogId': 'https://example.com/combiners',
+          'protocolVersion': '1.0',
+          r'$defs': {
+            'Toned': {
+              'properties': {
+                'size': {'type': 'number'},
+              },
+              ...toneBranches,
+            },
+          },
+          'components': {
+            'Link': {
+              'type': 'object',
+              'properties': {
+                'text': {'type': 'string'},
+              },
+              'allOf': [
+                {
+                  'properties': {
+                    'component': {'const': 'Link'},
+                  },
+                  ...modeBranches,
+                },
+                {r'$ref': r'#/$defs/Toned'},
+              ],
+              'required': ['component'],
+            },
+          },
+        });
+
+    void validate(Map<String, Object?> properties) =>
+        PayloadValidator(catalog: linkCatalog()).validateComponent({
+          'id': 'root',
+          'component': 'Link',
+          ...properties,
+        });
+
+    test('stay allOf members of the resolved schema', () {
+      final Map<String, Object?> schema =
+          linkCatalog().resolvedComponentSchema('Link')!.value;
+
+      expect(schema['allOf'], [modeBranches, toneBranches]);
+      expect(
+        (schema['properties']! as Map<String, Object?>).keys,
+        containsAll(['text', 'size']),
+      );
+    });
+
+    test('admit the properties only their branches declare', () {
+      expect(() => validate({'href': '/a', 'tone': 'warm'}), returnsNormally);
+      expect(() => validate({'mode': 'none', 'size': 2}), returnsNormally);
+    });
+
+    test('are enforced', () {
+      expect(
+        () => validate({'text': 'no branch matches'}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => validate({'href': '/a', 'tone': 3}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('still reject a property no branch declares', () {
+      expect(
+        () => validate({'href': '/a', 'colour': 'red'}),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains("unknown property 'colour'"),
+          ),
+        ),
+      );
+    });
+  });
+
   group('Catalog.commonTypesSchema', () {
     Map<String, Object?> defsOf(CatalogApi catalog) =>
         (catalog.commonTypesSchema[r'$defs']! as Map).cast<String, Object?>();
