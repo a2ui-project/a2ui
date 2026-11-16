@@ -68,10 +68,11 @@ STRUCTURAL_REF_NAMES: Final[frozenset[str]] = frozenset({
 def _dynamic_ref_names() -> frozenset[str]:
     """Returns the defs that bind to dynamic values.
 
-    These are `DataBinding` plus every dynamic value def (e.g. `DynamicString`)
-    identified structurally in the generated common_types schemas.
+    These are `DataBinding` and `FunctionCall` plus every dynamic value def
+    (e.g. `DynamicString`) identified structurally in the generated
+    common_types schemas.
     """
-    return frozenset({"DataBinding"}) | get_all_dynamic_type_names()
+    return frozenset({"DataBinding", "FunctionCall"}) | get_all_dynamic_type_names()
 
 
 def _extract_ref_name(ref: str | None) -> str:
@@ -621,7 +622,7 @@ class GenericBinder:
             return value
         comp_id = template_obj.get("componentId")
         template_path = (
-            template_obj.get("@path")
+            template_obj.get("path") or template_obj.get("@path")
             if self.context.data_context.at_least_v10
             else template_obj.get("path") or template_obj.get("dataBinding")
         )

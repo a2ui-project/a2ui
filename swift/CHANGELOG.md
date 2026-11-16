@@ -30,6 +30,8 @@
   (or pass `catalogs: []`). Recommended migration: pass `BasicCatalogImplementation.allCatalogs`,
   use `Surface.makeWithBasicCatalogs(viewModel:)`, or pass `catalogs: []` explicitly.
   [#4024](https://github.com/a2ui-project/a2ui/pull/4024)
+- Resolve component properties that reference `FunctionCall` directly in `NodeResolver`.
+  [#3809](https://github.com/a2ui-project/a2ui/issues/3809)
 - Add `A2UICardStyle` (`.automatic`, `.elevated`, `.outlined`), `A2UIButtonStyle` (`.automatic`),
   `View.a2uiCardStyle(_:)`, `View.a2uiButtonStyle(_:)`, and
   `Surface.makeWithBasicCatalogs(viewModel:)` in `BasicCatalogSwiftUI`.

@@ -1923,3 +1923,46 @@ def test_v10_format_string_template_calls_inherit_catalog_and_preserve_index():
         "catalogId": "explicit-cat",
         "args": {"x": {"@path": "/a"}},
     }
+
+
+def test_direct_data_binding_and_function_call_schemas() -> None:
+    """Direct DataBinding and FunctionCall property schemas resolve dynamically."""
+    cat = Catalog(
+        "direct-cat",
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="shout",
+                execute=lambda args, context=None, *_: f"{args['label']}!",
+            )
+        ],
+    )
+    surface = SurfaceModel("s1", cat, protocol_version="1.0")
+    surface.data_model.set("/name", "Ada")
+    comp = ComponentModel(
+        "c1",
+        "Probe",
+        cat,
+        {
+            "binding": {"@path": "/name"},
+            "computed": {"@call": "shout", "args": {"label": {"@path": "/name"}}},
+        },
+    )
+    surface.components_model.add_component(comp)
+    schema = {
+        "type": "object",
+        "properties": {
+            "binding": {"$ref": "common_types.json#/$defs/DataBinding"},
+            "computed": {"$ref": "common_types.json#/$defs/FunctionCall"},
+        },
+    }
+    binder = GenericBinder(
+        ComponentContext(comp, DataContext(surface, path="/")), schema=schema
+    )
+    assert binder.current_props["binding"] == "Ada"
+    assert binder.current_props["computed"] == "Ada!"
+    binder.current_props["setBinding"]("Grace")
+    assert surface.data_model.get("/name") == "Grace"
+    assert binder.current_props["binding"] == "Grace"
+    assert binder.current_props["computed"] == "Grace!"
+    binder.dispose()

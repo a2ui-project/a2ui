@@ -1363,6 +1363,7 @@ public final class NodeResolver: Sendable {
     "DynamicValue": .dynamicValue,
     "DynamicStringList": .dynamicStringList,
     "DataBinding": .dynamicString,
+    "FunctionCall": .dynamicValue,
     "CheckRule": .checks,
     "Checkable": .checks,
     "Action": .action,

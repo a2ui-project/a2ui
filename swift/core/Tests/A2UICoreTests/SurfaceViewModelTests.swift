@@ -580,6 +580,61 @@ struct SurfaceViewModelTests {
     #expect(binding.value == "check")
   }
 
+  @Test func functionCallResolvesOnRootNode() async throws {
+    let schema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "type": "string" },
+            "computed": {
+              "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/FunctionCall"
+            }
+          },
+          "required": ["id", "component"]
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let baseCatalog = BasicCatalog.makeCatalog()
+    let catalog = Catalog(
+      id: "direct-fn-catalog",
+      components: [AnyComponentAPI(name: "probe", schema: schema)],
+      functions: Array(baseCatalog.functions.values)
+    )
+    let handler = TestActionHandler()
+    let processor = MessageProcessor(catalogs: [catalog], actionHandler: handler)
+    let surface = SurfaceViewModel(surfaceID: "s1", catalog: catalog, actionHandler: handler)
+    processor.surfaceGroupModel.addSurface(surface)
+    processor.updateDataModel(surfaceID: "s1", path: "/name", value: "Ada")
+    processor.updateComponents(
+      surfaceID: "s1",
+      components: [
+        [
+          "id": "root",
+          "component": "probe",
+          "computed": [
+            "call": "formatString",
+            "args": ["value": "Hi ${/name}"],
+          ],
+        ]
+      ]
+    )
+    await Task.yield()
+    let binding = try #require(
+      surface.rootNode?.properties["computed"] as? DataBinding<JSONValue>
+    )
+    #expect(binding.value?.stringValue == "Hi Ada")
+
+    processor.updateDataModel(surfaceID: "s1", path: "/name", value: "Grace")
+    await Task.yield()
+    let updatedBinding = try #require(
+      surface.rootNode?.properties["computed"] as? DataBinding<JSONValue>
+    )
+    #expect(updatedBinding.value?.stringValue == "Hi Grace")
+  }
+
   @Test func dynamicStringListResolvesArrayPathOnRootNode() async throws {
     let (processor, surface, _) = try makeProcessor()
     processor.updateDataModel(surfaceID: surface.surfaceID, path: "/tags", value: ["ios", "swift"])
