@@ -37,8 +37,35 @@ void main() {
   }
 }
 
+const Map<String, Set<String>> _knownKeys = {
+  'case:stream_answer': {
+    ...caseMetadataKeys,
+    'args',
+    'expect_close',
+    'expect_error',
+    'steps',
+  },
+  'args:stream_answer': {'catalog', 'format', 'renderer_catalogs'},
+  'step:stream_answer': {'expect_in_block', 'expect_parts', 'input'},
+};
+
 void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
+  switch (testCase['action']) {
+    case 'stream_answer':
+      assertKnownKeys(
+        testCase,
+        _knownKeys['case:stream_answer']!,
+        'case:stream_answer',
+      );
+    default:
+      throw UnsupportedError('Unknown action ${testCase['action']}');
+  }
   final args = testCase['args']! as Map<String, Object?>;
+  assertKnownKeys(
+    args,
+    _knownKeys['args:stream_answer']!,
+    'args:stream_answer',
+  );
   expect(args['format'], 'direct_json');
   final processor = A2uiRequestProcessor(
     activeCatalogs: version.catalogs(args),
@@ -67,6 +94,11 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
   for (final (int i, Object? step)
       in (testCase['steps']! as List<Object?>).indexed) {
     final stepCase = step! as Map<String, Object?>;
+    assertKnownKeys(
+      stepCase,
+      _knownKeys['step:stream_answer']!,
+      'step:stream_answer',
+    );
     final input = stepCase['input']! as String;
     answer.feed(version.text(input, catalogId: catalogId));
     expect(

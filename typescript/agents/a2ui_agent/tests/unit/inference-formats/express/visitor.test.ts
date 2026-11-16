@@ -448,7 +448,7 @@ describe('Express AST visitor and parser', () => {
           [
             3,
             0,
-            "extraneous input '=' expecting {<EOF>, '[', '{', '_', 'null', RAW_TRIPLE_STRING, TRIPLE_STRING, RAW_STRING, STANDARD_STRING, PATH, CHECK, NUMBER, BOOLEAN, IDENTIFIER}",
+            "extraneous input '=' expecting {<EOF>, '[', '{', '_', 'null', RAW_TRIPLE_STRING, TRIPLE_STRING, RAW_STRING, STANDARD_STRING, PATH, CHECK, NUMBER, BOOLEAN, IDENTIFIER, SYSTEM_IDENTIFIER}",
             false,
           ],
         ],
@@ -456,9 +456,9 @@ describe('Express AST visitor and parser', () => {
     });
 
     it('reports an unexpected character as a lexer error', () => {
-      expect(parseExpress('valid = 1\n@invalid = 2')).toEqual({
+      expect(parseExpress('valid = 1\n^invalid = 2')).toEqual({
         statements: [['ASSIGN', 'valid', 1]],
-        errors: [[2, 0, "token recognition error at: '@'", true]],
+        errors: [[2, 0, "token recognition error at: '^'", true]],
       });
     });
 
@@ -470,7 +470,7 @@ describe('Express AST visitor and parser', () => {
           [
             3,
             16,
-            "mismatched input '<EOF>' expecting {'[', ']', '{', '_', 'null', RAW_TRIPLE_STRING, TRIPLE_STRING, RAW_STRING, STANDARD_STRING, PATH, CHECK, NUMBER, BOOLEAN, IDENTIFIER}",
+            "mismatched input '<EOF>' expecting {'[', ']', '{', '_', 'null', RAW_TRIPLE_STRING, TRIPLE_STRING, RAW_STRING, STANDARD_STRING, PATH, CHECK, NUMBER, BOOLEAN, IDENTIFIER, SYSTEM_IDENTIFIER}",
             false,
           ],
         ],

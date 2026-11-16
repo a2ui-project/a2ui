@@ -26,7 +26,21 @@ public final class MessageProcessor: ObservableObject {
   public let surfaceGroupModel: SurfaceGroupModel
 
   /// Listener for outbound messages destined to the agent.
-  public var outboundListener: (@Sendable (RendererToAgentMessage) -> Void)?
+  ///
+  /// While it is set, each v1.0 surface sends calls to functions the renderer does not implement
+  /// to the agent with `callAgentFunction` (see ``SurfaceViewModel/agentFunctionCaller``).
+  /// Without it there is no way to reach the agent, so such calls keep failing locally.
+  public var outboundListener: (@Sendable (RendererToAgentMessage) -> Void)? {
+    didSet {
+      for surface in surfaceGroupModel.surfacesMap.values {
+        installAgentFunctionCaller(on: surface)
+      }
+    }
+  }
+
+  /// The maximum time, in seconds, that a surface waits for the agent to answer a function call
+  /// that it routes to the agent. Defaults to 30 seconds.
+  public var agentFunctionTimeoutSeconds: TimeInterval = 30.0
 
   /// The validation configuration controlling strictness.
   public let validationConfig: ValidationConfig
@@ -172,7 +186,11 @@ public final class MessageProcessor: ObservableObject {
     /// If true, full definitions of all catalogs will be included as inline catalogs.
     public var includeInlineCatalogs: Bool
 
-    /// Optional JSON Schema `$ref` used as the base envelope for inline component schemas.
+    /// Optional JSON Schema `$ref` used as the base envelope for inline component schemas
+    /// before v1.0. Defaults to `common_types.json#/$defs/ComponentCommon`.
+    ///
+    /// v1.0 inline catalogs ignore it: v1.0 composes `ComponentCommon` in the message envelope,
+    /// so catalog components must not wrap it again.
     public var componentEnvelopeRef: String?
 
     /// Creates a capabilities option instance with explicit protocol versions.
@@ -180,7 +198,8 @@ public final class MessageProcessor: ObservableObject {
     /// - Parameters:
     ///   - versions: Protocol versions to generate capabilities for (must not be empty).
     ///   - includeInlineCatalogs: Whether to include inline catalog definitions.
-    ///   - componentEnvelopeRef: Optional JSON Schema `$ref` for component envelopes.
+    ///   - componentEnvelopeRef: Optional JSON Schema `$ref` for component envelopes before
+    ///     v1.0.
     public init(
       versions: [A2UIProtocolVersion],
       includeInlineCatalogs: Bool = false,
@@ -196,7 +215,8 @@ public final class MessageProcessor: ObservableObject {
     /// - Parameters:
     ///   - protocolVersion: The `A2UIProtocolVersion` enum case.
     ///   - includeInlineCatalogs: Whether to include inline catalog definitions.
-    ///   - componentEnvelopeRef: Optional JSON Schema `$ref` for component envelopes.
+    ///   - componentEnvelopeRef: Optional JSON Schema `$ref` for component envelopes before
+    ///     v1.0.
     public init(
       protocolVersion: A2UIProtocolVersion,
       includeInlineCatalogs: Bool = false,
@@ -213,7 +233,9 @@ public final class MessageProcessor: ObservableObject {
   ///
   /// - Parameter options: Configuration options for capability generation.
   /// - Returns: A `JSONValue` representing the capabilities structure keyed by protocol version.
-  /// - Throws: `A2UIValidationError` if `options.versions` is empty.
+  /// - Throws: `A2UIValidationError` if `options.versions` is empty, or ``A2UICatalogError``
+  ///   if a v1.0 inline catalog has a function that sets `requiresUserActivation` to `true`
+  ///   while `allowedCallers` is not `.rendererOnly`.
   public func getRendererCapabilities(
     options: CapabilitiesOptions
   ) throws -> JSONValue {
@@ -235,6 +257,13 @@ public final class MessageProcessor: ObservableObject {
       ]
 
       if options.includeInlineCatalogs {
+        if version.isAtLeastV10 {
+          // The v1.0 `catalog_definition.json` rejects a function that requires user
+          // activation unless only the renderer may call it, so don't advertise one.
+          for catalog in compatibleCatalogs {
+            try catalog.validateFunctionCallerConstraints()
+          }
+        }
         let inlineCatalogs = compatibleCatalogs.map {
           generateInlineCatalog($0, for: version, options: options)
         }
@@ -254,7 +283,11 @@ public final class MessageProcessor: ObservableObject {
   ) -> JSONValue {
     let envelopeRef =
       options.componentEnvelopeRef ?? "common_types.json#/$defs/ComponentCommon"
-    let componentsDictionary = generateInlineComponents(catalog, envelopeRef: envelopeRef)
+    let componentsDictionary = generateInlineComponents(
+      catalog,
+      version: version,
+      envelopeRef: envelopeRef
+    )
 
     var catalogDictionary: OrderedDictionary<String, JSONValue> = [:]
     if version.isAtLeastV10 {
@@ -269,12 +302,14 @@ public final class MessageProcessor: ObservableObject {
       catalogDictionary["components"] = .object(componentsDictionary)
     }
 
-    if !catalog.functions.isEmpty {
-      if version.isAtLeastV10 {
-        catalogDictionary["functions"] = .object(generateV10InlineFunctions(catalog))
-      } else {
-        catalogDictionary["functions"] = .array(generateV09InlineFunctions(catalog))
-      }
+    let functionsDictionary =
+      version.isAtLeastV10 && !catalog.functions.isEmpty
+      ? generateV10InlineFunctions(catalog)
+      : [:]
+    if !functionsDictionary.isEmpty {
+      catalogDictionary["functions"] = .object(functionsDictionary)
+    } else if !version.isAtLeastV10, !catalog.functions.isEmpty {
+      catalogDictionary["functions"] = .array(generateV09InlineFunctions(catalog))
     }
 
     if !version.isAtLeastV10, let themeSchema = catalog.themeSchema {
@@ -283,11 +318,45 @@ public final class MessageProcessor: ObservableObject {
       catalogDictionary["theme"] = processedTheme["properties"] ?? processedTheme
     }
 
+    if version.isAtLeastV10 {
+      // `catalog_definition.json` requires `$defs` to hold both unions, even for a catalog with
+      // no components or no functions.
+      catalogDictionary["$defs"] = .object([
+        "anyComponent": inlineCatalogUnion(
+          of: componentsDictionary.keys,
+          in: "components",
+          discriminator: "component"
+        ),
+        "anyFunction": inlineCatalogUnion(of: functionsDictionary.keys, in: "functions"),
+      ])
+    }
+
     return .object(catalogDictionary)
+  }
+
+  /// A `oneOf` of references to `#/<section>/<name>` for each name, or `{"not": {}}` when there
+  /// are none, since JSON Schema requires `oneOf` to be non-empty.
+  private func inlineCatalogUnion(
+    of names: some Collection<String>,
+    in section: String,
+    discriminator: String? = nil
+  ) -> JSONValue {
+    guard !names.isEmpty else { return .object(["not": .object([:])]) }
+    let refs: [JSONValue] = names.map { name in
+      let token = name.replacingOccurrences(of: "~", with: "~0")
+        .replacingOccurrences(of: "/", with: "~1")
+      return .object(["$ref": .string("#/\(section)/\(token)")])
+    }
+    var union: OrderedDictionary<String, JSONValue> = ["oneOf": .array(refs)]
+    if let discriminator {
+      union["discriminator"] = .object(["propertyName": .string(discriminator)])
+    }
+    return .object(union)
   }
 
   private func generateInlineComponents(
     _ catalog: AnyCatalog,
+    version: A2UIProtocolVersion,
     envelopeRef: String
   ) -> OrderedDictionary<String, JSONValue> {
     var componentsDictionary: OrderedDictionary<String, JSONValue> = [:]
@@ -296,6 +365,7 @@ public final class MessageProcessor: ObservableObject {
       componentsDictionary[name] = buildInlineComponentSchema(
         name: name,
         componentAPI: componentAPI,
+        version: version,
         envelopeRef: envelopeRef
       )
     }
@@ -305,6 +375,7 @@ public final class MessageProcessor: ObservableObject {
   private func buildInlineComponentSchema(
     name: String,
     componentAPI: AnyComponentAPI,
+    version: A2UIProtocolVersion,
     envelopeRef: String
   ) -> JSONValue {
     let schemaJSON = schemaToJSONValue(componentAPI.schema) ?? .object([:])
@@ -326,6 +397,33 @@ public final class MessageProcessor: ObservableObject {
       }
     }
 
+    // v1.0 composes ComponentCommon in the message envelope (`agent_to_renderer.json`), so
+    // its catalog components are plain schemas. Before v1.0, each component carries it.
+    if version.isAtLeastV10 {
+      var componentSchema: OrderedDictionary<String, JSONValue> = [
+        "type": .string("object")
+      ]
+      if let description = processedSchema["description"]?.stringValue {
+        componentSchema["description"] = .string(description)
+      }
+      componentSchema["properties"] = .object(properties)
+      componentSchema["required"] = .array(required)
+      // `JSONSchema.Schema` drops these A2UI keywords, so they come from the component API.
+      if let allowedParents = componentAPI.allowedParents {
+        componentSchema["allowedParents"] = .array(allowedParents.map { .string($0) })
+      }
+      if let allowedChildren = componentAPI.allowedChildren {
+        componentSchema["allowedChildren"] = .array(allowedChildren.map { .string($0) })
+      }
+      if let metadata = componentAPI.metadata {
+        var orderedMetadata: OrderedDictionary<String, JSONValue> = [:]
+        for key in metadata.keys.sorted() {
+          orderedMetadata[key] = metadata[key]
+        }
+        componentSchema["metadata"] = .object(orderedMetadata)
+      }
+      return .object(componentSchema)
+    }
     return .object([
       "allOf": .array([
         .object(["$ref": .string(envelopeRef)]),
@@ -341,7 +439,9 @@ public final class MessageProcessor: ObservableObject {
     _ catalog: AnyCatalog
   ) -> OrderedDictionary<String, JSONValue> {
     var functionsDict: OrderedDictionary<String, JSONValue> = [:]
-    for key in catalog.functions.keys.sorted() {
+    // The `@` namespace is reserved for system functions such as `@index`, which every v1.0
+    // catalog provides and no catalog may declare.
+    for key in catalog.functions.keys.sorted() where !key.hasPrefix("@") {
       guard let functionImplementation = catalog.functions[key] else { continue }
       let functionAPI = functionImplementation.api
       functionsDict[functionAPI.name] = buildV10InlineFunction(functionAPI)
@@ -540,7 +640,10 @@ public final class MessageProcessor: ObservableObject {
     do {
       let adapter = try adapterFactory.resolveFromPayload(payload)
       envelopeVersion = adapter.version
-      operations = try adapter.extractOperations(from: payload)
+      operations = try adapter.extractOperations(
+        from: payload,
+        allowUnknownElements: validationConfig.allowUnknownElements
+      )
     } catch {
       let rawContext = extractRawEnvelopeContext(from: payload, error: error)
       let surfaceID = extractSurfaceID(from: error, fallback: rawContext.surfaceID ?? "")
@@ -722,7 +825,10 @@ public final class MessageProcessor: ObservableObject {
 
   private func adaptToOperations(_ message: AgentToRendererMessage) throws -> [InternalOperation] {
     let adapter = adapterFactory.getAdapter(for: message.version)
-    return try adapter.adaptMessage(message)
+    return try adapter.adaptMessage(
+      message,
+      allowUnknownElements: validationConfig.allowUnknownElements
+    )
   }
 
   private func extractSurfaceID(from error: Error, fallback: String) -> String {
@@ -819,23 +925,42 @@ public final class MessageProcessor: ObservableObject {
       sendDataModel: op.sendDataModel,
       protocolVersion: op.version ?? targetCatalog?.a2uiProtocolVersion
     )
-
-    if let dataModel = op.dataModel {
-      for (key, value) in dataModel {
-        let escapedKey =
-          key
-          .replacingOccurrences(of: "~", with: "~0")
-          .replacingOccurrences(of: "/", with: "~1")
-        try vm.dataModel.setThrowing("/\(escapedKey)", value: value)
-      }
-    }
+    installAgentFunctionCaller(on: vm)
 
     if let components = op.components {
       try validateComponentsBatch(components, on: vm)
-      applyComponentsBatch(components, to: vm)
     }
 
     surfaceGroupModel.addSurface(vm)
+
+    do {
+      if let dataModel = op.dataModel {
+        for (key, value) in dataModel {
+          if key.isEmpty {
+            var currentRoot = vm.dataModel.get("/")?.objectValue ?? [:]
+            if value == .null {
+              currentRoot.removeValue(forKey: "")
+            } else {
+              currentRoot[""] = value
+            }
+            try vm.dataModel.setThrowing("/", value: .object(currentRoot))
+          } else {
+            let escapedKey =
+              key
+              .replacingOccurrences(of: "~", with: "~0")
+              .replacingOccurrences(of: "/", with: "~1")
+            try vm.dataModel.setThrowing("/\(escapedKey)", value: value)
+          }
+        }
+      }
+
+      if let components = op.components {
+        applyComponentsBatch(components, to: vm)
+      }
+    } catch {
+      surfaceGroupModel.removeSurface(id: op.surfaceID)
+      throw error
+    }
   }
 
   private func processCallRendererFunctionOp(_ op: InternalCallRendererFunctionOp) throws {
@@ -908,6 +1033,9 @@ public final class MessageProcessor: ObservableObject {
     version: A2UIProtocolVersion,
     timeoutSeconds: TimeInterval = 30.0
   ) async throws -> JSONValue {
+    guard !rpcHandler.isDisposed else {
+      throw FunctionError.disposed(callID: functionCallID ?? UUID().uuidString)
+    }
     guard let listener = outboundListener else {
       throw FunctionError.noListener(name: functionName)
     }
@@ -921,6 +1049,35 @@ public final class MessageProcessor: ObservableObject {
       timeoutSeconds: timeoutSeconds,
       sendOutbound: listener
     )
+  }
+
+  /// Lets a v1.0 surface send calls to functions the renderer does not implement to the agent,
+  /// while this processor has an ``outboundListener``; otherwise removes that ability.
+  ///
+  /// The caller dispatches `callAgentFunction` through ``RPCHandler``, waiting up to
+  /// ``agentFunctionTimeoutSeconds`` for the agent's response.
+  private func installAgentFunctionCaller(on surface: SurfaceViewModel) {
+    guard outboundListener != nil, surface.protocolVersion.isAtLeastV10 else {
+      surface.agentFunctionCaller = nil
+      return
+    }
+    let surfaceID = surface.surfaceID
+    let version = surface.protocolVersion
+    surface.agentFunctionCaller = { [weak self, weak surface] call in
+      guard let self else { throw FunctionError.noListener(name: call.name) }
+      // A call resumed after the surface was deleted sends nothing.
+      guard let surface, self.surfaceGroupModel[surfaceID] === surface else {
+        throw FunctionError.surfaceCallsCancelled(surfaceID: surfaceID)
+      }
+      return try await self.callAgentFunction(
+        surfaceID: surfaceID,
+        functionName: call.name,
+        catalogID: call.catalogID,
+        args: call.args,
+        version: version,
+        timeoutSeconds: self.agentFunctionTimeoutSeconds
+      )
+    }
   }
 
   private func payloadValidator(
@@ -997,6 +1154,7 @@ public final class MessageProcessor: ObservableObject {
     }
     graphBounds[op.surfaceID] = nil
     surfaceGroupModel.removeSurface(id: op.surfaceID)
+    rpcHandler.cancelPendingCalls(forSurfaceID: op.surfaceID)
   }
 
   private func validateComponentsBatch(
@@ -1041,7 +1199,12 @@ public final class MessageProcessor: ObservableObject {
     let held = surface.componentsModel.components
     let catalogs = surface.catalogs
     let defaultCatalogID = surface.defaultCatalogID
-    let checksBatch = config.allowDanglingReferences && config.allowMissingRoot
+    // The graph checks read each component's catalog from `@catalogId`.
+    let components = components.map { topologyComponent($0, on: surface) }
+    // The bound assumes the graph is acyclic, so a config that admits cycles checks the whole
+    // surface each time.
+    let checksBatch =
+      config.allowDanglingReferences && config.allowMissingRoot && !config.allowCyclicReferences
     var batch: [String: [String: JSONValue]] = [:]
     for component in components {
       guard let id = component["id"]?.stringValue else { continue }
@@ -1065,7 +1228,7 @@ public final class MessageProcessor: ObservableObject {
         typeOf: { id in
           if let component = batch[id] {
             guard let type = component["component"]?.stringValue else { return nil }
-            return (type, component["catalogId"]?.stringValue ?? defaultCatalogID)
+            return (type, component["@catalogId"]?.stringValue ?? defaultCatalogID)
           }
           return held[id].map { ($0.type, $0.catalogID ?? defaultCatalogID) }
         }
@@ -1094,8 +1257,70 @@ public final class MessageProcessor: ObservableObject {
     }
   }
 
+  /// Returns a component as the graph checks read it: with the catalog it runs in under
+  /// `@catalogId`.
+  ///
+  /// Before v1.0 a component runs in the surface default catalog, and a `catalogId` it carries is
+  /// a property of its own.
+  private func topologyComponent(
+    _ component: [String: JSONValue],
+    on surface: SurfaceViewModel
+  ) -> [String: JSONValue] {
+    var result = component
+    let catalogID: String?
+    if surface.protocolVersion.isAtLeastV10 {
+      catalogID =
+        ComponentEnvelope.catalogIDEntry(
+          in: component,
+          defaultCatalogSchema: defaultCatalogSchema(for: component, on: surface)
+        )?.value.stringValue ?? surface.defaultCatalogID
+    } else {
+      catalogID = surface.defaultCatalogID
+    }
+    if let catalogID {
+      result[ComponentEnvelope.Mixin.catalogID.prefixedKey] = .string(catalogID)
+    }
+    return result
+  }
+
+  /// The schema of a component's type in the surface default catalog, or nil.
+  private func defaultCatalogSchema(
+    for component: [String: JSONValue],
+    on surface: SurfaceViewModel
+  ) -> JSONValue? {
+    guard let type = component["component"]?.stringValue else { return nil }
+    return surface.getCatalog(id: surface.defaultCatalogID)?.components[type]?.schema.jsonValue
+  }
+
+  /// Returns a v1.0 component with the legacy bare `catalogId` that routes it renamed to
+  /// `@catalogId`, or the component unchanged when no bare `catalogId` routes it.
+  ///
+  /// The component's schema in the surface default catalog decides whether a bare `catalogId`
+  /// routes it. A routing `catalogId` is the mixin even when the component's schema in the
+  /// catalog it routes to declares a `catalogId` property of its own, so that schema must not
+  /// read it as that property.
+  private func routedV10Component(
+    _ component: [String: JSONValue],
+    on surface: SurfaceViewModel
+  ) -> [String: JSONValue] {
+    let mixin = ComponentEnvelope.Mixin.catalogID
+    guard
+      let entry = ComponentEnvelope.catalogIDEntry(
+        in: component,
+        defaultCatalogSchema: defaultCatalogSchema(for: component, on: surface)
+      ),
+      entry.key == mixin.bareKey
+    else {
+      return component
+    }
+    var routed = component
+    routed.removeValue(forKey: mixin.bareKey)
+    routed[mixin.prefixedKey] = entry.value
+    return routed
+  }
+
   /// The ids of the components that `component` references, read through the schema of its
-  /// type as ``GraphTopologyValidator`` reads them.
+  /// type as ``GraphTopologyValidator`` reads them. `component` is a ``topologyComponent(_:on:)``.
   private func componentReferences(
     _ component: [String: JSONValue],
     on surface: SurfaceViewModel
@@ -1103,7 +1328,7 @@ public final class MessageProcessor: ObservableObject {
     guard let type = component["component"]?.stringValue else { return [] }
     let schema = GraphTopologyValidator.lookupComponentAPI(
       type: type,
-      catalogID: component["catalogId"]?.stringValue ?? surface.defaultCatalogID,
+      catalogID: component["@catalogId"]?.stringValue ?? surface.defaultCatalogID,
       catalogs: surface.catalogs,
       defaultCatalogID: surface.defaultCatalogID
     )?.schema.jsonValue
@@ -1147,18 +1372,24 @@ public final class MessageProcessor: ObservableObject {
     let validator = payloadValidator(for: targetCatalog, config: config)
     do {
       if surface.protocolVersion.isAtLeastV10 {
-        if let rawMeta = componentDict["metadata"] {
-          _ = try MetadataValidator.validate(rawMeta, pathPrefix: "components.\(id).metadata")
+        // Validate against the target catalog with the routing `catalogId` as `@catalogId`, so a
+        // `catalogId` property declared there doesn't check the routing value.
+        let routedDict = routedV10Component(componentDict, on: surface)
+        let envelope = try componentEnvelope(routedDict, id: id, catalog: targetCatalog)
+        if let rawMeta = envelope[.metadata] {
+          let key = envelope.key(of: .metadata) ?? ComponentEnvelope.Mixin.metadata.prefixedKey
+          _ = try MetadataValidator.validate(rawMeta, pathPrefix: "components.\(id).\(key)")
         }
         // The validator takes a component that names no catalogId to be in the surface default
         // catalog, so it names one only when the component's catalog isn't the default.
         let componentInDefault = targetCatalog.id == surface.defaultCatalogID
         try validator.validateComponent(
-          componentDict,
+          routedDict,
           componentNamesCatalog: !componentInDefault
         )
         try validateNestedFunctionCalls(
-          in: componentDict,
+          in: routedDict,
+          envelope: envelope,
           componentID: id,
           componentCatalog: targetCatalog,
           componentInDefault: componentInDefault,
@@ -1185,15 +1416,21 @@ public final class MessageProcessor: ObservableObject {
   ) throws -> AnyCatalog {
     let componentCatalogID: String?
     if surface.protocolVersion.isAtLeastV10 {
+      let entry = ComponentEnvelope.catalogIDEntry(
+        in: componentDict,
+        defaultCatalogSchema: defaultCatalogSchema(for: componentDict, on: surface)
+      )
       componentCatalogID = try resolveV10CatalogID(
-        componentDict["catalogId"],
+        entry?.value,
         subject: "Component '\(id)'",
         on: surface,
-        path: CatalogResolutionErrors.componentCatalogIDPath
+        path: entry?.key == ComponentEnvelope.Mixin.catalogID.prefixedKey
+          ? ComponentEnvelope.Mixin.catalogID.prefixedKey
+          : CatalogResolutionErrors.componentCatalogIDPath
       )
     } else {
-      componentCatalogID =
-        componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
+      // Before v1.0 a component's `catalogId` is a property of its own.
+      componentCatalogID = surface.defaultCatalogID
     }
 
     let resolvedCatalogID = componentCatalogID ?? "default"
@@ -1259,11 +1496,11 @@ public final class MessageProcessor: ObservableObject {
         "id": .string(existing.id),
         "component": .string(existing.type),
       ]
-      if let catalogID = existing.catalogID {
-        dict["catalogId"] = .string(catalogID)
-      }
       for (k, v) in existing.properties {
         dict[k] = v
+      }
+      if let catalogID = existing.catalogID {
+        dict[ComponentEnvelope.Mixin.catalogID.prefixedKey] = .string(catalogID)
       }
       allComponentsMap[existing.id] = dict
     }
@@ -1279,14 +1516,25 @@ public final class MessageProcessor: ObservableObject {
   /// resolve to. Reserved `@` names are left to the validator.
   private func validateNestedFunctionCalls(
     in componentDict: [String: JSONValue],
+    envelope: ComponentEnvelope,
     componentID: String,
     componentCatalog: AnyCatalog,
     componentInDefault: Bool,
     on surface: SurfaceViewModel,
     config: ValidationConfig
   ) throws {
-    for (key, value) in componentDict
-    where key != "id" && key != "component" && key != "catalogId" && key != "metadata" {
+    // The catalog id and metadata mixins hold no function calls.
+    var skippedKeys: Set<String> = [
+      "id", "component",
+      ComponentEnvelope.Mixin.catalogID.prefixedKey,
+      ComponentEnvelope.Mixin.metadata.prefixedKey,
+    ]
+    for mixin in [ComponentEnvelope.Mixin.catalogID, .metadata] {
+      if let key = envelope.key(of: mixin) {
+        skippedKeys.insert(key)
+      }
+    }
+    for (key, value) in componentDict where !skippedKeys.contains(key) {
       try validateNestedFunctionCallsInValue(
         value,
         propertyPath: key,
@@ -1396,6 +1644,7 @@ public final class MessageProcessor: ObservableObject {
         throw CatalogResolutionErrors.nonObjectArguments(functionName: callName)
       }
       let callValidator = payloadValidator(for: callCatalog, config: config)
+      try callValidator.assertRendererMayCall(callName)
       try callValidator.validateFunctionInternal(
         name: callName,
         args: dict["args"]?.dictionaryValue,
@@ -1455,32 +1704,21 @@ public final class MessageProcessor: ObservableObject {
       else {
         continue
       }
-      let componentCatalogID =
-        componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
-
-      var props: [String: JSONValue] = [:]
-      for (key, val) in componentDict
-      where key != "id" && key != "component" && key != "catalogId" && key != "metadata" {
-        props[key] = val
-      }
-      let metadata = try? MetadataValidator.validate(
-        componentDict["metadata"],
-        pathPrefix: "components.\(id).metadata"
-      )
-
-      let existing = surface.componentsModel.get(id)
-      if let existing, existing.type != type || existing.catalogID != componentCatalogID {
-        removedIDs.append(id)
-      }
-      addedComponents.append(
-        ComponentModel(
+      let component =
+        surface.protocolVersion.isAtLeastV10
+        ? v10ComponentModel(componentDict, id: id, type: type, on: surface)
+        : ComponentModel(
           id: id,
           type: type,
-          catalogID: componentCatalogID,
-          properties: props,
-          metadata: metadata
+          catalogID: surface.defaultCatalogID,
+          properties: componentDict.filter { $0.key != "id" && $0.key != "component" }
         )
-      )
+
+      let existing = surface.componentsModel.get(id)
+      if let existing, existing.type != type || existing.catalogID != component.catalogID {
+        removedIDs.append(id)
+      }
+      addedComponents.append(component)
     }
     if !removedIDs.isEmpty || !addedComponents.isEmpty {
       surface.componentsModel.applyBatch(removing: removedIDs, adding: addedComponents)
@@ -1491,6 +1729,63 @@ public final class MessageProcessor: ObservableObject {
     {
       bound.revision = surface.componentsModel.revision
     }
+  }
+
+  /// Builds the model of a validated v1.0 component.
+  ///
+  /// The catalog id and metadata mixins move to ``ComponentModel/catalogID`` and
+  /// ``ComponentModel/metadata``. The accessibility and checks mixins stay in the properties
+  /// under `@accessibility` and `@checks`, so they never collide with component properties of
+  /// the same bare names.
+  private func v10ComponentModel(
+    _ componentDict: [String: JSONValue],
+    id: String,
+    type: String,
+    on surface: SurfaceViewModel
+  ) -> ComponentModel {
+    // A bare `catalogId` that routed the component (its schema in the default catalog declares
+    // none) is the mixin even if the target catalog declares a `catalogId` of its own.
+    let routedDict = routedV10Component(componentDict, on: surface)
+    let catalogID =
+      routedDict[ComponentEnvelope.Mixin.catalogID.prefixedKey]?.stringValue
+      ?? surface.defaultCatalogID
+    let envelope = try? componentEnvelope(
+      routedDict,
+      id: id,
+      catalog: surface.getCatalog(id: catalogID)
+    )
+    var properties =
+      envelope?.properties
+      ?? routedDict.filter { $0.key != "id" && $0.key != "component" }
+    for mixin in [ComponentEnvelope.Mixin.accessibility, .checks] {
+      if let value = envelope?[mixin] {
+        properties[mixin.prefixedKey] = value
+      }
+    }
+    let metadata = try? MetadataValidator.validate(
+      envelope?[.metadata],
+      pathPrefix: "components.\(id).metadata"
+    )
+    return ComponentModel(
+      id: id,
+      type: type,
+      catalogID: catalogID,
+      properties: properties,
+      metadata: metadata
+    )
+  }
+
+  /// Splits a v1.0 component into its mixins and its own properties, against the schema of its
+  /// type in `catalog`.
+  private func componentEnvelope(
+    _ componentDict: [String: JSONValue],
+    id: String,
+    catalog: AnyCatalog?
+  ) throws -> ComponentEnvelope {
+    let schema = componentDict["component"]?.stringValue.flatMap {
+      catalog?.components[$0]?.schema.jsonValue
+    }
+    return try ComponentEnvelope(component: componentDict, schema: schema, componentID: id)
   }
 
   private func findCatalog(
@@ -1518,11 +1813,11 @@ public final class MessageProcessor: ObservableObject {
       task.cancel()
     }
     activeRPCTasks.removeAll()
-    rpcHandler.disposeAllPendingCalls()
     graphBounds.removeAll()
     for surfaceID in Array(surfaceGroupModel.surfacesMap.keys) {
       surfaceGroupModel.removeSurface(id: surfaceID)
     }
+    rpcHandler.disposeAllPendingCalls()
   }
 
   private func resolveRPCDataContext(surfaceID: String?) -> (DataContext?, String?) {

@@ -21,10 +21,15 @@ from functools import cache
 from typing import Any, Callable, Final
 
 from ..common import Subscription
-from ..schema._dynamic_types import dynamic_literal_kinds
+from ..schema._dynamic_types import (
+    dynamic_literal_kinds,
+    is_function_call_branch,
+    is_ref,
+)
 from ..schema.common_types_schema import get_all_dynamic_type_names
 from ..schema.v1_0 import ValidationResult
 from .component_context import ComponentContext
+from .validation_result_coercion import coerce_dynamic_boolean
 
 
 class BehaviorType(str, Enum):
@@ -46,6 +51,7 @@ class BehaviorNode:
     type: BehaviorType
     shape: dict[str, BehaviorNode] | None = None
     element: BehaviorNode | None = None
+    is_boolean: bool = False
 
 
 CHECKABLE_REF_NAMES: Final[frozenset[str]] = frozenset({"Checkable", "CheckRule"})
@@ -119,6 +125,36 @@ _SPECIAL_BEHAVIORS: Final[frozenset[BehaviorType]] = frozenset({
     BehaviorType.DYNAMIC,
 })
 
+_ACCESSIBILITY_BEHAVIOR: Final[BehaviorNode] = BehaviorNode(
+    BehaviorType.OBJECT,
+    shape={
+        "label": BehaviorNode(BehaviorType.DYNAMIC),
+        "description": BehaviorNode(BehaviorType.DYNAMIC),
+        "live": BehaviorNode(BehaviorType.STATIC),
+        "hidden": BehaviorNode(BehaviorType.DYNAMIC, is_boolean=True),
+    },
+)
+"""The behavior of the `AccessibilityAttributes` mixin."""
+
+
+def _with_envelope_mixin_behaviors(
+    shape: dict[str, BehaviorNode],
+) -> dict[str, BehaviorNode]:
+    """Adds the behaviors of the envelope mixins a component doesn't declare.
+
+    These are `accessibility` (below v1.0, or a legacy v1.0 payload), and the
+    v1.0 `@accessibility` and `@checks`, under which `MessageProcessor` stores
+    a v1.0 component's accessibility attributes and check rules.
+
+    A component that declares its own `accessibility` keeps that behavior, so
+    a custom property of that name is bound as the component declares it.
+    """
+    result = dict(shape)
+    result.setdefault("accessibility", _ACCESSIBILITY_BEHAVIOR)
+    result.setdefault("@accessibility", _ACCESSIBILITY_BEHAVIOR)
+    result.setdefault("@checks", BehaviorNode(BehaviorType.CHECKABLE))
+    return result
+
 
 def _merge_all_of_branch(
     branch: Any,
@@ -130,6 +166,7 @@ def _merge_all_of_branch(
         return None
     if _extract_ref_name(branch.get("$ref")) == "Checkable":
         merged_shape["checks"] = BehaviorNode(BehaviorType.CHECKABLE)
+        merged_shape["@checks"] = BehaviorNode(BehaviorType.CHECKABLE)
         return BehaviorNode(BehaviorType.CHECKABLE)
     node = classify_schema_behavior(branch, defs)
     if node.type == BehaviorType.OBJECT and node.shape:
@@ -153,6 +190,7 @@ def _classify_all_of(
                 merged_shape.update(node.shape)
             elif _extract_ref_name(branch.get("$ref")) == "Checkable":
                 merged_shape["checks"] = BehaviorNode(BehaviorType.CHECKABLE)
+                merged_shape["@checks"] = BehaviorNode(BehaviorType.CHECKABLE)
                 if first_special is None:
                     first_special = BehaviorNode(BehaviorType.CHECKABLE)
             elif node.type in _SPECIAL_BEHAVIORS and first_special is None:
@@ -163,6 +201,11 @@ def _classify_all_of(
         for k, v in own_props.items():
             if isinstance(v, dict):
                 merged_shape[k] = classify_schema_behavior(v, defs)
+    if (
+        "checks" in merged_shape
+        and merged_shape["checks"].type == BehaviorType.CHECKABLE
+    ):
+        merged_shape.setdefault("@checks", BehaviorNode(BehaviorType.CHECKABLE))
     if found_object or merged_shape:
         return BehaviorNode(BehaviorType.OBJECT, shape=merged_shape)
     return first_special
@@ -177,17 +220,34 @@ def _classify_combiners(
     branches = (one_of if isinstance(one_of, list) else []) + (
         any_of if isinstance(any_of, list) else []
     )
+    localized_branches = _localize_branch_refs(branches)
+    literal_branches = [
+        branch
+        for branch in localized_branches
+        if isinstance(branch, dict)
+        and not is_ref(branch, "DataBinding")
+        and not is_function_call_branch(branch)
+        and branch.get("type") != "null"
+    ]
+    is_boolean_union = bool(literal_branches) and all(
+        branch.get("type") == "boolean" for branch in literal_branches
+    )
     for branch in branches:
         if isinstance(branch, dict):
             node = classify_schema_behavior(branch, defs)
             if node.type in _SPECIAL_BEHAVIORS:
+                if (
+                    node.type == BehaviorType.DYNAMIC
+                    and is_boolean_union
+                    and not node.is_boolean
+                ):
+                    return BehaviorNode(BehaviorType.DYNAMIC, is_boolean=True)
                 return node
 
     all_of = schema.get("allOf")
     if isinstance(all_of, list):
         return _classify_all_of(schema, defs, all_of)
 
-    return None
     return None
 
 
@@ -221,6 +281,8 @@ def _classify_container(
                 for k, v in props.items()
                 if isinstance(v, dict)
             }
+            if "checks" in shape and shape["checks"].type == BehaviorType.CHECKABLE:
+                shape.setdefault("@checks", BehaviorNode(BehaviorType.CHECKABLE))
             return BehaviorNode(BehaviorType.OBJECT, shape=shape)
 
     return None
@@ -252,11 +314,15 @@ def classify_schema_behavior(
         if ref_name in STRUCTURAL_REF_NAMES:
             return BehaviorNode(BehaviorType.STRUCTURAL)
         if ref_name in _dynamic_ref_names():
-            return BehaviorNode(BehaviorType.DYNAMIC)
+            return BehaviorNode(
+                BehaviorType.DYNAMIC, is_boolean=(ref_name == "DynamicBoolean")
+            )
         # A catalog-defined dynamic def (e.g. `DynamicDate`) is recognized by
         # the shape of the def it references.
         if "$defs/" in ref and _is_dynamic_def(defs.get(ref_name)):
-            return BehaviorNode(BehaviorType.DYNAMIC)
+            return BehaviorNode(
+                BehaviorType.DYNAMIC, is_boolean=(ref_name == "DynamicBoolean")
+            )
 
     combiner = _classify_combiners(schema, defs)
     if combiner is not None:
@@ -288,11 +354,14 @@ def _classify_value_fallback(
     key: str, val: Any, at_least_v10: bool = False
 ) -> BehaviorNode:
     """Fallback classification derived dynamically from property key and value shapes."""
-    if key == "checks" or (
-        isinstance(val, list)
-        and val
-        and isinstance(val[0], dict)
-        and "condition" in val[0]
+    if (
+        key in ("checks", "@checks")
+        and isinstance(val, list)
+        and (
+            key == "@checks"
+            or not val
+            or (isinstance(val[0], dict) and "condition" in val[0])
+        )
     ):
         return BehaviorNode(BehaviorType.CHECKABLE)
 
@@ -307,12 +376,20 @@ def _classify_value_fallback(
         else:
             if "path" in val or "call" in val:
                 return BehaviorNode(BehaviorType.DYNAMIC)
-        if "event" in val or "functionCall" in val:
+        # Like each branch of the spec's `Action`, an inline action has `event`
+        # or `functionCall` as its only key.
+        if len(val) == 1 and ("event" in val or "functionCall" in val):
             return BehaviorNode(BehaviorType.ACTION)
         shape = {
             k: _classify_value_fallback(k, v, at_least_v10=at_least_v10)
             for k, v in val.items()
         }
+        if (
+            key in ("@accessibility", "accessibility")
+            and "hidden" in shape
+            and shape["hidden"].type == BehaviorType.DYNAMIC
+        ):
+            shape["hidden"] = BehaviorNode(BehaviorType.DYNAMIC, is_boolean=True)
         return BehaviorNode(BehaviorType.OBJECT, shape=shape)
 
     if isinstance(val, list):
@@ -374,6 +451,10 @@ class GenericBinder:
         )
         if self.behavior_tree.type != BehaviorType.OBJECT:
             self.behavior_tree = BehaviorNode(BehaviorType.OBJECT, shape={})
+        self.behavior_tree = BehaviorNode(
+            BehaviorType.OBJECT,
+            shape=_with_envelope_mixin_behaviors(self.behavior_tree.shape or {}),
+        )
 
         sub = self.context.component_model.on_updated.subscribe(
             lambda _: self._rebuild_all_bindings()
@@ -419,7 +500,8 @@ class GenericBinder:
         result: dict[str, Any] = {}
 
         ordered_items = sorted(
-            val_obj.items(), key=lambda kv: (0 if kv[0] == "checks" else 1)
+            val_obj.items(),
+            key=lambda kv: (0 if kv[0] in ("checks", "@checks") else 1),
         )
         for k, v in ordered_items:
             child_behavior = shape.get(k) or _classify_value_fallback(
@@ -440,6 +522,8 @@ class GenericBinder:
     ) -> None:
         candidate_keys = set(shape.keys()) | set(val_obj.keys())
         for k in candidate_keys:
+            if k.startswith("@"):
+                continue
             behavior = shape.get(k)
             raw_val = val_obj.get(k)
             is_dynamic = (
@@ -447,7 +531,9 @@ class GenericBinder:
             ) or (
                 raw_val is not None
                 and _classify_value_fallback(
-                    k, raw_val, at_least_v10=self.context.data_context.at_least_v10
+                    k,
+                    raw_val,
+                    at_least_v10=self.context.data_context.at_least_v10,
                 ).type
                 == BehaviorType.DYNAMIC
             )
@@ -479,11 +565,15 @@ class GenericBinder:
         path: list[str],
         is_sync: bool,
     ) -> Any:
-        if value is None:
+        if value is None and not (
+            behavior.type == BehaviorType.DYNAMIC and behavior.is_boolean
+        ):
             return None
 
         if behavior.type == BehaviorType.DYNAMIC:
-            return self._bind_dynamic_value(value, path, is_sync)
+            return self._bind_dynamic_value(
+                value, path, is_sync, is_boolean=behavior.is_boolean
+            )
 
         if behavior.type == BehaviorType.ACTION:
             return self._bind_action(value, path)
@@ -591,9 +681,18 @@ class GenericBinder:
         elif isinstance(curr, dict):
             curr[last] = new_value
 
-    def _bind_dynamic_value(self, value: Any, path: list[str], is_sync: bool) -> Any:
+    def _bind_dynamic_value(
+        self,
+        value: Any,
+        path: list[str],
+        is_sync: bool,
+        *,
+        is_boolean: bool = False,
+    ) -> Any:
+        coerce = coerce_dynamic_boolean if is_boolean else (lambda v: v)
+
         def on_change(new_val: Any) -> None:
-            self._update_deep_value(path, new_val)
+            self._update_deep_value(path, coerce(new_val))
             self._notify()
 
         bound = self.context.data_context.subscribe_dynamic_value(value, on_change)
@@ -601,7 +700,7 @@ class GenericBinder:
             self.data_listeners.append(bound)
         else:
             bound.unsubscribe()
-        return bound.value
+        return coerce(bound.value)
 
     def _bind_action(self, value: Any, path: list[str]) -> Callable[..., Any]:
         cache_key = "/".join(path)
@@ -618,7 +717,14 @@ class GenericBinder:
                 )
                 call_name = fc.get("@call") or fc.get("call")
                 if isinstance(call_name, str):
-                    return self.context.data_context.resolve_dynamic_value(fc)
+                    # Runs as an action: a local function that raises is an
+                    # EXECUTION_ERROR, and user activation applies. The
+                    # closure returns the result's current value, None while
+                    # an agent function's answer is pending.
+                    result = self.context.data_context.resolve_action(value)
+                    if hasattr(result, "subscribe") and callable(result.subscribe):
+                        return result.peek() if hasattr(result, "peek") else None
+                    return result
             resolved = self.context.data_context.resolve_action(value)
             return self.context.dispatch_action(resolved, metadata=metadata)
 
@@ -666,9 +772,11 @@ class GenericBinder:
 
     @staticmethod
     def _compute_validation_summary(
-        rule_results: list[dict[str, Any]],
+        rule_results: list[dict[str, Any] | None],
     ) -> tuple[bool, list[str], list[dict[str, Any]], dict[str, Any]]:
-        failed_rules = [r for r in rule_results if not r["valid"]]
+        # A rule whose condition waits for an agent call (None) does not
+        # fail while it is pending.
+        failed_rules = [r for r in rule_results if r is not None and not r["valid"]]
         error_rules = [r for r in failed_rules if r.get("severity", "error") == "error"]
         is_valid = len(error_rules) == 0
         validation_errors = [r["message"] for r in error_rules if r.get("message")]
@@ -676,7 +784,12 @@ class GenericBinder:
             {k: v for k, v in r.items() if k != "_is_obj"} for r in failed_rules
         ]
         if not failed_rules:
-            return is_valid, validation_errors, validation_results, {"valid": True}
+            return (
+                is_valid,
+                validation_errors,
+                validation_results,
+                {"valid": True},
+            )
         first_res = {k: v for k, v in failed_rules[0].items() if k != "_is_obj"}
         if not failed_rules[0].get("_is_obj"):
             first_res.pop("severity", None)
@@ -690,7 +803,7 @@ class GenericBinder:
         is_sync: bool,
     ) -> Any:
         rules = value if isinstance(value, list) else []
-        rule_results: list[dict[str, Any]] = [
+        rule_results: list[dict[str, Any] | None] = [
             {"valid": True, "message": "", "severity": "error"} for _ in rules
         ]
         parent_path = path[:-1]
@@ -733,28 +846,35 @@ class GenericBinder:
             # the rule message is only the fallback.
             explicit_msg = None if self._is_path_bound(condition) else rule_msg
             fallback_msg = rule_msg or "Validation failed"
-            rule_results[idx]["message"] = fallback_msg
 
-            def make_on_change(
+            def rule_result(
+                state: Any, exp_msg: str | None, fb_msg: str
+            ) -> dict[str, Any] | None:
+                # A condition waiting for an agent call has no result yet.
+                # Once the call settles the rule is evaluated; a call that
+                # failed leaves the condition None, which fails the rule.
+                if state.pending:
+                    return None
+                return self._process_rule_val(state.value, exp_msg, fb_msg)
+
+            def make_on_state(
                 i: int, exp_msg: str | None, fb_msg: str
-            ) -> Callable[[Any], None]:
-                def on_change(new_val: Any) -> None:
-                    rule_results[i] = self._process_rule_val(new_val, exp_msg, fb_msg)
+            ) -> Callable[[Any, bool], None]:
+                def on_state(state: Any, _value_changed: bool) -> None:
+                    rule_results[i] = rule_result(state, exp_msg, fb_msg)
                     _apply_validation_state(reactive=True)
 
-                return on_change
+                return on_state
 
-            bound = self.context.data_context.subscribe_dynamic_value(
-                condition, make_on_change(idx, explicit_msg, fallback_msg)
+            bound = self.context.data_context.subscribe_dynamic_state(
+                condition, make_on_state(idx, explicit_msg, fallback_msg)
             )
             if not is_sync:
                 self.data_listeners.append(bound)
             else:
                 bound.unsubscribe()
 
-            rule_results[idx] = self._process_rule_val(
-                bound.value, explicit_msg, fallback_msg
-            )
+            rule_results[idx] = rule_result(bound.value, explicit_msg, fallback_msg)
 
         _apply_validation_state(reactive=False)
         return value

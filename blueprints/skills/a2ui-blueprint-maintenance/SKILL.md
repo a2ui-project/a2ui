@@ -1,6 +1,8 @@
 ---
 name: a2ui-blueprint-maintenance
 description: Manage the evolution, merging, archiving, and cleanup of specifications and blueprints across the workspace.
+metadata:
+  internal: true
 ---
 
 # A2UI Blueprint Maintenance Skill

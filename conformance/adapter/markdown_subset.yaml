@@ -1,0 +1,102 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: emphasis_and_strong
+  features: [F-RND-16]
+  description: Verifies rendering of italic and bold text.
+  action: render_markdown
+  markdown: "This is *italic* and **bold** text."
+  expectVisibleText: "This is italic and bold text."
+  expectPresent:
+    - emphasis
+    - strong
+  expectAbsent:
+    - html
+    - image
+    - link
+
+- name: headings
+  features: [F-RND-16]
+  description: Verifies rendering of headings.
+  action: render_markdown
+  markdown: "# Header 1\n## Header 2"
+  expectVisibleText: "Header 1 Header 2"
+  expectPresent:
+    - heading
+  expectAbsent:
+    - html
+    - image
+    - link
+
+- name: lists
+  features: [F-RND-16]
+  description: Verifies rendering of lists.
+  action: render_markdown
+  markdown: "- Item 1\n- Item 2\n- Item 3"
+  expectVisibleText: "Item 1 Item 2 Item 3"
+  expectPresent:
+    - list_item
+  expectAbsent:
+    - html
+    - image
+    - link
+
+- name: inline_code
+  features: [F-RND-16]
+  description: Verifies rendering of inline code spans.
+  action: render_markdown
+  markdown: "Use the `a2ui` command to start."
+  expectVisibleText: "Use the a2ui command to start."
+  expectPresent:
+    - code
+  expectAbsent:
+    - html
+    - image
+    - link
+
+- name: raw_html_shown_as_text
+  features: [F-RND-16]
+  description: Verifies that raw HTML is rendered as plain text rather than active HTML elements.
+  action: render_markdown
+  markdown: "Hello <span>world</span>"
+  expectVisibleText: "Hello <span>world</span>"
+  expectPresent: []
+  expectAbsent:
+    - html
+    - image
+    - link
+
+- name: image_syntax_not_rendered_as_image
+  features: [F-RND-16]
+  description: Verifies that image markdown syntax does not render an image element.
+  action: render_markdown
+  markdown: "Look at ![photo](https://example.com/pic.png)"
+  expectVisibleText: "Look at photo"
+  expectPresent: []
+  expectAbsent:
+    - image
+    - html
+    - link
+
+- name: link_rendered_as_text_without_target
+  features: [F-RND-16]
+  description: Verifies that link syntax renders as its text without a link target.
+  action: render_markdown
+  markdown: "Visit [Documentation](https://example.com) for details."
+  expectVisibleText: "Visit Documentation for details."
+  expectPresent: []
+  expectAbsent:
+    - link
+    - html
+    - image

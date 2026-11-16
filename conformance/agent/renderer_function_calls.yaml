@@ -1,0 +1,458 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# The agent's calls to renderer functions with `callRendererFunction` (v1.0):
+# building the message, settling calls with the renderer's responses,
+# timeouts, disposal and the limit on pending calls. Renderer calls run on a
+# fake clock that only an `advance_ms` step moves, so no case waits on real
+# time.
+
+# --- Calling renderer functions ---
+
+- name: test_call_renderer_function_builds_the_message_without_waiting
+  features: [F-AGT-42, F-AGT-61]
+  description: >-
+    A call returns its callRendererFunction message at once, with a generated functionCallId and the catalogId the message requires, and stays pending until the renderer answers.
+  action: call_renderer_function
+  steps:
+    - call:
+        label: a
+        catalogId: conformance/agent_functions
+        name: notify
+        args: {message: Saved}
+        surfaceId: s1
+      expect_message:
+        version: "1.0"
+        callRendererFunction:
+          surfaceId: s1
+          callFunction:
+            "@call": notify
+            catalogId: conformance/agent_functions
+            args: {message: Saved}
+      expect_calls:
+        a: pending
+      expect_pending_count: 1
+
+- name: test_call_renderer_function_without_surface_or_args
+  description: >-
+    A call made without a surface leaves surfaceId out of the message, and one made without arguments sends empty args.
+  action: call_renderer_function
+  steps:
+    - call:
+        label: a
+        catalogId: conformance/agent_functions
+        name: now
+      expect_message:
+        version: "1.0"
+        callRendererFunction:
+          callFunction:
+            "@call": now
+            catalogId: conformance/agent_functions
+            args: {}
+      expect_calls:
+        a: pending
+
+- name: test_call_renderer_function_with_an_empty_surface_id
+  description: >-
+    An empty surfaceId counts as no surface: it is left out of the message, which a renderer would otherwise reject.
+  action: call_renderer_function
+  steps:
+    - call:
+        label: a
+        catalogId: conformance/agent_functions
+        name: now
+        surfaceId: ""
+      expect_message:
+        version: "1.0"
+        callRendererFunction:
+          callFunction:
+            "@call": now
+            catalogId: conformance/agent_functions
+            args: {}
+      expect_calls:
+        a: pending
+
+- name: test_call_renderer_function_with_an_empty_name
+  description: >-
+    A call needs a function name: an empty one fails with INVALID_FUNCTION_CALL before anything is registered.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: ""}
+      expect_error: {code: INVALID_FUNCTION_CALL}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_settled_by_its_response
+  features: [F-AGT-42, F-AGT-61]
+  description: >-
+    A rendererFunctionResponse settles the call whose functionCallId it copies with its value, and leaves the other calls pending.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
+    - call: {label: b, catalogId: conformance/agent_functions, name: getTimezone}
+      expect_pending_count: 2
+    - respond: {call: b, value: Europe/Paris}
+      expect_calls:
+        a: pending
+        b: {value: Europe/Paris}
+      expect_pending_count: 1
+    - respond: {call: a, value: {language: fr, region: FR}}
+      expect_calls:
+        a: {value: {language: fr, region: FR}}
+        b: {value: Europe/Paris}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_settled_with_a_null_value
+  description: A response whose value is null settles the call with null.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getSelection}
+    - respond: {call: a, value: null}
+      expect_calls:
+        a: {value: null}
+
+- name: test_call_renderer_function_failed_by_an_error_response
+  features: [F-AGT-42, F-AGT-61]
+  description: A response that carries an error fails the call with the renderer's code.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocation}
+    - respond:
+        call: a
+        error: {code: PERMISSION_DENIED, message: "The user declined."}
+      expect_calls:
+        a: {error: {code: PERMISSION_DENIED, message: "The user declined."}}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_ignores_an_unknown_response
+  description: >-
+    A response whose functionCallId matches no call comes from the network, so it is ignored without failing, and the pending calls stay pending.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
+    - respond: {functionCallId: never-sent, value: en}
+      expect_calls:
+        a: pending
+      expect_pending_count: 1
+
+- name: test_call_renderer_function_ignores_a_duplicate_response
+  description: A second response to a settled call is ignored, and the call keeps the first value.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
+    - respond: {call: a, value: en}
+    - respond: {call: a, value: fr}
+      expect_calls:
+        a: {value: en}
+
+- name: test_call_renderer_function_times_out_after_thirty_seconds_by_default
+  features: [F-AGT-42, F-AGT-61]
+  description: >-
+    A call waits 30 seconds for its response by default, the same as the renderer waits for the agent, then fails with TIMEOUT and stops being pending.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
+    - advance_ms: 29999
+      expect_calls:
+        a: pending
+    - advance_ms: 1
+      expect_calls:
+        a: {error: {code: TIMEOUT}}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_ignores_a_late_response
+  description: A response that arrives after its call timed out is ignored, and the call stays failed.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale, timeout_ms: 100}
+    - advance_ms: 100
+      expect_calls:
+        a: {error: {code: TIMEOUT}}
+    - respond: {call: a, value: en}
+      expect_calls:
+        a: {error: {code: TIMEOUT}}
+
+- name: test_call_renderer_function_with_its_own_timeout
+  description: A timeout given to one call replaces the default for that call only.
+  action: call_renderer_function
+  steps:
+    - call: {label: short, catalogId: conformance/agent_functions, name: getLocale, timeout_ms: 500}
+    - call: {label: default, catalogId: conformance/agent_functions, name: getTimezone}
+    - advance_ms: 500
+      expect_calls:
+        short: {error: {code: TIMEOUT}}
+        default: pending
+
+- name: test_call_renderer_function_with_a_default_timeout
+  description: A default timeout given when the calls are set up applies to every call that sets none of its own.
+  action: call_renderer_function
+  args:
+    default_timeout_ms: 2000
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
+    - advance_ms: 1999
+      expect_calls:
+        a: pending
+    - advance_ms: 1
+      expect_calls:
+        a: {error: {code: TIMEOUT}}
+
+- name: test_call_renderer_function_settled_before_its_timeout
+  description: A call that is answered in time does not time out later.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale, timeout_ms: 1000}
+    - advance_ms: 400
+    - respond: {call: a, value: en}
+    - advance_ms: 1000
+      expect_calls:
+        a: {value: en}
+
+- name: test_call_renderer_function_dispose_fails_pending_calls
+  description: >-
+    Disposing the calls fails every pending call with CANCELLED and the reason given, leaves settled calls alone, refuses later calls with DISPOSED, and ignores later responses.
+  action: call_renderer_function
+  steps:
+    - call: {label: done, catalogId: conformance/agent_functions, name: getLocale}
+    - call: {label: a, catalogId: conformance/agent_functions, name: getTimezone}
+    - call: {label: b, catalogId: conformance/agent_functions, name: getLocation}
+    - respond: {call: done, value: en}
+    - dispose: {reason: "the session ended"}
+      expect_calls:
+        done: {value: en}
+        a: {error: {code: CANCELLED, message: "the session ended"}}
+        b: {error: {code: CANCELLED, message: "the session ended"}}
+      expect_pending_count: 0
+    - respond: {call: a, value: Europe/Paris}
+      expect_calls:
+        a: {error: {code: CANCELLED}}
+    - call: {label: c, catalogId: conformance/agent_functions, name: getLocale}
+      expect_error: {code: DISPOSED}
+
+- name: test_call_renderer_function_limits_pending_calls
+  description: >-
+    With a limit on pending calls, a call beyond it fails with TOO_MANY_PENDING instead of piling up, and settling a call makes room for another.
+  action: call_renderer_function
+  args:
+    max_pending: 2
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
+    - call: {label: b, catalogId: conformance/agent_functions, name: getTimezone}
+    - call: {label: c, catalogId: conformance/agent_functions, name: getLocation}
+      expect_error: {code: TOO_MANY_PENDING}
+      expect_pending_count: 2
+    - respond: {call: a, value: en}
+    - call: {label: d, catalogId: conformance/agent_functions, name: getLocation}
+      expect_calls:
+        b: pending
+        d: pending
+      expect_pending_count: 2
+
+# --- Checking calls against the agent's catalogs ---
+# With `catalogs`, `call` checks the target before anything is registered or
+# sent. Each catalog is built in code from its id and its functions.
+
+- name: test_call_renderer_function_checked_rejects_a_renderer_only_function
+  features: [F-AGT-41, F-AGT-61]
+  description: >-
+    A function whose allowedCallers is rendererOnly can't be called by the agent: the call fails with INVALID_FUNCTION_CALL, and nothing is sent or pending.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalogId: conformance/device
+        functions:
+          formatLocal: {allowedCallers: rendererOnly}
+  steps:
+    - call: {label: a, catalogId: conformance/device, name: formatLocal}
+      expect_error: {code: INVALID_FUNCTION_CALL, message: formatLocal}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_checked_rejects_a_function_without_allowed_callers
+  description: >-
+    A function that leaves allowedCallers out is rendererOnly, so the agent's call fails with INVALID_FUNCTION_CALL, and nothing is sent or pending.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalogId: conformance/device
+        functions:
+          formatLocal: {}
+  steps:
+    - call: {label: a, catalogId: conformance/device, name: formatLocal}
+      expect_error: {code: INVALID_FUNCTION_CALL, message: formatLocal}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_checked_rejects_a_function_that_needs_user_activation
+  description: >-
+    An agent call has no user gesture, so a function with requiresUserActivation fails with INVALID_FUNCTION_CALL even when its allowedCallers lets the agent call it. The catalog is built in code, so the schema rule that pairs activation with rendererOnly doesn't apply.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalogId: conformance/device
+        functions:
+          vibrate: {allowedCallers: rendererOrAgent, requiresUserActivation: true}
+  steps:
+    - call: {label: a, catalogId: conformance/device, name: vibrate}
+      expect_error: {code: INVALID_FUNCTION_CALL, message: vibrate}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_checked_rejects_a_function_the_catalog_lacks
+  description: >-
+    A function the named catalog doesn't have fails with UNKNOWN_FUNCTION, and nothing is sent or pending.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalogId: conformance/device
+        functions:
+          getLocation: {allowedCallers: rendererOrAgent}
+  steps:
+    - call: {label: a, catalogId: conformance/device, name: getAltitude}
+      expect_error: {code: UNKNOWN_FUNCTION}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_checked_rejects_an_unknown_catalog
+  description: >-
+    A catalogId that names none of the agent's catalogs fails with UNKNOWN_FUNCTION, and nothing is sent or pending.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalogId: conformance/device
+        functions:
+          getLocation: {allowedCallers: rendererOrAgent}
+  steps:
+    - call: {label: a, catalogId: conformance/other, name: getLocation}
+      expect_error: {code: UNKNOWN_FUNCTION}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_checked_allows_a_renderer_or_agent_function
+  features: [F-AGT-41, F-AGT-61]
+  description: >-
+    A rendererOrAgent function without user activation passes the check: the message is built, and the call settles from its response.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalogId: conformance/device
+        functions:
+          getLocation: {allowedCallers: rendererOrAgent}
+  steps:
+    - call:
+        label: a
+        catalogId: conformance/device
+        name: getLocation
+        surfaceId: s1
+      expect_message:
+        version: "1.0"
+        callRendererFunction:
+          surfaceId: s1
+          callFunction:
+            "@call": getLocation
+            catalogId: conformance/device
+            args: {}
+      expect_pending_count: 1
+    - respond: {call: a, value: Paris}
+      expect_calls:
+        a: {value: Paris}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_checked_rejects_two_catalogs_with_one_id
+  description: >-
+    Two catalogs with the same id are a catalog error when the calls helper is built.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalogId: conformance/device
+        functions:
+          getLocation: {allowedCallers: rendererOrAgent}
+      - catalogId: conformance/device
+        functions:
+          vibrate: {allowedCallers: agentOnly}
+  expect_error: {category: CatalogError}
+
+# --- The checks `call` makes on its own arguments ---
+# Each check runs in a fixed order before anything is built, registered or
+# timed. A rejected call sends nothing and leaves nothing pending.
+
+- name: test_call_renderer_function_with_an_empty_function_call_id
+  description: >-
+    A functionCallId given as an empty string is refused with INVALID_FUNCTION_CALL rather than replaced by a generated one.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale, functionCallId: ""}
+      expect_error: {code: INVALID_FUNCTION_CALL}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_with_a_name_that_is_not_an_identifier
+  description: >-
+    A function name that isn't a UAX #31 identifier is refused with INVALID_FUNCTION_CALL.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: get-location}
+      expect_error: {code: INVALID_FUNCTION_CALL}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_with_a_reserved_name
+  description: >-
+    A function name that starts with @, such as the @index system function, is refused with INVALID_FUNCTION_CALL.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: "@index"}
+      expect_error: {code: INVALID_FUNCTION_CALL}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_with_args_that_are_not_an_object
+  description: >-
+    Arguments given as a list instead of an object are refused with INVALID_FUNCTION_CALL.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: notify, args: [Saved]}
+      expect_error: {code: INVALID_FUNCTION_CALL}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_with_an_argument_key_that_is_not_an_identifier
+  description: >-
+    An argument key that isn't a UAX #31 identifier is refused with INVALID_FUNCTION_CALL, and the message names the key.
+  action: call_renderer_function
+  steps:
+    - call:
+        label: a
+        catalogId: conformance/agent_functions
+        name: notify
+        args: {bad-key: Saved}
+      expect_error: {code: INVALID_FUNCTION_CALL, message: bad-key}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_checks_the_name_before_the_catalog_id
+  description: >-
+    With both the name and the catalogId empty, the error is about the missing function name: the name is checked first.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: "", name: ""}
+      expect_error: {code: INVALID_FUNCTION_CALL, message: function name}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_checks_the_args_before_the_catalogs
+  description: >-
+    A call to a rendererOnly function whose arguments have a bad key is refused for the argument, which is checked before the catalogs: the message names the key.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalogId: conformance/device
+        functions:
+          formatLocal: {allowedCallers: rendererOnly}
+  steps:
+    - call:
+        label: a
+        catalogId: conformance/device
+        name: formatLocal
+        args: {bad-key: 1}
+      expect_error: {code: INVALID_FUNCTION_CALL, message: bad-key}
+      expect_pending_count: 0

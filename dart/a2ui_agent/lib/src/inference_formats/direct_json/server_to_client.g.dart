@@ -22,7 +22,7 @@ const String serverToClientV0_9Json = r'''
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v0_9/server_to_client.json",
   "title": "A2UI Message Schema",
-  "description": "Describes a JSON payload for an A2UI (Agent to UI) message, which is used to dynamically construct and update user interfaces.",
+  "description": "Describes a JSON payload for an A2UI message, which is used to dynamically construct and update user interfaces.",
   "type": "object",
   "oneOf": [
     {"$ref": "#/$defs/CreateSurfaceMessage"},
@@ -158,7 +158,7 @@ const String agentToRendererV1_0Json = r'''
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v1_0/agent_to_renderer.json",
   "title": "A2UI Message Schema",
-  "description": "Describes a JSON payload for an A2UI (Agent to UI) message, which is used to dynamically construct and update user interfaces.",
+  "description": "Describes a JSON payload for an A2UI message, which is used to dynamically construct and update user interfaces.",
   "type": "object",
   "oneOf": [
     {"$ref": "#/$defs/CreateSurfaceMessage"},
@@ -185,7 +185,7 @@ const String agentToRendererV1_0Json = r'''
             },
             "catalogId": {
               "type": "string",
-              "description": "A string that uniquely identifies the default catalog for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts e.g. 'mycompany.com:somecatalog'. Components and function calls that do not explicitly specify a catalogId will use this surface-level default catalogId."
+              "description": "A string that uniquely identifies the default catalog for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts e.g. 'mycompany.com:somecatalog'. Components that do not explicitly specify @catalogId and function calls that do not explicitly specify catalogId will use this surface-level default catalogId."
             },
             "sendDataModel": {
               "type": "boolean",

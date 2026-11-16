@@ -106,6 +106,28 @@ describe('ListComponent', () => {
     expect(hosts.length).toBe(2);
   });
 
+  it('drops the item of a child that renders nothing', async () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      listStyle: createBoundProperty('ordered'),
+      children: createBoundProperty([
+        {id: 'child-1', basePath: '/'},
+        {id: 'missing', basePath: '/'},
+        {id: 'child-2', basePath: '/'},
+      ]),
+    } as any);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const items: HTMLElement[] = Array.from(fixture.nativeElement.querySelectorAll('li'));
+    expect(items.length).toBe(3);
+    const missingHost = items[1].querySelector('a2ui-v09-component-host')!;
+    expect(missingHost.hasAttribute('data-a2ui-empty')).toBeTrue();
+    // An empty <li> would still show a marker and take a gap.
+    expect(getComputedStyle(items[1]).display).toBe('none');
+  });
+
   it('should render as ordered list', () => {
     setComponentProps(fixture, {
       ...defaultProps,

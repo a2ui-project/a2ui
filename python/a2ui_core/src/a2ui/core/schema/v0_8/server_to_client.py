@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Auto-generated. Do not edit manually.
-"""Describes a JSON payload for an A2UI (Agent to UI) message, which is used to dynamically construct and update user interfaces. A message MUST contain exactly ONE of the action properties: 'beginRendering', 'surfaceUpdate', 'dataModelUpdate', or 'deleteSurface'."""
+"""Describes a JSON payload for an A2UI message, which is used to dynamically construct and update user interfaces. A message MUST contain exactly ONE of the action properties: 'beginRendering', 'surfaceUpdate', 'dataModelUpdate', or 'deleteSurface'."""
 
 from __future__ import annotations
 from typing import Annotated, Any, Final, Literal
@@ -21,7 +21,6 @@ from pydantic import BaseModel, Field, ConfigDict
 from .._json_schema import INLINE_DEF_MARKER, SchemaKeywords
 from ..common_types import StrictBaseModel
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
-
 
 ComponentsList = list[dict[str, Any]]
 Component = dict[str, Any]

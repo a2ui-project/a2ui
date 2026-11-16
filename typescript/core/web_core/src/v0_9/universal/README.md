@@ -4,7 +4,7 @@ The universal component submodule provides primitives for creating A2UI componen
 
 ## Exports
 
-- **`A2uiLitElement`**: Abstract base class extending `LitElement`. Provides automatic property binding via `A2uiController`, child node rendering (`renderNode()`), and `static styles` support in the Light DOM (`adoptLightDomStyles()`) for subclasses that opt out of Shadow DOM.
+- **`A2uiLitElement`**: Abstract base class extending `LitElement` that renders into the Light DOM by default (`createRenderRoot()` returns `this`). Provides automatic property binding via `A2uiController`, child node rendering (`renderNode()`), and `static styles` support in the Light DOM (`adoptLightDomStyles()`). Subclasses that require Shadow DOM encapsulation can override `createRenderRoot()` to return `this.attachShadow({mode: 'open'})`.
 - **`A2uiController`**: Lit `ReactiveController` that connects an element to the A2UI `GenericBinder` and requests element updates when bound properties change.
 - **`WebComponentImplementation`**: Type of a catalog entry: a component API (`name`, `schema`) paired with the custom element `tagName` and `element` class.
 - **`registerUniversalElement(component)`**: Defines `component.element` under `component.tagName` in `customElements` if it is not defined yet. Renderers call it for every catalog entry before rendering a surface.
@@ -64,4 +64,4 @@ The exported `myBadgeComponent` can be registered directly:
 - **In React**: `new Catalog('my-catalog', '0.9', [...basicCatalog.components.values(), myBadgeComponent], BASIC_FUNCTIONS)`
 - **In Angular**: `new AngularCatalog('my-catalog', '0.9', [...BASIC_COMPONENTS, myBadgeComponent], BASIC_FUNCTIONS)` with `useUniversalComponents: true` in `A2UI_RENDERER_CONFIG`
 
-For the full developer guide and advanced patterns (nested children, user actions, two-way data binding), see [Authoring Universal Components](../../../../../../docs/public/guides/authoring-universal-components.md).
+For the full developer guide and advanced patterns (nested children, user actions, two-way data binding), see [Authoring Universal Components](../../../../../../docs/site/src/content/docs/guides/authoring-universal-components.mdx).

@@ -296,12 +296,22 @@ void main() {
   });
 
   group('truthiness', () {
-    for (final falsy in <Object?>[0, 0.0, '', null, false]) {
+    for (final falsy in <Object?>[
+      0,
+      0.0,
+      '',
+      'false',
+      'a',
+      null,
+      false,
+      <Object?>[],
+      {},
+    ]) {
       test('not($falsy) is true', () {
         expect(_call(v10, 'not', {'value': falsy}), isTrue);
       });
     }
-    for (final truthy in <Object?>[1, -1, 'a', true, <Object?>[], {}]) {
+    for (final truthy in <Object?>[1, -1, 'true', 'True', 'TRUE', true]) {
       test('not($truthy) is false', () {
         expect(_call(v10, 'not', {'value': truthy}), isFalse);
       });
@@ -310,9 +320,15 @@ void main() {
     test('and and or coerce values', () {
       expect(
         _call(v09, 'and', {
-          'values': [1, 'yes'],
+          'values': [1, 'true'],
         }),
         isTrue,
+      );
+      expect(
+        _call(v09, 'and', {
+          'values': [1, 'yes'],
+        }),
+        isFalse,
       );
       expect(
         _call(v09, 'and', {
@@ -329,6 +345,12 @@ void main() {
       expect(
         _call(v09, 'or', {
           'values': [0, 'x'],
+        }),
+        isFalse,
+      );
+      expect(
+        _call(v09, 'or', {
+          'values': [0, 'True'],
         }),
         isTrue,
       );
@@ -359,8 +381,8 @@ void main() {
         expect(truthy({'valid': true}), isTrue);
         expect(truthy({'valid': false}), isFalse);
         expect(truthy({'valid': 'yes'}), isFalse);
-        expect(truthy({'other': 1}), isTrue);
-        expect(truthy(<String, Object?>{}), isTrue);
+        expect(truthy({'other': 1}), isFalse);
+        expect(truthy(<String, Object?>{}), isFalse);
       });
 
       test('not(required(value)) inverts the validity', () {
@@ -455,15 +477,15 @@ void main() {
         );
       });
 
-      test('a v0.9 invoke checks a result object as an object', () {
+      test('a v0.9 invoke also coerces a result object by its validity', () {
         expect(
-          () => v09.invoke(
+          v09.invoke(
               'not',
               {
                 'value': {'valid': false},
               },
               _contextFor(v09)),
-          throwsA(isA<A2uiExpressionError>()),
+          isTrue,
         );
       });
 
@@ -484,12 +506,12 @@ void main() {
         );
       });
 
-      test('v0.9 treats a {valid} map as a plain, truthy object', () {
+      test('v0.9 coerces a {valid} map by its validity', () {
         expect(
           _call(v09, 'not', {
             'value': {'valid': false},
           }),
-          isFalse,
+          isTrue,
         );
         expect(
           _call(v09, 'and', {
@@ -498,12 +520,21 @@ void main() {
               {'valid': false},
             ],
           }),
-          isTrue,
+          isFalse,
         );
         expect(
           _call(v09, 'or', {
             'values': [
               {'valid': false},
+              0,
+            ],
+          }),
+          isFalse,
+        );
+        expect(
+          _call(v09, 'or', {
+            'values': [
+              {'valid': true},
               0,
             ],
           }),

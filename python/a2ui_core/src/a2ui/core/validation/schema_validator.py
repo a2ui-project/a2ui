@@ -28,7 +28,6 @@ import regex
 
 from ..exceptions import A2uiCatalogError
 
-
 # JSON Schema patterns are ECMA-262 regular expressions. `regex` natively
 # supports Unicode property escapes such as `\p{XID_Start}` and
 # `\p{XID_Continue}` (UAX #31); rewriting unescaped `$` outside character
@@ -137,13 +136,33 @@ _NO_RETRIEVAL_REGISTRY: Final[referencing.Registry[Any]] = referencing.Registry(
     retrieve=_refuse_retrieval  # type: ignore[call-arg]
 )
 
+_URI_RE: Final[regex.Pattern[str]] = regex.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:\S*\Z")
+
+_FORMAT_CHECKER: Final[jsonschema.FormatChecker] = jsonschema.FormatChecker()
+
+
+@_FORMAT_CHECKER.checks("uri")
+def _is_valid_uri(instance: object) -> bool:
+    return not isinstance(instance, str) or _URI_RE.match(instance) is not None
+
+
 _orig_init = SchemaValidator.__init__
 
 
 def _init_schema_validator(
-    self: Any, *args: Any, registry: Any = _NO_RETRIEVAL_REGISTRY, **kwargs: Any
+    self: Any,
+    *args: Any,
+    registry: Any = _NO_RETRIEVAL_REGISTRY,
+    format_checker: Any = _FORMAT_CHECKER,
+    **kwargs: Any,
 ) -> None:
-    _orig_init(self, *args, registry=registry, **kwargs)
+    _orig_init(
+        self,
+        *args,
+        registry=registry,
+        format_checker=format_checker,
+        **kwargs,
+    )
 
 
 SchemaValidator.__init__ = _init_schema_validator

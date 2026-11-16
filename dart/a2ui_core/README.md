@@ -8,7 +8,7 @@
 - Reactive state management built on `preact_signals` (`SurfaceGroupModel`, `SurfaceModel`, `SurfaceComponentsModel`, `DataModel`) and typed lifecycle notifications (`EventSource`, `EventNotifier`, `Subscription`).
 - Built-in basic catalogs (`BasicCatalog.v0_9()` and `BasicCatalog.v1_0()`) implementing the 14 standard validation, formatting, and logic functions, plus `Catalog.fromJson` for custom JSON Schema catalogs.
 - Reactive component resolution (`NodeResolver`, `ComponentNode`, `GenericBinder`, `DataContext`, `ComponentContext`) with `ResolvedBinding<T>` and `WritableBinding<T>` wrappers for framework adapters.
-- Bidirectional RPC coordination (`RpcHandler`) for v1.0 agent-to-renderer and renderer-to-agent function calls, heartbeats, cancellation, and structured error reporting.
+- Bidirectional RPC coordination (`RpcHandler`) for v1.0 agent-to-renderer and renderer-to-agent function calls, cancellation, and structured error reporting.
 
 > [!IMPORTANT]
 > `a2ui_core` targets A2UI protocol v0.9 and later (`v0.9`, `v0.9.1`, and `v1.0`). Legacy v0.8 payloads are not supported by the runtime processor.
@@ -62,6 +62,14 @@ graph TD
 
 ### Processing Protocol Messages
 
+Pass `outboundListener` with `unifiedOutbound: true` to receive every
+renderer-to-agent message (`ActionMessage`, `ErrorMessage`,
+`CallAgentFunctionMessage`, and `RendererFunctionResponseMessage`) through one
+callback (`ErrorMessage`s from `processMessages`, `CallAgentFunctionMessage`s,
+and `RendererFunctionResponseMessage`s are forwarded regardless of
+`unifiedOutbound`, while runtime surface errors are emitted on
+`processor.model.onError`):
+
 ```dart
 import 'package:a2ui_core/a2ui_core.dart';
 
@@ -70,6 +78,10 @@ void main() {
   final processor = MessageProcessor(
     catalogs: [catalog],
     defaultVersion: A2uiProtocolVersion.v1_0,
+    outboundListener: (RendererToAgentMessage message) {
+      print('Outbound: ${message.toJson()}');
+    },
+    unifiedOutbound: true,
   );
 
   final Subscription sub = processor.model.onSurfaceCreated.subscribe((surface) {

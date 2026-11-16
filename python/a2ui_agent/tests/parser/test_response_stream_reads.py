@@ -23,6 +23,7 @@ import pytest
 
 from a2ui.core import A2uiIntegrityError
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.catalog import FunctionApi
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.direct_json import DirectJsonParser
 from a2ui.parser import A2uiPart
@@ -73,6 +74,21 @@ def _components(messages: list[dict[str, Any]]) -> list[str]:
 
 _V10 = BasicCatalog("1.0")
 _V09 = BasicCatalog("0.9")
+
+
+def _with_scroll_to(catalog: Any) -> Any:
+    """The catalog with a function the agent may call, which basic lacks."""
+    return catalog.copy_with(
+        functions=[
+            *catalog.functions.values(),
+            FunctionApi(
+                name="scrollTo",
+                return_type="void",
+                schema={"type": "object", "properties": {"id": {"type": "string"}}},
+                allowed_callers="rendererOrAgent",
+            ),
+        ]
+    )
 
 
 def _create(catalog: Any, version: str) -> dict[str, Any]:
@@ -176,22 +192,23 @@ def test_a_data_model_update_is_emitted_as_it_grows_and_applied_once_it_closes()
 
 
 def test_a_function_call_is_held_until_its_object_closes():
+    catalog = _with_scroll_to(_V10)
     payload = [
-        _create(_V10, "1.0"),
+        _create(catalog, "1.0"),
         {
             "version": "1.0",
             "callRendererFunction": {
                 "functionCallId": "c1",
                 "callFunction": {
-                    "@call": "openUrl",
-                    "args": {"url": "https://a2ui.org"},
-                    "catalogId": _V10.catalog_id,
+                    "@call": "scrollTo",
+                    "args": {"id": "root"},
+                    "catalogId": catalog.catalog_id,
                 },
             },
         },
     ]
 
-    _, emitted = _stream(_V10, payload, size=3)
+    _, emitted = _stream(catalog, payload, size=3)
 
     assert [next(k for k in m if k != "version") for m in emitted] == [
         "createSurface",

@@ -249,11 +249,16 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
       expect(textElements.length).toBe(2);
 
       const accessibleEl = textElements[0]!;
-      expect(accessibleEl.getAttribute('aria-label')).toBe('System status');
-      expect(accessibleEl.getAttribute('aria-description')).toBe(
+      expect(accessibleEl.hasAttribute('aria-label')).toBe(false);
+      expect(accessibleEl.hasAttribute('aria-description')).toBe(false);
+      expect(accessibleEl.getAttribute('aria-live')).toBe('polite');
+
+      const innerSpan = accessibleEl.querySelector('.a2ui-text');
+      expect(innerSpan?.getAttribute('role')).toBe('note');
+      expect(innerSpan?.getAttribute('aria-label')).toBe('System status');
+      expect(innerSpan?.getAttribute('aria-description')).toBe(
         'Indicates whether the system is ready',
       );
-      expect(accessibleEl.getAttribute('aria-live')).toBe('polite');
 
       const hiddenEl = textElements[1]!;
       expect(hiddenEl.getAttribute('aria-hidden')).toBe('true');
@@ -562,7 +567,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
   });
 
   it('reports a component whose catalog lacks its type on a surface with no default catalog', async () => {
-    const surface = new SurfaceModel(
+    const surface = new SurfaceModel<ReactCatalogComponent>(
       'no-catalog',
       undefined,
       undefined,

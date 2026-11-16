@@ -72,7 +72,7 @@ def apply_decisions(decisions, on_progress=None):
                     )
 
             # Identify existing priority labels
-            priority_labels = {"P0", "P1", "P2", "P3", "P4"}
+            priority_labels = {"P0", "P1", "P2", "P3"}
             existing_p_labels = {l for l in current_labels if l in priority_labels}
 
             # Determine priority labels to add and remove

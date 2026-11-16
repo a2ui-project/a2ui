@@ -15,6 +15,7 @@
  */
 
 import {html, nothing, css} from 'lit';
+import {getAccessibilityDescription, getAccessibilityLabel} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {CardSupportedApis} from './supported_apis.js';
 
@@ -52,8 +53,18 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<CardSupportedApi
     const props = this.controller.props;
     if (!props) return nothing;
 
+    const a11yLabel = getAccessibilityLabel(props.accessibility);
+    const a11yDescription = getAccessibilityDescription(props.accessibility);
+
     return html`
-      <div class="a2ui-card">${props.child ? this.renderNode(props.child) : nothing}</div>
+      <div
+        class="a2ui-card"
+        role=${a11yLabel !== nothing ? 'region' : nothing}
+        aria-label=${a11yLabel}
+        aria-description=${a11yDescription}
+      >
+        ${props.child ? this.renderNode(props.child) : nothing}
+      </div>
     `;
   }
 }

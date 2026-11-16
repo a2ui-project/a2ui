@@ -26,6 +26,56 @@
  */
 
 /**
+ * Marker for a function argument whose evaluation has already failed and been
+ * reported on the surface. Enclosing function calls must not run or report a
+ * duplicate surface error when any argument resolves to a `FailedArgument`.
+ */
+export class FailedArgument {
+  constructor(readonly error: unknown) {}
+}
+
+/**
+ * Finds the first `FailedArgument` nested inside `value`, walking arrays and
+ * plain objects recursively.
+ *
+ * @param value The settled value or argument map to inspect.
+ * @returns The first `FailedArgument` encountered, or `undefined` if none is present.
+ */
+export function findFailedArgument(value: unknown): FailedArgument | undefined {
+  if (value instanceof FailedArgument) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findFailedArgument(item);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (isPlainObject(value)) {
+    for (const item of Object.values(value)) {
+      const found = findFailedArgument(item);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  return undefined;
+}
+
+const settledPromises = new WeakMap<PromiseLike<unknown>, {value: unknown}>();
+
+/**
+ * Records the settled value of a tracked Promise so subsequent `settleDeep`
+ * passes can read it synchronously when a sibling reactive dependency changes.
+ *
+ * @param promise The Promise that settled.
+ * @param value The settled value.
+ */
+export function recordSettledValue(promise: PromiseLike<unknown>, value: unknown): void {
+  settledPromises.set(promise, {value});
+}
+
+/**
  * Checks whether a value is a Promise-like object.
  *
  * @param value The value to inspect.
@@ -68,16 +118,25 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
  */
 export function settleDeep<T>(value: T): T | Promise<unknown> {
   if (isThenable(value)) {
+    const recorded = settledPromises.get(value);
+    if (recorded !== undefined) {
+      return settleDeep(recorded.value) as T | Promise<unknown>;
+    }
     return Promise.resolve(value).then(settleDeep);
   }
   if (Array.isArray(value)) {
     const items = value.map(settleDeep);
-    return items.some(isThenable) ? Promise.all(items) : value;
+    if (!items.some(isThenable)) {
+      return (items.every((item, i) => item === value[i]) ? value : items) as T;
+    }
+    return Promise.all(items);
   }
   if (isPlainObject(value)) {
     const entries = Object.entries(value).map(([key, item]) => [key, settleDeep(item)] as const);
     if (!entries.some(([, item]) => isThenable(item))) {
-      return value;
+      return (
+        entries.every(([key, item]) => item === value[key]) ? value : Object.fromEntries(entries)
+      ) as T;
     }
     return Promise.all(entries.map(([, item]) => item)).then(settled =>
       Object.fromEntries(entries.map(([key], i) => [key, settled[i]])),

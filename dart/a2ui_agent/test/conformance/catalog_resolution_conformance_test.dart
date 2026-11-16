@@ -33,8 +33,38 @@ void main() {
   }
 }
 
+const Map<String, Set<String>> _knownKeys = {
+  'case:resolve_catalogs': {
+    ...caseMetadataKeys,
+    'args',
+    'expect',
+    'expect_error',
+  },
+  'args:resolve_catalogs': {
+    'accepts_inline_catalogs',
+    'catalogs',
+    'renderer_capabilities',
+  },
+  'expect:resolve_catalogs': {'active_catalog_ids', 'catalogs'},
+};
+
 void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
+  switch (testCase['action']) {
+    case 'resolve_catalogs':
+      assertKnownKeys(
+        testCase,
+        _knownKeys['case:resolve_catalogs']!,
+        'case:resolve_catalogs',
+      );
+    default:
+      throw UnsupportedError('Unknown action ${testCase['action']}');
+  }
   final args = testCase['args']! as Map<String, Object?>;
+  assertKnownKeys(
+    args,
+    _knownKeys['args:resolve_catalogs']!,
+    'args:resolve_catalogs',
+  );
   final capabilities = args['renderer_capabilities'] as Map<String, Object?>?;
   List<CatalogApi> resolve() => resolveCatalogs(
     [
@@ -51,6 +81,11 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
   }
   final List<CatalogApi> active = resolve();
   final expected = testCase['expect']! as Map<String, Object?>;
+  assertKnownKeys(
+    expected,
+    _knownKeys['expect:resolve_catalogs']!,
+    'expect:resolve_catalogs',
+  );
   expect(
     active.map((c) => c.id),
     unorderedEquals(expected['active_catalog_ids']! as List<Object?>),

@@ -24,6 +24,8 @@ from a2ui.inference_formats.express import DEFAULT_EXPRESS_PROGRESSIVE_KEYS
 from a2ui.inference_formats.express import ExpressFormat
 from a2ui.inference_formats.express import ExpressFormatFactory
 from a2ui.inference_formats.express import ExpressParser
+from a2ui.inference_formats.express.compiler import ExpressCompiler
+from a2ui.inference_formats.express.compiler import ExpressScopeSession
 from a2ui.inference_formats.express.response_stream import heal_progressive_fragment
 from a2ui.inference_formats.express.response_stream import split_complete_statements
 from a2ui.parser import A2uiCompilationError
@@ -473,3 +475,63 @@ def test_express_stream_rejects_surface_extensions_on_non_creating_scope():
             '<a2ui>\nsurface("s1", extensions={surfaceTheme: "dark"})\n'
             '$/user = "Alice"\n</a2ui>'
         )
+
+
+def test_express_stream_emits_update_components_for_rootless_component_scope():
+    catalog = BasicCatalog(ProtocolVersion.V1_0)
+    compiler = ExpressCompiler([catalog], version="1.0")
+    session = ExpressScopeSession(compiler, surface_id="s1", version="1.0")
+    assert (
+        session.compile_step(
+            'c1 = Text("Updated")\n', is_final=False, existing_surfaces=()
+        )
+        == []
+    )
+    assert session.compile_step(
+        'c1 = Text("Updated")\n', is_final=True, existing_surfaces=()
+    ) == [{
+        "version": "1.0",
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [{"id": "c1", "component": "Text", "text": "Updated"}],
+        },
+    }]
+
+    state = RendererState([catalog])
+    parser = ExpressParser([catalog], surface_id="s1")
+
+    seed = parser.open_stream(state=state)
+    seed.feed('<a2ui>\nsurface("s1")\nroot = Column([c1])\nc1 = Text("Old")\n</a2ui>')
+    assert seed.close() == []
+
+    # Wrapped rootless scope updates the existing surface on block close.
+    update_stream = parser.open_stream(state=state)
+    assert update_stream.feed("<a2ui>\nc1 = Text(label)\n") == []
+    parts = update_stream.feed('label = "Updated"\n</a2ui>')
+    assert len(parts) == 1
+    msgs = [m.model_dump(by_alias=True, exclude_none=True) for m in parts[0].a2ui]
+    assert msgs == [{
+        "version": "1.0",
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [{"id": "c1", "component": "Text", "text": "Updated"}],
+        },
+    }]
+    assert update_stream.close() == []
+
+    # Unwrapped rootless scope emits updateComponents and closes cleanly.
+    unwrapped = parser.open_stream(wrapped=False, state=state)
+    assert unwrapped.feed('surface("s1")\nc1 = Text(label)\n') == []
+    ready_parts = unwrapped.feed('label = "Again"')
+    assert len(ready_parts) == 1
+    ready_msgs = [
+        m.model_dump(by_alias=True, exclude_none=True) for m in ready_parts[0].a2ui
+    ]
+    assert ready_msgs == [{
+        "version": "1.0",
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [{"id": "c1", "component": "Text", "text": "Again"}],
+        },
+    }]
+    assert unwrapped.close() == []

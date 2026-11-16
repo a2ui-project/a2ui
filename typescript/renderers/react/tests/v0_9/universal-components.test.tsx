@@ -30,14 +30,9 @@ import {describe, it, expect, afterEach, vi} from 'vitest';
 import {act, fireEvent, render, waitFor, within} from '@testing-library/react';
 import React, {createContext, useContext, useLayoutEffect, useRef} from 'react';
 import {z} from 'zod';
-import {
-  Catalog,
-  CommonSchemas,
-  ComponentIdSchema,
-  ComponentModel,
-  SurfaceModel,
-} from '@a2ui/web_core/v0_9';
-import type {A2uiWebComponentElement} from '@a2ui/web_core/v0_9/universal';
+import {Catalog, ComponentModel, SurfaceModel} from '@a2ui/web_core';
+import type {A2uiWebComponentElement} from '@a2ui/web_core/universal';
+import {CommonSchemas, ComponentIdSchema} from '@a2ui/web_core/v0_9';
 import {basicCatalog as webCoreBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
   A2uiSurface,
@@ -186,7 +181,7 @@ function surfaceWith(id: string, ...components: ComponentModel[]) {
 }
 
 describe('mixed React and Web Component catalogs', () => {
-  it('renders a Web Component root as its element, carrying the context', () => {
+  it('renders a Web Component root as its element, carrying the node', () => {
     const surface = surfaceWith(
       'wc-root',
       new ComponentModel('root', 'Column', {children: []}, catalog),
@@ -196,7 +191,7 @@ describe('mixed React and Web Component catalogs', () => {
 
     const element = container.firstElementChild as A2uiWebComponentElement;
     expect(element.tagName.toLowerCase()).toBe('a2ui-basic-column');
-    expect(element.context?.componentModel.id).toBe('root');
+    expect(element.node?.componentId).toBe('root');
   });
 
   it('renders a React child inside its host under a React parent', () => {
@@ -241,7 +236,7 @@ describe('mixed React and Web Component catalogs', () => {
     const column = container.querySelector<A2uiWebComponentElement>(
       'a2ui-react-panel > [data-testid="panel"] > a2ui-basic-column',
     );
-    expect(column?.context?.componentModel.id).toBe('column-1');
+    expect(column?.node?.componentId).toBe('column-1');
   });
 
   it('nests React, Lit and React three levels deep', async () => {

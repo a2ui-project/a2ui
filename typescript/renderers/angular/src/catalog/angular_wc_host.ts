@@ -22,38 +22,126 @@ import {
   ComponentRef,
   NgZone,
 } from '@angular/core';
-import {ComponentContext, type ComponentNode} from '@a2ui/web_core/v0_9';
+import {
+  ComponentContext,
+  type ComponentNode,
+  type SurfaceGroupModel,
+  effect,
+  getValue,
+} from '@a2ui/web_core';
+import {
+  type AccessibilityTargets,
+  bindHostAccessibility,
+  createAccessibilityTargets,
+} from '@a2ui/web_core/universal';
 import type {AngularCatalog, AngularComponentImplementation} from './types';
 
+import {A2UI_ACCESSIBILITY_TARGETS} from '../core/accessibility';
 import {ComponentBinder} from '../core/component-binder.service';
 import type {BoundProperty} from '../core/types';
 
-let defaultInjector: Injector | undefined;
+const activeInjectors: Injector[] = [];
+const hostInjectors = new WeakMap<Node, Injector>();
+const surfaceGroupInjectors = new Map<
+  SurfaceGroupModel<AngularComponentImplementation>,
+  Injector
+>();
 
 /**
  * Sets the Angular `Injector` used by wrapped Angular components whose host element was not
- * given one explicitly.
+ * given one explicitly and cannot resolve one from a DOM ancestor or `SurfaceGroupModel`.
  *
  * Wrapped components are created at catalog definition time, before any injector exists, so the
  * injector is resolved when the element connects: the element's own `injector` property wins
- * (the Angular `ComponentHostComponent` sets it on the elements it mounts), and this default is
- * the fallback for elements created by universal container components. `A2uiRendererService`
- * registers its injector here on construction.
+ * (the Angular `ComponentHostComponent` sets it on the elements it mounts), followed by the
+ * nearest registered DOM host ancestor, the `SurfaceGroupModel` owning the surface, and finally
+ * the most recently registered active injector.
  *
- * @param injector The injector to use as a fallback, or `undefined` to clear it.
+ * @param injector The injector to use as a fallback, or `undefined` to clear all fallback injectors.
  */
 export function setDefaultUniversalInjector(injector: Injector | undefined): void {
-  defaultInjector = injector;
+  if (!injector) {
+    activeInjectors.length = 0;
+    return;
+  }
+  const existingIndex = activeInjectors.indexOf(injector);
+  if (existingIndex !== -1) {
+    activeInjectors.splice(existingIndex, 1);
+  }
+  activeInjectors.push(injector);
 }
 
 /**
- * Clears the default injector if it is still `injector`, so that a destroyed injector is not
- * handed to elements connected later.
+ * Removes `injector` from the active fallback injector stack so that a destroyed injector is not
+ * handed to elements connected later while preserving other live renderer injectors.
  */
 export function clearDefaultUniversalInjector(injector: Injector): void {
-  if (defaultInjector === injector) {
-    defaultInjector = undefined;
+  const index = activeInjectors.indexOf(injector);
+  if (index !== -1) {
+    activeInjectors.splice(index, 1);
   }
+}
+
+/**
+ * Associates a DOM host node (such as `ComponentHostComponent`'s host element) with its Angular
+ * `Injector` so descendant universal elements can discover their enclosing component-tree injector.
+ *
+ * @param injector The host's injector, or `undefined` to drop the association.
+ */
+export function registerUniversalHostInjector(host: Node, injector: Injector | undefined): void {
+  if (injector) {
+    hostInjectors.set(host, injector);
+  } else {
+    hostInjectors.delete(host);
+  }
+}
+
+/**
+ * Associates an `A2uiRendererService`'s `SurfaceGroupModel` with its Angular `Injector` so
+ * universal elements can resolve the owning renderer's injector even when detached from a host.
+ *
+ * @param injector The renderer's injector, or `undefined` to drop the association.
+ */
+export function registerSurfaceGroupInjector(
+  group: SurfaceGroupModel<AngularComponentImplementation>,
+  injector: Injector | undefined,
+): void {
+  if (injector) {
+    surfaceGroupInjectors.set(group, injector);
+  } else {
+    surfaceGroupInjectors.delete(group);
+  }
+}
+
+/**
+ * Resolves the Angular `Injector` for a universal custom element from its DOM ancestry, its
+ * owning `SurfaceGroupModel`, or the active fallback injector stack.
+ */
+export function resolveUniversalInjector(
+  node: Node | null,
+  context?: ComponentContext,
+): Injector | undefined {
+  let current: Node | null = node;
+  while (current) {
+    const hostInjector = hostInjectors.get(current);
+    if (hostInjector) {
+      return hostInjector;
+    }
+    current =
+      current.parentNode ??
+      (typeof ShadowRoot !== 'undefined' && current instanceof ShadowRoot ? current.host : null);
+  }
+
+  const surface = context?.dataContext.surface;
+  if (surface) {
+    for (const [group, groupInjector] of surfaceGroupInjectors) {
+      if (group.getSurface(surface.id) === surface) {
+        return groupInjector;
+      }
+    }
+  }
+
+  return activeInjectors[activeInjectors.length - 1];
 }
 
 /**
@@ -64,6 +152,10 @@ export function clearDefaultUniversalInjector(injector: Injector): void {
  * the element's `context` (the entry that owns this element), so `context` must be set before the
  * element is attached to the document. `customElements` refuses to define one class under two tag
  * names, so {@link toWebComponent} derives an empty subclass per Angular component.
+ *
+ * While connected with a `node`, the element applies the node's `accessibility` attributes and
+ * validation state, on itself or on the elements the component marks with
+ * `a2uiAccessibilityTarget` and `a2uiValidationErrors`.
  */
 export class AngularWcHost extends HTMLElement {
   private componentRef?: ComponentRef<object>;
@@ -75,13 +167,20 @@ export class AngularWcHost extends HTMLElement {
   private boundProps?: Record<string, BoundProperty>;
   private contextSubscription?: {unsubscribe: () => void};
   private _injector?: Injector;
+  /**
+   * Created on the first connect, once `ComponentBinder` has set up Angular reactivity, so its
+   * signals are Angular signals.
+   */
+  private accessibilityTargets?: AccessibilityTargets;
+  private accessibilityNode?: ComponentNode;
+  private stopAccessibility?: () => void;
 
   set injector(inj: Injector | undefined) {
     this._injector = inj;
   }
 
   get injector(): Injector | undefined {
-    return this._injector ?? defaultInjector;
+    return this._injector ?? resolveUniversalInjector(this.parentNode, this._context);
   }
 
   connectedCallback() {
@@ -96,17 +195,22 @@ export class AngularWcHost extends HTMLElement {
             `'provideA2Ui'.`,
         );
       }
+      registerUniversalHostInjector(this, injector);
+      const node = this._node;
       const context = this._context;
-      if (!context) {
+      if (!node && !context) {
         throw new Error(
-          `Cannot instantiate Web Component '${this.tagName.toLowerCase()}': 'context' must be ` +
+          `Cannot instantiate Web Component '${this.tagName.toLowerCase()}': 'node' or 'context' must be ` +
             `set before the element is connected.`,
         );
       }
-      const type = context.componentModel.type;
       // The catalog entry that owns this element pairs it with the Angular component to mount.
-      const catalog = context.componentModel.catalog as AngularCatalog;
-      const entry = catalog.components.get(type) as AngularComponentImplementation | undefined;
+      const entry = node
+        ? (node.impl as AngularComponentImplementation | undefined)
+        : ((context!.componentModel.catalog as AngularCatalog).components.get(
+            context!.componentModel.type,
+          ) as AngularComponentImplementation | undefined);
+      const type = node?.type ?? context!.componentModel.type;
       if (typeof entry?.component !== 'function') {
         throw new Error(
           `Cannot instantiate Web Component '${this.tagName.toLowerCase()}': catalog entry ` +
@@ -116,19 +220,67 @@ export class AngularWcHost extends HTMLElement {
       this.appRef = injector.get(ApplicationRef);
       this.binder = injector.get(ComponentBinder);
       this.ngZone = injector.get(NgZone, null);
+      this.accessibilityTargets ??= createAccessibilityTargets();
       this.componentRef = createComponent(entry.component, {
         environmentInjector: injector.get(EnvironmentInjector),
-        elementInjector: injector,
+        // The component marks its elements in this element's targets, not in
+        // those of the `ComponentHostComponent` that may have created it.
+        elementInjector: Injector.create({
+          providers: [{provide: A2UI_ACCESSIBILITY_TARGETS, useValue: this.accessibilityTargets}],
+          parent: injector,
+        }),
         hostElement: this,
       });
       this.appRef.attachView(this.componentRef.hostView);
     }
 
     // `disconnectedCallback` drops the subscription and a moved element reconnects without
-    // `context` being set again, so (re)subscribe on every connect. `subscribeToContext`
-    // unsubscribes first, so this never subscribes twice.
-    this.subscribeToContext(this.context);
+    // `node` or `context` being set again, so (re)subscribe on every connect.
+    if (this._node) {
+      this.subscribeToNode(this._node);
+    } else if (this._context) {
+      this.subscribeToContext(this._context);
+    }
     this.updateContext();
+    this.bindAccessibility();
+  }
+
+  private subscribeToNode(node: ComponentNode) {
+    this.contextSubscription?.unsubscribe();
+    let lastProps = getValue(node.props);
+    const stop = effect(() => {
+      const nextProps = getValue(node.props);
+      if (nextProps === lastProps) return;
+      lastProps = nextProps;
+      const notify = () => {
+        if (this.hasSameBoundKeys(nextProps, node.context?.componentModel.properties)) {
+          this.componentRef?.changeDetectorRef.detectChanges();
+        } else {
+          this.updateContext();
+        }
+      };
+      if (this.ngZone) {
+        this.ngZone.run(notify);
+      } else {
+        notify();
+      }
+    });
+    this.contextSubscription = {unsubscribe: stop};
+  }
+
+  private hasSameBoundKeys(
+    nextProps: Record<string, unknown>,
+    rawProps?: Record<string, unknown>,
+  ): boolean {
+    if (!this.boundProps) return false;
+    const boundKeys = Object.keys(this.boundProps);
+    const nextKeys = Object.keys(nextProps);
+    if (boundKeys.length !== nextKeys.length) return false;
+    return nextKeys.every(
+      key =>
+        Object.prototype.hasOwnProperty.call(this.boundProps, key) &&
+        (!rawProps || this.boundProps![key].raw === rawProps[key]),
+    );
   }
 
   private subscribeToContext(ctx: ComponentContext) {
@@ -145,56 +297,89 @@ export class AngularWcHost extends HTMLElement {
   }
 
   set node(node: ComponentNode | undefined) {
+    if (node === this._node) {
+      return;
+    }
     this._node = node;
     if (!node) {
       // Parents assign `node` (possibly undefined) and then `context`; `set context`
-      // rebinds, so clearing the node must not tear down the current bindings.
+      // rebinds, so clearing the node must not tear down the current bindings. The
+      // accessibility binding follows the node, so it stops here.
+      this.unbindAccessibility();
       return;
     }
     if (node.context) {
       this._context = node.context;
     }
-    if (this._context) {
-      this.subscribeToContext(this._context);
+    if (this.componentRef) {
+      this.subscribeToNode(node);
       this.updateContext();
     }
+    this.bindAccessibility();
   }
 
   get node(): ComponentNode | undefined {
     return this._node;
   }
 
+  /** @deprecated Assign `node` instead. */
   set context(ctx: ComponentContext) {
     if (this._node && this._node.context !== ctx) {
       this._node = undefined;
     }
     this._context = ctx;
-    this.subscribeToContext(ctx);
+    if (this._node) {
+      this.subscribeToNode(this._node);
+    } else {
+      this.subscribeToContext(ctx);
+    }
     this.updateContext();
+    this.bindAccessibility();
   }
 
+  /** @deprecated Read `node` instead. */
   get context(): ComponentContext {
     return this._context!;
   }
 
   private updateContext() {
-    if (!this.componentRef || !this.binder || !this._context) return;
+    const node = this._node;
+    const context = this._context ?? node?.context;
+    if (!this.componentRef || !this.binder || (!node && !context)) return;
 
     this.binder.unbind(this.boundProps);
-    const boundProps = this._node
-      ? this.binder.bindNode(this._node)
-      : this.binder.bind(this._context);
+    const boundProps = node ? this.binder.bindNode(node) : this.binder.bind(context!);
     this.boundProps = boundProps;
 
     this.componentRef.setInput('props', boundProps);
-    this.componentRef.setInput('surfaceId', this._context.dataContext.surface?.id);
-    this.componentRef.setInput('componentId', this._context.componentModel.id);
-    this.componentRef.setInput('dataContextPath', this._context.dataContext.path);
+    this.componentRef.setInput('surfaceId', context?.dataContext.surface?.id);
+    this.componentRef.setInput('componentId', node?.componentId ?? context!.componentModel.id);
+    this.componentRef.setInput('dataContextPath', node?.dataPath ?? context!.dataContext.path);
 
     this.componentRef.changeDetectorRef.detectChanges();
   }
 
+  /** Keeps the ARIA attributes in step with the node while the element is connected. */
+  private bindAccessibility() {
+    const node = this._node;
+    const targets = this.accessibilityTargets;
+    if (!this.isConnected || !targets || node === this.accessibilityNode) return;
+    this.unbindAccessibility();
+    this.accessibilityNode = node;
+    if (node) {
+      this.stopAccessibility = bindHostAccessibility(this, node, targets);
+    }
+  }
+
+  private unbindAccessibility() {
+    this.stopAccessibility?.();
+    this.stopAccessibility = undefined;
+    this.accessibilityNode = undefined;
+  }
+
   disconnectedCallback() {
+    registerUniversalHostInjector(this, undefined);
+    this.unbindAccessibility();
     this.contextSubscription?.unsubscribe();
     this.contextSubscription = undefined;
     this.binder?.unbind(this.boundProps);

@@ -11,11 +11,13 @@ Each case names a YAML `fixture` under `test_data/node/`. A fixture contains a
 and properties. Both paths are relative to `conformance/`, including catalog
 paths such as `../specification/v0_9_1/catalogs/basic/catalog.json`.
 
-Runners load that catalog, seed a surface model, and create its resolver. These
-are model-level tests; wire-message validation stays in the message-processor
-suite. The initial fixtures use the published basic catalog. Declared functions are
-implemented as recorders returning null. These cases check invocation, not
-function results or side effects; no URL is opened.
+Runners load that catalog, seed a surface model (unless the fixture sets
+`surface: false`, in which case the runner does not pre-create surface `s` and
+instead attaches the resolver when `s` is created), and create its resolver.
+These are model-level tests; wire-message validation stays in the
+message-processor suite. The initial fixtures use the published basic catalog.
+Declared functions are implemented as recorders returning null. These cases
+check invocation, not function results or side effects; no URL is opened.
 
 A case asserts the initial state, then applies these operations in order:
 
@@ -26,6 +28,7 @@ A case asserts the initial state, then applies these operations in order:
 | `remove_component`  | `component_id`                 | Remove a definition.                                                                                            |
 | `write`             | `node`, `property`, `value`    | Write through a writable binding.                                                                               |
 | `invoke`            | `node`, `property`, `metadata` | Invoke an action and await completion. Optional `metadata` is passed as `ActionDispatchOptions` to the action.  |
+| `process_messages`  | `messages`                     | Process wire messages through the runner's `MessageProcessor`.                                                  |
 | `dispose`           |                                | Dispose the resolver.                                                                                           |
 
 An operation finishes after its reactive work has settled. Subscription-time
@@ -55,6 +58,7 @@ The other expectations describe observable behavior:
 | Field                | Assertion                                                                                                                                              |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `emissions`          | Exact props-callback counts for nodes retained by reference across the operation. Required on every step; `{}` means all retained nodes stayed silent. |
+| `created_emissions`  | Exact post-creation props-callback counts for nodes created during the operation. Optional; `0` asserts no props update occurred after creation.       |
 | `metadata_emissions` | Exact metadata-callback counts for retained nodes. Absent or `{}` means no retained node's metadata emitted.                                           |
 | `same_nodes`         | Positions whose actual node objects are unchanged from before the step.                                                                                |
 | `replaced_nodes`     | Positions present before and after the step whose actual node objects differ.                                                                          |

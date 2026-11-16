@@ -745,3 +745,286 @@ remote_stubby_agent = RemoteA2aAgent(
     # ...
 )
 ```
+
+### 5. Agent Functions
+
+From v1.0, a renderer that evaluates a function it has no implementation for
+sends `callAgentFunction` to the agent, and the agent answers with
+`agentFunctionResponse`. `RendererToAgentMessageProcessor` in `a2ui.rpc`
+answers those calls, and is the entry point for the other messages a renderer
+sends. In the other direction, the agent sends `callRendererFunction` with
+`RendererFunctionCalls`, and the renderer answers with
+`rendererFunctionResponse`. Neither depends on an agent framework.
+
+#### 5a. Declaring Agent Functions
+
+An agent function is a catalog function whose handler runs on the agent. Add
+agent functions to the agent's copy of a catalog with
+`copy_with(agent_functions=...)`, or, for a catalog built in code, list them in
+its `functions`:
+
+```python
+from a2ui.core import AgentFunction, AgentFunctionContext
+from a2ui.processor import A2uiGenerator, CatalogConfig
+
+
+async def fetch_fx_rate(args: dict, context: AgentFunctionContext) -> str:
+    rate = await rates_service.lookup(args["base"], args["target"])
+    return f"1 {args['base']} = {rate} {args['target']}"
+
+
+fx_rate = AgentFunction(
+    "fetchFxRate",
+    handler=fetch_fx_rate,
+    return_type="string",
+    schema={
+        "type": "object",
+        "properties": {
+            "base": {"type": "string"},
+            "target": {"type": "string", "default": "USD"},
+        },
+        "required": ["base"],
+        "additionalProperties": False,
+    },
+    description="The current exchange rate from base to target, as text.",
+)
+
+catalog = CatalogConfig.from_path("path/to/catalog.json").catalog
+generator = A2uiGenerator([CatalogConfig(catalog.copy_with(agent_functions=[fx_rate]))])
+```
+
+A handler takes the validated arguments, and, if it has a second parameter,
+the call's `AgentFunctionContext`; `def handler(args)` is fine too. An agent
+function needs a name of its own. If the catalog document already declares the
+function (without an implementation), build it with
+`AgentFunction.from_api(catalog.functions["fetchFxRate"], handler)` instead,
+which keeps the declaration as written and replaces it.
+
+Agent functions are ordinary entries of `catalog.functions`, so the prompt
+describes them and validation accepts model output that calls them, while an
+undeclared name is still rejected. The model writes a call to an agent
+function the same way as any other call, such as
+`{"@call": "fetchFxRate", "args": {"base": "EUR"}}`. The renderer shows a
+pending value (null) until the response arrives, so if a function is slow or
+shouldn't be used in places such as `checks`, say so in its `description`.
+
+#### 5b. Processing Renderer Messages
+
+Build a `RendererToAgentMessageProcessor` from the agent's catalogs and pass it
+each message the renderer sends. `process_message` returns a `ProcessResult`
+with the replies to send and whether the message was handled:
+
+```python
+from a2ui.rpc import RendererToAgentMessageProcessor
+
+processor = RendererToAgentMessageProcessor(request_processor.active_catalogs)
+
+result = await processor.process_message(message)
+for reply in result.replies:
+    await send_to_renderer(reply.model_dump(by_alias=True, exclude_unset=True))
+if not result.handled:
+    ...  # run the agent's turn
+```
+
+Serialize replies with `exclude_unset=True`, not `exclude_none=True`: a
+handler that returns `None` sends `"value": null`, which the response must
+carry. Parsed JSON must have `"version": "1.0"`; the v1.0 message classes,
+which `a2ui.rpc` re-exports, are accepted as they are. The processor takes one
+message at a time: to process a batch, call `process_message` for each, so you
+choose whether they run one after another or concurrently and how a failing
+message affects the others.
+
+The processor handles each kind of message as follows:
+
+1. `callAgentFunction` is always handled, with exactly one
+   `agentFunctionResponse` in `replies`.
+2. `action`, `error` and `rendererFunctionResponse` are handled by the
+   `on_action`, `on_error` and `on_renderer_function_response` callbacks, if
+   set. The processor validates the message against its v1.0 schema model,
+   awaits the callback (sync or async) with the model, and replies with
+   nothing. A callback that returns `False` declines the message, which is
+   then not handled, so it can take some messages and leave the rest to the
+   model's turn; returning `None` or `True` means handled. Without the
+   callback, the message is left unhandled, without being validated, so a
+   framework can pass it on to the model's turn.
+3. Anything else, such as an unknown message, one with two message keys or
+   one without `"version": "1.0"`, raises `A2uiValidationError`, as does a
+   malformed message for a callback.
+   An exception from a callback propagates.
+
+It answers each `callAgentFunction` as follows:
+
+1. It copies the call's `functionCallId` into the response. A call without one,
+   or with an empty one, can't be answered and raises `A2uiValidationError`.
+2. A call with an empty `surfaceId` or function name gets
+   `INVALID_FUNCTION_CALL`.
+3. A function or `catalogId` that the agent's catalogs don't have gets
+   `UNKNOWN_FUNCTION`.
+4. Arguments that fail the function's schema get `INVALID_FUNCTION_CALL`, with
+   the validation error in the message. The handler receives the validated
+   arguments, with the schema's defaults applied.
+5. A handler that raises gets `EXECUTION_ERROR`, with the exception's message,
+   even if it raises `TimeoutError`. The traceback is logged and not sent. To send another code, such as
+   `PROVIDER_NOT_FOUND`, raise `A2uiRpcError(message, code=...)` from
+   `a2ui.core`.
+6. The handler's context, an `AgentFunctionContext`, gives the call's
+   `catalog_id`, `surface_id` and `function_call_id`.
+
+Async handlers run on the caller's event loop. Sync handlers run on a worker
+thread through `asyncio.to_thread`, so a blocking handler doesn't stall the
+loop; make sure a sync handler is safe to run on another thread.
+`agent_function_timeout` (a finite positive number of seconds) cancels a
+handler that takes too long and replies `EXECUTION_ERROR`. There's no default, because the renderer already
+times out its calls. A sync handler can't be stopped: the reply is sent, but
+its thread runs to the end. Cancelling a `process_message` call cancels its
+handler and sends nothing.
+
+The processor keeps nothing about a message once it has processed it, so one
+processor can serve many conversations, or you can build one per request from
+the active catalogs. Each catalog needs its own ID: two catalogs with one ID
+raise `A2uiCatalogError`.
+
+#### 5c. Calling Renderer Functions
+
+`RendererFunctionCalls` sends `callRendererFunction` and matches up the
+responses. Use one instance per conversation, and pass its `resolve` method as
+the processor's `on_renderer_function_response` callback. `call` returns the
+message to send and a future, without waiting:
+
+```python
+from a2ui.rpc import RendererFunctionCalls, RendererToAgentMessageProcessor
+
+calls = RendererFunctionCalls(catalogs=request_processor.active_catalogs)
+processor = RendererToAgentMessageProcessor(
+    request_processor.active_catalogs,
+    on_renderer_function_response=calls.resolve,
+)
+
+message, result = calls.call(
+    catalog_id=CATALOG_ID, name="getLocation", args={}, surface_id="s1"
+)
+await send_to_renderer(message.model_dump(by_alias=True, exclude_unset=True))
+location = await result  # settled when the processor gets the response
+```
+
+1. `call` always sets `catalogId`, which `callRendererFunction` requires,
+   and generates the `functionCallId` unless you pass one. Before anything is
+   built, registered or timed, it checks, in this order:
+   1. `timeout`: anything but None or a finite positive number (a bool, NaN,
+      infinity, zero or a negative number) raises `ValueError`;
+   2. a disposed instance raises `A2uiRpcError` with code `DISPOSED`;
+   3. an empty `function_call_id` raises with code `INVALID_FUNCTION_CALL`;
+   4. an ID that is already pending raises with code `DUPLICATE`;
+   5. `max_pending` reached raises with code `TOO_MANY_PENDING`;
+   6. an empty `name`, then an empty `catalog_id`, raises with code
+      `INVALID_FUNCTION_CALL`;
+   7. a `name` that isn't a UAX #31 identifier or starts with `@` raises with
+      code `INVALID_FUNCTION_CALL`;
+   8. `args` that aren't a mapping with identifier keys and JSON values (null,
+      booleans, strings, finite numbers, and lists and string-keyed mappings of
+      these; NaN and infinity aren't JSON) raise with code
+      `INVALID_FUNCTION_CALL`. Values aren't otherwise interpreted: a nested
+      `@call` or `@path` object is just an object, which the renderer checks;
+   9. last, the `catalogs` checks (item 7 below).
+
+   An empty `surface_id` counts as none: the message leaves `surfaceId` out,
+   and the renderer runs the function against an empty data model.
+
+2. The instance belongs to the event loop where it is first used. `call` must
+   run on that loop. `resolve` may be called from any thread.
+3. A call fails with `A2uiRpcError` if the renderer answers with an error (with
+   the renderer's code) or no answer arrives in time (code `TIMEOUT`). The
+   timeout is 30 seconds by default; set `default_timeout` (None for no
+   limit, which only the instance can set) or pass `timeout`
+   to `call`.
+4. Cancelling the future forgets the call. Responses to calls that are unknown,
+   already answered, timed out or cancelled are logged at debug level and
+   ignored. A malformed response is logged as a warning; if it names a pending
+   call, that call fails at once with code `UNKNOWN_ERROR`.
+5. `dispose(reason)` fails every pending call (code `CANCELLED`) and makes later
+   `call`s raise. Dispose the instance when the conversation ends, or use it as
+   `async with RendererFunctionCalls() as calls:`.
+6. `max_pending` makes `call` raise instead of letting a looping model pile up
+   calls that wait for an answer.
+7. `catalogs`, such as `request_processor.active_catalogs`, makes `call` check
+   the target before anything is registered or sent:
+   - a `catalog_id` that names none of the catalogs, or a name that isn't one
+     of that catalog's renderer functions (an agent function included, since
+     it runs on the agent), raises `A2uiRpcError` with code
+     `UNKNOWN_FUNCTION`;
+   - a `rendererOnly` function (including one that leaves `allowedCallers`
+     out), which the agent may not call, raises with code
+     `INVALID_FUNCTION_CALL`;
+   - a function that requires user activation raises with code
+     `INVALID_FUNCTION_CALL`, since a call from the agent has no user
+     gesture.
+
+   The arguments aren't checked against the function's schema. Two catalogs
+   with the same ID raise `A2uiCatalogError` when the instance is built.
+
+8. `resolve` returns `True` when the response named a pending call and
+   `False` for an unknown, late or duplicate one. As the processor's
+   callback, it therefore declines responses it doesn't own, and
+   `process_message` reports them as not handled. That matters because the
+   inference formats also compile a function call the model writes on its
+   own, such as `<a2ui>getLocation()</a2ui>`, into a `callRendererFunction`
+   message that `RendererFunctionCalls` never saw: pass an unhandled response
+   on to the model's turn. `is_pending(function_call_id)` checks a response
+   without settling it.
+
+The pending calls live in memory, so this suits a server that keeps a
+conversation on one process, such as one holding a streaming connection. A
+stateless server whose next request may reach another replica handles
+`rendererFunctionResponse` in its own `on_renderer_function_response` callback
+instead, for example by looking up saved state by `functionCallId`.
+
+#### 5d. What Renderers Need
+
+The renderer's catalog doesn't list the agent's functions, so how it treats a
+payload that calls one depends on its validation settings:
+
+1. Renderers that use the default validation need nothing. All v1.0 renderer
+   cores accept functions they don't know by default, and route their calls
+   to the agent.
+2. A renderer with strict validation (`allowUnknownElements: false`) rejects
+   the payload as calling an unrecognized function. It can either set
+   `allowUnknownElements: true`, which keeps the other checks, or declare the
+   agent functions it expects in its catalog without implementing them
+   (schema-only), which keeps every check, including the argument schema, and
+   still routes the calls. A strict renderer can take those declarations from
+   the agent's catalog document: `catalog.to_json()` writes agent functions
+   like any other function, without the handler.
+
+#### 5e. With A2A and ADK
+
+Over A2A, each A2UI message is one `DataPart` of the A2A message.
+`a2ui-a2a` reads them with `get_a2ui_messages(message)` and wraps the
+processor's replies with `create_a2ui_parts(replies)`, for an `AgentExecutor`
+of your own.
+
+With ADK and its `A2aAgentExecutor`, `a2ui-adk` answers agent function calls
+for you. `a2ui_rpc_callback` returns a `before_agent_callback` that answers a
+request holding only `callAgentFunction` messages, through a
+`RendererToAgentMessageProcessor` built from the agent's catalogs, and skips
+the agent. The renderer's other messages (`action`, `error`,
+`rendererFunctionResponse`) go to the agent's turn:
+
+```python
+from a2ui.adk import a2ui_rpc_callback
+
+agent = LlmAgent(..., before_agent_callback=a2ui_rpc_callback(catalogs=catalogs))
+```
+
+`catalogs` can also be a provider that returns the catalogs per context, such
+as the session's `A2uiRequestProcessor.active_catalogs`. The agent function
+calls and their replies stay in the session's events but not in the model's
+prompt: `SendA2uiToClientToolset` removes them, and agents without it pass
+`exclude_a2ui_rpc_from_prompt` as their `before_model_callback`.
+
+To settle the agent's calls to renderer functions too, pass
+`renderer_calls=A2uiRendererCallsStore().get`, which keeps one
+`RendererFunctionCalls` per session, and add `a2ui_rpc_interceptor()` to the
+executor's `execute_interceptors`, so a task whose request held only responses
+ends `completed`. Only responses to pending calls are settled; any other
+response goes to the agent's turn. See the
+[`a2ui-adk` README](../a2ui_adk/README.md) for details.

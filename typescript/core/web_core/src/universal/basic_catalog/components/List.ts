@@ -17,6 +17,7 @@
 import {html, nothing, css} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
 import {styleMap} from 'lit/directives/style-map.js';
+import {getAccessibilityDescription, getAccessibilityLabel} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ListSupportedApis} from './supported_apis.js';
 import type {ResolvedChildList} from '../../index.js';
@@ -66,15 +67,26 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApi
     const props = this.controller.props;
     if (!props) return nothing;
 
-    const children: ResolvedChildList = Array.isArray(props.children) ? props.children : [];
+    const children: ResolvedChildList = (Array.isArray(props.children) ? props.children : [])
+      // An unresolved child renders nothing and gets no item: an empty <li> would still show a
+      // marker and take a gap.
+      .filter(child => this.isChildResolved(child));
     const listStyle = (props as any).listStyle;
     const direction = props.direction || 'vertical';
     const alignItems = props.align ? (ALIGN_MAP[props.align] ?? 'stretch') : undefined;
     const listInlineStyle = alignItems ? styleMap({alignItems}) : nothing;
 
+    const a11yLabel = getAccessibilityLabel(props.accessibility);
+    const a11yDescription = getAccessibilityDescription(props.accessibility);
+
     if (listStyle === 'ordered') {
       return html`
-        <ol class="a2ui-list a2ui-list-${direction}" style=${listInlineStyle}>
+        <ol
+          class="a2ui-list a2ui-list-${direction}"
+          style=${listInlineStyle}
+          aria-label=${a11yLabel}
+          aria-description=${a11yDescription}
+        >
           ${repeat(children, getChildKey, child => html`<li>${this.renderNode(child)}</li>`)}
         </ol>
       `;
@@ -82,18 +94,30 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApi
 
     if (listStyle === 'unordered') {
       return html`
-        <ul class="a2ui-list a2ui-list-${direction}" style=${listInlineStyle}>
+        <ul
+          class="a2ui-list a2ui-list-${direction}"
+          style=${listInlineStyle}
+          aria-label=${a11yLabel}
+          aria-description=${a11yDescription}
+        >
           ${repeat(children, getChildKey, child => html`<li>${this.renderNode(child)}</li>`)}
         </ul>
       `;
     }
 
     return html`
-      <div class="a2ui-list a2ui-list-${direction}" style=${listInlineStyle}>
+      <div
+        class="a2ui-list a2ui-list-${direction}"
+        style=${listInlineStyle}
+        role="list"
+        aria-label=${a11yLabel}
+        aria-description=${a11yDescription}
+      >
         ${repeat(
           children,
           getChildKey,
-          child => html`<div class="a2ui-list-item-none">${this.renderNode(child)}</div>`,
+          child =>
+            html`<div class="a2ui-list-item-none" role="listitem">${this.renderNode(child)}</div>`,
         )}
       </div>
     `;

@@ -23,23 +23,34 @@ import {isWebComponentImplementation} from './is_web_component_implementation.js
 import {registerUniversalElement} from './register_universal_element.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
 import type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
+import {dispatchA2uiElementConnected} from './element_connected_event.js';
 
 /**
  * Keeps one custom element per child position, so a parent re-render
  * updates the element in place instead of replacing it. The element is
  * recreated only when the tag name changes.
+ *
+ * It also reports the element through `A2UI_ELEMENT_CONNECTED_EVENT` once Lit has inserted it, so
+ * hosts observe elements of any base class, not only `A2uiLitElement`s (which report themselves
+ * on connect, making this call a no-op). An element whose container is still detached when the
+ * render commits is not reported by this path.
  */
 class A2uiElementDirective extends Directive {
   private tagName?: string;
   private element?: A2uiWebComponentElement;
 
-  render(tagName: string, context: ComponentContext, node?: ComponentNode) {
+  render(tagName: string, context?: ComponentContext, node?: ComponentNode) {
     if (!this.element || this.tagName !== tagName) {
       this.tagName = tagName;
       this.element = document.createElement(tagName) as A2uiWebComponentElement;
     }
     this.element.node = node;
-    this.element.context = context;
+    if (!node && context !== undefined) {
+      this.element.context = context;
+    }
+    // `render` runs before Lit inserts the element, so dispatch after the commit.
+    const element = this.element;
+    queueMicrotask(() => dispatchA2uiElementConnected(element));
     return this.element;
   }
 }
@@ -63,7 +74,7 @@ export function renderA2uiNode(
 ): DirectiveResult | typeof nothing;
 /**
  * Renders a resolved node as its implementation's custom element, handing
- * the element the node and its context.
+ * the element the resolved `ComponentNode`.
  *
  * @param node The resolved node to render.
  * @returns A Lit directive result rendering the component's custom element,
@@ -99,17 +110,36 @@ export function renderA2uiNode(
   return a2uiElement(implementation.tagName, source);
 }
 
+/** A node `renderA2uiNode` renders as an element: resolved, with a context and a tag name. */
+type RenderableNode = ComponentNode & {
+  context: ComponentContext;
+  impl: Partial<WebComponentImplementation> & {tagName: string};
+};
+
+/**
+ * Whether `renderA2uiNode(node)` renders an element for `node`: it has resolved, is not
+ * disposed, has a context, and its implementation is a custom element with a tag name.
+ * Containers use this (through `A2uiLitElement.isChildResolved`) to agree with it exactly.
+ */
+export function canRenderA2uiNode(node: ComponentNode): node is RenderableNode {
+  return (
+    !node.isPlaceholder &&
+    !node.disposed &&
+    !!node.context &&
+    !!(node.impl as Partial<WebComponentImplementation> | undefined)?.tagName
+  );
+}
+
 function renderNode(node: ComponentNode) {
-  if (node.isPlaceholder || node.disposed || !node.context) {
+  if (!canRenderA2uiNode(node)) {
+    if (!node.isPlaceholder && !node.disposed && node.context) {
+      console.warn(`Component implementation not found or missing tagName for type: ${node.type}`);
+    }
     return nothing;
   }
-  const implementation = node.impl as Partial<WebComponentImplementation> | undefined;
-  if (!implementation?.tagName) {
-    console.warn(`Component implementation not found or missing tagName for type: ${node.type}`);
-    return nothing;
-  }
+  const implementation = node.impl;
   if (isWebComponentImplementation(implementation)) {
     registerUniversalElement(implementation);
   }
-  return a2uiElement(implementation.tagName, node.context, node);
+  return a2uiElement(implementation.tagName, undefined, node);
 }

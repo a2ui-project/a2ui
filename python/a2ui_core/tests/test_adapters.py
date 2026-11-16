@@ -194,23 +194,14 @@ def test_resolve_v1_0_and_extract_operations():
     assert adapter.version == ProtocolVersion.V1_0
 
     ops = adapter.extract_operations(payload)
-    assert len(ops) == 3
+    assert len(ops) == 1
     op = ops[0]
     assert isinstance(op, InternalCreateSurfaceOp)
     assert op.surface_id == "s1"
     assert op.theme is None
     assert op.send_data_model is True
-
-    comp_op = ops[1]
-    assert isinstance(comp_op, InternalUpdateComponentsOp)
-    assert comp_op.surface_id == "s1"
-    assert comp_op.components == [{"id": "root", "component": "Column"}]
-
-    dm_op = ops[2]
-    assert isinstance(dm_op, InternalUpdateDataModelOp)
-    assert dm_op.surface_id == "s1"
-    assert dm_op.path == "/"
-    assert dm_op.value == {"key": "value"}
+    assert op.components == [{"id": "root", "component": "Column"}]
+    assert op.data_model == {"key": "value"}
 
 
 def test_resolve_v0_9_and_extract_create_surface():

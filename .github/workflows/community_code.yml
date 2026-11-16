@@ -76,15 +76,8 @@ jobs:
           yarn workspace @a2ui/lit run build
       - name: Install dependencies
         run: yarn install --immutable
-      - name: Build web samples (Angular a2a-chat-canvas + orchestrator, Lit mcp-apps + personalized_learning)
+      - name: Build web samples
         run: yarn build:web
-
-      - name: Build custom-lit-components (type-check + bundle verification pages)
-        # Kept as its own step rather than folded into the build:web chain above:
-        # it type-checks the custom component catalog against the published
-        # @a2ui/* API and bundles test/*.html, so a break there reports on its own
-        # instead of being masked by an earlier sample in the chain.
-        run: yarn workspace custom-lit-components run build
 
   kanban-e2e:
     # Playwright end-to-end tests of the Kanban showcase: the MCP server, the

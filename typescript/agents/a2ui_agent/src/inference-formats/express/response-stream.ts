@@ -613,7 +613,7 @@ function isProgressiveSlot(
       const checkProp = helper.getCheckRuleProperty(frame.name);
       const props = helper
         .getComponentProperties(frame.name)
-        .filter(p => p !== 'checks' && p !== checkProp);
+        .filter(p => p !== 'checks' && p !== '@checks' && p !== checkProp);
       if (frame.argIndex < props.length) {
         return progressiveKeys.has(props[frame.argIndex]);
       }

@@ -110,15 +110,10 @@ public struct A2UIDateTimeInput: View {
 
       datePickerView
         .padding(.vertical, 2)
-        .accessibilityIdentifier("A2UIDateTimeInput_\(node.id)")
+        .accessibilityIdentifier("a2ui-\(node.id)")
         .a2uiAccessibilityControl(for: node, defaultLabel: labelText)
 
-      if let firstError = validationErrors.first {
-        Text(firstError)
-          .font(.caption)
-          .foregroundStyle(Color.red)
-          .accessibilityIdentifier("A2UIDateTimeInput_Error_\(node.id)")
-      }
+      A2UICheckMessage(node: node, identifierPrefix: "A2UIDateTimeInput")
     }
   }
 
@@ -132,7 +127,7 @@ public struct A2UIDateTimeInput: View {
         displayedComponents: displayedComponents
       )
       .labelsHidden()
-      .accessibilityIdentifier("A2UIDateTimeInput_Picker_\(node.id)")
+      .accessibilityIdentifier("a2ui-\(node.id)")
     } else if let min = minDate {
       DatePicker(
         "",
@@ -141,7 +136,7 @@ public struct A2UIDateTimeInput: View {
         displayedComponents: displayedComponents
       )
       .labelsHidden()
-      .accessibilityIdentifier("A2UIDateTimeInput_Picker_\(node.id)")
+      .accessibilityIdentifier("a2ui-\(node.id)")
     } else if let max = maxDate {
       DatePicker(
         "",
@@ -150,7 +145,7 @@ public struct A2UIDateTimeInput: View {
         displayedComponents: displayedComponents
       )
       .labelsHidden()
-      .accessibilityIdentifier("A2UIDateTimeInput_Picker_\(node.id)")
+      .accessibilityIdentifier("a2ui-\(node.id)")
     } else {
       DatePicker(
         "",
@@ -158,7 +153,7 @@ public struct A2UIDateTimeInput: View {
         displayedComponents: displayedComponents
       )
       .labelsHidden()
-      .accessibilityIdentifier("A2UIDateTimeInput_Picker_\(node.id)")
+      .accessibilityIdentifier("a2ui-\(node.id)")
     }
   }
 }

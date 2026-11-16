@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, {useRef, useSyncExternalStore, useCallback, memo, useEffect} from 'react';
+import React, {memo, useCallback, useEffect, useRef} from 'react';
 import {
   type A2uiMetadata,
   type ComponentApi,
@@ -22,7 +22,8 @@ import {
   GenericBinder,
   type InferredComponentApiSchemaType,
   type ResolveA2uiProps,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
+import {hostRefsOf} from './catalog/host_accessibility';
 import {useNodeView} from './node-view';
 import type {
   NodeViewProps,
@@ -30,6 +31,7 @@ import type {
   ReactComponentImplementation,
   ReactRenderProps,
 } from './react_component_implementation';
+import {useSyncExternalStore} from './use_sync_external_store';
 
 // --- Component Factories ---
 
@@ -37,6 +39,8 @@ type MemoizedRenderInternalProps<Props> = {
   props: Props;
   buildChild: (id: string, basePath?: string) => React.ReactNode;
   context: ComponentContext;
+  accessibilityRef?: (element: Element | null) => void;
+  validationErrorsRef?: (element: Element | null) => void;
   metadataSnapshot: A2uiMetadata | undefined;
   hasReadMetadata: () => boolean;
   getMetadata: () => A2uiMetadata | undefined;
@@ -69,11 +73,20 @@ export function createComponentImplementation<Api extends ComponentApi>(
   type Props = ResolveA2uiProps<InferredComponentApiSchemaType<Api>>;
 
   const MemoizedRender = memo(
-    ({props, buildChild, context, getMetadata}: MemoizedRenderInternalProps<Props>) => {
+    ({
+      props,
+      buildChild,
+      context,
+      accessibilityRef,
+      validationErrorsRef,
+      getMetadata,
+    }: MemoizedRenderInternalProps<Props>) => {
       const componentProps = {
         props,
         buildChild,
         context,
+        accessibilityRef,
+        validationErrorsRef,
       } as ReactA2uiComponentProps<Props>;
       Object.defineProperty(componentProps, 'metadata', {
         enumerable: true,
@@ -88,6 +101,8 @@ export function createComponentImplementation<Api extends ComponentApi>(
       // replaced; binder props don't change with it, so the builder's identity
       // is the only signal.
       if (prev.buildChild !== next.buildChild) return false;
+      if (prev.accessibilityRef !== next.accessibilityRef) return false;
+      if (prev.validationErrorsRef !== next.validationErrorsRef) return false;
       if (prev.context.componentModel.id !== next.context.componentModel.id) return false;
       if (prev.context.dataContext.path !== next.context.dataContext.path) return false;
       return true;
@@ -162,11 +177,14 @@ export function createComponentImplementation<Api extends ComponentApi>(
 
   const NodeView: React.FC<NodeViewProps> = ({node, buildChild}) => {
     const viewState = useNodeView(node, buildChild);
+    const refs = hostRefsOf(node);
     return (
       <MemoizedRender
         props={viewState.viewProps as Props}
         buildChild={viewState.viewBuildChild}
         context={viewState.context}
+        accessibilityRef={refs.accessibilityRef}
+        validationErrorsRef={refs.validationErrorsRef}
         metadataSnapshot={viewState.metadataSnapshot}
         hasReadMetadata={viewState.hasReadMetadata}
         getMetadata={() => viewState.metadata}
@@ -197,6 +215,8 @@ export function createBinderlessComponentImplementation(
     const renderProps = {
       context: viewState.context,
       buildChild: viewState.rawBuildChild,
+      accessibilityRef: hostRefsOf(node).accessibilityRef,
+      validationErrorsRef: hostRefsOf(node).validationErrorsRef,
     } as ReactRenderProps;
     Object.defineProperty(renderProps, 'metadata', {
       enumerable: true,

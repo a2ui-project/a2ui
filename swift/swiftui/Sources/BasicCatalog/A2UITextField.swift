@@ -48,19 +48,9 @@ public struct A2UITextField: View {
     node.string(for: "placeholder")
   }
 
-  /// The prompt shown inside single-line fields; when `nil`, SwiftUI falls back to the label.
+  /// The prompt shown inside fields; when `nil`, SwiftUI falls back to the label.
   private var prompt: Text? {
     placeholderText.map { Text($0) }
-  }
-
-  /// The top inset of the first line in `TextEditor`: the backing `UITextView` insets its text by
-  /// 8 points, while the `NSTextView` on macOS has no inset.
-  private var editorTextTopInset: CGFloat {
-    #if os(macOS)
-      0
-    #else
-      8
-    #endif
   }
 
   private var variant: String {
@@ -87,13 +77,6 @@ public struct A2UITextField: View {
     node.validationResults
   }
 
-  private var validationWarnings: [String] {
-    validationResults.compactMap { result in
-      guard result.severity == .warning || result.severity == .info else { return nil }
-      return result.message
-    }
-  }
-
   private var hasError: Bool {
     !validationErrors.isEmpty
   }
@@ -110,26 +93,16 @@ public struct A2UITextField: View {
       inputFieldForVariant
         .padding(10)
         .background(Color.gray.opacity(0.12))
-        .cornerRadius(8)
+        .clipShape(.rect(cornerRadius: 8))
         .overlay(
           RoundedRectangle(cornerRadius: 8)
             .stroke(
               hasError ? Color.red : Color.primary.opacity(0.1), lineWidth: hasError ? 1.5 : 1)
         )
-        .accessibilityIdentifier("A2UITextField_\(node.id)")
+        .accessibilityIdentifier("a2ui-\(node.id)")
         .a2uiAccessibilityControl(for: node, defaultLabel: labelText)
 
-      if let firstError = validationErrors.first {
-        Text(firstError)
-          .font(.caption)
-          .foregroundStyle(Color.red)
-          .accessibilityIdentifier("A2UITextField_Error_\(node.id)")
-      } else if let firstWarning = validationWarnings.first {
-        Text(firstWarning)
-          .font(.caption)
-          .foregroundStyle(Color.orange)
-          .accessibilityIdentifier("A2UITextField_Warning_\(node.id)")
-      }
+      A2UICheckMessage(node: node, identifierPrefix: "A2UITextField")
     }
   }
 
@@ -138,37 +111,23 @@ public struct A2UITextField: View {
     switch variant {
     case "obscured":
       SecureField(labelText, text: valueBinding, prompt: prompt)
-        .accessibilityIdentifier("A2UITextField_\(node.id)")
+        .accessibilityIdentifier("a2ui-\(node.id)")
     case "longText":
-      TextEditor(text: valueBinding)
-        .scrollContentBackground(.hidden)
-        .frame(minHeight: 80)
-        // TextEditor takes no title, so name it for VoiceOver explicitly.
-        .accessibilityLabel(labelText.isEmpty ? (placeholderText ?? "") : labelText)
-        .overlay(alignment: .topLeading) {
-          // TextEditor has no native prompt, so draw the placeholder while it is empty.
-          if let placeholderText, valueBinding.wrappedValue.isEmpty {
-            Text(placeholderText)
-              .foregroundStyle(Color.secondary)
-              .padding(.top, editorTextTopInset)
-              .padding(.leading, 5)
-              .allowsHitTesting(false)
-              .accessibilityHidden(true)
-          }
-        }
-        .accessibilityIdentifier("A2UITextField_\(node.id)")
+      TextField(labelText, text: valueBinding, prompt: prompt, axis: .vertical)
+        .lineLimit(3...8)
+        .accessibilityIdentifier("a2ui-\(node.id)")
     case "number":
       #if os(iOS)
         TextField(labelText, text: valueBinding, prompt: prompt)
           .keyboardType(.decimalPad)
-          .accessibilityIdentifier("A2UITextField_\(node.id)")
+          .accessibilityIdentifier("a2ui-\(node.id)")
       #else
         TextField(labelText, text: valueBinding, prompt: prompt)
-          .accessibilityIdentifier("A2UITextField_\(node.id)")
+          .accessibilityIdentifier("a2ui-\(node.id)")
       #endif
     default:
       TextField(labelText, text: valueBinding, prompt: prompt)
-        .accessibilityIdentifier("A2UITextField_\(node.id)")
+        .accessibilityIdentifier("a2ui-\(node.id)")
     }
   }
 }

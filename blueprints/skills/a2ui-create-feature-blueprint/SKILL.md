@@ -1,6 +1,8 @@
 ---
 name: a2ui-create-feature-blueprint
 description: Provides instructions on how to create a new language-agnostic A2UI Feature Blueprint, ensuring consistency and ease of cross-language implementation.
+metadata:
+  internal: true
 ---
 
 # A2UI Create Feature Blueprint Skill

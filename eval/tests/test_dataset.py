@@ -67,7 +67,7 @@ def test_load_a2ui_dataset_maps_moved_catalog_path(tmp_path: Path) -> None:
     - role: user
       content: "Test input"
 - name: currentPath
-  description: Uses the current v1.0 catalog location.
+  description: Uses the v1.0 catalog location.
   catalog: "catalogs/basic/v1/catalog.json"
   messages:
     - role: user

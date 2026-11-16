@@ -19,7 +19,7 @@
         {
           "component": "Text",
           "id": "cfg_1__text_3",
-          "text": "Active: True",
+          "text": "Active: true",
           "variant": "body"
         },
         {

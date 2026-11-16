@@ -27,7 +27,7 @@ The generated response MUST follow these rules:
 - The response can contain one or more A2UI JSON blocks.
 - Each A2UI JSON block MUST be wrapped in literal `<a2ui-json>` and `</a2ui-json>` tags (always include both the opening and closing tags; do NOT wrap the tags in backticks or replace the opening tag with a markdown code fence such as ```json).
 - Between or around these blocks, you can provide conversational text.
-- The JSON part MUST be a single, raw JSON object (usually a list of A2UI messages) and MUST validate against the provided A2UI JSON SCHEMA.
+- The JSON part MUST be a JSON array of A2UI messages, each following the provided A2UI JSON SCHEMA.
 - Top-Down Component Ordering: Within the `components` list of a message:
     - The 'root' component MUST be the FIRST element.
     - Parent components MUST appear before their child components.
@@ -37,6 +37,10 @@ The generated response MUST follow these rules:
 const String _schemaBlockStart = '---BEGIN A2UI JSON SCHEMA---';
 const String _schemaBlockEnd = '---END A2UI JSON SCHEMA---';
 const String _defsRefPrefix = r'#/$defs/';
+
+/// Wraps [sections] between the schema block start and end lines.
+String _schemaBlock(List<String> sections) =>
+    [_schemaBlockStart, ...sections, _schemaBlockEnd].join('\n\n');
 
 /// Renders the system prompt snippet teaching a model to write A2UI messages
 /// as JSON inside `<a2ui-json>` tags.
@@ -86,24 +90,23 @@ class DirectJsonPromptGenerator extends PromptGenerator {
       [...catalogDocs, a2rSchema],
     );
 
-    final schemaSections = <String>[
-      _schemaBlockStart,
+    // The protocol schemas sit in one schema block after the rules, and each
+    // catalog schema in a block of its own, so the snippet is the rules, the
+    // catalogs' blocks and the examples joined, as the other SDKs render it.
+    final protocolSections = <String>[
       '### Agent to Renderer Schema:\n${jsonEncode(a2rSchema)}',
     ];
     final Object? commonDefs = commonTypesSchema[r'$defs'];
     if (commonDefs is Map && commonDefs.isNotEmpty) {
-      schemaSections.add(
+      protocolSections.add(
         '### Common Types Schema:\n${jsonEncode(commonTypesSchema)}',
       );
     }
-    for (final catalogDoc in catalogDocs) {
-      schemaSections.add('### Catalog Schema:\n${jsonEncode(catalogDoc)}');
-    }
-    schemaSections.add(_schemaBlockEnd);
 
     final parts = <String>[
-      '## Workflow Description:\n$_defaultWorkflowRules',
-      schemaSections.join('\n\n'),
+      '$_defaultWorkflowRules\n\n${_schemaBlock(protocolSections)}',
+      for (final catalogDoc in catalogDocs)
+        _schemaBlock(['### Catalog Schema:\n${jsonEncode(catalogDoc)}']),
     ];
     if (examples.isNotEmpty) {
       const encoder = JsonEncoder.withIndent('  ');
@@ -113,7 +116,7 @@ class DirectJsonPromptGenerator extends PromptGenerator {
               '${encoder.convert(turn.map(_exampleMessageJson).toList())}\n'
               '</a2ui-json>',
       ];
-      parts.add('### Examples:\n${blocks.join('\n\n')}');
+      parts.add('### Examples:\n\n${blocks.join('\n\n')}');
     }
     return parts.join('\n\n');
   }

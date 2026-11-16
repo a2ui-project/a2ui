@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:json_schema_builder/json_schema_builder.dart';
+import 'package:json_schema_builder/json_schema_builder.dart'
+    hide ValidationResult;
 import 'package:test/test.dart';
 
 import 'conformance_harness.dart';
@@ -52,6 +53,127 @@ class _CannedFunction extends FunctionImplementation {
   }
 }
 
+const Map<String, Set<String>> _knownKeys = {
+  'case:handle_rpc': {
+    ...caseMetadataKeys,
+    'args',
+    'catalog',
+    'expect',
+    'expectError',
+    'protocolVersion',
+  },
+  'args:handle_rpc': {
+    'afterCall',
+    'catalogId',
+    'catalogVersion',
+    'dataModel',
+    'functionMetadata',
+    'inboundResponse',
+    'lateInboundResponse',
+    'message',
+    'outboundCall',
+    'outboundListener',
+    'secondOutboundCall',
+    'surfaceId',
+    'uiActionFallbackScenario',
+    'uiBindingScenario',
+    'userActivationPresent',
+  },
+  'expect:handle_rpc': {
+    'correlatedCallId',
+    'dataModel',
+    'error',
+    'initialValue',
+    'inFlightError',
+    'lateResponseIgnored',
+    'outboundCall',
+    'resolvedValue',
+    'response',
+    'result',
+    'siblings',
+    'surfaceError',
+    'validationResult',
+  },
+  'uiBindingScenario:handle_rpc': {
+    'catalogId',
+    'component',
+    'components',
+    'inboundResponseError',
+    'inboundResponseValue',
+    'localFunctions',
+    'observe',
+    'surfaceId',
+  },
+  'uiActionFallbackScenario:handle_rpc': {
+    'actionPayload',
+    'catalogId',
+    'inboundResponseError',
+    'inboundResponseValue',
+    'localFunctions',
+    'surfaceId',
+  },
+};
+
+class _ScenarioLocalFunction extends FunctionImplementation {
+  final Map<String, Object?>? _setData;
+
+  _ScenarioLocalFunction({
+    required super.name,
+    required super.returnType,
+    Map<String, Object?>? setData,
+  })  : _setData = setData,
+        super(
+          argumentSchema: Schema.fromMap({'type': 'object'}),
+          allowedCallers: AllowedCallers.rendererOrAgent,
+          requiresUserActivation: false,
+        );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) {
+    if (_setData case final Map<String, Object?> setData) {
+      context.set(setData['path']! as String, setData['value']);
+    }
+    if (returnType == A2uiReturnType.boolean) return true;
+    return null;
+  }
+}
+
+List<FunctionImplementation> _scenarioLocalFunctions(
+  Map<String, Object?> scenario,
+) {
+  final local = scenario['localFunctions'] as Map<String, Object?>?;
+  if (local == null) return const [];
+  return [
+    for (final MapEntry<String, Object?> entry in local.entries)
+      _scenarioLocalFunction(
+        entry.key,
+        (entry.value! as Map).cast<String, Object?>(),
+      ),
+  ];
+}
+
+_ScenarioLocalFunction _scenarioLocalFunction(
+  String name,
+  Map<String, Object?> spec,
+) {
+  final Map<String, Object?>? effect =
+      (spec['effect'] as Map?)?.cast<String, Object?>();
+  final Map<String, Object?>? setData =
+      (effect?['setData'] as Map?)?.cast<String, Object?>();
+  final A2uiReturnType returnType = A2uiReturnType.fromJson(
+    spec['returnType'] as String? ?? 'any',
+  );
+  return _ScenarioLocalFunction(
+    name: name,
+    returnType: returnType,
+    setData: setData,
+  );
+}
+
 /// Runs the shared `conformance/core/rpc_functions.yaml` suite against
 /// [MessageProcessor] and its [RpcHandler].
 void main() {
@@ -62,10 +184,11 @@ void main() {
   group('conformance core/rpc_functions.yaml', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
 
-    for (final testCase in cases) {
-      final name = testCase['name']! as String;
-      test(name, () => _runCase(testCase));
-    }
+    runConformanceSuite(
+      cases,
+      _runCase,
+      suite: 'core/rpc_functions.yaml',
+    );
   });
 }
 
@@ -77,6 +200,7 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   final args = testCase['args']! as Map<String, Object?>;
   final expected = testCase['expect'] as Map<String, Object?>?;
   final expectError = testCase['expectError'] as Map<String, Object?>?;
+  _assertRpcKeys(testCase, args, expected, expectError);
   if (expected == null && expectError == null) {
     throw StateError('handle_rpc test requires "expect" or "expectError".');
   }
@@ -130,7 +254,7 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   final processor = MessageProcessor<ComponentApi>(
     catalogs: catalogs,
     defaultVersion: A2uiProtocolVersion.v1_0,
-    outboundListener: sent.add,
+    outboundListener: args['outboundListener'] == false ? null : sent.add,
   );
   addTearDown(processor.dispose);
 
@@ -160,7 +284,8 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   }
 
   if (outboundCall != null && inboundResponse != null) {
-    final correlatedId = expected!['correlatedCallId']! as String;
+    final correlatedId = (expected!['correlatedCallId'] ??
+        outboundCall['functionCallId'])! as String;
     final response =
         inboundResponse['agentFunctionResponse']! as Map<String, Object?>;
     expect(response['functionCallId'], correlatedId);
@@ -184,10 +309,12 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
     final errorSpec =
         (expected?['error'] ?? expectError)! as Map<String, Object?>;
     await _runOutboundErrorScenario(
+      args,
       outboundCall,
-      args['secondOutboundCall'] as Map<String, Object?>?,
+      expected,
       errorSpec,
       processor,
+      sent,
     );
   }
 
@@ -198,6 +325,41 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   if (args['uiActionFallbackScenario']
       case final Map<String, Object?> scenario) {
     await _runUiActionFallbackScenario(scenario, expected!, processor, sent);
+  }
+}
+
+void _assertRpcKeys(
+  Map<String, Object?> testCase,
+  Map<String, Object?> args,
+  Map<String, Object?>? expected,
+  Map<String, Object?>? expectError,
+) {
+  assertKnownKeys(testCase, _knownKeys['case:handle_rpc']!, 'case:handle_rpc');
+  assertKnownKeys(args, _knownKeys['args:handle_rpc']!, 'args:handle_rpc');
+  if (args['uiBindingScenario'] case final Map<String, Object?> scenario) {
+    assertKnownKeys(
+      scenario,
+      _knownKeys['uiBindingScenario:handle_rpc']!,
+      'uiBindingScenario:handle_rpc',
+    );
+  }
+  if (args['uiActionFallbackScenario']
+      case final Map<String, Object?> scenario) {
+    assertKnownKeys(
+      scenario,
+      _knownKeys['uiActionFallbackScenario:handle_rpc']!,
+      'uiActionFallbackScenario:handle_rpc',
+    );
+  }
+  if (expected != null) {
+    assertKnownKeys(
+      expected,
+      _knownKeys['expect:handle_rpc']!,
+      'expect:handle_rpc',
+    );
+  }
+  if (expectError != null) {
+    assertKnownKeys(expectError, knownExpectErrorKeys, 'expectError');
   }
 }
 
@@ -262,7 +424,11 @@ Future<void> _runInboundMessageScenario(
       sent.whereType<RendererFunctionResponseMessage>();
   final expectedResponse = expected['response'] as Map<String, Object?>?;
   if (expectedResponse == null) {
+    // An ignored message: no response, no outbound message, and no pending
+    // calls left behind.
     expect(responses, isEmpty);
+    expect(sent, isEmpty);
+    expect(processor.rpc.pendingCallCount, 0);
     return;
   }
   expect(responses, hasLength(1));
@@ -286,11 +452,38 @@ Future<void> _runInboundMessageScenario(
   }
 }
 
+void _assertLateResponseIgnored(
+  Map<String, Object?> args,
+  Map<String, Object?>? expected,
+  MessageProcessor<ComponentApi> processor,
+  List<RendererToAgentMessage> sent,
+) {
+  final lateResponse = args['lateInboundResponse'] as Map<String, Object?>?;
+  if (lateResponse == null) return;
+  final int beforeSent = sent.length;
+  final surfaceErrors = <A2uiRendererError>[];
+  final subscriptions = <Subscription>[
+    for (final surface in processor.model.allSurfaces)
+      surface.onError.subscribe(surfaceErrors.add),
+  ];
+  processor.processMessages(lateResponse);
+  for (final subscription in subscriptions) {
+    subscription.unsubscribe();
+  }
+  if (expected?['lateResponseIgnored'] == true) {
+    expect(sent.length, beforeSent);
+    expect(surfaceErrors, isEmpty);
+    expect(processor.rpc.pendingCallCount, 0);
+  }
+}
+
 Future<void> _runOutboundErrorScenario(
+  Map<String, Object?> args,
   Map<String, Object?> outboundCall,
-  Map<String, Object?>? secondCall,
+  Map<String, Object?>? expected,
   Map<String, Object?> errorSpec,
   MessageProcessor<ComponentApi> processor,
+  List<RendererToAgentMessage> sent,
 ) async {
   final code = errorSpec['code'] as String?;
   final Matcher matcher = isA<A2uiRpcError>().having(
@@ -298,6 +491,23 @@ Future<void> _runOutboundErrorScenario(
     'code',
     code ?? anything,
   );
+  final secondCall = args['secondOutboundCall'] as Map<String, Object?>?;
+  final afterCall = args['afterCall'] as String?;
+
+  if (args['outboundListener'] == false) {
+    await expectLater(
+      processor.callAgentFunction(
+        outboundCall['surfaceId']! as String,
+        _functionCall(outboundCall),
+        options: CallOptions(
+          functionCallId: outboundCall['functionCallId'] as String?,
+        ),
+      ),
+      throwsA(matcher),
+    );
+    return;
+  }
+
   if (secondCall != null) {
     final Future<Object?> first = processor.callAgentFunction(
       outboundCall['surfaceId']! as String,
@@ -319,6 +529,55 @@ Future<void> _runOutboundErrorScenario(
     );
     return;
   }
+
+  if (afterCall == 'cancel') {
+    final surfaceId = outboundCall['surfaceId']! as String;
+    final Future<Object?> pending = processor.callAgentFunction(
+      surfaceId,
+      _functionCall(outboundCall),
+      options: CallOptions(
+        functionCallId: outboundCall['functionCallId'] as String?,
+      ),
+    );
+    processor.rpc.cancelSurfaceCalls(surfaceId);
+    await expectLater(pending, throwsA(matcher));
+    return;
+  }
+
+  if (afterCall == 'dispose') {
+    final Future<Object?> pending = processor.callAgentFunction(
+      outboundCall['surfaceId']! as String,
+      _functionCall(outboundCall),
+      options: CallOptions(
+        functionCallId: outboundCall['functionCallId'] as String?,
+      ),
+    );
+    processor.dispose();
+    final inFlightError = expected?['inFlightError'] as Map<String, Object?>?;
+    await expectLater(
+      pending,
+      throwsA(
+        isA<A2uiRpcError>().having(
+          (e) => e.code,
+          'code',
+          inFlightError?['code'] ?? 'CANCELLED',
+        ),
+      ),
+    );
+    await expectLater(
+      processor.callAgentFunction(
+        outboundCall['surfaceId']! as String,
+        _functionCall(outboundCall),
+        options: CallOptions(
+          functionCallId: outboundCall['functionCallId'] as String?,
+        ),
+      ),
+      throwsA(matcher),
+    );
+    _assertLateResponseIgnored(args, expected, processor, sent);
+    return;
+  }
+
   final timeoutMs = outboundCall['timeoutMs'] as int?;
   await expectLater(
     processor.callAgentFunction(
@@ -331,6 +590,7 @@ Future<void> _runOutboundErrorScenario(
     ),
     throwsA(matcher),
   );
+  _assertLateResponseIgnored(args, expected, processor, sent);
 }
 
 Future<void> _runUiBindingScenario(
@@ -345,7 +605,7 @@ Future<void> _runUiBindingScenario(
   final scenarioCatalog = Catalog<ComponentApi, FunctionImplementation>(
     id: scenarioCatalogId,
     components: basic.components.values.toList(),
-    functions: const [],
+    functions: _scenarioLocalFunctions(scenario),
     protocolVersion: A2uiProtocolVersion.v1_0,
   );
   final surface = SurfaceModel<ComponentApi>(
@@ -355,20 +615,60 @@ Future<void> _runUiBindingScenario(
     protocolVersion: '1.0',
     callAgentFunction: (call) => processor.callAgentFunction(surfaceId, call),
   );
+  final surfaceErrors = <A2uiRendererError>[];
+  surface.onError.subscribe(surfaceErrors.add);
   processor.model.addSurface(surface);
-  final comp = Map<String, Object?>.from(scenario['component']! as Map);
-  final compId = comp.remove('id')! as String;
-  final compType = comp.remove('component')! as String;
-  surface.componentsModel.addComponent(
-    ComponentModel(compId, compType, comp),
-  );
+
+  final List<Object?> rawComponents =
+      scenario['components'] as List<Object?>? ??
+          <Object?>[scenario['component']];
+  for (final raw in rawComponents) {
+    final comp = Map<String, Object?>.from(raw! as Map);
+    final compId = comp.remove('id')! as String;
+    final compType = comp.remove('component')! as String;
+    surface.componentsModel.addComponent(
+      ComponentModel(compId, compType, comp),
+    );
+  }
   final resolver = NodeResolver<ComponentApi>(surface);
   addTearDown(resolver.dispose);
 
-  final ComponentNode<ComponentApi> root = resolver.rootNode.value!;
-  final initialBinding = root.props.value['text']! as ResolvedBinding<Object?>;
-  expect(initialBinding.value, expected['initialValue']);
+  Map<String, ComponentNode<ComponentApi>> collectNodes() {
+    final nodes = <String, ComponentNode<ComponentApi>>{};
+    final visited = Set<ComponentNode<ComponentApi>>.identity();
+    void visit(Object? value) {
+      if (value is ComponentNode<ComponentApi>) {
+        if (!visited.add(value)) return;
+        nodes.putIfAbsent(value.componentId, () => value);
+        visit(value.props.peek());
+      } else if (value is Map) {
+        value.values.forEach(visit);
+      } else if (value is List) {
+        value.forEach(visit);
+      }
+    }
 
+    visit(resolver.rootNode.peek());
+    return nodes;
+  }
+
+  final Map<String, Object?>? observe =
+      (scenario['observe'] as Map?)?.cast<String, Object?>();
+  final String observeId = observe?['componentId'] as String? ??
+      (scenario['component'] as Map?)?['id'] as String? ??
+      'root';
+  final String observeProp = observe?['property'] as String? ?? 'text';
+
+  if (expected.containsKey('initialValue')) {
+    final ComponentNode<ComponentApi> target = collectNodes()[observeId]!;
+    final Object? initialProp = target.props.value[observeProp];
+    final Object? initialValue = initialProp is ResolvedBinding<Object?>
+        ? initialProp.value
+        : initialProp;
+    expect(initialValue, expected['initialValue']);
+  }
+
+  await Future<void>.delayed(Duration.zero);
   final CallAgentFunctionMessage outbound =
       sent.whereType<CallAgentFunctionMessage>().single;
   final expectedOutbound = expected['outboundCall']! as Map<String, Object?>;
@@ -378,16 +678,84 @@ Future<void> _runUiBindingScenario(
   expect(outbound.surfaceId, expectedCall['surfaceId']);
   expect(outbound.callFunction, expectedCall['callFunction']);
 
+  final Map<String, Object?> responsePayload =
+      switch (scenario['inboundResponseError']) {
+    final Map<String, Object?> err => {
+        'functionCallId': outbound.functionCallId,
+        'error': err,
+      },
+    _ => {
+        'functionCallId': outbound.functionCallId,
+        'value': scenario['inboundResponseValue'],
+      },
+  };
   processor.processMessages({
     'version': '1.0',
-    'agentFunctionResponse': {
-      'functionCallId': outbound.functionCallId,
-      'value': scenario['inboundResponseValue'],
-    },
+    'agentFunctionResponse': responsePayload,
   });
   await Future<void>.delayed(Duration.zero);
-  final resolvedBinding = root.props.value['text']! as ResolvedBinding<Object?>;
-  expect(resolvedBinding.value, expected['resolvedValue']);
+
+  final Map<String, ComponentNode<ComponentApi>> nodes = collectNodes();
+  final ComponentNode<ComponentApi> target = nodes[observeId]!;
+
+  if (expected.containsKey('resolvedValue')) {
+    final Object? resolvedProp = target.props.value[observeProp];
+    final Object? resolvedValue = resolvedProp is ResolvedBinding<Object?>
+        ? resolvedProp.value
+        : resolvedProp;
+    expect(resolvedValue, expected['resolvedValue']);
+  }
+
+  if (expected['siblings'] case final Map<String, Object?> siblings) {
+    for (final MapEntry<String, Object?> entry in siblings.entries) {
+      final ComponentNode<ComponentApi>? sibNode = nodes[entry.key];
+      expect(sibNode, isNotNull, reason: 'sibling ${entry.key}');
+      final Map<String, Object?> expectedProps =
+          (entry.value! as Map).cast<String, Object?>();
+      for (final MapEntry<String, Object?> prop in expectedProps.entries) {
+        final Object? rawVal = sibNode!.props.value[prop.key];
+        final Object? actualVal =
+            rawVal is ResolvedBinding<Object?> ? rawVal.value : rawVal;
+        expect(actualVal, prop.value);
+      }
+    }
+  }
+
+  if (expected['validationResult'] case final Map<String, Object?> valResult) {
+    final Map<String, dynamic> props = target.props.value;
+    final List<ValidationResult>? results =
+        (props['validationResults'] as List<Object?>?)
+            ?.cast<ValidationResult>();
+    if (valResult.containsKey('valid')) {
+      expect(props['isValid'], valResult['valid']);
+    }
+    if (valResult['message'] case final String msg) {
+      expect(results, isNotNull);
+      expect(results, isNotEmpty);
+      expect(results!.first.message, msg);
+    }
+    if (valResult['severity'] case final String severity) {
+      expect(results, isNotNull);
+      expect(results, isNotEmpty);
+      expect(results!.first.severity, severity);
+    }
+    if (valResult['errors'] case final List<Object?> errors) {
+      expect(props['validationErrors'], errors);
+    }
+  }
+
+  if (expected['surfaceError'] case final Map<String, Object?> errSpec) {
+    expect(surfaceErrors, isNotEmpty);
+    final A2uiRendererError lastErr = surfaceErrors.last;
+    expect(lastErr.code, errSpec['code']);
+    if (errSpec['functionCallId'] case final String expectedCallId) {
+      final String resolvedCallId = expectedCallId == r'$outboundCallId'
+          ? outbound.functionCallId
+          : expectedCallId;
+      expect(lastErr.functionCallId, resolvedCallId);
+      expect(lastErr.surfaceId, isNull);
+    }
+  }
 }
 
 Future<void> _runUiActionFallbackScenario(
@@ -401,28 +769,30 @@ Future<void> _runUiActionFallbackScenario(
   final scenarioCatalog = Catalog<ComponentApi, FunctionImplementation>(
     id: scenarioCatalogId,
     components: const [],
-    functions: const [],
+    functions: _scenarioLocalFunctions(scenario),
     protocolVersion: A2uiProtocolVersion.v1_0,
   );
-  final context = DataContext(
-    DataModel(),
-    scenarioCatalog.invoke,
-    '/',
-    protocolVersion: A2uiProtocolVersion.v1_0,
-    invokerForCatalog: (id) {
-      if (id == scenarioCatalogId) return scenarioCatalog.invoke;
-      throw A2uiCatalogResolutionError(
-        'Catalog not found: $id',
-        catalogId: id,
-      );
-    },
+  final surface = SurfaceModel<ComponentApi>(
+    surfaceId,
+    defaultCatalog: scenarioCatalog,
+    availableCatalogs: [scenarioCatalog],
+    protocolVersion: '1.0',
     callAgentFunction: (call) => processor.callAgentFunction(surfaceId, call),
   );
+  final surfaceErrors = <A2uiRendererError>[];
+  surface.onError.subscribe(surfaceErrors.add);
+  processor.model.addSurface(surface);
+
+  final DataContext context = ComponentContext(
+    surface,
+    ComponentModel('root', 'Button', {}),
+  ).dataContext;
   final actionPayload = scenario['actionPayload']! as Map<String, Object?>;
   final functionCall = actionPayload['functionCall']! as Map<String, Object?>;
   final Future<Object?> resultFuture =
       context.evaluateFunctionCall(functionCall);
 
+  await Future<void>.delayed(Duration.zero);
   final CallAgentFunctionMessage outbound =
       sent.whereType<CallAgentFunctionMessage>().single;
   final expectedOutbound = expected['outboundCall']! as Map<String, Object?>;
@@ -432,14 +802,42 @@ Future<void> _runUiActionFallbackScenario(
   expect(outbound.surfaceId, expectedCall['surfaceId']);
   expect(outbound.callFunction, expectedCall['callFunction']);
 
+  final Map<String, Object?> responsePayload =
+      switch (scenario['inboundResponseError']) {
+    final Map<String, Object?> err => {
+        'functionCallId': outbound.functionCallId,
+        'error': err,
+      },
+    _ => {
+        'functionCallId': outbound.functionCallId,
+        'value': scenario['inboundResponseValue'],
+      },
+  };
   processor.processMessages({
     'version': '1.0',
-    'agentFunctionResponse': {
-      'functionCallId': outbound.functionCallId,
-      'value': scenario['inboundResponseValue'],
-    },
+    'agentFunctionResponse': responsePayload,
   });
-  expect(await resultFuture, expected['result']);
+  final Object? result = await resultFuture;
+  await Future<void>.delayed(Duration.zero);
+
+  if (expected.containsKey('result')) {
+    expect(result, expected['result']);
+  }
+  if (expected.containsKey('dataModel')) {
+    expect(surface.dataModel.get('/'), expected['dataModel']);
+  }
+  if (expected['surfaceError'] case final Map<String, Object?> errSpec) {
+    expect(surfaceErrors, isNotEmpty);
+    final A2uiRendererError lastErr = surfaceErrors.last;
+    expect(lastErr.code, errSpec['code']);
+    if (errSpec['functionCallId'] case final String expectedCallId) {
+      final String resolvedCallId = expectedCallId == r'$outboundCallId'
+          ? outbound.functionCallId
+          : expectedCallId;
+      expect(lastErr.functionCallId, resolvedCallId);
+      expect(lastErr.surfaceId, isNull);
+    }
+  }
 }
 
 FunctionCall _functionCall(Map<String, Object?> outboundCall) {

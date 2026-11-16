@@ -457,7 +457,7 @@ surface("s1")
               'id': 'root',
               'component': 'Text',
               'text': 'Hello',
-              'metadata': {
+              '@metadata': {
                 'extensions': {'comp_ext': true},
               },
             },
@@ -494,7 +494,7 @@ surface("s1")
             'id': 'root',
             'component': 'Text',
             'text': 'Hello',
-            'metadata': {
+            '@metadata': {
               'extensions': {'comp_ext': 42},
             },
           },
@@ -594,8 +594,8 @@ surface("s1")
         "line 2, column 13: mismatched input '<EOF>'",
       ),
       'one the lexer finds': (
-        'root = @Text("x")',
-        "line 1, column 8: token recognition error at: '@'",
+        'root = ^Text("x")',
+        "line 1, column 8: token recognition error at: '^'",
       ),
       'an argument given twice': (
         'root = Text(text="a", text="b")',
@@ -687,6 +687,19 @@ surface("s1")
       expect(snippet, contains('## Catalog `${basic.id}`'));
       expect(snippet, contains('## Catalog `${custom.id}`'));
       expect(snippet, contains('• Gauge(value (static))'));
+    });
+
+    test('omits Event userMessage= before v1.0', () {
+      final String snippet = processor().promptSnippet;
+      expect(
+        snippet,
+        contains(
+          '8. Action events: represent server-side actions using the Event '
+          'helper:\n'
+          r'   Event("save_deal", {rep: $/form/rep})',
+        ),
+      );
+      expect(snippet, isNot(contains('userMessage=')));
     });
   });
 

@@ -41,6 +41,7 @@ public enum GraphTopologyValidator {
   ) throws {
     let (allComponentIDs, adjacencyList) = try buildAdjacencyMap(
       from: components,
+      config: config,
       catalogs: catalogs,
       defaultCatalogID: defaultCatalogID
     )
@@ -70,6 +71,22 @@ public enum GraphTopologyValidator {
       )
     }
   }
+
+  /// Returns the catalog a component runs in: the one its `@catalogId` (or legacy `catalogId`)
+  /// names, else the default catalog.
+  static func componentCatalogID(
+    of component: [String: JSONValue],
+    defaultCatalogID: String?
+  ) -> String? {
+    component["@catalogId"]?.stringValue ?? component["catalogId"]?.stringValue
+      ?? defaultCatalogID
+  }
+
+  /// The component keys that never hold component references: the structural keys, and the
+  /// catalog id and metadata mixins.
+  private static let nonReferenceKeys: Set<String> = [
+    "id", "component", "catalogId", "@catalogId", "@metadata",
+  ]
 
   static func lookupComponentAPI(
     type: String,
@@ -110,7 +127,7 @@ public enum GraphTopologyValidator {
       guard let id = component["id"]?.stringValue,
         let type = component["component"]?.stringValue
       else { continue }
-      let catalogID = component["catalogId"]?.stringValue ?? defaultCatalogID
+      let catalogID = componentCatalogID(of: component, defaultCatalogID: defaultCatalogID)
       componentMeta[id] = ComponentMeta(type: type, catalogID: catalogID, index: index)
     }
 
@@ -234,6 +251,7 @@ public enum GraphTopologyValidator {
 
   private static func buildAdjacencyMap(
     from components: [[String: JSONValue]],
+    config: ValidationConfig,
     catalogs: [String: AnyCatalog]?,
     defaultCatalogID: String?
   ) throws -> (allIDs: Set<String>, adjacencyList: AdjacencyMap) {
@@ -250,7 +268,7 @@ public enum GraphTopologyValidator {
 
       let componentSchema: JSONValue?
       if let type = component["component"]?.stringValue {
-        let catalogID = component["catalogId"]?.stringValue ?? defaultCatalogID
+        let catalogID = componentCatalogID(of: component, defaultCatalogID: defaultCatalogID)
         componentSchema =
           lookupComponentAPI(
             type: type,
@@ -264,7 +282,7 @@ public enum GraphTopologyValidator {
 
       let references = extractReferences(from: component, schema: componentSchema)
       for reference in references {
-        if reference.referenceID == componentID {
+        if reference.referenceID == componentID, !config.allowCyclicReferences {
           throw A2UIRecursionError(
             """
             Self-reference detected: Component '\(componentID)' \
@@ -327,6 +345,7 @@ public enum GraphTopologyValidator {
           depth: 0,
           allIDs: allIDs,
           adjacencyList: adjacencyList,
+          allowsCycles: config.allowCyclicReferences,
           visited: &visited,
           recursionStack: &recursionStack
         )
@@ -340,6 +359,7 @@ public enum GraphTopologyValidator {
       depth: 0,
       allIDs: allIDs,
       adjacencyList: adjacencyList,
+      allowsCycles: config.allowCyclicReferences,
       visited: &visited,
       recursionStack: &recursionStack
     )
@@ -356,6 +376,7 @@ public enum GraphTopologyValidator {
     depth: Int,
     allIDs: Set<String>,
     adjacencyList: AdjacencyMap,
+    allowsCycles: Bool,
     visited: inout Set<String>,
     recursionStack: inout Set<String>
   ) throws {
@@ -376,11 +397,12 @@ public enum GraphTopologyValidator {
             depth: depth + 1,
             allIDs: allIDs,
             adjacencyList: adjacencyList,
+            allowsCycles: allowsCycles,
             visited: &visited,
             recursionStack: &recursionStack
           )
         }
-      } else if recursionStack.contains(neighbor) {
+      } else if !allowsCycles, recursionStack.contains(neighbor) {
         throw A2UIRecursionError(
           "Circular component reference (Circular reference detected) involving component '\(neighbor)'"
         )
@@ -397,8 +419,7 @@ public enum GraphTopologyValidator {
     guard let schema else { return [] }
     var references: [Reference] = []
     let propertySchemas = extractPropertiesSchema(from: schema)
-    for (key, propertyValue) in component
-    where key != "id" && key != "component" && key != "catalogId" {
+    for (key, propertyValue) in component where !nonReferenceKeys.contains(key) {
       guard let propSchema = propertySchemas[key] else { continue }
       collectSchemaReferences(
         from: propertyValue,

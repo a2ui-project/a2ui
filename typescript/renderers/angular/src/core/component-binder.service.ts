@@ -21,10 +21,11 @@ import {
   ResolvedBinding,
   computed,
   getValue,
+  isAtLeastVersion,
   isComponentNode,
   isWritable,
   peekValue,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
 import {BoundProperty, ComponentTemplate} from './types';
 import {assertAngularSignal, initializeAngularReactivity} from './reactivity';
 
@@ -156,9 +157,9 @@ export class ComponentBinder {
    * Binds all properties of a component to an object of Angular Signals from its
    * `ComponentContext`, resolving data bindings through the `DataContext` directly.
    *
-   * @deprecated Hosts bind from the resolved `ComponentNode` via {@link bindNode}. This
-   *   path remains for elements that are given a `ComponentContext` without a node and
-   *   will be removed in a future release.
+   * @deprecated Use {@link bindNode}. Hosts bind from the resolved `ComponentNode` via
+   *   `bindNode(node)`. This path remains for elements that are given a `ComponentContext`
+   *   without a node and will be removed in a future release.
    * @param context The ComponentContext containing the model and data context.
    * @returns An object where each key corresponds to a component prop and its value is an Angular Signal.
    */
@@ -166,12 +167,22 @@ export class ComponentBinder {
     const props = context.componentModel.properties;
     const bound: Record<string, BoundProperty<unknown>> = {};
     const cleanups: Array<() => void> = [];
+    const checksKey = isAtLeastVersion(
+      context.dataContext.surface?.protocolVersion ??
+        context.dataContext.surface?.defaultCatalog?.protocolVersion,
+      '1.0',
+    )
+      ? '@checks'
+      : 'checks';
 
     for (const key of Object.keys(props)) {
       const value = props[key];
       bound[key] = this.bindProperty(key, value, context, cleanups);
 
-      if (key === 'checks') {
+      // Below v1.0 a component's check rules are `checks`; from v1.0 the
+      // processor stores them under `@checks`, while any bare `checks` entry
+      // is an ordinary custom component property.
+      if (key === checksKey) {
         const checkProps = this.bindChecks(value, context, cleanups);
         bound['isValid'] = checkProps.isValid;
         bound['validationErrors'] = checkProps.validationErrors;

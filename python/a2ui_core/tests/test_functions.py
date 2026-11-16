@@ -76,8 +76,8 @@ def test_v10_logical_functions_read_validation_result_operands():
 
     assert not_({"value": {"valid": False}}) is True
     assert not_({"value": {"valid": True}}) is False
-    assert not_({"value": {"valid": "yes"}}) is False
-    assert not_({"value": {"other": 1}}) is False
+    assert not_({"value": {"valid": "yes"}}) is True
+    assert not_({"value": {"other": 1}}) is True
     assert and_({"values": [{"valid": True}, {"valid": False}]}) is False
     assert or_({"values": [{"valid": False}, {"valid": False}]}) is False
     assert or_({"values": [{"valid": False}, {"valid": True}]}) is True
@@ -101,13 +101,14 @@ def test_v10_logical_functions_read_validation_result_operands():
     assert button_enabled(True, "", "555") is True
 
 
-def test_v09_logical_functions_treat_valid_dict_as_plain_object():
-    """The v0.9 validators return booleans, so a ``{valid}`` dict is an
-    ordinary non-empty dict and therefore truthy."""
+def test_v09_logical_functions_coerce_valid_dict_by_validity():
+    """The v0.9 logical functions also coerce a ``{valid}`` dict by its
+    boolean ``valid`` member and coerce non-ValidationResult dicts to False."""
     not_ = IMPLS_MAP["not"].execute_func
     and_ = IMPLS_MAP["and"].execute_func
-    assert not_({"value": {"valid": False}}) is False
-    assert and_({"values": [{"valid": False}, {"valid": False}]}) is True
+    assert not_({"value": {"valid": False}}) is True
+    assert and_({"values": [{"valid": False}, {"valid": False}]}) is False
+    assert and_({"values": [{"valid": True}, {"valid": True}]}) is True
 
 
 def test_validation_required():
@@ -745,3 +746,48 @@ def test_call_agent_function_response_done_future():
     }])
 
     assert fut.cancelled()
+
+
+def _load_v09_function_catalog_validation_cases() -> list[dict[str, Any]]:
+    import json
+    from pathlib import Path
+
+    spec_path = (
+        Path(__file__).resolve().parents[3]
+        / "specification"
+        / "v0_9"
+        / "test"
+        / "cases"
+        / "function_catalog_validation.json"
+    )
+    return json.loads(spec_path.read_text(encoding="utf-8"))["tests"]
+
+
+@pytest.mark.parametrize("catalog_mode", ["pydantic", "json_schema"])
+@pytest.mark.parametrize(
+    "case",
+    _load_v09_function_catalog_validation_cases(),
+    ids=lambda c: c["description"],
+)
+def test_v09_function_catalog_validation_spec_cases(
+    catalog_mode: str, case: dict[str, Any]
+) -> None:
+    from a2ui.core import A2uiValidationError, Catalog, PayloadValidator
+    from a2ui.core.basic_catalog.v0_9 import BasicCatalog as V09BasicCatalog
+
+    pydantic_cat = V09BasicCatalog()
+    cat = (
+        pydantic_cat
+        if catalog_mode == "pydantic"
+        else Catalog.from_json(pydantic_cat.to_json())
+    )
+    validator = PayloadValidator(cat)
+    components = case["data"]["updateComponents"]["components"]
+
+    if case["valid"]:
+        for comp in components:
+            validator.validate_component(comp)
+    else:
+        with pytest.raises(A2uiValidationError):
+            for comp in components:
+                validator.validate_component(comp)

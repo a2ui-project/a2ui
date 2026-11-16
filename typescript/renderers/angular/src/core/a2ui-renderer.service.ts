@@ -32,13 +32,14 @@ import {
   CallOptions,
   SurfaceGroupModel,
   ActionListener,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
 import {AngularComponentImplementation, AngularCatalog} from '../catalog/types';
 import {
   clearDefaultUniversalInjector,
+  registerSurfaceGroupInjector,
   setDefaultUniversalInjector,
 } from '../catalog/angular_wc_host';
-import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
+import {setMarkdownRenderer} from '@a2ui/web_core/universal';
 import {MarkdownRenderer} from './markdown';
 import {initializeAngularReactivity} from './reactivity';
 
@@ -60,10 +61,17 @@ export interface RendererConfiguration {
   useUniversalComponents?: boolean;
   /**
    * Optional handler for actions dispatched from any surface.
+   *
+   * When `processorOptions.unifiedOutbound` is true, `MessageProcessor` routes
+   * surface actions and processing errors as wire envelopes to
+   * `processorOptions.outboundListener`. `actionHandler` is still invoked for
+   * every action, so use it for local side effects only to avoid sending
+   * actions to the agent twice.
    */
   actionHandler?: ActionListener;
   /**
-   * Optional configuration options for the underlying MessageProcessor.
+   * Optional configuration options for the underlying MessageProcessor,
+   * including `outboundListener` and `unifiedOutbound`.
    */
   processorOptions?: MessageProcessorOptions;
 }
@@ -131,6 +139,7 @@ export class A2uiRendererService implements OnDestroy {
       this._config?.actionHandler,
       this._config?.processorOptions,
     );
+    registerSurfaceGroupInjector(this._messageProcessor.model, this._injector);
   }
 
   /**
@@ -207,6 +216,7 @@ export class A2uiRendererService implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    registerSurfaceGroupInjector(this._messageProcessor.model, undefined);
     this._messageProcessor.dispose();
     this._messageProcessor.model.dispose();
     clearDefaultUniversalInjector(this._injector);

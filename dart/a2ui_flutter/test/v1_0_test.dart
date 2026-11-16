@@ -444,6 +444,7 @@ void main() {
           'id': 'root',
           'component': 'TextField',
           'label': 'Zip',
+          'value': {'@path': '/zip'},
           'placeholder': '94043',
         },
       ]);

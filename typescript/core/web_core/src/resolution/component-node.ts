@@ -92,7 +92,11 @@ export interface ComponentNode<
   readonly dataPath: string;
   /** The resolved catalog entry for `type`; undefined while a placeholder. */
   readonly impl: C | undefined;
-  /** The context the resolver bound this node with; undefined while a placeholder. */
+  /**
+   * The context the resolver bound this node with; undefined while a placeholder.
+   *
+   * @deprecated Read resolved values from props; adapters get the surface from their ambient context. Removed in the next breaking release.
+   */
   readonly context: ComponentContext | undefined;
   /** Why this node is or is not resolved. */
   readonly state: NodeState;
@@ -157,6 +161,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
 
   readonly dataPath: string;
   readonly impl: ComponentApi | undefined;
+  /** @deprecated Read resolved values from props; adapters get the surface from their ambient context. Removed in the next breaking release. */
   readonly context: ComponentContext | undefined;
   readonly state: NodeState;
   readonly props: Signal<TProps>;

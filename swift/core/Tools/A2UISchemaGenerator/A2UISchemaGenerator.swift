@@ -449,8 +449,11 @@ enum A2UISchemaGenerator {
         public static let v10CatalogFunctionStubDocument: JSONValue =
           V10CommonTypesSchema.catalogFunctionStubDocument
 
-        public static var allSchemas: [String: JSONValue] {
-          [
+        /// The shared schema documents by every URL a `$ref` may name them with, for
+        /// `remoteSchema` storage. A document under an alias URL is a copy whose `$id` is that
+        /// alias, so swift-json-schema builds it once per context rather than once per `$ref`.
+        public static let allSchemas: [String: JSONValue] = RemoteSchemaAliases.identifyingAliases(
+          in: [
             baseURI: document,
             v10BaseURI: v10Document,
             "common_types.json": v10Document,
@@ -467,7 +470,7 @@ enum A2UISchemaGenerator {
             "catalog.json": v10CatalogFunctionStubDocument,
             "https://swift-json-schema.invalid/catalog.json": v10CatalogFunctionStubDocument,
           ]
-        }
+        )
       }
       """
     )
@@ -661,9 +664,9 @@ enum A2UISchemaGenerator {
       (rewriteRefs(compDef, isV10: true, localDefs: localDefs) as? [String: Any]) ?? compDef
     let commonProps: [String: Any] = [
       "id": ["$ref": "\(v10BaseURI)#/$defs/ComponentId"],
-      "catalogId": ["type": "string"],
-      "accessibility": ["$ref": "\(v10BaseURI)#/$defs/AccessibilityAttributes"],
-      "metadata": [
+      "@catalogId": ["type": "string"],
+      "@accessibility": ["$ref": "\(v10BaseURI)#/$defs/AccessibilityAttributes"],
+      "@metadata": [
         "type": "object",
         "properties": [
           "extensions": ["$ref": "\(v10BaseURI)#/$defs/Extensions"]

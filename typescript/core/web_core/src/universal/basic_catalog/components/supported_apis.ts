@@ -21,7 +21,13 @@
  */
 
 import type * as v0_9 from '../../../v0_9/basic_catalog/components/basic_components.js';
+import type {AccessibilityAttributesSchema as AccessibilityAttributesSchema0_9} from '../../../v0_9/schema/common-types.js';
 import type * as v1 from '../../../catalogs/basic/v1/components/basic_components.js';
+import type {AccessibilityAttributesSchema as AccessibilityAttributesSchema1_0} from '../../../v1_0/schema/common-types.js';
+
+export type AccessibilityAttributesSupportedSchemas =
+  | typeof AccessibilityAttributesSchema0_9
+  | typeof AccessibilityAttributesSchema1_0;
 
 export type AudioPlayerSupportedApis = typeof v0_9.AudioPlayerApi | typeof v1.AudioPlayerApi;
 export type ButtonSupportedApis = typeof v0_9.ButtonApi | typeof v1.ButtonApi;

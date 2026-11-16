@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import type {Theme} from '@a2ui/react/v0_8';
-
 /**
  * Configuration interface for the Universal App Shell.
  */
@@ -36,6 +34,4 @@ export interface AppConfig {
   loadingText?: string | string[];
   /** Optional server URL for the agent (e.g., http://localhost:10003) */
   serverUrl?: string;
-  /** Theme overrides */
-  theme?: Theme;
 }

@@ -103,6 +103,12 @@ import {ListApi} from '@a2ui/web_core/v0_9/basic_catalog';
       .horizontal .a2ui-list-item-none {
         display: inline-block;
       }
+      /* A child that renders nothing gets no item: an empty <li> still shows a marker and
+         takes a gap. */
+      li:has(> a2ui-v09-component-host[data-a2ui-empty]),
+      .a2ui-list-item-none:has(> a2ui-v09-component-host[data-a2ui-empty]) {
+        display: none;
+      }
     `,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

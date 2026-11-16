@@ -16,6 +16,7 @@
 
 import {html, nothing, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
+import {getAccessibilityDescription, getAccessibilityLabel} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {DividerSupportedApis} from './supported_apis.js';
 
@@ -63,6 +64,11 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<DividerSuppor
       ['a2ui-divider-' + axis]: true,
     };
 
-    return html`<hr class=${classMap(classes)} />`;
+    return html`<hr
+      class=${classMap(classes)}
+      aria-orientation=${axis === 'vertical' ? 'vertical' : nothing}
+      aria-label=${getAccessibilityLabel(props.accessibility)}
+      aria-description=${getAccessibilityDescription(props.accessibility)}
+    />`;
   }
 }

@@ -25,6 +25,7 @@ import pytest
 
 from a2ui.a2a import (
     create_a2ui_part,
+    extract_a2ui_json_to_parts,
     is_a2ui_part,
     parse_content_to_parts,
     stream_response_to_parts,
@@ -76,6 +77,72 @@ def test_messages_are_emitted_as_they_arrive():
     parts = _read("<a2ui-json>", json.dumps([_CREATE]), "</a2ui-json>")
 
     assert [part.root.data for part in parts] == [_CREATE]
+
+
+class _TokenStreamFailed(Exception):
+    """The error a token stream raises mid-way in the tests below."""
+
+
+async def _tokens_then_fail(*tokens: str) -> AsyncIterator[str]:
+    for token in tokens:
+        yield token
+    raise _TokenStreamFailed()
+
+
+def _read_until_failure(*tokens: str) -> list[Part]:
+    """Streams tokens that end in a failure, returning the parts seen first.
+
+    The token stream's own error is expected to reach the consumer.
+    """
+
+    async def collect() -> list[Part]:
+        stream = DirectJsonParser([_BASIC]).open_stream()
+        seen: list[Part] = []
+        with pytest.raises(_TokenStreamFailed):
+            async for part in stream_response_to_parts(
+                stream, _tokens_then_fail(*tokens)
+            ):
+                seen.append(part)
+        return seen
+
+    return asyncio.run(collect())
+
+
+def test_parts_read_before_the_token_stream_fails_reach_the_consumer():
+    """A failure mid-stream does not take back what was already yielded."""
+    parts = _read_until_failure(
+        "Here. ", "<a2ui-json>", json.dumps([_CREATE]), "</a2ui-json>"
+    )
+
+    assert parts[0].root.text == "Here."
+    assert [part.root.data for part in parts[1:]] == [_CREATE]
+
+
+def test_the_token_stream_failure_propagates_over_an_open_block():
+    """The token stream's error wins: the stream is not closed after it, so the
+    block it left open is not reported as a parse error in its place."""
+    parts = _read_until_failure("Before ", "<a2ui-json>", "[")
+
+    assert [part.root.text for part in parts] == ["Before"]
+
+
+def test_a_block_left_open_by_a_completed_token_stream_raises_at_close():
+    """Once the tokens run out cleanly, closing reports the open block, after
+    the parts before it were yielded."""
+
+    async def collect() -> list[Part]:
+        stream = DirectJsonParser([_BASIC]).open_stream()
+        seen: list[Part] = []
+        with pytest.raises(A2uiParseError, match="ended inside"):
+            async for part in stream_response_to_parts(
+                stream, _tokens("Before ", "<a2ui-json>", "[")
+            ):
+                seen.append(part)
+        return seen
+
+    parts = asyncio.run(collect())
+
+    assert [part.root.text for part in parts] == ["Before"]
 
 
 def test_to_a2a_parts_splits_messages_and_drops_empty_text():
@@ -153,3 +220,125 @@ def test_create_a2ui_part_defaults_to_the_messages_version():
     assert mime(create_a2ui_part(v0_8)) == "application/json+a2ui"
     # An explicit version still wins.
     assert mime(create_a2ui_part(v0_9_1, version="0.9")) == "application/json+a2ui"
+
+
+def test_extract_a2ui_json_to_parts_extracts_text_and_a2ui_messages():
+    update = {
+        "version": "v0.9",
+        "updateComponents": {
+            "surfaceId": "s",
+            "components": [{"id": "root", "component": "Text", "text": "Hi"}],
+        },
+    }
+    content = (
+        "Here is the UI:\n"
+        f"<a2ui-json>{json.dumps([_CREATE, update])}</a2ui-json>\n"
+        "Let me know if you need anything else."
+    )
+    parts = extract_a2ui_json_to_parts(content)
+
+    assert len(parts) == 4
+    assert parts[0].root.text == "Here is the UI:"
+    assert parts[1].root.data == _CREATE
+    assert parts[2].root.data == update
+    assert parts[3].root.text == "Let me know if you need anything else."
+    assert is_a2ui_part(parts[1])
+    assert is_a2ui_part(parts[2])
+
+
+def test_extract_a2ui_json_to_parts_handles_single_dict_message():
+    content = f"<a2ui-json>{json.dumps(_CREATE)}</a2ui-json>"
+    parts = extract_a2ui_json_to_parts(content)
+
+    assert len(parts) == 1
+    assert parts[0].root.data == _CREATE
+    assert is_a2ui_part(parts[0])
+
+
+def test_extract_a2ui_json_to_parts_plain_text_without_tags():
+    parts = extract_a2ui_json_to_parts("Just plain text.")
+    assert len(parts) == 1
+    assert parts[0].root.text == "Just plain text."
+
+
+def test_extract_a2ui_json_to_parts_malformed_json_uses_fallback_text():
+    content = "<a2ui-json>{not valid json</a2ui-json>"
+    parts = extract_a2ui_json_to_parts(content, fallback_text="Fallback text.")
+    assert len(parts) == 1
+    assert parts[0].root.text == "Fallback text."
+
+
+def test_extract_a2ui_json_to_parts_skips_malformed_block_and_parses_valid_block():
+    content = (
+        "Intro text\n"
+        "<a2ui-json>{broken json</a2ui-json>\n"
+        f"<a2ui-json>{json.dumps([_CREATE])}</a2ui-json>\n"
+        "Outro text"
+    )
+    parts = extract_a2ui_json_to_parts(content)
+    assert len(parts) == 3
+    assert parts[0].root.text == "Intro text"
+    assert parts[1].root.data == _CREATE
+    assert is_a2ui_part(parts[1])
+    assert parts[2].root.text == "Outro text"
+
+
+def test_extract_a2ui_json_to_parts_with_version_override():
+    content = f"<a2ui-json>{json.dumps([_CREATE])}</a2ui-json>"
+    parts = extract_a2ui_json_to_parts(content, version="0.9")
+    assert len(parts) == 1
+    assert parts[0].root.metadata["mimeType"] == "application/json+a2ui"
+
+
+@pytest.mark.parametrize(
+    ("raw_text", "expected_text"),
+    [
+        ("\u201cIt's ready\u201d", "It's ready"),
+        ("\u201cItem #1\u201d", "Item #1"),
+    ],
+)
+def test_extract_a2ui_json_to_parts_reads_apostrophes_and_hashes_outside_json_strings(
+    raw_text, expected_text
+):
+    content = f'<a2ui-json>{{"version": "v0.9", "text": {raw_text}}}</a2ui-json>\nAfter'
+    parts = extract_a2ui_json_to_parts(content)
+
+    assert len(parts) == 2
+    assert parts[0].root.data == {"version": "v0.9", "text": expected_text}
+    assert parts[1].root.text == "After"
+
+
+@pytest.mark.parametrize(
+    "block", ["123", '"text"', '["text"]', f"[{json.dumps(_CREATE)}, 1]"]
+)
+def test_extract_a2ui_json_to_parts_logs_and_skips_non_object_block(caplog, block):
+    content = (
+        f"<a2ui-json>{block}</a2ui-json>\n<a2ui-json>{json.dumps(_CREATE)}</a2ui-json>"
+    )
+    with caplog.at_level("WARNING"):
+        parts = extract_a2ui_json_to_parts(content)
+
+    assert [part.root.data for part in parts] == [_CREATE]
+    assert "Failed to parse A2UI block JSON: TypeError" in caplog.text
+
+
+def test_extract_a2ui_json_to_parts_logs_and_skips_unclosed_block(caplog):
+    content = f"Intro\n<a2ui-json>{json.dumps(_CREATE)}"
+    with caplog.at_level("WARNING"):
+        parts = extract_a2ui_json_to_parts(content, fallback_text="Fallback")
+
+    assert len(parts) == 1
+    assert parts[0].root.text == "Intro"
+    assert "Skipping unclosed A2UI JSON block." in caplog.text
+
+
+@pytest.mark.parametrize("prose", ["total = 42", "Here you go:"])
+def test_extract_a2ui_json_to_parts_recovers_missing_open_tag(prose):
+    """A block missing its open tag starts at the first line opening JSON."""
+    content = f"{prose}\n{json.dumps([_CREATE])}\n</a2ui-json>"
+
+    parts = extract_a2ui_json_to_parts(content)
+
+    assert len(parts) == 2
+    assert parts[0].root.text == prose
+    assert parts[1].root.data == _CREATE

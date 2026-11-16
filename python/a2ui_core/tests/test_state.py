@@ -399,18 +399,21 @@ def test_data_model_has_path_forbidden_keys():
             dm.has_path(f"/{seg}")
 
 
-def test_data_model_stores_references_directly():
+def test_data_model_stores_defensive_copies():
     raw_dict = {"item": [1, 2, 3]}
     dm = DataModel(raw_dict)
-    assert dm.get("/") is raw_dict
+    assert dm.get("/") == raw_dict
+    assert dm.get("/") is not raw_dict
 
     obj = {"inner": "val"}
     dm.set("/obj", obj)
-    assert dm.get("/obj") is obj
+    assert dm.get("/obj") == obj
+    assert dm.get("/obj") is not obj
 
     arr = [10, 20]
     dm.set("/arr", arr)
-    assert dm.get("/arr") is arr
+    assert dm.get("/arr") == arr
+    assert dm.get("/arr") is not arr
 
 
 def test_exception_hierarchy_normalization():
@@ -436,6 +439,7 @@ def test_exception_hierarchy_normalization():
         "DISPOSED",
         "NO_LISTENER",
         "DUPLICATE",
+        "TOO_MANY_PENDING",
     }
     actual_codes = {member.value for member in RpcErrorCode}
     assert actual_codes == expected_codes
@@ -622,12 +626,61 @@ def test_surface_model_dispatch_action_payload_handling():
 def test_surface_model_disposal():
     cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", default_catalog=cat)
+    comp = ComponentModel("c1", "Text", cat, {"text": "initial"})
+    surface.components_model.add_component(comp)
 
-    def on_act(_: Any) -> None:
-        pass
+    actions: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    metadata_events: list[Any] = []
+    data_events: list[Any] = []
+    comp_updates: list[ComponentModel] = []
+    created_events: list[ComponentModel] = []
+    deleted_events: list[str] = []
 
-    surface.on_action.subscribe(on_act)
+    surface.on_action.subscribe(lambda a: actions.append(a))
+    surface.on_error.subscribe(lambda e: errors.append(e))
+    surface.on_warning.subscribe(lambda w: warnings.append(w))
+    surface.on_metadata_changed.subscribe(lambda m: metadata_events.append(m))
+    surface.data_model.subscribe("/key", lambda v: data_events.append(v))
+    comp.on_updated.subscribe(lambda c: comp_updates.append(c))
+    surface.components_model.on_created.subscribe(lambda c: created_events.append(c))
+    surface.components_model.on_deleted.subscribe(
+        lambda cid: deleted_events.append(cid)
+    )
+
     surface.dispose()
+
+    assert len(surface.components_model) == 0
+    assert deleted_events == ["c1"]
+    deleted_events.clear()
+
+    # Dispatches after dispose() must not reach any pre-disposal subscriber.
+    surface.dispatch_action({"name": "click"}, "c1")
+    surface.dispatch_error({"code": "ERR", "message": "boom"})
+    surface.dispatch_warning({"code": "WARN", "message": "careful"})
+    surface.set_extension("theme", "dark")
+    surface.data_model.set("/key", "updated")
+    comp.properties = {"text": "changed"}
+    surface.components_model.add_component(ComponentModel("c2", "Text", cat, {}))
+    surface.components_model.remove_component("c2")
+    surface.components_model.remove_component("c1")
+
+    assert actions == []
+    assert errors == []
+    assert warnings == []
+    assert metadata_events == []
+    assert data_events == []
+    assert comp_updates == []
+    assert created_events == []
+    assert deleted_events == []
+
+    # Subscriptions registered after disposal can be unsubscribed cleanly.
+    post_actions: list[dict[str, Any]] = []
+    sub = surface.on_action.subscribe(lambda a: post_actions.append(a))
+    sub.unsubscribe()
+    surface.dispatch_action({"name": "after_unsub"}, "c1")
+    assert post_actions == []
 
 
 def test_surface_components_model_membership_and_storage():
@@ -1013,7 +1066,7 @@ def test_component_model_and_surface_model_metadata_api():
         "id": "c1",
         "component": "Text",
         "text": "Hello",
-        "metadata": {"extensions": {"a": 1}},
+        "@metadata": {"extensions": {"a": 1}},
     }
 
     # Defensive copy check
@@ -1180,3 +1233,64 @@ def test_component_model_and_surface_model_metadata_api():
     assert binder2_emissions[0][0]["text"] == "Updated"
     assert binder2_emissions[0][1] == {"extensions": {"atomic": True}}
     binder2.dispose()
+
+
+def test_component_tree_writes_at_metadata_when_schema_declares_optional_metadata():
+    from a2ui.core.catalog import Catalog
+
+    cat = Catalog.from_json(
+        {
+            "catalogId": "tree-cat",
+            "components": {
+                "Note": {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string"},
+                        "metadata": {"type": "string"},
+                    },
+                },
+            },
+        },
+        protocol_version="1.0",
+    )
+    comp = ComponentModel(
+        "c1", "Note", cat, {"text": "Hi"}, metadata={"extensions": {"a": 1}}
+    )
+    # The component omits its own `metadata`, so a bare key would be read back
+    # as that property.
+    assert comp.component_tree == {
+        "id": "c1",
+        "component": "Note",
+        "text": "Hi",
+        "@metadata": {"extensions": {"a": 1}},
+    }
+    comp.validate()
+
+
+def test_validate_components_update_writes_at_catalog_id_for_non_default_catalog():
+    from a2ui.core.catalog import Catalog
+    from a2ui.core.validation import ValidationConfig
+
+    def label_catalog(cat_id: str, extra: dict[str, Any]) -> Catalog:
+        return Catalog.from_json(
+            {
+                "catalogId": cat_id,
+                "components": {
+                    "Label": {
+                        "type": "object",
+                        "properties": {"text": {"type": "string"}, **extra},
+                    },
+                },
+            },
+            protocol_version="1.0",
+        )
+
+    main = label_catalog("main-cat", {})
+    other = label_catalog("other-cat", {"catalogId": {"type": "integer"}})
+    model = SurfaceComponentsModel(default_catalog=main)
+    # The routing catalog ID isn't validated as the `catalogId: integer`
+    # property the component omits.
+    model.validate_components_update(
+        [ComponentModel("root", "Label", other, {"text": "Hi"})],
+        config=ValidationConfig(),
+    )

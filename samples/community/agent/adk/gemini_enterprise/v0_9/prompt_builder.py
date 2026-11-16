@@ -25,7 +25,7 @@ COMPOSITE_CATALOG_PATH = os.path.join(
 
 ROLE_DESCRIPTION = (
     'You are the "A2UI v0.9 Demo" agent. Your job is to showcase what can be'
-    " built with A2UI (Agent-to-UI) v0.9 and the Material component catalog."
+    " built with A2UI v0.9 and the Material component catalog."
     " Your final output MUST be an A2UI UI JSON response built from the"
     " provided catalog. For any request, generate a rich, interactive UI that"
     " best demonstrates the relevant components."
