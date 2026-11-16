@@ -21,7 +21,7 @@ describe('React Explorer Sidebars & Navigation', () => {
   let container: HTMLDivElement;
 
   beforeEach(async () => {
-    container = await loadExample('00_simple-text.json');
+    container = await loadExample('scaffold-simple-text.json');
   });
 
   afterEach(async () => {
