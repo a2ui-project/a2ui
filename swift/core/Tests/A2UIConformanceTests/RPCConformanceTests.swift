@@ -327,7 +327,7 @@ struct RPCConformanceTests {
         allowedCallers: callers,
         requiresUserActivation: requiresUserActivation
       ) { _, _ in
-        throw A2UIValidationError("Runtime error")
+        throw A2UIValidationError("An error occurred during function execution.")
       }
     case "playMedia":
       return ConformanceMockRPCFunction(

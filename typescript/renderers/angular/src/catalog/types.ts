@@ -14,12 +14,9 @@
  * limitations under the License.
  */
 
-import {Type} from '@angular/core';
-import {Catalog, ComponentApi, FunctionImplementation} from '@a2ui/web_core/v0_9';
-import {
-  WebComponentImplementation,
-  isWebComponentImplementation,
-} from '@a2ui/web_core/v0_9/universal';
+import {Injector, Type} from '@angular/core';
+import {Catalog, ComponentApi, ComponentContext, FunctionImplementation} from '@a2ui/web_core';
+import {WebComponentImplementation, isWebComponentImplementation} from '@a2ui/web_core/universal';
 import {z} from 'zod';
 import {CatalogComponentInstance} from '../core/catalog_component_instance';
 import {componentApiFields, toWebComponent} from './to_web_component';
@@ -45,6 +42,23 @@ export interface AngularComponentImplementation extends ComponentApi {
    * that accepts `props`, `surfaceId`, and `dataContextPath` as inputs.
    */
   readonly component: Type<CatalogComponentInstance>;
+
+  /**
+   * Called once when a universal Web Component rendering this entry first connects to the DOM,
+   * with the element, its context, and the injector of the enclosing `ComponentHostComponent`.
+   *
+   * Lets hosts decorate elements they do not own (for example, to add analytics attributes)
+   * without subclassing them. It runs for every universal element the renderers create, whatever
+   * its base class, and only universal elements trigger it, so it applies only when
+   * `RendererConfiguration.useUniversalComponents` is enabled. A custom container that is not an
+   * `A2uiLitElement` and creates child elements by hand reports each child by calling
+   * `dispatchA2uiElementConnected` from `@a2ui/web_core/universal` after inserting it.
+   */
+  readonly onElementConnected?: (
+    element: HTMLElement,
+    context: ComponentContext,
+    injector: Injector,
+  ) => void;
 }
 
 /**
@@ -129,6 +143,16 @@ function toAngularComponentImplementation(
     // then every catalog entry must carry an Angular component, so Web Component-only entries
     // get a placeholder that reports the missing flag instead of rendering.
     return {...entry, component: UniversalOnlyComponent};
+  }
+  if (!isWebComponentImplementation(entry)) {
+    // Attach a lazy Web Component wrapper to plain `{...api, component}` entries so universal
+    // container elements (`a2ui-basic-column`, `a2ui-card`, etc.) can resolve them by `tagName`
+    // via `renderA2uiNode` without requiring callers to wrap with `createComponentImplementation`.
+    // The fields are added to the entry itself so callers keep entry identity (for example
+    // `catalog.components.get('X') === X_IMPL`); only non-extensible entries are copied.
+    const webComponent = toWebComponent(entry);
+    const fields = {tagName: webComponent.tagName, element: webComponent.element};
+    return Object.isExtensible(entry) ? Object.assign(entry, fields) : {...entry, ...fields};
   }
   return entry;
 }
