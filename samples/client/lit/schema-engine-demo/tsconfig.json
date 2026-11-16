@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "useDefineForClassFields": false,
+    "experimentalDecorators": true,
+    "noImplicitOverride": true,
+    "noUnusedParameters": true,
+    "isolatedModules": true,
+    "types": [],
+    "rootDir": "src",
+    "outDir": "dist/tsc",
+    "tsBuildInfoFile": "dist/tsc/.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"]
+}

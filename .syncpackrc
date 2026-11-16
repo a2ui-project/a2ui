@@ -20,8 +20,8 @@
       "pinVersion": "5.9.3"
     },
     {
-      "label": "zod 4 in @a2ui/schema-zod4",
-      "packages": ["@a2ui/schema-zod4"],
+      "label": "zod 4 in @a2ui/schema-zod4 and its demo",
+      "packages": ["@a2ui/schema-zod4", "@a2ui/schema-engine-demo"],
       "dependencies": ["zod"],
       "pinVersion": "^4.3.6"
     },

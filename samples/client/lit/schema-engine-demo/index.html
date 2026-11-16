@@ -1,0 +1,62 @@
+<!doctype html>
+<!--
+ Copyright 2024 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     https://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>A2UI schema engine demo</title>
+    <style>
+      body {
+        font:
+          14px system-ui,
+          sans-serif;
+        margin: 24px;
+        background: #f6f8fa;
+        color: #1f2328;
+      }
+      .surfaces {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin: 16px 0;
+      }
+      #log {
+        font-family: ui-monospace, monospace;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>A2UI schema engine demo</h1>
+    <p>
+      Two v1.0 surfaces rendered by <code>@a2ui/lit</code>, validated with
+      <code>createAjvValidator()</code>. Left: a catalog written with zod 4 and
+      <code>@a2ui/schema-zod4</code>. Right: the same components as plain JSON Schema, through
+      <code>fromJsonSchema</code>.
+    </p>
+    <button id="update">Update data model</button>
+    <button id="invalid">Send an invalid message</button>
+    <div class="surfaces">
+      <a2ui-surface id="surface-zod"></a2ui-surface>
+      <a2ui-surface id="surface-json"></a2ui-surface>
+    </div>
+    <div id="log"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

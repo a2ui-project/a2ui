@@ -1,0 +1,80 @@
+{
+  "name": "@a2ui/schema-engine-demo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Two A2UI v1.0 surfaces rendered by Lit: one from a zod 4 catalog, one from a plain JSON Schema catalog",
+  "type": "module",
+  "scripts": {
+    "build": "wireit",
+    "build:tsc": "wireit",
+    "dev": "yarn build:tsc && vite",
+    "smoke": "wireit",
+    "test": "wireit",
+    "format": "prettier --ignore-path ../../../../.prettierignore --write .",
+    "format:check": "prettier --ignore-path ../../../../.prettierignore --check ."
+  },
+  "wireit": {
+    "build:tsc": {
+      "command": "tsc -b --pretty",
+      "dependencies": [
+        "../../../../typescript/renderers/lit:build:tsc",
+        "../../../../typescript/schema/zod4:build",
+        "../../../../typescript/validators/ajv:build",
+        "../../../../typescript/validators/cfworker:build"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "tsconfig.json"
+      ],
+      "output": [
+        "dist/tsc/"
+      ],
+      "clean": "if-file-deleted"
+    },
+    "build": {
+      "command": "vite build",
+      "dependencies": [
+        "build:tsc"
+      ],
+      "files": [
+        "index.html",
+        "vite.config.ts",
+        "src/**/*.ts"
+      ],
+      "output": [
+        "dist/app/"
+      ]
+    },
+    "smoke": {
+      "command": "node scripts/schema-engine-smoke.mjs",
+      "dependencies": [
+        "build:tsc"
+      ],
+      "files": [
+        "scripts/schema-engine-smoke.mjs"
+      ],
+      "output": []
+    },
+    "test": {
+      "dependencies": [
+        "smoke",
+        "build"
+      ]
+    }
+  },
+  "dependencies": {
+    "@a2ui/lit": "workspace:*",
+    "@a2ui/schema-zod4": "workspace:*",
+    "@a2ui/validator-ajv": "workspace:*",
+    "@a2ui/web_core": "workspace:*",
+    "lit": "^3.3.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@a2ui/validator-cfworker": "workspace:*",
+    "prettier": "^3.8.4",
+    "typescript": "5.9.3",
+    "vite": "^8.0.16",
+    "wireit": "^0.15.0-pre.2"
+  }
+}

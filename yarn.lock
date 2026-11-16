@@ -426,6 +426,24 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@a2ui/schema-engine-demo@workspace:samples/client/lit/schema-engine-demo":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/schema-engine-demo@workspace:samples/client/lit/schema-engine-demo"
+  dependencies:
+    "@a2ui/lit": "workspace:*"
+    "@a2ui/schema-zod4": "workspace:*"
+    "@a2ui/validator-ajv": "workspace:*"
+    "@a2ui/validator-cfworker": "workspace:*"
+    "@a2ui/web_core": "workspace:*"
+    lit: "npm:^3.3.3"
+    prettier: "npm:^3.8.4"
+    typescript: "npm:5.9.3"
+    vite: "npm:^8.0.16"
+    wireit: "npm:^0.15.0-pre.2"
+    zod: "npm:^4.3.6"
+  languageName: unknown
+  linkType: soft
+
 "@a2ui/schema-zod3@workspace:typescript/schema/zod3":
   version: 0.0.0-use.local
   resolution: "@a2ui/schema-zod3@workspace:typescript/schema/zod3"
@@ -445,7 +463,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/schema-zod4@workspace:typescript/schema/zod4":
+"@a2ui/schema-zod4@workspace:*, @a2ui/schema-zod4@workspace:typescript/schema/zod4":
   version: 0.0.0-use.local
   resolution: "@a2ui/schema-zod4@workspace:typescript/schema/zod4"
   dependencies:
@@ -542,7 +560,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/validator-cfworker@workspace:typescript/validators/cfworker":
+"@a2ui/validator-cfworker@workspace:*, @a2ui/validator-cfworker@workspace:typescript/validators/cfworker":
   version: 0.0.0-use.local
   resolution: "@a2ui/validator-cfworker@workspace:typescript/validators/cfworker"
   dependencies:
