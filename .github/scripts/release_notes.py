@@ -30,7 +30,9 @@ Subcommands:
   check-pr        Lint a pull request's title, body, labels, and paths (L1 to L6).
   read-section    Print the body of a `## X.Y.Z` section.
   verify-release  Check a CHANGELOG before publishing a version.
-  tag             Create the release tag once the public registry has it.
+  tag             Create the release tag once the public registry has it, or
+                  `tag --pending` to tag every published release that still
+                  lacks one (meant for a scheduled workflow).
 
 Packages, their directories, changelogs, and tag patterns live in
 .github/release_packages.json. Runs on the standard library only, so it can be
@@ -66,6 +68,12 @@ EXIT_NO_ANCHOR = 2
 EXIT_NO_SECTION = 3
 EXIT_TAG_REFUSED = 4
 EXIT_MANIFEST = 5
+EXIT_UNTAGGED = 6
+
+# Longest title `check-pr` accepts, measured without the `(#NNNN)` suffix. The
+# title becomes the squash commit subject and, without a release-notes block,
+# the changelog bullet; nothing merged so far has exceeded this length.
+MAX_TITLE_LENGTH = 120
 
 ECOSYSTEMS = ("python", "npm", "pub", "swiftpm", "github")
 REGISTRIES = {
@@ -404,12 +412,31 @@ def latest_tag(spec: PackageSpec, git: Git) -> str | None:
     return best[1] if best else None
 
 
-def resolve_anchor(spec: PackageSpec, since: str | None, git: Git) -> str:
-    """Picks the commit the draft starts after: --since, the tag, or bootstrap."""
+def resolve_anchor(
+    spec: PackageSpec,
+    since: str | None,
+    git: Git,
+    changelog: str | None = None,
+) -> str:
+    """Picks the commit the draft starts after: --since, the tag, or bootstrap.
+
+    When the anchor is a tag and the changelog already has a newer `## X.Y.Z`
+    heading, that release was never tagged; drafting from the old tag would
+    repeat its entries, so this refuses until the tag exists.
+    """
     if since:
         return since
     tag = latest_tag(spec, git)
     if tag:
+        newest = newest_heading(changelog) if changelog else None
+        if newest and parse_version(newest) > spec.version_of_tag(tag):
+            raise ReleaseNotesError(
+                f"{spec.id}: {spec.changelog} has '## {newest}' but the newest tag is"
+                f" {tag}. Action needed: run 'release_notes.py tag --package"
+                f" {spec.id} --version {newest}' (or wait for the scheduled tag"
+                " run) before drafting the next release.",
+                EXIT_UNTAGGED,
+            )
         return tag
     if spec.bootstrap_since:
         return spec.bootstrap_since
@@ -712,6 +739,15 @@ def read_section(changelog: str, version: str) -> str:
     raise ReleaseNotesError(f"no '## {version}' section found", EXIT_NO_SECTION)
 
 
+def newest_heading(changelog: str) -> str | None:
+    """Returns the first `## X.Y.Z` heading's version, skipping `## Unreleased`."""
+    for heading, _ in _sections(changelog):
+        match = HEADING_RE.match(heading)
+        if match:
+            return match.group("version")
+    return None
+
+
 def heading_version(changelog: str, released: str | None) -> str:
     """Returns the newest `## X.Y.Z` heading above the released version."""
     for heading, _ in _sections(changelog):
@@ -928,6 +964,54 @@ def tag_release(
     return f"tagged {commit[:12]} as {tag}"
 
 
+def pending_releases(
+    specs: Sequence[PackageSpec], root: str, git: Git
+) -> list[tuple[PackageSpec, str]]:
+    """Packages whose newest changelog heading has no tag yet."""
+    pending = []
+    for spec in specs:
+        path = os.path.join(root, spec.changelog)
+        if not os.path.exists(path):
+            continue
+        version = newest_heading(_read(path))
+        if version and not tag_exists(spec, version, git):
+            pending.append((spec, version))
+    return pending
+
+
+def tag_pending(
+    specs: Sequence[PackageSpec],
+    root: str,
+    git: Git,
+    fetch: Fetch = _default_fetch,
+    registry: bool = True,
+    remote: str | None = None,
+    dry_run: bool = False,
+) -> list[str]:
+    """Tags every pending release the registry already serves; reports the rest.
+
+    Meant for a scheduled workflow: it never fails on a version that is still
+    publishing, and it skips ecosystems without a registry (Swift), whose tag
+    is the release itself and is pushed on purpose.
+    """
+    lines = []
+    for spec, version in pending_releases(specs, root, git):
+        if registry and spec.ecosystem not in REGISTRIES:
+            lines.append(f"skip {spec.id} {version}: no registry; tag it by hand")
+            continue
+        try:
+            served = _registry_has_version(spec, version, fetch) if registry else True
+            if served is False:
+                lines.append(f"wait {spec.id} {version}: not on the registry yet")
+                continue
+            lines.append(
+                tag_release(spec, version, git, fetch, registry, remote, dry_run)
+            )
+        except ReleaseNotesError as error:
+            lines.append(f"error {spec.id} {version}: {error}")
+    return lines or ["nothing pending: every changelog heading has a tag"]
+
+
 # --- PR lint -----------------------------------------------------------------
 
 
@@ -1034,6 +1118,21 @@ def _check_changelog_edits(
     ]
 
 
+def _check_title_length(title: str) -> list[Violation]:
+    """L1: the title without its `(#NNNN)` suffix fits in MAX_TITLE_LENGTH."""
+    bare = re.sub(r"\s+\(#\d+\)\s*$", "", title.strip())
+    if len(bare) <= MAX_TITLE_LENGTH:
+        return []
+    return [
+        Violation(
+            "L1",
+            "error",
+            f"title is {len(bare)} characters; keep it to {MAX_TITLE_LENGTH} or"
+            " fewer and move detail into the description",
+        )
+    ]
+
+
 def check_pr(
     title: str,
     body: str,
@@ -1055,6 +1154,7 @@ def check_pr(
     labels = list(labels)
     touched_paths = list(touched_paths)
     return [
+        *_check_title_length(title),
         *_check_breaking_consistency(parsed, body, labels),
         *_check_bullets(parsed, release_notes_block(body), touched_paths, specs),
         *_check_changelog_edits(parsed, labels, touched_paths, specs),
@@ -1109,21 +1209,22 @@ def _write_section(
 
 
 def _cmd_draft(args: argparse.Namespace, specs: list[PackageSpec], root: str) -> int:
-    spec = find_package(specs, args.package)
-    git = Git(root)
-    since = resolve_anchor(spec, args.since, git)
-    until = git.run(["rev-parse", args.until]).strip()
-    commits = commits_in_range(spec, since, until, git)
-    changelog_path = os.path.join(root, spec.changelog)
-    carried = ""
-    if args.carry_unreleased and os.path.exists(changelog_path):
-        carried = read_unreleased(_read(changelog_path))
-    lookup = _body_lookup(args.body_source)
-    draft = build_draft(spec, commits, since, until, lookup, carried)
     if args.write and (args.format != "md" or not args.version):
         raise ReleaseNotesError(
             "--write requires --format md and --version", EXIT_USAGE
         )
+    spec = find_package(specs, args.package)
+    git = Git(root)
+    changelog_path = os.path.join(root, spec.changelog)
+    changelog = _read(changelog_path) if os.path.exists(changelog_path) else ""
+    since = resolve_anchor(spec, args.since, git, changelog)
+    until = git.run(["rev-parse", args.until]).strip()
+    commits = commits_in_range(spec, since, until, git)
+    carried = ""
+    if args.carry_unreleased and changelog:
+        carried = read_unreleased(changelog)
+    lookup = _body_lookup(args.body_source)
+    draft = build_draft(spec, commits, since, until, lookup, carried)
     if args.format == "json":
         print(json.dumps(draft.to_json(), indent=2))
         return EXIT_OK
@@ -1183,12 +1284,28 @@ def _cmd_verify(args: argparse.Namespace, specs: list[PackageSpec], root: str) -
 
 
 def _cmd_tag(args: argparse.Namespace, specs: list[PackageSpec], root: str) -> int:
+    git = Git(root)
+    if args.pending:
+        for line in tag_pending(
+            specs,
+            root,
+            git,
+            registry=not args.no_registry,
+            remote=args.remote,
+            dry_run=args.dry_run,
+        ):
+            print(line)
+        return EXIT_OK
+    if not (args.package and args.version):
+        raise ReleaseNotesError(
+            "tag needs --package and --version, or --pending", EXIT_USAGE
+        )
     spec = find_package(specs, args.package)
     print(
         tag_release(
             spec,
             args.version,
-            Git(root),
+            git,
             registry=not args.no_registry,
             remote=args.remote,
             dry_run=args.dry_run,
@@ -1237,8 +1354,13 @@ def _build_parser() -> argparse.ArgumentParser:
     verify.add_argument("--version", required=True)
 
     tag = sub.add_parser("tag", help="tag a published version")
-    tag.add_argument("--package", required=True)
-    tag.add_argument("--version", required=True)
+    tag.add_argument("--package", default=None)
+    tag.add_argument("--version", default=None)
+    tag.add_argument(
+        "--pending",
+        action="store_true",
+        help="tag every package whose newest changelog heading the registry serves",
+    )
     tag.add_argument("--no-registry", action="store_true")
     tag.add_argument("--remote", default=None)
     tag.add_argument("--dry-run", action="store_true")

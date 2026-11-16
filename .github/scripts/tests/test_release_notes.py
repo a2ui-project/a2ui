@@ -256,6 +256,31 @@ class TagTest(unittest.TestCase):
             rn.resolve_anchor(spec(), None, FakeGit())
         self.assertEqual(ctx.exception.code, rn.EXIT_NO_ANCHOR)
 
+    def test_anchor_refuses_when_newest_heading_is_untagged(self):
+        git = FakeGit(tags=["npm/web_core/v0.15.0"])
+        stale = "## 0.16.0\n\n- shipped but never tagged\n\n## 0.15.0\n\n- old\n"
+        with self.assertRaises(rn.ReleaseNotesError) as ctx:
+            rn.resolve_anchor(spec(), None, git, stale)
+        self.assertEqual(ctx.exception.code, rn.EXIT_UNTAGGED)
+        self.assertIn("tag --package web_core --version 0.16.0", str(ctx.exception))
+        # Same heading as the tag, an older heading, or an Unreleased-only
+        # changelog are all fine; so is an explicit --since.
+        for ok in ("## 0.15.0\n- x\n", "## 0.14.0\n- x\n", "## Unreleased\n- x\n", ""):
+            with self.subTest(changelog=ok):
+                self.assertEqual(
+                    rn.resolve_anchor(spec(), None, git, ok), "npm/web_core/v0.15.0"
+                )
+        self.assertEqual(rn.resolve_anchor(spec(), "abc", git, stale), "abc")
+        # The bootstrap path predates tags, so its changelog headings are not checked.
+        boot = spec(bootstrap_since="boot")
+        self.assertEqual(rn.resolve_anchor(boot, None, FakeGit(), stale), "boot")
+
+    def test_newest_heading(self):
+        self.assertEqual(
+            rn.newest_heading("## Unreleased\n\n## 0.6.0 (2026-11-10)\n"), "0.6.0"
+        )
+        self.assertIsNone(rn.newest_heading("# Title\n\n## Unreleased\n"))
+
 
 def commit(sha, title, body=""):
     return rn.Commit(sha, title, body)
@@ -666,6 +691,93 @@ class TagReleaseTest(unittest.TestCase):
         self.assertEqual(out, "would tag abc123 as v0.11.0+swift")
 
 
+class TagPendingTest(unittest.TestCase):
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = self.tmp.name
+
+    def _changelog(self, rel, text):
+        path = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(text)
+
+    def test_pending_releases_lists_untagged_headings(self):
+        self._changelog(
+            "typescript/core/web_core/CHANGELOG.md", "## 0.16.0\n- x\n## 0.15.0\n- y\n"
+        )
+        self._changelog(
+            "typescript/renderers/lit/CHANGELOG.md", "## Unreleased\n\n## 0.15.0\n- y\n"
+        )
+        specs = [
+            spec(),
+            spec(
+                id="lit",
+                name="@a2ui/lit",
+                changelog="typescript/renderers/lit/CHANGELOG.md",
+                tag="npm/lit/v{version}",
+            ),
+            spec(id="missing", changelog="nope/CHANGELOG.md"),
+        ]
+        git = FakeGit(tags=["npm/web_core/v0.15.0", "npm/lit/v0.15.0"])
+        pending = rn.pending_releases(specs, self.root, git)
+        self.assertEqual([(s.id, v) for s, v in pending], [("web_core", "0.16.0")])
+
+    def test_tag_pending_tags_served_waits_otherwise_and_skips_no_registry(self):
+        self._changelog("typescript/core/web_core/CHANGELOG.md", "## 0.16.0\n- x\n")
+        self._changelog("typescript/renderers/lit/CHANGELOG.md", "## 0.16.0\n- x\n")
+        self._changelog("swift/CHANGELOG.md", "## 0.11.0\n- x\n")
+        specs = [
+            spec(),
+            spec(
+                id="lit",
+                name="@a2ui/lit",
+                changelog="typescript/renderers/lit/CHANGELOG.md",
+                tag="npm/lit/v{version}",
+            ),
+            spec(
+                id="swift",
+                ecosystem="swiftpm",
+                name="a2ui",
+                changelog="swift/CHANGELOG.md",
+                tag="v{version}+swift",
+            ),
+        ]
+        git = FakeGit()
+        served = fetch_factory(
+            {"https://registry.npmjs.org/@a2ui%2Fweb_core/0.16.0": {}}
+        )
+        lines = rn.tag_pending(specs, self.root, git, fetch=served)
+        self.assertEqual(
+            lines,
+            [
+                "tagged abc123 as npm/web_core/v0.16.0",
+                "wait lit 0.16.0: not on the registry yet",
+                "skip swift 0.11.0: no registry; tag it by hand",
+            ],
+        )
+        self.assertIn(["push", "upstream", "npm/web_core/v0.16.0"], git.calls)
+        # A second run finds web_core tagged and reports only the others.
+        lines = rn.tag_pending(specs, self.root, git, fetch=served, dry_run=True)
+        self.assertEqual(lines[0], "wait lit 0.16.0: not on the registry yet")
+
+        # Registry failures are reported per package, not raised.
+        def down(url):
+            raise urllib.error.URLError("offline")
+
+        lines = rn.tag_pending(specs[1:2], self.root, FakeGit(), fetch=down)
+        self.assertTrue(lines[0].startswith("error lit 0.16.0: could not reach"))
+
+    def test_tag_pending_nothing_pending(self):
+        self._changelog("typescript/core/web_core/CHANGELOG.md", "## 0.15.0\n- y\n")
+        lines = rn.tag_pending(
+            [spec()], self.root, FakeGit(tags=["npm/web_core/v0.15.0"])
+        )
+        self.assertEqual(lines, ["nothing pending: every changelog heading has a tag"])
+
+
 class CheckPrTest(unittest.TestCase):
 
     SPECS = [
@@ -794,6 +906,17 @@ class CheckPrTest(unittest.TestCase):
         self.assertEqual(
             violations, [("L2", "error"), ("L3", "error"), ("L6", "error")]
         )
+
+    def test_l1_title_length(self):
+        head = "feat(web_core): "
+        fits = head + "x" * (rn.MAX_TITLE_LENGTH - len(head))
+        self.assertEqual(self.rules(fits, "", (), self.PKG), [])
+        # The (#NNNN) suffix GitHub appends on squash does not count.
+        self.assertEqual(self.rules(fits + " (#4215)", "", (), self.PKG), [])
+        too_long = fits + "y"
+        violations = rn.check_pr(too_long, "", (), self.PKG, self.SPECS)
+        self.assertEqual([(v.rule, v.level) for v in violations], [("L1", "error")])
+        self.assertIn(f"{rn.MAX_TITLE_LENGTH + 1} characters", violations[0].message)
 
 
 class GoldenRepoTest(unittest.TestCase):
@@ -1039,6 +1162,20 @@ class GoldenRepoTest(unittest.TestCase):
         )
         self.assertEqual(code, 0)
         self.assertIn("would tag", out)
+        # The scheduled mode sees the same untagged release.
+        code, out, _ = self.run_cli("tag", "--pending", "--no-registry", "--dry-run")
+        self.assertEqual(code, 0)
+        self.assertIn("would tag", out)
+        self.assertIn("npm/pkg/v0.2.0", out)
+        # And drafting again is refused until the tag exists.
+        code, _, err = self.run_cli(
+            "draft", "--package", "pkg", "--body-source", "commit"
+        )
+        self.assertEqual(code, rn.EXIT_UNTAGGED)
+        self.assertIn("'## 0.2.0'", err)
+        code, _, err = self.run_cli("tag", "--package", "pkg")
+        self.assertEqual(code, rn.EXIT_USAGE)
+        self.assertIn("--pending", err)
 
     def test_check_pr_cli(self):
         code, _, err = self.run_cli(
