@@ -54,6 +54,11 @@ ACTIVE_SUITES: frozenset[str] = frozenset({
     "agent/renderer_state.yaml",
     "agent/request_processor.yaml",
     "agent/skill.yaml",
+    "agent/vertical/compiler.yaml",
+    "agent/vertical/decompiler.yaml",
+    "agent/vertical/prompt_generator.yaml",
+    "agent/vertical/response_parser.yaml",
+    "agent/vertical/response_streaming.yaml",
 })
 
 UNSUPPORTED_SUITES: dict[str, str] = {

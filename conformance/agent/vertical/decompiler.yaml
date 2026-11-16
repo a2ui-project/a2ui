@@ -1,0 +1,217 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Vertical decompilation: writing A2UI messages back into Vertical notation.
+#
+# `decompile` is the inverse of `compile`. It turns A2UI protocol messages
+# back into clean constructor invocations. Round-trip cases verify that
+# compile(decompile(messages)) == messages.
+
+- name: test_decompile_vertical_single_component
+  description: Decompiles a single surface component into a direct constructor call with round-trip equality.
+  action: decompile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello world"
+  expect_contains:
+    - "Text("
+    - "Hello world"
+  expect_round_trip: true
+
+- name: test_decompile_vertical_named_properties
+  description: Decompiles component with multiple properties into keyword arguments with round-trip equality.
+  action: decompile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Caption text"
+            variant: "caption"
+  expect_contains:
+    - "Text("
+    - "Caption text"
+    - "variant="
+  expect_round_trip: true
+
+- name: test_decompile_vertical_data_binding
+  description: Decompiles dynamic DataBinding objects into '$' path expressions with round-trip equality.
+  action: decompile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@path": "/user/name"
+  expect_contains:
+    - "Text("
+    - "$/user/name"
+  expect_round_trip: true
+
+- name: test_decompile_vertical_multi_surface
+  description: Decompiles multiple surface roots into a newline-separated sequence of constructor calls with round-trip equality.
+  action: decompile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Card 1"
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface_1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Card 2"
+  expect_contains:
+    - "Text("
+    - "Card 1"
+    - "Card 2"
+  expect_round_trip: true
+
+- name: test_decompile_vertical_event_user_message
+  description: Decompiles v1.0 Event actions carrying userMessage and context with round-trip equality.
+  action: decompile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/event_property_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/event_property"
+        components:
+          - id: "root"
+            component: "Select"
+            label: "Country"
+            event: "change"
+            options: ["AU"]
+            action:
+              event:
+                name: "submit_form"
+                userMessage: "Submitted selection"
+                context:
+                  country: "AU"
+  expect_contains:
+    - "Event("
+    - 'userMessage="Submitted selection"'
+  expect_round_trip: true
+
+- name: test_decompile_vertical_multi_catalog_disambiguation
+  description: Decompiles multi-catalog components omitting unambiguous catalogId and writing catalogId when shared names collide.
+  action: decompile
+  args:
+    format: vertical
+    catalogs:
+      - catalogId: "conformance/cat_a"
+        protocolVersion: "1.0"
+        components:
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              label: {$ref: "common_types.json#/$defs/DynamicString"}
+            required: ["component", "label"]
+        $defs:
+          anyComponent:
+            oneOf: [{$ref: "#/components/Badge"}]
+      - catalogId: "conformance/cat_b"
+        protocolVersion: "1.0"
+        components:
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              count: {$ref: "common_types.json#/$defs/DynamicNumber"}
+            required: ["component", "count"]
+          Metric:
+            type: object
+            properties:
+              component: {const: "Metric"}
+              score: {type: "number"}
+            required: ["component", "score"]
+        $defs:
+          anyComponent:
+            oneOf: [{$ref: "#/components/Badge"}, {$ref: "#/components/Metric"}]
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        components:
+          - id: "root"
+            component: "Badge"
+            catalogId: "conformance/cat_b"
+            count: 7
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface_1"
+        components:
+          - id: "root"
+            component: "Metric"
+            catalogId: "conformance/cat_b"
+            score: 99
+  expect_contains:
+    - 'Badge(count=7, catalogId="conformance/cat_b")'
+    - "Metric(score=99)"
+  expect_absent:
+    - "Metric(score=99, catalogId="
+  expect_round_trip: true
+
+- name: test_decompile_vertical_call_renderer_function
+  description: Decompiles a v1.0 callRendererFunction message into a standalone function call with round-trip equality.
+  action: decompile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "call_1"
+        callFunction:
+          catalogId: "https://a2ui.org/catalogs/v10/allowed_callers"
+          "@call": "readSessionToken"
+          args: {}
+  expect_contains:
+    - "readSessionToken()"
+  expect_round_trip: true

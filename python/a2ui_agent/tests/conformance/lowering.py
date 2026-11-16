@@ -193,6 +193,30 @@ V1_ONLY_CASES: dict[str, str] = {
         "Protocol v0.9 has no callRendererFunction message."
     ),
     "test_decompile_json_catalog_qualified_components": _ONE_CATALOG_PER_SURFACE,
+    # Vertical cases
+    "test_compile_vertical_event_user_message": _NO_USER_MESSAGE,
+    "test_decompile_vertical_event_user_message": _NO_USER_MESSAGE,
+    "test_vertical_snippet_teaches_event_user_message_from_v1_0": _NO_USER_MESSAGE,
+    "test_compile_vertical_multi_catalog_resolution": _ONE_CATALOG_PER_SURFACE,
+    "test_decompile_vertical_multi_catalog_disambiguation": _ONE_CATALOG_PER_SURFACE,
+    "test_compile_vertical_component_extensions": (
+        "Surface and component extensions require A2UI v1.0 or later."
+    ),
+    "test_compile_vertical_standalone_call_renderer_function": (
+        "Protocol v0.9 has no callRendererFunction message."
+    ),
+    "test_decompile_vertical_call_renderer_function": (
+        "Protocol v0.9 has no callRendererFunction message."
+    ),
+    "test_vertical_snippet_names_agent_callable_functions_in_v1_0": (
+        "Protocol v0.9 function schema does not support allowedCallers."
+    ),
+    "test_compile_vertical_invalid_extension_key_is_a_validation_error": (
+        "Surface and component extensions require A2UI v1.0 or later."
+    ),
+    "test_compile_vertical_system_function_index_is_a_validation_error": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
 }
 
 
@@ -590,7 +614,11 @@ def v09_skip_reason(suite: str, case: Mapping[str, Any]) -> str | None:
                 f"Experimental format {fmt_name} does not target lowered v0.9 suites."
             )
 
-    if isinstance(catalogs, list) and len(catalogs) > 1 and "express" in formats:
+    if (
+        isinstance(catalogs, list)
+        and len(catalogs) > 1
+        and ("express" in formats or "vertical" in formats)
+    ):
         return _ONE_CATALOG_PER_SURFACE
 
     if (

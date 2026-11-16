@@ -1,0 +1,111 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Vertical streaming response conformance: progressive chunk parsing and surface-per-component emission.
+
+- name: test_chunk_vertical_streaming_components
+  description: Verifies that streaming chunks progressively yield text and independent surface envelopes as constructors complete across chunks.
+  action: parse_chunk
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - input: |
+        Here is the UI:
+        <a2ui>
+        Text(
+      expect:
+        - text: "Here is the UI:"
+      expect_in_block: true
+    - input: |
+        "First")
+        Text(
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "default_surface"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "First"
+      expect_in_block: true
+    - input: |
+        "Second")
+        </a2ui>
+        Done!
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "default_surface_1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Second"
+        - text: "Done!"
+      expect_in_block: false
+  expect_close: []
+
+- name: test_chunk_vertical_unclosed_block_raises_on_close
+  description: Closing a stream while an <a2ui> block is still open raises ParseError.
+  action: parse_chunk
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - input: "<a2ui>\nText(\"Hello"
+      expect: []
+      expect_in_block: true
+  expect_error:
+    category: "ParseError"
+
+- name: test_chunk_vertical_multiple_blocks_and_split_triple_quotes
+  description: Preserves split triple-quoted strings containing </a2ui> and allocates distinct surfaces across multiple <a2ui> blocks.
+  action: parse_chunk
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - input: "<a2ui>\nText(\"\""
+      expect: []
+      expect_in_block: true
+    - input: "\"Line 1\n</a2ui>\nLine 2\"\"\")\n</a2ui>\nBetween\n"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "default_surface"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Line 1\n</a2ui>\nLine 2"
+        - text: "Between"
+      expect_in_block: false
+    - input: "<a2ui>\nText(\"Second block\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "default_surface_1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Second block"
+      expect_in_block: false
+  expect_close: []

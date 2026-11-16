@@ -1,0 +1,777 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Vertical compilation: compiling flat, constructor-based DSL blocks into standard A2UI messages.
+#
+# `compile` takes the content of a Vertical block and returns the A2UI protocol messages.
+# In Vertical:
+# - Each constructor statement maps to an independent surface (`default_surface`, `default_surface_1`, ...).
+# - Components within each surface have id "root".
+# - Positional arguments resolve according to positionalIndex and schema property order.
+# - Quoted numbers, booleans, and percentages are coerced to native primitives according to the catalog schema.
+# - Data bindings starting with '$' compile to protocol DataBinding objects (`@path` in v1.0, `path` in v0.9).
+
+- name: test_compile_vertical_single_component
+  description: Compiles a single constructor invocation to a createSurface envelope.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text("Hello world")'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello world"
+
+- name: test_compile_vertical_named_arguments
+  description: Compiles keyword arguments explicitly passed by property name.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text(text="Welcome", variant="caption")'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Welcome"
+            variant: "caption"
+
+- name: test_compile_vertical_colon_syntax
+  description: "Tolerates colon syntax (key: value) alongside equals syntax (key=value)."
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    Text(text: "Hello colon", variant: "body")
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello colon"
+            variant: "body"
+
+- name: test_compile_vertical_data_binding
+  description: Compiles dynamic data-binding paths starting with '$' into protocol DataBinding objects.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: "Text(text=$/user/profile/name)"
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@path": "/user/profile/name"
+
+- name: test_compile_vertical_multi_component_surface_per_component
+  description: Compiles multiple constructors into separate independent surfaces (default_surface and default_surface_1).
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    Text("First card")
+    Text("Second card")
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "First card"
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface_1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Second card"
+
+- name: test_compile_vertical_quoted_number_coercion
+  description: Automatically coerces quoted numbers into numeric primitives when the catalog property expects number.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  input: 'Gauge(value="42")'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/custom"
+        components:
+          - id: "root"
+            component: "Gauge"
+            value: 42
+
+- name: test_compile_vertical_percentage_coercion
+  description: Automatically coerces percentage strings into numeric floats when the property expects number.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  input: 'Gauge(value="+10.9%")'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/custom"
+        components:
+          - id: "root"
+            component: "Gauge"
+            value: 10.9
+
+- name: test_compile_vertical_healing_trailing_comma
+  description: Heals and ignores trailing commas in argument lists.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text(text="Trailing comma",)'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Trailing comma"
+
+- name: test_compile_vertical_multiline_statement
+  description: Parses multi-line constructor invocations with arbitrary line breaks and whitespace.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    Text(
+      text="Multi-line text",
+      variant="caption"
+    )
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Multi-line text"
+            variant: "caption"
+
+- name: test_compile_vertical_positional_arguments
+  description: Resolves arguments passed by position according to catalog property order.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text("Positional text", "caption")'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Positional text"
+            variant: "caption"
+
+- name: test_compile_vertical_heal_missing_closing_paren
+  description: Heals an unclosed parenthesis at the end of the statement.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text(text="Unclosed paren"'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Unclosed paren"
+
+- name: test_compile_vertical_heal_missing_closing_quote
+  description: Heals an unclosed quote within an argument.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text(text="Unclosed quote)'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Unclosed quote"
+
+- name: test_compile_vertical_heal_variable_assignment
+  description: Tolerates variable assignment syntax (e.g. root = ComponentName(...)).
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text("Assigned to root")'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Assigned to root"
+
+- name: test_compile_vertical_heal_json_fallback
+  description: Tolerates raw JSON objects emitted instead of constructor syntax.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '{"component": "Text", "text": "Raw JSON fallback"}'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Raw JSON fallback"
+
+- name: test_compile_vertical_heal_jsx_fallback
+  description: Tolerates JSX/XML-style tags emitted instead of constructor syntax.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '<Text text="JSX fallback" />'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "JSX fallback"
+
+- name: test_compile_vertical_strip_comments_and_markdown
+  description: Strips markdown code fences and line comments before compilation.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    ```a2ui
+    # Informational comment
+    Text("Inside code block")
+    ```
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Inside code block"
+
+- name: test_compile_vertical_action_event
+  description: Compiles Event helper constructor into an action object with event name and context payload.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/event_property_catalog_v1_0.json"
+  input: 'Select(label="Country", event="change", options=["AU", "US"], action=Event("submit_form", payload="abc"))'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/event_property"
+        components:
+          - id: "root"
+            component: "Select"
+            label: "Country"
+            event: "change"
+            options: ["AU", "US"]
+            action:
+              event:
+                name: "submit_form"
+                context:
+                  payload: "abc"
+
+- name: test_compile_vertical_event_user_message
+  description: Compiles v1.0 Event userMessage keyword argument alongside context bindings.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/event_property_catalog_v1_0.json"
+  input: 'Select(label="Country", event="change", options=["AU"], action=Event("submit_form", country=$/form/country, userMessage="Submitted country selection"))'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/event_property"
+        components:
+          - id: "root"
+            component: "Select"
+            label: "Country"
+            event: "change"
+            options: ["AU"]
+            action:
+              event:
+                name: "submit_form"
+                userMessage: "Submitted country selection"
+                context:
+                  country:
+                    "@path": "/form/country"
+
+- name: test_compile_vertical_nested_function_call
+  description: Compiles a nested catalog function call expression inside a DynamicString property.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text(formatString("Hello ${/user/name}"))'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@call": "formatString"
+              args:
+                value: "Hello ${/user/name}"
+
+- name: test_compile_vertical_multi_catalog_resolution
+  description: Resolves standalone components across multiple v1.0 catalogs on defaultless surfaces and stamps catalogId per component.
+  action: compile
+  args:
+    format: vertical
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |-
+    Text("Quarterly Revenue")
+    Gauge(value=84)
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        components:
+          - id: "root"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text: "Quarterly Revenue"
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface_1"
+        components:
+          - id: "root"
+            component: "Gauge"
+            catalogId: "conformance/custom"
+            value: 84
+
+- name: test_compile_vertical_component_extensions
+  description: Compiles v1.0 extensions keyword argument into component metadata.extensions.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text("Pinned note", extensions={acme_priority: "high"})'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Pinned note"
+            metadata:
+              extensions:
+                acme_priority: "high"
+
+- name: test_compile_vertical_checkable_input
+  description: Compiles ?check rules on a standalone checkable input component and binds sibling value automatically.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: 'TextField(label="Postal code", value=$/address/zip, checks=[?required, ?regex("^[0-9]{5}$", "Must be 5 digits")])'
+  expect_present:
+    - "/0/createSurface/components/0/checks/0/message"
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Postal code"
+            value:
+              "@path": "/address/zip"
+            checks:
+              - condition:
+                  "@call": "required"
+                  args:
+                    value:
+                      "@path": "/address/zip"
+              - condition:
+                  "@call": "regex"
+                  args:
+                    value:
+                      "@path": "/address/zip"
+                    pattern: "^[0-9]{5}$"
+                message: "Must be 5 digits"
+
+- name: test_compile_vertical_standalone_call_renderer_function
+  description: Compiles a top-level call to an agent-callable catalog function into a v1.0 callRendererFunction message.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+  input: "readSessionToken()"
+  expect:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "call_1"
+        callFunction:
+          catalogId: "https://a2ui.org/catalogs/v10/allowed_callers"
+          "@call": "readSessionToken"
+          args: {}
+
+- name: test_compile_vertical_coercion_preserves_data_binding
+  description: Verifies that data binding paths starting with '$' are preserved and not coerced when targeting numeric properties.
+  action: compile
+  args:
+    format: vertical
+    catalog:
+      catalogId: "conformance/dynamic_gauge"
+      protocolVersion: "1.0"
+      components:
+        Gauge:
+          type: object
+          properties:
+            component: {const: "Gauge"}
+            value: {$ref: "common_types.json#/$defs/DynamicNumber"}
+          required: ["component", "value"]
+      $defs:
+        anyComponent:
+          oneOf: [{$ref: "#/components/Gauge"}]
+  input: "Gauge(value=$/state/gauge_val)"
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/dynamic_gauge"
+        components:
+          - id: "root"
+            component: "Gauge"
+            value:
+              "@path": "/state/gauge_val"
+
+- name: test_compile_vertical_parse_arg_chunk_leading_colon
+  description: Tolerates arguments with leading colons (:key "val").
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text(:text "Colon text")'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Colon text"
+
+- name: test_compile_vertical_unclosed_quotes_across_lines
+  description: Recovers when an unclosed quote spans across a line break into another constructor.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    Text("First line
+    Text("Second line")
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "First line"
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface_1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Second line"
+
+- name: test_compile_vertical_escaped_string_sequences
+  description: Unescapes standard escape sequences and newline sequences within string arguments.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text("First line\nSecond line\t\"Quoted\"")'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "First line\nSecond line\t\"Quoted\""
+
+- name: test_compile_vertical_unknown_component_is_a_validation_error
+  description: Rejects an unknown component constructor that is not declared in the active catalog.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'UnknownWidget(title="Hello")'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_unknown_property_is_a_validation_error
+  description: Rejects an unknown keyword argument not declared on the target component.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text("Hello", bogus=3)'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_duplicate_property_is_a_validation_error
+  description: Rejects a property supplied both positionally and by keyword.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text("Hello", text="World")'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_excess_positional_args_is_a_validation_error
+  description: Rejects positional arguments exceeding the component's non-structural properties.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text("Hello", "caption", "extra")'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_static_property_databinding_is_a_validation_error
+  description: Rejects a $path data binding passed to a static component property.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/event_property_catalog_v1_0.json"
+  input: 'Select(label="Country", event=$/bad/path, options=["AU"])'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_ambiguous_multi_catalog_component_is_a_validation_error
+  description: Rejects an unqualified component defined in multiple active catalogs without catalogId.
+  action: compile
+  args:
+    format: vertical
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalogId: "conformance/dup_text"
+        protocolVersion: "1.0"
+        components:
+          Text:
+            type: object
+            properties:
+              component: {const: "Text"}
+              text: {type: string}
+            required: ["component", "text"]
+        $defs:
+          anyComponent:
+            oneOf: [{$ref: "#/components/Text"}]
+  input: 'Text("Ambiguous")'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_invalid_extension_key_is_a_validation_error
+  description: Rejects component extensions whose keys are not valid UAX #31 identifiers.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text("Hello", extensions={"bad-key": 1})'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_system_function_index_is_a_validation_error
+  description: Rejects @index() system function calls since Vertical has no list templates.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: "Text(@index())"
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_check_on_non_checkable_component_is_a_validation_error
+  description: Rejects ?check rules on a component whose schema does not declare checks.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: 'Text("Hello", ?required)'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_user_message_before_v1_0_is_a_validation_error
+  description: Rejects Event userMessage when targeting A2UI before v1.0.
+  action: compile
+  args:
+    format: vertical
+    catalog:
+      catalogId: "conformance/pre_v1_action"
+      protocolVersion: "0.9"
+      components:
+        ActionCard:
+          type: object
+          properties:
+            component: {const: "ActionCard"}
+            label: {type: string}
+            action: {$ref: "common_types.json#/$defs/Action"}
+          required: ["component", "label"]
+      $defs:
+        anyComponent:
+          oneOf: [{$ref: "#/components/ActionCard"}]
+  input: 'ActionCard(label="Go", action=Event("go", userMessage="Clicked"))'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_extensions_before_v1_0_is_a_validation_error
+  description: Rejects component extensions when targeting A2UI before v1.0.
+  action: compile
+  args:
+    format: vertical
+    catalog:
+      catalogId: "conformance/pre_v1_ext"
+      protocolVersion: "0.9"
+      components:
+        Note:
+          type: object
+          properties:
+            component: {const: "Note"}
+            text: {type: string}
+          required: ["component", "text"]
+      $defs:
+        anyComponent:
+          oneOf: [{$ref: "#/components/Note"}]
+  input: 'Note(text="Hi", extensions={acme: 1})'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_standalone_function_before_v1_0_is_a_validation_error
+  description: Rejects top-level standalone function calls when targeting A2UI before v1.0.
+  action: compile
+  args:
+    format: vertical
+    catalog:
+      catalogId: "conformance/pre_v1_fn"
+      protocolVersion: "0.9"
+      components:
+        Note:
+          type: object
+          properties:
+            component: {const: "Note"}
+            text: {type: string}
+          required: ["component", "text"]
+      functions:
+        ping:
+          type: object
+          properties:
+            call: {const: "ping"}
+            args: {type: object, properties: {}, additionalProperties: false}
+            returnType: {const: "void"}
+          required: ["call", "args"]
+      $defs:
+        anyComponent:
+          oneOf: [{$ref: "#/components/Note"}]
+  input: "ping()"
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_out_of_range_number_is_a_parse_error
+  description: Rejects non-finite numeric literals such as 1e999 with ParseError.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  input: "Gauge(value=1e999)"
+  expect_error:
+    category: "ParseError"
+
+- name: test_compile_vertical_malformed_map_literal_is_a_parse_error
+  description: Rejects malformed map entries lacking a key-value separator with ParseError.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: "Text(extensions={bad})"
+  expect_error:
+    category: "ParseError"
