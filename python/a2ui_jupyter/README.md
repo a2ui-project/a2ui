@@ -74,8 +74,10 @@ all renderer-to-agent messages, including agent-function calls, renderer
 function responses, and errors. Replies to `callAgentFunction` messages can be
 sent through `surface.send`.
 
-The awaited methods require top-level `await` in an IPython kernel. Blocking
-waits are not supported.
+The awaited methods require top-level `await` in a supported IPython kernel.
+The JupyterLite Pyodide kernel does not deliver renderer messages while a cell
+is waiting in `next_action()` or `next_message()`. Use `on_action` or
+`on_message` callbacks in Pyodide so the cell can finish before interaction.
 
 ## Examples
 
@@ -113,20 +115,21 @@ minimum is 6.29.0, because 6.9.2 imports `imp`, which Python 3.12 removed. The
 6.9.2 row was tested on Python 3.11 with jupyter-client 7.x. The browser UI was not
 tested with 6.9.2.
 
-The table applies only to IPython kernels. Other kernels, such as JupyterLite's
-xeus-python kernel, are not covered by the table. There, `A2UISurface` imports and
-displays surfaces, but the awaited methods (`next_action`, `next_message`) were
-not tested.
+The table applies only to IPython kernels. JupyterLite's Pyodide and xeus-python
+kernels are not covered by it. In Pyodide, use callbacks instead of awaiting
+renderer messages. With xeus-python, `A2UISurface` imports and displays
+surfaces, but the awaited methods (`next_action`, `next_message`) were not tested.
 
 Installing this package does not upgrade a kernel that is already running.
 Restart the kernel after changing the kernel version.
 
 ## JupyterLite
 
-[JupyterLite](https://jupyterlite.readthedocs.io/) runs the xeus-python kernel
-in the browser. Install `a2ui-jupyter` the same way as in other environments. Two
-dependencies have compiled parts, so they cannot be installed from PyPI in the
-browser. Install them from emscripten-forge first:
+[JupyterLite](https://jupyterlite.readthedocs.io/) can run different kernels.
+The steps below apply to a site using xeus-python. Install `a2ui-jupyter` the
+same way as in other environments. Two dependencies have compiled parts, so
+they cannot be installed from PyPI in the browser. Install them from
+emscripten-forge first:
 
 ```python
 %conda install regex
