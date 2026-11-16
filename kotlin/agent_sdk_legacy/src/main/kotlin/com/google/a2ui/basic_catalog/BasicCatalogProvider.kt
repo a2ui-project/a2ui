@@ -28,34 +28,26 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
- * A provider that loads A2UI JSON schemas and specifications from bundled package resources or
- * local paths with established fallbacks.
+ * A provider that loads A2UI JSON schemas and specifications from bundled package resources.
  *
  * @param version The A2UI conceptual version, e.g., "0.9".
  */
-class BundledCatalogProvider(private val version: A2uiVersion) : A2uiCatalogProvider {
+class BundledCatalogProvider
+internal constructor(
+  private val version: A2uiVersion,
+  private val resourceLoader: (String, String) -> JsonObject?,
+) : A2uiCatalogProvider {
+
+  constructor(version: A2uiVersion) : this(version, SchemaResourceLoader::loadFromBundledResource)
 
   override fun load(): JsonObject {
-    val specMap = BasicCatalog.BASIC_CATALOG_PATHS[version] ?: emptyMap()
-    val relPath = specMap[A2uiConstants.CATALOG_SCHEMA_KEY] ?: ""
-    val filename =
-      if (version == A2uiVersion.VERSION_0_9) {
-        relPath.substringAfter("specification/v0_9/")
-      } else if (version == A2uiVersion.VERSION_0_9_1) {
-        relPath.substringAfter("specification/v0_9_1/")
-      } else {
-        relPath.substringAfterLast('/')
-      }
+    val filename = BasicCatalog.BASIC_CATALOG_RESOURCE_PATHS[version] ?: ""
 
-    val resource =
-      SchemaResourceLoader.loadFromBundledResource(version.value, filename)?.toMutableMap()
-        ?: mutableMapOf()
+    val resource = resourceLoader(version.value, filename)?.toMutableMap() ?: mutableMapOf()
 
     if (A2uiConstants.CATALOG_ID_KEY !in resource) {
-      specMap[A2uiConstants.CATALOG_SCHEMA_KEY]?.let { path ->
-        val catalogFile = path.replace("/json/", "/")
-        resource[A2uiConstants.CATALOG_ID_KEY] =
-          JsonPrimitive(A2uiConstants.BASE_SCHEMA_URL + catalogFile)
+      BasicCatalog.BASIC_CATALOG_IDS[version]?.let { catalogId ->
+        resource[A2uiConstants.CATALOG_ID_KEY] = JsonPrimitive(catalogId)
       }
     }
 
@@ -72,7 +64,25 @@ object BasicCatalog {
   /** The standard identifier for the basic catalog. */
   const val BASIC_CATALOG_NAME = "basic"
 
-  /** Paths to bundled standard catalogs for each spec version. */
+  /** Canonical catalog IDs for each spec version, independent of repository file paths. */
+  @JvmField
+  val BASIC_CATALOG_IDS =
+    mapOf(
+      A2uiVersion.VERSION_0_8 to
+        "https://a2ui.org/specification/v0_8/standard_catalog_definition.json",
+      A2uiVersion.VERSION_0_9 to "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      A2uiVersion.VERSION_0_9_1 to "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+    )
+
+  /** Bundled classpath resource paths under `com/google/a2ui/assets/<version>/`. */
+  internal val BASIC_CATALOG_RESOURCE_PATHS =
+    mapOf(
+      A2uiVersion.VERSION_0_8 to "standard_catalog_definition.json",
+      A2uiVersion.VERSION_0_9 to "catalogs/basic/catalog.json",
+      A2uiVersion.VERSION_0_9_1 to "catalogs/basic/catalog.json",
+    )
+
+  /** Repository paths to bundled standard catalogs for each spec version. */
   @JvmField
   val BASIC_CATALOG_PATHS =
     mapOf(
