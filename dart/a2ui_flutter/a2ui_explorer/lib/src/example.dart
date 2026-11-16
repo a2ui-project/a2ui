@@ -30,7 +30,7 @@ class Example {
   /// The protocol version of the example's messages.
   final A2uiProtocolVersion version;
 
-  /// The example's file name, such as `00_simple-text.json`.
+  /// The example's file name, such as `scaffold-simple-text.json`.
   final String fileName;
 
   /// The example's `name`.
@@ -57,8 +57,75 @@ const Map<A2uiProtocolVersion, String> examplesDirectories = {
   A2uiProtocolVersion.v1_0: 'assets/examples/v1_0/',
 };
 
+/// Explicit display order of example files in the explorer sidebar.
+///
+/// Any unlisted files sort alphabetically after the listed entries.
+const List<String> exampleOrder = [
+  'scaffold-simple-text.json',
+  'scaffold-row-layout.json',
+  'scaffold-interactive-button.json',
+  'scaffold-simple-login-form.json',
+  'scaffold-complex-layout.json',
+  'scaffold-formatted-text.json',
+  'scaffold-incremental.json',
+  'flight-status.json',
+  'email-compose.json',
+  'calendar-day.json',
+  'weather-current.json',
+  'product-card.json',
+  'music-player.json',
+  'task-card.json',
+  'user-profile.json',
+  'login-form.json',
+  'notification-permission.json',
+  'purchase-complete.json',
+  'chat-message.json',
+  'coffee-order.json',
+  'sports-player.json',
+  'account-balance.json',
+  'workout-summary.json',
+  'event-detail.json',
+  'track-list.json',
+  'software-purchase.json',
+  'restaurant-card.json',
+  'shipping-status.json',
+  'credit-card.json',
+  'step-counter.json',
+  'recipe-card.json',
+  'contact-card.json',
+  'podcast-episode.json',
+  'stats-card.json',
+  'countdown-timer.json',
+  'movie-card.json',
+  'modal-sample.json',
+  'live-invitation-builder.json',
+  'incremental-dashboard.json',
+  'advanced-form-validator.json',
+  'financial-data-grid.json',
+  'child-list-template.json',
+  'markdown-text.json',
+  'modal.json',
+  'native-grid.json',
+  'mcp-app-3d-geometry.json',
+];
+
+final Map<String, int> _exampleOrderIndex = {
+  for (final (int index, String name) in exampleOrder.indexed) name: index,
+};
+
+/// Compares two example file names according to [exampleOrder], falling back
+/// to lexicographical comparison for unlisted files.
+int compareExampleFileNames(String a, String b) {
+  final int? indexA = _exampleOrderIndex[a];
+  final int? indexB = _exampleOrderIndex[b];
+  if (indexA != null && indexB != null) return indexA.compareTo(indexB);
+  if (indexA != null) return -1;
+  if (indexB != null) return 1;
+  return a.compareTo(b);
+}
+
 /// Every example in [examplesDirectories] of [bundle], by version in the
-/// order of [examplesDirectories], then by file name.
+/// order of [examplesDirectories], then by [exampleOrder].
 Future<List<Example>> loadExamples(AssetBundle bundle) async {
   final AssetManifest manifest = await AssetManifest.loadFromAssetBundle(
     bundle,
@@ -71,7 +138,12 @@ Future<List<Example>> loadExamples(AssetBundle bundle) async {
               .listAssets()
               .where((p) => p.startsWith(directory) && p.endsWith('.json'))
               .toList()
-            ..sort())
+            ..sort(
+              (a, b) => compareExampleFileNames(
+                a.substring(directory.length),
+                b.substring(directory.length),
+              ),
+            ))
         _example(
           version,
           path.substring(directory.length),

@@ -27,6 +27,7 @@ import {MessageProcessor} from '../processing/message-processor.js';
 import {canRenderA2uiNode, renderA2uiNode} from './render-a2ui-node.js';
 import {Catalog} from '../catalog/types.js';
 import type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
+import {A2UI_ELEMENT_CONNECTED_EVENT} from './element_connected_event.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
 
 // The mock element below extends HTMLElement, so the DOM globals have to be in place before this
@@ -174,6 +175,29 @@ describe('renderA2uiNode', () => {
     assert.strictEqual(third.node, undefined);
     assert.strictEqual(third.context, contextOnly);
     resolver.dispose();
+  });
+
+  it('dispatches the connected event once for a plain HTMLElement after Lit inserts it', async () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const events: Event[] = [];
+    container.addEventListener(A2UI_ELEMENT_CONNECTED_EVENT, event => events.push(event));
+
+    const element = renderInParent(
+      container,
+      renderA2uiNode(new ComponentContext(surface, 'btn1'), testCatalog),
+    );
+    assert.strictEqual(events.length, 0);
+    await Promise.resolve();
+    renderInParent(container, renderA2uiNode(new ComponentContext(surface, 'btn1'), testCatalog));
+    await Promise.resolve();
+
+    assert.ok(element instanceof MockButtonElement);
+    assert.deepStrictEqual(
+      events.map(event => event.target),
+      [element],
+    );
+    container.remove();
   });
 
   it('canRenderA2uiNode is true exactly when renderA2uiNode renders an element', () => {
