@@ -16,7 +16,7 @@
  */
 
 import {existsSync, writeFileSync, rmSync, readFileSync} from 'node:fs';
-import {join, resolve, dirname} from 'node:path';
+import {join, resolve, dirname, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {runCommand as defaultRunCommand} from './lib/workspace.mjs';
 
@@ -40,8 +40,8 @@ export async function main(args = [], mocks = {}) {
   if (existsSync(pkgJsonPath)) {
     try {
       pkg = JSON.parse(readFileSync(pkgJsonPath, 'utf8'));
-    } catch {
-      // Ignore if unparseable
+    } catch (err) {
+      console.warn(`Warning: Failed to parse package.json at ${pkgJsonPath}:`, err.message);
     }
   }
 
@@ -81,7 +81,7 @@ export async function main(args = [], mocks = {}) {
     if (forwardedArgs.length > 0) {
       publishArgs.push(...forwardedArgs);
     }
-    if (!publishArgs.includes('--access')) {
+    if (!publishArgs.some(arg => arg === '--access' || arg.startsWith('--access='))) {
       publishArgs.push('--access', 'public');
     }
 
@@ -92,10 +92,30 @@ export async function main(args = [], mocks = {}) {
   } finally {
     // 6. Clean up temporary boundary and install artifacts
     if (createdYarnLock && existsSync(yarnLockPath)) {
-      rmSync(yarnLockPath, {force: true});
+      try {
+        rmSync(yarnLockPath, {force: true});
+      } catch (err) {
+        console.warn(`Warning: Failed to clean up temporary yarn.lock:`, err.message);
+      }
     }
     if (!hadNodeModules && existsSync(nodeModulesPath)) {
-      rmSync(nodeModulesPath, {recursive: true, force: true});
+      const resolvedTarget = resolve(nodeModulesPath);
+      const cwd = process.cwd();
+      if (
+        resolvedTarget === '/' ||
+        cwd === resolvedTarget ||
+        cwd.startsWith(resolvedTarget + sep)
+      ) {
+        console.warn(
+          'Warning: Safety check failed: Target directory resolves to root or an ancestor of the current working directory.',
+        );
+      } else {
+        try {
+          rmSync(nodeModulesPath, {recursive: true, force: true});
+        } catch (err) {
+          console.warn('Warning: Failed to clean up temporary node_modules:', err.message);
+        }
+      }
     }
   }
 }

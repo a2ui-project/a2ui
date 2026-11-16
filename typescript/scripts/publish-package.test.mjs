@@ -120,4 +120,47 @@ describe('publish-package script', () => {
       rmSync(tempDir, {recursive: true, force: true});
     }
   });
+
+  it('preserves compound --access argument without duplicating', async () => {
+    const {tempDir} = setupTempPackage();
+    const executedCommands = [];
+
+    const mocks = {
+      cwd: tempDir,
+      runCommand: (cmd, args, options) => {
+        executedCommands.push({cmd, args, cwd: options?.cwd});
+      },
+    };
+
+    try {
+      await main(['--access=restricted'], mocks);
+
+      const publishCmd = executedCommands.find(c => c.args.includes('publish'));
+      assert.ok(publishCmd);
+      assert.deepStrictEqual(publishCmd.args, ['npm', 'publish', '--access=restricted']);
+    } finally {
+      rmSync(tempDir, {recursive: true, force: true});
+    }
+  });
+
+  it('logs a warning when package.json is malformed', async () => {
+    const {tempDir} = setupTempPackage();
+    writeFileSync(join(tempDir, 'package.json'), '{ malformed json');
+    const warnings = [];
+    const originalWarn = console.warn;
+    console.warn = msg => warnings.push(msg);
+
+    const mocks = {
+      cwd: tempDir,
+      runCommand: () => {},
+    };
+
+    try {
+      await main([], mocks);
+      assert.ok(warnings.some(w => w.includes('Failed to parse package.json')));
+    } finally {
+      console.warn = originalWarn;
+      rmSync(tempDir, {recursive: true, force: true});
+    }
+  });
 });
