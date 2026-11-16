@@ -40,7 +40,11 @@ import {
   type DynamicValue,
   type FunctionCall,
 } from '../types/common-types.js';
-import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
+import type {
+  Action as V1Action,
+  CheckRule as V1CheckRule,
+  FunctionCall as V1FunctionCall,
+} from '../v1_0/schema/common-types.js';
 
 describe('GenericBinder Checkable Trait', () => {
   function setupSurfaceAndMocks() {
@@ -1549,15 +1553,26 @@ describe('GenericBinder Checkable Trait', () => {
       // @ts-expect-error a literal branch must still constrain the setter.
       withLiteral.setValue(123);
 
-      type DvProps = ResolveA2uiProps<{dv: DynamicValue; meta: Record<string, unknown>}>;
+      type DvProps = ResolveA2uiProps<{
+        dv: DynamicValue;
+        meta: Record<string, unknown>;
+        raw: unknown;
+        v1Call: V1FunctionCall;
+      }>;
       const dvProps: DvProps = {
         dv: {nested: 1},
         setDv: () => {},
         meta: {k: 'v'},
+        raw: 42,
+        v1Call: 'ok',
+        setV1Call: () => {},
       };
       dvProps.setDv(dvProps.dv);
+      dvProps.setV1Call('next');
       // @ts-expect-error string-indexed properties do not synthesize a runtime setter.
       assert.strictEqual(dvProps.setMeta, undefined);
+      // @ts-expect-error unknown properties do not synthesize a runtime setter.
+      assert.strictEqual(dvProps.setRaw, undefined);
     });
   });
 });

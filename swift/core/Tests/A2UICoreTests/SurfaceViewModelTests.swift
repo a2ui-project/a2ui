@@ -597,11 +597,10 @@ struct SurfaceViewModelTests {
         """,
       remoteSchemas: A2UICommonSchema.allSchemas
     )
-    let baseCatalog = BasicCatalog.makeCatalog()
     let catalog = Catalog(
       id: "direct-fn-catalog",
       components: [AnyComponentAPI(name: "probe", schema: schema)],
-      functions: Array(baseCatalog.functions.values)
+      functions: [TestConcatFunction()]
     )
     let handler = TestActionHandler()
     let processor = MessageProcessor(catalogs: [catalog], actionHandler: handler)
@@ -615,8 +614,8 @@ struct SurfaceViewModelTests {
           "id": "root",
           "component": "probe",
           "computed": [
-            "call": "formatString",
-            "args": ["value": "Hi ${/name}"],
+            "call": "concat",
+            "args": ["a": "Hi ", "b": ["path": "/name"]],
           ],
         ]
       ]

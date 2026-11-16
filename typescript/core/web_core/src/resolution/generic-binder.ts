@@ -1073,23 +1073,25 @@ type StripDynamic<T> = 0 extends 1 & T
     : never;
 
 /** Evaluates to true if type T can contain a dynamic binding. */
-type IsDynamic<T> = (
-  0 extends 1 & NonNullable<T> ? false : HasStringIndex<NonNullable<T>>
-) extends true
-  ? false
-  : ({path: string} extends NonNullable<T> ? true : false) extends true
-    ? true
-    : ({'@path': string} extends NonNullable<T> ? true : false) extends true
-      ? true
-      : ({call: string} extends NonNullable<T> ? true : false) extends true
+type IsDynamic<T> = 0 extends 1 & T
+  ? true
+  : unknown extends T
+    ? false
+    : HasStringIndex<NonNullable<T>> extends true
+      ? false
+      : ({path: string} extends NonNullable<T> ? true : false) extends true
         ? true
-        : ({'@call': string} extends NonNullable<T> ? true : false) extends true
+        : ({'@path': string} extends NonNullable<T> ? true : false) extends true
           ? true
-          : DataBinding extends NonNullable<T>
+          : ({call: string} extends NonNullable<T> ? true : false) extends true
             ? true
-            : FunctionCall extends NonNullable<T>
+            : ({'@call': string} extends NonNullable<T> ? true : false) extends true
               ? true
-              : false;
+              : DataBinding extends NonNullable<T>
+                ? true
+                : FunctionCall extends NonNullable<T>
+                  ? true
+                  : false;
 
 /**
  * Evaluates to true if type T is a child list, which can be a template as well as a list of
@@ -1119,17 +1121,21 @@ export interface ResolvedChildRef {
  * binder walks lists and objects, so an action, binding or child list inside them resolves
  * too, as at the top level.
  */
-export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
-  ? HasStringIndex<NonNullable<T>> extends true
-    ? StripDynamic<T>
-    : ((options?: ActionDispatchOptions) => Promise<void>) | Extract<T, undefined>
-  : IsChildList<T> extends true
-    ? (string | ResolvedChildRef)[] | Extract<T, undefined>
-    : IsDynamic<T> extends true
-      ? [StripDynamic<NonNullable<T>>] extends [never]
-        ? unknown
-        : StripDynamic<T>
-      : ResolveNested<T>;
+export type ResolveA2uiProp<T> = 0 extends 1 & T
+  ? T
+  : unknown extends T
+    ? unknown
+    : [NonNullable<T>] extends [ActionLike]
+      ? HasStringIndex<NonNullable<T>> extends true
+        ? StripDynamic<T>
+        : ((options?: ActionDispatchOptions) => Promise<void>) | Extract<T, undefined>
+      : IsChildList<T> extends true
+        ? (string | ResolvedChildRef)[] | Extract<T, undefined>
+        : IsDynamic<T> extends true
+          ? [StripDynamic<NonNullable<T>>] extends [never]
+            ? unknown
+            : StripDynamic<T>
+          : ResolveNested<T>;
 
 /**
  * Resolves the items of a list and the properties of an object, as the binder does.
