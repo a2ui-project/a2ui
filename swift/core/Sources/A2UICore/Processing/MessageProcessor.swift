@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import A2UIJSON
 import Foundation
 import JSONSchema
 import OrderedCollections
@@ -381,19 +382,27 @@ public final class MessageProcessor: ObservableObject {
     let schemaJSON = schemaToJSONValue(componentAPI.schema) ?? .object([:])
     let processedSchema = processRefs(schemaJSON)
 
+    let checkableSchema = version.isAtLeastV10 ? v10CheckableComponentFields(processedSchema) : nil
+    let propertySource = checkableSchema ?? processedSchema
+    let envelopeKeys: Set<String> =
+      checkableSchema == nil
+      ? []
+      : ["id", "@catalogId", "@accessibility", "@metadata"]
+
     var properties: OrderedDictionary<String, JSONValue> = [
       "component": .object(["const": .string(name)])
     ]
     var required: [JSONValue] = [.string("component")]
 
-    if let originalProperties = processedSchema["properties"]?.objectValue {
-      for (key, value) in originalProperties {
-        properties[key] = value
+    if let originalProperties = propertySource["properties"]?.objectValue {
+      for (key, value) in originalProperties where !envelopeKeys.contains(key) {
+        properties[key] = checkableSchema == nil ? value : v10RelativeInlineRefs(in: value)
       }
     }
-    if let originalRequired = processedSchema["required"]?.arrayValue {
-      for requiredProperty in originalRequired where !required.contains(requiredProperty) {
-        required.append(requiredProperty)
+    if let originalRequired = propertySource["required"]?.arrayValue {
+      for property in originalRequired where !required.contains(property) {
+        if let key = property.stringValue, envelopeKeys.contains(key) { continue }
+        required.append(property)
       }
     }
 
@@ -408,6 +417,11 @@ public final class MessageProcessor: ObservableObject {
       }
       componentSchema["properties"] = .object(properties)
       componentSchema["required"] = .array(required)
+      if checkableSchema != nil {
+        componentSchema["allOf"] = .array([
+          .object(["$ref": .string("common_types.json#/$defs/Checkable")])
+        ])
+      }
       // `JSONSchema.Schema` drops these A2UI keywords, so they come from the component API.
       if let allowedParents = componentAPI.allowedParents {
         componentSchema["allowedParents"] = .array(allowedParents.map { .string($0) })
@@ -433,6 +447,58 @@ public final class MessageProcessor: ObservableObject {
         ]),
       ])
     ])
+  }
+
+  /// Extracts the local object from the v1.0 Checkable trait composition.
+  ///
+  /// Only lift a single property block. Arbitrary allOf branches can intersect schemas
+  /// for the same field or impose additional constraints, so don't merge them.
+  private func v10CheckableComponentFields(_ schema: JSONValue) -> JSONValue? {
+    guard let root = schema.objectValue,
+      root.keys.allSatisfy({
+        ["type", "description", "allOf", "unevaluatedProperties"].contains($0)
+      }),
+      root["type"] == nil || root["type"] == .string("object"),
+      let parts = root["allOf"]?.arrayValue,
+      parts.count == 2,
+      let trait = parts[0].objectValue,
+      trait.count == 1,
+      let traitRef = trait["$ref"]?.stringValue,
+      v10RelativeInlineReference(traitRef) == "common_types.json#/$defs/Checkable",
+      let fields = parts[1].objectValue,
+      fields["properties"]?.objectValue != nil,
+      fields["type"] == nil || fields["type"] == .string("object"),
+      fields.keys.allSatisfy({ ["type", "properties", "required"].contains($0) })
+    else {
+      return nil
+    }
+
+    return .object(fields)
+  }
+
+  private func v10RelativeInlineReference(_ reference: String) -> String {
+    let prefix = A2UICommonSchema.v10BaseURI + "#/"
+    guard reference.hasPrefix(prefix) else { return reference }
+    return "common_types.json#/" + reference.dropFirst(prefix.count)
+  }
+
+  private func v10RelativeInlineRefs(in schema: JSONValue) -> JSONValue {
+    switch schema {
+    case .object(let fields):
+      var result = fields
+      for (key, value) in fields {
+        if key == "$ref", let reference = value.stringValue {
+          result[key] = .string(v10RelativeInlineReference(reference))
+        } else if !["const", "default", "enum", "examples"].contains(key) {
+          result[key] = v10RelativeInlineRefs(in: value)
+        }
+      }
+      return .object(result)
+    case .array(let items):
+      return .array(items.map { v10RelativeInlineRefs(in: $0) })
+    default:
+      return schema
+    }
   }
 
   private func generateV10InlineFunctions(
