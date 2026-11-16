@@ -38,7 +38,10 @@ struct InlineCatalogAllOfRegressionTests {
     )
     #expect(catalogDefinition.validate(inlineCatalog).isValid)
 
-    #expect(components["Text"]?["properties"]?["text"] != nil)
+    #expect(
+      components["Text"]?["properties"]?["text"]?["$ref"]?.stringValue
+        == "common_types.json#/$defs/DynamicString"
+    )
     let requiredFieldsByComponent = [
       "Button": ["child", "action"],
       "CheckBox": ["label", "value"],
@@ -92,5 +95,37 @@ struct InlineCatalogAllOfRegressionTests {
       """
     )
     #expect(!buttonSchema.validate(invalidChecks).isValid)
+  }
+
+  @Test func checkableTraitMayFollowComponentFields() throws {
+    let schema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "allOf": [
+            {"type": "object", "properties": {"value": {"type": "string"}}, "required": ["value"]},
+            {"$ref": "\(A2UICommonSchema.v10BaseURI)#/$defs/Checkable"}
+          ]
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let catalog = Catalog(
+      id: "custom",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Widget", schema: schema)]
+    )
+    let processor = MessageProcessor(catalogs: [catalog])
+    let capabilities = try processor.getRendererCapabilities(
+      options: .init(protocolVersion: .v10, includeInlineCatalogs: true)
+    )
+    let inlineCatalog = try #require(capabilities["1.0"]?["inlineCatalogs"]?.arrayValue?.first)
+    let widget = try #require(inlineCatalog["components"]?["Widget"])
+    #expect(widget["properties"]?["value"]?["type"]?.stringValue == "string")
+    #expect(widget["required"]?.arrayValue?.contains(.string("value")) == true)
+    #expect(
+      widget["allOf"]?.arrayValue?.first?["$ref"]?.stringValue
+        == "common_types.json#/$defs/Checkable"
+    )
   }
 }

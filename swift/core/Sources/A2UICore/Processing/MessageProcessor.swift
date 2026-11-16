@@ -396,7 +396,7 @@ public final class MessageProcessor: ObservableObject {
 
     if let originalProperties = propertySource["properties"]?.objectValue {
       for (key, value) in originalProperties where !envelopeKeys.contains(key) {
-        properties[key] = checkableSchema == nil ? value : v10RelativeInlineRefs(in: value)
+        properties[key] = version.isAtLeastV10 ? v10RelativeInlineRefs(in: value) : value
       }
     }
     if let originalRequired = propertySource["required"]?.arrayValue {
@@ -461,11 +461,8 @@ public final class MessageProcessor: ObservableObject {
       root["type"] == nil || root["type"] == .string("object"),
       let parts = root["allOf"]?.arrayValue,
       parts.count == 2,
-      let trait = parts[0].objectValue,
-      trait.count == 1,
-      let traitRef = trait["$ref"]?.stringValue,
-      v10RelativeInlineReference(traitRef) == "common_types.json#/$defs/Checkable",
-      let fields = parts[1].objectValue,
+      let traitIndex = parts.firstIndex(where: isV10CheckableTrait),
+      let fields = parts[1 - traitIndex].objectValue,
       fields["properties"]?.objectValue != nil,
       fields["type"] == nil || fields["type"] == .string("object"),
       fields.keys.allSatisfy({ ["type", "properties", "required"].contains($0) })
@@ -476,6 +473,15 @@ public final class MessageProcessor: ObservableObject {
     return .object(fields)
   }
 
+  private func isV10CheckableTrait(_ schema: JSONValue) -> Bool {
+    guard let trait = schema.objectValue, trait.count == 1,
+      let reference = trait["$ref"]?.stringValue
+    else {
+      return false
+    }
+    return v10RelativeInlineReference(reference) == "common_types.json#/$defs/Checkable"
+  }
+
   private func v10RelativeInlineReference(_ reference: String) -> String {
     let prefix = A2UICommonSchema.v10BaseURI + "#/"
     guard reference.hasPrefix(prefix) else { return reference }
@@ -483,22 +489,31 @@ public final class MessageProcessor: ObservableObject {
   }
 
   private func v10RelativeInlineRefs(in schema: JSONValue) -> JSONValue {
-    switch schema {
-    case .object(let fields):
-      var result = fields
-      for (key, value) in fields {
-        if key == "$ref", let reference = value.stringValue {
-          result[key] = .string(v10RelativeInlineReference(reference))
-        } else if !["const", "default", "enum", "examples"].contains(key) {
-          result[key] = v10RelativeInlineRefs(in: value)
-        }
-      }
-      return .object(result)
-    case .array(let items):
-      return .array(items.map { v10RelativeInlineRefs(in: $0) })
-    default:
-      return schema
+    // Only visit schema-valued keywords. Instance values can contain literal "$ref" keys,
+    // and a nested "$id" changes the base against which a relative reference resolves.
+    guard var fields = schema.objectValue, fields["$id"] == nil else { return schema }
+    if let reference = fields["$ref"]?.stringValue {
+      fields["$ref"] = .string(v10RelativeInlineReference(reference))
     }
+    for keyword in ["properties", "patternProperties", "dependentSchemas", "$defs"] {
+      guard var definitions = fields[keyword]?.objectValue else { continue }
+      for (name, definition) in definitions {
+        definitions[name] = v10RelativeInlineRefs(in: definition)
+      }
+      fields[keyword] = .object(definitions)
+    }
+    for keyword in ["allOf", "anyOf", "oneOf", "prefixItems"] {
+      guard let items = fields[keyword]?.arrayValue else { continue }
+      fields[keyword] = .array(items.map { v10RelativeInlineRefs(in: $0) })
+    }
+    for keyword in [
+      "additionalProperties", "unevaluatedProperties", "propertyNames", "items",
+      "unevaluatedItems", "contains", "not", "if", "then", "else", "contentSchema",
+    ] {
+      guard let item = fields[keyword] else { continue }
+      fields[keyword] = v10RelativeInlineRefs(in: item)
+    }
+    return .object(fields)
   }
 
   private func generateV10InlineFunctions(

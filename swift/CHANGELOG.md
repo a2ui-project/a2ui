@@ -48,7 +48,8 @@
   conform to `catalog_definition.json`. [#4092](https://github.com/a2ui-project/a2ui/pull/4092)
 - (v1.0) Include Checkable components' own properties and required fields in inline catalogs
   emitted by `MessageProcessor.getRendererCapabilities(options:)`, while retaining their
-  Checkable trait. [#4227](https://github.com/a2ui-project/a2ui/issues/4227)
+  Checkable trait regardless of its position. Keep standard references relative in v1.0 inline
+  component fields. [#4255](https://github.com/a2ui-project/a2ui/pull/4255)
 - Deprecate `A2UICatalogsKey`, `A2UIDefaultCatalogIDKey`, and `A2UIThemeKey` in `A2UISwiftUI` in
   favor of `EnvironmentValues.a2uiCatalogs`, `EnvironmentValues.a2uiDefaultCatalogID`, and
   `EnvironmentValues.a2uiTheme`, and update `BasicCatalogSwiftUI` components (`A2UIIcon` and
