@@ -576,7 +576,9 @@ function convertPropertyToZod(
           defCache,
         );
       } else {
-        obj = z.record(z.unknown());
+        // Even when an object schema declares no `properties` or `patternProperties`,
+        // it may still declare `minProperties` or `maxProperties` bounds.
+        obj = applyObjectKeyCountConstraints(z.record(z.unknown()), [propSchema]);
       }
       return finalizePropertyZod(obj, propSchema, rootDoc, visitedPointers, defCache);
     }
@@ -701,6 +703,59 @@ function convertPropertiesToShape(
 }
 
 /**
+ * Applies `minProperties` and `maxProperties` key-count constraints from one or
+ * more JSON Schema object fragments onto a converted Zod object or record schema.
+ *
+ * When multiple pieces declare bounds (for example in an `allOf` composition),
+ * the strictest lower and upper bounds across all pieces are enforced.
+ *
+ * @param baseSchema The Zod object or record schema to constrain.
+ * @param pieces The JSON Schema fragments that may declare `minProperties` or `maxProperties`.
+ * @returns The schema wrapped with key-count refinements when bounds are present.
+ */
+function applyObjectKeyCountConstraints(
+  baseSchema: z.ZodTypeAny,
+  pieces: ReadonlyArray<Record<string, unknown>>,
+): z.ZodTypeAny {
+  // Track the highest `minProperties` and lowest `maxProperties` across all composed pieces.
+  let minProps: number | undefined;
+  let maxProps: number | undefined;
+
+  for (const piece of new Set(pieces)) {
+    if (typeof piece.minProperties === 'number') {
+      minProps =
+        minProps === undefined ? piece.minProperties : Math.max(minProps, piece.minProperties);
+    }
+    if (typeof piece.maxProperties === 'number') {
+      maxProps =
+        maxProps === undefined ? piece.maxProperties : Math.min(maxProps, piece.maxProperties);
+    }
+  }
+
+  let result = baseSchema;
+
+  // Enforce lower bound on key count if `minProperties` was declared.
+  if (minProps !== undefined) {
+    const requiredMin = minProps;
+    result = result.refine(
+      (val: unknown) => isPlainObject(val) && Object.keys(val).length >= requiredMin,
+      {message: `Object must have at least ${requiredMin} properties`},
+    );
+  }
+
+  // Enforce upper bound on key count if `maxProperties` was declared.
+  if (maxProps !== undefined) {
+    const allowedMax = maxProps;
+    result = result.refine(
+      (val: unknown) => isPlainObject(val) && Object.keys(val).length <= allowedMax,
+      {message: `Object must have at most ${allowedMax} properties`},
+    );
+  }
+
+  return result;
+}
+
+/**
  * Closes or opens a converted object schema, honoring the `patternProperties`
  * of the JSON Schema pieces it was built from.
  *
@@ -750,10 +805,11 @@ function closeObjectSchema(
     }
   }
   if (patterns.length === 0) {
-    return forbidExtra ? obj.strict() : obj.passthrough();
+    const closed = forbidExtra ? obj.strict() : obj.passthrough();
+    return applyObjectKeyCountConstraints(closed, pieces);
   }
   const declared = new Set(Object.keys(obj.shape));
-  return obj.passthrough().superRefine((value, ctx) => {
+  const refined = obj.passthrough().superRefine((value, ctx) => {
     const unrecognized: string[] = [];
     for (const [key, entry] of Object.entries(value)) {
       if (declared.has(key)) continue;
@@ -778,6 +834,7 @@ function closeObjectSchema(
       ctx.addIssue({code: z.ZodIssueCode.unrecognized_keys, keys: unrecognized});
     }
   });
+  return applyObjectKeyCountConstraints(refined, pieces);
 }
 
 /**
