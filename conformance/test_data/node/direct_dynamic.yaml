@@ -16,8 +16,8 @@ catalog: test_data/catalogs/direct_dynamic_catalog_v1_0.json
 data:
   offset: 1
   people:
-    - {name: Ada}
-    - {name: Lin}
+    - {name: Ada, count: 1, validation: {valid: false, message: No}}
+    - {name: Lin, count: 2, validation: true}
 components:
   - id: root
     component: Column
@@ -25,4 +25,6 @@ components:
   - id: item
     component: DirectDynamicProbe
     binding: {'@path': name}
+    count: {'@path': count}
+    flag: {'@path': validation}
     computed: {'@call': '@index', args: {offset: {'@path': /offset}}}

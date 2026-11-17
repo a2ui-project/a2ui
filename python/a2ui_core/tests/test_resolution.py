@@ -1970,6 +1970,79 @@ def test_direct_data_binding_and_function_call_schemas() -> None:
     binder.dispose()
 
 
+def test_constrained_function_call_and_boolean_union() -> None:
+    """allOf-constrained FunctionCall branches resolve dynamically and coerce booleans."""
+    cat = Catalog(
+        "constrained-cat",
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="is_ready",
+                execute=lambda args, context=None, *_: bool(args.get("ready")),
+            )
+        ],
+    )
+    surface = SurfaceModel("s1", cat, protocol_version="1.0")
+    surface.data_model.set("/ready", True)
+    surface.data_model.set("/validation", {"valid": False, "message": "No"})
+    constrained_fn_schema = {
+        "allOf": [
+            {"$ref": "common_types.json#/$defs/FunctionCall"},
+            {"properties": {"returnType": {"const": "boolean"}}},
+        ]
+    }
+    comp = ComponentModel(
+        "c1",
+        "Probe",
+        cat,
+        {
+            "direct": {
+                "@call": "is_ready",
+                "args": {"ready": {"@path": "/ready"}},
+                "returnType": "boolean",
+            },
+            "flag": {"@path": "/validation"},
+            "computed_flag": {
+                "@call": "is_ready",
+                "args": {"ready": {"@path": "/ready"}},
+                "returnType": "boolean",
+            },
+        },
+    )
+    surface.components_model.add_component(comp)
+    schema = {
+        "type": "object",
+        "properties": {
+            "direct": constrained_fn_schema,
+            "flag": {
+                "oneOf": [
+                    {"type": "boolean"},
+                    constrained_fn_schema,
+                ]
+            },
+            "computed_flag": {
+                "oneOf": [
+                    {"type": "boolean"},
+                    {"$ref": "common_types.json#/$defs/DataBinding"},
+                    constrained_fn_schema,
+                ]
+            },
+        },
+    }
+    binder = GenericBinder(
+        ComponentContext(comp, DataContext(surface, path="/")),
+        schema=schema,
+        expand_templates=True,
+    )
+    assert binder.current_props["direct"] is True
+    assert binder.current_props["flag"] is False
+    assert binder.current_props["computed_flag"] is True
+    surface.data_model.set("/ready", False)
+    assert binder.current_props["direct"] is False
+    assert binder.current_props["computed_flag"] is False
+    binder.dispose()
+
+
 def test_v10_child_list_template_uses_path_only() -> None:
     """v1.0 ChildList templates resolve plain path and ignore non-spec @path."""
     cat = Catalog("tpl-cat", protocol_version="1.0")

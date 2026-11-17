@@ -17,13 +17,21 @@
     },
     "DirectDynamicProbe": {
       "type": "object",
-      "description": "Exposes direct DataBinding and FunctionCall properties.",
+      "description": "Exposes direct DataBinding, FunctionCall, and inline dynamic union properties.",
       "properties": {
         "component": { "const": "DirectDynamicProbe" },
         "binding": { "$ref": "common_types.json#/$defs/DataBinding" },
+        "count": { "$ref": "common_types.json#/$defs/DataBinding" },
+        "flag": {
+          "oneOf": [
+            { "type": "boolean" },
+            { "$ref": "common_types.json#/$defs/DataBinding" },
+            { "$ref": "common_types.json#/$defs/FunctionCall" }
+          ]
+        },
         "computed": { "$ref": "common_types.json#/$defs/FunctionCall" }
       },
-      "required": ["component", "binding", "computed"]
+      "required": ["component", "binding", "count", "flag", "computed"]
     }
   }
 }

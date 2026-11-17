@@ -207,6 +207,8 @@ def _classify_all_of(
         and merged_shape["checks"].type == BehaviorType.CHECKABLE
     ):
         merged_shape.setdefault("@checks", BehaviorNode(BehaviorType.CHECKABLE))
+    if first_special is not None and first_special.type != BehaviorType.CHECKABLE:
+        return first_special
     if found_object or merged_shape:
         return BehaviorNode(BehaviorType.OBJECT, shape=merged_shape)
     return first_special
