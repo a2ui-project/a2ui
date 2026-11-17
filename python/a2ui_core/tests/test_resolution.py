@@ -1957,7 +1957,9 @@ def test_direct_data_binding_and_function_call_schemas() -> None:
         },
     }
     binder = GenericBinder(
-        ComponentContext(comp, DataContext(surface, path="/")), schema=schema
+        ComponentContext(comp, DataContext(surface, path="/")),
+        schema=schema,
+        expand_templates=True,
     )
     assert binder.current_props["binding"] == "Ada"
     assert binder.current_props["computed"] == "Ada!"
@@ -1965,4 +1967,42 @@ def test_direct_data_binding_and_function_call_schemas() -> None:
     assert surface.data_model.get("/name") == "Grace"
     assert binder.current_props["binding"] == "Grace"
     assert binder.current_props["computed"] == "Grace!"
+    binder.dispose()
+
+
+def test_v10_child_list_template_uses_path_only() -> None:
+    """v1.0 ChildList templates resolve plain path and ignore non-spec @path."""
+    cat = Catalog("tpl-cat", protocol_version="1.0")
+    surface = SurfaceModel("s1", cat, protocol_version="1.0")
+    surface.data_model.set("/items", [{"label": "A"}, {"label": "B"}])
+    schema = {
+        "type": "object",
+        "properties": {
+            "children": {"$ref": "common_types.json#/$defs/ChildList"},
+            "invalidChildren": {"$ref": "common_types.json#/$defs/ChildList"},
+        },
+    }
+    comp = ComponentModel(
+        "c1",
+        "Container",
+        cat,
+        {
+            "children": {"componentId": "row", "path": "/items"},
+            "invalidChildren": {"componentId": "row", "@path": "/items"},
+        },
+    )
+    surface.components_model.add_component(comp)
+    binder = GenericBinder(
+        ComponentContext(comp, DataContext(surface, path="/")),
+        schema=schema,
+        expand_templates=True,
+    )
+    assert binder.current_props["children"] == [
+        {"id": "row", "basePath": "/items/0"},
+        {"id": "row", "basePath": "/items/1"},
+    ]
+    assert binder.current_props["invalidChildren"] == {
+        "componentId": "row",
+        "@path": "/items",
+    }
     binder.dispose()

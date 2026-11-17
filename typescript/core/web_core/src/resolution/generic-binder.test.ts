@@ -1556,6 +1556,8 @@ describe('GenericBinder Checkable Trait', () => {
       type DvProps = ResolveA2uiProps<{
         dv: DynamicValue;
         meta: Record<string, unknown>;
+        strOrMeta: string | Record<string, unknown>;
+        objOrMeta: {label: string} | Record<string, unknown>;
         raw: unknown;
         v1Call: V1FunctionCall;
       }>;
@@ -1563,6 +1565,8 @@ describe('GenericBinder Checkable Trait', () => {
         dv: {nested: 1},
         setDv: () => {},
         meta: {k: 'v'},
+        strOrMeta: 'plain',
+        objOrMeta: {label: 'ok'},
         raw: 42,
         v1Call: 'ok',
         setV1Call: () => {},
@@ -1571,6 +1575,10 @@ describe('GenericBinder Checkable Trait', () => {
       dvProps.setV1Call('next');
       // @ts-expect-error string-indexed properties do not synthesize a runtime setter.
       assert.strictEqual(dvProps.setMeta, undefined);
+      // @ts-expect-error unions with string-indexed objects do not synthesize a runtime setter.
+      assert.strictEqual(dvProps.setStrOrMeta, undefined);
+      // @ts-expect-error unions of closed and string-indexed objects do not synthesize a runtime setter.
+      assert.strictEqual(dvProps.setObjOrMeta, undefined);
       // @ts-expect-error unknown properties do not synthesize a runtime setter.
       assert.strictEqual(dvProps.setRaw, undefined);
     });

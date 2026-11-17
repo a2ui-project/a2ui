@@ -1072,26 +1072,34 @@ type StripDynamic<T> = 0 extends 1 & T
         : T
     : never;
 
+/**
+ * Removes string-indexed object members such as `Record<string, unknown>` from
+ * a union before checking whether any remaining branch is a dynamic binding.
+ */
+type StripStringIndex<T> = T extends unknown ? (HasStringIndex<T> extends true ? never : T) : never;
+
+type IsDynamicShape<T> = [T] extends [never]
+  ? false
+  : ({path: string} extends T ? true : false) extends true
+    ? true
+    : ({'@path': string} extends T ? true : false) extends true
+      ? true
+      : ({call: string} extends T ? true : false) extends true
+        ? true
+        : ({'@call': string} extends T ? true : false) extends true
+          ? true
+          : DataBinding extends T
+            ? true
+            : FunctionCall extends T
+              ? true
+              : false;
+
 /** Evaluates to true if type T can contain a dynamic binding. */
 type IsDynamic<T> = 0 extends 1 & T
   ? true
   : unknown extends T
     ? false
-    : HasStringIndex<NonNullable<T>> extends true
-      ? false
-      : ({path: string} extends NonNullable<T> ? true : false) extends true
-        ? true
-        : ({'@path': string} extends NonNullable<T> ? true : false) extends true
-          ? true
-          : ({call: string} extends NonNullable<T> ? true : false) extends true
-            ? true
-            : ({'@call': string} extends NonNullable<T> ? true : false) extends true
-              ? true
-              : DataBinding extends NonNullable<T>
-                ? true
-                : FunctionCall extends NonNullable<T>
-                  ? true
-                  : false;
+    : IsDynamicShape<StripStringIndex<NonNullable<T>>>;
 
 /**
  * Evaluates to true if type T is a child list, which can be a template as well as a list of

@@ -622,7 +622,7 @@ class GenericBinder:
             return value
         comp_id = template_obj.get("componentId")
         template_path = (
-            template_obj.get("path") or template_obj.get("@path")
+            template_obj.get("path")
             if self.context.data_context.at_least_v10
             else template_obj.get("path") or template_obj.get("dataBinding")
         )
