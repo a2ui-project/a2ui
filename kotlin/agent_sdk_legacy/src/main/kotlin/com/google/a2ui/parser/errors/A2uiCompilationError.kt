@@ -20,7 +20,7 @@ import com.google.a2ui.exceptions.A2uiException
 import com.google.a2ui.parser.ResponsePart
 
 /** Exception raised when raw format content fails to compile into valid A2UI JSON payloads. */
-class A2uiCompilationError(
+open class A2uiCompilationError(
   message: String,
   val rawContent: String? = null,
   val line: Int? = null,

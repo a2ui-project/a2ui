@@ -16,43 +16,30 @@
 
 package com.google.a2ui.express
 
+import com.google.a2ui.basic_catalog.BasicCatalog
 import com.google.a2ui.inference_formats.experimental.express.ExpressFormat
+import com.google.a2ui.inference_formats.experimental.express.ExpressStreamPart
 import com.google.a2ui.schema.A2uiCatalog
 import com.google.a2ui.schema.A2uiSchemaManager
 import com.google.a2ui.schema.A2uiVersion
-import com.google.a2ui.schema.CatalogConfig
-import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.serialization.json.JsonObject
 
 class ExpressFormatTest {
 
-  private val catalogPath = findSpecCatalogPath()
-
-  private fun findSpecCatalogPath(): String {
-    var dir: File? = File(".").canonicalFile
-    while (dir != null) {
-      val specFile = File(dir, "specification/v0_9/catalogs/basic/catalog.json")
-      if (specFile.exists()) return specFile.absolutePath
-      dir = dir.parentFile
-    }
-    throw IllegalStateException("Catalog file not found")
-  }
-
   private val catalog: A2uiCatalog by lazy {
-    val config = CatalogConfig.fromPath("basic", catalogPath)
-    val manager = A2uiSchemaManager(version = A2uiVersion.VERSION_0_9, catalogs = listOf(config))
+    val config = BasicCatalog.getConfig(A2uiVersion.VERSION_1_0)
+    val manager = A2uiSchemaManager(version = A2uiVersion.VERSION_1_0, catalogs = listOf(config))
     manager.getSelectedCatalog()
   }
 
   @Test
   fun testExpressFormatIntegration() {
     val format = ExpressFormat(catalog = catalog, surfaceId = "test_surface")
-    assertFalse(format.supportsStreaming)
+    assertTrue(format.supportsStreaming)
 
     val prompt = format.promptGenerator.generate("Agent Role", includeSchema = true)
     assertTrue(prompt.contains("Agent Role"))
@@ -79,5 +66,14 @@ class ExpressFormatTest {
 
     val jsonMessage = expressPart.a2uiJson!![0] as JsonObject
     assertTrue(jsonMessage.containsKey("createSurface"))
+
+    // Verify incremental streaming support
+    val stream = format.parser.openStream()
+    val p1 = stream.feed("Here is the requested interface:\n<a2ui>\n")
+    assertEquals(listOf(ExpressStreamPart.Text("Here is the requested interface:")), p1)
+    val p2 = stream.feed("root = Text(\"Welcome\")\n</a2ui>")
+    assertEquals(1, p2.size)
+    assertTrue(p2[0] is ExpressStreamPart.A2ui)
+    assertTrue(stream.close().isEmpty())
   }
 }

@@ -71,7 +71,9 @@ object BasicCatalog {
       A2uiVersion.VERSION_0_8 to
         "https://a2ui.org/specification/v0_8/standard_catalog_definition.json",
       A2uiVersion.VERSION_0_9 to "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
-      A2uiVersion.VERSION_0_9_1 to "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      A2uiVersion.VERSION_0_9_1 to
+        "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      A2uiVersion.VERSION_1_0 to "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
     )
 
   /** Bundled classpath resource paths under `com/google/a2ui/assets/<version>/`. */
@@ -80,6 +82,7 @@ object BasicCatalog {
       A2uiVersion.VERSION_0_8 to "standard_catalog_definition.json",
       A2uiVersion.VERSION_0_9 to "catalogs/basic/catalog.json",
       A2uiVersion.VERSION_0_9_1 to "catalogs/basic/catalog.json",
+      A2uiVersion.VERSION_1_0 to "catalogs/basic/catalog.json",
     )
 
   /** Repository paths to bundled standard catalogs for each spec version. */
@@ -97,6 +100,8 @@ object BasicCatalog {
         mapOf(
           A2uiConstants.CATALOG_SCHEMA_KEY to "specification/v0_9_1/catalogs/basic/catalog.json"
         ),
+      A2uiVersion.VERSION_1_0 to
+        mapOf(A2uiConstants.CATALOG_SCHEMA_KEY to "catalogs/basic/v1/catalog.json"),
     )
 
   /**

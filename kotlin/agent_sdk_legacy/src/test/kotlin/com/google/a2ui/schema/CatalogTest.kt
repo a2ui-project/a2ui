@@ -104,6 +104,12 @@ class CatalogTest {
       "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
       v091[A2uiConstants.CATALOG_ID_KEY]?.jsonPrimitive?.content,
     )
+
+    val v10 = BasicCatalog.getConfig(A2uiVersion.VERSION_1_0).provider.load()
+    assertEquals(
+      "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+      v10[A2uiConstants.CATALOG_ID_KEY]?.jsonPrimitive?.content,
+    )
   }
 
   @Test
@@ -134,6 +140,12 @@ class CatalogTest {
               version = "0.9.1",
               resourcePath = "catalogs/basic/catalog.json",
               catalogId = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+            )
+          A2uiVersion.VERSION_1_0 ->
+            ExpectedCatalog(
+              version = "1.0",
+              resourcePath = "catalogs/basic/catalog.json",
+              catalogId = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
             )
         }
 
