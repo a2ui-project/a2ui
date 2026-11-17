@@ -64,9 +64,6 @@ val copySpecs by
     from(File(repoRoot, "specification/v1_0/json/common_types.json")) {
       into("com/google/a2ui/assets/1.0")
     }
-    from(File(repoRoot, "catalogs/basic/v1/catalog.json")) {
-      into("com/google/a2ui/assets/1.0/catalogs/basic")
-    }
     into(layout.buildDirectory.dir("generated/resources/specs"))
   }
 

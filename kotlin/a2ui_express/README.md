@@ -1,6 +1,6 @@
 # A2UI Express for Kotlin (`a2ui-express`)
 
-Standalone, zero-ANTLR Kotlin/JVM implementation of **A2UI Express** targeting **A2UI v1.0** (`com.google.a2ui.core`, `com.google.a2ui.agent`, `com.google.a2ui.agent.express`).
+Standalone, zero-ANTLR Kotlin/JVM implementation of **A2UI Express** targeting **A2UI v1.0** (`com.google.a2ui.core.*`, `com.google.a2ui.agent.*`, `com.google.a2ui.agent.inferenceformats.express`).
 
 ## Overview
 
@@ -40,6 +40,9 @@ A2UI_CONFORMANCE_MANIFEST_DIR=/tmp/a2ui-manifest \
 
 ## Public Facade Packages
 
-- `com.google.a2ui.core`: `Catalog` (`CatalogApi`), `ComponentApi`, `FunctionApi`, `AllowedCallers`, `ProtocolVersion`, `Uax31Identifier`, `AgentToRendererMessage` sealed hierarchy, and `A2uiError` exception hierarchy.
-- `com.google.a2ui.agent`: `InferenceFormat`, `InferenceFormatFactory`, `PromptGenerator`, `Parser`, `ResponseStream<out P : StreamPart>`, `StreamPart` / `ResponsePart` (`TextPart`, `A2uiPart`, `ErrorPart`), `RendererState`, `validatePayload`, `agentCallableFunctions`, `CatalogTransformer` (`ComponentPruningTransformer`, `FunctionPruningTransformer`), and `A2uiCompilationError`.
-- `com.google.a2ui.agent.express`: `ExpressFormat`, `ExpressFormatFactory`, `ExpressParser`, `ExpressCompiler`, `ExpressDecompiler`, `ExpressResponseStream`, and Express compilation error subclasses.
+- `com.google.a2ui.core.catalog`: `Catalog` (`CatalogApi`), `ComponentApi`, `SchemaComponentApi`, `FunctionApi`, `SchemaFunctionApi`, `FunctionReturnType`, `AllowedCallers`, `AgentFunction`, and `DerivedCatalogEntry`.
+- `com.google.a2ui.core.common`: `ProtocolVersion`, `Uax31Identifier`, and `A2uiMetadata`.
+- `com.google.a2ui.core.exceptions`: `A2uiError`, `A2uiErrorDetail`, `A2uiValidationError`, `A2uiCatalogError`, `A2uiIntegrityError`, `A2uiRecursionError`, and `A2uiParseError`.
+- `com.google.a2ui.core.schema`: `AgentToRendererMessage` sealed hierarchy, `FunctionCall`, `FunctionResponse`, and `FunctionError`.
+- `com.google.a2ui.agent` / `parser` / `prompt` / `utils` / `catalogtransformers`: `InferenceFormat`, `InferenceFormatFactory`, `PromptGenerator`, `Parser`, `ResponseStream<out P : StreamPart>`, `StreamPart` / `ResponsePart` (`TextPart`, `A2uiPart`, `ErrorPart`), `A2uiCompilationError`, `RendererState`, `validatePayload`, and `CatalogTransformer` (`ComponentPruningTransformer`, `FunctionPruningTransformer`).
+- `com.google.a2ui.agent.inferenceformats.express`: `ExpressFormat`, `ExpressFormatFactory`, `ExpressParser`, `ExpressCompiler`, `ExpressDecompiler`, `ExpressResponseStream`, and Express compilation error subclasses.

@@ -16,40 +16,29 @@
 
 package com.google.a2ui.agent
 
-import com.google.a2ui.core.AgentToRendererMessage
-import com.google.a2ui.core.Catalog
+import com.google.a2ui.agent.parser.Parser
+import com.google.a2ui.agent.prompt.PromptGenerator
+import com.google.a2ui.core.catalog.CatalogApi
+import com.google.a2ui.core.schema.AgentToRendererMessage
 
 /**
- * Bound A2UI inference format combining a [PromptGenerator] and a [Parser] configured for a set of
- * active [Catalog]s.
- */
-interface InferenceFormat {
-  val catalogs: List<Catalog>
-  val promptGenerator: PromptGenerator
-  val parser: Parser
-    get() = createParser()
-
-  fun createParser(): Parser
-}
-
-/**
- * Factory creating an [InferenceFormat] bound to one or more [Catalog]s, optionally applying
- * [CatalogTransformer]s or custom few-shot [examples].
+ * Factory creating an [InferenceFormat] bound to negotiated catalogs (`a2ui_agent.blueprint.md`
+ * §3.E).
  */
 fun interface InferenceFormatFactory {
   fun createFormat(
-    catalogs: List<Catalog>,
+    catalogs: List<CatalogApi>,
     examples: List<List<AgentToRendererMessage>>?,
   ): InferenceFormat
 
-  fun createFormat(catalogs: List<Catalog>): InferenceFormat = createFormat(catalogs, null)
+  fun createFormat(catalogs: List<CatalogApi>): InferenceFormat =
+    createFormat(catalogs, examples = null)
+}
 
-  fun create(
-    catalogs: List<Catalog>,
-    transformers: List<CatalogTransformer> = emptyList(),
-    examples: List<List<AgentToRendererMessage>>? = null,
-  ): InferenceFormat {
-    val transformed = catalogs.map { cat -> transformers.fold(cat) { acc, t -> t.transform(acc) } }
-    return createFormat(transformed, examples)
-  }
+/** Strategy facade pairing a [PromptGenerator] (input) and [Parser] (output) (`blueprint` §3.E). */
+interface InferenceFormat {
+  val catalogs: List<CatalogApi>
+  val promptGenerator: PromptGenerator
+
+  fun createParser(): Parser
 }
