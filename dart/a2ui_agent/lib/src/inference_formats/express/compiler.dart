@@ -919,11 +919,11 @@ class _SurfaceCompiler {
   void _checkExtensionsAst(ExpressNode node, String subject, Set<String> seen) {
     final ExpressNode resolved = _resolveAstVar(node, {...seen});
     switch (resolved) {
-      case MapNode(:final entries):
+      case MapNode(:final Map<String, ExpressNode> entries):
         for (final ExpressNode v in entries.values) {
           _checkExtensionsAst(v, subject, seen);
         }
-      case ArrayNode(:final items):
+      case ArrayNode(:final List<ExpressNode> items):
         for (final item in items) {
           _checkExtensionsAst(item, subject, seen);
         }
