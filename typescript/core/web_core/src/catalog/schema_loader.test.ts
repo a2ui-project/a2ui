@@ -21,6 +21,7 @@ import {resolve} from 'node:path';
 import {z} from 'zod';
 import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 import {Catalog} from './types.js';
+import {convertFunctionArgsJsonSchemaToZod} from './schema_loader.js';
 import {analyzeChildRefSchema} from './reference-map.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {STRICT_VALIDATION} from '../validation/integrity-checker.js';
@@ -1147,5 +1148,62 @@ describe('Catalog.fromJson & schema_loader', () => {
         }),
       A2uiValidationError,
     );
+  });
+
+  describe('JSON Schema keyword parity (Issue #3998)', () => {
+    it('enforces maxProperties on function argument schemas and nested objects', () => {
+      console.log('\n--- START TEST: maxProperties enforcement (Row 1) ---');
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          a: {type: 'string'},
+          b: {type: 'string'},
+        },
+        maxProperties: 1,
+      });
+
+      const emptyRes = schema.safeParse({});
+      console.log('maxProperties=1 with {}:', emptyRes.success);
+      assert.strictEqual(emptyRes.success, true);
+
+      const singleRes = schema.safeParse({a: 'x'});
+      console.log('maxProperties=1 with {a: "x"}:', singleRes.success);
+      assert.strictEqual(singleRes.success, true);
+
+      const overMaxRes = schema.safeParse({a: 'x', b: 'y'});
+      console.log('maxProperties=1 with {a: "x", b: "y"}:', overMaxRes.success);
+      assert.strictEqual(overMaxRes.success, false);
+    });
+
+    it('enforces minProperties on function argument schemas and typeless-property objects', () => {
+      console.log('\n--- START TEST: minProperties enforcement (Row 2) ---');
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          a: {type: 'string'},
+        },
+        minProperties: 1,
+      });
+
+      const emptyRes = schema.safeParse({});
+      console.log('minProperties=1 with {}:', emptyRes.success);
+      assert.strictEqual(emptyRes.success, false);
+
+      const singleRes = schema.safeParse({a: 'x'});
+      console.log('minProperties=1 with {a: "x"}:', singleRes.success);
+      assert.strictEqual(singleRes.success, true);
+
+      // Also verify an object schema with no declared properties (record fallback)
+      const recordSchema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          bag: {type: 'object', minProperties: 1, maxProperties: 2},
+        },
+        required: ['bag'],
+      });
+      assert.strictEqual(recordSchema.safeParse({bag: {}}).success, false);
+      assert.strictEqual(recordSchema.safeParse({bag: {k1: 1}}).success, true);
+      assert.strictEqual(recordSchema.safeParse({bag: {k1: 1, k2: 2, k3: 3}}).success, false);
+    });
   });
 });
