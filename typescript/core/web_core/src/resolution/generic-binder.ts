@@ -1431,12 +1431,7 @@ export class GenericBinder<T> {
     }
 
     const templateObj = value as Record<string, unknown>;
-    const templatePath =
-      typeof templateObj.path === 'string'
-        ? templateObj.path
-        : typeof templateObj['@path'] === 'string'
-          ? templateObj['@path']
-          : undefined;
+    const templatePath = typeof templateObj.path === 'string' ? templateObj.path : undefined;
     const templateComponentId =
       typeof templateObj.componentId === 'string' ? templateObj.componentId : undefined;
 

@@ -2786,4 +2786,39 @@ describe('GenericBinder @accessibility mirror', () => {
     sub.unsubscribe();
     surface.dispose();
   });
+
+  it('expands v1.0 ChildList templates with plain path and ignores non-spec @path', () => {
+    const catalog = new Catalog('test-tpl', '1.0', [], []);
+    const surface = new SurfaceModel('s1', catalog);
+    surface.dataModel.set('/items', [{label: 'A'}, {label: 'B'}]);
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c1',
+        'Container',
+        {
+          children: {componentId: 'row', path: '/items'},
+          invalidChildren: {componentId: 'row', '@path': '/items'},
+        },
+        catalog,
+      ),
+    );
+    const schema = z.object({
+      children: CommonSchemas.ChildList,
+      invalidChildren: CommonSchemas.ChildList,
+    });
+    const binder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c1'),
+      schema,
+    );
+    assert.deepStrictEqual(binder.snapshot.children, [
+      {id: 'row', basePath: '/items/0'},
+      {id: 'row', basePath: '/items/1'},
+    ]);
+    assert.deepStrictEqual(binder.snapshot.invalidChildren, {
+      componentId: 'row',
+      '@path': '/items',
+    });
+    binder.dispose();
+    surface.dispose();
+  });
 });
