@@ -84,7 +84,7 @@ def _is_contractable_options(val: Any) -> bool:
     return True
 
 
-def _contract_options(val: list[dict]) -> list[str]:
+def _contract_options(val: list[dict[str, Any]]) -> list[str]:
     """Contracts a list of option dicts into a list of strings."""
     return [item["label"] for item in val]
 
@@ -717,8 +717,8 @@ class ElementalDecompiler:
 
     def _format_checks(
         self,
-        checks_val: list,
-        C: dict,
+        checks_val: list[Any],
+        C: dict[str, Any],
         comp_ids: set[str],
     ) -> str | None:
         if not checks_val:

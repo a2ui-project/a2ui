@@ -1,6 +1,9 @@
 # [a2ui_agent](https://pub.dev/packages/a2ui_agent) Changelog
 
-## Unreleased
+## 0.4.0
+
+- **Breaking:** Requires `a2ui_core` `^0.8.0`, whose types this library
+  re-exports.
 
 - **Breaking:** (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`, and
   `@checks` on v1.0 components in `ExpressCompiler`, `DirectJsonResponseStream`,

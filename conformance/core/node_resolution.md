@@ -16,8 +16,9 @@ Runners load that catalog, seed a surface model (unless the fixture sets
 instead attaches the resolver when `s` is created), and create its resolver.
 These are model-level tests; wire-message validation stays in the
 message-processor suite. The initial fixtures use the published basic catalog.
-Declared functions are implemented as recorders returning null. These cases
-check invocation, not function results or side effects; no URL is opened.
+Catalog-declared functions are implemented as recorders returning null, whereas
+protocol system functions such as `@index` evaluate natively. Cases calling
+catalog functions check invocation rather than side effects; no URL is opened.
 
 A case asserts the initial state, then applies these operations in order:
 
@@ -69,7 +70,7 @@ The other expectations describe observable behavior:
 
 Absent `destroyed`, `events`, and `functions` mean none occurred. Counts reset
 per step; notification delivery order is not asserted. The initial expectation
-also checks that no actions or functions ran during resolution.
+also checks that no actions or catalog-declared functions ran during resolution.
 
 New and retired nodes are checked through structure, identity, and destruction,
 not their props-callback counts. A disappearing item may publish its final

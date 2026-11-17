@@ -15,7 +15,7 @@ Add this repository to your `Package.swift` dependencies using Swift Package Man
 
 ```swift
 dependencies: [
-  .package(url: "https://github.com/a2ui-project/a2ui", .upToNextMinor(from: "0.10.0")),
+  .package(url: "https://github.com/a2ui-project/a2ui", .upToNextMinor(from: "0.11.0")),
 ],
 targets: [
   .target(
@@ -31,7 +31,7 @@ targets: [
 ```
 
 In Xcode, open `File > Add Package Dependencies...`, enter `https://github.com/a2ui-project/a2ui`,
-select version `0.10.0` (Up to Next Minor Version), and add the library products to your target.
+select version `0.11.0` (Up to Next Minor Version), and add the library products to your target.
 
 Swift Package Manager derives the `package: "a2ui"` identifier from the repository URL rather than
 the manifest's `name` field. `A2UISwiftCore` exposes the `A2UICore` and `A2UIJSON` modules for
