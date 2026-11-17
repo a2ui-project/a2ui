@@ -112,10 +112,9 @@ export class NodeResolver<
    */
   constructor(
     surface: SurfaceModel<C, F>,
-    catalog: Catalog<C, F> | undefined = surface.defaultCatalog ??
-      (surface as {catalog?: Catalog<C, F>}).catalog,
+    catalog: Catalog<C, F> | undefined = surface.defaultCatalog ?? surface.catalog,
   ) {
-    const surfaceCatalog = surface.defaultCatalog ?? (surface as {catalog?: Catalog<C, F>}).catalog;
+    const surfaceCatalog = surface.defaultCatalog ?? surface.catalog;
     if ((catalog as unknown) !== (surfaceCatalog as unknown)) {
       throw new A2uiStateError(
         'NodeResolver requires the same catalog instance its surface was constructed with.',
@@ -413,9 +412,7 @@ export class NodeResolver<
    *   the component nor the surface defines one.
    */
   private catalogFor(model: ComponentModel): Catalog<C, F> | undefined {
-    return (model.catalog ??
-      this.surface.defaultCatalog ??
-      (this.surface as {catalog?: Catalog<C, F>}).catalog) as Catalog<C, F> | undefined;
+    return model.catalog ?? this.surface.defaultCatalog ?? this.surface.catalog;
   }
 
   private registerNode(
