@@ -17,7 +17,10 @@
 package com.google.a2ui.agent
 
 import com.google.a2ui.agent.catalogtransformers.ComponentPruningTransformer
+import com.google.a2ui.agent.parser.A2uiCompilationError
+import com.google.a2ui.agent.parser.A2uiCompilationException
 import com.google.a2ui.agent.parser.A2uiCompilationParseError
+import com.google.a2ui.agent.parser.A2uiCompilationValidationError
 import com.google.a2ui.agent.parser.A2uiPart
 import com.google.a2ui.agent.parser.AfterRejectedBlock
 import com.google.a2ui.agent.parser.BlockLexer
@@ -47,6 +50,8 @@ import com.google.a2ui.core.catalog.AgentFunction
 import com.google.a2ui.core.catalog.CatalogApi
 import com.google.a2ui.core.catalog.FunctionReturnType
 import com.google.a2ui.core.exceptions.A2uiError
+import com.google.a2ui.core.exceptions.A2uiParseError
+import com.google.a2ui.core.exceptions.A2uiValidationError
 import com.google.a2ui.core.processing.MessageProcessor
 import com.google.a2ui.core.schema.AgentFunctionResponseMessage
 import com.google.a2ui.core.schema.AgentToRendererMessage
@@ -61,6 +66,8 @@ import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.startCoroutine
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.serialization.json.JsonArray
@@ -430,5 +437,24 @@ class ExpressContractSeamTest {
       ),
       reply.response.value,
     )
+  }
+
+  @Test
+  fun compilationErrorDiamondSeparatesGeneralExceptionFromParseAndValidation() {
+    val general: A2uiError = A2uiCompilationException("unexpected failure", rawBlock = "raw")
+    val parse: A2uiError = A2uiCompilationParseError("bad syntax", rawBlock = "raw")
+    val validation: A2uiError = A2uiCompilationValidationError("bad prop", rawBlock = "raw")
+
+    assertIs<A2uiCompilationError>(general)
+    assertFalse(general is A2uiParseError)
+    assertFalse(general is A2uiValidationError)
+
+    assertIs<A2uiCompilationError>(parse)
+    assertIs<A2uiParseError>(parse)
+    assertFalse(parse is A2uiValidationError)
+
+    assertIs<A2uiCompilationError>(validation)
+    assertIs<A2uiValidationError>(validation)
+    assertFalse(validation is A2uiParseError)
   }
 }

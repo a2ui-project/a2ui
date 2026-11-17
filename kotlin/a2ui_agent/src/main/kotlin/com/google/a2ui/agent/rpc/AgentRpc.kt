@@ -162,7 +162,7 @@ class RendererToAgentMessageProcessor(
       val value = targetFn.second.handler.invoke(argsMap, ctx)
       AgentFunctionResponseMessage(FunctionResponse.success(msg.functionCallId, value))
     } catch (e: A2uiRpcError) {
-      errorReply(msg.functionCallId, e.code.name, e.message ?: "RPC failure")
+      errorReply(msg.functionCallId, e.rpcCode.name, e.message)
     } catch (t: Throwable) {
       errorReply(
         msg.functionCallId,

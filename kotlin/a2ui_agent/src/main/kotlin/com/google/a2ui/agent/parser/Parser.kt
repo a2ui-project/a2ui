@@ -108,7 +108,18 @@ abstract class Parser {
           when (val inner = rawPart.part) {
             is TextPart -> responseParts.add(inner)
             is RawA2uiPart -> {
-              val messages = compile(inner.a2uiRaw, isFinal = rawPart.isFinal)
+              val messages =
+                try {
+                  compile(inner.a2uiRaw, isFinal = rawPart.isFinal)
+                } catch (e: A2uiError) {
+                  throw e
+                } catch (e: Exception) {
+                  throw A2uiCompilationException(
+                    message = "Failed to compile A2UI block: ${e.message}",
+                    rawBlock = inner.a2uiRaw,
+                    cause = e,
+                  )
+                }
               val blockTouched = target.apply(messages, inProgress = !rawPart.isFinal)
               responseParts.add(A2uiPart(messages))
               touched.addAll(blockTouched)

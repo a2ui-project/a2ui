@@ -31,7 +31,7 @@ enum class RpcErrorCode {
 }
 
 /** Structured diagnostic detail attached to validation or integrity exceptions. */
-data class A2uiErrorDetail(val path: String, val code: String, val message: String)
+data class A2uiErrorDetail(val code: String, val message: String, val path: String? = null)
 
 /**
  * Root runtime exception for all A2UI Core and Agent SDK failures.
@@ -41,9 +41,11 @@ data class A2uiErrorDetail(val path: String, val code: String, val message: Stri
  * capture structural and topological rejections uniformly across SDKs.
  */
 open class A2uiError(
-  message: String,
+  override val message: String,
   cause: Throwable? = null,
   val details: List<A2uiErrorDetail> = emptyList(),
+  val code: String = "a2ui_error",
+  val path: String? = null,
 ) : RuntimeException(message, cause)
 
 /** Raised when wire envelopes, identifiers, or component properties violate schema contracts. */
@@ -51,44 +53,75 @@ open class A2uiValidationError(
   message: String,
   cause: Throwable? = null,
   details: List<A2uiErrorDetail> = emptyList(),
-) : A2uiError(message, cause, details)
+  code: String = "validation_error",
+  path: String? = null,
+) : A2uiError(message = message, cause = cause, details = details, code = code, path = path)
 
 /** Raised when loading, negotiating, or resolving component catalogs fails. */
 open class A2uiCatalogError(
   message: String,
   cause: Throwable? = null,
   details: List<A2uiErrorDetail> = emptyList(),
-) : A2uiError(message, cause, details)
+  code: String = "catalog_error",
+  path: String? = null,
+) : A2uiError(message = message, cause = cause, details = details, code = code, path = path)
 
 /** Raised when surface lifecycle, root presence, cycles, or parent-child links are broken. */
 open class A2uiIntegrityError(
   message: String,
   cause: Throwable? = null,
   details: List<A2uiErrorDetail> = emptyList(),
-) : A2uiValidationError(message, cause, details)
+  code: String = "integrity_error",
+  path: String? = null,
+) :
+  A2uiValidationError(
+    message = message,
+    cause = cause,
+    details = details,
+    code = code,
+    path = path,
+  )
 
 /** Raised when component graphs or nested function calls exceed maximum recursion depth. */
 open class A2uiRecursionError(
   message: String,
   cause: Throwable? = null,
   details: List<A2uiErrorDetail> = emptyList(),
-) : A2uiValidationError(message, cause, details)
+  code: String = "recursion_error",
+  path: String? = null,
+) :
+  A2uiValidationError(
+    message = message,
+    cause = cause,
+    details = details,
+    code = code,
+    path = path,
+  )
 
 /** Raised when a remote function call fails, times out, is cancelled, or lacks a listener. */
 class A2uiRpcError(
   message: String,
-  val code: RpcErrorCode = RpcErrorCode.EXECUTION_ERROR,
+  val rpcCode: RpcErrorCode = RpcErrorCode.EXECUTION_ERROR,
   cause: Throwable? = null,
-) : A2uiError(message, cause)
+) : A2uiError(message = message, cause = cause, code = rpcCode.name.lowercase())
 
 /** Raised when a JSON Pointer read or write encounters an invalid path or primitive parent. */
-class A2uiDataError(message: String, cause: Throwable? = null) : A2uiError(message, cause)
+class A2uiDataError(message: String, cause: Throwable? = null) :
+  A2uiError(message = message, cause = cause, code = "data_error")
 
 /** Raised when a surface or component state container is asked for an illegal state transition. */
-class A2uiStateError(message: String, cause: Throwable? = null) : A2uiError(message, cause)
+class A2uiStateError(message: String, cause: Throwable? = null) :
+  A2uiError(message = message, cause = cause, code = "state_error")
 
 /** Raised when raw LLM output or expression syntax cannot be tokenized or parsed. */
-open class A2uiParseError(message: String, cause: Throwable? = null) : A2uiError(message, cause)
+open class A2uiParseError(
+  message: String,
+  cause: Throwable? = null,
+  details: List<A2uiErrorDetail> = emptyList(),
+  code: String = "parse_error",
+  path: String? = null,
+) : A2uiError(message = message, cause = cause, details = details, code = code, path = path)
 
 /** Raised when a bound dynamic expression or regex guard fails during evaluation. */
-class A2uiExpressionError(message: String, cause: Throwable? = null) : A2uiError(message, cause)
+class A2uiExpressionError(message: String, cause: Throwable? = null) :
+  A2uiError(message = message, cause = cause, code = "expression_error")

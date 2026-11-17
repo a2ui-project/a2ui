@@ -16,47 +16,68 @@
 
 package com.google.a2ui.agent.parser
 
+import com.google.a2ui.core.exceptions.A2uiError
 import com.google.a2ui.core.exceptions.A2uiErrorDetail
 import com.google.a2ui.core.exceptions.A2uiParseError
 import com.google.a2ui.core.exceptions.A2uiValidationError
 
 /**
- * Shared contract across parse-phase and validation-phase format compilation failures
- * (`a2ui_agent.blueprint.md` §3.C).
+ * Marker contract implemented by all inference-format compilation errors (`a2ui_agent.blueprint.md`
+ * §3.C).
  *
- * Resolves the single-inheritance diamond on the JVM:
- * - [A2uiCompilationParseError] extends [A2uiParseError] AND implements [A2uiCompilationFailure]
- * - [A2uiCompilationValidationError] extends [A2uiValidationError] AND implements
- *   [A2uiCompilationFailure]
+ * Resolves Python's multiple-inheritance diamond on the JVM without making general compilation
+ * failures count as [A2uiParseError]:
+ * - [A2uiCompilationException] extends [A2uiError] and implements [A2uiCompilationError]
+ * - [A2uiCompilationParseError] extends [A2uiParseError] and implements [A2uiCompilationError]
+ * - [A2uiCompilationValidationError] extends [A2uiValidationError] and implements
+ *   [A2uiCompilationError]
+ *
+ * Because JVM `catch` clauses require a `Throwable` subclass rather than an interface, callers
+ * catch [A2uiError] and check `e is A2uiCompilationError`.
  */
-interface A2uiCompilationFailure {
-  val message: String?
+interface A2uiCompilationError {
+  val message: String
   val rawBlock: String?
-  val line: Int?
-  val column: Int?
 }
 
-open class A2uiCompilationError(
+/** General inference-format compilation failure not narrowed to syntax or schema validation. */
+open class A2uiCompilationException(
   override val message: String,
   override val rawBlock: String? = null,
-  override val line: Int? = null,
-  override val column: Int? = null,
+  code: String = "compilation_error",
+  path: String? = null,
+  details: List<A2uiErrorDetail> = emptyList(),
   cause: Throwable? = null,
-) : A2uiParseError(message, cause), A2uiCompilationFailure
+) :
+  A2uiError(message = message, cause = cause, details = details, code = code, path = path),
+  A2uiCompilationError
 
+/** Syntactic parse failure raised while compiling an inference-format block. */
 open class A2uiCompilationParseError(
   message: String,
-  rawBlock: String? = null,
-  line: Int? = null,
-  column: Int? = null,
-  cause: Throwable? = null,
-) : A2uiCompilationError(message, rawBlock, line, column, cause)
-
-open class A2uiCompilationValidationError(
-  override val message: String,
   override val rawBlock: String? = null,
-  override val line: Int? = null,
-  override val column: Int? = null,
-  cause: Throwable? = null,
+  code: String = "compilation_parse_error",
+  path: String? = null,
   details: List<A2uiErrorDetail> = emptyList(),
-) : A2uiValidationError(message, cause, details), A2uiCompilationFailure
+  cause: Throwable? = null,
+) :
+  A2uiParseError(message = message, cause = cause, details = details, code = code, path = path),
+  A2uiCompilationError
+
+/** Semantic or schema validation failure raised while compiling an inference-format block. */
+open class A2uiCompilationValidationError(
+  message: String,
+  override val rawBlock: String? = null,
+  code: String = "compilation_validation_error",
+  path: String? = null,
+  details: List<A2uiErrorDetail> = emptyList(),
+  cause: Throwable? = null,
+) :
+  A2uiValidationError(
+    message = message,
+    cause = cause,
+    details = details,
+    code = code,
+    path = path,
+  ),
+  A2uiCompilationError
