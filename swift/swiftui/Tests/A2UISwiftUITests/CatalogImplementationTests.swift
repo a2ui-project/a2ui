@@ -24,8 +24,10 @@ private struct CatalogEnvironmentProbeView: View {
   let onRead: ([String: Catalog<ComponentImplementation>], String?) -> Void
 
   var body: some View {
-    let _ = onRead(catalogs, defaultCatalogID)
     Color.clear
+      .onAppear {
+        onRead(catalogs, defaultCatalogID)
+      }
   }
 }
 

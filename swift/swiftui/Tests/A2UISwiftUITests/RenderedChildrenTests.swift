@@ -148,7 +148,7 @@ struct RenderedChildrenTests {
     let rootView =
       Surface(viewModel: viewModel, catalog: catalog)
       .frame(width: size.width, height: size.height)
-      .coordinateSpace(name: "container")
+      .coordinateSpace(.named("container"))
 
     #if canImport(AppKit)
       let hostingView = NSHostingView(rootView: rootView)
