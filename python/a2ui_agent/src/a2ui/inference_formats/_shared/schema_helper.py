@@ -31,6 +31,7 @@ from a2ui.core import (
     inline_local_refs,
     to_protocol_version,
 )
+from a2ui.core.common import is_at_least_version
 from a2ui.core.schema import ProtocolVersion
 from a2ui.utils.component_envelope import AT_ENVELOPE_MIXIN_KEYS, ENVELOPE_MIXIN_NAMES
 
@@ -113,18 +114,46 @@ def combinator_subschemas(
     return result
 
 
+def _is_object_or_ref_schema(sub: Any) -> bool:
+    """Returns whether `sub` is a schema declaring an object, `$ref`, or combinator."""
+    if not isinstance(sub, dict):
+        return False
+    return (
+        "$ref" in sub
+        or sub.get("type") == "object"
+        or isinstance(sub.get("properties"), dict)
+        or any(k in sub for k in ("allOf", "oneOf", "anyOf"))
+    )
+
+
+def _is_flattened_action(schema: dict[str, Any]) -> bool:
+    """Returns whether `schema` declares a flattened `Action` wire branch."""
+    if schema.get("type") not in (None, "object"):
+        return False
+    props = schema.get("properties")
+    reqs = schema.get("required")
+    if not isinstance(props, dict) or not isinstance(reqs, list):
+        return False
+    keys = set(props)
+    if keys not in ({"event"}, {"functionCall"}):
+        return False
+    key = next(iter(keys))
+    return key in reqs and _is_object_or_ref_schema(props[key])
+
+
 def is_action_slot(schema: Any, visited: set[int] | None = None) -> bool:
     """Checks whether a property schema is an Action slot.
 
     A property is an action slot when its schema references the common `Action`
-    def, directly or through `oneOf`/`anyOf`/`allOf`.
+    def or declares a flattened `Action` branch (`{event}` or `{functionCall}`),
+    directly or through `oneOf`/`anyOf`/`allOf`.
 
     Args:
         schema: The property JSON schema to inspect.
-        visited: Active schema object IDs on the current recursion path.
+        visited: Seen schema object IDs for cycle and diamond-DAG deduplication.
 
     Returns:
-        True if the schema references the common `Action` type.
+        True if the schema references or matches an `Action` slot.
     """
     if not isinstance(schema, dict):
         return False
@@ -134,15 +163,12 @@ def is_action_slot(schema: Any, visited: set[int] | None = None) -> bool:
     if obj_id in visited:
         return False
     visited.add(obj_id)
-    try:
-        if common_def_name(schema.get("$ref")) == "Action":
-            return True
-        return any(
-            is_action_slot(sub, visited)
-            for sub in combinator_subschemas(schema, ("allOf", "oneOf", "anyOf"))
-        )
-    finally:
-        visited.remove(obj_id)
+    if common_def_name(schema.get("$ref")) == "Action" or _is_flattened_action(schema):
+        return True
+    return any(
+        is_action_slot(sub, visited)
+        for sub in combinator_subschemas(schema, ("allOf", "oneOf", "anyOf"))
+    )
 
 
 def _find_enum(s: Any, visited: set[int] | None = None) -> list[Any] | None:
@@ -155,17 +181,14 @@ def _find_enum(s: Any, visited: set[int] | None = None) -> list[Any] | None:
     if obj_id in visited:
         return None
     visited.add(obj_id)
-    try:
-        enum = s.get("enum")
-        if isinstance(enum, list):
-            return enum
-        for sub_s in combinator_subschemas(s):
-            res = _find_enum(sub_s, visited)
-            if res:
-                return res
-        return None
-    finally:
-        visited.remove(obj_id)
+    enum = s.get("enum")
+    if isinstance(enum, list):
+        return enum
+    for sub_s in combinator_subschemas(s):
+        res = _find_enum(sub_s, visited)
+        if res:
+            return res
+    return None
 
 
 def system_function_schemas(common_types: Any) -> dict[str, dict[str, Any]]:
@@ -241,24 +264,21 @@ def _ordered_component_sub_schemas(schema: Any) -> list[dict[str, Any]]:
         if not isinstance(node, dict) or id(node) in visited:
             return
         visited.add(id(node))
-        try:
-            props = node.get("properties")
-            is_specific = isinstance(props, dict) and "component" in props
-            if is_specific:
-                specific.append(node)
-            elif (
-                not is_root
-                or isinstance(props, dict)
-                or "required" in node
-                or "$ref" in node
-            ):
-                common.append(node)
-            all_of = node.get("allOf")
-            if isinstance(all_of, list):
-                for sub in all_of:
-                    _visit(sub, is_root=False)
-        finally:
-            visited.remove(id(node))
+        props = node.get("properties")
+        is_specific = isinstance(props, dict) and "component" in props
+        if is_specific:
+            specific.append(node)
+        elif (
+            not is_root
+            or isinstance(props, dict)
+            or "required" in node
+            or "$ref" in node
+        ):
+            common.append(node)
+        all_of = node.get("allOf")
+        if isinstance(all_of, list):
+            for sub in all_of:
+                _visit(sub, is_root=False)
 
     _visit(schema, is_root=True)
     return [*specific, *common]
@@ -318,13 +338,18 @@ class CatalogSchemaHelper:
         catalog_schema = dict(catalog.to_json() or {})
         self.catalog = inline_local_refs(catalog_schema, catalog_schema)
         try:
-            self.common_types: dict[str, Any] = get_common_types_schema_map(
-                to_protocol_version(protocol_version or catalog.protocol_version)
-            )
+            pv = to_protocol_version(protocol_version or catalog.protocol_version)
+            self.common_types: dict[str, Any] = get_common_types_schema_map(pv)
             self.common_types_loaded: bool = True
+            self.protocol_version: ProtocolVersion | None = pv
+            self.at_least_v10: bool = is_at_least_version(pv, ProtocolVersion.V1_0)
         except (A2uiCatalogError, ValueError):
             self.common_types = {}
             self.common_types_loaded = False
+            self.protocol_version = None
+            self.at_least_v10 = True
+        self.path_key: str = "@path" if self.at_least_v10 else "path"
+        self.call_key: str = "@call" if self.at_least_v10 else "call"
         self.system_functions = system_function_schemas(self.common_types)
         self.components = dict(self.catalog.get("components", {}))
         self.functions = dict(self.catalog.get("functions", {}))
@@ -599,17 +624,19 @@ class CatalogSchemaHelper:
             if id(s) in visited:
                 return None
             visited.add(id(s))
-            try:
-                return _semantic_ref_type(s.get("$ref")) or next(
-                    (
-                        res
-                        for sub_s in combinator_subschemas(s)
-                        if (res := _crawl_ref(sub_s, visited)) is not None
-                    ),
-                    None,
-                )
-            finally:
-                visited.remove(id(s))
+            direct = _semantic_ref_type(s.get("$ref"))
+            if direct is not None:
+                return direct
+            if _is_flattened_action(s):
+                return "Action"
+            return next(
+                (
+                    res
+                    for sub_s in combinator_subschemas(s)
+                    if (res := _crawl_ref(sub_s, visited)) is not None
+                ),
+                None,
+            )
 
         return _crawl_ref(p_schema)
 

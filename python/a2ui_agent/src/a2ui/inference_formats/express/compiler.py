@@ -283,25 +283,34 @@ def _set_nested_path(d: dict[str, Any], path_str: str, val: Any) -> None:
     current[idx] = val
 
 
-def _is_direct_databinding_schema(schema: dict[str, Any]) -> bool:
+def _is_direct_databinding_schema(
+    schema: dict[str, Any], path_key: str = "@path"
+) -> bool:
     """Returns whether `schema` directly declares a dynamic or data-binding shape."""
     ref = schema.get("$ref")
     if isinstance(ref, str) and ("DataBinding" in ref or "Dynamic" in ref):
         return True
+    if schema.get("type") not in (None, "object"):
+        return False
     props = schema.get("properties")
+    reqs = schema.get("required")
     return (
         isinstance(props, dict)
-        and ("path" in props or "@path" in props)
-        and "componentId" not in props
+        and set(props) == {path_key}
+        and isinstance(reqs, list)
+        and path_key in reqs
     )
 
 
-def _schema_allows_databinding(schema: Any, visited: set[int] | None = None) -> bool:
+def _schema_allows_databinding(
+    schema: Any, path_key: str = "@path", visited: set[int] | None = None
+) -> bool:
     """Recursively checks if a property's schema allows a dynamic DataBinding ref.
 
     Args:
         schema: The JSON schema dict for the target property.
-        visited: Active schema object IDs on the current recursion path.
+        path_key: The wire key for data bindings (`@path` in v1.0+, `path` before).
+        visited: Seen schema object IDs for cycle and diamond-DAG deduplication.
 
     Returns:
         True if the schema permits dynamic databinding; False otherwise.
@@ -314,17 +323,61 @@ def _schema_allows_databinding(schema: Any, visited: set[int] | None = None) -> 
     if obj_id in visited:
         return False
     visited.add(obj_id)
-    try:
-        if _is_direct_databinding_schema(schema):
+    if _is_direct_databinding_schema(schema, path_key):
+        return True
+    return any(
+        _schema_allows_databinding(sub, path_key, visited)
+        for sub in combinator_subschemas(schema, ("allOf", "oneOf", "anyOf"))
+    )
+
+
+def _allows_databinding_at_ast(
+    node: Any,
+    schema: Any,
+    comp_helper: CatalogSchemaHelper,
+    raw_symbols: dict[str, Any],
+    path_key: str,
+    seen: frozenset[str] = frozenset(),
+) -> bool:
+    """Validates positionally that every `$path` binding in `node` is permitted by `schema`."""
+    if isinstance(node, PathNode):
+        return schema is None or _schema_allows_databinding(schema, path_key)
+    if isinstance(node, VariableNode):
+        if node.name in seen or node.name not in raw_symbols:
             return True
-        if "items" in schema and _schema_allows_databinding(schema["items"], visited):
-            return True
-        return any(
-            _schema_allows_databinding(sub, visited)
-            for sub in combinator_subschemas(schema, ("allOf", "oneOf", "anyOf"))
+        return _allows_databinding_at_ast(
+            raw_symbols[node.name],
+            schema,
+            comp_helper,
+            raw_symbols,
+            path_key,
+            seen | {node.name},
         )
-    finally:
-        visited.remove(obj_id)
+    if isinstance(node, list):
+        item_schema = (
+            comp_helper.resolve_item_schema(schema)
+            if isinstance(schema, dict)
+            else None
+        )
+        return all(
+            _allows_databinding_at_ast(
+                item, item_schema, comp_helper, raw_symbols, path_key, seen
+            )
+            for item in node
+        )
+    if isinstance(node, dict):
+        for k, v in node.items():
+            sub_schema = (
+                comp_helper.resolve_property_schema(schema, k)
+                if isinstance(schema, dict)
+                else None
+            )
+            if not _allows_databinding_at_ast(
+                v, sub_schema, comp_helper, raw_symbols, path_key, seen
+            ):
+                return False
+        return True
+    return True
 
 
 def _describe_express_value(val: Any) -> str:
@@ -431,16 +484,13 @@ def _schema_has_label_value(sub: Any, visited: set[int] | None = None) -> bool:
     if obj_id in visited:
         return False
     visited.add(obj_id)
-    try:
-        props = sub.get("properties")
-        if isinstance(props, dict) and "label" in props and "value" in props:
-            return True
-        return any(
-            _schema_has_label_value(s, visited)
-            for s in combinator_subschemas(sub, ("allOf", "oneOf", "anyOf"))
-        )
-    finally:
-        visited.remove(obj_id)
+    props = sub.get("properties")
+    if isinstance(props, dict) and "label" in props and "value" in props:
+        return True
+    return any(
+        _schema_has_label_value(s, visited)
+        for s in combinator_subschemas(sub, ("allOf", "oneOf", "anyOf"))
+    )
 
 
 def _schema_expects_option_objects(
@@ -455,15 +505,12 @@ def _schema_expects_option_objects(
     if obj_id in visited:
         return False
     visited.add(obj_id)
-    try:
-        if "items" in schema:
-            return _schema_has_label_value(schema["items"])
-        return any(
-            _schema_expects_option_objects(sub, visited)
-            for sub in combinator_subschemas(schema, ("allOf", "oneOf", "anyOf"))
-        )
-    finally:
-        visited.remove(obj_id)
+    if "items" in schema:
+        return _schema_has_label_value(schema["items"])
+    return any(
+        _schema_expects_option_objects(sub, visited)
+        for sub in combinator_subschemas(schema, ("allOf", "oneOf", "anyOf"))
+    )
 
 
 _IDENT_START = r"a-zA-Z_"
@@ -2137,8 +2184,10 @@ class ExpressCompiler:
             )
             if (
                 prop_schema
-                and not _schema_allows_databinding(prop_schema)
                 and _has_databinding(arg, raw_symbols)
+                and not _allows_databinding_at_ast(
+                    arg, prop_schema, comp_helper, raw_symbols, ctx.path_key
+                )
             ):
                 raise ExpressForbiddenDatabindingError(comp_name, prop_name)
             if (

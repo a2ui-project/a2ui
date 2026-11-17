@@ -749,6 +749,146 @@ class TestExpressPromptGenerator(unittest.TestCase):
         self.assertIn("TreeWidget(node (static))", instructions)
         self.assertIn("* label", instructions)
 
+    def test_diamond_all_of_deduplication_and_domain_maps_and_version_strict_paths(
+        self,
+    ):
+        """Deduplicates diamond allOf mixins, keeps domain map keys, and enforces versioned path keys."""
+        from a2ui.inference_formats._shared.schema_helper import (
+            _ordered_component_sub_schemas,
+        )
+
+        shared_base = {
+            "type": "object",
+            "properties": {"shared": {"type": "string"}},
+        }
+        mixin_a = {"allOf": [shared_base]}
+        mixin_b = {"allOf": [shared_base]}
+        diamond = {
+            "type": "object",
+            "properties": {"component": {"const": "Diamond"}},
+            "allOf": [mixin_a, mixin_b],
+        }
+        ordered = _ordered_component_sub_schemas(diamond)
+        self.assertEqual(sum(1 for sub in ordered if sub is shared_base), 1)
+
+        v1_cat = Catalog.from_json(
+            protocol_version=ProtocolVersion.V1_0,
+            catalog_id="https://example.com/domain_v1.json",
+            catalog_schema={
+                "catalogId": "https://example.com/domain_v1.json",
+                "protocolVersion": "1.0",
+                "components": {
+                    "DomainWidget": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "DomainWidget"},
+                            "file": {
+                                "type": "object",
+                                "properties": {
+                                    "path": {
+                                        "type": "string",
+                                        "description": "File path",
+                                    }
+                                },
+                            },
+                            "log": {
+                                "type": "object",
+                                "properties": {
+                                    "event": {
+                                        "type": "string",
+                                        "description": "Event name",
+                                    }
+                                },
+                                "required": ["event"],
+                            },
+                            "flatAction": {
+                                "oneOf": [
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "event": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "name": {"type": "string"}
+                                                },
+                                                "required": ["name"],
+                                            }
+                                        },
+                                        "required": ["event"],
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "functionCall": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "@call": {"type": "string"}
+                                                },
+                                                "required": ["@call"],
+                                            }
+                                        },
+                                        "required": ["functionCall"],
+                                    },
+                                ]
+                            },
+                            "barePath": {
+                                "type": "object",
+                                "properties": {"path": {"type": "string"}},
+                                "required": ["path"],
+                            },
+                        },
+                        "required": ["component"],
+                    }
+                },
+            },
+        )
+        v1_instructions = ExpressFormat(
+            [v1_cat]
+        ).prompt_generator.generate_catalog_instructions(catalog=v1_cat)
+        self.assertIn(
+            "• DomainWidget(file? (static), log? (static), flatAction? (static),"
+            " barePath? (static))",
+            v1_instructions,
+        )
+        self.assertIn("* path - File path", v1_instructions)
+        self.assertIn("* event - Event name", v1_instructions)
+        self.assertNotIn("functionCall", v1_instructions)
+
+        v09_cat = Catalog.from_json(
+            protocol_version=ProtocolVersion.V0_9,
+            catalog_id="https://example.com/domain_v09.json",
+            catalog_schema={
+                "catalogId": "https://example.com/domain_v09.json",
+                "protocolVersion": "0.9",
+                "components": {
+                    "V09Widget": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "V09Widget"},
+                            "barePath": {
+                                "type": "object",
+                                "properties": {"path": {"type": "string"}},
+                                "required": ["path"],
+                            },
+                            "atPathOnly": {
+                                "type": "object",
+                                "properties": {"@path": {"type": "string"}},
+                                "required": ["@path"],
+                            },
+                        },
+                        "required": ["component"],
+                    }
+                },
+            },
+        )
+        v09_instructions = ExpressFormat(
+            [v09_cat]
+        ).prompt_generator.generate_catalog_instructions(catalog=v09_cat)
+        self.assertIn(
+            "• V09Widget(barePath?, atPathOnly? (static))",
+            v09_instructions,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

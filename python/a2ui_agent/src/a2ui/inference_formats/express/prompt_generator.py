@@ -228,23 +228,43 @@ def _multi_catalog_rules(helpers: Mapping[str, CatalogSchemaHelper]) -> str:
     return "\n".join(rules)
 
 
-def _is_direct_binding_prop_schema(prop_schema: dict[str, Any]) -> bool:
+def _is_object_or_ref_schema(sub: Any) -> bool:
+    """Returns whether `sub` is a schema declaring an object, `$ref`, or combinator."""
+    if not isinstance(sub, dict):
+        return False
+    return (
+        "$ref" in sub
+        or sub.get("type") == "object"
+        or isinstance(sub.get("properties"), dict)
+        or any(k in sub for k in ("allOf", "oneOf", "anyOf"))
+    )
+
+
+def _is_direct_binding_prop_schema(
+    prop_schema: dict[str, Any], path_key: str = "@path"
+) -> bool:
     """Returns whether `prop_schema` directly declares a dynamic or data-binding shape."""
     ref = prop_schema.get("$ref")
     if isinstance(ref, str) and (
         "DataBinding" in ref or "Dynamic" in ref or "ChildList" in ref
     ):
         return True
+    if prop_schema.get("type") not in (None, "object"):
+        return False
     props = prop_schema.get("properties")
-    return (
-        isinstance(props, dict)
-        and ("@path" in props or "path" in props)
-        and "componentId" not in props
-    )
+    reqs = prop_schema.get("required")
+    if not isinstance(props, dict) or not isinstance(reqs, list):
+        return False
+    keys = set(props)
+    if keys == {path_key} and path_key in reqs:
+        return True
+    return keys == {"componentId", "path"} and {"componentId", "path"} <= set(reqs)
 
 
 def _schema_allows_databinding(
-    prop_schema: Any, visited: set[int] | None = None
+    prop_schema: Any,
+    path_key: str = "@path",
+    visited: set[int] | None = None,
 ) -> bool:
     """Helper to check if a JSON schema allows data binding (DynamicString/DataBinding, etc)."""
     if not isinstance(prop_schema, dict):
@@ -255,15 +275,12 @@ def _schema_allows_databinding(
     if obj_id in visited:
         return False
     visited.add(obj_id)
-    try:
-        if _is_direct_binding_prop_schema(prop_schema):
-            return True
-        return any(
-            _schema_allows_databinding(sub, visited)
-            for sub in combinator_subschemas(prop_schema)
-        )
-    finally:
-        visited.remove(obj_id)
+    if _is_direct_binding_prop_schema(prop_schema, path_key):
+        return True
+    return any(
+        _schema_allows_databinding(sub, path_key, visited)
+        for sub in combinator_subschemas(prop_schema)
+    )
 
 
 def _get_schema_enum(
@@ -278,38 +295,45 @@ def _get_schema_enum(
     if obj_id in visited:
         return None
     visited.add(obj_id)
-    try:
-        if isinstance(prop_schema.get("enum"), list):
-            return [str(x) for x in prop_schema["enum"]]
-        for sub in combinator_subschemas(prop_schema):
-            enum_val = _get_schema_enum(sub, visited)
-            if enum_val:
-                return enum_val
-        return None
-    finally:
-        visited.remove(obj_id)
+    if isinstance(prop_schema.get("enum"), list):
+        return [str(x) for x in prop_schema["enum"]]
+    for sub in combinator_subschemas(prop_schema):
+        enum_val = _get_schema_enum(sub, visited)
+        if enum_val:
+            return enum_val
+    return None
 
 
-def _has_wire_envelope_properties(s: dict[str, Any]) -> bool:
+def _has_wire_envelope_properties(
+    s: dict[str, Any], path_key: str = "@path", call_key: str = "@call"
+) -> bool:
     """Returns whether `s['properties']` has the shape of a protocol wire envelope."""
     props = s.get("properties")
-    if not isinstance(props, dict):
+    reqs = s.get("required")
+    if not isinstance(props, dict) or not isinstance(reqs, list):
         return False
     keys = set(props)
-    if keys in ({"@path"}, {"path"}, {"componentId", "path"}):
+    req_set = set(reqs)
+    if keys == {path_key} and path_key in req_set:
         return True
-    if "@call" in keys or ("call" in keys and bool(keys & {"args", "returnType"})):
+    if keys == {"componentId", "path"} and {"componentId", "path"} <= req_set:
         return True
-    reqs = s.get("required")
-    return (
-        keys in ({"event"}, {"functionCall"})
-        and isinstance(reqs, list)
-        and bool(keys & set(reqs))
-    )
+    if call_key == "@call":
+        if "@call" in keys and "@call" in req_set:
+            return True
+    elif "call" in keys and bool(keys & {"args", "returnType"}) and "call" in req_set:
+        return True
+    if keys in ({"event"}, {"functionCall"}):
+        key = next(iter(keys))
+        return key in req_set and _is_object_or_ref_schema(props[key])
+    return False
 
 
 def _is_protocol_wire_envelope(
-    s: dict[str, Any], visited: set[int] | None = None
+    s: dict[str, Any],
+    path_key: str = "@path",
+    call_key: str = "@call",
+    visited: set[int] | None = None,
 ) -> bool:
     """Returns whether an object schema is an A2UI protocol wire envelope."""
     if not isinstance(s, dict):
@@ -322,20 +346,21 @@ def _is_protocol_wire_envelope(
     if obj_id in visited:
         return False
     visited.add(obj_id)
-    try:
-        all_of = s.get("allOf")
-        if isinstance(all_of, list) and any(
-            isinstance(sub, dict) and _is_protocol_wire_envelope(sub, visited)
-            for sub in all_of
-        ):
-            return True
-        return _has_wire_envelope_properties(s)
-    finally:
-        visited.remove(obj_id)
+    all_of = s.get("allOf")
+    if isinstance(all_of, list) and any(
+        isinstance(sub, dict)
+        and _is_protocol_wire_envelope(sub, path_key, call_key, visited)
+        for sub in all_of
+    ):
+        return True
+    return _has_wire_envelope_properties(s, path_key, call_key)
 
 
 def _merge_all_of_properties(
-    s: dict[str, Any], visited: set[int]
+    s: dict[str, Any],
+    visited: set[int],
+    path_key: str = "@path",
+    call_key: str = "@call",
 ) -> dict[str, Any] | None:
     """Merges object properties across an `allOf` schema and its own `properties`."""
     all_of = s.get("allOf")
@@ -343,7 +368,7 @@ def _merge_all_of_properties(
         return None
     merged_props: dict[str, Any] = {}
     for sub in all_of:
-        sub_props = _resolve_object_properties(sub, visited)
+        sub_props = _resolve_object_properties(sub, path_key, call_key, visited)
         if sub_props:
             merged_props.update(sub_props)
     own_props = s.get("properties")
@@ -353,7 +378,10 @@ def _merge_all_of_properties(
 
 
 def _resolve_object_properties(
-    schema: Any, visited: set[int] | None = None
+    schema: Any,
+    path_key: str = "@path",
+    call_key: str = "@call",
+    visited: set[int] | None = None,
 ) -> dict[str, Any] | None:
     """Resolves the property map of an object schema, including combinators."""
     if not isinstance(schema, dict):
@@ -365,16 +393,16 @@ def _resolve_object_properties(
         return None
     visited.add(obj_id)
     try:
-        if _is_protocol_wire_envelope(schema):
+        if _is_protocol_wire_envelope(schema, path_key, call_key):
             return None
-        merged = _merge_all_of_properties(schema, visited)
+        merged = _merge_all_of_properties(schema, visited, path_key, call_key)
         if merged is not None:
             return merged
         props = schema.get("properties")
         if schema.get("type") in ("object", None) and isinstance(props, dict) and props:
             return props
         for sub in combinator_subschemas(schema, ("oneOf", "anyOf")):
-            resolved = _resolve_object_properties(sub, visited)
+            resolved = _resolve_object_properties(sub, path_key, call_key, visited)
             if resolved:
                 return resolved
         return None
@@ -383,21 +411,26 @@ def _resolve_object_properties(
 
 
 def _direct_structured_property(
-    schema: dict[str, Any], visited: set[int]
+    schema: dict[str, Any],
+    path_key: str = "@path",
+    call_key: str = "@call",
 ) -> tuple[Literal["object", "array"], dict[str, Any]] | None:
     """Resolves a direct object or array-of-objects structured property."""
     props = schema.get("properties")
     if schema.get("type") in ("object", None) and isinstance(props, dict) and props:
         return ("object", props)
     if schema.get("type") == "array" and isinstance(schema.get("items"), dict):
-        item_props = _resolve_object_properties(schema["items"], visited)
+        item_props = _resolve_object_properties(schema["items"], path_key, call_key)
         if item_props:
             return ("array", item_props)
     return None
 
 
 def _resolve_structured_property(
-    schema: Any, visited: set[int] | None = None
+    schema: Any,
+    path_key: str = "@path",
+    call_key: str = "@call",
+    visited: set[int] | None = None,
 ) -> tuple[Literal["object", "array"], dict[str, Any]] | None:
     """Resolves whether a property schema represents a map or list of maps."""
     if not isinstance(schema, dict):
@@ -405,19 +438,19 @@ def _resolve_structured_property(
     if visited is None:
         visited = set()
     obj_id = id(schema)
-    if obj_id in visited or _is_protocol_wire_envelope(schema):
+    if obj_id in visited or _is_protocol_wire_envelope(schema, path_key, call_key):
         return None
     if isinstance(schema.get("allOf"), list):
-        obj_props = _resolve_object_properties(schema, visited)
+        obj_props = _resolve_object_properties(schema, path_key, call_key)
         if obj_props:
             return ("object", obj_props)
     visited.add(obj_id)
     try:
-        direct = _direct_structured_property(schema, visited)
+        direct = _direct_structured_property(schema, path_key, call_key)
         if direct is not None:
             return direct
         for sub in combinator_subschemas(schema):
-            resolved = _resolve_structured_property(sub, visited)
+            resolved = _resolve_structured_property(sub, path_key, call_key, visited)
             if resolved:
                 return resolved
         return None
@@ -426,14 +459,17 @@ def _resolve_structured_property(
 
 
 def _format_component_arg_label(
-    prop_name: str, is_required: bool, p_schema: dict[str, Any] | None
+    prop_name: str,
+    is_required: bool,
+    p_schema: dict[str, Any] | None,
+    path_key: str = "@path",
 ) -> str:
     """Formats one component signature argument with optionality and static/ID suffix."""
     arg_label = f"{prop_name}{'' if is_required else '?'}"
     ref = p_schema.get("$ref") if isinstance(p_schema, dict) else None
     if isinstance(ref, str) and "ComponentId" in ref:
         return f"{arg_label} (component ID)"
-    if not _schema_allows_databinding(p_schema):
+    if not _schema_allows_databinding(p_schema, path_key):
         return f"{arg_label} (static)"
     return arg_label
 
@@ -470,7 +506,10 @@ def _append_structured_keys(
 
 
 def _format_component_property_detail(
-    prop_name: str, p_schema: dict[str, Any] | None
+    prop_name: str,
+    p_schema: dict[str, Any] | None,
+    path_key: str = "@path",
+    call_key: str = "@call",
 ) -> str | None:
     """Formats the bullet detail line (and nested map keys) for a component property."""
     if not isinstance(p_schema, dict):
@@ -486,7 +525,7 @@ def _format_component_property_detail(
     detail = f"  - {prop_name}: {' '.join(line_parts)}" if line_parts else None
 
     if not enum_vals:
-        structured = _resolve_structured_property(p_schema)
+        structured = _resolve_structured_property(p_schema, path_key, call_key)
         if structured is not None:
             return _append_structured_keys(prop_name, detail, structured)
     return detail
@@ -771,8 +810,14 @@ class ExpressPromptGenerator(PromptGenerator):
             prop_details = []
             for p in props:
                 p_schema = h.get_property_schema(name, p)
-                ordered_args.append(_format_component_arg_label(p, p in reqs, p_schema))
-                detail = _format_component_property_detail(p, p_schema)
+                ordered_args.append(
+                    _format_component_arg_label(
+                        p, p in reqs, p_schema, path_key=h.path_key
+                    )
+                )
+                detail = _format_component_property_detail(
+                    p, p_schema, path_key=h.path_key, call_key=h.call_key
+                )
                 if detail:
                     prop_details.append(detail)
 

@@ -1359,6 +1359,122 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
           options: {'@path': '/choices'},
         },
       ]);
+
+      const mixedMessages = compiler.compile('root = ToggleGroup([{label: $/ok, value: "Day"}])');
+      expect(createSurfaceComponents(mixedMessages)).toEqual([
+        {
+          id: 'root',
+          component: 'ToggleGroup',
+          options: [{label: {'@path': '/ok'}, value: 'Day'}],
+        },
+      ]);
+
+      expect(() => compiler.compile('root = ToggleGroup([$/bad])')).toThrow(
+        ExpressForbiddenDatabindingError,
+      );
+      expect(() => compiler.compile('root = ToggleGroup([{label: "Day", value: $/bad}])')).toThrow(
+        ExpressForbiddenDatabindingError,
+      );
+    });
+
+    it('rejects databinding on static map with path field and wraps union-local or flattened Action', () => {
+      const cat = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        catalogId: 'test/union_action_and_static_map',
+        protocolVersion: '1.0',
+        components: {
+          Widget: {
+            type: 'object',
+            properties: {
+              component: {const: 'Widget'},
+              fileRef: {
+                type: 'object',
+                properties: {
+                  label: {type: 'string'},
+                  path: {type: 'string'},
+                },
+                required: ['label', 'path'],
+              },
+              onTap: {
+                oneOf: [{$ref: '#/$defs/TapAction'}, {type: 'null'}],
+              },
+              flatTap: {
+                oneOf: [
+                  {
+                    type: 'object',
+                    properties: {
+                      event: {
+                        type: 'object',
+                        properties: {name: {type: 'string'}},
+                        required: ['name'],
+                      },
+                    },
+                    required: ['event'],
+                  },
+                  {
+                    type: 'object',
+                    properties: {
+                      functionCall: {
+                        type: 'object',
+                        properties: {
+                          '@call': {type: 'string'},
+                          args: {type: 'object'},
+                        },
+                        required: ['@call'],
+                      },
+                    },
+                    required: ['functionCall'],
+                  },
+                ],
+              },
+            },
+            required: ['component'],
+          },
+        },
+        functions: {
+          openUrl: {
+            type: 'object',
+            returnType: 'void',
+            properties: {
+              '@call': {const: 'openUrl'},
+              args: {
+                type: 'object',
+                properties: {url: {type: 'string'}},
+                required: ['url'],
+              },
+            },
+            required: ['@call', 'args'],
+          },
+        },
+        $defs: {
+          TapAction: {$ref: 'common_types.json#/$defs/Action'},
+        },
+      });
+      const compiler = new ExpressCompiler([cat], '1.0');
+      expect(() => compiler.compile('root = Widget(fileRef=$/file)')).toThrow(
+        ExpressForbiddenDatabindingError,
+      );
+      const msgs = compiler.compile(
+        'root = Widget(onTap=openUrl("https://a2ui.org"), flatTap=openUrl("https://a2ui.org"))',
+      );
+      expect(createSurfaceComponents(msgs)).toEqual([
+        {
+          id: 'root',
+          component: 'Widget',
+          onTap: {
+            functionCall: {
+              '@call': 'openUrl',
+              args: {url: 'https://a2ui.org'},
+            },
+          },
+          flatTap: {
+            functionCall: {
+              '@call': 'openUrl',
+              args: {url: 'https://a2ui.org'},
+            },
+          },
+        },
+      ]);
     });
   });
 });

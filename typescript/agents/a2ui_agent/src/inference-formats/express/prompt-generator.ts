@@ -27,7 +27,12 @@ import {agentCallableFunctions} from '../../utils/agent-callable.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 import {buildSchemaHelpers, catalogsDefining, resolveExpressVersion} from './catalogs.js';
 import {ExpressDecompiler, RawNumber} from './decompiler.js';
-import {CatalogSchemaHelper, commonDefName, getEnvelopeValue} from './schema-helper.js';
+import {
+  CatalogSchemaHelper,
+  commonDefName,
+  getEnvelopeValue,
+  isObjectOrRefSchema,
+} from './schema-helper.js';
 
 const EVENT_RULE_V10 = `8. Action events: represent server-side actions using the Event helper, \`Event(name, context?, userMessage=...)\`:
    Event("save_deal", {rep: $/form/rep})
@@ -185,26 +190,22 @@ function getSchemaEnum(
     return undefined;
   }
   visited.add(propSchema);
-  try {
-    const s = helper?.dereferenceLocalSchema(propSchema) ?? (propSchema as Record<string, unknown>);
-    if (Array.isArray(s.enum)) {
-      return s.enum as string[];
-    }
-    for (const key of ['oneOf', 'anyOf', 'allOf'] as const) {
-      const list = s[key];
-      if (Array.isArray(list)) {
-        for (const sub of list) {
-          const val = getSchemaEnum(sub, helper, visited);
-          if (val) {
-            return val;
-          }
+  const s = helper?.dereferenceLocalSchema(propSchema) ?? (propSchema as Record<string, unknown>);
+  if (Array.isArray(s.enum)) {
+    return s.enum as string[];
+  }
+  for (const key of ['oneOf', 'anyOf', 'allOf'] as const) {
+    const list = s[key];
+    if (Array.isArray(list)) {
+      for (const sub of list) {
+        const val = getSchemaEnum(sub, helper, visited);
+        if (val) {
+          return val;
         }
       }
     }
-    return undefined;
-  } finally {
-    visited.delete(propSchema);
   }
+  return undefined;
 }
 
 /**
@@ -220,19 +221,18 @@ function isProtocolWireEnvelope(
   if (typeof s.$ref === 'string' && commonDefName(s.$ref) !== undefined) {
     return true;
   }
+  if (visited.has(s)) {
+    return false;
+  }
+  visited.add(s);
   if (
     Array.isArray(s.allOf) &&
     s.allOf.some(sub => {
-      if (!sub || typeof sub !== 'object' || visited.has(sub)) {
+      if (!sub || typeof sub !== 'object') {
         return false;
       }
-      visited.add(sub);
-      try {
-        const resolved = helper.dereferenceLocalSchema(sub) ?? (sub as Record<string, unknown>);
-        return isProtocolWireEnvelope(resolved, helper, visited);
-      } finally {
-        visited.delete(sub);
-      }
+      const resolved = helper.dereferenceLocalSchema(sub) ?? (sub as Record<string, unknown>);
+      return isProtocolWireEnvelope(resolved, helper, visited);
     })
   ) {
     return true;
@@ -241,20 +241,38 @@ function isProtocolWireEnvelope(
     s.properties && typeof s.properties === 'object'
       ? (s.properties as Record<string, unknown>)
       : undefined;
-  if (!props) {
+  const reqs = Array.isArray(s.required) ? s.required : undefined;
+  if (!props || !reqs) {
     return false;
   }
   const keys = Object.keys(props);
+  if (keys.length === 1) {
+    const k = keys[0];
+    if (k === helper.keys.path && reqs.includes(k)) {
+      return true;
+    }
+    if ((k === 'event' || k === 'functionCall') && reqs.includes(k)) {
+      return isObjectOrRefSchema(props[k]);
+    }
+    return false;
+  }
+  if (helper.keys.call === '@call') {
+    if ('@call' in props && reqs.includes('@call')) {
+      return true;
+    }
+  } else if (
+    'call' in props &&
+    ('args' in props || 'returnType' in props) &&
+    reqs.includes('call')
+  ) {
+    return true;
+  }
   return (
-    (keys.length === 1 &&
-      (keys[0] === '@path' || keys[0] === 'path' || keys[0] === helper.keys.path)) ||
-    '@call' in props ||
-    ('call' in props && ('args' in props || 'returnType' in props)) ||
-    (keys.length === 2 && 'componentId' in props && 'path' in props) ||
-    (keys.length === 1 &&
-      (keys[0] === 'event' || keys[0] === 'functionCall') &&
-      Array.isArray(s.required) &&
-      s.required.includes(keys[0]))
+    keys.length === 2 &&
+    'componentId' in props &&
+    'path' in props &&
+    reqs.includes('componentId') &&
+    reqs.includes('path')
   );
 }
 
@@ -790,7 +808,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
       return undefined;
     }
     if (Array.isArray(s.allOf)) {
-      const objProps = this.resolveObjectProperties(schema, helper, visited);
+      const objProps = this.resolveObjectProperties(schema, helper);
       if (objProps) {
         return {kind: 'object', properties: objProps};
       }
@@ -806,7 +824,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
         return {kind: 'object', properties: s.properties as Record<string, unknown>};
       }
       if (s.type === 'array' && s.items && typeof s.items === 'object') {
-        const itemProps = this.resolveObjectProperties(s.items, helper, visited);
+        const itemProps = this.resolveObjectProperties(s.items, helper);
         if (itemProps) {
           return {kind: 'array', properties: itemProps};
         }

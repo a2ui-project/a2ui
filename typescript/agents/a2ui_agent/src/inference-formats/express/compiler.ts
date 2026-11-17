@@ -346,11 +346,16 @@ function classifySchemaRef(ref: unknown): 'Child' | 'ChildList' | 'Action' | und
   return undefined;
 }
 
-function crawlPropertyType(schema: unknown): 'Child' | 'ChildList' | 'Action' | undefined {
-  if (!schema || typeof schema !== 'object') {
+function crawlPropertyType(
+  schema: unknown,
+  helper?: CatalogSchemaHelper,
+  visited: Set<unknown> = new Set(),
+): 'Child' | 'ChildList' | 'Action' | undefined {
+  if (!schema || typeof schema !== 'object' || visited.has(schema)) {
     return undefined;
   }
-  const s = schema as Record<string, unknown>;
+  visited.add(schema);
+  const s = helper?.dereferenceLocalSchema(schema) ?? (schema as Record<string, unknown>);
   const direct = classifySchemaRef(s.$ref);
   if (direct) {
     return direct;
@@ -361,7 +366,7 @@ function crawlPropertyType(schema: unknown): 'Child' | 'ChildList' | 'Action' | 
       continue;
     }
     for (const sub of subList) {
-      const res = crawlPropertyType(sub);
+      const res = crawlPropertyType(sub, helper, visited);
       if (res) {
         return res;
       }
@@ -375,7 +380,7 @@ function resolvePropertyType(
   propName: string,
   propSchema: Record<string, unknown> | undefined,
 ): 'Child' | 'ChildList' | 'Action' | undefined {
-  const fromSchema = crawlPropertyType(propSchema);
+  const fromSchema = crawlPropertyType(propSchema, compHelper);
   if (fromSchema) {
     return fromSchema;
   }
@@ -2258,7 +2263,7 @@ export class ExpressCompiler {
       const propSchema = compHelper.getPropertySchema(compName, propName);
       const propType = resolvePropertyType(compHelper, propName, propSchema);
       // Sanctioned departure §5.2 item 1: action slot via isActionSlot
-      const isAction = isActionSlot(propSchema);
+      const isAction = isActionSlot(propSchema, compHelper);
 
       let mappedVal = this._compileValue(
         arg,
@@ -2276,10 +2281,8 @@ export class ExpressCompiler {
         {schema: propSchema, helper: compHelper},
       );
 
-      // Sanctioned departure §5.2 item 5: forbidden-binding check walking schema.
-      // Gated like Python (compiler.py:547): a property whose schema admits a path
-      // as a whole is not inspected further.
-      if (propSchema && !compHelper.admitsPath(propSchema)) {
+      // Sanctioned departure §5.2 item 5: forbidden-binding check walking schema positionally.
+      if (propSchema) {
         this._checkDataBindings(compName, propName, arg, propSchema, compHelper, rawSymbols);
       }
 
@@ -2827,7 +2830,7 @@ export class ExpressCompiler {
     if (Array.isArray(val)) {
       // Resolved once for the array, since every item shares the schema.
       const itemsSlot = itemSlot(slot);
-      const itemIsAction = isAction || isActionSlot(itemsSlot?.schema);
+      const itemIsAction = isAction || isActionSlot(itemsSlot?.schema, itemsSlot?.helper);
       const itemPropType = itemsSlot
         ? resolvePropertyType(
             itemsSlot.helper,
@@ -2925,7 +2928,7 @@ export class ExpressCompiler {
     const dictRes: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(entries)) {
       const entrySlot = propertySlot(slot, k);
-      const entryIsAction = isAction || isActionSlot(entrySlot?.schema);
+      const entryIsAction = isAction || isActionSlot(entrySlot?.schema, entrySlot?.helper);
       const entryPropType = entrySlot
         ? resolvePropertyType(
             entrySlot.helper,

@@ -2025,5 +2025,182 @@ surface("s1")
       final String snippet = processor([malformed]).promptSnippet;
       expect(snippet, contains('• SafeWidget(badUnion (static))'));
     });
+
+    test('preserves domain maps, annotates flattened actions, and enforces '
+        'version-strict path keys', () {
+      final CatalogApi v1Cat = Catalog.fromJson({
+        'catalogId': 'https://example.com/domain_v1.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'DomainWidget': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'DomainWidget'},
+              'file': {
+                'type': 'object',
+                'properties': {
+                  'path': {'type': 'string', 'description': 'File path'},
+                },
+              },
+              'log': {
+                'type': 'object',
+                'properties': {
+                  'event': {'type': 'string', 'description': 'Event name'},
+                },
+                'required': ['event'],
+              },
+              'flatAction': {
+                'oneOf': [
+                  {
+                    'type': 'object',
+                    'properties': {
+                      'event': {
+                        'type': 'object',
+                        'properties': {
+                          'name': {'type': 'string'},
+                        },
+                        'required': ['name'],
+                      },
+                    },
+                    'required': ['event'],
+                  },
+                  {
+                    'type': 'object',
+                    'properties': {
+                      'functionCall': {
+                        'type': 'object',
+                        'properties': {
+                          '@call': {'type': 'string'},
+                          'args': {'type': 'object'},
+                        },
+                        'required': ['@call'],
+                      },
+                    },
+                    'required': ['functionCall'],
+                  },
+                ],
+              },
+              'barePath': {
+                'type': 'object',
+                'properties': {
+                  'path': {'type': 'string'},
+                },
+                'required': ['path'],
+              },
+              'atPath': {
+                'type': 'object',
+                'properties': {
+                  '@path': {'type': 'string'},
+                },
+                'required': ['@path'],
+              },
+            },
+            'required': ['component'],
+          },
+        },
+        'functions': {
+          'openUrl': {
+            'type': 'object',
+            'returnType': 'void',
+            'properties': {
+              '@call': {'const': 'openUrl'},
+              'args': {
+                'type': 'object',
+                'properties': {
+                  'url': {'type': 'string'},
+                },
+                'required': ['url'],
+              },
+            },
+            'required': ['@call', 'args'],
+          },
+        },
+      });
+      final String v1Snippet = processor([v1Cat]).promptSnippet;
+      expect(
+        v1Snippet,
+        contains(
+          '• DomainWidget(file? (static), log? (static), '
+          'flatAction? (action), barePath? (static), atPath?)',
+        ),
+      );
+      expect(v1Snippet, contains('* path - File path'));
+      expect(v1Snippet, contains('* event - Event name'));
+
+      final List<AgentToRendererMessage> compiled = ExpressCompiler([
+        v1Cat,
+      ]).compile('root = DomainWidget(flatAction=openUrl("https://a2ui.org"))');
+      final Map<String, Object?> rootComp = compiled
+          .whereType<CreateSurfaceMessage>()
+          .single
+          .components!
+          .single;
+      expect(rootComp['flatAction'], {
+        'functionCall': {
+          '@call': 'openUrl',
+          'args': {'url': 'https://a2ui.org'},
+        },
+      });
+
+      final CatalogApi v09Cat = Catalog.fromJson({
+        'catalogId': 'https://example.com/domain_v09.json',
+        'protocolVersion': '0.9',
+        'components': {
+          'V09Widget': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'V09Widget'},
+              'barePath': {
+                'type': 'object',
+                'properties': {
+                  'path': {'type': 'string'},
+                },
+                'required': ['path'],
+              },
+              'atPath': {
+                'type': 'object',
+                'properties': {
+                  '@path': {'type': 'string'},
+                },
+                'required': ['@path'],
+              },
+            },
+            'required': ['component'],
+          },
+        },
+      });
+      final String v09Snippet = processor([v09Cat]).promptSnippet;
+      expect(v09Snippet, contains('• V09Widget(barePath?, atPath? (static))'));
+    });
+
+    test('handles in-memory cyclic Map<Object?, Object?> schemas', () {
+      final cycleBranch = <Object?, Object?>{
+        'oneOf': <Object?>[
+          <Object?, Object?>{
+            'type': 'object',
+            'properties': <Object?, Object?>{
+              'label': <Object?, Object?>{'type': 'string'},
+            },
+          },
+        ],
+      };
+      final CatalogApi cyclicRaw = Catalog.fromJson({
+        'catalogId': 'https://example.com/cyclic_raw.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'RawCycleWidget': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'RawCycleWidget'},
+              'node': cycleBranch,
+            },
+            'required': ['component', 'node'],
+          },
+        },
+      });
+      (cycleBranch['oneOf']! as List<Object?>).insert(0, cycleBranch);
+      final String snippet = processor([cyclicRaw]).promptSnippet;
+      expect(snippet, contains('• RawCycleWidget(node (static))'));
+    });
   });
 }

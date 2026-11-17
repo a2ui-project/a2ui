@@ -1052,5 +1052,74 @@ describe('ExpressPromptGenerator', () => {
       expect(instructions).not.toContain('returnType');
       expect(instructions).not.toContain('svgPath');
     });
+
+    it('preserves domain map keys with path or primitive event, annotates flattened actions, and handles cyclic $defs', () => {
+      const cat = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        catalogId: 'test/domain_maps_and_cycles',
+        protocolVersion: '1.0',
+        components: {
+          FileLogWidget: {
+            type: 'object',
+            properties: {
+              component: {const: 'FileLogWidget'},
+              file: {
+                type: 'object',
+                properties: {
+                  path: {type: 'string', description: 'File path'},
+                },
+              },
+              log: {
+                type: 'object',
+                properties: {
+                  event: {type: 'string', description: 'Log event name'},
+                },
+                required: ['event'],
+              },
+              onFlatTap: {
+                oneOf: [
+                  {
+                    type: 'object',
+                    properties: {
+                      event: {
+                        type: 'object',
+                        properties: {name: {type: 'string'}},
+                        required: ['name'],
+                      },
+                    },
+                    required: ['event'],
+                  },
+                  {
+                    type: 'object',
+                    properties: {
+                      functionCall: {
+                        type: 'object',
+                        properties: {'@call': {type: 'string'}},
+                        required: ['@call'],
+                      },
+                    },
+                    required: ['functionCall'],
+                  },
+                ],
+              },
+              node: {$ref: '#/$defs/CycleNode'},
+            },
+            required: ['component'],
+          },
+        },
+        $defs: {
+          CycleNode: {
+            oneOf: [{$ref: '#/$defs/CycleNode'}, {type: 'string'}],
+          },
+        },
+      });
+      const instructions = new ExpressPromptGenerator([cat]).generateCatalogInstructions(cat);
+      expect(instructions).toContain(
+        '• FileLogWidget(file? (static), log? (static), onFlatTap? (static), node? (static))',
+      );
+      expect(instructions).toContain('* path - File path');
+      expect(instructions).toContain('* event - Log event name');
+      expect(instructions).not.toContain('functionCall');
+    });
   });
 });
