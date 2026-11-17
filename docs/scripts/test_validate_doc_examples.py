@@ -14,18 +14,24 @@
 
 from __future__ import annotations
 
+import ast
+import importlib.metadata
 import os
 import pathlib
+import re
 import sys
 from unittest import mock
 
 import jsonschema
+from packaging.requirements import InvalidRequirement, Requirement
+from packaging.utils import canonicalize_name
 import pytest
 
 # Add the script's directory to the path so the test can import it.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from validate_doc_examples import (
+    REPO_ROOT,
     V0_9_1,
     V1_0,
     _errors_for,
@@ -330,3 +336,131 @@ def test_untabbed_broken_message_json_and_action_envelopes() -> None:
     assert validate(extract_examples_from_text(DOC, pseudo_json)[0]) == []
     assert validate(extract_examples_from_text(DOC, missing_ver_action)[0]) != []
     assert validate(extract_examples_from_text(DOC, jsonrpc_err)[0]) == []
+
+
+def _parse_pinned_requirement_line(
+    raw_line: str, line_no: int
+) -> tuple[str, str] | None:
+    if raw_line.rstrip("\r\n").endswith("\\"):
+        raise ValueError(f"line {line_no}: line continuations are not supported")
+    line = re.sub(r"(^|\s+)#.*$", "", raw_line).strip()
+    if not line:
+        return None
+    if line.startswith("-"):
+        raise ValueError(f"line {line_no}: pip option flags are not allowed: {line!r}")
+    try:
+        req = Requirement(line)
+    except InvalidRequirement as exc:
+        raise ValueError(
+            f"line {line_no}: invalid requirement {line!r}: {exc}"
+        ) from exc
+    if req.url is not None or req.marker is not None or req.extras:
+        raise ValueError(
+            f"line {line_no}: URL, marker, or extra specifiers are not allowed:"
+            f" {line!r}"
+        )
+    specs = list(req.specifier)
+    if len(specs) != 1 or specs[0].operator != "==" or specs[0].version.endswith(".*"):
+        raise ValueError(
+            f"line {line_no}: expected exact '==' version pin, got {line!r}"
+        )
+    return canonicalize_name(req.name), specs[0].version
+
+
+def _parse_pinned_requirements(text: str) -> dict[str, str]:
+    pinned: dict[str, str] = {}
+    for line_no, raw_line in enumerate(text.splitlines(), start=1):
+        parsed = _parse_pinned_requirement_line(raw_line, line_no)
+        if parsed is None:
+            continue
+        name, version = parsed
+        if name in pinned:
+            raise ValueError(f"line {line_no}: duplicate requirement {name!r}")
+        pinned[name] = version
+    if not pinned:
+        raise ValueError("no requirements found")
+    return pinned
+
+
+def _third_party_distributions_for_script(
+    script_path: pathlib.Path,
+) -> set[str]:
+    tree = ast.parse(script_path.read_text(encoding="utf-8"), filename=str(script_path))
+    sibling_modules = {p.stem for p in script_path.parent.glob("*.py")}
+    imported_modules: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imported_modules.add(alias.name.split(".")[0])
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and node.level == 0
+            and node.module is not None
+        ):
+            imported_modules.add(node.module.split(".")[0])
+    pkg_map = importlib.metadata.packages_distributions()
+    distributions: set[str] = set()
+    for module in imported_modules - sys.stdlib_module_names - sibling_modules:
+        for dist in pkg_map.get(module) or [module]:
+            distributions.add(canonicalize_name(dist))
+    return distributions
+
+
+def test_requirements_docs_pins_all_dependencies() -> None:
+    req_path = REPO_ROOT / "requirements-docs.txt"
+    pinned = _parse_pinned_requirements(req_path.read_text(encoding="utf-8"))
+    # ghp-import is invoked as a CLI in .github/workflows/docs.yml.
+    expected = {"ghp-import"} | _third_party_distributions_for_script(
+        REPO_ROOT / "docs/scripts/validate_doc_examples.py"
+    )
+    missing = expected - pinned.keys()
+    assert (
+        not missing
+    ), f"Unpinned or missing in requirements-docs.txt: {sorted(missing)}"
+
+
+def test_parse_pinned_requirements_accepts_comments_and_normalizes_names() -> None:
+    text = (
+        "# Documentation build dependencies\n\n"
+        "ghp_import==2.1.0  # GitHub Pages deploy\n"
+        "jsonschema==4.26.0\n"
+    )
+    assert _parse_pinned_requirements(text) == {
+        "ghp-import": "2.1.0",
+        "jsonschema": "4.26.0",
+    }
+
+
+@pytest.mark.parametrize(
+    ("bad_text", "match"),
+    [
+        ("# comment only\n\n", "no requirements found"),
+        ("ghp-import\n", "expected exact '==' version pin"),
+        ("jsonschema>=4.26.0\n", "expected exact '==' version pin"),
+        ("jsonschema~=4.26.0\n", "expected exact '==' version pin"),
+        ("jsonschema===4.26.0\n", "expected exact '==' version pin"),
+        ("jsonschema>=4.26.0,<5.0.0\n", "expected exact '==' version pin"),
+        ("jsonschema==4.26.*\n", "expected exact '==' version pin"),
+        ("# comment \\\nghp-import==2.1.0\n", "line continuations"),
+        ("ghp-import==2.1.0 \\\n", "line continuations"),
+        ("-r other.txt\n", "pip option flags"),
+        (
+            (
+                "ghp-import @"
+                " https://example.com/ghp_import-2.1.0-py3-none-any.whl#egg=ghp-import\n"
+            ),
+            "URL, marker, or extra",
+        ),
+        ("jsonschema[format]==4.26.0\n", "URL, marker, or extra"),
+        (
+            "jsonschema==4.26.0 ; python_version >= '3.10'\n",
+            "URL, marker, or extra",
+        ),
+        ("ghp_import==2.1.0\nghp-import==2.1.0\n", "duplicate requirement"),
+    ],
+)
+def test_parse_pinned_requirements_rejects_invalid_lines(
+    bad_text: str, match: str
+) -> None:
+    with pytest.raises(ValueError, match=match):
+        _parse_pinned_requirements(bad_text)
