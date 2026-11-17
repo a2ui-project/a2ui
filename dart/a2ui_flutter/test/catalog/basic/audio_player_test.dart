@@ -13,9 +13,8 @@
 // limitations under the License.
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
-// ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../support/basic_test_catalog.dart';
@@ -148,7 +147,7 @@ void main() {
       expect(tester.getTopLeft(_button(Icons.play_arrow)).dx, 0);
       expect(tester.getSize(find.byType(A2uiSurface)).width, 300);
       expect(
-        tester.getSize(find.byType(LinearProgressIndicator)).width,
+        tester.getSize(find.byType(VideoProgressIndicator)).width,
         greaterThan(0),
       );
       expect(tester.takeException(), isNull);

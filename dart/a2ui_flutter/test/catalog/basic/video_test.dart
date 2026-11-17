@@ -16,10 +16,9 @@ import 'dart:async';
 
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
-// ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../support/basic_test_catalog.dart';
@@ -61,7 +60,7 @@ void main() {
       await pumpComponents(tester, [_video(_url)], catalog: _catalog);
 
       expect(platform.uris, [_url]);
-      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      expect(_progress, findsOneWidget);
       expect(find.byType(VideoPlayer), findsNothing);
       expect(_enabled(tester, Icons.play_arrow), isFalse);
       final Size frame = tester.getSize(find.byType(AspectRatio));
@@ -101,16 +100,14 @@ void main() {
       platform.position = const Duration(seconds: 12);
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump();
-      final double played = tester
-          .widgetList<LinearProgressIndicator>(
-            find.descendant(
-              of: _progress,
-              matching: find.byType(LinearProgressIndicator),
-            ),
-          )
-          .last
-          .value!;
-      expect(played, closeTo(12 / 65, 0.001));
+      final VideoPlayerValue value = tester
+          .widget<VideoProgressIndicator>(_progress)
+          .controller
+          .value;
+      expect(
+        value.position.inMilliseconds / value.duration.inMilliseconds,
+        closeTo(12 / 65, 0.001),
+      );
 
       await tester.tap(_button(Icons.pause));
       await tester.pump();
