@@ -20,7 +20,7 @@ import {ColorPalettes} from '../types/colors.js';
  * Merges multiple style class dictionaries, overriding classes with matching prefixes.
  *
  * @param classes Style class records to merge.
- * @returns Combined style class dictionary.
+ * @return Combined style class dictionary.
  */
 export function merge(...classes: Array<Record<string, boolean>>) {
   const styles: Record<string, boolean> = {};
@@ -46,7 +46,7 @@ export function merge(...classes: Array<Record<string, boolean>>) {
  * @param target Target tag to class list dictionary.
  * @param exclusions Tag names excluded from mutation.
  * @param classes Style class records to apply.
- * @returns Updated tag-to-classes dictionary.
+ * @return Updated tag-to-classes dictionary.
  */
 export function appendToAll(
   target: Record<string, string[]>,
@@ -97,7 +97,7 @@ export function appendToAll(
  * Generates CSS custom property mappings from color palettes.
  *
  * @param palettes Color palette definitions.
- * @returns CSS variable key-value pairs.
+ * @return CSS variable key-value pairs.
  */
 export function createThemeStyles(palettes: ColorPalettes): Record<string, string> {
   const styles: Record<string, string> = {};
@@ -115,7 +115,7 @@ export function createThemeStyles(palettes: ColorPalettes): Record<string, strin
  * Converts a palette token key into a CSS custom property name.
  *
  * @param key Color token key string.
- * @returns Formatted CSS property name.
+ * @return Formatted CSS property name.
  */
 export function toProp(key: string) {
   if (key.startsWith('nv')) {

@@ -44,7 +44,7 @@ import {validateReservedDirectives} from '../resolution/data-context.js';
  * this module sit on an import cycle through `data-context`.
  *
  * @param name Function name, including its `@` prefix.
- * @returns The system function's API, or `undefined` if none has that name.
+ * @return The system function's API, or `undefined` if none has that name.
  */
 function getSystemFunctionApi(name: string): typeof IndexApi | undefined {
   return name === IndexApi.name ? IndexApi : undefined;
@@ -73,7 +73,7 @@ function assertSystemCallNamesNoCatalog(name: string, call: Record<string, unkno
  * a string.
  *
  * @param name Name of the function being called.
- * @returns The error message.
+ * @return The error message.
  */
 export function nonStringCatalogIdMessage(name: string): string {
   return `Function call '${name}' has a non-string 'catalogId'.`;
@@ -115,7 +115,7 @@ export function assertRendererMayCall(
  * @param catalogId ID of the component's catalog.
  * @param options.catalogIsDefault Whether the component's catalog is the
  *   surface's default catalog.
- * @returns Whether the call runs in the component's catalog.
+ * @return Whether the call runs in the component's catalog.
  */
 export function nestedCallRunsInCatalog(
   callCatalogId: string | undefined,
@@ -525,8 +525,10 @@ export class PayloadValidator {
    * catalog it resolves to. A non-string `catalogId` is rejected. Reserved `@`
    * system functions belong to no catalog and are validated fully.
    *
-   * @param val Property value or subtree to inspect.
+   * @param record Nested function call record or subtree to inspect.
+   * @param rawName Raw name of the function or slot.
    * @param componentCatalogId The `catalogId` the component names, if any.
+   * @param slotSchema Optional slot schema definition.
    * @throws {A2uiValidationError} If any nested function call fails schema or identifier validation.
    */
   private checkNestedCallRecord(
@@ -711,7 +713,7 @@ export class PayloadValidator {
    *
    * @param name Name of the function being called.
    * @param args Arguments supplied by the payload.
-   * @returns The parsed arguments object (including any schema defaults).
+   * @return The parsed arguments object (including any schema defaults).
    * @throws {A2uiValidationError} If the function name, an argument name, or an
    *   argument value fails validation.
    */
@@ -764,7 +766,7 @@ export class PayloadValidator {
    * A catalog that declares no theme schema accepts any theme.
    *
    * @param theme Theme payload supplied on `createSurface`.
-   * @returns The parsed theme, which a schema may have defaulted or coerced.
+   * @return The parsed theme, which a schema may have defaulted or coerced.
    * @throws {A2uiValidationError} If the theme does not satisfy the schema.
    */
   validateTheme(theme: unknown): unknown {
@@ -847,7 +849,7 @@ function zodIssuesToDetails(issues: readonly z.ZodIssue[], prefix = ''): A2uiErr
  * component that declares them keeps them as properties.
  *
  * @param comp Raw component payload.
- * @returns New object without `id` or `component`.
+ * @return New object without `id` or `component`.
  */
 function stripStructuralKeys(comp: Record<string, unknown>): Record<string, unknown> {
   const {id: _id, component: _component, ...properties} = comp;

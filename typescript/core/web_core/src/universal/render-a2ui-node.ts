@@ -66,7 +66,7 @@ const a2uiElement = directive(A2uiElementDirective);
  *
  * @param context The component context defining the data model and type to render.
  * @param catalog The catalog of component implementations.
- * @returns A Lit directive result rendering the component's custom element, or `nothing` if the component is invalid or unresolvable.
+ * @return A Lit directive result rendering the component's custom element, or `nothing` if the component is invalid or unresolvable.
  */
 export function renderA2uiNode(
   context: ComponentContext,
@@ -77,7 +77,7 @@ export function renderA2uiNode(
  * the element the resolved `ComponentNode`.
  *
  * @param node The resolved node to render.
- * @returns A Lit directive result rendering the component's custom element,
+ * @return A Lit directive result rendering the component's custom element,
  * or `nothing` for a placeholder, a disposed node, or an implementation that
  * is not a Web Component.
  */

@@ -29,7 +29,7 @@ setMarkdownRenderer(renderMarkdown);
  *                 "email-compose.json") as defined in the specification
  *                 catalogs directory.
  *
- * @returns A promise that resolves to the <local-gallery> element after the
+ * @return A promise that resolves to the <local-gallery> element after the
  * example has been loaded and rendered.
  */
 export async function loadExample(

@@ -24,7 +24,7 @@ import {DataContext} from '../resolution/data-context.js';
  * @param args The arguments to pass to the function.
  * @param context The data context in which the function is being executed.
  * @param abortSignal An optional AbortSignal for asynchronous or long-running operations.
- * @returns The result of the function call, typically a primitive value or a Signal.
+ * @return The result of the function call, typically a primitive value or a Signal.
  */
 export type FunctionInvoker<T = any> = (
   name: string,

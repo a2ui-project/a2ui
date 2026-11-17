@@ -28,7 +28,7 @@ import {A2uiCatalogError} from '../errors.js';
  * @param surface Surface, or a stand-in carrying the fields read here.
  * @param catalogId Catalog the item names, or `undefined` when it names none.
  * @param subject Description of the item for error messages.
- * @returns The catalog the item resolves to.
+ * @return The catalog the item resolves to.
  * @throws {A2uiCatalogError} If the named catalog is not available on the
  *   surface, or if the item names none and the surface has no default catalog.
  */

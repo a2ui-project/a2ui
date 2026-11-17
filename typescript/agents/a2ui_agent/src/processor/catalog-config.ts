@@ -64,7 +64,7 @@ export class CatalogConfig {
    * @param transformers Optional list of catalog transformers.
    * @param protocolVersion Protocol version to use when the document states none.
    * @param catalogId Catalog id to use when the document states none.
-   * @returns A CatalogConfig instance.
+   * @return A CatalogConfig instance.
    */
   static fromPath(
     catalogPath: string,

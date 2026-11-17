@@ -42,7 +42,7 @@ export class TestSurfaceModel extends SurfaceModel<ComponentApi> {
  *
  * @param properties Component properties dictionary.
  * @param actionHandler Optional action listener callback.
- * @returns Initialized component context for testing.
+ * @return Initialized component context for testing.
  */
 export function createTestContext(properties: any, actionHandler: any = async () => {}) {
   const surface = new TestSurfaceModel(actionHandler);

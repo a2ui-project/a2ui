@@ -52,7 +52,7 @@ export class RawNumber {
  * Returns the value as a plain object, or undefined if it is not one.
  *
  * @param value The value to check.
- * @returns The value typed as a record, or undefined.
+ * @return The value typed as a record, or undefined.
  */
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -66,7 +66,7 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
  * @param value The field's value.
  * @param owner Describes the object holding the field, for the error message.
  * @param field The field's name, for the error message.
- * @returns The value as a record, or an empty record when it is absent or null.
+ * @return The value as a record, or an empty record when it is absent or null.
  * @throws {ExpressValidationError} If the value is present but not a plain object.
  */
 function optionalObjectField(
@@ -108,7 +108,7 @@ export function hasDataToWrite(value: unknown): boolean {
  * A non-object value yields a single entry at the root path `''`.
  *
  * @param dataDict The nested data object, or any other JSON value.
- * @returns Array of [path, value] tuples.
+ * @return Array of [path, value] tuples.
  */
 export function flattenDataModel(dataDict: unknown): Array<[string, unknown]> {
   const results: Array<[string, unknown]> = [];
@@ -142,7 +142,7 @@ export function flattenDataModel(dataDict: unknown): Array<[string, unknown]> {
  * Catalog-agnostic: uses exact def name matching via `commonDefName` (plan §5.1, §5.2 item 6).
  *
  * @param propSchema The property JSON schema to inspect.
- * @returns True if property references component ID.
+ * @return True if property references component ID.
  */
 export function isComponentReferenceProperty(
   propSchema: unknown,
@@ -184,7 +184,7 @@ export function isComponentReferenceProperty(
  * `1.5e+21`. Negative zero is written `-0.0`, since `String(-0)` is `"0"`.
  *
  * @param val The number to decompile.
- * @returns The Express number literal.
+ * @return The Express number literal.
  * @throws {A2uiValidationError} When `val` is `NaN` or infinite, which Express
  *   has no notation for.
  */
@@ -202,7 +202,7 @@ export function decompileNumber(val: number): string {
  * Formats a string literal using the cleanest/most readable representation.
  *
  * @param val The string value to decompile.
- * @returns The quoted Express string literal.
+ * @return The quoted Express string literal.
  */
 export function decompileString(val: string): string {
   const hasNewline = val.includes('\n') || val.includes('\r');
@@ -457,7 +457,7 @@ export class ExpressDecompiler {
    * Wraps raw response parts, adding format tags around A2UI payload sections.
    *
    * @param blocks A list of raw response parts.
-   * @returns The formatted response string.
+   * @return The formatted response string.
    */
   wrap(blocks: RawResponsePart[]): string {
     let result = '';
@@ -476,7 +476,7 @@ export class ExpressDecompiler {
    *
    * @param messages Standard A2UI wire JSON message envelopes.
    * @param useKeywordArgs Whether to format component arguments as keyword parameters (e.g. param=value).
-   * @returns The decompiled A2UI Express DSL string.
+   * @return The decompiled A2UI Express DSL string.
    */
   decompile(messages: AgentToRendererMessage[], useKeywordArgs = false): string {
     const coalesced = this.coalesceSurfaceMessages(messages);
@@ -1055,7 +1055,7 @@ export class ExpressDecompiler {
    * @param isRef Whether this value is a component reference.
    * @param helper The schema helper of the value's catalog. Defaults to the first catalog.
    * @param surfaceCatalogId The catalog of the enclosing surface, if any.
-   * @returns A plain-text representation of the value.
+   * @return A plain-text representation of the value.
    */
   decompileValue(
     val: unknown,

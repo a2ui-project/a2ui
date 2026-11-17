@@ -130,7 +130,7 @@ export interface ComponentNode<
    * Child nodes serialize recursively, bindings as their snapshot values,
    * and action closures as the string `'<Action>'`.
    *
-   * @returns Serialized JSON-compatible representation.
+   * @return Serialized JSON-compatible representation.
    */
   toJSON(): Record<string, unknown>;
 }
@@ -139,7 +139,7 @@ export interface ComponentNode<
  * Narrows an unknown value to a `ComponentNode`.
  *
  * @param value The value to inspect.
- * @returns Whether the value is a `ComponentNode`.
+ * @return Whether the value is a `ComponentNode`.
  */
 export function isComponentNode(value: unknown): value is ComponentNode {
   return value instanceof MutableComponentNode;
@@ -230,7 +230,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
   /**
    * Serializes the resolved tree for debugging and headless assertions.
    *
-   * @returns Serialized JSON-compatible representation.
+   * @return Serialized JSON-compatible representation.
    */
   toJSON(): Record<string, unknown> {
     if (this.isPlaceholder) {

@@ -60,7 +60,7 @@ export const DEFAULT_PROTOCOL_VERSION = '0.9';
  *
  * @param rootDoc Root JSON document to resolve within.
  * @param pointer RFC 6901 JSON pointer string.
- * @returns The resolved document subtree, or undefined if not found.
+ * @return The resolved document subtree, or undefined if not found.
  */
 function resolveJsonPointer(
   rootDoc: Record<string, unknown>,
@@ -87,7 +87,7 @@ function resolveJsonPointer(
  * Resolves a standard protocol `$ref` to its corresponding common type schema.
  *
  * @param ref JSON Schema reference string.
- * @returns The matching Zod schema, or undefined if not a known protocol definition.
+ * @return The matching Zod schema, or undefined if not a known protocol definition.
  */
 function resolveProtocolRef(ref: string): z.ZodTypeAny | undefined {
   const defName = ref.split(/#\/(?:\$defs|definitions)\//)[1];
@@ -100,7 +100,7 @@ function resolveProtocolRef(ref: string): z.ZodTypeAny | undefined {
  * Converts an array of JSON Schema enum values to a Zod schema.
  *
  * @param values Allowed enum values.
- * @returns Zod enum, literal, or union schema representing the allowed values.
+ * @return Zod enum, literal, or union schema representing the allowed values.
  */
 function convertEnumToZod(values: unknown[]): z.ZodTypeAny {
   if (values.length === 0) {
@@ -128,7 +128,7 @@ function convertEnumToZod(values: unknown[]): z.ZodTypeAny {
  * object property insertion order.
  *
  * @param val Value to serialize.
- * @returns Deterministic JSON string representation.
+ * @return Deterministic JSON string representation.
  */
 function canonicalJsonStringify(val: unknown): string {
   if (val === null || typeof val !== 'object') {
@@ -152,7 +152,7 @@ function canonicalJsonStringify(val: unknown): string {
  * @param rootDoc Optional root schema document for resolving nested references.
  * @param visitedPointers Set of JSON pointer references currently being resolved.
  * @param defCache Cache of previously converted definition schemas.
- * @returns The modified Zod schema.
+ * @return The modified Zod schema.
  */
 function finalizePropertyZod(
   baseZod: z.ZodTypeAny,
@@ -202,7 +202,7 @@ function finalizePropertyZod(
  * @param rootDoc Root schema document containing definition targets.
  * @param visitedPointers Set of reference pointers currently on the resolution stack.
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
- * @returns Converted Zod schema, or undefined if the reference cannot be resolved.
+ * @return Converted Zod schema, or undefined if the reference cannot be resolved.
  */
 function convertRefToZod(
   ref: string,
@@ -269,7 +269,7 @@ function convertRefToZod(
  * @param rootDoc Root schema document for resolving nested references.
  * @param visitedPointers Set of reference pointers currently on the resolution stack.
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
- * @returns Converted Zod union schema, or undefined if no valid branches exist.
+ * @return Converted Zod union schema, or undefined if no valid branches exist.
  */
 function convertUnionToZod(
   propSchema: Record<string, unknown>,
@@ -414,7 +414,7 @@ function convertAllOfPropertyToZod(
  * @param rootDoc Optional root schema document for resolving references.
  * @param visitedPointers Set of reference pointers currently being resolved.
  * @param defCache Cache of resolved definition schemas to handle recursion and avoid duplicate work.
- * @returns Runtime Zod schema enforcing the declared JSON Schema constraints.
+ * @return Runtime Zod schema enforcing the declared JSON Schema constraints.
  */
 function convertPropertyToZod(
   propSchema: Record<string, unknown>,
@@ -593,7 +593,7 @@ function convertPropertyToZod(
  * `PayloadValidator` strips them before parsing a component.
  *
  * @param propName Property name to check.
- * @returns True if the property belongs to the envelope rather than the component.
+ * @return True if the property belongs to the envelope rather than the component.
  */
 function isEnvelopeField(propName: string): boolean {
   // A bare `catalogId` a component declares is its own property: below v1.0
@@ -612,7 +612,7 @@ function isEnvelopeField(propName: string): boolean {
  * @param properties The `properties` block that declares the property.
  * @param propName The property's name.
  * @param propSchema The property's JSON Schema.
- * @returns Whether the property is the inlined standard mixin.
+ * @return Whether the property is the inlined standard mixin.
  */
 function isInlineStandardMixinProperty(
   properties: Record<string, unknown>,
@@ -645,7 +645,7 @@ function isInlineStandardMixinProperty(
  * @param rootDoc Optional root schema document for reference resolution.
  * @param visitedPointers Set of reference pointers currently on the resolution stack.
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
- * @returns Map of property names to Zod schemas representing the shape.
+ * @return Map of property names to Zod schemas representing the shape.
  */
 function convertPropertiesToShape(
   properties: Record<string, unknown>,
@@ -715,7 +715,7 @@ function convertPropertiesToShape(
  * @param rootDoc Optional root schema document for reference resolution.
  * @param visitedPointers Set of reference pointers currently on the resolution stack.
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
- * @returns The object schema, wrapped in a refinement when patterns apply.
+ * @return The object schema, wrapped in a refinement when patterns apply.
  */
 function closeObjectSchema(
   obj: z.AnyZodObject,
@@ -801,7 +801,7 @@ type ComponentSubSchema =
  * properties, and below v1.0 `metadata` is not part of the protocol.
  *
  * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
- * @returns The inherited property schemas, keyed by their wire names.
+ * @return The inherited property schemas, keyed by their wire names.
  */
 function componentCommonMixinProperties(isAtLeastV10: boolean): Record<string, z.ZodTypeAny> {
   const properties: Record<string, z.ZodTypeAny> = {};
@@ -832,7 +832,7 @@ function componentCommonMixinProperties(isAtLeastV10: boolean): Record<string, z
  * @param rootDoc Root schema document containing definition targets.
  * @param visitedPointers Set of reference pointers currently being resolved to prevent cycles.
  * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
- * @returns The pieces gathered from the schema and its `allOf` hierarchy, as JSON Schema
+ * @return The pieces gathered from the schema and its `allOf` hierarchy, as JSON Schema
  *     fragments or zod mirrors of canonical types, least specific first.
  */
 function collectComponentSubSchemas(
@@ -906,7 +906,7 @@ function collectComponentSubSchemas(
  * @param omitEnvelopeFields Whether to omit envelope fields (`id`, `component`, `@catalogId`). Defaults to true.
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
  * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
- * @returns Zod object schema validating component properties.
+ * @return Zod object schema validating component properties.
  */
 function convertComponentJsonSchemaToZod(
   rawSchema: Record<string, unknown>,
@@ -1106,7 +1106,7 @@ function extractRequiredDisjunction(branches: unknown): string[][] | undefined {
  * @param rawSchema Raw function arguments schema.
  * @param rootDoc Optional root schema document for reference resolution.
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
- * @returns Zod object schema validating function arguments, wrapped in a
+ * @return Zod object schema validating function arguments, wrapped in a
  *     refinement when `patternProperties` apply.
  */
 export function convertFunctionArgsJsonSchemaToZod(
@@ -1191,7 +1191,7 @@ export function isZodSchema(value: unknown): value is z.ZodTypeAny {
  * `ZodDiscriminatedUnion`, `ZodPipeline`, `ZodReadonly` and `ZodBranded`.
  *
  * @param schema Zod schema to inspect.
- * @returns The declared property names; empty when the schema declares none.
+ * @return The declared property names; empty when the schema declares none.
  */
 export function getDeclaredSchemaKeys(schema: z.ZodTypeAny): Set<string> {
   const keys = new Set<string>();
@@ -1313,7 +1313,7 @@ export function functionParameterNames(
  * @param rootDoc Optional root schema document for reference resolution.
  * @param permittedNames Optional set of allowed function names from `anyFunction.oneOf`.
  * @param atLeastV10 Whether the catalog targets protocol v1.0 or higher.
- * @returns Array of parsed FunctionApi objects.
+ * @return Array of parsed FunctionApi objects.
  * @throws {A2uiCatalogError} If a function or argument identifier fails UAX #31 validation in v1.0+.
  */
 function parseFunctionDefinitions(
@@ -1457,7 +1457,7 @@ function functionArgsSchema(
  *
  * @param oneOf Array of reference schema objects from `anyComponent` or `anyFunction`.
  * @param prefix Prefix to match and strip, such as `#/components/` or `#/functions/`.
- * @returns Set of unescaped allowed names, or undefined if `oneOf` is not an array.
+ * @return Set of unescaped allowed names, or undefined if `oneOf` is not an array.
  */
 function extractPermittedNames(oneOf: unknown, prefix: string): Set<string> | undefined {
   if (!Array.isArray(oneOf)) return undefined;
@@ -1485,7 +1485,7 @@ function extractPermittedNames(oneOf: unknown, prefix: string): Set<string> | un
  * @param catalogSchema Enclosing raw catalog schema for resolving local references.
  * @param atLeastV10 Whether the catalog targets protocol v1.0 or higher.
  * @param permittedNames Optional set of allowed component names from anyComponent.oneOf.
- * @returns Array of parsed ComponentApi objects with validation schemas and hierarchy constraints.
+ * @return Array of parsed ComponentApi objects with validation schemas and hierarchy constraints.
  * @throws {A2uiCatalogError} If a component or property identifier fails UAX #31 validation in v1.0+.
  */
 function parseCatalogComponents(
@@ -1544,7 +1544,7 @@ function parseCatalogComponents(
  *
  * @param catalogSchema Raw catalog schema or capabilities definition object.
  * @param defs Optional $defs mapping from the root schema.
- * @returns Compiled Zod object schema for theme tokens, or undefined if not declared.
+ * @return Compiled Zod object schema for theme tokens, or undefined if not declared.
  */
 function parseThemeSchema(
   catalogSchema: Record<string, unknown>,
@@ -1580,7 +1580,7 @@ function parseThemeSchema(
  * by a relative or absolute URI.
  *
  * @param ref The `$ref` value.
- * @returns Whether the reference is allowed.
+ * @return Whether the reference is allowed.
  */
 function isSupportedV10Ref(ref: string): boolean {
   if (ref.startsWith('#')) return true;
@@ -1643,7 +1643,7 @@ function assertSupportedV10Refs(node: unknown, pointer: string): void {
  *   applies.
  * @param catalogIdOverride Catalog ID to use instead of the one the schema
  *   declares. The schema itself is kept as written.
- * @returns Parsed catalog fields ready to construct a `Catalog` instance.
+ * @return Parsed catalog fields ready to construct a `Catalog` instance.
  * @throws {Error} If the catalog ID is missing or not a string.
  * @throws {A2uiCatalogError} If a v1.0+ catalog has a `$ref` to a document
  *   other than itself or `common_types.json`, such as another catalog.

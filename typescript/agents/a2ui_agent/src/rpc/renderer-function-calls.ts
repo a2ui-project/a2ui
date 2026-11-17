@@ -204,7 +204,7 @@ export class RendererFunctionCalls {
    * response.
    *
    * @param functionCallId The call's id.
-   * @returns `true` from `call` until the call is resolved, fails, times
+   * @return `true` from `call` until the call is resolved, fails, times
    *   out, is cancelled or the tracker is disposed.
    */
   isPending(functionCallId: string): boolean {
@@ -223,7 +223,7 @@ export class RendererFunctionCalls {
    *
    * @template T Expected return value type from the renderer function.
    * @param options Call parameters (`catalogId`, `name`, `args`, `surfaceId`, `timeoutMs`, `functionCallId`).
-   * @returns A {@link PendingRendererCall} containing `[message, result]`.
+   * @return A {@link PendingRendererCall} containing `[message, result]`.
    * The checks run in this order, each before anything is built, registered
    * or timed: the timeout; disposal (`DISPOSED`); an empty given
    * `functionCallId`; a pending id (`DUPLICATE`); `maxPending`
@@ -437,7 +437,7 @@ export class RendererFunctionCalls {
    * model.
    *
    * @param message Inbound `rendererFunctionResponse` message.
-   * @returns `true` if the response settled or failed a pending call, `false`
+   * @return `true` if the response settled or failed a pending call, `false`
    *   if its `functionCallId` isn't pending (unknown, late or a duplicate).
    */
   resolve(message: RendererFunctionResponseMessage | Record<string, unknown>): boolean {

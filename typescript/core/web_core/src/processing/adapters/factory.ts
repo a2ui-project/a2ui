@@ -95,7 +95,7 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
    * Resolves the version adapter directly from an incoming message payload using this factory instance.
    *
    * @param payload The raw JSON message payload.
-   * @returns The resolved version adapter.
+   * @return The resolved version adapter.
    * @throws A2uiValidationError if the payload is missing a valid 'version' string.
    */
   resolveFromPayload(payload: unknown): VersionAdapter {
@@ -150,7 +150,7 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
    * Resolves a version adapter directly from a payload using the default singleton factory instance.
    *
    * @param payload Raw JSON message payload.
-   * @returns Resolved version adapter.
+   * @return Resolved version adapter.
    */
   static resolveFromPayload(payload: unknown): VersionAdapter {
     return defaultVersionAdapterFactory.resolveFromPayload(payload);

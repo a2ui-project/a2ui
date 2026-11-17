@@ -105,7 +105,7 @@ function cloneWithDefAnnotation<T extends z.ZodTypeAny>(
  *
  * @param schema The schema to annotate.
  * @param annotation What the document writes about it.
- * @returns An annotated copy of `schema`.
+ * @return An annotated copy of `schema`.
  */
 export function spec<T extends z.ZodTypeAny>(schema: T, annotation: SpecAnnotation): T {
   const copy = cloneSchema(schema, schema.description);
@@ -121,7 +121,7 @@ export function spec<T extends z.ZodTypeAny>(schema: T, annotation: SpecAnnotati
  * @param name The definition's name.
  * @param schema The definition's model.
  * @param annotation Anything else the document writes about the model.
- * @returns An annotated copy of `schema`.
+ * @return An annotated copy of `schema`.
  */
 export function specDef<T extends z.ZodTypeAny>(
   name: string,

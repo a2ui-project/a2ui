@@ -44,7 +44,7 @@ import {
  * Checks whether a value is a valid v0.8 ValueMap object.
  *
  * @param value Value to test.
- * @returns Whether the value is a ValueMap.
+ * @return Whether the value is a ValueMap.
  */
 export function isValueMap(value: unknown): value is ValueMap {
   return isObject(value) && 'key' in value;
@@ -55,7 +55,7 @@ export function isValueMap(value: unknown): value is ValueMap {
  *
  * @param key Property key name.
  * @param value Property value.
- * @returns Whether the key is 'path' and the value is a string.
+ * @return Whether the key is 'path' and the value is a string.
  */
 export function isPath(key: string, value: unknown): value is string {
   return key === 'path' && typeof value === 'string';
@@ -65,7 +65,7 @@ export function isPath(key: string, value: unknown): value is string {
  * Checks whether a value is a non-null, non-array object record.
  *
  * @param value Value to test.
- * @returns Whether the value is a Record object.
+ * @return Whether the value is a Record object.
  */
 export function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -75,7 +75,7 @@ export function isObject(value: unknown): value is Record<string, unknown> {
  * Checks whether a value is a ComponentArrayReference (explicit list or template).
  *
  * @param value Value to test.
- * @returns Whether the value is a ComponentArrayReference.
+ * @return Whether the value is a ComponentArrayReference.
  */
 export function isComponentArrayReference(value: unknown): value is ComponentArrayReference {
   if (!isObject(value)) return false;
@@ -121,7 +121,7 @@ function isAnyComponentNode(value: unknown): value is AnyComponentNode {
  * Checks whether a props object conforms to ResolvedAudioPlayer.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedAudioPlayer.
+ * @return Whether the props match ResolvedAudioPlayer.
  */
 export function isResolvedAudioPlayer(props: unknown): props is ResolvedAudioPlayer {
   return isObject(props) && 'url' in props && isStringValue(props.url);
@@ -131,7 +131,7 @@ export function isResolvedAudioPlayer(props: unknown): props is ResolvedAudioPla
  * Checks whether a props object conforms to ResolvedButton.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedButton.
+ * @return Whether the props match ResolvedButton.
  */
 export function isResolvedButton(props: unknown): props is ResolvedButton {
   return (
@@ -143,7 +143,7 @@ export function isResolvedButton(props: unknown): props is ResolvedButton {
  * Checks whether a props object conforms to ResolvedCard.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedCard.
+ * @return Whether the props match ResolvedCard.
  */
 export function isResolvedCard(props: unknown): props is ResolvedCard {
   if (!isObject(props)) return false;
@@ -162,7 +162,7 @@ export function isResolvedCard(props: unknown): props is ResolvedCard {
  * Checks whether a props object conforms to ResolvedCheckbox.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedCheckbox.
+ * @return Whether the props match ResolvedCheckbox.
  */
 export function isResolvedCheckbox(props: unknown): props is ResolvedCheckbox {
   return (
@@ -178,7 +178,7 @@ export function isResolvedCheckbox(props: unknown): props is ResolvedCheckbox {
  * Checks whether a props object conforms to ResolvedColumn.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedColumn.
+ * @return Whether the props match ResolvedColumn.
  */
 export function isResolvedColumn(props: unknown): props is ResolvedColumn {
   return (
@@ -193,7 +193,7 @@ export function isResolvedColumn(props: unknown): props is ResolvedColumn {
  * Checks whether a props object conforms to ResolvedDateTimeInput.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedDateTimeInput.
+ * @return Whether the props match ResolvedDateTimeInput.
  */
 export function isResolvedDateTimeInput(props: unknown): props is ResolvedDateTimeInput {
   return isObject(props) && 'value' in props && isStringValue(props.value);
@@ -203,7 +203,7 @@ export function isResolvedDateTimeInput(props: unknown): props is ResolvedDateTi
  * Checks whether a props object conforms to ResolvedDivider.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedDivider.
+ * @return Whether the props match ResolvedDivider.
  */
 export function isResolvedDivider(props: unknown): props is ResolvedDivider {
   // Dividers can have all optional properties, so just checking if
@@ -215,7 +215,7 @@ export function isResolvedDivider(props: unknown): props is ResolvedDivider {
  * Checks whether a props object conforms to ResolvedImage.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedImage.
+ * @return Whether the props match ResolvedImage.
  */
 export function isResolvedImage(props: unknown): props is ResolvedImage {
   return isObject(props) && 'url' in props && isStringValue(props.url);
@@ -225,7 +225,7 @@ export function isResolvedImage(props: unknown): props is ResolvedImage {
  * Checks whether a props object conforms to ResolvedIcon.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedIcon.
+ * @return Whether the props match ResolvedIcon.
  */
 export function isResolvedIcon(props: unknown): props is ResolvedIcon {
   return isObject(props) && 'name' in props && isStringValue(props.name);
@@ -235,7 +235,7 @@ export function isResolvedIcon(props: unknown): props is ResolvedIcon {
  * Checks whether a props object conforms to ResolvedList.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedList.
+ * @return Whether the props match ResolvedList.
  */
 export function isResolvedList(props: unknown): props is ResolvedList {
   return (
@@ -250,7 +250,7 @@ export function isResolvedList(props: unknown): props is ResolvedList {
  * Checks whether a props object conforms to ResolvedModal.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedModal.
+ * @return Whether the props match ResolvedModal.
  */
 export function isResolvedModal(props: unknown): props is ResolvedModal {
   return (
@@ -266,7 +266,7 @@ export function isResolvedModal(props: unknown): props is ResolvedModal {
  * Checks whether a props object conforms to ResolvedMultipleChoice.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedMultipleChoice.
+ * @return Whether the props match ResolvedMultipleChoice.
  */
 export function isResolvedMultipleChoice(props: unknown): props is ResolvedMultipleChoice {
   return isObject(props) && 'selections' in props;
@@ -276,7 +276,7 @@ export function isResolvedMultipleChoice(props: unknown): props is ResolvedMulti
  * Checks whether a props object conforms to ResolvedRow.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedRow.
+ * @return Whether the props match ResolvedRow.
  */
 export function isResolvedRow(props: unknown): props is ResolvedRow {
   return (
@@ -291,7 +291,7 @@ export function isResolvedRow(props: unknown): props is ResolvedRow {
  * Checks whether a props object conforms to ResolvedSlider.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedSlider.
+ * @return Whether the props match ResolvedSlider.
  */
 export function isResolvedSlider(props: unknown): props is ResolvedSlider {
   return isObject(props) && 'value' in props && isNumberValue(props.value);
@@ -311,7 +311,7 @@ function isResolvedTabItem(item: unknown): item is ResolvedTabItem {
  * Checks whether a props object conforms to ResolvedTabs.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedTabs.
+ * @return Whether the props match ResolvedTabs.
  */
 export function isResolvedTabs(props: unknown): props is ResolvedTabs {
   return (
@@ -326,7 +326,7 @@ export function isResolvedTabs(props: unknown): props is ResolvedTabs {
  * Checks whether a props object conforms to ResolvedText.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedText.
+ * @return Whether the props match ResolvedText.
  */
 export function isResolvedText(props: unknown): props is ResolvedText {
   return isObject(props) && 'text' in props && isStringValue(props.text);
@@ -336,7 +336,7 @@ export function isResolvedText(props: unknown): props is ResolvedText {
  * Checks whether a props object conforms to ResolvedTextField.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedTextField.
+ * @return Whether the props match ResolvedTextField.
  */
 export function isResolvedTextField(props: unknown): props is ResolvedTextField {
   return isObject(props) && 'label' in props && isStringValue(props.label);
@@ -346,7 +346,7 @@ export function isResolvedTextField(props: unknown): props is ResolvedTextField 
  * Checks whether a props object conforms to ResolvedVideo.
  *
  * @param props Properties object to test.
- * @returns Whether the props match ResolvedVideo.
+ * @return Whether the props match ResolvedVideo.
  */
 export function isResolvedVideo(props: unknown): props is ResolvedVideo {
   return isObject(props) && 'url' in props && isStringValue(props.url);

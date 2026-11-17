@@ -211,7 +211,7 @@ const AT_CHECKS = '@checks';
  *
  * @param schema Zod schema to inspect.
  * @param options Optional child-reference analysis options forwarded to ref extraction.
- * @returns Root BehaviorNode describing schema properties.
+ * @return Root BehaviorNode describing schema properties.
  */
 export function scrapeSchemaBehavior(
   schema: z.ZodTypeAny | undefined,
@@ -898,7 +898,7 @@ function scrapeObjectShape(
  * @param type Zod schema to inspect.
  * @param visited Set of already visited schemas on the current branch for cycle detection.
  * @param options Optional child-reference analysis options.
- * @returns Behavior node representing runtime handling for the schema.
+ * @return Behavior node representing runtime handling for the schema.
  */
 function getFieldBehavior(
   type: z.ZodTypeAny | undefined,
@@ -1228,7 +1228,7 @@ export interface ResolvedAccessibility {
  * @param mirrorsAccessibility Whether the component's schema leaves
  *   `accessibility` free for the mirror, by declaring no custom property of
  *   that name.
- * @returns The finalized resolved props.
+ * @return The finalized resolved props.
  */
 function finalizeResolvedProps(
   resolved: unknown,
@@ -1384,7 +1384,7 @@ export class GenericBinder<T> {
    *
    * @param val Raw value, nested object, or dynamic expression to evaluate.
    * @param depth Current recursion depth, bounded by MAX_DYNAMIC_VALUE_DEPTH.
-   * @returns Evaluated data structure with dynamic expressions resolved.
+   * @return Evaluated data structure with dynamic expressions resolved.
    */
   private resolveDeepSync(val: unknown, depth = 0): unknown {
     if (typeof val !== 'object' || val === null) return val;
@@ -1882,7 +1882,7 @@ export class GenericBinder<T> {
    * Subscribes to prop change notifications.
    *
    * @param listener Callback invoked whenever resolved properties update.
-   * @returns A subscription object to unsubscribe.
+   * @return A subscription object to unsubscribe.
    */
   subscribe(listener: (props: T) => void) {
     if (this.propsListeners.length === 0) {
@@ -1913,7 +1913,7 @@ export class GenericBinder<T> {
  *
  * @param a First value to compare.
  * @param b Second value to compare.
- * @returns Whether the two values are structurally equal.
+ * @return Whether the two values are structurally equal.
  */
 function jsonEquals(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;

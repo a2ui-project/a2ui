@@ -80,7 +80,7 @@ export function registerDataContextInternals(impl: DataContextInternals): void {
  * @param userActivated Whether the evaluation was initiated by an active user action.
  * @param options `allowAgentRouting: false` makes a call the renderer does not
  *   implement fail instead of going to the agent.
- * @returns The resolved value.
+ * @return The resolved value.
  */
 export function resolveArgumentValue(
   ctx: DataContext,
@@ -101,7 +101,7 @@ export function resolveArgumentValue(
  * such as the arguments of an agent's `callRendererFunction`.
  *
  * @param ctx The context the call is evaluated in.
- * @returns Whether the call may be routed.
+ * @return Whether the call may be routed.
  */
 export function allowsAgentRouting(ctx: DataContext): boolean {
   return getInternals().allowsAgentRouting(ctx);
@@ -116,7 +116,7 @@ export function allowsAgentRouting(ctx: DataContext): boolean {
  *
  * @param ctx The context to resolve in.
  * @param value The DynamicValue to resolve.
- * @returns The Signal, whose `unsubscribe` ends its subscriptions.
+ * @return The Signal, whose `unsubscribe` ends its subscriptions.
  */
 export function resolveSignalKeepingPending(ctx: DataContext, value: unknown): Signal<unknown> {
   return getInternals().resolveSignalValue(ctx, value, 0, true);
@@ -127,7 +127,7 @@ export function resolveSignalKeepingPending(ctx: DataContext, value: unknown): S
  * fails instead of being sent to the agent.
  *
  * @param ctx The context to evaluate in.
- * @returns The view.
+ * @return The view.
  */
 export function withoutAgentRouting(ctx: DataContext): DataContext {
   return getInternals().withFlags(ctx, {noAgentRouting: true});
@@ -138,7 +138,7 @@ export function withoutAgentRouting(ctx: DataContext): DataContext {
  * if any.
  *
  * @param ctx The context to inspect.
- * @returns The active catalog ID, or `undefined`.
+ * @return The active catalog ID, or `undefined`.
  */
 export function activeCallCatalogId(ctx: DataContext): string | undefined {
   return getInternals().activeCatalogId(ctx);
@@ -151,7 +151,7 @@ export function activeCallCatalogId(ctx: DataContext): string | undefined {
  * @param catalogId The catalog ID of the executing function.
  * @param catalog Optional catalog instance so standalone RPC or direct invoker
  *   catalogs not registered in `surface.availableCatalogs` still resolve nested calls.
- * @returns The view.
+ * @return The view.
  */
 export function withActiveCallCatalogId(
   ctx: DataContext,

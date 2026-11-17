@@ -87,7 +87,7 @@ export const A2UI_RENDERER_CONFIG = new InjectionToken<RendererConfiguration>(
  * Provides the A2UI renderer configuration.
  *
  * @param configOrFactory The configuration or a factory function that returns the configuration.
- * @returns The providers for the A2UI renderer.
+ * @return The providers for the A2UI renderer.
  */
 export function provideA2Ui(
   configOrFactory: RendererConfiguration | (() => RendererConfiguration),

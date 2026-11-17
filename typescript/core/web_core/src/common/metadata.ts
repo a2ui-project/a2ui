@@ -157,7 +157,7 @@ export function mergeActionMetadata(
  * Validates, deep-clones, and deep-freezes an {@link A2uiMetadata} snapshot.
  *
  * @param metadata Metadata object to clone, or `undefined`.
- * @returns Deeply frozen clone of `metadata`, or `undefined`.
+ * @return Deeply frozen clone of `metadata`, or `undefined`.
  */
 export function cloneMetadata(metadata: A2uiMetadata | undefined): A2uiMetadata | undefined {
   if (metadata === undefined) return undefined;
@@ -194,7 +194,7 @@ function objectsEqual(a: Record<string, unknown>, b: Record<string, unknown>): b
  *
  * @param a First value.
  * @param b Second value.
- * @returns `true` if `a` and `b` are structurally equal.
+ * @return `true` if `a` and `b` are structurally equal.
  */
 export function jsonValueEquals(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
@@ -212,7 +212,7 @@ export function jsonValueEquals(a: unknown, b: unknown): boolean {
  *
  * @param a First metadata snapshot.
  * @param b Second metadata snapshot.
- * @returns `true` if `a` and `b` have identical structure and values.
+ * @return `true` if `a` and `b` have identical structure and values.
  */
 export function metadataEquals(a: A2uiMetadata | undefined, b: A2uiMetadata | undefined): boolean {
   return jsonValueEquals(a, b);

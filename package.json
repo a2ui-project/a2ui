@@ -36,6 +36,7 @@
     "clean:all": "yarn workspaces foreach -A -p run clean"
   },
   "devDependencies": {
+    "eslint-plugin-jsdoc": "^65.4.10",
     "google-artifactregistry-auth": "^3.5.0",
     "prettier": "^3.8.4",
     "syncpack": "^13.0.0",

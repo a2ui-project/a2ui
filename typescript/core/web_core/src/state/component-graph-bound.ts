@@ -54,7 +54,7 @@ export class ComponentGraphBound {
    * Builds the bound of a graph.
    *
    * @param graph Each component id with the ids it references, held or not.
-   * @returns The bound, or undefined when the graph holds a cycle, which a
+   * @return The bound, or undefined when the graph holds a cycle, which a
    *     graph may hold and still pass a check that starts only at the root.
    */
   static of(graph: ReadonlyMap<string, readonly string[]>): ComponentGraphBound | undefined {

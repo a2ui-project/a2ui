@@ -35,7 +35,7 @@ export interface SafeRegexOptions {
  *
  * @param pattern The regular expression pattern string to validate.
  * @param options Optional configuration for pattern length bounds.
- * @returns `true` if the pattern is valid and safe to execute; `false` otherwise.
+ * @return `true` if the pattern is valid and safe to execute; `false` otherwise.
  */
 export function isSafeRegex(pattern: string, options: SafeRegexOptions = {}): boolean {
   if (pattern === null || pattern === undefined || typeof pattern !== 'string') {

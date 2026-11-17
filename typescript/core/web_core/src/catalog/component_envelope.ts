@@ -59,7 +59,7 @@ export const AT_COMPONENT_MIXIN_KEYS: ReadonlySet<string> = new Set(
  * Returns the v1.0 wire key of a component envelope mixin.
  *
  * @param key The mixin's bare name.
- * @returns The `@`-prefixed key.
+ * @return The `@`-prefixed key.
  */
 export function atMixinKey(key: ComponentMixinKey): AtComponentMixinKey {
   return `@${key}`;
@@ -74,7 +74,7 @@ const standardMixinSchemas = new WeakSet<object>();
  * schema is not taken to declare a custom property of the same name.
  *
  * @param schema The mixin property's schema.
- * @returns `schema`, for chaining.
+ * @return `schema`, for chaining.
  */
 export function markStandardMixinSchema<T extends z.ZodTypeAny>(schema: T): T {
   standardMixinSchemas.add(schema);
@@ -150,7 +150,7 @@ interface PropertyDeclaration {
  * @param declared The map to add the declarations to.
  * @param visited The schemas already walked, so that a schema shared by
  *   several branches, or reached again through `z.lazy`, is walked once.
- * @returns `declared`.
+ * @return `declared`.
  */
 function collectDeclaredProperties(
   schema: z.ZodTypeAny | undefined,
@@ -260,7 +260,7 @@ function isStandardMixinProperty(
  * the standard schema; otherwise it is a custom property.
  *
  * @param schema The component's schema, if known.
- * @returns The component's mixin layout.
+ * @return The component's mixin layout.
  */
 export function componentMixinLayout(schema: z.ZodTypeAny | undefined): ComponentMixinLayout {
   if (!schema) return EMPTY_LAYOUT;
@@ -306,7 +306,7 @@ export function componentMixinLayout(schema: z.ZodTypeAny | undefined): Componen
  * @param comp The raw component object.
  * @param defaultCatalogSchema The component's schema in the surface's
  *   default catalog, if that catalog defines its type.
- * @returns `layout`, or a copy that treats the bare `catalogId` as the mixin.
+ * @return `layout`, or a copy that treats the bare `catalogId` as the mixin.
  */
 export function routeLegacyCatalogId(
   layout: ComponentMixinLayout,
@@ -356,7 +356,7 @@ export interface SplitComponent {
  *
  * @param comp The raw component object.
  * @param layout The component's mixin layout.
- * @returns The component's properties and envelope mixins.
+ * @return The component's properties and envelope mixins.
  * @throws {A2uiValidationError} If the component object carries both the
  *   `@`-prefixed and the legacy bare key of a mixin its schema declares no
  *   custom property for.
@@ -423,7 +423,7 @@ export interface ComponentPayloadState {
  *   default catalog, when the caller resolved the component's catalog; a
  *   legacy bare `catalogId` that routed the component is then dropped from its
  *   properties (see {@link routeLegacyCatalogId}).
- * @returns The component's properties and metadata.
+ * @return The component's properties and metadata.
  * @throws {A2uiValidationError} If a v1.0 component object carries both forms
  *   of a mixin; see {@link splitComponentEnvelope}.
  */
