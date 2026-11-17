@@ -5,13 +5,13 @@ description: 'How A2UI surfaces partition the screen, enable in-place UI updates
 
 import {Tabs, TabItem} from '@astrojs/starlight/components';
 
-A **surface** is a contiguous, bounded section of the user interface rendered and managed by an [A2UI Renderer](/concepts/sdks/#renderer-sdk). While traditional conversational AI models stream text tokens into an append-only message log, A2UI organizes dynamic graphical user interfaces into dedicated surfaces that can be created, updated in-place, and deleted over the lifetime of a session.
+A **surface** is a contiguous, bounded section of the user interface rendered and managed by an [A2UI Renderer](../sdks/#renderer-sdk). While traditional conversational AI models stream text tokens into an append-only message log, A2UI organizes dynamic graphical user interfaces into dedicated surfaces that can be created, updated in-place, and deleted over the lifetime of a session.
 
 Each surface functions as an independent UI boundary:
 
 - It maintains its own component hierarchy rooted at a reserved [`Surface`](/specification/v1.0/schemas/#common_types.json/$defs/Surface) container (identified by `"root"`).
-- It maintains its own isolated, reactive [JSON data model](/concepts/data-binding/).
-- It is bound to an initial default [catalog](/concepts/catalogs/) and, in v1.0, can resolve components and functions across multiple catalogs.
+- It maintains its own isolated, reactive [JSON data model](../data-binding/).
+- It is bound to an initial default [catalog](../catalogs/) and, in v1.0, can resolve components and functions across multiple catalogs.
 
 ---
 
@@ -21,8 +21,8 @@ In typical conversational chat applications, providing new information requires 
 
 Surfaces solve this by allowing agents to perform **targeted, in-place UI mutations**:
 
-1. **State updates without layout churn**: When a user fills out a form or an agent tool receives fresh data, the agent can send an [`updateDataModel`](/concepts/messages/#updatedatamodel) message. Only the widgets bound to those data paths re-render; the rest of the surface and its component tree remain untouched.
-2. **Dynamic component restructuring**: An agent can modify an existing surface's layout via [`updateComponents`](/concepts/messages/#updatecomponents) without re-emitting the entire screen. For example, a travel agent can replace a loading spinner with a flight card, add options to an existing choice list, or switch a checkout form into a confirmation badge—all within the exact same screen location.
+1. **State updates without layout churn**: When a user fills out a form or an agent tool receives fresh data, the agent can send an [`updateDataModel`](../messages/#updatedatamodel) message. Only the widgets bound to those data paths re-render; the rest of the surface and its component tree remain untouched.
+2. **Dynamic component restructuring**: An agent can modify an existing surface's layout via [`updateComponents`](../messages/#updatecomponents) without re-emitting the entire screen. For example, a travel agent can replace a loading spinner with a flight card, add options to an existing choice list, or switch a checkout form into a confirmation badge—all within the exact same screen location.
 3. **Bandwidth and token efficiency**: Incremental updates allow language models to emit small, targeted patches rather than regenerating hundreds of lines of UI markup on every turn.
 
 ---
@@ -49,7 +49,7 @@ graph LR
 
 ## Surface IDs and architecture patterns
 
-A `surfaceId` is a string that identifies a specific surface within an A2UI rendering context (the client-side `MessageProcessor` instance). All subsequent layout updates, data changes, user [action events](/concepts/actions-and-functions/), and function RPC calls include this `surfaceId` so the renderer routes each operation to the correct widget tree.
+A `surfaceId` is a string that identifies a specific surface within an A2UI rendering context (the client-side `MessageProcessor` instance). All subsequent layout updates, data changes, user [action events](../actions-and-functions/), and function RPC calls include this `surfaceId` so the renderer routes each operation to the correct widget tree.
 
 How you manage surfaces and `surfaceId`s depends on how your client application structures its `MessageProcessor` runtime. There are three common architectural patterns:
 
@@ -95,7 +95,7 @@ When creating a surface via `createSurface`, the agent sets `catalogId` to desig
 
 In A2UI v1.0, a single surface is not limited to a single catalog. An agent can combine components from multiple catalogs on the same surface:
 
-- **Per-component overrides**: A component declaration can include `@catalogId` to specify that it belongs to a secondary catalog (such as pulling `Row` and `Text` from the [basic catalog](/concepts/catalogs/#the-basic-catalog), and a custom `FinanceChart` from a specialized analytics catalog).
+- **Per-component overrides**: A component declaration can include `@catalogId` to specify that it belongs to a secondary catalog (such as pulling `Row` and `Text` from the [basic catalog](../catalogs/#the-basic-catalog), and a custom `FinanceChart` from a specialized analytics catalog).
 - **Per-call function overrides**: When invoking dynamic functions in bindings or checks, a call can specify `catalogId` to invoke a function defined in another catalog.
 
 ### Single-catalog surfaces (v0.9.1)
