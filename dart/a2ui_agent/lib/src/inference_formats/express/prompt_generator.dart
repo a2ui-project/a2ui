@@ -67,7 +67,6 @@ class ExpressPromptGenerator extends PromptGenerator {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError('An Express prompt needs at least one catalog.');
     }
-    checkMixedCatalogs(catalogs);
     final decompiler = ExpressDecompiler(catalogs);
     final A2uiProtocolVersion version = catalogsProtocolVersion(catalogs);
     final bool v1 = version.isAtLeast(A2uiProtocolVersion.v1_0);

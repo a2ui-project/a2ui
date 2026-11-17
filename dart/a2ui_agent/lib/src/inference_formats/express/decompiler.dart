@@ -84,8 +84,7 @@ class ExpressDecompiler {
   /// `callRendererFunction` is written as the function call it makes, as a
   /// statement of its own.
   ///
-  /// Throws [A2uiCatalogError] if there are no [catalogs], they target
-  /// different versions, or several catalogs target a version before v1.0,
+  /// Throws [A2uiCatalogError] if there are no [catalogs],
   /// and [A2uiValidationError] if a message has no Express notation:
   ///
   /// - a `createSurface` with a theme, with `sendDataModel`, with metadata,
@@ -105,7 +104,6 @@ class ExpressDecompiler {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError('Decompiling Express needs at least one catalog.');
     }
-    checkMixedCatalogs(catalogs);
     final bool v1 = _v1;
     final paragraphs = <String>[];
     final created = <String, String?>{};
