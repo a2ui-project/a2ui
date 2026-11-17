@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **BREAKING CHANGE**: Make `EnvironmentValues.a2uiCatalogs`,
+  `EnvironmentValues.a2uiDefaultCatalogID`, and `EnvironmentValues.a2uiSurfaceMetadata` read-only
+  (`public internal(set)`) in `A2UISwiftUI`, and remove `A2UICatalogsKey` and
+  `A2UIDefaultCatalogIDKey` so catalogs and surface metadata are injected only by `Surface`.
+  Recommended migration: pass catalogs to `Surface.init(viewModel:catalogs:defaultCatalogID:)` or
+  `Surface.makeWithBasicCatalogs(viewModel:)`, update surface metadata through `SurfaceViewModel`
+  (`metadata`, `setMetadata(_:)`, `setExtension(_:value:)`, `removeExtension(_:)`), and read
+  `\.a2uiCatalogs`, `\.a2uiDefaultCatalogID`, and `\.a2uiSurfaceMetadata` from `@Environment`.
+  [#4195](https://github.com/a2ui-project/a2ui/issues/4195),
+  [#4275](https://github.com/a2ui-project/a2ui/pull/4275)
+
 ## 0.11.0
 
 - **BREAKING CHANGE**: Enforce object-level (`anyOf`, `additionalProperties: false`) and
