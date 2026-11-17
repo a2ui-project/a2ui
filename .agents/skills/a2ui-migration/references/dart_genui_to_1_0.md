@@ -49,6 +49,9 @@ an app can move off genui first and move its agent to v1.0 later.
    - prompting (`PromptBuilder`, `SurfaceOperations`, `PromptFragments`,
      `Catalog.systemPromptFragments`), and any class of the package that
      implements genui's `Transport` for a model provider (recipe (f), case 3);
+   - an A2A agent reached through `genui_a2a` (`A2uiAgentConnector`,
+     `connectAndSend`), which depends on genui and goes too (recipe (f),
+     case 4);
    - custom components (`CatalogItem`, `CatalogItemContext`, `Catalog`,
      `BasicCatalogItems`, `A2uiSchemas`, `BoundString`/`BoundObject`,
      `DataContext`, `buildWeightedChild`, `ComponentChildrenBuilder`);
@@ -1264,6 +1267,41 @@ Points to check in such a package:
 11. Send `a2ui_agent`'s rejected blocks (`ErrorPart` holding an
     `A2uiError`) back to the model with `MessageErrorMapper.map(error)`,
     which returns the wire `ErrorMessage`.
+
+Case 4, the app talks to an A2A agent through `genui_a2a`'s
+`A2uiAgentConnector`. `genui_a2a` depends on genui, and the A2UI Dart SDKs
+have no A2A client, so the app sends the JSON-RPC requests itself with
+`package:http`. To keep what the agent receives unchanged, send what
+`connectAndSend` sent:
+
+1. A `POST` to the agent URL with `"method": "message/stream"`, the headers
+   `Accept: text/event-stream` and
+   `X-A2A-Extensions: https://a2ui.org/a2a-extension/a2ui/v0.9`, and
+   `params: {"message": {...}}`. The message has `"kind": "message"`,
+   `"role": "user"`, a `messageId`, the `contextId` and
+   `"referenceTaskIds": [taskId]` from the last event once the agent has
+   sent them, and `"metadata": {"a2uiClientCapabilities": ...}` built with
+   `getRendererCapabilities` (recipe (d)).
+2. The user's text as `{"kind": "text", "text": ...}`. An action or error
+   from `onAction` or `onError` as `{"kind": "data", "data": ...}`, holding
+   `ActionMessage(version: 'v0.9', action: action).toJson()` or
+   `ErrorMessage(version: 'v0.9', error: error).toJson()`. That is the JSON
+   genui put in the `UiInteractionPart`, which the connector decoded into a
+   data part.
+3. Read the reply as server-sent events: join the `data:` lines of each
+   event, decode the JSON-RPC envelope, and throw on `error`. The connector
+   read only results with `"kind": "status-update"`: it kept their `taskId`
+   and `contextId`, reported the `failed`, `canceled` and `rejected` states
+   as errors, and passed each data part of `status.message` holding
+   `createSurface`, `updateComponents`, `updateDataModel` or `deleteSurface`
+   to the renderer, which is now `processMessages`. It logged text parts.
+4. `sendEvent`, which sent an action with `message/send`, had no callers in
+   most apps, since genui sent actions through `onSubmit` and the app passed
+   them to `connectAndSend`. Check before porting it.
+
+`samples/client/flutter/restaurant_finder/app/lib/src/a2a_client.dart` is a
+client of about a hundred lines that does this, and `session.dart` beside it
+uses it.
 
 ### Catalogs and components
 
