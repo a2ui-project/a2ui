@@ -297,6 +297,36 @@ describe('Catalog Types', () => {
     it('still refuses a call that leaves out a required argument', () => {
       assert.throws(() => catalog.invoker('describeValue', {}, ctx), isValidationFailure);
     });
+
+    describe('with a refined schema', () => {
+      // Like `length` and `numeric`, which need `min` or `max`.
+      const describeBound = createFunctionImplementation(
+        {
+          name: 'describeBound',
+          returnType: 'string',
+          schema: z
+            .object({'value': z.string(), 'min': z.number().optional()})
+            .strict()
+            .refine(args => args['min'] !== undefined, {message: "'min' must be provided."}),
+        },
+        args => `${args.value ?? 'unresolved'} >= ${args.min}`,
+      );
+      const refinedCatalog = new Catalog('test-cat', '1.0', [], [describeBound]);
+
+      it('leaves an argument that settled to undefined to the function', () => {
+        assert.strictEqual(
+          refinedCatalog.invoker('describeBound', {value: undefined, min: 1}, ctx),
+          'unresolved >= 1',
+        );
+      });
+
+      it('still applies the refinement', () => {
+        assert.throws(
+          () => refinedCatalog.invoker('describeBound', {value: undefined}, ctx),
+          isValidationFailure,
+        );
+      });
+    });
   });
 });
 

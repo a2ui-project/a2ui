@@ -1278,8 +1278,10 @@ function whenArgumentsSettle(
  * to handle rather than checked against the schema, and is not required for
  * this call, so a `required` check on a field the data model does not hold yet
  * fails the check rather than the call. A payload cannot write `undefined`, so
- * a call that leaves out a required argument is still refused. A schema that
- * is not an object is parsed as it is.
+ * a call that leaves out a required argument is still refused. The
+ * refinements of an object schema, such as the rule of `length` and `numeric`
+ * that `min` or `max` is given, still apply. A schema that is not an object is
+ * parsed as it is.
  *
  * @param schema The function's argument schema.
  * @param args The settled arguments.
@@ -1287,24 +1289,48 @@ function whenArgumentsSettle(
  * @throws {z.ZodError} If an argument that resolved fails the schema.
  */
 function parseSettledArguments(schema: z.ZodTypeAny, args: unknown): Record<string, unknown> {
-  if (
-    (schema._def as {typeName?: string}).typeName !== 'ZodObject' ||
-    typeof args !== 'object' ||
-    args === null ||
-    Array.isArray(args)
-  ) {
+  if (typeof args !== 'object' || args === null || Array.isArray(args)) {
     return schema.parse(args);
   }
-  const objectSchema = schema as z.ZodObject<z.ZodRawShape>;
   const record = args as Record<string, unknown>;
-  const unresolved = Object.keys(record).filter(
-    key => record[key] === undefined && Object.hasOwn(objectSchema.shape, key),
-  );
+  const unresolved = Object.keys(record).filter(key => record[key] === undefined);
   if (unresolved.length === 0) {
-    return objectSchema.parse(record);
+    return schema.parse(record);
   }
-  const mask = Object.fromEntries(unresolved.map(key => [key, true as const]));
-  return objectSchema.partial(mask).parse(record);
+  return (relaxUnresolvedArguments(schema, unresolved) ?? schema).parse(record);
+}
+
+/**
+ * Returns a copy of a function's argument schema that does not require the
+ * given arguments.
+ *
+ * The schema is an object schema, or one wrapped in refinements, such as the
+ * `min`-or-`max` rule of `length` and `numeric`. Each refinement is kept
+ * around the relaxed object.
+ *
+ * @param schema The function's argument schema.
+ * @param keys The arguments that settled to `undefined`.
+ * @returns The relaxed schema, or `undefined` if `schema` is not an object
+ *     schema.
+ */
+function relaxUnresolvedArguments(
+  schema: z.ZodTypeAny,
+  keys: readonly string[],
+): z.ZodTypeAny | undefined {
+  const typeName = (schema._def as {typeName?: string}).typeName;
+  if (typeName === 'ZodEffects') {
+    const effects = schema as z.ZodEffects<z.ZodTypeAny>;
+    const inner = relaxUnresolvedArguments(effects.innerType(), keys);
+    return inner && new z.ZodEffects({...effects._def, schema: inner});
+  }
+  if (typeName !== 'ZodObject') {
+    return undefined;
+  }
+  const objectSchema = schema as z.ZodObject<z.ZodRawShape>;
+  const mask = Object.fromEntries(
+    keys.filter(key => Object.hasOwn(objectSchema.shape, key)).map(key => [key, true as const]),
+  );
+  return objectSchema.partial(mask);
 }
 
 /**
