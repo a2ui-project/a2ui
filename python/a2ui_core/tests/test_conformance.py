@@ -1126,7 +1126,7 @@ def _indexed_suffix_for_path(data_path: str) -> str | None:
 def _extract_template_binding(p_val: Any) -> tuple[str, str] | None:
     if not isinstance(p_val, dict) or "componentId" not in p_val:
         return None
-    raw_tpl_path = p_val.get("@path") or p_val.get("path")
+    raw_tpl_path = p_val.get("path")
     if not isinstance(raw_tpl_path, str):
         return None
     return p_val["componentId"], raw_tpl_path

@@ -1069,5 +1069,116 @@ void main() {
         expect(actions.single.name, 'picked');
       });
     });
+
+    test(
+      'resolves direct DataBinding/FunctionCall schemas and boolean unions',
+      () {
+        final CatalogApi parsed = Catalog.fromJson({
+          r'$schema': 'https://json-schema.org/draft/2020-12/schema',
+          'protocolVersion': '1.0',
+          'catalogId': 'test/direct_dynamic',
+          'components': {
+            'Probe': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Probe'},
+                'binding': {r'$ref': r'common_types.json#/$defs/DataBinding'},
+                'computed': {r'$ref': r'common_types.json#/$defs/FunctionCall'},
+                'flag': {
+                  'oneOf': [
+                    {'type': 'boolean'},
+                    {r'$ref': r'common_types.json#/$defs/DataBinding'},
+                    {r'$ref': r'common_types.json#/$defs/FunctionCall'},
+                  ],
+                },
+                'constrainedFlag': {
+                  'oneOf': [
+                    {'type': 'boolean'},
+                    {r'$ref': r'common_types.json#/$defs/DataBinding'},
+                    {
+                      'allOf': [
+                        {r'$ref': r'common_types.json#/$defs/FunctionCall'},
+                        {
+                          'type': 'object',
+                          'properties': {
+                            'returnType': {'const': 'boolean'},
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        });
+        final customCatalog = Catalog<ComponentApi, FunctionImplementation>(
+          id: parsed.id,
+          protocolVersion: parsed.protocolVersion,
+          components: parsed.components.values.toList(),
+          functions: [
+            _SpyFunction('shout', (args) => '${args['label']}!'),
+          ],
+        );
+        final v1Surface = SurfaceModel<ComponentApi>(
+          's_v1',
+          defaultCatalog: customCatalog,
+          protocolVersion: '1.0',
+        );
+        v1Surface.dataModel.set('/name', 'Ada');
+        v1Surface.dataModel.set('/flag', {'valid': false, 'message': 'No'});
+        final comp = ComponentModel('c_probe', 'Probe', {
+          'binding': {'@path': '/name'},
+          'computed': {
+            '@call': 'shout',
+            'args': {
+              'label': {'@path': '/name'},
+            },
+          },
+          'flag': {'@path': '/flag'},
+          'constrainedFlag': {'@path': '/flag'},
+        });
+        v1Surface.componentsModel.addComponent(comp);
+
+        final binder = GenericBinder(
+          ComponentContext(v1Surface, comp),
+          customCatalog.components['Probe']!.schema,
+        );
+        final initialBinding =
+            binder.resolvedProps.value['binding']! as WritableBinding<Object?>;
+        expect(initialBinding.value, 'Ada');
+        expect(
+          (binder.resolvedProps.value['computed']! as ResolvedBinding<Object?>)
+              .value,
+          'Ada!',
+        );
+        expect(
+          (binder.resolvedProps.value['flag']! as ResolvedBinding<Object?>)
+              .value,
+          isFalse,
+        );
+        expect(
+          (binder.resolvedProps.value['constrainedFlag']!
+                  as ResolvedBinding<Object?>)
+              .value,
+          isFalse,
+        );
+
+        initialBinding.set('Grace');
+        expect(v1Surface.dataModel.get('/name'), 'Grace');
+        expect(
+          (binder.resolvedProps.value['binding']! as WritableBinding<Object?>)
+              .value,
+          'Grace',
+        );
+        expect(
+          (binder.resolvedProps.value['computed']! as ResolvedBinding<Object?>)
+              .value,
+          'Grace!',
+        );
+        binder.dispose();
+        v1Surface.dispose();
+      },
+    );
   });
 }

@@ -1362,7 +1362,8 @@ public final class NodeResolver: Sendable {
     "DynamicNumber": .dynamicNumber,
     "DynamicValue": .dynamicValue,
     "DynamicStringList": .dynamicStringList,
-    "DataBinding": .dynamicString,
+    "DataBinding": .dynamicValue,
+    "FunctionCall": .dynamicValue,
     "CheckRule": .checks,
     "Checkable": .checks,
     "Action": .action,
@@ -1388,14 +1389,71 @@ public final class NodeResolver: Sendable {
   }
 
   private func classifyCompositeSchema(_ schemaJSON: JSONValue) -> PropertyType? {
-    for keyword in ["oneOf", "anyOf", "allOf"] {
+    for keyword in ["oneOf", "anyOf"] {
       guard let subSchemas = schemaJSON[keyword]?.arrayValue else { continue }
-      for sub in subSchemas {
+      if let classified = classifyUnionSchemas(subSchemas) {
+        return classified
+      }
+    }
+    if let allOf = schemaJSON["allOf"]?.arrayValue {
+      for sub in allOf {
         let type = classifySchema(sub)
         if type != .standard { return type }
       }
     }
     return nil
+  }
+
+  private func classifyUnionSchemas(_ subSchemas: [JSONValue]) -> PropertyType? {
+    var firstDynamic: PropertyType?
+    var firstNonDynamicSpecial: PropertyType?
+    var nonNullLiteralTypes: Set<String> = []
+    var hasUntypedLiteralBranch = false
+
+    for sub in subSchemas {
+      let classified = classifySchema(sub)
+      switch classified {
+      case .dynamicBoolean, .dynamicString, .dynamicNumber, .dynamicValue,
+        .dynamicStringList:
+        if firstDynamic == nil { firstDynamic = classified }
+        continue
+      case .checks, .action, .childList, .componentID:
+        if firstNonDynamicSpecial == nil { firstNonDynamicSpecial = classified }
+        continue
+      case .number:
+        if firstNonDynamicSpecial == nil { firstNonDynamicSpecial = .number }
+        nonNullLiteralTypes.insert("number")
+        continue
+      case .integer:
+        if firstNonDynamicSpecial == nil { firstNonDynamicSpecial = .integer }
+        nonNullLiteralTypes.insert("integer")
+        continue
+      case .standard:
+        break
+      }
+      if sub["type"]?.stringValue == "null" { continue }
+      if let typeStr = sub["type"]?.stringValue {
+        nonNullLiteralTypes.insert(typeStr)
+      } else if let types = sub["type"]?.arrayValue {
+        let strs = types.compactMap(\.stringValue).filter { $0 != "null" }
+        nonNullLiteralTypes.formUnion(strs)
+      } else if sub["properties"] != nil {
+        nonNullLiteralTypes.insert("object")
+      } else {
+        hasUntypedLiteralBranch = true
+      }
+    }
+
+    guard let dynamicType = firstDynamic else {
+      return firstNonDynamicSpecial
+    }
+    if dynamicType != .dynamicValue { return dynamicType }
+    if !hasUntypedLiteralBranch && !nonNullLiteralTypes.isEmpty {
+      if nonNullLiteralTypes == ["boolean"] { return .dynamicBoolean }
+      if nonNullLiteralTypes == ["string"] { return .dynamicString }
+      if nonNullLiteralTypes.isSubset(of: ["number", "integer"]) { return .dynamicNumber }
+    }
+    return .dynamicValue
   }
 
   private func classifyNumericTypeSchema(_ schemaJSON: JSONValue) -> PropertyType {
