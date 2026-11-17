@@ -33,7 +33,7 @@ export interface EventSource<T> {
    * Subscribes to the event.
    *
    * @param listener The listener function to call when the event is emitted.
-   * @returns A subscription object that can be used to unsubscribe.
+   * @return A subscription object that can be used to unsubscribe.
    */
   subscribe(listener: EventListener<T>): Subscription;
 }
@@ -48,7 +48,7 @@ export class EventEmitter<T> implements EventSource<T> {
    * Subscribes to the event.
    *
    * @param listener The listener function to call when the event is emitted.
-   * @returns A subscription object that can be used to unsubscribe.
+   * @return A subscription object that can be used to unsubscribe.
    */
   subscribe(listener: EventListener<T>): Subscription {
     this.listeners.add(listener);

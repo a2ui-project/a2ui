@@ -102,7 +102,7 @@ export class DataModel {
    * changes via `set()`, the signal will automatically be updated.
    *
    * @param path The JSON pointer path to create or retrieve a signal for.
-   * @returns A Preact Signal representing the value at the specified path.
+   * @return A Preact Signal representing the value at the specified path.
    * @throws {A2uiDataError} If path is null, undefined, or contains forbidden
    *     segments (`__proto__`, `constructor`, `prototype`).
    */
@@ -129,7 +129,7 @@ export class DataModel {
    * @param preserveNull Whether to store `null` as a value instead of treating
    *     it like `undefined`. Pre-1.0 data models stored `null`; the v1.0
    *     protocol removes the entry.
-   * @returns This `DataModel` instance for chaining.
+   * @return This `DataModel` instance for chaining.
    * @throws {A2uiDataError} If path is null, undefined, invalid for
    *     arrays/primitives, exceeds max array bounds, or contains forbidden
    *     segments (`__proto__`, `constructor`, `prototype`).
@@ -289,7 +289,7 @@ export class DataModel {
    * If `path` is `'/'` or empty, resets the root data model to an empty object.
    *
    * @param path The JSON pointer path to remove.
-   * @returns This `DataModel` instance for chaining.
+   * @return This `DataModel` instance for chaining.
    */
   delete(path: string): this {
     return this.set(path, undefined);
@@ -300,7 +300,7 @@ export class DataModel {
    *
    * @param path The path to resolve.
    * @param contextPath The base path (optional).
-   * @returns The resolved absolute path.
+   * @return The resolved absolute path.
    */
   static resolvePath(path: string, contextPath?: string): string {
     if (path.startsWith('/')) {
@@ -318,7 +318,7 @@ export class DataModel {
    *
    * @template T The expected type of the returned value. Defaults to `any`.
    * @param path The JSON pointer path to read from.
-   * @returns The value at the specified path, or undefined if not found.
+   * @return The value at the specified path, or undefined if not found.
    * @throws {A2uiDataError} If path is null, undefined, or contains forbidden
    *     segments (`__proto__`, `constructor`, `prototype`).
    */
@@ -363,7 +363,7 @@ export class DataModel {
    * a path that is absent from the object or array hierarchy (`false`).
    *
    * @param path Absolute JSON pointer path to check.
-   * @returns Whether every segment along `path` exists in the hierarchy.
+   * @return Whether every segment along `path` exists in the hierarchy.
    */
   hasPath(path: string): boolean {
     if (path === null || path === undefined) {
@@ -381,7 +381,7 @@ export class DataModel {
    *
    * @param path The JSON pointer path to observe.
    * @param onChange A callback fired whenever the value changes.
-   * @returns A `DataSubscription` containing the initial value and an
+   * @return A `DataSubscription` containing the initial value and an
    *     `unsubscribe` method.
    * @throws {A2uiDataError} If path is null, undefined, or contains forbidden
    *     segments (`__proto__`, `constructor`, `prototype`).

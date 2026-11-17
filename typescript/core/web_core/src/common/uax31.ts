@@ -44,7 +44,7 @@ const UAX31_IDENTIFIER = new RegExp('^[\\p{XID_Start}_][\\p{XID_Continue}]*$', '
  *
  * @param name Identifier to test.
  * @param allowLeadingAt Whether to allow a single leading `@`.
- * @returns Whether `name` satisfies UAX #31.
+ * @return Whether `name` satisfies UAX #31.
  */
 export function isValidUax31Identifier(name: string, allowLeadingAt = false): boolean {
   if (!name) return false;

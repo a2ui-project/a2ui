@@ -158,7 +158,7 @@ export class RpcHandler {
    * @param message Inbound callRendererFunction message.
    * @param context DataContext for function execution.
    * @param isUserActivated Whether execution occurs in an active user gesture context.
-   * @returns A promise resolving to the renderer function response message.
+   * @return A promise resolving to the renderer function response message.
    */
   async handleCallRendererFunction(
     message: CallRendererFunctionMessage,
@@ -313,7 +313,7 @@ export class RpcHandler {
    * @param surfaceId Identifier of the surface requesting execution.
    * @param call Function call details.
    * @param options Optional invocation options (custom functionCallId, timeoutMs).
-   * @returns A promise resolving to the agent function return value.
+   * @return A promise resolving to the agent function return value.
    * @throws {A2uiRpcError} If the handler is disposed, no listener is configured, the call is invalid or duplicate, or invocation times out or fails.
    */
   callAgentFunction<T = unknown>(
@@ -438,7 +438,7 @@ export class RpcHandler {
    * Validates an inbound renderer function call message.
    *
    * @param message Inbound message to validate.
-   * @returns An error response if validation fails; otherwise `null`.
+   * @return An error response if validation fails; otherwise `null`.
    */
   private validateInboundMessage(
     message: CallRendererFunctionMessage,
@@ -478,7 +478,7 @@ export class RpcHandler {
    * @param call Function name to resolve.
    * @param context Optional data context providing a default surface catalog.
    * @param expectedVersion Optional protocol version to check compatibility against.
-   * @returns The resolved function implementation and catalog, or an error descriptor.
+   * @return The resolved function implementation and catalog, or an error descriptor.
    */
   private resolveFunctionImplementation(
     catalogId: string | undefined,
@@ -525,7 +525,7 @@ export class RpcHandler {
    * @param context Optional context supplied by the caller.
    * @param catalog Resolved target catalog.
    * @param functionCallId Function call identifier for fallback surface naming.
-   * @returns A DataContext backed by the caller's surface or an isolated empty fallback surface.
+   * @return A DataContext backed by the caller's surface or an isolated empty fallback surface.
    */
   private ensureDataContext(
     context: DataContext | undefined,
@@ -560,7 +560,7 @@ export class RpcHandler {
    * @param args Raw arguments dictionary from the call payload.
    * @param context DataContext used to evaluate dynamic expressions.
    * @param isUserActivated Whether execution occurs in an active user gesture context.
-   * @returns The resolved arguments dictionary, or an error descriptor if expression evaluation fails.
+   * @return The resolved arguments dictionary, or an error descriptor if expression evaluation fails.
    */
   private resolveDynamicArguments(
     args: Record<string, unknown> | undefined,
@@ -609,7 +609,7 @@ export class RpcHandler {
    * @param funcImpl Function implementation to inspect.
    * @param call Function name being invoked.
    * @param isUserActivated Whether execution occurs within an active user gesture context.
-   * @returns An error message if permissions are not satisfied; otherwise `null`.
+   * @return An error message if permissions are not satisfied; otherwise `null`.
    */
   private checkExecutionPermissions(
     funcImpl: FunctionImplementation,
@@ -634,7 +634,7 @@ export class RpcHandler {
    * @param _funcImpl Function implementation.
    * @param args Raw argument dictionary.
    * @param call Function name being invoked.
-   * @returns Parsed arguments on success, or an error descriptor on validation failure.
+   * @return Parsed arguments on success, or an error descriptor on validation failure.
    */
   private parseArguments(
     catalog: Catalog<any>,
@@ -664,7 +664,7 @@ export class RpcHandler {
    * @param context Data context for function evaluation.
    * @param functionCallId Identifier of the function call.
    * @param version Protocol version for the response message.
-   * @returns A promise resolving to the renderer function response message.
+   * @return A promise resolving to the renderer function response message.
    */
   private async executeFunctionSafely(
     funcImpl: FunctionImplementation,
@@ -703,7 +703,7 @@ export class RpcHandler {
   /**
    * Generates a unique function call identifier.
    *
-   * @returns A unique call identifier string.
+   * @return A unique call identifier string.
    */
   private generateFunctionCallId(): string {
     if (typeof globalThis.crypto?.randomUUID === 'function') {
@@ -719,7 +719,7 @@ export class RpcHandler {
    * @template T Expected return value type.
    * @param surfaceId Identifier of the surface initiating the call.
    * @param callInfo Normalized agent call parameters.
-   * @returns A promise resolving to the agent function return value.
+   * @return A promise resolving to the agent function return value.
    */
   private dispatchAgentCall<T = unknown>(
     surfaceId: string,
@@ -770,7 +770,7 @@ export class RpcHandler {
    * @param timeoutMs Duration in milliseconds before timeout expiry.
    * @param cleanup Teardown callback to invoke when the timer fires.
    * @param reject Rejection callback to reject the pending promise with a `TIMEOUT` error.
-   * @returns The timer handle, or `undefined` if timeout is disabled.
+   * @return The timer handle, or `undefined` if timeout is disabled.
    */
   private createTimeoutTimer(
     functionCallId: string,
@@ -843,7 +843,7 @@ export class RpcHandler {
    * Extracts a human-readable message string from an unknown error value.
    *
    * @param err Unknown error caught in a try/catch block.
-   * @returns Formatted error message string.
+   * @return Formatted error message string.
    */
   private extractErrorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
@@ -856,7 +856,7 @@ export class RpcHandler {
    * @param code RPC error code or string category.
    * @param message Human-readable error description.
    * @param version Protocol version string.
-   * @returns Formatted renderer function response message containing the error.
+   * @return Formatted renderer function response message containing the error.
    */
   private createResponseError(
     functionCallId: string,

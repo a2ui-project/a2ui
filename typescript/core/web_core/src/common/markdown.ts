@@ -45,7 +45,7 @@ export interface MarkdownRendererOptions {
  *
  * @param markdown Markdown string to render.
  * @param options Options configuring the markdown rendering process.
- * @returns A promise resolving to the rendered HTML string.
+ * @return A promise resolving to the rendered HTML string.
  */
 export type MarkdownRenderer = (
   markdown: string,

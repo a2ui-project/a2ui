@@ -81,7 +81,7 @@ export class ComponentContext {
    *
    * @param action The action to dispatch.
    * @param metadata Optional metadata envelope to attach to the outbound action.
-   * @returns A promise that resolves when action dispatching completes.
+   * @return A promise that resolves when action dispatching completes.
    */
   dispatchAction(action: Action | Record<string, unknown>, metadata?: A2uiMetadata): Promise<void> {
     return this._actionDispatcher(action, metadata);

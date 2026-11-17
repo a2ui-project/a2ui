@@ -29,7 +29,7 @@ const XID_CONTINUE_CHAR = /^\p{XID_Continue}$/u;
  * `IDENTIFIER` lexer rule in `Express.g4`.
  *
  * @param str The candidate identifier.
- * @returns True if the string lexes as an identifier.
+ * @return True if the string lexes as an identifier.
  */
 export function isExpressIdentifier(str: string): boolean {
   return isValidUax31Identifier(str) && !RESERVED_WORDS.has(str);
@@ -42,7 +42,7 @@ export function isExpressIdentifier(str: string): boolean {
  * until the result is a valid non-reserved Express identifier.
  *
  * @param componentId The component ID to derive a variable name from.
- * @returns A valid Express variable name.
+ * @return A valid Express variable name.
  */
 export function deriveVariableName(componentId: string): string {
   let base = Array.from(componentId, ch => (XID_CONTINUE_CHAR.test(ch) ? ch : '_')).join('');
@@ -62,7 +62,7 @@ export function deriveVariableName(componentId: string): string {
  * to its ID.
  *
  * @param componentIds The component IDs in the block, in component order.
- * @returns Map from component ID to assigned variable name.
+ * @return Map from component ID to assigned variable name.
  */
 export function assignVariableNames(componentIds: readonly string[]): Map<string, string> {
   const names = new Map<string, string>();

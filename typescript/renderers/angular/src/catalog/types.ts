@@ -183,7 +183,7 @@ function isAngularComponentImplementation(api: unknown): api is AngularComponent
  *
  * @param componentApi The ComponentApi or WebComponentImplementation defining the schema and name.
  * @param component The Angular Component class.
- * @returns The entry, usable both natively and as a Web Component.
+ * @return The entry, usable both natively and as a Web Component.
  */
 export function createComponentImplementation(
   componentApi: ComponentApi | WebComponentImplementation,

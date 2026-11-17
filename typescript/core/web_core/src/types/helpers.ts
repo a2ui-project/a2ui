@@ -39,7 +39,7 @@ export const MAX_FUNCTION_CALL_ARGS = 1_000;
  * Creates or customizes a ComponentId schema without losing its reference pointer metadata.
  *
  * @param options Configuration options including custom description.
- * @returns The configured ComponentId schema.
+ * @return The configured ComponentId schema.
  */
 export function componentId(options: RefSchemaOptions = {}): typeof ComponentIdSchema {
   if (options.description === undefined) {
@@ -54,7 +54,7 @@ export function componentId(options: RefSchemaOptions = {}): typeof ComponentIdS
  * Creates or customizes a ChildList schema without losing its reference pointer metadata.
  *
  * @param options Configuration options including custom description.
- * @returns The configured ChildList schema.
+ * @return The configured ChildList schema.
  */
 export function childList(options: RefSchemaOptions = {}): typeof ChildListSchema {
   if (options.description === undefined) {

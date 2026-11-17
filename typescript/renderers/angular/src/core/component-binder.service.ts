@@ -66,7 +66,7 @@ export class ComponentBinder {
    * Reads only from `node.props`; no additional `DataContext` subscriptions are created.
    *
    * @param node The resolved ComponentNode.
-   * @returns A map of property names to reactive `BoundProperty` wrappers.
+   * @return A map of property names to reactive `BoundProperty` wrappers.
    */
   bindNode(node: ComponentNode): Record<string, BoundProperty> {
     const rawProps = node.context?.componentModel.properties ?? {};
@@ -162,7 +162,7 @@ export class ComponentBinder {
    *   `bindNode(node)`. This path remains for elements that are given a `ComponentContext`
    *   without a node and will be removed in a future release.
    * @param context The ComponentContext containing the model and data context.
-   * @returns An object where each key corresponds to a component prop and its value is an Angular Signal.
+   * @return An object where each key corresponds to a component prop and its value is an Angular Signal.
    */
   bind(context: ComponentContext): Record<string, BoundProperty> {
     const props = context.componentModel.properties;

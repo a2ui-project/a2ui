@@ -73,7 +73,7 @@ type JsonObject = Record<string, unknown>;
  * Returns a deep copy of a JSON value.
  *
  * @param value JSON-compatible value to copy.
- * @returns A structurally equal copy that shares no objects with `value`.
+ * @return A structurally equal copy that shares no objects with `value`.
  */
 export function deepCopyJson<V>(value: V): V {
   if (value === undefined) return value;
@@ -84,7 +84,7 @@ export function deepCopyJson<V>(value: V): V {
  * Freezes a JSON value and everything it contains, in place.
  *
  * @param value JSON-compatible value.
- * @returns `value`.
+ * @return `value`.
  */
 export function deepFreeze<V>(value: V): V {
   if (typeof value === 'object' && value !== null && !Object.isFrozen(value)) {
@@ -192,7 +192,7 @@ export function isFunctionListItem(definition: JsonSchemaObject): boolean {
  * @param after The entries of the derived catalog.
  * @param extensionFields The document's other top-level fields, whose
  *     references keep definitions too.
- * @returns `defs` itself when nothing is dropped.
+ * @return `defs` itself when nothing is dropped.
  */
 export function retainedDefs(
   defs: Readonly<JsonObject> | undefined,
@@ -589,7 +589,7 @@ function hasAuthoredTheme(catalog: {
  * catalog's model. See `Catalog.toJson` for the full contract.
  *
  * @param catalog The catalog to serialize.
- * @returns A fresh catalog document that shares no objects with the catalog.
+ * @return A fresh catalog document that shares no objects with the catalog.
  */
 export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObject {
   const isAtLeastV10 = isAtLeastVersion(catalog.protocolVersion, '1.0');

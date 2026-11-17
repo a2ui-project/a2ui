@@ -39,7 +39,7 @@ export type TaggedCustomElementConstructor = CustomElementConstructor & {
  * @param element The element class. Its static `tagName` becomes the
  *     implementation's tag name.
  * @param api The component API whose name and schema the implementation uses.
- * @returns A `WebComponentImplementation` combining `api`, `element`, and
+ * @return A `WebComponentImplementation` combining `api`, `element`, and
  *     `element.tagName`.
  */
 export function toWebComponentImplementation<Api extends ComponentApi>(

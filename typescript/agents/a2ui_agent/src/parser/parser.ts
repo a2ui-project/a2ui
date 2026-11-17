@@ -102,7 +102,7 @@ export abstract class Parser {
    * @param options.complete Whether to require a closed block. When false, the default, an
    *     opening tag on its own counts, which is what a streaming caller needs to know it has
    *     started receiving a payload.
-   * @returns True when the content carries a block belonging to this format.
+   * @return True when the content carries a block belonging to this format.
    */
   abstract hasFormatContent(content: string, options?: {complete?: boolean}): boolean;
 

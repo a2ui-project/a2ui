@@ -101,7 +101,7 @@ declare global {
 /**
  * Type-safely retrieves a custom element constructor using the tagName map.
  * @param tagName The tag name to look up (must exist in HTMLElementTagNameMap).
- * @returns The specific constructor type or undefined.
+ * @return The specific constructor type or undefined.
  */
 export function instanceOf<T extends keyof A2UITagNameMap>(tagName: T) {
   // Use a type assertion: we tell TypeScript to trust that the value returned

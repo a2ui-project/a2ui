@@ -352,6 +352,7 @@ export class DirectJsonResponseStream<
   /**
    * Emits the messages of the open block that read and are accepted.
    *
+   * @param parts The stream parts to inspect.
    * @param end Where the part of the block that can be read ends.
    */
   private emitReady(parts: StreamPart[], end: number): void {
@@ -472,8 +473,10 @@ export class DirectJsonResponseStream<
    * leaves the state as applying the whole message would: components are replaced by id. An
    * `updateDataModel` is applied whole again once it closes.
    *
+   * @param index The sequence index of the message.
+   * @param envelope The parsed message envelope.
    * @param closed Whether the message's object has closed.
-   * @returns The message, if the renderer has not received it as it now stands.
+   * @return The message, if the renderer has not received it as it now stands.
    */
   private applyMessage(
     index: number,
@@ -511,7 +514,7 @@ export class DirectJsonResponseStream<
    * earlier batch of the same message for an update; such an id is rejected here, as the
    * state rejects one repeated within a batch.
    *
-   * @returns Whether the message changed.
+   * @return Whether the message changed.
    */
   private applyAddedComponents(
     growing: Extract<Growing, {kind: 'components'}>,
@@ -555,7 +558,7 @@ export class DirectJsonResponseStream<
    * Of what the state checks, only the depth of the value and the paths it binds depend on
    * the value, so only the lists and maps it gained are checked while it grows.
    *
-   * @returns Whether the message changed.
+   * @return Whether the message changed.
    */
   private checkGrownValue(
     growing: Extract<Growing, {kind: 'dataModel'}>,

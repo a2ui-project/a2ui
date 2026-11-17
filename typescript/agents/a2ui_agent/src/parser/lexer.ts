@@ -336,7 +336,7 @@ export class BlockLexer {
    * Scans response content to extract format blocks.
    *
    * @param content The raw text response string to scan.
-   * @returns A list of tokenized response parts.
+   * @return A list of tokenized response parts.
    */
   tokenize(content: string): RawResponsePart[] {
     const parts: RawResponsePart[] = [];

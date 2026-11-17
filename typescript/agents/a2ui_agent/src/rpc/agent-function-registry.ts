@@ -110,7 +110,7 @@ export class AgentFunctionRegistry {
    * its `agentFunctionResponse` envelope.
    *
    * @param message Inbound `callAgentFunction` message.
-   * @returns The outbound `agentFunctionResponse` message.
+   * @return The outbound `agentFunctionResponse` message.
    * @throws {A2uiValidationError} If the message lacks a usable `functionCallId`.
    */
   async handle(message: unknown): Promise<AgentFunctionResponseMessage> {

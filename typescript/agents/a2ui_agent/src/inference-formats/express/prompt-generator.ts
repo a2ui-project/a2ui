@@ -113,7 +113,7 @@ const ROOT_EXAMPLE_LINE = 'root = ComponentA(...)';
  * can't use. It is the first component that holds a single child reference, as a container
  * such as a card does, or else the first component.
  *
- * @returns The component name, or undefined if the catalogs define no component.
+ * @return The component name, or undefined if the catalogs define no component.
  */
 function exampleRootComponent(catalogs: readonly CatalogApi[]): string | undefined {
   for (const catalog of catalogs) {
@@ -511,7 +511,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
    * listed once, in the same signature format as catalog functions, and only for a
    * version that defines them.
    *
-   * @returns The section, or an empty string if the version defines none.
+   * @return The section, or an empty string if the version defines none.
    */
   private generateSystemFunctionSignatures(): string {
     const helper = this.catalogs.length > 0 ? this.getHelper(this.catalogs[0]) : undefined;

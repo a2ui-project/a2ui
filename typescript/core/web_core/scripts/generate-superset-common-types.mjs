@@ -142,7 +142,7 @@ export function mergeObjectSchemas(schemas) {
  * @param {object} schema The definition to flatten.
  * @param {Record<string, object>} defs All `$defs` from the same document.
  * @param {Set<string>} seen Definition names already inlined, guarding cycles.
- * @returns {object} The schema with inherited properties folded in.
+ * @return {object} The schema with inherited properties folded in.
  */
 export function inlineAllOfRefs(schema, defs, seen = new Set()) {
   if (!schema || typeof schema !== 'object' || !Array.isArray(schema.allOf)) {
@@ -197,7 +197,7 @@ export function mergeEnumSchemas(schemas) {
  * Deep merges a list of JSON Schema definitions across versions into a superset schema.
  *
  * @param {Array<object>} schemas List of schema objects in chronological order.
- * @returns {object} The merged superset JSON Schema.
+ * @return {object} The merged superset JSON Schema.
  */
 export function deepMergeSchemas(schemas) {
   if (!schemas || schemas.length === 0) return {};

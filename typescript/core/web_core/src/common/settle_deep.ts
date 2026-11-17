@@ -39,7 +39,7 @@ export class FailedArgument {
  * plain objects recursively.
  *
  * @param value The settled value or argument map to inspect.
- * @returns The first `FailedArgument` encountered, or `undefined` if none is present.
+ * @return The first `FailedArgument` encountered, or `undefined` if none is present.
  */
 export function findFailedArgument(value: unknown): FailedArgument | undefined {
   if (value instanceof FailedArgument) {
@@ -79,7 +79,7 @@ export function recordSettledValue(promise: PromiseLike<unknown>, value: unknown
  * Checks whether a value is a Promise-like object.
  *
  * @param value The value to inspect.
- * @returns Whether `value` has a callable `then`.
+ * @return Whether `value` has a callable `then`.
  */
 export function isThenable(value: unknown): value is PromiseLike<unknown> {
   return (
@@ -94,7 +94,7 @@ export function isThenable(value: unknown): value is PromiseLike<unknown> {
  * instance of a class such as `Date` or a `Signal`.
  *
  * @param value The value to inspect.
- * @returns Whether `value` is a plain object.
+ * @return Whether `value` is a plain object.
  */
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (Array.isArray(value) || typeof value !== 'object' || value === null) {
@@ -113,7 +113,7 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
  * rejects the returned Promise.
  *
  * @param value The value to settle.
- * @returns `value` itself when nothing in it is pending, otherwise a Promise
+ * @return `value` itself when nothing in it is pending, otherwise a Promise
  *     of `value` with every nested Promise replaced by its settled value.
  */
 export function settleDeep<T>(value: T): T | Promise<unknown> {

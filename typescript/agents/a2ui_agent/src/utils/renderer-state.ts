@@ -322,7 +322,7 @@ export class RendererState {
    * costs what the messages change, not the size of the surfaces they touch.
    *
    * @param payload One message or an iterable of messages, as parsed JSON objects.
-   * @returns The ids of the surfaces the messages create, update or delete, in the order the
+   * @return The ids of the surfaces the messages create, update or delete, in the order the
    *     messages first name them.
    * @throws {A2uiValidationError} If a renderer in this state would reject a message. The
    *     error, or a subclass such as `A2uiIntegrityError`, describes the first problem found.
@@ -418,7 +418,7 @@ export class RendererState {
    * `transaction`, `checkTopology` and `markChecked` throw `TypeError`, whoever calls them, and a rejection
    * of the promise is handled, since the caller never got the promise to handle it.
    *
-   * @returns What `fn` returns.
+   * @return What `fn` returns.
    * @throws {TypeError} If `fn` returns a promise, which the type of `fn` rejects at compile
    *   time. The state is restored first. Also thrown while such a promise is running.
    */

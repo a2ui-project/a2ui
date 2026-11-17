@@ -33,7 +33,7 @@ import {CatalogSchemaHelper} from './schema-helper.js';
  * catalog or a list of them.
  *
  * @param catalogs One catalog or a non-empty list of catalogs.
- * @returns The catalogs as a list.
+ * @return The catalogs as a list.
  * @throws A2uiCatalogError if the list is empty.
  */
 export function toCatalogList(catalogs: CatalogApi | CatalogApi[]): CatalogApi[] {
@@ -57,7 +57,7 @@ function versionLine(version: string): string {
  * and that multi-catalog configurations target v1.0 or later.
  *
  * @param catalogs The active catalogs (non-empty).
- * @returns The first catalog's wire protocol version.
+ * @return The first catalog's wire protocol version.
  * @throws A2uiCatalogError if catalog IDs are duplicated, versions span release lines,
  *     or multiple catalogs are used below v1.0.
  */
@@ -98,7 +98,7 @@ export function checkMixedCatalogs(catalogs: CatalogApi[]): string {
  *
  * @param catalogs The active catalogs (non-empty).
  * @param requested An explicitly requested version, if any.
- * @returns The requested version, or the first catalog's version.
+ * @return The requested version, or the first catalog's version.
  * @throws A2uiCatalogError if the catalogs, or the requested version, span release lines.
  */
 export function resolveExpressVersion(catalogs: CatalogApi[], requested?: string): string {
@@ -149,7 +149,7 @@ export function catalogsDefining(
  *
  * @param catalogs The active catalogs.
  * @param version The protocol version the helpers read the schemas for.
- * @returns The helpers, in catalog order.
+ * @return The helpers, in catalog order.
  */
 export function buildSchemaHelpers(
   catalogs: CatalogApi[],

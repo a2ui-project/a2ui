@@ -154,7 +154,7 @@ function unwrap(value: unknown): unknown {
  * is ignored.
  *
  * @param props The component's resolved props.
- * @returns The accessibility attributes, or `undefined` if there are none.
+ * @return The accessibility attributes, or `undefined` if there are none.
  */
 export function resolveAccessibilityProps(
   props: unknown,
@@ -231,6 +231,7 @@ export class HostAccessibility {
    * Sets the attributes for `state` and removes the ones a previous call set
    * that no longer apply.
    *
+   * @param state The host accessibility state.
    * @param target The element for the label, description and validation
    *     state, or `null` to label the host.
    * @param errors The element showing the validation errors, or `null`.

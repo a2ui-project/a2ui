@@ -52,7 +52,7 @@ export interface DemoItem {
  * Loads and returns the list of available demo items for the requested protocol version.
  *
  * @param version Target specification version ('0.9' | '1.0'). Defaults to '0.9'.
- * @returns An array of DemoItem objects.
+ * @return An array of DemoItem objects.
  */
 export function getDemoItems(version: SpecVersion = '0.9'): DemoItem[] {
   const items: DemoItem[] = [];
@@ -151,7 +151,7 @@ function normalizeV10Messages(messages: ExplorerMessage[]): ExplorerMessage[] {
  * @param filename The name of the file, used as fallback surfaceId.
  * @param messages The array of A2UI messages.
  * @param version The specification version ('0.9' | '1.0').
- * @returns The surfaceId for the createSurface message of this set of messages.
+ * @return The surfaceId for the createSurface message of this set of messages.
  */
 function ensureCreateSurfaceMessage(
   filename: string,

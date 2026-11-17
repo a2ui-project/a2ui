@@ -88,7 +88,7 @@ export class A2uiMessageProcessor implements MessageProcessor {
   /**
    * Retrieves a map of all visible surfaces with root components.
    *
-   * @returns Readonly map of active surfaces keyed by surface ID.
+   * @return Readonly map of active surfaces keyed by surface ID.
    */
   getSurfaces(): ReadonlyMap<string, Surface> {
     const allSurfaces = this.surfaces;
@@ -145,7 +145,7 @@ export class A2uiMessageProcessor implements MessageProcessor {
    * @param node Component node providing data context.
    * @param relativePath Relative or absolute JSON pointer path.
    * @param surfaceId Surface identifier.
-   * @returns Resolved data value, or null if not found.
+   * @return Resolved data value, or null if not found.
    */
   getData(
     node: AnyComponentNode,
@@ -210,7 +210,7 @@ export class A2uiMessageProcessor implements MessageProcessor {
    *
    * @param path Target path string.
    * @param dataContextPath Base context path.
-   * @returns Resolved absolute path string.
+   * @return Resolved absolute path string.
    */
   resolvePath(path: string, dataContextPath?: string): string {
     // If the path is absolute, it overrides any context.

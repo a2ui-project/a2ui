@@ -40,7 +40,7 @@ export const CONFORMANCE_CATALOGS_DIR = path.join(REPO_ROOT, 'conformance/test_d
  * Reads a conformance catalog document.
  *
  * @param fileName The file name inside `conformance/test_data/catalogs/`.
- * @returns A fresh copy of the parsed document, safe to modify.
+ * @return A fresh copy of the parsed document, safe to modify.
  */
 export function readConformanceCatalog(fileName: string): CatalogDocument {
   return JSON.parse(fs.readFileSync(path.join(CONFORMANCE_CATALOGS_DIR, fileName), 'utf8'));

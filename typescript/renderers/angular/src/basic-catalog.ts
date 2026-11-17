@@ -180,7 +180,7 @@ export class BasicCatalog extends BasicCatalogBase {
  * Provides the A2UI v1.0 renderer configuration, defaulting `useUniversalComponents` to `true`.
  *
  * @param configOrFactory The configuration or a factory function that returns the configuration.
- * @returns The providers for the A2UI renderer.
+ * @return The providers for the A2UI renderer.
  */
 export function provideA2UI(
   configOrFactory: RendererConfiguration | (() => RendererConfiguration),

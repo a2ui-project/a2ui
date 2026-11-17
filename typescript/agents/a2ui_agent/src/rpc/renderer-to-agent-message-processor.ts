@@ -134,7 +134,7 @@ export class RendererToAgentMessageProcessor {
    * Processes one message from the renderer.
    *
    * @param message The parsed JSON message.
-   * @returns Whether the message was handled, and the replies to send.
+   * @return Whether the message was handled, and the replies to send.
    * @throws {A2uiValidationError} If `message` is not an object, its
    *   `version` isn't `'1.0'`, it has no known message key or more than one,
    *   it is a `callAgentFunction` without a `functionCallId`, or it is a

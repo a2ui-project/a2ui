@@ -166,7 +166,7 @@ interface ValueSlot {
 /**
  * Descends a value slot into the items of an array.
  *
- * @returns The item slot, or undefined when the schema is unknown at that position.
+ * @return The item slot, or undefined when the schema is unknown at that position.
  */
 function itemSlot(slot: ValueSlot | undefined): ValueSlot | undefined {
   const schema = slot?.schema ? slot.helper.resolveItemSchema(slot.schema) : undefined;
@@ -176,7 +176,7 @@ function itemSlot(slot: ValueSlot | undefined): ValueSlot | undefined {
 /**
  * Descends a value slot into a property of an object, whatever the property is named.
  *
- * @returns The property's slot, or undefined when the schema is unknown at that position.
+ * @return The property's slot, or undefined when the schema is unknown at that position.
  */
 function propertySlot(slot: ValueSlot | undefined, name: string): ValueSlot | undefined {
   const schema = slot?.schema ? slot.helper.resolvePropertySchema(slot.schema, name) : undefined;
@@ -1871,7 +1871,7 @@ export class ExpressCompiler {
    * @param surfaceId The unique identifier for the compiled surface.
    * @param isFinal Whether this is the final compilation pass.
    * @param version Target version override ("v0.9", "v0.9.1", or "v1.0").
-   * @returns A list of standard A2UI wire JSON message dicts.
+   * @return A list of standard A2UI wire JSON message dicts.
    */
   compile(
     dslText: string,
@@ -2048,7 +2048,7 @@ export class ExpressCompiler {
    * @param compIds Mapping from variable names to resolved component IDs.
    * @param ctx Active compiler execution context.
    * @param targetMajorMinor Target major and minor protocol version numbers.
-   * @returns The compiled component JSON dictionary, or null if not a component.
+   * @return The compiled component JSON dictionary, or null if not a component.
    */
   private _compileAstNode(
     varName: string,
@@ -2812,7 +2812,7 @@ export class ExpressCompiler {
    * @param slot The catalog schema declared at this position, when known. Array items
    *   and map entries resolve their own sub-schema from it, so an `Action` slot nested
    *   inside a list item (e.g. `items: [{label, action}]`) is compiled as an action too.
-   * @returns The semantically correct A2UI JSON structure.
+   * @return The semantically correct A2UI JSON structure.
    */
   private _compileValue(
     val: unknown,

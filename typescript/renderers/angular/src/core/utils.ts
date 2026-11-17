@@ -23,7 +23,7 @@
  * @param path The relative or absolute path from the component properties.
  * @param dataContextPath The current base data context path.
  * @param index The index of the child component.
- * @returns A fully normalized absolute path for the indexed child.
+ * @return A fully normalized absolute path for the indexed child.
  */
 export function getNormalizedPath(
   path: string | undefined,
