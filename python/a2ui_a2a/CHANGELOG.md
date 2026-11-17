@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.4.0 (2026-11-17)
+
 - Add `renderer_capabilities_from_message(message, version)` to read and
   validate A2UI renderer capabilities from an inbound A2A `Message` across
   `message.metadata`, `DataPart.metadata`, and legacy `DataPart.data["metadata"]`.
