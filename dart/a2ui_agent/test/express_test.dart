@@ -44,6 +44,25 @@ void main() {
       },
     },
   });
+  final CatalogApi v1Basic = Catalog.fromJson(
+    jsonDecode(File('../../catalogs/basic/v1/catalog.json').readAsStringSync())
+        as Map<String, Object?>,
+    protocolVersion: A2uiProtocolVersion.v1_0,
+  );
+  final CatalogApi v1Custom = Catalog.fromJson({
+    'catalogId': 'https://example.com/custom.json',
+    'protocolVersion': '1.0',
+    'components': {
+      'Gauge': {
+        'type': 'object',
+        'properties': {
+          'component': {'const': 'Gauge'},
+          'value': {'type': 'number'},
+        },
+        'required': ['component', 'value'],
+      },
+    },
+  });
 
   A2uiRequestProcessor processor([List<CatalogApi>? catalogs]) =>
       A2uiRequestProcessor(activeCatalogs: catalogs ?? [basic]);
@@ -346,10 +365,9 @@ root = Text($/user/name)
     group('number literals', () {
       /// The `value` of a `Gauge` written with [literal].
       Object? gauge(String literal) {
-        final List<ResponsePart>
-        parts = processor([basic, custom]).parseResponse(
-          '<a2ui>surface("g", "${custom.id}"); root = Gauge($literal)</a2ui>',
-        );
+        final List<ResponsePart> parts = processor([
+          custom,
+        ]).parseResponse('<a2ui>surface("g"); root = Gauge($literal)</a2ui>');
         final AgentToRendererMessage last =
             (parts.single as A2uiPart).a2ui.last;
         return (last as UpdateComponentsMessage).components.single['value'];
@@ -413,25 +431,14 @@ surface("s1")
       expect((parts[4] as A2uiPart).a2ui.single, isA<DeleteSurfaceMessage>());
     });
 
-    test('with a surface built from another catalog', () {
-      final List<ResponsePart> parts = processor([basic, custom]).parseResponse(
-        '<a2ui>surface("g", "${custom.id}"); root = Gauge(0.5)</a2ui>',
+    test('rejects several v0.9 catalogs', () {
+      expect(
+        () => processor([basic, custom]),
+        throwsA(isA<A2uiCatalogError>()),
       );
-      final List<AgentToRendererMessage> messages =
-          (parts.single as A2uiPart).a2ui;
-      expect((messages.first as CreateSurfaceMessage).catalogId, custom.id);
-      expect((messages.last as UpdateComponentsMessage).components, [
-        {'id': 'root', 'component': 'Gauge', 'value': 0.5},
-      ]);
     });
 
     test('v1.0 surface and component extensions kwargs', () {
-      final CatalogApi v1Basic = Catalog.fromJson(
-        jsonDecode(
-          File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
-        ) as Map<String, Object?>,
-        protocolVersion: A2uiProtocolVersion.v1_0,
-      );
       final List<AgentToRendererMessage> compiled = ExpressCompiler([v1Basic])
           .compile(
             'surface("s", extensions={surf_ext: {version: 1}})\n'
@@ -683,9 +690,9 @@ surface("s1")
     });
 
     test('names each catalog when there are several', () {
-      final String snippet = processor([basic, custom]).promptSnippet;
-      expect(snippet, contains('## Catalog `${basic.id}`'));
-      expect(snippet, contains('## Catalog `${custom.id}`'));
+      final String snippet = processor([v1Basic, v1Custom]).promptSnippet;
+      expect(snippet, contains('## Catalog `${v1Basic.id}`'));
+      expect(snippet, contains('## Catalog `${v1Custom.id}`'));
       expect(snippet, contains('• Gauge(value (static))'));
     });
 

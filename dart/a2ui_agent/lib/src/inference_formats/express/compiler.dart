@@ -150,7 +150,9 @@ String _stripSentinelTags(String text) {
 class ExpressCompiler {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
-  ExpressCompiler(this.catalogs);
+  ExpressCompiler(this.catalogs) {
+    checkMixedCatalogs(catalogs);
+  }
 
   final List<CatalogApi> catalogs;
 
@@ -177,11 +179,13 @@ class ExpressCompiler {
   /// [A2uiValidationError] if it names anything the catalogs do not declare,
   /// a component does not match its schema, or the block uses something the
   /// catalogs' version has no message for, and [A2uiCatalogError] if there are
-  /// no [catalogs] or they target different versions.
+  /// no [catalogs], they target different versions, or several catalogs
+  /// target a version before v1.0.
   List<AgentToRendererMessage> compile(String source) {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError('Compiling Express needs at least one catalog.');
     }
+    checkMixedCatalogs(catalogs);
     final List<ExpressStatement> statements = parseExpress(
       _stripSentinelTags(source),
     );
@@ -2053,6 +2057,7 @@ class ExpressScopeSession {
     if (compiler.catalogs.isEmpty) {
       throw A2uiCatalogError('Compiling Express needs at least one catalog.');
     }
+    checkMixedCatalogs(compiler.catalogs);
     final List<ExpressStatement> statements = _parseIncrementalStatements(
       dslText,
       cachePrefix: cachePrefix,

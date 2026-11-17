@@ -57,7 +57,9 @@ typedef _SurfaceCatalog = ({bool known, String? catalogId});
 class ExpressDecompiler {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
-  ExpressDecompiler(this.catalogs);
+  ExpressDecompiler(this.catalogs) {
+    checkMixedCatalogs(catalogs);
+  }
 
   final List<CatalogApi> catalogs;
 
@@ -82,9 +84,9 @@ class ExpressDecompiler {
   /// `callRendererFunction` is written as the function call it makes, as a
   /// statement of its own.
   ///
-  /// Throws [A2uiCatalogError] if there are no [catalogs] or they target
-  /// different versions, and [A2uiValidationError] if a message has no
-  /// Express notation:
+  /// Throws [A2uiCatalogError] if there are no [catalogs], they target
+  /// different versions, or several catalogs target a version before v1.0,
+  /// and [A2uiValidationError] if a message has no Express notation:
   ///
   /// - a `createSurface` with a theme, with `sendDataModel`, with metadata,
   ///   or without the components that give the surface its root;
@@ -103,6 +105,7 @@ class ExpressDecompiler {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError('Decompiling Express needs at least one catalog.');
     }
+    checkMixedCatalogs(catalogs);
     final bool v1 = _v1;
     final paragraphs = <String>[];
     final created = <String, String?>{};

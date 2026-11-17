@@ -77,7 +77,7 @@ class ExpressFormat extends InferenceFormat {
              ? null
              : List.unmodifiable(allowedMessages),
        ) {
-    checkDistinctIds(catalogs);
+    checkMixedCatalogs(catalogs);
   }
 
   /// Property keys whose open string literals are healed progressively during

@@ -57,15 +57,17 @@ class ExpressPromptGenerator extends PromptGenerator {
   /// tells the model how a component or function call names its catalog.
   ///
   /// Throws [A2uiCatalogError] if [catalogs] is empty, since there would be
-  /// nothing the model could be told to write, or target different protocol
-  /// versions, [ArgumentError] if [allowedMessages] names a message type the
-  /// catalogs' version does not have, and [A2uiValidationError] if an example
-  /// has no Express notation; see [ExpressDecompiler.decompile].
+  /// nothing the model could be told to write, they target different protocol
+  /// versions, or several catalogs target a version before v1.0,
+  /// [ArgumentError] if [allowedMessages] names a message type the catalogs'
+  /// version does not have, and [A2uiValidationError] if an example has no
+  /// Express notation; see [ExpressDecompiler.decompile].
   @override
   String generate() {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError('An Express prompt needs at least one catalog.');
     }
+    checkMixedCatalogs(catalogs);
     final decompiler = ExpressDecompiler(catalogs);
     final A2uiProtocolVersion version = catalogsProtocolVersion(catalogs);
     final bool v1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
@@ -98,7 +100,7 @@ class ExpressPromptGenerator extends PromptGenerator {
         ..write('\n\n')
         ..write(section(catalogs.single, '##'));
     } else {
-      buffer.write(v1 ? _catalogsV1(catalogs) : _catalogsV0_9(catalogs));
+      buffer.write(_catalogsV1(catalogs));
       if (systemFunctions.isNotEmpty) buffer.write('\n\n$systemFunctions');
       for (final CatalogApi catalog in catalogs) {
         buffer
@@ -118,15 +120,6 @@ class ExpressPromptGenerator extends PromptGenerator {
     return buffer.toString();
   }
 }
-
-/// Before v1.0 a surface uses one catalog, which its `surface(...)` line
-/// names unless it is the first.
-String _catalogsV0_9(List<CatalogApi> catalogs) =>
-    '\n\n## Catalogs\n\n'
-    'Components and functions come from the catalogs below. A surface '
-    'uses one catalog. The first catalog, `${catalogs.first.id}`, is the '
-    'default. To build a surface from another catalog, name it in the '
-    'surface line, e.g. surface("my-surface", "${catalogs.last.id}").';
 
 /// From v1.0 a surface names no catalog, and each component and function
 /// call belongs to the catalog declaring its name, which the model names
