@@ -258,7 +258,7 @@ public enum SVGPathParser {
 
     let segmentCount = max(1, Int((abs(sweepAngle) / (.pi / 2)).rounded(.up)))
     let segmentAngle = sweepAngle / CGFloat(segmentCount)
-    let handleLength = 4 / 3 * tan(segmentAngle / 4)
+    let handleLength = 4.0 / 3.0 * tan(segmentAngle / 4)
     var angle = startAngle
     for segment in 0..<segmentCount {
       let nextAngle = angle + segmentAngle
