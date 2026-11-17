@@ -86,7 +86,7 @@
 - Draw SVG elliptical arc commands (`A` and `a`) in `SVGPathParser`, so `Icon` `svgPath` values
   with arcs render circles and rounded shapes instead of dropping those segments. Arc flags written
   without separators (for example `a1 1 0 011 1`) are also accepted.
-  [#PR_NUMBER](https://github.com/a2ui-project/a2ui/pull/PR_NUMBER)
+  [#4260](https://github.com/a2ui-project/a2ui/pull/4260)
 
 ## 0.10.0
 
