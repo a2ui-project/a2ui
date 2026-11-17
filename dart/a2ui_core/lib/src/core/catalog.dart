@@ -2147,6 +2147,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                 );
                 _keepBranchCombiners(targetMap, unmerged);
               }
+              // Combiners written next to the reference apply as well.
+              _keepBranchCombiners(subMap, unmerged);
             } else {
               unmerged?.add(subMap);
             }

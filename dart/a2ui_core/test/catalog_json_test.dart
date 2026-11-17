@@ -205,6 +205,46 @@ void main() {
       );
     });
 
+    test('written next to a local reference are kept', () {
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'https://example.com/combiners',
+        'protocolVersion': '1.0',
+        r'$defs': {
+          'Sized': {
+            'properties': {
+              'size': {'type': 'number'},
+            },
+          },
+        },
+        'components': {
+          'Link': {
+            'type': 'object',
+            'allOf': [
+              {r'$ref': r'#/$defs/Sized', ...modeBranches},
+            ],
+          },
+        },
+      });
+
+      final Map<String, Object?> schema =
+          catalog.resolvedComponentSchema('Link')!.value;
+      expect(schema['allOf'], [modeBranches]);
+      expect((schema['properties']! as Map<String, Object?>).keys,
+          contains('size'));
+
+      void validate(Map<String, Object?> properties) =>
+          PayloadValidator(catalog: catalog).validateComponent({
+            'id': 'root',
+            'component': 'Link',
+            ...properties,
+          });
+      expect(() => validate({'href': '/a', 'size': 2}), returnsNormally);
+      expect(
+        () => validate({'size': 2}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
     test('still reject a property no branch declares', () {
       expect(
         () => validate({'href': '/a', 'colour': 'red'}),
