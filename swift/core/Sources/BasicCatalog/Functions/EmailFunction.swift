@@ -32,7 +32,8 @@ public final class EmailFunction: FunctionImplementation, Sendable {
             "properties": {
               "value": { "type": "string" }
             },
-            "required": ["value"]
+            "required": ["value"],
+            "additionalProperties": false
           }
           """
       )

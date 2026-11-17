@@ -17,11 +17,14 @@
 package com.google.a2ui.schema
 
 import com.google.a2ui.basic_catalog.BasicCatalog
+import com.google.a2ui.basic_catalog.BundledCatalogProvider
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 class CatalogTest {
 
@@ -80,5 +83,75 @@ class CatalogTest {
         examplesPath = "file:///absolute/examples",
       )
     assertEquals("/absolute/examples", config.examplesPath)
+  }
+
+  @Test
+  fun loadsBundledBasicCatalogWithCanonicalIdsAcrossVersions() {
+    val v08 = BasicCatalog.getConfig(A2uiVersion.VERSION_0_8).provider.load()
+    assertEquals(
+      "https://a2ui.org/specification/v0_8/standard_catalog_definition.json",
+      v08[A2uiConstants.CATALOG_ID_KEY]?.jsonPrimitive?.content,
+    )
+
+    val v09 = BasicCatalog.getConfig(A2uiVersion.VERSION_0_9).provider.load()
+    assertEquals(
+      "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      v09[A2uiConstants.CATALOG_ID_KEY]?.jsonPrimitive?.content,
+    )
+
+    val v091 = BasicCatalog.getConfig(A2uiVersion.VERSION_0_9_1).provider.load()
+    assertEquals(
+      "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      v091[A2uiConstants.CATALOG_ID_KEY]?.jsonPrimitive?.content,
+    )
+  }
+
+  @Test
+  fun injectsCanonicalCatalogIdWithoutDerivingFromRepoPath() {
+    data class ExpectedCatalog(
+      val version: String,
+      val resourcePath: String,
+      val catalogId: String,
+    )
+
+    for (a2uiVersion in A2uiVersion.entries) {
+      val expected =
+        when (a2uiVersion) {
+          A2uiVersion.VERSION_0_8 ->
+            ExpectedCatalog(
+              version = "0.8",
+              resourcePath = "standard_catalog_definition.json",
+              catalogId = "https://a2ui.org/specification/v0_8/standard_catalog_definition.json",
+            )
+          A2uiVersion.VERSION_0_9 ->
+            ExpectedCatalog(
+              version = "0.9",
+              resourcePath = "catalogs/basic/catalog.json",
+              catalogId = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+            )
+          A2uiVersion.VERSION_0_9_1 ->
+            ExpectedCatalog(
+              version = "0.9.1",
+              resourcePath = "catalogs/basic/catalog.json",
+              catalogId = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+            )
+        }
+
+      var loaderInvoked = false
+      val provider =
+        BundledCatalogProvider(a2uiVersion) { version, filename ->
+          loaderInvoked = true
+          assertEquals(expected.version, version)
+          assertEquals(expected.resourcePath, filename)
+          JsonObject(emptyMap())
+        }
+      val loaded = provider.load()
+      assertTrue(loaderInvoked)
+      assertEquals(expected.catalogId, loaded[A2uiConstants.CATALOG_ID_KEY]?.jsonPrimitive?.content)
+      assertEquals(
+        "https://json-schema.org/draft/2020-12/schema",
+        loaded["\$schema"]?.jsonPrimitive?.content,
+      )
+    }
   }
 }
