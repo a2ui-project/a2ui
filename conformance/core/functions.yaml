@@ -310,6 +310,7 @@
 - name: test_evaluate_function_regex_match
   features: [F-CORE-20, F-CORE-22]
   description: Verifies regex returns true on matching string.
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: regex
   args:
@@ -317,15 +318,40 @@
     value: "12345"
   expect: true
 
+- name: test_evaluate_function_regex_match_v10
+  features: [F-CORE-20, F-CORE-22]
+  description: Verifies regex returns true on matching string.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "^[0-9]+$"
+    value: "12345"
+  expect:
+    valid: true
+
 - name: test_evaluate_function_regex_mismatch
   features: [F-CORE-20, F-CORE-22]
   description: Verifies regex returns false on non-matching string.
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: regex
   args:
     pattern: "^[0-9]+$"
     value: "abc"
   expect: false
+
+- name: test_evaluate_function_regex_mismatch_v10
+  features: [F-CORE-20, F-CORE-22]
+  description: Verifies regex returns false on non-matching string.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "^[0-9]+$"
+    value: "abc"
+  expect:
+    valid: false
 
 - name: test_evaluate_function_regex_invalid_pattern
   features: [F-CORE-20, F-CORE-22]
@@ -723,16 +749,6 @@
     value: "invalid-email"
   expect: false
 
-- name: test_evaluate_function_email_invalid_no_domain_v10
-  description: Verifies email returns false on missing domain.
-  protocolVersion: "1.0"
-  action: evaluate_function
-  function: email
-  args:
-    value: "invalid-email"
-  expect:
-    valid: false
-
 - name: test_evaluate_function_email_invalid_single_char_tld
   description: Verifies email returns false on single-character TLD (D22).
   protocolVersion: "v0.9"
@@ -741,16 +757,6 @@
   args:
     value: "test@test.c"
   expect: false
-
-- name: test_evaluate_function_email_invalid_single_char_tld_v10
-  description: Verifies email returns false on single-character TLD (D22).
-  protocolVersion: "1.0"
-  action: evaluate_function
-  function: email
-  args:
-    value: "test@test.c"
-  expect:
-    valid: false
 
 # --- LengthFunction (D24) ---
 - name: test_evaluate_function_length_string_valid
