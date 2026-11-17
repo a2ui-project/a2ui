@@ -43,7 +43,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 import json
 import re
-from typing import Any, Literal
+from typing import Any, Literal, TypeGuard
 
 from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.common import is_at_least_version, to_protocol_version
@@ -372,8 +372,11 @@ class AtomCompiler:
             return False
         return any(name in h.components for h in self._helpers.values())
 
-    def _is_component_form(self, expr: Any) -> bool:
+    def _is_component_form(self, expr: Any) -> TypeGuard[list[Any]]:
         return self._is_component_name(_head(expr))
+
+    def _is_template_form(self, expr: Any) -> TypeGuard[list[Any]]:
+        return _head(expr) == "template"
 
     def _is_value_form(self, expr: Any) -> bool:
         """Whether a form is a value: `(@path ...)` or a catalog function call."""
@@ -869,8 +872,9 @@ class AtomCompiler:
     def _binding_path(self, val: Any) -> str | None:
         if isinstance(val, dict) and len(val) == 1:
             for key in ("@path", "path"):
-                if isinstance(val.get(key), str):
-                    return val[key]
+                candidate = val.get(key)
+                if isinstance(candidate, str):
+                    return candidate
         return None
 
     def _path_of(self, val: Any) -> str | None:
@@ -1406,7 +1410,7 @@ class AtomCompiler:
                 i += 2
                 if key in ("id", "catalogId"):
                     continue
-                if _head(val) == "template":
+                if self._is_template_form(val):
                     template = self._compile_template(val, block)
                     template_target = key if key in prop_keys else None
                 elif key in _COMPONENT_TEMPLATE_PATH_KEYS and key not in prop_keys:
@@ -1722,10 +1726,12 @@ class AtomCompiler:
             if "message" not in rule and not self._at_least_v10:
                 # v0.9 CheckRule requires a message.
                 rule["message"] = "Invalid input"
-            cond = rule.get("condition")
-            if isinstance(cond, dict) and isinstance(cond.get(self._call_key), str):
-                if "value" in self._called_function_props(cond):
-                    args = cond.setdefault("args", {})
+            rule_cond = rule.get("condition")
+            if isinstance(rule_cond, dict) and isinstance(
+                rule_cond.get(self._call_key), str
+            ):
+                if "value" in self._called_function_props(rule_cond):
+                    args = rule_cond.setdefault("args", {})
                     if "value" not in args and sibling_value is not None:
                         args["value"] = sibling_value
             rules.append(rule)
