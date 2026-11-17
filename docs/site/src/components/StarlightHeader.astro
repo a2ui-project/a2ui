@@ -117,6 +117,23 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
           <button type="button" data-close-modal class="a2-sl-search-cancel">Cancel</button>
           <div class="a2-sl-search-container">
             <div id="starlight__search"></div>
+            <div class="a2-sl-search-initial">
+              <p class="a2-sl-search-initial__hint">Type to search the docs, or jump to:</p>
+              <ul class="a2-sl-search-initial__links">
+                <li>
+                  <a href={`${base}/quickstart/`}>Quickstart</a>
+                </li>
+                <li>
+                  <a href={`${base}/concepts/overview/`}>Overview</a>
+                </li>
+                <li>
+                  <a href={`${base}/concepts/catalogs/`}>Catalogs</a>
+                </li>
+                <li>
+                  <a href={`${base}/roadmap/`}>Roadmap</a>
+                </li>
+              </ul>
+            </div>
             <div class="a2-sl-search-empty" hidden aria-live="polite">
               <svg
                 class="a2-sl-search-empty__icon"
@@ -246,6 +263,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
       const dialog = this.querySelector<HTMLDialogElement>('dialog');
       const dialogFrame = this.querySelector<HTMLElement>('.a2-sl-dialog-frame');
       const searchContainer = this.querySelector<HTMLElement>('#starlight__search');
+      const initialState = this.querySelector<HTMLElement>('.a2-sl-search-initial');
       const emptyState = this.querySelector<HTMLElement>('.a2-sl-search-empty');
       const emptyTitle = this.querySelector<HTMLElement>('[data-empty-title]');
       if (!openBtn || !closeBtn || !dialog || !dialogFrame || !searchContainer) return;
@@ -271,23 +289,37 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
           link.removeAttribute('aria-selected');
           link.removeAttribute('role');
         }
+        const input = searchContainer.querySelector<HTMLInputElement>('.pagefind-ui__search-input');
+        const resultsList = searchContainer.querySelector<HTMLElement>('.pagefind-ui__results');
+        if (resultsList && !resultsList.hasAttribute('role')) {
+          resultsList.setAttribute('role', 'listbox');
+          resultsList.setAttribute('aria-label', 'Search results');
+        }
         const links = getResultLinks();
         if (nextIndex < 0 || nextIndex >= links.length) {
           activeIndex = -1;
+          input?.removeAttribute('aria-activedescendant');
           return;
         }
         activeIndex = nextIndex;
         const activeLink = links[activeIndex];
+        if (!activeLink.id) {
+          activeLink.id = `a2-search-option-${activeIndex}`;
+        }
         activeLink.setAttribute('role', 'option');
         activeLink.setAttribute('aria-selected', 'true');
+        input?.setAttribute('aria-activedescendant', activeLink.id);
         getResultRow(activeLink)?.classList.add('is-keyboard-selected');
         activeLink.scrollIntoView({ block: 'nearest' });
       };
 
       const updateEmptyState = () => {
-        if (!emptyState) return;
         const input = searchContainer.querySelector<HTMLInputElement>('.pagefind-ui__search-input');
         const query = input?.value.trim() ?? '';
+        if (initialState) {
+          initialState.hidden = query.length > 0;
+        }
+        if (!emptyState) return;
         const hasResults = searchContainer.querySelector('.pagefind-ui__result') !== null;
         const isLoading = searchContainer.querySelector('.pagefind-ui__loading') !== null;
         const messageEl = searchContainer.querySelector<HTMLElement>('.pagefind-ui__message');
@@ -941,6 +973,48 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
     .a2-sl-search-kbd {
       display: none;
     }
+  }
+
+  .a2-sl-search-initial {
+    padding: 16px 4px 8px;
+  }
+
+  .a2-sl-search-initial[hidden] {
+    display: none;
+  }
+
+  .a2-sl-search-initial__hint {
+    margin: 0 0 12px;
+    font-size: 13px;
+    color: var(--a2-hdr-text-secondary);
+  }
+
+  .a2-sl-search-initial__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .a2-sl-search-initial__links a {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    color: var(--a2-hdr-text);
+    background: var(--a2-hdr-hover-bg);
+    border: 1px solid var(--a2-hdr-border);
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+
+  .a2-sl-search-initial__links a:hover {
+    border-color: var(--a2-hdr-accent);
+    color: var(--a2-hdr-accent-text);
   }
 
   .a2-sl-search-empty {
