@@ -19,7 +19,9 @@ package com.google.a2ui.inference_formats.experimental.express.constants
 /** Standard A2UI v1.0 surface operation envelope keys. */
 object SurfaceOperation {
   const val CREATE = "createSurface"
+  const val UPDATE_COMPONENTS = "updateComponents"
   const val DELETE = "deleteSurface"
   const val UPDATE_DATA = "updateDataModel"
   const val CALL_FUNC = "callFunction"
+  const val SURFACE = "surface"
 }

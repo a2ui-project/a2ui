@@ -16,13 +16,12 @@
 
 package com.google.a2ui.express
 
+import com.google.a2ui.basic_catalog.BasicCatalog
 import com.google.a2ui.inference_formats.experimental.express.ExpressCompiler
 import com.google.a2ui.inference_formats.experimental.express.ExpressDecompiler
 import com.google.a2ui.schema.A2uiCatalog
 import com.google.a2ui.schema.A2uiSchemaManager
 import com.google.a2ui.schema.A2uiVersion
-import com.google.a2ui.schema.CatalogConfig
-import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -31,21 +30,9 @@ import kotlinx.serialization.json.JsonPrimitive
 
 class ExpressDecompilerTest {
 
-  private val catalogPath = findSpecCatalogPath()
-
-  private fun findSpecCatalogPath(): String {
-    var dir: File? = File(".").canonicalFile
-    while (dir != null) {
-      val specFile = File(dir, "specification/v0_9/catalogs/basic/catalog.json")
-      if (specFile.exists()) return specFile.absolutePath
-      dir = dir.parentFile
-    }
-    throw IllegalStateException("Catalog file not found")
-  }
-
   private val catalog: A2uiCatalog by lazy {
-    val config = CatalogConfig.fromPath("basic", catalogPath)
-    val manager = A2uiSchemaManager(version = A2uiVersion.VERSION_0_9, catalogs = listOf(config))
+    val config = BasicCatalog.getConfig(A2uiVersion.VERSION_1_0)
+    val manager = A2uiSchemaManager(version = A2uiVersion.VERSION_1_0, catalogs = listOf(config))
     manager.getSelectedCatalog()
   }
 
@@ -55,7 +42,7 @@ class ExpressDecompilerTest {
     val envelope =
       JsonObject(
         mapOf(
-          "version" to JsonPrimitive("v1.0"),
+          "version" to JsonPrimitive("1.0"),
           "deleteSurface" to JsonObject(mapOf("surfaceId" to JsonPrimitive("surf_123"))),
         )
       )

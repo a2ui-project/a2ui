@@ -44,6 +44,7 @@ object A2uiConstants {
   const val VERSION_0_8 = "0.8"
   const val VERSION_0_9 = "0.9"
   const val VERSION_0_9_1 = "0.9.1"
+  const val VERSION_1_0 = "1.0"
 
   const val A2UI_JSON_TAG_NAME = "a2ui-json"
   const val A2UI_OPEN_TAG = "<$A2UI_JSON_TAG_NAME>"

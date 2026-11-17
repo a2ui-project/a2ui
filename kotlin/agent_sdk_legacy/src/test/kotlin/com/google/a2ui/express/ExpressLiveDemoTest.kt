@@ -16,38 +16,28 @@
 
 package com.google.a2ui.express
 
+import com.google.a2ui.basic_catalog.BasicCatalog
 import com.google.a2ui.inference_formats.experimental.express.ExpressFormat
 import com.google.a2ui.schema.A2uiCatalog
 import com.google.a2ui.schema.A2uiSchemaManager
 import com.google.a2ui.schema.A2uiVersion
-import com.google.a2ui.schema.CatalogConfig
-import java.io.File
+import java.nio.file.Files
 import kotlin.test.Test
+import kotlin.test.assertTrue
 import kotlinx.serialization.json.JsonObject
 
 class ExpressLiveDemoTest {
 
-  private val catalogPath = findSpecCatalogPath()
-
-  private fun findSpecCatalogPath(): String {
-    var dir: File? = File(".").canonicalFile
-    while (dir != null) {
-      val specFile = File(dir, "specification/v0_9/catalogs/basic/catalog.json")
-      if (specFile.exists()) return specFile.absolutePath
-      dir = dir.parentFile
-    }
-    throw IllegalStateException("Catalog file not found")
-  }
-
   private val catalog: A2uiCatalog by lazy {
-    val config = CatalogConfig.fromPath("basic", catalogPath)
-    val manager = A2uiSchemaManager(version = A2uiVersion.VERSION_0_9, catalogs = listOf(config))
+    val config = BasicCatalog.getConfig(A2uiVersion.VERSION_1_0)
+    val manager = A2uiSchemaManager(version = A2uiVersion.VERSION_1_0, catalogs = listOf(config))
     manager.getSelectedCatalog()
   }
 
   @Test
   fun runLiveDemo() {
-    val outputFile = File("../../express_live_demo_output.txt").canonicalFile
+    val outputFile = Files.createTempFile("express_live_demo_output", ".txt").toFile()
+    outputFile.deleteOnExit()
     val sb = StringBuilder()
 
     sb.appendLine(
@@ -61,8 +51,8 @@ class ExpressLiveDemoTest {
     )
     sb.appendLine()
 
-    // 1. Initialize format for v0.9 compliant target
-    val format = ExpressFormat(catalog = catalog, surfaceId = "main_surface", version = "v0.9")
+    // 1. Initialize format for v1.0 compliant target
+    val format = ExpressFormat(catalog = catalog, surfaceId = "main_surface")
 
     // 2. Generate Prompt Contract
     sb.appendLine(
@@ -87,9 +77,9 @@ class ExpressLiveDemoTest {
       <a2ui>
       root = Column([title, nameInput, emailInput, submitBtn])
       title = Text("Customer Registration")
-      nameInput = TextField("Full Name", $/user/name, "John Doe", ?required)
-      emailInput = TextField("Email Address", $/user/email, "user@example.com", ?required)
-      submitBtn = Button("Submit Registration", Event("save_customer", {name: $/user/name, email: $/user/email}))
+      nameInput = TextField("Full Name", $/user/name, "shortText", ?required)
+      emailInput = TextField("Email Address", $/user/email, "shortText", ?required)
+      submitBtn = Button(Text("Submit Registration"), action=Event("save_customer", {name: $/user/name, email: $/user/email}))
       </a2ui>
     """
         .trimIndent()
@@ -150,6 +140,6 @@ class ExpressLiveDemoTest {
     )
 
     outputFile.writeText(sb.toString())
-    println("Demo output successfully written to: ${outputFile.absolutePath}")
+    assertTrue(decompiledDsl.contains("Submit Registration"))
   }
 }

@@ -17,38 +17,61 @@
 package com.google.a2ui.inference_formats.experimental.express
 
 import com.google.a2ui.InferenceFormat
-import com.google.a2ui.parser.Parser
-import com.google.a2ui.prompt.PromptGenerator
 import com.google.a2ui.schema.A2uiCatalog
+import kotlinx.serialization.json.JsonObject
 
 /**
- * Concrete strategy for Express DSL representation.
- *
- * @param catalog The component catalog containing valid elements.
- * @param surfaceId The surface identifier for layout targeting.
- * @param examplesPath Optional path to markdown files containing examples.
+ * Inference format encapsulating A2UI Express v1.0 and v0.9/v0.9.1 prompt generation, single-shot
+ * response parsing, decompilation, and incremental chunk streaming.
  */
 class ExpressFormat(
-  val catalog: A2uiCatalog? = null,
-  val surfaceId: String = "main",
-  val examplesPath: String? = null,
-  val version: String = "v1.0",
+  val catalogs: List<A2uiCatalog>,
+  val surfaceId: String = "default_surface",
+  version: String? = null,
+  exampleTurns: List<List<JsonObject>> = emptyList(),
+  allowedMessages: List<String>? = null,
+  progressiveKeys: Set<String> = DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
 ) : InferenceFormat {
 
-  fun ensureCatalog(): A2uiCatalog {
-    return catalog
-      ?: throw IllegalArgumentException(
-        "Catalog is required for parsing and decompiling in express format."
-      )
+  @JvmOverloads
+  constructor(
+    catalog: A2uiCatalog,
+    surfaceId: String = "default_surface",
+    version: String? = null,
+    allowedMessages: List<String>? = null,
+    progressiveKeys: Set<String> = DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
+  ) : this(
+    catalogs = listOf(catalog),
+    surfaceId = surfaceId,
+    version = version,
+    exampleTurns = emptyList(),
+    allowedMessages = allowedMessages,
+    progressiveKeys = progressiveKeys,
+  )
+
+  init {
+    validateExpressCatalogs(catalogs)
   }
 
-  override val promptGenerator: PromptGenerator by lazy {
-    ensureCatalog()
-    ExpressPromptGenerator(this)
-  }
+  val catalog: A2uiCatalog = catalogs.first()
 
-  override val parser: Parser by lazy {
-    val cat = ensureCatalog()
-    ExpressParser(cat, surfaceId, version = version)
-  }
+  val version: String = resolveExpressVersion(catalogs, version)
+
+  override val supportsStreaming: Boolean = true
+
+  override val promptGenerator: ExpressPromptGenerator =
+    ExpressPromptGenerator(
+      catalogs = catalogs,
+      exampleTurns = exampleTurns,
+      allowedMessages = allowedMessages,
+      version = this.version,
+    )
+
+  override val parser: ExpressParser =
+    ExpressParser(
+      catalogs = catalogs,
+      surfaceId = surfaceId,
+      version = this.version,
+      progressiveKeys = progressiveKeys,
+    )
 }
