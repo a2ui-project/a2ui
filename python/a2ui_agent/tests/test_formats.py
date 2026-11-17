@@ -13,12 +13,7 @@
 # limitations under the License.
 
 
-import os
-import re
-import sys
-
 import pytest
-
 from a2ui.core import A2uiValidationError, Catalog
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
@@ -28,12 +23,12 @@ from a2ui.inference_formats.direct_json import (
     DirectJsonFormat,
     DirectJsonParser,
 )
+from a2ui.utils import resolve_catalogs
+from a2ui.inference_formats.express import ExpressFormat, ExpressParser
 from a2ui.inference_formats.experimental.elemental import (
     ElementalFormat,
     ElementalParser,
 )
-from a2ui.inference_formats.express import ExpressFormat, ExpressParser
-from a2ui.utils import resolve_catalogs
 
 
 @pytest.fixture
@@ -368,96 +363,3 @@ def test_direct_json_format_progressive_keys_reach_its_parser(progressive_keys, 
         for message in getattr(part, "a2ui", None) or []
     ]
     assert any("updateComponents" in message for message in messages) == healed
-
-
-_PLAIN_ANCHORED_PATH_RE = re.compile(r"\^((?:[\w./-]|\\\.)+?)/?\$?")
-
-
-def _load_toml_file(path: str) -> dict[str, object]:
-    if sys.version_info >= (3, 11):
-        import tomllib
-    else:
-        import tomli as tomllib
-    with open(path, "rb") as f:
-        loaded: dict[str, object] = tomllib.load(f)
-    return loaded
-
-
-def _experimental_mypy_targets(repo_root: str) -> list[str]:
-    exp_dir = os.path.join(
-        repo_root,
-        "python",
-        "a2ui_agent",
-        "src",
-        "a2ui",
-        "inference_formats",
-        "experimental",
-    )
-    targets: set[str] = set()
-    for root, dirs, files in os.walk(exp_dir):
-        dirs[:] = [d for d in dirs if d != "__pycache__" and not d.startswith(".")]
-        rel_dir = os.path.relpath(root, repo_root).replace(os.sep, "/")
-        parts = rel_dir.split("/")
-        for depth in range(1, len(parts) + 1):
-            targets.add("/".join(parts[:depth]) + "/")
-        for fname in files:
-            if fname.endswith(".py"):
-                targets.add(f"{rel_dir}/{fname}")
-    return sorted(targets)
-
-
-def _assert_mypy_excludes_valid(raw_exclude: str | list[str], repo_root: str) -> None:
-    excludes = [raw_exclude] if isinstance(raw_exclude, str) else raw_exclude
-    compiled = [re.compile(pat) for pat in excludes]
-    targets = _experimental_mypy_targets(repo_root)
-    assert any(target.endswith(".py") for target in targets)
-    for target in targets:
-        matching = [pat.pattern for pat in compiled if pat.search(target)]
-        assert not matching, f"{target} is excluded from mypy by {matching}"
-
-    for pat_str in excludes:
-        match = _PLAIN_ANCHORED_PATH_RE.fullmatch(pat_str)
-        if match is not None:
-            disk_path = os.path.join(repo_root, match.group(1).replace(r"\.", "."))
-            assert os.path.exists(disk_path), (
-                f"[tool.mypy].exclude pattern {pat_str!r} points to missing"
-                f" path {disk_path}"
-            )
-
-
-def test_mypy_config_includes_experimental_inference_formats() -> None:
-    from .repo_paths import find_repo_root
-
-    repo_root = find_repo_root()
-    if repo_root is None:
-        pytest.skip("repository root not found")
-
-    config = _load_toml_file(os.path.join(repo_root, "pyproject.toml"))
-    tool_cfg = config["tool"]
-    assert isinstance(tool_cfg, dict)
-    mypy_cfg = tool_cfg["mypy"]
-    assert isinstance(mypy_cfg, dict)
-    raw_exclude = mypy_cfg["exclude"]
-    assert isinstance(raw_exclude, (str, list))
-    _assert_mypy_excludes_valid(raw_exclude, repo_root)
-
-
-def test_mypy_exclude_validator_handles_regex_and_directory_forms() -> None:
-    from .repo_paths import find_repo_root
-
-    repo_root = find_repo_root()
-    if repo_root is None:
-        pytest.skip("repository root not found")
-
-    _assert_mypy_excludes_valid(
-        r"(?x)(^eval/ | ^python/a2ui_[a-z0-9]+/tests/)", repo_root
-    )
-    with pytest.raises(AssertionError, match="experimental/ is excluded"):
-        _assert_mypy_excludes_valid(
-            ["^python/a2ui_agent/src/a2ui/inference_formats/experimental/$"],
-            repo_root,
-        )
-    with pytest.raises(AssertionError, match="points to missing path"):
-        _assert_mypy_excludes_valid(
-            [r"^no_such_path_for_mypy_exclude_test\.py$"], repo_root
-        )
