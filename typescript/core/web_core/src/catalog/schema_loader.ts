@@ -1383,6 +1383,8 @@ function collectArgSubSchemas(
     schema.patternProperties ||
     schema.additionalProperties !== undefined ||
     schema.unevaluatedProperties !== undefined ||
+    schema.minProperties !== undefined ||
+    schema.maxProperties !== undefined ||
     schema.dependentRequired !== undefined ||
     isPlainObject(schema.if) ||
     (schema.not !== undefined && typeof schema.not === 'object' && schema.not !== null)
@@ -1412,6 +1414,55 @@ function extractRequiredDisjunction(branches: unknown): string[][] | undefined {
     groups.push(req);
   }
   return groups;
+}
+
+/**
+ * Recursively collects property names declared inside conditional (`then`, `else`)
+ * and combinator (`allOf`, `oneOf`, `anyOf`) subschemas—including `$ref` targets—so
+ * that strict object schemas (`additionalProperties: false`) permit valid branch
+ * properties prior to conditional/union refinement.
+ *
+ * Intentionally skips `if` and `not` subschemas because `if` only tests conditions
+ * and `not` negates schemas rather than introducing valid properties.
+ */
+function collectConditionalAndBranchPropertyNames(
+  node: unknown,
+  rootDoc: Record<string, unknown> | undefined,
+  seen: Set<unknown>,
+  out: Set<string>,
+): void {
+  if (!isPlainObject(node) || seen.has(node)) {
+    return;
+  }
+  seen.add(node);
+
+  if (typeof node.$ref === 'string' && rootDoc) {
+    const target = resolveJsonPointer(rootDoc, node.$ref);
+    if (isPlainObject(target)) {
+      collectConditionalAndBranchPropertyNames(target, rootDoc, seen, out);
+    }
+  }
+
+  if (isPlainObject(node.properties)) {
+    for (const propName of Object.keys(node.properties)) {
+      out.add(propName);
+    }
+  }
+
+  for (const branchKey of ['then', 'else'] as const) {
+    if (isPlainObject(node[branchKey])) {
+      collectConditionalAndBranchPropertyNames(node[branchKey], rootDoc, seen, out);
+    }
+  }
+
+  for (const combinatorKey of ['allOf', 'oneOf', 'anyOf'] as const) {
+    const branches = node[combinatorKey];
+    if (Array.isArray(branches)) {
+      for (const branch of branches) {
+        collectConditionalAndBranchPropertyNames(branch, rootDoc, seen, out);
+      }
+    }
+  }
 }
 
 /**
@@ -1461,25 +1512,27 @@ export function convertFunctionArgsJsonSchemaToZod(
     }
   }
 
+  const branchPropNames = new Set<string>();
+  const seenBranchNodes = new Set<unknown>();
   for (const s of [rawSchema, ...collected.schemas]) {
-    for (const branchKey of ['then', 'else'] as const) {
-      const branch = s[branchKey];
-      if (isPlainObject(branch) && isPlainObject(branch.properties)) {
-        for (const propName of Object.keys(branch.properties)) {
-          if (!Object.hasOwn(shape, propName)) {
-            shape[propName] = z.unknown().optional();
-          }
-        }
-      }
+    collectConditionalAndBranchPropertyNames(s, rootDoc, seenBranchNodes, branchPropNames);
+  }
+  for (const propName of branchPropNames) {
+    if (!Object.hasOwn(shape, propName)) {
+      shape[propName] = z.unknown().optional();
     }
   }
 
   const obj = z.object(shape);
-  const allowExtra =
-    collected.hasUnresolvable ||
-    collected.schemas.some(isExplicitlyOpen) ||
-    isExplicitlyOpen(rawSchema);
   const allSchemas = [rawSchema, ...collected.schemas.filter(s => s !== rawSchema)];
+  const explicitlyClosed = allSchemas.some(
+    s => s.additionalProperties === false || s.unevaluatedProperties === false,
+  );
+  const allowExtra =
+    !explicitlyClosed &&
+    (collected.hasUnresolvable ||
+      collected.schemas.some(isExplicitlyOpen) ||
+      isExplicitlyOpen(rawSchema));
   let closed: z.ZodTypeAny = closeObjectSchema(
     obj,
     allSchemas,
