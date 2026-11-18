@@ -54,6 +54,9 @@
     "prepare": "yarn build",
     "build": "wireit",
     "build:tsc": "wireit",
+    "test:node": "wireit",
+    "test:types": "wireit",
+    "test:karma": "wireit",
     "test": "wireit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -96,10 +99,45 @@
       ],
       "clean": "if-file-deleted"
     },
-    "test": {
+    "test:node": {
       "command": "node --test \"dist/**/*.test.js\"",
       "dependencies": [
         "build"
+      ]
+    },
+    "test:types": {
+      "command": "tsc -p tsconfig.test.json --pretty",
+      "dependencies": [
+        "build:tsc"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "tests/**/*.ts",
+        "tsconfig.json",
+        "tsconfig.test.json"
+      ],
+      "output": []
+    },
+    "test:karma": {
+      "command": "karma start karma.conf.cjs --single-run=true",
+      "dependencies": [
+        "build",
+        "test:types"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "tests/**",
+        "karma.conf.cjs",
+        "tsconfig.test.json"
+      ],
+      "output": []
+    },
+    "test": {
+      "dependencies": [
+        "test:node",
+        "test:karma"
       ]
     },
     "clean": {
@@ -109,28 +147,41 @@
       "command": "prettier --write .",
       "files": [
         "src/**/*.ts",
+        "tests/**",
         "scripts/**/*.js",
+        "karma.conf.cjs",
         "package.json",
-        "tsconfig.json"
+        "tsconfig.json",
+        "tsconfig.test.json"
       ]
     },
     "format:check": {
       "command": "prettier --check .",
       "files": [
         "src/**/*.ts",
+        "tests/**",
         "scripts/**/*.js",
+        "karma.conf.cjs",
         "package.json",
-        "tsconfig.json"
+        "tsconfig.json",
+        "tsconfig.test.json"
       ]
     }
   },
   "author": "Google",
   "license": "Apache-2.0",
   "devDependencies": {
+    "@types/jasmine": "^6.0.0",
     "@types/jsdom": "^28.0.3",
     "@types/node": "^25.9.3",
+    "esbuild": "^0.28.1",
     "eslint": "^10.4.1",
+    "jasmine-core": "^6.3.0",
     "jsdom": "^29.1.1",
+    "karma": "^6.4.4",
+    "karma-chrome-launcher": "^3.2.0",
+    "karma-esbuild": "^2.3.0",
+    "karma-jasmine": "^5.1.0",
     "prettier": "^3.8.4",
     "typescript": "5.9.3",
     "wireit": "^0.15.0-pre.2"

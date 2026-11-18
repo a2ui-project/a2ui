@@ -84,11 +84,36 @@ that:
   each subplot of a faceted chart from its data (`autosize: pad`);
 - rewrites temporal axes formatted with `%b` but no `%Y` to `%b %Y`.
 
+### Content Security Policy
+
+Charts render under a Content Security Policy without `'unsafe-eval'`, such as
+the default policy of an MCP Apps iframe. The element passes `ast: true` to
+`vega-embed`, so Vega evaluates expressions with
+[`vega-interpreter`](https://github.com/vega/vega/tree/main/packages/vega-interpreter)
+instead of compiling them with `Function`. The
+[Vega documentation](https://vega.github.io/vega/usage/interpreter/) reports
+the interpreter as about 10% slower on the first render, and slower on
+expression-heavy interactions.
+
+Two limits remain under such a policy:
+
+- Inline CSV or TSV data (`format: {type: 'csv'}`) fails to parse, because the
+  parser builds row objects with `Function`. Use JSON `values` instead.
+- Data loaded by URL needs a matching `connect-src` directive.
+
+The test in `tests/csp.test.ts` renders a chart with expressions in a real
+browser under this policy:
+
+```text
+default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:
+```
+
 ### Custom embed function
 
 `A2uiVegaChartElement.defaultEmbedFn` is the function used to render; it
-defaults to `vega-embed` with `{actions: false, renderer: 'svg'}`. Replace it to
-use a sandboxed renderer, or set `embedFn` on an individual element:
+defaults to `vega-embed`. The element calls it with
+`{actions: false, renderer: 'svg', ast: true}`. Replace it to use a sandboxed
+renderer, or set `embedFn` on an individual element:
 
 ```ts
 import {A2uiVegaChartElement} from '@a2ui/catalog-vegachart';
@@ -105,3 +130,6 @@ From the repository root:
 yarn workspace @a2ui/catalog-vegachart build
 yarn workspace @a2ui/catalog-vegachart test
 ```
+
+`test` runs the unit tests under Node and the browser tests in `tests/` with
+Karma in headless Chrome.
