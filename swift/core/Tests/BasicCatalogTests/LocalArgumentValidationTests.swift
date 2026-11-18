@@ -13,7 +13,9 @@
 // limitations under the License.
 
 import A2UICore
+import A2UIJSON
 import BasicCatalog
+import Foundation
 import OrderedJSON
 import Testing
 
@@ -99,5 +101,44 @@ struct LocalArgumentValidationTests {
     ])
     #expect(tooFewItems == .null)
     #expect(handler.failedFunctions == ["regex", "and"])
+  }
+
+  @Test func v09FunctionCatalogValidationSpecSuite() throws {
+    let repoRoot = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    let suiteURL = repoRoot.appendingPathComponent(
+      "specification/v0_9/test/cases/function_catalog_validation.json"
+    )
+    let suiteData = try Data(contentsOf: suiteURL)
+    let suiteJSON = try JSONValue.parse(suiteData)
+    let tests = try #require(suiteJSON["tests"]?.arrayValue)
+    #expect(tests.count == 43)
+
+    let validator = PayloadValidator(
+      catalog: V09BasicCatalog.catalog,
+      config: ValidationConfig(protocolVersion: .v09)
+    )
+
+    for entry in tests {
+      let description = try #require(entry["description"]?.stringValue)
+      let valid = try #require(entry["valid"]?.boolValue as Bool?)
+      let components = try #require(
+        entry["data"]?["updateComponents"]?["components"]?.arrayValue
+      )
+      if valid {
+        for component in components {
+          try validator.validateComponent(component)
+        }
+      } else {
+        let didThrow = components.contains { component in
+          (try? validator.validateComponent(component)) == nil
+        }
+        #expect(didThrow, "Expected invalid case '\(description)' to throw A2UIValidationError")
+      }
+    }
   }
 }

@@ -7,7 +7,7 @@ For the platform-agnostic rendering and layout specifications, see the
 [framework adapter blueprint][adapter-bp] and the [basic catalog guide][catalog-guide].
 
 [adapter-bp]: ../../blueprints/modules/a2ui_framework_adapter.blueprint.md
-[catalog-guide]: ../../specification/v0_9_1/docs/basic_catalog_implementation_guide.md
+[catalog-guide]: ../../catalogs/basic/v0_9_1/basic_catalog_implementation_guide.md
 
 ---
 

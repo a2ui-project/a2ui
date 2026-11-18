@@ -33,7 +33,7 @@ export 'function_support.dart' show OpenUrlCallback;
 ///
 /// Each catalog is defined in code: its components, function signatures,
 /// theme and shared definitions are generated from the published catalog
-/// document (`specification/v0_9/catalogs/basic/catalog.json` and
+/// document (`catalogs/basic/v0_9/catalog.json` and
 /// `catalogs/basic/v1/catalog.json`) by `tool/generate_basic_catalogs.dart`,
 /// so [Catalog.toJson] writes the published document.
 ///

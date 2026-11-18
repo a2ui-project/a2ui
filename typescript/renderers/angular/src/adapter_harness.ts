@@ -31,18 +31,17 @@ import type {A2uiWebComponentElement} from '@a2ui/web_core/universal';
 import {A2uiClientMessageSchema, CommonSchemas} from '@a2ui/web_core/v0_9';
 import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
 import {z} from 'zod';
-import {BasicCatalogBase as V09BasicCatalogBase} from './v0_9';
+import {BasicCatalogBase, provideA2UI} from './basic-catalog';
 import {
-  A2uiRendererService,
   AngularCatalog,
   type AngularComponentImplementation,
   type AnyDuringSchemaAlignment,
-  BasicCatalogBase,
-  CatalogComponent,
-  SurfaceComponent,
   createComponentImplementation,
-  provideA2UI,
-} from './public-api';
+} from './catalog/types';
+import {A2uiRendererService} from './core/a2ui-renderer.service';
+import {CatalogComponent} from './core/catalog_component';
+import {SurfaceComponent} from './core/surface.component';
+import {BasicCatalogBase as V09BasicCatalogBase} from './v0_9';
 
 export interface ExpectedAccessibilityNode {
   label?: string;

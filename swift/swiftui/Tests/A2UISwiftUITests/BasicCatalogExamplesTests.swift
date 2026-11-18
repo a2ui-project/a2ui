@@ -57,8 +57,8 @@ struct BasicCatalogExamplesTests {
   }
 
   nonisolated private static let exampleSuites: [(name: String, relativePath: String)] = [
-    ("v0.9", "specification/v0_9/catalogs/basic/examples"),
-    ("v0.9.1", "specification/v0_9_1/catalogs/basic/examples"),
+    ("v0.9", "catalogs/basic/v0_9/examples"),
+    ("v0.9.1", "catalogs/basic/v0_9_1/examples"),
     ("v1.0", "catalogs/basic/v1/examples"),
   ]
 
