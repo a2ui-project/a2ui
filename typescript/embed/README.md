@@ -2,7 +2,7 @@
 
 Embed A2UI in [MCP Apps](https://github.com/modelcontextprotocol/ext-apps): an MCP server returns A2UI v1.0 messages from its tools, and a single-file app renders them in any MCP Apps host, so the host needs no A2UI support.
 
-This package is under development. It currently provides the contract between the server and the app.
+This package is under development. It currently provides the contract between the server and the app, and the server API.
 
 ## Contract
 
@@ -34,3 +34,92 @@ return toToolResult({
   payload: {contractVersion: CONTRACT_VERSION, messages},
 });
 ```
+
+## Server
+
+`@a2ui/embed/mcp/server` serves an A2UI app from an MCP server built with the [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk). It runs in Node.js and needs `@modelcontextprotocol/sdk` as a peer dependency.
+
+```ts
+import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
+import {createA2uiApp} from '@a2ui/embed/mcp/server';
+import {z} from 'zod';
+
+const server = new McpServer({name: 'sales', version: '1.0.0'});
+const app = createA2uiApp(server, {
+  html: new URL('./dist/a2ui-app.html', import.meta.url),
+  catalogSchema: new URL('./dist/a2ui-app.catalog.json', import.meta.url),
+});
+
+app.tool(
+  'show_revenue',
+  {description: 'Shows the revenue of a month.', inputSchema: {month: z.string()}},
+  async ({month}) => {
+    const revenue = await getRevenue(month);
+    return {text: `Revenue in ${month} was ${revenue}.`, a2ui: revenueView(month, revenue)};
+  },
+);
+```
+
+`createA2uiApp` registers the app HTML as the `ui://a2ui/app.html` resource. Each tool registered with `app.tool` links to it, so the host renders the tool result in the app.
+
+A tool handler returns a text summary for the model and, optionally, the A2UI messages for the app. The library puts the summary in `content` and the messages in `structuredContent.a2ui`, so the model never reads the A2UI. Without `a2ui`, the result is text only.
+
+### Options
+
+```ts
+createA2uiApp(server, {
+  html: 'dist/a2ui-app.html', // Path, URL, or {text}
+  catalogSchema: 'dist/a2ui-app.catalog.json', // Path, URL, or the parsed file
+  resourceUri: 'ui://sales/app.html', // Optional (default: 'ui://a2ui/app.html')
+  resourceName: 'Sales', // Optional (default: 'A2UI app')
+  csp: {resourceDomains: ['https://cdn.example.com']}, // Optional (default: no origins)
+  prefersBorder: true, // Optional (default: the host decides)
+});
+```
+
+- The HTML file is read again on every resource read, so a rebuilt app is served without restarting the server.
+- The catalog schema file is read and compiled once. `createA2uiApp` throws if it is invalid or was written for another major contract version.
+- Relative paths resolve against the working directory, which MCP hosts often set to something unexpected. Prefer a URL relative to `import.meta.url` or an absolute path.
+- `csp` lists the origins the app may load resources from (`resourceDomains`) or connect to (`connectDomains`). The app built by `a2ui-embed build` inlines everything, so it needs none by default.
+
+### Validation
+
+Before a tool result is sent, its messages are validated:
+
+- Each message must be an A2UI v1.0 server-to-client message.
+- Each component must match the schema of its catalog: the `@catalogId` of the component, else the `catalogId` of its surface. Updates can target a surface created by an earlier tool call. When the app includes a single catalog, it is the default.
+
+An invalid result becomes an error result that lists the problems, and nothing reaches the app:
+
+```text
+Tool "show_revenue" returned invalid A2UI, so nothing was rendered:
+- Component "kpi_value" (Text): property "variant" must be one of "caption", "body"
+```
+
+`app.validate(messages)` runs the same checks and returns `{ok, errors}`. Each error has a `message` and, when known, the `messageIndex`, `surfaceId`, `componentId`, `component` type and `property`. Use it to check A2UI that a model composed before returning it.
+
+A handler that throws also becomes an error result, with the error message.
+
+### Actions
+
+Every A2UI event in the app calls the `a2ui_action` tool, which only the app can see. The server routes the event by name to an action or a follow-up registered on the app; any other name is rejected. The event's `context` is validated against the `argsSchema` of the action.
+
+An action updates the app in place. Its handler receives the context and the event's source, and returns the messages to apply:
+
+```ts
+app.action('refresh', {argsSchema: {month: z.string()}}, async ({month}, {surfaceId}) => ({
+  a2ui: revenueUpdate(surfaceId, await getRevenue(month)),
+}));
+```
+
+A follow-up posts a message to the conversation on the user's behalf, as if the user had typed it:
+
+```ts
+app.followUp('breakdown', {
+  template: 'Break down the revenue of {month} by {dimension}',
+  argsSchema: {month: z.string(), dimension: z.string()},
+  maxValueLength: 40, // Optional (default: 80)
+});
+```
+
+The message text only comes from the template in your code. Each `{name}` placeholder is replaced with the context value, stringified, stripped of control characters, truncated to `maxValueLength` characters and quoted, so a value can never read as part of the template's own text: `Break down the revenue of "March" by "country"`. A missing value makes the action fail.
