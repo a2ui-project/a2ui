@@ -45,7 +45,7 @@ class A2uiAgentConnector {
   final Logger _logger = Logger('A2uiAgentConnector');
   final Uuid _uuid = const Uuid();
 
-  bool _agentCardFetched = false;
+  Future<void>? _agentCardFuture;
   String? _taskId;
   String? _contextId;
 
@@ -69,9 +69,16 @@ class A2uiAgentConnector {
     List<A2APart> parts, {
     Map<String, Object?>? clientCapabilities,
   }) async* {
-    if (!_agentCardFetched) {
-      await _client.getAgentCard().timeout(const Duration(seconds: 30));
-      _agentCardFetched = true;
+    final Future<void> fetch = _agentCardFuture ??= _client
+        .getAgentCard()
+        .timeout(const Duration(seconds: 30));
+    try {
+      await fetch;
+    } catch (_) {
+      if (identical(_agentCardFuture, fetch)) {
+        _agentCardFuture = null;
+      }
+      rethrow;
     }
 
     final message = A2AMessage()
@@ -157,10 +164,11 @@ class A2uiAgentConnector {
     }
   }
 
-  Iterable<AgentToRendererMessage> _decodeA2uiData(Object data) sync* {
+  Iterable<AgentToRendererMessage> _decodeA2uiData(Object? data) sync* {
+    if (data == null) return;
     if (data case final List<Object?> items) {
       for (final item in items) {
-        if (item != null) yield* _decodeA2uiData(item);
+        yield* _decodeA2uiData(item);
       }
       return;
     }

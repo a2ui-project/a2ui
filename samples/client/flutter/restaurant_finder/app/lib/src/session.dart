@@ -116,7 +116,7 @@ class RestaurantSession extends ChangeNotifier {
     Stream<AgentToRendererMessage> Function() send, {
     bool clearSurfaces = false,
   }) async {
-    if (_isRequesting) return;
+    if (_isDisposed || _isRequesting) return;
     _isRequesting = true;
     _hasSentMessage = true;
     _error = null;
@@ -140,6 +140,7 @@ class RestaurantSession extends ChangeNotifier {
     _activeIterator = iterator;
     try {
       while (await iterator.moveNext()) {
+        if (_isDisposed) break;
         _processor.processMessages(
           AgentToRendererMessagePayload.of(iterator.current),
         );
