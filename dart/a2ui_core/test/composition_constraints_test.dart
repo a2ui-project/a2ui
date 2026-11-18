@@ -702,7 +702,7 @@ class _DeferredPair {
         null => null,
         final A2uiValidationError e =>
           '${e.runtimeType} ${e.code} ${e.path}: ${e.message}',
-        final e => '${e.runtimeType}: ${e.message}',
+        final A2uiError e => '${e.runtimeType}: ${e.message}',
       };
 
   static Map<String, Object?> _snapshot(

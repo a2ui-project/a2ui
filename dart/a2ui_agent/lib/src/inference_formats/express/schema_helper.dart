@@ -34,6 +34,18 @@ class CatalogSchemaHelper {
 
   bool isFunction(String name) => catalog.functions.containsKey(name);
 
+  /// The system functions the catalog's protocol version defines, such as
+  /// `@index` from v1.0, keyed by name. See [systemFunctionSchemas].
+  late final Map<String, Map<String, Object?>> systemFunctions =
+      systemFunctionSchemas(
+        PayloadValidator.commonTypesFor(
+          catalog.protocolVersion ?? A2uiProtocolVersion.v0_9,
+        ),
+      );
+
+  /// Whether [name] is a system function of the catalog's protocol version.
+  bool isSystemFunction(String name) => systemFunctions.containsKey(name);
+
   /// The properties a positional argument can fill, in schema order.
   ///
   /// Specific component properties come first, followed by common mixin
@@ -189,6 +201,28 @@ class CatalogSchemaHelper {
     return null;
   }
 
+  /// The description of a catalog or system function, if it has one.
+  String? functionDescription(String function) {
+    if (catalog.functions[function] case final FunctionApi api) {
+      return api.description;
+    }
+    return switch (systemFunctions[function]?['description']) {
+      final String description => description,
+      _ => null,
+    };
+  }
+
+  /// The `args` schema of a catalog or system function.
+  Map<String, Object?> _argumentSchema(String function) {
+    if (catalog.functions[function] case final FunctionApi api) {
+      return api.argumentSchema.value;
+    }
+    return switch (_properties(systemFunctions[function]!)['args']) {
+      final Map<Object?, Object?> args => args.cast<String, Object?>(),
+      _ => const {},
+    };
+  }
+
   /// The function's parameters, in schema order.
   List<String> parameters(String function) => [
     ..._parameterSchemas(function).keys,
@@ -197,9 +231,7 @@ class CatalogSchemaHelper {
   /// The parameters the function requires.
   List<String> requiredParameters(String function) => [
     for (final Object? name
-        in catalog.functions[function]!.argumentSchema['required']
-                as List<Object?>? ??
-            const [])
+        in _argumentSchema(function)['required'] as List<Object?>? ?? const [])
       name! as String,
   ];
 
@@ -208,8 +240,7 @@ class CatalogSchemaHelper {
       _parameterSchemas(function)[parameter];
 
   Map<String, Map<String, Object?>> _parameterSchemas(String function) {
-    final Object? properties =
-        catalog.functions[function]!.argumentSchema['properties'];
+    final Object? properties = _argumentSchema(function)['properties'];
     if (properties is! Map) return const {};
     return {
       for (final MapEntry<Object?, Object?> entry in properties.entries)
@@ -218,47 +249,111 @@ class CatalogSchemaHelper {
     };
   }
 
-  _ComponentSignature _signature(String component) =>
-      _components.putIfAbsent(component, () {
-        final Map<String, Object?> schema = catalog
-            .resolvedComponentSchema(component)!
-            .value;
-        final List<Map<String, Object?>> subschemas = _subschemas(schema);
-        final schemas = <String, Map<String, Object?>>{};
-        final required = <String>[];
-        var isCheckable = false;
-        for (final sub in subschemas) {
-          _properties(sub).forEach((name, value) {
-            if (value is Map) schemas[name] = value.cast<String, Object?>();
-          });
-          for (final Object? name in sub['required'] as List<Object?>? ?? []) {
-            required.add(name! as String);
-          }
-          if (_refName(sub)?.endsWith('Checkable') ?? false) isCheckable = true;
-          if (_properties(sub).containsKey('checks')) isCheckable = true;
+  _ComponentSignature _signature(String component) => _components.putIfAbsent(
+    component,
+    () {
+      final Map<String, Object?> schema = catalog
+          .resolvedComponentSchema(component)!
+          .value;
+      final List<Map<String, Object?>> subschemas = _subschemas(schema);
+      final schemas = <String, Map<String, Object?>>{};
+      final required = <String>[];
+      var isCheckable = false;
+      for (final sub in subschemas) {
+        _properties(sub).forEach((name, value) {
+          if (value is Map) schemas[name] = value.cast<String, Object?>();
+        });
+        for (final Object? name in sub['required'] as List<Object?>? ?? []) {
+          required.add(name! as String);
         }
-        const structural = {'component', 'id', 'checks'};
-        schemas.removeWhere((name, _) => structural.contains(name));
-        const commonKeys = {'accessibility', 'weight'};
-        final List<String> specificProperties = [
-          for (final key in schemas.keys)
-            if (!commonKeys.contains(key)) key,
-        ];
-        final List<String> commonProperties = [
-          for (final key in const ['weight'])
-            if (schemas.containsKey(key)) key,
-        ];
-        final orderedProperties = [...specificProperties, ...commonProperties];
-        return _ComponentSignature(
-          properties: orderedProperties,
-          required: [
-            for (final String name in orderedProperties)
-              if (required.contains(name)) name,
-          ],
-          schemas: schemas,
-          isCheckable: isCheckable,
-        );
-      });
+        if (_refName(sub)?.endsWith('Checkable') ?? false) isCheckable = true;
+        if (_properties(sub).containsKey('@checks') ||
+            _isStandardChecksSchema(_properties(sub)['checks'])) {
+          isCheckable = true;
+        }
+      }
+      final bool v1 =
+          catalog.protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
+      const structural = {
+        'component',
+        'id',
+        '@catalogId',
+        '@metadata',
+        '@accessibility',
+        '@checks',
+      };
+      schemas.removeWhere(
+        (name, propSchema) =>
+            structural.contains(name) ||
+            (name == 'checks' &&
+                (isCheckable || !v1) &&
+                _isStandardChecksSchema(propSchema)) ||
+            (name == 'accessibility' &&
+                (!v1 || _isStandardAccessibilitySchema(propSchema))) ||
+            (name == 'metadata' && v1 && _isStandardMetadataSchema(propSchema)),
+      );
+      final List<String> specificProperties = [
+        for (final key in schemas.keys)
+          if (key != 'weight') key,
+      ];
+      final List<String> commonProperties = [
+        for (final key in const ['weight'])
+          if (schemas.containsKey(key)) key,
+      ];
+      final orderedProperties = [...specificProperties, ...commonProperties];
+      return _ComponentSignature(
+        properties: orderedProperties,
+        required: [
+          for (final String name in orderedProperties)
+            if (required.contains(name)) name,
+        ],
+        schemas: schemas,
+        isCheckable: isCheckable,
+      );
+    },
+  );
+}
+
+bool _isStandardChecksSchema(Object? propSchema) {
+  if (propSchema is! Map) return false;
+  final Object? ref = propSchema[r'$ref'] ?? propSchema['commonTypesRef'];
+  if (ref is String &&
+      (ref.endsWith('/Checkable') ||
+          ref.endsWith('/Checkable/properties/checks') ||
+          ref.endsWith('/CheckRule'))) {
+    return true;
+  }
+  if (propSchema['type'] != 'array') return false;
+  final Object? items = propSchema['items'];
+  if (items == null) return true;
+  if (items is! Map) return false;
+  final Object? itemRef = items[r'$ref'] ?? items['commonTypesRef'];
+  if (itemRef is String && itemRef.endsWith('/CheckRule')) return true;
+  final Map<String, Object?> itemProps = _properties(
+    items.cast<String, Object?>(),
+  );
+  if (itemProps.containsKey('condition') && itemProps.containsKey('message')) {
+    return true;
+  }
+  return items['type'] == 'object' && !items.containsKey('properties');
+}
+
+bool _isStandardAccessibilitySchema(Map<String, Object?> propSchema) {
+  final Object? ref = propSchema[r'$ref'] ?? propSchema['commonTypesRef'];
+  if (ref is String && ref.endsWith('/AccessibilityAttributes')) return true;
+  final Map<String, Object?> props = _properties(propSchema);
+  return props.containsKey('label') &&
+      props.containsKey('description') &&
+      propSchema['additionalProperties'] == false;
+}
+
+bool _isStandardMetadataSchema(Map<String, Object?> propSchema) {
+  final Object? ref = propSchema[r'$ref'] ?? propSchema['commonTypesRef'];
+  if (ref is String && ref.endsWith('/ComponentCommonMetadata')) return true;
+  final Map<String, Object?> props = _properties(propSchema);
+  return props.length == 1 &&
+      props.containsKey('extensions') &&
+      propSchema['additionalProperties'] == false;
 }
 
 class _ComponentSignature {
@@ -274,6 +369,25 @@ class _ComponentSignature {
     required this.isCheckable,
   });
 }
+
+/// The system functions that a common types schema defines, keyed by name.
+///
+/// A system function is defined by the protocol rather than by a catalog: it
+/// is a common types `$defs` entry whose `@call` property is a constant name
+/// starting with `@`, such as `@index` from v1.0. It has the same shape as a
+/// catalog function, so the same code reads its arguments. A version that
+/// defines none, such as v0.9, gives an empty map.
+Map<String, Map<String, Object?>> systemFunctionSchemas(
+  Map<String, Object?> commonTypes,
+) => {
+  if (commonTypes[r'$defs'] case final Map<Object?, Object?> defs)
+    for (final Object? schema in defs.values)
+      if (schema is Map)
+        if (_properties(schema.cast<String, Object?>())['@call'] case {
+          'const': final String name,
+        } when name.startsWith('@'))
+          name: schema.cast<String, Object?>(),
+};
 
 /// [schema] and the members of its `allOf`, in order.
 List<Map<String, Object?>> _subschemas(Map<String, Object?> schema) => [

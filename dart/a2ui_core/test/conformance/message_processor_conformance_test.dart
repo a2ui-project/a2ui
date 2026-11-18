@@ -27,25 +27,114 @@ const Map<String, String> _reservedKeysExpectedFailures = {};
 /// reason each is currently failing.
 const Map<String, String> _functionsExpectedFailures = {};
 
+const Map<String, Set<String>> _knownKeys = {
+  'case:process_messages': {
+    ...caseMetadataKeys,
+    'catalog',
+    'catalogPaths',
+    'catalogs',
+    'expect',
+    'expectError',
+    'messages',
+    'payload',
+    'protocolVersion',
+    'steps',
+    'strictMode',
+    'validationConfig',
+  },
+  'case:validate': {
+    ...caseMetadataKeys,
+    'catalog',
+    'catalogPaths',
+    'catalogs',
+    'expect',
+    'expectError',
+    'messages',
+    'payload',
+    'protocolVersion',
+    'steps',
+    'strictMode',
+    'validationConfig',
+  },
+  'case:get_renderer_data_model': {
+    ...caseMetadataKeys,
+    'args',
+    'catalog',
+    'catalogPaths',
+    'catalogs',
+    'expect',
+    'messages',
+    'payload',
+    'protocolVersion',
+    'steps',
+  },
+  'case:get_renderer_capabilities': {
+    ...caseMetadataKeys,
+    'args',
+    'catalog',
+    'catalogPaths',
+    'catalogs',
+    'expect',
+    'protocolVersion',
+  },
+  'case:resolve_path': {
+    ...caseMetadataKeys,
+    'args',
+    'expect',
+  },
+  'args:get_renderer_data_model': {
+    'version',
+  },
+  'args:get_renderer_capabilities': {
+    'includeInlineCatalogs',
+    'version',
+  },
+  'args:resolve_path': {
+    'contextPath',
+    'path',
+  },
+  'step': {
+    'description',
+    'expect',
+    'expectError',
+    'messages',
+    'payload',
+    'validationConfig',
+  },
+  'expect:surfaces': {
+    'surfaces',
+  },
+  'surface': {
+    'catalogId',
+    'components',
+    'dataModel',
+    'exists',
+    'metadata',
+    'rootId',
+    'sendDataModel',
+    'theme',
+  },
+};
+
 /// Runs the shared message-processor suites against [MessageProcessor] and
 /// [DataContext]: `core/message_processor_v0_9.yaml`,
-/// `core/message_processor_v1_0.yaml`, the `process_messages` cases of
-/// `core/reserved_keys.yaml` and `core/composition_constraints.yaml`, and the
+/// `core/message_processor_v1_0.yaml`, `core/composition_constraints.yaml`,
+/// the `process_messages` cases of `core/reserved_keys.yaml`, and the
 /// `validate` cases of `core/functions.yaml`, `core/expressions.yaml`,
 /// `core/index_function.yaml`, and `core/multi_catalog.yaml`, which render
 /// basic-catalog components.
 void main() {
   _registerSuite('core/message_processor_v0_9.yaml');
-  _registerSuite('core/message_processor_v1_0.yaml');
+  _registerSuite(
+    'core/message_processor_v1_0.yaml',
+    expectedFailures: _messageProcessorV10ExpectedFailures,
+  );
   _registerSuite(
     'core/reserved_keys.yaml',
     onlyAction: 'process_messages',
     expectedFailures: _reservedKeysExpectedFailures,
   );
-  _registerSuite(
-    'core/composition_constraints.yaml',
-    onlyAction: 'process_messages',
-  );
+  _registerSuite('core/composition_constraints.yaml');
   _registerSuite(
     'core/functions.yaml',
     onlyAction: 'validate',
@@ -55,6 +144,13 @@ void main() {
   _registerSuite('core/index_function.yaml', onlyAction: 'validate');
   _registerSuite('core/multi_catalog.yaml', onlyAction: 'validate');
 }
+
+/// Cases in `core/message_processor_v1_0.yaml` this SDK fails, with why.
+const Map<String, String> _messageProcessorV10ExpectedFailures = {
+  'test_v10_custom_envelope_properties_declared_in_combiner_branches':
+      'Catalog.fromJson does not load oneOf/anyOf nested in a component\'s '
+          'allOf, so the properties those branches declare are unknown.',
+};
 
 void _registerSuite(
   String suite, {
@@ -68,7 +164,12 @@ void _registerSuite(
 
   group('conformance $suite', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
-    runConformanceSuite(cases, _runCase, expectedFailures: expectedFailures);
+    runConformanceSuite(
+      cases,
+      _runCase,
+      suite: suite,
+      expectedFailures: expectedFailures,
+    );
   });
 }
 
@@ -77,6 +178,10 @@ String _actionOf(Map<String, Object?> testCase) =>
 
 Future<void> _runCase(Map<String, Object?> testCase) async {
   final String action = _actionOf(testCase);
+  final Set<String>? allowed = _knownKeys['case:$action'];
+  if (allowed != null) {
+    assertKnownKeys(testCase, allowed, 'case:$action');
+  }
   switch (action) {
     case 'process_messages' || 'validate':
       await _runProcessMessagesCase(testCase);
@@ -201,6 +306,7 @@ Future<void> _runSteps(
   final name = testCase['name']! as String;
   for (var index = 0; index < steps.length; index++) {
     final Map<String, Object?> step = steps[index];
+    assertKnownKeys(step, _knownKeys['step']!, 'step');
     final Object? payload = step['messages'] ?? step['payload'];
     final Object? expectError = step['expectError'] ??
         (index == steps.length - 1 ? testCase['expectError'] : null);
@@ -240,6 +346,9 @@ Future<void> _runSteps(
         resolveNodes: resolveNodes,
         validationConfig: validationConfig,
       );
+      if (step['expect'] case final Map<String, Object?> stepExpect) {
+        _checkSurfaces(processor, stepExpect, '$name: step $index');
+      }
     }
   }
   _checkSurfaces(
@@ -271,7 +380,9 @@ Future<void> _runGetRendererDataModelCase(
   );
   if (testCase['steps'] case final List<Object?> steps) {
     for (final step in steps) {
-      await _process(processor, step! as Map<String, Object?>);
+      final stepMap = step! as Map<String, Object?>;
+      assertKnownKeys(stepMap, _knownKeys['step']!, 'step');
+      await _process(processor, stepMap);
     }
   } else {
     await _process(processor, testCase);
@@ -279,6 +390,11 @@ Future<void> _runGetRendererDataModelCase(
 
   final Map<String, Object?> args =
       (testCase['args'] as Map<String, Object?>?) ?? const {};
+  assertKnownKeys(
+    args,
+    _knownKeys['args:get_renderer_data_model']!,
+    'args:get_renderer_data_model',
+  );
   final Object? version = args['version'];
   final Map<String, Object?>? actual = processor.getRendererDataModel(
     version: version is String ? A2uiProtocolVersion.parse(version) : null,
@@ -299,6 +415,11 @@ void _runGetRendererCapabilitiesCase(Map<String, Object?> testCase) {
   );
   final Map<String, Object?> args =
       (testCase['args'] as Map<String, Object?>?) ?? const {};
+  assertKnownKeys(
+    args,
+    _knownKeys['args:get_renderer_capabilities']!,
+    'args:get_renderer_capabilities',
+  );
   final Object? version = args['version'];
   final Map<String, Object?> actual = processor
       .getRendererCapabilities(
@@ -320,6 +441,7 @@ void _runResolvePathCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
   final Map<String, Object?> args =
       (testCase['args'] as Map<String, Object?>?) ?? const {};
+  assertKnownKeys(args, _knownKeys['args:resolve_path']!, 'args:resolve_path');
   final String path = (args['path'] as String?) ?? '';
   final String contextPath = (args['contextPath'] as String?) ?? '/';
   final context = DataContext(DataModel(), (_, __, ___) => null, contextPath);
@@ -380,16 +502,9 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
     }
     return built;
   }
-  if (testCase['catalog'] case final Map<String, Object?> document
-      when document.containsKey('components') ||
-          document.containsKey('catalogId')) {
-    return [
-      rendererCatalog(
-        document,
-        asCatalogId: _catalogIdOf(testCase),
-        protocolVersion: version,
-      ),
-    ];
+  if (_singleCatalogFromCase(testCase, version)
+      case final Catalog<ComponentApi, FunctionImplementation> single) {
+    return [single];
   }
   // A case naming no catalog document, or only a protocol version, runs
   // against the basic catalog of its version, under whichever id its
@@ -405,6 +520,30 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
   return [
     if (testCase.containsKey('catalogPaths')) _permissive(basic) else basic,
   ];
+}
+
+Catalog<ComponentApi, FunctionImplementation>? _singleCatalogFromCase(
+  Map<String, Object?> testCase,
+  String version,
+) {
+  final Object? raw = testCase['catalog'];
+  if (raw is! Map<String, Object?>) return null;
+  final Object? nested = raw['catalogSchema'] ?? raw['catalog_schema'];
+  if (nested is Map<String, Object?>) {
+    return rendererCatalog(
+      nested,
+      asCatalogId: _catalogIdOf(testCase),
+      protocolVersion: (raw['protocolVersion'] as String?) ?? version,
+    );
+  }
+  if (raw.containsKey('components') || raw.containsKey('catalogId')) {
+    return rendererCatalog(
+      raw,
+      asCatalogId: _catalogIdOf(testCase),
+      protocolVersion: version,
+    );
+  }
+  return null;
 }
 
 /// The protocol version a case targets: the one it declares, else the one
@@ -484,6 +623,11 @@ void _checkSurfaces(
   Map<String, Object?> expected,
   String name,
 ) {
+  assertKnownKeys(
+    expected,
+    _knownKeys['expect:surfaces']!,
+    'expect:surfaces',
+  );
   final surfaces = expected['surfaces'] as Map<String, Object?>?;
   if (surfaces == null) return;
 
@@ -492,73 +636,75 @@ void _checkSurfaces(
       surfaceId,
     );
     final expectations = raw! as Map<String, Object?>;
+    assertKnownKeys(expectations, _knownKeys['surface']!, 'surface');
 
     if (expectations['exists'] == false) {
       expect(surface, isNull, reason: '$name: surface $surfaceId is closed');
       return;
     }
     expect(surface, isNotNull, reason: '$name: surface $surfaceId is open');
-
-    if (expectations.containsKey('catalogId')) {
-      expect(
-        surface!.defaultCatalog?.id,
-        expectations['catalogId'],
-        reason: '$name: $surfaceId catalogId',
-      );
-    }
-    if (expectations.containsKey('rootId')) {
-      expect(
-        surface!.rootId,
-        expectations['rootId'],
-        reason: '$name: $surfaceId rootId',
-      );
-    }
-    if (expectations.containsKey('metadata')) {
-      expect(
-        surface!.metadata,
-        equals(expectations['metadata']),
-        reason: '$name: $surfaceId metadata',
-      );
-    }
-    if (expectations.containsKey('theme')) {
-      expect(
-        surface!.theme,
-        equals(expectations['theme']),
-        reason: '$name: $surfaceId theme',
-      );
-    }
-    if (expectations.containsKey('sendDataModel')) {
-      expect(
-        surface!.sendDataModel,
-        expectations['sendDataModel'],
-        reason: '$name: $surfaceId sendDataModel',
-      );
-    }
-    if (expectations.containsKey('dataModel')) {
-      expect(
-        surface!.dataModel.get('/'),
-        equals(expectations['dataModel']),
-        reason: '$name: $surfaceId data model',
-      );
-    }
-    if (expectations.containsKey('metadata')) {
-      expect(
-        surface!.metadata,
-        equals(expectations['metadata']),
-        reason: '$name: $surfaceId metadata',
-      );
-    }
-    if (expectations.containsKey('components')) {
-      _checkComponents(
-        surface!,
-        _normalizeExpectedComponents(expectations['components']),
-        '$name: $surfaceId',
-        // A map of expectations names the components it checks; a list
-        // names every component the surface holds.
-        exhaustive: expectations['components'] is List,
-      );
-    }
+    _assertSurfaceExpectations(surface!, surfaceId, expectations, name);
   });
+}
+
+void _assertSurfaceExpectations(
+  SurfaceModel<ComponentApi> surface,
+  String surfaceId,
+  Map<String, Object?> expectations,
+  String name,
+) {
+  if (expectations.containsKey('catalogId')) {
+    expect(
+      surface.defaultCatalog?.id,
+      expectations['catalogId'],
+      reason: '$name: $surfaceId catalogId',
+    );
+  }
+  if (expectations.containsKey('rootId')) {
+    expect(
+      surface.rootId,
+      expectations['rootId'],
+      reason: '$name: $surfaceId rootId',
+    );
+  }
+  if (expectations.containsKey('metadata')) {
+    expect(
+      surface.metadata,
+      equals(expectations['metadata']),
+      reason: '$name: $surfaceId metadata',
+    );
+  }
+  if (expectations.containsKey('theme')) {
+    expect(
+      surface.theme,
+      equals(expectations['theme']),
+      reason: '$name: $surfaceId theme',
+    );
+  }
+  if (expectations.containsKey('sendDataModel')) {
+    expect(
+      surface.sendDataModel,
+      expectations['sendDataModel'],
+      reason: '$name: $surfaceId sendDataModel',
+    );
+  }
+  if (expectations.containsKey('dataModel')) {
+    expect(
+      surface.dataModel.get('/'),
+      equals(expectations['dataModel']),
+      reason: '$name: $surfaceId data model',
+    );
+  }
+  if (expectations.containsKey('components')) {
+    _checkComponents(
+      surface,
+      _normalizeExpectedComponents(expectations['components']),
+      '$name: $surfaceId',
+      // A map of expectations names the components it checks; a list
+      // names every component the surface holds.
+      exhaustive: expectations['components'] is List,
+    );
+  }
 }
 
 List<Map<String, Object?>> _normalizeExpectedComponents(Object? raw) {
@@ -624,6 +770,11 @@ void _checkComponents(
     reason: '$reason: component ids',
   );
 
+  final bool atLeastV1 = A2uiProtocolVersion.tryParse(
+        surface.protocolVersion ?? '',
+      )?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+      false;
+
   for (final entry in expected) {
     final id = entry['id']! as String;
     final ComponentModel? component = surface.componentsModel.get(id);
@@ -637,13 +788,24 @@ void _checkComponents(
             reason: '$reason: $id type');
         return;
       }
-      if (key == 'metadata') {
+      if (key == '@metadata') {
         expect(
           node?.metadata.peek() ?? component!.metadata,
           equals(value),
-          reason: '$reason: $id.metadata',
+          reason: '$reason: $id.@metadata',
         );
         return;
+      }
+      // From v1.0 the expectation key alone says what is checked: `@metadata`
+      // is the envelope metadata and a bare `metadata` is a component
+      // property, whatever properties the component actually holds. Below
+      // v1.0 `metadata` is always a property and there is no envelope.
+      if (key == 'metadata' && !atLeastV1) {
+        expect(
+          component?.metadata,
+          isNull,
+          reason: '$reason: $id envelope metadata must be null on pre-1.0',
+        );
       }
       final Object? propVal =
           node == null || node.state == NodeState.unknownType
@@ -682,6 +844,7 @@ Matcher _matchesError(
   final category = expectError['category'] as String?;
   final message = expectError['message'] as String?;
   Matcher matcher = switch (category) {
+    null => isA<A2uiError>(),
     'DataError' => isA<A2uiDataError>(),
     'ValidationError' => anyOf(
         isA<A2uiValidationError>(),
@@ -694,7 +857,10 @@ Matcher _matchesError(
     'RecursionError' => isA<A2uiRecursionError>(),
     'StateError' => isA<A2uiStateError>(),
     'ParseError' => isA<A2uiParseError>(),
-    _ => isA<A2uiError>(),
+    'ExpressionError' => isA<A2uiExpressionError>(),
+    _ => throw UnknownConformanceKeyError(
+        'Unknown expectError.category "$category".',
+      ),
   };
   if (message != null) {
     final String pattern = alignErrorPattern(message);

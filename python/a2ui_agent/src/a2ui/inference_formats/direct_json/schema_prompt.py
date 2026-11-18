@@ -93,21 +93,24 @@ def protocol_schema_prompt(
 
 
 def catalog_schema_prompt(catalogs: Iterable[CatalogApi]) -> str:
-    """Returns a schema block with only the catalog schemas, one per catalog.
+    """Returns one schema block per catalog, holding only that catalog's schema.
 
-    The block holds no protocol schema; `protocol_schema_prompt` writes those.
+    The blocks hold no protocol schema; `protocol_schema_prompt` writes those.
 
     Args:
       catalogs: The catalogs to describe, which share a protocol version, in
-        the order the block lists them.
+        the order the blocks list them.
 
     Returns:
-      The schema block text.
+      The schema blocks, separated by a blank line.
 
     Raises:
       A2uiCatalogError: As `schema_to_prompt` raises it.
     """
-    return _schema_block(_catalog_schema_sections(_checked_catalogs(catalogs)))
+    return "\n\n".join(
+        _schema_block([section])
+        for section in _catalog_schema_sections(_checked_catalogs(catalogs))
+    )
 
 
 def _checked_catalogs(catalogs: Iterable[CatalogApi]) -> list[CatalogApi]:

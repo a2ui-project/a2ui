@@ -43,6 +43,37 @@ struct RPCHandlerTests {
     }
   }
 
+  private struct MockThrowingFunction: FunctionImplementation {
+    let api: FunctionAPI
+    let error: any Error
+
+    init(error: any Error) {
+      let schema = try! Schema(
+        rawSchema: .object(["type": .string("object")]),
+        context: Context(dialect: .draft2020_12)
+      )
+      self.api = FunctionAPI(
+        name: "fail",
+        returnType: .any,
+        schema: schema,
+        allowedCallers: .rendererOrAgent
+      )
+      self.error = error
+    }
+
+    func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+      throw error
+    }
+  }
+
+  private struct QuotaError: LocalizedError {
+    var errorDescription: String? { "Quota exceeded" }
+  }
+
+  private enum StorageError: Error {
+    case diskFull
+  }
+
   @Test func incomingCallSuccess() async {
     let handler = RPCHandler()
     let echoFn = MockEchoFunction()
@@ -72,6 +103,95 @@ struct RPCHandlerTests {
     #expect(response.functionCallID == "call_1")
     #expect(response.value == .string("Hello Agent"))
     #expect(response.error == nil)
+  }
+
+  private func respondToThrowingFunction(
+    _ error: any Error
+  ) async -> RendererFunctionResponseMessage {
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [MockThrowingFunction(error: error)]
+    ).eraseToAnyCatalog()
+    let callMessage = CallRendererFunctionMessage(
+      functionCallID: "call_fail",
+      callFunction: CallFunctionPayload(call: "fail", catalogID: "test", args: [:]),
+      version: .v10
+    )
+    return await RPCHandler().handleIncomingCall(callMessage, catalogs: [catalog.id: catalog])
+  }
+
+  @Test func incomingCallThrowingFunctionAnswersWithErrorMessage() async {
+    let response = await respondToThrowingFunction(A2UIValidationError("Disk is full"))
+
+    #expect(response.functionCallID == "call_fail")
+    #expect(response.value == nil)
+    #expect(
+      response.error
+        == FunctionErrorPayload(code: .executionError, message: "Disk is full")
+    )
+  }
+
+  @Test func incomingCallThrowingLocalizedErrorAnswersWithErrorDescription() async {
+    let response = await respondToThrowingFunction(QuotaError())
+
+    #expect(
+      response.error
+        == FunctionErrorPayload(code: .executionError, message: "Quota exceeded")
+    )
+  }
+
+  @Test func incomingCallThrowingPlainErrorAnswersWithItsDescription() async {
+    let response = await respondToThrowingFunction(StorageError.diskFull)
+
+    #expect(
+      response.error
+        == FunctionErrorPayload(code: .executionError, message: "diskFull")
+    )
+  }
+
+  @Test(arguments: ["", "  \n\t "])
+  func incomingCallThrowingFunctionWithoutMessageAnswersWithFallback(
+    emptyMessage: String
+  ) async {
+    let response = await respondToThrowingFunction(A2UIValidationError(emptyMessage))
+
+    #expect(
+      response.error
+        == FunctionErrorPayload(
+          code: .executionError,
+          message: "An error occurred during function execution."
+        )
+    )
+  }
+
+  @Test func incomingCallAfterDisposeAnswersDisposed() async {
+    let handler = RPCHandler()
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [MockEchoFunction()]
+    ).eraseToAnyCatalog()
+    handler.disposeAllPendingCalls()
+
+    let response = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "call_after_dispose",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "test",
+          args: ["message": .string("Hello Agent")]
+        ),
+        version: .v10
+      ),
+      catalogs: [catalog.id: catalog]
+    )
+
+    #expect(response.functionCallID == "call_after_dispose")
+    #expect(response.value == nil)
+    #expect(response.error?.code == "DISPOSED")
   }
 
   @Test func incomingCallUnknownFunction() async {
@@ -265,7 +385,11 @@ struct RPCHandlerTests {
       _ = try await task.value
       Issue.record("Expected error to be thrown")
     } catch let error as FunctionError {
-      #expect(error == .remoteError(code: "INVALID_USER", message: "User does not exist"))
+      #expect(
+        error
+          == .remoteError(code: "INVALID_USER", message: "User does not exist", callID: callID)
+      )
+      #expect(error.functionCallID == callID)
     }
   }
 
@@ -404,9 +528,23 @@ struct RPCHandlerTests {
     processor.dispose()
     do {
       _ = try await task2.value
+      Issue.record("Expected cancelled error")
+    } catch let error as FunctionError {
+      #expect(error == .cancelled(callID: "disp_call"))
+      #expect(error.rpcCode == "CANCELLED")
+    }
+
+    // A call made after dispose fails with DISPOSED, even though a listener is set.
+    do {
+      _ = try await processor.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "afterDisposeFn",
+        functionCallID: "after_dispose_call",
+        version: .v10
+      )
       Issue.record("Expected disposed error")
     } catch let error as FunctionError {
-      #expect(error == .disposed(callID: "disp_call"))
+      #expect(error == .disposed(callID: "after_dispose_call"))
       #expect(error.rpcCode == "DISPOSED")
     }
   }

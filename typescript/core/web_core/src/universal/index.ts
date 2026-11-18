@@ -15,12 +15,18 @@
  */
 
 export {
-  A2uiLitElement,
-  type ResolvedChildList,
   type A2uiChildRef,
+  A2uiLitElement,
+  type CheckableResolvedProps,
+  type ResolvedAccessibilityAttributes,
+  type ResolvedChildList,
   type ResolvedChildRef,
 } from './a2ui-lit-element.js';
 export {A2uiController} from './a2ui-controller.js';
+export {
+  A2UI_ELEMENT_CONNECTED_EVENT,
+  dispatchA2uiElementConnected,
+} from './element_connected_event.js';
 export type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
 export {registerUniversalElement} from './register_universal_element.js';
 export {isWebComponentImplementation} from './is_web_component_implementation.js';
@@ -31,4 +37,9 @@ export {
   createAccessibilityTargets,
   type AccessibilityTargets,
 } from './host_accessibility.js';
+export {
+  getMarkdownRenderer,
+  markdown,
+  setMarkdownRenderer,
+} from './basic_catalog/directives/directives.js';
 export type {WebComponentImplementation} from './web_component_implementation.js';

@@ -29,7 +29,7 @@ export type SpecVersionInput = '0.9' | '1.0' | 'v0.9' | 'v1.0';
 /**
  * Mounts the <App> component preloaded with the specified example.
  *
- * @param filename The exact filename of the A2UI JSON example (e.g., "02_email-compose.json").
+ * @param filename The exact filename of the A2UI JSON example (e.g., "email-compose.json").
  * @param onActionOrVersion Optional callback to capture action dispatch events, or protocol version.
  * @param versionOrOnAction Optional protocol version, or callback to capture action dispatch events.
  * @returns A promise that resolves to the container element.
@@ -63,7 +63,7 @@ export async function loadExample(
   container.id = TEST_CONTAINER_ID;
   document.body.appendChild(container);
 
-  // Map filename (e.g. "02_email-compose.json") to id (e.g. "02_email-compose")
+  // Map filename (e.g. "email-compose.json") to id (e.g. "email-compose")
   const id = filename.replace('.json', '');
 
   const root = createRoot(container);

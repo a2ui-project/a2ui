@@ -367,6 +367,9 @@ enum RpcErrorCode {
   /// A call with the same `functionCallId` is still pending.
   duplicate('DUPLICATE'),
 
+  /// The pending call cap would be exceeded.
+  tooManyPending('TOO_MANY_PENDING'),
+
   /// No outbound listener is attached, so the call cannot be sent.
   noListener('NO_LISTENER');
 
@@ -386,8 +389,8 @@ enum RpcErrorCode {
 
 /// A function call across the wire that failed, in either direction.
 ///
-/// [code] is [rpcCode]'s wire value, so a listener keyed on [A2uiError.code]
-/// reads the same string the protocol carries.
+/// [code] defaults to [rpcCode]'s wire value, or may be a custom wire error
+/// code when an agent or renderer reports a domain-specific string.
 class A2uiRpcError extends A2uiError {
   /// Why the call failed.
   final RpcErrorCode rpcCode;
@@ -398,17 +401,41 @@ class A2uiRpcError extends A2uiError {
   A2uiRpcError(
     super.message,
     this.rpcCode, {
+    String? code,
     super.functionCallId,
     super.surfaceId,
     this.details,
     super.cause,
-  }) : super(code: rpcCode.wireValue);
+  }) : super(code: code ?? rpcCode.wireValue);
+
+  /// Creates an [A2uiRpcError] with an arbitrary wire error [code].
+  ///
+  /// When [code] matches a known [RpcErrorCode.wireValue], [rpcCode] is set to
+  /// that enum value; otherwise [rpcCode] is [RpcErrorCode.unknownError] while
+  /// [A2uiError.code] preserves the custom [code] string.
+  A2uiRpcError.custom(
+    String message,
+    String code, {
+    String? functionCallId,
+    String? surfaceId,
+    Object? details,
+    Object? cause,
+  }) : this(
+          message,
+          RpcErrorCode.tryParse(code) ?? RpcErrorCode.unknownError,
+          code: code,
+          functionCallId: functionCallId,
+          surfaceId: surfaceId,
+          details: details,
+          cause: cause,
+        );
 
   @override
   A2uiRpcError withContext({String? surfaceId, String? functionCallId}) =>
       A2uiRpcError(
         message,
         rpcCode,
+        code: code,
         functionCallId: this.functionCallId ?? functionCallId,
         surfaceId: this.surfaceId ?? surfaceId,
         details: details,

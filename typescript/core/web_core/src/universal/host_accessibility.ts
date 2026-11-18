@@ -124,24 +124,59 @@ export function bindHostAccessibility(
   };
 }
 
-/** What a host reads from its node's props. */
-interface HostAccessibilityState {
-  accessibility?: ResolvedAccessibilityAttributes;
+/** Props that the binder adds to components with validation checks. */
+export interface CheckableResolvedProps {
   isValid?: boolean;
   validationErrors?: string[];
+}
+
+/** Whether `props` carries a failed validation check and at least one error message. */
+export function hasValidationErrors(props?: CheckableResolvedProps): boolean {
+  return props?.isValid === false && Boolean(props.validationErrors?.length);
+}
+
+/** What a host reads from its node's props. */
+export interface HostAccessibilityState extends CheckableResolvedProps {
+  accessibility?: ResolvedAccessibilityAttributes;
 }
 
 function unwrap(value: unknown): unknown {
   return value instanceof ResolvedBinding ? value.value : value;
 }
 
+/**
+ * Returns the accessibility attributes in a component's resolved props: the
+ * v1.0 `@accessibility`, or else `accessibility` (below v1.0, or a legacy
+ * v1.0 payload).
+ *
+ * A v1.0 component may declare its own property named `accessibility`, which
+ * `@accessibility` leaves free, so a value that is not an attributes object
+ * is ignored.
+ *
+ * @param props The component's resolved props.
+ * @returns The accessibility attributes, or `undefined` if there are none.
+ */
+export function resolveAccessibilityProps(
+  props: unknown,
+): ResolvedAccessibilityAttributes | undefined {
+  if (!props || typeof props !== 'object') return undefined;
+  const record = props as Record<string, unknown>;
+  for (const key of ['@accessibility', 'accessibility']) {
+    const value = unwrap(record[key]);
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return value as ResolvedAccessibilityAttributes;
+    }
+  }
+  return undefined;
+}
+
 /** The accessibility and validation props of a node, with their bindings unwrapped. */
 function hostAccessibilityState(props: NodeProps): HostAccessibilityState {
-  const accessibility = unwrap(props['accessibility']);
+  const accessibility = resolveAccessibilityProps(props);
   const validationErrors = unwrap(props['validationErrors']);
   return {
     accessibility:
-      accessibility && typeof accessibility === 'object'
+      accessibility !== undefined
         ? (Object.fromEntries(
             Object.entries(accessibility).map(([key, value]) => [key, unwrap(value)]),
           ) as ResolvedAccessibilityAttributes)
@@ -176,7 +211,7 @@ interface WrittenAttribute {
 }
 
 /** The ARIA attributes of one host and of the elements its component marks. */
-class HostAccessibility {
+export class HostAccessibility {
   /** Where the label and description went last: the target, or the host. */
   private labelled?: Element;
   /**

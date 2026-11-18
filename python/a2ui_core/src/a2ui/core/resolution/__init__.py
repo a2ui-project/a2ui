@@ -14,10 +14,15 @@
 
 from .component_context import ComponentContext
 from .component_node import ComponentNode, NodeState, is_component_node
-from .data_context import DataContext, MissingDataBindingWarning
+from .data_context import (
+    DataContext,
+    MissingDataBindingWarning,
+    validate_reserved_directives,
+)
 from .generic_binder import GenericBinder
 from .node_resolver import NodeResolver
 from .resolved_binding import ResolvedBinding, WritableBinding, is_writable
+from .validation_result_coercion import coerce_dynamic_boolean
 
 __all__ = [
     "ComponentContext",
@@ -29,6 +34,8 @@ __all__ = [
     "NodeState",
     "ResolvedBinding",
     "WritableBinding",
+    "coerce_dynamic_boolean",
     "is_component_node",
     "is_writable",
+    "validate_reserved_directives",
 ]

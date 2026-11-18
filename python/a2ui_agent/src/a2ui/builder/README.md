@@ -178,6 +178,7 @@ Key characteristics:
 - Children: parameters annotated `Child` or `ChildList` accept nested `ComponentBuilderNode` instances, an external `ComponentRef`, or a `DynamicChildList` template. The annotation is what makes them resolve to ID references on the wire.
 - Properties: primitive properties accept static values, `DataBinding` instances, or `FunctionCall` objects.
 - Fields use Python `snake_case` names with a `serialization_alias` where the wire name differs, so `validation_regexp` emits as `validationRegexp`.
+- On v1.0 builders, the component envelope fields keep their Python names (`catalog_id`, `accessibility`, `extensions`, `checks`) and serialize under the `@`-prefixed wire keys `@catalogId`, `@accessibility`, `@metadata` and `@checks`. Validation also accepts the bare keys of payloads written before the cutover.
 
 ### Function builder classes
 
@@ -254,6 +255,23 @@ Because `MetricCard` inherits from `ComponentBuilderNode` and annotates `icon` a
 - No custom serialization code is required, or accepted: annotating the slot is the whole mechanism.
 - It passes validation when nested inside standard containers (`Card`, `Column`, `Row`).
 
+In A2UI v1.0 surfaces that mix multiple catalogs without a surface default `catalogId`, custom subclasses of `a2ui.builder.v1_0.ComponentBuilderNode` can set a default `catalog_id` directly on the class so every flattened instance emits `"@catalogId"` on the wire:
+
+```python
+from typing import Literal, Optional
+from a2ui.builder.v1_0 import Child, ComponentBuilderNode
+
+METRICS_CID = "https://example.com/catalogs/metrics/v1/catalog.json"
+
+
+class MetricCard(ComponentBuilderNode):
+    component: Literal["MetricCard"] = "MetricCard"
+    catalog_id: str | None = METRICS_CID
+    label: str
+    value: str
+    icon: Optional[Child] = None
+```
+
 ## Code generation
 
 Everything under `v0_9/catalogs/` and `v1_0/catalogs/` is generated from the catalog JSON schema by the A2UI CLI (`dart/a2ui_cli`) and should never be edited by hand. Only the runtime in `core/`, `v0_9/`, and `v1_0/` is written directly.
@@ -265,7 +283,7 @@ cd dart/a2ui_cli
 
 # Protocol v0.9 / v0.9.1:
 dart run bin/a2ui.dart codegen \
-  --catalog ../../specification/v0_9_1/catalogs/basic/catalog.json \
+  --catalog ../../catalogs/basic/v0_9_1/catalog.json \
   --out ../../python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/
 
 # Protocol v1.0:

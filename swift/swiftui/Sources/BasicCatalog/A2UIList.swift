@@ -51,7 +51,7 @@ public struct A2UIList: View {
 
   public var body: some View {
     if direction == "horizontal" {
-      ScrollView(.horizontal, showsIndicators: false) {
+      ScrollView(.horizontal) {
         LazyHStack(alignment: verticalAlignment, spacing: 12) {
           ForEach(children) { childNode in
             ComponentNodeView(node: childNode)
@@ -62,10 +62,10 @@ public struct A2UIList: View {
         }
         .padding(.horizontal, 4)
       }
-      .accessibilityIdentifier("A2UIList_\(node.id)")
+      .scrollIndicators(.hidden, axes: .horizontal)
       .a2uiAccessibilityElement(for: node, children: .contain)
     } else {
-      ScrollView(.vertical, showsIndicators: true) {
+      ScrollView(.vertical) {
         LazyVStack(alignment: horizontalAlignment, spacing: 8) {
           ForEach(children) { childNode in
             ComponentNodeView(node: childNode)
@@ -75,8 +75,8 @@ public struct A2UIList: View {
         }
         .padding(.vertical, 4)
       }
+      .scrollIndicators(.automatic, axes: .vertical)
       .frame(maxWidth: align == "stretch" ? .infinity : nil)
-      .accessibilityIdentifier("A2UIList_\(node.id)")
       .a2uiAccessibilityElement(for: node, children: .contain)
     }
   }

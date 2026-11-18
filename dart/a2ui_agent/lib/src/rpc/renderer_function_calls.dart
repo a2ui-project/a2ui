@@ -1,0 +1,619 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import 'dart:async';
+import 'dart:math';
+
+import 'package:a2ui_core/a2ui_core.dart';
+
+/// Default timeout for outbound `callRendererFunction` invocations (30s).
+const Duration defaultRendererCallTimeout = Duration(seconds: 30);
+
+/// Builds outbound `callRendererFunction` messages, correlates them with
+/// incoming `rendererFunctionResponse` messages by `functionCallId`, and
+/// manages per-call timeouts and disposal.
+///
+/// Pass [resolve] as the `onRendererFunctionResponse` callback of a
+/// `RendererToAgentMessageProcessor`, so each response the renderer sends
+/// settles its call:
+///
+/// ```dart
+/// final calls = RendererFunctionCalls();
+/// final processor = RendererToAgentMessageProcessor(
+///   catalogs: catalogs,
+///   onRendererFunctionResponse: calls.resolve,
+/// );
+/// ```
+///
+/// A tracker holds the calls of one conversation in memory, so it suits a
+/// connection that stays open, such as a WebSocket.
+///
+/// Given the renderer's catalogs, [call] refuses a call the renderer would
+/// refuse: to a function the catalogs don't declare as a renderer function
+/// (an agent function runs on the agent, not the renderer), to one whose
+/// `allowedCallers` doesn't let the agent call it, or to one that requires a
+/// user activation, which an agent's call doesn't carry.
+class RendererFunctionCalls {
+  final Duration? _defaultTimeout;
+
+  /// The maximum number of concurrent pending calls, or null for no cap.
+  final int? maxPending;
+
+  /// The catalogs [call] checks calls against, by id, or null to check none.
+  final Map<String, CatalogApi>? _catalogs;
+
+  final Map<String, _PendingRendererCall> _pending =
+      <String, _PendingRendererCall>{};
+  final Random _random = Random();
+  int _nextCallCounter = 0;
+  bool _disposed = false;
+
+  /// Creates a [RendererFunctionCalls] tracker.
+  ///
+  /// Pass `defaultTimeout: null` to disable the default timeout. With
+  /// [catalogs], [call] checks each call against the function the catalogs
+  /// declare; without them it checks none.
+  ///
+  /// Throws [ArgumentError] if [defaultTimeout] is not positive or [maxPending]
+  /// is less than 1, and [A2uiCatalogError] if two of [catalogs] have the same
+  /// id.
+  RendererFunctionCalls({
+    Duration? defaultTimeout = defaultRendererCallTimeout,
+    this.maxPending,
+    Iterable<CatalogApi>? catalogs,
+  }) : _defaultTimeout = defaultTimeout,
+       _catalogs = catalogs == null ? null : _indexCatalogs(catalogs) {
+    if (defaultTimeout != null && defaultTimeout <= Duration.zero) {
+      throw ArgumentError.value(
+        defaultTimeout,
+        'defaultTimeout',
+        'Must be > Duration.zero or null.',
+      );
+    }
+    if (maxPending != null && maxPending! < 1) {
+      throw ArgumentError.value(
+        maxPending,
+        'maxPending',
+        'Must be >= 1 or null.',
+      );
+    }
+  }
+
+  /// The default timeout applied when [call] is invoked without an explicit
+  /// `timeout`, or null if no default timeout is configured.
+  Duration? get defaultTimeout => _defaultTimeout;
+
+  /// Whether [dispose] has been called.
+  bool get isDisposed => _disposed;
+
+  /// Alias for [isDisposed].
+  bool get disposed => _disposed;
+
+  /// The number of currently pending outbound renderer function calls.
+  int get pendingCount => _pending.length;
+
+  /// Whether a call with [functionCallId] is currently awaiting a response.
+  bool isPending(String functionCallId) => _pending.containsKey(functionCallId);
+
+  /// Constructs a v1.0 [CallRendererFunctionMessage] and registers a pending
+  /// [Future] that resolves when the matching `rendererFunctionResponse`
+  /// arrives via [resolve].
+  ///
+  /// An empty [surfaceId] counts as omitted. Without a [timeout], the call
+  /// uses [defaultTimeout], and never times out when that is null.
+  ///
+  /// Checks the call in this order, throwing synchronously, before anything
+  /// is built, registered or timed:
+  ///
+  /// 1. [timeout], when given, must be positive: [ArgumentError].
+  /// 2. The tracker isn't disposed: [RpcErrorCode.disposed].
+  /// 3. A given [functionCallId] isn't empty:
+  ///    [RpcErrorCode.invalidFunctionCall]. An omitted one is generated.
+  /// 4. The id isn't already pending: [RpcErrorCode.duplicate].
+  /// 5. [maxPending] isn't reached: [RpcErrorCode.tooManyPending].
+  /// 6. [name] isn't empty, then [catalogId] isn't empty, then [name] is a
+  ///    UAX #31 identifier that doesn't start with `@`:
+  ///    [RpcErrorCode.invalidFunctionCall].
+  /// 7. [args], when given, has UAX #31 identifiers as keys and JSON values
+  ///    (null, booleans, strings, finite numbers, and lists and string-keyed
+  ///    maps of them): [RpcErrorCode.invalidFunctionCall]. The values aren't
+  ///    otherwise interpreted; a nested `@call` or `@path` object is left for
+  ///    the renderer to check.
+  /// 8. Given catalogs, [catalogId] names one of them and [name] is one of
+  ///    its renderer functions (an agent function isn't):
+  ///    [RpcErrorCode.unknownFunction]. The function's `allowedCallers` lets
+  ///    the agent call it (an omitted one means `rendererOnly`, which
+  ///    doesn't), and it doesn't require a user activation:
+  ///    [RpcErrorCode.invalidFunctionCall].
+  (CallRendererFunctionMessage, Future<Object?>) call({
+    required String catalogId,
+    required String name,
+    Map<String, Object?>? args,
+    String? surfaceId,
+    Duration? timeout,
+    String? functionCallId,
+  }) {
+    if (surfaceId != null && surfaceId.isEmpty) surfaceId = null;
+    if (timeout != null && timeout <= Duration.zero) {
+      throw ArgumentError.value(
+        timeout,
+        'timeout',
+        'Must be > Duration.zero or null.',
+      );
+    }
+    if (_disposed) {
+      throw A2uiRpcError(
+        'RendererFunctionCalls has been disposed.',
+        RpcErrorCode.disposed,
+      );
+    }
+
+    final String callId = functionCallId ?? _generateCallId();
+    if (callId.isEmpty) {
+      throw A2uiRpcError(
+        'functionCallId must be a non-empty string.',
+        RpcErrorCode.invalidFunctionCall,
+        surfaceId: surfaceId,
+      );
+    }
+    if (_pending.containsKey(callId)) {
+      throw A2uiRpcError(
+        "A renderer function call with functionCallId '$callId' is already "
+        'pending.',
+        RpcErrorCode.duplicate,
+        functionCallId: callId,
+        surfaceId: surfaceId,
+      );
+    }
+    if (maxPending != null && _pending.length >= maxPending!) {
+      throw A2uiRpcError(
+        'Maximum number of pending renderer function calls ($maxPending) '
+        'reached.',
+        RpcErrorCode.tooManyPending,
+        functionCallId: callId,
+        surfaceId: surfaceId,
+      );
+    }
+
+    _validateCallInputs(
+      callId: callId,
+      catalogId: catalogId,
+      name: name,
+      args: args,
+      surfaceId: surfaceId,
+    );
+    _checkAgainstCatalogs(
+      callId: callId,
+      catalogId: catalogId,
+      name: name,
+      surfaceId: surfaceId,
+    );
+
+    final callFunction = <String, Object?>{
+      '@call': name,
+      'catalogId': catalogId,
+      'args': args == null ? <String, Object?>{} : _deepCopyMap(args),
+    };
+    final message = CallRendererFunctionMessage(
+      version: A2uiProtocolVersion.v1_0.jsonValue,
+      surfaceId: surfaceId,
+      functionCallId: callId,
+      callFunction: callFunction,
+    );
+
+    final pending = _PendingRendererCall(
+      functionCallId: callId,
+      surfaceId: surfaceId,
+    );
+    final Duration? effectiveTimeout = timeout ?? _defaultTimeout;
+    if (effectiveTimeout != null) {
+      pending.timer = Timer(effectiveTimeout, () {
+        final _PendingRendererCall? removed = _pending.remove(callId);
+        if (removed == null) return;
+        removed.completeError(
+          A2uiRpcError(
+            "Renderer function '$name' (call '$callId') timed out after "
+            '${effectiveTimeout.inMilliseconds}ms.',
+            RpcErrorCode.timeout,
+            functionCallId: callId,
+            surfaceId: surfaceId,
+          ),
+        );
+      });
+    }
+    _pending[callId] = pending;
+    return (message, pending.completer.future);
+  }
+
+  /// Settles the pending call matching [message]'s `functionCallId`, and
+  /// tells whether there was one.
+  ///
+  /// [message] may be a [RendererFunctionResponseMessage] or a raw JSON `Map`
+  /// envelope. Returns true when it settled or failed a pending call, and
+  /// false when the response names no pending call: an unknown, duplicate or
+  /// late (post-timeout or post-dispose) response, which is otherwise
+  /// ignored. As the `onRendererFunctionResponse` callback of a
+  /// `RendererToAgentMessageProcessor`, it so declines the responses it
+  /// doesn't own, such as answers to calls the model wrote, and they reach
+  /// the model. A malformed response is ignored too, unless it carries the
+  /// `functionCallId` of a pending call: that call then fails right away with
+  /// [RpcErrorCode.unknownError] rather than waiting for its timeout.
+  bool resolve(Object message) {
+    final _ParsedRendererResponse? parsed = _parseResponse(message);
+    if (parsed == null) return _failMalformed(message);
+
+    final _PendingRendererCall? pending = _pending.remove(
+      parsed.functionCallId,
+    );
+    if (pending == null) return false;
+    pending.timer?.cancel();
+
+    final A2uiFunctionResponseError? error = parsed.error;
+    if (error != null) {
+      pending.completeError(
+        A2uiRpcError.custom(
+          error.message,
+          error.code,
+          functionCallId: parsed.functionCallId,
+          surfaceId: pending.surfaceId,
+          details: error.toJson(),
+        ),
+      );
+      return true;
+    }
+    pending.completeValue(parsed.value);
+    return true;
+  }
+
+  /// Fails the pending call that a malformed response [message] names, and
+  /// tells whether there was one.
+  bool _failMalformed(Object message) {
+    final Object? callId = switch (message) {
+      RendererFunctionResponseMessage(:final A2uiFunctionResponse response) =>
+        response.functionCallId,
+      {'rendererFunctionResponse': {'functionCallId': final Object? id}} => id,
+      _ => null,
+    };
+    if (callId is! String || callId.isEmpty) return false;
+    final _PendingRendererCall? pending = _pending.remove(callId);
+    if (pending == null) return false;
+    pending.timer?.cancel();
+    pending.completeError(
+      A2uiRpcError(
+        "Malformed rendererFunctionResponse for call '$callId'.",
+        RpcErrorCode.unknownError,
+        functionCallId: callId,
+        surfaceId: pending.surfaceId,
+        details: message is RendererFunctionResponseMessage
+            ? message.toJson()
+            : message,
+      ),
+    );
+    return true;
+  }
+
+  /// Cancels all pending calls with [RpcErrorCode.cancelled] and marks this
+  /// tracker as disposed so subsequent [call] invocations fail with
+  /// [RpcErrorCode.disposed]. Idempotent.
+  void dispose([String reason = 'RendererFunctionCalls was disposed.']) {
+    if (_disposed) return;
+    _disposed = true;
+    final List<_PendingRendererCall> entries = _pending.values.toList();
+    _pending.clear();
+    for (final pending in entries) {
+      pending.timer?.cancel();
+      pending.completeError(
+        A2uiRpcError(
+          reason,
+          RpcErrorCode.cancelled,
+          functionCallId: pending.functionCallId,
+          surfaceId: pending.surfaceId,
+        ),
+      );
+    }
+  }
+
+  static Map<String, CatalogApi> _indexCatalogs(Iterable<CatalogApi> catalogs) {
+    final byId = <String, CatalogApi>{};
+    for (final catalog in catalogs) {
+      if (byId.containsKey(catalog.id)) {
+        throw A2uiCatalogError(
+          "Two catalogs have the id '${catalog.id}'; give "
+          'RendererFunctionCalls each catalog once.',
+          catalogId: catalog.id,
+        );
+      }
+      byId[catalog.id] = catalog;
+    }
+    return byId;
+  }
+
+  /// Checks that the renderer would accept a call to [name] in [catalogId],
+  /// when this tracker has catalogs.
+  void _checkAgainstCatalogs({
+    required String callId,
+    required String catalogId,
+    required String name,
+    required String? surfaceId,
+  }) {
+    final Map<String, CatalogApi>? catalogs = _catalogs;
+    if (catalogs == null) return;
+    final CatalogApi? catalog = catalogs[catalogId];
+    // An agent function is in `functions` too, but the renderer can't run it.
+    final FunctionApi? function = catalog?.rendererFunctions[name];
+    if (function == null) {
+      throw A2uiRpcError(
+        catalog == null
+            ? "Unknown catalog '$catalogId' for renderer function '$name'."
+            : "Catalog '$catalogId' has no renderer function '$name'.",
+        RpcErrorCode.unknownFunction,
+        functionCallId: callId,
+        surfaceId: surfaceId,
+      );
+    }
+    if (function.allowedCallers == AllowedCallers.rendererOnly) {
+      throw A2uiRpcError(
+        "The agent may not call renderer function '$name': its "
+        "allowedCallers is 'rendererOnly'.",
+        RpcErrorCode.invalidFunctionCall,
+        functionCallId: callId,
+        surfaceId: surfaceId,
+      );
+    }
+    if (function.requiresUserActivation) {
+      throw A2uiRpcError(
+        "Renderer function '$name' requires a user activation, which an "
+        "agent's call doesn't have: there is no user gesture behind it.",
+        RpcErrorCode.invalidFunctionCall,
+        functionCallId: callId,
+        surfaceId: surfaceId,
+      );
+    }
+  }
+
+  static void _validateCallInputs({
+    required String callId,
+    required String catalogId,
+    required String name,
+    required Map<String, Object?>? args,
+    required String? surfaceId,
+  }) {
+    if (name.isEmpty) {
+      throw A2uiRpcError(
+        'The call needs a function name.',
+        RpcErrorCode.invalidFunctionCall,
+        functionCallId: callId,
+        surfaceId: surfaceId,
+      );
+    }
+    if (catalogId.isEmpty) {
+      throw A2uiRpcError(
+        'catalogId must be a non-empty string.',
+        RpcErrorCode.invalidFunctionCall,
+        functionCallId: callId,
+        surfaceId: surfaceId,
+      );
+    }
+    if (name.startsWith('@') || !isValidUax31Identifier(name)) {
+      throw A2uiRpcError(
+        "Invalid renderer function name '$name': must be a UAX #31 "
+        "identifier and must not start with '@'.",
+        RpcErrorCode.invalidFunctionCall,
+        functionCallId: callId,
+        surfaceId: surfaceId,
+      );
+    }
+    if (args != null) {
+      _validateCallArgs(name, args, callId: callId, surfaceId: surfaceId);
+    }
+  }
+
+  /// Checks that [args] is a JSON object whose keys are UAX #31 identifiers.
+  ///
+  /// The values are not interpreted: a nested `@call` or `@path` object is
+  /// just an object here, which the renderer checks.
+  static void _validateCallArgs(
+    String fnName,
+    Map<Object?, Object?> args, {
+    required String callId,
+    required String? surfaceId,
+  }) {
+    for (final MapEntry<Object?, Object?> entry in args.entries) {
+      final Object? key = entry.key;
+      if (key is! String || !isValidUax31Identifier(key)) {
+        throw A2uiRpcError(
+          "Function argument '$key' in '$fnName' is not a valid UAX #31 "
+          'identifier.',
+          RpcErrorCode.invalidFunctionCall,
+          functionCallId: callId,
+          surfaceId: surfaceId,
+        );
+      }
+      _validateJsonValue(entry.value, callId: callId, surfaceId: surfaceId);
+    }
+  }
+
+  /// Checks that [value] is a JSON value: null, a boolean, a string, a finite
+  /// number, or a list or string-keyed map of JSON values.
+  static void _validateJsonValue(
+    Object? value, {
+    required String callId,
+    required String? surfaceId,
+  }) {
+    switch (value) {
+      case null || bool() || int() || String():
+        return;
+      case double() when value.isFinite:
+        return;
+      case double():
+        throw A2uiRpcError(
+          'Non-finite number $value in function arguments.',
+          RpcErrorCode.invalidFunctionCall,
+          functionCallId: callId,
+          surfaceId: surfaceId,
+        );
+      case List<Object?>():
+        for (final Object? item in value) {
+          _validateJsonValue(item, callId: callId, surfaceId: surfaceId);
+        }
+      case Map<Object?, Object?>():
+        for (final MapEntry<Object?, Object?> entry in value.entries) {
+          if (entry.key is! String) {
+            throw A2uiRpcError(
+              'Object keys in function arguments must be strings, got '
+              '${entry.key.runtimeType}.',
+              RpcErrorCode.invalidFunctionCall,
+              functionCallId: callId,
+              surfaceId: surfaceId,
+            );
+          }
+          _validateJsonValue(entry.value, callId: callId, surfaceId: surfaceId);
+        }
+      default:
+        throw A2uiRpcError(
+          'Non-JSON value of type ${value.runtimeType} in function arguments.',
+          RpcErrorCode.invalidFunctionCall,
+          functionCallId: callId,
+          surfaceId: surfaceId,
+        );
+    }
+  }
+
+  /// Reads [message] as a v1.0 `rendererFunctionResponse`, or returns null
+  /// if it breaks the v1.0 `FunctionResponse` schema.
+  ///
+  /// The message must declare version `'1.0'` and carry nothing but the
+  /// response, whose body holds a `functionCallId` and exactly one of `value`
+  /// (null for a function that returns nothing) and `error`, which is an
+  /// object of a string `code` and `message`. An empty `functionCallId` names
+  /// no call, so it is treated as malformed too.
+  static _ParsedRendererResponse? _parseResponse(Object message) {
+    if (message is RendererFunctionResponseMessage) {
+      if (message.version != A2uiProtocolVersion.v1_0.jsonValue) return null;
+      final A2uiFunctionResponse resp = message.response;
+      if (resp.functionCallId.isEmpty) return null;
+      return _ParsedRendererResponse(
+        functionCallId: resp.functionCallId,
+        value: resp.value,
+        error: resp.error,
+      );
+    }
+
+    if (message is! Map) return null;
+    if (message.length != 2) return null;
+    if (message['version'] != A2uiProtocolVersion.v1_0.jsonValue) return null;
+
+    final Object? rawBody = message['rendererFunctionResponse'];
+    if (rawBody is! Map) return null;
+    for (final Object? key in rawBody.keys) {
+      if (key != 'functionCallId' && key != 'value' && key != 'error') {
+        return null;
+      }
+    }
+
+    final Object? rawCallId = rawBody['functionCallId'];
+    if (rawCallId is! String || rawCallId.isEmpty) return null;
+
+    final bool hasValue = rawBody.containsKey('value');
+    final bool hasError = rawBody.containsKey('error');
+    if (hasValue == hasError) return null;
+
+    if (hasError) {
+      final Object? rawError = rawBody['error'];
+      if (rawError is! Map || rawError.length != 2) return null;
+      final Object? rawCode = rawError['code'];
+      final Object? rawMessage = rawError['message'];
+      if (rawCode is! String || rawMessage is! String) return null;
+      return _ParsedRendererResponse(
+        functionCallId: rawCallId,
+        value: null,
+        error: A2uiFunctionResponseError(code: rawCode, message: rawMessage),
+      );
+    }
+
+    return _ParsedRendererResponse(
+      functionCallId: rawCallId,
+      value: rawBody['value'],
+      error: null,
+    );
+  }
+
+  String _generateCallId() {
+    while (true) {
+      final int counter = _nextCallCounter++;
+      final String rand = _random.nextInt(0x7fffffff).toRadixString(16);
+      final candidate = 'rcall-$counter-$rand';
+      if (!_pending.containsKey(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  static Map<String, Object?> _deepCopyMap(Map<String, Object?> map) =>
+      <String, Object?>{
+        for (final MapEntry<String, Object?> entry in map.entries)
+          entry.key: _deepCopyValue(entry.value),
+      };
+
+  static Object? _deepCopyValue(Object? value) {
+    if (value is Map) {
+      return <String, Object?>{
+        for (final MapEntry<Object?, Object?> entry in value.entries)
+          '${entry.key}': _deepCopyValue(entry.value),
+      };
+    }
+    if (value is List) {
+      return <Object?>[for (final Object? item in value) _deepCopyValue(item)];
+    }
+    return value;
+  }
+}
+
+final class _ParsedRendererResponse {
+  final String functionCallId;
+  final Object? value;
+  final A2uiFunctionResponseError? error;
+
+  const _ParsedRendererResponse({
+    required this.functionCallId,
+    required this.value,
+    required this.error,
+  });
+}
+
+final class _PendingRendererCall {
+  final String functionCallId;
+  final String? surfaceId;
+  final Completer<Object?> completer = Completer<Object?>();
+  Timer? timer;
+
+  _PendingRendererCall({
+    required this.functionCallId,
+    required this.surfaceId,
+  }) {
+    completer.future.ignore();
+  }
+
+  void completeValue(Object? value) {
+    if (!completer.isCompleted) {
+      completer.complete(value);
+    }
+  }
+
+  void completeError(Object error) {
+    if (!completer.isCompleted) {
+      completer.completeError(error);
+    }
+  }
+}

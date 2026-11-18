@@ -1,6 +1,8 @@
 ---
 name: a2ui-blueprint-navigator
 description: Analytical navigation of A2UI Spec-Driven Development module and codebase blueprints.
+metadata:
+  internal: true
 ---
 
 # A2UI Blueprint Navigator Skill

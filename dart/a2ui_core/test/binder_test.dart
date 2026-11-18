@@ -971,5 +971,214 @@ void main() {
       expect(actions.single.name, 'bound_submit');
       expect(actions.single.context, {'from': 'binding'});
     });
+
+    group('inline actions', () {
+      Map<String, dynamic> bind(
+        Map<String, Schema> properties,
+        Map<String, dynamic> props,
+      ) {
+        final comp = ComponentModel('c1', 'Select', props);
+        surface.componentsModel.addComponent(comp);
+        final binder = GenericBinder(
+          ComponentContext(surface, comp),
+          Schema.object(properties: properties),
+        );
+        return binder.resolvedProps.value;
+      }
+
+      test('keeps top-level event and functionCall strings as literals', () {
+        final Map<String, dynamic> props = bind(
+          {
+            'label': Schema.string(),
+            'event': Schema.string(),
+            'functionCall': Schema.string(),
+          },
+          {'label': 'Pick', 'event': 'picked', 'functionCall': 'pick'},
+        );
+
+        expect(props['label'], 'Pick');
+        expect(props['event'], 'picked');
+        expect(props['functionCall'], 'pick');
+      });
+
+      test('does not bind a component whose only property is event', () {
+        final Map<String, dynamic> props = bind(
+          {'event': Schema.string()},
+          {'event': 'picked'},
+        );
+
+        expect(props['event'], 'picked');
+      });
+
+      test('keeps list items that declare event as plain maps', () {
+        final Map<String, dynamic> props = bind(
+          {
+            'options': Schema.list(
+              items: Schema.object(
+                properties: {
+                  'label': Schema.string(),
+                  'event': Schema.string(),
+                },
+              ),
+            ),
+          },
+          {
+            'options': [
+              {'label': 'Red', 'event': 'red'},
+              {'label': 'Blue', 'event': 'blue'},
+            ],
+          },
+        );
+
+        expect(props['options'], [
+          {'label': 'Red', 'event': 'red'},
+          {'label': 'Blue', 'event': 'blue'},
+        ]);
+      });
+
+      test('binds a schema whose only property is event or functionCall',
+          () async {
+        final actions = <A2uiRendererAction>[];
+        surface.onAction.subscribe(actions.add);
+
+        final Map<String, dynamic> props = bind(
+          {
+            'onPick': Schema.object(
+              properties: {
+                'event': Schema.object(properties: {'name': Schema.string()}),
+              },
+            ),
+            'onRun': Schema.object(
+              properties: {'functionCall': Schema.object()},
+            ),
+          },
+          {
+            'onPick': {
+              'event': {'name': 'picked'},
+            },
+            'onRun': {
+              'functionCall': {'call': 'capitalize'},
+            },
+          },
+        );
+
+        expect(props['onRun'], isA<Future<void> Function()>());
+        final Object? onPick = props['onPick'];
+        expect(onPick, isA<Future<void> Function()>());
+        await (onPick as Future<void> Function())();
+        expect(actions.single.name, 'picked');
+      });
+    });
+
+    test(
+      'resolves direct DataBinding/FunctionCall schemas and boolean unions',
+      () {
+        final CatalogApi parsed = Catalog.fromJson({
+          r'$schema': 'https://json-schema.org/draft/2020-12/schema',
+          'protocolVersion': '1.0',
+          'catalogId': 'test/direct_dynamic',
+          'components': {
+            'Probe': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Probe'},
+                'binding': {r'$ref': r'common_types.json#/$defs/DataBinding'},
+                'computed': {r'$ref': r'common_types.json#/$defs/FunctionCall'},
+                'flag': {
+                  'oneOf': [
+                    {'type': 'boolean'},
+                    {r'$ref': r'common_types.json#/$defs/DataBinding'},
+                    {r'$ref': r'common_types.json#/$defs/FunctionCall'},
+                  ],
+                },
+                'constrainedFlag': {
+                  'oneOf': [
+                    {'type': 'boolean'},
+                    {r'$ref': r'common_types.json#/$defs/DataBinding'},
+                    {
+                      'allOf': [
+                        {r'$ref': r'common_types.json#/$defs/FunctionCall'},
+                        {
+                          'type': 'object',
+                          'properties': {
+                            'returnType': {'const': 'boolean'},
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        });
+        final customCatalog = Catalog<ComponentApi, FunctionImplementation>(
+          id: parsed.id,
+          protocolVersion: parsed.protocolVersion,
+          components: parsed.components.values.toList(),
+          functions: [
+            _SpyFunction('shout', (args) => '${args['label']}!'),
+          ],
+        );
+        final v1Surface = SurfaceModel<ComponentApi>(
+          's_v1',
+          defaultCatalog: customCatalog,
+          protocolVersion: '1.0',
+        );
+        v1Surface.dataModel.set('/name', 'Ada');
+        v1Surface.dataModel.set('/flag', {'valid': false, 'message': 'No'});
+        final comp = ComponentModel('c_probe', 'Probe', {
+          'binding': {'@path': '/name'},
+          'computed': {
+            '@call': 'shout',
+            'args': {
+              'label': {'@path': '/name'},
+            },
+          },
+          'flag': {'@path': '/flag'},
+          'constrainedFlag': {'@path': '/flag'},
+        });
+        v1Surface.componentsModel.addComponent(comp);
+
+        final binder = GenericBinder(
+          ComponentContext(v1Surface, comp),
+          customCatalog.components['Probe']!.schema,
+        );
+        final initialBinding =
+            binder.resolvedProps.value['binding']! as WritableBinding<Object?>;
+        expect(initialBinding.value, 'Ada');
+        expect(
+          (binder.resolvedProps.value['computed']! as ResolvedBinding<Object?>)
+              .value,
+          'Ada!',
+        );
+        expect(
+          (binder.resolvedProps.value['flag']! as ResolvedBinding<Object?>)
+              .value,
+          isFalse,
+        );
+        expect(
+          (binder.resolvedProps.value['constrainedFlag']!
+                  as ResolvedBinding<Object?>)
+              .value,
+          isFalse,
+        );
+
+        initialBinding.set('Grace');
+        expect(v1Surface.dataModel.get('/name'), 'Grace');
+        expect(
+          (binder.resolvedProps.value['binding']! as WritableBinding<Object?>)
+              .value,
+          'Grace',
+        );
+        expect(
+          (binder.resolvedProps.value['computed']! as ResolvedBinding<Object?>)
+              .value,
+          'Grace!',
+        );
+        binder.dispose();
+        v1Surface.dispose();
+      },
+    );
   });
 }

@@ -81,7 +81,12 @@ _BASIC_CATALOG_IDS = {
 }
 _PROTOCOL_VERSIONS = {"v0_9_1": "v0.9.1", "v1_0": "1.0"}
 # Catalogs that moved out of `specification/<version>/`; mirrors dataset.py.
-_MOVED_CATALOGS = {"specification/v1_0/catalogs/basic/": "catalogs/basic/v1/"}
+_MOVED_CATALOGS = {
+    "specification/v0_9/catalogs/basic/": "catalogs/basic/v0_9/",
+    "specification/v0_9/catalogs/minimal/": "catalogs/minimal/v0_9/",
+    "specification/v0_9_1/catalogs/basic/": "catalogs/basic/v0_9_1/",
+    "specification/v1_0/catalogs/basic/": "catalogs/basic/v1/",
+}
 
 Mutation = Callable[[dict[str, Any], str], dict[str, Any] | None]
 

@@ -62,10 +62,25 @@ Map<String, Object?> resolveSchemaRefs(
   Map<String, Object?>? commonTypes,
   Map<String, Object?>? fallbackCommonTypes,
 }) {
-  final resolver = _RefResolver(document, commonTypes, fallbackCommonTypes);
+  final Object? localDefs = schema[r'$defs'];
+  final effectiveDocument = localDefs is Map
+      ? <String, Object?>{
+          ...document,
+          r'$defs': <String, Object?>{
+            if (document[r'$defs'] case final Map<Object?, Object?> docDefs)
+              ...docDefs.cast<String, Object?>(),
+            ...localDefs.cast<String, Object?>(),
+          },
+        }
+      : document;
+  final resolver = _RefResolver(
+    effectiveDocument,
+    commonTypes,
+    fallbackCommonTypes,
+  );
   final Map<String, Object?> rewritten = resolver.rewrite(
     schema,
-    _DocumentRef(document, 'catalog'),
+    _DocumentRef(effectiveDocument, 'catalog'),
   );
   if (resolver.defs.isEmpty) return rewritten;
   return <String, Object?>{

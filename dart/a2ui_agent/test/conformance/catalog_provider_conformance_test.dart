@@ -47,12 +47,42 @@ void main() {
   }
 }
 
+const Map<String, Set<String>> _knownKeys = {
+  'case:provide_catalog': {
+    ...caseMetadataKeys,
+    'args',
+    'expect',
+    'expect_error',
+  },
+  'args:provide_catalog': {
+    'catalog_id',
+    'path',
+    'protocol_version',
+    'provider',
+  },
+};
+
 void _runCase(
   Map<String, Object?> testCase,
   SuiteVersion version,
   Directory temp,
 ) {
+  switch (testCase['action']) {
+    case 'provide_catalog':
+      assertKnownKeys(
+        testCase,
+        _knownKeys['case:provide_catalog']!,
+        'case:provide_catalog',
+      );
+    default:
+      throw UnsupportedError('Unknown action ${testCase['action']}');
+  }
   final args = testCase['args']! as Map<String, Object?>;
+  assertKnownKeys(
+    args,
+    _knownKeys['args:provide_catalog']!,
+    'args:provide_catalog',
+  );
   expect(args['provider'], 'file_system');
   final bool lower =
       version == SuiteVersion.v0_9 && args['protocol_version'] != 'v0.9';

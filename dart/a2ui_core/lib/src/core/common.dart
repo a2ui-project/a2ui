@@ -156,7 +156,7 @@ class FunctionCall {
   ///
   /// Uses `@call` when [reservedKeys] (or [FunctionCall.reservedKeys] if
   /// omitted) is `true`, and `call` otherwise. `returnType` is only emitted
-  /// with the legacy `call` key: the v1.0 `FunctionCall` schema declares no
+  /// with the unprefixed `call` key: the v1.0 `FunctionCall` schema declares no
   /// `returnType` property (the return type is declared by the catalog) and
   /// sets `unevaluatedProperties: false`. Likewise `catalogId` is only
   /// emitted with `@call`: the v0.9 `call` shape has no `catalogId`.

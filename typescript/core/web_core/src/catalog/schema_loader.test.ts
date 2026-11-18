@@ -27,10 +27,7 @@ import {STRICT_VALIDATION} from '../validation/integrity-checker.js';
 import {PayloadValidator} from '../validation/payload-validator.js';
 
 describe('Catalog.fromJson & schema_loader', () => {
-  const basicCatalogPath = resolve(
-    process.cwd(),
-    '../../../specification/v0_9_1/catalogs/basic/catalog.json',
-  );
+  const basicCatalogPath = resolve(process.cwd(), '../../../catalogs/basic/v0_9_1/catalog.json');
   const basicCatalogJson = JSON.parse(readFileSync(basicCatalogPath, 'utf-8'));
 
   it('loads basic catalog successfully and dynamically resolves weight and accessibility', () => {
@@ -593,6 +590,62 @@ describe('Catalog.fromJson & schema_loader', () => {
     assert.strictEqual(holder.safeParse({}).success, false);
   });
 
+  it('applies the default of an optional function argument that is missing', () => {
+    const catalog = Catalog.fromJson({
+      catalogId: 'https://example.com/fn_defaults_catalog.json',
+      protocolVersion: '1.0',
+      components: {},
+      functions: {
+        quote: {
+          type: 'object',
+          properties: {
+            '@call': {const: 'quote'},
+            args: {
+              type: 'object',
+              properties: {
+                symbol: {type: 'string'},
+                currency: {type: 'string', default: 'USD'},
+                options: {
+                  type: 'object',
+                  properties: {
+                    extendedHours: {type: 'boolean', default: false},
+                  },
+                  additionalProperties: false,
+                },
+                legs: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      side: {type: 'string', default: 'buy'},
+                    },
+                    additionalProperties: false,
+                  },
+                },
+              },
+              required: ['symbol'],
+              additionalProperties: false,
+            },
+          },
+          required: ['@call', 'args'],
+        },
+      },
+    });
+    const schema = catalog.functions.get('quote')!.schema;
+
+    assert.deepStrictEqual(schema.parse({symbol: 'GOOG'}), {symbol: 'GOOG', currency: 'USD'});
+    assert.deepStrictEqual(
+      schema.parse({symbol: 'GOOG', currency: 'EUR', options: {}, legs: [{}]}),
+      {
+        symbol: 'GOOG',
+        currency: 'EUR',
+        options: {extendedHours: false},
+        legs: [{side: 'buy'}],
+      },
+    );
+    assert.strictEqual(schema.safeParse({currency: 'EUR'}).success, false);
+  });
+
   it('applies passthrough on function argument schemas when unevaluatedProperties is true or a schema object', () => {
     const catalogJson = {
       catalogId: 'https://example.com/fn_uneval_props_catalog.json',
@@ -722,8 +775,10 @@ describe('Catalog.fromJson & schema_loader', () => {
     assert.ok(!schema.safeParse({size: true}).success, 'top level beats the local definition');
     assert.deepStrictEqual(Object.keys(schema.shape), [
       'checks',
+      '@checks',
       'accessibility',
-      'metadata',
+      '@accessibility',
+      '@metadata',
       'label',
       'size',
     ]);
@@ -742,12 +797,13 @@ describe('Catalog.fromJson & schema_loader', () => {
     const catalog = Catalog.fromJson(precedenceCatalog);
     const schema = catalog.components.get('Toggle')!.schema as z.ZodObject<z.ZodRawShape>;
     assert.ok(!('catalogId' in schema.shape));
-    assert.ok('metadata' in schema.shape);
+    assert.ok(!('@catalogId' in schema.shape));
+    assert.ok('@metadata' in schema.shape);
     new PayloadValidator(catalog, STRICT_VALIDATION).validateComponent({
       id: 'toggle1',
       component: 'Toggle',
       catalogId: 'https://example.com/precedence.json',
-      metadata: {source: 'test'},
+      metadata: {extensions: {source: 'test'}},
       size: 2,
     });
   });
@@ -1012,5 +1068,84 @@ describe('Catalog.fromJson & schema_loader', () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  it('preserves custom checks property on a v1.0 Checkable component that also accepts @checks', () => {
+    const catalog = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/checkable_custom_checks_v1_0.json',
+        protocolVersion: '1.0',
+        components: {
+          ScoreInput: {
+            type: 'object',
+            allOf: [
+              {$ref: 'common_types.json#/$defs/Checkable'},
+              {
+                type: 'object',
+                properties: {
+                  component: {const: 'ScoreInput'},
+                  checks: {type: 'integer'},
+                },
+                required: ['component', 'checks'],
+              },
+            ],
+          },
+        },
+      },
+      '1.0',
+    );
+    const validator = new PayloadValidator(catalog, STRICT_VALIDATION);
+    validator.validateComponent({
+      id: 'score_1',
+      component: 'ScoreInput',
+      checks: 3,
+      '@checks': [{condition: true, message: 'Must pass'}],
+    });
+  });
+
+  it('omits @-prefixed envelope mixins from pre-1.0 JSON catalog component schemas', () => {
+    const v09Catalog = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/v09_checkable.json',
+        protocolVersion: '0.9',
+        components: {
+          Field: {
+            type: 'object',
+            allOf: [
+              {$ref: 'common_types.json#/$defs/ComponentCommon'},
+              {$ref: 'common_types.json#/$defs/Checkable'},
+              {
+                type: 'object',
+                properties: {
+                  component: {const: 'Field'},
+                  label: {type: 'string'},
+                },
+                required: ['component', 'label'],
+              },
+            ],
+            unevaluatedProperties: false,
+          },
+        },
+      },
+      '0.9',
+    );
+    const shape = (v09Catalog.components.get('Field')!.schema as z.ZodObject<any>).shape;
+    assert.ok('accessibility' in shape);
+    assert.ok('checks' in shape);
+    assert.ok(!('@accessibility' in shape));
+    assert.ok(!('@metadata' in shape));
+    assert.ok(!('@checks' in shape));
+
+    const v09Validator = new PayloadValidator(v09Catalog, STRICT_VALIDATION);
+    assert.throws(
+      () =>
+        v09Validator.validateComponent({
+          id: 'f1',
+          component: 'Field',
+          label: 'Name',
+          '@checks': [{condition: true, message: 'No v1.0 @checks on v0.9'}],
+        }),
+      A2uiValidationError,
+    );
   });
 });

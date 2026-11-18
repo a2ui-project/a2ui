@@ -97,7 +97,7 @@ export function resolveDynamicValueDeep<T = unknown>(
   if (isDataBinding(value)) {
     const resolved = context.resolveDynamicValue(value);
     // Stop if the binding could not be resolved to avoid an infinite loop.
-    if (resolved === value) {
+    if (resolved === value || (isDataBinding(resolved) && resolved.path === value.path)) {
       return resolved as unknown as T;
     }
     return resolveDynamicValueDeep(resolved, context, depth + 1);

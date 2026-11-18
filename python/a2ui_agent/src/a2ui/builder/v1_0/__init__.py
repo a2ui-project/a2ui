@@ -38,6 +38,7 @@ from .models import (
     DynamicString,
     DynamicStringList,
     DynamicValue,
+    Extensions,
     FunctionCall,
     set_surface_extensions,
 )
@@ -127,6 +128,7 @@ __all__ = [
     "DynamicStringList",
     "DynamicValue",
     "Email",
+    "Extensions",
     "FlexAlign",
     "FlexJustify",
     "FormatCurrency",

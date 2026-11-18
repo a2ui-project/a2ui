@@ -17,6 +17,8 @@
 import {defineConfig} from 'vitest/config';
 import path from 'path';
 import react from '@vitejs/plugin-react';
+const testDist = process.env['A2UI_TEST_DIST'] === '1';
+
 export default defineConfig({
   plugins: [react()],
   test: {
@@ -24,6 +26,15 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.{ts,tsx}'],
+    exclude: testDist
+      ? [
+          // Whitebox tests that import unexported internal singletons (HostRegistry,
+          // toWebComponent) directly from src/ alongside public exports.
+          'tests/v0_9/host-move.test.tsx',
+          'tests/v0_9/to_web_component.test.tsx',
+          'tests/v0_9/node-surface.test.tsx',
+        ]
+      : [],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -32,12 +43,35 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
-      '@': path.resolve(process.cwd(), 'src/v0_8'),
-      '@a2ui/react/v0_9': path.resolve(process.cwd(), 'src/v0_9/index.ts'),
-      '@a2ui/react/v0_8': path.resolve(process.cwd(), 'src/v0_8/index.ts'),
-      '@a2ui/react/styles': path.resolve(process.cwd(), 'src/styles/index.ts'),
-      '@a2ui/react': path.resolve(process.cwd(), 'src/index.ts'),
-    },
+    alias: testDist
+      ? [
+          {
+            find: /^(?:\.\.?\/)+src\/v0_9(\/index(\.ts)?)?$/,
+            replacement: path.resolve(process.cwd(), 'dist/v0_9/index.js'),
+          },
+          {
+            find: /^(?:\.\.?\/)+src\/v0_8(\/index(\.ts)?)?$/,
+            replacement: path.resolve(process.cwd(), 'dist/v0_8/index.js'),
+          },
+          {
+            find: /^(?:\.\.?\/)+src\/styles(\/index(\.ts)?)?$/,
+            replacement: path.resolve(process.cwd(), 'dist/styles/index.js'),
+          },
+          {
+            find: /^(?:\.\.?\/)+src(\/(index|A2uiSurface|adapter|node-view|markdown-context|react_component_implementation)(\.tsx?)?)?$/,
+            replacement: path.resolve(process.cwd(), 'dist/index.js'),
+          },
+          {
+            find: '@',
+            replacement: path.resolve(process.cwd(), 'src/v0_8'),
+          },
+        ]
+      : {
+          '@': path.resolve(process.cwd(), 'src/v0_8'),
+          '@a2ui/react/v0_9': path.resolve(process.cwd(), 'src/v0_9/index.ts'),
+          '@a2ui/react/v0_8': path.resolve(process.cwd(), 'src/v0_8/index.ts'),
+          '@a2ui/react/styles': path.resolve(process.cwd(), 'src/styles/index.ts'),
+          '@a2ui/react': path.resolve(process.cwd(), 'src/index.ts'),
+        },
   },
 });

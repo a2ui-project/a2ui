@@ -32,6 +32,30 @@ import 'package:test/test.dart';
 
 import 'suites.dart';
 
+const Map<String, Set<String>> _knownKeys = {
+  'case:measure_growth': {
+    ...caseMetadataKeys,
+    'args',
+    'chunk_size',
+    'max_ratio',
+    'operation',
+    'payload',
+    'sizes',
+  },
+  'case:measure_overhead': {
+    ...caseMetadataKeys,
+    'args',
+    'baseline',
+    'chunk_size',
+    'max_ratio',
+    'operation',
+    'payload',
+    'size',
+  },
+  'args:measure_growth': {'catalog', 'format', 'progressive_keys'},
+  'args:measure_overhead': {'catalog', 'format', 'progressive_keys'},
+};
+
 void main() {
   for (final path in const [
     'agent/direct_json/scaling.yaml',
@@ -48,13 +72,19 @@ void main() {
 }
 
 void _runCase(Map<String, Object?> testCase) {
-  final InferenceFormat format = _format(
-    testCase['args']! as Map<String, Object?>,
-  );
+  final action = testCase['action'] as String?;
+  final Set<String>? allowedCaseKeys = _knownKeys['case:$action'];
+  if (allowedCaseKeys == null) {
+    throw UnsupportedError('Unknown action $action');
+  }
+  assertKnownKeys(testCase, allowedCaseKeys, 'case:$action');
+  final args = testCase['args']! as Map<String, Object?>;
+  assertKnownKeys(args, _knownKeys['args:$action']!, 'args:$action');
+  final InferenceFormat format = _format(args);
   final operation = testCase['operation']! as String;
   final chunkSize = testCase['chunk_size'] as int?;
   final maxRatio = testCase['max_ratio']! as num;
-  switch (testCase['action']) {
+  switch (action) {
     case 'measure_growth':
       final [int smaller, int larger] = (testCase['sizes']! as List<Object?>)
           .cast<int>();
@@ -73,7 +103,7 @@ void _runCase(Map<String, Object?> testCase) {
         what: '$operation against ${testCase['baseline']}',
       );
     default:
-      throw UnsupportedError('Unknown action ${testCase['action']}');
+      throw UnsupportedError('Unknown action $action');
   }
 }
 

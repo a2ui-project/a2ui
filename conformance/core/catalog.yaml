@@ -51,6 +51,7 @@
 # ------------------------------------------------------------------------------
 
 - name: test_v08_basic_catalog_from_json
+  features: [F-CORE-08]
   description: Tests that loading the published v0.8 basic catalog with fromJson yields a catalog equivalent to the SDK's own v0.8 basic catalog implementation. The v0.8 document has no $ref, so there is no self-contained check.
   action: from_json
   protocolVersion: "v0.8"
@@ -60,15 +61,17 @@
     matchesBuiltinCatalog: true
 
 - name: test_v09_basic_catalog_from_json
+  features: [F-CORE-08]
   description: Tests that the published v0.9 basic catalog loads with fromJson into a catalog equivalent to the SDK's own v0.9 basic catalog implementation, with its common_types references localised so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9/catalog.json"
   expect:
     selfContained: true
     matchesBuiltinCatalog: true
 
 - name: test_v10_basic_catalog_from_json
+  features: [F-CORE-08, F-CORE-35]
   description: Tests that the published v1 basic catalog loads with fromJson into a catalog equivalent to the SDK's own v1 basic catalog implementation, with its common_types references localised so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "1.0"
@@ -82,6 +85,7 @@
 # ------------------------------------------------------------------------------
 
 - name: test_catalog_from_json_missing_catalog_id_error
+  features: [F-CORE-08]
   description: Tests that Catalog.from_json raises CatalogError when catalogId is missing.
   action: from_json
   catalog:
@@ -92,6 +96,7 @@
     message: "catalog_id must be provided or exist in catalog schema"
 
 - name: test_catalog_from_json_override_catalog_id
+  features: [F-CORE-08]
   description: Tests overriding catalogId during Catalog.from_json.
   action: from_json
   catalogId: "https://a2ui.org/catalogs/overridden"
@@ -107,6 +112,7 @@
         type: object
 
 - name: test_v10_catalog_from_json_v1_0_attributes
+  features: [F-CORE-35, F-CORE-37]
   description: Tests parsing allowedParents, allowedChildren, allowedCallers, and requiresUserActivation in a v1.0 catalog schema.
   action: from_json
   catalog:
@@ -138,7 +144,96 @@
         allowedCallers: agentOnly
         requiresUserActivation: false
 
+- name: test_v10_catalog_from_json_user_activation_agent_only_error
+  features: [F-CORE-37]
+  description: Tests that a v1.0 catalog function with requiresUserActivation set to true and allowedCallers set to agentOnly raises CatalogError.
+  action: from_json
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/user_activation_agent_only"
+    functions:
+      openUrl:
+        returnType: void
+        allowedCallers: agentOnly
+        requiresUserActivation: true
+  expectError:
+    category: "CatalogError"
+    message: "requiresUserActivation"
+
+- name: test_v10_catalog_from_json_user_activation_renderer_or_agent_error
+  features: [F-CORE-37]
+  description: Tests that a v1.0 catalog function with requiresUserActivation set to true and allowedCallers set to rendererOrAgent raises CatalogError.
+  action: from_json
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/user_activation_renderer_or_agent"
+    functions:
+      openUrl:
+        returnType: void
+        allowedCallers: rendererOrAgent
+        requiresUserActivation: true
+  expectError:
+    category: "CatalogError"
+    message: "requiresUserActivation"
+
+- name: test_v10_catalog_from_json_user_activation_renderer_only
+  features: [F-CORE-37]
+  description: Tests that a v1.0 catalog function with requiresUserActivation set to true is accepted when allowedCallers is rendererOnly or omitted.
+  action: from_json
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/user_activation_renderer_only"
+    functions:
+      openUrl:
+        returnType: void
+        allowedCallers: rendererOnly
+        requiresUserActivation: true
+      copyToClipboard:
+        returnType: void
+        requiresUserActivation: true
+  expect:
+    catalogId: "https://a2ui.org/catalogs/v10/user_activation_renderer_only"
+    functions: [openUrl, copyToClipboard]
+
+- name: test_v10_catalog_from_json_user_activation_error_in_function_left_out_of_union
+  features: [F-CORE-37]
+  description: Tests that a v1.0 catalog function with requiresUserActivation set to true and allowedCallers set to agentOnly raises CatalogError even when $defs.anyFunction leaves the function out.
+  action: from_json
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/user_activation_left_out_of_union"
+    functions:
+      good:
+        returnType: void
+      bad:
+        returnType: void
+        allowedCallers: agentOnly
+        requiresUserActivation: true
+    $defs:
+      anyFunction:
+        oneOf: [{$ref: "#/functions/good"}]
+  expectError:
+    category: "CatalogError"
+    message: "requiresUserActivation"
+
+- name: test_v09_catalog_from_json_user_activation_agent_only_loads
+  features: [F-CORE-37]
+  description: Tests that a v0.9 catalog function with requiresUserActivation set to true and allowedCallers set to agentOnly loads, because only the v1.0 catalog_definition.json restricts that pair.
+  action: from_json
+  catalog:
+    protocolVersion: "v0.9"
+    catalogId: "https://a2ui.org/catalogs/v09/user_activation_agent_only"
+    functions:
+      openUrl:
+        returnType: void
+        allowedCallers: agentOnly
+        requiresUserActivation: true
+  expect:
+    catalogId: "https://a2ui.org/catalogs/v09/user_activation_agent_only"
+    functions: [openUrl]
+
 - name: test_v10_catalog_from_json_uax31_validation
+  features: [F-CORE-09]
   description: Tests parsing valid UAX#31 component and function identifiers in a v1.0 catalog.
   action: from_json
   catalog:
@@ -173,6 +268,7 @@
     category: "CatalogError"
 
 - name: test_v10_catalog_from_json_invalid_uax31_identifier_error
+  features: [F-CORE-09]
   description: Tests that invalid UAX#31 component identifier with hyphen raises CatalogError under v1.0.
   action: from_json
   catalog:
@@ -205,6 +301,7 @@
     message: "Unsupported external $ref"
 
 - name: test_v10_catalog_from_json_rejects_absolute_uri_ref
+  features: [F-CORE-44]
   description: Tests that a v1.0 catalog property that references another catalog by absolute URI raises CatalogError when loaded, without fetching the URI.
   action: from_json
   catalog:
@@ -246,6 +343,7 @@
     message: "Unsupported external $ref"
 
 - name: test_v10_catalog_from_json_accepts_local_and_common_types_refs
+  features: [F-CORE-44]
   description: Tests that local references and common_types.json references, in relative or absolute form, remain valid $ref targets in a v1.0 catalog.
   action: from_json
   catalog:
@@ -413,7 +511,7 @@
   description: Tests that the published v0.9 basic catalog accepts a Button whose action calls a catalog function, and rejects a call to a function the catalog does not define.
   action: from_json
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9/catalog.json"
   expect:
     validComponents:
       - id: btn1
@@ -436,7 +534,7 @@
   description: Tests that the published v0.9 basic catalog rejects a function call carrying a key that its function definition does not declare.
   action: from_json
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9/catalog.json"
   expect:
     invalidComponents:
       - id: btn1
@@ -449,10 +547,11 @@
             bogus: 1
 
 - name: test_v09_published_minimal_catalog_is_self_contained
+  features: [F-CORE-44]
   description: Tests that the published v0.9 minimal catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/minimal/catalog.json"
+  catalogPath: "catalogs/minimal/v0_9/catalog.json"
   expect:
     selfContained: true
 
@@ -460,7 +559,7 @@
   description: Tests that the published v0.9 minimal catalog accepts a Button whose action calls a catalog function, and rejects a call to a function the catalog does not define.
   action: from_json
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/minimal/catalog.json"
+  catalogPath: "catalogs/minimal/v0_9/catalog.json"
   expect:
     validComponents:
       - id: btn1
@@ -483,7 +582,7 @@
   description: Tests that the published v0.9 minimal catalog rejects a function call carrying a key that its function definition does not declare.
   action: from_json
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/minimal/catalog.json"
+  catalogPath: "catalogs/minimal/v0_9/catalog.json"
   expect:
     invalidComponents:
       - id: btn1
@@ -496,10 +595,11 @@
             bogus: 1
 
 - name: test_v091_published_basic_catalog_is_self_contained
+  features: [F-CORE-44]
   description: Tests that the published v0.9.1 basic catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "v0.9.1"
-  catalogPath: "specification/v0_9_1/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9_1/catalog.json"
   expect:
     selfContained: true
 
@@ -507,7 +607,7 @@
   description: Tests that the published v0.9.1 basic catalog accepts a Button whose action calls a catalog function, and rejects a call to a function the catalog does not define.
   action: from_json
   protocolVersion: "v0.9.1"
-  catalogPath: "specification/v0_9_1/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9_1/catalog.json"
   expect:
     validComponents:
       - id: btn1
@@ -530,7 +630,7 @@
   description: Tests that the published v0.9.1 basic catalog rejects a function call carrying a key that its function definition does not declare.
   action: from_json
   protocolVersion: "v0.9.1"
-  catalogPath: "specification/v0_9_1/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9_1/catalog.json"
   expect:
     invalidComponents:
       - id: btn1
@@ -598,6 +698,7 @@
         label: Email
 
 - name: test_v10_published_mcp_catalog_is_self_contained
+  features: [F-CORE-44]
   description: Tests that the published v1.0 MCP catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "1.0"
@@ -857,7 +958,7 @@
   action: to_json
   protocolVersion: "v0.9"
   builtinCatalog: basic
-  expectFile: "specification/v0_9/catalogs/basic/catalog.json"
+  expectFile: "catalogs/basic/v0_9/catalog.json"
 
 - name: test_v10_basic_catalog_to_json
   description: Tests that toJson of the SDK's own v1 basic catalog equals the published v1 basic catalog.
@@ -887,19 +988,19 @@
   description: Tests that the published v0.9 basic catalog round-trips with its absolute common types references, local CatalogComponentCommon mixin and theme intact.
   action: round_trip
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9/catalog.json"
 
 - name: test_v091_basic_catalog_round_trip
   description: Tests that the published v0.9.1 basic catalog round-trips unchanged.
   action: round_trip
   protocolVersion: "v0.9.1"
-  catalogPath: "specification/v0_9_1/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9_1/catalog.json"
 
 - name: test_v09_minimal_catalog_round_trip
   description: Tests that the published v0.9 minimal catalog round-trips unchanged.
   action: round_trip
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/minimal/catalog.json"
+  catalogPath: "catalogs/minimal/v0_9/catalog.json"
 
 - name: test_mcp_catalog_round_trip
   description: Tests that the MCP catalog, whose anyComponent is not a oneOf union, round-trips unchanged.
@@ -1001,7 +1102,7 @@
   description: Tests that the validationSchema of the published v0.9 basic catalog, loaded with fromJson, equals the golden bundled schema, which flattens envelopes, adds the id envelope and inlines the referenced v0.9 common types.
   action: validation_schema
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9/catalog.json"
   expectFile: "conformance/test_data/validation_schema/test_v09_basic_validation_schema.json"
 
 - name: test_v10_basic_validation_schema
@@ -1095,6 +1196,7 @@
 # teach a model to write messages for the wrong catalog.
 
 - name: test_v10_catalog_derive_keeps_named_entries
+  features: [F-CORE-37]
   description: A name keeps the source catalog's entry of that name, and the entries the lists leave out are not in the derived catalog.
   action: derive
   catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
@@ -1118,6 +1220,7 @@
     functions: [upper]
 
 - name: test_v10_catalog_derive_adds_and_replaces_entries
+  features: [F-CORE-37]
   description: A new entry is added to the derived catalog, and a new entry with the name of one of the source's entries replaces it.
   action: derive
   catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
@@ -1267,6 +1370,7 @@
       Column: null
 
 - name: test_v10_catalog_from_json_component_metadata_invalid_uax31_key_error
+  features: [F-CORE-09]
   description: Tests that a v1.0 catalog whose component metadata.extensions has a key that is not a UAX 31 identifier is rejected at load.
   action: from_json
   protocolVersion: "1.0"

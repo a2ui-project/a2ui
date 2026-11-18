@@ -24,7 +24,8 @@ import 'version_adapter.dart';
 /// `theme`), `updateComponents`, `updateDataModel` and `deleteSurface`. It
 /// rejects the v1.0 function-call messages.
 ///
-/// Outbound bindings and function calls use the legacy `path` and `call` keys.
+/// Outbound bindings and function calls use the unprefixed `path` and `call`
+/// keys.
 // Named for the protocol release it serves, as in the other SDKs.
 // ignore: camel_case_types
 class V0_9Adapter extends VersionAdapter {

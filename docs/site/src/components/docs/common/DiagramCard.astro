@@ -41,11 +41,11 @@ const { title, mermaid } = Astro.props;
 
 <style>
   .diagram-card {
-    border: 1px solid var(--sl-color-hairline);
-    border-radius: 12px;
+    border: 1px solid var(--a2-border, var(--sl-color-hairline));
+    border-radius: 14px;
     overflow: hidden;
     margin: 1.5rem 0;
-    background: var(--sl-color-bg-sidebar);
+    background: var(--a2-surface, var(--sl-color-bg-sidebar));
   }
 
   .human-view {
@@ -53,10 +53,12 @@ const { title, mermaid } = Astro.props;
   }
 
   .diagram-title {
-    font-size: 1.125rem;
+    font-family: var(--a2-font-display, var(--sl-font));
+    font-size: 1.05rem;
     font-weight: 600;
+    letter-spacing: -0.02em;
     margin-top: 0;
     margin-bottom: 1rem;
-    color: var(--sl-color-white);
+    color: var(--a2-text, var(--sl-color-white));
   }
 </style>

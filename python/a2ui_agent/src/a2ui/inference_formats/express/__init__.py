@@ -37,7 +37,6 @@ from .format import ExpressFormat
 from .format import ExpressFormatFactory
 from .parser import ExpressParser
 from .prompt_generator import EXPRESS_RULES
-from .prompt_generator import ExpressPromptGenerator
 from .response_stream import DEFAULT_EXPRESS_PROGRESSIVE_KEYS
 from .response_stream import ExpressResponseStream
 
@@ -55,7 +54,6 @@ __all__ = [
     "ExpressInvalidParamError",
     "ExpressParseError",
     "ExpressParser",
-    "ExpressPromptGenerator",
     "ExpressResponseStream",
     "ExpressUndefinedChildError",
     "ExpressUndefinedRootError",

@@ -59,8 +59,22 @@ describe('Common Basic Functions', () => {
     it('validateRegex', () => {
       assert.strictEqual(validateRegex('abc', '^[a-z]+$').valid, true);
       assert.strictEqual(validateRegex('123', '^[a-z]+$').valid, false);
+      assert.strictEqual(validateRegex('😀', '^.$').valid, true);
+      assert.strictEqual(validateRegex('a'.repeat(4096), '^a+$').valid, true);
+      const overCap = validateRegex('a'.repeat(4097), '^a+$');
+      assert.strictEqual(overCap.valid, false);
+      assert.strictEqual(overCap.message, 'Value exceeds the maximum length for pattern matching.');
       assert.throws(() => validateRegex('aaaaaaaaaaaa!', '(a+)+b'), {
         name: 'A2uiExpressionError',
+        message: /NESTED_QUANTIFIER/,
+      });
+      assert.throws(() => validateRegex('ab', '(a)\\1'), {
+        name: 'A2uiExpressionError',
+        message: /UNSUPPORTED_SYNTAX/,
+      });
+      assert.throws(() => validateRegex('a', 'a'.repeat(257)), {
+        name: 'A2uiExpressionError',
+        message: /PATTERN_TOO_LONG/,
       });
     });
 
@@ -103,21 +117,25 @@ describe('Common Basic Functions', () => {
       assert.strictEqual(executeNot(true), false);
       assert.strictEqual(executeNot(false), true);
       assert.strictEqual(executeNot(0), true);
-      assert.strictEqual(executeNot('text'), false);
+      assert.strictEqual(executeNot('text'), true);
+      assert.strictEqual(executeNot('True'), false);
     });
 
-    it('treats a {valid} object as truthy by default', () => {
-      assert.strictEqual(executeNot({valid: false}), false);
-      assert.strictEqual(executeAnd([{valid: false}, {valid: false}]), true);
+    it('coerces a {valid} object by its validity by default', () => {
+      assert.strictEqual(executeNot({valid: false}), true);
+      assert.strictEqual(executeAnd([{valid: false}, {valid: false}]), false);
+      assert.strictEqual(executeAnd([{valid: true}, {valid: true}]), true);
     });
 
-    it('reads a {valid} object by its validity with isTruthyOrValid', () => {
+    it('coerces values with isTruthyOrValid according to DynamicBoolean rules', () => {
       assert.strictEqual(isTruthyOrValid({valid: true}), true);
       assert.strictEqual(isTruthyOrValid({valid: false, message: 'Required'}), false);
-      assert.strictEqual(isTruthyOrValid({valid: 'yes'}), true);
-      assert.strictEqual(isTruthyOrValid({other: 1}), true);
-      assert.strictEqual(isTruthyOrValid([]), true);
+      assert.strictEqual(isTruthyOrValid({valid: 'yes'}), false);
+      assert.strictEqual(isTruthyOrValid({other: 1}), false);
+      assert.strictEqual(isTruthyOrValid([]), false);
       assert.strictEqual(isTruthyOrValid(''), false);
+      assert.strictEqual(isTruthyOrValid('True'), true);
+      assert.strictEqual(isTruthyOrValid('false'), false);
       assert.strictEqual(isTruthyOrValid(null), false);
 
       assert.strictEqual(executeNot({valid: false}, isTruthyOrValid), true);

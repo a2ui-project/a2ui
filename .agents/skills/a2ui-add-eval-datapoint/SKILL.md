@@ -1,6 +1,8 @@
 ---
 name: a2ui-add-eval-datapoint
 description: Step-by-step workflow for adding and verifying new evaluation data points in the A2UI evaluation suite, by importing a real trace or authoring a sample by hand.
+metadata:
+  internal: true
 ---
 
 # Adding and verifying A2UI evaluation data points

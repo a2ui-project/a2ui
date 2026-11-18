@@ -58,6 +58,7 @@ export const ThemeDefSchema = specDef(
     'iconUrl': spec(
       z
         .string()
+        .refine(v => v.trim().length > 0 && !/\s/.test(v.trim()), 'Invalid URI')
         .describe(
           'A URL for an image that identifies the agent or tool associated with the surface.',
         ),
@@ -346,6 +347,10 @@ export const ListApi = {
           .enum(['start', 'center', 'end', 'stretch'])
           .default('stretch')
           .describe('Defines the alignment of children along the cross axis.')
+          .optional(),
+        'listStyle': z
+          .enum(['ordered', 'unordered', 'none'])
+          .describe('The style of the list (ordered, unordered, or none).')
           .optional(),
       })
       .strict(),

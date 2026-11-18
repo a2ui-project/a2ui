@@ -16,7 +16,27 @@
 
 # [a2ui_flutter](https://pub.dev/packages/a2ui_flutter) Changelog
 
-## Unreleased
+## 0.4.0
+
+- **Breaking:** Requires `a2ui_core` `^0.8.0`, whose types this library
+  re-exports.
+
+- `NodeView` reads `@accessibility` with a fallback to `accessibility` so v1.0 surfaces resolve `@`-prefixed accessibility attributes alongside custom `accessibility` component properties ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#4037](https://github.com/a2ui-project/a2ui/pull/4037)).
+- Add explicit type annotation in `example/lib/chat_session.dart` to satisfy the `specify_nonobvious_local_variable_types` analyzer lint on Dart 3.15+ ([#4233](https://github.com/a2ui-project/a2ui/pull/4233)).
+
+## 0.3.0
+
+- **Breaking:** Requires `a2ui_core` `^0.7.0`, whose types this library
+  re-exports.
+
+## 0.2.0
+
+- **Breaking:** Requires `a2ui_core` `^0.6.0`, whose types this library
+  re-exports.
+
+## 0.1.0
+
+- Requires `a2ui_core` `^0.5.0`.
 
 - **Breaking:** a component that has not arrived, has an unknown type, or
   repeats one of its ancestors now renders nothing, as does the surface until
@@ -27,6 +47,11 @@
   old indicator should render their own loading state until the fallback API
   from [#2013](https://github.com/a2ui-project/a2ui/issues/2013) lands
   ([#3714](https://github.com/a2ui-project/a2ui/pull/3714)).
+- `TextField` (v0.9) compiles `validationRegexp` through `compileGuarded` from
+  `package:a2ui_core/a2ui_core.dart`; when the portable regex subset guard
+  rejects a pattern, the regex constraint is disabled and an `EXPRESSION_ERROR`
+  is reported once on the surface error channel
+  ([#3854](https://github.com/a2ui-project/a2ui/pull/3854)).
 - Dynamic bindings in `accessibility` attributes (`label`, `description`,
   `live`, and `hidden`) now update `NodeView` semantics reactively
   ([#3583](https://github.com/a2ui-project/a2ui/pull/3583)).

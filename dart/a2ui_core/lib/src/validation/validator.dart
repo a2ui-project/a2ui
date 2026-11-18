@@ -29,20 +29,10 @@ import 'validation_config.dart';
 
 /// The component keys that belong to the envelope rather than to the
 /// component's own properties, in v0.9.
-const List<String> _v0_9EnvelopeKeys = ['id', 'component', 'catalogId'];
+const List<String> _v0_9EnvelopeKeys = ['id', 'component'];
 
-/// The component keys that belong to the envelope from v1.0, where every
-/// component also carries the common `accessibility` and `metadata`.
-const List<String> _v1EnvelopeKeys = [
-  'id',
-  'component',
-  'catalogId',
-  'accessibility',
-  'metadata',
-];
-
-/// The envelope keys from v1.0 checked against `ComponentCommon` rather than
-/// dropped, unless the component's own schema declares them.
+/// The envelope keys from v1.0 checked against `ComponentCommon` / `Checkable`
+/// rather than dropped, unless the component's own schema declares them.
 ///
 /// `metadata` restates `ComponentCommon/properties/metadata` instead of
 /// referencing it: `Extensions` constrains its keys with a `\p{XID_Start}`
@@ -60,6 +50,26 @@ const Map<String, Map<String, Object?>> _v1CommonEnvelopeTypes = {
     },
     'additionalProperties': false,
   },
+  'checks': {
+    'type': 'array',
+    'items': {
+      r'$ref': r'common_types.json#/$defs/CheckRule',
+    },
+  },
+};
+
+const List<(String, String)> _v1MixinKeyPairs = [
+  ('@catalogId', 'catalogId'),
+  ('@metadata', 'metadata'),
+  ('@accessibility', 'accessibility'),
+  ('@checks', 'checks'),
+];
+
+const Set<String> _v1AtEnvelopeKeys = {
+  '@catalogId',
+  '@metadata',
+  '@accessibility',
+  '@checks',
 };
 
 /// Matches a key reserved for protocol directives from v1.0: a single leading
@@ -252,29 +262,44 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     component = _jsonMap(component);
     final Object? id = component['id'];
     final String type = _checkComponentHeader(component, id);
+    final Set<String> customProps =
+        _v1 ? catalog.customComponentProperties(type) : const <String>{};
+    final bool isCheckable = _v1 && catalog.isComponentCheckable(type);
     if (_v1) {
-      for (final MapEntry<String, Object?> entry in component.entries) {
-        _checkCallEnvelopes(
-          entry.value,
-          id,
-          '/${_escape(entry.key)}',
-        );
-      }
+      _checkV1EnvelopeConflicts(component, customProps, id);
+      _checkComponentCallEnvelopes(component, customProps, id);
     }
     final Schema? schema = _resolvedComponentSchemas[type];
     if (schema == null && !config.allowUnknownElements) {
       _throwDetail('/component', 'invalid_value',
           "Catalog '${catalog.id}' declares no component named '$type'.");
     }
+    if (_v1 &&
+        schema != null &&
+        !isCheckable &&
+        component.containsKey('@checks')) {
+      _throwDetail(
+        '/@checks',
+        'extra_forbidden',
+        "Component '$id' ($type) does not support '@checks' in catalog "
+            "'${catalog.id}'.",
+      );
+    }
 
     final Set<String> declared =
         schema == null ? const {} : _declaredProperties(schema.value);
-    final List<String> envelopeKeys = _v1 ? _v1EnvelopeKeys : _v0_9EnvelopeKeys;
+    final bool allowEnvelopeChecks = schema == null || isCheckable;
+    final List<String> envelopeKeys = _v1
+        ? _v1EnvelopeKeysFor(customProps, allowChecks: allowEnvelopeChecks)
+        : _v0_9EnvelopeKeys;
     final target = <String, Object?>{
       for (final MapEntry<String, Object?> entry in component.entries)
-        if (!envelopeKeys.contains(entry.key) || declared.contains(entry.key))
-          entry.key: entry.value,
+        if (!envelopeKeys.contains(entry.key)) entry.key: entry.value,
     };
+    final Object? componentCatalogId = _v1
+        ? (component['@catalogId'] ??
+            (customProps.contains('catalogId') ? null : component['catalogId']))
+        : null;
 
     // Calls and reserved keys first, so their errors name the call rather
     // than the alternative of a dynamic type that failed to match.
@@ -282,10 +307,22 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       target,
       '',
       componentId: id,
-      componentCatalogId: component['catalogId'],
+      componentCatalogId: componentCatalogId,
+      rendererCall: true,
     );
 
-    if (schema == null) return;
+    if (schema == null) {
+      if (_v1) {
+        _validateV1EnvelopeFields(
+          component,
+          customProps,
+          id,
+          componentCatalogId: componentCatalogId,
+          checkable: true,
+        );
+      }
+      return;
+    }
 
     _throwOnErrors(
       Schema.fromMap(
@@ -296,7 +333,69 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     );
 
     _checkUnknownProperties(target, declared, schema, id, type);
-    if (_v1) _validateV1EnvelopeFields(component, declared, id);
+    if (_v1) {
+      _validateV1EnvelopeFields(
+        component,
+        customProps,
+        id,
+        componentCatalogId: componentCatalogId,
+        checkable: isCheckable,
+      );
+    }
+  }
+
+  static List<String> _v1EnvelopeKeysFor(
+    Set<String> customProps, {
+    required bool allowChecks,
+  }) =>
+      <String>[
+        'id',
+        'component',
+        '@catalogId',
+        if (!customProps.contains('catalogId')) 'catalogId',
+        '@metadata',
+        if (!customProps.contains('metadata')) 'metadata',
+        '@accessibility',
+        if (!customProps.contains('accessibility')) 'accessibility',
+        if (allowChecks) '@checks',
+        if (allowChecks && !customProps.contains('checks')) 'checks',
+      ];
+
+  static void _checkV1EnvelopeConflicts(
+    Map<String, Object?> component,
+    Set<String> customProps,
+    Object? id,
+  ) {
+    for (final (String atKey, String bareKey) in _v1MixinKeyPairs) {
+      if (!customProps.contains(bareKey) &&
+          component.containsKey(atKey) &&
+          component.containsKey(bareKey)) {
+        _throwDetail(
+          '/$atKey',
+          'invalid_value',
+          "Component '$id' cannot specify both '$atKey' and legacy "
+              "'$bareKey'.",
+        );
+      }
+    }
+  }
+
+  static void _checkComponentCallEnvelopes(
+    Map<String, Object?> component,
+    Set<String> customProps,
+    Object? id,
+  ) {
+    for (final MapEntry<String, Object?> entry in component.entries) {
+      if (entry.key == '@metadata' ||
+          (entry.key == 'metadata' && !customProps.contains('metadata'))) {
+        continue;
+      }
+      _checkCallEnvelopes(
+        entry.value,
+        id,
+        '/${_escape(entry.key)}',
+      );
+    }
   }
 
   String _checkComponentHeader(Map<String, Object?> component, Object? id) {
@@ -309,12 +408,42 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       _throwDetail('/component', 'missing_field',
           "Component '$id' does not name a component type.");
     }
-    final Object? rawCatalogId = component['catalogId'];
-    if (rawCatalogId != null && rawCatalogId is! String) {
-      _throwDetail('/catalogId', 'invalid_value',
-          "Component '$id' has a non-string 'catalogId'.");
+    if (_v1 && !isValidUax31Identifier(type)) {
+      _throwDetail('/component', 'invalid_value',
+          "Component type '$type' must be a valid UAX #31 identifier");
+    }
+    if (_v1) {
+      _checkV1CatalogIdHeader(component, type, id);
     }
     return type;
+  }
+
+  void _checkV1CatalogIdHeader(
+    Map<String, Object?> component,
+    String type,
+    Object? id,
+  ) {
+    if (component.containsKey('@catalogId')) {
+      final Object? rawAtCatalog = component['@catalogId'];
+      if (rawAtCatalog is! String || rawAtCatalog.isEmpty) {
+        _throwDetail(
+          '/@catalogId',
+          'invalid_value',
+          "Component '$id' has an invalid '@catalogId'.",
+        );
+      }
+    }
+    if (!catalog.customComponentProperties(type).contains('catalogId') &&
+        component.containsKey('catalogId') &&
+        component['catalogId'] is! String) {
+      // A present legacy bare `catalogId` names a catalog, so null is
+      // rejected like any other non-string rather than read as absent.
+      _throwDetail(
+        '/catalogId',
+        'invalid_value',
+        "Component '$id' has a non-string 'catalogId'.",
+      );
+    }
   }
 
   void _checkUnknownProperties(
@@ -324,6 +453,18 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     Object? id,
     String type,
   ) {
+    if (!_v1) {
+      for (final String key in target.keys) {
+        if (_v1AtEnvelopeKeys.contains(key) && !declared.contains(key)) {
+          _throwDetail(
+            '/${_escape(key)}',
+            'extra_forbidden',
+            "Component '$id' ($type) has unknown property '$key' in "
+                "catalog '${catalog.id}'.",
+          );
+        }
+      }
+    }
     if (config.allowUnknownElements ||
         declared.isEmpty ||
         schema.value['additionalProperties'] == true) {
@@ -343,38 +484,58 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
 
   void _validateV1EnvelopeFields(
     Map<String, Object?> component,
-    Set<String> declared,
-    Object? id,
-  ) {
-    for (final MapEntry<String, Map<String, Object?>> entry
-        in _v1CommonEnvelopeTypes.entries) {
-      final String key = entry.key;
-      if (!component.containsKey(key) || declared.contains(key)) continue;
-      final Object? value = component[key];
-      if (key == 'accessibility') {
+    Set<String> customProps,
+    Object? id, {
+    required Object? componentCatalogId,
+    required bool checkable,
+  }) {
+    final fields = <(String, String)>[
+      ('@accessibility', 'accessibility'),
+      if (!customProps.contains('accessibility'))
+        ('accessibility', 'accessibility'),
+      ('@metadata', 'metadata'),
+      if (!customProps.contains('metadata')) ('metadata', 'metadata'),
+      if (checkable) ('@checks', 'checks'),
+      if (checkable && !customProps.contains('checks')) ('checks', 'checks'),
+    ];
+    for (final (String wireKey, String schemaKey) in fields) {
+      if (!component.containsKey(wireKey)) continue;
+      final Object? value = component[wireKey];
+      if (schemaKey == 'accessibility' || schemaKey == 'checks') {
         _validateNested(
           value,
-          '/$key',
+          '/$wireKey',
           componentId: id,
-          componentCatalogId: component['catalogId'],
+          componentCatalogId: componentCatalogId,
+          rendererCall: true,
         );
       }
       _throwOnErrors(
-        _resolvedEnvelopeSchemas[key]!.validateSync(value, strictFormat: true),
-        "Component '$id' has an invalid '$key'",
-        path: '/$key',
+        _resolvedEnvelopeSchemas[schemaKey]!.validateSync(
+          value,
+          strictFormat: true,
+        ),
+        "Component '$id' has an invalid '$wireKey'",
+        path: '/$wireKey',
       );
+      if (schemaKey == 'metadata') {
+        _validateMetadataExtensions(value, wireKey, id);
+      }
     }
-    if (component['metadata']
-        case {
-          'extensions': final Map<Object?, Object?> extensions,
-        } when !declared.contains('metadata')) {
+  }
+
+  static void _validateMetadataExtensions(
+    Object? metadata,
+    String wireKey,
+    Object? id,
+  ) {
+    if (metadata case {'extensions': final Map<Object?, Object?> extensions}) {
       for (final Object? name in extensions.keys) {
         if (name is! String || !isValidUax31Identifier(name)) {
           throw A2uiValidationError(
             "Component '$id' has a metadata extension key '$name' that is "
             'not a valid UAX #31 identifier',
-            path: '/metadata/extensions/${_escape('$name')}',
+            path: '/$wireKey/extensions/${_escape('$name')}',
           );
         }
       }
@@ -402,12 +563,20 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// [ValidationConfig.allowUnknownElements]; from v1.0 a renderer that
   /// allows it forwards the call to the agent.
   ///
+  /// From v1.0 a call nested in [args] that names no `catalogId` runs in the
+  /// default catalog of the surface it is evaluated on. [catalogIsDefault]
+  /// says whether [catalog] is that default, as it is for a call evaluated
+  /// with no surface. When it is not, the arguments of such calls are left
+  /// to the caller, which checks them against the catalog they run in, as
+  /// for the calls nested in a component that names another catalog.
+  ///
   /// Throws [A2uiValidationError] if the call breaks any of those rules or the
   /// arguments do not match the function's schema.
   void validateFunction(
     String name,
     Map<String, Object?> args, {
     String path = '',
+    bool catalogIsDefault = true,
   }) {
     args = _jsonMap(args);
     if (_v1) {
@@ -420,6 +589,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         path.isEmpty
             ? '/args/${_escape(arg.key)}'
             : '$path/args/${_escape(arg.key)}',
+        componentCatalogId: catalogIsDefault ? null : catalog.id,
       );
     }
     _checkArgs(name, args, path: path);
@@ -432,17 +602,25 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// [validateComponent] and checks each nested call against the catalog it
   /// resolves to, as `MessageProcessor` does, and an agent reading a payload
   /// that names catalogs per call. [componentId] names the component the call
-  /// is nested in, for the error message.
+  /// is nested in, for the error message. A call nested in a component is a
+  /// renderer call, so with a [componentId] the function may not be
+  /// [AllowedCallers.agentOnly] from v1.0.
   ///
-  /// Throws [A2uiValidationError] if the catalog declares no such function or
-  /// the arguments do not match its schema.
+  /// Throws [A2uiValidationError] if the catalog declares no such function,
+  /// the renderer may not call it, or the arguments do not match its schema.
   void validateFunctionArgs(
     String name,
     Map<String, Object?> args, {
     Object? componentId,
     String? path,
   }) =>
-      _checkArgs(name, _jsonMap(args), componentId: componentId, path: path);
+      _checkArgs(
+        name,
+        _jsonMap(args),
+        componentId: componentId,
+        path: path,
+        rendererCall: componentId != null,
+      );
 
   /// Rejects a field of [call], a v1.0 function call of [catalog], that
   /// `FunctionCall` does not evaluate: one other than `@call`, `catalogId`,
@@ -475,11 +653,19 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
 
   static const Set<String> _functionCallKeys = {'@call', 'catalogId', 'args'};
 
+  /// Checks one call's arguments against [catalog]'s schema for [name].
+  ///
+  /// With [rendererCall], the call is one the renderer makes, such as a call
+  /// held in a component (a property binding, a check or an action), so from
+  /// v1.0 the function may not be [AllowedCallers.agentOnly];
+  /// `Catalog.invoke` refuses such a call with the same message when it is
+  /// evaluated.
   void _checkArgs(
     String name,
     Map<String, Object?> args, {
     Object? componentId,
     String? path,
+    bool rendererCall = false,
   }) {
     final where = componentId == null ? '' : "In component '$componentId': ";
     final Schema? schema = _resolvedFunctionSchemas[name];
@@ -496,6 +682,25 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
             A2uiErrorDetail(
               path: path,
               code: 'unrecognized_function',
+              message: msg,
+            ),
+        ],
+      );
+    }
+    // `allowedCallers` is a v1.0 feature: a v0.9 catalog's renderer calls
+    // are not restricted by it.
+    if (_v1 &&
+        rendererCall &&
+        catalog.functions[name]?.allowedCallers == AllowedCallers.agentOnly) {
+      final msg = '$where${rendererMayNotCall(name)}';
+      throw A2uiValidationError(
+        msg,
+        path: path,
+        errors: [
+          if (path != null && path.isNotEmpty)
+            A2uiErrorDetail(
+              path: path,
+              code: 'invalid_function_call',
               message: msg,
             ),
         ],
@@ -591,6 +796,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     String path, {
     Object? componentId,
     Object? componentCatalogId,
+    bool rendererCall = false,
   }) {
     if (value is List) {
       for (var i = 0; i < value.length; i++) {
@@ -599,6 +805,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           '$path/$i',
           componentId: componentId,
           componentCatalogId: componentCatalogId,
+          rendererCall: rendererCall,
         );
       }
       return;
@@ -647,15 +854,28 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           '$path/args/${_escape(arg.key)}',
           componentId: componentId,
           componentCatalogId: componentCatalogId,
+          rendererCall: rendererCall,
         );
       }
 
       if (_v1) {
         if (runsInThisCatalog && !name.startsWith('@')) {
-          _checkArgs(name, args, componentId: componentId, path: path);
+          _checkArgs(
+            name,
+            args,
+            componentId: componentId,
+            path: path,
+            rendererCall: rendererCall,
+          );
         }
       } else {
-        _checkArgs(name, args, componentId: componentId, path: path);
+        _checkArgs(
+          name,
+          args,
+          componentId: componentId,
+          path: path,
+          rendererCall: rendererCall,
+        );
       }
       return;
     }
@@ -666,6 +886,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         '$path/${_escape(entry.key)}',
         componentId: componentId,
         componentCatalogId: componentCatalogId,
+        rendererCall: rendererCall,
       );
     }
   }
@@ -995,13 +1216,35 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   }();
 
   Schema _resolve(Map<String, Object?> schema) => Schema.fromMap(
-        resolveSchemaRefs(
-          schema,
-          _resolutionDocument,
-          commonTypes: commonTypesSchema,
-          fallbackCommonTypes: _fallbackCommonTypes,
+        _enforceStrictUriFormat(
+          resolveSchemaRefs(
+            schema,
+            _resolutionDocument,
+            commonTypes: commonTypesSchema,
+            fallbackCommonTypes: _fallbackCommonTypes,
+          ),
         ),
       );
+
+  static const String _uriFormatPattern = r'^[A-Za-z][A-Za-z0-9+.-]*:\S*$';
+
+  static Map<String, Object?> _enforceStrictUriFormat(
+    Map<String, Object?> schema,
+  ) =>
+      _enforceStrictUriValue(schema)! as Map<String, Object?>;
+
+  static Object? _enforceStrictUriValue(Object? value) => switch (value) {
+        final Map<Object?, Object?> map => <String, Object?>{
+            for (final MapEntry<Object?, Object?> entry in map.entries)
+              '${entry.key}': _enforceStrictUriValue(entry.value),
+            if (map['format'] == 'uri' && !map.containsKey('pattern'))
+              'pattern': _uriFormatPattern,
+          },
+        final List<Object?> list => <Object?>[
+            for (final Object? item in list) _enforceStrictUriValue(item),
+          ],
+        _ => value,
+      };
 
   static const Map<String, Object?> _anyV1FunctionCall = {
     'type': 'object',

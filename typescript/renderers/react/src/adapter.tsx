@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, {useRef, useSyncExternalStore, useCallback, memo, useEffect} from 'react';
+import React, {memo, useCallback, useEffect, useRef} from 'react';
 import {
   type A2uiMetadata,
   type ComponentApi,
@@ -22,7 +22,7 @@ import {
   GenericBinder,
   type InferredComponentApiSchemaType,
   type ResolveA2uiProps,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
 import {hostRefsOf} from './catalog/host_accessibility';
 import {useNodeView} from './node-view';
 import type {
@@ -31,6 +31,7 @@ import type {
   ReactComponentImplementation,
   ReactRenderProps,
 } from './react_component_implementation';
+import {useSyncExternalStore} from './use_sync_external_store';
 
 // --- Component Factories ---
 

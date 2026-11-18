@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {LitElement, html, css, nothing, unsafeCSS} from 'lit';
+import {css, html, LitElement, nothing} from 'lit';
 import {customElement, property} from 'lit/decorators.js';
-import {SnackbarMessage, SnackbarUUID, SnackType} from '../types/types';
-import {repeat} from 'lit/directives/repeat.js';
-import {SnackbarActionEvent} from '../events/events';
 import {classMap} from 'lit/directives/class-map.js';
-import {v0_8} from '@a2ui/lit';
+import {repeat} from 'lit/directives/repeat.js';
+
+import {SnackbarActionEvent} from '../events/events';
+import {SnackbarMessage, SnackbarUUID, SnackType} from '../types/types';
 
 const DEFAULT_TIMEOUT = 8000;
 
@@ -38,7 +38,6 @@ export class Snackbar extends LitElement {
   #timeout = 0;
 
   static override styles = [
-    unsafeCSS(v0_8.Styles.structuralStyles),
     css`
       :host {
         --text-color: var(--n-0);
@@ -76,9 +75,45 @@ export class Snackbar extends LitElement {
       }
 
       .g-icon {
+        font-family: 'Material Symbols Outlined', 'Google Symbols';
+        font-weight: normal;
+        font-style: normal;
+        font-display: optional;
+        font-size: 24px;
+        width: 1em;
+        height: 1em;
+        user-select: none;
+        line-height: 1;
+        letter-spacing: normal;
+        text-transform: none;
+        display: inline-block;
+        white-space: nowrap;
+        word-wrap: normal;
+        direction: ltr;
+        font-feature-settings: 'liga';
+        -webkit-font-feature-settings: 'liga';
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        -moz-osx-font-smoothing: grayscale;
+        overflow: hidden;
+        font-variation-settings:
+          'FILL' 0,
+          'wght' 300,
+          'GRAD' 0,
+          'opsz' 48,
+          'ROND' 100;
         flex: 0 0 auto;
         color: var(--text-color);
         margin-right: var(--bb-grid-size-4);
+
+        &.filled {
+          font-variation-settings:
+            'FILL' 1,
+            'wght' 300,
+            'GRAD' 0,
+            'opsz' 48,
+            'ROND' 100;
+        }
 
         &.rotate {
           animation: 1s linear 0s infinite normal forwards running rotate;

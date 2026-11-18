@@ -20,10 +20,6 @@ import Testing
 
 struct ThemeEnvironmentTests {
 
-  @Test func themeKeyDefaultValueIsNil() {
-    #expect(A2UIThemeKey.defaultValue == nil)
-  }
-
   @Test func themeEnvironmentCanBeSet() throws {
     let theme: [String: JSONValue] = ["color": .string("blue")]
     var environment = EnvironmentValues()

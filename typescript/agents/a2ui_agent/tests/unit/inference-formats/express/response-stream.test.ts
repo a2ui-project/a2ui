@@ -21,7 +21,10 @@ import {
   A2uiCompilationValidationError,
   ParseError,
 } from '../../../../src/errors.js';
-import {ExpressCompiler} from '../../../../src/inference-formats/express/compiler.js';
+import {
+  ExpressCompiler,
+  ExpressScopeSession,
+} from '../../../../src/inference-formats/express/compiler.js';
 import {ExpressParser} from '../../../../src/inference-formats/express/parser.js';
 import {
   DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
@@ -472,5 +475,72 @@ describe('ExpressResponseStream unit tests', () => {
       ),
     ).toEqual([]);
     expect(() => updateStream.feed('</a2ui>')).toThrow(/surface-creating scope/);
+  });
+
+  it('emits updateComponents on block close for a rootless component scope', () => {
+    const compiler = new ExpressCompiler([v10Catalog], '1.0');
+    const session = new ExpressScopeSession(compiler, {surfaceId: 's1', version: '1.0'});
+    expect(
+      session.compileStep('c1 = Text("Updated")\n', {
+        isFinal: false,
+        existingSurfaces: new Set(),
+      }),
+    ).toEqual([]);
+    expect(
+      session.compileStep('c1 = Text("Updated")\n', {
+        isFinal: true,
+        existingSurfaces: new Set(),
+      }),
+    ).toEqual([
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 's1',
+          components: [{id: 'c1', component: 'Text', text: 'Updated'}],
+        },
+      },
+    ]);
+
+    const parser = new ExpressParser([v10Catalog], 's1');
+    const state = new RendererState([v10Catalog]);
+    const seed = parser.openStream({state});
+    seed.feed('<a2ui>\nsurface("s1")\nroot = Column([c1])\nc1 = Text("Old")\n</a2ui>');
+    expect(seed.close()).toEqual([]);
+
+    const updateStream = parser.openStream({state});
+    expect(updateStream.feed('<a2ui>\nc1 = Text(label)\n')).toEqual([]);
+    expect(updateStream.feed('label = "Updated"\n</a2ui>')).toEqual([
+      {
+        type: 'a2ui',
+        a2ui: [
+          {
+            version: '1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 'c1', component: 'Text', text: 'Updated'}],
+            },
+          },
+        ],
+      },
+    ]);
+    expect(updateStream.close()).toEqual([]);
+
+    const unwrapped = parser.openStream({wrapped: false, state});
+    expect(unwrapped.feed('surface("s1")\nc1 = Text(label)\n')).toEqual([]);
+    expect(unwrapped.feed('label = "Again"')).toEqual([
+      {
+        type: 'a2ui',
+        a2ui: [
+          {
+            version: '1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 'c1', component: 'Text', text: 'Again'}],
+            },
+          },
+        ],
+      },
+    ]);
+    expect(unwrapped.close()).toEqual([]);
   });
 });

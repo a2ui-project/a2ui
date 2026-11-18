@@ -27,6 +27,14 @@ private final class MockFunctionHandler: FunctionHandler {
   }
 }
 
+private final class MockOpenURLHandler: OpenURLHandler, @unchecked Sendable {
+  var openedURL: URL?
+
+  func open(_ url: URL) {
+    openedURL = url
+  }
+}
+
 @MainActor
 struct BasicCatalogImplementationLocaleTests {
 
@@ -58,5 +66,32 @@ struct BasicCatalogImplementationLocaleTests {
     #expect(catalog.components.count == defaultCatalog.components.count)
     #expect(catalog.functions.count == defaultCatalog.functions.count)
     #expect(try formatNumber(in: catalog) == .string("1.234,50"))
+  }
+
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func makeCatalogPassesOpenURLHandlerToOpenURLFunction(version: A2UIProtocolVersion) throws {
+    let handler = MockOpenURLHandler()
+    let catalog = BasicCatalogImplementation.makeCatalog(version: version, openURLHandler: handler)
+    let function = try #require(catalog.functions["openUrl"])
+
+    _ = try function.evaluate(arguments: ["url": .string("https://example.com")], context: context)
+
+    #expect(handler.openedURL?.absoluteString == "https://example.com")
+    #expect(function.api.requiresUserActivation == (version == .v10))
+  }
+
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func makeCatalogHoldsOpenURLHandlerWeakly(version: A2UIProtocolVersion) throws {
+    weak var releasedHandler: MockOpenURLHandler?
+    let catalog: Catalog<ComponentImplementation>
+    do {
+      let handler = MockOpenURLHandler()
+      releasedHandler = handler
+      catalog = BasicCatalogImplementation.makeCatalog(version: version, openURLHandler: handler)
+    }
+    let function = try #require(catalog.functions["openUrl"] as? OpenURLFunction)
+
+    #expect(releasedHandler == nil)
+    #expect(function.handler == nil)
   }
 }

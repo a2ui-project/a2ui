@@ -26,8 +26,7 @@ import 'conformance/conformance_harness.dart';
 import 'support/test_catalog.dart';
 
 /// The published basic catalog, which agent-side tests are measured against.
-const String basicCatalogPath =
-    '../specification/v0_9_1/catalogs/basic/catalog.json';
+const String basicCatalogPath = '../catalogs/basic/v0_9_1/catalog.json';
 
 const String basicCatalogId =
     'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
@@ -127,8 +126,9 @@ void main() {
       final List<Map<String, Object?>> checkable = reader.schemas(
         <String, Object?>{r'$ref': r'common_types.json#/$defs/Checkable'},
       );
+      final Map<String, Object?> checkableProps = reader.properties(checkable);
       final List<Map<String, Object?>> checks = reader.schemas(
-        reader.properties(checkable)['checks'],
+        checkableProps['@checks'] ?? checkableProps['checks'],
       );
       expect(reader.isCheckable(checks), isTrue);
       return reader.schemas(reader.items(checks)).firstWhere(
@@ -584,20 +584,30 @@ void main() {
             'type': 'object',
             'returnType': 'void',
             'allowedCallers': 'agentOnly',
-            'requiresUserActivation': true,
             'properties': {
               '@call': {'const': 'guarded'},
+            },
+          },
+          'activated': {
+            'type': 'object',
+            'returnType': 'void',
+            'requiresUserActivation': true,
+            'properties': {
+              '@call': {'const': 'activated'},
             },
           },
         },
       }).validationSchema['functions']! as Map<String, Object?>;
       final plain = functions['plain']! as Map;
       final guarded = functions['guarded']! as Map;
+      final activated = functions['activated']! as Map;
 
       expect(plain.containsKey('allowedCallers'), isFalse);
       expect(plain.containsKey('requiresUserActivation'), isFalse);
       expect(guarded['allowedCallers'], 'agentOnly');
-      expect(guarded['requiresUserActivation'], isTrue);
+      expect(guarded.containsKey('requiresUserActivation'), isFalse);
+      expect(activated.containsKey('allowedCallers'), isFalse);
+      expect(activated['requiresUserActivation'], isTrue);
     });
 
     test('closes the entry and restates returnType before protocol 1.0', () {
@@ -973,7 +983,7 @@ void main() {
 
     for (final path in [
       '../catalogs/basic/v1/catalog.json',
-      '../specification/v0_9/catalogs/basic/catalog.json',
+      '../catalogs/basic/v0_9/catalog.json',
       '../catalogs/mcp/catalog.json',
     ]) {
       test('writes $path back unchanged', () {
@@ -2092,11 +2102,12 @@ void main() {
         'Extensions',
       );
       final metadata =
-          (common['properties']! as Map)['metadata'] as Map<String, Object?>;
+          (common['properties']! as Map)['@metadata'] as Map<String, Object?>;
 
-      expect(properties.keys, containsAll(['accessibility', 'metadata']));
+      expect(properties.keys, containsAll(['@accessibility', '@metadata']));
+      expect(properties.containsKey('@catalogId'), isFalse);
       expect(properties.containsKey('catalogId'), isFalse);
-      expect(properties['metadata'], {
+      expect(properties['@metadata'], {
         ...metadata,
         'properties': {
           'extensions': {
@@ -2153,7 +2164,7 @@ void main() {
       );
     });
 
-    test('use the legacy inline catalog shape before v1.0', () {
+    test('use the v0.9 inline catalog shape before v1.0', () {
       final Map<String, Object?> json = A2uiRendererCapabilities(
         versions: {
           A2uiProtocolVersion.v0_9: A2uiVersionCapabilities(
@@ -2163,11 +2174,11 @@ void main() {
         },
       ).toJson();
 
-      final legacy = ((json['v0.9']! as Map)['inlineCatalogs'] as List).single
-          as Map<String, Object?>;
-      expect(legacy, equals(catalog.toLegacyInlineCatalog()));
-      expect(legacy.keys, ['catalogId', 'components', 'functions']);
-      expect((legacy['functions']! as List).single, {
+      final v09Inline = ((json['v0.9']! as Map)['inlineCatalogs'] as List)
+          .single as Map<String, Object?>;
+      expect(v09Inline, equals(catalog.toV09InlineCatalog()));
+      expect(v09Inline.keys, ['catalogId', 'components', 'functions']);
+      expect((v09Inline['functions']! as List).single, {
         'name': 'launch',
         'description': 'Launches a URL.',
         'returnType': 'void',
@@ -2204,7 +2215,15 @@ void main() {
       );
       expect(
         ((json['v0.9']! as Map)['inlineCatalogs'] as List).single,
-        equals(TestCatalog().toLegacyInlineCatalog()),
+        equals(TestCatalog().toV09InlineCatalog()),
+      );
+    });
+
+    test('keep toLegacyInlineCatalog as a deprecated alias', () {
+      expect(
+        // ignore: deprecated_member_use_from_same_package
+        catalog.toLegacyInlineCatalog(),
+        equals(catalog.toV09InlineCatalog()),
       );
     });
   });
@@ -2380,6 +2399,89 @@ void main() {
       final props = requiredFn['properties']! as Map<String, Object?>;
       expect(props[r'@call'], {'const': 'required'});
       expect(props.containsKey('call'), isFalse);
+    });
+  });
+
+  group('Catalog.customComponentProperties', () {
+    /// The custom properties of a v1.0 component whose `properties` block
+    /// holds [properties], plus `id` when [inlineId].
+    Set<String> customOf(
+      Map<String, Object?> properties, {
+      required bool inlineId,
+    }) {
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'inline-mixins',
+        'protocolVersion': '1.0',
+        'components': {
+          'Box': {
+            'type': 'object',
+            'properties': {
+              if (inlineId) 'id': {'type': 'string'},
+              'component': {'const': 'Box'},
+              ...properties,
+            },
+          },
+        },
+      });
+      return catalog.customComponentProperties('Box');
+    }
+
+    const Map<String, Object?> standardMetadata = {
+      'type': 'object',
+      'properties': {
+        'extensions': {'type': 'object'},
+      },
+    };
+
+    test(
+        'reads an inline catalogId as the mixin only beside id and as a '
+        'string', () {
+      expect(
+        customOf({
+          'catalogId': {'type': 'string'},
+        }, inlineId: true),
+        isEmpty,
+      );
+      expect(
+        customOf({
+          'catalogId': {'type': 'integer'},
+        }, inlineId: true),
+        {'catalogId'},
+      );
+      expect(
+        customOf({
+          'catalogId': {'type': 'string'},
+        }, inlineId: false),
+        {'catalogId'},
+      );
+    });
+
+    test(
+        'reads an inline metadata as the mixin only beside id and as an '
+        'object holding only extensions', () {
+      expect(customOf({'metadata': standardMetadata}, inlineId: true), isEmpty);
+      expect(
+        customOf({
+          'metadata': {'type': 'string'},
+        }, inlineId: true),
+        {'metadata'},
+      );
+      expect(
+        customOf({
+          'metadata': {
+            'type': 'object',
+            'properties': {
+              'extensions': {'type': 'object'},
+              'pageNumber': {'type': 'number'},
+            },
+          },
+        }, inlineId: true),
+        {'metadata'},
+      );
+      expect(
+        customOf({'metadata': standardMetadata}, inlineId: false),
+        {'metadata'},
+      );
     });
   });
 }

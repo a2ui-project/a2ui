@@ -744,7 +744,7 @@ def _published_function_names(version: str) -> set[str]:
         )
     else:
         catalog_path = os.path.join(
-            SPEC_ROOT, version, "catalogs", "basic", "catalog.json"
+            REPO_ROOT, "catalogs", "basic", version, "catalog.json"
         )
     with open(catalog_path, "r", encoding="utf-8") as catalog_file:
         return set(json.load(catalog_file)["functions"])
@@ -1182,7 +1182,7 @@ def test_common_types_generation_is_deterministic():
         ("v1_0", "Surface", {"component": None}),
         ("v1_0", "Surface", {"child": None}),
         ("v1_0", "IndexSystemFunction", {"call": "@index", "args": None}),
-        ("v1_0", "ComponentCommon", {"id": "a", "catalogId": None}),
+        ("v1_0", "ComponentCommon", {"id": "a", "@catalogId": None}),
         ("v1_0", "ComponentCommon", {"id": "a", "catalog_id": None}),
         ("v0_9", "ComponentCommon", {"id": "a", "accessibility": None}),
         ("v0_9", "FunctionCall", {"call": "fn", "args": {"a": None}}),
