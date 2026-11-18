@@ -143,7 +143,14 @@ Avoid creating tables for simple information that easily fits in a sentence.
 
 Ensure markup is context-appropriate; do not use Markdown (like `##`) in formats that do not support it (like Wikitext) unless it is explicitly converted.
 
-### 4.3. Punctuation
+### 4.3. Label the problem
+
+When a text explains a change, such as a PR description, an issue, or a design document, start with the problem it solves and label it with the word "Problem", so the reader finds it at a glance. Use a `**Problem:**` lead-in for a short description, or a `## Problem` header when the text has sections.
+
+- Instead of: "The triage bot flags more items than the team can act on. This PR narrows the rules."
+- Write: "**Problem:** The triage bot flags more items than the team can act on."
+
+### 4.4. Punctuation
 
 Use straight quotes (`"`, `'`) and straight apostrophes (`'`). Do not use curly or smart quotes (`“`, `’`).
 
