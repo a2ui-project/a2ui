@@ -33,11 +33,9 @@ struct SVGPathParserArcTests {
   private func expectPoint(
     _ actual: CGPoint?, approximately expected: CGPoint,
     sourceLocation: SourceLocation = #_sourceLocation
-  ) {
-    guard let actual else {
-      Issue.record("Expected a current point", sourceLocation: sourceLocation)
-      return
-    }
+  ) throws {
+    let actual = try #require(
+      actual, "Expected a current point", sourceLocation: sourceLocation)
     #expect(abs(actual.x - expected.x) < Self.tolerance, sourceLocation: sourceLocation)
     #expect(abs(actual.y - expected.y) < Self.tolerance, sourceLocation: sourceLocation)
   }
@@ -55,18 +53,18 @@ struct SVGPathParserArcTests {
     expectRect(path.boundingRect, approximately: CGRect(x: 2, y: 2, width: 20, height: 20))
   }
 
-  @Test func relativeArcWithCompactFlags() {
+  @Test func relativeArcWithCompactFlags() throws {
     // "0110 10" is large-arc 0, sweep 1, then the end point 10 10.
     let path = SVGPathParser.parse("M10 0a10 10 0 0110 10")
     expectRect(path.boundingRect, approximately: CGRect(x: 10, y: 0, width: 10, height: 10))
-    expectPoint(path.currentPoint, approximately: CGPoint(x: 20, y: 10))
+    try expectPoint(path.currentPoint, approximately: CGPoint(x: 20, y: 10))
   }
 
-  @Test func compactFlagsWithoutAnySeparators() {
+  @Test func compactFlagsWithoutAnySeparators() throws {
     let path = SVGPathParser.parse("M0 0a5 5 0 1010 0")
     // Large arc, counter-clockwise sweep from (0, 0) to (10, 0) bulges towards positive y.
     expectRect(path.boundingRect, approximately: CGRect(x: 0, y: 0, width: 10, height: 5))
-    expectPoint(path.currentPoint, approximately: CGPoint(x: 10, y: 0))
+    try expectPoint(path.currentPoint, approximately: CGPoint(x: 10, y: 0))
   }
 
   @Test func zeroRadiusArcDrawsStraightLine() {
@@ -95,10 +93,10 @@ struct SVGPathParserArcTests {
         x: -halfExtent, y: -halfExtent, width: 2 * halfExtent, height: 2 * halfExtent))
   }
 
-  @Test func repeatedImplicitArcArguments() {
+  @Test func repeatedImplicitArcArguments() throws {
     let path = SVGPathParser.parse("M2 12 A10 10 0 0 1 22 12 10 10 0 0 1 2 12")
     expectRect(path.boundingRect, approximately: CGRect(x: 2, y: 2, width: 20, height: 20))
-    expectPoint(path.currentPoint, approximately: CGPoint(x: 2, y: 12))
+    try expectPoint(path.currentPoint, approximately: CGPoint(x: 2, y: 12))
   }
 
   @Test func undersizedRadiiAreScaledUp() {

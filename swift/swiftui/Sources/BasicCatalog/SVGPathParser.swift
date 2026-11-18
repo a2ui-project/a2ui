@@ -198,10 +198,10 @@ public enum SVGPathParser {
     sweep: Bool
   ) {
     // F.6.2: identical endpoints omit the arc; a zero radius turns it into a straight line.
-    if start == end { return }
-    var rx = abs(radiusX)
-    var ry = abs(radiusY)
-    if rx == 0 || ry == 0 {
+    guard start != end else { return }
+    var scaledRadiusX = abs(radiusX)
+    var scaledRadiusY = abs(radiusY)
+    guard scaledRadiusX != 0, scaledRadiusY != 0 else {
       path.addLine(to: end)
       return
     }
@@ -217,42 +217,49 @@ public enum SVGPathParser {
     let y1Prime = -sinPhi * halfDeltaX + cosPhi * halfDeltaY
 
     // F.6.6.2: scale the radii up when they are too small to reach the end point.
-    let lambda = (x1Prime * x1Prime) / (rx * rx) + (y1Prime * y1Prime) / (ry * ry)
+    let lambda =
+      (x1Prime * x1Prime) / (scaledRadiusX * scaledRadiusX)
+      + (y1Prime * y1Prime) / (scaledRadiusY * scaledRadiusY)
     if lambda > 1 {
       let scale = sqrt(lambda)
-      rx *= scale
-      ry *= scale
+      scaledRadiusX *= scale
+      scaledRadiusY *= scale
     }
 
     // F.6.5.2: compute the transformed center.
-    let rxSquared = rx * rx
-    let rySquared = ry * ry
+    let scaledRadiusXSquared = scaledRadiusX * scaledRadiusX
+    let scaledRadiusYSquared = scaledRadiusY * scaledRadiusY
     let numerator =
-      rxSquared * rySquared - rxSquared * y1Prime * y1Prime - rySquared * x1Prime * x1Prime
-    let denominator = rxSquared * y1Prime * y1Prime + rySquared * x1Prime * x1Prime
+      scaledRadiusXSquared * scaledRadiusYSquared
+      - scaledRadiusXSquared * y1Prime * y1Prime
+      - scaledRadiusYSquared * x1Prime * x1Prime
+    let denominator =
+      scaledRadiusXSquared * y1Prime * y1Prime + scaledRadiusYSquared * x1Prime * x1Prime
     let sign: CGFloat = largeArc == sweep ? -1 : 1
     let coefficient = sign * sqrt(max(0, numerator / denominator))
-    let centerXPrime = coefficient * (rx * y1Prime / ry)
-    let centerYPrime = coefficient * -(ry * x1Prime / rx)
+    let centerXPrime = coefficient * (scaledRadiusX * y1Prime / scaledRadiusY)
+    let centerYPrime = coefficient * -(scaledRadiusY * x1Prime / scaledRadiusX)
 
     // F.6.5.3: rotate the center back into user space.
     let centerX = cosPhi * centerXPrime - sinPhi * centerYPrime + (start.x + end.x) / 2
     let centerY = sinPhi * centerXPrime + cosPhi * centerYPrime + (start.y + end.y) / 2
 
     // F.6.5.5 and F.6.5.6: start angle and sweep angle on the unit circle.
-    let startAngle = atan2((y1Prime - centerYPrime) / ry, (x1Prime - centerXPrime) / rx)
-    let endAngle = atan2((-y1Prime - centerYPrime) / ry, (-x1Prime - centerXPrime) / rx)
+    let startAngle = atan2(
+      (y1Prime - centerYPrime) / scaledRadiusY, (x1Prime - centerXPrime) / scaledRadiusX)
+    let endAngle = atan2(
+      (-y1Prime - centerYPrime) / scaledRadiusY, (-x1Prime - centerXPrime) / scaledRadiusX)
     var sweepAngle = endAngle - startAngle
-    if sweep && sweepAngle < 0 {
+    if sweep, sweepAngle < 0 {
       sweepAngle += 2 * .pi
-    } else if !sweep && sweepAngle > 0 {
+    } else if !sweep, sweepAngle > 0 {
       sweepAngle -= 2 * .pi
     }
 
     func userSpacePoint(unitX: CGFloat, unitY: CGFloat) -> CGPoint {
       CGPoint(
-        x: centerX + rx * cosPhi * unitX - ry * sinPhi * unitY,
-        y: centerY + rx * sinPhi * unitX + ry * cosPhi * unitY
+        x: centerX + scaledRadiusX * cosPhi * unitX - scaledRadiusY * sinPhi * unitY,
+        y: centerY + scaledRadiusX * sinPhi * unitX + scaledRadiusY * cosPhi * unitY
       )
     }
 
