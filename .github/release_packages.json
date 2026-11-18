@@ -58,7 +58,7 @@
       ],
       "changelog": "dart/a2ui_core/CHANGELOG.md",
       "tag": "dart/a2ui_core/v{version}",
-      "bootstrap_since": "b3ac4298344c6131bc8a64157357f7609fd826e7",
+      "bootstrap_since": "07735d6a654ae3ba25951a8753ddd57b344b1169",
       "breaking_prefix": "Breaking: "
     },
     {
@@ -75,7 +75,7 @@
       ],
       "changelog": "dart/a2ui_agent/CHANGELOG.md",
       "tag": "dart/a2ui_agent/v{version}",
-      "bootstrap_since": "b3ac4298344c6131bc8a64157357f7609fd826e7",
+      "bootstrap_since": "07735d6a654ae3ba25951a8753ddd57b344b1169",
       "breaking_prefix": "Breaking: "
     },
     {
@@ -94,7 +94,7 @@
       ],
       "changelog": "dart/a2ui_flutter/CHANGELOG.md",
       "tag": "dart/a2ui_flutter/v{version}",
-      "bootstrap_since": "b3ac4298344c6131bc8a64157357f7609fd826e7",
+      "bootstrap_since": "07735d6a654ae3ba25951a8753ddd57b344b1169",
       "breaking_prefix": "Breaking: "
     },
     {
