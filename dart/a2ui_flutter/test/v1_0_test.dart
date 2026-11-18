@@ -47,11 +47,13 @@ Future<SurfaceHarness> _pump(
   Map<String, Object?>? dataModel,
   CatalogImplementation? catalog,
   ValidationConfig? validationConfig = ValidationConfig.strict,
+  A2uiFallbacks? fallbacks,
 }) => pumpSurface(
   tester,
   [_createSurface(components, dataModel: dataModel)],
   catalog: catalog ?? basicCatalog(),
   validationConfig: validationConfig,
+  fallbacks: fallbacks,
 );
 
 Map<String, Object?> _bind(String path) => {'@path': path};
@@ -77,6 +79,44 @@ void main() {
 
     expect(find.text('Hello, Ada'), findsOneWidget);
     expect(harness.errors, isEmpty);
+  });
+
+  testWidgets('shows fallbacks in the basic containers, a slot each', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      [
+        {
+          'id': 'root',
+          'component': 'Column',
+          'children': ['a', 'late', 'card', 'b'],
+        },
+        {'id': 'a', 'component': 'Text', 'text': 'A'},
+        {'id': 'card', 'component': 'Card', 'child': 'weird'},
+        {'id': 'weird', 'component': 'StarRating'},
+        {'id': 'b', 'component': 'Text', 'text': 'B'},
+      ],
+      validationConfig: const ValidationConfig(
+        allowDanglingReferences: true,
+        allowUnknownElements: true,
+      ),
+      fallbacks: A2uiFallbacks(
+        pending: (context, info) =>
+            Text('pending ${info.componentId} in ${info.parentComponentType}'),
+        error: (context, info) => Text(
+          '${info.error.type} ${info.error.componentType} in '
+          '${info.parentComponentType}',
+        ),
+      ),
+    );
+
+    expect(find.text('pending late in Column'), findsOneWidget);
+    expect(find.text('unknown-type StarRating in Card'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('pending late in Column')).dy,
+      tester.getBottomLeft(find.text('A')).dy + 8,
+    );
   });
 
   testWidgets('shows each template item its @index', (tester) async {
