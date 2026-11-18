@@ -1762,7 +1762,7 @@ fun createTravelProcessor(context: Context): A2uiMessageProcessor {
 
 ## The basic catalog
 
-A2UI publishes a basic catalog with 18 general-purpose components and 14 functions. The v1.0 schema lives at [`catalogs/basic/v1/catalog.json`](https://github.com/a2ui-project/a2ui/blob/main/catalogs/basic/v1/catalog.json), and the v0.9.1 schema lives at [`specification/v0_9_1/catalogs/basic/catalog.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9_1/catalogs/basic/catalog.json).
+A2UI publishes a basic catalog with 18 general-purpose components and 14 functions. The v1.0 schema lives at [`catalogs/basic/v1/catalog.json`](https://github.com/a2ui-project/a2ui/blob/main/catalogs/basic/v1/catalog.json), and the v0.9.1 schema lives at [`catalogs/basic/v0_9_1/catalog.json`](https://github.com/a2ui-project/a2ui/blob/main/catalogs/basic/v0_9_1/catalog.json).
 
 | Category          | Entries                                                                                                                                                       |
 | :---------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -15911,7 +15911,7 @@ When `sendDataModel` is enabled for a surface, the client includes the `a2uiClie
 
 This message is used to report a client-side error to the server.
 
-[`catalogs/basic/catalog.json`]: ../catalogs/basic/catalog.json
+[`catalogs/basic/catalog.json`]: ../../../catalogs/basic/v0_9_1/catalog.json
 [`common_types.json`]: ../json/common_types.json
 [`server_to_client.json`]: ../json/server_to_client.json
 [`client_to_server.json`]: ../json/client_to_server.json
@@ -16191,7 +16191,7 @@ Canonical URL: https://a2ui.org/specification/v0.9.1-basic-catalog-implementatio
 > [!NOTE] Reference Catalog
 > The Basic Catalog is an optional, styleable reference catalog included for convenience (`v0.9.1` supersedes `v0.9` while keeping the `v0_9` catalog URI). Applications can style these components to match their own design system or define custom domain-specific catalogs; see [How to Define a Catalog](/specification/guides/defining-a-catalog.mdx) and the [`basic_catalog.json` schema](#basic_catalog.json).
 
---8&lt;-- "specification/v0_9_1/docs/basic_catalog_implementation_guide.md"
+--8&lt;-- "catalogs/basic/v0_9_1/basic_catalog_implementation_guide.md"
 
 ## Catalog schema
 
