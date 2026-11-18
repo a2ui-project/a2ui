@@ -1,6 +1,9 @@
 # [a2ui_cli](https://pub.dev/packages/a2ui_cli) Changelog
 
-## Unreleased
+## 0.4.0
+
+- **Breaking:** Requires `a2ui_core` `^0.8.0` (`a2ui_cli` exposes `a2ui_core`
+  types in its public API).
 
 - (v1_0) Filter `@catalogId`, `@metadata`, and `@accessibility` from component
   builder properties in `CatalogAnalyzer`, detect checkable components from

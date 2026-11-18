@@ -63,7 +63,7 @@ from a2ui_eval.strategies.subagent_tool import (
 )
 
 V1_CATALOG = GIT_ROOT / "catalogs/basic/v1/catalog.json"
-V091_CATALOG = GIT_ROOT / "specification/v0_9_1/catalogs/basic/catalog.json"
+V091_CATALOG = GIT_ROOT / "catalogs/basic/v0_9_1/catalog.json"
 
 
 async def dummy_generate(state: TaskState, *args: Any, **kwargs: Any) -> TaskState:
