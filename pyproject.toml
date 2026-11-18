@@ -137,8 +137,6 @@ exclude = [
     "^python/a2ui_adk/tests/",
     "^conformance/tests/",
     "^eval/",
-    # TODO(#1614): Typecheck all packages here.
-    "^python/a2ui_agent/src/a2ui/inference_formats/experimental/",
     "^python/a2ui_agent/src/a2ui/inference_formats/express/generated/",
     "^samples/",
     "^tools/",
@@ -146,7 +144,6 @@ exclude = [
     "^scripts/",
     "^specification/",
     "^blueprints/",
-    "^hooks\\.py$",
 ]
 
 [[tool.mypy.overrides]]

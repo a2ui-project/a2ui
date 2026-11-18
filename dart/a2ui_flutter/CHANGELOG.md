@@ -16,7 +16,10 @@
 
 # [a2ui_flutter](https://pub.dev/packages/a2ui_flutter) Changelog
 
-## Unreleased
+## 0.4.0
+
+- **Breaking:** Requires `a2ui_core` `^0.8.0`, whose types this library
+  re-exports.
 
 - `Image` renders a `data:` URL of an `image/*` type, such as an inline
   base64 PNG, as the web renderers do since
