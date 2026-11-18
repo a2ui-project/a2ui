@@ -26,8 +26,15 @@ catalogs/
 │   │   └── basic_catalog_implementation_guide.md
 │   └── v1/                 # Basic catalog, major version 1
 │       ├── catalog.json
+│       ├── patterns.json   # Abstract block pattern templates for Basic v1
 │       ├── examples/
 │       └── basic_catalog_implementation_guide.md
+├── decision/               # Catalog-agnostic layout archetype grammar & schemas
+│   ├── README.md
+│   └── v1/
+│       ├── archetypes.json
+│       ├── archetype_definition.json
+│       └── pattern_definition.json
 ├── mcp/                    # MCP catalog
 │   ├── catalog.json        # Pre-1.0 MCP catalog, protocol v0.9
 │   └── v1/                 # MCP catalog, major version 1 (protocol v1.0)
@@ -52,6 +59,14 @@ catalogs/
   `https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json` and
   `https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json`), so moving
   files here does not affect consumers.
+- `basic/v1/patterns.json` maps the 17 abstract block patterns onto Basic
+  Catalog components for decision-model layout synthesis.
+  `decision/v1/archetypes.json` defines the catalog-agnostic layout archetype
+  grammar (`ArchetypeGrammar`), accompanied by `archetype_definition.json`,
+  `pattern_definition.json`, and `decision/README.md`. A catalog's
+  `patterns.json` is part of the catalog: after any component change, it must
+  still validate via the `a2ui-generate-catalog-patterns` skill's `validate`
+  command. These decision files are experimental.
 - From `v1` onward, `basic/` is versioned by catalog major version (`v1/`),
   independent of the protocol version; its pre-1.0 protocol snapshots live in
   `basic/v0_9/` and `basic/v0_9_1/` (and the v0.9 minimal catalog in
