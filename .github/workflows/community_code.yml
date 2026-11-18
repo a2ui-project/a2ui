@@ -25,21 +25,34 @@ on:
   push:
     branches: [main]
     paths:
+      # The samples alias monorepo packages (see the "Build @a2ui/catalog-mcp
+      # and @a2ui/lit" steps), so any change under typescript/ or to the root
+      # workspace manifest can change what they build against.
       - "samples/community/**"
-      - "typescript/catalogs/**"
-      - "typescript/core/web_core/**"
-      - "typescript/renderers/lit/**"
+      - "typescript/**"
+      - "package.json"
+      - "yarn.lock"
       - ".github/workflows/community_code.yml"
   pull_request:
     paths:
+      # The samples alias monorepo packages (see the "Build @a2ui/catalog-mcp
+      # and @a2ui/lit" steps), so any change under typescript/ or to the root
+      # workspace manifest can change what they build against.
       - "samples/community/**"
-      - "typescript/catalogs/**"
-      - "typescript/core/web_core/**"
-      - "typescript/renderers/lit/**"
+      - "typescript/**"
+      - "package.json"
+      - "yarn.lock"
       - ".github/workflows/community_code.yml"
+  # Path filters do not apply to these events, so the nightly run and manual
+  # dispatches build every sample.
+  schedule:
+    - cron: "47 6 * * *"
+  workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  # The event name keeps a scheduled run on `main` from cancelling, or being
+  # cancelled by, a push run on `main`.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref_name || github.ref }}
   cancel-in-progress: true
 
 permissions:
