@@ -1315,5 +1315,69 @@ describe('Catalog.fromJson & schema_loader', () => {
       console.log('nested dependentRequired with {a} missing {b}:', nestedMissingDepRes.success);
       assert.strictEqual(nestedMissingDepRes.success, false);
     });
+
+    it('enforces conditional if/then/else subschemas on function args and nested objects (Row 3)', () => {
+      console.log('\n--- START TEST: if/then/else conditional subschemas (Row 3) ---');
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          country: {type: 'string'},
+          postalCode: {type: 'string'},
+          nested: {
+            type: 'object',
+            properties: {
+              mode: {type: 'string'},
+              port: {type: 'number'},
+            },
+            if: {
+              properties: {mode: {const: 'network'}},
+              required: ['mode'],
+            },
+            then: {
+              required: ['port'],
+            },
+          },
+        },
+        if: {
+          properties: {country: {const: 'USA'}},
+          required: ['country'],
+        },
+        then: {
+          required: ['postalCode'],
+          properties: {postalCode: {pattern: '^[0-9]{5}$'}},
+        },
+        else: {
+          properties: {postalCode: {minLength: 3}},
+        },
+      });
+
+      const usaValidRes = schema.safeParse({country: 'USA', postalCode: '78641'});
+      console.log('if USA -> then valid 5-digit ZIP:', usaValidRes.success);
+      assert.strictEqual(usaValidRes.success, true);
+
+      const usaMissingZipRes = schema.safeParse({country: 'USA'});
+      console.log('if USA -> then missing postalCode:', usaMissingZipRes.success);
+      assert.strictEqual(usaMissingZipRes.success, false);
+
+      const usaBadZipRes = schema.safeParse({country: 'USA', postalCode: 'AB'});
+      console.log('if USA -> then non-5-digit postalCode:', usaBadZipRes.success);
+      assert.strictEqual(usaBadZipRes.success, false);
+
+      const canadaValidRes = schema.safeParse({country: 'CA', postalCode: 'K1A'});
+      console.log('else (country=CA) -> else valid minLength 3:', canadaValidRes.success);
+      assert.strictEqual(canadaValidRes.success, true);
+
+      const canadaTooShortRes = schema.safeParse({country: 'CA', postalCode: 'A'});
+      console.log('else (country=CA) -> else too short:', canadaTooShortRes.success);
+      assert.strictEqual(canadaTooShortRes.success, false);
+
+      const nestedNetworkMissingPort = schema.safeParse({nested: {mode: 'network'}});
+      console.log('nested if mode=network missing port:', nestedNetworkMissingPort.success);
+      assert.strictEqual(nestedNetworkMissingPort.success, false);
+
+      const nestedLocalNoPort = schema.safeParse({nested: {mode: 'local'}});
+      console.log('nested if mode=local without port:', nestedLocalNoPort.success);
+      assert.strictEqual(nestedLocalNoPort.success, true);
+    });
   });
 });
