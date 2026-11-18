@@ -133,24 +133,50 @@ function getDefaultStyleSheet(): CSSStyleSheet {
  * stylesheet above (and the specific ones exposed by each basic catalog
  * package) to customize the appearance of the items of the basic catalog.
  *
+ * Adopts the stylesheet via `adoptedStyleSheets` if supported, falling back to
+ * a `<style data-a2ui-basic-catalog>` element injection if `adoptedStyleSheets` is unavailable
+ * or unsupported in the current environment.
+ *
  * @param targetRoot An optional Document or ShadowRoot to adopt the stylesheet
  *     into. Defaults to `document`.
  */
 export function injectBasicCatalogStyles(targetRoot?: Document | ShadowRoot) {
   if (typeof document === 'undefined') return;
-  const sheet = getDefaultStyleSheet();
   const target = targetRoot ?? document;
-  const targetSheets = (target as any)?.adoptedStyleSheets;
-  if (
-    targetSheets &&
-    typeof targetSheets.includes === 'function' &&
-    !targetSheets.includes(sheet)
-  ) {
-    try {
-      (target as any).adoptedStyleSheets = [...targetSheets, sheet];
-    } catch {
-      // Fallback
+  const targetAny = target as any;
+
+  if ('adoptedStyleSheets' in target && Array.isArray(targetAny.adoptedStyleSheets)) {
+    const sheet = getDefaultStyleSheet();
+    const targetSheets = targetAny.adoptedStyleSheets as CSSStyleSheet[];
+    if (typeof targetSheets.includes === 'function' && !targetSheets.includes(sheet)) {
+      try {
+        targetAny.adoptedStyleSheets = [...targetSheets, sheet];
+        return;
+      } catch {
+        // Fallback to <style> tag below if stylesheet adoption throws
+      }
+    } else if (targetSheets.includes(sheet)) {
+      return;
     }
+  }
+
+  // Fallback for environments where stylesheet adoption is unsupported or throws
+  injectStyleTagFallback(target);
+}
+
+function injectStyleTagFallback(target: Document | ShadowRoot) {
+  const targetAny = target as any;
+  if (typeof targetAny.querySelector === 'function') {
+    const existing = targetAny.querySelector('style[data-a2ui-basic-catalog]');
+    if (existing) return;
+  }
+  const style = document.createElement('style');
+  style.setAttribute('data-a2ui-basic-catalog', '');
+  style.textContent = DEFAULT_CSS;
+  if ('head' in target && (target as Document).head) {
+    (target as Document).head.appendChild(style);
+  } else if (typeof targetAny.appendChild === 'function') {
+    targetAny.appendChild(style);
   }
 }
 
