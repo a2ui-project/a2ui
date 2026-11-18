@@ -16,6 +16,10 @@
 
 # [a2ui_flutter](https://pub.dev/packages/a2ui_flutter) Changelog
 
+## Unreleased
+
+- **Breaking:** Raises the minimum Dart/Flutter SDK bounds to `sdk: ">=3.13.0 <4.0.0"` and `flutter: ">=3.47.0"`.
+
 ## 0.4.0
 
 - **Breaking:** Requires `a2ui_core` `^0.8.0`, whose types this library
