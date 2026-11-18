@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 0.2.3
+
+- Bump dependencies for compatibility with `@a2ui/web_core: ^0.16.0`.
+
 ## 0.2.2
 
 - Bump dependencies for compatibility with `@a2ui/web_core: ^0.14.0`.
