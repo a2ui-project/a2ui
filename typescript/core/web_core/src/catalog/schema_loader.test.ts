@@ -1576,6 +1576,43 @@ describe('Catalog.fromJson & schema_loader', () => {
       assert.strictEqual(schema.safeParse({a: 1, b: 2, c: 3, d: 4}).success, false);
     });
 
+    it('enforces additionalProperties: false on object schemas with no declared properties and vacuously passes non-objects on minProperties/maxProperties', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          emptyOnly: {
+            type: 'object',
+            additionalProperties: false,
+          },
+          typelessBounds: {
+            minProperties: 1,
+            maxProperties: 2,
+          },
+        },
+        required: ['emptyOnly', 'typelessBounds'],
+      });
+
+      assert.strictEqual(schema.safeParse({emptyOnly: {}, typelessBounds: {a: 1}}).success, true);
+      assert.strictEqual(
+        schema.safeParse({emptyOnly: {unexpected: 1}, typelessBounds: {a: 1}}).success,
+        false,
+      );
+
+      // Non-object values vacuously pass typeless minProperties / maxProperties constraints
+      assert.strictEqual(
+        schema.safeParse({emptyOnly: {}, typelessBounds: 'not-an-object'}).success,
+        true,
+      );
+      assert.strictEqual(schema.safeParse({emptyOnly: {}, typelessBounds: 42}).success, true);
+
+      // Object values outside [1, 2] keys fail
+      assert.strictEqual(schema.safeParse({emptyOnly: {}, typelessBounds: {}}).success, false);
+      assert.strictEqual(
+        schema.safeParse({emptyOnly: {}, typelessBounds: {a: 1, b: 2, c: 3}}).success,
+        false,
+      );
+    });
+
     it('preserves nested issue.path on conditional and union validation failures', () => {
       const conditionalSchema = convertFunctionArgsJsonSchemaToZod({
         type: 'object',

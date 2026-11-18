@@ -495,10 +495,16 @@ function convertObjectSchemaToZod(
       defCache,
     );
   }
-  return applyDependentRequiredConstraints(
-    applyObjectKeyCountConstraints(z.record(z.unknown()), [propSchema]),
-    [propSchema],
-  );
+
+  let base: z.ZodTypeAny = z.record(z.unknown());
+  if (propSchema.additionalProperties === false || propSchema.unevaluatedProperties === false) {
+    base = base.refine((val: unknown) => isPlainObject(val) && Object.keys(val).length === 0, {
+      message: 'Additional properties are not allowed',
+    });
+  }
+  return applyDependentRequiredConstraints(applyObjectKeyCountConstraints(base, [propSchema]), [
+    propSchema,
+  ]);
 }
 
 const STRING_APPLICATOR_KEYWORDS = ['minLength', 'maxLength', 'pattern', 'format'] as const;
@@ -925,20 +931,19 @@ function applyObjectKeyCountConstraints(
 
   let result = baseSchema;
 
-  // Enforce lower bound on key count if `minProperties` was declared.
+  // Enforce lower and upper bounds on key count if minProperties or maxProperties were declared, allowing non-objects to pass vacuously.
   if (minProps !== undefined) {
     const requiredMin = minProps;
     result = result.refine(
-      (val: unknown) => isPlainObject(val) && Object.keys(val).length >= requiredMin,
+      (val: unknown) => !isPlainObject(val) || Object.keys(val).length >= requiredMin,
       {message: `Object must have at least ${requiredMin} properties`},
     );
   }
 
-  // Enforce upper bound on key count if `maxProperties` was declared.
   if (maxProps !== undefined) {
     const allowedMax = maxProps;
     result = result.refine(
-      (val: unknown) => isPlainObject(val) && Object.keys(val).length <= allowedMax,
+      (val: unknown) => !isPlainObject(val) || Object.keys(val).length <= allowedMax,
       {message: `Object must have at most ${allowedMax} properties`},
     );
   }
