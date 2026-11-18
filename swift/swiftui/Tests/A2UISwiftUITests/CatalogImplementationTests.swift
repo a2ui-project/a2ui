@@ -18,6 +18,20 @@ import JSONSchema
 import SwiftUI
 import Testing
 
+private struct CatalogEnvironmentProbeView: View {
+  @Environment(\.a2uiCatalogs) private var catalogs
+  @Environment(\.a2uiDefaultCatalogID) private var defaultCatalogID
+  let onRead: ([String: Catalog<ComponentImplementation>], String?) -> Void
+
+  var body: some View {
+    Color.clear
+      .onAppear {
+        onRead(catalogs, defaultCatalogID)
+      }
+  }
+}
+
+@Suite(.serialized)
 @MainActor
 struct SwiftUICatalogRenderingTests {
 
@@ -132,16 +146,38 @@ struct SwiftUICatalogRenderingTests {
     #expect(environment.a2uiDefaultCatalogID == nil)
   }
 
-  @Test func catalogsEnvironmentCanBeSet() throws {
-    var environment = EnvironmentValues()
-    let schema = try Schema(instance: "{\"type\": \"object\"}")
-    let component = ComponentImplementation(name: "custom", schema: schema) { _ in
-      AnyView(EmptyView())
+  @Test func surfacePropagatesCatalogsEnvironmentToDescendants() throws {
+    let schema = try Schema(instance: #"{"type": "object"}"#)
+    var observedCatalogIDs: Set<String> = []
+    var observedDefaultCatalogID: String?
+    let probeComponent = ComponentImplementation(name: "probe", schema: schema) { _ in
+      CatalogEnvironmentProbeView { catalogs, defaultCatalogID in
+        observedCatalogIDs = Set(catalogs.keys)
+        observedDefaultCatalogID = defaultCatalogID
+      }
     }
-    let catalog = Catalog(id: "test", components: [component])
-    environment.a2uiCatalogs = ["test": catalog]
-    environment.a2uiDefaultCatalogID = "test"
-    #expect(environment.a2uiCatalogs.count == 1)
-    #expect(environment.a2uiDefaultCatalogID == "test")
+    let extraComponent = ComponentImplementation(name: "extra", schema: schema) { _ in
+      EmptyView()
+    }
+    let primaryCatalog = Catalog(id: "primary", components: [probeComponent])
+    let secondaryCatalog = Catalog(id: "secondary", components: [extraComponent])
+    let viewModel = SurfaceViewModel(
+      surfaceID: "env-surface",
+      catalogs: [primaryCatalog, secondaryCatalog],
+      defaultCatalogID: secondaryCatalog.id
+    )
+    viewModel.componentsModel.addComponent(
+      ComponentModel(id: "root", type: "probe", catalogID: primaryCatalog.id, properties: [:])
+    )
+    let surface = Surface(
+      viewModel: viewModel,
+      catalogs: [primaryCatalog, secondaryCatalog],
+      defaultCatalogID: secondaryCatalog.id
+    )
+    let driver = HostedViewDriver(surface: surface)
+    defer { driver.tearDown() }
+
+    #expect(observedCatalogIDs == ["primary", "secondary"])
+    #expect(observedDefaultCatalogID == "secondary")
   }
 }

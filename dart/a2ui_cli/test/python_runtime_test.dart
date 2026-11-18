@@ -68,7 +68,7 @@ void main() {
   final String fixturesDir = p.join(repoRoot, 'dart/a2ui_cli/test/fixtures');
   final String basicCatalogPath = p.join(
     repoRoot,
-    'specification/v0_9_1/catalogs/basic/catalog.json',
+    'catalogs/basic/v0_9_1/catalog.json',
   );
 
   final String pythonBin = getPythonExecutable(repoRoot);

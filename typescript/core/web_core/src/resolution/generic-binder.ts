@@ -436,11 +436,10 @@ function hasSingleChildObjectField(
 }
 
 function isDynamicDef(defName: string, typeName?: string): boolean {
-  return (
-    (defName === 'DataBinding' || defName === 'FunctionCall' || defName.startsWith('Dynamic')) &&
-    typeName !== 'ZodObject' &&
-    typeName !== 'ZodArray'
-  );
+  if (defName === 'DataBinding' || defName === 'FunctionCall') {
+    return true;
+  }
+  return defName.startsWith('Dynamic') && typeName !== 'ZodObject' && typeName !== 'ZodArray';
 }
 
 function isBooleanOrNullishOption(option: z.ZodTypeAny): boolean {
@@ -1059,20 +1058,48 @@ type ActionLike =
  */
 type HasStringIndex<T> = string extends keyof T ? true : false;
 
-/** Evaluates to true if type T can contain a dynamic binding. */
-type IsDynamic<T> = ({path: string} extends NonNullable<T> ? true : false) extends true
-  ? true
-  : ({'@path': string} extends NonNullable<T> ? true : false) extends true
+/**
+ * Strips `DynamicTypes` branches from `T` while keeping `any` and string-indexed
+ * data objects such as `Record<string, unknown>` intact.
+ */
+type StripDynamic<T> = 0 extends 1 & T
+  ? T
+  : T extends unknown
+    ? HasStringIndex<T> extends true
+      ? T
+      : T extends DynamicTypes
+        ? never
+        : T
+    : never;
+
+/**
+ * Removes string-indexed object members such as `Record<string, unknown>` from
+ * a union before checking whether any remaining branch is a dynamic binding.
+ */
+type StripStringIndex<T> = T extends unknown ? (HasStringIndex<T> extends true ? never : T) : never;
+
+type IsDynamicShape<T> = [T] extends [never]
+  ? false
+  : ({path: string} extends T ? true : false) extends true
     ? true
-    : ({call: string} extends NonNullable<T> ? true : false) extends true
+    : ({'@path': string} extends T ? true : false) extends true
       ? true
-      : ({'@call': string} extends NonNullable<T> ? true : false) extends true
+      : ({call: string} extends T ? true : false) extends true
         ? true
-        : DataBinding extends NonNullable<T>
+        : ({'@call': string} extends T ? true : false) extends true
           ? true
-          : FunctionCall extends NonNullable<T>
+          : DataBinding extends T
             ? true
-            : false;
+            : FunctionCall extends T
+              ? true
+              : false;
+
+/** Evaluates to true if type T can contain a dynamic binding. */
+type IsDynamic<T> = 0 extends 1 & T
+  ? true
+  : unknown extends T
+    ? false
+    : IsDynamicShape<StripStringIndex<NonNullable<T>>>;
 
 /**
  * Evaluates to true if type T is a child list, which can be a template as well as a list of
@@ -1102,17 +1129,21 @@ export interface ResolvedChildRef {
  * binder walks lists and objects, so an action, binding or child list inside them resolves
  * too, as at the top level.
  */
-export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
-  ? HasStringIndex<NonNullable<T>> extends true
-    ? Exclude<T, DynamicTypes>
-    : ((options?: ActionDispatchOptions) => Promise<void>) | Extract<T, undefined>
-  : IsChildList<T> extends true
-    ? (string | ResolvedChildRef)[] | Extract<T, undefined>
-    : Exclude<T, DynamicTypes> extends never
-      ? unknown
-      : IsDynamic<T> extends true
-        ? Exclude<T, DynamicTypes>
-        : ResolveNested<T>;
+export type ResolveA2uiProp<T> = 0 extends 1 & T
+  ? T
+  : unknown extends T
+    ? unknown
+    : [NonNullable<T>] extends [ActionLike]
+      ? HasStringIndex<NonNullable<T>> extends true
+        ? StripDynamic<T>
+        : ((options?: ActionDispatchOptions) => Promise<void>) | Extract<T, undefined>
+      : IsChildList<T> extends true
+        ? (string | ResolvedChildRef)[] | Extract<T, undefined>
+        : IsDynamic<T> extends true
+          ? [StripDynamic<NonNullable<T>>] extends [never]
+            ? unknown
+            : StripDynamic<T>
+          : ResolveNested<T>;
 
 /**
  * Resolves the items of a list and the properties of an object, as the binder does.
@@ -1142,9 +1173,9 @@ type ResolveNested<T> = T extends CheckRule | V1CheckRule | readonly (CheckRule 
  */
 export type GenerateSetters<T> = {
   [K in keyof T as IsDynamic<T[K]> extends true ? `set${Capitalize<string & K>}` : never]-?: (
-    value: [Exclude<NonNullable<T[K]>, DynamicTypes>] extends [never]
+    value: [StripDynamic<NonNullable<T[K]>>] extends [never]
       ? unknown
-      : Exclude<NonNullable<T[K]>, DynamicTypes>,
+      : StripDynamic<NonNullable<T[K]>>,
   ) => void;
 };
 
@@ -1431,12 +1462,7 @@ export class GenericBinder<T> {
     }
 
     const templateObj = value as Record<string, unknown>;
-    const templatePath =
-      typeof templateObj.path === 'string'
-        ? templateObj.path
-        : typeof templateObj['@path'] === 'string'
-          ? templateObj['@path']
-          : undefined;
+    const templatePath = typeof templateObj.path === 'string' ? templateObj.path : undefined;
     const templateComponentId =
       typeof templateObj.componentId === 'string' ? templateObj.componentId : undefined;
 

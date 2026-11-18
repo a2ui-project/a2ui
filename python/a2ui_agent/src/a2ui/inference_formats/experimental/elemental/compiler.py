@@ -198,7 +198,7 @@ class DomBuilder(HTMLParser):
         if self.stack:
             self.stack[-1].children.append(node)
 
-    def handle_starttag(self, tag, attrs):
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         node = self._new_node(tag, attrs)
         if node.tag.startswith(TAG_PREFIX):
             self._close_leaf_components()
@@ -207,7 +207,7 @@ class DomBuilder(HTMLParser):
         if node.tag not in _VOID_TAGS:
             self.stack.append(node)
 
-    def handle_endtag(self, tag):
+    def handle_endtag(self, tag: str) -> None:
         tag_lower = tag.lower()
         # Forgivingly pop matching tag from stack
         if self.stack and self.stack[-1].tag == tag_lower:
@@ -219,13 +219,13 @@ class DomBuilder(HTMLParser):
                     self.stack = self.stack[:idx]
                     break
 
-    def handle_startendtag(self, tag, attrs):
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         node = self._new_node(tag, attrs)
         if node.tag.startswith(TAG_PREFIX):
             self._close_leaf_components()
         self._attach(node)
 
-    def handle_data(self, data):
+    def handle_data(self, data: str) -> None:
         if self.stack:
             self.stack[-1].text += data
 
@@ -263,8 +263,9 @@ def _get_enum_values(schema: Any) -> list[Any] | None:
     """Recursively finds and extracts enum values from a schema dict."""
     if not isinstance(schema, dict):
         return None
-    if "enum" in schema:
-        return schema["enum"]
+    enum_val = schema.get("enum")
+    if isinstance(enum_val, list):
+        return list(enum_val)
     for key in ["oneOf", "anyOf", "allOf"]:
         if key in schema and isinstance(schema[key], list):
             for sub in schema[key]:
@@ -417,7 +418,7 @@ def _function_allows_extra_args(fn_schema: Any) -> bool:
 class _CompileContext:
     """Holds mutable state during compilation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.components: list[dict[str, Any]] = []
         self.auto_id_counter = 0
 

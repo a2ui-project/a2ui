@@ -17,6 +17,7 @@ import A2UISwiftUI
 import BasicCatalog
 import BasicCatalogSwiftUI
 import JSONSchema
+import OrderedJSON
 import SwiftUI
 import Testing
 
@@ -85,16 +86,16 @@ struct RenderedChildrenTests {
   }
 
   @Test(arguments: ["Row", "Column"])
-  func spaceBetweenIgnoresUnrenderedChildren(container: String) {
-    let reference = measureOrigins(container, ["a", "b", "c"])
+  func spaceBetweenIgnoresUnrenderedChildren(container: String) throws {
+    let reference = try measureOrigins(container, ["a", "b", "c"])
     #expect(reference.count == 3)
-    #expect(measureOrigins(container, ["a", "x", "b", "c"]) == reference)
-    #expect(measureOrigins(container, ["a", "b", "c", "x"]) == reference)
+    #expect(try measureOrigins(container, ["a", "x", "b", "c"]) == reference)
+    #expect(try measureOrigins(container, ["a", "b", "c", "x"]) == reference)
   }
 
   /// Hosts a `container` ("Row" or "Column") with `justify: spaceBetween` and returns the
   /// origins of its Text children. "x" is a child of an unknown type.
-  private func measureOrigins(_ container: String, _ ids: [String]) -> [String: CGPoint] {
+  private func measureOrigins(_ container: String, _ ids: [String]) throws -> [String: CGPoint] {
     let recorder = OriginRecorder()
     let base = BasicCatalogImplementation.makeCatalog(version: .v091)
     let probedText = ComponentImplementation(api: BasicCatalogComponents.text) { node in
@@ -112,24 +113,42 @@ struct RenderedChildrenTests {
       protocolVersion: .v091,
       components: base.components.values.filter { $0.name != "Text" } + [probedText]
     )
-    let children = ids.map { id in
-      id == "x"
-        ? Node(id: id, type: "StarRating", properties: [:])
-        : Node(id: id, type: "Text", properties: ["text": "Item \(id)"])
-    }
-    let node = Node(
-      id: "container",
-      type: container,
-      properties: ["justify": "spaceBetween", "children": children]
+    let starRatingSchema = try Schema(instance: #"{"type": "object"}"#)
+    let coreBase = BasicCatalog.makeCatalog(version: .v091)
+    let coreCatalog = Catalog(
+      id: coreBase.id,
+      protocolVersion: .v091,
+      components: Array(coreBase.components.values) + [
+        AnyComponentAPI(name: "StarRating", schema: starRatingSchema)
+      ]
     )
-    let stack = container == "Row" ? AnyView(A2UIRow(node: node)) : AnyView(A2UIColumn(node: node))
+    let viewModel = SurfaceViewModel(surfaceID: "container-surface", catalog: coreCatalog)
+    viewModel.componentsModel.addComponent(
+      ComponentModel(
+        id: "root",
+        type: container,
+        properties: [
+          "justify": .string("spaceBetween"),
+          "children": .array(ids.map(JSONValue.string)),
+        ]
+      )
+    )
+    for id in ids {
+      if id == "x" {
+        viewModel.componentsModel.addComponent(
+          ComponentModel(id: id, type: "StarRating", properties: [:])
+        )
+      } else {
+        viewModel.componentsModel.addComponent(
+          ComponentModel(id: id, type: "Text", properties: ["text": .string("Item \(id)")])
+        )
+      }
+    }
     let size = CGSize(width: 300, height: 200)
     let rootView =
-      stack
+      Surface(viewModel: viewModel, catalog: catalog)
       .frame(width: size.width, height: size.height)
-      .coordinateSpace(name: "container")
-      .environment(\.a2uiCatalogs, [catalog.id: catalog])
-      .environment(\.a2uiDefaultCatalogID, catalog.id)
+      .coordinateSpace(.named("container"))
 
     #if canImport(AppKit)
       let hostingView = NSHostingView(rootView: rootView)
