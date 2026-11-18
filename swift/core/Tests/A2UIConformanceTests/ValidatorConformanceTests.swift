@@ -460,8 +460,8 @@ struct ValidatorConformanceTests {
         processor.surfaceGroupModel[surfaceID],
         "[\(testName)] Expected surface '\(surfaceID)' to exist"
       )
-      // A map of component IDs to components states the surface's whole component model; a
-      // list states properties of resolved nodes.
+      // A map of component IDs to components states components of the surface's component
+      // model; a list states properties of resolved nodes.
       if let expectedModels = expectedSurface["components"]?.objectValue {
         try assertComponentModels(expectedModels, on: surface, testName: testName)
         continue
@@ -473,21 +473,18 @@ struct ValidatorConformanceTests {
     }
   }
 
-  /// Checks that `surface` holds exactly the components of `expected`, a map from component ID to
-  /// the component's type and properties.
+  /// Checks that `surface` holds each component of `expected`, a map from component ID to the
+  /// component's type and properties. Like every `expect`, it is a subset match: the surface may
+  /// hold other components.
   private func assertComponentModels(
     _ expected: OrderedDictionary<String, JSONValue>,
     on surface: SurfaceViewModel,
     testName: String
   ) throws {
-    #expect(
-      Set(surface.componentsModel.components.keys) == Set(expected.keys),
-      "[\(testName)] Component IDs mismatch on surface '\(surface.surfaceID)'"
-    )
     for (id, expectedComponent) in expected {
       let actual = try #require(
         surface.componentsModel.get(id),
-        "[\(testName)] Expected component '\(id)'"
+        "[\(testName)] Expected component '\(id)' on surface '\(surface.surfaceID)'"
       )
       let properties = try #require(
         expectedComponent.objectValue,
