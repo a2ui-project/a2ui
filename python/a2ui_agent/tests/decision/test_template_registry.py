@@ -92,6 +92,17 @@ class TestSurfaceTemplate:
         assert template.matches_payload(["/cpu"]) is False
         assert template.matches_payload([]) is False
 
+    def test_matches_payload_accepts_parent_array_pointer_for_unrolled_elements(
+        self,
+    ) -> None:
+        template = _make_v09_template(
+            required_pointers=("/steps", "/steps/0/title", "/steps/1/title"),
+            is_mutable=True,
+        )
+        assert template.matches_payload(["/steps"]) is True
+        msg_dicts = to_message_dicts(template.render_messages({"steps": []}))
+        assert msg_dicts[0]["createSurface"].get("sendDataModel") is True
+
     def test_matches_payload_with_empty_requirements_always_matches(self) -> None:
         template = _make_v09_template(required_pointers=())
         assert template.matches_payload([]) is True
