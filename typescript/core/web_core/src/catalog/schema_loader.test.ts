@@ -1205,5 +1205,35 @@ describe('Catalog.fromJson & schema_loader', () => {
       assert.strictEqual(recordSchema.safeParse({bag: {k1: 1}}).success, true);
       assert.strictEqual(recordSchema.safeParse({bag: {k1: 1, k2: 2, k3: 3}}).success, false);
     });
+
+    it('enforces typeless "not" subschemas such as {"not": {"required": ["b"]}} (Row 6)', () => {
+      console.log('\n--- START TEST: typeless not subschema enforcement (Row 6) ---');
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          payload: {
+            type: 'object',
+            properties: {
+              a: {type: 'string'},
+              b: {type: 'string'},
+            },
+            not: {required: ['b']},
+          },
+        },
+        required: ['payload'],
+      });
+
+      const allowedRes = schema.safeParse({payload: {a: 'ok'}});
+      console.log('not {required: ["b"]} with {a: "ok"}:', allowedRes.success);
+      assert.strictEqual(allowedRes.success, true);
+
+      const emptyAllowedRes = schema.safeParse({payload: {}});
+      console.log('not {required: ["b"]} with {}:', emptyAllowedRes.success);
+      assert.strictEqual(emptyAllowedRes.success, true);
+
+      const forbiddenRes = schema.safeParse({payload: {a: 'ok', b: 'forbidden'}});
+      console.log('not {required: ["b"]} with {a: "ok", b: "forbidden"}:', forbiddenRes.success);
+      assert.strictEqual(forbiddenRes.success, false);
+    });
   });
 });

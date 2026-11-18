@@ -403,6 +403,127 @@ function convertAllOfPropertyToZod(
 }
 
 /**
+ * Converts an object-typed JSON Schema definition into a Zod schema.
+ *
+ * Builds a structured `z.object(...)` closed via `closeObjectSchema` whenever
+ * `properties` or `patternProperties` is declared, or falls back to
+ * `z.record(z.unknown())` constrained by `minProperties`/`maxProperties` otherwise.
+ */
+function convertObjectSchemaToZod(
+  propSchema: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
+  visitedPointers = new Set<string>(),
+  defCache = new Map<string, z.ZodTypeAny>(),
+): z.ZodTypeAny {
+  const props = propSchema.properties;
+  const hasPatterns =
+    typeof propSchema.patternProperties === 'object' && propSchema.patternProperties !== null;
+  if ((typeof props === 'object' && props !== null) || hasPatterns) {
+    const required = Array.isArray(propSchema.required)
+      ? new Set(propSchema.required.filter((r): r is string => typeof r === 'string'))
+      : new Set<string>();
+    const baseObj = z.object(
+      convertPropertiesToShape(
+        (props ?? {}) as Record<string, unknown>,
+        required,
+        false,
+        rootDoc,
+        visitedPointers,
+        defCache,
+      ),
+    );
+    const forbidExtra =
+      propSchema.additionalProperties === false || propSchema.unevaluatedProperties === false;
+    return closeObjectSchema(
+      baseObj,
+      [propSchema],
+      forbidExtra,
+      rootDoc,
+      visitedPointers,
+      defCache,
+    );
+  }
+  return applyObjectKeyCountConstraints(z.record(z.unknown()), [propSchema]);
+}
+
+const OBJECT_APPLICATOR_KEYWORDS = [
+  'properties',
+  'patternProperties',
+  'required',
+  'minProperties',
+  'maxProperties',
+  'additionalProperties',
+  'unevaluatedProperties',
+  'dependentRequired',
+  'dependentSchemas',
+  'propertyNames',
+] as const;
+
+/**
+ * Converts a JSON Schema fragment that omits an explicit `type` keyword into a Zod schema
+ * by inspecting type-specific keywords (such as `required`, `properties`, `minProperties`,
+ * `maxProperties`, string bounds, numeric bounds, or array bounds).
+ *
+ * Per JSON Schema semantics, keywords only constrain instances of their applicable type
+ * when `type` is omitted (e.g. `{"required": ["b"]}` constrains objects while allowing
+ * non-objects unless `type: "object"` is also specified).
+ */
+function convertTypelessSchemaToZod(
+  propSchema: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
+  visitedPointers = new Set<string>(),
+  defCache = new Map<string, z.ZodTypeAny>(),
+): z.ZodTypeAny {
+  const hasObjectKeywords = OBJECT_APPLICATOR_KEYWORDS.some(k => propSchema[k] !== undefined);
+  if (hasObjectKeywords) {
+    const hasPropsOrPatterns =
+      (typeof propSchema.properties === 'object' && propSchema.properties !== null) ||
+      (typeof propSchema.patternProperties === 'object' && propSchema.patternProperties !== null);
+
+    let objectValidator: z.ZodTypeAny;
+    if (hasPropsOrPatterns) {
+      objectValidator = convertObjectSchemaToZod(propSchema, rootDoc, visitedPointers, defCache);
+    } else {
+      const requiredKeys = Array.isArray(propSchema.required)
+        ? propSchema.required.filter((r): r is string => typeof r === 'string')
+        : [];
+      let base: z.ZodTypeAny = z.record(z.unknown());
+      if (requiredKeys.length > 0) {
+        base = base.refine(
+          (val: unknown) =>
+            isPlainObject(val) &&
+            requiredKeys.every(key => Object.prototype.hasOwnProperty.call(val, key)),
+          {message: `Object is missing required properties: ${requiredKeys.join(', ')}`},
+        );
+      }
+      if (propSchema.additionalProperties === false || propSchema.unevaluatedProperties === false) {
+        base = base.refine((val: unknown) => isPlainObject(val) && Object.keys(val).length === 0, {
+          message: 'Additional properties are not allowed',
+        });
+      }
+      objectValidator = applyObjectKeyCountConstraints(base, [propSchema]);
+    }
+
+    const typelessObj = z.unknown().superRefine((val, ctx) => {
+      if (!isPlainObject(val)) return;
+      const res = objectValidator.safeParse(val);
+      if (!res.success) {
+        for (const issue of res.error.issues) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: issue.message,
+            path: issue.path,
+          });
+        }
+      }
+    });
+    return finalizePropertyZod(typelessObj, propSchema, rootDoc, visitedPointers, defCache);
+  }
+
+  return finalizePropertyZod(z.unknown(), propSchema, rootDoc, visitedPointers, defCache);
+}
+
+/**
  * Converts a JSON Schema property definition into a runtime Zod schema.
  *
  * Handles `$ref` pointers, unions (`oneOf`, `anyOf`), enums, const values,
@@ -543,47 +664,11 @@ function convertPropertyToZod(
       return finalizePropertyZod(z.boolean(), propSchema, rootDoc, visitedPointers, defCache);
     }
     case 'object': {
-      // An inline object that declares its properties is converted structurally
-      // rather than collapsed to an opaque record. Without this, a child
-      // reference nested inside an array item is invisible to the reference map,
-      // so the component graph would look as if it had no children there.
-      const props = propSchema.properties;
-      const hasPatterns =
-        typeof propSchema.patternProperties === 'object' && propSchema.patternProperties !== null;
-      let obj: z.ZodTypeAny;
-      if ((typeof props === 'object' && props !== null) || hasPatterns) {
-        const required = Array.isArray(propSchema.required)
-          ? new Set(propSchema.required.filter((r): r is string => typeof r === 'string'))
-          : new Set<string>();
-        const baseObj = z.object(
-          convertPropertiesToShape(
-            (props ?? {}) as Record<string, unknown>,
-            required,
-            false,
-            rootDoc,
-            visitedPointers,
-            defCache,
-          ),
-        );
-        const forbidExtra =
-          propSchema.additionalProperties === false || propSchema.unevaluatedProperties === false;
-        obj = closeObjectSchema(
-          baseObj,
-          [propSchema],
-          forbidExtra,
-          rootDoc,
-          visitedPointers,
-          defCache,
-        );
-      } else {
-        // Even when an object schema declares no `properties` or `patternProperties`,
-        // it may still declare `minProperties` or `maxProperties` bounds.
-        obj = applyObjectKeyCountConstraints(z.record(z.unknown()), [propSchema]);
-      }
+      const obj = convertObjectSchemaToZod(propSchema, rootDoc, visitedPointers, defCache);
       return finalizePropertyZod(obj, propSchema, rootDoc, visitedPointers, defCache);
     }
     default: {
-      return finalizePropertyZod(z.unknown(), propSchema, rootDoc, visitedPointers, defCache);
+      return convertTypelessSchemaToZod(propSchema, rootDoc, visitedPointers, defCache);
     }
   }
 }
