@@ -104,10 +104,8 @@ void main() {
           .widget<VideoProgressIndicator>(_progress)
           .controller
           .value;
-      expect(
-        value.position.inMilliseconds / value.duration.inMilliseconds,
-        closeTo(12 / 65, 0.001),
-      );
+      expect(value.position, const Duration(seconds: 12));
+      expect(value.duration, const Duration(seconds: 65));
 
       await tester.tap(_button(Icons.pause));
       await tester.pump();
