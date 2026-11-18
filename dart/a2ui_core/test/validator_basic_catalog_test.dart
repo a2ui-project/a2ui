@@ -35,7 +35,7 @@ Map<String, Object?> _readJson(String relativePath) =>
         as Map<String, Object?>;
 
 Map<String, Object?> basicCatalogDocument() =>
-    _readJson('../specification/v0_9_1/catalogs/basic/catalog.json');
+    _readJson('../catalogs/basic/v0_9_1/catalog.json');
 
 void main() {
   group('the basic catalog', () {
@@ -160,13 +160,13 @@ void main() {
 
   _registerExamples(
     'the v0.9.1 basic catalog examples against the v0.9.1 document',
-    '../specification/v0_9_1/catalogs/basic/examples',
+    '../catalogs/basic/v0_9_1/examples',
     () => rendererCatalog(basicCatalogDocument()),
     A2uiProtocolVersion.v0_9,
   );
   _registerExamples(
     'the v0.9 basic catalog examples against BasicCatalog.v0_9()',
-    '../specification/v0_9/catalogs/basic/examples',
+    '../catalogs/basic/v0_9/examples',
     BasicCatalog.v0_9,
     A2uiProtocolVersion.v0_9,
   );

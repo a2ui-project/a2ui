@@ -16,7 +16,10 @@
 
 # [a2ui_flutter](https://pub.dev/packages/a2ui_flutter) Changelog
 
-## Unreleased
+## 0.4.0
+
+- **Breaking:** Requires `a2ui_core` `^0.8.0`, whose types this library
+  re-exports.
 
 - The basic `Text` component marks the `h1`–`h5` variants, and a Text that
   is one Markdown heading line, as headings of their level in the semantics

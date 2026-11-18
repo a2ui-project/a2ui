@@ -112,9 +112,10 @@ export class NodeResolver<
    */
   constructor(
     surface: SurfaceModel<C, F>,
-    catalog: Catalog<C, F> | undefined = surface.defaultCatalog,
+    catalog: Catalog<C, F> | undefined = surface.defaultCatalog ?? surface.catalog,
   ) {
-    if ((catalog as unknown) !== (surface.defaultCatalog as unknown)) {
+    const surfaceCatalog = surface.defaultCatalog ?? surface.catalog;
+    if ((catalog as unknown) !== (surfaceCatalog as unknown)) {
       throw new A2uiStateError(
         'NodeResolver requires the same catalog instance its surface was constructed with.',
       );
@@ -136,7 +137,7 @@ export class NodeResolver<
       );
     }
 
-    if (surface.componentsModel.get(this.rootId)) {
+    if (surface.componentsModel?.get(this.rootId)) {
       this.buildRoot();
     }
   }
@@ -162,7 +163,7 @@ export class NodeResolver<
       return;
     }
     codes.add(code);
-    this.surface.dispatchError({code, message});
+    this.surface.dispatchError?.({code, message});
   }
 
   private clearDispatched(componentId: string, dataPath: string): void {
@@ -327,13 +328,15 @@ export class NodeResolver<
     }
 
     const compCatalog = this.catalogFor(model);
-    const api = compCatalog.components.get(model.type);
+    const api = compCatalog?.components?.get(model.type);
     if (!api) {
       this.dispatchOnce(
         'UNKNOWN_COMPONENT_TYPE',
         componentId,
         dataPath,
-        `Component '${componentId}' has type '${model.type}', which is not in catalog '${compCatalog.id}'.`,
+        compCatalog
+          ? `Component '${componentId}' has type '${model.type}', which is not in catalog '${compCatalog.id}'.`
+          : `Component '${componentId}' has type '${model.type}', and neither the component nor surface '${this.surface.id}' defines a catalog.`,
       );
       return this.registerNode(
         new MutableComponentNode(
@@ -345,7 +348,7 @@ export class NodeResolver<
           undefined,
           undefined,
           'unknown-type',
-          computed(() => getValue(model.metadataSignal)),
+          computed(() => (model.metadataSignal ? getValue(model.metadataSignal) : model.metadata)),
         ),
         {edgeKey, parent, occurrence, refFields: EMPTY_REF_FIELDS, componentModel: model},
       ).node;
@@ -358,9 +361,9 @@ export class NodeResolver<
       dataPath,
       parent?.context?.dataContext,
     );
-    const refOptions = isAtLeastVersion(compCatalog.protocolVersion, '1.0')
+    const refOptions = isAtLeastVersion(compCatalog?.protocolVersion, '1.0')
       ? V10_CHILD_REF_OPTIONS
-      : isAtLeastVersion(compCatalog.protocolVersion, '0.9')
+      : isAtLeastVersion(compCatalog?.protocolVersion, '0.9')
         ? V09_CHILD_REF_OPTIONS
         : V08_CHILD_REF_OPTIONS;
     const binder = new GenericBinder<NodeProps>(context, api.schema, refOptions);
@@ -374,7 +377,7 @@ export class NodeResolver<
         api,
         context,
         'resolved',
-        computed(() => getValue(model.metadataSignal)),
+        computed(() => (model.metadataSignal ? getValue(model.metadataSignal) : model.metadata)),
       ),
       {
         edgeKey,
@@ -399,14 +402,17 @@ export class NodeResolver<
   }
 
   /**
-   * Returns the catalog a component model resolves against: the catalog it
-   * was bound to, never the surface's default catalog directly.
+   * Returns the catalog a component model resolves against: the catalog bound
+   * on the model when set, falling back to the surface's default catalog when
+   * `model.catalog` is `undefined` (for example on components constructed with
+   * the pre-1.0 3-argument `ComponentModel` overload or partial test stand-ins).
    *
    * @param model Component model to resolve.
-   * @returns The component model's catalog.
+   * @returns The catalog to look up `model.type` in, or `undefined` when neither
+   *   the component nor the surface defines one.
    */
-  private catalogFor(model: ComponentModel): Catalog<C, F> {
-    return model.catalog as Catalog<C, F>;
+  private catalogFor(model: ComponentModel): Catalog<C, F> | undefined {
+    return model.catalog ?? this.surface.defaultCatalog ?? this.surface.catalog;
   }
 
   private registerNode(
@@ -492,7 +498,7 @@ export class NodeResolver<
     }
     if (existing && !existing.disposed) {
       const model = this.surface.componentsModel.get(componentId);
-      const api = model ? this.catalogFor(model).components.get(model.type) : undefined;
+      const api = model ? this.catalogFor(model)?.components?.get(model.type) : undefined;
       // A placeholder stays up to date only while its own state's
       // preconditions hold, so a pending node whose definition arrives with
       // an unknown type is replaced (once) by an unknown-type node, and

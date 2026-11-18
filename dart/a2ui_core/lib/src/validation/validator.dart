@@ -1216,13 +1216,35 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   }();
 
   Schema _resolve(Map<String, Object?> schema) => Schema.fromMap(
-        resolveSchemaRefs(
-          schema,
-          _resolutionDocument,
-          commonTypes: commonTypesSchema,
-          fallbackCommonTypes: _fallbackCommonTypes,
+        _enforceStrictUriFormat(
+          resolveSchemaRefs(
+            schema,
+            _resolutionDocument,
+            commonTypes: commonTypesSchema,
+            fallbackCommonTypes: _fallbackCommonTypes,
+          ),
         ),
       );
+
+  static const String _uriFormatPattern = r'^[A-Za-z][A-Za-z0-9+.-]*:\S*$';
+
+  static Map<String, Object?> _enforceStrictUriFormat(
+    Map<String, Object?> schema,
+  ) =>
+      _enforceStrictUriValue(schema)! as Map<String, Object?>;
+
+  static Object? _enforceStrictUriValue(Object? value) => switch (value) {
+        final Map<Object?, Object?> map => <String, Object?>{
+            for (final MapEntry<Object?, Object?> entry in map.entries)
+              '${entry.key}': _enforceStrictUriValue(entry.value),
+            if (map['format'] == 'uri' && !map.containsKey('pattern'))
+              'pattern': _uriFormatPattern,
+          },
+        final List<Object?> list => <Object?>[
+            for (final Object? item in list) _enforceStrictUriValue(item),
+          ],
+        _ => value,
+      };
 
   static const Map<String, Object?> _anyV1FunctionCall = {
     'type': 'object',
