@@ -2,7 +2,7 @@
 
 Embed A2UI in [MCP Apps](https://github.com/modelcontextprotocol/ext-apps): an MCP server returns A2UI v1.0 messages from its tools, and a single-file app renders them in any MCP Apps host, so the host needs no A2UI support.
 
-This package is under development. It currently provides the contract between the server and the app, the server API, and the app's runtime.
+This package is under development. It currently provides the contract between the server and the app, the server API, the app's runtime, and the command that builds the app.
 
 ## Contract
 
@@ -192,3 +192,39 @@ The document text uses `--font-sans` and `--color-text-primary`. The app's rules
 | `--a2ui-embed-error-color`        | `--color-text-danger`       |
 | `--a2ui-embed-error-background`   | `--color-background-danger` |
 | `--a2ui-embed-error-border-color` | `--color-border-danger`     |
+
+## Building the app HTML
+
+The `a2ui-embed build` command builds the app as one HTML file, with the renderer, your catalogs and their components inlined. The app loads nothing from the network, so it runs under the default MCP Apps content security policy, which only allows inline scripts and styles and `data:` or `blob:` media.
+
+Describe the app in `a2ui-embed.config.ts` (or `.mts`, `.mjs`, `.js`) next to your `package.json`:
+
+```ts
+import {basicCatalog, defineConfig} from '@a2ui/embed/build';
+
+import {salesCatalog} from './src/sales_catalog.js';
+
+export default defineConfig({
+  catalogs: [basicCatalog, salesCatalog],
+  renderer: 'lit', // Optional (default: 'lit')
+  output: 'dist/a2ui-app.html',
+  title: 'Sales', // Optional (default: 'A2UI app')
+});
+```
+
+Then run:
+
+```sh
+yarn a2ui-embed build
+```
+
+The command writes two files, at paths relative to the config file:
+
+- `dist/a2ui-app.html`: the app. Serve it as the app resource of your MCP server.
+- `dist/a2ui-app.catalog.json`: the catalog schema file, with the JSON schema of each catalog keyed by catalog ID. Your server validates the components it sends against it.
+
+`catalogs` lists web_core `Catalog` objects for A2UI v1.x, with unique IDs. `basicCatalog` is the A2UI v1.0 basic catalog. Custom components can be Lit elements or plain Web Components.
+
+The build evaluates the config file in Node to write the catalog schema file, and bundles the same config file into the app, so the schema and the app always come from the same catalogs. As a result, the config file and the catalog modules it imports must load both in Node and in the browser: keep browser-only code, such as `document` access, inside component methods that run on render, and Node-only code, such as `node:fs`, out of the config file.
+
+The build fails if the app would load a script, stylesheet or other resource from the network, and warns when the app is larger than 5 MiB, since hosts may reject large resources. Use `--config <path>` to build from another config file. In code, `build({config?, cwd?})` from `@a2ui/embed/build` runs the same build and returns the paths and the size of the written files.
