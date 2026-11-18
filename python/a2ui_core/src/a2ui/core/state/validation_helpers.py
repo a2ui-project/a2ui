@@ -34,7 +34,6 @@ if TYPE_CHECKING:
 
 ROOT_ID = "root"
 MAX_GLOBAL_DEPTH = 50
-MAX_FUNC_CALL_DEPTH = 5
 RELAXED_PATH_PATTERN = re.compile(
     r"^(?:(?:\/(?:[^~\/]|~[01])*)*|(?:[^~\/]|~[01])+(?:\/(?:[^~\/]|~[01])*)*)$"
 )
@@ -42,7 +41,6 @@ RELAXED_PATH_PATTERN = re.compile(
 __all__ = [
     "ROOT_ID",
     "MAX_GLOBAL_DEPTH",
-    "MAX_FUNC_CALL_DEPTH",
     "RELAXED_PATH_PATTERN",
     "validate_component_integrity",
     "validate_recursion_and_paths",
@@ -84,7 +82,7 @@ def validate_component_integrity(
 def validate_recursion_and_paths(data: Any) -> None:
     """Traverses message payload structures verifying recursion depth and data pointer path syntax."""
 
-    def traverse(item: Any, global_depth: int, func_depth: int) -> None:
+    def traverse(item: Any, global_depth: int) -> None:
         if global_depth > MAX_GLOBAL_DEPTH:
             raise A2uiRecursionError(
                 f"Global recursion limit exceeded: Depth > {MAX_GLOBAL_DEPTH}"
@@ -92,7 +90,7 @@ def validate_recursion_and_paths(data: Any) -> None:
 
         if isinstance(item, list):
             for x in item:
-                traverse(x, global_depth + 1, func_depth)
+                traverse(x, global_depth + 1)
             return
 
         if isinstance(item, dict):
@@ -114,34 +112,14 @@ def validate_recursion_and_paths(data: Any) -> None:
                         path=f"/{path_key}",
                     )
 
-            is_func_v08 = "functionCall" in item and isinstance(
-                item["functionCall"], dict
-            )
-            is_func_v09 = ("call" in item or "@call" in item) and "args" in item
-
-            if is_func_v08:
-                if func_depth >= MAX_FUNC_CALL_DEPTH:
-                    raise A2uiRecursionError(
-                        "Recursion limit exceeded: functionCall depth >"
-                        f" {MAX_FUNC_CALL_DEPTH}"
-                    )
-                traverse(item["functionCall"], global_depth + 1, func_depth + 1)
-            elif is_func_v09:
-                if func_depth >= MAX_FUNC_CALL_DEPTH:
-                    raise A2uiRecursionError(
-                        "Recursion limit exceeded: functionCall depth >"
-                        f" {MAX_FUNC_CALL_DEPTH}"
-                    )
-                for k, v in item.items():
-                    if k == "args":
-                        traverse(v, global_depth + 1, func_depth + 1)
-                    else:
-                        traverse(v, global_depth + 1, func_depth)
+            function_call = item.get("functionCall")
+            if isinstance(function_call, dict):
+                traverse(function_call, global_depth + 1)
             else:
                 for v in item.values():
-                    traverse(v, global_depth + 1, func_depth)
+                    traverse(v, global_depth + 1)
 
-    traverse(data, 0, 0)
+    traverse(data, 0)
 
 
 def analyze_topology(

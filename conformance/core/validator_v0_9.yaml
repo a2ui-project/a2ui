@@ -179,46 +179,6 @@
           - path: "/component"
             code: "invalid_value"
 
-- name: test_recursion_limit_function_call_depth_exceeded_error
-  features: [F-CORE-38]
-  description: Tests that nested functionCall expressions exceeding maximum depth (5) raise a RecursionError.
-  action: validate
-  protocolVersion: "v0.9"
-  catalogPaths:
-    - "catalogs/basic/v0_9/catalog.json"
-  strictMode: true
-  steps:
-    - messages:
-        - version: "v0.9"
-          createSurface:
-            surfaceId: "s1"
-            catalogId: "test-catalog"
-        - version: "v0.9"
-          updateComponents:
-            surfaceId: "s1"
-            components:
-              - id: "root"
-                component: "Text"
-                text:
-                  call: "f1"
-                  args:
-                    v:
-                      call: "f2"
-                      args:
-                        v:
-                          call: "f3"
-                          args:
-                            v:
-                              call: "f4"
-                              args:
-                                v:
-                                  call: "f5"
-                                  args:
-                                    v:
-                                      call: "f6"
-                                      args: {}
-      expectError: "functionCall depth"
-
 - name: test_v09_topology_circular_reference_error
   features: [F-CORE-12]
   description: Tests that circular component references fail validation in v0.9 strict mode.

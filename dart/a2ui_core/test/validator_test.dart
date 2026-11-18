@@ -17,7 +17,7 @@ import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/validation/component_graph.dart'
-    show maxFunctionCallArgs, maxFunctionCallDepth;
+    show maxComponentDepth, maxFunctionCallArgs;
 import 'package:a2ui_core/src/validation/component_refs.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
@@ -423,11 +423,11 @@ void main() {
       );
     });
 
-    test('rejects function calls nested past the cap', () {
+    test('rejects function calls nested past the global depth limit', () {
       final MessageProcessor<ComponentApi> processor =
           newProcessorWithSurface();
       Map<String, Object?> call = {'call': 'f', 'args': <String, Object?>{}};
-      for (var i = 0; i < maxFunctionCallDepth + 1; i++) {
+      for (var i = 0; i < maxComponentDepth; i++) {
         call = {
           'call': 'f',
           'args': {'inner': call},
@@ -445,7 +445,7 @@ void main() {
           isA<A2uiRecursionError>().having(
             (e) => e.message,
             'message',
-            contains('functionCall depth'),
+            contains('Global recursion limit exceeded'),
           ),
         ),
       );

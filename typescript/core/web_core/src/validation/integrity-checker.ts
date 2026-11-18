@@ -21,9 +21,6 @@ import {ProtocolVersion} from '../processing/adapters/base.js';
 /** Maximum permitted nesting depth for JSON objects and array structures. */
 export const MAX_GLOBAL_DEPTH = 50;
 
-/** Maximum permitted recursion depth for nested function calls. */
-export const MAX_FUNC_CALL_DEPTH = 5;
-
 /** Regex pattern matching valid JSON Pointer syntax (RFC 6901 compliant with optional relative path). */
 export const RELAXED_PATH_PATTERN =
   /^(?:(?:\/(?:[^~/]|~[01])*)*|(?:[^~/]|~[01])+(?:\/(?:[^~/]|~[01])*)*)$/;
@@ -225,14 +222,14 @@ export const RELAXED_VALIDATION: ValidationConfig = Object.freeze({
   allowUnknownElements: true,
 });
 
-function traverseRecursionAndPaths(item: unknown, globalDepth: number, funcDepth: number): void {
+function traverseRecursionAndPaths(item: unknown, globalDepth: number): void {
   if (globalDepth > MAX_GLOBAL_DEPTH) {
     throw new A2uiRecursionError(`Global recursion limit exceeded: Depth > ${MAX_GLOBAL_DEPTH}`);
   }
 
   if (Array.isArray(item)) {
     for (const x of item) {
-      traverseRecursionAndPaths(x, globalDepth + 1, funcDepth);
+      traverseRecursionAndPaths(x, globalDepth + 1);
     }
     return;
   }
@@ -246,43 +243,8 @@ function traverseRecursionAndPaths(item: unknown, globalDepth: number, funcDepth
       }
     }
 
-    const isFunctionCallWrapper =
-      Object.hasOwn(obj, 'functionCall') &&
-      typeof obj.functionCall === 'object' &&
-      obj.functionCall !== null;
-    const isBareFunctionCall =
-      (Object.hasOwn(obj, 'call') || Object.hasOwn(obj, '@call')) && Object.hasOwn(obj, 'args');
-
-    if (isFunctionCallWrapper) {
-      if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
-        throw new A2uiRecursionError(
-          `Recursion limit exceeded: functionCall depth > ${MAX_FUNC_CALL_DEPTH}`,
-        );
-      }
-      for (const [k, v] of Object.entries(obj)) {
-        if (k === 'functionCall') {
-          traverseRecursionAndPaths(v, globalDepth + 1, funcDepth + 1);
-        } else {
-          traverseRecursionAndPaths(v, globalDepth + 1, funcDepth);
-        }
-      }
-    } else if (isBareFunctionCall) {
-      if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
-        throw new A2uiRecursionError(
-          `Recursion limit exceeded: functionCall depth > ${MAX_FUNC_CALL_DEPTH}`,
-        );
-      }
-      for (const [k, v] of Object.entries(obj)) {
-        if (k === 'args') {
-          traverseRecursionAndPaths(v, globalDepth + 1, funcDepth + 1);
-        } else {
-          traverseRecursionAndPaths(v, globalDepth + 1, funcDepth);
-        }
-      }
-    } else {
-      for (const v of Object.values(obj)) {
-        traverseRecursionAndPaths(v, globalDepth + 1, funcDepth);
-      }
+    for (const v of Object.values(obj)) {
+      traverseRecursionAndPaths(v, globalDepth + 1);
     }
   }
 }
@@ -291,9 +253,9 @@ function traverseRecursionAndPaths(item: unknown, globalDepth: number, funcDepth
  * Traverses a JSON data payload to validate path syntax and recursion limits.
  *
  * @param data Data payload or component hierarchy to evaluate.
- * @throws {A2uiRecursionError} If global structure depth or function call depth exceeds limits.
+ * @throws {A2uiRecursionError} If global structure depth exceeds the limit.
  * @throws {A2uiValidationError} If an invalid JSON Pointer path format is encountered.
  */
 export function validateRecursionAndPaths(data: unknown): void {
-  traverseRecursionAndPaths(data, 0, 0);
+  traverseRecursionAndPaths(data, 0);
 }

@@ -607,17 +607,17 @@ constructor(
     }
   }
 
-  /** Validates JSON payload recursion depth and functional call depth. */
+  /** Validates JSON payload recursion depth and path syntax. */
   private class A2uiRecursionValidator(private val strictIntegrity: Boolean = true) {
-    fun validate(data: JsonElement) = traverse(data, 0, 0)
+    fun validate(data: JsonElement) = traverse(data, 0)
 
-    private fun traverse(item: JsonElement, globalDepth: Int, funcDepth: Int) {
+    private fun traverse(item: JsonElement, globalDepth: Int) {
       if (globalDepth > MAX_GLOBAL_DEPTH) {
         throw A2uiRecursionException("Global recursion limit exceeded: Depth > $MAX_GLOBAL_DEPTH")
       }
 
       when (item) {
-        is JsonArray -> item.forEach { traverse(it, globalDepth + 1, funcDepth) }
+        is JsonArray -> item.forEach { traverse(it, globalDepth + 1) }
         is JsonObject -> {
           (item[PATH] as? JsonPrimitive)
             ?.takeIf { it.isString }
@@ -638,20 +638,7 @@ constructor(
               }
             }
 
-          val isFunc = CALL in item && ARGS in item
-          if (isFunc) {
-            if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
-              throw A2uiRecursionException(
-                "Recursion limit exceeded: $FUNCTION_CALL depth > $MAX_FUNC_CALL_DEPTH"
-              )
-            }
-            for ((k, v) in item) {
-              val nextFuncDepth = if (k == ARGS) funcDepth + 1 else funcDepth
-              traverse(v, globalDepth + 1, nextFuncDepth)
-            }
-          } else {
-            item.values.forEach { traverse(it, globalDepth + 1, funcDepth) }
-          }
+          item.values.forEach { traverse(it, globalDepth + 1) }
         }
         else -> {}
       }
@@ -685,14 +672,9 @@ constructor(
       )
     private val JSON_POINTER_PATTERN =
       Regex("^(?:(?:/(?:[^~/]|~[01])*)*|(?:[^~/]|~[01])+(?:/(?:[^~/]|~[01])*)*)$")
-    private const val MAX_FUNC_CALL_DEPTH = 5
-
     private const val ROOT = "root"
     private const val ID = "id"
     private const val PATH = "path"
-    private const val FUNCTION_CALL = "functionCall"
-    private const val CALL = "call"
-    private const val ARGS = "args"
 
     private const val MSG_SURFACE_UPDATE = "surfaceUpdate"
     private const val MSG_UPDATE_COMPONENTS = "updateComponents"
