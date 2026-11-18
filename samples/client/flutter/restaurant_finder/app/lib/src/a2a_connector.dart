@@ -43,6 +43,7 @@ class A2uiAgentConnector {
 
   String? _taskId;
   String? _contextId;
+  StreamSubscription<String>? _activeStreamSub;
 
   Stream<AgentToRendererMessage> get stream => _messageController.stream;
   Stream<String> get textStream => _textController.stream;
@@ -93,7 +94,9 @@ class A2uiAgentConnector {
       })
       ..body = jsonEncode(rpcRequest);
 
-    final http.StreamedResponse response = await _client.send(request);
+    final http.StreamedResponse response = await _client
+        .send(request)
+        .timeout(const Duration(seconds: 30));
     if (response.statusCode >= 400) {
       final String body = await response.stream.bytesToString();
       throw StateError(
@@ -105,26 +108,56 @@ class A2uiAgentConnector {
         .transform(utf8.decoder)
         .transform(const LineSplitter());
     final dataLines = <String>[];
+    final completer = Completer<void>();
 
-    await for (final String line in lines) {
-      if (line.isEmpty) {
+    await _activeStreamSub?.cancel();
+    _activeStreamSub = lines.listen(
+      (line) {
+        if (line.isEmpty) {
+          if (dataLines.isNotEmpty) {
+            _handleSseEvent(dataLines.join('\n'));
+            dataLines.clear();
+          }
+          return;
+        }
+        if (line.startsWith('data:')) {
+          dataLines.add(line.substring(5).trimLeft());
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!completer.isCompleted) {
+          completer.completeError(error, stackTrace);
+        }
+      },
+      onDone: () {
         if (dataLines.isNotEmpty) {
           _handleSseEvent(dataLines.join('\n'));
-          dataLines.clear();
         }
-        continue;
-      }
-      if (line.startsWith('data:')) {
-        dataLines.add(line.substring(5).trimLeft());
-      }
-    }
-    if (dataLines.isNotEmpty) {
-      _handleSseEvent(dataLines.join('\n'));
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+      },
+      cancelOnError: true,
+    );
+
+    try {
+      await completer.future;
+    } finally {
+      _activeStreamSub = null;
     }
   }
 
   void _handleSseEvent(String rawData) {
-    final Object? decoded = jsonDecode(rawData);
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(rawData);
+    } on FormatException catch (e, st) {
+      _logger.warning('Failed to decode SSE event JSON: $e', e, st);
+      if (!_errorController.isClosed) {
+        _errorController.add('A2A Error: Failed to parse event: $e');
+      }
+      return;
+    }
     if (decoded is! Map<String, Object?>) return;
 
     if (decoded['error'] case final Object error) {
@@ -202,6 +235,8 @@ class A2uiAgentConnector {
   }
 
   void dispose() {
+    unawaited(_activeStreamSub?.cancel());
+    _activeStreamSub = null;
     _messageController.close();
     _textController.close();
     _errorController.close();

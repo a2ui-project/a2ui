@@ -131,26 +131,29 @@ class RestaurantSession extends ChangeNotifier {
     if (text.isEmpty) return;
     await _sendToAgent(
       () => _connector.sendText(text, clientCapabilities: _capabilities),
+      clearSurfaces: true,
     );
   }
 
-  Future<void> _sendToAgent(Future<void> Function() send) async {
+  Future<void> _sendToAgent(
+    Future<void> Function() send, {
+    bool clearSurfaces = false,
+  }) async {
     if (_isRequesting) return;
     _isRequesting = true;
     _hasSentMessage = true;
     _error = null;
     _startLoadingAnimation();
 
-    // Clear existing surfaces on each new request.
-    for (final String id in [...activeSurfaceIds]) {
-      _processor.processMessages(
-        AgentToRendererMessagePayload.of(
+    // Clear existing surfaces on each new text request.
+    if (clearSurfaces && activeSurfaceIds.isNotEmpty) {
+      _processor.processMessages([
+        for (final String id in [...activeSurfaceIds])
           DeleteSurfaceMessage(
             version: A2uiProtocolVersion.v0_9.jsonValue,
             surfaceId: id,
           ),
-        ),
-      );
+      ]);
     }
 
     notifyListeners();
