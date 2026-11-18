@@ -119,22 +119,22 @@ export const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3'] as const;
 export type Priority = (typeof PRIORITY_LABELS)[number];
 
 // Days an item may carry ASSIGNED_FOR_TRIAGE_LABEL before it is flagged
-// (step 2).
+// (step 3).
 export const TRIAGE_ASSIGNMENT_DAYS = 14;
 
 // Priorities urgent enough that an unassigned issue is flagged immediately
-// (step 3). Every entry must be one of PRIORITY_LABELS.
+// (step 4). Every entry must be one of PRIORITY_LABELS.
 export const ASSIGNEE_REQUIRED_PRIORITIES: ReadonlySet<Priority> = new Set<Priority>(['P0', 'P1']);
 
 // Priorities whose assigned issues are flagged until they have a milestone
-// (step 3). Every entry must be one of PRIORITY_LABELS.
+// (step 4). Every entry must be one of PRIORITY_LABELS.
 export const MILESTONE_REQUIRED_PRIORITIES: ReadonlySet<Priority> = new Set<Priority>(['P1']);
 
-// Days of inactivity before an assigned issue is considered stale (step 3).
+// Days of inactivity before an assigned issue is considered stale (step 4).
 // Priorities absent here are never flagged for staleness.
 export const STALE_DAYS: Partial<Record<Priority, number>> = {P0: 1, P1: 30};
 
-// Days of inactivity before an assigned PR is considered stale (step 4).
+// Days of inactivity before an assigned PR is considered stale (step 5).
 export const PR_STALE_DAYS = 7;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -149,8 +149,8 @@ export const isBot = (user: User | null | undefined): boolean =>
 
 // Opens a comment that the triage tooling posts from a maintainer's account,
 // such as a triage suggestion: `**From triage bot:**`, in either Markdown bold
-// form or plain.
-const TRIAGE_BOT_PREFIX = /^\s*(\*\*|__)?From triage bot:/;
+// form or plain, with or without the colon.
+const TRIAGE_BOT_PREFIX = /^\s*(\*\*|__)?From triage bot\b/;
 
 /**
  * True for a comment a maintainer posted on behalf of the triage tooling. Such
@@ -249,14 +249,24 @@ export function flagReason(
   const labels = labelNames(item);
   const isPR = Boolean(item.pull_request);
   const assigneeCount = item.assignees?.length ?? 0;
+  const openedByExternal = isExternal({association: item.author_association});
+  const latest = lastHumanContribution(item, contributions);
 
-  // Step 1: a parked item is off the triage queue entirely. Its label is
-  // cleared once an external contributor responds, which puts it back in play.
+  // Step 1: the team manages its own items. One a team member opened stays off
+  // the queue unless the last human word on it is from outside the team, which
+  // a team reply settles.
+  if (!openedByExternal && !isExternal(latest)) {
+    return null;
+  }
+
+  // Step 2: a parked item is off the triage queue entirely. Its label is
+  // cleared once an out-of-team contributor responds, which puts it back in
+  // play.
   if (labels.includes(WAITING_LABEL)) {
     return null;
   }
 
-  // Step 2: an item handed to a team member for triage is judged on that
+  // Step 3: an item handed to a team member for triage is judged on that
   // assignment alone; the steps below would flag it for the very things the
   // assignee is there to sort out. With no record of when the label went on
   // there is nothing to measure, so the deadline never comes due.
@@ -270,37 +280,25 @@ export function flagReason(
     return null;
   }
 
-  const openedByExternal = isExternal({association: item.author_association});
-
-  const latest = lastHumanContribution(item, contributions);
-
-  // Step 4: PRs. An assigned PR, whoever opened it, is flagged once it goes
-  // quiet beyond PR_STALE_DAYS. An unassigned PR is flagged only when an
-  // external contributor opened it; maintainers manage their own. An external
-  // PR needs triage until a team member takes it on by being assigned; a team
-  // comment alone does not take it off the queue. A PR waiting on its author
-  // has already left at step 1.
+  // Step 5: PRs. A PR needs triage until a team member takes it on by being
+  // assigned; a team comment alone does not take it off the queue. Once
+  // assigned, it is flagged again when it goes quiet beyond PR_STALE_DAYS.
   if (isPR) {
-    if (assigneeCount > 0) {
-      return ageInDays(latest.createdAt, now) > PR_STALE_DAYS
-        ? `this assigned PR has had no human activity for more than ${PR_STALE_DAYS} days.`
-        : null;
+    if (assigneeCount === 0) {
+      return 'this PR has no assignee.';
     }
-    return openedByExternal ? 'this external PR has no assignee.' : null;
+    return ageInDays(latest.createdAt, now) > PR_STALE_DAYS
+      ? `this assigned PR has had no human activity for more than ${PR_STALE_DAYS} days.`
+      : null;
   }
 
-  // Step 3: issues.
+  // Step 4: issues.
   const priority = PRIORITY_LABELS.find(p => labels.includes(p));
-
-  // The team manages its own issues, so a missing priority matters only once
-  // an external contributor has opened or commented on the issue. A team reply
-  // since then does not settle it; only a priority does.
-  const needsPriority = !priority && (openedByExternal || contributions.some(isExternal));
-  const noPriorityReason = 'this issue has external input but no priority label yet.';
+  const noPriorityReason = 'this issue has no priority label.';
 
   // An assigned issue has a team member on it, so it is flagged only when that
   // work goes quiet beyond its priority's threshold, when its priority needs a
-  // milestone it lacks, or when outside input still lacks a priority.
+  // milestone it lacks, or when it has no priority.
   if (assigneeCount > 0) {
     const threshold = priority && STALE_DAYS[priority];
     if (threshold !== undefined && ageInDays(latest.createdAt, now) > threshold) {
@@ -310,7 +308,7 @@ export function flagReason(
     if (priority && MILESTONE_REQUIRED_PRIORITIES.has(priority) && !item.milestone) {
       return `this ${priority} issue has no milestone.`;
     }
-    return needsPriority ? noPriorityReason : null;
+    return priority ? null : noPriorityReason;
   }
 
   // Urgent work with nobody on it.
@@ -318,17 +316,7 @@ export function flagReason(
     return `this ${priority} issue has no assignee.`;
   }
 
-  if (needsPriority) {
-    return noPriorityReason;
-  }
-
-  // The last word on the issue is an external one. This carries no grace
-  // period: it fires as soon as the comment lands.
-  if (isExternal(latest)) {
-    return 'the latest contribution is from an external contributor and has gone unanswered.';
-  }
-
-  return null;
+  return priority ? null : noPriorityReason;
 }
 
 // Max concurrent API calls per phase. Keeps us fast without tripping GitHub's
@@ -566,7 +554,7 @@ export default async function issueTriage({
         await github.rest.issues.removeLabel({...target, name: WAITING_LABEL});
         waitingCleared += 1;
         console.log(
-          `Cleared ${WAITING_LABEL} on ${item.html_url} — an external contributor responded.`,
+          `Cleared ${WAITING_LABEL} on ${item.html_url} — an out-of-team contributor responded.`,
         );
       }
 
@@ -576,7 +564,7 @@ export default async function issueTriage({
       const scoredFresh = clearWaitingNow
         ? {...fresh, labels: freshLabels.filter(l => l !== WAITING_LABEL)}
         : fresh;
-      // The triage assignment time is not re-read either; step 2 ignores it if
+      // The triage assignment time is not re-read either; step 3 ignores it if
       // the label has since been removed.
       const freshReason = flagReason(scoredFresh, contributions, now, assignedForTriageSince);
       const wantsFlag = Boolean(freshReason);

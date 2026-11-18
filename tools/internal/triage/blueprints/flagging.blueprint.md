@@ -8,25 +8,24 @@ A team member's comment that starts with `From triage bot` (in bold or not) is o
 
 The script uses the following rules to decide if a PR or issue should get **the label `status: needs-triage`**:
 
-1. Is the item opened by team member and there is no unanswered out-of-team contributor's comment?
-   
-   - If yes: **NO LABEL**.
-   - If no: continue processing.
-
-1. Does the item have `status: waiting-for-author-response` (the bot removes this label once an
-out-of-team contributor responds)?
+1. Was the item opened by a team member, with no unanswered comment from an out-of-team contributor? A comment is unanswered while it is the latest human contribution, so a reply from a team member answers it.
 
    - If yes: **NO LABEL**.
    - If no: continue processing.
 
-2. Does the item have `status: assigned-for-triage`?
+2. Does the item have `status: waiting-for-author-response` (the bot removes this label once an out-of-team contributor responds)?
+
+   - If yes: **NO LABEL**.
+   - If no: continue processing.
+
+3. Does the item have `status: assigned-for-triage`?
 
    - If yes:
      - **LABEL** when it has no assignee or got the label more than 14 days ago.
      - **NO LABEL** otherwise.
    - If no: continue processing.
 
-3. Is the item **an issue**?
+4. Is the item **an issue**?
 
    - If yes, is it assigned?
      - If assigned:
@@ -35,6 +34,7 @@ out-of-team contributor responds)?
          - It is `P1` and has been stale for more than 30 days.
          - It is `P1` with no milestone.
          - It has no priority label (`P0`–`P3`).
+         - Last comment is from out-of-team contributor.
        - **NO LABEL** otherwise.
      - If not assigned:
        - **LABEL** when one of the following is true:
@@ -43,7 +43,7 @@ out-of-team contributor responds)?
        - **NO LABEL** otherwise.
    - If no: continue processing.
 
-4. Is the item **a PR**?
+5. Is the item **a PR**?
 
    - If yes:
      - **LABEL** when one of the following is true:
