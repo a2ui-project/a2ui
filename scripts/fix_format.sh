@@ -26,137 +26,190 @@ failure() {
 trap 'failure' ERR
 
 CHECK_ONLY=false
-if [[ "${1:-}" == "--check" ]]; then
-  CHECK_ONLY=true
-fi
+SKIP_PRETTIER=false
+SKIP_PYTHON=false
+SKIP_DART=false
+SKIP_SWIFT=false
+SKIP_KOTLIN=false
+for arg in "$@"; do
+  case "$arg" in
+    --check)
+      CHECK_ONLY=true
+      ;;
+    --only-swift)
+      SKIP_PRETTIER=true
+      SKIP_PYTHON=true
+      SKIP_DART=true
+      SKIP_SWIFT=false
+      SKIP_KOTLIN=true
+      ;;
+    --skip-prettier)
+      SKIP_PRETTIER=true
+      ;;
+    --skip-python)
+      SKIP_PYTHON=true
+      ;;
+    --skip-dart)
+      SKIP_DART=true
+      ;;
+    --skip-swift)
+      SKIP_SWIFT=true
+      ;;
+    --skip-kotlin)
+      SKIP_KOTLIN=true
+      ;;
+    *)
+      echo "Unknown option: $arg" >&2
+      echo "Usage: $0 [--check] [--only-swift] [--skip-prettier] [--skip-python] [--skip-dart] [--skip-swift] [--skip-kotlin]" >&2
+      exit 2
+      ;;
+  esac
+done
 
 # Get repo root
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-YARN_CMD=(yarn)
-if command -v corepack >/dev/null 2>&1; then
-  YARN_CMD=(corepack yarn)
-fi
-
-echo "Running Prettier formatting for Node/Web assets..."
-if [ -f ".yarn/install-state.gz" ]; then
-  # Local Node environment already installed; invoke standard script targets
-  if [ "$CHECK_ONLY" = true ]; then
-    "${YARN_CMD[@]}" format:check:all
-  else
-    "${YARN_CMD[@]}" format:all | sed '/ (unchanged)$/d'
-  fi
-else
-  # Non-Node contributor or CI; run standalone Prettier via dlx without full monorepo install
-  if [ "$CHECK_ONLY" = true ]; then
-    "${YARN_CMD[@]}" dlx prettier@3.8.4 --config .prettierrc --check .
-  else
-    "${YARN_CMD[@]}" dlx prettier@3.8.4 --config .prettierrc --write . | sed '/ (unchanged)$/d'
-  fi
-fi
-
-echo "Running Pyink for Python files..."
-if [ "$CHECK_ONLY" = true ]; then
-  uv run pyink --check .
-else
-  uv run pyink .
-fi
-
-echo "Running Dart format..."
-cd "$REPO_ROOT"
-# Check if dart is available before running
-if command -v dart >/dev/null 2>&1; then
-
-  # Run "dart pub get" silently, to resolve Dart dependencies. This will resolve
-  # the analysis_options.yaml includes if the person running this script hasn't
-  # run dart or flutter "pub get" yet.
-  #
-  # Running "dart pub get" is not a NECESSARY thing for the formatting to work
-  # (dart format is entirely AST-based), but if someone runs the formatting
-  # script locally, then we don't want confusion about the warnings if they
-  # haven't run "dart pub get" (which is equivalent to "flutter pub get" if the
-  # dart executable is in a Flutter SDK directory).
-  #
-  # In CI, we want to be able to only install the lightweight Dart image, not
-  # the much heavier Flutter image, which quadruples the time it takes to run
-  # the formatting check. In that case, since the dart executable isn't part of
-  # a Flutter SDK directory, "dart pub get" will give errors about the monorepo
-  # depending on Flutter and not running "flutter pub get", so we want to
-  # suppress that failure here so it doesn't cause the fix_format.sh script to
-  # exit.
-  #
-  # Whether that resolution succeeded DOES change the formatting, so we pin the
-  # language version below rather than letting it vary. With a package config,
-  # "dart format" uses the language version the pubspec declares; without one it
-  # falls back to the newest version the SDK supports, and the two disagree on
-  # constructs like method chains. That is how CI and a contributor on the same
-  # SDK can reach opposite conclusions about the same file. Every package in the
-  # formatted paths declares sdk ">=3.10.0", matching the monorepo workspace, so
-  # 3.10 reproduces a resolved local run. Bump it when those pubspecs raise
-  # their floor.
-  if [ ! -f ".dart_tool/package_config.json" ]; then
-    dart pub get >/dev/null 2>&1 || true
-  fi
-  if [ ! -f "dart/a2ui_core/.dart_tool/package_config.json" ]; then
-    (cd dart/a2ui_core && dart pub get >/dev/null 2>&1 || true)
+if [ "$SKIP_PRETTIER" = false ]; then
+  YARN_CMD=(yarn)
+  if command -v corepack >/dev/null 2>&1; then
+    YARN_CMD=(corepack yarn)
   fi
 
-  if [ "$CHECK_ONLY" = true ]; then
-    dart format --language-version=3.10 --output=none --set-exit-if-changed samples/client/flutter dart/a2ui_agent dart/a2ui_cli dart/a2ui_flutter
-    dart format --language-version=3.5 --output=none --set-exit-if-changed dart/a2ui_core
-  else
-    dart format --language-version=3.10 samples/client/flutter dart/a2ui_agent dart/a2ui_cli dart/a2ui_flutter
-    dart format --language-version=3.5 dart/a2ui_core
-  fi
-else
-  echo "Warning: dart command not found. Skipping Dart formatting."
-fi
-
-echo "Running swift-format..."
-if command -v swift-format >/dev/null 2>&1; then
-  SWIFT_PATHS=(Package.swift swift/)
-  if [ "$CHECK_ONLY" = true ]; then
-    echo "Linting Swift files..."
-    swift-format lint -r "${SWIFT_PATHS[@]}"
-  else
-    echo "Formatting Swift files..."
-    swift-format format -i -r "${SWIFT_PATHS[@]}"
-  fi
-else
-  echo "Warning: swift-format command not found. Skipping Swift formatting."
-fi
-
-echo "Running ktfmt for Kotlin files..."
-cd "$REPO_ROOT"
-# Probe the runtime rather than the binary: macOS ships a /usr/bin/java stub
-# that exists on PATH but exits non-zero when no JDK is installed, so
-# `command -v java` alone would send us into Gradle and fail there.
-if java -version >/dev/null 2>&1; then
-  while IFS= read -r -d '' build_file; do
-    dir="$(dirname "$build_file")"
-    if grep -q "ktfmt" "$build_file" 2>/dev/null; then
-      (
-        cd "$dir"
-        if [ -x "./gradlew" ]; then
-          GRADLE_CMD=(./gradlew)
-        elif command -v gradle >/dev/null 2>&1; then
-          GRADLE_CMD=(gradle)
-        else
-          echo "Warning: Neither ./gradlew nor gradle command found in $dir. Skipping."
-          exit 0
-        fi
-
-        if [ "$CHECK_ONLY" = true ]; then
-          "${GRADLE_CMD[@]}" -q ktfmtCheck
-        else
-          "${GRADLE_CMD[@]}" -q ktfmtFormat
-        fi
-      )
+  echo "Running Prettier formatting for Node/Web assets..."
+  if [ -f ".yarn/install-state.gz" ]; then
+    # Local Node environment already installed; invoke standard script targets
+    if [ "$CHECK_ONLY" = true ]; then
+      "${YARN_CMD[@]}" format:check:all
+    else
+      "${YARN_CMD[@]}" format:all | sed '/ (unchanged)$/d'
     fi
-  done < <(find "$REPO_ROOT" \( -name build -o -name .gradle -o -name node_modules -o -name .git -o -name .yarn -o -name .dart_tool \) -prune -o -name "build.gradle.kts" -print0)
-else
-  echo "Warning: no Java runtime found. Skipping Kotlin formatting."
+  else
+    # Non-Node contributor or CI; run standalone Prettier via dlx without full monorepo install
+    if [ "$CHECK_ONLY" = true ]; then
+      "${YARN_CMD[@]}" dlx prettier@3.8.4 --config .prettierrc --check .
+    else
+      "${YARN_CMD[@]}" dlx prettier@3.8.4 --config .prettierrc --write . | sed '/ (unchanged)$/d'
+    fi
+  fi
+fi
+
+if [ "$SKIP_PYTHON" = false ]; then
+  echo "Running Pyink for Python files..."
+  if [ "$CHECK_ONLY" = true ]; then
+    uv run pyink --check .
+  else
+    uv run pyink .
+  fi
+fi
+
+if [ "$SKIP_DART" = false ]; then
+  echo "Running Dart format..."
+  cd "$REPO_ROOT"
+  # Check if dart is available before running
+  if command -v dart >/dev/null 2>&1; then
+
+    # Run "dart pub get" silently, to resolve Dart dependencies. This will resolve
+    # the analysis_options.yaml includes if the person running this script hasn't
+    # run dart or flutter "pub get" yet.
+    #
+    # Running "dart pub get" is not a NECESSARY thing for the formatting to work
+    # (dart format is entirely AST-based), but if someone runs the formatting
+    # script locally, then we don't want confusion about the warnings if they
+    # haven't run "dart pub get" (which is equivalent to "flutter pub get" if the
+    # dart executable is in a Flutter SDK directory).
+    #
+    # In CI, we want to be able to only install the lightweight Dart image, not
+    # the much heavier Flutter image, which quadruples the time it takes to run
+    # the formatting check. In that case, since the dart executable isn't part of
+    # a Flutter SDK directory, "dart pub get" will give errors about the monorepo
+    # depending on Flutter and not running "flutter pub get", so we want to
+    # suppress that failure here so it doesn't cause the fix_format.sh script to
+    # exit.
+    #
+    # Whether that resolution succeeded DOES change the formatting, so we pin the
+    # language version below rather than letting it vary. With a package config,
+    # "dart format" uses the language version the pubspec declares; without one it
+    # falls back to the newest version the SDK supports, and the two disagree on
+    # constructs like method chains. That is how CI and a contributor on the same
+    # SDK can reach opposite conclusions about the same file. Every package in the
+    # formatted paths declares sdk ">=3.10.0", matching the monorepo workspace, so
+    # 3.10 reproduces a resolved local run. Bump it when those pubspecs raise
+    # their floor.
+    if [ ! -f ".dart_tool/package_config.json" ]; then
+      dart pub get >/dev/null 2>&1 || true
+    fi
+    if [ ! -f "dart/a2ui_core/.dart_tool/package_config.json" ]; then
+      (cd dart/a2ui_core && dart pub get >/dev/null 2>&1 || true)
+    fi
+
+    if [ "$CHECK_ONLY" = true ]; then
+      dart format --language-version=3.10 --output=none --set-exit-if-changed samples/client/flutter dart/a2ui_agent dart/a2ui_cli dart/a2ui_flutter
+      dart format --language-version=3.5 --output=none --set-exit-if-changed dart/a2ui_core
+    else
+      dart format --language-version=3.10 samples/client/flutter dart/a2ui_agent dart/a2ui_cli dart/a2ui_flutter
+      dart format --language-version=3.5 dart/a2ui_core
+    fi
+  else
+    echo "Warning: dart command not found. Skipping Dart formatting."
+  fi
+fi
+
+if [ "$SKIP_SWIFT" = false ]; then
+  echo "Running swift-format..."
+  SWIFT_FORMAT_CMD=()
+  if swift format --version >/dev/null 2>&1; then
+    SWIFT_FORMAT_CMD=(swift format)
+  elif command -v swift-format >/dev/null 2>&1; then
+    SWIFT_FORMAT_CMD=(swift-format)
+  fi
+
+  if [ "${#SWIFT_FORMAT_CMD[@]}" -gt 0 ]; then
+    SWIFT_PATHS=(Package.swift swift/)
+    if [ "$CHECK_ONLY" = true ]; then
+      echo "Linting Swift files..."
+      "${SWIFT_FORMAT_CMD[@]}" lint --strict -r "${SWIFT_PATHS[@]}"
+    else
+      echo "Formatting Swift files..."
+      "${SWIFT_FORMAT_CMD[@]}" format -i -r "${SWIFT_PATHS[@]}"
+    fi
+  else
+    echo "Warning: swift format command not found. Skipping Swift formatting."
+  fi
+fi
+
+if [ "$SKIP_KOTLIN" = false ]; then
+  echo "Running ktfmt for Kotlin files..."
+  cd "$REPO_ROOT"
+  # Probe the runtime rather than the binary: macOS ships a /usr/bin/java stub
+  # that exists on PATH but exits non-zero when no JDK is installed, so
+  # `command -v java` alone would send us into Gradle and fail there.
+  if java -version >/dev/null 2>&1; then
+    while IFS= read -r -d '' build_file; do
+      dir="$(dirname "$build_file")"
+      if grep -q "ktfmt" "$build_file" 2>/dev/null; then
+        (
+          cd "$dir"
+          if [ -x "./gradlew" ]; then
+            GRADLE_CMD=(./gradlew)
+          elif command -v gradle >/dev/null 2>&1; then
+            GRADLE_CMD=(gradle)
+          else
+            echo "Warning: Neither ./gradlew nor gradle command found in $dir. Skipping."
+            exit 0
+          fi
+
+          if [ "$CHECK_ONLY" = true ]; then
+            "${GRADLE_CMD[@]}" -q ktfmtCheck
+          else
+            "${GRADLE_CMD[@]}" -q ktfmtFormat
+          fi
+        )
+      fi
+    done < <(find "$REPO_ROOT" \( -name build -o -name .gradle -o -name node_modules -o -name .git -o -name .yarn -o -name .dart_tool \) -prune -o -name "build.gradle.kts" -print0)
+  else
+    echo "Warning: no Java runtime found. Skipping Kotlin formatting."
+  fi
 fi
 
 echo "Done."

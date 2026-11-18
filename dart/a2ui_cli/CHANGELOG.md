@@ -1,5 +1,21 @@
 # [a2ui_cli](https://pub.dev/packages/a2ui_cli) Changelog
 
+## 0.4.0
+
+- **Breaking:** Requires `a2ui_core` `^0.8.0` (`a2ui_cli` exposes `a2ui_core`
+  types in its public API).
+
+- (v1_0) Filter `@catalogId`, `@metadata`, and `@accessibility` from component
+  builder properties in `CatalogAnalyzer`, detect checkable components from
+  `@checks`, and emit `serialization_alias="@checks"` and
+  `validation_alias=AliasChoices("@checks", "checks")` on generated Python v1.0
+  checkable component builders while preserving custom component properties
+  named `metadata`, `catalogId`, `accessibility`, or `checks`
+  ([#3466](https://github.com/a2ui-project/a2ui/issues/3466),
+  [#4012](https://github.com/a2ui-project/a2ui/issues/4012),
+  [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+- Add explicit type annotations to internal local and pattern variables to satisfy the `specify_nonobvious_local_variable_types` analyzer lint on Dart 3.15+ ([#4233](https://github.com/a2ui-project/a2ui/pull/4233)).
+
 ## 0.3.0
 
 - **Breaking:** Requires `a2ui_core` `^0.7.0` (`a2ui_cli` exposes `a2ui_core`

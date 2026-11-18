@@ -202,9 +202,20 @@
     "SelectBox": {
       "description": "A selector with reusable leaf definitions.",
       "properties": {
-        "accessibility": {
+        "@accessibility": {
           "$ref": "#/$defs/AccessibilityAttributes",
           "description": "Attributes to enhance accessibility when using assistive technologies like screen readers or model understanding."
+        },
+        "@metadata": {
+          "additionalProperties": false,
+          "description": "Optional component-level metadata for vendor extensions.",
+          "properties": {
+            "extensions": {
+              "$ref": "#/$defs/Extensions",
+              "description": "Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions."
+            }
+          },
+          "type": "object"
         },
         "color": {
           "$ref": "#/$defs/ColorValue"
@@ -224,17 +235,6 @@
         "label": {
           "$ref": "#/$defs/DynamicString",
           "description": "Represents a string"
-        },
-        "metadata": {
-          "additionalProperties": false,
-          "description": "Optional component-level metadata for vendor extensions.",
-          "properties": {
-            "extensions": {
-              "$ref": "#/$defs/Extensions",
-              "description": "Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions."
-            }
-          },
-          "type": "object"
         },
         "weight": {
           "$ref": "#/$defs/Weight"

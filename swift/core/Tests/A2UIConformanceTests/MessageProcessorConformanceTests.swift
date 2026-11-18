@@ -216,6 +216,7 @@ struct MessageProcessorConformanceTests {
       let inlineCatalogs = try buildInlineProcessorCatalogs(
         from: catalogList,
         action: action,
+        protocolVersion: explicitVer,
         commonTypes: commonTypes
       )
       catalogs.append(contentsOf: inlineCatalogs)
@@ -275,9 +276,12 @@ struct MessageProcessorConformanceTests {
     return explicitVersion
   }
 
+  /// Builds the inline catalogs of a case. A catalog that names no protocol version takes the
+  /// case's `protocolVersion`, when the case names one.
   private func buildInlineProcessorCatalogs(
     from catalogList: [[String: Any]],
     action: String,
+    protocolVersion: String?,
     commonTypes: JSONValue?
   ) throws -> [AnyCatalog] {
     let openSchema = try Schema(instance: "{\"type\": \"object\"}")
@@ -285,7 +289,8 @@ struct MessageProcessorConformanceTests {
     return catalogList.map { dict in
       let built = ConformanceTestHelper.buildCatalog(
         catalogSchema: ConformanceTestHelper.toJSONValue(dict),
-        commonTypes: commonTypes
+        commonTypes: commonTypes,
+        protocolVersion: protocolVersion
       )
       if action != "get_renderer_capabilities"
         && dict["components"] == nil
@@ -801,16 +806,78 @@ struct MessageProcessorConformanceTests {
         """
       )
     }
-    if let expectedCatalogID = compObj["catalogId"] as? String {
+    let isV10 = surface.protocolVersion.isAtLeastV10
+    // Before v1.0, `catalogId` and `metadata` are properties of the component's own, so they are
+    // checked with its other properties below.
+    var envelopeKeys: Set<String> = ["id", "component"]
+    if isV10 {
+      envelopeKeys.formUnion(
+        verifyV10ComponentEnvelope(
+          compObj,
+          actualComp: actualComp,
+          surfaceID: surfaceID,
+          name: name
+        )
+      )
+    } else if compObj.keys.contains("metadata") {
+      #expect(
+        actualComp.metadata == nil,
+        "[\(name)] Component '\(id)' on a pre-1.0 surface must not have envelope metadata"
+      )
+    }
+    for (propKey, propVal) in compObj where !envelopeKeys.contains(propKey) {
+      let expected = ConformanceTestHelper.toJSONValue(propVal)
+      var actual = actualComp.properties[propKey]
+      // A v1.0 component keeps its accessibility and checks mixins under `@accessibility` and
+      // `@checks`, which an expectation may name by their legacy bare names.
+      if isV10, actual == nil, propKey == "accessibility" || propKey == "checks" {
+        actual = actualComp.properties["@\(propKey)"]
+      }
+      // An expectation may give a bound property's resolved value.
+      if actual != expected, let path = actual.flatMap(Self.bindingPath) {
+        actual = surface.dataModel.get(path)
+      }
+      if actual != expected, let node = surface.findNode(id: id),
+        let resolved = node.properties[propKey].flatMap(Self.resolvedJSON)
+      {
+        actual = resolved
+      }
+      #expect(
+        actual == expected,
+        "[\(name)] Component '\(id)' property '\(propKey)' mismatch"
+      )
+    }
+  }
+
+  /// Checks a v1.0 component's `@catalogId` and `@metadata` mixins, and returns the expectation
+  /// keys it checked.
+  ///
+  /// A bare `catalogId` is the component's own property when the expectation also names
+  /// `@catalogId`, or the component holds a property of that name; otherwise it is the legacy
+  /// name of the mixin. Only `@metadata` names the metadata mixin: a bare `metadata` is always
+  /// the component's own property, so the expectation alone decides which one is checked.
+  private func verifyV10ComponentEnvelope(
+    _ compObj: [String: Any],
+    actualComp: ComponentModel,
+    surfaceID: String,
+    name: String
+  ) -> Set<String> {
+    let id = actualComp.id
+    var checkedKeys: Set<String> = []
+    let bareCatalogIDIsProperty =
+      compObj["@catalogId"] != nil || actualComp.properties["catalogId"] != nil
+    for key in ["@catalogId", "catalogId"] {
+      guard let expectedCatalogID = compObj[key] as? String else { continue }
+      guard key == "@catalogId" || !bareCatalogIDIsProperty else { continue }
+      checkedKeys.insert(key)
       #expect(
         actualComp.catalogID == expectedCatalogID,
         "[\(name)] Component '\(id)' catalogId mismatch"
       )
     }
-    // Component metadata exists from v1.0; on v0.9 `metadata` is a property.
-    let metadataIsEnvelope = surface.protocolVersion.isAtLeastV10
-    if metadataIsEnvelope, compObj.keys.contains("metadata") {
-      let expectedMeta = compObj["metadata"].map { ConformanceTestHelper.toJSONValue($0) } ?? .null
+    if compObj.keys.contains("@metadata") {
+      checkedKeys.insert("@metadata")
+      let expectedMeta = compObj["@metadata"].map { ConformanceTestHelper.toJSONValue($0) } ?? .null
       if expectedMeta == .null {
         #expect(
           actualComp.metadata == nil,
@@ -824,14 +891,42 @@ struct MessageProcessorConformanceTests {
         )
       }
     }
-    for (propKey, propVal) in compObj
-    where propKey != "id" && propKey != "component" && propKey != "catalogId"
-      && !(metadataIsEnvelope && propKey == "metadata")
-    {
-      #expect(
-        actualComp.properties[propKey] == ConformanceTestHelper.toJSONValue(propVal),
-        "[\(name)] Component '\(id)' property '\(propKey)' mismatch"
-      )
+    return checkedKeys
+  }
+
+  /// The data model path of a property bound with `{"path": ...}` or `{"@path": ...}`, or nil.
+  private static func bindingPath(_ value: JSONValue) -> String? {
+    guard let object = value.objectValue, object.count == 1 else { return nil }
+    return (object["path"] ?? object["@path"])?.stringValue
+  }
+
+  /// Converts a resolved property value to JSON, or returns nil when it holds no plain value.
+  private static func resolvedJSON(_ value: any Resolved) -> JSONValue? {
+    switch value {
+    case let json as JSONValue:
+      return json
+    case let string as String:
+      return .string(string)
+    case let bool as Bool:
+      return .boolean(bool)
+    case let binding as DataBinding<JSONValue>:
+      return binding.value
+    case let binding as DataBinding<String>:
+      return binding.value.map { .string($0) }
+    case let binding as DataBinding<Bool>:
+      return binding.value.map { .boolean($0) }
+    case let dictionary as ResolvedDictionary:
+      var object = OrderedDictionary<String, JSONValue>()
+      for key in dictionary.keys.sorted() {
+        guard let element = dictionary[key].flatMap(resolvedJSON) else { return nil }
+        object[key] = element
+      }
+      return .object(object)
+    case let array as ResolvedArray:
+      let elements = array.elements.compactMap(resolvedJSON)
+      return elements.count == array.elements.count ? .array(elements) : nil
+    default:
+      return nil
     }
   }
 

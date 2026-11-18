@@ -1,5 +1,23 @@
 # [a2ui_agent](https://pub.dev/packages/a2ui_agent) Changelog
 
+## 0.4.0
+
+- **Breaking:** Requires `a2ui_core` `^0.8.0`, whose types this library
+  re-exports.
+
+- **Breaking:** (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`, and
+  `@checks` on v1.0 components in `ExpressCompiler`, `DirectJsonResponseStream`,
+  `MessageReader`, and `RendererState`, while keeping v0.9 component output
+  bare. `ExpressDecompiler` reads both `@`-prefixed and legacy bare component
+  envelope keys on v1.0 payloads when the component schema does not declare a
+  custom property with the same bare name
+  ([#1376](https://github.com/a2ui-project/a2ui/issues/1376),
+  [#3403](https://github.com/a2ui-project/a2ui/issues/3403),
+  [#3466](https://github.com/a2ui-project/a2ui/issues/3466),
+  [#4012](https://github.com/a2ui-project/a2ui/issues/4012),
+  [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+- Add explicit type annotations to internal local and pattern variables to satisfy the `specify_nonobvious_local_variable_types` analyzer lint on Dart 3.15+ ([#4233](https://github.com/a2ui-project/a2ui/pull/4233)).
+
 ## 0.3.0
 
 - **Breaking:** Requires `a2ui_core` `^0.7.0`, whose types this library

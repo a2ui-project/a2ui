@@ -23,11 +23,17 @@ import {isWebComponentImplementation} from './is_web_component_implementation.js
 import {registerUniversalElement} from './register_universal_element.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
 import type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
+import {dispatchA2uiElementConnected} from './element_connected_event.js';
 
 /**
  * Keeps one custom element per child position, so a parent re-render
  * updates the element in place instead of replacing it. The element is
  * recreated only when the tag name changes.
+ *
+ * It also reports the element through `A2UI_ELEMENT_CONNECTED_EVENT` once Lit has inserted it, so
+ * hosts observe elements of any base class, not only `A2uiLitElement`s (which report themselves
+ * on connect, making this call a no-op). An element whose container is still detached when the
+ * render commits is not reported by this path.
  */
 class A2uiElementDirective extends Directive {
   private tagName?: string;
@@ -42,6 +48,9 @@ class A2uiElementDirective extends Directive {
     if (!node && context !== undefined) {
       this.element.context = context;
     }
+    // `render` runs before Lit inserts the element, so dispatch after the commit.
+    const element = this.element;
+    queueMicrotask(() => dispatchA2uiElementConnected(element));
     return this.element;
   }
 }

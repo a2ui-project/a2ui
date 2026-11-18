@@ -13,13 +13,13 @@
         {
           "id": "root",
           "component": "FooPanel",
-          "catalogId": "https://example.com/catalogs/foo/v1/catalog.json",
+          "@catalogId": "https://example.com/catalogs/foo/v1/catalog.json",
           "children": ["baz_1", "extra_bar_btn"]
         },
         {
           "component": "FooHeader",
           "id": "baz_1__fooheader_1",
-          "catalogId": "https://example.com/catalogs/foo/v1/catalog.json",
+          "@catalogId": "https://example.com/catalogs/foo/v1/catalog.json",
           "title": {
             "@path": "/dashboard/headline"
           }
@@ -27,13 +27,13 @@
         {
           "component": "BarBadge",
           "id": "baz_1__barbadge_1",
-          "catalogId": "https://example.com/catalogs/bar/v1/catalog.json",
+          "@catalogId": "https://example.com/catalogs/bar/v1/catalog.json",
           "tag": "LIVE"
         },
         {
           "component": "BarButton",
           "id": "baz_1__barbutton_1",
-          "catalogId": "https://example.com/catalogs/bar/v1/catalog.json",
+          "@catalogId": "https://example.com/catalogs/bar/v1/catalog.json",
           "label": "Deploy",
           "action": {
             "event": {
@@ -45,13 +45,13 @@
         {
           "component": "FooPanel",
           "id": "baz_1",
-          "catalogId": "https://example.com/catalogs/foo/v1/catalog.json",
+          "@catalogId": "https://example.com/catalogs/foo/v1/catalog.json",
           "children": ["baz_1__fooheader_1", "baz_1__barbadge_1", "baz_1__barbutton_1"]
         },
         {
           "id": "extra_bar_btn",
           "component": "BarButton",
-          "catalogId": "https://example.com/catalogs/bar/v1/catalog.json",
+          "@catalogId": "https://example.com/catalogs/bar/v1/catalog.json",
           "label": "Cancel",
           "action": {
             "event": {
@@ -82,19 +82,19 @@
         {
           "component": "FooHeader",
           "id": "baz_themed__fooheader_1",
-          "catalogId": "https://example.com/catalogs/foo/v1/catalog.json",
+          "@catalogId": "https://example.com/catalogs/foo/v1/catalog.json",
           "title": "Themed Dashboard"
         },
         {
           "component": "BarBadge",
           "id": "baz_themed__barbadge_1",
-          "catalogId": "https://example.com/catalogs/bar/v1/catalog.json",
+          "@catalogId": "https://example.com/catalogs/bar/v1/catalog.json",
           "tag": "CANARY"
         },
         {
           "component": "BarButton",
           "id": "baz_themed__barbutton_1",
-          "catalogId": "https://example.com/catalogs/bar/v1/catalog.json",
+          "@catalogId": "https://example.com/catalogs/bar/v1/catalog.json",
           "label": "Promote",
           "action": {
             "event": {
@@ -105,7 +105,7 @@
         {
           "component": "FooPanel",
           "id": "baz_themed",
-          "catalogId": "https://example.com/catalogs/foo/v1/catalog.json",
+          "@catalogId": "https://example.com/catalogs/foo/v1/catalog.json",
           "children": [
             "baz_themed__fooheader_1",
             "baz_themed__barbadge_1",

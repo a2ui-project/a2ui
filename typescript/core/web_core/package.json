@@ -158,7 +158,7 @@
       "command": "node scripts/generate-standard-defs.mjs && node scripts/generate-zod-schemas.mjs && node scripts/generate-superset-common-types.mjs && node src/v0_8/scripts/generate-catalog.mjs && node src/v0_9/scripts/generate-catalog.mjs && node src/catalogs/basic/v1/scripts/generate-catalog.mjs && prettier --write \"src/**/*.ts\"",
       "files": [
         "../../../specification/v0_8/json/*.json",
-        "../../../specification/v0_9/catalogs/**/*.json",
+        "../../../catalogs/basic/v0_9/**/*.json",
         "../../../specification/v0_9/json/*.json",
         "../../../specification/v1_0/json/*.json",
         "../../../catalogs/basic/v1/**/*.json",
@@ -205,7 +205,7 @@
       "files": [
         "../../../specification/v0_8/json/*.json",
         "../../../specification/v0_9/json/*.json",
-        "../../../specification/v0_9/catalogs/**/*.json",
+        "../../../catalogs/minimal/**/*.json",
         "../../../specification/v1_0/json/*.json",
         "../../../catalogs/basic/**/*.json",
         "scripts/copy-spec.js"

@@ -189,5 +189,63 @@ void main() {
         );
       },
     );
+
+    test('skips @-prefixed component envelope mixins while preserving custom '
+        'metadata, catalogId, accessibility, and checks properties', () {
+      final json = <String, Object?>{
+        'catalogId': 'envelope_props_catalog',
+        'protocolVersion': '1.0',
+        'components': {
+          'CustomBox': {
+            'properties': {
+              'component': {'const': 'CustomBox'},
+              '@catalogId': {'type': 'string'},
+              '@metadata': {'type': 'object'},
+              '@accessibility': {
+                'type': 'object',
+                'properties': {
+                  'label': {'type': 'string'},
+                },
+              },
+              '@checks': {
+                'type': 'array',
+                'items': {'type': 'object'},
+              },
+              'metadata': {'type': 'string'},
+              'catalogId': {'type': 'string'},
+              'accessibility': {'type': 'string'},
+              'checks': {'type': 'integer'},
+            },
+            'required': ['component', 'metadata'],
+          },
+          'ScalarChecksOnly': {
+            'properties': {
+              'component': {'const': 'ScalarChecksOnly'},
+              'checks': {'type': 'integer'},
+            },
+            'required': ['component'],
+          },
+        },
+      };
+
+      final catalog = CodegenCatalog.fromJson(json);
+      final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(catalog);
+      final AnalysedComponentApi box = analysed.components['CustomBox']!;
+      expect(box.isCheckable, isTrue);
+      expect(
+        box.properties.keys,
+        unorderedEquals([
+          '@checks',
+          'metadata',
+          'catalogId',
+          'accessibility',
+          'checks',
+        ]),
+      );
+      final AnalysedComponentApi scalarChecks =
+          analysed.components['ScalarChecksOnly']!;
+      expect(scalarChecks.isCheckable, isFalse);
+      expect(scalarChecks.properties.keys, equals(['checks']));
+    });
   });
 }

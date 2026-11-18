@@ -582,14 +582,18 @@ extension Node {
     return nil
   }
 
-  /// Returns only the accessibility attributes the agent set in the component's `accessibility`
-  /// property, without inferring a label from visible text.
+  /// Returns only the accessibility attributes the agent set on the component, without inferring
+  /// a label from visible text.
+  ///
+  /// A v1.0 component carries them in its `@accessibility` mixin, an earlier one in its
+  /// `accessibility` property.
   ///
   /// Renderers apply these on top of the label their platform already infers from visible
   /// content, so that an explicit value overrides the inferred one.
   public var explicitAccessibilityAttributes: AccessibilityAttributes? {
-    let accessibilityDictionary = properties["accessibility"] as? ResolvedDictionary
-    let accessibilityJSON = properties["accessibility"] as? JSONValue
+    let rawAccessibility = properties["@accessibility"] ?? properties["accessibility"]
+    let accessibilityDictionary = rawAccessibility as? ResolvedDictionary
+    let accessibilityJSON = rawAccessibility as? JSONValue
 
     let label =
       accessibilityDictionary?.string(for: "label")

@@ -168,7 +168,7 @@ See [Agent SDK](../sdks/#agent-sdk).
 
 <span id="validationresult"></span>
 
-A client-side validation rule ([`common_types.json#/$defs/CheckRule`](../../specification/v1.0/schemas/#common_types.json/$defs/CheckRule) in v1.0; [`common_types.json#/$defs/CheckRule`](../../specification/v0.9.1/schemas/#common_types.json/$defs/CheckRule) in v0.9.1) attached to input and interactive [components](#component) that include [`Checkable`](../../specification/v1.0/schemas/#common_types.json/$defs/Checkable) (`checks`).
+A client-side validation rule ([`common_types.json#/$defs/CheckRule`](../../specification/v1.0/schemas/#common_types.json/$defs/CheckRule) in v1.0; [`common_types.json#/$defs/CheckRule`](../../specification/v0.9.1/schemas/#common_types.json/$defs/CheckRule) in v0.9.1) attached to input and interactive [components](#component) that include [`Checkable`](../../specification/v1.0/schemas/#common_types.json/$defs/Checkable) (`@checks` in v1.0, `checks` in v0.9.1).
 
 In v1.0, each `CheckRule` pairs a `condition` (a [`DataBinding`](#data-binding) or [`FunctionCall`](#function-call) evaluating to a [`ValidationResult`](../../specification/v1.0/schemas/#catalog_definition.json/$defs/ValidationResult) object `{valid, code, message, severity}` or a boolean) with an optional fallback `message`; in v0.9.1, `condition` is a `DynamicBoolean` and `message` is required. Checks that fail with `"error"` severity (the default, and what a `false` boolean coerces to) mark the component invalid and disable controls such as `Button`, while `"warning"` and `"info"` results display non-blocking feedback.
 
@@ -191,7 +191,7 @@ See [Data Model and Data Binding](../data-binding/#displaying-dynamic-lists-of-d
 
 A declarative UI element defined in a [catalog](#catalog) (such as `Card`, `Button`, `TextField`, or a domain-specific `FlightStatusCard`) and rendered as a native widget by a client [framework adapter](#framework-adapter).
 
-Within a [surface](#surface), component instances are sent in `createSurface` or `updateComponents` as a flat adjacency list rather than a nested tree: each entry has a unique `id` (following Unicode UAX #31 identifier rules in v1.0), a `component` type name, optional `catalogId`, `accessibility` attributes, and `metadata.extensions`, and references children by ID (`ComponentId` or [`ChildList`](#childlist)). Every rendered surface requires one component with `"id": "root"`, which mounts inside the reserved immutable `Surface` container ([`common_types.json#/$defs/Surface`](../../specification/v1.0/schemas/#common_types.json/$defs/Surface)).
+Within a [surface](#surface), component instances are sent in `createSurface` or `updateComponents` as a flat adjacency list rather than a nested tree: each entry has a unique `id` (following Unicode UAX #31 identifier rules in v1.0), a `component` type name, optional `@catalogId`, `@accessibility` attributes, and `@metadata.extensions` (bare `accessibility` in v0.9.1), and references children by ID (`ComponentId` or [`ChildList`](#childlist)). Every rendered surface requires one component with `"id": "root"`, which mounts inside the reserved immutable `Surface` container ([`common_types.json#/$defs/Surface`](../../specification/v1.0/schemas/#common_types.json/$defs/Surface)).
 
 See [Catalogs](../catalogs/) and [Component model](../../specification/v1.0-a2ui/#component-model) in the protocol specification.
 
@@ -294,7 +294,7 @@ An invocation of a catalog or system [function](#function) represented as a [`Fu
 Function calls occur in four places across the protocol:
 
 1. Dynamic component property bindings (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`, and `DynamicValue`), re-evaluated reactively when bound [data model](#data-model) paths change.
-2. Validation rules ([`CheckRule`](#checkrule) `checks[].condition`), returning a `ValidationResult` or boolean to validate inputs and gate controls.
+2. Validation rules ([`CheckRule`](#checkrule) `@checks[].condition` in v1.0, `checks[].condition` in v0.9.1), returning a `ValidationResult` or boolean to validate inputs and gate controls.
 3. Component [`Action`](#action) handlers (`action.functionCall`), triggered by a user gesture.
 4. Explicit remote procedure call envelopes ([`callRendererFunction`](#callrendererfunction) and [`callAgentFunction`](#callagentfunction) in v1.0).
 

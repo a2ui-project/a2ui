@@ -970,7 +970,7 @@ void main() {
   group('MessageProcessor component envelope', () {
     Catalog<ComponentApi, FunctionImplementation> alphaCatalog(
       String id, {
-      A2uiProtocolVersion version = A2uiProtocolVersion.v0_9,
+      A2uiProtocolVersion version = A2uiProtocolVersion.v1_0,
     }) =>
         Catalog<ComponentApi, FunctionImplementation>(
           id: id,
@@ -991,12 +991,12 @@ void main() {
     setUp(() {
       processor = MessageProcessor<ComponentApi>(
         catalogs: [alphaCatalog('cat1'), alphaCatalog('cat2')],
-        defaultVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v1_0,
       );
       processor.processMessages(
         AgentToRendererMessagePayload([
           CreateSurfaceMessage(
-            version: 'v0.9',
+            version: '1.0',
             surfaceId: 's1',
             catalogId: 'cat1',
           ),
@@ -1007,7 +1007,7 @@ void main() {
     void update(Map<String, Object?> component) => processor.processMessages(
           AgentToRendererMessagePayload([
             UpdateComponentsMessage(
-              version: 'v0.9',
+              version: '1.0',
               surfaceId: 's1',
               components: [component],
             ),
@@ -1017,97 +1017,52 @@ void main() {
     SurfaceComponentsModel components() =>
         processor.model.getSurface('s1')!.componentsModel;
 
-    test('keeps catalogId out of properties', () {
-      update(
-          {'id': 'root', 'component': 'Alpha', 'a': 'x', 'catalogId': 'cat2'});
+    test(
+        'keeps v1.0 @catalogId/@metadata and legacy catalogId/metadata out of properties',
+        () {
+      update({
+        'id': 'root',
+        'component': 'Alpha',
+        'a': 'x',
+        '@catalogId': 'cat2',
+        '@metadata': {
+          'extensions': {'k': 'v'},
+        },
+      });
 
       final ComponentModel root = components().get('root')!;
       expect(root.properties, {'a': 'x'});
       expect(root.catalog, 'cat2');
-      expect(root.toJson(), {
-        'id': 'root',
-        'component': 'Alpha',
-        'catalogId': 'cat2',
-        'a': 'x',
-      });
-    });
-
-    test('keeps metadata out of properties from v1.0', () {
-      final processor = MessageProcessor<ComponentApi>(
-        catalogs: [alphaCatalog('v10', version: A2uiProtocolVersion.v1_0)],
-      );
-      processor.processMessages([
-        {
-          'version': '1.0',
-          'createSurface': {'surfaceId': 's1', 'catalogId': 'v10'},
-        },
-        {
-          'version': '1.0',
-          'updateComponents': {
-            'surfaceId': 's1',
-            'components': [
-              {
-                'id': 'root',
-                'component': 'Alpha',
-                'a': 'x',
-                'metadata': {
-                  'extensions': {'k': 'v'},
-                },
-              },
-            ],
-          },
-        },
-      ]);
-
-      final ComponentModel root =
-          processor.model.getSurface('s1')!.componentsModel.get('root')!;
-      expect(root.properties, {'a': 'x'});
       expect(root.metadata, {
         'extensions': {'k': 'v'},
       });
       expect(root.toJson(), {
         'id': 'root',
         'component': 'Alpha',
-        'metadata': {
+        '@catalogId': 'cat2',
+        '@metadata': {
           'extensions': {'k': 'v'},
         },
         'a': 'x',
       });
-    });
 
-    test('keeps metadata among properties before v1.0', () {
       update({
         'id': 'root',
         'component': 'Alpha',
-        'a': 'x',
-        'metadata': {'source': 'crm'},
-      });
-      update({
-        'id': 'other',
-        'component': 'Alpha',
         'a': 'y',
+        'catalogId': 'cat2',
         'metadata': {
-          'extensions': {'k': 'v'},
+          'extensions': {'k': 'v2'},
         },
       });
-
-      final ComponentModel root = components().get('root')!;
-      expect(root.properties, {
-        'a': 'x',
-        'metadata': {'source': 'crm'},
+      expect(root.properties, {'a': 'y'});
+      expect(root.catalog, 'cat2');
+      expect(root.metadata, {
+        'extensions': {'k': 'v2'},
       });
-      expect(root.metadata, isNull);
-      final ComponentModel other = components().get('other')!;
-      expect(other.properties, {
-        'a': 'y',
-        'metadata': {
-          'extensions': {'k': 'v'},
-        },
-      });
-      expect(other.metadata, isNull);
     });
 
-    test('recreates a component whose catalogId changes', () {
+    test('recreates a component whose catalogId changes on v1.0', () {
       update({'id': 'root', 'component': 'Alpha', 'a': 'x'});
       final events = <String>[];
       components().onDeleted.subscribe((id) => events.add('deleted:$id'));
@@ -1117,16 +1072,253 @@ void main() {
         'id': 'root',
         'component': 'Alpha',
         'a': 'y',
-        'catalogId': 'cat2',
+        '@catalogId': 'cat2',
       });
       expect(events, ['deleted:root', 'created:root']);
       expect(components().get('root')!.catalog, 'cat2');
+    });
 
-      // A partial update inherits the catalog rather than changing it.
-      update({'id': 'root', 'a': 'z'});
-      expect(events, ['deleted:root', 'created:root']);
-      expect(components().get('root')!.catalog, 'cat2');
-      expect(components().get('root')!.properties, {'a': 'z'});
+    test(
+        'toJson output reads back when a v1.0 schema declares an optional '
+        'catalogId and metadata that the payload omits', () {
+      Catalog<ComponentApi, FunctionImplementation> tableCatalog(String id) =>
+          Catalog<ComponentApi, FunctionImplementation>(
+            id: id,
+            protocolVersion: A2uiProtocolVersion.v1_0,
+            components: [
+              ComponentApi(
+                name: 'Table',
+                schema: Schema.object(
+                  properties: {
+                    'a': Schema.string(),
+                    'catalogId': Schema.integer(),
+                    'metadata': Schema.string(),
+                  },
+                  required: ['a'],
+                ),
+              ),
+            ],
+          );
+      ComponentModel render(Map<String, Object?> component) {
+        final tableProcessor = MessageProcessor<ComponentApi>(
+          catalogs: [tableCatalog('main'), tableCatalog('other')],
+          defaultVersion: A2uiProtocolVersion.v1_0,
+        );
+        tableProcessor.processMessages(
+          AgentToRendererMessagePayload([
+            CreateSurfaceMessage(
+              version: '1.0',
+              surfaceId: 's',
+              catalogId: 'main',
+            ),
+            UpdateComponentsMessage(
+              version: '1.0',
+              surfaceId: 's',
+              components: [component],
+            ),
+          ]),
+        );
+        return tableProcessor.model.getSurface('s')!.componentsModel.get(
+              'root',
+            )!;
+      }
+
+      final ComponentModel first = render({
+        'id': 'root',
+        'component': 'Table',
+        'a': 'x',
+        '@catalogId': 'other',
+        '@metadata': {
+          'extensions': {'k': 'v'},
+        },
+      });
+      final Map<String, dynamic> json = first.toJson();
+      expect(json, {
+        'id': 'root',
+        'component': 'Table',
+        'a': 'x',
+        '@catalogId': 'other',
+        '@metadata': {
+          'extensions': {'k': 'v'},
+        },
+      });
+
+      // A bare `catalogId` or `metadata` here would be read as the declared
+      // integer and string properties, and fail their schemas.
+      final ComponentModel second = render(json);
+      expect(second.properties, {'a': 'x'});
+      expect(second.catalog, 'other');
+      expect(second.metadata, {
+        'extensions': {'k': 'v'},
+      });
+    });
+
+    test('rejects a null @catalogId or legacy bare catalogId on v1.0', () {
+      expect(
+        () => update({
+          'id': 'root',
+          'component': 'Alpha',
+          'a': 'x',
+          'catalogId': null,
+        }),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains("non-string 'catalogId'"),
+          ),
+        ),
+      );
+      expect(
+        () => update({
+          'id': 'root',
+          'component': 'Alpha',
+          'a': 'x',
+          '@catalogId': null,
+        }),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains("invalid '@catalogId'"),
+          ),
+        ),
+      );
+      expect(components().get('root'), isNull);
+    });
+
+    test(
+        'routes a legacy bare catalogId by the default catalog schema and '
+        'drops it from properties', () {
+      final routing = MessageProcessor<ComponentApi>(
+        catalogs: [
+          alphaCatalog('main'),
+          Catalog<ComponentApi, FunctionImplementation>(
+            id: 'other',
+            protocolVersion: A2uiProtocolVersion.v1_0,
+            components: [
+              ComponentApi(
+                name: 'Alpha',
+                schema: Schema.object(
+                  properties: {
+                    'a': Schema.string(),
+                    'catalogId': Schema.string(),
+                  },
+                  required: ['a'],
+                ),
+              ),
+            ],
+          ),
+        ],
+        defaultVersion: A2uiProtocolVersion.v1_0,
+      );
+      routing.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(
+            version: '1.0',
+            surfaceId: 's',
+            catalogId: 'main',
+          ),
+          UpdateComponentsMessage(
+            version: '1.0',
+            surfaceId: 's',
+            components: [
+              {
+                'id': 'root',
+                'component': 'Alpha',
+                'a': 'x',
+                'catalogId': 'other',
+              },
+            ],
+          ),
+        ]),
+      );
+      final ComponentModel root =
+          routing.model.getSurface('s')!.componentsModel.get('root')!;
+      expect(root.catalog, 'other');
+      expect(root.properties, {'a': 'x'});
+    });
+
+    test('treats bare metadata and catalogId as custom properties on v0.9', () {
+      final v09Processor = MessageProcessor<ComponentApi>(
+        catalogs: [
+          Catalog<ComponentApi, FunctionImplementation>(
+            id: 'v09-table',
+            protocolVersion: A2uiProtocolVersion.v0_9,
+            components: [
+              ComponentApi(
+                name: 'GcbpTable',
+                schema: Schema.object(
+                  properties: {
+                    'a': Schema.string(),
+                    'catalogId': Schema.string(),
+                    'metadata': Schema.object(
+                      properties: {'pageNumber': Schema.number()},
+                    ),
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+        defaultVersion: A2uiProtocolVersion.v0_9,
+      );
+      v09Processor.processMessages([
+        {
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 's09', 'catalogId': 'v09-table'},
+        },
+        {
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's09',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'GcbpTable',
+                'a': 'initial',
+                'catalogId': 'custom-source',
+                'metadata': {'pageNumber': 1},
+              },
+            ],
+          },
+        },
+      ]);
+
+      final ComponentModel root =
+          v09Processor.model.getSurface('s09')!.componentsModel.get('root')!;
+      expect(root.catalog, isNull);
+      expect(root.metadata, isNull);
+      expect(root.properties, {
+        'a': 'initial',
+        'catalogId': 'custom-source',
+        'metadata': {'pageNumber': 1},
+      });
+
+      // Partial update on v0.9 keeps custom metadata/catalogId in properties.
+      v09Processor.processMessages([
+        {
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's09',
+            'components': [
+              {
+                'id': 'root',
+                'a': 'updated',
+                'catalogId': 'custom-source-2',
+                'metadata': {'pageNumber': 2},
+              },
+            ],
+          },
+        },
+      ]);
+      expect(root.catalog, isNull);
+      expect(root.metadata, isNull);
+      expect(root.properties, {
+        'a': 'updated',
+        'catalogId': 'custom-source-2',
+        'metadata': {'pageNumber': 2},
+      });
     });
   });
 

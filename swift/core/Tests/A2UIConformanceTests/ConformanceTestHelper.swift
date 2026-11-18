@@ -241,6 +241,12 @@ public enum ConformanceTestHelper {
     if path.contains("/v1/") {
       candidates.append(
         repoRoot.appendingPathComponent("specification/v1_0/json/common_types.json"))
+    } else if path.contains("/v0_9_1/") {
+      candidates.append(
+        repoRoot.appendingPathComponent("specification/v0_9_1/json/common_types.json"))
+    } else if path.contains("/v0_9/") {
+      candidates.append(
+        repoRoot.appendingPathComponent("specification/v0_9/json/common_types.json"))
     }
     guard
       let commonTypesURL = candidates.first(where: {

@@ -25,20 +25,20 @@
         {
           "component": "Text",
           "id": "t_brand__text_1",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "@catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": "[Brand] Brand title",
           "variant": "body"
         },
         {
           "component": "BrandBox",
           "id": "t_brand__brandbox_1",
-          "catalogId": "https://example.com/brand_surface.json",
+          "@catalogId": "https://example.com/brand_surface.json",
           "child": "t_brand__text_1"
         },
         {
           "component": "Card",
           "id": "t_brand",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "@catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "t_brand__brandbox_1"
         }
       ]
@@ -65,45 +65,45 @@
         {
           "id": "root",
           "component": "Column",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "@catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": ["t_recreated", "b_null_cid"]
         },
         {
           "component": "Text",
           "id": "t_recreated__text_1",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "@catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": "[Brand] Default brand surface text",
           "variant": "body"
         },
         {
           "component": "BrandBox",
           "id": "t_recreated__brandbox_1",
-          "catalogId": "https://example.com/brand_surface.json",
+          "@catalogId": "https://example.com/brand_surface.json",
           "child": "t_recreated__text_1"
         },
         {
           "component": "Card",
           "id": "t_recreated",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "@catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "t_recreated__brandbox_1"
         },
         {
           "component": "Text",
           "id": "b_null_cid__text_1",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "@catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": "[Badge] Null cid",
           "variant": "body"
         },
         {
           "component": "BrandBox",
           "id": "b_null_cid__brandbox_1",
-          "catalogId": "https://example.com/brand_surface.json",
+          "@catalogId": "https://example.com/brand_surface.json",
           "child": "b_null_cid__text_1"
         },
         {
           "component": "Card",
           "id": "b_null_cid",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "@catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "b_null_cid__brandbox_1"
         }
       ]

@@ -306,10 +306,7 @@ enum AdapterHarness {
 
   /// Reasoned skip entries keyed by `"<case>"` or `"<case>/<op|expectKey>"`.
   @MainActor
-  static let unsupported: [String: String] = [
-    "v10_theme_dropped_in_permissive_mode_renders_like_none":
-      "Theme dropping in permissive mode not yet implemented in A2UICore Swift V10VersionAdapter"
-  ]
+  static let unsupported: [String: String] = [:]
 
   @MainActor private static var matchedUnsupportedKeys: Set<String> = []
   @MainActor private static var completedCasesBySuite: [String: Set<String>] = [:]
