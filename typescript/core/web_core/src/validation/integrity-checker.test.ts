@@ -257,12 +257,12 @@ describe('Integrity Verification', () => {
       }
     });
 
-    it('extracts only componentId from {componentId, "@path"} templates and passes strict validateTopology alongside z.object({}) containers', () => {
+    it('extracts only componentId from {componentId, path} templates and ignores non-spec {componentId, "@path"} objects', () => {
       const catalog = new Catalog('v10-tmpl-cat', '1.0', [
         {
           name: 'Repeater',
           schema: z.object({
-            children: z.object({componentId: z.string(), '@path': z.string()}),
+            children: z.object({componentId: z.string(), path: z.string()}),
           }),
         },
         {
@@ -280,7 +280,7 @@ describe('Integrity Verification', () => {
           {
             id: 'root',
             component: 'Repeater',
-            children: {componentId: 'wrapper', '@path': '/items'},
+            children: {componentId: 'wrapper', path: '/items'},
           },
           catalog,
         ),
@@ -292,7 +292,7 @@ describe('Integrity Verification', () => {
         new ComponentModel(
           'root',
           'Repeater',
-          {children: {componentId: 'wrapper', '@path': '/items'}},
+          {children: {componentId: 'wrapper', path: '/items'}},
           catalog,
         ),
       );
@@ -306,6 +306,52 @@ describe('Integrity Verification', () => {
           allowOrphanComponents: false,
         }),
       );
+
+      assert.deepEqual(
+        Array.from(
+          getComponentReferences(
+            {
+              id: 'root',
+              component: 'Repeater',
+              children: {componentId: 'wrapper', '@path': '/items'},
+            },
+            catalog,
+          ),
+        ),
+        [],
+      );
+
+      const nonSpecZodCatalog = new Catalog('v10-non-spec-zod', '1.0', [
+        {
+          name: 'NotARepeater',
+          schema: z.object({
+            items: z.object({componentId: z.string(), '@path': z.string()}),
+          }),
+        },
+      ]);
+      assert.strictEqual(nonSpecZodCatalog.componentRefMap.NotARepeater.listRefs.size, 0);
+
+      const nonSpecJsonCatalog = Catalog.fromJson({
+        catalogId: 'v10-non-spec-json',
+        protocolVersion: '1.0',
+        components: {
+          NotARepeater: {
+            type: 'object',
+            properties: {
+              component: {const: 'NotARepeater'},
+              items: {
+                type: 'object',
+                properties: {
+                  componentId: {type: 'string'},
+                  '@path': {type: 'string'},
+                },
+              },
+            },
+            required: ['component'],
+          },
+        },
+      });
+      assert.strictEqual(nonSpecJsonCatalog.componentRefMap.NotARepeater.listRefs.size, 0);
     });
 
     it('extracts template componentId when a property has nestedRefs from a [list, nested] union regardless of branch order', () => {

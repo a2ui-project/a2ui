@@ -744,7 +744,7 @@ def _published_function_names(version: str) -> set[str]:
         )
     else:
         catalog_path = os.path.join(
-            SPEC_ROOT, version, "catalogs", "basic", "catalog.json"
+            REPO_ROOT, "catalogs", "basic", version, "catalog.json"
         )
     with open(catalog_path, "r", encoding="utf-8") as catalog_file:
         return set(json.load(catalog_file)["functions"])
