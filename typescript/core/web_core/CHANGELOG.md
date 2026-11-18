@@ -46,6 +46,7 @@
 - `A2uiLitElement.adoptLightDomStyles` scopes styles per element class, so a subclass registered under another tag gets its own stylesheet instead of reusing its parent's. [#4129](https://github.com/a2ui-project/a2ui/pull/4129)
 - Return the `onAction` emit promise from `SurfaceGroupModel` surface subscriptions so `SurfaceModel.dispatchAction` resolves only after group `onAction` listeners settle. [#4205](https://github.com/a2ui-project/a2ui/pull/4205)
 - Add `A2UI_ELEMENT_CONNECTED_EVENT` and `dispatchA2uiElementConnected` to `@a2ui/web_core/universal`. Universal elements dispatch this bubbling, composed event once, the first time they are connected with a `node` or `context`: `A2uiLitElement` dispatches it itself, and `renderA2uiNode` dispatches it for the elements it creates, whatever their base class. Custom containers that insert child elements by hand call `dispatchA2uiElementConnected` for each child. [#4143](https://github.com/a2ui-project/a2ui/pull/4143)
+- `NodeResolver`, `DataContext`, and `GenericBinder` fall back to `surface.defaultCatalog ?? surface.catalog` when a component model omits `catalog` (such as components created with the 3-argument `new ComponentModel(id, type, properties)` overload) and guard optional `metadataSignal`, `onUpdated`, `dispatchError`, and schema fields when resolving over partial test stand-ins. [#3829](https://github.com/a2ui-project/a2ui/pull/3829)
 
 ## 0.15.0
 
