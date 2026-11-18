@@ -103,8 +103,9 @@ export class ComponentBinder {
     if (key !== 'children' || !isChildListTemplateObject(rawVal)) {
       return undefined;
     }
-    const path = rawVal['@path'] ?? rawVal.path;
-    return rawVal.componentId && path ? {id: rawVal.componentId, path} : undefined;
+    return rawVal.componentId && rawVal.path
+      ? {id: rawVal.componentId, path: rawVal.path}
+      : undefined;
   }
 
   private unwrapNodePropValue(key: string, val: unknown, defaultBasePath: string): unknown {
@@ -372,14 +373,12 @@ function toChild(node: ComponentNode): Child {
   return {id: node.componentId, basePath: node.dataPath, node};
 }
 
-function isChildListTemplateObject(
-  value: unknown,
-): value is {componentId: string; path?: string; '@path'?: string} {
+function isChildListTemplateObject(value: unknown): value is {componentId: string; path?: string} {
   return (
     typeof value === 'object' &&
     value !== null &&
     !Array.isArray(value) &&
     Object.hasOwn(value, 'componentId') &&
-    (Object.hasOwn(value, 'path') || Object.hasOwn(value, '@path'))
+    Object.hasOwn(value, 'path')
   );
 }

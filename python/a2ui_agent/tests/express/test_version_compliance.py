@@ -29,10 +29,9 @@ class TestVersionCompliance(unittest.TestCase):
 
         catalog_path = os.path.join(
             find_repo_root() or "",
-            "specification",
-            "v0_9",
             "catalogs",
             "basic",
+            "v0_9",
             "catalog.json",
         )
         with open(catalog_path, "r", encoding="utf-8") as f:

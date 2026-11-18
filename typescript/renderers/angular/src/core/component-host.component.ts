@@ -357,7 +357,8 @@ export class ComponentHostComponent {
     id: string,
   ): void {
     if (node?.state === 'unknown-type') {
-      const catalog = surface.componentsModel.get(id)?.catalog as AngularCatalog | undefined;
+      const catalog =
+        surface.componentsModel.get(id)?.catalog ?? surface.defaultCatalog ?? surface.catalog;
       console.error(`Component type "${node.type}" not found in catalog "${catalog?.id}"`);
       return;
     }
