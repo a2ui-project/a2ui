@@ -43,7 +43,7 @@ def setup_catalog_alias():
     with the $id modified to match what server_to_client.json expects.
     """
     basic_catalog_path = os.path.abspath(
-        os.path.join(TEST_DIR, "../catalogs/basic/catalog.json")
+        os.path.join(TEST_DIR, "../../../catalogs/basic/v0_9/catalog.json")
     )
     if not os.path.exists(basic_catalog_path):
         print(f"Error: catalog.json not found at {basic_catalog_path}")

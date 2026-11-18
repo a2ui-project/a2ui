@@ -95,9 +95,7 @@ def _rename_keys(node: Any) -> Any:
 
 def _build_validator() -> jsonschema.Draft202012Validator:
     v091_json_dir = REPO_ROOT / "specification" / "v0_9_1" / "json"
-    catalog_path = (
-        REPO_ROOT / "specification" / "v0_9_1" / "catalogs" / "basic" / "catalog.json"
-    )
+    catalog_path = REPO_ROOT / "catalogs" / "basic" / "v0_9_1" / "catalog.json"
 
     with open(v091_json_dir / "server_to_client.json", encoding="utf-8") as f:
         server_to_client_schema = json.load(f)
@@ -160,7 +158,7 @@ def lower_case(case: dict[str, Any]) -> dict[str, Any] | None:
     lowered = copy.deepcopy(case)
     lowered["protocolVersion"] = "v0.9"
     if "catalogPaths" in lowered:
-        lowered["catalogPaths"] = ["specification/v0_9/catalogs/basic/catalog.json"]
+        lowered["catalogPaths"] = ["catalogs/basic/v0_9/catalog.json"]
 
     if "steps" in lowered:
         for step in lowered["steps"]:

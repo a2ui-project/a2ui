@@ -713,7 +713,32 @@ struct NodeResolutionConformanceTests {
     nodePath: String,
     caseName: String
   ) {
-    if let expStr = expectedVal.stringValue {
+    if expectedVal == .null {
+      let rawProp = node.properties[propKey]
+      let isNullOrUnsetBinding: Bool
+      switch rawProp {
+      case let b as DataBinding<JSONValue>:
+        isNullOrUnsetBinding = b.value == nil || b.value == .null
+      case let b as DataBinding<String>:
+        isNullOrUnsetBinding = b.value == nil
+      case let b as DataBinding<Double>:
+        isNullOrUnsetBinding = b.value == nil
+      case let b as DataBinding<Bool>:
+        isNullOrUnsetBinding = b.value == nil
+      case let b as DataBinding<Int>:
+        isNullOrUnsetBinding = b.value == nil
+      case let b as DataBinding<[String]>:
+        isNullOrUnsetBinding = b.value == nil
+      case let json as JSONValue:
+        isNullOrUnsetBinding = json == .null
+      default:
+        isNullOrUnsetBinding = false
+      }
+      #expect(
+        isNullOrUnsetBinding,
+        "[\(caseName)] \(nodePath).\(propKey) expected null binding"
+      )
+    } else if let expStr = expectedVal.stringValue {
       #expect(
         node.string(for: propKey) == expStr,
         """
@@ -725,6 +750,18 @@ struct NodeResolutionConformanceTests {
       #expect(
         node.bool(for: propKey) == expBool,
         "[\(caseName)] \(nodePath).\(propKey) bool mismatch"
+      )
+      // DynamicNumber bindings store DataBinding<Double>, so nil node.int(for:)
+      // falls through to expectedVal.doubleValue below.
+    } else if let expInt = expectedVal.intValue, let actualInt = node.int(for: propKey) {
+      #expect(
+        actualInt == expInt,
+        "[\(caseName)] \(nodePath).\(propKey) int mismatch"
+      )
+    } else if let expDbl = expectedVal.doubleValue {
+      #expect(
+        node.double(for: propKey) == expDbl,
+        "[\(caseName)] \(nodePath).\(propKey) double mismatch"
       )
     }
   }

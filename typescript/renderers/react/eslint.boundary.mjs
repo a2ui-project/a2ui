@@ -39,3 +39,10 @@ export const BOUNDARY_ALLOWLIST = [
   'src/node-view.tsx',
   'src/react_component_implementation.ts',
 ];
+
+/**
+ * Ratchet: `BOUNDARY_ALLOWLIST.length` may not exceed this number
+ * (`scripts/adapter_boundary_allowlist.test.mjs`). Raise it in the same
+ * change that adds an entry, and say why in the pull request.
+ */
+export const BOUNDARY_ALLOWLIST_BASELINE = 4;

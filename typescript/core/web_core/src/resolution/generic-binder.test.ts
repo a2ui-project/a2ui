@@ -37,9 +37,14 @@ import {
   type ChildList,
   type DataBinding,
   type DynamicString,
+  type DynamicValue,
   type FunctionCall,
 } from '../types/common-types.js';
-import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
+import type {
+  Action as V1Action,
+  CheckRule as V1CheckRule,
+  FunctionCall as V1FunctionCall,
+} from '../v1_0/schema/common-types.js';
 
 describe('GenericBinder Checkable Trait', () => {
   function setupSurfaceAndMocks() {
@@ -1418,12 +1423,22 @@ describe('GenericBinder Checkable Trait', () => {
     });
 
     it('leaves check rules and data objects as they are', () => {
+      type RequiredData = ResolveA2uiProps<{
+        meta: Record<string, unknown>;
+        nestedMeta: {args: Record<string, unknown>; name: string};
+      }>;
       const checks: V1CheckRule[] | undefined = props.checks;
       const rule: Props['rule'] = {condition: {path: '/valid'}};
       const data: Record<string, unknown> | undefined = props.data;
+      const requiredData: RequiredData = {
+        meta: {k: 1},
+        nestedMeta: {args: {x: 2}, name: 'op'},
+      };
+      const metaValue: unknown = requiredData.meta['k'];
+      const nestedArg: unknown = requiredData.nestedMeta.args['x'];
       assert.deepStrictEqual(
-        [checks, rule.condition, data],
-        [undefined, {path: '/valid'}, undefined],
+        [checks, rule.condition, data, metaValue, nestedArg],
+        [undefined, {path: '/valid'}, undefined, 1, 2],
       );
     });
 
@@ -1431,14 +1446,85 @@ describe('GenericBinder Checkable Trait', () => {
       type Lists = ResolveA2uiProps<{
         names?: string[];
         csp?: {domains?: string[]};
+        requiredConfig: {domains: string[]; title?: DynamicString};
+        requiredPathObj: {path: string; label: string};
         children: ChildList;
       }>;
-      const lists = {children: ['a', {id: 'b', basePath: '/'}]} as Lists;
+      const lists = {
+        requiredConfig: {domains: ['example.com'], setTitle: () => {}},
+        requiredPathObj: {path: '/items', label: 'Items'},
+        children: ['a', {id: 'b', basePath: '/'}],
+      } as Lists;
       const names: readonly string[] | undefined = lists.names;
       const domains: readonly string[] | undefined = lists.csp?.domains;
+      const requiredDomains: string[] = lists.requiredConfig.domains;
+      const requiredTitle: string | undefined = lists.requiredConfig.title;
+      const requiredLabel: string = lists.requiredPathObj.label;
       const children: (string | ResolvedChildRef)[] = lists.children;
-      assert.deepStrictEqual([names, domains, children.length], [undefined, undefined, 2]);
+      assert.deepStrictEqual(
+        [names, domains, requiredDomains, requiredTitle, requiredLabel, children.length],
+        [undefined, undefined, ['example.com'], undefined, 'Items', 2],
+      );
     });
+  });
+
+  it('resolves direct DataBindingSchema and FunctionCallSchema properties and synthesizes setters', async () => {
+    assert.deepStrictEqual(scrapeSchemaBehavior(CommonSchemas.DataBinding), {type: 'DYNAMIC'});
+    assert.deepStrictEqual(scrapeSchemaBehavior(CommonSchemas.FunctionCall), {type: 'DYNAMIC'});
+    assert.deepStrictEqual(scrapeSchemaBehavior(CommonSchemas.DataBinding.optional()), {
+      type: 'DYNAMIC',
+    });
+    assert.deepStrictEqual(scrapeSchemaBehavior(CommonSchemas.FunctionCall.nullable()), {
+      type: 'DYNAMIC',
+    });
+
+    // Custom Dynamic* object and array definitions still scrape recursively as containers.
+    const dynamicContainer = scrapeSchemaBehavior(
+      z.object({inner: CommonSchemas.DynamicString}).describe('REF:#/$defs/DynamicCard'),
+    );
+    assert.strictEqual(dynamicContainer.type, 'OBJECT');
+    const dynamicArray = scrapeSchemaBehavior(
+      z.array(CommonSchemas.DynamicString).describe('REF:#/$defs/DynamicRows'),
+    );
+    assert.strictEqual(dynamicArray.type, 'ARRAY');
+
+    const {catalog, surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/signature', 'Alice');
+
+    const schema = z.object({
+      value: CommonSchemas.DataBinding,
+      longEnough: CommonSchemas.FunctionCall.optional(),
+    });
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c_sig',
+        'SignaturePad',
+        {
+          value: {path: '/signature'},
+          longEnough: {call: 'min_length', args: {value: {path: '/signature'}, min: 4}},
+        },
+        catalog,
+      ),
+    );
+
+    const binder = new GenericBinder<ResolveA2uiProps<z.infer<typeof schema>>>(
+      new ComponentContext(surface, 'c_sig'),
+      schema,
+    );
+    const sub = binder.subscribe(() => {});
+
+    assert.strictEqual(binder.snapshot.value, 'Alice');
+    assert.strictEqual(binder.snapshot.longEnough, true);
+    assert.strictEqual(typeof binder.snapshot.setValue, 'function');
+
+    binder.snapshot.setValue('Bob');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(surface.dataModel.get('/signature'), 'Bob');
+    assert.strictEqual(binder.snapshot.value, 'Bob');
+    assert.strictEqual(binder.snapshot.longEnough, false);
+
+    sub.unsubscribe();
+    surface.dispose();
   });
 
   describe('Generated setter types', () => {
@@ -1466,6 +1552,35 @@ describe('GenericBinder Checkable Trait', () => {
       withLiteral.setValue('ok');
       // @ts-expect-error a literal branch must still constrain the setter.
       withLiteral.setValue(123);
+
+      type DvProps = ResolveA2uiProps<{
+        dv: DynamicValue;
+        meta: Record<string, unknown>;
+        strOrMeta: string | Record<string, unknown>;
+        objOrMeta: {label: string} | Record<string, unknown>;
+        raw: unknown;
+        v1Call: V1FunctionCall;
+      }>;
+      const dvProps: DvProps = {
+        dv: {nested: 1},
+        setDv: () => {},
+        meta: {k: 'v'},
+        strOrMeta: 'plain',
+        objOrMeta: {label: 'ok'},
+        raw: 42,
+        v1Call: 'ok',
+        setV1Call: () => {},
+      };
+      dvProps.setDv(dvProps.dv);
+      dvProps.setV1Call('next');
+      // @ts-expect-error string-indexed properties do not synthesize a runtime setter.
+      assert.strictEqual(dvProps.setMeta, undefined);
+      // @ts-expect-error unions with string-indexed objects do not synthesize a runtime setter.
+      assert.strictEqual(dvProps.setStrOrMeta, undefined);
+      // @ts-expect-error unions of closed and string-indexed objects do not synthesize a runtime setter.
+      assert.strictEqual(dvProps.setObjOrMeta, undefined);
+      // @ts-expect-error unknown properties do not synthesize a runtime setter.
+      assert.strictEqual(dvProps.setRaw, undefined);
     });
   });
 });
@@ -2785,5 +2900,49 @@ describe('GenericBinder @accessibility mirror', () => {
 
     sub.unsubscribe();
     surface.dispose();
+  });
+
+  it('expands v1.0 ChildList templates with plain path and ignores non-spec @path', () => {
+    const catalog = new Catalog('test-tpl', '1.0', [], []);
+    const surface = new SurfaceModel('s1', catalog);
+    surface.dataModel.set('/items', [{label: 'A'}, {label: 'B'}]);
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c1',
+        'Container',
+        {
+          children: {componentId: 'row', path: '/items'},
+          invalidChildren: {componentId: 'row', '@path': '/items'},
+        },
+        catalog,
+      ),
+    );
+    const schema = z.object({
+      children: CommonSchemas.ChildList,
+      invalidChildren: CommonSchemas.ChildList,
+    });
+    const binder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c1'),
+      schema,
+    );
+    assert.deepStrictEqual(binder.snapshot.children, [
+      {id: 'row', basePath: '/items/0'},
+      {id: 'row', basePath: '/items/1'},
+    ]);
+    assert.deepStrictEqual(binder.snapshot.invalidChildren, {
+      componentId: 'row',
+      '@path': '/items',
+    });
+    binder.dispose();
+    surface.dispose();
+  });
+
+  it('handles undefined schemas without throwing on WeakMap caches', () => {
+    assert.deepStrictEqual(scrapeSchemaBehavior(undefined), {type: 'STATIC'});
+    const componentBehavior = scrapeComponentBehavior(undefined);
+    assert.strictEqual(componentBehavior.type, 'OBJECT');
+    assert.ok('accessibility' in componentBehavior.shape);
+    assert.ok('@accessibility' in componentBehavior.shape);
+    assert.ok('@checks' in componentBehavior.shape);
   });
 });
