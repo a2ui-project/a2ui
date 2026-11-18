@@ -76,6 +76,12 @@ if (!skipPathAdjustment) {
   pkg.module = adjustPath(pkg.module);
   pkg.types = adjustPath(pkg.types);
 
+  if (pkg.bin && typeof pkg.bin === 'object') {
+    for (const key in pkg.bin) pkg.bin[key] = adjustPath(pkg.bin[key]);
+  } else {
+    pkg.bin = adjustPath(pkg.bin);
+  }
+
   if (pkg.exports) {
     for (const key in pkg.exports) {
       const exp = pkg.exports[key];
