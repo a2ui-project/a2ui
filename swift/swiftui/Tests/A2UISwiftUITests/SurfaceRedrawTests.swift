@@ -1043,7 +1043,7 @@ struct SurfaceRedrawTests {
       components: [
         ComponentImplementation(name: "probe", schema: schema) { node in
           counter.record("local-\(node.id)")
-          return Text("local")
+          return PublicCatalogReaderProbeView(counter: counter)
         }
       ]
     )
@@ -1100,6 +1100,7 @@ struct SurfaceRedrawTests {
     #endif
 
     #expect(counter.count(for: "local-root") == 1)
+    #expect(counter.count(for: "public-reader") == 1)
 
     counter.reset()
     state.useAltLeft = true
@@ -1263,5 +1264,15 @@ private struct ShadowedCatalogHostView: View {
   var body: some View {
     Surface(viewModel: viewModel, catalogs: [localCatalog])
       .a2uiCatalog(state.useAltLeft ? envV2 : envV1)
+  }
+}
+
+private struct PublicCatalogReaderProbeView: View {
+  @Environment(\.a2uiCatalogs) private var catalogs
+  let counter: RedrawCounter
+
+  var body: some View {
+    let _ = counter.record("public-reader")
+    Text("count=\(catalogs.count)")
   }
 }

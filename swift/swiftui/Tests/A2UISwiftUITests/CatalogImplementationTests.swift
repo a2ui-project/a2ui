@@ -38,53 +38,72 @@ private struct CatalogEnvironmentProbeView: View {
 }
 
 @MainActor
-private func hostView<Content: View>(_ view: Content) -> () -> Void {
-  let rootView = AnyView(view.frame(width: 400, height: 200))
+private final class HostSession {
   #if canImport(AppKit)
-    let hostingView = NSHostingView(rootView: rootView)
-    hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 200)
-    let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 400, height: 200),
-      styleMask: [.borderless],
-      backing: .buffered,
-      defer: false
-    )
-    window.isReleasedWhenClosed = false
-    window.contentView = hostingView
-    window.makeKeyAndOrderFront(nil)
+    private let hostingView: NSHostingView<AnyView>
+    private let window: NSWindow
+  #elseif canImport(UIKit)
+    private let hostingController: UIHostingController<AnyView>
+    private let window: UIWindow
+  #endif
+
+  init<Content: View>(_ view: Content) {
+    let rootView = AnyView(view.frame(width: 400, height: 200))
+    #if canImport(AppKit)
+      let hostingView = NSHostingView(rootView: rootView)
+      hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 200)
+      let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 400, height: 200),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+      )
+      window.isReleasedWhenClosed = false
+      window.contentView = hostingView
+      window.makeKeyAndOrderFront(nil)
+      self.hostingView = hostingView
+      self.window = window
+    #elseif canImport(UIKit)
+      let hostingController = UIHostingController(rootView: rootView)
+      let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 200))
+      window.rootViewController = hostingController
+      window.makeKeyAndVisible()
+      hostingController.view.frame = window.bounds
+      self.hostingController = hostingController
+      self.window = window
+    #endif
+    flush()
+  }
+
+  func flush() {
     RunLoop.main.run(until: Date())
-    hostingView.needsLayout = true
-    hostingView.layoutSubtreeIfNeeded()
-    window.displayIfNeeded()
-    RunLoop.main.run(until: Date())
-    hostingView.layoutSubtreeIfNeeded()
-    return {
+    #if canImport(AppKit)
+      hostingView.needsLayout = true
+      hostingView.layoutSubtreeIfNeeded()
+      window.displayIfNeeded()
+      RunLoop.main.run(until: Date())
+      hostingView.layoutSubtreeIfNeeded()
+    #elseif canImport(UIKit)
+      hostingController.view.setNeedsLayout()
+      hostingController.view.layoutIfNeeded()
+      RunLoop.main.run(until: Date())
+      hostingController.view.layoutIfNeeded()
+    #endif
+  }
+
+  func tearDown() {
+    #if canImport(AppKit)
       hostingView.rootView = AnyView(EmptyView())
       window.contentView = nil
       window.orderOut(nil)
       window.close()
-      RunLoop.main.run(until: Date())
-    }
-  #elseif canImport(UIKit)
-    let hostingController = UIHostingController(rootView: rootView)
-    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 200))
-    window.rootViewController = hostingController
-    window.makeKeyAndVisible()
-    hostingController.view.frame = window.bounds
-    RunLoop.main.run(until: Date())
-    hostingController.view.setNeedsLayout()
-    hostingController.view.layoutIfNeeded()
-    RunLoop.main.run(until: Date())
-    hostingController.view.layoutIfNeeded()
-    return {
+    #elseif canImport(UIKit)
       hostingController.rootView = AnyView(EmptyView())
       window.rootViewController = nil
       window.isHidden = true
-      RunLoop.main.run(until: Date())
-    }
-  #else
-    return {}
-  #endif
+    #endif
+    RunLoop.main.run(until: Date())
+  }
 }
 
 @Suite(.serialized)
@@ -261,8 +280,8 @@ struct SwiftUICatalogRenderingTests {
     let surface = Surface(viewModel: viewModel, catalogs: [])
     #expect(surface.catalogs.isEmpty)
 
-    let tearDown = hostView(VStack { surface }.a2uiCatalog(flightCatalog))
-    defer { tearDown() }
+    let host = HostSession(VStack { surface }.a2uiCatalog(flightCatalog))
+    defer { host.tearDown() }
 
     #expect(rendered)
     #expect(observedCatalogIDs == ["flight"])
@@ -311,36 +330,36 @@ struct SwiftUICatalogRenderingTests {
     )
 
     // Nested ancestors: inner modifier overrides outer array; outer extra catalog is preserved.
-    let nestedTearDown = hostView(
+    let nestedHost = HostSession(
       VStack {
         Surface(viewModel: viewModel, catalogs: [])
           .a2uiCatalog(innerCatalog)
       }
       .a2uiCatalogs([outerCatalog, arrayOverrideCatalog, extraCatalog])
     )
-    nestedTearDown()
+    nestedHost.tearDown()
 
     #expect(renderedVariant == "inner")
     #expect(observedCatalogIDs == ["shared", "extra"])
 
     // Chained on the same view: closer (first) modifier wins, matching SwiftUI conventions.
     renderedVariant = nil
-    let chainedTearDown = hostView(
+    let chainedHost = HostSession(
       Surface(viewModel: viewModel, catalogs: [])
         .a2uiCatalog(innerCatalog)
         .a2uiCatalogs([outerCatalog, arrayOverrideCatalog])
     )
-    chainedTearDown()
+    chainedHost.tearDown()
 
     #expect(renderedVariant == "inner")
 
     // Duplicate IDs within a single array: last element wins, matching Surface.init.
     renderedVariant = nil
-    let arrayTearDown = hostView(
+    let arrayHost = HostSession(
       Surface(viewModel: viewModel, catalogs: [])
         .a2uiCatalogs([outerCatalog, arrayOverrideCatalog])
     )
-    arrayTearDown()
+    arrayHost.tearDown()
 
     #expect(renderedVariant == "array-last")
   }
@@ -379,11 +398,11 @@ struct SwiftUICatalogRenderingTests {
       ComponentModel(id: "root", type: "widget", catalogID: "shared", properties: [:])
     )
 
-    let tearDown = hostView(
+    let host = HostSession(
       Surface(viewModel: viewModel, catalogs: [localCatalog])
         .a2uiCatalogs([envCatalog, extraCatalog])
     )
-    defer { tearDown() }
+    defer { host.tearDown() }
 
     #expect(renderedSource == "local")
     #expect(observedCatalogIDs == ["shared", "extra"])
@@ -427,11 +446,11 @@ struct SwiftUICatalogRenderingTests {
       ComponentModel(id: "root", type: "outerHost", catalogID: "outer-local", properties: [:])
     )
 
-    let tearDown = hostView(
+    let host = HostSession(
       Surface(viewModel: outerVM, catalogs: [outerLocalCatalog])
         .a2uiCatalog(ambientCatalog)
     )
-    defer { tearDown() }
+    defer { host.tearDown() }
 
     #expect(innerObservedCatalogIDs == ["ambient", "inner-local"])
   }
@@ -484,10 +503,92 @@ struct SwiftUICatalogRenderingTests {
     ])
     _ = try #require(viewModel.rootNode?.child(for: "child"))
 
-    let tearDown = hostView(Surface(viewModel: viewModel, catalog: baseCatalog))
-    defer { tearDown() }
+    let host = HostSession(Surface(viewModel: viewModel, catalog: baseCatalog))
+    defer { host.tearDown() }
 
     #expect(!childRenderedFromModifier)
     #expect(childObservedCatalogIDs == ["base"])
+  }
+
+  @Test func publicA2UICatalogsEnvironmentUpdatesReactivelyWhenAncestorChanges() throws {
+    let schema = try Schema(instance: #"{"type": "object"}"#)
+    let recorder = CatalogIDRecorder()
+
+    let observerComponent = ComponentImplementation(name: "observer", schema: schema) { _ in
+      IsolatedPublicCatalogObserver(recorder: recorder).equatable()
+    }
+    let extraComponent = ComponentImplementation(name: "extra", schema: schema) { _ in
+      EmptyView()
+    }
+    let baseCatalog = Catalog(id: "base", components: [observerComponent])
+    let firstEnvCatalog = Catalog(id: "env-a", components: [extraComponent])
+    let secondEnvCatalog = Catalog(id: "env-b", components: [extraComponent])
+
+    let viewModel = SurfaceViewModel(surfaceID: "reactive-env", catalog: baseCatalog)
+    viewModel.componentsModel.addComponent(
+      ComponentModel(id: "root", type: "observer", catalogID: "base", properties: [:])
+    )
+
+    let hostState = ReactiveCatalogHostState(catalogs: [firstEnvCatalog])
+    let rootView = ReactiveCatalogHostView(
+      state: hostState,
+      viewModel: viewModel,
+      baseCatalog: baseCatalog
+    )
+
+    let host = HostSession(rootView)
+    defer { host.tearDown() }
+
+    #expect(recorder.snapshots == [["base", "env-a"]])
+
+    hostState.catalogs = [firstEnvCatalog, secondEnvCatalog]
+    host.flush()
+
+    #expect(recorder.snapshots == [["base", "env-a"], ["base", "env-a", "env-b"]])
+  }
+}
+
+@MainActor
+@Observable
+private final class ReactiveCatalogHostState {
+  var catalogs: [Catalog<ComponentImplementation>]
+
+  init(catalogs: [Catalog<ComponentImplementation>]) {
+    self.catalogs = catalogs
+  }
+}
+
+private struct ReactiveCatalogHostView: View {
+  let state: ReactiveCatalogHostState
+  let viewModel: SurfaceViewModel
+  let baseCatalog: Catalog<ComponentImplementation>
+
+  var body: some View {
+    Surface(viewModel: viewModel, catalogs: [baseCatalog])
+      .a2uiCatalogs(state.catalogs)
+  }
+}
+
+@MainActor
+private final class CatalogIDRecorder {
+  private(set) var snapshots: [Set<String>] = []
+
+  func record(_ ids: Set<String>) {
+    snapshots.append(ids)
+  }
+}
+
+private struct IsolatedPublicCatalogObserver: View, Equatable {
+  @Environment(\.a2uiCatalogs) private var catalogs
+  let recorder: CatalogIDRecorder
+
+  nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.recorder === rhs.recorder
+  }
+
+  var body: some View {
+    let keys = Set(catalogs.keys)
+    let _ = recorder.record(keys)
+    Text(keys.sorted().joined(separator: ","))
   }
 }
