@@ -351,9 +351,9 @@ describe('flagReason — issues', () => {
   });
 
   // Drive the staleness rule off STALE_DAYS so the thresholds live in one
-  // place.
+  // place. The milestone keeps the milestone rule out of the way.
   for (const [priority, threshold] of Object.entries(STALE_DAYS)) {
-    const assigned = {labels: [priority], assignees: [{login: 'dev'}]};
+    const assigned = {labels: [priority], assignees: [{login: 'dev'}], milestone: {number: 1}};
 
     it(`does not flag a fresh assigned ${priority} (within ${threshold} day(s))`, () => {
       const item = issue({...assigned, created_at: daysAgo(threshold)});
@@ -392,10 +392,8 @@ describe('flagReason — issues', () => {
       }
     });
 
-    // Regression: an assigned P1 used to be flagged after 30 days without
-    // human activity. A milestone now settles it, however old the issue is.
-    it(`does not flag an assigned ${priority} with a milestone, however old`, () => {
-      const item = issue({...assigned, milestone: {number: 1}, created_at: daysAgo(9999)});
+    it(`does not flag a fresh assigned ${priority} with a milestone`, () => {
+      const item = issue({...assigned, milestone: {number: 1}});
       assert.equal(flagReason(item, [], NOW), null);
     });
 
@@ -418,10 +416,10 @@ describe('flagReason — issues', () => {
     }
   });
 
-  // The staleness rule covers P0 only. P2 used to be flagged after 90 days and
-  // P1 after 30; P1 now needs a milestone instead.
-  it('watches staleness for P0 only', () => {
-    assert.deepEqual(Object.keys(STALE_DAYS), ['P0']);
+  // The staleness rules cover P0 and P1 only; P2 used to be flagged after 90
+  // days and deliberately no longer is.
+  it('watches staleness for P0 and P1 only', () => {
+    assert.deepEqual(Object.keys(STALE_DAYS), ['P0', 'P1']);
   });
 
   it('requires a milestone for P1 only', () => {

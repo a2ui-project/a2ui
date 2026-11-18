@@ -25,10 +25,9 @@ The script uses the following rules to decide if a PR or issue should get **the 
    - If yes, is it assigned?
      - If assigned:
        - **LABEL** when one of the following is true:
-         - It is `P0` and is stale for more than 1 day.
-         - It is `P1` and is stale for more than 30 days.
-         - It is `P0` without assignee.
-         - It is `P1` with no milestone or assignee.
+         - It is `P0` and has been stale for more than 1 day.
+         - It is `P1` and has been stale for more than 30 days.
+         - It is `P1` with no milestone.
          - It has no priority label (`P0`–`P3`), and it was opened or commented by an external contributor.
        - **NO LABEL** otherwise.
      - If not assigned:
@@ -42,7 +41,9 @@ The script uses the following rules to decide if a PR or issue should get **the 
 4. Is the item **a PR**?
 
    - If yes:
-     - **LABEL** when it was opened by an external contributor and has no assignee. A comment or review from a team member does not remove the label; assigning the PR does.
+     - **LABEL** when one of the following is true:
+       - it was opened by an external contributor and has no assignee. 
+       - it has assignee and is stale for 7 days.
      - **NO LABEL** otherwise.
 
 Staleness is calculated from the last human contribution (a comment or the issue's creation) rather than `updated_at` to avoid bot edits resetting the timer.

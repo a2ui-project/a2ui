@@ -132,7 +132,7 @@ export const MILESTONE_REQUIRED_PRIORITIES: ReadonlySet<Priority> = new Set<Prio
 
 // Days of inactivity before an assigned issue is considered stale (step 3).
 // Priorities absent here are never flagged for staleness.
-export const STALE_DAYS: Partial<Record<Priority, number>> = {P0: 1};
+export const STALE_DAYS: Partial<Record<Priority, number>> = {P0: 1, P1: 30};
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
