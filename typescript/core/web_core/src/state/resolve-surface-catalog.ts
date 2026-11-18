@@ -35,29 +35,28 @@ import {A2uiCatalogError} from '../errors.js';
 export function resolveSurfaceCatalog<C>(
   surface: {
     readonly id: string;
-    readonly defaultCatalog: C | undefined;
+    readonly defaultCatalog?: C | undefined;
+    readonly catalog?: C | undefined;
     readonly availableCatalogs?: ReadonlyMap<string, C>;
   },
   catalogId: string | undefined,
   subject: string,
 ): C {
+  const defaultCatalog = surface.defaultCatalog ?? surface.catalog;
   if (catalogId !== undefined) {
     const found = surface.availableCatalogs?.get(catalogId);
     if (found) {
       return found;
     }
-    if (
-      surface.defaultCatalog &&
-      (surface.defaultCatalog as {readonly id?: unknown}).id === catalogId
-    ) {
-      return surface.defaultCatalog;
+    if (defaultCatalog && (defaultCatalog as {readonly id?: unknown}).id === catalogId) {
+      return defaultCatalog;
     }
     throw new A2uiCatalogError(`Catalog not found: ${catalogId}`);
   }
-  if (!surface.defaultCatalog) {
+  if (!defaultCatalog) {
     throw new A2uiCatalogError(
       `${subject} names no catalogId and surface '${surface.id}' has no default catalogId.`,
     );
   }
-  return surface.defaultCatalog;
+  return defaultCatalog;
 }
