@@ -1,0 +1,411 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-coffee-order",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-column"
+            }
+          }
+        },
+        {
+          "id": "main-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["header", "items", "divider", "totals", "actions"]
+              }
+            }
+          }
+        },
+        {
+          "id": "header",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["coffee-icon", "store-name"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "coffee-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "favorite"
+              }
+            }
+          }
+        },
+        {
+          "id": "store-name",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/storeName"
+              },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "items",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["item1", "item2"]
+              }
+            }
+          }
+        },
+        {
+          "id": "item1",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["item1-details", "item1-price"]
+              },
+              "distribution": "spaceBetween",
+              "alignment": "start"
+            }
+          }
+        },
+        {
+          "id": "item1-details",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["item1-name", "item1-size"]
+              }
+            }
+          }
+        },
+        {
+          "id": "item1-name",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/item1/name"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "item1-size",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/item1/size"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "item1-price",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/item1/price"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "item2",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["item2-details", "item2-price"]
+              },
+              "distribution": "spaceBetween",
+              "alignment": "start"
+            }
+          }
+        },
+        {
+          "id": "item2-details",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["item2-name", "item2-size"]
+              }
+            }
+          }
+        },
+        {
+          "id": "item2-name",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/item2/name"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "item2-size",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/item2/size"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "item2-price",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/item2/price"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "divider",
+          "component": {
+            "Divider": {}
+          }
+        },
+        {
+          "id": "totals",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["subtotal-row", "tax-row", "total-row"]
+              }
+            }
+          }
+        },
+        {
+          "id": "subtotal-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["subtotal-label", "subtotal-value"]
+              },
+              "distribution": "spaceBetween"
+            }
+          }
+        },
+        {
+          "id": "subtotal-label",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Subtotal"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "subtotal-value",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/subtotal"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "tax-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["tax-label", "tax-value"]
+              },
+              "distribution": "spaceBetween"
+            }
+          }
+        },
+        {
+          "id": "tax-label",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Tax"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "tax-value",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/tax"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "total-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["total-label", "total-value"]
+              },
+              "distribution": "spaceBetween"
+            }
+          }
+        },
+        {
+          "id": "total-label",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Total"
+              },
+              "usageHint": "h4"
+            }
+          }
+        },
+        {
+          "id": "total-value",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/total"
+              },
+              "usageHint": "h4"
+            }
+          }
+        },
+        {
+          "id": "actions",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["purchase-btn", "add-btn"]
+              }
+            }
+          }
+        },
+        {
+          "id": "purchase-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Purchase"
+              }
+            }
+          }
+        },
+        {
+          "id": "purchase-btn",
+          "component": {
+            "Button": {
+              "child": "purchase-btn-text",
+              "action": {
+                "name": "purchase",
+                "context": []
+              }
+            }
+          }
+        },
+        {
+          "id": "add-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Add to cart"
+              }
+            }
+          }
+        },
+        {
+          "id": "add-btn",
+          "component": {
+            "Button": {
+              "child": "add-btn-text",
+              "action": {
+                "name": "add_to_cart",
+                "context": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-coffee-order",
+      "contents": [
+        {
+          "key": "storeName",
+          "valueString": "Sunrise Coffee"
+        },
+        {
+          "key": "item1",
+          "valueMap": [
+            {
+              "key": "name",
+              "valueString": "Oat Milk Latte"
+            },
+            {
+              "key": "size",
+              "valueString": "Grande, Extra Shot"
+            },
+            {
+              "key": "price",
+              "valueString": "$6.45"
+            }
+          ]
+        },
+        {
+          "key": "item2",
+          "valueMap": [
+            {
+              "key": "name",
+              "valueString": "Chocolate Croissant"
+            },
+            {
+              "key": "size",
+              "valueString": "Warmed"
+            },
+            {
+              "key": "price",
+              "valueString": "$4.25"
+            }
+          ]
+        },
+        {
+          "key": "subtotal",
+          "valueString": "$10.70"
+        },
+        {
+          "key": "tax",
+          "valueString": "$0.96"
+        },
+        {
+          "key": "total",
+          "valueString": "$11.66"
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-coffee-order",
+      "root": "root"
+    }
+  }
+]
