@@ -272,7 +272,7 @@ struct ValidatorConformanceTests {
     if verifyExpectedSurfaces,
       let expectedSurfaces = (step.expect ?? caseExpect)?["surfaces"]?.objectValue
     {
-      try assertReservedKeysSurfaces(
+      try assertExpectedSurfaces(
         expectedSurfaces: OrderedDictionary(
           uniqueKeysWithValues: expectedSurfaces.map { ($0.key, $0.value) }
         ),
@@ -391,7 +391,8 @@ struct ValidatorConformanceTests {
     _ = try executeValidationSteps(
       for: testCase,
       processor: processor,
-      handler: handler
+      handler: handler,
+      verifyExpectedSurfaces: true
     )
   }
 
@@ -449,7 +450,7 @@ struct ValidatorConformanceTests {
     #expect(executed > 0, "[\(testCase.name)] Expected at least one step to execute")
   }
 
-  private func assertReservedKeysSurfaces(
+  private func assertExpectedSurfaces(
     expectedSurfaces: OrderedDictionary<String, JSONValue>,
     processor: MessageProcessor,
     testName: String
@@ -459,9 +460,48 @@ struct ValidatorConformanceTests {
         processor.surfaceGroupModel[surfaceID],
         "[\(testName)] Expected surface '\(surfaceID)' to exist"
       )
+      // A map of component IDs to components states the surface's whole component model; a
+      // list states properties of resolved nodes.
+      if let expectedModels = expectedSurface["components"]?.objectValue {
+        try assertComponentModels(expectedModels, on: surface, testName: testName)
+        continue
+      }
       guard let expectedComps = expectedSurface["components"]?.arrayValue else { continue }
       for expectedComp in expectedComps {
         try assertReservedKeysComponent(expectedComp, on: surface, testName: testName)
+      }
+    }
+  }
+
+  /// Checks that `surface` holds exactly the components of `expected`, a map from component ID to
+  /// the component's type and properties.
+  private func assertComponentModels(
+    _ expected: OrderedDictionary<String, JSONValue>,
+    on surface: SurfaceViewModel,
+    testName: String
+  ) throws {
+    #expect(
+      Set(surface.componentsModel.components.keys) == Set(expected.keys),
+      "[\(testName)] Component IDs mismatch on surface '\(surface.surfaceID)'"
+    )
+    for (id, expectedComponent) in expected {
+      let actual = try #require(
+        surface.componentsModel.get(id),
+        "[\(testName)] Expected component '\(id)'"
+      )
+      let properties = try #require(
+        expectedComponent.objectValue,
+        "[\(testName)] Component '\(id)' expectation is not an object"
+      )
+      for (key, expectedValue) in properties {
+        if key == "component" {
+          #expect(actual.type == expectedValue.stringValue, "[\(testName)] '\(id)' type mismatch")
+        } else {
+          #expect(
+            actual.properties[key] == expectedValue,
+            "[\(testName)] Component '\(id)' property '\(key)' mismatch"
+          )
+        }
       }
     }
   }
