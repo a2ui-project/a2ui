@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/json/agent_to_renderer_list.json",
+  "title": "A2UI Agent-to-Renderer Message List",
+  "description": "A list of A2UI Agent-to-Renderer messages.",
+  "type": "array",
+  "items": {
+    "$ref": "https://a2ui.org/specification/v1_0/agent_to_renderer.json"
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "name": "Account Balance",
+  "description": "Example of account balance demonstrating currency formatting.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-account-balance",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-account-balance",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main-column"
+          },
+          {
+            "id": "main-column",
+            "component": "Column",
+            "children": ["header", "balance", "updated", "divider", "actions"]
+          },
+          {
+            "id": "header",
+            "component": "Row",
+            "children": ["account-icon", "account-name"],
+            "align": "center"
+          },
+          {
+            "id": "account-icon",
+            "component": "Icon",
+            "name": "payment"
+          },
+          {
+            "id": "account-name",
+            "component": "Text",
+            "text": {
+              "path": "/accountName"
+            },
+            "variant": "h4"
+          },
+          {
+            "id": "balance",
+            "component": "Text",
+            "text": {
+              "call": "formatCurrency",
+              "args": {
+                "value": {
+                  "path": "/balance"
+                },
+                "currency": "USD"
+              },
+              "returnType": "string"
+            },
+            "variant": "h1"
+          },
+          {
+            "id": "updated",
+            "component": "Text",
+            "text": {
+              "path": "/lastUpdated"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "divider",
+            "component": "Divider"
+          },
+          {
+            "id": "actions",
+            "component": "Row",
+            "children": ["transfer-btn", "pay-btn"]
+          },
+          {
+            "id": "transfer-btn-text",
+            "component": "Text",
+            "text": "Transfer"
+          },
+          {
+            "id": "transfer-btn",
+            "component": "Button",
+            "child": "transfer-btn-text",
+            "action": {
+              "event": {
+                "name": "transfer",
+                "context": {}
+              }
+            }
+          },
+          {
+            "id": "pay-btn-text",
+            "component": "Text",
+            "text": "Pay Bill"
+          },
+          {
+            "id": "pay-btn",
+            "component": "Button",
+            "child": "pay-btn-text",
+            "action": {
+              "event": {
+                "name": "pay_bill",
+                "context": {}
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-account-balance",
+        "value": {
+          "accountName": "Primary Checking",
+          "balance": 12458.32,
+          "lastUpdated": "Updated just now"
+        }
+      }
+    }
+  ]
+}

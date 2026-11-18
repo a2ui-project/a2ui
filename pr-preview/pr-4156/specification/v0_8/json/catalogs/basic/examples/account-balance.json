@@ -1,0 +1,166 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-account-balance",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-column"
+            }
+          }
+        },
+        {
+          "id": "main-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["header", "balance", "updated", "divider", "actions"]
+              }
+            }
+          }
+        },
+        {
+          "id": "header",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["account-icon", "account-name"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "account-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "payment"
+              }
+            }
+          }
+        },
+        {
+          "id": "account-name",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/accountName"
+              },
+              "usageHint": "h4"
+            }
+          }
+        },
+        {
+          "id": "balance",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/balance"
+              },
+              "usageHint": "h1"
+            }
+          }
+        },
+        {
+          "id": "updated",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/lastUpdated"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "divider",
+          "component": {
+            "Divider": {}
+          }
+        },
+        {
+          "id": "actions",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["transfer-btn", "pay-btn"]
+              }
+            }
+          }
+        },
+        {
+          "id": "transfer-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Transfer"
+              }
+            }
+          }
+        },
+        {
+          "id": "transfer-btn",
+          "component": {
+            "Button": {
+              "child": "transfer-btn-text",
+              "action": {
+                "name": "transfer",
+                "context": []
+              }
+            }
+          }
+        },
+        {
+          "id": "pay-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Pay Bill"
+              }
+            }
+          }
+        },
+        {
+          "id": "pay-btn",
+          "component": {
+            "Button": {
+              "child": "pay-btn-text",
+              "action": {
+                "name": "pay_bill",
+                "context": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-account-balance",
+      "contents": [
+        {
+          "key": "accountName",
+          "valueString": "Primary Checking"
+        },
+        {
+          "key": "balance",
+          "valueString": "$12,458.32"
+        },
+        {
+          "key": "lastUpdated",
+          "valueString": "Updated just now"
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-account-balance",
+      "root": "root"
+    }
+  }
+]
