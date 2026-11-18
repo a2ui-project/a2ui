@@ -64,6 +64,8 @@ Review the PR when all of the following are true:
 - It does not overlap with work already in progress.
 - It brings a change that the team can maintain long term.
 
+If you started reviewing PR, assign it to yourself.
+
 You do not have to prove your decision is right; use your intuition.
 
 If you decide to review it, help land it. If it is faster, create a superseding PR instead.
