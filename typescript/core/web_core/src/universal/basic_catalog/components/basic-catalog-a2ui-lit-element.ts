@@ -55,8 +55,11 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
   override connectedCallback() {
     super.connectedCallback();
     const root = this.getRootNode();
+    const doc = this.ownerDocument ?? (typeof document !== 'undefined' ? document : null);
     const targetRoot =
-      typeof ShadowRoot !== 'undefined' && root instanceof ShadowRoot ? root : undefined;
+      root && root !== doc && ('host' in root || 'adoptedStyleSheets' in root)
+        ? (root as Document | ShadowRoot)
+        : undefined;
     injectBasicCatalogStyles(targetRoot);
   }
 

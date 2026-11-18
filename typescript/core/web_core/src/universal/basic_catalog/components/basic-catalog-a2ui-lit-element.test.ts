@@ -195,6 +195,21 @@ describe('BasicCatalogA2uiLitElement', () => {
     host.remove();
   });
 
+  it('injectBasicCatalogStyles falls back to style tag injection when adoptedStyleSheets is absent', () => {
+    const mockRoot = document.createElement('div') as any;
+    // mockRoot has no adoptedStyleSheets property
+    injectBasicCatalogStyles(mockRoot);
+
+    const styleEl = mockRoot.querySelector('style[data-a2ui-basic-catalog]');
+    assert.ok(styleEl !== null);
+    assert.ok(styleEl.textContent?.includes('--a2ui-color-primary'));
+
+    // Re-injecting does not duplicate the style tag
+    injectBasicCatalogStyles(mockRoot);
+    const styleEls = mockRoot.querySelectorAll('style[data-a2ui-basic-catalog]');
+    assert.strictEqual(styleEls.length, 1);
+  });
+
   it('applies flex weight when props.weight is provided and removes when undefined', async () => {
     element = document.createElement('a2ui-test-basic-element');
     document.body.appendChild(element);
