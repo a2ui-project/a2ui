@@ -1,15 +1,17 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
 
-  /* Type-checks the whole source tree, tests included. Used by `test:types` and by ESLint; the
-     library build uses tsconfig.json, which leaves the tests out. */
+  /* Type-checks the whole source tree, tests included, and the browser tests and fixtures under
+     tests/. Used by `test:types`, by the Karma esbuild preprocessor and by ESLint; the library build
+     uses tsconfig.json, which leaves the tests out. The node tests import node:test and the browser
+     tests use the Jasmine globals, so both type sets are loaded. */
   "compilerOptions": {
     "noEmit": true,
     "forceConsistentCasingInFileNames": true,
     "target": "es2021",
     "module": "esnext",
-    "lib": ["es2023"],
-    "types": ["node"],
+    "lib": ["es2023", "DOM", "DOM.Iterable"],
+    "types": ["jasmine", "node"],
     "skipLibCheck": true,
     "useDefineForClassFields": false,
 
@@ -25,6 +27,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts", "src/**/*.json"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*.ts", "src/**/*.json", "tests/**/*.ts"],
+  "exclude": ["node_modules", "dist", "tests/fixtures/generated"]
 }
