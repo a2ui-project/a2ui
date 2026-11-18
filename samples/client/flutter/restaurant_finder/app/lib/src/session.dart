@@ -38,7 +38,13 @@ class RestaurantSession extends ChangeNotifier {
           const CapabilitiesOptions(versions: [A2uiProtocolVersion.v0_9]),
         )
         .toJson();
-    _init();
+    _actionSub = _processor.model.onAction.subscribe(_handleActionFromSurface);
+    _createdSub = _processor.model.onSurfaceCreated.subscribe(
+      (_) => notifyListeners(),
+    );
+    _deletedSub = _processor.model.onSurfaceDeleted.subscribe(
+      (_) => notifyListeners(),
+    );
   }
 
   late final A2uiAgentConnector _connector;
@@ -68,25 +74,10 @@ class RestaurantSession extends ChangeNotifier {
   final Logger _logger = Logger('RestaurantSession');
   Timer? _loadingTimer;
 
-  late final StreamSubscription<AgentToRendererMessage> _a2uiSub;
-  late final StreamSubscription<String> _textSub;
-  late final StreamSubscription<Object> _errorSub;
+  StreamSubscription<AgentToRendererMessage>? _activeSub;
   late final Subscription _actionSub;
   late final Subscription _createdSub;
   late final Subscription _deletedSub;
-
-  void _init() {
-    _a2uiSub = _connector.stream.listen(_handleUiFromAgent);
-    _textSub = _connector.textStream.listen(_handleTextFromAgent);
-    _errorSub = _connector.errorStream.listen(_handleError);
-    _actionSub = _processor.model.onAction.subscribe(_handleActionFromSurface);
-    _createdSub = _processor.model.onSurfaceCreated.subscribe(
-      (_) => notifyListeners(),
-    );
-    _deletedSub = _processor.model.onSurfaceDeleted.subscribe(
-      (_) => notifyListeners(),
-    );
-  }
 
   void _handleActionFromSurface(A2uiRendererAction action) {
     final Map<String, Object?> payload = ActionMessage(
@@ -98,20 +89,6 @@ class RestaurantSession extends ChangeNotifier {
         () => _connector.sendData(payload, clientCapabilities: _capabilities),
       ),
     );
-  }
-
-  void _handleUiFromAgent(AgentToRendererMessage message) {
-    _processor.processMessages(AgentToRendererMessagePayload.of(message));
-  }
-
-  void _handleTextFromAgent(String text) {
-    _logger.info('Text from agent: $text');
-  }
-
-  void _handleError(Object err) {
-    _error = err.toString();
-    _logger.severe('Error from agent', err, StackTrace.current);
-    notifyListeners();
   }
 
   void _startLoadingAnimation() {
@@ -136,7 +113,7 @@ class RestaurantSession extends ChangeNotifier {
   }
 
   Future<void> _sendToAgent(
-    Future<void> Function() send, {
+    Stream<AgentToRendererMessage> Function() send, {
     bool clearSurfaces = false,
   }) async {
     if (_isRequesting) return;
@@ -158,11 +135,27 @@ class RestaurantSession extends ChangeNotifier {
 
     notifyListeners();
     try {
-      await send();
+      final completer = Completer<void>();
+      _activeSub = send().listen(
+        (message) => _processor.processMessages(
+          AgentToRendererMessagePayload.of(message),
+        ),
+        onError: (Object error, StackTrace stackTrace) {
+          if (!completer.isCompleted) {
+            completer.completeError(error, stackTrace);
+          }
+        },
+        onDone: () {
+          if (!completer.isCompleted) completer.complete();
+        },
+        cancelOnError: true,
+      );
+      await completer.future;
     } catch (e, st) {
       _error = e.toString();
       _logger.severe('Error sending message', e, st);
     } finally {
+      _activeSub = null;
       _isRequesting = false;
       _stopLoadingAnimation();
       notifyListeners();
@@ -172,15 +165,12 @@ class RestaurantSession extends ChangeNotifier {
   @override
   void dispose() {
     _isDisposed = true;
-    _a2uiSub.cancel();
-    _textSub.cancel();
-    _errorSub.cancel();
+    unawaited(_activeSub?.cancel());
     _actionSub.unsubscribe();
     _createdSub.unsubscribe();
     _deletedSub.unsubscribe();
     _loadingTimer?.cancel();
     _processor.dispose();
-    _connector.dispose();
     super.dispose();
   }
 

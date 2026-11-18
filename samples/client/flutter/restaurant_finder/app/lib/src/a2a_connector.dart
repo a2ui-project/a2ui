@@ -38,24 +38,12 @@ class A2uiAgentConnector {
   final Logger _logger = Logger('A2uiAgentConnector');
   final Uuid _uuid = const Uuid();
 
-  final StreamController<AgentToRendererMessage> _messageController =
-      StreamController<AgentToRendererMessage>.broadcast();
-  final StreamController<String> _textController =
-      StreamController<String>.broadcast();
-  final StreamController<Object> _errorController =
-      StreamController<Object>.broadcast();
-
   bool _agentCardFetched = false;
   String? _taskId;
   String? _contextId;
-  StreamSubscription<A2ASendStreamMessageResponse>? _activeStreamSub;
 
-  Stream<AgentToRendererMessage> get stream => _messageController.stream;
-  Stream<String> get textStream => _textController.stream;
-  Stream<Object> get errorStream => _errorController.stream;
-
-  /// Sends a text turn to the A2A agent and streams its response.
-  Future<void> sendText(
+  /// Sends a text turn to the A2A agent and yields its A2UI messages.
+  Stream<AgentToRendererMessage> sendText(
     String text, {
     Map<String, Object?>? clientCapabilities,
   }) => _sendParts([
@@ -63,17 +51,17 @@ class A2uiAgentConnector {
   ], clientCapabilities: clientCapabilities);
 
   /// Sends a resolved A2UI data payload (e.g. an action) to the A2A agent.
-  Future<void> sendData(
+  Stream<AgentToRendererMessage> sendData(
     Map<String, Object?> data, {
     Map<String, Object?>? clientCapabilities,
   }) => _sendParts([
     A2ADataPart()..data = data,
   ], clientCapabilities: clientCapabilities);
 
-  Future<void> _sendParts(
+  Stream<AgentToRendererMessage> _sendParts(
     List<A2APart> parts, {
     Map<String, Object?>? clientCapabilities,
-  }) async {
+  }) async* {
     if (!_agentCardFetched) {
       await _client.getAgentCard().timeout(const Duration(seconds: 30));
       _agentCardFetched = true;
@@ -93,46 +81,26 @@ class A2uiAgentConnector {
       ..message = message
       ..extensions = [_a2uiExtensionUri];
 
-    final completer = Completer<void>();
-    await _activeStreamSub?.cancel();
-    _activeStreamSub = _client
-        .sendMessageStream(params)
-        .timeout(const Duration(seconds: 30))
-        .listen(
-          _handleEvent,
-          onError: (Object error, StackTrace stackTrace) {
-            if (!completer.isCompleted) {
-              completer.completeError(error, stackTrace);
-            }
-          },
-          onDone: () {
-            if (!completer.isCompleted) {
-              completer.complete();
-            }
-          },
-          cancelOnError: true,
-        );
-
-    try {
-      await completer.future;
-    } finally {
-      _activeStreamSub = null;
+    await for (final A2ASendStreamMessageResponse event
+        in _client
+            .sendMessageStream(params)
+            .timeout(const Duration(seconds: 30))) {
+      for (final AgentToRendererMessage msg in _handleEvent(event)) {
+        yield msg;
+      }
     }
   }
 
-  void _handleEvent(A2ASendStreamMessageResponse event) {
+  Iterable<AgentToRendererMessage> _handleEvent(
+    A2ASendStreamMessageResponse event,
+  ) sync* {
     if (event.isError) {
       final errorResponse = event as A2AJSONRPCErrorResponseS;
       final int? code = errorResponse.error?.rpcErrorCode;
       final Object? detail = code == null
           ? errorResponse.error
           : A2AError.asString(code);
-      final errorMessage = 'A2A Error: $detail';
-      _logger.severe(errorMessage);
-      if (!_errorController.isClosed) {
-        _errorController.add(errorMessage);
-      }
-      return;
+      throw StateError('A2A Error: $detail');
     }
 
     final response = event as A2ASendStreamMessageSuccessResponse;
@@ -146,69 +114,53 @@ class A2uiAgentConnector {
       if (state == A2ATaskState.failed ||
           state == A2ATaskState.canceled ||
           state == A2ATaskState.rejected) {
-        final errorMessage = 'A2A Error: $state: ${status?.message}';
-        _logger.severe(errorMessage);
-        if (!_errorController.isClosed) {
-          _errorController.add(errorMessage);
-        }
-        return;
+        throw StateError('A2A Error: $state: ${status?.message}');
       }
       if (status?.message case final A2AMessage message) {
-        _processParts(message.parts);
+        yield* _processParts(message.parts);
       }
     } else if (result is A2ATask) {
       _taskId = result.id;
       _contextId = result.contextId;
       if (result.status.message case final A2AMessage message) {
-        _processParts(message.parts);
+        yield* _processParts(message.parts);
       }
       if (result.artifacts case final List<A2AArtifact> artifacts) {
         for (final artifact in artifacts) {
-          _processParts(artifact.parts);
+          yield* _processParts(artifact.parts);
         }
       }
     } else if (result is A2AMessage) {
-      _processParts(result.parts);
+      yield* _processParts(result.parts);
     }
   }
 
-  void _processParts(List<A2APart> parts) {
+  Iterable<AgentToRendererMessage> _processParts(List<A2APart> parts) sync* {
     for (final part in parts) {
       if (part is A2ADataPart) {
-        _emitA2uiData(part.data);
+        yield* _decodeA2uiData(part.data);
       } else if (part is A2ATextPart) {
         final String trimmed = part.text.trim();
-        if (trimmed.isNotEmpty && !_textController.isClosed) {
-          _textController.add(trimmed);
+        if (trimmed.isNotEmpty) {
+          _logger.info('Text from agent: $trimmed');
         }
       }
     }
   }
 
-  void _emitA2uiData(Object data) {
+  Iterable<AgentToRendererMessage> _decodeA2uiData(Object data) sync* {
     if (data is List) {
       for (final Object? item in data) {
-        if (item != null) _emitA2uiData(item);
+        if (item != null) yield* _decodeA2uiData(item);
       }
       return;
     }
     if (data is! Map<String, Object?>) return;
 
     try {
-      final message = AgentToRendererMessage.fromJson(data);
-      if (!_messageController.isClosed) {
-        _messageController.add(message);
-      }
+      yield AgentToRendererMessage.fromJson(data);
     } on Object catch (e, st) {
       _logger.warning('Skipping non-A2UI data part: $e', e, st);
     }
-  }
-
-  void dispose() {
-    unawaited(_activeStreamSub?.cancel());
-    _activeStreamSub = null;
-    _messageController.close();
-    _textController.close();
-    _errorController.close();
   }
 }
