@@ -2,7 +2,7 @@
 
 Embed A2UI in [MCP Apps](https://github.com/modelcontextprotocol/ext-apps): an MCP server returns A2UI v1.0 messages from its tools, and a single-file app renders them in any MCP Apps host, so the host needs no A2UI support.
 
-This package is under development. It currently provides the contract between the server and the app, and the server API.
+This package is under development. It currently provides the contract between the server and the app, the server API, and the app's runtime.
 
 ## Contract
 
@@ -123,3 +123,68 @@ app.followUp('breakdown', {
 ```
 
 The message text only comes from the template in your code. Each `{name}` placeholder is replaced with the context value, stringified, stripped of control characters, truncated to `maxValueLength` characters and quoted, so a value can never read as part of the template's own text: `Break down the revenue of "March" by "country"`. A missing value makes the action fail.
+
+## App runtime
+
+`@a2ui/embed/mcp` runs inside the app's iframe. `startEmbedApp` connects to the host with the [MCP Apps App SDK](https://github.com/modelcontextprotocol/ext-apps) and renders the A2UI payload of each tool result with the Lit renderer and the catalogs you pass.
+
+```ts
+import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {startEmbedApp} from '@a2ui/embed/mcp';
+
+startEmbedApp({
+  catalogs: [basicCatalog],
+  appInfo: {name: 'sales-app', version: '1.0.0'}, // Optional (default: {name: 'a2ui-embed', version: '1.0.0'})
+  root: document.getElementById('app')!, // Optional (default: document.body)
+  modelContext: {maxBytes: 8192}, // Optional (default: {maxBytes: 16384})
+});
+```
+
+It returns a handle with the App SDK `app`, a `ready` promise that settles after the host handshake, and `close()`.
+
+The app:
+
+- Shows a loading state while the tool runs, then renders each surface of `structuredContent.a2ui`. A new tool result replaces the surfaces.
+- Applies each batch of messages only if the whole batch is valid against the catalogs, so an invalid payload never renders partially. A payload that is missing, invalid, or written for another contract major version shows an error card instead.
+- Sends every A2UI action to the server's `a2ui_action` tool as an `ActionCall`, with at most four calls in flight. The messages in the result update the surfaces in place. A `followUp.text` is posted to the conversation as a user message when the host supports `ui/message`. A failed action shows a dismissible notice and keeps the surfaces.
+- Reports its size to the host and follows the host theme: it applies the host's theme, style variables and fonts, and maps the standard MCP Apps variables onto the A2UI basic catalog theme.
+- Shares the data model of each surface created with `sendDataModel: true` with the model, as described below.
+- Runs under the default MCP Apps CSP (`default-src 'none'` with inline scripts and styles): it never evaluates code or makes network requests.
+
+### Model context
+
+When the user changes the data model of a surface created with `sendDataModel: true`, for example by typing in a text field, the app sends the data model to the host with `ui/update-model-context`. The host adds it to the model's context with the user's next message, without starting a turn, so the model can answer questions about what the user entered.
+
+- Only user changes send an update. The initial render, tool results and action results never do, and an update waits until the user stops changing the data models for 300 ms.
+- Each update replaces the previous one and holds one text block with the data model of every `sendDataModel` surface, as JSON: `A2UI surface "form" data model:` followed by `{"name":"Grace"}`.
+- The JSON of one update is limited to `modelContext.maxBytes` (16 KiB by default). Above it, the largest data models are left out, largest first, and named with their size instead, so the model never reads partial JSON.
+- A new tool result clears the shared context, and deleting a `sendDataModel` surface removes its data model from it.
+- Nothing is sent when the host does not support `ui/update-model-context`.
+
+### Theming
+
+The app maps these host variables onto the A2UI theme. Each mapping falls back to the A2UI default when the host omits the variable.
+
+| A2UI property                                                                                                 | Host variable                  |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `--a2ui-color-background`                                                                                     | `--color-background-primary`   |
+| `--a2ui-color-on-background`, `--a2ui-color-on-surface`, `--a2ui-color-on-secondary`, `--a2ui-color-on-input` | `--color-text-primary`         |
+| `--a2ui-color-surface`                                                                                        | `--color-background-secondary` |
+| `--a2ui-color-secondary`                                                                                      | `--color-background-tertiary`  |
+| `--a2ui-color-input`                                                                                          | `--color-background-primary`   |
+| `--a2ui-color-primary`                                                                                        | `--color-ring-primary`         |
+| `--a2ui-color-border`                                                                                         | `--color-border-primary`       |
+| `--a2ui-text-caption-color`                                                                                   | `--color-text-secondary`       |
+| `--a2ui-border-radius`                                                                                        | `--border-radius-md`           |
+| `--a2ui-border-width`                                                                                         | `--border-width-regular`       |
+| `--a2ui-font-family-monospace`                                                                                | `--font-mono`                  |
+
+The document text uses `--font-sans` and `--color-text-primary`. The app's rules have no specificity, so any rule on `.a2ui-embed` overrides them, including these app-level properties:
+
+| Property                          | Default                     |
+| --------------------------------- | --------------------------- |
+| `--a2ui-embed-max-width`          | `960px`                     |
+| `--a2ui-embed-padding`            | `0`                         |
+| `--a2ui-embed-error-color`        | `--color-text-danger`       |
+| `--a2ui-embed-error-background`   | `--color-background-danger` |
+| `--a2ui-embed-error-border-color` | `--color-border-danger`     |
