@@ -1779,6 +1779,8 @@ public final class NodeResolver: Sendable {
   /// A write the data model rejects, such as a child path under a primitive value, leaves the
   /// data model unchanged and is reported to the action handler as a `DATA_ERROR`.
   private func writeBinding(_ path: String, value: JSONValue?) {
+    // A binding held by a view that outlives a deleted surface must not write to it.
+    guard !isDisposed else { return }
     do {
       try dataModel.setThrowing(path, value: value)
     } catch {

@@ -1121,9 +1121,9 @@ struct MessageProcessorTests {
   @Test func rejectedBindingWriteSendsOneDataErrorToOutboundListener() throws {
     let (processor, handler) = try makeProcessor()
     var capturedOutbound: [RendererToAgentMessage] = []
-    processor.outboundListener = { msg in
+    processor.outboundListener = { message in
       MainActor.assumeIsolated {
-        capturedOutbound.append(msg)
+        capturedOutbound.append(message)
       }
     }
     try processor.processMessages(

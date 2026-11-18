@@ -521,6 +521,11 @@ struct SurfaceViewModelTests {
           "label": ["path": "/name/first"],
           "enabled": ["path": "/flag/on"],
           "count": ["path": "/score/value"],
+          "details": ["path": "/name/meta"],
+          "tags": ["path": "/name/tags"],
+          "checks": [
+            ["condition": ["path": "/flag/valid"], "message": "Invalid"]
+          ],
         ]
       ]
     )
@@ -529,23 +534,59 @@ struct SurfaceViewModelTests {
     let label = try #require(node.properties["label"] as? DataBinding<String>)
     let enabled = try #require(node.properties["enabled"] as? DataBinding<Bool>)
     let count = try #require(node.properties["count"] as? DataBinding<Double>)
+    let details = try #require(node.properties["details"] as? DataBinding<JSONValue>)
+    let tags = try #require(node.properties["tags"] as? DataBinding<[String]>)
+    let checks = try #require(node.properties["checks"] as? [ResolvedCheck])
+    let checkCondition = try #require(checks.first?.condition)
     #expect(handler.capturedErrors.isEmpty)
 
     label.set("Grace")
     enabled.set(false)
     count.set(2)
+    details.set(.object(["role": .string("admin")]))
+    tags.set(["swift"])
+    checkCondition.set(true)
 
     #expect(surface.dataModel.get("/") == before)
     let errors = handler.capturedErrors.compactMap { error -> GenericError? in
       guard case .generic(let generic) = error else { return nil }
       return generic
     }
-    try #require(errors.count == 3)
-    #expect(errors.map(\.code) == ["DATA_ERROR", "DATA_ERROR", "DATA_ERROR"])
-    #expect(errors.allSatisfy { $0.surfaceID == surface.surfaceID })
-    #expect(errors[0].message.contains("/name/first"))
-    #expect(errors[1].message.contains("/flag/on"))
-    #expect(errors[2].message.contains("/score/value"))
+    let expectedPaths = [
+      "/name/first", "/flag/on", "/score/value", "/name/meta", "/name/tags", "/flag/valid",
+    ]
+    try #require(errors.count == expectedPaths.count)
+    #expect(errors.allSatisfy { $0.code == "DATA_ERROR" && $0.surfaceID == surface.surfaceID })
+    for (error, expectedPath) in zip(errors, expectedPaths) {
+      #expect(error.message.contains(expectedPath))
+    }
+  }
+
+  @Test func bindingWriteAfterSurfaceDisposeIsNoOp() throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/name", value: "Ada")
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": ["path": "/name/first"],
+          "count": ["path": "/score"],
+        ]
+      ]
+    )
+    let node = try #require(surface.rootNode)
+    let rejected = try #require(node.properties["label"] as? DataBinding<String>)
+    let accepted = try #require(node.properties["count"] as? DataBinding<Double>)
+    let before = surface.dataModel.get("/")
+
+    surface.dispose()
+    rejected.set("Grace")
+    accepted.set(2)
+
+    #expect(surface.dataModel.get("/") == before)
+    #expect(handler.capturedErrors.isEmpty)
   }
 
   @Test func acceptedBindingWriteReportsNoError() throws {
