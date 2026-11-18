@@ -12,7 +12,7 @@
     "inlineSources": true,
     "target": "es2021",
     "module": "esnext",
-    "lib": ["es2023"],
+    "lib": ["es2023", "DOM", "DOM.Iterable"],
     "types": [],
     "skipLibCheck": true,
     "useDefineForClassFields": false,

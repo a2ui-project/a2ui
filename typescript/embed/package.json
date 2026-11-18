@@ -27,6 +27,10 @@
       "types": "./dist/contract/index.d.ts",
       "default": "./dist/contract/index.js"
     },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "default": "./dist/mcp/index.js"
+    },
     "./mcp/server": {
       "types": "./dist/mcp/server/index.d.ts",
       "default": "./dist/mcp/server/index.js"
@@ -41,6 +45,8 @@
     "build": "wireit",
     "test:types": "wireit",
     "test:node": "wireit",
+    "build:test-fixtures": "wireit",
+    "test:karma": "wireit",
     "test": "wireit",
     "lint": "wireit",
     "lint:fix": "yarn copy-spec && eslint . --fix",
@@ -64,6 +70,7 @@
       "command": "tsc -b --pretty",
       "dependencies": [
         "../core/web_core:build",
+        "../renderers/lit:build",
         "copy-spec"
       ],
       "files": [
@@ -87,7 +94,8 @@
         "src/**/*.ts",
         "src/**/*.json",
         "tsconfig.json",
-        "tsconfig.test.json"
+        "tsconfig.test.json",
+        "tests/**/*.ts"
       ],
       "output": []
     },
@@ -103,22 +111,54 @@
       ],
       "output": []
     },
+    "build:test-fixtures": {
+      "command": "node scripts/build-test-fixtures.mjs",
+      "dependencies": [
+        "build"
+      ],
+      "files": [
+        "tests/fixtures/*.ts",
+        "scripts/build-test-fixtures.mjs"
+      ],
+      "output": [
+        "tests/fixtures/generated/**"
+      ]
+    },
+    "test:karma": {
+      "command": "karma start karma.conf.cjs --single-run=true",
+      "dependencies": [
+        "build",
+        "build:test-fixtures"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "tests/**/*.ts",
+        "karma.conf.cjs",
+        "tsconfig.test.json"
+      ],
+      "output": []
+    },
     "test": {
       "dependencies": [
         "test:types",
-        "test:node"
+        "test:node",
+        "test:karma"
       ]
     },
     "lint": {
       "command": "eslint .",
       "dependencies": [
         "../core/web_core:build",
+        "../renderers/lit:build",
         "copy-spec"
       ],
       "files": [
         "src/**/*.ts",
         "src/**/*.json",
         "*.mjs",
+        "tests/**/*.ts",
+        "scripts/**",
+        "*.cjs",
         "tsconfig.json",
         "tsconfig.test.json",
         "../../eslint.preset.mjs"
@@ -126,7 +166,7 @@
       "output": []
     },
     "clean": {
-      "command": "rm -rf dist src/mcp/server/spec .wireit .tsbuildinfo"
+      "command": "rm -rf dist src/mcp/server/spec .wireit .tsbuildinfo tests/fixtures/generated"
     }
   },
   "author": "Google",
@@ -136,15 +176,34 @@
     "zod": "^3.25.76"
   },
   "peerDependencies": {
-    "@a2ui/web_core": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.29.0"
-  },
-  "devDependencies": {
+    "@a2ui/lit": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "lit": "^3.3.3"
+  },
+  "peerDependenciesMeta": {
+    "@a2ui/lit": {
+      "optional": true
+    },
+    "lit": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@a2ui/lit": "workspace:*",
+    "@a2ui/web_core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@types/jasmine": "^6.0.0",
     "@types/node": "^25.9.3",
+    "esbuild": "^0.28.1",
     "eslint": "^10.4.1",
     "gts": "^7.0.0",
+    "jasmine-core": "^6.3.0",
+    "karma": "^6.4.4",
+    "karma-chrome-launcher": "^3.2.0",
+    "karma-esbuild": "^2.3.0",
+    "karma-jasmine": "^5.1.0",
+    "lit": "^3.3.3",
     "prettier": "^3.8.4",
     "tsx": "^4.22.4",
     "typescript": "5.9.3",
