@@ -13,7 +13,7 @@
     "target": "es2021",
     "module": "esnext",
     "lib": ["es2023", "DOM", "DOM.Iterable"],
-    "types": [],
+    "types": ["node"],
     "skipLibCheck": true,
     "useDefineForClassFields": false,
     "rootDir": "src",
@@ -33,5 +33,5 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src/**/*.ts", "src/**/*.json"],
-  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/testing/**"]
 }
