@@ -1,0 +1,49 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-row-layout",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["left_text", "right_text"]
+              },
+              "distribution": "spaceBetween",
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "left_text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Left Content"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "right_text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Right Content"
+              },
+              "usageHint": "caption"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-row-layout",
+      "root": "root"
+    }
+  }
+]
