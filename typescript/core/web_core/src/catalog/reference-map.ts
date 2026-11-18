@@ -137,9 +137,7 @@ function checkJsonSchemaRef(
     schema.type === 'object' &&
     props &&
     ((Object.hasOwn(props, 'componentId') &&
-      (Object.hasOwn(props, 'path') ||
-        Object.hasOwn(props, '@path') ||
-        Object.hasOwn(props, 'dataBinding'))) ||
+      (Object.hasOwn(props, 'path') || Object.hasOwn(props, 'dataBinding'))) ||
       Object.hasOwn(props, 'explicitList') ||
       Object.hasOwn(props, 'template'))
   ) {

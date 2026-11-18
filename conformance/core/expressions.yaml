@@ -14,7 +14,7 @@
 
 # Conformance cases for the client-side expression parser that backs
 # `formatString` in the basic catalog, as described in
-# specification/v0_9/docs/basic_catalog_implementation_guide.md.
+# catalogs/basic/v0_9/basic_catalog_implementation_guide.md.
 #
 # `input` is the template string handed to the parser. `expect` is the sequence
 # of parsed parts: literal strings, data bindings ({path: ...}) and function

@@ -16,6 +16,7 @@ import A2UICore
 import A2UISwiftUI
 import BasicCatalog
 import BasicCatalogSwiftUI
+import OrderedJSON
 import SwiftUI
 import Testing
 
@@ -86,16 +87,20 @@ struct A2UIDividerTests {
       themeSchema: baseCatalog.themeSchema
     )
 
-    let hiddenNode = Node(
-      id: "divA11yHidden",
-      type: "Divider",
-      catalogID: swiftUICatalog.id,
-      properties: ["accessibility": ResolvedDictionary(["hidden": true])]
+    let viewModel = SurfaceViewModel(
+      surfaceID: "div-a11y",
+      catalog: BasicCatalog.makeCatalog(version: .v091)
     )
-    #expect(hiddenNode.explicitAccessibilityAttributes?.hidden == true)
+    viewModel.componentsModel.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "Divider",
+        properties: ["accessibility": .object(["hidden": .boolean(true)])]
+      )
+    )
+    #expect(viewModel.rootNode?.explicitAccessibilityAttributes?.hidden == true)
 
-    let rootView = ComponentNodeView(node: hiddenNode)
-      .environment(\.a2uiCatalogs, [swiftUICatalog.id: swiftUICatalog])
+    let rootView = Surface(viewModel: viewModel, catalog: swiftUICatalog)
     #if canImport(AppKit)
       let hostingView = NSHostingView(rootView: rootView)
       hostingView.frame = NSRect(x: 0, y: 0, width: 200, height: 40)
@@ -120,7 +125,7 @@ struct A2UIDividerTests {
       hostingController.view.layoutIfNeeded()
     #endif
 
-    #expect(renderedNodes.map(\.id) == ["divA11yHidden"])
+    #expect(renderedNodes.map(\.id) == ["root"])
     #expect(renderedNodes.first?.explicitAccessibilityAttributes?.hidden == true)
   }
 
