@@ -1152,7 +1152,6 @@ describe('Catalog.fromJson & schema_loader', () => {
 
   describe('JSON Schema keyword parity (Issue #3998)', () => {
     it('enforces maxProperties on function argument schemas and nested objects', () => {
-      console.log('\n--- START TEST: maxProperties enforcement (Row 1) ---');
       const schema = convertFunctionArgsJsonSchemaToZod({
         type: 'object',
         properties: {
@@ -1162,38 +1161,10 @@ describe('Catalog.fromJson & schema_loader', () => {
         maxProperties: 1,
       });
 
-      const emptyRes = schema.safeParse({});
-      console.log('maxProperties=1 with {}:', emptyRes.success);
-      assert.strictEqual(emptyRes.success, true);
+      assert.strictEqual(schema.safeParse({}).success, true);
+      assert.strictEqual(schema.safeParse({a: 'x'}).success, true);
+      assert.strictEqual(schema.safeParse({a: 'x', b: 'y'}).success, false);
 
-      const singleRes = schema.safeParse({a: 'x'});
-      console.log('maxProperties=1 with {a: "x"}:', singleRes.success);
-      assert.strictEqual(singleRes.success, true);
-
-      const overMaxRes = schema.safeParse({a: 'x', b: 'y'});
-      console.log('maxProperties=1 with {a: "x", b: "y"}:', overMaxRes.success);
-      assert.strictEqual(overMaxRes.success, false);
-    });
-
-    it('enforces minProperties on function argument schemas and typeless-property objects', () => {
-      console.log('\n--- START TEST: minProperties enforcement (Row 2) ---');
-      const schema = convertFunctionArgsJsonSchemaToZod({
-        type: 'object',
-        properties: {
-          a: {type: 'string'},
-        },
-        minProperties: 1,
-      });
-
-      const emptyRes = schema.safeParse({});
-      console.log('minProperties=1 with {}:', emptyRes.success);
-      assert.strictEqual(emptyRes.success, false);
-
-      const singleRes = schema.safeParse({a: 'x'});
-      console.log('minProperties=1 with {a: "x"}:', singleRes.success);
-      assert.strictEqual(singleRes.success, true);
-
-      // Also verify an object schema with no declared properties (record fallback)
       const recordSchema = convertFunctionArgsJsonSchemaToZod({
         type: 'object',
         properties: {
@@ -1206,8 +1177,20 @@ describe('Catalog.fromJson & schema_loader', () => {
       assert.strictEqual(recordSchema.safeParse({bag: {k1: 1, k2: 2, k3: 3}}).success, false);
     });
 
+    it('enforces minProperties on function argument schemas and typeless-property objects', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          a: {type: 'string'},
+        },
+        minProperties: 1,
+      });
+
+      assert.strictEqual(schema.safeParse({}).success, false);
+      assert.strictEqual(schema.safeParse({a: 'x'}).success, true);
+    });
+
     it('enforces typeless "not" subschemas such as {"not": {"required": ["b"]}} (Row 6)', () => {
-      console.log('\n--- START TEST: typeless not subschema enforcement (Row 6) ---');
       const schema = convertFunctionArgsJsonSchemaToZod({
         type: 'object',
         properties: {
@@ -1223,21 +1206,12 @@ describe('Catalog.fromJson & schema_loader', () => {
         required: ['payload'],
       });
 
-      const allowedRes = schema.safeParse({payload: {a: 'ok'}});
-      console.log('not {required: ["b"]} with {a: "ok"}:', allowedRes.success);
-      assert.strictEqual(allowedRes.success, true);
-
-      const emptyAllowedRes = schema.safeParse({payload: {}});
-      console.log('not {required: ["b"]} with {}:', emptyAllowedRes.success);
-      assert.strictEqual(emptyAllowedRes.success, true);
-
-      const forbiddenRes = schema.safeParse({payload: {a: 'ok', b: 'forbidden'}});
-      console.log('not {required: ["b"]} with {a: "ok", b: "forbidden"}:', forbiddenRes.success);
-      assert.strictEqual(forbiddenRes.success, false);
+      assert.strictEqual(schema.safeParse({payload: {a: 'ok'}}).success, true);
+      assert.strictEqual(schema.safeParse({payload: {}}).success, true);
+      assert.strictEqual(schema.safeParse({payload: {a: 'ok', b: 'forbidden'}}).success, false);
     });
 
     it('enforces top-level "not" on function argument schemas (Row 5)', () => {
-      console.log('\n--- START TEST: top-level not on function argument schemas (Row 5) ---');
       const schema = convertFunctionArgsJsonSchemaToZod({
         type: 'object',
         properties: {
@@ -1246,17 +1220,11 @@ describe('Catalog.fromJson & schema_loader', () => {
         not: {required: ['a']},
       });
 
-      const emptyRes = schema.safeParse({});
-      console.log('top-level not {required: ["a"]} with {}:', emptyRes.success);
-      assert.strictEqual(emptyRes.success, true);
-
-      const forbiddenRes = schema.safeParse({a: 'forbidden'});
-      console.log('top-level not {required: ["a"]} with {a: "forbidden"}:', forbiddenRes.success);
-      assert.strictEqual(forbiddenRes.success, false);
+      assert.strictEqual(schema.safeParse({}).success, true);
+      assert.strictEqual(schema.safeParse({a: 'forbidden'}).success, false);
     });
 
     it('enforces dependentRequired on function argument schemas and nested objects (Row 4)', () => {
-      console.log('\n--- START TEST: dependentRequired enforcement (Row 4) ---');
       const schema = convertFunctionArgsJsonSchemaToZod({
         type: 'object',
         properties: {
@@ -1279,45 +1247,25 @@ describe('Catalog.fromJson & schema_loader', () => {
         },
       });
 
-      const omitTriggerRes = schema.safeParse({});
-      console.log('dependentRequired with {} (trigger omitted):', omitTriggerRes.success);
-      assert.strictEqual(omitTriggerRes.success, true);
-
-      const triggerOnlyRes = schema.safeParse({creditCard: '4111-1111'});
-      console.log(
-        'dependentRequired with {creditCard} only (missing deps):',
-        triggerOnlyRes.success,
+      assert.strictEqual(schema.safeParse({}).success, true);
+      assert.strictEqual(schema.safeParse({creditCard: '4111-1111'}).success, false);
+      assert.strictEqual(
+        schema.safeParse({creditCard: '4111-1111', billingAddress: '123 Main St'}).success,
+        false,
       );
-      assert.strictEqual(triggerOnlyRes.success, false);
-
-      const partialDepsRes = schema.safeParse({
-        creditCard: '4111-1111',
-        billingAddress: '123 Main St',
-      });
-      console.log(
-        'dependentRequired with partial deps (missing postalCode):',
-        partialDepsRes.success,
+      assert.strictEqual(
+        schema.safeParse({
+          creditCard: '4111-1111',
+          billingAddress: '123 Main St',
+          postalCode: '78641',
+          nested: {a: 'present', b: 'also-present'},
+        }).success,
+        true,
       );
-      assert.strictEqual(partialDepsRes.success, false);
-
-      const fullDepsRes = schema.safeParse({
-        creditCard: '4111-1111',
-        billingAddress: '123 Main St',
-        postalCode: '78641',
-        nested: {a: 'present', b: 'also-present'},
-      });
-      console.log('dependentRequired with all dependent properties:', fullDepsRes.success);
-      assert.strictEqual(fullDepsRes.success, true);
-
-      const nestedMissingDepRes = schema.safeParse({
-        nested: {a: 'present'},
-      });
-      console.log('nested dependentRequired with {a} missing {b}:', nestedMissingDepRes.success);
-      assert.strictEqual(nestedMissingDepRes.success, false);
+      assert.strictEqual(schema.safeParse({nested: {a: 'present'}}).success, false);
     });
 
     it('enforces conditional if/then/else subschemas on function args and nested objects (Row 3)', () => {
-      console.log('\n--- START TEST: if/then/else conditional subschemas (Row 3) ---');
       const schema = convertFunctionArgsJsonSchemaToZod({
         type: 'object',
         properties: {
@@ -1351,33 +1299,78 @@ describe('Catalog.fromJson & schema_loader', () => {
         },
       });
 
-      const usaValidRes = schema.safeParse({country: 'USA', postalCode: '78641'});
-      console.log('if USA -> then valid 5-digit ZIP:', usaValidRes.success);
-      assert.strictEqual(usaValidRes.success, true);
+      assert.strictEqual(schema.safeParse({country: 'USA', postalCode: '78641'}).success, true);
+      assert.strictEqual(schema.safeParse({country: 'USA'}).success, false);
+      assert.strictEqual(schema.safeParse({country: 'USA', postalCode: 'AB'}).success, false);
+      assert.strictEqual(schema.safeParse({country: 'CA', postalCode: 'K1A'}).success, true);
+      assert.strictEqual(schema.safeParse({country: 'CA', postalCode: 'A'}).success, false);
+      assert.strictEqual(schema.safeParse({nested: {mode: 'network'}}).success, false);
+      assert.strictEqual(schema.safeParse({nested: {mode: 'local'}}).success, true);
+    });
 
-      const usaMissingZipRes = schema.safeParse({country: 'USA'});
-      console.log('if USA -> then missing postalCode:', usaMissingZipRes.success);
-      assert.strictEqual(usaMissingZipRes.success, false);
+    it('enforces top-level allOf, oneOf, and anyOf combinators on function argument schemas (Row 7)', () => {
+      const allOfSchema = convertFunctionArgsJsonSchemaToZod({
+        allOf: [
+          {
+            type: 'object',
+            properties: {code: {type: 'string', minLength: 2}},
+            required: ['code'],
+          },
+          {
+            type: 'object',
+            properties: {code: {type: 'string', maxLength: 4}},
+          },
+        ],
+      });
+      assert.strictEqual(allOfSchema.safeParse({code: 'a'}).success, false);
+      assert.strictEqual(allOfSchema.safeParse({code: 'ab'}).success, true);
+      assert.strictEqual(allOfSchema.safeParse({code: 'abcde'}).success, false);
 
-      const usaBadZipRes = schema.safeParse({country: 'USA', postalCode: 'AB'});
-      console.log('if USA -> then non-5-digit postalCode:', usaBadZipRes.success);
-      assert.strictEqual(usaBadZipRes.success, false);
+      const oneOfSchema = convertFunctionArgsJsonSchemaToZod({
+        oneOf: [
+          {
+            type: 'object',
+            properties: {url: {type: 'string'}},
+            required: ['url'],
+            additionalProperties: false,
+          },
+          {
+            type: 'object',
+            properties: {path: {type: 'string'}},
+            required: ['path'],
+            additionalProperties: false,
+          },
+        ],
+      });
+      assert.strictEqual(oneOfSchema.safeParse({url: 'https://example.com'}).success, true);
+      assert.strictEqual(oneOfSchema.safeParse({path: '/tmp/file'}).success, true);
+      assert.strictEqual(oneOfSchema.safeParse({}).success, false);
+      assert.strictEqual(
+        oneOfSchema.safeParse({url: 'https://example.com', path: '/tmp/file'}).success,
+        false,
+      );
 
-      const canadaValidRes = schema.safeParse({country: 'CA', postalCode: 'K1A'});
-      console.log('else (country=CA) -> else valid minLength 3:', canadaValidRes.success);
-      assert.strictEqual(canadaValidRes.success, true);
-
-      const canadaTooShortRes = schema.safeParse({country: 'CA', postalCode: 'A'});
-      console.log('else (country=CA) -> else too short:', canadaTooShortRes.success);
-      assert.strictEqual(canadaTooShortRes.success, false);
-
-      const nestedNetworkMissingPort = schema.safeParse({nested: {mode: 'network'}});
-      console.log('nested if mode=network missing port:', nestedNetworkMissingPort.success);
-      assert.strictEqual(nestedNetworkMissingPort.success, false);
-
-      const nestedLocalNoPort = schema.safeParse({nested: {mode: 'local'}});
-      console.log('nested if mode=local without port:', nestedLocalNoPort.success);
-      assert.strictEqual(nestedLocalNoPort.success, true);
+      const anyOfSchema = convertFunctionArgsJsonSchemaToZod({
+        anyOf: [
+          {
+            type: 'object',
+            properties: {email: {type: 'string'}},
+            required: ['email'],
+          },
+          {
+            type: 'object',
+            properties: {phone: {type: 'string'}},
+            required: ['phone'],
+          },
+        ],
+      });
+      assert.strictEqual(anyOfSchema.safeParse({email: 'a@b.com'}).success, true);
+      assert.strictEqual(anyOfSchema.safeParse({phone: '555-1234'}).success, true);
+      assert.strictEqual(
+        anyOfSchema.safeParse({email: 'a@b.com', phone: '555-1234'}).success,
+        true,
+      );
+      assert.strictEqual(anyOfSchema.safeParse({}).success, false);
     });
   });
 });
