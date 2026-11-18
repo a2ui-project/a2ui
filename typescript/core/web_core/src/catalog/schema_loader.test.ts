@@ -1254,5 +1254,66 @@ describe('Catalog.fromJson & schema_loader', () => {
       console.log('top-level not {required: ["a"]} with {a: "forbidden"}:', forbiddenRes.success);
       assert.strictEqual(forbiddenRes.success, false);
     });
+
+    it('enforces dependentRequired on function argument schemas and nested objects (Row 4)', () => {
+      console.log('\n--- START TEST: dependentRequired enforcement (Row 4) ---');
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          creditCard: {type: 'string'},
+          billingAddress: {type: 'string'},
+          postalCode: {type: 'string'},
+          nested: {
+            type: 'object',
+            properties: {
+              a: {type: 'string'},
+              b: {type: 'string'},
+            },
+            dependentRequired: {
+              a: ['b'],
+            },
+          },
+        },
+        dependentRequired: {
+          creditCard: ['billingAddress', 'postalCode'],
+        },
+      });
+
+      const omitTriggerRes = schema.safeParse({});
+      console.log('dependentRequired with {} (trigger omitted):', omitTriggerRes.success);
+      assert.strictEqual(omitTriggerRes.success, true);
+
+      const triggerOnlyRes = schema.safeParse({creditCard: '4111-1111'});
+      console.log(
+        'dependentRequired with {creditCard} only (missing deps):',
+        triggerOnlyRes.success,
+      );
+      assert.strictEqual(triggerOnlyRes.success, false);
+
+      const partialDepsRes = schema.safeParse({
+        creditCard: '4111-1111',
+        billingAddress: '123 Main St',
+      });
+      console.log(
+        'dependentRequired with partial deps (missing postalCode):',
+        partialDepsRes.success,
+      );
+      assert.strictEqual(partialDepsRes.success, false);
+
+      const fullDepsRes = schema.safeParse({
+        creditCard: '4111-1111',
+        billingAddress: '123 Main St',
+        postalCode: '78641',
+        nested: {a: 'present', b: 'also-present'},
+      });
+      console.log('dependentRequired with all dependent properties:', fullDepsRes.success);
+      assert.strictEqual(fullDepsRes.success, true);
+
+      const nestedMissingDepRes = schema.safeParse({
+        nested: {a: 'present'},
+      });
+      console.log('nested dependentRequired with {a} missing {b}:', nestedMissingDepRes.success);
+      assert.strictEqual(nestedMissingDepRes.success, false);
+    });
   });
 });

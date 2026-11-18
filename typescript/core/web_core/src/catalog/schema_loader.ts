@@ -443,7 +443,10 @@ function convertObjectSchemaToZod(
       defCache,
     );
   }
-  return applyObjectKeyCountConstraints(z.record(z.unknown()), [propSchema]);
+  return applyDependentRequiredConstraints(
+    applyObjectKeyCountConstraints(z.record(z.unknown()), [propSchema]),
+    [propSchema],
+  );
 }
 
 const OBJECT_APPLICATOR_KEYWORDS = [
@@ -501,7 +504,10 @@ function convertTypelessSchemaToZod(
           message: 'Additional properties are not allowed',
         });
       }
-      objectValidator = applyObjectKeyCountConstraints(base, [propSchema]);
+      objectValidator = applyDependentRequiredConstraints(
+        applyObjectKeyCountConstraints(base, [propSchema]),
+        [propSchema],
+      );
     }
 
     const typelessObj = z.unknown().superRefine((val, ctx) => {
@@ -841,6 +847,67 @@ function applyObjectKeyCountConstraints(
 }
 
 /**
+ * Applies `dependentRequired` constraints from one or more JSON Schema object
+ * fragments onto a converted Zod object or record schema.
+ *
+ * When a trigger property is present on an object (with a defined value), all
+ * dependent properties listed for that trigger must also be present.
+ *
+ * @param baseSchema The Zod object or record schema to constrain.
+ * @param pieces The JSON Schema fragments that may declare `dependentRequired`.
+ * @returns The schema wrapped with a `superRefine` enforcing `dependentRequired`.
+ */
+function applyDependentRequiredConstraints(
+  baseSchema: z.ZodTypeAny,
+  pieces: ReadonlyArray<Record<string, unknown>>,
+): z.ZodTypeAny {
+  const merged = new Map<string, Set<string>>();
+  for (const piece of new Set(pieces)) {
+    const raw = piece.dependentRequired;
+    if (!isPlainObject(raw)) continue;
+    for (const [trigger, deps] of Object.entries(raw)) {
+      if (!Array.isArray(deps)) continue;
+      let depSet = merged.get(trigger);
+      if (!depSet) {
+        depSet = new Set<string>();
+        merged.set(trigger, depSet);
+      }
+      for (const dep of deps) {
+        if (typeof dep === 'string') {
+          depSet.add(dep);
+        }
+      }
+    }
+  }
+
+  if (merged.size === 0) {
+    return baseSchema;
+  }
+
+  const entries = Array.from(merged.entries()).map(([trigger, depSet]) => ({
+    trigger,
+    deps: Array.from(depSet),
+  }));
+
+  return baseSchema.superRefine((val: unknown, ctx) => {
+    if (!isPlainObject(val)) return;
+    for (const {trigger, deps} of entries) {
+      if (Object.prototype.hasOwnProperty.call(val, trigger) && val[trigger] !== undefined) {
+        const missing = deps.filter(
+          dep => !Object.prototype.hasOwnProperty.call(val, dep) || val[dep] === undefined,
+        );
+        if (missing.length > 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Property '${trigger}' requires dependent properties: ${missing.join(', ')}`,
+          });
+        }
+      }
+    }
+  });
+}
+
+/**
  * Closes or opens a converted object schema, honoring the `patternProperties`
  * of the JSON Schema pieces it was built from.
  *
@@ -891,7 +958,10 @@ function closeObjectSchema(
   }
   if (patterns.length === 0) {
     const closed = forbidExtra ? obj.strict() : obj.passthrough();
-    return applyObjectKeyCountConstraints(closed, pieces);
+    return applyDependentRequiredConstraints(
+      applyObjectKeyCountConstraints(closed, pieces),
+      pieces,
+    );
   }
   const declared = new Set(Object.keys(obj.shape));
   const refined = obj.passthrough().superRefine((value, ctx) => {
@@ -919,7 +989,7 @@ function closeObjectSchema(
       ctx.addIssue({code: z.ZodIssueCode.unrecognized_keys, keys: unrecognized});
     }
   });
-  return applyObjectKeyCountConstraints(refined, pieces);
+  return applyDependentRequiredConstraints(applyObjectKeyCountConstraints(refined, pieces), pieces);
 }
 
 /**
@@ -1210,6 +1280,7 @@ function collectArgSubSchemas(
     schema.patternProperties ||
     schema.additionalProperties !== undefined ||
     schema.unevaluatedProperties !== undefined ||
+    schema.dependentRequired !== undefined ||
     (schema.not !== undefined && typeof schema.not === 'object' && schema.not !== null)
   ) {
     result.schemas.push(schema);
