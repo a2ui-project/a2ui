@@ -163,6 +163,53 @@ struct RegexSubsetTests {
     }
   }
 
+  @Test func rule2RejectsCountedRepetitionOfAmbiguousNullableGroup() {
+    // A counted repeat that runs its child more than once multiplies every way the child can
+    // match. The ICU engine behind `NSRegularExpression` runs for seconds on each of these
+    // patterns with a value only a few characters long.
+    let evil = [
+      "(a?){1000}a{1000}",
+      "(a?){500}a{500}",
+      "(?:a?){1000}a{1000}",
+      "((a?)){1000}a{1000}",
+      "(a?b?){100}a{1000}",
+      "(a|b?){1000}a{1000}",
+    ]
+    for pattern in evil {
+      let res = RegexSubset.analyze(pattern)
+      #expect(!res.ok, "Expected nested quantifier rejection: \(pattern)")
+      #expect(res.reason == .nestedQuantifier, "Unexpected reason for \(pattern)")
+    }
+
+    let safe = [
+      "(?:ab?){3}c",
+      "(?:ab?){0,2}",
+      "(a|b){2,4}",
+      "(?:\\d{2,4}){2}",
+    ]
+    for pattern in safe {
+      #expect(RegexSubset.analyze(pattern).ok, "Expected safe: \(pattern)")
+    }
+  }
+
+  @Test func rule2RejectsCountedNullableRepetitionBeforeMatching() throws {
+    // Only the analysis runs here: matching this pattern against "aaa!" does not return within
+    // five seconds, so the evaluation below uses an empty value and relies on the guard throwing
+    // before any match starts.
+    let pattern = "(a?){1000}a{1000}"
+    let clock = ContinuousClock()
+    let elapsed = clock.measure {
+      #expect(RegexSubset.analyze(pattern).reason == .nestedQuantifier)
+    }
+    #expect(elapsed < .seconds(1))
+
+    let error = #expect(throws: FunctionError.self) {
+      _ = try RegexSubset.test(pattern: pattern, value: "")
+    }
+    let message = try #require(error.map { "\($0)" })
+    #expect(message.contains("NESTED_QUANTIFIER"))
+  }
+
   @Test func rule3RejectsOverlappingAlternationInRepetition() {
     let evil = [
       "(a|ab)+",
