@@ -164,7 +164,7 @@ void main() {
       () {
         final String catalogPath = p.join(
           repoRoot,
-          'specification/v0_9_1/catalogs/basic/catalog.json',
+          'catalogs/basic/v0_9_1/catalog.json',
         );
         final catalogJson =
             jsonDecode(File(catalogPath).readAsStringSync())
@@ -240,7 +240,7 @@ void main() {
               'Generated basic catalog output must match checked-in Python '
               'agent SDK file byte-for-byte. Regenerate with:\n'
               'dart run dart/a2ui_cli/bin/a2ui.dart codegen '
-              '--catalog specification/v0_9_1/catalogs/basic/catalog.json '
+              '--catalog catalogs/basic/v0_9_1/catalog.json '
               '--out python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/basic.py',
         );
       },

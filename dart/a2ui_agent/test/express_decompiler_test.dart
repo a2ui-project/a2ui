@@ -29,9 +29,7 @@ import 'package:test/test.dart';
 void main() {
   final CatalogApi basic = Catalog.fromJson(
     jsonDecode(
-          File(
-            '../../specification/v0_9/catalogs/basic/catalog.json',
-          ).readAsStringSync(),
+          File('../../catalogs/basic/v0_9/catalog.json').readAsStringSync(),
         )
         as Map<String, Object?>,
   );

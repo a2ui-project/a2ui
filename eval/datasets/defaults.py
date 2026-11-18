@@ -14,7 +14,7 @@
 
 from pathlib import Path
 
-DEFAULT_CATALOG_PATH = "specification/v0_9/catalogs/basic/catalog.json"
+DEFAULT_CATALOG_PATH = "catalogs/basic/v0_9/catalog.json"
 DEFAULT_ROLE_DESCRIPTION = (
     "You are an AI assistant. Based on the following request, generate a stream"
     " of JSON messages that conform to the provided JSON Schemas."

@@ -26,10 +26,7 @@ void main() {
     final List<Example> examples = await loadExamples(rootBundle);
 
     for (final (A2uiProtocolVersion version, String directory) in [
-      (
-        A2uiProtocolVersion.v0_9,
-        '../../../specification/v0_9/catalogs/basic/examples',
-      ),
+      (A2uiProtocolVersion.v0_9, '../../../catalogs/basic/v0_9/examples'),
       (A2uiProtocolVersion.v1_0, '../../../catalogs/basic/v1/examples'),
     ]) {
       final List<String> specified = [
