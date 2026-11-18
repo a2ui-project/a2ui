@@ -1209,7 +1209,8 @@ function collectArgSubSchemas(
     requiredDisjunction ||
     schema.patternProperties ||
     schema.additionalProperties !== undefined ||
-    schema.unevaluatedProperties !== undefined
+    schema.unevaluatedProperties !== undefined ||
+    (schema.not !== undefined && typeof schema.not === 'object' && schema.not !== null)
   ) {
     result.schemas.push(schema);
   }
@@ -1306,6 +1307,23 @@ export function convertFunctionArgsJsonSchemaToZod(
           isPlainObject(args) && groups.some(group => group.every(key => args[key] !== undefined)),
         {message: `At least one of ${label} must be provided.`},
       );
+    }
+    if (s.not && typeof s.not === 'object' && !Array.isArray(s.not)) {
+      const notSchema = convertPropertyToZod(
+        s.not as Record<string, unknown>,
+        rootDoc,
+        new Set<string>(),
+        defCache,
+      );
+      closed = z.preprocess((val, ctx) => {
+        if (notSchema.safeParse(val).success) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Value matched prohibited "not" schema',
+          });
+        }
+        return val;
+      }, closed);
     }
   }
   return closed;

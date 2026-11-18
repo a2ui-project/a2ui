@@ -1235,5 +1235,24 @@ describe('Catalog.fromJson & schema_loader', () => {
       console.log('not {required: ["b"]} with {a: "ok", b: "forbidden"}:', forbiddenRes.success);
       assert.strictEqual(forbiddenRes.success, false);
     });
+
+    it('enforces top-level "not" on function argument schemas (Row 5)', () => {
+      console.log('\n--- START TEST: top-level not on function argument schemas (Row 5) ---');
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          a: {type: 'string'},
+        },
+        not: {required: ['a']},
+      });
+
+      const emptyRes = schema.safeParse({});
+      console.log('top-level not {required: ["a"]} with {}:', emptyRes.success);
+      assert.strictEqual(emptyRes.success, true);
+
+      const forbiddenRes = schema.safeParse({a: 'forbidden'});
+      console.log('top-level not {required: ["a"]} with {a: "forbidden"}:', forbiddenRes.success);
+      assert.strictEqual(forbiddenRes.success, false);
+    });
   });
 });
