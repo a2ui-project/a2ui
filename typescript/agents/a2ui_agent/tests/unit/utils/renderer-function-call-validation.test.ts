@@ -478,7 +478,7 @@ describe('callRendererFunction validation', () => {
 
   it.each([
     ['bad path', {'@path': 'bad~pointer'}],
-    ['calls nested too deep', nestCalls(7)],
+    ['calls nested too deep', nestCalls(30)],
     ['objects nested too deep', nestObjects(60)],
   ])('rejects arguments the processor would refuse: %s', (_, value) => {
     expect(() => validatePayload(CATALOGS, [call('echo', {args: {value}})])).toThrow(
@@ -629,7 +629,7 @@ describe('callRendererFunction validation', () => {
 
   it.each([
     ['bad path', {'@path': 'bad~pointer'}],
-    ['calls nested too deep', nestCalls(7)],
+    ['calls nested too deep', nestCalls(30)],
     ['null args', null],
   ])(
     "rejects a call the processor would refuse before the state's changes are final: %s",

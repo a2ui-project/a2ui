@@ -548,7 +548,7 @@ struct StateEngineV10Tests {
       _ = try v10Adapter.extractOperations(from: invalidAtCallMsg)
     }
 
-    // 3. Excessive @call nesting depth (> 5) in v1.0 components should throw A2UIRecursionError
+    // 3. Six nested @call levels are accepted: only the global depth limit bounds call nesting
     let deepAtCallMsg: JSONValue = .object([
       "version": .string("1.0"),
       "updateComponents": .object([
@@ -590,7 +590,7 @@ struct StateEngineV10Tests {
         ]),
       ]),
     ])
-    #expect(throws: A2UIRecursionError.self) {
+    #expect(throws: Never.self) {
       _ = try v10Adapter.extractOperations(from: deepAtCallMsg)
     }
 

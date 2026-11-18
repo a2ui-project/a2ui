@@ -526,6 +526,7 @@
         message: Invalid path syntax
 
 - name: test_v09_component_nesting_depth_limit_exceeded_error
+  features: [F-CORE-38]
   description: Tests that a chain of nested components deeper than the global limit (50) fails validation in v0.9 strict mode.
   action: validate
   protocolVersion: v0.9
