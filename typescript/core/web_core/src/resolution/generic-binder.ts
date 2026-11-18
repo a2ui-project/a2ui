@@ -162,7 +162,7 @@ function resolveChildRefOptions(
 }
 
 function augmentRootObjectShape(
-  schema: z.ZodTypeAny,
+  schema: z.ZodTypeAny | undefined,
   baseShape: Record<string, BehaviorNode>,
   options?: ChildRefAnalysisOptions,
 ): Record<string, BehaviorNode> {
@@ -214,9 +214,12 @@ const AT_CHECKS = '@checks';
  * @returns Root BehaviorNode describing schema properties.
  */
 export function scrapeSchemaBehavior(
-  schema: z.ZodTypeAny,
+  schema: z.ZodTypeAny | undefined,
   options?: ChildRefAnalysisOptions,
 ): BehaviorNode {
+  if (!schema) {
+    return {type: 'STATIC'};
+  }
   const cache = getOptionsBehaviorCache(behaviorCache, options);
   const cached = cache.get(schema);
   if (cached) {
@@ -241,9 +244,12 @@ export function scrapeSchemaBehavior(
  * and `accessibility` behaviors attached.
  */
 export function scrapeComponentBehavior(
-  schema: z.ZodTypeAny,
+  schema: z.ZodTypeAny | undefined,
   options?: ChildRefAnalysisOptions,
 ): BehaviorNode {
+  if (!schema) {
+    return makeObjectBehavior(augmentRootObjectShape(undefined, {}, options));
+  }
   const cache = getOptionsBehaviorCache(componentBehaviorCache, options);
   const cached = cache.get(schema);
   if (cached) {

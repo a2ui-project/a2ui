@@ -42,20 +42,17 @@ export function resolveSurfaceCatalog<C>(
   catalogId: string | undefined,
   subject: string,
 ): C {
+  const defaultCatalog = surface.defaultCatalog ?? surface.catalog;
   if (catalogId !== undefined) {
     const found = surface.availableCatalogs?.get(catalogId);
     if (found) {
       return found;
     }
-    if (
-      surface.defaultCatalog &&
-      (surface.defaultCatalog as {readonly id?: unknown}).id === catalogId
-    ) {
-      return surface.defaultCatalog;
+    if (defaultCatalog && (defaultCatalog as {readonly id?: unknown}).id === catalogId) {
+      return defaultCatalog;
     }
     throw new A2uiCatalogError(`Catalog not found: ${catalogId}`);
   }
-  const defaultCatalog = surface.defaultCatalog ?? surface.catalog;
   if (!defaultCatalog) {
     throw new A2uiCatalogError(
       `${subject} names no catalogId and surface '${surface.id}' has no default catalogId.`,

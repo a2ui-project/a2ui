@@ -2579,4 +2579,20 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
     resolver.dispose();
     surface.dispose();
   });
+
+  it('resolves a component from a partial catalog mock that omits api.schema', () => {
+    const partialApi = {name: 'Schemaless'} as unknown as ComponentApi;
+    const catalog = new Catalog<ComponentApi>('partial-schema-catalog', '1.0', [partialApi]);
+    const surface = new SurfaceModel('surf-schemaless', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'Schemaless', {label: 'Hello'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual(root.state, 'resolved');
+    assert.strictEqual(props(root).label, 'Hello');
+
+    resolver.dispose();
+    surface.dispose();
+  });
 });
