@@ -72,8 +72,9 @@ void checkDistinctIds(List<CatalogApi> catalogs) {
 /// In Express, when several catalogs are active, components and function calls
 /// carry per-item `catalogId` fields, which requires A2UI v1.0 or later.
 ///
-/// Throws [A2uiCatalogError] if any catalog id repeats, or if several catalogs
-/// target a version before v1.0.
+/// Throws [A2uiCatalogError] if any catalog id repeats, if the catalogs target
+/// different protocol versions, or if several catalogs target a version before
+/// v1.0.
 void checkMixedCatalogs(List<CatalogApi> catalogs) {
   checkDistinctIds(catalogs);
   if (catalogs.length > 1) {

@@ -57,6 +57,10 @@ typedef _SurfaceCatalog = ({bool known, String? catalogId});
 class ExpressDecompiler {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
+  ///
+  /// Throws [A2uiCatalogError] if two of [catalogs] share an id, if they
+  /// target different protocol versions, or if several target a version before
+  /// v1.0.
   ExpressDecompiler(this.catalogs) {
     checkMixedCatalogs(catalogs);
   }

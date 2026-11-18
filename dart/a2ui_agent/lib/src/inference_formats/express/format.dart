@@ -42,7 +42,9 @@ class ExpressFormatFactory extends InferenceFormatFactory {
   /// streaming.
   final Set<String> progressiveKeys;
 
-  /// Throws [A2uiCatalogError] if two of [catalogs] share an id.
+  /// Throws [A2uiCatalogError] if two of [catalogs] share an id, if they
+  /// target different protocol versions, or if several target a version before
+  /// v1.0.
   @override
   InferenceFormat createFormat(
     List<CatalogApi> catalogs, {
@@ -63,7 +65,9 @@ class ExpressFormat extends InferenceFormat {
   /// `createSurface`; null allows all of them. The prompt describes only the
   /// statements that compile to these types.
   ///
-  /// Throws [A2uiCatalogError] if two of [catalogs] share an id.
+  /// Throws [A2uiCatalogError] if two of [catalogs] share an id, if they
+  /// target different protocol versions, or if several target a version before
+  /// v1.0.
   ExpressFormat(
     List<CatalogApi> catalogs, {
     List<List<AgentToRendererMessage>> examples = const [],
