@@ -1369,7 +1369,9 @@ function collectArgSubSchemas(
   }
 
   const requiredDisjunction = extractRequiredDisjunction(schema.anyOf);
-  if ((Array.isArray(schema.anyOf) && !requiredDisjunction) || Array.isArray(schema.oneOf)) {
+  const hasGeneralUnion =
+    (Array.isArray(schema.anyOf) && !requiredDisjunction) || Array.isArray(schema.oneOf);
+  if (hasGeneralUnion) {
     result.hasUnresolvable = true;
   }
 
@@ -1377,6 +1379,7 @@ function collectArgSubSchemas(
     schema.properties ||
     schema.required ||
     requiredDisjunction ||
+    hasGeneralUnion ||
     schema.patternProperties ||
     schema.additionalProperties !== undefined ||
     schema.unevaluatedProperties !== undefined ||
@@ -1452,7 +1455,9 @@ export function convertFunctionArgsJsonSchemaToZod(
         undefined,
         defCache,
       );
-      Object.assign(shape, propShape);
+      for (const [propName, propZod] of Object.entries(propShape)) {
+        shape[propName] = shape[propName] ? shape[propName].and(propZod) : propZod;
+      }
     }
   }
 
@@ -1493,7 +1498,30 @@ export function convertFunctionArgsJsonSchemaToZod(
           isPlainObject(args) && groups.some(group => group.every(key => args[key] !== undefined)),
         {message: `At least one of ${label} must be provided.`},
       );
+    } else if (Array.isArray(s.oneOf) || Array.isArray(s.anyOf)) {
+      const branches = (Array.isArray(s.oneOf) ? s.oneOf : s.anyOf) as unknown[];
+      const hasObjectBranch = branches.some(
+        b => isPlainObject(b) && (b.type === undefined || b.type === 'object'),
+      );
+      if (hasObjectBranch) {
+        const unionZod = convertUnionToZod(s, rootDoc, new Set<string>(), defCache);
+        if (unionZod) {
+          closed = closed.superRefine((val, ctx) => {
+            const res = unionZod.safeParse(val);
+            if (!res.success) {
+              for (const issue of res.error.issues) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  message: issue.message,
+                  path: issue.path,
+                });
+              }
+            }
+          });
+        }
+      }
     }
+
     if (s.not && typeof s.not === 'object' && !Array.isArray(s.not)) {
       const notSchema = convertPropertyToZod(
         s.not as Record<string, unknown>,
