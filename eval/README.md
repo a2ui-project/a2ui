@@ -81,12 +81,17 @@ uv run main.py --dataset multi_turn_conversation_dataset
 uv run main.py --datasets core_v0_9_1,multi_turn_conversation_dataset
 ```
 
-By default `main.py` runs the production strategies: `direct`, `subagent_tool` and `express`. The experimental formats `elemental` and `atom`, and the `skill_mode` strategy, run only when you name them:
+By default `main.py` runs the production strategies: `direct`, `subagent_tool` and `express`. The experimental formats `elemental` and `atom`, the `skill_mode` strategy, and the `decision` strategy run only when you name them:
 
 ```bash
 uv run main.py --dataset multi_turn_conversation_dataset --strategies direct,express,elemental
 uv run main.py --strategies skill_mode
+uv run main.py --strategies decision --decision-backend mock
 ```
+
+The `decision` strategy evaluates the two-stage decision-model synthesis route on v1.0. In Stage 1, the model emits `intent`, `payload`, and optional `actions` maps, `exclude` pointers, `replace` flags, or layout hints in a `<a2ui>` block. In Stage 2, `DecisionSynthesizer` plans and expands the surface without an additional UI generation model call.
+
+- `--decision-backend`: `mock`, `jev`, `gemini`, `systemone`, or `step0` (required when running the `decision` strategy unless `A2UI_DECISION_BACKEND` is set).
 
 The `subagent_tool` strategy gives the outer model one tool, `a2ui_specialist`, and a second model call writes the payload. `--subagent-format {direct_json,express}` picks the format the specialist writes in (default `direct_json`).
 
@@ -312,6 +317,54 @@ To print a console summary or markdown table from an eval log file:
 
 ```bash
 uv run python bin/report_evals.py logs/<log_filename>.eval
+```
+
+## Strategy Comparison
+
+`bin/compare_strategies.py` performs a pairwise comparison of two or more evaluated strategies from a shared evaluation log directory:
+
+```bash
+uv run ./bin/compare_strategies.py logs/decision_vs_express --json logs/decision_vs_express/summary.json
+```
+
+It reports:
+
+- Algorithmic (Stage 1/2), LLM judge (Stage 3), and combined pass rates.
+- Token usage: median prompt and output tokens per sample.
+- Latency and caching: median wall-clock duration, median decision-stage latency, and prompt-cache status (plus round trips per surface and fallback rate in `--json` output).
+
+## Decision Model Benchmarking, Scorecards, and Calibration
+
+`bin/decision_bench.py` evaluates decision backends against the encrypted datasets under `datasets/decision_plans/` (`v1.yaml` for tuning and `heldout_v1.yaml` for held-out evaluation). Both `--backend` and `--model` are required so runs never fall back to an implicit backend:
+
+```bash
+# Run the mock baseline on the held-out split with paraphrase and template-arm checks
+uv run ./bin/decision_bench.py --backend mock --model mock --split heldout --paraphrase --template-arm
+
+# Run hosted Jev or Google Gemini Decisions across tuning and held-out splits
+uv run ./bin/decision_bench.py --backend systemone --model jev-1.14.0 --split all --repeat 3
+uv run ./bin/decision_bench.py --backend gemini --model gemini-decision-1 --split all --repeat 3
+```
+
+The benchmark reports:
+
+1. Backend kind, model identifier, split name, and `[UNFROZEN HELDOUT]` notice when any evaluated case has `verified: false`.
+2. In-grammar family and archetype accuracy, out-of-grammar forced-fit rate (target `<= 5%`), and in-grammar false no-fit rate (target `<= 10%`).
+3. Per-slot binding accuracy, action event and context accuracy, and sensitive pointer leak rate.
+4. Multi-turn `PlanCache` hit rate, multi-turn operation accuracy (`create`, `update_root`, `update_region`, `replace`), mean round trips per surface, fallback rate, and abstain rate.
+5. Calibration (Brier score and 10-bin Expected Calibration Error) and latency (`p50` and `p95` backend latency and host overhead in milliseconds).
+6. Optional `--paraphrase` sensitivity deltas (deterministic prompt rewriting) and `--template-arm` comparison of unpromoted `DecisionRenderTool` planning against promoted `SurfaceTemplate` rendering (zero backend calls).
+
+`bin/decision_scorecard.py` runs the benchmark across multiple backends (`--config <yaml>` or CLI flags) and always includes the `mock/mock` baseline. It writes a Markdown scorecard table with per-backend P95 latency targets (hosted reference `< 250 ms`):
+
+```bash
+uv run ./bin/decision_scorecard.py --config backends.yaml --split all --out scorecard.md --json scorecard.json
+```
+
+`bin/calibrate_decision_backend.py` fits per-model temperature profiles on tuning cases from `datasets/decision_plans/v1.yaml` and writes a JSON profile readable by `Calibration.load`. It refuses cases tagged `heldout` or marked `split: heldout`:
+
+```bash
+uv run ./bin/calibrate_decision_backend.py --backend jev --model jev-1.14.0 --split tuning --out calibration.json
 ```
 
 ## Running Unit Tests & Schema Validation

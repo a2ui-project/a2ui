@@ -77,6 +77,7 @@ SUPPORTED_STRATEGIES: tuple[str, ...] = (
     "skill_mode",
     "elemental",
     "atom",
+    "decision",
 )
 
 # Strategies run when none are named on the command line: the production
