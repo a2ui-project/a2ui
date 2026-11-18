@@ -1495,6 +1495,18 @@ describe('Catalog.fromJson & schema_loader', () => {
       );
     });
 
+    it('enforces additionalProperties: false alongside top-level anyOf (Issue #3998 Row 4)', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        anyOf: [{properties: {a: {type: 'string'}}, required: ['a']}],
+        additionalProperties: false,
+      });
+
+      assert.strictEqual(schema.safeParse({a: 'x'}).success, true);
+      assert.strictEqual(schema.safeParse({a: 'x', zzz: 1}).success, false);
+      assert.strictEqual(schema.safeParse({}).success, false);
+    });
+
     it('isolates typeless schema constraints to their applicable runtime primitive types', () => {
       const schema = convertFunctionArgsJsonSchemaToZod({
         type: 'object',
