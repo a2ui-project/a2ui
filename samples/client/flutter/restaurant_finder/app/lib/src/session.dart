@@ -20,7 +20,7 @@ import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
-import 'a2a_connector.dart';
+import 'a2a/a2a_connector.dart';
 import 'primitives.dart';
 
 const String defaultServerUrl = 'http://localhost:10002';

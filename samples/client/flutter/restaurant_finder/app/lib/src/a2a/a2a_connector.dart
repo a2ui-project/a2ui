@@ -21,8 +21,11 @@ import 'package:uuid/uuid.dart';
 
 const String _a2uiExtensionUri = 'https://a2ui.org/a2a-extension/a2ui/v0.9';
 
-/// Connects to an A2A agent endpoint using `package:a2a` and streams A2UI
-/// v0.9 messages over SSE.
+/// Transport glue that connects to the A2A restaurant finder agent using
+/// `package:a2a` and streams A2UI v0.9 messages over SSE.
+///
+/// A2UI is transport-agnostic—this file is only needed to talk to the sample's
+/// A2A backend, and you can replace it with any transport you prefer.
 class A2uiAgentConnector {
   A2uiAgentConnector({required this.url, A2AClient? client})
     : _client =
