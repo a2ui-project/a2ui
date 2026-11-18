@@ -18,6 +18,12 @@ import JSONSchema
 import SwiftUI
 import Testing
 
+#if canImport(AppKit)
+  import AppKit
+#elseif canImport(UIKit)
+  import UIKit
+#endif
+
 private struct CatalogEnvironmentProbeView: View {
   @Environment(\.a2uiCatalogs) private var catalogs
   @Environment(\.a2uiDefaultCatalogID) private var defaultCatalogID
@@ -29,6 +35,56 @@ private struct CatalogEnvironmentProbeView: View {
         onRead(catalogs, defaultCatalogID)
       }
   }
+}
+
+@MainActor
+private func hostView<Content: View>(_ view: Content) -> () -> Void {
+  let rootView = AnyView(view.frame(width: 400, height: 200))
+  #if canImport(AppKit)
+    let hostingView = NSHostingView(rootView: rootView)
+    hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 200)
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 400, height: 200),
+      styleMask: [.borderless],
+      backing: .buffered,
+      defer: false
+    )
+    window.isReleasedWhenClosed = false
+    window.contentView = hostingView
+    window.makeKeyAndOrderFront(nil)
+    RunLoop.main.run(until: Date())
+    hostingView.needsLayout = true
+    hostingView.layoutSubtreeIfNeeded()
+    window.displayIfNeeded()
+    RunLoop.main.run(until: Date())
+    hostingView.layoutSubtreeIfNeeded()
+    return {
+      hostingView.rootView = AnyView(EmptyView())
+      window.contentView = nil
+      window.orderOut(nil)
+      window.close()
+      RunLoop.main.run(until: Date())
+    }
+  #elseif canImport(UIKit)
+    let hostingController = UIHostingController(rootView: rootView)
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 200))
+    window.rootViewController = hostingController
+    window.makeKeyAndVisible()
+    hostingController.view.frame = window.bounds
+    RunLoop.main.run(until: Date())
+    hostingController.view.setNeedsLayout()
+    hostingController.view.layoutIfNeeded()
+    RunLoop.main.run(until: Date())
+    hostingController.view.layoutIfNeeded()
+    return {
+      hostingController.rootView = AnyView(EmptyView())
+      window.rootViewController = nil
+      window.isHidden = true
+      RunLoop.main.run(until: Date())
+    }
+  #else
+    return {}
+  #endif
 }
 
 @Suite(.serialized)
@@ -179,5 +235,259 @@ struct SwiftUICatalogRenderingTests {
 
     #expect(observedCatalogIDs == ["primary", "secondary"])
     #expect(observedDefaultCatalogID == "secondary")
+  }
+
+  @Test func environmentCatalogModifierSuppliesCatalogAndUsesViewModelDefault() throws {
+    let schema = try Schema(instance: #"{"type": "object"}"#)
+    var rendered = false
+    var observedCatalogIDs: Set<String> = []
+    var observedDefaultCatalogID: String?
+    let badgeComponent = ComponentImplementation(name: "badge", schema: schema) { _ in
+      rendered = true
+      return CatalogEnvironmentProbeView { catalogs, defaultCatalogID in
+        observedCatalogIDs = Set(catalogs.keys)
+        observedDefaultCatalogID = defaultCatalogID
+      }
+    }
+    let flightCatalog = Catalog(id: "flight", components: [badgeComponent])
+    let viewModel = SurfaceViewModel(
+      surfaceID: "env-supplied",
+      catalog: flightCatalog
+    )
+    viewModel.componentsModel.addComponent(
+      ComponentModel(id: "root", type: "badge", catalogID: flightCatalog.id, properties: [:])
+    )
+
+    let surface = Surface(viewModel: viewModel, catalogs: [])
+    #expect(surface.catalogs.isEmpty)
+
+    let tearDown = hostView(VStack { surface }.a2uiCatalog(flightCatalog))
+    defer { tearDown() }
+
+    #expect(rendered)
+    #expect(observedCatalogIDs == ["flight"])
+    #expect(observedDefaultCatalogID == "flight")
+  }
+
+  @Test func environmentCatalogsAccumulateAndCloserModifierWins() throws {
+    let schema = try Schema(instance: #"{"type": "object"}"#)
+    var renderedVariant: String?
+    var observedCatalogIDs: Set<String> = []
+
+    let outerShared = ComponentImplementation(name: "card", schema: schema) { _ in
+      renderedVariant = "outer"
+      return CatalogEnvironmentProbeView { catalogs, _ in
+        observedCatalogIDs = Set(catalogs.keys)
+      }
+    }
+    let arrayOverride = ComponentImplementation(name: "card", schema: schema) { _ in
+      renderedVariant = "array-last"
+      return CatalogEnvironmentProbeView { catalogs, _ in
+        observedCatalogIDs = Set(catalogs.keys)
+      }
+    }
+    let innerShared = ComponentImplementation(name: "card", schema: schema) { _ in
+      renderedVariant = "inner"
+      return CatalogEnvironmentProbeView { catalogs, _ in
+        observedCatalogIDs = Set(catalogs.keys)
+      }
+    }
+    let extraComponent = ComponentImplementation(name: "extra", schema: schema) { _ in
+      EmptyView()
+    }
+
+    let outerCatalog = Catalog(id: "shared", components: [outerShared])
+    let arrayOverrideCatalog = Catalog(id: "shared", components: [arrayOverride])
+    let innerCatalog = Catalog(id: "shared", components: [innerShared])
+    let extraCatalog = Catalog(id: "extra", components: [extraComponent])
+
+    let viewModel = SurfaceViewModel(
+      surfaceID: "stacked-env",
+      catalogs: [outerCatalog, extraCatalog],
+      defaultCatalogID: "shared"
+    )
+    viewModel.componentsModel.addComponent(
+      ComponentModel(id: "root", type: "card", catalogID: "shared", properties: [:])
+    )
+
+    // Nested ancestors: inner modifier overrides outer array; outer extra catalog is preserved.
+    let nestedTearDown = hostView(
+      VStack {
+        Surface(viewModel: viewModel, catalogs: [])
+          .a2uiCatalog(innerCatalog)
+      }
+      .a2uiCatalogs([outerCatalog, arrayOverrideCatalog, extraCatalog])
+    )
+    nestedTearDown()
+
+    #expect(renderedVariant == "inner")
+    #expect(observedCatalogIDs == ["shared", "extra"])
+
+    // Chained on the same view: closer (first) modifier wins, matching SwiftUI conventions.
+    renderedVariant = nil
+    let chainedTearDown = hostView(
+      Surface(viewModel: viewModel, catalogs: [])
+        .a2uiCatalog(innerCatalog)
+        .a2uiCatalogs([outerCatalog, arrayOverrideCatalog])
+    )
+    chainedTearDown()
+
+    #expect(renderedVariant == "inner")
+
+    // Duplicate IDs within a single array: last element wins, matching Surface.init.
+    renderedVariant = nil
+    let arrayTearDown = hostView(
+      Surface(viewModel: viewModel, catalogs: [])
+        .a2uiCatalogs([outerCatalog, arrayOverrideCatalog])
+    )
+    arrayTearDown()
+
+    #expect(renderedVariant == "array-last")
+  }
+
+  @Test func surfaceInitializerCatalogOverridesEnvironmentCatalog() throws {
+    let schema = try Schema(instance: #"{"type": "object"}"#)
+    var renderedSource: String?
+    var observedCatalogIDs: Set<String> = []
+
+    let envImpl = ComponentImplementation(name: "widget", schema: schema) { _ in
+      renderedSource = "environment"
+      return CatalogEnvironmentProbeView { catalogs, _ in
+        observedCatalogIDs = Set(catalogs.keys)
+      }
+    }
+    let localImpl = ComponentImplementation(name: "widget", schema: schema) { _ in
+      renderedSource = "local"
+      return CatalogEnvironmentProbeView { catalogs, _ in
+        observedCatalogIDs = Set(catalogs.keys)
+      }
+    }
+    let extraImpl = ComponentImplementation(name: "extra", schema: schema) { _ in
+      EmptyView()
+    }
+
+    let envCatalog = Catalog(id: "shared", components: [envImpl])
+    let localCatalog = Catalog(id: "shared", components: [localImpl])
+    let extraCatalog = Catalog(id: "extra", components: [extraImpl])
+
+    let viewModel = SurfaceViewModel(
+      surfaceID: "local-wins",
+      catalogs: [localCatalog, extraCatalog],
+      defaultCatalogID: "shared"
+    )
+    viewModel.componentsModel.addComponent(
+      ComponentModel(id: "root", type: "widget", catalogID: "shared", properties: [:])
+    )
+
+    let tearDown = hostView(
+      Surface(viewModel: viewModel, catalogs: [localCatalog])
+        .a2uiCatalogs([envCatalog, extraCatalog])
+    )
+    defer { tearDown() }
+
+    #expect(renderedSource == "local")
+    #expect(observedCatalogIDs == ["shared", "extra"])
+  }
+
+  @Test func nestedSurfaceInheritsAmbientCatalogsWithoutOuterLocalLeakage() throws {
+    let schema = try Schema(instance: #"{"type": "object"}"#)
+    var innerObservedCatalogIDs: Set<String> = []
+
+    let innerProbe = ComponentImplementation(name: "innerProbe", schema: schema) { _ in
+      CatalogEnvironmentProbeView { catalogs, _ in
+        innerObservedCatalogIDs = Set(catalogs.keys)
+      }
+    }
+    let ambientComponent = ComponentImplementation(name: "ambientItem", schema: schema) { _ in
+      EmptyView()
+    }
+
+    let ambientCatalog = Catalog(id: "ambient", components: [ambientComponent])
+    let innerLocalCatalog = Catalog(id: "inner-local", components: [innerProbe])
+
+    let innerVM = SurfaceViewModel(
+      surfaceID: "inner-surface",
+      catalogs: [innerLocalCatalog, ambientCatalog],
+      defaultCatalogID: "inner-local"
+    )
+    innerVM.componentsModel.addComponent(
+      ComponentModel(id: "root", type: "innerProbe", catalogID: "inner-local", properties: [:])
+    )
+
+    let outerHost = ComponentImplementation(name: "outerHost", schema: schema) { _ in
+      Surface(viewModel: innerVM, catalogs: [innerLocalCatalog])
+    }
+    let outerLocalCatalog = Catalog(id: "outer-local", components: [outerHost])
+
+    let outerVM = SurfaceViewModel(
+      surfaceID: "outer-surface",
+      catalog: outerLocalCatalog
+    )
+    outerVM.componentsModel.addComponent(
+      ComponentModel(id: "root", type: "outerHost", catalogID: "outer-local", properties: [:])
+    )
+
+    let tearDown = hostView(
+      Surface(viewModel: outerVM, catalogs: [outerLocalCatalog])
+        .a2uiCatalog(ambientCatalog)
+    )
+    defer { tearDown() }
+
+    #expect(innerObservedCatalogIDs == ["ambient", "inner-local"])
+  }
+
+  @Test func environmentCatalogModifierInsideSurfaceDoesNotMutateEnclosingSurface() throws {
+    let schema = try Schema(instance: #"{"type": "object"}"#)
+    var childRenderedFromModifier = false
+    var childObservedCatalogIDs: Set<String> = []
+
+    let injectedComponent = ComponentImplementation(name: "probe", schema: schema) { _ in
+      childRenderedFromModifier = true
+      return EmptyView()
+    }
+    let injectedCatalog = Catalog(id: "injected", components: [injectedComponent])
+    let overrideBaseCatalog = Catalog(id: "base", components: [injectedComponent])
+
+    let baseProbe = ComponentImplementation(name: "probe", schema: schema) { _ in
+      CatalogEnvironmentProbeView { catalogs, _ in
+        childObservedCatalogIDs = Set(catalogs.keys)
+      }
+    }
+    let wrapperSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "$defs": { "ComponentId": { "type": "string" } },
+          "properties": { "child": { "$ref": "#/$defs/ComponentId" } }
+        }
+        """
+    )
+    let wrapper = ComponentImplementation(name: "wrapper", schema: wrapperSchema) { node in
+      Group {
+        if let child = node.child(for: "child") {
+          ComponentNodeView(node: child)
+            .a2uiCatalogs([injectedCatalog, overrideBaseCatalog])
+        }
+      }
+    }
+    let baseCatalog = Catalog(id: "base", components: [wrapper, baseProbe])
+
+    let viewModel = SurfaceViewModel(surfaceID: "enclosing", catalog: baseCatalog)
+    viewModel.componentsModel.applyBatch(adding: [
+      ComponentModel(
+        id: "root",
+        type: "wrapper",
+        catalogID: "base",
+        properties: ["child": .string("leaf")]
+      ),
+      ComponentModel(id: "leaf", type: "probe", catalogID: "base", properties: [:]),
+    ])
+    _ = try #require(viewModel.rootNode?.child(for: "child"))
+
+    let tearDown = hostView(Surface(viewModel: viewModel, catalog: baseCatalog))
+    defer { tearDown() }
+
+    #expect(!childRenderedFromModifier)
+    #expect(childObservedCatalogIDs == ["base"])
   }
 }

@@ -16,8 +16,19 @@ import A2UICore
 import SwiftUI
 
 extension EnvironmentValues {
+  /// Catalogs provided by ancestor views via ``SwiftUI/View/a2uiCatalog(_:)`` or
+  /// ``SwiftUI/View/a2uiCatalogs(_:)`` for descendant ``Surface`` views to merge with their own.
+  @Entry var a2uiProvidedCatalogs = CatalogRegistry()
+
+  /// `Equatable` backing store for ``a2uiCatalogs`` so ``Surface`` redraws do not invalidate
+  /// descendants when the active catalog set has not changed.
+  @Entry var a2uiActiveCatalogRegistry = CatalogRegistry()
+
   /// The active A2UI component catalogs injected by ``Surface`` for SwiftUI rendering.
-  @Entry public internal(set) var a2uiCatalogs: [String: Catalog<ComponentImplementation>] = [:]
+  public internal(set) var a2uiCatalogs: [String: Catalog<ComponentImplementation>] {
+    get { a2uiActiveCatalogRegistry.catalogs }
+    set { a2uiActiveCatalogRegistry = CatalogRegistry(catalogs: newValue) }
+  }
 
   /// The default catalog ID injected by ``Surface`` for unqualified component lookups.
   @Entry public internal(set) var a2uiDefaultCatalogID: String? = nil

@@ -853,6 +853,265 @@ struct SurfaceRedrawTests {
     #expect(recorder.value(for: "third") == "Tab Three")
   }
 
+  @Test func unrelatedAncestorStateChangeAboveEnvironmentCatalogDoesNotRedrawSurface() throws {
+    let counter = RedrawCounter()
+    let swiftUICatalog = makeInstrumentedCatalog(counter: counter)
+    let coreCatalog = BasicCatalog.makeCatalog(version: .v091)
+
+    let viewModel = SurfaceViewModel(surfaceID: "env-ancestor-redraw", catalog: coreCatalog)
+    viewModel.componentsModel.applyBatch(adding: [
+      ComponentModel(
+        id: "root",
+        type: "Column",
+        properties: ["children": .array([.string("row")])]
+      ),
+      ComponentModel(
+        id: "row",
+        type: "Row",
+        properties: ["children": .array([.string("label")])]
+      ),
+      ComponentModel(
+        id: "label",
+        type: "Text",
+        properties: ["text": .string("Stable")]
+      ),
+    ])
+
+    let state = AncestorRedrawState()
+    let storedComponents = Array(swiftUICatalog.components.values)
+    let rootView = AncestorCatalogHostView(
+      state: state,
+      viewModel: viewModel,
+      catalogID: swiftUICatalog.id,
+      storedComponents: storedComponents
+    )
+
+    #if canImport(AppKit)
+      let hostingView = NSHostingView(rootView: rootView)
+      hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 200)
+      let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 400, height: 200),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+      )
+      window.contentView = hostingView
+      flushLayout(in: window, hostingView: hostingView)
+    #elseif canImport(UIKit)
+      let hostingController = UIHostingController(rootView: rootView)
+      let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 200))
+      window.rootViewController = hostingController
+      window.makeKeyAndVisible()
+      flushLayout(in: window, hostingView: hostingController.view)
+    #endif
+
+    #expect(counter.count(for: "root") == 1)
+    #expect(counter.count(for: "row") == 1)
+    #expect(counter.count(for: "label") == 1)
+
+    // Unrelated ancestor redraws rebuild a Catalog inline from stored ComponentImplementations.
+    // Because CatalogRegistry diffs by component identity, no Surface or component redraws occur.
+    counter.reset()
+    state.unrelatedTick += 1
+    #if canImport(AppKit)
+      flushLayout(in: window, hostingView: hostingView)
+    #elseif canImport(UIKit)
+      flushLayout(in: window, hostingView: hostingController.view)
+    #endif
+
+    #expect(counter.totalComponentRedraws == 0)
+
+    // Re-evaluating Surface.body via a surface metadata update also leaves components untouched
+    // because Stage 2's CatalogRegistry compares equal.
+    counter.reset()
+    try viewModel.setExtension("mode", value: .string("compact"))
+    #if canImport(AppKit)
+      flushLayout(in: window, hostingView: hostingView)
+    #elseif canImport(UIKit)
+      flushLayout(in: window, hostingView: hostingController.view)
+    #endif
+
+    #expect(counter.totalComponentRedraws == 0)
+  }
+
+  @Test func siblingBranchEnvironmentCatalogUpdateRedrawsOnlyTargetBranch() throws {
+    let leftCounter = RedrawCounter()
+    let rightCounter = RedrawCounter()
+    let recorder = RenderedOutputRecorder()
+    let schema = try Schema(instance: #"{"type": "object"}"#)
+
+    let leftV1Catalog = Catalog(
+      id: "branch-catalog",
+      components: [
+        ComponentImplementation(name: "probe", schema: schema) { node in
+          leftCounter.record("v1-\(node.id)")
+          return Text("v1")
+            .preference(key: RenderedTextsPreferenceKey.self, value: ["left": "v1"])
+        }
+      ]
+    )
+    let leftV2Catalog = Catalog(
+      id: "branch-catalog",
+      components: [
+        ComponentImplementation(name: "probe", schema: schema) { node in
+          leftCounter.record("v2-\(node.id)")
+          return Text("v2")
+            .preference(key: RenderedTextsPreferenceKey.self, value: ["left": "v2"])
+        }
+      ]
+    )
+    let rightCatalog = Catalog(
+      id: "branch-catalog",
+      components: [
+        ComponentImplementation(name: "probe", schema: schema) { node in
+          rightCounter.record("right-\(node.id)")
+          return Text("right")
+            .preference(key: RenderedTextsPreferenceKey.self, value: ["right": "right"])
+        }
+      ]
+    )
+
+    let leftVM = SurfaceViewModel(surfaceID: "left-surface", catalog: leftV1Catalog)
+    leftVM.componentsModel.addComponent(
+      ComponentModel(id: "root", type: "probe", catalogID: "branch-catalog", properties: [:])
+    )
+    let rightVM = SurfaceViewModel(surfaceID: "right-surface", catalog: rightCatalog)
+    rightVM.componentsModel.addComponent(
+      ComponentModel(id: "root", type: "probe", catalogID: "branch-catalog", properties: [:])
+    )
+
+    let state = SiblingCatalogState()
+    let rootView = SiblingBranchesHostView(
+      state: state,
+      leftVM: leftVM,
+      rightVM: rightVM,
+      leftV1: leftV1Catalog,
+      leftV2: leftV2Catalog,
+      rightCatalog: rightCatalog
+    )
+    .onPreferenceChange(RenderedTextsPreferenceKey.self) { texts in
+      MainActor.assumeIsolated {
+        recorder.replaceAll(texts)
+      }
+    }
+
+    #if canImport(AppKit)
+      let hostingView = NSHostingView(rootView: rootView)
+      hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 200)
+      let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 400, height: 200),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+      )
+      window.contentView = hostingView
+      flushLayout(in: window, hostingView: hostingView)
+    #elseif canImport(UIKit)
+      let hostingController = UIHostingController(rootView: rootView)
+      let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 200))
+      window.rootViewController = hostingController
+      window.makeKeyAndVisible()
+      flushLayout(in: window, hostingView: hostingController.view)
+    #endif
+
+    #expect(leftCounter.count(for: "v1-root") == 1)
+    #expect(rightCounter.count(for: "right-root") == 1)
+    #expect(recorder.value(for: "left") == "v1")
+    #expect(recorder.value(for: "right") == "right")
+
+    leftCounter.reset()
+    rightCounter.reset()
+    state.useAltLeft = true
+    #if canImport(AppKit)
+      flushLayout(in: window, hostingView: hostingView)
+    #elseif canImport(UIKit)
+      flushLayout(in: window, hostingView: hostingController.view)
+    #endif
+
+    #expect(leftCounter.count(for: "v2-root") == 1)
+    #expect(recorder.value(for: "left") == "v2")
+    #expect(rightCounter.totalComponentRedraws == 0)
+    #expect(recorder.value(for: "right") == "right")
+  }
+
+  @Test func shadowedEnvironmentCatalogUpdateDoesNotRedrawLocalSurfaceComponents() throws {
+    let counter = RedrawCounter()
+    let schema = try Schema(instance: #"{"type": "object"}"#)
+
+    let localCatalog = Catalog(
+      id: "shadowed",
+      components: [
+        ComponentImplementation(name: "probe", schema: schema) { node in
+          counter.record("local-\(node.id)")
+          return Text("local")
+        }
+      ]
+    )
+    let envV1 = Catalog(
+      id: "shadowed",
+      components: [
+        ComponentImplementation(name: "probe", schema: schema) { _ in
+          counter.record("env-v1")
+          return Text("env-v1")
+        }
+      ]
+    )
+    let envV2 = Catalog(
+      id: "shadowed",
+      components: [
+        ComponentImplementation(name: "probe", schema: schema) { _ in
+          counter.record("env-v2")
+          return Text("env-v2")
+        }
+      ]
+    )
+
+    let viewModel = SurfaceViewModel(surfaceID: "shadowed-surface", catalog: localCatalog)
+    viewModel.componentsModel.addComponent(
+      ComponentModel(id: "root", type: "probe", catalogID: "shadowed", properties: [:])
+    )
+
+    let state = SiblingCatalogState()
+    let rootView = ShadowedCatalogHostView(
+      state: state,
+      viewModel: viewModel,
+      localCatalog: localCatalog,
+      envV1: envV1,
+      envV2: envV2
+    )
+
+    #if canImport(AppKit)
+      let hostingView = NSHostingView(rootView: rootView)
+      hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 200)
+      let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 400, height: 200),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+      )
+      window.contentView = hostingView
+      flushLayout(in: window, hostingView: hostingView)
+    #elseif canImport(UIKit)
+      let hostingController = UIHostingController(rootView: rootView)
+      let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 200))
+      window.rootViewController = hostingController
+      window.makeKeyAndVisible()
+      flushLayout(in: window, hostingView: hostingController.view)
+    #endif
+
+    #expect(counter.count(for: "local-root") == 1)
+
+    counter.reset()
+    state.useAltLeft = true
+    #if canImport(AppKit)
+      flushLayout(in: window, hostingView: hostingView)
+    #elseif canImport(UIKit)
+      flushLayout(in: window, hostingView: hostingController.view)
+    #endif
+
+    #expect(counter.totalComponentRedraws == 0)
+  }
+
   private func makeChildListContainerSchema() throws -> Schema {
     try Schema(
       instance: """
@@ -941,5 +1200,68 @@ private struct SegmentItemView: View {
     let label = child.string(for: "text") ?? ""
     Text(label)
       .preference(key: RenderedTextsPreferenceKey.self, value: [child.id: label])
+  }
+}
+
+@MainActor
+@Observable
+private final class AncestorRedrawState {
+  var unrelatedTick = 0
+}
+
+private struct AncestorCatalogHostView: View {
+  let state: AncestorRedrawState
+  let viewModel: SurfaceViewModel
+  let catalogID: String
+  let storedComponents: [ComponentImplementation]
+
+  var body: some View {
+    let catalog = Catalog(
+      id: catalogID,
+      protocolVersion: .v091,
+      components: storedComponents
+    )
+    VStack {
+      Text("Tick \(state.unrelatedTick)")
+      Surface(viewModel: viewModel, catalogs: [])
+    }
+    .a2uiCatalog(catalog)
+  }
+}
+
+@MainActor
+@Observable
+private final class SiblingCatalogState {
+  var useAltLeft = false
+}
+
+private struct SiblingBranchesHostView: View {
+  let state: SiblingCatalogState
+  let leftVM: SurfaceViewModel
+  let rightVM: SurfaceViewModel
+  let leftV1: Catalog<ComponentImplementation>
+  let leftV2: Catalog<ComponentImplementation>
+  let rightCatalog: Catalog<ComponentImplementation>
+
+  var body: some View {
+    HStack {
+      Surface(viewModel: leftVM, catalogs: [])
+        .a2uiCatalog(state.useAltLeft ? leftV2 : leftV1)
+      Surface(viewModel: rightVM, catalogs: [])
+        .a2uiCatalog(rightCatalog)
+    }
+  }
+}
+
+private struct ShadowedCatalogHostView: View {
+  let state: SiblingCatalogState
+  let viewModel: SurfaceViewModel
+  let localCatalog: Catalog<ComponentImplementation>
+  let envV1: Catalog<ComponentImplementation>
+  let envV2: Catalog<ComponentImplementation>
+
+  var body: some View {
+    Surface(viewModel: viewModel, catalogs: [localCatalog])
+      .a2uiCatalog(state.useAltLeft ? envV2 : envV1)
   }
 }

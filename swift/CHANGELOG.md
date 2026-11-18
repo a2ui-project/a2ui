@@ -12,6 +12,11 @@
   `\.a2uiCatalogs`, `\.a2uiDefaultCatalogID`, and `\.a2uiSurfaceMetadata` from `@Environment`.
   [#4195](https://github.com/a2ui-project/a2ui/issues/4195),
   [#4275](https://github.com/a2ui-project/a2ui/pull/4275)
+- Add `View.a2uiCatalog(_:)` and `View.a2uiCatalogs(_:)` modifiers in `A2UISwiftUI` so ancestor
+  views can provide shared component catalogs to descendant `Surface` views through the SwiftUI
+  environment while keeping initializer catalogs highest-precedence and `EnvironmentValues`
+  read-only. [#4195](https://github.com/a2ui-project/a2ui/issues/4195),
+  [#4293](https://github.com/a2ui-project/a2ui/pull/4293)
 
 ## 0.11.0
 

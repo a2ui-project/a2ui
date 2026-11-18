@@ -69,7 +69,9 @@ let customProfileImplementation = ComponentImplementation(api: UserCardAPI()) { 
 }
 ```
 
-2. Register the `ComponentImplementation` in a `Catalog<ComponentImplementation>` and pass it to `Surface(viewModel:catalogs:)`.
+2. Register the `ComponentImplementation` in a `Catalog<ComponentImplementation>` and pass it to
+   `Surface(viewModel:catalogs:)`, or provide it from an ancestor view with `.a2uiCatalog(_:)` or
+   `.a2uiCatalogs(_:)`.
 
 ### Accessibility
 

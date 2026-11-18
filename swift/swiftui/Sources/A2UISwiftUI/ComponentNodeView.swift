@@ -23,7 +23,7 @@ import os
 /// ``A2UIAccessibilityModifier``. When the component applied the label and hint to its own
 /// control with ``SwiftUI/View/a2uiAccessibilityControl(for:)``, they are left off the root.
 public struct ComponentNodeView: View {
-  @Environment(\.a2uiCatalogs) private var catalogs
+  @Environment(\.a2uiActiveCatalogRegistry) private var catalogRegistry
   @Environment(\.a2uiDefaultCatalogID) private var defaultCatalogID
 
   public let node: Node
@@ -38,7 +38,7 @@ public struct ComponentNodeView: View {
       // A pending, unknown-type, or cyclic placeholder renders nothing.
       EmptyView()
     } else if let renderedView = Surface.render(
-      node: node, using: catalogs, defaultCatalogID: defaultCatalogID)
+      node: node, using: catalogRegistry.catalogs, defaultCatalogID: defaultCatalogID)
     {
       renderedView
         .modifier(ComponentAccessibilityHostModifier(node: node))
