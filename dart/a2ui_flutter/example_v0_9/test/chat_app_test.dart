@@ -18,6 +18,7 @@ import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:a2ui_flutter_example_v0_9/chat_app.dart';
 import 'package:a2ui_flutter_example_v0_9/chat_session.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -51,6 +52,22 @@ void main() {
       findsOne,
     );
     expect(find.textContaining('**'), findsNothing);
+
+    final ThemeData theme = Theme.of(tester.element(find.byType(Scaffold)));
+    final List<MarkdownBody> bodies = tester
+        .widgetList<MarkdownBody>(find.byType(MarkdownBody))
+        .toList();
+    expect(bodies, hasLength(2));
+    for (final body in bodies) {
+      final MarkdownStyleSheet? sheet = body.styleSheet;
+      expect(sheet, isNotNull);
+      expect(sheet!.h1, theme.textTheme.headlineSmall);
+      expect(sheet.tableBorder?.top.color, theme.dividerColor);
+      expect(
+        (sheet.blockquoteDecoration! as BoxDecoration).color,
+        theme.colorScheme.surfaceContainerHighest,
+      );
+    }
   });
 
   testWidgets('opens a link tapped in the model text or in a Text', (

@@ -51,15 +51,7 @@ Widget buildText(
   TextStyle? style = styleOf(props.string('variant'));
   if (style == null) {
     if (A2uiMarkdown.maybeOf(context) case final A2uiMarkdownBuilder markdown) {
-      // Bridge material_ui ThemeData to legacy flutter/material ThemeData for
-      // Markdown packages (e.g. flutter_markdown_plus#144) not yet migrated.
-      // ignore: deprecated_member_use
-      return MaterialUiCompatibilityBridge(
-        child: Builder(
-          builder: (context) =>
-              markdown(context, text, DefaultTextStyle.of(context).style),
-        ),
-      );
+      return markdown(context, text, DefaultTextStyle.of(context).style);
     }
   }
   final String line = text.trim();
