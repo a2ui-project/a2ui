@@ -134,6 +134,9 @@ export const MILESTONE_REQUIRED_PRIORITIES: ReadonlySet<Priority> = new Set<Prio
 // Priorities absent here are never flagged for staleness.
 export const STALE_DAYS: Partial<Record<Priority, number>> = {P0: 1, P1: 30};
 
+// Days of inactivity before an assigned PR is considered stale (step 4).
+export const PR_STALE_DAYS = 7;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Author associations that count as an internal maintainer response.
@@ -175,10 +178,10 @@ const ageInDays = (isoTimestamp: string, now: number): number =>
   (now - new Date(isoTimestamp).getTime()) / DAY_MS;
 
 /**
- * Returns the most recent human contribution to an issue: either its newest
- * non-bot comment, or, if there are none, the opening post itself. Used both to
- * measure staleness and to decide whether an external contributor is still
- * awaiting a maintainer response.
+ * Returns the most recent human contribution to an issue or PR: either its
+ * newest non-bot comment or review, or, if there are none, the opening post
+ * itself. Used both to measure staleness and to decide whether an external
+ * contributor is still awaiting a maintainer response.
  *
  * `contributions` is the normalized event list from `fetchContributions`. The
  * scan picks the latest regardless of order.
@@ -269,20 +272,24 @@ export function flagReason(
 
   const openedByExternal = isExternal({association: item.author_association});
 
-  // Step 4: PRs. Only external contributors' PRs are watched; maintainers
-  // manage their own, so an internally-authored PR is never flagged. An
-  // external PR needs triage until a team member takes it on by being
-  // assigned; a team comment alone does not take it off the queue. A PR
-  // waiting on its author has already left at step 1.
+  const latest = lastHumanContribution(item, contributions);
+
+  // Step 4: PRs. An assigned PR, whoever opened it, is flagged once it goes
+  // quiet beyond PR_STALE_DAYS. An unassigned PR is flagged only when an
+  // external contributor opened it; maintainers manage their own. An external
+  // PR needs triage until a team member takes it on by being assigned; a team
+  // comment alone does not take it off the queue. A PR waiting on its author
+  // has already left at step 1.
   if (isPR) {
-    if (!openedByExternal || assigneeCount > 0) {
-      return null;
+    if (assigneeCount > 0) {
+      return ageInDays(latest.createdAt, now) > PR_STALE_DAYS
+        ? `this assigned PR has had no human activity for more than ${PR_STALE_DAYS} days.`
+        : null;
     }
-    return 'this external PR has no assignee.';
+    return openedByExternal ? 'this external PR has no assignee.' : null;
   }
 
   // Step 3: issues.
-  const latest = lastHumanContribution(item, contributions);
   const priority = PRIORITY_LABELS.find(p => labels.includes(p));
 
   // The team manages its own issues, so a missing priority matters only once

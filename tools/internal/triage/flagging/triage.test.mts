@@ -39,6 +39,7 @@ import issueTriage, {
   isTriageBotComment,
   lastHumanContribution,
   MILESTONE_REQUIRED_PRIORITIES,
+  PR_STALE_DAYS,
   PRIORITY_LABELS,
   STALE_DAYS,
   TRIAGE_ASSIGNMENT_DAYS,
@@ -584,11 +585,40 @@ describe('flagReason — PRs', () => {
     assertReason(flagReason(item, comments, NOW), /no assignee/);
   });
 
-  it('does not flag an assigned external PR, whoever spoke last', () => {
-    const item = pr({created_at: daysAgo(30), assignees: dev, comments: 1});
+  it('does not flag a fresh assigned external PR, whoever spoke last', () => {
+    const item = pr({created_at: daysAgo(PR_STALE_DAYS), assignees: dev, comments: 1});
     assert.equal(flagReason(item, [], NOW), null);
     assert.equal(flagReason(item, [externalComment(0)], NOW), null);
     assert.equal(flagReason(item, [memberComment(0)], NOW), null);
+  });
+
+  // Applies whoever opened the PR.
+  for (const association of ['CONTRIBUTOR', 'MEMBER']) {
+    it(`flags an assigned ${association} PR stale beyond ${PR_STALE_DAYS} days`, () => {
+      const item = pr({
+        created_at: daysAgo(PR_STALE_DAYS + 1),
+        assignees: dev,
+        author_association: association,
+      });
+      assertReason(flagReason(item, [], NOW), /no human activity/);
+    });
+  }
+
+  // Reviews and inline review comments arrive as contributions too.
+  it('measures an assigned PR from its latest human contribution', () => {
+    const item = pr({created_at: daysAgo(PR_STALE_DAYS + 10), assignees: dev, comments: 1});
+    assert.equal(flagReason(item, [memberComment(PR_STALE_DAYS)], NOW), null);
+    assert.equal(flagReason(item, [externalComment(PR_STALE_DAYS)], NOW), null);
+  });
+
+  it('does not let a bot comment reset the clock on an assigned PR', () => {
+    const item = pr({created_at: daysAgo(PR_STALE_DAYS + 1), assignees: dev, comments: 1});
+    const botComment = event({
+      created_at: daysAgo(0),
+      author_association: 'NONE',
+      user: {login: 'ci[bot]', type: 'Bot'},
+    });
+    assertReason(flagReason(item, [botComment], NOW), /no human activity/);
   });
 
   it('does not flag an external PR waiting for its author', () => {
@@ -606,7 +636,7 @@ describe('flagReason — PRs', () => {
     assert.equal(flagReason({...item, assignees: dev}, [], NOW), null);
   });
 
-  it('never flags a maintainer-authored PR, however old', () => {
+  it('never flags an unassigned maintainer-authored PR, however old', () => {
     for (const association of ['OWNER', 'MEMBER', 'COLLABORATOR']) {
       const item = pr({created_at: daysAgo(30), author_association: association});
       assert.equal(flagReason(item, [], NOW), null, association);

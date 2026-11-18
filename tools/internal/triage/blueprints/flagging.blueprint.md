@@ -2,13 +2,19 @@
 
 The [triage.mts](../flagging/triage.mts) script runs via the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It checks every open issue and PR, adds `status: needs-triage` to the ones that match the conditions below, and removes the label from the rest.
 
-An **external contributor** is anyone without the `OWNER`, `MEMBER` or `COLLABORATOR` association on the repository. Bots are external contributors too, so an issue filed by a workflow or a PR opened by dependabot needs triage like any other. A bot comment does not count as a reply, though: it does not change the latest human contribution, and it does not clear `status: waiting-for-author-response`.
+An **out-of-team contributor** is anyone without the `OWNER`, `MEMBER` or `COLLABORATOR` association on the repository. Bots are out-of-team contributors too, so an issue filed by a workflow or a PR opened by dependabot needs triage like any other. A bot comment does not count as a reply, though: it does not change the latest human contribution, and it does not clear `status: waiting-for-author-response`.
 
-A team member's comment that starts with `From triage bot:` (in bold or not) is output from the triage tooling posted from that person's account. The bot ignores it completely, so a triage suggestion does not reset the staleness clock or answer an external comment.
+A team member's comment that starts with `From triage bot` (in bold or not) is output from the triage tooling posted from that person's account. The bot ignores it completely, so a triage suggestion does not reset the staleness clock or answer an out-of-team comment.
 
 The script uses the following rules to decide if a PR or issue should get **the label `status: needs-triage`**:
 
-1. Does the item have `status: waiting-for-author-response` (the bot removes this label once a human external contributor responds)?
+1. Is the item opened by team member and there is no unanswered out-of-team contributor's comment?
+   
+   - If yes: **NO LABEL**.
+   - If no: continue processing.
+
+1. Does the item have `status: waiting-for-author-response` (the bot removes this label once an
+out-of-team contributor responds)?
 
    - If yes: **NO LABEL**.
    - If no: continue processing.
@@ -28,13 +34,12 @@ The script uses the following rules to decide if a PR or issue should get **the 
          - It is `P0` and has been stale for more than 1 day.
          - It is `P1` and has been stale for more than 30 days.
          - It is `P1` with no milestone.
-         - It has no priority label (`P0`–`P3`), and it was opened or commented by an external contributor.
+         - It has no priority label (`P0`–`P3`).
        - **NO LABEL** otherwise.
      - If not assigned:
        - **LABEL** when one of the following is true:
          - It is `P0` or `P1`, which must have an assignee.
-         - It has no priority label (`P0`–`P3`) and was opened or commented by an external contributor.
-         - The latest human contribution is from an external contributor.
+         - It has no priority label (`P0`–`P3`).
        - **NO LABEL** otherwise.
    - If no: continue processing.
 
@@ -42,11 +47,11 @@ The script uses the following rules to decide if a PR or issue should get **the 
 
    - If yes:
      - **LABEL** when one of the following is true:
-       - it was opened by an external contributor and has no assignee. 
-       - it has assignee and is stale for 7 days.
+       - It has no assignee.
+       - It has an assignee and has been stale for more than 7 days.
      - **NO LABEL** otherwise.
 
-Staleness is calculated from the last human contribution (a comment or the issue's creation) rather than `updated_at` to avoid bot edits resetting the timer.
+Staleness is calculated from the last human contribution (a comment, a PR review or review comment, or the item's creation) rather than `updated_at` to avoid bot edits resetting the timer. Pushing commits to a PR does not count as a contribution.
 
 The bot prints to the console which items it flags or unflags and why. You can use this to track triage progress.
 
