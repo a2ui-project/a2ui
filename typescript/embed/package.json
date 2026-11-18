@@ -23,6 +23,10 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./build": {
+      "types": "./dist/builder/index.d.ts",
+      "default": "./dist/builder/index.js"
+    },
     "./contract": {
       "types": "./dist/contract/index.d.ts",
       "default": "./dist/contract/index.js"
@@ -35,6 +39,9 @@
       "types": "./dist/mcp/server/index.d.ts",
       "default": "./dist/mcp/server/index.js"
     }
+  },
+  "bin": {
+    "a2ui-embed": "./dist/builder/cli.js"
   },
   "files": [
     "dist"
@@ -102,8 +109,7 @@
     "test:node": {
       "command": "node --import tsx --test \"src/**/*.test.ts\"",
       "dependencies": [
-        "../core/web_core:build",
-        "copy-spec"
+        "build"
       ],
       "files": [
         "src/**/*.ts",
@@ -173,6 +179,7 @@
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "^1.7.4",
     "ajv": "^8.17.1",
+    "esbuild": "^0.28.1",
     "zod": "^3.25.76"
   },
   "peerDependencies": {
@@ -204,6 +211,7 @@
     "karma-esbuild": "^2.3.0",
     "karma-jasmine": "^5.1.0",
     "lit": "^3.3.3",
+    "playwright": "1.58.1",
     "prettier": "^3.8.4",
     "tsx": "^4.22.4",
     "typescript": "5.9.3",
