@@ -1,0 +1,143 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Slash commands that change playground settings or ask for information."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
+from typing import Literal
+
+from modes import PlaygroundSettings, RenderMode, as_mode
+
+CommandName = Literal[
+    "mode", "backend", "compare", "trace", "help", "rate", "ratings", "tool"
+]
+
+DECISION_BACKENDS: tuple[str, ...] = ("jev", "gemini", "mock")
+
+_KNOWN: tuple[CommandName, ...] = (
+    "mode",
+    "backend",
+    "compare",
+    "trace",
+    "help",
+    "rate",
+    "ratings",
+    "tool",
+)
+
+
+@dataclass(frozen=True)
+class Command:
+    """A parsed slash command from the user input bar.
+
+    Attributes:
+        name: Canonical command name.
+        argument: First word after the command name, lowercased. For `/help`,
+            holds an `unknown:<text>` marker when the command is unrecognized.
+        text: Remainder of the command line after `argument`, or `None`.
+    """
+
+    name: CommandName
+    argument: str | None = None
+    text: str | None = None
+
+
+def parse_command(text: str) -> Command | None:
+    """Parses a slash command such as `/mode express`, `/compare`, or `/help`.
+
+    Args:
+        text: Raw user input string.
+
+    Returns:
+        A `Command` instance when `text` starts with `/`, or `None` for normal
+        render requests.
+    """
+    stripped = text.strip()
+    if not stripped.startswith("/"):
+        return None
+    words = stripped[1:].split()
+    if not words:
+        return Command("help", argument="unknown:/")
+    name = words[0].lower()
+    argument = words[1].lower() if len(words) > 1 else None
+    rest = " ".join(words[2:]) if len(words) > 2 else None
+    if name not in _KNOWN:
+        return Command("help", argument=f"unknown:{stripped}")
+    return Command(name, argument, rest)
+
+
+def apply_command(
+    cmd: Command, settings: PlaygroundSettings
+) -> tuple[PlaygroundSettings, str | None]:
+    """Applies a parsed `Command` to conversation `settings`.
+
+    Args:
+        cmd: Parsed slash command to apply.
+        settings: Current conversation settings.
+
+    Returns:
+        A `(new_settings, reply)` pair. `reply` is `None` for commands such as
+        `/help` and `/trace` that the agent answers using its own state.
+    """
+    if cmd.name == "mode":
+        mode = as_mode(cmd.argument) if cmd.argument else None
+        if mode is None:
+            choices = ", ".join(m.value for m in RenderMode)
+            return settings, f"Unknown mode `{cmd.argument or ''}`; choose {choices}."
+        return replace(settings, mode=mode), f"Mode set to `{mode}`."
+    if cmd.name == "compare":
+        return replace(settings, compare=True), (
+            "Next request renders through all three modes from the same data."
+        )
+    return settings, None
+
+
+def help_text(
+    settings: PlaygroundSettings, backend_name: str, model_name: str
+) -> list[str]:
+    """Builds the `/help` status card lines.
+
+    Args:
+        settings: Active conversation settings.
+        backend_name: Display name of the active decision backend.
+        model_name: Name of the stage-1 language model.
+
+    Returns:
+        A list of Markdown lines describing active settings and commands.
+    """
+    return [
+        "**Format playground**",
+        "Describe an interface and it is rendered through the active mode.",
+        (
+            f"Active mode: `{settings.mode}` · decision backend: `{backend_name}`"
+            f" · model: `{model_name}`"
+        ),
+        "`/mode decision|express|direct|tool` picks how the next requests render.",
+        "`/backend jev|gemini|mock` switches the decision model (a name is required).",
+        (
+            "`/tool host|resort|transfer|settings|order|runbook` runs a tool directly"
+            " through the decision model (0 LLM calls)."
+        ),
+        "`/compare` renders the next request through all three modes.",
+        "`/trace` shows the planner's questions for the last decision render.",
+        "`/rate <mode> [comment]` records a preference vote for the last render.",
+        "`/ratings` summarizes recorded mode preference win counts.",
+        "`/help` shows this card.",
+        (
+            "Try: *give me an address entry form*, *show my stock portfolio*,"
+            " or paste a JSON object to render it as is."
+        ),
+    ]

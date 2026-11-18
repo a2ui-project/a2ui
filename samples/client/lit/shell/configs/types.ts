@@ -15,6 +15,18 @@
  */
 
 /**
+ * A quick-action button shown below the text input bar.
+ */
+export interface QuickAction {
+  /** Label shown inside the button. */
+  label: string;
+  /** Message sent to the agent when clicked. */
+  message: string;
+  /** Optional tooltip text. */
+  title?: string;
+}
+
+/**
  * Configuration interface for the Universal App Shell.
  */
 export interface AppConfig {
@@ -36,4 +48,14 @@ export interface AppConfig {
   serverUrl?: string;
   /** Custom CSSStyleSheet overrides for components */
   cssOverrides?: CSSStyleSheet;
+  /**
+   * Whether to delete every rendered surface before processing an agent
+   * response (default `true`). Set it to `false` for agents that keep
+   * surfaces across turns, so a reused surface id updates in place.
+   */
+  clearSurfacesOnResponse?: boolean;
+  /** Optional row of example buttons rendered below the text input. */
+  quickActions?: QuickAction[];
+  /** Whether to render the split-screen <playground-inspector> side panel. */
+  inspector?: boolean;
 }
