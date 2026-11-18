@@ -44,7 +44,7 @@ const PACKAGES = [
     dir: resolve(REPO_ROOT, 'typescript/renderers/angular'),
     allowlist: ANGULAR_ALLOWLIST,
     restricted: ANGULAR_RESTRICTED,
-    baseline: 4,
+    baseline: 5,
   },
 ];
 
