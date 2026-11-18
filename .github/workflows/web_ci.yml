@@ -49,7 +49,6 @@ jobs:
       renderers: ${{ steps.all.outputs.yes || steps.filter.outputs.renderers }}
       tools: ${{ steps.all.outputs.yes || steps.filter.outputs.tools }}
       samples: ${{ steps.all.outputs.yes || steps.filter.outputs.samples }}
-      scripts: ${{ steps.all.outputs.yes || steps.filter.outputs.scripts }}
       other: ${{ steps.all.outputs.yes || steps.filter.outputs.other }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -95,12 +94,6 @@ jobs:
               - 'samples/vegachart/**'
               - 'package.json'
               - 'yarn.lock'
-              - '.github/workflows/web_ci.yml'
-              - '.github/actions/setup-node/**'
-            scripts:
-              - 'scripts/**'
-              - 'tools/internal/triage/**'
-              - '.github/workflows/triage.yml'
               - '.github/workflows/web_ci.yml'
               - '.github/actions/setup-node/**'
             other:
@@ -271,7 +264,6 @@ jobs:
     # `scripts/` (for example `typescript/renderers/*/eslint.boundary.mjs`),
     # so a path filter here would miss the changes they guard, and the job
     # takes about a minute.
-    needs: changes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
