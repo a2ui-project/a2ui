@@ -169,6 +169,7 @@ Widget _markdown(BuildContext context, String markdown, TextStyle style) =>
 // package:material_ui ThemeData natively (see PR #150).
 MarkdownStyleSheet _markdownStyleSheetFromTheme(ThemeData theme) {
   final TextStyle? body = theme.textTheme.bodyMedium;
+  final double? bodyFontSize = body?.fontSize;
   return MarkdownStyleSheet(
     a: const TextStyle(color: Colors.blue),
     p: body,
@@ -176,7 +177,7 @@ MarkdownStyleSheet _markdownStyleSheetFromTheme(ThemeData theme) {
     code: body?.copyWith(
       backgroundColor: theme.cardTheme.color,
       fontFamily: 'monospace',
-      fontSize: body.fontSize == null ? null : body.fontSize! * 0.85,
+      fontSize: bodyFontSize == null ? null : bodyFontSize * 0.85,
     ),
     h1: theme.textTheme.headlineSmall,
     h1Padding: EdgeInsets.zero,
