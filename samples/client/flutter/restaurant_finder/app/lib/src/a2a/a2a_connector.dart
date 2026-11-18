@@ -27,16 +27,20 @@ const String _a2uiExtensionUri = 'https://a2ui.org/a2a-extension/a2ui/v0.9';
 /// A2UI is transport-agnostic—this file is only needed to talk to the sample's
 /// A2A backend, and you can replace it with any transport you prefer.
 class A2uiAgentConnector {
-  A2uiAgentConnector({required this.url, A2AClient? client})
-    : _client =
-          client ??
-          A2AClient(
-            url.toString(),
-            customHeaders: const {'X-A2A-Extensions': _a2uiExtensionUri},
-            agentCardBackgroundFetch: false,
-          );
+  A2uiAgentConnector({
+    required this.url,
+    A2AClient? client,
+    this.streamTimeout = const Duration(seconds: 60),
+  }) : _client =
+           client ??
+           A2AClient(
+             url.toString(),
+             customHeaders: const {'X-A2A-Extensions': _a2uiExtensionUri},
+             agentCardBackgroundFetch: false,
+           );
 
   final Uri url;
+  final Duration streamTimeout;
   final A2AClient _client;
   final Logger _logger = Logger('A2uiAgentConnector');
   final Uuid _uuid = const Uuid();
@@ -85,9 +89,7 @@ class A2uiAgentConnector {
       ..extensions = [_a2uiExtensionUri];
 
     await for (final A2ASendStreamMessageResponse event
-        in _client
-            .sendMessageStream(params)
-            .timeout(const Duration(seconds: 30))) {
+        in _client.sendMessageStream(params).timeout(streamTimeout)) {
       for (final AgentToRendererMessage msg in _handleEvent(event)) {
         yield msg;
       }
@@ -98,16 +100,20 @@ class A2uiAgentConnector {
     A2ASendStreamMessageResponse event,
   ) sync* {
     if (event.isError) {
-      final errorResponse = event as A2AJSONRPCErrorResponseS;
-      final int? code = errorResponse.error?.rpcErrorCode;
-      final Object? detail = code == null
-          ? errorResponse.error
+      final A2AError? error = event is A2AJSONRPCErrorResponseSSM
+          ? event.error
+          : null;
+      final int? code = error?.rpcErrorCode;
+      final Object detail = code == null
+          ? (error ?? event)
           : A2AError.asString(code);
       throw StateError('A2A Error: $detail');
     }
 
-    final response = event as A2ASendStreamMessageSuccessResponse;
-    final Object? result = response.result;
+    if (event is! A2ASendStreamMessageSuccessResponse) {
+      return;
+    }
+    final Object? result = event.result;
 
     if (result is A2ATaskStatusUpdateEvent) {
       _taskId = result.taskId;
@@ -152,18 +158,18 @@ class A2uiAgentConnector {
   }
 
   Iterable<AgentToRendererMessage> _decodeA2uiData(Object data) sync* {
-    if (data is List) {
-      for (final Object? item in data) {
+    if (data case final List<Object?> items) {
+      for (final item in items) {
         if (item != null) yield* _decodeA2uiData(item);
       }
       return;
     }
-    if (data is! Map<String, Object?>) return;
-
-    try {
-      yield AgentToRendererMessage.fromJson(data);
-    } on Object catch (e, st) {
-      _logger.warning('Skipping non-A2UI data part: $e', e, st);
+    if (data case final Map<String, Object?> map) {
+      try {
+        yield AgentToRendererMessage.fromJson(map);
+      } on Object catch (e, st) {
+        _logger.warning('Skipping non-A2UI data part: $e', e, st);
+      }
     }
   }
 }

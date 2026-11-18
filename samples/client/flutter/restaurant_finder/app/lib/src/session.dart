@@ -74,7 +74,7 @@ class RestaurantSession extends ChangeNotifier {
   final Logger _logger = Logger('RestaurantSession');
   Timer? _loadingTimer;
 
-  StreamSubscription<AgentToRendererMessage>? _activeSub;
+  StreamIterator<AgentToRendererMessage>? _activeIterator;
   late final Subscription _actionSub;
   late final Subscription _createdSub;
   late final Subscription _deletedSub;
@@ -134,28 +134,22 @@ class RestaurantSession extends ChangeNotifier {
     }
 
     notifyListeners();
+    final StreamIterator<AgentToRendererMessage> iterator = StreamIterator(
+      send(),
+    );
+    _activeIterator = iterator;
     try {
-      final completer = Completer<void>();
-      _activeSub = send().listen(
-        (message) => _processor.processMessages(
-          AgentToRendererMessagePayload.of(message),
-        ),
-        onError: (Object error, StackTrace stackTrace) {
-          if (!completer.isCompleted) {
-            completer.completeError(error, stackTrace);
-          }
-        },
-        onDone: () {
-          if (!completer.isCompleted) completer.complete();
-        },
-        cancelOnError: true,
-      );
-      await completer.future;
+      while (await iterator.moveNext()) {
+        _processor.processMessages(
+          AgentToRendererMessagePayload.of(iterator.current),
+        );
+      }
     } catch (e, st) {
       _error = e.toString();
       _logger.severe('Error sending message', e, st);
     } finally {
-      _activeSub = null;
+      _activeIterator = null;
+      unawaited(iterator.cancel());
       _isRequesting = false;
       _stopLoadingAnimation();
       notifyListeners();
@@ -165,7 +159,7 @@ class RestaurantSession extends ChangeNotifier {
   @override
   void dispose() {
     _isDisposed = true;
-    unawaited(_activeSub?.cancel());
+    unawaited(_activeIterator?.cancel());
     _actionSub.unsubscribe();
     _createdSub.unsubscribe();
     _deletedSub.unsubscribe();
