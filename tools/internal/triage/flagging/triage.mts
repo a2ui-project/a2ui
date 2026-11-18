@@ -47,6 +47,8 @@ export interface Item {
   user: User | null;
   labels?: (string | {name: string})[];
   assignees?: readonly unknown[] | null;
+  // Null when the item has no milestone.
+  milestone?: unknown;
   // Present only on PRs.
   pull_request?: unknown;
   // The number of top-level comments.
@@ -124,9 +126,13 @@ export const TRIAGE_ASSIGNMENT_DAYS = 14;
 // (step 3). Every entry must be one of PRIORITY_LABELS.
 export const ASSIGNEE_REQUIRED_PRIORITIES: ReadonlySet<Priority> = new Set<Priority>(['P0', 'P1']);
 
+// Priorities whose assigned issues are flagged until they have a milestone
+// (step 3). Every entry must be one of PRIORITY_LABELS.
+export const MILESTONE_REQUIRED_PRIORITIES: ReadonlySet<Priority> = new Set<Priority>(['P1']);
+
 // Days of inactivity before an assigned issue is considered stale (step 3).
 // Priorities absent here are never flagged for staleness.
-export const STALE_DAYS: Partial<Record<Priority, number>> = {P0: 1, P1: 30};
+export const STALE_DAYS: Partial<Record<Priority, number>> = {P0: 1};
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -286,13 +292,16 @@ export function flagReason(
   const noPriorityReason = 'this issue has external input but no priority label yet.';
 
   // An assigned issue has a team member on it, so it is flagged only when that
-  // work goes quiet beyond its priority's threshold, or when outside input
-  // still lacks a priority.
+  // work goes quiet beyond its priority's threshold, when its priority needs a
+  // milestone it lacks, or when outside input still lacks a priority.
   if (assigneeCount > 0) {
     const threshold = priority && STALE_DAYS[priority];
     if (threshold !== undefined && ageInDays(latest.createdAt, now) > threshold) {
       const unit = threshold === 1 ? 'day' : 'days';
       return `this ${priority} issue has had no human activity for more than ${threshold} ${unit}.`;
+    }
+    if (priority && MILESTONE_REQUIRED_PRIORITIES.has(priority) && !item.milestone) {
+      return `this ${priority} issue has no milestone.`;
     }
     return needsPriority ? noPriorityReason : null;
   }

@@ -25,7 +25,10 @@ The script uses the following rules to decide if a PR or issue should get **the 
    - If yes, is it assigned?
      - If assigned:
        - **LABEL** when one of the following is true:
-         - It is `P0` with no human activity for more than 1 day, or `P1` with no human activity for more than 30 days.
+         - It is `P0` and is stale for more than 1 day.
+         - It is `P1` and is stale for more than 30 days.
+         - It is `P0` without assignee.
+         - It is `P1` with no milestone or assignee.
          - It has no priority label (`P0`–`P3`), and it was opened or commented by an external contributor.
        - **NO LABEL** otherwise.
      - If not assigned:

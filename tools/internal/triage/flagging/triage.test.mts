@@ -38,6 +38,7 @@ import issueTriage, {
   isBot,
   isTriageBotComment,
   lastHumanContribution,
+  MILESTONE_REQUIRED_PRIORITIES,
   PRIORITY_LABELS,
   STALE_DAYS,
   TRIAGE_ASSIGNMENT_DAYS,
@@ -267,8 +268,9 @@ describe('flagReason — issues', () => {
     assert.equal(flagReason(item, [], NOW), null);
   });
 
-  // Only P0 and P1 have a staleness threshold, and a priority settles the
-  // missing-priority check, so nothing else can flag an assigned P2 or P3.
+  // Only P0 has a staleness threshold, only P1 needs a milestone, and a
+  // priority settles the missing-priority check, so nothing else can flag an
+  // assigned P2 or P3.
   it('does not flag an assigned issue below P1, whatever else is wrong with it', () => {
     for (const priority of ['P2', 'P3']) {
       const item = externalIssue({
@@ -378,19 +380,52 @@ describe('flagReason — issues', () => {
     });
   }
 
-  // Every priority with a staleness threshold must also require an assignee:
-  // staleness is only checked on assigned issues, and unassigned ones are
-  // flagged for having no assignee.
-  it('requires an assignee for every priority with a staleness threshold', () => {
-    for (const priority of Object.keys(STALE_DAYS) as Priority[]) {
+  // Drive the milestone rule off MILESTONE_REQUIRED_PRIORITIES so the test
+  // tracks the config constant.
+  for (const priority of MILESTONE_REQUIRED_PRIORITIES) {
+    const assigned = {labels: [priority], assignees: [{login: 'dev'}]};
+
+    it(`flags an assigned ${priority} with no milestone`, () => {
+      for (const milestone of [null, undefined]) {
+        const item = issue({...assigned, milestone});
+        assertReason(flagReason(item, [], NOW), /no milestone/, String(milestone));
+      }
+    });
+
+    // Regression: an assigned P1 used to be flagged after 30 days without
+    // human activity. A milestone now settles it, however old the issue is.
+    it(`does not flag an assigned ${priority} with a milestone, however old`, () => {
+      const item = issue({...assigned, milestone: {number: 1}, created_at: daysAgo(9999)});
+      assert.equal(flagReason(item, [], NOW), null);
+    });
+
+    // An unassigned issue is reported for the missing assignee, milestone or not.
+    it(`reports an unassigned ${priority} with a milestone as having no assignee`, () => {
+      const item = issue({labels: [priority], milestone: {number: 1}});
+      assertReason(flagReason(item, [], NOW), /no assignee/);
+    });
+  }
+
+  // Every priority with a staleness threshold or a milestone requirement must
+  // also require an assignee: both rules are only checked on assigned issues,
+  // and unassigned ones are flagged for having no assignee.
+  it('requires an assignee for every priority with a staleness threshold or milestone rule', () => {
+    for (const priority of [
+      ...(Object.keys(STALE_DAYS) as Priority[]),
+      ...MILESTONE_REQUIRED_PRIORITIES,
+    ]) {
       assert.ok(ASSIGNEE_REQUIRED_PRIORITIES.has(priority), priority);
     }
   });
 
-  // The staleness rules cover P0 and P1 only; P2 used to be flagged after 90
-  // days and deliberately no longer is.
-  it('watches staleness for P0 and P1 only', () => {
-    assert.deepEqual(Object.keys(STALE_DAYS), ['P0', 'P1']);
+  // The staleness rule covers P0 only. P2 used to be flagged after 90 days and
+  // P1 after 30; P1 now needs a milestone instead.
+  it('watches staleness for P0 only', () => {
+    assert.deepEqual(Object.keys(STALE_DAYS), ['P0']);
+  });
+
+  it('requires a milestone for P1 only', () => {
+    assert.deepEqual([...MILESTONE_REQUIRED_PRIORITIES], ['P1']);
   });
 
   it('never flags a P2 for staleness, however old, assigned or not', () => {
@@ -428,11 +463,11 @@ describe('flagReason — assigned for triage', () => {
   // Step 2 decides alone: a fresh assignment holds back every later step.
   // The item below would be flagged without the label.
   it('does not flag a fresh assignment, whatever else is wrong with it', () => {
-    const staleP1 = handedOut({
-      labels: ['P1', ASSIGNED_FOR_TRIAGE_LABEL],
+    const staleP0 = handedOut({
+      labels: ['P0', ASSIGNED_FOR_TRIAGE_LABEL],
       created_at: daysAgo(9999),
     });
-    assert.equal(flagReason(staleP1, [], NOW, daysAgo(1)), null);
+    assert.equal(flagReason(staleP0, [], NOW, daysAgo(1)), null);
   });
 
   // Step 1 outranks step 2: a parked item waits on the author, not the assignee.
@@ -487,7 +522,10 @@ describe('flagReason — PRIORITY_LABELS contract', () => {
 
   it('never flags a priority that has no staleness threshold', () => {
     const unThresholded = PRIORITY_LABELS.filter(
-      p => STALE_DAYS[p] === undefined && !ASSIGNEE_REQUIRED_PRIORITIES.has(p),
+      p =>
+        STALE_DAYS[p] === undefined &&
+        !ASSIGNEE_REQUIRED_PRIORITIES.has(p) &&
+        !MILESTONE_REQUIRED_PRIORITIES.has(p),
     );
     assert.ok(unThresholded.length > 0, 'expected at least one priority without a threshold');
     for (const priority of unThresholded) {
@@ -504,6 +542,12 @@ describe('flagReason — PRIORITY_LABELS contract', () => {
       assert.ok(
         isPriority(priority),
         `ASSIGNEE_REQUIRED_PRIORITIES entry ${priority} not a priority`,
+      );
+    }
+    for (const priority of MILESTONE_REQUIRED_PRIORITIES) {
+      assert.ok(
+        isPriority(priority),
+        `MILESTONE_REQUIRED_PRIORITIES entry ${priority} not a priority`,
       );
     }
   });
@@ -616,6 +660,7 @@ describe('flagReason — external comment awaiting response', () => {
       const item = issue({
         labels: [priority],
         assignees: [{login: 'dev'}],
+        milestone: {number: 1}, // so the milestone rule stays out of the way
         comments: 1,
         created_at: daysAgo(0),
       });
@@ -804,7 +849,7 @@ describe('issueTriage reconciliation', () => {
     it('does not reset the staleness clock', async () => {
       const item = issue({
         number: 40,
-        labels: ['P1', FLAG_LABEL],
+        labels: ['P0', FLAG_LABEL],
         assignees: [{login: 'maintainer'}],
         created_at: realDaysAgo(60),
         comments: 2,
