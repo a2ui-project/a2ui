@@ -13,24 +13,28 @@
 // limitations under the License.
 
 import 'dart:async';
-import 'dart:convert';
 
+import 'package:a2a/a2a.dart';
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
 
 const String _a2uiExtensionUri = 'https://a2ui.org/a2a-extension/a2ui/v0.9';
 
-/// Connects to an A2A agent endpoint and streams A2UI v0.9 messages over SSE.
+/// Connects to an A2A agent endpoint using `package:a2a` and streams A2UI
+/// v0.9 messages over SSE.
 class A2uiAgentConnector {
-  A2uiAgentConnector({required this.url, http.Client? client})
-    : _client = client ?? http.Client(),
-      _ownsClient = client == null;
+  A2uiAgentConnector({required this.url, A2AClient? client})
+    : _client =
+          client ??
+          A2AClient(
+            url.toString(),
+            customHeaders: const {'X-A2A-Extensions': _a2uiExtensionUri},
+            agentCardBackgroundFetch: false,
+          );
 
   final Uri url;
-  final http.Client _client;
-  final bool _ownsClient;
+  final A2AClient _client;
   final Logger _logger = Logger('A2uiAgentConnector');
   final Uuid _uuid = const Uuid();
 
@@ -41,9 +45,10 @@ class A2uiAgentConnector {
   final StreamController<Object> _errorController =
       StreamController<Object>.broadcast();
 
+  bool _agentCardFetched = false;
   String? _taskId;
   String? _contextId;
-  StreamSubscription<String>? _activeStreamSub;
+  StreamSubscription<A2ASendStreamMessageResponse>? _activeStreamSub;
 
   Stream<AgentToRendererMessage> get stream => _messageController.stream;
   Stream<String> get textStream => _textController.stream;
@@ -54,7 +59,7 @@ class A2uiAgentConnector {
     String text, {
     Map<String, Object?>? clientCapabilities,
   }) => _sendParts([
-    {'kind': 'text', 'text': text},
+    A2ATextPart()..text = text,
   ], clientCapabilities: clientCapabilities);
 
   /// Sends a resolved A2UI data payload (e.g. an action) to the A2A agent.
@@ -62,83 +67,51 @@ class A2uiAgentConnector {
     Map<String, Object?> data, {
     Map<String, Object?>? clientCapabilities,
   }) => _sendParts([
-    {'kind': 'data', 'data': data},
+    A2ADataPart()..data = data,
   ], clientCapabilities: clientCapabilities);
 
   Future<void> _sendParts(
-    List<Map<String, Object?>> parts, {
+    List<A2APart> parts, {
     Map<String, Object?>? clientCapabilities,
   }) async {
-    final Map<String, Object?> message = {
-      'messageId': _uuid.v4(),
-      'role': 'user',
-      'parts': parts,
-      if (_taskId != null) 'referenceTaskIds': [_taskId],
-      if (_contextId != null) 'contextId': _contextId,
-      if (clientCapabilities != null)
-        'metadata': {'a2uiClientCapabilities': clientCapabilities},
-    };
-
-    final Map<String, Object?> rpcRequest = {
-      'jsonrpc': '2.0',
-      'id': _uuid.v4(),
-      'method': 'message/stream',
-      'params': {'message': message},
-    };
-
-    final request = http.Request('POST', url)
-      ..headers.addAll({
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
-        'X-A2A-Extensions': _a2uiExtensionUri,
-      })
-      ..body = jsonEncode(rpcRequest);
-
-    final http.StreamedResponse response = await _client
-        .send(request)
-        .timeout(const Duration(seconds: 30));
-    if (response.statusCode >= 400) {
-      final String body = await response.stream.bytesToString();
-      throw StateError(
-        'A2A HTTP ${response.statusCode} ${response.reasonPhrase}: $body',
-      );
+    if (!_agentCardFetched) {
+      await _client.getAgentCard().timeout(const Duration(seconds: 30));
+      _agentCardFetched = true;
     }
 
-    final Stream<String> lines = response.stream
-        .transform(utf8.decoder)
-        .transform(const LineSplitter());
-    final dataLines = <String>[];
-    final completer = Completer<void>();
+    final message = A2AMessage()
+      ..messageId = _uuid.v4()
+      ..role = 'user'
+      ..parts = parts
+      ..referenceTaskIds = _taskId == null ? null : [_taskId!]
+      ..contextId = _contextId
+      ..metadata = clientCapabilities == null
+          ? null
+          : {'a2uiClientCapabilities': clientCapabilities};
 
+    final params = A2AMessageSendParams()
+      ..message = message
+      ..extensions = [_a2uiExtensionUri];
+
+    final completer = Completer<void>();
     await _activeStreamSub?.cancel();
-    _activeStreamSub = lines.listen(
-      (line) {
-        if (line.isEmpty) {
-          if (dataLines.isNotEmpty) {
-            _handleSseEvent(dataLines.join('\n'));
-            dataLines.clear();
-          }
-          return;
-        }
-        if (line.startsWith('data:')) {
-          dataLines.add(line.substring(5).trimLeft());
-        }
-      },
-      onError: (Object error, StackTrace stackTrace) {
-        if (!completer.isCompleted) {
-          completer.completeError(error, stackTrace);
-        }
-      },
-      onDone: () {
-        if (dataLines.isNotEmpty) {
-          _handleSseEvent(dataLines.join('\n'));
-        }
-        if (!completer.isCompleted) {
-          completer.complete();
-        }
-      },
-      cancelOnError: true,
-    );
+    _activeStreamSub = _client
+        .sendMessageStream(params)
+        .timeout(const Duration(seconds: 30))
+        .listen(
+          _handleEvent,
+          onError: (Object error, StackTrace stackTrace) {
+            if (!completer.isCompleted) {
+              completer.completeError(error, stackTrace);
+            }
+          },
+          onDone: () {
+            if (!completer.isCompleted) {
+              completer.complete();
+            }
+          },
+          cancelOnError: true,
+        );
 
     try {
       await completer.future;
@@ -147,67 +120,64 @@ class A2uiAgentConnector {
     }
   }
 
-  void _handleSseEvent(String rawData) {
-    final Object? decoded;
-    try {
-      decoded = jsonDecode(rawData);
-    } on FormatException catch (e, st) {
-      _logger.warning('Failed to decode SSE event JSON: $e', e, st);
+  void _handleEvent(A2ASendStreamMessageResponse event) {
+    if (event.isError) {
+      final errorResponse = event as A2AJSONRPCErrorResponseS;
+      final int? code = errorResponse.error?.rpcErrorCode;
+      final Object? detail = code == null
+          ? errorResponse.error
+          : A2AError.asString(code);
+      final errorMessage = 'A2A Error: $detail';
+      _logger.severe(errorMessage);
       if (!_errorController.isClosed) {
-        _errorController.add('A2A Error: Failed to parse event: $e');
-      }
-      return;
-    }
-    if (decoded is! Map<String, Object?>) return;
-
-    if (decoded['error'] case final Object error) {
-      if (!_errorController.isClosed) {
-        _errorController.add('A2A Error: $error');
+        _errorController.add(errorMessage);
       }
       return;
     }
 
-    final Object? result = decoded['result'];
-    if (result is! Map<String, Object?>) return;
+    final response = event as A2ASendStreamMessageSuccessResponse;
+    final Object? result = response.result;
 
-    if (result['taskId'] case final String taskId) {
-      _taskId = taskId;
-    } else if (result['id'] case final String id) {
-      _taskId = id;
-    }
-    if (result['contextId'] case final String contextId) {
-      _contextId = contextId;
-    }
-
-    final Object? statusObj = result['status'];
-    if (statusObj is Map<String, Object?>) {
-      final Object? state = statusObj['state'];
-      if (state == 'failed' || state == 'canceled' || state == 'rejected') {
-        final errorMessage = 'A2A Error: $state: ${statusObj['message']}';
+    if (result is A2ATaskStatusUpdateEvent) {
+      _taskId = result.taskId;
+      _contextId = result.contextId;
+      final A2ATaskStatus? status = result.status;
+      final A2ATaskState? state = status?.state;
+      if (state == A2ATaskState.failed ||
+          state == A2ATaskState.canceled ||
+          state == A2ATaskState.rejected) {
+        final errorMessage = 'A2A Error: $state: ${status?.message}';
         _logger.severe(errorMessage);
         if (!_errorController.isClosed) {
           _errorController.add(errorMessage);
         }
         return;
       }
-      if (statusObj['message'] case final Map<String, Object?> message) {
-        _processMessageParts(message);
+      if (status?.message case final A2AMessage message) {
+        _processParts(message.parts);
       }
-    } else if (result['parts'] is List) {
-      _processMessageParts(result);
+    } else if (result is A2ATask) {
+      _taskId = result.id;
+      _contextId = result.contextId;
+      if (result.status.message case final A2AMessage message) {
+        _processParts(message.parts);
+      }
+      if (result.artifacts case final List<A2AArtifact> artifacts) {
+        for (final artifact in artifacts) {
+          _processParts(artifact.parts);
+        }
+      }
+    } else if (result is A2AMessage) {
+      _processParts(result.parts);
     }
   }
 
-  void _processMessageParts(Map<String, Object?> message) {
-    final Object? parts = message['parts'];
-    if (parts is! List) return;
-
-    for (final Object? part in parts) {
-      if (part is! Map<String, Object?>) continue;
-      if (part['data'] case final Object data) {
-        _emitA2uiData(data);
-      } else if (part['text'] case final String text) {
-        final String trimmed = text.trim();
+  void _processParts(List<A2APart> parts) {
+    for (final part in parts) {
+      if (part is A2ADataPart) {
+        _emitA2uiData(part.data);
+      } else if (part is A2ATextPart) {
+        final String trimmed = part.text.trim();
         if (trimmed.isNotEmpty && !_textController.isClosed) {
           _textController.add(trimmed);
         }
@@ -240,8 +210,5 @@ class A2uiAgentConnector {
     _messageController.close();
     _textController.close();
     _errorController.close();
-    if (_ownsClient) {
-      _client.close();
-    }
   }
 }
