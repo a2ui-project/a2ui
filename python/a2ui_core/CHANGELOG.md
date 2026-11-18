@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: Remove the limit of 5 on nested function calls from `validate_recursion_and_paths`, and remove `MAX_FUNC_CALL_DEPTH`. Function call nesting is bounded only by the global depth limit (`MAX_GLOBAL_DEPTH`), so payloads that failed with `functionCall depth > 5` are now accepted. Recommended migration: drop references to `MAX_FUNC_CALL_DEPTH` ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
+
 ## 0.7.0 (2026-11-17)
 
 - **BREAKING CHANGE**: Enforce basic catalog function argument and return-type validation across `StrictBaseModel`, `SchemaValidator`, and `PayloadValidator`: reject `str` and `bool` values on pure `int`/`float` fields (such as `length.min`, `length.max`, `numeric.min`, and `numeric.max`), enforce `anyOf` required-branch constraints (`SchemaKeywords.required_any_of`), enforce RFC 3986 scheme-prefixed URI syntax (`^[A-Za-z][A-Za-z0-9+.-]*:\S*$`) on `"format": "uri"` fields (such as `openUrl.args.url`), and validate declared `returnType` values on nested function calls against the catalog function definition on pre-1.0 surfaces. Recommended migration: pass numeric values to `min` and `max`, supply at least one bound on `length` and `numeric`, pass a scheme-prefixed URI to `openUrl.url`, and match or omit `returnType` on nested function calls ([#4173](https://github.com/a2ui-project/a2ui/issues/4173), [#4187](https://github.com/a2ui-project/a2ui/pull/4187)).

@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: Remove the limit of 5 on nested function calls from `validateRecursionAndPaths`, and remove the `MAX_FUNC_CALL_DEPTH` export. Function call nesting is bounded only by the global depth limit (`MAX_GLOBAL_DEPTH`), so payloads that failed with `functionCall depth > 5` are now accepted. Recommended migration: drop references to `MAX_FUNC_CALL_DEPTH` ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
+
 ## 0.16.0
 
 - **BREAKING CHANGE**: `ResolveA2uiProp` now resolves optional or nullable properties declared directly as `DataBinding` or `FunctionCall` to `unknown` instead of `undefined` or `null`, preserves `unknown` properties as `unknown`, keeps `Record<string, unknown>` properties and the `Record<string, unknown>` branch of `DynamicValue` instead of dropping them, and keeps the typed fields of required nested objects and list items that share a key with a binding or call shape (such as `path`, `call`, or `catalogId`) instead of collapsing them to `unknown`. `GenerateSetters` no longer declares a setter for an `unknown` or string-indexed property, neither of which ever had one at runtime. Recommended migration: narrow optional or nullable direct `DataBinding` and `FunctionCall` props and `DynamicValue` props before use, and remove calls to setters of `unknown` or string-indexed props ([#3809](https://github.com/a2ui-project/a2ui/issues/3809), [#4251](https://github.com/a2ui-project/a2ui/pull/4251)).

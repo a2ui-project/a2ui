@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Breaking:** Remove the limit of 5 on nested function calls from `checkPathsAndRecursion` and `MessageProcessor`. Function call nesting is bounded only by the global depth limit of 50, so payloads that failed with `functionCall depth > 5` are now accepted ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
 - Regenerate the v0.9 basic catalog bindings and update documentation paths after moving the pre-1.0 catalogs to `catalogs/` ([#4150](https://github.com/a2ui-project/a2ui/pull/4150)).
 
 ## 0.8.0
