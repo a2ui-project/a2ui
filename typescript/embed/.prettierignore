@@ -5,3 +5,5 @@ dist
 node_modules
 *.tsbuildinfo
 .wireit
+# Copied from specification/v1_0/json by the copy-spec build step
+src/mcp/server/spec
