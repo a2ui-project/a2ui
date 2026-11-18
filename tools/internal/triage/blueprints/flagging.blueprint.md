@@ -52,7 +52,7 @@ The script uses the following rules to decide if a PR or issue should get **the 
        - It has an assignee and has been stale for more than 7 days.
      - **NO LABEL** otherwise.
 
-The opening post is not a comment.
+The opening post does not count as a comment.
 
 Staleness is calculated from the last human contribution (a comment, a PR review or review comment, or the item's creation) rather than `updated_at` to avoid bot edits resetting the timer. Pushing commits to a PR does not count as a contribution.
 
