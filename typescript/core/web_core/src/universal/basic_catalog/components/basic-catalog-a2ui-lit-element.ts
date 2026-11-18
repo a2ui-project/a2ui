@@ -50,11 +50,14 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
 > {
   /**
    * Lifecycle hook invoked when the element is connected to the DOM.
-   * Injects global basic catalog CSS.
+   * Injects global basic catalog CSS into the document or enclosing shadow root.
    */
   override connectedCallback() {
     super.connectedCallback();
-    injectBasicCatalogStyles();
+    const root = this.getRootNode();
+    const targetRoot =
+      typeof ShadowRoot !== 'undefined' && root instanceof ShadowRoot ? root : undefined;
+    injectBasicCatalogStyles(targetRoot);
   }
 
   /**

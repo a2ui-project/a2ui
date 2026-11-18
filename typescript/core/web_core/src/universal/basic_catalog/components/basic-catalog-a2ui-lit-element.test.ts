@@ -33,11 +33,14 @@ import type {ComponentNode} from '../../../resolution/component-node.js';
 
 describe('BasicCatalogA2uiLitElement', () => {
   let customCatalog: Catalog<ComponentApi>;
+  let injectBasicCatalogStyles: (targetRoot?: Document | ShadowRoot) => void;
 
   before(async () => {
     setupTestDom();
 
     const {BasicCatalogA2uiLitElement} = await import('./basic-catalog-a2ui-lit-element.js');
+    const {injectBasicCatalogStyles: injectStyles} = await import('../styles/default.js');
+    injectBasicCatalogStyles = injectStyles;
     const {renderValidationErrors} = await import('./accessibility.js');
 
     const {css, html} = await import('lit');
@@ -159,6 +162,37 @@ describe('BasicCatalogA2uiLitElement', () => {
       assert.notStrictEqual(styleEl, null);
       assert.ok(styleEl?.textContent?.includes('a2ui-test-basic-element'));
     }
+  });
+
+  it('adopts basic catalog styles only into shadow root when connected inside a shadow root', () => {
+    const host = document.createElement('div');
+    const shadowRoot = host.attachShadow({mode: 'open'});
+    document.body.appendChild(host);
+
+    const docSheetsBefore = [...(document.adoptedStyleSheets ?? [])];
+
+    const shadowElement = document.createElement('a2ui-test-basic-element');
+    shadowRoot.appendChild(shadowElement);
+
+    assert.ok(shadowRoot.adoptedStyleSheets.length > 0);
+    assert.deepStrictEqual([...(document.adoptedStyleSheets ?? [])], docSheetsBefore);
+
+    host.remove();
+  });
+
+  it('injectBasicCatalogStyles adopts into targetRoot when provided without polluting document', () => {
+    const host = document.createElement('div');
+    const shadowRoot = host.attachShadow({mode: 'open'});
+    document.body.appendChild(host);
+
+    const docSheetsBefore = [...(document.adoptedStyleSheets ?? [])];
+
+    injectBasicCatalogStyles(shadowRoot);
+
+    assert.ok(shadowRoot.adoptedStyleSheets.length > 0);
+    assert.deepStrictEqual([...(document.adoptedStyleSheets ?? [])], docSheetsBefore);
+
+    host.remove();
   });
 
   it('applies flex weight when props.weight is provided and removes when undefined', async () => {

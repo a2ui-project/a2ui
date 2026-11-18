@@ -71,6 +71,17 @@ export function setupTestDom() {
   if (!dom.window.document.adoptedStyleSheets) {
     dom.window.document.adoptedStyleSheets = [];
   }
+  if (dom.window.ShadowRoot && !(dom.window.ShadowRoot.prototype as any).adoptedStyleSheets) {
+    Object.defineProperty(dom.window.ShadowRoot.prototype, 'adoptedStyleSheets', {
+      get() {
+        return (this._adoptedStyleSheets ??= []);
+      },
+      set(val) {
+        this._adoptedStyleSheets = val;
+      },
+      configurable: true,
+    });
+  }
 
   if (dom.window.CSSStyleSheet && !dom.window.CSSStyleSheet.prototype.replaceSync) {
     dom.window.CSSStyleSheet.prototype.replaceSync = function (text: string) {

@@ -28,19 +28,23 @@
  * or `a2ui-dark` classes on the root element of their app.
  */
 const DEFAULT_CSS = `
-  :where(:root) {
+  :where(:root, :host) {
     color-scheme: light dark;
   }
 
-  :where(.a2ui-dark) {
+  :where(.a2ui-dark), :where(:host(.a2ui-dark)) {
     color-scheme: dark;
   }
 
-  :where(.a2ui-light) {
+  :where(.a2ui-light), :where(:host(.a2ui-light)) {
     color-scheme: light;
   }
 
-  :where(:root), :where(.a2ui-dark), :where(.a2ui-light) {
+  :where(:root, :host),
+  :where(.a2ui-dark),
+  :where(.a2ui-light),
+  :where(:host(.a2ui-dark)),
+  :where(:host(.a2ui-light)) {
     --a2ui-color-background: light-dark(#eee, #111);
     --a2ui-color-on-background: light-dark(#333, #eee);
 
@@ -115,7 +119,7 @@ function getDefaultStyleSheet(): CSSStyleSheet {
 }
 
 /**
- * Injects CSS variables for the A2UI basic catalog into the document stylesheet collection.
+ * Injects CSS variables for the A2UI basic catalog into the document or target root stylesheet collection.
  *
  * This method is used by the A2UI-provided basic catalogs of each renderer
  * so design token values can be shared across all of them.
@@ -128,30 +132,24 @@ function getDefaultStyleSheet(): CSSStyleSheet {
  * Users may redefine the values of the CSS variables exposed in the default
  * stylesheet above (and the specific ones exposed by each basic catalog
  * package) to customize the appearance of the items of the basic catalog.
+ *
+ * @param targetRoot An optional Document or ShadowRoot to adopt the stylesheet
+ *     into. Defaults to `document`.
  */
 export function injectBasicCatalogStyles(targetRoot?: Document | ShadowRoot) {
   if (typeof document === 'undefined') return;
   const sheet = getDefaultStyleSheet();
-  const docSheets = typeof document !== 'undefined' ? (document as any).adoptedStyleSheets : null;
-  if (docSheets && typeof docSheets.includes === 'function' && !docSheets.includes(sheet)) {
+  const target = targetRoot ?? document;
+  const targetSheets = (target as any)?.adoptedStyleSheets;
+  if (
+    targetSheets &&
+    typeof targetSheets.includes === 'function' &&
+    !targetSheets.includes(sheet)
+  ) {
     try {
-      (document as any).adoptedStyleSheets = [...docSheets, sheet];
+      (target as any).adoptedStyleSheets = [...targetSheets, sheet];
     } catch {
       // Fallback
-    }
-  }
-  if (targetRoot && targetRoot !== document) {
-    const targetSheets = (targetRoot as any).adoptedStyleSheets;
-    if (
-      targetSheets &&
-      typeof targetSheets.includes === 'function' &&
-      !targetSheets.includes(sheet)
-    ) {
-      try {
-        (targetRoot as any).adoptedStyleSheets = [...targetSheets, sheet];
-      } catch {
-        // Fallback
-      }
     }
   }
 }
