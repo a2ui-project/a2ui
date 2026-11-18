@@ -709,49 +709,46 @@ describe('flagReason — team items', () => {
     assert.equal(flagReason(item, comments, NOW), null);
   });
 
-  // On an unassigned issue an unanswered comment only lets the issue rules
-  // apply, and a prioritized P2 or P3 matches none of them.
-  it('does not flag an unassigned P2 or P3 issue for an unanswered comment alone', () => {
-    for (const priority of ['P2', 'P3']) {
-      for (const make of [issue, externalIssue]) {
-        const item = make({labels: [priority], comments: 1, created_at: daysAgo(5)});
-        assert.equal(flagReason(item, [externalComment(2)], NOW), null, priority);
-      }
-    }
-  });
+  // Assigned or not, an issue whose latest comment is from outside the team
+  // is waiting for an answer.
+  for (const [name, assignees] of [
+    ['assigned', [{login: 'dev'}]],
+    ['unassigned', []],
+  ] as const) {
+    describe(`${name}, with the latest comment from outside the team`, () => {
+      const prioritized = {labels: ['P2'], assignees, created_at: daysAgo(5)};
 
-  // On an assigned issue it is a reason of its own.
-  describe('assigned, with the latest comment from outside the team', () => {
-    const assigned = {labels: ['P2'], assignees: [{login: 'dev'}], created_at: daysAgo(5)};
-
-    it('flags it, whoever opened the issue', () => {
-      for (const make of [issue, externalIssue]) {
-        const item = make({...assigned, comments: 1});
-        assertReason(flagReason(item, [externalComment(0)], NOW), /latest comment/);
-      }
-    });
-
-    it('stops flagging once a team member replies', () => {
-      const item = externalIssue({...assigned, comments: 2});
-      const comments = [externalComment(3), memberComment(2)];
-      assert.equal(flagReason(item, comments, NOW), null);
-    });
-
-    // The opening post is not a comment, so nothing is waiting for an answer.
-    it('does not flag an assigned issue from outside the team that nobody has commented on', () => {
-      assert.equal(flagReason(externalIssue(assigned), [], NOW), null);
-    });
-
-    it('does not count a bot comment', () => {
-      const item = externalIssue({...assigned, comments: 1});
-      const botComment = event({
-        created_at: daysAgo(0),
-        author_association: 'NONE',
-        user: {login: 'ci[bot]', type: 'Bot'},
+      it('flags a P2 or P3 issue, whoever opened it', () => {
+        for (const priority of ['P2', 'P3']) {
+          for (const make of [issue, externalIssue]) {
+            const item = make({...prioritized, labels: [priority], comments: 1});
+            assertReason(flagReason(item, [externalComment(0)], NOW), /latest comment/, priority);
+          }
+        }
       });
-      assert.equal(flagReason(item, [botComment], NOW), null);
+
+      it('stops flagging once a team member replies', () => {
+        const item = externalIssue({...prioritized, comments: 2});
+        const comments = [externalComment(3), memberComment(2)];
+        assert.equal(flagReason(item, comments, NOW), null);
+      });
+
+      // The opening post is not a comment, so nothing is waiting for an answer.
+      it('does not flag an issue from outside the team that nobody has commented on', () => {
+        assert.equal(flagReason(externalIssue(prioritized), [], NOW), null);
+      });
+
+      it('does not count a bot comment', () => {
+        const item = externalIssue({...prioritized, comments: 1});
+        const botComment = event({
+          created_at: daysAgo(0),
+          author_association: 'NONE',
+          user: {login: 'ci[bot]', type: 'Bot'},
+        });
+        assert.equal(flagReason(item, [botComment], NOW), null);
+      });
     });
-  });
+  }
 
   // Step 3 only looks at who opened the item and who spoke last.
   it('judges an item opened outside the team whoever spoke last', () => {
@@ -1024,13 +1021,14 @@ describe('issueTriage reconciliation', () => {
     });
 
     it('clears the label once the reporter has replied', async () => {
-      // A prioritized P3 matches no other rule, so it stays off the queue.
+      // The reply is itself an unanswered out-of-team comment, so step 4 puts
+      // the item back on the triage queue at once.
       github = makeGithub([parked(16, {comments: 1, labels: [WAITING_LABEL, 'P3']})]);
       await issueTriage({github, context});
 
       assert.deepEqual(calls.listEvents, [16]);
       assert.deepEqual(calls.removeLabel, [{number: 16, name: WAITING_LABEL}]);
-      assert.equal(calls.addLabels.length, 0);
+      assert.deepEqual(calls.addLabels, [16]);
     });
 
     it('puts an assigned issue back on the queue when it unparks', async () => {

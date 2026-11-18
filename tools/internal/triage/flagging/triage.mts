@@ -296,11 +296,8 @@ export function flagReason(
   const priority = PRIORITY_LABELS.find(p => labels.includes(p));
   const noPriorityReason = 'this issue has no priority label.';
 
-  // An assigned issue has a team member on it, so it is flagged only when that
-  // work goes quiet beyond its priority's threshold, when its priority needs a
-  // milestone it lacks, when it has no priority, or when the latest comment is
-  // from outside the team. The opening post is not a comment, so an issue
-  // nobody has commented on is not waiting for an answer.
+  // An assigned issue has a team member on it, so only its priority's
+  // thresholds apply: going quiet for too long, or lacking a milestone.
   if (assigneeCount > 0) {
     const threshold = priority && STALE_DAYS[priority];
     if (threshold !== undefined && ageInDays(latest.createdAt, now) > threshold) {
@@ -310,21 +307,22 @@ export function flagReason(
     if (priority && MILESTONE_REQUIRED_PRIORITIES.has(priority) && !item.milestone) {
       return `this ${priority} issue has no milestone.`;
     }
-    if (!priority) {
-      return noPriorityReason;
-    }
-    const hasComment = contributions.some(event => !isBot(event.user));
-    return hasComment && isExternal(latest)
-      ? 'the latest comment is from an out-of-team contributor and has gone unanswered.'
-      : null;
-  }
-
-  // Urgent work with nobody on it.
-  if (priority && ASSIGNEE_REQUIRED_PRIORITIES.has(priority)) {
+  } else if (priority && ASSIGNEE_REQUIRED_PRIORITIES.has(priority)) {
+    // Urgent work with nobody on it.
     return `this ${priority} issue has no assignee.`;
   }
 
-  return priority ? null : noPriorityReason;
+  if (!priority) {
+    return noPriorityReason;
+  }
+
+  // Assigned or not, an issue whose latest comment is from outside the team is
+  // waiting for an answer. The opening post is not a comment, so an issue
+  // nobody has commented on is not.
+  const hasComment = contributions.some(event => !isBot(event.user));
+  return hasComment && isExternal(latest)
+    ? 'the latest comment is from an out-of-team contributor and has gone unanswered.'
+    : null;
 }
 
 // Max concurrent API calls per phase. Keeps us fast without tripping GitHub's

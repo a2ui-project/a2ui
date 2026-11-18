@@ -34,12 +34,13 @@ The script uses the following rules to decide if a PR or issue should get **the 
          - It is `P1` and has been stale for more than 30 days.
          - It is `P1` with no milestone.
          - It has no priority label (`P0`–`P3`).
-         - The latest comment is from an out-of-team contributor. The opening post is not a comment.
+         - The latest comment is from an out-of-team contributor.
        - **NO LABEL** otherwise.
      - If not assigned:
        - **LABEL** when one of the following is true:
          - It is `P0` or `P1`, which must have an assignee.
          - It has no priority label (`P0`–`P3`).
+         - The latest comment is from an out-of-team contributor. 
        - **NO LABEL** otherwise.
    - If no: continue processing.
 
@@ -50,6 +51,8 @@ The script uses the following rules to decide if a PR or issue should get **the 
        - It has no assignee.
        - It has an assignee and has been stale for more than 7 days.
      - **NO LABEL** otherwise.
+
+The opening post is not a comment.
 
 Staleness is calculated from the last human contribution (a comment, a PR review or review comment, or the item's creation) rather than `updated_at` to avoid bot edits resetting the timer. Pushing commits to a PR does not count as a contribution.
 
