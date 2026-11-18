@@ -69,6 +69,9 @@ jobs:
       - name: Build @a2ui/catalog-mcp and @a2ui/lit from the monorepo workspace
         # TODO(https://github.com/a2ui-project/a2ui/issues/1698): remove once
         # @a2ui/catalog-mcp is published and the MCP samples install it from npm.
+        # scripts/community_sample_aliases.test.mjs only lets the samples alias
+        # the monorepo packages this step builds; extend both copies of this
+        # step and that list together.
         working-directory: .
         run: |
           yarn install --immutable
@@ -108,6 +111,9 @@ jobs:
       - name: Build @a2ui/catalog-mcp and @a2ui/lit from the monorepo workspace
         # TODO(https://github.com/a2ui-project/a2ui/issues/1698): remove once
         # @a2ui/catalog-mcp is published and the MCP samples install it from npm.
+        # scripts/community_sample_aliases.test.mjs only lets the samples alias
+        # the monorepo packages this step builds; extend both copies of this
+        # step and that list together.
         working-directory: .
         run: |
           yarn install --immutable

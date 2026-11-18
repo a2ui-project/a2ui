@@ -48,7 +48,18 @@ const BUILT_BY_COMMUNITY_WORKFLOW = [
   'typescript/renderers/lit',
 ];
 
-const SKIPPED_DIRS = new Set(['node_modules', 'dist', '.angular', '.git']);
+const SKIPPED_DIRS = new Set([
+  'node_modules',
+  'dist',
+  '.angular',
+  '.git',
+  'build',
+  'out',
+  '.next',
+  '.nuxt',
+  '.svelte-kit',
+  'coverage',
+]);
 const CONFIG_FILE_RE = /^(tsconfig[^/]*\.json|vite\.config\.[cm]?[jt]s)$/;
 
 /**
@@ -73,9 +84,45 @@ function findConfigFiles(dir) {
   return found;
 }
 
-/** Removes `//` and `/* *\/` comments so prose mentions do not count. */
+/**
+ * Removes `//` and `/* *\/` comments while skipping quoted string literals so
+ * prose mentions do not count and wildcards (`"@a2ui/angular/*"`) or URLs
+ * (`"https://..."`) inside strings are preserved.
+ */
 function stripComments(text) {
-  return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '"' || ch === "'" || ch === '`') {
+      const start = i++;
+      while (i < text.length && text[i] !== ch) {
+        if (text[i] === '\\') {
+          i++;
+        }
+        i++;
+      }
+      if (i < text.length) {
+        i++;
+      }
+      out += text.slice(start, i);
+    } else if (ch === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') {
+        i++;
+      }
+    } else if (ch === '/' && text[i + 1] === '*') {
+      i += 2;
+      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) {
+        i++;
+      }
+      i += 2;
+      out += ' ';
+    } else {
+      out += ch;
+      i++;
+    }
+  }
+  return out;
 }
 
 /** Returns the distinct monorepo package directories referenced by `file`. */
@@ -88,6 +135,42 @@ const configFiles = findConfigFiles(SAMPLES_ROOT).sort();
 const refsByFile = new Map(
   configFiles.map(file => [relative(REPO_ROOT, file), monorepoPackageRefs(file)]),
 );
+
+describe('stripComments', () => {
+  it('preserves wildcard paths inside quoted strings', () => {
+    const input = [
+      '{',
+      '  "paths": {',
+      '    "@a2ui/angular/*": ["../../../../typescript/renderers/angular/dist/*"]',
+      '  },',
+      '  "include": ["src/**/*.ts"]',
+      '}',
+    ].join('\n');
+    const stripped = stripComments(input);
+    assert.deepEqual(stripped.match(PACKAGE_REF_RE), ['typescript/renderers/angular']);
+  });
+
+  it('preserves protocol URLs and trailing aliases on the same line', () => {
+    const input =
+      "const url = 'https://example.com'; const p = `typescript/renderers/angular/dist`;";
+    const stripped = stripComments(input);
+    assert.deepEqual(stripped.match(PACKAGE_REF_RE), ['typescript/renderers/angular']);
+  });
+
+  it('strips line and block comments while respecting escaped quotes', () => {
+    const input = [
+      'const note = "escaped \\" // typescript/renderers/lit/dist"; // typescript/renderers/angular/dist',
+      '/* multi-line comment',
+      '   typescript/renderers/react/dist */',
+      'const kept = "typescript/core/web_core/dist";',
+    ].join('\n');
+    const stripped = stripComments(input);
+    assert.deepEqual(stripped.match(PACKAGE_REF_RE), [
+      'typescript/renderers/lit',
+      'typescript/core/web_core',
+    ]);
+  });
+});
 
 describe('community sample aliases into the monorepo', () => {
   it('finds the sample configs and the known aliases', () => {
