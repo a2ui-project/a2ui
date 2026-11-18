@@ -145,6 +145,52 @@ function canonicalJsonStringify(val: unknown): string {
 }
 
 /**
+ * Applies JSON Schema conditional `if` / `then` / `else` validation to a Zod schema.
+ *
+ * Per JSON Schema Draft 2020-12:
+ * - When `if` is absent, `then` and `else` have no effect.
+ * - When `if` is present and validates the instance, `then` (if present) must also succeed.
+ * - When `if` is present and fails on the instance, `else` (if present) must succeed.
+ */
+function applyConditionalSchemaConstraint(
+  baseZod: z.ZodTypeAny,
+  propSchema: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
+  visitedPointers?: Set<string>,
+  defCache?: Map<string, z.ZodTypeAny>,
+): z.ZodTypeAny {
+  if (!isPlainObject(propSchema.if)) {
+    return baseZod;
+  }
+  const ifSchema = convertPropertyToZod(propSchema.if, rootDoc, new Set(visitedPointers), defCache);
+  const thenSchema = isPlainObject(propSchema.then)
+    ? convertPropertyToZod(propSchema.then, rootDoc, new Set(visitedPointers), defCache)
+    : undefined;
+  const elseSchema = isPlainObject(propSchema.else)
+    ? convertPropertyToZod(propSchema.else, rootDoc, new Set(visitedPointers), defCache)
+    : undefined;
+
+  if (!thenSchema && !elseSchema) {
+    return baseZod;
+  }
+
+  return baseZod.superRefine((val, ctx) => {
+    const branch = ifSchema.safeParse(val).success ? thenSchema : elseSchema;
+    if (!branch) return;
+    const res = branch.safeParse(val);
+    if (!res.success) {
+      for (const issue of res.error.issues) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: issue.message,
+          path: issue.path,
+        });
+      }
+    }
+  });
+}
+
+/**
  * Applies `not`, `default`, and `description` modifiers to a converted Zod schema.
  *
  * @param baseZod Base Zod schema before modifiers.
@@ -161,7 +207,13 @@ function finalizePropertyZod(
   visitedPointers?: Set<string>,
   defCache?: Map<string, z.ZodTypeAny>,
 ): z.ZodTypeAny {
-  let result = baseZod;
+  let result = applyConditionalSchemaConstraint(
+    baseZod,
+    propSchema,
+    rootDoc,
+    visitedPointers,
+    defCache,
+  );
   if (propSchema.not && typeof propSchema.not === 'object') {
     const notSchema = convertPropertyToZod(
       propSchema.not as Record<string, unknown>,
@@ -449,6 +501,59 @@ function convertObjectSchemaToZod(
   );
 }
 
+const STRING_APPLICATOR_KEYWORDS = ['minLength', 'maxLength', 'pattern', 'format'] as const;
+const NUMBER_APPLICATOR_KEYWORDS = [
+  'minimum',
+  'maximum',
+  'exclusiveMinimum',
+  'exclusiveMaximum',
+  'multipleOf',
+] as const;
+
+function convertStringSchemaToZod(propSchema: Record<string, unknown>): z.ZodTypeAny {
+  let s = z.string();
+  if (typeof propSchema.minLength === 'number') {
+    s = s.min(propSchema.minLength);
+  }
+  if (typeof propSchema.maxLength === 'number') {
+    s = s.max(propSchema.maxLength);
+  }
+  if (typeof propSchema.pattern === 'string') {
+    try {
+      s = s.regex(new RegExp(propSchema.pattern, 'u'));
+    } catch {
+      // ignore regex compilation failure
+    }
+  }
+  if (propSchema.format === 'uri') {
+    return s.refine(v => v.trim().length > 0 && !/\s/.test(v.trim()), 'Invalid URI');
+  }
+  return s;
+}
+
+function convertNumberSchemaToZod(
+  propSchema: Record<string, unknown>,
+  integerOnly: boolean,
+): z.ZodTypeAny {
+  let n = integerOnly ? z.number().int() : z.number();
+  if (typeof propSchema.minimum === 'number') {
+    n = n.min(propSchema.minimum);
+  }
+  if (typeof propSchema.maximum === 'number') {
+    n = n.max(propSchema.maximum);
+  }
+  if (typeof propSchema.exclusiveMinimum === 'number') {
+    n = n.gt(propSchema.exclusiveMinimum);
+  }
+  if (typeof propSchema.exclusiveMaximum === 'number') {
+    n = n.lt(propSchema.exclusiveMaximum);
+  }
+  if (typeof propSchema.multipleOf === 'number') {
+    n = n.multipleOf(propSchema.multipleOf);
+  }
+  return n;
+}
+
 const OBJECT_APPLICATOR_KEYWORDS = [
   'properties',
   'patternProperties',
@@ -465,11 +570,11 @@ const OBJECT_APPLICATOR_KEYWORDS = [
 /**
  * Converts a JSON Schema fragment that omits an explicit `type` keyword into a Zod schema
  * by inspecting type-specific keywords (such as `required`, `properties`, `minProperties`,
- * `maxProperties`, string bounds, numeric bounds, or array bounds).
+ * `maxProperties`, string bounds, or numeric bounds).
  *
  * Per JSON Schema semantics, keywords only constrain instances of their applicable type
- * when `type` is omitted (e.g. `{"required": ["b"]}` constrains objects while allowing
- * non-objects unless `type: "object"` is also specified).
+ * when `type` is omitted (e.g. `{"required": ["b"]}` constrains objects and `{"pattern": "^[0-9]+$"}`
+ * constrains strings while allowing other types unless `type` is also specified).
  */
 function convertTypelessSchemaToZod(
   propSchema: Record<string, unknown>,
@@ -478,42 +583,64 @@ function convertTypelessSchemaToZod(
   defCache = new Map<string, z.ZodTypeAny>(),
 ): z.ZodTypeAny {
   const hasObjectKeywords = OBJECT_APPLICATOR_KEYWORDS.some(k => propSchema[k] !== undefined);
-  if (hasObjectKeywords) {
-    const hasPropsOrPatterns =
-      (typeof propSchema.properties === 'object' && propSchema.properties !== null) ||
-      (typeof propSchema.patternProperties === 'object' && propSchema.patternProperties !== null);
+  const hasStringKeywords = STRING_APPLICATOR_KEYWORDS.some(k => propSchema[k] !== undefined);
+  const hasNumberKeywords = NUMBER_APPLICATOR_KEYWORDS.some(k => propSchema[k] !== undefined);
 
-    let objectValidator: z.ZodTypeAny;
-    if (hasPropsOrPatterns) {
-      objectValidator = convertObjectSchemaToZod(propSchema, rootDoc, visitedPointers, defCache);
-    } else {
-      const requiredKeys = Array.isArray(propSchema.required)
-        ? propSchema.required.filter((r): r is string => typeof r === 'string')
-        : [];
-      let base: z.ZodTypeAny = z.record(z.unknown());
-      if (requiredKeys.length > 0) {
-        base = base.refine(
-          (val: unknown) =>
-            isPlainObject(val) &&
-            requiredKeys.every(key => Object.prototype.hasOwnProperty.call(val, key)),
-          {message: `Object is missing required properties: ${requiredKeys.join(', ')}`},
+  if (hasObjectKeywords || hasStringKeywords || hasNumberKeywords) {
+    let objectValidator: z.ZodTypeAny | undefined;
+    if (hasObjectKeywords) {
+      const hasPropsOrPatterns =
+        (typeof propSchema.properties === 'object' && propSchema.properties !== null) ||
+        (typeof propSchema.patternProperties === 'object' && propSchema.patternProperties !== null);
+
+      if (hasPropsOrPatterns) {
+        objectValidator = convertObjectSchemaToZod(propSchema, rootDoc, visitedPointers, defCache);
+      } else {
+        const requiredKeys = Array.isArray(propSchema.required)
+          ? propSchema.required.filter((r): r is string => typeof r === 'string')
+          : [];
+        let base: z.ZodTypeAny = z.record(z.unknown());
+        if (requiredKeys.length > 0) {
+          base = base.refine(
+            (val: unknown) =>
+              isPlainObject(val) &&
+              requiredKeys.every(key => Object.prototype.hasOwnProperty.call(val, key)),
+            {message: `Object is missing required properties: ${requiredKeys.join(', ')}`},
+          );
+        }
+        if (
+          propSchema.additionalProperties === false ||
+          propSchema.unevaluatedProperties === false
+        ) {
+          base = base.refine(
+            (val: unknown) => isPlainObject(val) && Object.keys(val).length === 0,
+            {
+              message: 'Additional properties are not allowed',
+            },
+          );
+        }
+        objectValidator = applyDependentRequiredConstraints(
+          applyObjectKeyCountConstraints(base, [propSchema]),
+          [propSchema],
         );
       }
-      if (propSchema.additionalProperties === false || propSchema.unevaluatedProperties === false) {
-        base = base.refine((val: unknown) => isPlainObject(val) && Object.keys(val).length === 0, {
-          message: 'Additional properties are not allowed',
-        });
-      }
-      objectValidator = applyDependentRequiredConstraints(
-        applyObjectKeyCountConstraints(base, [propSchema]),
-        [propSchema],
-      );
     }
 
-    const typelessObj = z.unknown().superRefine((val, ctx) => {
-      if (!isPlainObject(val)) return;
-      const res = objectValidator.safeParse(val);
-      if (!res.success) {
+    const stringValidator = hasStringKeywords ? convertStringSchemaToZod(propSchema) : undefined;
+    const numberValidator = hasNumberKeywords
+      ? convertNumberSchemaToZod(propSchema, false)
+      : undefined;
+
+    const typelessSchema = z.unknown().superRefine((val, ctx) => {
+      let res: z.SafeParseReturnType<unknown, unknown> | undefined;
+      if (objectValidator && isPlainObject(val)) {
+        res = objectValidator.safeParse(val);
+      } else if (stringValidator && typeof val === 'string') {
+        res = stringValidator.safeParse(val);
+      } else if (numberValidator && typeof val === 'number') {
+        res = numberValidator.safeParse(val);
+      }
+      if (res && !res.success) {
         for (const issue of res.error.issues) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
@@ -523,7 +650,7 @@ function convertTypelessSchemaToZod(
         }
       }
     });
-    return finalizePropertyZod(typelessObj, propSchema, rootDoc, visitedPointers, defCache);
+    return finalizePropertyZod(typelessSchema, propSchema, rootDoc, visitedPointers, defCache);
   }
 
   return finalizePropertyZod(z.unknown(), propSchema, rootDoc, visitedPointers, defCache);
@@ -621,50 +748,23 @@ function convertPropertyToZod(
   // Primitives
   switch (propSchema.type) {
     case 'string': {
-      let s = z.string();
-      if (typeof propSchema.minLength === 'number') {
-        s = s.min(propSchema.minLength);
-      }
-      if (typeof propSchema.maxLength === 'number') {
-        s = s.max(propSchema.maxLength);
-      }
-      if (typeof propSchema.pattern === 'string') {
-        try {
-          s = s.regex(new RegExp(propSchema.pattern, 'u'));
-        } catch {
-          // ignore regex compilation failure
-        }
-      }
-      if (propSchema.format === 'uri') {
-        return finalizePropertyZod(
-          s.refine(v => v.trim().length > 0 && !/\s/.test(v.trim()), 'Invalid URI'),
-          propSchema,
-          rootDoc,
-          visitedPointers,
-          defCache,
-        );
-      }
-      return finalizePropertyZod(s, propSchema, rootDoc, visitedPointers, defCache);
+      return finalizePropertyZod(
+        convertStringSchemaToZod(propSchema),
+        propSchema,
+        rootDoc,
+        visitedPointers,
+        defCache,
+      );
     }
     case 'integer':
     case 'number': {
-      let n = propSchema.type === 'integer' ? z.number().int() : z.number();
-      if (typeof propSchema.minimum === 'number') {
-        n = n.min(propSchema.minimum);
-      }
-      if (typeof propSchema.maximum === 'number') {
-        n = n.max(propSchema.maximum);
-      }
-      if (typeof propSchema.exclusiveMinimum === 'number') {
-        n = n.gt(propSchema.exclusiveMinimum);
-      }
-      if (typeof propSchema.exclusiveMaximum === 'number') {
-        n = n.lt(propSchema.exclusiveMaximum);
-      }
-      if (typeof propSchema.multipleOf === 'number') {
-        n = n.multipleOf(propSchema.multipleOf);
-      }
-      return finalizePropertyZod(n, propSchema, rootDoc, visitedPointers, defCache);
+      return finalizePropertyZod(
+        convertNumberSchemaToZod(propSchema, propSchema.type === 'integer'),
+        propSchema,
+        rootDoc,
+        visitedPointers,
+        defCache,
+      );
     }
     case 'boolean': {
       return finalizePropertyZod(z.boolean(), propSchema, rootDoc, visitedPointers, defCache);
@@ -1281,6 +1381,7 @@ function collectArgSubSchemas(
     schema.additionalProperties !== undefined ||
     schema.unevaluatedProperties !== undefined ||
     schema.dependentRequired !== undefined ||
+    isPlainObject(schema.if) ||
     (schema.not !== undefined && typeof schema.not === 'object' && schema.not !== null)
   ) {
     result.schemas.push(schema);
@@ -1355,6 +1456,19 @@ export function convertFunctionArgsJsonSchemaToZod(
     }
   }
 
+  for (const s of [rawSchema, ...collected.schemas]) {
+    for (const branchKey of ['then', 'else'] as const) {
+      const branch = s[branchKey];
+      if (isPlainObject(branch) && isPlainObject(branch.properties)) {
+        for (const propName of Object.keys(branch.properties)) {
+          if (!Object.hasOwn(shape, propName)) {
+            shape[propName] = z.unknown().optional();
+          }
+        }
+      }
+    }
+  }
+
   const obj = z.object(shape);
   const allowExtra =
     collected.hasUnresolvable ||
@@ -1370,6 +1484,7 @@ export function convertFunctionArgsJsonSchemaToZod(
     defCache,
   );
   for (const s of allSchemas) {
+    closed = applyConditionalSchemaConstraint(closed, s, rootDoc, undefined, defCache);
     const groups = extractRequiredDisjunction(s.anyOf);
     if (groups) {
       const label = groups.map(g => g.map(k => `'${k}'`).join('+')).join(', ');
