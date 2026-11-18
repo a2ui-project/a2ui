@@ -232,7 +232,13 @@ const REF_ANNOTATION_KEYWORDS = new Set([
 ]);
 
 /** Keys of the component envelope, which the validation schema declares itself. */
-const COMPONENT_ENVELOPE_KEYS = new Set(['id', 'component', 'catalogId']);
+const COMPONENT_ENVELOPE_KEYS = new Set(['id', 'component', 'catalogId', '@catalogId']);
+
+/**
+ * The pieces {@link collectSourceSubSchemas} takes from a standard mixin such
+ * as `ComponentCommon`, as opposed to the component's own definition.
+ */
+const standardMixinPieces = new WeakSet<object>();
 
 /** Definitions of a catalog document that the validation schema generates itself. */
 const GENERATED_DEF_NAMES = new Set(['anyComponent', 'anyFunction', 'theme']);
@@ -370,10 +376,12 @@ function collectSourceSubSchemas(
     const name = mixinName ?? (external && !external[2] ? external[1] : undefined);
     const mixin = name !== undefined ? context.standardDefs[name] : undefined;
     if (isJsonObject(mixin) && isJsonObject(mixin['properties'])) {
-      mixins.push({
+      const piece: JsonObject = {
         properties: deepCopyJson(mixin['properties']),
         ...(Array.isArray(mixin['required']) ? {required: mixin['required']} : {}),
-      });
+      };
+      standardMixinPieces.add(piece);
+      mixins.push(piece);
     }
   }
   const pieces = [...mixins, ...local, ...inline];
@@ -395,26 +403,39 @@ function sourceComponentSchema(
   const pieces = collectSourceSubSchemas(source, context, new Set());
   let description: string | undefined;
   const props: JsonObject = {};
+  // Envelope keys the component declares as its own properties, such as a
+  // custom `catalogId`, rather than inheriting from a standard mixin.
+  const ownEnvelopeKeys = new Set<string>();
   const required = new Set<string>();
   for (const piece of pieces) {
     if (typeof piece['description'] === 'string') description = piece['description'];
-    if (isJsonObject(piece['properties'])) Object.assign(props, piece['properties']);
+    if (isJsonObject(piece['properties'])) {
+      Object.assign(props, piece['properties']);
+      if (!standardMixinPieces.has(piece)) {
+        for (const name of Object.keys(piece['properties'])) ownEnvelopeKeys.add(name);
+      }
+    }
     if (Array.isArray(piece['required'])) {
       for (const name of piece['required']) {
         if (typeof name === 'string') required.add(name);
       }
     }
   }
+  // A bare `catalogId` the component declares itself is one of its own
+  // properties: below v1.0 the protocol has no per-component catalog, and
+  // from v1.0 the envelope field is `@catalogId`.
+  const isEnvelopeKey = (name: string) =>
+    COMPONENT_ENVELOPE_KEYS.has(name) && !(name === 'catalogId' && ownEnvelopeKeys.has(name));
   const copied: JsonObject = {};
   for (const [name, schema] of Object.entries(props)) {
-    if (COMPONENT_ENVELOPE_KEYS.has(name)) continue;
+    if (isEnvelopeKey(name)) continue;
     const copy = deepCopyJson(schema);
     restoreSourceRefs(copy, context.standardDefs, true);
     copied[name] = copy;
   }
   return {
     props: copied,
-    required: [...required].filter(name => !COMPONENT_ENVELOPE_KEYS.has(name)).sort(),
+    required: [...required].filter(name => !isEnvelopeKey(name)).sort(),
     ...(description !== undefined ? {description} : {}),
   };
 }

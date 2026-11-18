@@ -88,6 +88,32 @@ describe('SurfaceGroupModel', () => {
     assert.strictEqual(receivedAction.sourceComponentId, 'c1');
   });
 
+  it('settles surface actions once the group action listeners settle', async () => {
+    let completeAction!: () => void;
+    model.onAction.subscribe(
+      () =>
+        new Promise<void>(resolve => {
+          completeAction = resolve;
+        }),
+    );
+    const surface = new SurfaceModel('s1', catalog, new Map(), {});
+    model.addSurface(surface);
+    let isSettled = false;
+
+    const dispatched = surface.dispatchAction({event: {name: 'test'}}, 'c1').then(() => {
+      isSettled = true;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.strictEqual(isSettled, false);
+
+    completeAction();
+    await dispatched;
+
+    assert.strictEqual(isSettled, true);
+  });
+
   it('stops propagating actions after deletion', async () => {
     let callCount = 0;
     model.onAction.subscribe(() => {

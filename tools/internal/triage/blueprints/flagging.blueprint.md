@@ -4,6 +4,8 @@ The [triage.mts](../flagging/triage.mts) script runs via the [`Flag/Unflag issue
 
 An **external contributor** is anyone without the `OWNER`, `MEMBER` or `COLLABORATOR` association on the repository. Bots are external contributors too, so an issue filed by a workflow or a PR opened by dependabot needs triage like any other. A bot comment does not count as a reply, though: it does not change the latest human contribution, and it does not clear `status: waiting-for-author-response`.
 
+A team member's comment that starts with `From triage bot:` (in bold or not) is output from the triage tooling posted from that person's account. The bot ignores it completely, so a triage suggestion does not reset the staleness clock or answer an external comment.
+
 The script uses the following rules to decide if a PR or issue should get **the label `status: needs-triage`**:
 
 1. Does the item have `status: waiting-for-author-response` (the bot removes this label once a human external contributor responds)?

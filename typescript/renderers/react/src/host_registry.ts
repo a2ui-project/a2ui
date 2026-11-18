@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type {ComponentApi, ComponentNode, SurfaceModel} from '@a2ui/web_core/v0_9';
+import type {ComponentApi, ComponentNode, SurfaceModel} from '@a2ui/web_core';
 import type {ReactHostElement} from './catalog/react_host_element';
 import type {ReactComponentImplementation} from './react_component_implementation';
 

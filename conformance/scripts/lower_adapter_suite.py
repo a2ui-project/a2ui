@@ -60,6 +60,11 @@ RESERVED_KEYS = {
     "@call": "call",
 }
 
+COMPONENT_RESERVED_KEYS = {
+    "@checks": "checks",
+    "@accessibility": "accessibility",
+}
+
 V09_BASIC_CATALOG_ID = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
 V10_BASIC_CATALOG_ID = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
 
@@ -69,12 +74,20 @@ def _rename_keys(node: Any) -> Any:
         return [_rename_keys(x) for x in node]
     if isinstance(node, dict):
         is_child_list = "componentId" in node
+        is_component = "component" in node and "id" in node
         res: dict[str, Any] = {}
         for k, v in node.items():
             key_str = str(k)
-            new_k: str = (
-                key_str if is_child_list else RESERVED_KEYS.get(key_str, key_str)
-            )
+            if is_child_list:
+                new_k = key_str
+            elif (
+                is_component
+                and key_str in COMPONENT_RESERVED_KEYS
+                and COMPONENT_RESERVED_KEYS[key_str] not in node
+            ):
+                new_k = COMPONENT_RESERVED_KEYS[key_str]
+            else:
+                new_k = RESERVED_KEYS.get(key_str, key_str)
             res[new_k] = _rename_keys(v)
         return res
     return node
@@ -82,9 +95,7 @@ def _rename_keys(node: Any) -> Any:
 
 def _build_validator() -> jsonschema.Draft202012Validator:
     v091_json_dir = REPO_ROOT / "specification" / "v0_9_1" / "json"
-    catalog_path = (
-        REPO_ROOT / "specification" / "v0_9_1" / "catalogs" / "basic" / "catalog.json"
-    )
+    catalog_path = REPO_ROOT / "catalogs" / "basic" / "v0_9_1" / "catalog.json"
 
     with open(v091_json_dir / "server_to_client.json", encoding="utf-8") as f:
         server_to_client_schema = json.load(f)
@@ -147,7 +158,7 @@ def lower_case(case: dict[str, Any]) -> dict[str, Any] | None:
     lowered = copy.deepcopy(case)
     lowered["protocolVersion"] = "v0.9"
     if "catalogPaths" in lowered:
-        lowered["catalogPaths"] = ["specification/v0_9/catalogs/basic/catalog.json"]
+        lowered["catalogPaths"] = ["catalogs/basic/v0_9/catalog.json"]
 
     if "steps" in lowered:
         for step in lowered["steps"]:

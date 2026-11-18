@@ -14,4 +14,9 @@
  * limitations under the License.
  */
 
-export * from './markdown.js';
+export {
+  setMarkdownRenderer,
+  getMarkdownRenderer,
+  resetMarkdownWarningLoggedForTesting,
+  markdown,
+} from './markdown.js';

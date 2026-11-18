@@ -37,6 +37,7 @@ ProtocolVersion = A2uiProtocolVersion
 # Re-exports from primary schema namespace for backwards compatibility
 from .v0_9.common_types import *
 from .v0_9.constants import *
+
 # The envelope names (`AgentToRendererMessage`, `A2uiMessage` and the like)
 # are left out: the multi-version unions below define them.
 from .v0_9.server_to_client import (

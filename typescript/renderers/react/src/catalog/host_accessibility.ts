@@ -17,13 +17,13 @@
 /**
  * The refs a React implementation passes to mark elements for its host's
  * accessibility attributes (see `bindHostAccessibility` in
- * `@a2ui/web_core/v0_9/universal`): `accessibilityRef` for the element that
+ * `@a2ui/web_core/universal`): `accessibilityRef` for the element that
  * carries the label, description and validation state, and
  * `validationErrorsRef` for the element that shows the validation errors.
  */
 
-import {type ComponentNode, setValue} from '@a2ui/web_core/v0_9';
-import {type AccessibilityTargets, createAccessibilityTargets} from '@a2ui/web_core/v0_9/universal';
+import {type ComponentNode, setValue} from '@a2ui/web_core';
+import {type AccessibilityTargets, createAccessibilityTargets} from '@a2ui/web_core/universal';
 
 type ElementRef = (element: Element | null) => void;
 

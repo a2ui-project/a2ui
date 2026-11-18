@@ -24,7 +24,8 @@
 import {describe, it, expect} from 'vitest';
 import {act, render, waitFor} from '@testing-library/react';
 import {z} from 'zod';
-import {Catalog, CommonSchemas, ComponentModel, SurfaceModel} from '@a2ui/web_core/v0_9';
+import {Catalog, ComponentModel, SurfaceModel} from '@a2ui/web_core';
+import {CommonSchemas} from '@a2ui/web_core/v0_9';
 import {basicCatalog as webCoreBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
   A2uiSurface,

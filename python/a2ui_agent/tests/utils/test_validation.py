@@ -400,13 +400,18 @@ def test_surface_recreated_after_a_delete_in_the_payload_is_accepted():
     )
 
 
-def test_component_that_names_its_catalog_does_not_choose_the_surface_catalog():
+# A v1.0 component names its catalog with `@catalogId`; the bare key of
+# payloads written before the cutover is still read.
+@pytest.mark.parametrize("catalog_key", ["@catalogId", "catalogId"])
+def test_component_that_names_its_catalog_does_not_choose_the_surface_catalog(
+    catalog_key: str,
+):
     catalogs = [
         _catalog("a", "Text", protocol_version="1.0"),
         _catalog("b", "Card", protocol_version="1.0"),
     ]
     components = [
-        {"id": "c", "component": "Card", "text": "Hi", "catalogId": "b"},
+        {"id": "c", "component": "Card", "text": "Hi", catalog_key: "b"},
         {"id": "t", "component": "Text", "text": "Hi"},
     ]
 
@@ -649,7 +654,11 @@ def test_typed_schema_models_are_accepted():
     null_data_wrapper = v0_9.A2uiMessageListWrapper.model_validate({
         "messages": [{
             "version": "v0.9",
-            "updateDataModel": {"surfaceId": "s", "path": "/user", "value": None},
+            "updateDataModel": {
+                "surfaceId": "s",
+                "path": "/user",
+                "value": None,
+            },
         }]
     })
     validate_payload([_BASIC], null_data_wrapper.messages[0])

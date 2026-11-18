@@ -37,11 +37,8 @@ import {Catalog, ComponentApi} from '../../../catalog/types.js';
 const testCatalog = new Catalog<ComponentApi>('test', '0.9', [], BASIC_FUNCTIONS);
 
 describe('BASIC_FUNCTION_APIS Spec Parity', () => {
-  it('matches the exact function names defined in specification/v0_9/catalogs/basic/catalog.json', () => {
-    const catalogPath = path.resolve(
-      process.cwd(),
-      '../../../specification/v0_9/catalogs/basic/catalog.json',
-    );
+  it('matches the exact function names defined in catalogs/basic/v0_9/catalog.json', () => {
+    const catalogPath = path.resolve(process.cwd(), '../../../catalogs/basic/v0_9/catalog.json');
     if (fs.existsSync(catalogPath)) {
       const specCatalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
       const specFuncNames = Object.keys(specCatalog.functions || {}).sort();

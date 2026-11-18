@@ -17,21 +17,23 @@
 /**
  * Client application for the standalone A2UI VegaChart catalog sample.
  *
- * Registers both `basicCatalog` (`@a2ui/lit/v0_9`) and `vegachartCatalog`
- * (`@a2ui/catalog-vegachart/v0_9`) with a `MessageProcessor` and renders a static
- * A2UI payload (`a2ui_vegachart.json`) without an LLM agent.
+ * Combines the components of `basicCatalog` (`@a2ui/lit/v0_9`) and
+ * `vegachartCatalog` (`@a2ui/catalog-vegachart/v0_9`) into one catalog,
+ * registers it with a `MessageProcessor`, and renders a static A2UI payload
+ * (`a2ui_vegachart.json`) without an LLM agent.
  */
 
 import {provide} from '@lit/context';
 import {css, html, LitElement} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
 
-import {VEGACHART_CATALOG_ID, vegachartCatalog} from '@a2ui/catalog-vegachart/v0_9';
+import {vegachartCatalog} from '@a2ui/catalog-vegachart/v0_9';
 import {basicCatalog, Context} from '@a2ui/lit/v0_9';
 import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>.
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {
   type A2uiMessage,
+  Catalog,
   type ComponentApi,
   MessageProcessor,
   type SurfaceModel,
@@ -42,10 +44,21 @@ import surfaceMessages from './a2ui_vegachart.json';
 /** Surface ID declared in `a2ui_vegachart.json`. */
 export const DASHBOARD_SURFACE_ID = 'vegachart-dashboard';
 
-/** Default catalog ID declared in `a2ui_vegachart.json`. */
-export const BASIC_CATALOG_ID = basicCatalog.id;
+/** Catalog ID declared in `a2ui_vegachart.json`. */
+export const SAMPLE_CATALOG_ID = 'https://a2ui.org/samples/vegachart/catalog.json';
 
-export {VEGACHART_CATALOG_ID};
+/**
+ * The basic catalog's components, functions and theme, plus `VegaChart`. A
+ * v0.9 surface uses exactly one catalog, so the sample cannot take `VegaChart`
+ * from a second catalog.
+ */
+export const sampleCatalog = new Catalog(
+  SAMPLE_CATALOG_ID,
+  '0.9',
+  [...basicCatalog.components.values(), ...vegachartCatalog.components.values()],
+  [...basicCatalog.functions.values()],
+  basicCatalog.themeSchema,
+);
 
 @customElement('a2ui-vegachart-app')
 export class A2uiVegachartApp extends LitElement {
@@ -61,7 +74,7 @@ export class A2uiVegachartApp extends LitElement {
 
   constructor() {
     super();
-    this.processor = new MessageProcessor<ComponentApi>([basicCatalog, vegachartCatalog]);
+    this.processor = new MessageProcessor<ComponentApi>([sampleCatalog]);
 
     this.processor.onSurfaceCreated(surface => {
       this.surface = surface;
