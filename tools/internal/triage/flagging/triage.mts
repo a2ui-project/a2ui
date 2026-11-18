@@ -119,7 +119,7 @@ export const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3'] as const;
 export type Priority = (typeof PRIORITY_LABELS)[number];
 
 // Days an item may carry ASSIGNED_FOR_TRIAGE_LABEL before it is flagged
-// (step 3).
+// (step 2).
 export const TRIAGE_ASSIGNMENT_DAYS = 14;
 
 // Priorities urgent enough that an unassigned issue is flagged immediately
@@ -252,24 +252,17 @@ export function flagReason(
   const openedByExternal = isExternal({association: item.author_association});
   const latest = lastHumanContribution(item, contributions);
 
-  // Step 1: the team manages its own items. One a team member opened stays off
-  // the queue unless the last human word on it is from outside the team, which
-  // a team reply settles.
-  if (!openedByExternal && !isExternal(latest)) {
-    return null;
-  }
-
-  // Step 2: a parked item is off the triage queue entirely. Its label is
+  // Step 1: a parked item is off the triage queue entirely. Its label is
   // cleared once an out-of-team contributor responds, which puts it back in
   // play.
   if (labels.includes(WAITING_LABEL)) {
     return null;
   }
 
-  // Step 3: an item handed to a team member for triage is judged on that
-  // assignment alone; the steps below would flag it for the very things the
-  // assignee is there to sort out. With no record of when the label went on
-  // there is nothing to measure, so the deadline never comes due.
+  // Step 2: an item handed to a team member for triage is judged on that
+  // assignment alone, whoever opened it; the steps below would flag it for the
+  // very things the assignee is there to sort out. With no record of when the
+  // label went on there is nothing to measure, so the deadline never comes due.
   if (labels.includes(ASSIGNED_FOR_TRIAGE_LABEL)) {
     if (assigneeCount === 0) {
       return `'${ASSIGNED_FOR_TRIAGE_LABEL}' is set, but nobody is assigned.`;
@@ -277,6 +270,13 @@ export function flagReason(
     if (assignedForTriageSince && ageInDays(assignedForTriageSince, now) > TRIAGE_ASSIGNMENT_DAYS) {
       return `'${ASSIGNED_FOR_TRIAGE_LABEL}' was added more than ${TRIAGE_ASSIGNMENT_DAYS} days ago.`;
     }
+    return null;
+  }
+
+  // Step 3: the team manages its own items. One a team member opened stays off
+  // the queue unless the last human word on it is from outside the team, which
+  // a team reply settles.
+  if (!openedByExternal && !isExternal(latest)) {
     return null;
   }
 
@@ -298,7 +298,9 @@ export function flagReason(
 
   // An assigned issue has a team member on it, so it is flagged only when that
   // work goes quiet beyond its priority's threshold, when its priority needs a
-  // milestone it lacks, or when it has no priority.
+  // milestone it lacks, when it has no priority, or when the latest comment is
+  // from outside the team. The opening post is not a comment, so an issue
+  // nobody has commented on is not waiting for an answer.
   if (assigneeCount > 0) {
     const threshold = priority && STALE_DAYS[priority];
     if (threshold !== undefined && ageInDays(latest.createdAt, now) > threshold) {
@@ -308,7 +310,13 @@ export function flagReason(
     if (priority && MILESTONE_REQUIRED_PRIORITIES.has(priority) && !item.milestone) {
       return `this ${priority} issue has no milestone.`;
     }
-    return priority ? null : noPriorityReason;
+    if (!priority) {
+      return noPriorityReason;
+    }
+    const hasComment = contributions.some(event => !isBot(event.user));
+    return hasComment && isExternal(latest)
+      ? 'the latest comment is from an out-of-team contributor and has gone unanswered.'
+      : null;
   }
 
   // Urgent work with nobody on it.
@@ -564,7 +572,7 @@ export default async function issueTriage({
       const scoredFresh = clearWaitingNow
         ? {...fresh, labels: freshLabels.filter(l => l !== WAITING_LABEL)}
         : fresh;
-      // The triage assignment time is not re-read either; step 3 ignores it if
+      // The triage assignment time is not re-read either; step 2 ignores it if
       // the label has since been removed.
       const freshReason = flagReason(scoredFresh, contributions, now, assignedForTriageSince);
       const wantsFlag = Boolean(freshReason);

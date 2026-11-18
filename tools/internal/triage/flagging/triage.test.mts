@@ -317,7 +317,7 @@ describe('flagReason — issues', () => {
         assertReason(flagReason(item, [reply], NOW), /no priority label/);
       });
 
-      // On a team member's issue, though, the reply settles step 1.
+      // On a team member's issue, though, the reply settles step 3.
       it("does not flag a team member's issue once the external comment is answered", () => {
         const item = issue({assignees, comments: 2});
         const reply = event({created_at: daysAgo(0)});
@@ -455,7 +455,7 @@ describe('flagReason — assigned for triage', () => {
   const dev = [{login: 'dev'}];
   const overdue = daysAgo(TRIAGE_ASSIGNMENT_DAYS + 1);
 
-  // An external P3 issue matches no other rule, so any flag comes from step 3.
+  // An external P3 issue matches no other rule, so any flag comes from step 2.
   const handedOut = (overrides = {}) =>
     externalIssue({labels: ['P3', ASSIGNED_FOR_TRIAGE_LABEL], assignees: dev, ...overrides});
 
@@ -475,7 +475,7 @@ describe('flagReason — assigned for triage', () => {
     assertReason(flagReason(item, [], NOW, daysAgo(0)), /nobody is assigned/);
   });
 
-  // Step 3 decides alone: a fresh assignment holds back every later step.
+  // Step 2 decides alone: a fresh assignment holds back every later step.
   // The item below would be flagged without the label.
   it('does not flag a fresh assignment, whatever else is wrong with it', () => {
     const staleP0 = handedOut({
@@ -485,7 +485,7 @@ describe('flagReason — assigned for triage', () => {
     assert.equal(flagReason(staleP0, [], NOW, daysAgo(1)), null);
   });
 
-  // Step 2 outranks step 3: a parked item waits on the author, not the assignee.
+  // Step 1 outranks step 2: a parked item waits on the author, not the assignee.
   it('does not flag a parked item, even with an overdue assignment', () => {
     const item = handedOut({labels: ['P3', ASSIGNED_FOR_TRIAGE_LABEL, WAITING_LABEL]});
     assert.equal(flagReason(item, [], NOW, overdue), null);
@@ -497,11 +497,13 @@ describe('flagReason — assigned for triage', () => {
     assertReason(flagReason(item, [], NOW, overdue), /assigned-for-triage/);
   });
 
-  // Step 1 outranks step 3: the team manages its own items.
-  it('does not flag an overdue assignment on a team item with no out-of-team input', () => {
+  // Step 2 runs before step 3, so an assignment is checked whoever opened the
+  // item, even with no out-of-team input.
+  it('checks an assignment on a team item with no out-of-team input', () => {
     const item = handedOut({author_association: 'MEMBER', user: {login: 'maintainer'}});
-    assert.equal(flagReason(item, [], NOW, overdue), null);
-    assert.equal(flagReason({...item, assignees: []}, [], NOW, overdue), null);
+    assertReason(flagReason(item, [], NOW, overdue), /more than/);
+    assertReason(flagReason({...item, assignees: []}, [], NOW, daysAgo(0)), /nobody is assigned/);
+    assert.equal(flagReason(item, [], NOW, daysAgo(1)), null);
   });
 
   it('does not flag when the labeling time is unknown', () => {
@@ -616,7 +618,7 @@ describe('flagReason — PRs', () => {
     assertReason(flagReason(item, [], NOW), /no human activity/);
   });
 
-  // Step 1 keeps a team member's PR off the queue until someone outside the
+  // Step 3 keeps a team member's PR off the queue until someone outside the
   // team is left waiting on it.
   it("flags a team member's assigned PR only while an out-of-team comment is unanswered", () => {
     const item = pr({
@@ -676,7 +678,7 @@ describe('flagReason — PRs', () => {
   });
 });
 
-// Step 1: a team member's item is triage work only while a comment from
+// Step 3: a team member's item is triage work only while a comment from
 // outside the team is unanswered.
 describe('flagReason — team items', () => {
   const externalComment = (age: number) =>
@@ -707,9 +709,9 @@ describe('flagReason — team items', () => {
     assert.equal(flagReason(item, comments, NOW), null);
   });
 
-  // An unanswered comment alone is not a reason to flag: it only lets the
-  // issue rules apply, and a prioritized P2 or P3 matches none of them.
-  it('does not flag a prioritized P2 or P3 issue for an unanswered comment alone', () => {
+  // On an unassigned issue an unanswered comment only lets the issue rules
+  // apply, and a prioritized P2 or P3 matches none of them.
+  it('does not flag an unassigned P2 or P3 issue for an unanswered comment alone', () => {
     for (const priority of ['P2', 'P3']) {
       for (const make of [issue, externalIssue]) {
         const item = make({labels: [priority], comments: 1, created_at: daysAgo(5)});
@@ -718,7 +720,40 @@ describe('flagReason — team items', () => {
     }
   });
 
-  // Step 1 only looks at who opened the item and who spoke last.
+  // On an assigned issue it is a reason of its own.
+  describe('assigned, with the latest comment from outside the team', () => {
+    const assigned = {labels: ['P2'], assignees: [{login: 'dev'}], created_at: daysAgo(5)};
+
+    it('flags it, whoever opened the issue', () => {
+      for (const make of [issue, externalIssue]) {
+        const item = make({...assigned, comments: 1});
+        assertReason(flagReason(item, [externalComment(0)], NOW), /latest comment/);
+      }
+    });
+
+    it('stops flagging once a team member replies', () => {
+      const item = externalIssue({...assigned, comments: 2});
+      const comments = [externalComment(3), memberComment(2)];
+      assert.equal(flagReason(item, comments, NOW), null);
+    });
+
+    // The opening post is not a comment, so nothing is waiting for an answer.
+    it('does not flag an assigned issue from outside the team that nobody has commented on', () => {
+      assert.equal(flagReason(externalIssue(assigned), [], NOW), null);
+    });
+
+    it('does not count a bot comment', () => {
+      const item = externalIssue({...assigned, comments: 1});
+      const botComment = event({
+        created_at: daysAgo(0),
+        author_association: 'NONE',
+        user: {login: 'ci[bot]', type: 'Bot'},
+      });
+      assert.equal(flagReason(item, [botComment], NOW), null);
+    });
+  });
+
+  // Step 3 only looks at who opened the item and who spoke last.
   it('judges an item opened outside the team whoever spoke last', () => {
     const item = externalIssue({comments: 1});
     assertReason(flagReason(item, [memberComment(0)], NOW), /no priority label/);
@@ -920,7 +955,7 @@ describe('issueTriage reconciliation', () => {
       assert.equal(calls.removeLabel.length, 0);
     });
 
-    // Were it an answer, step 1 would take this team issue off the queue.
+    // Were it an answer, step 3 would take this team issue off the queue.
     it('does not answer an out-of-team comment', async () => {
       const item = issue({number: 41, labels: [FLAG_LABEL], comments: 2});
       item.__comments = [
@@ -998,8 +1033,9 @@ describe('issueTriage reconciliation', () => {
       assert.equal(calls.addLabels.length, 0);
     });
 
-    it('leaves an assigned issue off the queue when it unparks', async () => {
-      // Being assigned outranks the reply: a team member is already working on it.
+    it('puts an assigned issue back on the queue when it unparks', async () => {
+      // The reply is now the latest comment, from outside the team, and nobody
+      // has answered it yet.
       const item = parked(29, {
         comments: 1,
         labels: [WAITING_LABEL, 'P3'],
@@ -1009,7 +1045,7 @@ describe('issueTriage reconciliation', () => {
       await issueTriage({github, context});
 
       assert.deepEqual(calls.removeLabel, [{number: 29, name: WAITING_LABEL}]);
-      assert.equal(calls.addLabels.length, 0);
+      assert.deepEqual(calls.addLabels, [29]);
     });
 
     it('clears the label when any external contributor replies, not just the reporter', async () => {
@@ -1130,7 +1166,7 @@ describe('issueTriage reconciliation', () => {
 
   describe('assigned-for-triage', () => {
     // An external P3 issue handed out for triage `labeledDaysAgo` days ago. It
-    // matches no other rule, so any flag comes from step 3.
+    // matches no other rule, so any flag comes from step 2.
     const handedOut = (
       number: number,
       {labeledDaysAgo, ...overrides}: Partial<TestItem> & {labeledDaysAgo?: number} = {},
