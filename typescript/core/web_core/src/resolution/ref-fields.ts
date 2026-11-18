@@ -233,7 +233,7 @@ export function getUnionOptions(schema: z.ZodTypeAny): z.ZodTypeAny[] | undefine
 
 /**
  * Returns whether an unwrapped `ZodObject` matches a dynamic child-list template
- * shape (`{ componentId, path | @path | dataBinding }` or v0.8 `explicitList`/`template`).
+ * shape (`{ componentId, path | dataBinding }` or v0.8 `explicitList`/`template`).
  */
 export function isTemplateRefObject(schema: z.ZodTypeAny): boolean {
   if (schema?._def?.typeName !== 'ZodObject') {
@@ -242,9 +242,7 @@ export function isTemplateRefObject(schema: z.ZodTypeAny): boolean {
   const shape = (schema as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
   return Boolean(
     (Object.hasOwn(shape, 'componentId') &&
-      (Object.hasOwn(shape, 'path') ||
-        Object.hasOwn(shape, '@path') ||
-        Object.hasOwn(shape, 'dataBinding'))) ||
+      (Object.hasOwn(shape, 'path') || Object.hasOwn(shape, 'dataBinding'))) ||
     Object.hasOwn(shape, 'explicitList') ||
     Object.hasOwn(shape, 'template'),
   );
