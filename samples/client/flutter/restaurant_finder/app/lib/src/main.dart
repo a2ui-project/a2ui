@@ -58,6 +58,8 @@ class _RestaurantFinderAppState extends State<RestaurantFinderApp> {
         ),
         useMaterial3: true,
       ),
+      // RestaurantScreen's state renders the UI via `_buildContent`, with
+      // `_buildSurfaces` handling the A2UI surface rendering.
       home: RestaurantScreen(
         onToggleTheme: _toggleTheme,
         themeMode: _themeMode,
