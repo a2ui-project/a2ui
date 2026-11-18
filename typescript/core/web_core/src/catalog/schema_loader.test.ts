@@ -1372,5 +1372,261 @@ describe('Catalog.fromJson & schema_loader', () => {
       );
       assert.strictEqual(anyOfSchema.safeParse({}).success, false);
     });
+
+    it('allows conditional and combinator branch properties under additionalProperties: false (including nested and rootless schemas)', () => {
+      const nestedConditionalSchema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          mode: {type: 'string'},
+        },
+        if: {
+          properties: {mode: {const: 'advanced'}},
+          required: ['mode'],
+        },
+        then: {
+          properties: {tier: {type: 'string'}},
+          if: {
+            properties: {tier: {const: 'enterprise'}},
+            required: ['tier'],
+          },
+          then: {
+            allOf: [
+              {
+                properties: {
+                  ssoUrl: {type: 'string'},
+                },
+                required: ['ssoUrl'],
+              },
+            ],
+          },
+        },
+        else: {
+          properties: {basicFlag: {type: 'boolean'}},
+        },
+      });
+
+      assert.strictEqual(
+        nestedConditionalSchema.safeParse({
+          mode: 'advanced',
+          tier: 'enterprise',
+          ssoUrl: 'https://example.com',
+        }).success,
+        true,
+      );
+      assert.strictEqual(
+        nestedConditionalSchema.safeParse({
+          mode: 'advanced',
+          tier: 'enterprise',
+        }).success,
+        false,
+      );
+      assert.strictEqual(
+        nestedConditionalSchema.safeParse({
+          mode: 'simple',
+          basicFlag: true,
+        }).success,
+        true,
+      );
+      assert.strictEqual(
+        nestedConditionalSchema.safeParse({
+          mode: 'simple',
+          basicFlag: true,
+          unknownExtra: 123,
+        }).success,
+        false,
+      );
+
+      // Rootless additionalProperties: false with if/then/else (no top-level `properties`)
+      const rootlessConditionalSchema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        additionalProperties: false,
+        if: {
+          properties: {kind: {const: 'a'}},
+          required: ['kind'],
+        },
+        then: {
+          properties: {
+            kind: {type: 'string'},
+            aVal: {type: 'number'},
+          },
+          required: ['kind', 'aVal'],
+        },
+        else: {
+          properties: {
+            kind: {type: 'string'},
+            bVal: {type: 'boolean'},
+          },
+          required: ['kind', 'bVal'],
+        },
+      });
+
+      assert.strictEqual(rootlessConditionalSchema.safeParse({kind: 'a', aVal: 42}).success, true);
+      assert.strictEqual(
+        rootlessConditionalSchema.safeParse({kind: 'b', bVal: false}).success,
+        true,
+      );
+      assert.strictEqual(
+        rootlessConditionalSchema.safeParse({kind: 'a', aVal: 42, extra: 'nope'}).success,
+        false,
+      );
+
+      // Rootless additionalProperties: false with oneOf (no top-level `properties`)
+      const rootlessOneOfSchema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        additionalProperties: false,
+        oneOf: [
+          {
+            properties: {url: {type: 'string'}},
+            required: ['url'],
+          },
+          {
+            properties: {path: {type: 'string'}},
+            required: ['path'],
+          },
+        ],
+      });
+
+      assert.strictEqual(rootlessOneOfSchema.safeParse({url: 'https://example.com'}).success, true);
+      assert.strictEqual(rootlessOneOfSchema.safeParse({path: '/var/log'}).success, true);
+      assert.strictEqual(
+        rootlessOneOfSchema.safeParse({url: 'https://example.com', unexpected: true}).success,
+        false,
+      );
+    });
+
+    it('isolates typeless schema constraints to their applicable runtime primitive types', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          noReqB: {
+            not: {required: ['b']},
+          },
+          minTen: {
+            minimum: 10,
+          },
+          notDigits: {
+            not: {pattern: '^[0-9]+$'},
+          },
+        },
+      });
+
+      // { required: ['b'] } vacuously succeeds on non-objects, so `not: { required: ['b'] }`
+      // accepts objects missing 'b' and rejects objects with 'b' as well as non-objects
+      assert.strictEqual(schema.safeParse({noReqB: 'hello'}).success, false);
+      assert.strictEqual(schema.safeParse({noReqB: 42}).success, false);
+      assert.strictEqual(schema.safeParse({noReqB: {a: 1}}).success, true);
+      assert.strictEqual(schema.safeParse({noReqB: {b: 1}}).success, false);
+
+      // { minimum: 10 } constrains numbers >= 10 while allowing strings
+      assert.strictEqual(schema.safeParse({minTen: 'abc'}).success, true);
+      assert.strictEqual(schema.safeParse({minTen: 12}).success, true);
+      assert.strictEqual(schema.safeParse({minTen: 5}).success, false);
+
+      // { not: { pattern: '^[0-9]+$' } } accepts non-digit strings and rejects digit-only strings and non-strings
+      assert.strictEqual(schema.safeParse({notDigits: 'abc'}).success, true);
+      assert.strictEqual(schema.safeParse({notDigits: 42}).success, false);
+      assert.strictEqual(schema.safeParse({notDigits: '12345'}).success, false);
+    });
+
+    it('merges minProperties, maxProperties, and dependentRequired across allOf subschemas', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        additionalProperties: true,
+        allOf: [
+          {
+            type: 'object',
+            minProperties: 1,
+            dependentRequired: {
+              a: ['b'],
+            },
+          },
+          {
+            type: 'object',
+            maxProperties: 3,
+            dependentRequired: {
+              a: ['c'],
+            },
+          },
+        ],
+      });
+
+      // Violates minProperties: 1
+      assert.strictEqual(schema.safeParse({}).success, false);
+      // Satisfies minProperties: 1 without triggering 'a'
+      assert.strictEqual(schema.safeParse({d: 1}).success, true);
+      // Triggers 'a' but missing 'c' from second allOf branch
+      assert.strictEqual(schema.safeParse({a: 1, b: 2}).success, false);
+      // Triggers 'a' but missing 'b' from first allOf branch
+      assert.strictEqual(schema.safeParse({a: 1, c: 3}).success, false);
+      // Satisfies both dependentRequired branches and key count 3 <= 3
+      assert.strictEqual(schema.safeParse({a: 1, b: 2, c: 3}).success, true);
+      // Violates maxProperties: 3
+      assert.strictEqual(schema.safeParse({a: 1, b: 2, c: 3, d: 4}).success, false);
+    });
+
+    it('preserves nested issue.path on conditional and union validation failures', () => {
+      const conditionalSchema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          mode: {type: 'string'},
+          config: {
+            type: 'object',
+            properties: {
+              port: {type: 'number'},
+            },
+          },
+        },
+        if: {
+          properties: {mode: {const: 'strict'}},
+          required: ['mode'],
+        },
+        then: {
+          properties: {
+            config: {
+              type: 'object',
+              properties: {
+                port: {type: 'number', minimum: 1024},
+              },
+            },
+          },
+        },
+      });
+
+      const condRes = conditionalSchema.safeParse({mode: 'strict', config: {port: 80}});
+      assert.strictEqual(condRes.success, false);
+      if (!condRes.success) {
+        assert.deepStrictEqual(condRes.error.issues[0]?.path, ['config', 'port']);
+      }
+
+      const unionSchema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        oneOf: [
+          {
+            properties: {
+              endpoint: {
+                type: 'object',
+                properties: {
+                  timeoutMs: {type: 'number', minimum: 100},
+                },
+                required: ['timeoutMs'],
+              },
+            },
+            required: ['endpoint'],
+          },
+          {
+            properties: {
+              disabled: {const: true},
+            },
+            required: ['disabled'],
+          },
+        ],
+      });
+
+      const unionRes = unionSchema.safeParse({endpoint: {timeoutMs: 10}});
+      assert.strictEqual(unionRes.success, false);
+      if (!unionRes.success) {
+        assert.deepStrictEqual(unionRes.error.issues[0]?.path, ['endpoint', 'timeoutMs']);
+      }
+    });
   });
 });
