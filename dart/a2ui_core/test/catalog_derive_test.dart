@@ -126,7 +126,7 @@ void main() {
         jsonDecode(
           File(
             resolveConformancePath(
-              '../specification/v0_9_1/catalogs/basic/catalog.json',
+              '../catalogs/basic/v0_9_1/catalog.json',
             ),
           ).readAsStringSync(),
         ) as Map<String, Object?>,

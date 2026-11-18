@@ -697,9 +697,10 @@ class ElementalPromptGenerator(PromptGenerator):
         if not include_schema:
             return ""
 
+        cat_id = getattr(catalog, "catalog_id", None) if catalog else None
+        cached = self.helpers.get(cat_id) if isinstance(cat_id, str) else None
         h = (
-            self.helpers.get(getattr(catalog, "catalog_id", None))
-            or CatalogSchemaHelper(catalog)
+            (cached or CatalogSchemaHelper(catalog))
             if catalog
             else next(iter(self.helpers.values()), None)
         )
