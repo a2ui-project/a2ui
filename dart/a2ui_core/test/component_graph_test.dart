@@ -95,11 +95,7 @@ void main() {
 
       final messageJson = <String, Object?>{
         'version': 'v0.9',
-        'updateDataModel': {
-          'surfaceId': 's1',
-          'path': '/',
-          'value': deepData,
-        },
+        'updateDataModel': {'surfaceId': 's1', 'path': '/', 'value': deepData},
       };
 
       expect(
@@ -126,69 +122,60 @@ void main() {
 
     test('v0.9 mode validates path bindings, templates, and call depth', () {
       expect(
-        () => checkPathsAndRecursion(
-          {
-            'version': 'v0.9',
-            'updateComponents': {
-              'surfaceId': 's1',
-              'components': [
-                {
-                  'id': 'root',
-                  'component': 'Text',
-                  'text': {'path': '/bad~path'},
-                },
-              ],
-            },
+        () => checkPathsAndRecursion({
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Text',
+                'text': {'path': '/bad~path'},
+              },
+            ],
           },
-          version: A2uiProtocolVersion.v0_9,
-        ),
+        }, version: A2uiProtocolVersion.v0_9),
         throwsA(isA<A2uiValidationError>()),
       );
 
       expect(
-        () => checkPathsAndRecursion(
-          {
-            'version': 'v0.9',
-            'updateComponents': {
-              'surfaceId': 's1',
-              'components': [
-                {
-                  'id': 'root',
-                  'component': 'Column',
-                  'children': {'path': '/bad~path', 'componentId': 'item'},
-                },
-              ],
-            },
+        () => checkPathsAndRecursion({
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Column',
+                'children': {'path': '/bad~path', 'componentId': 'item'},
+              },
+            ],
           },
-          version: A2uiProtocolVersion.v0_9,
-        ),
+        }, version: A2uiProtocolVersion.v0_9),
         throwsA(isA<A2uiValidationError>()),
       );
 
       // @path is literal in v0.9 and should not be validated as a data binding.
       expect(
-        () => checkPathsAndRecursion(
-          {
-            'version': 'v0.9',
-            'updateComponents': {
-              'surfaceId': 's1',
-              'components': [
-                {
-                  'id': 'root',
-                  'component': 'Text',
-                  'meta': {'@path': 'not~a~pointer'},
-                },
-              ],
-            },
+        () => checkPathsAndRecursion({
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Text',
+                'meta': {'@path': 'not~a~pointer'},
+              },
+            ],
           },
-          version: A2uiProtocolVersion.v0_9,
-        ),
+        }, version: A2uiProtocolVersion.v0_9),
         returnsNormally,
       );
 
       Map<String, Object?> nestedCall = {
         'call': 'leaf',
-        'args': <String, Object?>{}
+        'args': <String, Object?>{},
       };
       for (var i = 0; i < maxFunctionCallDepth; i++) {
         nestedCall = {
@@ -197,82 +184,78 @@ void main() {
         };
       }
       expect(
-        () => checkPathsAndRecursion(nestedCall,
-            version: A2uiProtocolVersion.v0_9),
+        () => checkPathsAndRecursion(
+          nestedCall,
+          version: A2uiProtocolVersion.v0_9,
+        ),
         throwsA(isA<A2uiRecursionError>()),
       );
       // In v1.0 mode, plain 'call' is not a function call object.
       expect(
-        () => checkPathsAndRecursion(nestedCall,
-            version: A2uiProtocolVersion.v1_0),
+        () => checkPathsAndRecursion(
+          nestedCall,
+          version: A2uiProtocolVersion.v1_0,
+        ),
         returnsNormally,
       );
     });
 
-    test(
-        'v1.0 mode validates @path, templates, and @call while ignoring path/call',
-        () {
+    test('v1.0 mode validates @path, templates, and @call while ignoring path/call', () {
       expect(
-        () => checkPathsAndRecursion(
-          {
-            'version': '1.0',
-            'updateComponents': {
-              'surfaceId': 's1',
-              'components': [
-                {
-                  'id': 'root',
-                  'component': 'Text',
-                  'text': {'@path': '/bad~path'},
-                },
-              ],
-            },
+        () => checkPathsAndRecursion({
+          'version': '1.0',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Text',
+                'text': {'@path': '/bad~path'},
+              },
+            ],
           },
-        ),
+        }),
         throwsA(isA<A2uiValidationError>()),
       );
 
       // ChildListTemplate still uses {path, componentId} in v1.0.
       expect(
-        () => checkPathsAndRecursion(
-          {
-            'version': '1.0',
-            'updateComponents': {
-              'surfaceId': 's1',
-              'components': [
-                {
-                  'id': 'root',
-                  'component': 'Column',
-                  'children': {'path': '/bad~path', 'componentId': 'item'},
-                },
-              ],
-            },
+        () => checkPathsAndRecursion({
+          'version': '1.0',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Column',
+                'children': {'path': '/bad~path', 'componentId': 'item'},
+              },
+            ],
           },
-        ),
+        }),
         throwsA(isA<A2uiValidationError>()),
       );
 
       // Plain {'path': 'not~a~pointer'} without componentId is literal in v1.0.
       expect(
-        () => checkPathsAndRecursion(
-          {
-            'version': '1.0',
-            'updateComponents': {
-              'surfaceId': 's1',
-              'components': [
-                {
-                  'id': 'root',
-                  'component': 'Button',
-                  'action': {
-                    'event': {
-                      'name': 'open',
-                      'context': {'path': 'not~a~pointer'},
-                    },
+        () => checkPathsAndRecursion({
+          'version': '1.0',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Button',
+                'action': {
+                  'event': {
+                    'name': 'open',
+                    'context': {'path': 'not~a~pointer'},
                   },
                 },
-              ],
-            },
+              },
+            ],
           },
-        ),
+        }),
         returnsNormally,
       );
 
@@ -341,18 +324,16 @@ void main() {
       test('skips the same way in a message written as JSON', () {
         final List<Object?> deep = tooDeep();
         Map<String, Object?> json(List<Object?> value) => {
-              'version': '1.0',
-              'updateDataModel': {
-                'surfaceId': 's1',
-                'path': '/items',
-                'value': value,
-              },
-            };
+          'version': '1.0',
+          'updateDataModel': {
+            'surfaceId': 's1',
+            'path': '/items',
+            'value': value,
+          },
+        };
         expect(
-          () => checkPathsAndRecursion(
-            json([deep, 1]),
-            grownFrom: json([deep]),
-          ),
+          () =>
+              checkPathsAndRecursion(json([deep, 1]), grownFrom: json([deep])),
           returnsNormally,
         );
       });

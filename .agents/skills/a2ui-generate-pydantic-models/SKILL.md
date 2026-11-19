@@ -71,7 +71,7 @@ When executed for a target version `<version>` (e.g. `v1.0` -> `v1_0`), the scri
 2. **`python/a2ui_core/src/a2ui/core/basic_catalog/<version>/`**:
    - `components.py` (strongly typed components & `ModelComponentApi` registrations)
    - `function_apis.py` (strongly typed function schemas & `FunctionApi` classes)
-   - `styles.py` (theme schema, generated when theme is defined in catalog)
+   - `styles.py` (theme schema, generated when the catalog defines `styles` or an unreferenced `$defs.theme` / `$defs.Theme`)
    - `__init__.py`
    - The models and the generated `BasicCatalog` carry everything `Catalog.to_json()` needs to rebuild the published catalog document from them, with no catalog JSON copied into Python or read at runtime:
      - `BasicCatalog` passes the document's top-level fields to `Catalog`: `$schema`, `$id`, `title`, `description`, `protocolVersion` (None when the document declares none), `catalogId` when it declares none, `instructions`, where it writes its theme (`theme_location`), its unions (`union_defs`, which must list the catalog's entries) and the document its common types references point into (`common_types_uri`). The theme is passed as `theme_model`.

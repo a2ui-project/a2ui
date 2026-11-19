@@ -106,8 +106,8 @@ ${sources.values.map((s) => '// - $s').join('\n')}
     if (!json.startsWith('{')) {
       throw StateError('$source does not start with a JSON object.');
     }
-    final String version =
-        RegExp(r'specification/(v[0-9_]+)/').firstMatch(source)![1]!;
+    final String version = RegExp(r'specification/(v[0-9_]+)/')
+        .firstMatch(source)![1]!;
     buffer.write('''
 
 /// The `common_types.json` document for protocol ${version.replaceAll('_', '.')}, as published.
