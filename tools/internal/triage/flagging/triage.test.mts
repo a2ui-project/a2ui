@@ -38,7 +38,7 @@ import issueTriage, {
   isBot,
   isTriageBotComment,
   lastHumanContribution,
-  MILESTONE_REQUIRED_PRIORITIES,
+  ASSIGNEE_OR_MILESTONE_PRIORITIES,
   PR_STALE_DAYS,
   PRIORITY_LABELS,
   STALE_DAYS,
@@ -368,9 +368,9 @@ describe('flagReason — issues', () => {
   });
 
   // Drive the staleness rule off STALE_DAYS so the thresholds live in one
-  // place. The milestone keeps the milestone rule out of the way.
+  // place.
   for (const [priority, threshold] of Object.entries(STALE_DAYS)) {
-    const assigned = {labels: [priority], assignees: [{login: 'dev'}], milestone: {number: 1}};
+    const assigned = {labels: [priority], assignees: [{login: 'dev'}]};
 
     it(`does not flag a fresh assigned ${priority} (within ${threshold} day(s))`, () => {
       const item = externalIssue({...assigned, created_at: daysAgo(threshold)});
@@ -397,39 +397,36 @@ describe('flagReason — issues', () => {
     });
   }
 
-  // Drive the milestone rule off MILESTONE_REQUIRED_PRIORITIES so the test
-  // tracks the config constant.
-  for (const priority of MILESTONE_REQUIRED_PRIORITIES) {
-    const assigned = {labels: [priority], assignees: [{login: 'dev'}]};
-
-    it(`flags an assigned ${priority} with no milestone`, () => {
+  // Drive the assignee-or-milestone rule off ASSIGNEE_OR_MILESTONE_PRIORITIES
+  // so the test tracks the config constant.
+  for (const priority of ASSIGNEE_OR_MILESTONE_PRIORITIES) {
+    it(`flags an unassigned ${priority} with no milestone`, () => {
       for (const milestone of [null, undefined]) {
-        const item = externalIssue({...assigned, milestone});
-        assertReason(flagReason(item, [], NOW), /no milestone/, String(milestone));
+        const item = externalIssue({labels: [priority], milestone});
+        assertReason(flagReason(item, [], NOW), /no assignee or milestone/, String(milestone));
       }
     });
 
-    it(`does not flag a fresh assigned ${priority} with a milestone`, () => {
-      const item = externalIssue({...assigned, milestone: {number: 1}});
+    it(`does not flag an unassigned ${priority} with a milestone`, () => {
+      const item = externalIssue({labels: [priority], milestone: {number: 1}});
       assert.equal(flagReason(item, [], NOW), null);
     });
 
-    // An unassigned issue is reported for the missing assignee, milestone or not.
-    it(`reports an unassigned ${priority} with a milestone as having no assignee`, () => {
-      const item = externalIssue({labels: [priority], milestone: {number: 1}});
-      assertReason(flagReason(item, [], NOW), /no assignee/);
+    it(`does not flag a fresh assigned ${priority} with no milestone`, () => {
+      const item = externalIssue({labels: [priority], assignees: [{login: 'dev'}]});
+      assert.equal(flagReason(item, [], NOW), null);
     });
   }
 
-  // Every priority with a staleness threshold or a milestone requirement must
-  // also require an assignee: both rules are only checked on assigned issues,
-  // and unassigned ones are flagged for having no assignee.
-  it('requires an assignee for every priority with a staleness threshold or milestone rule', () => {
-    for (const priority of [
-      ...(Object.keys(STALE_DAYS) as Priority[]),
-      ...MILESTONE_REQUIRED_PRIORITIES,
-    ]) {
-      assert.ok(ASSIGNEE_REQUIRED_PRIORITIES.has(priority), priority);
+  // Staleness is only checked on assigned issues, so every priority with a
+  // threshold must flag an unassigned issue that nobody has planned.
+  it('requires an assignee or milestone for every priority with a staleness threshold', () => {
+    for (const priority of Object.keys(STALE_DAYS) as Priority[]) {
+      assert.ok(
+        ASSIGNEE_REQUIRED_PRIORITIES.has(priority) ||
+          ASSIGNEE_OR_MILESTONE_PRIORITIES.has(priority),
+        priority,
+      );
     }
   });
 
@@ -439,8 +436,9 @@ describe('flagReason — issues', () => {
     assert.deepEqual(Object.keys(STALE_DAYS), ['P0', 'P1']);
   });
 
-  it('requires a milestone for P1 only', () => {
-    assert.deepEqual([...MILESTONE_REQUIRED_PRIORITIES], ['P1']);
+  it('requires an assignee for P0, and an assignee or milestone for P1', () => {
+    assert.deepEqual([...ASSIGNEE_REQUIRED_PRIORITIES], ['P0']);
+    assert.deepEqual([...ASSIGNEE_OR_MILESTONE_PRIORITIES], ['P1']);
   });
 
   it('never flags a P2 for staleness, however old, assigned or not', () => {
@@ -545,7 +543,7 @@ describe('flagReason — PRIORITY_LABELS contract', () => {
       p =>
         STALE_DAYS[p] === undefined &&
         !ASSIGNEE_REQUIRED_PRIORITIES.has(p) &&
-        !MILESTONE_REQUIRED_PRIORITIES.has(p),
+        !ASSIGNEE_OR_MILESTONE_PRIORITIES.has(p),
     );
     assert.ok(unThresholded.length > 0, 'expected at least one priority without a threshold');
     for (const priority of unThresholded) {
@@ -564,10 +562,10 @@ describe('flagReason — PRIORITY_LABELS contract', () => {
         `ASSIGNEE_REQUIRED_PRIORITIES entry ${priority} not a priority`,
       );
     }
-    for (const priority of MILESTONE_REQUIRED_PRIORITIES) {
+    for (const priority of ASSIGNEE_OR_MILESTONE_PRIORITIES) {
       assert.ok(
         isPriority(priority),
-        `MILESTONE_REQUIRED_PRIORITIES entry ${priority} not a priority`,
+        `ASSIGNEE_OR_MILESTONE_PRIORITIES entry ${priority} not a priority`,
       );
     }
   });
@@ -709,46 +707,56 @@ describe('flagReason — team items', () => {
     assert.equal(flagReason(item, comments, NOW), null);
   });
 
-  // Assigned or not, an issue whose latest comment is from outside the team
-  // is waiting for an answer.
-  for (const [name, assignees] of [
-    ['assigned', [{login: 'dev'}]],
-    ['unassigned', []],
-  ] as const) {
-    describe(`${name}, with the latest comment from outside the team`, () => {
-      const prioritized = {labels: ['P2'], assignees, created_at: daysAgo(5)};
+  // An unassigned issue whose latest comment is from outside the team is
+  // waiting for an answer.
+  describe('unassigned, with the latest comment from outside the team', () => {
+    const prioritized = {labels: ['P2'], created_at: daysAgo(5)};
 
-      it('flags a P2 or P3 issue, whoever opened it', () => {
-        for (const priority of ['P2', 'P3']) {
-          for (const make of [issue, externalIssue]) {
-            const item = make({...prioritized, labels: [priority], comments: 1});
-            assertReason(flagReason(item, [externalComment(0)], NOW), /latest comment/, priority);
-          }
+    it('flags a P2 or P3 issue, whoever opened it', () => {
+      for (const priority of ['P2', 'P3']) {
+        for (const make of [issue, externalIssue]) {
+          const item = make({...prioritized, labels: [priority], comments: 1});
+          assertReason(flagReason(item, [externalComment(0)], NOW), /latest comment/, priority);
         }
-      });
-
-      it('stops flagging once a team member replies', () => {
-        const item = externalIssue({...prioritized, comments: 2});
-        const comments = [externalComment(3), memberComment(2)];
-        assert.equal(flagReason(item, comments, NOW), null);
-      });
-
-      // The opening post is not a comment, so nothing is waiting for an answer.
-      it('does not flag an issue from outside the team that nobody has commented on', () => {
-        assert.equal(flagReason(externalIssue(prioritized), [], NOW), null);
-      });
-
-      it('does not count a bot comment', () => {
-        const item = externalIssue({...prioritized, comments: 1});
-        const botComment = event({
-          created_at: daysAgo(0),
-          author_association: 'NONE',
-          user: {login: 'ci[bot]', type: 'Bot'},
-        });
-        assert.equal(flagReason(item, [botComment], NOW), null);
-      });
+      }
     });
-  }
+
+    it('stops flagging once a team member replies', () => {
+      const item = externalIssue({...prioritized, comments: 2});
+      const comments = [externalComment(3), memberComment(2)];
+      assert.equal(flagReason(item, comments, NOW), null);
+    });
+
+    // The opening post is not a comment, so nothing is waiting for an answer.
+    it('does not flag an issue from outside the team that nobody has commented on', () => {
+      assert.equal(flagReason(externalIssue(prioritized), [], NOW), null);
+    });
+
+    it('does not count a bot comment', () => {
+      const item = externalIssue({...prioritized, comments: 1});
+      const botComment = event({
+        created_at: daysAgo(0),
+        author_association: 'NONE',
+        user: {login: 'ci[bot]', type: 'Bot'},
+      });
+      assert.equal(flagReason(item, [botComment], NOW), null);
+    });
+  });
+
+  // The assignee answers comments on an assigned issue.
+  it('does not flag an assigned issue for a comment from outside the team', () => {
+    for (const priority of PRIORITY_LABELS) {
+      for (const make of [issue, externalIssue]) {
+        const item = make({
+          labels: [priority],
+          assignees: [{login: 'dev'}],
+          comments: 1,
+          created_at: daysAgo(0),
+        });
+        assert.equal(flagReason(item, [externalComment(0)], NOW), null, priority);
+      }
+    }
+  });
 
   // Step 3 only looks at who opened the item and who spoke last.
   it('judges an item opened outside the team whoever spoke last', () => {
@@ -1031,9 +1039,8 @@ describe('issueTriage reconciliation', () => {
       assert.deepEqual(calls.addLabels, [16]);
     });
 
-    it('puts an assigned issue back on the queue when it unparks', async () => {
-      // The reply is now the latest comment, from outside the team, and nobody
-      // has answered it yet.
+    it('leaves an assigned issue off the queue when it unparks', async () => {
+      // The assignee answers the reply; it is not triage work.
       const item = parked(29, {
         comments: 1,
         labels: [WAITING_LABEL, 'P3'],
@@ -1043,7 +1050,7 @@ describe('issueTriage reconciliation', () => {
       await issueTriage({github, context});
 
       assert.deepEqual(calls.removeLabel, [{number: 29, name: WAITING_LABEL}]);
-      assert.deepEqual(calls.addLabels, [29]);
+      assert.equal(calls.addLabels.length, 0);
     });
 
     it('clears the label when any external contributor replies, not just the reporter', async () => {

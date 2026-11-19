@@ -124,11 +124,12 @@ export const TRIAGE_ASSIGNMENT_DAYS = 14;
 
 // Priorities urgent enough that an unassigned issue is flagged immediately
 // (step 4). Every entry must be one of PRIORITY_LABELS.
-export const ASSIGNEE_REQUIRED_PRIORITIES: ReadonlySet<Priority> = new Set<Priority>(['P0', 'P1']);
+export const ASSIGNEE_REQUIRED_PRIORITIES: ReadonlySet<Priority> = new Set<Priority>(['P0']);
 
-// Priorities whose assigned issues are flagged until they have a milestone
-// (step 4). Every entry must be one of PRIORITY_LABELS.
-export const MILESTONE_REQUIRED_PRIORITIES: ReadonlySet<Priority> = new Set<Priority>(['P1']);
+// Priorities whose unassigned issues are flagged until they have a milestone
+// (step 4): a milestone plans the work as well as an assignee does. Every entry
+// must be one of PRIORITY_LABELS.
+export const ASSIGNEE_OR_MILESTONE_PRIORITIES: ReadonlySet<Priority> = new Set<Priority>(['P1']);
 
 // Days of inactivity before an assigned issue is considered stale (step 4).
 // Priorities absent here are never flagged for staleness.
@@ -296,27 +297,31 @@ export function flagReason(
   const priority = PRIORITY_LABELS.find(p => labels.includes(p));
   const noPriorityReason = 'this issue has no priority label.';
 
-  // An assigned issue has a team member on it, so only its priority's
-  // thresholds apply: going quiet for too long, or lacking a milestone.
+  // An assigned issue has a team member on it, so it is flagged only when that
+  // work goes quiet beyond its priority's threshold, or when it has no
+  // priority. A comment from outside the team is the assignee's to answer.
   if (assigneeCount > 0) {
     const threshold = priority && STALE_DAYS[priority];
     if (threshold !== undefined && ageInDays(latest.createdAt, now) > threshold) {
       const unit = threshold === 1 ? 'day' : 'days';
       return `this ${priority} issue has had no human activity for more than ${threshold} ${unit}.`;
     }
-    if (priority && MILESTONE_REQUIRED_PRIORITIES.has(priority) && !item.milestone) {
-      return `this ${priority} issue has no milestone.`;
-    }
-  } else if (priority && ASSIGNEE_REQUIRED_PRIORITIES.has(priority)) {
-    // Urgent work with nobody on it.
+    return priority ? null : noPriorityReason;
+  }
+
+  // Urgent or planned work with nobody on it.
+  if (priority && ASSIGNEE_REQUIRED_PRIORITIES.has(priority)) {
     return `this ${priority} issue has no assignee.`;
+  }
+  if (priority && ASSIGNEE_OR_MILESTONE_PRIORITIES.has(priority) && !item.milestone) {
+    return `this ${priority} issue has no assignee or milestone.`;
   }
 
   if (!priority) {
     return noPriorityReason;
   }
 
-  // Assigned or not, an issue whose latest comment is from outside the team is
+  // An unassigned issue whose latest comment is from outside the team is
   // waiting for an answer. The opening post is not a comment, so an issue
   // nobody has commented on is not.
   const hasComment = contributions.some(event => !isBot(event.user));

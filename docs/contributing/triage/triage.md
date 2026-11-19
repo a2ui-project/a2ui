@@ -3,7 +3,7 @@
 The goals of triage are to continuously make sure that:
 
 1. Every PR gets a decision: the team decides to review it, or closes it with an explanation.
-2. Every issue has a priority, and every `P0` and `P1` issue has an assignee who is making progress on it.
+2. Every issue has a priority, every `P0` issue has an assignee who is making progress on it, and every `P1` issue has an assignee or a milestone.
 3. Questions and comments get replies from the team.
 
 Queues used in triage:
@@ -46,7 +46,7 @@ For each issue in the [first-line triage queue][not-first-line-handled]:
 2. Set a priority label:
 
     - `P0`: urgent issue. Assign someone.
-    - `P1`: a priority. The team is actively working on it, or will be soon. Assign someone.
+    - `P1`: a priority. The team is actively working on it, or will be soon. Assign someone or set a milestone.
     - `P2`: the team intends to work on it.
     - `P3`: a good request. It is not currently planned, but may become a priority.
 
