@@ -25,12 +25,7 @@ typedef _Node = ComponentNode<ComponentApi>;
 typedef _Json = Map<String, Object?>;
 
 const Map<String, Set<String>> _knownKeys = {
-  'case:resolve_nodes': {
-    ...caseMetadataKeys,
-    'expect',
-    'fixture',
-    'steps',
-  },
+  'case:resolve_nodes': {...caseMetadataKeys, 'expect', 'fixture', 'steps'},
   'step:resolve_nodes': {
     'component_id',
     'components',
@@ -74,11 +69,7 @@ void main() {
   final List<_Json> cases = loadConformanceSuite('core/node_resolution.yaml');
   group('conformance core/node_resolution.yaml', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
-    runConformanceSuite(
-      cases,
-      _runCase,
-      suite: 'core/node_resolution.yaml',
-    );
+    runConformanceSuite(cases, _runCase, suite: 'core/node_resolution.yaml');
   });
 }
 
@@ -88,13 +79,14 @@ Future<void> _runCase(_Json testCase) async {
     _knownKeys['case:resolve_nodes']!,
     'case:resolve_nodes',
   );
-  final fixture = normalizeYaml(
-    loadYaml(
-      File(
-        resolveConformancePath(testCase['fixture']! as String),
-      ).readAsStringSync(),
-    ),
-  )! as _Json;
+  final fixture =
+      normalizeYaml(
+            loadYaml(
+              File(resolveConformancePath(testCase['fixture']! as String))
+                  .readAsStringSync(),
+            ),
+          )!
+          as _Json;
   final runner = _Runner(fixture);
   addTearDown(runner.close);
   runner.check(testCase['expect']! as _Json, {}, 'initial');
@@ -113,11 +105,7 @@ Future<void> _runCase(_Json testCase) async {
     }
     runner.beginStep(before);
     await runner.apply(step, before);
-    runner.check(
-      step['expect']! as _Json,
-      before,
-      'step $i (${step['op']})',
-    );
+    runner.check(step['expect']! as _Json, before, 'step $i (${step['op']})');
     for (final MapEntry<ResolvedBinding<Object?>, Object?> entry
         in bindings.entries) {
       expect(
@@ -176,11 +164,11 @@ class _RecordingFunction extends FunctionImplementation {
   final List<_Json> calls;
 
   _RecordingFunction(FunctionApi api, this.calls)
-      : super(
-          name: api.name,
-          argumentSchema: api.argumentSchema,
-          returnType: api.returnType,
-        );
+    : super(
+        name: api.name,
+        argumentSchema: api.argumentSchema,
+        returnType: api.returnType,
+      );
 
   @override
   Object? execute(
@@ -215,9 +203,8 @@ class _Runner {
   _Runner(_Json fixture) {
     final CatalogApi parsed = Catalog.fromJson(
       jsonDecode(
-        File(
-          resolveConformancePath(fixture['catalog']! as String),
-        ).readAsStringSync(),
+        File(resolveConformancePath(fixture['catalog']! as String))
+            .readAsStringSync(),
       ) as _Json,
     );
     catalog = Catalog<ComponentApi, FunctionImplementation>(
@@ -314,8 +301,11 @@ class _Runner {
       createdSubscriptions.add(
         node.props.subscribe((_) {
           if (subscribing) return;
-          createdEmissions.update(node, (count) => count + 1,
-              ifAbsent: () => 1);
+          createdEmissions.update(
+            node,
+            (count) => count + 1,
+            ifAbsent: () => 1,
+          );
           _watchCreatedNodes(nodes());
         }),
       );
@@ -379,8 +369,8 @@ class _Runner {
       final component = value! as _Json;
       final id = component['id']! as String;
       final type = component['component']! as String;
-      final Map<String, Object?>? metadata =
-          (component['metadata'] as Map?)?.cast<String, Object?>();
+      final Map<String, Object?>? metadata = (component['metadata'] as Map?)
+          ?.cast<String, Object?>();
       final properties = Map<String, Object?>.from(component)
         ..remove('id')
         ..remove('component')
@@ -416,13 +406,13 @@ class _Runner {
       case 'process_messages':
         processor.processMessages(step['messages']! as List<Object?>);
       case 'write':
-        final Object? binding =
-            before[step['node']]!.props.peek()[step['property']];
+        final Object? binding = before[step['node']]!.props
+            .peek()[step['property']];
         expect(binding, isA<WritableBinding<Object?>>());
         (binding! as WritableBinding<Object?>).set(_copy(step['value']));
       case 'invoke':
-        final Object? action =
-            before[step['node']]!.props.peek()[step['property']];
+        final Object? action = before[step['node']]!.props
+            .peek()[step['property']];
         expect(action, isA<NodeAction>());
         final Object? rawMeta = step['metadata'];
         await (action! as NodeAction)(
@@ -578,8 +568,8 @@ class _Runner {
       'node:resolve_nodes',
     );
     final Map<String, Object?> rawProps = node.props.peek();
-    final String nodeType = node.state == NodeState.cyclic &&
-            node.type == placeholderType
+    final String nodeType =
+        node.state == NodeState.cyclic && node.type == placeholderType
         ? (surface?.componentsModel.get(node.componentId)?.type ?? node.type)
         : node.type;
     final actual = <String, Object?>{

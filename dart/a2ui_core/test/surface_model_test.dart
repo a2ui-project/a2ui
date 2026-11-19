@@ -45,8 +45,10 @@ void main() {
 
       // Create a new surface with the same ID and verify the group
       // only forwards from the new one (not a leaked old listener).
-      final surface2 =
-          SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog);
+      final surface2 = SurfaceModel<ComponentApi>(
+        's1',
+        defaultCatalog: catalog,
+      );
       group.addSurface(surface2);
 
       actionCount = 0;
@@ -59,8 +61,7 @@ void main() {
       expect(actionCount, 1);
     });
 
-    test(
-        'detachSurface removes a surface without disposing of it, and '
+    test('detachSurface removes a surface without disposing of it, and '
         'addSurface puts the same object back', () {
       final group = SurfaceGroupModel<ComponentApi>();
       final surface = SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog)
@@ -95,34 +96,28 @@ void main() {
       group.dispose();
     });
 
-    test(
-      'reports functionCall and call actions to onError',
-      () async {
-        final surface = SurfaceModel<ComponentApi>(
-          's1',
-          defaultCatalog: catalog,
-        );
-        var actionCount = 0;
-        final errors = <A2uiRendererError>[];
-        surface.onAction.subscribe((_) => actionCount++);
-        surface.onError.subscribe(errors.add);
+    test('reports functionCall and call actions to onError', () async {
+      final surface = SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog);
+      var actionCount = 0;
+      final errors = <A2uiRendererError>[];
+      surface.onAction.subscribe((_) => actionCount++);
+      surface.onError.subscribe(errors.add);
 
-        await surface.dispatchAction({
-          'functionCall': {'call': 'doTask', 'args': <String, dynamic>{}},
-        }, 'c1');
-        expect(actionCount, 0);
-        expect(errors, hasLength(1));
-        expect(errors.last.code, 'INVALID_ACTION');
+      await surface.dispatchAction({
+        'functionCall': {'call': 'doTask', 'args': <String, dynamic>{}},
+      }, 'c1');
+      expect(actionCount, 0);
+      expect(errors, hasLength(1));
+      expect(errors.last.code, 'INVALID_ACTION');
 
-        await surface.dispatchAction({
-          'call': 'doTask',
-          'args': <String, dynamic>{},
-        }, 'c1');
-        expect(actionCount, 0);
-        expect(errors, hasLength(2));
-        expect(errors.last.code, 'INVALID_ACTION');
-      },
-    );
+      await surface.dispatchAction({
+        'call': 'doTask',
+        'args': <String, dynamic>{},
+      }, 'c1');
+      expect(actionCount, 0);
+      expect(errors, hasLength(2));
+      expect(errors.last.code, 'INVALID_ACTION');
+    });
 
     test('dispatches direct name action with userMessage', () {
       final surface = SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog);
@@ -158,27 +153,32 @@ void main() {
       expect(dispatched!.userMessage, isNull);
     });
 
-    test('reports an event whose name is missing, empty, or not a string',
-        () async {
-      final surface = SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog);
-      A2uiRendererAction? dispatched;
-      final errors = <A2uiRendererError>[];
-      surface.onAction.subscribe((action) => dispatched = action);
-      surface.onError.subscribe(errors.add);
+    test(
+      'reports an event whose name is missing, empty, or not a string',
+      () async {
+        final surface = SurfaceModel<ComponentApi>(
+          's1',
+          defaultCatalog: catalog,
+        );
+        A2uiRendererAction? dispatched;
+        final errors = <A2uiRendererError>[];
+        surface.onAction.subscribe((action) => dispatched = action);
+        surface.onError.subscribe(errors.add);
 
-      await surface.dispatchAction({
-        'event': {'name': 42},
-      }, 'c1');
-      await surface.dispatchAction({'name': 42}, 'c1');
-      await surface.dispatchAction({
-        'event': {'name': ''},
-      }, 'c1');
-      await surface.dispatchAction({'foo': 'bar'}, 'c1');
+        await surface.dispatchAction({
+          'event': {'name': 42},
+        }, 'c1');
+        await surface.dispatchAction({'name': 42}, 'c1');
+        await surface.dispatchAction({
+          'event': {'name': ''},
+        }, 'c1');
+        await surface.dispatchAction({'foo': 'bar'}, 'c1');
 
-      expect(dispatched, isNull);
-      expect(errors, hasLength(4));
-      expect(errors.every((e) => e.code == 'INVALID_ACTION'), isTrue);
-    });
+        expect(dispatched, isNull);
+        expect(errors, hasLength(4));
+        expect(errors.every((e) => e.code == 'INVALID_ACTION'), isTrue);
+      },
+    );
 
     test('throws A2uiStateError when a surface id is added twice', () {
       final group = SurfaceGroupModel<ComponentApi>();
@@ -197,12 +197,11 @@ void main() {
     Catalog<ComponentApi, FunctionImplementation> catalogNamed(
       String id, {
       A2uiProtocolVersion? protocolVersion,
-    }) =>
-        Catalog<ComponentApi, FunctionImplementation>(
-          id: id,
-          components: const [],
-          protocolVersion: protocolVersion,
-        );
+    }) => Catalog<ComponentApi, FunctionImplementation>(
+      id: id,
+      components: const [],
+      protocolVersion: protocolVersion,
+    );
 
     Matcher catalogError(String message, {String? catalogId}) =>
         isA<A2uiCatalogError>()
@@ -273,10 +272,12 @@ void main() {
         () => SurfaceModel<ComponentApi>(
           's1',
           protocolVersion: '1.0',
-          defaultCatalog:
-              catalogNamed('basic', protocolVersion: A2uiProtocolVersion.v1_0),
+          defaultCatalog: catalogNamed(
+            'basic',
+            protocolVersion: A2uiProtocolVersion.v1_0,
+          ),
           availableCatalogs: [
-            catalogNamed('old', protocolVersion: A2uiProtocolVersion.v0_9)
+            catalogNamed('old', protocolVersion: A2uiProtocolVersion.v0_9),
           ],
         ),
         throwsA(
@@ -293,8 +294,10 @@ void main() {
       final surface = SurfaceModel<ComponentApi>(
         's1',
         protocolVersion: 'v0.9',
-        defaultCatalog:
-            catalogNamed('a', protocolVersion: A2uiProtocolVersion.v0_9_1),
+        defaultCatalog: catalogNamed(
+          'a',
+          protocolVersion: A2uiProtocolVersion.v0_9_1,
+        ),
         availableCatalogs: [
           catalogNamed('b', protocolVersion: A2uiProtocolVersion.v0_9),
           catalogNamed('c'),
@@ -320,8 +323,10 @@ void main() {
         () => SurfaceModel<ComponentApi>(
           's1',
           protocolVersion: '1.0',
-          defaultCatalog:
-              catalogNamed('basic', protocolVersion: A2uiProtocolVersion.v1_0),
+          defaultCatalog: catalogNamed(
+            'basic',
+            protocolVersion: A2uiProtocolVersion.v1_0,
+          ),
           availableCatalogs: [catalogNamed('v09')],
         ),
         throwsA(
@@ -369,10 +374,7 @@ void main() {
       await surface.dispatchAction({
         'event': {'name': 'wrapped', 'catalogId': 'b'},
       }, 'c1');
-      await surface.dispatchAction({
-        'name': 'direct',
-        'catalogId': 'c',
-      }, 'c1');
+      await surface.dispatchAction({'name': 'direct', 'catalogId': 'c'}, 'c1');
       await surface.dispatchAction({
         'event': {'name': 'plain'},
       }, 'c1');
@@ -416,72 +418,76 @@ void main() {
       });
     });
 
-    test('supports metadata accessors, signals, events, and extension helpers',
-        () async {
-      final surface = SurfaceModel<ComponentApi>('s1');
-      final changes = <Map<String, Object?>?>[];
-      surface.onMetadataChanged.subscribe(changes.add);
+    test(
+      'supports metadata accessors, signals, events, and extension helpers',
+      () async {
+        final surface = SurfaceModel<ComponentApi>('s1');
+        final changes = <Map<String, Object?>?>[];
+        surface.onMetadataChanged.subscribe(changes.add);
 
-      expect(surface.metadata, isNull);
-      expect(surface.extensions, isNull);
-      expect(surface.metadataSignal.value, isNull);
+        expect(surface.metadata, isNull);
+        expect(surface.extensions, isNull);
+        expect(surface.metadataSignal.value, isNull);
 
-      surface.setExtension('ext_a', 1);
-      await Future<void>.microtask(() {});
-      expect(surface.metadata, {
-        'extensions': {'ext_a': 1},
-      });
-      expect(surface.extensions, {'ext_a': 1});
-      expect(surface.metadataSignal.value, {
-        'extensions': {'ext_a': 1},
-      });
-      expect(changes, hasLength(1));
+        surface.setExtension('ext_a', 1);
+        await Future<void>.microtask(() {});
+        expect(surface.metadata, {
+          'extensions': {'ext_a': 1},
+        });
+        expect(surface.extensions, {'ext_a': 1});
+        expect(surface.metadataSignal.value, {
+          'extensions': {'ext_a': 1},
+        });
+        expect(changes, hasLength(1));
 
-      // No-op when setting identical value
-      surface.setExtension('ext_a', 1);
-      await Future<void>.microtask(() {});
-      expect(changes, hasLength(1));
+        // No-op when setting identical value
+        surface.setExtension('ext_a', 1);
+        await Future<void>.microtask(() {});
+        expect(changes, hasLength(1));
 
-      // setExtension with null stores null
-      surface.setExtension('ext_a', null);
-      await Future<void>.microtask(() {});
-      expect(surface.extensions, {'ext_a': null});
-      expect(changes, hasLength(2));
+        // setExtension with null stores null
+        surface.setExtension('ext_a', null);
+        await Future<void>.microtask(() {});
+        expect(surface.extensions, {'ext_a': null});
+        expect(changes, hasLength(2));
 
-      // removeExtension deletes key and collapses empty metadata to null
-      surface.removeExtension('ext_a');
-      await Future<void>.microtask(() {});
-      expect(surface.metadata, isNull);
-      expect(surface.extensions, isNull);
-      expect(surface.metadataSignal.value, isNull);
-      expect(changes, hasLength(3));
-      expect(changes.last, isNull);
+        // removeExtension deletes key and collapses empty metadata to null
+        surface.removeExtension('ext_a');
+        await Future<void>.microtask(() {});
+        expect(surface.metadata, isNull);
+        expect(surface.extensions, isNull);
+        expect(surface.metadataSignal.value, isNull);
+        expect(changes, hasLength(3));
+        expect(changes.last, isNull);
 
-      // Empty metadata envelopes normalize to null via setter
-      surface.metadata = <String, Object?>{};
-      expect(surface.metadata, isNull);
-      surface.metadata = <String, Object?>{'extensions': <String, Object?>{}};
-      expect(surface.metadata, isNull);
+        // Empty metadata envelopes normalize to null via setter
+        surface.metadata = <String, Object?>{};
+        expect(surface.metadata, isNull);
+        surface.metadata = <String, Object?>{'extensions': <String, Object?>{}};
+        expect(surface.metadata, isNull);
 
-      expect(
-        () => surface.setExtension('bad-key', 1),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
+        expect(
+          () => surface.setExtension('bad-key', 1),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      },
+    );
 
-    test('dispatches action with UTC timestamp that serializes with trailing Z',
-        () {
-      final surface = SurfaceModel<ComponentApi>('s1');
-      A2uiRendererAction? dispatched;
-      surface.onAction.subscribe((action) => dispatched = action);
+    test(
+      'dispatches action with UTC timestamp that serializes with trailing Z',
+      () {
+        final surface = SurfaceModel<ComponentApi>('s1');
+        A2uiRendererAction? dispatched;
+        surface.onAction.subscribe((action) => dispatched = action);
 
-      surface.dispatchAction({
-        'event': {'name': 'submit'},
-      }, 'c1');
+        surface.dispatchAction({
+          'event': {'name': 'submit'},
+        }, 'c1');
 
-      expect(dispatched, isNotNull);
-      expect(dispatched!.timestamp.isUtc, isTrue);
-      expect(dispatched!.toJson()['timestamp'], endsWith('Z'));
-    });
+        expect(dispatched, isNotNull);
+        expect(dispatched!.timestamp.isUtc, isTrue);
+        expect(dispatched!.toJson()['timestamp'], endsWith('Z'));
+      },
+    );
   });
 }

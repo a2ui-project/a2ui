@@ -189,8 +189,8 @@ class FunctionApi {
     AllowedCallers? allowedCallers,
     bool? requiresUserActivation,
     this.definition,
-  })  : declaredAllowedCallers = allowedCallers,
-        declaredRequiresUserActivation = requiresUserActivation;
+  }) : declaredAllowedCallers = allowedCallers,
+       declaredRequiresUserActivation = requiresUserActivation;
 
   /// Who may invoke this function. An agent's `callRendererFunction` is
   /// refused unless this allows the agent.
@@ -309,16 +309,9 @@ class AgentFunction extends FunctionApi {
   /// `allowedCallers: agentOnly`, which a renderer may never call, or
   /// `requiresUserActivation: true` with `allowedCallers` other than
   /// `rendererOnly`, which the v1.0 catalog schema forbids.
-  factory AgentFunction.fromApi(
-    FunctionApi api,
-    AgentFunctionHandler handler,
-  ) {
+  factory AgentFunction.fromApi(FunctionApi api, AgentFunctionHandler handler) {
     if (api is AgentFunction) {
-      throw ArgumentError.value(
-        api,
-        'api',
-        'api is already an AgentFunction.',
-      );
+      throw ArgumentError.value(api, 'api', 'api is already an AgentFunction.');
     }
     if (api.allowedCallers == AllowedCallers.agentOnly) {
       throw A2uiCatalogError(
@@ -540,22 +533,23 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     String? schemaDialect = jsonSchemaDialect,
     Map<String, Object?> definitions = const {},
   }) : this._(
-          id: id,
-          components: components,
-          functions: functions,
-          themeSchema: themeSchema,
-          schemaDialect: schemaDialect,
-          schemaId: schemaId,
-          title: title,
-          description: description,
-          protocolVersion: protocolVersion,
-          declaredProtocolVersion:
-              declaresProtocolVersion ? protocolVersion?.semverValue : null,
-          instructions: instructions,
-          definitions: definitions,
-          otherFields: const {},
-          layout: const _DocumentLayout(),
-        );
+         id: id,
+         components: components,
+         functions: functions,
+         themeSchema: themeSchema,
+         schemaDialect: schemaDialect,
+         schemaId: schemaId,
+         title: title,
+         description: description,
+         protocolVersion: protocolVersion,
+         declaredProtocolVersion: declaresProtocolVersion
+             ? protocolVersion?.semverValue
+             : null,
+         instructions: instructions,
+         definitions: definitions,
+         otherFields: const {},
+         layout: const _DocumentLayout(),
+       );
 
   Catalog._({
     required this.id,
@@ -567,22 +561,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     required this.title,
     required this.description,
     required this.protocolVersion,
-    required String? declaredProtocolVersion,
+    required this._declaredProtocolVersion,
     required this.instructions,
     required Map<String, Object?> definitions,
     required Map<String, Object?> otherFields,
-    required _DocumentLayout layout,
-  })  : components = _indexComponents(id, components),
-        functions = _indexFunctions(
-          id,
-          functions,
-          protocolVersion,
-          definitions,
-        ),
-        definitions = _frozenCopy(definitions)! as Map<String, Object?>,
-        _declaredProtocolVersion = declaredProtocolVersion,
-        _otherFields = _frozenCopy(otherFields)! as Map<String, Object?>,
-        _layout = layout;
+    required this._layout,
+  }) : components = _indexComponents(id, components),
+       functions = _indexFunctions(id, functions, protocolVersion, definitions),
+       definitions = _frozenCopy(definitions)! as Map<String, Object?>,
+       _otherFields = _frozenCopy(otherFields)! as Map<String, Object?>;
 
   /// Adds [agentFunctions] to [functions].
   ///
@@ -663,14 +650,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
   static List<T> _stripAgentFunctions<T extends FunctionApi>(
     Iterable<T> functions,
-  ) =>
-      <T>[
-        for (final T fn in functions)
-          if (fn is! AgentFunction)
-            fn
-          else if (fn.declaration case final T decl)
-            decl,
-      ];
+  ) => <T>[
+    for (final T fn in functions)
+      if (fn is! AgentFunction)
+        fn
+      else if (fn.declaration case final T decl)
+        decl,
+  ];
 
   static Map<String, T> _indexComponents<T extends ComponentApi>(
     String catalogId,
@@ -981,8 +967,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         catalogId: rawId,
       );
     }
-    final Map<String, Object?> defs =
-        rawDefs is Map ? rawDefs.cast<String, Object?>() : const {};
+    final Map<String, Object?> defs = rawDefs is Map
+        ? rawDefs.cast<String, Object?>()
+        : const {};
 
     final List<ComponentApi> components = _parseComponents(
       json['components'],
@@ -1010,12 +997,14 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     // kept when it is exactly the one this catalog computes. Any other
     // definition of the name, such as the MCP catalog's open
     // `anyComponent`, is a definition of its own.
-    final bool componentUnion = defs.containsKey('anyComponent') &&
+    final bool componentUnion =
+        defs.containsKey('anyComponent') &&
         _jsonEquals(
           defs['anyComponent'],
           _componentUnionOf([for (final c in components) c.name]),
         );
-    final bool functionUnion = defs.containsKey('anyFunction') &&
+    final bool functionUnion =
+        defs.containsKey('anyFunction') &&
         _jsonEquals(
           defs['anyFunction'],
           _functionUnionOf([for (final f in functions) f.name]),
@@ -1198,11 +1187,11 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         yield* propertyNames(schema);
         return;
       }
-      final Iterable<MapEntry<Object?, Object?>> paramEntries =
-          schema.entries.where(
-        (MapEntry<Object?, Object?> e) =>
-            e.key is String && !(e.key! as String).startsWith(r'$'),
-      );
+      final Iterable<MapEntry<Object?, Object?>> paramEntries = schema.entries
+          .where(
+            (MapEntry<Object?, Object?> e) =>
+                e.key is String && !(e.key! as String).startsWith(r'$'),
+          );
       if (schema['type'] is! String &&
           !schema.containsKey(r'$ref') &&
           !schema.containsKey('oneOf') &&
@@ -1231,21 +1220,21 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final Object? functions = json['functions'];
     final Iterable<(String, Object?)> definitions = switch (functions) {
       final Map<Object?, Object?> map => [
-          for (final MapEntry<Object?, Object?> entry in map.entries)
-            (
-              entry.key! as String,
-              switch (entry.value) {
-                {'properties': {'args': final Object? args}} => args,
-                {'parameters': final Object? args} => args,
-                _ => null,
-              },
-            ),
-        ],
+        for (final MapEntry<Object?, Object?> entry in map.entries)
+          (
+            entry.key! as String,
+            switch (entry.value) {
+              {'properties': {'args': final Object? args}} => args,
+              {'parameters': final Object? args} => args,
+              _ => null,
+            },
+          ),
+      ],
       final List<Object?> list => [
-          for (final Object? entry in list)
-            if (entry case {'name': final String name})
-              (name, entry['parameters']),
-        ],
+        for (final Object? entry in list)
+          if (entry case {'name': final String name})
+            (name, entry['parameters']),
+      ],
       _ => const <(String, Object?)>[],
     };
     for (final (String name, Object? args) in definitions) {
@@ -1467,10 +1456,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         null => const <String, Object?>{},
         final Map<Object?, Object?> map => map.cast<String, Object?>(),
         _ => throw A2uiCatalogError(
-            "Catalog function '${entry.key}' has a non-object 'properties' "
-            '(got ${rawProperties.runtimeType}).',
-            catalogId: catalogId,
-          ),
+          "Catalog function '${entry.key}' has a non-object 'properties' "
+          '(got ${rawProperties.runtimeType}).',
+          catalogId: catalogId,
+        ),
       };
       final Object? args = properties['args'] ?? schema['parameters'];
       final Object? returnType = properties['returnType'];
@@ -1483,10 +1472,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       }
       final String returnTypeStr =
           (returnType is Map ? returnType[r'const'] as String? : null) ??
-              (schema['returnType'] is String
-                  ? schema['returnType'] as String
-                  : null) ??
-              'any';
+          (schema['returnType'] is String
+              ? schema['returnType'] as String
+              : null) ??
+          'any';
       final AllowedCallers? allowedCallers = _parseAllowedCallers(
         schema['allowedCallers'],
         fnName,
@@ -1518,15 +1507,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   static void _checkAllUserActivationCallers(Object? raw, String catalogId) {
     final Iterable<(String, Map<Object?, Object?>)> definitions = switch (raw) {
       final List<Object?> list => [
-          for (final Object? entry in list)
-            if (entry is Map && entry['name'] is String)
-              (entry['name']! as String, entry),
-        ],
+        for (final Object? entry in list)
+          if (entry is Map && entry['name'] is String)
+            (entry['name']! as String, entry),
+      ],
       final Map<Object?, Object?> map => [
-          for (final MapEntry<Object?, Object?> entry in map.entries)
-            if (entry.key is String && entry.value is Map)
-              (entry.key! as String, entry.value! as Map<Object?, Object?>),
-        ],
+        for (final MapEntry<Object?, Object?> entry in map.entries)
+          if (entry.key is String && entry.value is Map)
+            (entry.key! as String, entry.value! as Map<Object?, Object?>),
+      ],
       _ => const [],
     };
     for (final (String name, Map<Object?, Object?> definition) in definitions) {
@@ -1568,8 +1557,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final Map<String, Object?> map = raw is Map<String, Object?>
         ? raw
         : _frozenCopy(_asSchemaMap(raw ?? const <String, Object?>{}))!
-            as Map<String, Object?>;
-    final normalized = map.isNotEmpty &&
+              as Map<String, Object?>;
+    final normalized =
+        map.isNotEmpty &&
             !map.containsKey('properties') &&
             map['type'] is! String &&
             !map.containsKey(r'$ref') &&
@@ -1650,17 +1640,17 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// so a malformed definition fails there. To look up one component, use
   /// [resolvedComponentSchema].
   Map<String, Schema> get resolvedComponentSchemas => Map.unmodifiable({
-        for (final MapEntry<String, C> entry in components.entries)
-          entry.key: _flatOf(entry.value).schema,
-      });
+    for (final MapEntry<String, C> entry in components.entries)
+      entry.key: _flatOf(entry.value).schema,
+  });
 
   /// The flattened schema of the component named [name], as
   /// [resolvedComponentSchemas] describes, or null when the catalog has no
   /// such component.
   Schema? resolvedComponentSchema(String name) => switch (components[name]) {
-        final C component => _flatOf(component).schema,
-        null => null,
-      };
+    final C component => _flatOf(component).schema,
+    null => null,
+  };
 
   /// The property names that [name]'s own schema declares (excluding
   /// `ComponentCommon` and `Checkable` mixins and inline envelope stubs).
@@ -1675,9 +1665,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// array property.
   @internal
   bool isComponentCheckable(String name) => switch (components[name]) {
-        final C component => _flatOf(component).isCheckable,
-        null => false,
-      };
+    final C component => _flatOf(component).isCheckable,
+    null => false,
+  };
 
   static const Set<String> _v1ComponentEnvelopeKeys = {
     '@catalogId',
@@ -1797,7 +1787,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final cleanSchema = <String, Object?>{
       for (final MapEntry<String, Object?> entry in compMap.entries)
         if (!merged.contains(entry.key)) entry.key: entry.value,
-      if (compDesc != null) 'description': compDesc,
+      'description': ?compDesc,
       'properties': {
         for (final MapEntry<String, Object?> entry in orderedProperties.entries)
           entry.key: _normalizePropertyRefs(
@@ -1833,7 +1823,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   }
 
   static ({Set<String> customProperties, bool isCheckable})
-      _inspectAuthoredComponent(
+  _inspectAuthoredComponent(
     Map<String, Object?> compMap,
     Map<String, Object?> rootDoc,
   ) {
@@ -1983,19 +1973,22 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       if (ref is String && ref.startsWith('#/')) {
         final String defName = ref.startsWith(r'#/$defs/')
             ? ref
-                .substring(8)
-                .split('/')
-                .first
-                .replaceAll('~1', '/')
-                .replaceAll('~0', '~')
+                  .substring(8)
+                  .split('/')
+                  .first
+                  .replaceAll('~1', '/')
+                  .replaceAll('~0', '~')
             : '';
-        final bool keep = ref.startsWith(r'#/$defs/') &&
+        final bool keep =
+            ref.startsWith(r'#/$defs/') &&
             !localDefNames.contains(defName) &&
             (authored.contains(defName) || isCommonTypeDef(defName));
         if (!keep) {
           if (visited.contains(ref)) return current;
-          final Object? target =
-              followJsonPointer(lookupRoot, ref.substring(1));
+          final Object? target = followJsonPointer(
+            lookupRoot,
+            ref.substring(1),
+          );
           if (target is! Map) {
             if (ref.startsWith(r'#/$defs/')) return current;
             throw A2uiCatalogError("Unresolvable schema reference: '$ref'");
@@ -2120,8 +2113,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                   'description': atLeastV1
                       ? _checksDescriptionV1_0()
                       : 'A list of checks to perform. These are '
-                          'function calls that must return a boolean '
-                          'indicating validity.',
+                            'function calls that must return a boolean '
+                            'indicating validity.',
                   'items': {
                     r'$ref': r'common_types.json#/$defs/CheckRule',
                     'commonTypesRef': r'common_types.json#/$defs/CheckRule',
@@ -2223,7 +2216,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     String pointer,
   ) {
     if (!pointer.startsWith('#/')) return null;
-    final Iterable<String> segments = pointer.substring(2).split('/').map(
+    final Iterable<String> segments = pointer
+        .substring(2)
+        .split('/')
+        .map(
           (s) => s.replaceAllMapped(
             RegExp(r'~([01])'),
             (m) => m[1] == '1' ? '/' : '~',
@@ -2253,7 +2249,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       ];
     }
     if (node is! Map) return node;
-    final bool stripHere = !isPropertiesMap &&
+    final bool stripHere =
+        !isPropertiesMap &&
         node['catalogDefRef'] is String &&
         (_inlinedCatalogDefNodes[node] ?? false);
     return <String, Object?>{
@@ -2290,7 +2287,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     }
     if (node is! Map) return node;
 
-    final bool isCatalogDefNode = !isPropertiesMap &&
+    final bool isCatalogDefNode =
+        !isPropertiesMap &&
         node['catalogDefRef'] is String &&
         (!isReadSchema || (_inlinedCatalogDefNodes[node] ?? false));
 
@@ -2300,8 +2298,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
     if (isCatalogDefNode) {
       final targetRef = map['catalogDefRef']! as String;
-      final Map<String, Object?>? targetDef =
-          _lookupDefInMap(targetRef, definitions);
+      final Map<String, Object?>? targetDef = _lookupDefInMap(
+        targetRef,
+        definitions,
+      );
       if (targetDef != null) {
         map = <String, Object?>{
           for (final MapEntry<String, Object?> entry in targetDef.entries)
@@ -2357,8 +2357,11 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final Map<String, Object?> targetMap = target.cast<String, Object?>();
     final Object? innerRef = targetMap[r'$ref'];
     if (innerRef is String && innerRef.startsWith(r'#/$defs/')) {
-      final Map<String, Object?>? resolvedInner =
-          _lookupDefInMap(innerRef, defs, seen);
+      final Map<String, Object?>? resolvedInner = _lookupDefInMap(
+        innerRef,
+        defs,
+        seen,
+      );
       if (resolvedInner != null) {
         return <String, Object?>{
           for (final MapEntry<String, Object?> entry in resolvedInner.entries)
@@ -2488,8 +2491,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   Map<String, Object?> _buildDocument() {
     final _DocumentLayout layout = _layout;
     final bool themeInDefs = layout.themeInDefs ?? true;
-    final Object? theme =
-        themeSchema == null ? null : _asWritten(themeSchema!.value);
+    final Object? theme = themeSchema == null
+        ? null
+        : _asWritten(themeSchema!.value);
     final defs = <String, Object?>{
       for (final MapEntry<String, Object?> entry in definitions.entries)
         if (entry.key != 'anyFunction') entry.key: _deepCopyValue(entry.value),
@@ -2579,13 +2583,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final Map<String, Object?> rawArgs = function.argumentSchema.value;
     final Object? args =
         !(_readSchemas[rawArgs] ?? false) && rawArgs.containsKey(r'$defs')
-            ? _asWritten(
-                _keepAuthoredDefRefs(
-                  rawArgs,
-                  <String, Object?>{r'$defs': definitions},
-                ),
-              )
-            : _asWritten(rawArgs);
+        ? _asWritten(
+            _keepAuthoredDefRefs(rawArgs, <String, Object?>{
+              r'$defs': definitions,
+            }),
+          )
+        : _asWritten(rawArgs);
     final required = <String>[
       callKey,
       if (_hasRequiredParameters(function.argumentSchema, definitions)) 'args',
@@ -2626,13 +2629,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final Map<String, Object?> rawArgs = function.argumentSchema.value;
     final Object? parameters =
         !(_readSchemas[rawArgs] ?? false) && rawArgs.containsKey(r'$defs')
-            ? _asWritten(
-                _keepAuthoredDefRefs(
-                  rawArgs,
-                  <String, Object?>{r'$defs': definitions},
-                ),
-              )
-            : _asWritten(rawArgs);
+        ? _asWritten(
+            _keepAuthoredDefRefs(rawArgs, <String, Object?>{
+              r'$defs': definitions,
+            }),
+          )
+        : _asWritten(rawArgs);
     return <String, Object?>{
       'name': name,
       if (function.description != null) 'description': function.description,
@@ -2648,8 +2650,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// defined in code.
   Object? _asWritten(Object? node) =>
       node is Map && (_readSchemas[node] ?? false)
-          ? _unbundleInlinedCatalogDefs(node)
-          : _unbundleMarkers(node);
+      ? _unbundleInlinedCatalogDefs(node)
+      : _unbundleMarkers(node);
 
   /// Marks the schemas [Catalog.fromJson] read from a document, which
   /// [toJson] writes back as they are even after [copyWith] moves them into
@@ -2658,8 +2660,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
   /// Marks property subschemas into which [Catalog.fromJson] inlined a leaf
   /// `#/$defs/<Name>` definition.
-  static final Expando<bool> _inlinedCatalogDefNodes =
-      Expando('inlined catalogDefRef nodes');
+  static final Expando<bool> _inlinedCatalogDefNodes = Expando(
+    'inlined catalogDefRef nodes',
+  );
 
   /// [schema], a frozen schema read from a document, marked as read.
   static Map<String, Object?> _markRead(Map<String, Object?> schema) {
@@ -2693,8 +2696,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           )) {
         final String tail = rawRef.substring(8);
         if (!tail.contains('/')) {
-          final String defName =
-              tail.replaceAll('~1', '/').replaceAll('~0', '~');
+          final String defName = tail
+              .replaceAll('~1', '/')
+              .replaceAll('~0', '~');
           if (defs.containsKey(defName) &&
               !_builtDefNames.contains(defName) &&
               !isCommonTypeDef(defName) &&
@@ -2750,8 +2754,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     if ((_inlinedCatalogDefNodes[node] ?? false) &&
         node['catalogDefRef'] is String) {
       final catalogDefMarker = node['catalogDefRef']! as String;
-      final Map<String, Object?>? targetDef =
-          _lookupDefInMap(catalogDefMarker, definitions);
+      final Map<String, Object?>? targetDef = _lookupDefInMap(
+        catalogDefMarker,
+        definitions,
+      );
       return <String, Object?>{
         r'$ref': catalogDefMarker,
         for (final MapEntry<Object?, Object?> entry in node.entries)
@@ -2790,8 +2796,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       }
       final Object? catalogDefMarker = node['catalogDefRef'];
       if (catalogDefMarker is String) {
-        final Map<String, Object?>? targetDef =
-            _lookupDefInMap(catalogDefMarker, definitions);
+        final Map<String, Object?>? targetDef = _lookupDefInMap(
+          catalogDefMarker,
+          definitions,
+        );
         return <String, Object?>{
           r'$ref': catalogDefMarker,
           for (final MapEntry<Object?, Object?> entry in node.entries)
@@ -2874,26 +2882,26 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// Schema requires `oneOf` to list at least one schema.
   static Map<String, Object?> _componentUnionOf(Iterable<String> names) =>
       names.isEmpty
-          ? {'not': <String, Object?>{}}
-          : {
-              'oneOf': [
-                for (final String name in names)
-                  {r'$ref': '#/components/${_escapePointer(name)}'},
-              ],
-              'discriminator': {'propertyName': 'component'},
-            };
+      ? {'not': <String, Object?>{}}
+      : {
+          'oneOf': [
+            for (final String name in names)
+              {r'$ref': '#/components/${_escapePointer(name)}'},
+          ],
+          'discriminator': {'propertyName': 'component'},
+        };
 
   /// The union of the functions [names], `$defs/anyFunction`, or
   /// `{"not": {}}` with no functions.
   static Map<String, Object?> _functionUnionOf(Iterable<String> names) =>
       names.isEmpty
-          ? {'not': <String, Object?>{}}
-          : {
-              'oneOf': [
-                for (final String name in names)
-                  {r'$ref': '#/functions/${_escapePointer(name)}'},
-              ],
-            };
+      ? {'not': <String, Object?>{}}
+      : {
+          'oneOf': [
+            for (final String name in names)
+              {r'$ref': '#/functions/${_escapePointer(name)}'},
+          ],
+        };
 
   static String _escapePointer(String segment) =>
       segment.replaceAll('~', '~0').replaceAll('/', '~1');
@@ -2931,8 +2939,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     // The declared version, in the bare semantic version form the catalog
     // definition schema requires; a fallback passed to fromJson is not
     // emitted.
-    final String? emittedVersion =
-        _declaredProtocolVersion == null ? null : protocolVersion?.semverValue;
+    final String? emittedVersion = _declaredProtocolVersion == null
+        ? null
+        : protocolVersion?.semverValue;
 
     // The catalog's own `$defs` that entries reference are copied too, so
     // that no reference dangles. A standard definition of the same name
@@ -2955,10 +2964,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         } else if (authoredDefs.containsKey(refName) &&
             !builtDefs.contains(refName)) {
           final Object? copy = _deepCopyValue(
-            _keepAuthoredDefRefs(
-              authoredDefs[refName],
-              _document,
-            ),
+            _keepAuthoredDefRefs(authoredDefs[refName], _document),
           );
           _restoreRefs(copy);
           defs[refName] = copy;
@@ -2976,7 +2982,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
     return {
       r'$schema': jsonSchemaDialect,
-      if (emittedVersion != null) 'protocolVersion': emittedVersion,
+      'protocolVersion': ?emittedVersion,
       'catalogId': id,
       if (instructions != null) 'instructions': instructions,
       'components': serializedComponents,
@@ -3210,8 +3216,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         if (map['catalogDefRef'] is String &&
             (!isReadSchema || (_inlinedCatalogDefNodes[map] ?? false))) {
           final target = map['catalogDefRef'] as String;
-          final Map<String, Object?>? targetDef =
-              _lookupDefInMap(target, definitions);
+          final Map<String, Object?>? targetDef = _lookupDefInMap(
+            target,
+            definitions,
+          );
           map.removeWhere(
             (k, v) =>
                 !_annotationKeywords.contains(k) ||
@@ -3275,13 +3283,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     Schema? themeSchema,
     A2uiProtocolVersion? protocolVersion,
   }) {
-    final List<C> newComponents =
-        (components ?? this.components.values).toList();
+    final List<C> newComponents = (components ?? this.components.values)
+        .toList();
     final List<F> baseFunctions = functions != null
         ? functions.toList()
         : agentFunctions != null
-            ? _stripAgentFunctions<F>(this.functions.values)
-            : this.functions.values.toList();
+        ? _stripAgentFunctions<F>(this.functions.values)
+        : this.functions.values.toList();
     final List<F> newFunctions = agentFunctions != null
         ? _withAgentFunctions<F>(id, baseFunctions, agentFunctions)
         : baseFunctions;
@@ -3308,8 +3316,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       protocolVersion: nextVersion,
       declaredProtocolVersion:
           protocolVersion == null || protocolVersion == this.protocolVersion
-              ? _declaredProtocolVersion
-              : protocolVersion.semverValue,
+          ? _declaredProtocolVersion
+          : protocolVersion.semverValue,
       instructions: instructions,
       definitions: {
         for (final MapEntry<String, Object?> entry in nextDefs.entries)
@@ -3327,17 +3335,17 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         themeInDefs: _layout.themeInDefs,
         writesComponentUnion: components != null
             ? (_layout.writesComponentUnion ||
-                definitions.containsKey('anyComponent'))
+                  definitions.containsKey('anyComponent'))
             : _layout.writesComponentUnion,
         writesFunctionUnion: functionsChanged
             ? (definitions.containsKey('anyFunction')
-                ? true
-                : _layout.writesFunctionUnion)
+                  ? true
+                  : _layout.writesFunctionUnion)
             : (nextIsAtLeastV1 &&
-                    _layout.writesFunctionUnion == null &&
-                    !definitions.containsKey('anyFunction')
-                ? true
-                : _layout.writesFunctionUnion),
+                      _layout.writesFunctionUnion == null &&
+                      !definitions.containsKey('anyFunction')
+                  ? true
+                  : _layout.writesFunctionUnion),
       ),
     );
   }
@@ -3354,14 +3362,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       Iterable<ComponentApi> components,
       Iterable<FunctionApi> functions,
       Schema? theme,
-    ) =>
-        _referencedDefs([
-          for (final ComponentApi component in components)
-            component.schema.value,
-          for (final FunctionApi function in functions)
-            function.definition ?? function.argumentSchema.value,
-          theme?.value,
-        ]);
+    ) => _referencedDefs([
+      for (final ComponentApi component in components) component.schema.value,
+      for (final FunctionApi function in functions)
+        function.definition ?? function.argumentSchema.value,
+      theme?.value,
+    ]);
     final Set<String> before = referencedBy(
       this.components.values,
       this.functions.values,
@@ -3476,7 +3482,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     ) {
       final byName = <String, E>{
         for (final String name in names ?? own.keys)
-          name: own[name] ??
+          name:
+              own[name] ??
               (throw A2uiCatalogError(
                 "Catalog '$id' has no $kind '$name' to derive catalog "
                 "'$catalogId' from.",

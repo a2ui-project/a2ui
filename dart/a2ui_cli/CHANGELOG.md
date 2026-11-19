@@ -1,5 +1,9 @@
 # [a2ui_cli](https://pub.dev/packages/a2ui_cli) Changelog
 
+## Unreleased
+
+- Raises the minimum Dart SDK bound from `sdk: ">=3.10.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"` for building from source (compiled CLI binaries are unaffected) ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
+
 ## 0.4.0
 
 - **Breaking:** Requires `a2ui_core` `^0.8.0` (`a2ui_cli` exposes `a2ui_core`
