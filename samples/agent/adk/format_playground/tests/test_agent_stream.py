@@ -538,13 +538,20 @@ async def test_set_backend_awaits_old_factory_aclose_and_skips_non_str_part_text
 async def test_adk_llm_caller_runner_for_constructs_llm_agent_with_and_without_tools() -> (
     None
 ):
-    """Verifies `AdkLlmCaller._runner_for` configures `LlmAgent` tools and thinking budget."""
-    from agent import AdkLlmCaller
+    """Verifies `AdkLlmCaller._runner_for` configures tools, `skip_summarization`, and thinking budget."""
+    from types import SimpleNamespace
+    from typing import cast
+    from google.adk.agents.context import Context
+    from google.adk.agents.llm_agent import LlmAgent
+    from google.adk.tools.base_tool import BaseTool
+    from agent import AdkLlmCaller, _skip_tool_summarization
     from tools import TOOLS
 
     caller = AdkLlmCaller("gemini-3.6-flash", "format_playground")
     plain_runner = caller._runner_for("stage1", "Return a decision block.")
+    assert isinstance(plain_runner.agent, LlmAgent)
     assert plain_runner.agent.tools == []
+    assert plain_runner.agent.after_tool_callback is None
     assert plain_runner.agent.generate_content_config is not None
     assert plain_runner.agent.generate_content_config.thinking_config is not None
     assert (
@@ -552,8 +559,115 @@ async def test_adk_llm_caller_runner_for_constructs_llm_agent_with_and_without_t
         == 1000
     )
 
+    dummy_tool = cast(BaseTool, SimpleNamespace(name="get_host_health"))
+    dummy_ctx = cast(
+        Context, SimpleNamespace(actions=SimpleNamespace(skip_summarization=False))
+    )
+    cb_result = _skip_tool_summarization(
+        tool=dummy_tool,
+        args={"hostname": "prod-01"},
+        tool_context=dummy_ctx,
+        tool_response={"status": "ok"},
+    )
+    assert cb_result is None
+    assert dummy_ctx.actions.skip_summarization is True
+
     tool_runner = caller._runner_for("tool_mode", "Call a tool.", tools=TOOLS)
+    assert isinstance(tool_runner.agent, LlmAgent)
     assert len(tool_runner.agent.tools) == len(TOOLS)
+    assert tool_runner.agent.after_tool_callback is _skip_tool_summarization
+    assert tool_runner.agent.canonical_after_tool_callbacks == [
+        _skip_tool_summarization
+    ]
+
+
+async def test_adk_llm_caller_accumulates_prompt_and_output_tokens_across_events(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verifies `AdkLlmCaller` accumulates `prompt_tokens` across multi-event runner streams."""
+    from collections.abc import AsyncIterator
+    from types import SimpleNamespace
+    from agent import AdkLlmCaller
+    from tools import TOOLS
+
+    caller = AdkLlmCaller("gemini-3.6-flash", "format_playground")
+    plain_runner = caller._runner_for("stage1", "Return a decision block.")
+
+    async def fake_text_run_async(**kwargs: Any) -> AsyncIterator[Any]:
+        del kwargs
+        yield SimpleNamespace(
+            content=SimpleNamespace(parts=[SimpleNamespace(text="part-1 ")]),
+            usage_metadata=SimpleNamespace(
+                prompt_token_count=120, candidates_token_count=30
+            ),
+        )
+        yield SimpleNamespace(
+            content=SimpleNamespace(parts=[SimpleNamespace(text="part-2")]),
+            usage_metadata=SimpleNamespace(
+                prompt_token_count=45, candidates_token_count=15
+            ),
+        )
+
+    monkeypatch.setattr(plain_runner, "run_async", fake_text_run_async)
+    turn = await caller(
+        instruction_key="stage1",
+        instruction="Return a decision block.",
+        user_text="Show resort",
+        session_id="tok-s1",
+    )
+    assert turn.text == "part-1 part-2"
+    assert turn.prompt_tokens == 165
+    assert turn.output_tokens == 45
+
+    tool_runner = caller._runner_for("tool_mode", "Call a tool.", tools=TOOLS)
+
+    async def fake_tool_run_async(**kwargs: Any) -> AsyncIterator[Any]:
+        del kwargs
+        yield SimpleNamespace(
+            content=SimpleNamespace(
+                parts=[
+                    SimpleNamespace(
+                        function_call=SimpleNamespace(
+                            name="get_host_health", args={"hostname": "prod-01"}
+                        ),
+                        function_response=None,
+                        text=None,
+                    )
+                ]
+            ),
+            usage_metadata=SimpleNamespace(
+                prompt_token_count=200, candidates_token_count=25
+            ),
+        )
+        yield SimpleNamespace(
+            content=SimpleNamespace(
+                parts=[
+                    SimpleNamespace(
+                        function_call=None,
+                        function_response=SimpleNamespace(
+                            response={"hostname": "prod-01", "status": "ok"}
+                        ),
+                        text=None,
+                    )
+                ]
+            ),
+            usage_metadata=SimpleNamespace(
+                prompt_token_count=80, candidates_token_count=10
+            ),
+        )
+
+    monkeypatch.setattr(tool_runner, "run_async", fake_tool_run_async)
+    tool_turn = await caller.call_with_tools(
+        instruction_key="tool_mode",
+        instruction="Call a tool.",
+        user_text="Check prod-01",
+        session_id="tok-s2",
+        tools=TOOLS,
+    )
+    assert tool_turn.tool_name == "get_host_health"
+    assert tool_turn.result == {"hostname": "prod-01", "status": "ok"}
+    assert tool_turn.prompt_tokens == 280
+    assert tool_turn.output_tokens == 35
 
 
 async def test_direct_tool_command_renders_without_llm_calls(

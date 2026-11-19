@@ -23,11 +23,16 @@ from a2a.types import DataPart, Part
 import pytest
 
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats.experimental.decision import DecisionBlock, DeterministicMockBackend
+from a2ui.inference_formats.experimental.decision import (
+    DecisionBackendError,
+    DecisionBatch,
+    DecisionBlock,
+    DeterministicMockBackend,
+)
 from a2ui.utils import validate_payload
 from fakes import FakeLlmCaller, HOST_ANSWERS, scripted_backend
 from modes import RenderMode
-from renderers import Renderers, backend_display_name, stage2_user_text
+from renderers import Renderers, _redact_urls, backend_display_name, stage2_user_text
 
 RESORT_PAYLOAD: dict[str, Any] = {
     "name": "Casa Verde",
@@ -545,3 +550,95 @@ async def test_render_tool_result_propagates_title() -> None:
     assert res.output.layout_plan is not None
     assert res.output.layout_plan.page.title.literal == "Host Health"
     assert "Host Health" in json.dumps(messages_of(res.parts))
+
+
+@pytest.mark.asyncio
+async def test_render_decision_redacts_credentials_query_and_fragment_in_errors(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Verifies `_redact_urls` and `render_decision` strip URL secrets from errors and logs."""
+    raw_msg = (
+        "POST https://svc:top_secret@jev.example.com:8443/v1/systemone"
+        "?api_key=AIzaSecret123&alt=json#frag-token failed (also"
+        " http://admin:pw@[::1]:9000/v1/decisions?token=xyz#sec)."
+    )
+    redacted = _redact_urls(raw_msg)
+    assert "top_secret" not in redacted
+    assert "svc:" not in redacted
+    assert "AIzaSecret123" not in redacted
+    assert "frag-token" not in redacted
+    assert "admin:pw" not in redacted
+    assert "token=xyz" not in redacted
+    assert "https://jev.example.com:8443/v1/systemone" in redacted
+    assert "http://[::1]:9000/v1/decisions)." in redacted
+
+    class _FailingBackend(DeterministicMockBackend):
+
+        async def answer(self, batch: DecisionBatch) -> Any:
+            del batch
+            raise DecisionBackendError(
+                raw_msg,
+                backend_kind="jev",
+                model_id="jev-test",
+            )
+
+    failing_renderers = Renderers(versions=["1.0"], backend=_FailingBackend())
+    with caplog.at_level("WARNING"):
+        res = await failing_renderers.render_decision(
+            RESORT_BLOCK, surface_id="main", version="1.0"
+        )
+    assert not res.ok
+    assert res.error is not None
+    for secret in (
+        "top_secret",
+        "AIzaSecret123",
+        "frag-token",
+        "admin:pw",
+        "token=xyz",
+    ):
+        assert secret not in res.error
+        assert secret not in caplog.text
+    assert "https://jev.example.com:8443/v1/systemone" in res.error
+
+
+@pytest.mark.asyncio
+async def test_set_backend_preserves_plan_cache_for_region_updates() -> None:
+    """Verifies `set_backend` preserves `plan_cache` so stateful `region` updates keep working."""
+    local_renderers = Renderers(versions=["1.0"], backend=DeterministicMockBackend())
+    old_synth = local_renderers.synthesizer_or_none("1.0")
+    assert old_synth is not None
+
+    host_block = DecisionBlock(
+        intent="Check host health",
+        payload={"host": "prod-1", "cpu": 0.78, "status": "ok"},
+    )
+    first = await local_renderers.render_decision(
+        host_block,
+        surface_id="main",
+        version="1.0",
+        conversation_id="conv-backend-switch",
+    )
+    assert first.ok, first.error
+    assert first.output is not None and first.output.layout_plan is not None
+    target_region = first.output.layout_plan.blocks[0].block_id
+
+    await local_renderers.set_backend(DeterministicMockBackend())
+    new_synth = local_renderers.synthesizer_or_none("1.0")
+    assert new_synth is not None
+    assert new_synth is not old_synth
+    assert new_synth.plan_cache is old_synth.plan_cache
+
+    region_block = DecisionBlock(
+        intent=host_block.intent,
+        payload={"host": "prod-1", "cpu": 0.41, "status": "ok"},
+        region=target_region,
+    )
+    region_res = await local_renderers.render_decision(
+        region_block,
+        surface_id="main",
+        version="1.0",
+        conversation_id="conv-backend-switch",
+    )
+    assert region_res.ok, region_res.error
+    assert region_res.output is not None
+    assert str(region_res.output.operation) == "update_root"

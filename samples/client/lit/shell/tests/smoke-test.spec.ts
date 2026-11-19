@@ -15,6 +15,9 @@
 import {describe, it, test, expect, beforeEach, afterEach} from 'vitest';
 import {basicCatalog} from '@a2ui/lit/v0_9';
 import type {A2UILayoutEditor} from '../app.js';
+import {localConfig, playgroundConfig, restaurantConfig} from '../configs/configs.js';
+import {playgroundThemeSheet} from '../theme/playground-theme.js';
+import {restaurantThemeSheet} from '../theme/restaurant-theme.js';
 
 /**
  * Smoke test to ensure that the Vite dev server compilation pipeline correctly
@@ -161,5 +164,109 @@ describe('a2ui-shell layout and inspector integration', () => {
     await new Promise(resolve => setTimeout(resolve, 0));
     await el.updateComplete;
     expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual(['turn-2-decision']);
+  });
+
+  it('preserves active turn-* render surfaces on slash-command status and empty batches', async () => {
+    await import('../app.js');
+    window.history.replaceState({}, '', '/?app=playground');
+    const el = document.createElement('a2ui-shell') as A2UILayoutEditor;
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const internal = el as unknown as {
+      _processor: {
+        model: {surfacesMap: Map<string, unknown>};
+      };
+      _a2uiClient: {
+        sendTurn: (msg: unknown) => Promise<{messages: unknown[]; trace: null; contextId: string}>;
+      };
+    };
+
+    const catalogId = basicCatalog.id;
+    const turns: unknown[][] = [
+      [{version: 'v0.9', createSurface: {surfaceId: 'turn-1-decision', catalogId}}],
+      [{version: 'v0.9', createSurface: {surfaceId: 'turn-2-status', catalogId}}],
+      [],
+      [{version: 'v0.9', createSurface: {surfaceId: 'main', catalogId}}],
+    ];
+    internal._a2uiClient.sendTurn = async () => ({
+      messages: turns.shift() ?? [],
+      trace: null,
+      contextId: 'ctx-1',
+    });
+
+    const quickActionBtn = el.shadowRoot?.querySelector<HTMLButtonElement>('.quick-action-btn');
+    if (!quickActionBtn) {
+      throw new Error('Expected .quick-action-btn in shadowRoot');
+    }
+
+    // Turn 1 creates a non-status turn-* render surface.
+    quickActionBtn.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await el.updateComplete;
+    expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual(['turn-1-decision']);
+
+    // Turn 2 creates a slash-command status card; turn-1-decision must remain intact.
+    quickActionBtn.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await el.updateComplete;
+    expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual([
+      'turn-1-decision',
+      'turn-2-status',
+    ]);
+
+    // Turn 3 returns an empty batch; both existing surfaces must be preserved.
+    quickActionBtn.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await el.updateComplete;
+    expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual([
+      'turn-1-decision',
+      'turn-2-status',
+    ]);
+
+    // Turn 4 targets 'main'; both turn-* surfaces are pruned.
+    quickActionBtn.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await el.updateComplete;
+    expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual(['main']);
+  });
+
+  it('removes playgroundThemeSheet from adoptedStyleSheets on unmount and config switch', async () => {
+    await import('../app.js');
+    window.history.replaceState({}, '', '/?app=playground');
+    const el = document.createElement('a2ui-shell') as A2UILayoutEditor;
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    expect(document.adoptedStyleSheets).toContain(playgroundThemeSheet);
+    if (el.shadowRoot && Array.isArray(el.shadowRoot.adoptedStyleSheets)) {
+      expect(el.shadowRoot.adoptedStyleSheets).toContain(playgroundThemeSheet);
+    }
+
+    // Switching config to restaurant removes playgroundThemeSheet and adopts restaurantThemeSheet.
+    el.config = restaurantConfig;
+    await el.updateComplete;
+    expect(document.adoptedStyleSheets).not.toContain(playgroundThemeSheet);
+    expect(document.adoptedStyleSheets).toContain(restaurantThemeSheet);
+
+    // Switching to localConfig removes restaurantThemeSheet without adding another.
+    el.config = localConfig;
+    await el.updateComplete;
+    expect(document.adoptedStyleSheets).not.toContain(restaurantThemeSheet);
+
+    // Switch back to playgroundConfig, then unmount; playgroundThemeSheet must be cleaned up.
+    el.config = playgroundConfig;
+    await el.updateComplete;
+    expect(document.adoptedStyleSheets).toContain(playgroundThemeSheet);
+    if (el.shadowRoot && Array.isArray(el.shadowRoot.adoptedStyleSheets)) {
+      expect(el.shadowRoot.adoptedStyleSheets).toContain(playgroundThemeSheet);
+    }
+
+    el.remove();
+    expect(document.adoptedStyleSheets).not.toContain(playgroundThemeSheet);
+    expect(document.adoptedStyleSheets).not.toContain(restaurantThemeSheet);
+    if (el.shadowRoot && Array.isArray(el.shadowRoot.adoptedStyleSheets)) {
+      expect(el.shadowRoot.adoptedStyleSheets).not.toContain(playgroundThemeSheet);
+    }
   });
 });
