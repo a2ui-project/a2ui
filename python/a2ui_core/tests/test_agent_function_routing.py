@@ -1305,14 +1305,13 @@ async def test_node_resolver_emits_on_updated_for_check_only_updates() -> None:
     surface = proc.model.get_surface("s1")
     assert surface is not None
     resolver = NodeResolver(surface)
-    assert resolver.root is not None
-    assert resolver.root.is_valid is True
+    root = resolver.root
+    assert root is not None
+    assert root.is_valid is True
 
     updates: list[tuple[bool, list[str]]] = []
-    resolver.root.on_updated.subscribe(
-        lambda _: updates.append(
-            (resolver.root.is_valid, list(resolver.root.validation_errors))
-        )
+    root.on_updated.subscribe(
+        lambda _: updates.append((root.is_valid, list(root.validation_errors)))
     )
 
     surface.data_model.set("/ok", False)
