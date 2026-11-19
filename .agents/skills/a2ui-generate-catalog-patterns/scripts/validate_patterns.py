@@ -26,6 +26,7 @@ from typing import Any, Literal
 from a2ui.core import A2uiError
 from a2ui.inference_formats.experimental.decision import (
     ArchetypeGrammar,
+    BlockBindings,
     BlockSpec,
     CatalogDecisionGraph,
     CatalogPattern,
@@ -33,6 +34,9 @@ from a2ui.inference_formats.experimental.decision import (
     PatternExpander,
     PatternLibrary,
     PatternRef,
+    SlotBinding,
+    SlotKind,
+    SlotSpec,
     SurfaceTemplate,
     TemplateRegistry,
     eligible_archetypes,
@@ -40,7 +44,7 @@ from a2ui.inference_formats.experimental.decision import (
     lint_components,
     resolve_fallback_pattern,
 )
-from a2ui.parser.messages import to_message_models
+from a2ui.parser import to_message_models
 from a2ui.utils import validate_payload
 
 from _common import (
@@ -659,6 +663,95 @@ def _validate_pattern_directives(
     return failures
 
 
+_CHILD_SLOT_KINDS = frozenset(
+    {SlotKind.CHILD, SlotKind.CHILD_LIST, SlotKind.NAMED_CHILD_ARRAY}
+)
+
+
+def _child_slot_keys(graph: CatalogDecisionGraph) -> frozenset[str]:
+    """Returns container child-slot property names declared by `graph`'s catalogs."""
+    return frozenset(
+        slot.name
+        for spec in graph.root_candidates()
+        for slot in spec.slots
+        if slot.kind in _CHILD_SLOT_KINDS
+    )
+
+
+def _filter_item_fields(
+    item: Mapping[str, SlotBinding], slot: SlotSpec
+) -> dict[str, SlotBinding]:
+    """Keeps required fields, action/id fields, and nested repeat sub-slots."""
+    kept: dict[str, SlotBinding] = {}
+    for f_name, binding in item.items():
+        if f_name in ("id", "action"):
+            kept[f_name] = binding
+            continue
+        f_spec = slot.fields.get(f_name)
+        if f_spec is not None and f_spec.required:
+            kept[f_name] = binding
+    return kept
+
+
+def _strip_optional_groups_binding(binding: SlotBinding) -> SlotBinding:
+    """Keeps `heading` and `rows` (with required row fields) on `groups`."""
+    stripped_groups: list[dict[str, SlotBinding]] = []
+    for grp in binding.items:
+        new_grp: dict[str, SlotBinding] = {}
+        if "heading" in grp:
+            new_grp["heading"] = grp["heading"]
+        if "rows" in grp:
+            rows_binding = grp["rows"]
+            stripped_rows = tuple(
+                {k: v for k, v in row.items() if k in ("label", "value", "action")}
+                for row in rows_binding.items
+            )
+            new_grp["rows"] = SlotBinding(items=stripped_rows)
+        stripped_groups.append(new_grp)
+    return SlotBinding(items=tuple(stripped_groups))
+
+
+def _strip_optional_repeat_slot(
+    block_id: str, slot: SlotSpec, binding: SlotBinding
+) -> SlotBinding:
+    """Strips optional subfields from a repeated `SlotBinding` while keeping items."""
+    if block_id == "groups":
+        return _strip_optional_groups_binding(binding)
+    new_fields = _filter_item_fields(binding.fields, slot) if binding.fields else {}
+    new_items = (
+        tuple(_filter_item_fields(it, slot) for it in binding.items)
+        if binding.items
+        else ()
+    )
+    return SlotBinding(
+        pointer=binding.pointer,
+        literal=binding.literal,
+        fields=new_fields,
+        items=new_items,
+        semantic_type=binding.semantic_type,
+        format_hints=binding.format_hints,
+    )
+
+
+def _required_only_bindings(
+    block: BlockSpec, full_bindings: BlockBindings
+) -> BlockBindings:
+    """Returns `BlockBindings` retaining required slots and primary repeat containers."""
+    kept: dict[str, SlotBinding] = {}
+    for name, binding in full_bindings.slots.items():
+        if name == "action":
+            kept[name] = binding
+            continue
+        slot = block.slots.get(name)
+        if slot is None:
+            continue
+        if slot.repeat:
+            kept[name] = _strip_optional_repeat_slot(block.id, slot, binding)
+        elif slot.required:
+            kept[name] = binding
+    return BlockBindings(slots=kept)
+
+
 def _check_expanded_surface(
     pattern_name: str,
     block_id: str | None,
@@ -689,7 +782,8 @@ def _check_expanded_surface(
     default_root = (
         cat_pattern.select_variant(knobs).root if cat_pattern is not None else "<root>"
     )
-    for finding in lint_components(components, plan=None):
+    slot_keys = _child_slot_keys(graph)
+    for finding in lint_components(components, plan=None, child_slot_keys=slot_keys):
         if finding.severity == "error":
             tpl_id, tpl_type = _resolve_template_component(
                 finding.component_id or default_root,
@@ -770,51 +864,24 @@ def _check_unreachable_variants(
     return warnings
 
 
-def dry_run_block(
+def _run_block_binding_pass(
     expander: PatternExpander,
-    library: PatternLibrary,
+    cat_pattern: CatalogPattern,
     block: BlockSpec,
+    bindings: BlockBindings,
+    instances: Mapping[str, Mapping[str, str]],
+    payload: Mapping[str, Any],
     graph: CatalogDecisionGraph,
+    combos: Sequence[Mapping[str, str]],
+    resolved_knobs: Mapping[str, str],
     *,
     patterns_path: Path | None = None,
-) -> tuple[int, list[ExpansionFailure], list[str]]:
-    """Dry-runs `block` across all knob combinations of its resolved pattern.
-
-    Args:
-        expander: Pattern expander bound to `library` and `graph`.
-        library: Pattern library under validation.
-        block: Layout grammar block specification to expand.
-        graph: Catalog decision graph for component schema verification.
-        patterns_path: Optional path to `patterns.json` for diagnostic messages.
-
-    Returns:
-        A `(runs, failures, warnings)` tuple for `block`.
-    """
-    resolved = resolve_fallback_pattern(block, library)
-    if resolved is None:
-        return (0, [], [])
-    cat_pattern = library.get(resolved.pattern)
-    if cat_pattern is None:
-        return (0, [], [])
-
-    combos, truncated = knob_combinations(cat_pattern)
-    warnings = _check_unreachable_variants(cat_pattern, combos)
-    if truncated:
-        warnings.append(
-            f"Pattern '{cat_pattern.name}' knob combinations truncated at"
-            f" {len(combos)}."
-        )
-
-    bindings = synthetic_block_bindings(block)
-    instances = synthetic_instances(block, bindings)
-    payload = synthetic_payload(block)
-    failures: list[ExpansionFailure] = _validate_pattern_directives(
-        cat_pattern, block_id=block.id, patterns_path=patterns_path
-    )
+) -> tuple[int, list[ExpansionFailure]]:
+    """Expands and validates `block` across `combos` for one `BlockBindings` set."""
     runs = 0
-
+    failures: list[ExpansionFailure] = []
     for knobs in combos:
-        merged_knobs = {**knobs, **resolved.knobs}
+        merged_knobs = {**knobs, **resolved_knobs}
         runs += 1
         try:
             expansion = expander.expand_block(
@@ -857,6 +924,84 @@ def dry_run_block(
                 patterns_path=patterns_path,
             )
         )
+    return runs, failures
+
+
+def dry_run_block(
+    expander: PatternExpander,
+    library: PatternLibrary,
+    block: BlockSpec,
+    graph: CatalogDecisionGraph,
+    *,
+    patterns_path: Path | None = None,
+) -> tuple[int, list[ExpansionFailure], list[str]]:
+    """Dry-runs `block` across all knob combinations of its resolved pattern.
+
+    Runs both a full-bindings pass and a required-slots-only pass (retaining
+    primary repeat slots while stripping optional scalar and item subfields) so
+    missing `$if` guards or `$default` fallbacks are caught statically.
+
+    Args:
+        expander: Pattern expander bound to `library` and `graph`.
+        library: Pattern library under validation.
+        block: Layout grammar block specification to expand.
+        graph: Catalog decision graph for component schema verification.
+        patterns_path: Optional path to `patterns.json` for diagnostic messages.
+
+    Returns:
+        A `(runs, failures, warnings)` tuple for `block`.
+    """
+    resolved = resolve_fallback_pattern(block, library)
+    if resolved is None:
+        return (0, [], [])
+    cat_pattern = library.get(resolved.pattern)
+    if cat_pattern is None:
+        return (0, [], [])
+
+    combos, truncated = knob_combinations(cat_pattern)
+    warnings = _check_unreachable_variants(cat_pattern, combos)
+    if truncated:
+        warnings.append(
+            f"Pattern '{cat_pattern.name}' knob combinations truncated at"
+            f" {len(combos)}."
+        )
+
+    bindings = synthetic_block_bindings(block)
+    instances = synthetic_instances(block, bindings)
+    payload = synthetic_payload(block)
+    failures: list[ExpansionFailure] = _validate_pattern_directives(
+        cat_pattern, block_id=block.id, patterns_path=patterns_path
+    )
+    runs, full_failures = _run_block_binding_pass(
+        expander,
+        cat_pattern,
+        block,
+        bindings,
+        instances,
+        payload,
+        graph,
+        combos,
+        resolved.knobs,
+        patterns_path=patterns_path,
+    )
+    failures.extend(full_failures)
+
+    required_bindings = _required_only_bindings(block, bindings)
+    if required_bindings != bindings:
+        req_runs, req_failures = _run_block_binding_pass(
+            expander,
+            cat_pattern,
+            block,
+            required_bindings,
+            instances,
+            payload,
+            graph,
+            combos,
+            resolved.knobs,
+            patterns_path=patterns_path,
+        )
+        runs += req_runs
+        failures.extend(req_failures)
     return (runs, failures, warnings)
 
 
@@ -1176,7 +1321,10 @@ def _validate_single_template(
         List of `TemplateValidationFailure` records for `template`.
     """
     failures: list[TemplateValidationFailure] = []
-    for finding in lint_components(list(template.components), plan=None):
+    slot_keys = _child_slot_keys(loaded.graph)
+    for finding in lint_components(
+        list(template.components), plan=None, child_slot_keys=slot_keys
+    ):
         if finding.severity == "error":
             failures.append(
                 TemplateValidationFailure(
@@ -1419,6 +1567,89 @@ def _evaluate_sample_payloads(
     return (sample_reports, sample_ptr_paths, union_eligible)
 
 
+def _schema_error_report(
+    loaded: LoadedCatalog,
+    *,
+    p_path: Path | None,
+    t_path: Path | None,
+    payload_path: Path,
+    error: str,
+) -> ValidationReport:
+    """Builds a failed `ValidationReport` when an existing sidecar fails schema/JSON parsing."""
+    return ValidationReport(
+        catalog_id=loaded.catalog.catalog_id,
+        patterns_path=p_path,
+        templates_path=t_path,
+        payload_path=payload_path,
+        schema_ok=False,
+        schema_error=error,
+        unknown_patterns=(),
+        warnings=(),
+        expansions_run=0,
+        failures=(),
+        templates_validated=0,
+        template_failures=(),
+        blocks=(),
+        archetypes=(),
+        payload_samples=(),
+        payload_eligible=(),
+    )
+
+
+def _load_patterns_sidecar(
+    loaded: LoadedCatalog, p_path: Path | None
+) -> tuple[PatternLibrary | None, str | None]:
+    """Loads `patterns.json` and checks catalog/grammar parity, returning a schema error on parse failure."""
+    if p_path is None:
+        return None, None
+    try:
+        library = load_pattern_library(p_path, grammar=loaded.grammar)
+    except ToolError as exc:
+        if "targets grammarVersion" in str(exc) or not p_path.is_file():
+            raise
+        return None, str(exc)
+    if library.catalog_id != loaded.catalog.catalog_id:
+        raise ToolError(
+            f"Patterns file {p_path} catalogId '{library.catalog_id}' does"
+            f" not match catalog '{loaded.catalog.catalog_id}' (see"
+            " patterns_authoring_guide.md#top-level-file-structure)."
+        )
+    if library.grammar_version != loaded.grammar.version:
+        raise ToolError(
+            f"Patterns file {p_path} grammarVersion '{library.grammar_version}'"
+            f" does not match grammar version '{loaded.grammar.version}' (see"
+            " patterns_authoring_guide.md#top-level-file-structure)."
+        )
+    return library, None
+
+
+def _load_templates_sidecar(
+    t_path: Path | None,
+) -> tuple[TemplateRegistry | None, str | None]:
+    """Loads `templates.json`, returning a schema error string if an existing file is malformed."""
+    if t_path is None:
+        return None, None
+    try:
+        return load_template_registry(t_path), None
+    except ToolError as exc:
+        if not t_path.is_file():
+            raise
+        return None, str(exc)
+
+
+def _load_sidecar_artifacts(
+    loaded: LoadedCatalog,
+    p_path: Path | None,
+    t_path: Path | None,
+) -> tuple[PatternLibrary | None, TemplateRegistry | None, str | None]:
+    """Loads `patterns.json` and `templates.json`, returning a schema error string if malformed."""
+    library, err = _load_patterns_sidecar(loaded, p_path)
+    if err is not None:
+        return None, None, err
+    registry, t_err = _load_templates_sidecar(t_path)
+    return library, registry, t_err
+
+
 def validate_catalog_artifacts(
     loaded: LoadedCatalog,
     *,
@@ -1445,30 +1676,22 @@ def validate_catalog_artifacts(
         The populated `ValidationReport`.
 
     Raises:
-        ToolError: If sidecar files cannot be resolved, fail schema parsing, or mismatch
-            `catalogId` or `grammarVersion`.
+        ToolError: If sidecar files cannot be resolved or mismatch `catalogId`
+            or `grammarVersion`.
     """
     resolved_payload_path = Path(payload_path).resolve()
     samples = load_sample_payloads(resolved_payload_path)
     p_path, t_path = _resolve_sidecar_paths(loaded, patterns_path, templates_path)
 
-    library: PatternLibrary | None = None
-    if p_path is not None:
-        library = load_pattern_library(p_path, grammar=loaded.grammar)
-        if library.catalog_id != loaded.catalog.catalog_id:
-            raise ToolError(
-                f"Patterns file {p_path} catalogId '{library.catalog_id}' does"
-                f" not match catalog '{loaded.catalog.catalog_id}' (see"
-                " patterns_authoring_guide.md#top-level-file-structure)."
-            )
-        if library.grammar_version != loaded.grammar.version:
-            raise ToolError(
-                f"Patterns file {p_path} grammarVersion '{library.grammar_version}'"
-                f" does not match grammar version '{loaded.grammar.version}' (see"
-                " patterns_authoring_guide.md#top-level-file-structure)."
-            )
-
-    registry = load_template_registry(t_path) if t_path is not None else None
+    library, registry, schema_error = _load_sidecar_artifacts(loaded, p_path, t_path)
+    if schema_error is not None:
+        return _schema_error_report(
+            loaded,
+            p_path=p_path,
+            t_path=t_path,
+            payload_path=resolved_payload_path,
+            error=schema_error,
+        )
     expansions_run = 0
     failures: list[ExpansionFailure] = []
     warnings: list[str] = []

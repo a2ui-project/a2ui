@@ -393,7 +393,7 @@ DESIGN_SYSTEM_PATTERNS: dict[str, Any] = {
                 {
                     "id": "headline_stat",
                     "component": "Stat",
-                    "label": {"$slot": "label"},
+                    "label": {"$slot": "label", "$default": ""},
                     "value": {"$slot": "value"},
                 },
             ],
