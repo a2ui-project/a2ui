@@ -27,9 +27,9 @@ import 'fake_client.dart';
 
 /// A model's streamed replies to a request for a newsletter form, and to
 /// the action the form's button sends once `ada@example.com` is typed.
-final Map<String, Object?> _recording =
-    jsonDecode(File('test/fixtures/newsletter_replies.json').readAsStringSync())
-        as Map<String, Object?>;
+final Map<String, Object?> _recording = jsonDecode(
+  File('test/fixtures/newsletter_replies.json').readAsStringSync(),
+) as Map<String, Object?>;
 
 void main() {
   testWidgets('replays a recorded form, its action and the reply to it', (

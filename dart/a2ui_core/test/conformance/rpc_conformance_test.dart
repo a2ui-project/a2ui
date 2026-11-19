@@ -120,13 +120,12 @@ class _ScenarioLocalFunction extends FunctionImplementation {
   _ScenarioLocalFunction({
     required super.name,
     required super.returnType,
-    Map<String, Object?>? setData,
-  })  : _setData = setData,
-        super(
-          argumentSchema: Schema.fromMap({'type': 'object'}),
-          allowedCallers: AllowedCallers.rendererOrAgent,
-          requiresUserActivation: false,
-        );
+    this._setData,
+  }) : super(
+         argumentSchema: Schema.fromMap({'type': 'object'}),
+         allowedCallers: AllowedCallers.rendererOrAgent,
+         requiresUserActivation: false,
+       );
 
   @override
   Object? execute(
@@ -160,10 +159,10 @@ _ScenarioLocalFunction _scenarioLocalFunction(
   String name,
   Map<String, Object?> spec,
 ) {
-  final Map<String, Object?>? effect =
-      (spec['effect'] as Map?)?.cast<String, Object?>();
-  final Map<String, Object?>? setData =
-      (effect?['setData'] as Map?)?.cast<String, Object?>();
+  final Map<String, Object?>? effect = (spec['effect'] as Map?)
+      ?.cast<String, Object?>();
+  final Map<String, Object?>? setData = (effect?['setData'] as Map?)
+      ?.cast<String, Object?>();
   final A2uiReturnType returnType = A2uiReturnType.fromJson(
     spec['returnType'] as String? ?? 'any',
   );
@@ -184,11 +183,7 @@ void main() {
   group('conformance core/rpc_functions.yaml', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
 
-    runConformanceSuite(
-      cases,
-      _runCase,
-      suite: 'core/rpc_functions.yaml',
-    );
+    runConformanceSuite(cases, _runCase, suite: 'core/rpc_functions.yaml');
   });
 }
 
@@ -224,7 +219,8 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
     expected,
     expectError,
   );
-  final String catalogVersion = args['catalogVersion'] as String? ??
+  final String catalogVersion =
+      args['catalogVersion'] as String? ??
       (testCase['catalog'] as Map<String, Object?>?)?['protocolVersion']
           as String? ??
       testCase['protocolVersion'] as String? ??
@@ -232,8 +228,9 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
 
   final A2uiProtocolVersion? parsedCatalogVersion =
       A2uiProtocolVersion.tryParseSemVer(catalogVersion);
-  final Catalog<ComponentApi, FunctionImplementation> basic =
-      BasicCatalog.v1_0(openUrl: (_) {});
+  final Catalog<ComponentApi, FunctionImplementation> basic = BasicCatalog.v1_0(
+    openUrl: (_) {},
+  );
   final catalog = Catalog<ComponentApi, FunctionImplementation>(
     id: catalogId,
     components: const [],
@@ -284,8 +281,9 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   }
 
   if (outboundCall != null && inboundResponse != null) {
-    final correlatedId = (expected!['correlatedCallId'] ??
-        outboundCall['functionCallId'])! as String;
+    final correlatedId =
+        (expected!['correlatedCallId'] ?? outboundCall['functionCallId'])!
+            as String;
     final response =
         inboundResponse['agentFunctionResponse']! as Map<String, Object?>;
     expect(response['functionCallId'], correlatedId);
@@ -298,8 +296,9 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
         functionCallId: outboundCall['functionCallId'] as String?,
       ),
     );
-    final CallAgentFunctionMessage outbound =
-        sent.whereType<CallAgentFunctionMessage>().single;
+    final CallAgentFunctionMessage outbound = sent
+        .whereType<CallAgentFunctionMessage>()
+        .single;
     expect(outbound.functionCallId, correlatedId);
     expect(outbound.callFunction['@call'], call.call);
 
@@ -420,8 +419,8 @@ Future<void> _runInboundMessageScenario(
     message,
     isUserActivated: userActivation,
   );
-  final Iterable<RendererFunctionResponseMessage> responses =
-      sent.whereType<RendererFunctionResponseMessage>();
+  final Iterable<RendererFunctionResponseMessage> responses = sent
+      .whereType<RendererFunctionResponseMessage>();
   final expectedResponse = expected['response'] as Map<String, Object?>?;
   if (expectedResponse == null) {
     // An ignored message: no response, no outbound message, and no pending
@@ -621,7 +620,7 @@ Future<void> _runUiBindingScenario(
 
   final List<Object?> rawComponents =
       scenario['components'] as List<Object?>? ??
-          <Object?>[scenario['component']];
+      <Object?>[scenario['component']];
   for (final raw in rawComponents) {
     final comp = Map<String, Object?>.from(raw! as Map);
     final compId = comp.remove('id')! as String;
@@ -652,9 +651,10 @@ Future<void> _runUiBindingScenario(
     return nodes;
   }
 
-  final Map<String, Object?>? observe =
-      (scenario['observe'] as Map?)?.cast<String, Object?>();
-  final String observeId = observe?['componentId'] as String? ??
+  final Map<String, Object?>? observe = (scenario['observe'] as Map?)
+      ?.cast<String, Object?>();
+  final String observeId =
+      observe?['componentId'] as String? ??
       (scenario['component'] as Map?)?['id'] as String? ??
       'root';
   final String observeProp = observe?['property'] as String? ?? 'text';
@@ -669,8 +669,9 @@ Future<void> _runUiBindingScenario(
   }
 
   await Future<void>.delayed(Duration.zero);
-  final CallAgentFunctionMessage outbound =
-      sent.whereType<CallAgentFunctionMessage>().single;
+  final CallAgentFunctionMessage outbound = sent
+      .whereType<CallAgentFunctionMessage>()
+      .single;
   final expectedOutbound = expected['outboundCall']! as Map<String, Object?>;
   expect(outbound.version, expectedOutbound['version']);
   final expectedCall =
@@ -680,15 +681,15 @@ Future<void> _runUiBindingScenario(
 
   final Map<String, Object?> responsePayload =
       switch (scenario['inboundResponseError']) {
-    final Map<String, Object?> err => {
-        'functionCallId': outbound.functionCallId,
-        'error': err,
-      },
-    _ => {
-        'functionCallId': outbound.functionCallId,
-        'value': scenario['inboundResponseValue'],
-      },
-  };
+        final Map<String, Object?> err => {
+          'functionCallId': outbound.functionCallId,
+          'error': err,
+        },
+        _ => {
+          'functionCallId': outbound.functionCallId,
+          'value': scenario['inboundResponseValue'],
+        },
+      };
   processor.processMessages({
     'version': '1.0',
     'agentFunctionResponse': responsePayload,
@@ -710,12 +711,13 @@ Future<void> _runUiBindingScenario(
     for (final MapEntry<String, Object?> entry in siblings.entries) {
       final ComponentNode<ComponentApi>? sibNode = nodes[entry.key];
       expect(sibNode, isNotNull, reason: 'sibling ${entry.key}');
-      final Map<String, Object?> expectedProps =
-          (entry.value! as Map).cast<String, Object?>();
+      final Map<String, Object?> expectedProps = (entry.value! as Map)
+          .cast<String, Object?>();
       for (final MapEntry<String, Object?> prop in expectedProps.entries) {
         final Object? rawVal = sibNode!.props.value[prop.key];
-        final Object? actualVal =
-            rawVal is ResolvedBinding<Object?> ? rawVal.value : rawVal;
+        final Object? actualVal = rawVal is ResolvedBinding<Object?>
+            ? rawVal.value
+            : rawVal;
         expect(actualVal, prop.value);
       }
     }
@@ -789,12 +791,14 @@ Future<void> _runUiActionFallbackScenario(
   ).dataContext;
   final actionPayload = scenario['actionPayload']! as Map<String, Object?>;
   final functionCall = actionPayload['functionCall']! as Map<String, Object?>;
-  final Future<Object?> resultFuture =
-      context.evaluateFunctionCall(functionCall);
+  final Future<Object?> resultFuture = context.evaluateFunctionCall(
+    functionCall,
+  );
 
   await Future<void>.delayed(Duration.zero);
-  final CallAgentFunctionMessage outbound =
-      sent.whereType<CallAgentFunctionMessage>().single;
+  final CallAgentFunctionMessage outbound = sent
+      .whereType<CallAgentFunctionMessage>()
+      .single;
   final expectedOutbound = expected['outboundCall']! as Map<String, Object?>;
   expect(outbound.version, expectedOutbound['version']);
   final expectedCall =
@@ -804,15 +808,15 @@ Future<void> _runUiActionFallbackScenario(
 
   final Map<String, Object?> responsePayload =
       switch (scenario['inboundResponseError']) {
-    final Map<String, Object?> err => {
-        'functionCallId': outbound.functionCallId,
-        'error': err,
-      },
-    _ => {
-        'functionCallId': outbound.functionCallId,
-        'value': scenario['inboundResponseValue'],
-      },
-  };
+        final Map<String, Object?> err => {
+          'functionCallId': outbound.functionCallId,
+          'error': err,
+        },
+        _ => {
+          'functionCallId': outbound.functionCallId,
+          'value': scenario['inboundResponseValue'],
+        },
+      };
   processor.processMessages({
     'version': '1.0',
     'agentFunctionResponse': responsePayload,
@@ -884,7 +888,8 @@ String _catalogIdFor(
     final response = expected?['response'] as Map<String, Object?>?;
     final body = response?['rendererFunctionResponse'] as Map<String, Object?>?;
     final error = body?['error'] as Map<String, Object?>?;
-    final String expectedMessage = error?['message'] as String? ??
+    final String expectedMessage =
+        error?['message'] as String? ??
         (expected?['error'] as Map<String, Object?>?)?['message'] as String? ??
         expectError?['message'] as String? ??
         '';

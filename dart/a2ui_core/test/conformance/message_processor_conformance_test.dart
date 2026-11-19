@@ -77,22 +77,10 @@ const Map<String, Set<String>> _knownKeys = {
     'expect',
     'protocolVersion',
   },
-  'case:resolve_path': {
-    ...caseMetadataKeys,
-    'args',
-    'expect',
-  },
-  'args:get_renderer_data_model': {
-    'version',
-  },
-  'args:get_renderer_capabilities': {
-    'includeInlineCatalogs',
-    'version',
-  },
-  'args:resolve_path': {
-    'contextPath',
-    'path',
-  },
+  'case:resolve_path': {...caseMetadataKeys, 'args', 'expect'},
+  'args:get_renderer_data_model': {'version'},
+  'args:get_renderer_capabilities': {'includeInlineCatalogs', 'version'},
+  'args:resolve_path': {'contextPath', 'path'},
   'step': {
     'description',
     'expect',
@@ -101,9 +89,7 @@ const Map<String, Set<String>> _knownKeys = {
     'payload',
     'validationConfig',
   },
-  'expect:surfaces': {
-    'surfaces',
-  },
+  'expect:surfaces': {'surfaces'},
   'surface': {
     'catalogId',
     'components',
@@ -218,8 +204,9 @@ ValidationConfig _validationConfigFor(
         : ValidationConfig.relaxed;
   }
   final Map<String, Object?> flags = (raw as Map).cast<String, Object?>();
-  final Iterable<String> unknown =
-      flags.keys.where((name) => !_caseValidationFlags.contains(name));
+  final Iterable<String> unknown = flags.keys.where(
+    (name) => !_caseValidationFlags.contains(name),
+  );
   if (unknown.isNotEmpty) {
     throw UnsupportedError('Unknown validationConfig flags: $unknown');
   }
@@ -259,8 +246,8 @@ Future<void> _runProcessMessagesCase(Map<String, Object?> testCase) async {
 
   final Object? expectError = testCase['expectError'];
   if (expectError != null) {
-    final Object? firstRaw =
-        switch (testCase['messages'] ?? testCase['payload']) {
+    final Object? firstRaw = switch (testCase['messages'] ??
+        testCase['payload']) {
       final List<Object?> list when list.isNotEmpty => list.first,
       final Object other => other,
       _ => null,
@@ -304,13 +291,14 @@ Future<void> _runSteps(
     final Map<String, Object?> step = steps[index];
     assertKnownKeys(step, _knownKeys['step']!, 'step');
     final Object? payload = step['messages'] ?? step['payload'];
-    final Object? expectError = step['expectError'] ??
+    final Object? expectError =
+        step['expectError'] ??
         (index == steps.length - 1 ? testCase['expectError'] : null);
     final ValidationConfig? validationConfig =
         switch (step['validationConfig']) {
-      final Map<String, Object?> rules => _validationConfig(rules),
-      _ => null,
-    };
+          final Map<String, Object?> rules => _validationConfig(rules),
+          _ => null,
+        };
     emittedErrors.clear();
     if (expectError != null) {
       final Object? firstRaw = switch (payload) {
@@ -365,9 +353,7 @@ ValidationConfig _validationConfig(Map<String, Object?> rules) =>
 
 /// Runs a data model request, after the case's `messages` or, one batch per
 /// step, its `steps`. `args.version` is the version requested.
-Future<void> _runGetRendererDataModelCase(
-  Map<String, Object?> testCase,
-) async {
+Future<void> _runGetRendererDataModelCase(Map<String, Object?> testCase) async {
   final name = testCase['name']! as String;
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(testCase),
@@ -440,7 +426,7 @@ void _runResolvePathCase(Map<String, Object?> testCase) {
   assertKnownKeys(args, _knownKeys['args:resolve_path']!, 'args:resolve_path');
   final String path = (args['path'] as String?) ?? '';
   final String contextPath = (args['contextPath'] as String?) ?? '/';
-  final context = DataContext(DataModel(), (_, __, ___) => null, contextPath);
+  final context = DataContext(DataModel(), (_, _, _) => null, contextPath);
   expect(context.resolvePath(path), equals(testCase['expect']), reason: name);
 }
 
@@ -554,10 +540,10 @@ String _versionOf(Map<String, Object?> testCase) {
 
 /// The catalog ids the case's `createSurface` messages name.
 Set<String> _catalogIdsOf(Map<String, Object?> testCase) => <String>{
-      for (final Map<String, Object?> message in _messagesOf(testCase))
-        if (message['createSurface'] case final Map<String, Object?> body)
-          if (body['catalogId'] case final String id) id,
-    };
+  for (final Map<String, Object?> message in _messagesOf(testCase))
+    if (message['createSurface'] case final Map<String, Object?> body)
+      if (body['catalogId'] case final String id) id,
+};
 
 /// The messages a case processes, accepting both the bare list and the
 /// `{messages: [...]}` wrapper the protocol allows, across all of its steps.
@@ -583,12 +569,11 @@ Future<void> _process(
   MessageProcessor<ComponentApi> processor,
   Map<String, Object?> testCase, {
   bool resolveNodes = false,
-}) =>
-    _processPayload(
-      processor,
-      testCase['messages'] ?? testCase['payload'],
-      resolveNodes: resolveNodes,
-    );
+}) => _processPayload(
+  processor,
+  testCase['messages'] ?? testCase['payload'],
+  resolveNodes: resolveNodes,
+);
 
 Future<void> _processPayload(
   MessageProcessor<ComponentApi> processor,
@@ -619,11 +604,7 @@ void _checkSurfaces(
   Map<String, Object?> expected,
   String name,
 ) {
-  assertKnownKeys(
-    expected,
-    _knownKeys['expect:surfaces']!,
-    'expect:surfaces',
-  );
+  assertKnownKeys(expected, _knownKeys['expect:surfaces']!, 'expect:surfaces');
   final surfaces = expected['surfaces'] as Map<String, Object?>?;
   if (surfaces == null) return;
 
@@ -732,8 +713,9 @@ void _checkComponents(
   String reason, {
   bool exhaustive = true,
 }) {
-  final Set<String> actualIds =
-      surface.componentsModel.all.map((c) => c.id).toSet();
+  final Set<String> actualIds = surface.componentsModel.all
+      .map((c) => c.id)
+      .toSet();
   final Set<Object?> expectedIds = {
     for (final Map<String, Object?> entry in expected) entry['id'],
   };
@@ -766,9 +748,9 @@ void _checkComponents(
     reason: '$reason: component ids',
   );
 
-  final bool atLeastV1 = A2uiProtocolVersion.tryParse(
-        surface.protocolVersion ?? '',
-      )?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+  final bool atLeastV1 =
+      A2uiProtocolVersion.tryParse(surface.protocolVersion ?? '')
+          ?.isAtLeast(A2uiProtocolVersion.v1_0) ??
       false;
 
   for (final entry in expected) {
@@ -780,8 +762,11 @@ void _checkComponents(
     entry.forEach((key, value) {
       if (key == 'id') return;
       if (key == 'component') {
-        expect(node?.type ?? component!.type, value,
-            reason: '$reason: $id type');
+        expect(
+          node?.type ?? component!.type,
+          value,
+          reason: '$reason: $id type',
+        );
         return;
       }
       if (key == '@metadata') {
@@ -805,15 +790,12 @@ void _checkComponents(
       }
       final Object? propVal =
           node == null || node.state == NodeState.unknownType
-              ? component!.properties[key]
-              : _plain(node.props.peek()[key]);
-      final Object? actual =
-          propVal is num && value is String ? propVal.toString() : propVal;
-      expect(
-        actual,
-        equals(value),
-        reason: '$reason: $id.$key',
-      );
+          ? component!.properties[key]
+          : _plain(node.props.peek()[key]);
+      final Object? actual = propVal is num && value is String
+          ? propVal.toString()
+          : propVal;
+      expect(actual, equals(value), reason: '$reason: $id.$key');
     });
   }
 }
@@ -821,15 +803,15 @@ void _checkComponents(
 /// A resolved property as plain JSON: bindings read for their value, child
 /// nodes replaced by their component id.
 Object? _plain(Object? value) => switch (value) {
-      final ResolvedBinding<Object?> binding => _plain(binding.value),
-      final ComponentNode<ComponentApi> node => node.componentId,
-      final Map<Object?, Object?> map => {
-          for (final MapEntry<Object?, Object?> e in map.entries)
-            e.key: _plain(e.value),
-        },
-      final List<Object?> list => [for (final item in list) _plain(item)],
-      _ => value,
-    };
+  final ResolvedBinding<Object?> binding => _plain(binding.value),
+  final ComponentNode<ComponentApi> node => node.componentId,
+  final Map<Object?, Object?> map => {
+    for (final MapEntry<Object?, Object?> e in map.entries)
+      e.key: _plain(e.value),
+  },
+  final List<Object?> list => [for (final item in list) _plain(item)],
+  _ => value,
+};
 
 Matcher _matchesError(
   Map<String, Object?> expectError, {
@@ -843,11 +825,11 @@ Matcher _matchesError(
     null => isA<A2uiError>(),
     'DataError' => isA<A2uiDataError>(),
     'ValidationError' => anyOf(
-        isA<A2uiValidationError>(),
-        isA<A2uiIntegrityError>(),
-        isA<A2uiRecursionError>(),
-        isA<A2uiCatalogError>(),
-      ),
+      isA<A2uiValidationError>(),
+      isA<A2uiIntegrityError>(),
+      isA<A2uiRecursionError>(),
+      isA<A2uiCatalogError>(),
+    ),
     'CatalogError' => isA<A2uiCatalogError>(),
     'IntegrityError' => isA<A2uiIntegrityError>(),
     'RecursionError' => isA<A2uiRecursionError>(),
@@ -855,8 +837,8 @@ Matcher _matchesError(
     'ParseError' => isA<A2uiParseError>(),
     'ExpressionError' => isA<A2uiExpressionError>(),
     _ => throw UnknownConformanceKeyError(
-        'Unknown expectError.category "$category".',
-      ),
+      'Unknown expectError.category "$category".',
+    ),
   };
   if (message != null) {
     final String pattern = alignErrorPattern(message);
@@ -888,13 +870,12 @@ Matcher _matchesError(
 /// schema-checked.
 Catalog<ComponentApi, FunctionImplementation> _permissive(
   Catalog<ComponentApi, FunctionImplementation> catalog,
-) =>
-    Catalog<ComponentApi, FunctionImplementation>(
-      id: catalog.id,
-      protocolVersion: catalog.protocolVersion,
-      components: [
-        for (final String name in catalog.components.keys)
-          ComponentApi(name: name, schema: Schema.fromMap({'type': 'object'})),
-      ],
-      functions: catalog.functions.values.toList(),
-    );
+) => Catalog<ComponentApi, FunctionImplementation>(
+  id: catalog.id,
+  protocolVersion: catalog.protocolVersion,
+  components: [
+    for (final String name in catalog.components.keys)
+      ComponentApi(name: name, schema: Schema.fromMap({'type': 'object'})),
+  ],
+  functions: catalog.functions.values.toList(),
+);
