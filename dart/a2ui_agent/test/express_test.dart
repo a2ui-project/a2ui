@@ -365,9 +365,8 @@ root = Text($/user/name)
     group('number literals', () {
       /// The `value` of a `Gauge` written with [literal].
       Object? gauge(String literal) {
-        final List<ResponsePart> parts = processor([
-          custom,
-        ]).parseResponse('<a2ui>surface("g"); root = Gauge($literal)</a2ui>');
+        final List<ResponsePart> parts = processor([custom])
+            .parseResponse('<a2ui>surface("g"); root = Gauge($literal)</a2ui>');
         final AgentToRendererMessage last =
             (parts.single as A2uiPart).a2ui.last;
         return (last as UpdateComponentsMessage).components.single['value'];

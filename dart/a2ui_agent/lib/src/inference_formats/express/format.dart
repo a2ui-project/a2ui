@@ -59,7 +59,8 @@ class ExpressFormatFactory extends InferenceFormatFactory {
 
 /// The Express format bound to the catalogs of one request.
 ///
-/// The first catalog is the default for a surface that does not name one.
+/// A lone catalog is the catalog of every surface; with several v1.0 catalogs,
+/// a surface has no catalog of its own.
 class ExpressFormat extends InferenceFormat {
   /// [allowedMessages] names the message types the model may write, such as
   /// `createSurface`; null allows all of them. The prompt describes only the

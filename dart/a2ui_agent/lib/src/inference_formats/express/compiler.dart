@@ -148,8 +148,8 @@ String _stripSentinelTags(String text) {
 /// no catalog, its `surface(...)` line may not name one, and every component
 /// and function call carries the id of its catalog.
 class ExpressCompiler {
-  /// The first of [catalogs] is the default for a surface that does not name
-  /// its catalog.
+  /// A lone catalog in [catalogs] is the catalog of every surface; with several
+  /// v1.0 catalogs, a surface has no catalog of its own.
   ///
   /// Throws [A2uiCatalogError] if two of [catalogs] share an id, if they
   /// target different protocol versions, or if several target a version before

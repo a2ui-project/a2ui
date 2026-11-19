@@ -25,8 +25,8 @@ import 'schema_helper.dart';
 /// Renders the system prompt snippet teaching a model to write Express for
 /// [catalogs].
 class ExpressPromptGenerator extends PromptGenerator {
-  /// The first of [catalogs] is the default for a surface that does not name
-  /// its catalog.
+  /// A lone catalog in [catalogs] is the catalog of every surface; with several
+  /// v1.0 catalogs, a surface has no catalog of its own.
   const ExpressPromptGenerator(
     this.catalogs, {
     this.examples = const [],

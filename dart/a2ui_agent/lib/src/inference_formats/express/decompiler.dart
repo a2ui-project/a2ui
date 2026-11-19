@@ -55,8 +55,8 @@ typedef _SurfaceCatalog = ({bool known, String? catalogId});
 /// its `returnType`, is written as the map literal that compiles to it. What
 /// no Express block can compile to is an error; see [decompile].
 class ExpressDecompiler {
-  /// The first of [catalogs] is the default for a surface that does not name
-  /// its catalog.
+  /// A lone catalog in [catalogs] is the catalog of every surface; with several
+  /// v1.0 catalogs, a surface has no catalog of its own.
   ///
   /// Throws [A2uiCatalogError] if two of [catalogs] share an id, if they
   /// target different protocol versions, or if several target a version before
