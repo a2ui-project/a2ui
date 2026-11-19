@@ -29,8 +29,7 @@ import '../../support/image_server.dart';
 import '../../support/surface_harness.dart';
 
 final Schema _dynamicNumber = Schema.fromMap({
-  r'$ref':
-      'https://a2ui.org/specification/v0_9/common_types.json#/\$defs/DynamicNumber',
+  r'$ref': 'https://a2ui.org/specification/v0_9/common_types.json#/\$defs/DynamicNumber',
 });
 
 /// Stand-ins for the custom components an example names in

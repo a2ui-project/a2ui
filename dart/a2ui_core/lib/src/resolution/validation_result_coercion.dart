@@ -55,8 +55,10 @@ Object? coerceValidationResults(Object? schema, Object? value) {
     var changed = false;
     final coerced = <String, Object?>{};
     for (final MapEntry<Object?, Object?> entry in value.entries) {
-      final Object? result =
-          coerceValidationResults(properties[entry.key], entry.value);
+      final Object? result = coerceValidationResults(
+        properties[entry.key],
+        entry.value,
+      );
       if (!identical(result, entry.value)) changed = true;
       coerced[entry.key.toString()] = result;
     }

@@ -23,11 +23,11 @@ import 'support/test_catalog.dart';
 /// A catalog function that records the surface it ran against.
 class _Fn extends FunctionImplementation {
   _Fn(String name, this.body)
-      : super(
-          name: name,
-          argumentSchema: Schema.object(),
-          allowedCallers: AllowedCallers.rendererOrAgent,
-        );
+    : super(
+        name: name,
+        argumentSchema: Schema.object(),
+        allowedCallers: AllowedCallers.rendererOrAgent,
+      );
 
   final Object? Function(Map<String, dynamic> args, DataContext context) body;
 
@@ -36,8 +36,7 @@ class _Fn extends FunctionImplementation {
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      body(args, context);
+  ]) => body(args, context);
 }
 
 Catalog<ComponentApi, FunctionImplementation> _catalog(String id) =>
@@ -48,7 +47,7 @@ Catalog<ComponentApi, FunctionImplementation> _catalog(String id) =>
       functions: [
         _Fn('whereAmI', (_, context) => context.dataModel.get('/name')),
         _Fn('versionOf', (_, context) => context.protocolVersion?.name),
-        _Fn('slow', (_, __) async {
+        _Fn('slow', (_, _) async {
           await Future<void>.delayed(const Duration(milliseconds: 5));
           return 'late';
         }),
@@ -60,19 +59,18 @@ Map<String, Object?> _callRendererFunction(
   String name, {
   String? surfaceId,
   String? catalogId,
-}) =>
-    {
-      'version': '1.0',
-      'callRendererFunction': {
-        if (surfaceId != null) 'surfaceId': surfaceId,
-        'functionCallId': id,
-        'callFunction': {
-          '@call': name,
-          if (catalogId != null) 'catalogId': catalogId,
-          'args': <String, Object?>{},
-        },
-      },
-    };
+}) => {
+  'version': '1.0',
+  'callRendererFunction': {
+    'surfaceId': ?surfaceId,
+    'functionCallId': id,
+    'callFunction': {
+      '@call': name,
+      'catalogId': ?catalogId,
+      'args': <String, Object?>{},
+    },
+  },
+};
 
 void main() {
   late List<RendererToAgentMessage> sent;
@@ -108,8 +106,7 @@ void main() {
     expect(responses().single.response.error!.code, 'INVALID_FUNCTION_CALL');
   });
 
-  test(
-      'callRendererFunction targets surfaceId when provided, runs isolated '
+  test('callRendererFunction targets surfaceId when provided, runs isolated '
       'when omitted, and rejects missing surfaceId', () async {
     processor.processMessages([
       {
@@ -183,8 +180,9 @@ void main() {
       FunctionCall(call: 'remote', args: {'a': 1}),
       options: const CallOptions(functionCallId: 'r1'),
     );
-    final CallAgentFunctionMessage outbound =
-        sent.whereType<CallAgentFunctionMessage>().single;
+    final CallAgentFunctionMessage outbound = sent
+        .whereType<CallAgentFunctionMessage>()
+        .single;
     expect(outbound.surfaceId, 'one');
     expect(outbound.callFunction, {
       '@call': 'remote',
@@ -199,13 +197,20 @@ void main() {
   });
 
   test('dispose cancels pending calls', () async {
-    final Future<Object?> pending =
-        processor.callAgentFunction('one', FunctionCall(call: 'r', args: {}));
+    final Future<Object?> pending = processor.callAgentFunction(
+      'one',
+      FunctionCall(call: 'r', args: {}),
+    );
     processor.dispose();
     await expectLater(
       pending,
-      throwsA(isA<A2uiRpcError>()
-          .having((e) => e.rpcCode, 'rpcCode', RpcErrorCode.cancelled)),
+      throwsA(
+        isA<A2uiRpcError>().having(
+          (e) => e.rpcCode,
+          'rpcCode',
+          RpcErrorCode.cancelled,
+        ),
+      ),
     );
     expect(processor.rpc.isDisposed, isTrue);
   });
@@ -215,13 +220,15 @@ void main() {
       'version': '1.0',
       'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
     });
-    final SurfaceModel<ComponentApi> surface =
-        processor.model.getSurface('one')!;
+    final SurfaceModel<ComponentApi> surface = processor.model.getSurface(
+      'one',
+    )!;
     final errors = <A2uiRendererError>[];
     surface.onError.subscribe(errors.add);
-    final DataContext context =
-        ComponentContext(surface, ComponentModel('root', 'Text', {}))
-            .dataContext;
+    final DataContext context = ComponentContext(
+      surface,
+      ComponentModel('root', 'Text', {}),
+    ).dataContext;
     final ReadonlySignal<Object?> sig = context.resolveSignal({
       '@call': 'remote',
       'args': {'a': 1},
@@ -238,15 +245,15 @@ void main() {
     expect(errors, isEmpty);
   });
 
-  test(
-      'disposing the processor disposes its surfaces and RPC layer without '
+  test('disposing the processor disposes its surfaces and RPC layer without '
       'reporting the cancelled calls', () async {
     processor.processMessages({
       'version': '1.0',
       'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
     });
-    final SurfaceModel<ComponentApi> surface =
-        processor.model.getSurface('one')!;
+    final SurfaceModel<ComponentApi> surface = processor.model.getSurface(
+      'one',
+    )!;
     final errors = <A2uiRendererError>[];
     processor.model.onError.subscribe(errors.add);
     final ReadonlySignal<Object?> binding =
@@ -265,68 +272,74 @@ void main() {
     expect(errors, isEmpty);
   });
 
-  test('deleteSurface between two calls of one action sends no second call',
-      () async {
-    processor.processMessages({
-      'version': '1.0',
-      'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
-    });
-    final SurfaceModel<ComponentApi> surface =
-        processor.model.getSurface('one')!;
-    // The group-level listener outlives the surface, so it would see a
-    // cancellation reported on the way out.
-    final errors = <A2uiRendererError>[];
-    processor.model.onError.subscribe(errors.add);
-    final DataContext context =
-        ComponentContext(surface, ComponentModel('root', 'Text', {}))
-            .dataContext;
-    final FutureOr<Map<String, dynamic>?> action =
-        context.withUserActivation().resolveActionAsync({
-      'event': {
-        'name': 'go',
-        'context': {
-          'first': {'@call': 'remote', 'args': <String, Object?>{}},
-          'second': {'@call': 'remoteToo', 'args': <String, Object?>{}},
-        },
-      },
-    });
-    expect(sent.whereType<CallAgentFunctionMessage>(), hasLength(1));
-    processor.processMessages({
-      'version': '1.0',
-      'deleteSurface': {'surfaceId': 'one'},
-    });
-    expect(await action, isNull);
+  test(
+    'deleteSurface between two calls of one action sends no second call',
+    () async {
+      processor.processMessages({
+        'version': '1.0',
+        'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
+      });
+      final SurfaceModel<ComponentApi> surface = processor.model.getSurface(
+        'one',
+      )!;
+      // The group-level listener outlives the surface, so it would see a
+      // cancellation reported on the way out.
+      final errors = <A2uiRendererError>[];
+      processor.model.onError.subscribe(errors.add);
+      final DataContext context = ComponentContext(
+        surface,
+        ComponentModel('root', 'Text', {}),
+      ).dataContext;
+      final FutureOr<Map<String, dynamic>?> action = context
+          .withUserActivation()
+          .resolveActionAsync({
+            'event': {
+              'name': 'go',
+              'context': {
+                'first': {'@call': 'remote', 'args': <String, Object?>{}},
+                'second': {'@call': 'remoteToo', 'args': <String, Object?>{}},
+              },
+            },
+          });
+      expect(sent.whereType<CallAgentFunctionMessage>(), hasLength(1));
+      processor.processMessages({
+        'version': '1.0',
+        'deleteSurface': {'surfaceId': 'one'},
+      });
+      expect(await action, isNull);
 
-    // A local function still running when the surface goes away: the agent
-    // call after it is cancelled rather than sent.
-    processor.processMessages({
-      'version': '1.0',
-      'createSurface': {'surfaceId': 'two', 'catalogId': 'alpha'},
-    });
-    final DataContext second = ComponentContext(
-      processor.model.getSurface('two')!,
-      ComponentModel('root', 'Text', {}),
-    ).dataContext;
-    final FutureOr<Map<String, dynamic>?> slowAction =
-        second.withUserActivation().resolveActionAsync({
-      'event': {
-        'name': 'go',
-        'context': {
-          'first': {'@call': 'slow', 'args': <String, Object?>{}},
-          'second': {'@call': 'remote', 'args': <String, Object?>{}},
-        },
-      },
-    });
-    processor.processMessages({
-      'version': '1.0',
-      'deleteSurface': {'surfaceId': 'two'},
-    });
-    expect(await slowAction, isNull);
-    await Future<void>.delayed(Duration.zero);
-    expect(sent.whereType<CallAgentFunctionMessage>(), hasLength(1));
-    expect(processor.rpc.pendingCallCount, 0);
-    expect(errors, isEmpty);
-  });
+      // A local function still running when the surface goes away: the agent
+      // call after it is cancelled rather than sent.
+      processor.processMessages({
+        'version': '1.0',
+        'createSurface': {'surfaceId': 'two', 'catalogId': 'alpha'},
+      });
+      final DataContext second = ComponentContext(
+        processor.model.getSurface('two')!,
+        ComponentModel('root', 'Text', {}),
+      ).dataContext;
+      final FutureOr<Map<String, dynamic>?> slowAction = second
+          .withUserActivation()
+          .resolveActionAsync({
+            'event': {
+              'name': 'go',
+              'context': {
+                'first': {'@call': 'slow', 'args': <String, Object?>{}},
+                'second': {'@call': 'remote', 'args': <String, Object?>{}},
+              },
+            },
+          });
+      processor.processMessages({
+        'version': '1.0',
+        'deleteSurface': {'surfaceId': 'two'},
+      });
+      expect(await slowAction, isNull);
+      await Future<void>.delayed(Duration.zero);
+      expect(sent.whereType<CallAgentFunctionMessage>(), hasLength(1));
+      expect(processor.rpc.pendingCallCount, 0);
+      expect(errors, isEmpty);
+    },
+  );
 
   test('a callRendererFunction argument never calls the agent', () async {
     processor.processMessages({
@@ -352,24 +365,25 @@ void main() {
     expect(responses().single.response.error!.message, contains('remote'));
   });
 
-  test(
-      'a callRendererFunction argument fails even when the surface holds '
+  test('a callRendererFunction argument fails even when the surface holds '
       'the answer', () async {
     processor.processMessages({
       'version': '1.0',
       'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
     });
-    final ReadonlySignal<Object?> binding = ComponentContext(
-      processor.model.getSurface('one')!,
-      ComponentModel('root', 'Text', {}),
-    ).dataContext.resolveSignal({
-      '@call': 'remote',
-      'args': <String, Object?>{},
-    });
+    final ReadonlySignal<Object?> binding =
+        ComponentContext(
+          processor.model.getSurface('one')!,
+          ComponentModel('root', 'Text', {}),
+        ).dataContext.resolveSignal({
+          '@call': 'remote',
+          'args': <String, Object?>{},
+        });
     final void Function() unsubscribe = binding.subscribe((_) {});
     addTearDown(unsubscribe);
-    final CallAgentFunctionMessage outbound =
-        sent.whereType<CallAgentFunctionMessage>().single;
+    final CallAgentFunctionMessage outbound = sent
+        .whereType<CallAgentFunctionMessage>()
+        .single;
     processor.processMessages({
       'version': '1.0',
       'agentFunctionResponse': {
@@ -412,20 +426,26 @@ void main() {
     surface.dispose();
     await expectLater(
       surface.callAgentFunction!(FunctionCall(call: 'remote', args: {})),
-      throwsA(isA<A2uiRpcError>()
-          .having((e) => e.rpcCode, 'rpcCode', RpcErrorCode.cancelled)),
+      throwsA(
+        isA<A2uiRpcError>().having(
+          (e) => e.rpcCode,
+          'rpcCode',
+          RpcErrorCode.cancelled,
+        ),
+      ),
     );
     expect(calls, isEmpty);
   });
 
   test('a deleted surface no longer sends agent calls', () async {
     Map<String, Object?> create() => {
-          'version': '1.0',
-          'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
-        };
+      'version': '1.0',
+      'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
+    };
     processor.processMessages(create());
-    final AgentFunctionCaller caller =
-        processor.model.getSurface('one')!.callAgentFunction!;
+    final AgentFunctionCaller caller = processor.model
+        .getSurface('one')!
+        .callAgentFunction!;
     processor.processMessages({
       'version': '1.0',
       'deleteSurface': {'surfaceId': 'one'},
@@ -435,8 +455,13 @@ void main() {
 
     await expectLater(
       caller(FunctionCall(call: 'remote', args: {})),
-      throwsA(isA<A2uiRpcError>()
-          .having((e) => e.rpcCode, 'rpcCode', RpcErrorCode.cancelled)),
+      throwsA(
+        isA<A2uiRpcError>().having(
+          (e) => e.rpcCode,
+          'rpcCode',
+          RpcErrorCode.cancelled,
+        ),
+      ),
     );
     expect(sent.whereType<CallAgentFunctionMessage>(), isEmpty);
     expect(processor.rpc.pendingCallCount, 0);
@@ -447,15 +472,17 @@ void main() {
       'version': '1.0',
       'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
     });
-    final SurfaceModel<ComponentApi> surface =
-        processor.model.getSurface('one')!;
+    final SurfaceModel<ComponentApi> surface = processor.model.getSurface(
+      'one',
+    )!;
     final errors = <A2uiRendererError>[];
     surface.onError.subscribe(errors.add);
     final Future<Object?> result = surface.callAgentFunction!(
       FunctionCall(call: 'remote', args: {}),
     );
-    final CallAgentFunctionMessage outbound =
-        sent.whereType<CallAgentFunctionMessage>().single;
+    final CallAgentFunctionMessage outbound = sent
+        .whereType<CallAgentFunctionMessage>()
+        .single;
     expect(outbound.surfaceId, 'one');
     processor.processMessages({
       'version': '1.0',
@@ -466,47 +493,54 @@ void main() {
     });
     await expectLater(
       result,
-      throwsA(isA<A2uiRpcError>().having(
-        (e) => e.functionCallId,
-        'functionCallId',
-        outbound.functionCallId,
-      )),
+      throwsA(
+        isA<A2uiRpcError>().having(
+          (e) => e.functionCallId,
+          'functionCallId',
+          outbound.functionCallId,
+        ),
+      ),
     );
   });
 
-  test('a binding sends callAgentFunction naming the default catalog',
-      () async {
-    processor.processMessages({
-      'version': '1.0',
-      'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
-    });
-    final SurfaceModel<ComponentApi> surface =
-        processor.model.getSurface('one')!;
-    final DataContext context =
-        ComponentContext(surface, ComponentModel('root', 'Text', {}))
-            .dataContext;
-    final ReadonlySignal<Object?> value = context.resolveSignal({
-      '@call': 'remote',
-      'args': {'a': 1},
-    });
-    expect(value.value, isNull);
-    final CallAgentFunctionMessage outbound =
-        sent.whereType<CallAgentFunctionMessage>().single;
-    expect(outbound.callFunction, {
-      '@call': 'remote',
-      'catalogId': 'alpha',
-      'args': {'a': 1},
-    });
-    processor.processMessages({
-      'version': '1.0',
-      'agentFunctionResponse': {
-        'functionCallId': outbound.functionCallId,
-        'value': 'ok',
-      },
-    });
-    await Future<void>.delayed(Duration.zero);
-    expect(value.value, 'ok');
-  });
+  test(
+    'a binding sends callAgentFunction naming the default catalog',
+    () async {
+      processor.processMessages({
+        'version': '1.0',
+        'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
+      });
+      final SurfaceModel<ComponentApi> surface = processor.model.getSurface(
+        'one',
+      )!;
+      final DataContext context = ComponentContext(
+        surface,
+        ComponentModel('root', 'Text', {}),
+      ).dataContext;
+      final ReadonlySignal<Object?> value = context.resolveSignal({
+        '@call': 'remote',
+        'args': {'a': 1},
+      });
+      expect(value.value, isNull);
+      final CallAgentFunctionMessage outbound = sent
+          .whereType<CallAgentFunctionMessage>()
+          .single;
+      expect(outbound.callFunction, {
+        '@call': 'remote',
+        'catalogId': 'alpha',
+        'args': {'a': 1},
+      });
+      processor.processMessages({
+        'version': '1.0',
+        'agentFunctionResponse': {
+          'functionCallId': outbound.functionCallId,
+          'value': 'ok',
+        },
+      });
+      await Future<void>.delayed(Duration.zero);
+      expect(value.value, 'ok');
+    },
+  );
 
   test('a processor without an outbound listener installs no agent caller', () {
     final silent = MessageProcessor<ComponentApi>(
@@ -563,18 +597,17 @@ void main() {
 
 class _Gated extends FunctionImplementation {
   _Gated()
-      : super(
-          name: 'open',
-          argumentSchema: Schema.object(),
-          allowedCallers: AllowedCallers.rendererOrAgent,
-          requiresUserActivation: true,
-        );
+    : super(
+        name: 'open',
+        argumentSchema: Schema.object(),
+        allowedCallers: AllowedCallers.rendererOrAgent,
+        requiresUserActivation: true,
+      );
 
   @override
   Object? execute(
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      'opened';
+  ]) => 'opened';
 }

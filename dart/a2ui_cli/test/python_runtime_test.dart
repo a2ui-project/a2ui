@@ -254,9 +254,9 @@ print(json.dumps(output))
                 'Python script failed:\n${pyResult.stdout}\n${pyResult.stderr}',
           );
 
-          final result =
-              jsonDecode(pyResult.stdout.toString().trim())
-                  as Map<String, dynamic>;
+          final result = jsonDecode(
+            pyResult.stdout.toString().trim(),
+          ) as Map<String, dynamic>;
 
           // Verify surface messages envelope
           final surfaceMsgs = result['surface_messages'] as List;
@@ -373,9 +373,9 @@ print(json.dumps({"authoring": authoring, "parsed_variant": parsed.variant}))
               'Python script failed:\n${pyResult.stdout}\n${pyResult.stderr}',
         );
 
-        final output =
-            jsonDecode(pyResult.stdout.toString().trim())
-                as Map<String, dynamic>;
+        final output = jsonDecode(
+          pyResult.stdout.toString().trim(),
+        ) as Map<String, dynamic>;
         expect(output['authoring'], equals('REJECTED'));
         expect(output['parsed_variant'], equals('custom-hero-heading'));
       });

@@ -474,9 +474,9 @@ Object? _normalizeTimestamps(Object? value) => switch (value) {
   final Map<Object?, Object?> map => <String, Object?>{
     for (final MapEntry<Object?, Object?> entry in map.entries)
       '${entry.key}': entry.key == 'timestamp' && entry.value is String
-          ? (DateTime.tryParse(
-                  entry.value! as String,
-                )?.toUtc().toIso8601String() ??
+          ? (DateTime.tryParse(entry.value! as String)
+                    ?.toUtc()
+                    .toIso8601String() ??
                 entry.value)
           : _normalizeTimestamps(entry.value),
   },
