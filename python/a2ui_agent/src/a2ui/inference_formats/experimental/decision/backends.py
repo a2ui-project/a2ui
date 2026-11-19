@@ -103,6 +103,8 @@ _DEFAULT_GEMINI_DECISIONS_URL = (
 _BUNDLED_CALIBRATION_PATH = Path(__file__).with_name("calibration_profiles.json")
 
 _STEP_ZERO_LABELS: tuple[str, ...] = tuple("ABCDEFGHIJ")
+_STEP_ZERO_MAX_CONCURRENCY = 16
+_URL_IN_TEXT_RE = re.compile(r"https?://[^\s'\"<>]+")
 
 _BackendT = TypeVar("_BackendT", bound="_AsyncClosable")
 _T = TypeVar("_T")
@@ -115,8 +117,31 @@ AuthSpec: TypeAlias = str | Callable[[], str | Any] | None
 """``"adc"``, a bearer token, or a callable returning one."""
 
 
+def _sanitize_url(url: str) -> str:
+    """Strips credentials, query parameters, and fragments from a URL."""
+    parsed = urllib.parse.urlsplit(url)
+    if not parsed.scheme or not parsed.netloc:
+        return url.split("?", 1)[0].split("#", 1)[0]
+    host = parsed.hostname or ""
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    try:
+        port = parsed.port
+    except ValueError:
+        port = None
+    netloc = f"{host}:{port}" if port is not None else host
+    return urllib.parse.urlunsplit((parsed.scheme, netloc, parsed.path, "", ""))
+
+
+def _sanitize_error_text(text: str) -> str:
+    """Sanitizes any HTTP(S) URLs embedded in an exception string."""
+    return _URL_IN_TEXT_RE.sub(lambda match: _sanitize_url(match.group(0)), text)
+
+
 def _safe_nonneg_float(value: Any) -> float:
     """Converts `value` to a finite non-negative float, returning 0.0 on invalid input."""
+    if isinstance(value, bool):
+        return 0.0
     try:
         parsed = float(value)
     except (ValueError, TypeError):
@@ -124,6 +149,17 @@ def _safe_nonneg_float(value: Any) -> float:
     if not math.isfinite(parsed) or parsed <= 0.0:
         return 0.0
     return parsed
+
+
+def _safe_optional_float(value: Any) -> float | None:
+    """Converts `value` to a finite float, returning None for invalid or boolean values."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        parsed = float(value)
+    except (ValueError, TypeError):
+        return None
+    return parsed if math.isfinite(parsed) else None
 
 
 def _normalize_probabilities(
@@ -277,21 +313,17 @@ async def _post_json(
     """Sends an HTTP POST with JSON payload and returns the decoded JSON object."""
     hdrs = dict(headers) if headers else None
     response = await client.post(
-        endpoint_url, json=payload, headers=hdrs, timeout=timeout_seconds
+        endpoint_url,
+        json=payload,
+        headers=hdrs,
+        timeout=timeout_seconds,
+        follow_redirects=False,
     )
-    if response.is_error:
-        detail = _extract_http_error_detail(response)
-        try:
-            response.raise_for_status()
-        except httpx.HTTPStatusError as err:
-            if detail:
-                raise httpx.HTTPStatusError(
-                    f"{err}: {detail}",
-                    request=err.request,
-                    response=err.response,
-                ) from err
-            raise
-    return cast(dict[str, Any], response.json())
+    response.raise_for_status()
+    decoded = response.json()
+    if not isinstance(decoded, Mapping):
+        raise ValueError(f"expected a JSON object, got {type(decoded).__name__}")
+    return dict(decoded)
 
 
 def _record_token_logprob(result: dict[str, float], token: Any, logprob: Any) -> None:
@@ -668,16 +700,24 @@ class _HttpClientOwner(_AsyncClosable):
 
     _client: httpx.AsyncClient | None
     _owned_clients: dict[asyncio.AbstractEventLoop, httpx.AsyncClient]
+    _stale_clients: list[httpx.AsyncClient]
     _timeout_seconds: float
     _lock: threading.Lock
+    _adc_token: str | None
+    _adc_expires_at: float
+    _adc_lock: threading.Lock
 
     def _init_http_client(
         self, client: httpx.AsyncClient | None, timeout_seconds: float
     ) -> None:
         self._client = client
         self._owned_clients = {}
+        self._stale_clients = []
         self._timeout_seconds = timeout_seconds
         self._lock = threading.Lock()
+        self._adc_token = None
+        self._adc_expires_at = 0.0
+        self._adc_lock = threading.Lock()
 
     @property
     def _owned_client(self) -> httpx.AsyncClient | None:
@@ -692,10 +732,18 @@ class _HttpClientOwner(_AsyncClosable):
             return self._owned_clients.get(loop)
 
     def _sweep_closed_loops(self) -> None:
-        """Removes entries whose event loop has already been closed."""
+        """Moves entries whose event loop is closed into `_stale_clients`."""
         closed = [lp for lp in self._owned_clients if lp.is_closed()]
         for lp in closed:
-            self._owned_clients.pop(lp, None)
+            client = self._owned_clients.pop(lp, None)
+            if client is not None and not client.is_closed:
+                self._stale_clients.append(client)
+
+    def _pop_stale_clients(self) -> list[httpx.AsyncClient]:
+        """Removes and returns unclosed clients collected from closed loops."""
+        stale = [c for c in self._stale_clients if not c.is_closed]
+        self._stale_clients.clear()
+        return stale
 
     def _get_client(self) -> httpx.AsyncClient:
         """Returns the caller-supplied client or a loop-local owned one."""
@@ -711,35 +759,78 @@ class _HttpClientOwner(_AsyncClosable):
             return client
 
     async def aclose_current_loop(self) -> None:
-        """Closes and removes the client owned by the currently running event loop."""
+        """Closes the current loop's client and any stale clients from closed loops."""
         loop = asyncio.get_running_loop()
         with self._lock:
             self._sweep_closed_loops()
             client = self._owned_clients.pop(loop, None)
+            stale = self._pop_stale_clients()
         if client is not None and not client.is_closed:
             await client.aclose()
+        for old in stale:
+            await old.aclose()
 
     async def aclose(self) -> None:
         """Closes all internally owned `httpx.AsyncClient` instances."""
         with self._lock:
-            if not self._owned_clients:
-                return
+            self._sweep_closed_loops()
             items = list(self._owned_clients.items())
             self._owned_clients.clear()
+            stale = self._pop_stale_clients()
+        if not items and not stale:
+            return
         current_loop = asyncio.get_running_loop()
         for loop, client in items:
             if client.is_closed:
                 continue
-            if loop is current_loop or loop.is_closed():
+            if loop is current_loop or loop.is_closed() or not loop.is_running():
                 await client.aclose()
             else:
                 try:
                     asyncio.run_coroutine_threadsafe(client.aclose(), loop)
                 except RuntimeError:
-                    pass
+                    await client.aclose()
+        for old in stale:
+            if not old.is_closed:
+                await old.aclose()
 
     backend_kind: str
     model_id: str
+
+    def _refresh_adc_token_sync(self) -> str | None:
+        """Refreshes the cached ADC token under a thread lock."""
+        with self._adc_lock:
+            now = time.time()
+            if self._adc_token and now < self._adc_expires_at:
+                return self._adc_token
+            token = _get_adc_token_sync(self._timeout_seconds)
+            if token:
+                self._adc_token = token
+                self._adc_expires_at = now + _ADC_TOKEN_TTL_SECONDS
+                return token
+            return None
+
+    async def _resolve_adc_token(self, endpoint_url: str) -> str:
+        """Returns this instance's cached ADC token, failing closed when unavailable."""
+        now = time.time()
+        if self._adc_token and now < self._adc_expires_at:
+            return self._adc_token
+        try:
+            token = await asyncio.wait_for(
+                asyncio.to_thread(self._refresh_adc_token_sync),
+                timeout=self._timeout_seconds,
+            )
+        except asyncio.TimeoutError as exc:
+            reason = f"timed out fetching ADC token after {self._timeout_seconds:g} s"
+            raise self._backend_error(reason, endpoint_url, exc) from exc
+        if not token:
+            cause = RuntimeError(
+                "Application Default Credentials did not return an access token"
+            )
+            raise self._backend_error(
+                f"failed: {cause}", endpoint_url, cause
+            ) from cause
+        return token
 
     async def _post(
         self, endpoint_url: str, payload: Mapping[str, Any], headers: Any
@@ -769,8 +860,17 @@ class _HttpClientOwner(_AsyncClosable):
         except (asyncio.TimeoutError, httpx.TimeoutException) as exc:
             reason = f"timed out after {self._timeout_seconds:g} s"
             raise self._backend_error(reason, endpoint_url, exc) from exc
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            phrase = exc.response.reason_phrase or ""
+            detail = _extract_http_error_detail(exc.response)
+            summary = f"HTTP {status} {phrase}".strip()
+            if detail:
+                summary = f"{summary}: {detail}"
+            raise self._backend_error(f"failed: {summary}", endpoint_url, exc) from exc
         except httpx.HTTPError as exc:
-            raise self._backend_error(f"failed: {exc}", endpoint_url, exc) from exc
+            detail = _sanitize_error_text(str(exc))
+            raise self._backend_error(f"failed: {detail}", endpoint_url, exc) from exc
         except ValueError as exc:
             reason = f"returned a body that is not JSON: {exc}"
             raise self._backend_error(reason, endpoint_url, exc) from exc
@@ -779,9 +879,10 @@ class _HttpClientOwner(_AsyncClosable):
         self, reason: str, endpoint_url: str, cause: BaseException
     ) -> DecisionBackendError:
         """Builds a `DecisionBackendError` tagged with this backend's kind and model."""
+        safe_url = _sanitize_url(endpoint_url)
         return DecisionBackendError(
             f"Decision backend {self.backend_kind!r} (model {self.model_id!r})"
-            f" request to {endpoint_url} {reason}",
+            f" request to {safe_url} {reason}",
             backend_kind=self.backend_kind,
             model_id=self.model_id,
             cause=cause,
@@ -792,7 +893,7 @@ def _get_adc_token_sync(timeout_seconds: float) -> str | None:
     """Retrieves an access token from ADC, then from ``gcloud``, synchronously.
 
     Args:
-        timeout_seconds: Deadline for the ``gcloud auth print-access-token``
+        timeout_seconds: Deadline for the ADC refresh and ``gcloud``
             subprocess.
 
     Returns:
@@ -802,11 +903,18 @@ def _get_adc_token_sync(timeout_seconds: float) -> str | None:
         import google.auth
         import google.auth.transport.requests
 
+        base_request: Any = google.auth.transport.requests.Request()
+
+        def _timeout_request(*args: Any, **kwargs: Any) -> Any:
+            if kwargs.get("timeout") is None:
+                kwargs["timeout"] = timeout_seconds
+            return base_request(*args, **kwargs)
+
         creds: Any
         creds, _ = google.auth.default(
             scopes=["https://www.googleapis.com/auth/cloud-platform"]
         )
-        creds.refresh(google.auth.transport.requests.Request())
+        creds.refresh(_timeout_request)
         if creds.token:
             return str(creds.token)
     except Exception:
@@ -920,18 +1028,19 @@ def _parse_native_question_answer(
     probabilities = _normalize_probabilities(probs_map, candidates)
     calibrated = bool(entry.get("calibrated", envelope.get("calibrated", False)))
     raw_margin = entry.get("top_logit_margin", envelope.get("top_logit_margin"))
-    top_logit_margin = float(raw_margin) if raw_margin is not None else None
+    top_logit_margin = _safe_optional_float(raw_margin)
     dist = DecisionDistribution(
         probabilities=probabilities,
         calibrated=calibrated,
         top_logit_margin=top_logit_margin,
     )
     answer = answer_from_distribution(question, dist)
-    if question.kind is QuestionKind.SCORE and entry.get("expected") is not None:
+    expected_val = _safe_optional_float(entry.get("expected"))
+    if question.kind is QuestionKind.SCORE and expected_val is not None:
         return DecisionAnswer(
             question_id=question.id,
             distribution=answer.distribution,
-            expected=float(entry["expected"]),
+            expected=expected_val,
         )
     return answer
 
@@ -1075,13 +1184,13 @@ def _parse_systemone_question_answer(
         top_logit_margin=_probability_margin(probabilities),
     )
     answer = answer_from_distribution(question, dist)
-    raw_score = entry.get("score", entry.get("expected"))
-    if question.kind is QuestionKind.SCORE and raw_score is not None:
+    score_val = _safe_optional_float(entry.get("score", entry.get("expected")))
+    if question.kind is QuestionKind.SCORE and score_val is not None:
         if sum(answer.distribution.probabilities.values()) <= 0.0:
             return DecisionAnswer(
                 question_id=question.id,
                 distribution=answer.distribution,
-                expected=float(raw_score),
+                expected=score_val,
             )
     return answer
 
@@ -1183,9 +1292,6 @@ class JevHttpBackend(_HttpClientOwner):
         self._auth = auth
         self._headers = dict(headers) if headers else None
         self._init_http_client(client, timeout_seconds)
-        self._adc_token: str | None = None
-        self._adc_expires_at: float = 0.0
-        self._adc_lock = threading.Lock()
         self._last_call_latency_ms: float | None = None
 
     @property
@@ -1223,26 +1329,6 @@ class JevHttpBackend(_HttpClientOwner):
             and self._endpoint_url.rstrip("/").endswith("/v1beta/decisions")
         )
 
-    def _refresh_adc_token_sync(self) -> str | None:
-        """Refreshes the cached ADC token under a thread lock."""
-        with self._adc_lock:
-            now = time.time()
-            if self._adc_token and now < self._adc_expires_at:
-                return self._adc_token
-            token = _get_adc_token_sync(self._timeout_seconds)
-            if token:
-                self._adc_token = token
-                self._adc_expires_at = now + _ADC_TOKEN_TTL_SECONDS
-                return token
-            return None
-
-    async def _resolve_adc_token(self) -> str | None:
-        """Returns this instance's cached ADC token, refreshing it when expired."""
-        now = time.time()
-        if self._adc_token and now < self._adc_expires_at:
-            return self._adc_token
-        return await asyncio.to_thread(self._refresh_adc_token_sync)
-
     async def _resolve_auth_token(self) -> str | None:
         """Resolves bearer token string from the configured auth argument."""
         auth_target = self._auth
@@ -1250,7 +1336,7 @@ class JevHttpBackend(_HttpClientOwner):
             return None
 
         if auth_target == "adc":
-            return await self._resolve_adc_token()
+            return await self._resolve_adc_token(self._endpoint_url)
         if callable(auth_target):
             res = auth_target()
             if asyncio.iscoroutine(res):
@@ -1414,7 +1500,7 @@ class StepZeroLogprobBackend(_HttpClientOwner):
         if asyncio.iscoroutine(raw):
             raw = await raw
         if raw == "adc":
-            raw = await asyncio.to_thread(_get_adc_token_sync, self._timeout_seconds)
+            raw = await self._resolve_adc_token(self._endpoint_url)
         token = str(raw).strip() if raw else ""
         return {"Authorization": f"Bearer {token}"} if token else None
 
@@ -1498,11 +1584,16 @@ class StepZeroLogprobBackend(_HttpClientOwner):
         for question in batch.questions:
             _validate_step_zero_candidates(question.candidates())
         headers = await self._build_headers()
+        semaphore = asyncio.Semaphore(_STEP_ZERO_MAX_CONCURRENCY)
+
+        async def _bounded_score(question: DecisionQuestion) -> DecisionAnswer:
+            async with semaphore:
+                return await self._score_question(
+                    question, batch.shared_context, headers
+                )
+
         return tuple(
-            await asyncio.gather(*(
-                self._score_question(q, batch.shared_context, headers)
-                for q in batch.questions
-            ))
+            await asyncio.gather(*(_bounded_score(q) for q in batch.questions))
         )
 
 

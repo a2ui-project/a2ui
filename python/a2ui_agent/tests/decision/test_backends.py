@@ -1167,3 +1167,171 @@ def test_http_backends_require_the_decision_extra(
     for kind in ("jev", "gemini", "step0"):
         with pytest.raises(ImportError, match=pattern):
             create_decision_backend(kind)
+
+
+@pytest.mark.asyncio
+async def test_error_messages_strip_url_credentials_and_query_params() -> None:
+    def status_err(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            403,
+            json={"error": {"message": "forbidden"}},
+            request=httpx.Request(
+                "POST",
+                "https://user:topsecret@api.example.com/v1/systemone?key=sk-123#frag",
+            ),
+        )
+
+    async with _json_client(status_err) as client:
+        backend = JevHttpBackend(
+            "https://user:topsecret@api.example.com/v1/systemone?key=sk-123#frag",
+            client=client,
+        )
+        with pytest.raises(DecisionBackendError) as info:
+            await backend.answer(_batch(_choice("q", "a", "b")))
+    msg = str(info.value)
+    assert "topsecret" not in msg
+    assert "sk-123" not in msg
+    assert "#frag" not in msg
+    assert "https://api.example.com/v1/systemone" in msg
+    assert "HTTP 403" in msg
+    assert "forbidden" in msg
+
+
+@pytest.mark.asyncio
+async def test_non_object_json_reply_and_redirects_raise_backend_error() -> None:
+    def list_reply(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, json=["not", "an", "object"])
+
+    async with _json_client(list_reply) as client:
+        backend = JevHttpBackend("http://jev.local/predict", client=client)
+        with pytest.raises(DecisionBackendError, match="expected a JSON object"):
+            await backend.answer(_batch(_choice("q", "a", "b")))
+
+    seen_urls: list[str] = []
+
+    def redirect_reply(request: httpx.Request) -> httpx.Response:
+        seen_urls.append(str(request.url))
+        return httpx.Response(
+            302, headers={"Location": "http://evil.example/steal"}, request=request
+        )
+
+    async with _json_client(redirect_reply) as client:
+        backend = JevHttpBackend(
+            "http://jev.local/predict", auth="secret-token", client=client
+        )
+        with pytest.raises(DecisionBackendError, match="HTTP 302"):
+            await backend.answer(_batch(_choice("q", "a", "b")))
+    assert seen_urls == ["http://jev.local/predict"]
+
+
+@pytest.mark.asyncio
+async def test_closed_loop_clients_are_drained_on_aclose() -> None:
+    backend = JevHttpBackend("http://jev.local/predict")
+
+    class _FakeLoop:
+
+        def __init__(self, *, closed: bool = True, running: bool = False) -> None:
+            self._closed = closed
+            self._running = running
+
+        def is_closed(self) -> bool:
+            return self._closed
+
+        def is_running(self) -> bool:
+            return self._running
+
+    stale_client = httpx.AsyncClient()
+    stopped_client = httpx.AsyncClient()
+    with backend._lock:
+        backend._owned_clients[_FakeLoop(closed=True)] = stale_client  # type: ignore[index]
+        backend._owned_clients[_FakeLoop(closed=False, running=False)] = stopped_client  # type: ignore[index]
+
+    current_client = backend._get_client()
+    assert not stale_client.is_closed
+    assert stale_client in backend._stale_clients
+
+    await backend.aclose_current_loop()
+    assert current_client.is_closed
+    assert stale_client.is_closed
+
+    await backend.aclose()
+    assert stopped_client.is_closed
+
+
+@pytest.mark.asyncio
+async def test_adc_auth_caches_across_step0_and_fails_closed_when_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from a2ui.inference_formats.experimental.decision import backends
+
+    calls: list[float] = []
+
+    def ok_adc(timeout_seconds: float) -> str:
+        calls.append(timeout_seconds)
+        return "step0-adc-token"
+
+    monkeypatch.setattr(backends, "_get_adc_token_sync", ok_adc)
+    step0 = StepZeroLogprobBackend(
+        "http://vllm.local/v1/completions", "m", auth="adc", timeout_seconds=5.0
+    )
+    first = await step0._build_headers()
+    second = await step0._build_headers()
+    assert first == {"Authorization": "Bearer step0-adc-token"}
+    assert second == first
+    assert calls == [5.0]
+
+    monkeypatch.setattr(backends, "_get_adc_token_sync", lambda _t: None)
+    failing_jev = JevHttpBackend("http://jev.local/predict", auth="adc")
+    with pytest.raises(DecisionBackendError, match="Application Default Credentials"):
+        await failing_jev.answer(_batch(_choice("q", "a", "b")))
+
+    failing_step0 = StepZeroLogprobBackend(
+        "http://vllm.local/v1/completions", "m", auth="adc"
+    )
+    with pytest.raises(DecisionBackendError, match="Application Default Credentials"):
+        await failing_step0.answer(_batch(_choice("q", "a", "b")))
+
+
+@pytest.mark.asyncio
+async def test_malformed_numeric_fields_in_backend_replies_do_not_crash() -> None:
+    score_q = DecisionQuestion(
+        id="stakes",
+        kind=QuestionKind.SCORE,
+        prompt="Stakes?",
+        options=("low", "medium", "high"),
+    )
+
+    def native_bad_numbers(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={
+                "answers": {
+                    "stakes": {
+                        "probabilities": {"low": 0.2, "medium": 0.8},
+                        "top_logit_margin": "not-a-number",
+                        "expected": True,
+                    }
+                }
+            },
+        )
+
+    async with _json_client(native_bad_numbers) as client:
+        native = JevHttpBackend("http://jev.local/predict", client=client)
+        (ans,) = await native.answer(_batch(score_q))
+    assert ans.distribution.top_logit_margin is None
+    assert ans.expected == pytest.approx(0.8)
+
+    def systemone_bad_score(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={"answers": {"stakes": {"probabilities": {}, "score": "NaN"}}},
+        )
+
+    async with _json_client(systemone_bad_score) as client:
+        sys1 = JevHttpBackend("http://jev.local/v1/systemone", client=client)
+        (ans2,) = await sys1.answer(_batch(score_q))
+    assert ans2.expected is None

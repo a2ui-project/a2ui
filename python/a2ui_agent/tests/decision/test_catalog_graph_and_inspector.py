@@ -555,6 +555,30 @@ class TestPayloadInspector:
         assert [p.path for p in pointers] == ["/dishes"]
         assert "hasGroupedSections" not in pointers[0].hints
 
+    def test_heterogeneous_array_image_sample_pointer_uses_first_non_empty_index(
+        self,
+    ) -> None:
+        payload = {
+            "gallery": [
+                {"caption": "No photo yet", "imageUrl": ""},
+                {"caption": "Missing key"},
+                {"caption": "Pool", "imageUrl": "https://example.com/pool.jpg"},
+            ],
+            "banners": ["", None, "https://example.com/banner.png"],
+        }
+        by_path = {p.path: p for p in inspect_payload_pointers(payload)}
+        assert by_path["/gallery"].sample_pointers == ("/gallery/2/imageUrl",)
+        assert by_path["/banners"].sample_pointers == ("/banners/2",)
+
+    def test_inspect_payload_pointers_caps_deep_nesting(self) -> None:
+        nested: dict[str, Any] = {"leaf": "value"}
+        for idx in range(60):
+            nested = {f"lvl{idx}": nested}
+        pointers = inspect_payload_pointers(nested)
+        max_depth = max(p.path.count("/") for p in pointers)
+        assert max_depth <= 32
+        assert not any(p.path.endswith("/leaf") for p in pointers)
+
 
 class TestCatalogDecisionGraph:
     """Tests for dynamic CatalogDecisionGraph extraction across custom domains."""
@@ -718,3 +742,39 @@ class TestCatalogDecisionGraph:
         assert isinstance(binding.format_hints, dict)
         assert binding == SlotBinding(pointer="/cpu")
         assert hash(binding) == hash(SlotBinding(pointer="/cpu"))
+
+    def test_v1_component_custom_metadata_and_checks_properties_preserved(
+        self,
+    ) -> None:
+        schema: dict[str, Any] = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "catalogId": "https://example.com/catalogs/custom-env/v1/catalog.json",
+            "protocolVersion": "1.0",
+            "components": {
+                "AuditWidget": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "AuditWidget"},
+                        "metadata": {
+                            "$ref": "common_types.json#/$defs/DynamicString",
+                            "description": "Audit note.",
+                        },
+                        "checks": {
+                            "$ref": "common_types.json#/$defs/DynamicNumber",
+                            "description": "Check count.",
+                        },
+                        "value": {
+                            "$ref": "common_types.json#/$defs/DynamicString",
+                        },
+                    },
+                    "required": ["component", "value"],
+                }
+            },
+            "functions": {},
+        }
+        graph = CatalogDecisionGraph([Catalog.from_json(schema)])
+        widget = graph.get_component("AuditWidget")
+        assert widget is not None
+        assert widget.supports_checks is False
+        slot_names = {slot.name for slot in widget.slots}
+        assert {"metadata", "checks", "value"}.issubset(slot_names)

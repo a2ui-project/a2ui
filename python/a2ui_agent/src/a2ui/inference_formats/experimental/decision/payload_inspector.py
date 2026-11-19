@@ -259,6 +259,7 @@ def _is_mutable_path(path: str, mutable_paths: set[str]) -> bool:
 def _record_element_mapping(
     item: Mapping[str, Any],
     element_keys: list[str],
+    seen_keys: set[str],
     sample_type_by_key: dict[str, str],
     values_by_key: dict[str, list[Any]],
     siblings_by_key: dict[str, list[Mapping[str, Any]]],
@@ -266,7 +267,8 @@ def _record_element_mapping(
     """Records RFC 6901-escaped keys, coarse types, and column values from a dict item."""
     for raw_key, raw_val in item.items():
         key = _escape_pointer_segment(str(raw_key))
-        if key not in element_keys:
+        if key not in seen_keys:
+            seen_keys.add(key)
             element_keys.append(key)
         if key not in sample_type_by_key:
             val_type = _classify_value_type(raw_val)
@@ -274,6 +276,19 @@ def _record_element_mapping(
                 sample_type_by_key[key] = val_type
         values_by_key.setdefault(key, []).append(raw_val)
         siblings_by_key.setdefault(key, []).append(item)
+
+
+def _first_image_index(items: Sequence[Any], raw_field: str | None = None) -> int:
+    """Returns the first index in `items` holding a non-empty string URL (or 0)."""
+    for idx, item in enumerate(items):
+        candidate = (
+            item.get(raw_field)
+            if raw_field is not None and isinstance(item, Mapping)
+            else item
+        )
+        if isinstance(candidate, str) and candidate.strip():
+            return idx
+    return 0
 
 
 def _compute_element_semantics(
@@ -296,12 +311,14 @@ def _compute_element_semantics(
         )
         element_semantic_types[key] = sem
         if sem == SemanticType.IMAGE_URL:
-            sample_pointers.append(f"{path}/0/{key}")
+            sample_idx = _first_image_index(items, raw_field)
+            sample_pointers.append(f"{path}/{sample_idx}/{key}")
 
     if not element_keys and items:
         scalar_sem = classify_array_field(items, unescaped_key)
         if scalar_sem == SemanticType.IMAGE_URL:
-            sample_pointers.append(f"{path}/0")
+            sample_idx = _first_image_index(items)
+            sample_pointers.append(f"{path}/{sample_idx}")
 
     return element_semantic_types, tuple(sample_pointers)
 
@@ -311,6 +328,7 @@ def _summarize_array(
 ) -> PointerSummary:
     """Builds a PointerSummary for an array node without recursing into indices."""
     element_keys: list[str] = []
+    seen_keys: set[str] = set()
     sample_type_by_key: dict[str, str] = {}
     values_by_key: dict[str, list[Any]] = {}
     siblings_by_key: dict[str, list[Mapping[str, Any]]] = {}
@@ -319,6 +337,7 @@ def _summarize_array(
             _record_element_mapping(
                 item,
                 element_keys,
+                seen_keys,
                 sample_type_by_key,
                 values_by_key,
                 siblings_by_key,
@@ -558,13 +577,20 @@ def _append_sequence_pointers(
     out.append(parent_summary)
 
 
+_MAX_INSPECT_DEPTH = 32
+
+
 def _traverse_mapping(
     node: Mapping[str, Any],
     prefix: str,
     mutable_set: set[str],
     out: list[PointerSummary],
+    *,
+    depth: int = 0,
 ) -> None:
     """Recursively walks `node` and appends `PointerSummary` entries to `out`."""
+    if depth >= _MAX_INSPECT_DEPTH:
+        return
     for raw_key, value in node.items():
         raw_key_str = str(raw_key)
         path = f"{prefix}/{_escape_pointer_segment(raw_key_str)}"
@@ -572,7 +598,7 @@ def _traverse_mapping(
         if isinstance(value, Mapping):
             out.append(_summarize_mapping_node(path, value, raw_key_str, is_mutable))
             if value:
-                _traverse_mapping(value, path, mutable_set, out)
+                _traverse_mapping(value, path, mutable_set, out, depth=depth + 1)
             continue
         if isinstance(value, Sequence) and not isinstance(
             value, (str, bytes, bytearray)
