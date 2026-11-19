@@ -51,26 +51,26 @@ typedef CompositionRule = ({
 /// Types declaring neither `allowedParents` nor `allowedChildren` are left
 /// out.
 Map<String, CompositionRule> extractCompositionRules(Catalog catalog) => {
-      for (final MapEntry<String, ComponentApi> entry
-          in catalog.components.entries)
-        if (entry.value.allowedParents != null ||
-            entry.value.allowedChildren != null)
-          entry.key: (
-            allowedParents: entry.value.allowedParents,
-            allowedChildren: entry.value.allowedChildren,
-          ),
-    };
+  for (final MapEntry<String, ComponentApi> entry in catalog.components.entries)
+    if (entry.value.allowedParents != null ||
+        entry.value.allowedChildren != null)
+      entry.key: (
+        allowedParents: entry.value.allowedParents,
+        allowedChildren: entry.value.allowedChildren,
+      ),
+};
 
 /// Converts a [ComponentReference.field], such as `children[2]` or
 /// `groups[0].children[0]`, into a JSON Pointer relative to the component,
 /// such as `/children/2`.
 String referencePointer(String field) => [
-      for (final String segment in field
+  for (final String segment
+      in field
           .replaceAllMapped(RegExp(r'\[(\d+)\]'), (m) => '.${m[1]}')
           .split('.'))
-        if (segment.isNotEmpty)
-          '/${segment.replaceAll('~', '~0').replaceAll('/', '~1')}',
-    ].join();
+    if (segment.isNotEmpty)
+      '/${segment.replaceAll('~', '~0').replaceAll('/', '~1')}',
+].join();
 
 /// Checks every parent-child edge among [components] and [existing] against
 /// [rules].
@@ -101,8 +101,10 @@ void checkCompositionConstraints(
   if (rules.isEmpty) return;
   final types = <String, String>{
     for (final component in components.followedBy(existing))
-      if ((component['id'], component['component'])
-          case (final String id, final String type))
+      if ((component['id'], component['component']) case (
+        final String id,
+        final String type,
+      ))
         id: type,
   };
   final batchPointers = <String, String>{
@@ -114,15 +116,15 @@ void checkCompositionConstraints(
   // component was already stored.
   void check(Map<String, Object?> component, String? pointer) {
     if (_componentViolation(
-      component,
-      refFields,
-      rules,
-      (String id) => types[id],
-      rootId: rootId,
-      pointer: pointer,
-      childPointerOf: (String id) => batchPointers[id],
-      surfaceId: surfaceId,
-    )
+          component,
+          refFields,
+          rules,
+          (String id) => types[id],
+          rootId: rootId,
+          pointer: pointer,
+          childPointerOf: (String id) => batchPointers[id],
+          surfaceId: surfaceId,
+        )
         case final A2uiValidationError error) {
       throw error;
     }
@@ -217,7 +219,8 @@ A2uiValidationError? _componentViolation(
   if (id == rootId &&
       rootParents != null &&
       !rootParents.contains(_surfaceParent)) {
-    final msg = "Component '$id' ($type) cannot be placed under parent "
+    final msg =
+        "Component '$id' ($type) cannot be placed under parent "
         "'$_surfaceParent' ($_surfaceParent). Allowed parents: "
         '${_typeList(rootParents)}.';
     return A2uiValidationError(
@@ -243,19 +246,20 @@ A2uiValidationError? _componentViolation(
   )) {
     final String? childType = typeOf(reference.id);
     if (childType == null) continue;
-    final String? edgePath =
-        pointer == null ? null : '$pointer${referencePointer(reference.field)}';
+    final String? edgePath = pointer == null
+        ? null
+        : '$pointer${referencePointer(reference.field)}';
     final String? childPath = childPointerOf?.call(reference.id);
     if (_edgeViolation(
-      id,
-      type,
-      reference.id,
-      childType,
-      rules,
-      path: edgePath,
-      childPath: childPath,
-      surfaceId: surfaceId,
-    )
+          id,
+          type,
+          reference.id,
+          childType,
+          rules,
+          path: edgePath,
+          childPath: childPath,
+          surfaceId: surfaceId,
+        )
         case final A2uiValidationError error) {
       return error;
     }
@@ -278,7 +282,8 @@ A2uiValidationError? _edgeViolation(
 }) {
   final List<String>? allowedChildren = rules[parentType]?.allowedChildren;
   if (allowedChildren != null && !allowedChildren.contains(childType)) {
-    final msg = "Container '$parent' ($parentType) cannot contain child "
+    final msg =
+        "Container '$parent' ($parentType) cannot contain child "
         "'$child' ($childType). Allowed children: "
         '${_typeList(allowedChildren)}.';
     return A2uiValidationError(
@@ -300,7 +305,8 @@ A2uiValidationError? _edgeViolation(
   final List<String>? allowedParents = rules[childType]?.allowedParents;
   if (allowedParents != null && !allowedParents.contains(parentType)) {
     final String? resolvedPath = childPath ?? path;
-    final msg = "Component '$child' ($childType) cannot be placed under "
+    final msg =
+        "Component '$child' ($childType) cannot be placed under "
         "parent '$parent' ($parentType). Allowed parents: "
         '${_typeList(allowedParents)}.';
     return A2uiValidationError(
@@ -494,10 +500,9 @@ void checkComponentGraph(
 bool _isDataBinding(
   Map<Object?, Object?> value, {
   required bool usesDirectives,
-}) =>
-    usesDirectives
-        ? value['@path'] is String
-        : value['path'] is String && !value.containsKey('componentId');
+}) => usesDirectives
+    ? value['@path'] is String
+    : value['path'] is String && !value.containsKey('componentId');
 
 /// Checks data-model paths and nesting depth anywhere inside a message body.
 ///
@@ -590,21 +595,14 @@ void checkPathsAndRecursion(
     final Object? path = _isDataBinding(object, usesDirectives: usesDirectives)
         ? object[usesDirectives ? '@path' : 'path']
         : (object['path'] is String && object['componentId'] is String
-            ? object['path']
-            : null);
+              ? object['path']
+              : null);
     if (path is String && !_pathPattern.hasMatch(path)) {
-      throw A2uiValidationError(
-        "Invalid path syntax: '$path'",
-      );
+      throw A2uiValidationError("Invalid path syntax: '$path'");
     }
 
     for (final MapEntry<Object?, Object?> entry in object.entries) {
-      traverse(
-        entry.value,
-        entries?[entry.key],
-        depth + 1,
-        inDataValue: false,
-      );
+      traverse(entry.value, entries?[entry.key], depth + 1, inDataValue: false);
     }
   }
 

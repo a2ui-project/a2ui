@@ -62,9 +62,7 @@ class SurfaceGroupModel<T extends ComponentApi> {
     _actionSubscriptions[surface.id] = surface.onAction.subscribe(
       _onAction.emit,
     );
-    _errorSubscriptions[surface.id] = surface.onError.subscribe(
-      _onError.emit,
-    );
+    _errorSubscriptions[surface.id] = surface.onError.subscribe(_onError.emit);
     _onSurfaceCreated.emit(surface);
   }
 
