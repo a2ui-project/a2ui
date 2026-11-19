@@ -58,6 +58,29 @@ __metadata:
   languageName: node
   linkType: soft
 
+"@a2ui/embed@portal:../../../../typescript/embed::locator=a2ui-embed-sql%40workspace%3Amcp%2Fa2ui-embed-sql":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/embed@portal:../../../../typescript/embed::locator=a2ui-embed-sql%40workspace%3Amcp%2Fa2ui-embed-sql"
+  dependencies:
+    "@modelcontextprotocol/ext-apps": "npm:^1.7.4"
+    ajv: "npm:^8.17.1"
+    esbuild: "npm:^0.28.1"
+    zod: "npm:^3.25.76"
+  peerDependencies:
+    "@a2ui/lit": "workspace:*"
+    "@a2ui/web_core": "workspace:*"
+    "@modelcontextprotocol/sdk": ^1.29.0
+    lit: ^3.3.3
+  peerDependenciesMeta:
+    "@a2ui/lit":
+      optional: true
+    lit:
+      optional: true
+  bin:
+    a2ui-embed: ./dist/builder/cli.js
+  languageName: node
+  linkType: soft
+
 "@a2ui/file_upload@workspace:client/angular/projects/file_upload":
   version: 0.0.0-use.local
   resolution: "@a2ui/file_upload@workspace:client/angular/projects/file_upload"
@@ -67,6 +90,24 @@ __metadata:
     ajv: "npm:^8.20.0"
     wireit: "npm:^0.15.0-pre.2"
   languageName: unknown
+  linkType: soft
+
+"@a2ui/lit@portal:../../../../typescript/renderers/lit::locator=a2ui-embed-sql%40workspace%3Amcp%2Fa2ui-embed-sql":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/lit@portal:../../../../typescript/renderers/lit::locator=a2ui-embed-sql%40workspace%3Amcp%2Fa2ui-embed-sql"
+  dependencies:
+    "@a2ui/web_core": "workspace:*"
+    "@lit-labs/signals": "npm:^0.3.0"
+    "@lit/context": "npm:^1.1.6"
+    lit: "npm:^3.3.3"
+    signal-utils: "npm:^0.21.1"
+    zod: "npm:^3.25.76"
+  peerDependencies:
+    "@a2ui/markdown-it": "workspace:*"
+  peerDependenciesMeta:
+    "@a2ui/markdown-it":
+      optional: true
+  languageName: node
   linkType: soft
 
 "@a2ui/macros-community-demo@workspace:macros/client":
@@ -1828,6 +1869,16 @@ __metadata:
     "@inquirer/prompts": ">= 3 < 8"
     listr2: 9.0.5
   checksum: 10c0/c85a0eee6c610163be200c3cc9e51847ee95a595685835eb5fa3267f0c1107905aae50b9123d970797851f3acb456ad1fcf68c86022b56d5b3f42b757cec27b7
+  languageName: node
+  linkType: hard
+
+"@lit-labs/signals@npm:^0.3.0":
+  version: 0.3.0
+  resolution: "@lit-labs/signals@npm:0.3.0"
+  dependencies:
+    lit: "npm:^2.0.0 || ^3.0.0"
+    signal-polyfill: "npm:^0.2.2"
+  checksum: 10c0/8b42262679ae64447b820dad46c3697afa8e82c19f0c67d24744d428b56a4b2244c19aa310ae3835da41cf466262afc3648d79c3549bc02b031963267bd3ac70
   languageName: node
   linkType: hard
 
@@ -4581,13 +4632,19 @@ __metadata:
   resolution: "a2ui-embed-sql@workspace:mcp/a2ui-embed-sql"
   dependencies:
     "@a2ui/catalog-vegachart": "portal:../../../../typescript/catalogs/vegachart"
+    "@a2ui/embed": "portal:../../../../typescript/embed"
+    "@a2ui/lit": "portal:../../../../typescript/renderers/lit"
     "@a2ui/web_core": "npm:*"
     "@google/genai": "npm:^2.8.0"
+    "@modelcontextprotocol/ext-apps": "npm:^1.7.4"
+    "@modelcontextprotocol/sdk": "npm:^1.29.0"
     "@types/node": "npm:^25.9.3"
     ajv: "npm:^8.17.1"
+    esbuild: "npm:^0.28.1"
     eslint: "npm:^10.4.1"
     jsdom: "npm:^29.1.1"
     lit: "npm:^3.3.3"
+    playwright: "npm:1.58.1"
     typescript: "npm:5.9.3"
     vitest: "npm:^4.1.8"
     zod: "npm:^3.25.76"
@@ -8701,7 +8758,7 @@ __metadata:
   languageName: node
   linkType: soft
 
-"lit@npm:^3.3.3":
+"lit@npm:^2.0.0 || ^3.0.0, lit@npm:^3.3.3":
   version: 3.3.3
   resolution: "lit@npm:3.3.3"
   dependencies:
@@ -11166,6 +11223,22 @@ __metadata:
   version: 4.1.0
   resolution: "signal-exit@npm:4.1.0"
   checksum: 10c0/41602dce540e46d599edba9d9860193398d135f7ff72cab629db5171516cfae628d21e7bfccde1bbfdf11c48726bc2a6d1a8fb8701125852fbfda7cf19c6aa83
+  languageName: node
+  linkType: hard
+
+"signal-polyfill@npm:^0.2.2":
+  version: 0.2.3
+  resolution: "signal-polyfill@npm:0.2.3"
+  checksum: 10c0/474ddd2ed8c8661c3106436bc580ff27c55e4902a5aa93c59243ddbc452cddfdd0cdedf2879b3989dea031698617dd1c656abab32d109054f990bea10aa498b1
+  languageName: node
+  linkType: hard
+
+"signal-utils@npm:^0.21.1":
+  version: 0.21.1
+  resolution: "signal-utils@npm:0.21.1"
+  peerDependencies:
+    signal-polyfill: ^0.2.0
+  checksum: 10c0/e42ea9b4af0b6054eb4e4f7dd97d9fb2c115fba34c024e4ebbf2879785b8e61c1d6562ccddeef185bbd64f80f985b38a3631e35bfdfd317dcd42224c05aed587
   languageName: node
   linkType: hard
 

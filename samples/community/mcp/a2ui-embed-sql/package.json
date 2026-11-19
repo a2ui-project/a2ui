@@ -7,8 +7,10 @@
   "scripts": {
     "fetch-data": "node scripts/fetch-data.mjs",
     "generate:schema": "UPDATE_SCHEMA=1 vitest run src/catalog/catalog_schema.test.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && a2ui-embed build",
+    "start": "node --preserve-symlinks dist/server.js",
     "test": "vitest run",
+    "e2e": "node scripts/e2e.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
@@ -16,16 +18,22 @@
   },
   "dependencies": {
     "@a2ui/catalog-vegachart": "portal:../../../../typescript/catalogs/vegachart",
+    "@a2ui/embed": "portal:../../../../typescript/embed",
+    "@a2ui/lit": "portal:../../../../typescript/renderers/lit",
     "@a2ui/web_core": "*",
     "@google/genai": "^2.8.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "lit": "^3.3.3",
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
     "@types/node": "^25.9.3",
     "ajv": "^8.17.1",
+    "esbuild": "^0.28.1",
     "eslint": "^10.4.1",
     "jsdom": "^29.1.1",
+    "playwright": "1.58.1",
     "typescript": "5.9.3",
     "vitest": "^4.1.8"
   }
