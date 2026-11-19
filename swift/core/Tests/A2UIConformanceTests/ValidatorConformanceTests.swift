@@ -189,8 +189,7 @@ struct ValidatorConformanceTests {
   private func executeValidationSteps(
     for testCase: ConformanceTestCase,
     processor: MessageProcessor,
-    handler: ValidatorErrorCaptureHandler,
-    verifyExpectedSurfaces: Bool = false
+    handler: ValidatorErrorCaptureHandler
   ) throws -> Int {
     var executed = 0
     let lastStepIndex = testCase.steps.count - 1
@@ -222,8 +221,7 @@ struct ValidatorConformanceTests {
           processor: processor,
           testCase: testCase,
           step: step,
-          stepIndex: stepIndex,
-          verifyExpectedSurfaces: verifyExpectedSurfaces
+          stepIndex: stepIndex
         )
       }
     }
@@ -253,8 +251,7 @@ struct ValidatorConformanceTests {
     processor: MessageProcessor,
     testCase: ConformanceTestCase,
     step: ConformanceStep,
-    stepIndex: Int,
-    verifyExpectedSurfaces: Bool
+    stepIndex: Int
   ) throws {
     do {
       try processor.processMessages(payload)
@@ -269,9 +266,18 @@ struct ValidatorConformanceTests {
     }
     // The case's expect applies to the last step only, like its expectError.
     let caseExpect = stepIndex == testCase.steps.count - 1 ? testCase.expect : nil
-    if verifyExpectedSurfaces,
-      let expectedSurfaces = (step.expect ?? caseExpect)?["surfaces"]?.objectValue
-    {
+    guard let expect = step.expect ?? caseExpect else { return }
+    let expectObject = try #require(
+      expect.objectValue,
+      "[\(testCase.name)] 'expect' is not an object"
+    )
+    try ConformanceTestHelper.assertKnownKeys(
+      expectObject,
+      ["surfaces"],
+      "expect in '\(testCase.name)'",
+      allowMetadata: false
+    )
+    if let expectedSurfaces = expectObject["surfaces"]?.objectValue {
       try assertExpectedSurfaces(
         expectedSurfaces: OrderedDictionary(
           uniqueKeysWithValues: expectedSurfaces.map { ($0.key, $0.value) }
@@ -391,8 +397,7 @@ struct ValidatorConformanceTests {
     _ = try executeValidationSteps(
       for: testCase,
       processor: processor,
-      handler: handler,
-      verifyExpectedSurfaces: true
+      handler: handler
     )
   }
 
@@ -444,8 +449,7 @@ struct ValidatorConformanceTests {
     let executed = try executeValidationSteps(
       for: testCase,
       processor: processor,
-      handler: handler,
-      verifyExpectedSurfaces: true
+      handler: handler
     )
     #expect(executed > 0, "[\(testCase.name)] Expected at least one step to execute")
   }
@@ -460,13 +464,27 @@ struct ValidatorConformanceTests {
         processor.surfaceGroupModel[surfaceID],
         "[\(testName)] Expected surface '\(surfaceID)' to exist"
       )
+      let surfaceObject = try #require(
+        expectedSurface.objectValue,
+        "[\(testName)] Surface '\(surfaceID)' expectation is not an object"
+      )
+      try ConformanceTestHelper.assertKnownKeys(
+        surfaceObject,
+        ["components"],
+        "expect.surfaces.\(surfaceID) in '\(testName)'",
+        allowMetadata: false
+      )
+      guard let rawComponents = surfaceObject["components"] else { continue }
       // A map of component IDs to components states components of the surface's component
       // model; a list states properties of resolved nodes.
-      if let expectedModels = expectedSurface["components"]?.objectValue {
+      if let expectedModels = rawComponents.objectValue {
         try assertComponentModels(expectedModels, on: surface, testName: testName)
         continue
       }
-      guard let expectedComps = expectedSurface["components"]?.arrayValue else { continue }
+      guard let expectedComps = rawComponents.arrayValue else {
+        Issue.record("[\(testName)] Expected 'components' on '\(surfaceID)' to be a map or list")
+        continue
+      }
       for expectedComp in expectedComps {
         try assertReservedKeysComponent(expectedComp, on: surface, testName: testName)
       }
@@ -490,14 +508,27 @@ struct ValidatorConformanceTests {
         expectedComponent.objectValue,
         "[\(testName)] Component '\(id)' expectation is not an object"
       )
-      // `ComponentModel` keeps `id` and `component` out of `properties`, so check them against
-      // the dedicated fields instead.
+      // `ComponentModel` keeps `id` and `component` out of `properties`, and on v1.0 surfaces
+      // also `@catalogId` and `@metadata`, so check those against the dedicated fields instead.
+      let isV10 = surface.protocolVersion.isAtLeastV10
       for (key, expectedValue) in properties {
         switch key {
         case "id":
           #expect(actual.id == expectedValue.stringValue, "[\(testName)] '\(id)' ID mismatch")
         case "component":
           #expect(actual.type == expectedValue.stringValue, "[\(testName)] '\(id)' type mismatch")
+        case "@catalogId" where isV10:
+          #expect(
+            (actual.catalogID.map(JSONValue.string) ?? .null) == expectedValue,
+            "[\(testName)] Component '\(id)' catalogId mismatch"
+          )
+        case "@metadata" where isV10:
+          let expectedMetadata =
+            expectedValue == .null ? nil : try MetadataValidator.validate(expectedValue)
+          #expect(
+            MetadataValidator.areEqual(actual.metadata, expectedMetadata),
+            "[\(testName)] Component '\(id)' metadata mismatch"
+          )
         default:
           #expect(
             actual.properties[key] == expectedValue,
