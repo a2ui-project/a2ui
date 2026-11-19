@@ -34,13 +34,44 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
    * The styles of the choice picker can be customized by redefining the following
    * CSS variables:
    *
-   * - `--a2ui-choicepicker-label-color`: Color of all labels.
-   * - `--a2ui-choicepicker-label-font-size`: Font size of all labels. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s` for the main label.
-   * - `--a2ui-choicepicker-label-font-weight`: Font weight of the main label. Defaults to `--a2ui-label-font-weight` then `bold`.
-   * - `--a2ui-choicepicker-gap`: Spacing between options.
-   * - `--a2ui-choicepicker-filter-padding`: Padding for the filter input. Defaults to `--a2ui-spacing-xs` and `--a2ui-spacing-s` (4px 8px).
-   * - `--a2ui-choicepicker-chip-padding`: Padding for chips. Defaults to `--a2ui-spacing-s` and `--a2ui-spacing-m` (4px 8px).
-   * - `--a2ui-choicepicker-chip-border-radius`: Border radius for chips. Defaults to `999px`.
+   * - `--a2ui-choicepicker-gap`: Spacing between options, chips, and label items. Defaults to `--a2ui-spacing-xs`.
+   * - `--a2ui-choicepicker-padding`: Padding of both the host element and the options container. Defaults to `0`.
+   * - `--a2ui-choicepicker-label-color`: Fallback text color of labels when `--a2ui-text-color-text` is unset. Defaults to `inherit`.
+   * - `--a2ui-choicepicker-label-font-size`: Font size of the host element, group label, and option labels. Defaults to `--a2ui-label-font-size`, then `--a2ui-font-size-s`.
+   * - `--a2ui-choicepicker-label-font-weight`: Font weight of the host element and group label (inherited by option labels). Defaults to `--a2ui-label-font-weight`, then `bold`.
+   * - `--a2ui-choicepicker-filter-padding`: Padding of the filter input. Defaults to `--a2ui-spacing-xs` vertically and `--a2ui-spacing-s` horizontally.
+   * - `--a2ui-choicepicker-filter-margin-bottom`: Bottom margin of the filter input. Defaults to `--a2ui-spacing-s`.
+   * - `--a2ui-choicepicker-checkbox-size`: Width and height of radio and checkbox inputs. Defaults to `1rem`.
+   * - `--a2ui-choicepicker-chip-padding`: Padding of chip buttons. Defaults to `--a2ui-spacing-s` vertically and `--a2ui-spacing-m` horizontally.
+   * - `--a2ui-choicepicker-chip-border-radius`: Border radius of chip buttons. Defaults to `999px`.
+   * - `--a2ui-choicepicker-chip-border`: Border of unselected chip buttons. Defaults to `1px solid var(--a2ui-color-border)`.
+   * - `--a2ui-choicepicker-chip-background`: Background color of unselected chip buttons. Defaults to `--a2ui-color-surface`.
+   * - `--a2ui-choicepicker-chip-font-size`: Font size of chip buttons. Defaults to `--a2ui-font-size-xs`.
+   * - `--a2ui-choicepicker-chip-font-weight`: Font weight of chip buttons. Defaults to `normal`.
+   * - `--a2ui-choicepicker-chip-background-selected`: Background and border color of selected chip buttons. Defaults to `--a2ui-color-primary`.
+   * - `--a2ui-choicepicker-color-error`: Text color of validation error messages. Defaults to `red`.
+   *
+   * Shared text-field and global theme variables read by this component:
+   *
+   * - `--a2ui-text-color-text`: Text color of labels (evaluated before `--a2ui-choicepicker-label-color`).
+   * - `--a2ui-label-font-size`: Fallback font size of the host element, group label, and option labels. Defaults to `--a2ui-font-size-s`.
+   * - `--a2ui-label-font-weight`: Fallback font weight of the host element and group label (inherited by option labels). Defaults to `bold`.
+   * - `--a2ui-textfield-border`: Border of the filter input. Defaults to `--a2ui-border`.
+   * - `--a2ui-textfield-border-radius`: Border radius of the filter input. Defaults to `--a2ui-spacing-m`.
+   * - `--a2ui-textfield-color-border-focus`: Border color of the focused filter input. Defaults to `--a2ui-color-primary`.
+   * - `--a2ui-color-input`: Background color of the filter input.
+   * - `--a2ui-color-on-input`: Text color of the filter input.
+   * - `--a2ui-border`: Fallback border shorthand of the filter input.
+   * - `--a2ui-color-border`: Fallback border color of the filter input and unselected chips.
+   * - `--a2ui-color-surface`: Fallback background color of unselected chips.
+   * - `--a2ui-color-on-surface`: Text color of unselected chips.
+   * - `--a2ui-color-primary`: Fallback focused filter border and selected chip background and border color.
+   * - `--a2ui-color-on-primary`: Text color of selected chips.
+   * - `--a2ui-spacing-xs`: Fallback option gap and vertical filter padding.
+   * - `--a2ui-spacing-s`: Fallback horizontal filter padding, filter bottom margin, and vertical chip padding.
+   * - `--a2ui-spacing-m`: Fallback filter border radius and horizontal chip padding.
+   * - `--a2ui-font-size-s`: Fallback font size of the host element, group label, and option labels.
+   * - `--a2ui-font-size-xs`: Fallback chip font size and validation error message font size.
    *
    * @nocollapse
    */

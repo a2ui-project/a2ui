@@ -27,8 +27,14 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<DividerSuppor
    * The styles of the divider can be customized by redefining the following
    * CSS variables:
    *
-   * - `--a2ui-divider-border`: The styling for the divider border. Defaults to `--a2ui-border-width` solid `--a2ui-color-border`.
-   * - `--a2ui-divider-spacing`: The spacing around the divider. Defaults to `--a2ui-spacing-m`.
+   * - `--a2ui-divider-border`: Border shorthand for the divider line. Defaults to `--a2ui-border-width` solid `--a2ui-color-border`.
+   * - `--a2ui-divider-spacing`: Block or inline margin around the divider. Defaults to `--a2ui-spacing-m`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-border-width`: Width of vertical dividers and fallback border width.
+   * - `--a2ui-color-border`: Fallback border color of the divider.
+   * - `--a2ui-spacing-m`: Fallback spacing around the divider.
    *
    * @nocollapse
    */
