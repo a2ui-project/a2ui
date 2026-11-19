@@ -56,7 +56,7 @@ export const V0_9: VersionProfile = {
   version: '0.9.1',
   wireVersion: 'v0.9',
   catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-  catalogPath: 'specification/v0_9/catalogs/basic/catalog.json',
+  catalogPath: 'catalogs/basic/v0_9/catalog.json',
 };
 
 export const V1_0: VersionProfile = {

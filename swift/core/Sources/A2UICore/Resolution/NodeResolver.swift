@@ -971,6 +971,17 @@ public final class NodeResolver: Sendable {
     isTrackingNodeReplacements = false
   }
 
+  /// The schema of the accessibility mixin: `AccessibilityAttributes`.
+  private static let accessibilityMixinSchema: JSONValue = .object([
+    "$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))
+  ])
+
+  /// The schema of the checks mixin: a list of `CheckRule`.
+  private static let checksMixinSchema: JSONValue = .object([
+    "type": .string("array"),
+    "items": .object(["$ref": .string(A2UICommonSchema.v10URI(for: "CheckRule"))]),
+  ])
+
   private func cachedSchema(
     for type: String,
     catalogID: String?,
@@ -982,11 +993,23 @@ public final class NodeResolver: Sendable {
     }
     let schemaJSON = catalog?.components[type]?.schema.jsonValue ?? .object([:])
     var propertiesSchema = extractPropertiesSchema(from: schemaJSON)
+    // The shared v1.0 `Checkable` definition declares only `@checks`. A v0.9 component, or a
+    // v1.0 component sent with the legacy bare key, still carries its checks as `checks`, so a
+    // checkable component that declares no `checks` of its own accepts that key as the mixin.
+    if propertiesSchema["checks"] == nil, let prefixedChecks = propertiesSchema["@checks"] {
+      propertiesSchema["checks"] = prefixedChecks
+    }
     // `accessibility` comes from `ComponentCommon`, so a component schema need not declare it.
     if propertiesSchema["accessibility"] == nil {
-      propertiesSchema["accessibility"] = .object([
-        "$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))
-      ])
+      propertiesSchema["accessibility"] = Self.accessibilityMixinSchema
+    }
+    // A v1.0 component keeps its accessibility and checks mixins under `@accessibility` and
+    // `@checks`, apart from any `accessibility` or `checks` property of its own.
+    if propertiesSchema["@accessibility"] == nil {
+      propertiesSchema["@accessibility"] = Self.accessibilityMixinSchema
+    }
+    if propertiesSchema["@checks"] == nil {
+      propertiesSchema["@checks"] = Self.checksMixinSchema
     }
     let entry = CachedComponentSchema(
       propertiesSchema: propertiesSchema,
@@ -1339,7 +1362,8 @@ public final class NodeResolver: Sendable {
     "DynamicNumber": .dynamicNumber,
     "DynamicValue": .dynamicValue,
     "DynamicStringList": .dynamicStringList,
-    "DataBinding": .dynamicString,
+    "DataBinding": .dynamicValue,
+    "FunctionCall": .dynamicValue,
     "CheckRule": .checks,
     "Checkable": .checks,
     "Action": .action,
@@ -1365,14 +1389,71 @@ public final class NodeResolver: Sendable {
   }
 
   private func classifyCompositeSchema(_ schemaJSON: JSONValue) -> PropertyType? {
-    for keyword in ["oneOf", "anyOf", "allOf"] {
+    for keyword in ["oneOf", "anyOf"] {
       guard let subSchemas = schemaJSON[keyword]?.arrayValue else { continue }
-      for sub in subSchemas {
+      if let classified = classifyUnionSchemas(subSchemas) {
+        return classified
+      }
+    }
+    if let allOf = schemaJSON["allOf"]?.arrayValue {
+      for sub in allOf {
         let type = classifySchema(sub)
         if type != .standard { return type }
       }
     }
     return nil
+  }
+
+  private func classifyUnionSchemas(_ subSchemas: [JSONValue]) -> PropertyType? {
+    var firstDynamic: PropertyType?
+    var firstNonDynamicSpecial: PropertyType?
+    var nonNullLiteralTypes: Set<String> = []
+    var hasUntypedLiteralBranch = false
+
+    for sub in subSchemas {
+      let classified = classifySchema(sub)
+      switch classified {
+      case .dynamicBoolean, .dynamicString, .dynamicNumber, .dynamicValue,
+        .dynamicStringList:
+        if firstDynamic == nil { firstDynamic = classified }
+        continue
+      case .checks, .action, .childList, .componentID:
+        if firstNonDynamicSpecial == nil { firstNonDynamicSpecial = classified }
+        continue
+      case .number:
+        if firstNonDynamicSpecial == nil { firstNonDynamicSpecial = .number }
+        nonNullLiteralTypes.insert("number")
+        continue
+      case .integer:
+        if firstNonDynamicSpecial == nil { firstNonDynamicSpecial = .integer }
+        nonNullLiteralTypes.insert("integer")
+        continue
+      case .standard:
+        break
+      }
+      if sub["type"]?.stringValue == "null" { continue }
+      if let typeStr = sub["type"]?.stringValue {
+        nonNullLiteralTypes.insert(typeStr)
+      } else if let types = sub["type"]?.arrayValue {
+        let strs = types.compactMap(\.stringValue).filter { $0 != "null" }
+        nonNullLiteralTypes.formUnion(strs)
+      } else if sub["properties"] != nil {
+        nonNullLiteralTypes.insert("object")
+      } else {
+        hasUntypedLiteralBranch = true
+      }
+    }
+
+    guard let dynamicType = firstDynamic else {
+      return firstNonDynamicSpecial
+    }
+    if dynamicType != .dynamicValue { return dynamicType }
+    if !hasUntypedLiteralBranch && !nonNullLiteralTypes.isEmpty {
+      if nonNullLiteralTypes == ["boolean"] { return .dynamicBoolean }
+      if nonNullLiteralTypes == ["string"] { return .dynamicString }
+      if nonNullLiteralTypes.isSubset(of: ["number", "integer"]) { return .dynamicNumber }
+    }
+    return .dynamicValue
   }
 
   private func classifyNumericTypeSchema(_ schemaJSON: JSONValue) -> PropertyType {

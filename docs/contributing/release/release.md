@@ -22,27 +22,51 @@ A package has something to release when its `CHANGELOG.md` has notes under
 
 - [a2ui_core CHANGELOG.md](../../../dart/a2ui_core/CHANGELOG.md)
 - [a2ui_agent CHANGELOG.md](../../../dart/a2ui_agent/CHANGELOG.md)
+- [a2ui_flutter CHANGELOG.md](../../../dart/a2ui_flutter/CHANGELOG.md)
+- [a2ui_cli CHANGELOG.md](../../../dart/a2ui_cli/CHANGELOG.md)
+
+When `a2ui_core` has a breaking change, every package that depends on it has
+something to release, even without notes. Otherwise its version on pub.dev
+still requires the old `a2ui_core`, and an app cannot use the two together.
+
+A non-breaking `a2ui_core` release leaves the other packages alone unless they
+have notes of their own. Their `^` constraints already accept it.
 
 **2. Open a release pull request**
 
 In one pull request, for each package to release:
 
 - Choose the next version, as described in
-  [Versioning](pub-dev.md#versioning).
-- Rename `## Unreleased` in `CHANGELOG.md` to `## <version>`.
+  [Versioning](pub-dev.md#versioning). A package whose constraint is raised for
+  a breaking `a2ui_core` change takes a breaking version change too, because
+  its API exposes `a2ui_core` types.
+- Rename `## Unreleased` in `CHANGELOG.md` to `## <version>`. If there is no
+  `## Unreleased`, add `## <version>` above the newest version. Then add an
+  empty `## Unreleased` above it for the next changes.
 - Set `version:` in `pubspec.yaml` to the same version.
+- Set the `a2ui_core` constraint to `^<new a2ui_core version>` if `a2ui_core`
+  has a breaking change or the package's notes say it needs the new
+  `a2ui_core`, and note the new constraint under `## <version>`.
+- For `a2ui_cli`, also set `_defaultPackageVersion` in `lib/src/cli.dart` and
+  the `--version` output expected by `test/cli_test.dart` to the same version.
 
 Change nothing else, and merge the pull request.
 
 **3. Publish the packages**
 
-For each package in the release pull request:
+Publish each package that the release pull request released, starting with
+`a2ui_core` if it is one of them. Wait until the new `a2ui_core` version shows
+on pub.dev before publishing the packages that depend on it. For each package:
 
 - Check out the commit that merged the release pull request, not the latest
   `main`, which may already have unreleased changes.
 - Run `flutter pub publish` in the package directory, making sure the console
   shows no warnings.
 - Verify that the correct version was uploaded to pub.dev.
+
+After publishing `a2ui_cli`, push the tag `cli-v<version>` on the same commit.
+The [Release CLI Binaries](../../../.github/workflows/release-cli-binaries.yml)
+workflow then builds the CLI binaries and attaches them to a GitHub release.
 
 If any step fails, file a GitHub issue and inform the team.
 
@@ -216,7 +240,9 @@ The Swift package is defined by [Package.swift](../../../Package.swift) at the
 repository root. Its four libraries, `A2UISwiftCore`, `A2UISwiftUI`,
 `BasicCatalog` and `BasicCatalogSwiftUI`, are released together under one
 version, following [Semver](https://semver.org/). Before 1.0.0, a breaking
-change bumps the minor version.
+change bumps the minor version. Between releases, merged pull requests record
+public API and behavioral changes under `## Unreleased` at the top of
+[swift/CHANGELOG.md](../../../swift/CHANGELOG.md).
 
 Swift has no package registry. Swift Package Manager installs a package from
 its git repository and takes versions from its tags, so users depend on this
@@ -247,23 +273,37 @@ the package. This has two consequences:
   must therefore be higher than 0.9.0.
 - No other release process in this repository may push tags of that form.
 
-**1. Choose the commit**
+**1. Update the changelog**
 
-Pick a commit on `main` where the
-[Swift Core (iOS)](../../../.github/workflows/swift_build_and_test.yml) workflow
-passed. Its `test` job runs `swift test`, and its `ios-build` job builds the
-libraries and the sample app for the iOS Simulator.
+Check the notes under `## Unreleased` in
+[swift/CHANGELOG.md](../../../swift/CHANGELOG.md) and choose the next version:
+breaking changes are listed at the top of `## Unreleased` with a
+`**BREAKING CHANGE**:` prefix. Before `1.0.0`, bump the minor version if any
+`**BREAKING CHANGE**:` entry is present and the patch version otherwise; from
+`1.0.0` onward, bump major for `**BREAKING CHANGE**:` entries, minor for new
+non-breaking features, and patch for fixes only. Open a pull request that
+replaces `## Unreleased` with an empty `## Unreleased` section above
+`## <version>`, and merge it to `main`.
 
-**2. Tag the commit**
+**2. Choose the commit**
+
+Use the commit on `main` that merged the changelog pull request, after checking
+that the latest [Swift Core (iOS)](../../../.github/workflows/swift_build_and_test.yml)
+run on `main` passed (a changelog-only commit does not trigger that workflow).
+Its `test` job runs `swift test`, and its `ios-build` job builds the libraries
+and the sample app for the iOS Simulator.
+
+**3. Tag the commit**
 
 ```bash
 git tag v<version>+swift <commit>
 git push origin v<version>+swift
 ```
 
-Create a GitHub release for `v<version>+swift` with the release notes.
+Create a GitHub release for `v<version>+swift` using the `## <version>` notes
+from [swift/CHANGELOG.md](../../../swift/CHANGELOG.md).
 
-**3. Check the release**
+**4. Check the release**
 
 In a scratch package that depends on
 `.package(url: "https://github.com/a2ui-project/a2ui", exact: "<version>")`,
@@ -272,7 +312,7 @@ run `swift package resolve`. `Package.resolved` should show
 
 ### Documentation website
 
-[MkDocs](https://www.mkdocs.org/), configured in [.github/workflows/docs.yml](../../../.github/workflows/docs.yml), updates https://a2ui.org/ whenever the content of [docs/public](../../public) changes.
+[Astro and Starlight](https://starlight.astro.build/), configured in [.github/workflows/docs.yml](../../../.github/workflows/docs.yml), updates https://a2ui.org/ whenever the content of [docs/site](../../site) changes.
 
 ## Internal troubleshooting and notes
 

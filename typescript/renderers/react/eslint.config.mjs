@@ -20,7 +20,11 @@ import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import prettierConfig from 'eslint-config-prettier';
 import gts from 'gts';
-import {BOUNDARY_ALLOWLIST, BOUNDARY_RESTRICTED} from './eslint.boundary.mjs';
+import {
+  BOUNDARY_ALLOWLIST,
+  BOUNDARY_FORBIDDEN_PATTERNS,
+  BOUNDARY_RESTRICTED,
+} from './eslint.boundary.mjs';
 
 export default tseslint.config(
   // Google TypeScript style guide plugin.
@@ -101,13 +105,32 @@ export default tseslint.config(
               message:
                 'Use relative imports within @a2ui/react instead of self-importing the package.',
             },
+            ...BOUNDARY_FORBIDDEN_PATTERNS,
           ],
         },
       ],
     },
   },
   {
-    files: ['src/v0_8/**/*.{ts,tsx}', ...BOUNDARY_ALLOWLIST],
+    files: [...BOUNDARY_ALLOWLIST],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@a2ui/react', '@a2ui/react/*'],
+              message:
+                'Use relative imports within @a2ui/react instead of self-importing the package.',
+            },
+            ...BOUNDARY_FORBIDDEN_PATTERNS,
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/v0_8/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -119,6 +142,22 @@ export default tseslint.config(
                 'Use relative imports within @a2ui/react instead of self-importing the package.',
             },
           ],
+        },
+      ],
+    },
+  },
+
+  // Disallow wildcard barrel exports outside deprecated v0_8
+  {
+    files: ['**/*.{ts,tsx,mts,cts}'],
+    ignores: ['**/v0_8/**', '**/0.8/**'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ExportAllDeclaration[exported=null]',
+          message:
+            'Avoid wildcard barrel exports (`export *`). Use explicit named exports (`export { ... }`) or namespace exports (`export * as ...`).',
         },
       ],
     },

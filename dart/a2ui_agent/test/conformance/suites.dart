@@ -597,6 +597,11 @@ List<Object?> liftMessages(
 /// mapped to its v0.9 spelling.
 const Map<String, String> _reservedKeys = {'@path': 'path', '@call': 'call'};
 
+const Map<String, String> _componentMixinKeys = {
+  '@checks': 'checks',
+  '@accessibility': 'accessibility',
+};
+
 /// [message] with the reserved keys of its components, and of the function
 /// a `callRendererFunction` names, renamed to v0.9 when [lower] is true and
 /// to v1.0 otherwise.
@@ -626,7 +631,12 @@ Object? _renameKeysIn(Object? node, {required bool lower}) => switch (node) {
     for (final MapEntry<String, Object?> entry in map.entries)
       (map.containsKey('componentId')
           ? entry.key
-          : _renameKey(entry.key, lower)): _renameKeysIn(
+          : _renameKey(
+              entry.key,
+              lower,
+              isComponentRoot:
+                  map.containsKey('id') && map.containsKey('component'),
+            )): _renameKeysIn(
         entry.value,
         lower: lower,
       ),
@@ -634,11 +644,23 @@ Object? _renameKeysIn(Object? node, {required bool lower}) => switch (node) {
   _ => node,
 };
 
-String _renameKey(String key, bool lower) =>
-    (lower ? _reservedKeys : _liftedKeys)[key] ?? key;
+String _renameKey(String key, bool lower, {bool isComponentRoot = false}) {
+  if (isComponentRoot) {
+    final String? mixinKey = (lower
+        ? _componentMixinKeys
+        : _liftedComponentMixinKeys)[key];
+    if (mixinKey != null) return mixinKey;
+  }
+  return (lower ? _reservedKeys : _liftedKeys)[key] ?? key;
+}
 
 final Map<String, String> _liftedKeys = {
   for (final MapEntry<String, String> entry in _reservedKeys.entries)
+    entry.value: entry.key,
+};
+
+final Map<String, String> _liftedComponentMixinKeys = {
+  for (final MapEntry<String, String> entry in _componentMixinKeys.entries)
     entry.value: entry.key,
 };
 

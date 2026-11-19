@@ -38,7 +38,7 @@ export const CreateSurfaceMessageSchema = z
         'catalogId': z
           .string()
           .describe(
-            "A string that uniquely identifies the default catalog for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts e.g. 'mycompany.com:somecatalog'. Components and function calls that do not explicitly specify a catalogId will use this surface-level default catalogId.",
+            "A string that uniquely identifies the default catalog for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts e.g. 'mycompany.com:somecatalog'. Components that do not explicitly specify @catalogId and function calls that do not explicitly specify catalogId will use this surface-level default catalogId.",
           )
           .optional(),
         'sendDataModel': z

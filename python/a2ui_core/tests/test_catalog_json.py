@@ -33,9 +33,9 @@ PUBLISHED_CATALOGS = [
     "catalogs/mcp/catalog.json",
     "catalogs/vegachart/v0_9/catalog.json",
     "catalogs/vegachart/v1/catalog.json",
-    "specification/v0_9/catalogs/basic/catalog.json",
-    "specification/v0_9/catalogs/minimal/catalog.json",
-    "specification/v0_9_1/catalogs/basic/catalog.json",
+    "catalogs/basic/v0_9/catalog.json",
+    "catalogs/minimal/v0_9/catalog.json",
+    "catalogs/basic/v0_9_1/catalog.json",
 ]
 
 
@@ -1167,7 +1167,7 @@ def test_validation_schema_flattens_mixins_and_preserves_extra_keywords() -> Non
 
     assert box["properties"]["label"] == {"type": "string"}
     assert "weight" in box["properties"]
-    assert "accessibility" in box["properties"]
+    assert "@accessibility" in box["properties"]
     assert box["required"] == ["id", "label", "component"]
     assert box["anyOf"] == [{"required": ["a"]}, {"required": ["b"]}]
     assert box["allOf"] == [{"oneOf": [{"required": ["a"]}, {"required": ["b"]}]}]

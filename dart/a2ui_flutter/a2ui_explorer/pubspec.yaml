@@ -17,8 +17,8 @@ description: The gallery app of the A2UI Flutter renderer.
 publish_to: "none"
 
 environment:
-  sdk: ">=3.10.0 <4.0.0"
-  flutter: ">=3.38.0"
+  sdk: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.0"
 
 resolution: workspace
 

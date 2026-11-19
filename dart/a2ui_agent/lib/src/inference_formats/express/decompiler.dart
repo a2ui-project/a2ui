@@ -369,6 +369,22 @@ class ExpressDecompiler {
     return (helper, !_v1 || catalogs.length == 1 || found ? null : catalogId);
   }
 
+  /// Whether [type] declares a custom `catalogId` property on [surface]'s
+  /// catalog, or on every active catalog declaring [type].
+  bool _hasCustomCatalogId(String type, _SurfaceCatalog surface) {
+    if (surface.catalogId case final String cid) {
+      if (_helpers[cid] case final CatalogSchemaHelper h
+          when h.isComponent(type)) {
+        return h.properties(type).contains('catalogId');
+      }
+    }
+    final Iterable<CatalogSchemaHelper> declaring = _helpers.values.where(
+      (h) => h.isComponent(type),
+    );
+    return declaring.isNotEmpty &&
+        declaring.every((h) => h.properties(type).contains('catalogId'));
+  }
+
   /// The `surface(...)` line, which names the surface's catalog before v1.0
   /// when it is not the default. From v1.0 a surface of a single catalog has
   /// that catalog, and one of several names none.
@@ -500,18 +516,38 @@ class _Component {
     if (type is! String) {
       throw A2uiValidationError("Component '$id' names no component type.");
     }
+    final String? catalogIdKey = !_v1
+        ? null
+        : json.containsKey('@catalogId')
+        ? '@catalogId'
+        : (json.containsKey('catalogId') &&
+              !decompiler._hasCustomCatalogId(type, surface))
+        ? 'catalogId'
+        : null;
     final (CatalogSchemaHelper helper, String? catalogId) = decompiler._resolve(
       type,
-      json['catalogId'],
+      catalogIdKey == null ? null : json[catalogIdKey],
       surface,
       component: true,
       subject: "Component '$id'",
     );
     _helper = helper;
     final List<String> properties = helper.properties(type);
+    final String? metadataKey = !_v1
+        ? null
+        : json.containsKey('@metadata')
+        ? '@metadata'
+        : (json.containsKey('metadata') && !properties.contains('metadata'))
+        ? 'metadata'
+        : null;
+    final String? checksKey = _v1 && json.containsKey('@checks')
+        ? '@checks'
+        : (json.containsKey('checks') && !properties.contains('checks'))
+        ? 'checks'
+        : null;
     Map<Object?, Object?>? compExtensions;
-    if (_v1 && json.containsKey('metadata')) {
-      final Object? rawMeta = json['metadata'];
+    if (metadataKey != null) {
+      final Object? rawMeta = json[metadataKey];
       if (rawMeta is Map &&
           rawMeta.length == 1 &&
           rawMeta['extensions'] is Map) {
@@ -521,8 +557,13 @@ class _Component {
       }
     }
     for (final String key in json.keys) {
-      if (key == 'id' || key == 'component' || key == 'checks') continue;
-      if (_v1 && (key == 'catalogId' || key == 'metadata')) continue;
+      if (key == 'id' ||
+          key == 'component' ||
+          key == checksKey ||
+          key == catalogIdKey ||
+          key == metadataKey) {
+        continue;
+      }
       if (!properties.contains(key)) {
         throw A2uiValidationError(
           "Property '$key' of component '$id' has no Express notation: an "
@@ -551,7 +592,9 @@ class _Component {
         ..add(_value(value, helper.propertySchema(type, property)));
       skipped = 0;
     }
-    if (json['checks'] case final Object checks) arguments.add(_checks(checks));
+    if (json[checksKey] case final Object checks) {
+      arguments.add(_checks(checks));
+    }
     if (catalogId != null) arguments.add('catalogId=${_string(catalogId)}');
     if (varName != id) arguments.add('id=${_string(id)}');
     if (compExtensions != null) {

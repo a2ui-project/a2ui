@@ -501,12 +501,12 @@ def main():
         },
         "v0_9": {
             "root_schema": "specification/v0_9/json/server_to_client.json",
-            "catalog": "specification/v0_9/catalogs/basic/catalog.json",
+            "catalog": "catalogs/basic/v0_9/catalog.json",
             "refs": [
                 "specification/v0_9/json/common_types.json",
-                "specification/v0_9/catalogs/basic/catalog.json",
+                "catalogs/basic/v0_9/catalog.json",
             ],
-            "examples": "specification/v0_9/catalogs/basic/examples/*.json",
+            "examples": "catalogs/basic/v0_9/examples/*.json",
         },
         "v1_0": {
             "root_schema": "specification/v1_0/json/agent_to_renderer.json",

@@ -573,6 +573,16 @@ final class HostedViewDriver {
   }
 
   #if canImport(AppKit)
+    /// Whether the native accessibility tree has an element that shows `text` as its label or,
+    /// as a static text does, as its value. Elements hidden from assistive technologies are not
+    /// in the tree.
+    func exposesAccessibilityElement(withText text: String) -> Bool {
+      withAccessibilityTree {
+        firstAccessibilityElement(in: activeHostedRoots()) { Self.element($0, hasText: text) }
+          != nil
+      }
+    }
+
     /// Enables SwiftUI's accessibility hierarchy for the duration of `body`, restoring the prior
     /// process setting on exit so other tests in the runner observe no side effects.
     private func withAccessibilityTree<Result>(_ body: () throws -> Result) rethrows -> Result {

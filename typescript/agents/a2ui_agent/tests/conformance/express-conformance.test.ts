@@ -178,16 +178,23 @@ async function getParser(
   args: Record<string, unknown> = {},
   lower = false,
 ): Promise<ExpressParser> {
-  const catalogPaths: string[] = [];
+  const catalogSpecs: Array<string | Record<string, unknown>> = [];
   if (Array.isArray(args.catalogs)) {
-    catalogPaths.push(...(args.catalogs as string[]));
-  } else if (typeof args.catalog === 'string') {
-    catalogPaths.push(args.catalog);
+    catalogSpecs.push(...(args.catalogs as Array<string | Record<string, unknown>>));
+  } else if (
+    typeof args.catalog === 'string' ||
+    (args.catalog && typeof args.catalog === 'object')
+  ) {
+    catalogSpecs.push(args.catalog as string | Record<string, unknown>);
   } else {
-    catalogPaths.push(DEFAULT_CATALOG);
+    catalogSpecs.push(DEFAULT_CATALOG);
   }
 
-  const catalogs = catalogPaths.map(p => loadCatalogFromRelativePath(p, lower));
+  const catalogs = catalogSpecs.map(spec =>
+    typeof spec === 'string'
+      ? loadCatalogFromRelativePath(spec, lower)
+      : Catalog.fromJson(lower ? lowerCatalogDocument(spec) : spec),
+  );
 
   return new ExpressParser(catalogs, CONFORMANCE_SURFACE_ID);
 }

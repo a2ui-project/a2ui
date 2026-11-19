@@ -273,6 +273,7 @@ class _Reader {
     'child',
     'surfaceId',
     'catalogId',
+    '@catalogId',
     'componentId',
   };
 

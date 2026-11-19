@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-// Tests for triage.mts. Run from the repository root with:
+// Tests for triage.mts.
+// Run from the repository root with:
 // node --test tools/internal/triage/flagging/triage.test.mts
 
 import assert from 'node:assert/strict';
@@ -35,6 +36,7 @@ import issueTriage, {
   FLAG_LABEL,
   flagReason,
   isBot,
+  isTriageBotComment,
   lastHumanContribution,
   PRIORITY_LABELS,
   STALE_DAYS,
@@ -137,6 +139,26 @@ describe('isBot', () => {
   it('treats real users and deleted accounts as human', () => {
     assert.equal(isBot({type: 'User', login: 'alice'}), false);
     assert.equal(isBot(null), false);
+  });
+});
+
+describe('isTriageBotComment', () => {
+  it('detects the prefix on a maintainer comment, bold or plain', () => {
+    assert.equal(isTriageBotComment(comment({body: '**From triage bot:**\n\nText'})), true);
+    assert.equal(isTriageBotComment(comment({body: '__From triage bot:__\n\nText'})), true);
+    assert.equal(isTriageBotComment(comment({body: 'From triage bot: text'})), true);
+  });
+
+  it('ignores the prefix on an external comment', () => {
+    // Otherwise anyone could hide their comment from triage.
+    const body = '**From triage bot:** text';
+    assert.equal(isTriageBotComment(comment({body, author_association: 'NONE'})), false);
+  });
+
+  it('ignores comments that do not start with the prefix', () => {
+    assert.equal(isTriageBotComment(comment({body: 'See the From triage bot: comment'})), false);
+    assert.equal(isTriageBotComment(comment({body: null})), false);
+    assert.equal(isTriageBotComment(comment()), false);
   });
 });
 
@@ -769,6 +791,49 @@ describe('issueTriage reconciliation', () => {
     github = makeGithub([withComments, issue({number: 13, comments: 0})]);
     await issueTriage({github, context});
     assert.deepEqual(calls.listComments, [12]);
+  });
+
+  describe('triage bot comments', () => {
+    const triageBotComment = comment({
+      created_at: realDaysAgo(0),
+      body: '**From triage bot:**\n\nTriage suggestion: ...',
+    });
+
+    // Regression: https://github.com/a2ui-project/a2ui/issues/1888 lost its
+    // staleness flag when a maintainer posted a triage suggestion on it.
+    it('does not reset the staleness clock', async () => {
+      const item = issue({
+        number: 40,
+        labels: ['P1', FLAG_LABEL],
+        assignees: [{login: 'maintainer'}],
+        created_at: realDaysAgo(60),
+        comments: 2,
+      });
+      item.__comments = [
+        comment({created_at: realDaysAgo(40), body: 'Looking into it.'}),
+        triageBotComment,
+      ];
+      github = makeGithub([item]);
+      await issueTriage({github, context});
+
+      assert.equal(calls.removeLabel.length, 0);
+    });
+
+    it('does not answer an external comment', async () => {
+      const item = issue({number: 41, labels: ['P2', FLAG_LABEL], comments: 2});
+      item.__comments = [
+        comment({
+          created_at: realDaysAgo(1),
+          author_association: 'NONE',
+          user: {login: 'reporter', type: 'User'},
+        }),
+        triageBotComment,
+      ];
+      github = makeGithub([item]);
+      await issueTriage({github, context});
+
+      assert.equal(calls.removeLabel.length, 0);
+    });
   });
 
   describe('waiting-for-author-response', () => {

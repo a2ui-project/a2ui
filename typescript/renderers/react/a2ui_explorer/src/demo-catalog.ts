@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {Catalog} from '@a2ui/web_core/v0_9';
+import {Catalog} from '@a2ui/web_core';
 import {basicCatalog, BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
 import {customSliderComponent} from './custom-slider';
 import {customGridComponent} from './custom-grid';

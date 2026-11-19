@@ -28,9 +28,7 @@ import 'package:test/test.dart';
 void main() {
   final CatalogApi basic = Catalog.fromJson(
     jsonDecode(
-          File(
-            '../../specification/v0_9/catalogs/basic/catalog.json',
-          ).readAsStringSync(),
+          File('../../catalogs/basic/v0_9/catalog.json').readAsStringSync(),
         )
         as Map<String, Object?>,
   );
@@ -457,7 +455,7 @@ surface("s1")
               'id': 'root',
               'component': 'Text',
               'text': 'Hello',
-              'metadata': {
+              '@metadata': {
                 'extensions': {'comp_ext': true},
               },
             },
@@ -494,7 +492,7 @@ surface("s1")
             'id': 'root',
             'component': 'Text',
             'text': 'Hello',
-            'metadata': {
+            '@metadata': {
               'extensions': {'comp_ext': 42},
             },
           },

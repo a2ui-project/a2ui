@@ -345,7 +345,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         cs = messages[0]["createSurface"]
         self.assertEqual(cs["metadata"], {"extensions": {"surfaceTheme": "dark"}})
         self.assertEqual(
-            cs["components"][0]["metadata"],
+            cs["components"][0]["@metadata"],
             {"extensions": {"badge": 1, "tag": "info"}},
         )
 
