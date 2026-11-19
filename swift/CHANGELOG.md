@@ -12,6 +12,11 @@
   `\.a2uiCatalogs`, `\.a2uiDefaultCatalogID`, and `\.a2uiSurfaceMetadata` from `@Environment`.
   [#4195](https://github.com/a2ui-project/a2ui/issues/4195),
   [#4275](https://github.com/a2ui-project/a2ui/pull/4275)
+- Add an `isUserActivated` parameter (default `false`) to `MessageProcessor.processMessages(_:)`,
+  `process(payload:)`, `process(message:)`, and `process(messages:)`. Pass `true` when the payload
+  is handled within a user gesture so a v1.0 `callRendererFunction` may run functions that set
+  `requiresUserActivation`, such as a nested call in its arguments.
+  [#4311](https://github.com/a2ui-project/a2ui/pull/4311)
 
 ## 0.11.0
 
