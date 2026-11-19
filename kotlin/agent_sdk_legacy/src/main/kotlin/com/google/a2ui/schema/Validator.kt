@@ -177,6 +177,12 @@ constructor(
   fun validate(a2uiJson: JsonElement, strictIntegrity: Boolean = true) {
     val messages = a2uiJson as? JsonArray ?: JsonArray(listOf(a2uiJson))
 
+    // A payload nested past the global depth limit is rejected before schema validation, whose
+    // cost grows steeply with the depth of nested function calls.
+    for (message in messages) {
+      A2uiRecursionValidator(strictIntegrity).validateDepth(message)
+    }
+
     if (catalog.version == A2uiVersion.VERSION_0_9) {
       validate0_9Custom(messages, strictIntegrity)
     } else {
@@ -609,18 +615,21 @@ constructor(
 
   /** Validates JSON payload recursion depth and path syntax. */
   private class A2uiRecursionValidator(private val strictIntegrity: Boolean = true) {
-    fun validate(data: JsonElement) = traverse(data, 0)
+    fun validate(data: JsonElement) = traverse(data, 0, checkPaths = true)
 
-    private fun traverse(item: JsonElement, globalDepth: Int) {
+    /** Checks the nesting depth alone, leaving path syntax to [validate]. */
+    fun validateDepth(data: JsonElement) = traverse(data, 0, checkPaths = false)
+
+    private fun traverse(item: JsonElement, globalDepth: Int, checkPaths: Boolean) {
       if (globalDepth > MAX_GLOBAL_DEPTH) {
         throw A2uiRecursionException("Global recursion limit exceeded: Depth > $MAX_GLOBAL_DEPTH")
       }
 
       when (item) {
-        is JsonArray -> item.forEach { traverse(it, globalDepth + 1) }
+        is JsonArray -> item.forEach { traverse(it, globalDepth + 1, checkPaths) }
         is JsonObject -> {
           (item[PATH] as? JsonPrimitive)
-            ?.takeIf { it.isString }
+            ?.takeIf { checkPaths && it.isString }
             ?.let { pathElem ->
               if (!pathElem.content.matches(JSON_POINTER_PATTERN)) {
                 val details =
@@ -638,7 +647,7 @@ constructor(
               }
             }
 
-          item.values.forEach { traverse(it, globalDepth + 1) }
+          item.values.forEach { traverse(it, globalDepth + 1, checkPaths) }
         }
         else -> {}
       }

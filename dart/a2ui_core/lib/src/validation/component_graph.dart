@@ -499,14 +499,6 @@ bool _isDataBinding(
         ? value['@path'] is String
         : value['path'] is String && !value.containsKey('componentId');
 
-/// Whether [value] is a function-call object in the v1.0 (`@call`) or
-/// unprefixed (`call`) shape. See [_isDataBinding].
-bool _isFunctionCall(
-  Map<Object?, Object?> value, {
-  required bool usesDirectives,
-}) =>
-    usesDirectives ? value['@call'] is String : value['call'] is String;
-
 /// Checks data-model paths and nesting depth anywhere inside a message body.
 ///
 /// [grownFrom], if given, is an earlier form of [data] that passed this
@@ -604,22 +596,6 @@ void checkPathsAndRecursion(
       throw A2uiValidationError(
         "Invalid path syntax: '$path'",
       );
-    }
-
-    if (_isFunctionCall(object, usesDirectives: usesDirectives)) {
-      for (final MapEntry<Object?, Object?> entry in object.entries) {
-        traverse(
-          entry.value,
-          entries != null &&
-                  (entry.key != 'args' ||
-                      _isFunctionCall(entries, usesDirectives: usesDirectives))
-              ? entries[entry.key]
-              : null,
-          depth + 1,
-          inDataValue: false,
-        );
-      }
-      return;
     }
 
     for (final MapEntry<Object?, Object?> entry in object.entries) {

@@ -1001,7 +1001,8 @@ The matrix below details the specific validation checks, their responsible compo
 | **Graph Topology**       | Unreachable / orphan component detection                                                             | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`                       |
 | **Graph Topology**       | Composition constraints (`allowedParents` / `allowedChildren`)                                       | `SurfaceComponentsModel.validateComponentsUpdate()`                       | `A2uiValidationError`                      |
 | **State Invariant**      | Duplicate component ID against the live surface (mutation guard, not a validation pass)              | `SurfaceComponentsModel.addComponent()`                                   | `A2uiStateError`                           |
-| **Depth & Syntax**       | Global recursion depth limit (>50), which also bounds function call nesting                          | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiRecursionError`                       |
+| **Graph Topology**       | Component graph logical depth limit (>50)                                                            | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiRecursionError`                       |
+| **Depth & Syntax**       | Payload JSON nesting depth limit (>50), which also bounds function call nesting                      | `MessageProcessor.processMessages()` (`validateRecursionAndPaths()`)      | `A2uiRecursionError`                       |
 | **Depth & Syntax**       | JSON Pointer path syntax validation                                                                  | `MessageProcessor.processMessages()`                                      | `A2uiValidationError`                      |
 
 ---

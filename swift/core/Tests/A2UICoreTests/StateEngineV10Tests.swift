@@ -594,6 +594,32 @@ struct StateEngineV10Tests {
       _ = try v10Adapter.extractOperations(from: deepAtCallMsg)
     }
 
+    //    25 nested @call levels are rejected: each call adds two JSON levels, the call and its
+    //    args, so the innermost call is at depth 52 from the message, past the global limit (50)
+    var nestedAtCall: JSONValue = .object(["@call": .string("leaf"), "args": .object([:])])
+    for index in 1..<25 {
+      nestedAtCall = .object([
+        "@call": .string("f\(index)"),
+        "args": .object(["v": nestedAtCall]),
+      ])
+    }
+    let tooDeepAtCallMsg: JSONValue = .object([
+      "version": .string("1.0"),
+      "updateComponents": .object([
+        "surfaceId": .string("s1"),
+        "components": .array([
+          .object([
+            "id": .string("root"),
+            "component": .string("Text"),
+            "text": nestedAtCall,
+          ])
+        ]),
+      ]),
+    ])
+    #expect(throws: A2UIRecursionError.self) {
+      _ = try v10Adapter.extractOperations(from: tooDeepAtCallMsg)
+    }
+
     // 4. Raw user data with "path"/"@path"/"call"/"@call" in createSurface.dataModel
     //    and updateDataModel.value must NOT be rejected in either v0.9 or v1.0.
     let rawUserData: JSONValue = .object([

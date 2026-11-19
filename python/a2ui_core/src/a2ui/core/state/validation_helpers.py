@@ -112,12 +112,8 @@ def validate_recursion_and_paths(data: Any) -> None:
                         path=f"/{path_key}",
                     )
 
-            function_call = item.get("functionCall")
-            if isinstance(function_call, dict):
-                traverse(function_call, global_depth + 1)
-            else:
-                for v in item.values():
-                    traverse(v, global_depth + 1)
+            for v in item.values():
+                traverse(v, global_depth + 1)
 
     traverse(data, 0)
 
