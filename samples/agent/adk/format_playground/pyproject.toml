@@ -25,7 +25,7 @@ dependencies = [
     "google-genai>=1.27.0",
     "python-dotenv>=1.1.0",
     "a2ui-a2a",
-    "a2ui-agent-sdk",
+    "a2ui-agent-sdk[decision]",
     "uvicorn>=0.40.0",
 ]
 
