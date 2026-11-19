@@ -490,10 +490,15 @@ struct ValidatorConformanceTests {
         expectedComponent.objectValue,
         "[\(testName)] Component '\(id)' expectation is not an object"
       )
+      // `ComponentModel` keeps `id` and `component` out of `properties`, so check them against
+      // the dedicated fields instead.
       for (key, expectedValue) in properties {
-        if key == "component" {
+        switch key {
+        case "id":
+          #expect(actual.id == expectedValue.stringValue, "[\(testName)] '\(id)' ID mismatch")
+        case "component":
           #expect(actual.type == expectedValue.stringValue, "[\(testName)] '\(id)' type mismatch")
-        } else {
+        default:
           #expect(
             actual.properties[key] == expectedValue,
             "[\(testName)] Component '\(id)' property '\(key)' mismatch"
