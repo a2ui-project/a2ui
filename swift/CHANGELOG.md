@@ -19,7 +19,7 @@
   long. Recommended migration: rewrite the group so each repetition consumes at least one
   character, for example `(?:ab?){3}` instead of `(?:a?b?){3}`.
   [#4236](https://github.com/a2ui-project/a2ui/issues/4236),
-  [#NNNN](https://github.com/a2ui-project/a2ui/pull/NNNN)
+  [#4310](https://github.com/a2ui-project/a2ui/pull/4310)
 
 ## 0.11.0
 
