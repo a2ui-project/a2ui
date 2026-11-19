@@ -38,24 +38,25 @@ class ValidationResult {
     this.message,
     this.code,
     this.severity,
-  })  : assert(
-          severity == null ||
-              severity == 'error' ||
-              severity == 'warning' ||
-              severity == 'info',
-          'Severity must be null, error, warning, or info',
-        ),
-        assert(
-          !valid || severity != 'error',
-          'A valid result cannot have error severity',
-        );
+  }) : assert(
+         severity == null ||
+             severity == 'error' ||
+             severity == 'warning' ||
+             severity == 'info',
+         'Severity must be null, error, warning, or info',
+       ),
+       assert(
+         !valid || severity != 'error',
+         'A valid result cannot have error severity',
+       );
 
   /// Parses a [ValidationResult] from a JSON map.
   factory ValidationResult.fromJson(Map<String, Object?> json) {
     final isValid = json['valid'] == true;
     final Object? rawMessage = json['message'];
     final Object? rawSeverity = json['severity'];
-    final String? severity = (rawSeverity == 'warning' ||
+    final String? severity =
+        (rawSeverity == 'warning' ||
             rawSeverity == 'info' ||
             (!isValid && rawSeverity == 'error'))
         ? rawSeverity! as String
@@ -80,11 +81,11 @@ class ValidationResult {
   /// the basic catalog's `and`, `or`, and `not` functions use it to read their
   /// operands, so a value cannot pass as a check and fail as an operand.
   static bool? validityOf(Object? value) => switch (value) {
-        ValidationResult(:final bool valid) => valid,
-        final Map<Object?, Object?> map when map.containsKey('valid') =>
-          map['valid'] == true,
-        _ => null,
-      };
+    ValidationResult(:final bool valid) => valid,
+    final Map<Object?, Object?> map when map.containsKey('valid') =>
+      map['valid'] == true,
+    _ => null,
+  };
 
   /// Coerces the evaluated result of a check `condition` into a normalized
   /// [ValidationResult], preferring [explicitMessage] when supplied on a
@@ -104,12 +105,12 @@ class ValidationResult {
       final String? resolvedMessage = isValid
           ? (hasCustomMessage ? value.message : null)
           : (hasExplicitMessage
-              ? explicitMessage
-              : (hasCustomMessage ? value.message : fallbackMessage));
+                ? explicitMessage
+                : (hasCustomMessage ? value.message : fallbackMessage));
       final String? resolvedSeverity =
           (value.severity == 'warning' || value.severity == 'info')
-              ? value.severity!
-              : (isValid ? null : 'error');
+          ? value.severity!
+          : (isValid ? null : 'error');
       return ValidationResult(
         valid: isValid,
         message: resolvedMessage,
@@ -127,15 +128,16 @@ class ValidationResult {
       final String? resolvedMessage = isValid
           ? (hasCustomMessage ? customMessage : null)
           : (hasExplicitMessage
-              ? explicitMessage
-              : (hasCustomMessage ? customMessage : fallbackMessage));
-      final String? code =
-          value['code'] is String ? value['code'] as String : null;
+                ? explicitMessage
+                : (hasCustomMessage ? customMessage : fallbackMessage));
+      final String? code = value['code'] is String
+          ? value['code'] as String
+          : null;
       final Object? rawSeverity = value['severity'];
       final String? resolvedSeverity =
           (rawSeverity == 'warning' || rawSeverity == 'info')
-              ? rawSeverity! as String
-              : (isValid ? null : 'error');
+          ? rawSeverity! as String
+          : (isValid ? null : 'error');
       return ValidationResult(
         valid: isValid,
         message: resolvedMessage,
@@ -156,11 +158,11 @@ class ValidationResult {
 
   /// Serializes this [ValidationResult] to a JSON map.
   Map<String, Object?> toJson() => <String, Object?>{
-        'valid': valid,
-        if (message != null) 'message': message,
-        if (code != null) 'code': code,
-        if (severity != null) 'severity': severity,
-      };
+    'valid': valid,
+    if (message != null) 'message': message,
+    if (code != null) 'code': code,
+    if (severity != null) 'severity': severity,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -190,11 +192,11 @@ class ValidationResult {
 /// - A `num` coerces to `value != 0` (`NaN` coerces to `false`).
 /// - `null`, any other map, or any list coerces to `false`.
 bool coerceDynamicBoolean(Object? value) => switch (value) {
-      final bool b => b,
-      ValidationResult(:final bool valid) => valid,
-      final Map<Object?, Object?> map when map['valid'] is bool =>
-        map['valid']! as bool,
-      final String s => s.toLowerCase() == 'true',
-      final num n => n != 0 && !n.isNaN,
-      _ => false,
-    };
+  final bool b => b,
+  ValidationResult(:final bool valid) => valid,
+  final Map<Object?, Object?> map when map['valid'] is bool =>
+    map['valid']! as bool,
+  final String s => s.toLowerCase() == 'true',
+  final num n => n != 0 && !n.isNaN,
+  _ => false,
+};

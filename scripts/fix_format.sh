@@ -133,22 +133,17 @@ if [ "$SKIP_DART" = false ]; then
     # falls back to the newest version the SDK supports, and the two disagree on
     # constructs like method chains. That is how CI and a contributor on the same
     # SDK can reach opposite conclusions about the same file. Every package in the
-    # formatted paths declares sdk ">=3.10.0", matching the monorepo workspace, so
-    # 3.10 reproduces a resolved local run. Bump it when those pubspecs raise
+    # formatted paths declares sdk ">=3.13.0", matching the monorepo workspace, so
+    # 3.13 reproduces a resolved local run. Bump it when those pubspecs raise
     # their floor.
     if [ ! -f ".dart_tool/package_config.json" ]; then
       dart pub get >/dev/null 2>&1 || true
     fi
-    if [ ! -f "dart/a2ui_core/.dart_tool/package_config.json" ]; then
-      (cd dart/a2ui_core && dart pub get >/dev/null 2>&1 || true)
-    fi
 
     if [ "$CHECK_ONLY" = true ]; then
-      dart format --language-version=3.10 --output=none --set-exit-if-changed samples/client/flutter dart/a2ui_agent dart/a2ui_cli dart/a2ui_flutter
-      dart format --language-version=3.5 --output=none --set-exit-if-changed dart/a2ui_core
+      dart format --language-version=3.13 --output=none --set-exit-if-changed samples/client/flutter dart
     else
-      dart format --language-version=3.10 samples/client/flutter dart/a2ui_agent dart/a2ui_cli dart/a2ui_flutter
-      dart format --language-version=3.5 dart/a2ui_core
+      dart format --language-version=3.13 samples/client/flutter dart
     fi
   else
     echo "Warning: dart command not found. Skipping Dart formatting."
