@@ -451,40 +451,7 @@ CatalogImplementation _buildV09BasicCatalog({
     for (final ComponentImplementation impl in base.components.values)
       ComponentImplementation(
         name: impl.name,
-        schema: impl.name == 'Button'
-            ? Schema.fromMap(const <String, Object?>{
-                'type': 'object',
-                'properties': <String, Object?>{
-                  'component': <String, Object?>{'const': 'Button'},
-                  'child': <String, Object?>{
-                    r'$ref': r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId',
-                  },
-                  'variant': <String, Object?>{'type': 'string'},
-                  'action': <String, Object?>{
-                    'oneOf': <Object?>[
-                      <String, Object?>{
-                        r'$ref': r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action',
-                      },
-                      <String, Object?>{
-                        'type': 'object',
-                        'properties': <String, Object?>{
-                          'functionCall': <String, Object?>{
-                            'type': 'object',
-                            'properties': <String, Object?>{
-                              'call': <String, Object?>{'type': 'string'},
-                              'args': <String, Object?>{'type': 'object'},
-                            },
-                            'required': <Object?>['call'],
-                          },
-                        },
-                        'required': <Object?>['functionCall'],
-                      },
-                    ],
-                  },
-                },
-                'required': <Object?>['component', 'child'],
-              })
-            : impl.schema,
+        schema: impl.schema,
         builder: (context, node, props, buildChild) {
           renderedNodes[node.instanceId] = node;
           return impl.builder(context, node, props, buildChild);

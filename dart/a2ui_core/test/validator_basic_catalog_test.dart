@@ -17,6 +17,7 @@ import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/validation/component_refs.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
@@ -270,6 +271,111 @@ void main() {
     }
   });
 
+  test(
+    'v0.9 Button.action accepts a custom FunctionImplementation with an open '
+    'object argumentSchema',
+    () {
+      final _RendererCatalog base = BasicCatalog.v0_9();
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: base.id,
+        components: base.components.values.toList(),
+        functions: [
+          ...base.functions.values,
+          _OpenObjectFunction('incrementCounter'),
+        ],
+        themeSchema: base.themeSchema,
+        schemaId: base.schemaId,
+        title: base.title,
+        description: base.description,
+        protocolVersion: base.protocolVersion,
+        instructions: base.instructions,
+        definitions: base.definitions,
+      );
+
+      List<Map<String, Object?>> buttonMessages(
+        Map<String, Object?> action,
+      ) => [
+        {
+          'version': 'v0.9',
+          'createSurface': {
+            'surfaceId': 's1',
+            'catalogId': BasicCatalog.v0_9Id,
+          },
+        },
+        {
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Row',
+                'children': ['event_btn', 'func_btn'],
+              },
+              {
+                'id': 'event_btn',
+                'component': 'Button',
+                'child': 'event_label',
+                'action': {
+                  'event': {
+                    'name': 'buy_item',
+                    'context': {
+                      'sku': {'path': '/itemId'},
+                    },
+                  },
+                },
+              },
+              {'id': 'event_label', 'component': 'Text', 'text': 'Buy'},
+              {
+                'id': 'func_btn',
+                'component': 'Button',
+                'child': 'func_label',
+                'action': action,
+              },
+              {'id': 'func_label', 'component': 'Text', 'text': 'Increment'},
+            ],
+          },
+        },
+      ];
+
+      MessageProcessor<ComponentApi> newProcessor() =>
+          MessageProcessor<ComponentApi>(
+            catalogs: [catalog],
+            defaultVersion: A2uiProtocolVersion.v0_9,
+          );
+
+      expect(
+        () => newProcessor().processMessages(
+          AgentToRendererMessage.parseAll(
+            buttonMessages({
+              'functionCall': {
+                'call': 'incrementCounter',
+                'args': {'path': '/counter', 'step': 5},
+              },
+            }),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
+        returnsNormally,
+      );
+
+      expect(
+        () => newProcessor().processMessages(
+          AgentToRendererMessage.parseAll(
+            buttonMessages({
+              'functionCall': {
+                'call': 'unregisteredAction',
+                'args': {'path': '/counter'},
+              },
+            }),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    },
+  );
+
   _registerExamples(
     'the v0.9.1 basic catalog examples against the v0.9.1 document',
     '../catalogs/basic/v0_9_1/examples',
@@ -343,4 +449,16 @@ void _registerExamples(
       });
     }
   });
+}
+
+class _OpenObjectFunction extends FunctionImplementation {
+  _OpenObjectFunction(String name)
+    : super(name: name, argumentSchema: Schema.fromMap({'type': 'object'}));
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) => null;
 }
