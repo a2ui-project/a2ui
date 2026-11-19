@@ -105,7 +105,7 @@ _MARKDOWN_SYNTAX_RE = re.compile(
 _CODE_SYNTAX_RE = re.compile(
     r"(?:^```|^(?:SELECT|INSERT|UPDATE|DELETE)\s+.+\s+FROM\b|"
     r"^(?:def|class|function|import|from|const|let|var)\s+\w+|"
-    r"^\s*\{[\s\S]*\"[^\"]+\"\s*:[\s\S]*\}\s*$)",
+    r"\A\s*\{[^}]*\"[^\"\n]{1,128}\"\s*:[\s\S]{0,4096}\}\s*\Z)",
     re.IGNORECASE | re.MULTILINE,
 )
 

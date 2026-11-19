@@ -790,3 +790,35 @@ def test_decision_backend_error_carries_backend_and_cause() -> None:
         cause,
     )
     assert DecisionBackendError("x", backend_kind="mock", model_id="m").cause is None
+
+
+def test_shape_signature_distinguishes_format_and_layout_hints() -> None:
+    usd_sig = _signature({"amount": 50, "currency": "USD"})
+    eur_sig = _signature({"amount": 50, "currency": "EUR"})
+    assert usd_sig != eur_sig
+
+    celsius_sig = _signature({"temperature": 21.5, "unit": "°C"})
+    fahrenheit_sig = _signature({"temperature": 21.5, "unit": "°F"})
+    assert celsius_sig != fahrenheit_sig
+
+    short_prose = _signature({"about": " ".join(["word"] * 20)})
+    long_prose = _signature({"about": " ".join(["word"] * 220)})
+    assert short_prose != long_prose
+
+    wide_img = PointerSummary(
+        path="/photo",
+        value_type="string",
+        cardinality=1,
+        semantic_type="image_url",
+        hints={"aspectRatio": "16:9"},
+    )
+    square_img = PointerSummary(
+        path="/photo",
+        value_type="string",
+        cardinality=1,
+        semantic_type="image_url",
+        hints={"aspectRatio": "1:1"},
+    )
+    assert plan_shape_signature([wide_img], intent="Show") != plan_shape_signature(
+        [square_img], intent="Show"
+    )

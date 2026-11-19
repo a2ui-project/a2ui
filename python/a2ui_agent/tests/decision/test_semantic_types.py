@@ -513,3 +513,14 @@ class TestFixturePayloadPointerSemantics:
         assert by_path["/playback/autoDownload"].semantic_type == "boolean"
         assert by_path["/playback/speed"].semantic_type == "number"
         assert by_path["/account/signOut"].semantic_type == "string"
+
+
+def test_unclosed_multiline_brace_prose_classifies_quickly() -> None:
+    import time
+
+    adversarial = '{\n  "k": ' + ("a" * 8000) + "\nno closing brace"
+    started = time.monotonic()
+    sem_type, _ = classify_scalar(adversarial, "notes")
+    elapsed = time.monotonic() - started
+    assert sem_type != SemanticType.CODE
+    assert elapsed < 0.2

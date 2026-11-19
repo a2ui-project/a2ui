@@ -282,9 +282,8 @@ def _is_component_checkable(
     helper: CatalogSchemaHelper, comp_name: str, raw_props: Sequence[str]
 ) -> bool:
     """Returns whether `comp_name` supports validation `@checks`."""
-    if "@checks" in raw_props or "checks" in raw_props:
-        return True
-    return bool(helper.component_is_checkable.get(comp_name, False))
+    del raw_props
+    return helper.is_checkable(comp_name)
 
 
 def _collect_component_props_and_required(
@@ -313,8 +312,9 @@ def _build_component_slots(
 ) -> tuple[ComponentSlot, ...]:
     """Classifies all bindable slots on `comp_name`."""
     slots: list[ComponentSlot] = []
+    excluded = _EXCLUDED_PROPERTIES - helper.get_custom_envelope_properties(comp_name)
     for prop_name in raw_props:
-        if prop_name in _EXCLUDED_PROPERTIES:
+        if prop_name in excluded:
             continue
         prop_schema = helper.get_property_schema(comp_name, prop_name)
         if not isinstance(prop_schema, Mapping):

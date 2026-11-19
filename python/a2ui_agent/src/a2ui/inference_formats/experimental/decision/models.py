@@ -1111,8 +1111,21 @@ class PlanCacheKey:
     shape_signature: str
 
 
+_SHAPE_HINT_KEYS: tuple[str, ...] = (
+    "currency",
+    "unit",
+    "format",
+    "scale",
+    "length",
+    "aspectRatio",
+)
+
+
 def _pointer_shape(pointer: PointerSummary) -> dict[str, Any]:
     """Returns the data-independent shape fields of one `PointerSummary`."""
+    shape_hints = {
+        key: pointer.hints[key] for key in _SHAPE_HINT_KEYS if key in pointer.hints
+    }
     return {
         "path": pointer.path,
         "valueType": pointer.value_type,
@@ -1122,6 +1135,7 @@ def _pointer_shape(pointer: PointerSummary) -> dict[str, Any]:
             key: str(value)
             for key, value in sorted(pointer.element_semantic_types.items())
         },
+        "hints": shape_hints,
         "mutable": pointer.mutable_hint,
     }
 
