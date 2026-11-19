@@ -1,0 +1,22 @@
+{
+  "name": "a2ui-embed-sql",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Internal proof of concept: a read-only SQL MCP server that renders A2UI v1.0 inside MCP Apps through @a2ui/embed",
+  "type": "module",
+  "scripts": {
+    "fetch-data": "node scripts/fetch-data.mjs",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.8"
+  }
+}
