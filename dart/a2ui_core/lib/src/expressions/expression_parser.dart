@@ -430,8 +430,9 @@ class _Scanner {
     final int targetPos = pos + offset;
     if (targetPos >= input.length) return '';
 
-    final int endPos =
-        targetPos + 2 <= input.length ? targetPos + 2 : input.length;
+    final int endPos = targetPos + 2 <= input.length
+        ? targetPos + 2
+        : input.length;
 
     // Safely extract the full 32-bit code point
     final int codePoint = input.substring(targetPos, endPos).runes.first;
