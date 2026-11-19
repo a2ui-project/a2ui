@@ -445,40 +445,34 @@ def test_seed_script_creates_unverified_stubs_skipped_by_default(
         }]
     }
 
-    target_seeded = (
-        GIT_ROOT / "eval" / "datasets" / "decision_plans" / "test_tmp_seeded.yaml"
-    )
-    if target_seeded.is_file():
-        target_seeded.unlink()
-
+    target_seeded = tmp_path / "test_tmp_seeded.yaml"
     fake_log_file = tmp_path / "test.eval"
     fake_log_file.write_text("{}", encoding="utf-8")
 
-    try:
-        with patch("seed_decision_plans.load_log_data", return_value=fake_log):
-            added = seed_cases_from_logs([fake_log_file], target_seeded)
-            assert added == 1
+    with (
+        patch("seed_decision_plans.DECISION_PLANS_DIR", tmp_path.resolve()),
+        patch("seed_decision_plans.load_log_data", return_value=fake_log),
+    ):
+        added = seed_cases_from_logs([fake_log_file], target_seeded)
+        assert added == 1
 
-        loaded_default = load_plan_cases(
-            target_seeded, include_unverified=False, schema_path=SCHEMA_FILE
-        )
-        assert len(loaded_default) == 0
+    loaded_default = load_plan_cases(
+        target_seeded, include_unverified=False, schema_path=SCHEMA_FILE
+    )
+    assert len(loaded_default) == 0
 
-        loaded_all = load_plan_cases(
-            target_seeded, include_unverified=True, schema_path=SCHEMA_FILE
-        )
-        assert len(loaded_all) == 1
-        assert loaded_all[0].name == "sample_123_dashboard"
-        assert loaded_all[0].verified is False
-        assert loaded_all[0].split == "tuning"
-        assert [a.id for a in loaded_all[0].action_specs()] == ["restart"]
-        assert loaded_all[0].mutable_paths == ["/load"]
-        assert loaded_all[0].expected_family == "monitor"
-        assert loaded_all[0].expected_archetypes == ["dashboard"]
-        assert loaded_all[0].required_blocks == ["headline_row", "facts_card"]
-    finally:
-        if target_seeded.is_file():
-            target_seeded.unlink()
+    loaded_all = load_plan_cases(
+        target_seeded, include_unverified=True, schema_path=SCHEMA_FILE
+    )
+    assert len(loaded_all) == 1
+    assert loaded_all[0].name == "sample_123_dashboard"
+    assert loaded_all[0].verified is False
+    assert loaded_all[0].split == "tuning"
+    assert [a.id for a in loaded_all[0].action_specs()] == ["restart"]
+    assert loaded_all[0].mutable_paths == ["/load"]
+    assert loaded_all[0].expected_family == "monitor"
+    assert loaded_all[0].expected_archetypes == ["dashboard"]
+    assert loaded_all[0].required_blocks == ["headline_row", "facts_card"]
 
 
 @pytest.mark.asyncio
@@ -886,33 +880,24 @@ def test_seed_script_infers_family_from_decision_family_or_archetype_grammar(
             },
         ]
     }
-    target_seeded = (
-        GIT_ROOT
-        / "eval"
-        / "datasets"
-        / "decision_plans"
-        / "test_tmp_seeded_stages.yaml"
-    )
-    if target_seeded.is_file():
-        target_seeded.unlink()
+    target_seeded = tmp_path / "test_tmp_seeded_stages.yaml"
     fake_log_file = tmp_path / "stages.eval"
     fake_log_file.write_text("{}", encoding="utf-8")
 
-    try:
-        with patch("seed_decision_plans.load_log_data", return_value=fake_log):
-            added = seed_cases_from_logs([fake_log_file], target_seeded)
-            assert added == 3
+    with (
+        patch("seed_decision_plans.DECISION_PLANS_DIR", tmp_path.resolve()),
+        patch("seed_decision_plans.load_log_data", return_value=fake_log),
+    ):
+        added = seed_cases_from_logs([fake_log_file], target_seeded)
+        assert added == 3
 
-        loaded = load_plan_cases(
-            target_seeded, include_unverified=True, schema_path=SCHEMA_FILE
-        )
-        by_name = {c.name: c for c in loaded}
-        assert by_name["s_browse_feed"].expected_family == "browse"
-        assert by_name["s_tpl_confirm"].expected_family == "act"
-        assert by_name["s_inspect_detail"].expected_family == "inspect"
-    finally:
-        if target_seeded.is_file():
-            target_seeded.unlink()
+    loaded = load_plan_cases(
+        target_seeded, include_unverified=True, schema_path=SCHEMA_FILE
+    )
+    by_name = {c.name: c for c in loaded}
+    assert by_name["s_browse_feed"].expected_family == "browse"
+    assert by_name["s_tpl_confirm"].expected_family == "act"
+    assert by_name["s_inspect_detail"].expected_family == "inspect"
 
 
 @pytest.mark.asyncio
@@ -997,3 +982,102 @@ def test_load_tuning_cases_defaults_to_tuning_split_and_rejects_other_splits(
         calibrate_decision_backend.load_tuning_cases(
             ds_dir, split="all", schema_path=SCHEMA_FILE
         )
+
+
+@pytest.mark.asyncio
+async def test_benchmark_isolates_per_case_backend_errors_and_preserves_list_payloads(
+    tmp_path: Path,
+) -> None:
+    """Verifies per-case backend errors do not abort the benchmark and list payloads survive parsing."""
+    from a2ui.inference_formats.experimental.decision import (
+        DecisionBackendError,
+        DeterministicMockBackend,
+    )
+
+    class _FailingBackend(DeterministicMockBackend):
+
+        async def answer(self, batch: Any) -> Any:
+            del batch
+            raise DecisionBackendError("backend down", backend_kind="jev", model_id="m")
+
+    list_case = PlanCase.from_dict({
+        "name": "list_payload_case",
+        "intent": "Browse products",
+        "payload": [{"name": "Shoe", "price": "$99"}],
+        "expected": {"family": "browse", "archetypes": ["feed"]},
+        "split": "tuning",
+        "verified": True,
+    })
+    assert isinstance(list_case.payload, list)
+
+    synth = DecisionSynthesizer([BasicCatalog("v1.0")], backend=_FailingBackend())
+    summary = await run_benchmark(synth, [list_case], repeat=1)
+    assert summary.cases_count == 1
+    assert summary.abstain_rate == 1.0
+    assert summary.family_accuracy == 0.0
+
+
+def test_decision_bench_cli_empty_split_exits_nonzero(tmp_path: Path) -> None:
+    """Verifies decision_bench CLI exits non-zero when --split matches zero cases."""
+    empty_ds = tmp_path / "empty_ds"
+    empty_ds.mkdir()
+    _write_synthetic_tuning_yaml(empty_ds / "v1.yaml")
+    rc_empty = decision_bench_cli.main([
+        "--dataset",
+        str(empty_ds),
+        "--split",
+        "heldout",
+        "--backend",
+        "mock",
+        "--model",
+        "mock",
+    ])
+    assert rc_empty != 0
+
+
+def test_seed_decision_plans_handles_abstain_fallback_and_list_payloads(
+    tmp_path: Path,
+) -> None:
+    """Verifies abstain_fallback seeds family='none' with empty archetypes and preserves array payloads."""
+    fake_log = {
+        "samples": [
+            {
+                "id": "s_abstain",
+                "input": "Draw a 3D shader",
+                "metadata": {
+                    "decision_block": {
+                        "intent": "Draw a 3D shader",
+                        "payload": [{"vertex": 1}, {"vertex": 2}],
+                    },
+                    "decision_stage": "abstain_fallback",
+                },
+            },
+            {
+                "id": "s_empty_intent",
+                "input": "",
+                "metadata": {
+                    "decision_block": {"intent": "   ", "payload": {"a": 1}},
+                    "decision_archetype": "dashboard",
+                },
+            },
+        ]
+    }
+    target_seeded = tmp_path / "seeded_abstain.yaml"
+    fake_log_file = tmp_path / "abstain.eval"
+    fake_log_file.write_text("{}", encoding="utf-8")
+
+    with (
+        patch("seed_decision_plans.DECISION_PLANS_DIR", tmp_path.resolve()),
+        patch("seed_decision_plans.load_log_data", return_value=fake_log),
+    ):
+        added = seed_cases_from_logs([fake_log_file], target_seeded)
+        assert added == 1
+
+    loaded = load_plan_cases(
+        target_seeded, include_unverified=True, schema_path=SCHEMA_FILE
+    )
+    assert len(loaded) == 1
+    assert loaded[0].name == "s_abstain_abstain"
+    assert loaded[0].expected_family == "none"
+    assert loaded[0].expected_archetypes == []
+    assert loaded[0].payload == [{"vertex": 1}, {"vertex": 2}]

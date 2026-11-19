@@ -67,10 +67,10 @@ class ScorecardTargetSpec:
     """Stores configuration for one backend entry in a scorecard run.
 
     Attributes:
-        backend: Backend kind (`mock`, `openrouter`, `gemini`, `http`, or `litert`).
-        model: Model identifier or `.litertlm` file path.
+        backend: Backend kind (`mock`, `jev`, `gemini`, `systemone`, or `step0`).
+        model: Model identifier sent to the decision backend.
         label: Optional display label override for scorecard rows.
-        endpoint_url: Optional endpoint URL for `http` or `openrouter` backends.
+        endpoint_url: Optional endpoint URL for remote HTTP backends.
         calibration: Optional path to a calibration profile JSON file.
         p95_target_ms: Optional P95 decision latency target override in milliseconds.
     """
@@ -455,7 +455,7 @@ async def run_scorecard(
     Returns:
         Completed `ScorecardReport` across all splits and backends.
     """
-    all_specs = list(specs) or ensure_mock_baseline(())
+    all_specs = ensure_mock_baseline(specs)
     rows_by_split: dict[str, list[ScorecardRow]] = {
         name: [] for name, _ in split_groups
     }
@@ -484,25 +484,21 @@ def _load_split_groups(
 ) -> list[tuple[str, list[PlanCase]]]:
     """Loads `(split_name, cases)` groups for scorecard evaluation."""
     if split == "tuning":
-        return [(
-            "tuning",
-            load_plan_cases(
-                cases_path,
-                tags=tags,
-                split="tuning",
-                include_unverified=include_unverified,
-            ),
-        )]
+        loaded = load_plan_cases(
+            cases_path,
+            tags=tags,
+            split="tuning",
+            include_unverified=include_unverified,
+        )
+        return [("tuning", loaded)] if loaded else []
     if split == "heldout":
-        return [(
-            "heldout",
-            load_plan_cases(
-                cases_path,
-                tags=tags,
-                split="heldout",
-                include_unverified=True,
-            ),
-        )]
+        loaded = load_plan_cases(
+            cases_path,
+            tags=tags,
+            split="heldout",
+            include_unverified=True,
+        )
+        return [("heldout", loaded)] if loaded else []
     groups: list[tuple[str, list[PlanCase]]] = []
     tuning = load_plan_cases(
         cases_path,
@@ -539,7 +535,7 @@ def _resolve_target_specs(args: argparse.Namespace) -> list[ScorecardTargetSpec]
                 p95_target_ms=args.p95_target_ms,
             )
         )
-    return specs or ensure_mock_baseline(())
+    return ensure_mock_baseline(specs)
 
 
 def serialize_scorecard_report(report: ScorecardReport) -> dict[str, Any]:

@@ -23,11 +23,12 @@ from typing import Any
 
 from a2ui.inference_formats.experimental.decision import (
     ArchetypeGrammar,
+    DecisionBackendError,
     DecisionFormat,
     DecisionFormatFactory,
     DecisionPromptGenerator,
 )
-from a2ui.parser.messages import to_message_dicts
+from a2ui.parser import to_message_dicts
 from inspect_ai.model import CachePolicy, ChatMessageSystem
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 
@@ -197,11 +198,15 @@ async def _synthesize_completion(
     surface_id = _find_surface_id(completion, allowed_surface_ids)
     parser = format_obj.create_parser(conversation_id=str(state.sample_id))
     try:
-        parsed_blocks = parser._extract_blocks(completion)  # pylint: disable=protected-access
+        parsed_blocks = parser.extract_blocks(completion)
         outputs = await parser.synthesize_blocks(
             completion, default_surface_id=surface_id
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
+        if isinstance(e, DecisionBackendError) or isinstance(
+            e.__cause__, DecisionBackendError
+        ):
+            raise
         return _CompileResult(error=str(e))
 
     if not outputs:

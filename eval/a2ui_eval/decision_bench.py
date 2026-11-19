@@ -31,6 +31,7 @@ from a2ui.inference_formats.experimental.decision import (
     Calibration,
     DecisionAnswer,
     DecisionBackend,
+    DecisionBackendError,
     DecisionBatch,
     DecisionQuestion,
     DecisionRecord,
@@ -44,8 +45,7 @@ from a2ui.inference_formats.experimental.decision import (
     TemplateRegistry,
     inspect_payload_pointers,
 )
-from a2ui.parser import A2uiCompilationError
-from a2ui.parser.messages import to_message_dicts
+from a2ui.parser import A2uiCompilationError, to_message_dicts
 from a2ui.utils import RendererState
 import jsonschema
 import yaml
@@ -101,13 +101,22 @@ def _parse_expected_actions(raw: Any) -> dict[str, list[str]]:
     return parsed
 
 
+def _copy_payload(raw: Any) -> dict[str, Any] | list[Any]:
+    """Copies a JSON object or array payload without coercing lists into dicts."""
+    if isinstance(raw, list):
+        return list(raw)
+    if isinstance(raw, Mapping):
+        return dict(raw)
+    return {}
+
+
 @dataclass(frozen=True)
 class PlanTurn:
     """Represents one turn in a multi-turn `PlanCase` sequence.
 
     Attributes:
         intent: Natural-language rendering intent for this turn.
-        payload: Structured JSON payload for this turn.
+        payload: Structured JSON payload (object or array) for this turn.
         surface_id: Target A2UI surface identifier.
         actions: Declared action specifications keyed by action identifier.
         exclude: JSON Pointers excluded from planning for this turn.
@@ -125,7 +134,7 @@ class PlanTurn:
     """
 
     intent: str
-    payload: dict[str, Any]
+    payload: dict[str, Any] | list[Any]
     surface_id: str = "main"
     actions: dict[str, Any] = field(default_factory=dict)
     exclude: list[str] = field(default_factory=list)
@@ -158,25 +167,20 @@ class PlanTurn:
             A validated `PlanTurn` instance.
         """
         raw_labels = data.get("labels") or {}
-        fb_dsl = data.get("fallback_dsl")
-        if fb_dsl is None:
-            fb_dsl = data.get("fallbackDsl")
         return cls(
             intent=str(data["intent"]),
-            payload=dict(data.get("payload") or {}),
-            surface_id=str(data.get("surface_id") or data.get("surfaceId") or "main"),
+            payload=_copy_payload(data.get("payload")),
+            surface_id=str(data.get("surface_id") or "main"),
             actions=dict(data.get("actions") or {}),
             exclude=list(data.get("exclude") or []),
             replace=bool(data.get("replace", False)),
             region=str(data["region"]) if data.get("region") is not None else None,
             labels={str(k): str(v) for k, v in raw_labels.items()},
-            mutable_paths=list(
-                data.get("mutable_paths") or data.get("mutablePaths") or []
-            ),
+            mutable_paths=list(data.get("mutable_paths") or []),
             layout=_seq_list(data.get("layout")),
             title=data.get("title"),
             summary=data.get("summary"),
-            fallback_dsl=fb_dsl,
+            fallback_dsl=data.get("fallback_dsl"),
             expected_operation=(
                 str(data["expected_operation"]).strip().lower()
                 if data.get("expected_operation") is not None
@@ -227,7 +231,7 @@ class PlanCase:
 
     name: str
     intent: str
-    payload: dict[str, Any]
+    payload: dict[str, Any] | list[Any]
     expected_family: str
     expected_archetypes: list[str]
     mode: str = "chat"
@@ -294,13 +298,10 @@ class PlanCase:
         raw_labels = dict(data.get("labels") or {})
         mode_val = _optional_trimmed_str(data.get("mode")) or "chat"
         gate_val = _optional_trimmed_str(expected.get("action_gate")) or "pass"
-        fb_dsl = data.get("fallback_dsl")
-        if fb_dsl is None:
-            fb_dsl = data.get("fallbackDsl")
         return cls(
             name=str(data["name"]),
             intent=str(data["intent"]),
-            payload=dict(data.get("payload") or {}),
+            payload=_copy_payload(data.get("payload")),
             expected_family=_optional_trimmed_str(expected.get("family")) or "",
             expected_archetypes=_seq_list(expected.get("archetypes")),
             mode=mode_val.lower(),
@@ -314,7 +315,7 @@ class PlanCase:
             layout=_seq_list(data.get("layout")),
             title=data.get("title"),
             summary=data.get("summary"),
-            fallback_dsl=fb_dsl,
+            fallback_dsl=data.get("fallback_dsl"),
             sensitive=_seq_list(data.get("sensitive")),
             turns=_parse_turns_list(data.get("turns")),
             required_blocks=_seq_list(blocks.get("required")),
@@ -1530,7 +1531,7 @@ class _BackendCallRecorder(DecisionBackend):
 
 
 def _abstained_compilation_output(
-    recorder: _BackendCallRecorder, exc: A2uiCompilationError
+    recorder: _BackendCallRecorder, exc: Exception
 ) -> SynthesisOutput:
     """Builds an abstained `SynthesisOutput` when `synthesize` had no fallback."""
     err_str = str(exc)
@@ -1575,14 +1576,13 @@ def _abstained_compilation_output(
 
 
 def _tool_args_for_case(
-    case: PlanCase, *, payload_override: Mapping[str, Any] | None = None
+    case: PlanCase, *, payload_override: Mapping[str, Any] | Sequence[Any] | None = None
 ) -> dict[str, Any]:
     """Builds `DecisionRenderTool.run_async` arguments from `case`."""
+    raw_payload = payload_override if payload_override is not None else case.payload
     args: dict[str, Any] = {
         "intent": case.intent,
-        "payload": dict(
-            payload_override if payload_override is not None else case.payload
-        ),
+        "payload": _copy_payload(raw_payload),
     }
     if case.actions:
         args["actions"] = dict(case.actions)
@@ -1645,7 +1645,7 @@ async def _synthesize_single_case(
             )
         if not output.decision_answers and recorder.answers:
             output = replace(output, decision_answers=tuple(recorder.answers))
-    except A2uiCompilationError as exc:
+    except (A2uiCompilationError, DecisionBackendError, ValueError) as exc:
         output = _abstained_compilation_output(recorder, exc)
     finally:
         synth.backend = original_backend
@@ -1689,7 +1689,7 @@ async def _run_single_turn_step(
         )
         if not out.decision_answers and recorder.answers:
             out = replace(out, decision_answers=tuple(recorder.answers))
-    except A2uiCompilationError as exc:
+    except (A2uiCompilationError, DecisionBackendError, ValueError) as exc:
         out = _abstained_compilation_output(recorder, exc)
     finally:
         synth.backend = original_backend

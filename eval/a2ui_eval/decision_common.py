@@ -64,15 +64,15 @@ FALSE_NO_FIT_TARGET: float = 0.10
 
 PARAPHRASE_PROMPT_TABLE: tuple[tuple[str, str], ...] = (
     (
-        "What job is this surface doing for the person?",
+        "What is the person here to do?",
         "Choose the primary user goal for this interface:",
     ),
     (
-        "How costly is a mistake on this surface?",
+        "If this goes wrong, how bad is it for the person?",
         "Rate the consequence of an erroneous action here:",
     ),
     (
-        "How urgently does the person need to act or notice?",
+        "How quickly does the person need to act on what they see?",
         "Score the time sensitivity of this information:",
     ),
     (
@@ -286,12 +286,7 @@ def _has_jev_credentials(endpoint_url: str | None) -> bool:
     """
     if endpoint_url or os.environ.get("A2UI_DECISION_URL"):
         return True
-    return bool(
-        os.environ.get("JEV_API_KEY")
-        or os.environ.get("TYPESAFE_API_KEY")
-        or os.environ.get("A2UI_DECISION_AUTH")
-        or os.environ.get("A2UI_DECISION_TOKEN")
-    )
+    return bool(os.environ.get("JEV_API_KEY") or os.environ.get("TYPESAFE_API_KEY"))
 
 
 def _has_gemini_credentials(endpoint_url: str | None) -> bool:
@@ -305,12 +300,7 @@ def _has_gemini_credentials(endpoint_url: str | None) -> bool:
     """
     if endpoint_url or os.environ.get("A2UI_DECISION_URL"):
         return True
-    return bool(
-        os.environ.get("GEMINI_API_KEY")
-        or os.environ.get("GOOGLE_API_KEY")
-        or os.environ.get("A2UI_DECISION_AUTH")
-        or os.environ.get("A2UI_DECISION_TOKEN")
-    )
+    return bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
 
 
 def build_decision_backend(
@@ -367,7 +357,7 @@ def build_decision_backend(
         if not _has_jev_credentials(endpoint_url):
             raise ValueError(
                 "JEV_API_KEY or TYPESAFE_API_KEY must be set in the environment"
-                " to use the jev decision backend"
+                f" to use the {clean} decision backend"
             )
         return create_decision_backend(
             clean,

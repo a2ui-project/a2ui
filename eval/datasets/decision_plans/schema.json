@@ -17,7 +17,7 @@
         "description": "User intent or instruction driving the UI synthesis."
       },
       "payload": {
-        "type": "object",
+        "type": ["object", "array"],
         "description": "Structured JSON data payload passed to the decision synthesizer."
       },
       "mode": {
@@ -89,7 +89,7 @@
           "properties": {
             "surface_id": {"type": "string"},
             "intent": {"type": "string", "minLength": 1},
-            "payload": {"type": "object"},
+            "payload": {"type": ["object", "array"]},
             "actions": {"type": "object"},
             "exclude": {
               "type": "array",
@@ -191,6 +191,9 @@
             },
             "then": {
               "properties": {"archetypes": {"minItems": 1}}
+            },
+            "else": {
+              "properties": {"archetypes": {"maxItems": 0}}
             }
           }
         ]
