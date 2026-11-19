@@ -614,11 +614,11 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
     };
 
     mermaidObserver = new IntersectionObserver(
-      entries => {
+      (entries, observer) => {
         for (const entry of entries) {
           if (!entry.isIntersecting) continue;
           const target = entry.target as HTMLElement;
-          mermaidObserver?.unobserve(target);
+          observer.unobserve(target);
           pendingQueue.add(target);
         }
         if (pendingQueue.size && !flushScheduled) {

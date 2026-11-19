@@ -222,8 +222,9 @@ export function prepareSpecAssets({
 
   // Flatten JSON files to version roots (e.g. v0_8, v0_9, v0_9_1, v1_0, v1_1)
   const specVersions = fs
-    .readdirSync(specDest)
-    .filter(f => fs.statSync(path.join(specDest, f)).isDirectory() && SPEC_VERSION_DIR_RE.test(f));
+    .readdirSync(specDest, {withFileTypes: true})
+    .filter(entry => entry.isDirectory() && SPEC_VERSION_DIR_RE.test(entry.name))
+    .map(entry => entry.name);
 
   for (const version of specVersions) {
     const jsonDir = path.join(specDest, version, 'json');

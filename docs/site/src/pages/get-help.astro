@@ -828,12 +828,12 @@ const sortedConsultants = [...consultants].sort((a, b) => a.agency.localeCompare
 
         if ('IntersectionObserver' in window) {
           const posterObserver = new IntersectionObserver(
-            (entries) => {
+            (entries, observer) => {
               entries.forEach((entry) => {
                 if (!entry.isIntersecting) return;
                 const card = entry.target;
                 ensureVideoPoster(card.querySelector('video'));
-                posterObserver.unobserve(card);
+                observer.unobserve(card);
               });
             },
             { rootMargin: '400px 0px' }
