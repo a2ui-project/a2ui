@@ -193,6 +193,11 @@ class PlannerState:
     region_block_id: str | None = None
     """Target block ID when `PlannerState` was built for a region update."""
     region_used_pointers: set[str] = field(default_factory=set)
+    mutable_object_paths: frozenset[str] = field(default_factory=frozenset, init=False)
+
+    def __post_init__(self) -> None:
+        self.mutable_object_paths = _mutable_object_paths(self.pointers)
+
     """Pointers already claimed outside `region_block_id` on `region_plan`."""
 
 
@@ -299,11 +304,10 @@ def _resolve_pointer_value(payload: Mapping[str, Any], pointer: str) -> Any:
 
 
 def _build_parent_object_summary(
-    parent: str, normalized: Sequence[PointerSummary]
+    parent: str, children: Sequence[PointerSummary]
 ) -> PointerSummary:
     """Synthesizes a parent `object` `PointerSummary` for grouped child pointers."""
     parent_key = split_pointer(parent)[1]
-    children = [p for p in normalized if p.parent == parent]
     return PointerSummary(
         path=parent,
         value_type="object",
@@ -331,7 +335,7 @@ def _build_sample_pointer_summary(sample: str) -> PointerSummary:
 
 def _maybe_append_parent_summary(
     ptr: PointerSummary,
-    filtered: Sequence[PointerSummary],
+    children_by_parent: Mapping[str, Sequence[PointerSummary]],
     excluded_parents: set[str],
     norm_exclude: Collection[str],
     norm_labels: Mapping[str, str],
@@ -346,7 +350,7 @@ def _maybe_append_parent_summary(
     ):
         return
     excluded_parents.add(parent)
-    summary = _build_parent_object_summary(parent, filtered)
+    summary = _build_parent_object_summary(parent, children_by_parent.get(parent, ()))
     result.append(_apply_label_override(summary, norm_labels))
 
 
@@ -376,6 +380,10 @@ def _normalize_pointers(
     norm_labels = _normalize_labels(labels)
     norm_exclude = _normalize_exclude(exclude)
     filtered = [p for p in pointers if not _is_excluded_pointer(p.path, norm_exclude)]
+    children_by_parent: dict[str, list[PointerSummary]] = {}
+    for p in filtered:
+        if p.parent:
+            children_by_parent.setdefault(p.parent, []).append(p)
     existing_paths = {p.path for p in filtered}
     excluded_parents = existing_paths | {
         p.path for p in filtered if p.value_type == "array"
@@ -384,7 +392,7 @@ def _normalize_pointers(
     for ptr in filtered:
         _maybe_append_parent_summary(
             ptr,
-            filtered,
+            children_by_parent,
             excluded_parents,
             norm_exclude,
             norm_labels,
@@ -457,12 +465,24 @@ def _array_element_types(ptr: PointerSummary) -> set[str]:
     return types
 
 
+def _mutable_object_paths(pointers: Sequence[PointerSummary]) -> frozenset[str]:
+    """Precomputes the set of mutable `object` pointer paths in `pointers`."""
+    return frozenset(
+        p.path for p in pointers if p.value_type == "object" and p.mutable_hint
+    )
+
+
 def _is_nested_mutable_setting(
-    ptr: PointerSummary, pointers: Sequence[PointerSummary]
+    ptr: PointerSummary,
+    pointers: Sequence[PointerSummary],
+    *,
+    mutable_objects: frozenset[str] | None = None,
 ) -> bool:
     """Returns whether `ptr` is a child field of a mutable settings object."""
     if not ptr.mutable_hint or not ptr.parent:
         return False
+    if mutable_objects is not None:
+        return ptr.parent in mutable_objects
     return any(
         p.path == ptr.parent and p.value_type == "object" and p.mutable_hint
         for p in pointers
@@ -473,9 +493,12 @@ def _shape_matching_pointers(
     shape: ShapeFilter, pointers: Sequence[PointerSummary]
 ) -> list[PointerSummary]:
     """Returns pointers matching `shape.pointers`, excluding nested mutable settings."""
+    mutable_objects = _mutable_object_paths(pointers) if shape.mutable is None else None
     matched: list[PointerSummary] = []
     for ptr in pointers:
-        if shape.mutable is None and _is_nested_mutable_setting(ptr, pointers):
+        if shape.mutable is None and _is_nested_mutable_setting(
+            ptr, pointers, mutable_objects=mutable_objects
+        ):
             continue
         if _pointer_matches_types(ptr, shape.pointers):
             matched.append(ptr)
@@ -1953,6 +1976,14 @@ def _expand_grouped_collection_blocks(
     has_image = any(
         p.semantic_type in {"image_url", "media_object"} for p in state.pointers
     )
+    if len(sections) >= 2 and col_block.variant_knobs.get("layout") == "reel":
+        col_items = col_block.bindings.get("items")
+        has_item_pic = col_items is not None and "picture" in col_items.fields
+        downgraded_layout = "cards" if has_item_pic else "rows"
+        col_block = replace(
+            col_block,
+            variant_knobs={**col_block.variant_knobs, "layout": downgraded_layout},
+        )
     expanded: list[PlannedBlock] = []
     from_orphan = bound_ptr.path in state.orphan_pointers
     for idx, sec_ptr in enumerate(sections):
@@ -1993,7 +2024,9 @@ def _uncovered_scalar_fact_pointers(
         if not p.parent
         and p.value_type in {"string", "number", "boolean"}
         and not _is_excluded_pointer(p.path, state.exclude)
-        and not _is_nested_mutable_setting(p, state.pointers)
+        and not _is_nested_mutable_setting(
+            p, state.pointers, mutable_objects=state.mutable_object_paths
+        )
         and not is_secret_pointer(p)
         and not _is_pointer_covered(p.path, claimed)
         and (
@@ -2151,7 +2184,11 @@ def _is_collection_picture_sparse(
         or not arr_val
     ):
         return False
-    key = pic_field.pointer or ""
+    key = (
+        split_pointer(f"/{pic_field.pointer.lstrip('/')}")[1]
+        if pic_field.pointer
+        else ""
+    )
     with_pic = sum(1 for el in arr_val if isinstance(el, Mapping) and bool(el.get(key)))
     return with_pic * 2 < len(arr_val)
 
@@ -3266,7 +3303,9 @@ class LayoutPlanner:
             return False
         if ptr.path in absorbed or (ptr.path.count("/") >= 2 and "/0/" in ptr.path):
             return False
-        if _is_nested_mutable_setting(ptr, state.pointers):
+        if _is_nested_mutable_setting(
+            ptr, state.pointers, mutable_objects=state.mutable_object_paths
+        ):
             return False
         if ptr.semantic_type in _NON_FACT_SEMANTIC_TYPES:
             return False

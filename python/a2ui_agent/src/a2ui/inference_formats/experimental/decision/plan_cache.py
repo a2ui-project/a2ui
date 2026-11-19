@@ -20,6 +20,7 @@ from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 import copy
 from dataclasses import dataclass, field
+import threading
 from typing import TYPE_CHECKING, Any
 import weakref
 
@@ -149,23 +150,20 @@ class PlanCache:
     def __init__(
         self,
         max_entries: int = DEFAULT_MAX_ENTRIES,
-        *,
-        maxsize: int | None = None,
     ) -> None:
         """Creates a plan cache.
 
         Args:
             max_entries: Maximum entries retained per `RendererState` (and in
                 the tool-mode LRU). Defaults to 64.
-            maxsize: Optional alias for `max_entries`.
 
         Raises:
-            ValueError: If the entry bound is less than 1.
+            ValueError: If `max_entries` is less than 1.
         """
-        bound = maxsize if maxsize is not None else max_entries
-        if bound < 1:
-            raise ValueError(f"max_entries must be >= 1, got {bound}.")
-        self.max_entries = bound
+        if max_entries < 1:
+            raise ValueError(f"max_entries must be >= 1, got {max_entries}.")
+        self.max_entries = int(max_entries)
+        self._lock = threading.RLock()
         self._by_state: weakref.WeakKeyDictionary[
             RendererState, OrderedDict[PlanCacheKey, CachedPlan]
         ] = weakref.WeakKeyDictionary()
@@ -184,17 +182,18 @@ class PlanCache:
         component ids match the cached components. When `state` is None,
         looks up `key` in the tool-mode LRU.
         """
-        if state is None:
-            return self.get_tool(key)
-        lru = self._by_state.get(state)
-        if lru is None or key not in lru:
-            return None
-        entry = lru[key]
-        if not _surface_matches(state.get_surface(key.surface_id), entry):
-            del lru[key]
-            return None
-        lru.move_to_end(key)
-        return entry
+        with self._lock:
+            if state is None:
+                return self.get_tool(key)
+            lru = self._by_state.get(state)
+            if lru is None or key not in lru:
+                return None
+            entry = lru[key]
+            if not _surface_matches(state.get_surface(key.surface_id), entry):
+                del lru[key]
+                return None
+            lru.move_to_end(key)
+            return entry
 
     def put(
         self,
@@ -203,27 +202,29 @@ class PlanCache:
         entry: CachedPlan,
     ) -> None:
         """Stores `entry` under `(state, key)`, evicting the oldest entry if full."""
-        if state is None:
-            self.put_tool(key, entry)
-            return
-        lru = self._by_state.get(state)
-        if lru is None:
-            lru = OrderedDict()
-            self._by_state[state] = lru
-        lru[key] = entry
-        lru.move_to_end(key)
-        self._evict(lru)
+        with self._lock:
+            if state is None:
+                self.put_tool(key, entry)
+                return
+            lru = self._by_state.get(state)
+            if lru is None:
+                lru = OrderedDict()
+                self._by_state[state] = lru
+            lru[key] = entry
+            lru.move_to_end(key)
+            self._evict(lru)
 
     def invalidate(self, state: RendererState | None, surface_id: str) -> None:
         """Removes every cached plan for `surface_id` on `state`."""
-        if state is None:
-            self.invalidate_tool(surface_id)
-            return
-        lru = self._by_state.get(state)
-        if lru is None:
-            return
-        for key in [k for k in lru if k.surface_id == surface_id]:
-            del lru[key]
+        with self._lock:
+            if state is None:
+                self.invalidate_tool(surface_id)
+                return
+            lru = self._by_state.get(state)
+            if lru is None:
+                return
+            for key in [k for k in lru if k.surface_id == surface_id]:
+                del lru[key]
 
     def get_for_surface(
         self,
@@ -240,48 +241,56 @@ class PlanCache:
         plan's signature, but the surface's active layout plan is still the
         one on `state`.
         """
-        lru = self._by_state.get(state)
-        if lru is None:
+        with self._lock:
+            lru = self._by_state.get(state)
+            if lru is None:
+                return None
+            surface = state.get_surface(surface_id)
+            for key in reversed(list(lru.keys())):
+                if key.surface_id != surface_id:
+                    continue
+                if catalog_id is not None and key.catalog_id != catalog_id:
+                    continue
+                if (
+                    grammar_version is not None
+                    and key.grammar_version != grammar_version
+                ):
+                    continue
+                entry = lru[key]
+                if _surface_matches(surface, entry):
+                    lru.move_to_end(key)
+                    return key, entry
             return None
-        surface = state.get_surface(surface_id)
-        for key in reversed(list(lru.keys())):
-            if key.surface_id != surface_id:
-                continue
-            if catalog_id is not None and key.catalog_id != catalog_id:
-                continue
-            if grammar_version is not None and key.grammar_version != grammar_version:
-                continue
-            entry = lru[key]
-            if _surface_matches(surface, entry):
-                lru.move_to_end(key)
-                return key, entry
-        return None
 
     def get_tool(self, key: PlanCacheKey) -> CachedPlan | None:
         """Looks up `key` in the tool-mode LRU."""
-        entry = self._tool_entries.get(key)
-        if entry is None:
-            return None
-        self._tool_entries.move_to_end(key)
-        return entry
+        with self._lock:
+            entry = self._tool_entries.get(key)
+            if entry is None:
+                return None
+            self._tool_entries.move_to_end(key)
+            return entry
 
     def put_tool(self, key: PlanCacheKey, entry: CachedPlan) -> None:
         """Stores `entry` in the tool-mode LRU, evicting the oldest entry if full."""
-        self._tool_entries[key] = entry
-        self._tool_entries.move_to_end(key)
-        self._evict(self._tool_entries)
+        with self._lock:
+            self._tool_entries[key] = entry
+            self._tool_entries.move_to_end(key)
+            self._evict(self._tool_entries)
 
     def invalidate_tool(self, surface_id: str) -> None:
         """Removes every tool-mode entry whose `key.surface_id == surface_id`."""
-        for key in [k for k in self._tool_entries if k.surface_id == surface_id]:
-            del self._tool_entries[key]
+        with self._lock:
+            for key in [k for k in self._tool_entries if k.surface_id == surface_id]:
+                del self._tool_entries[key]
 
     def last_tool_entry(self, surface_id: str) -> CachedPlan | None:
         """Returns the most recently used tool-mode entry for `surface_id`, if any."""
-        for key in reversed(list(self._tool_entries.keys())):
-            if key.surface_id == surface_id:
-                return self._tool_entries[key]
-        return None
+        with self._lock:
+            for key in reversed(list(self._tool_entries.keys())):
+                if key.surface_id == surface_id:
+                    return self._tool_entries[key]
+            return None
 
 
 def replace_block_components(

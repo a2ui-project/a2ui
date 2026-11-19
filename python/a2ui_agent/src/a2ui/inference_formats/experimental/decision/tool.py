@@ -49,16 +49,14 @@ from .models import (
     SynthesisOutput,
 )
 from .patterns import MergedPatternLibrary, PatternLibrary
-from .payload_inspector import PointerSummary, inspect_payload_pointers
+from .payload_inspector import PointerSummary
 from .plan_cache import CachedPlan, PlanCache
 from .synthesizer import (
     DecisionSynthesizer,
     FallbackCallback,
     _as_data_model,
+    _coerce_layout_brief,
     _unrolled_array_cardinalities_match,
-    _with_labels,
-    _without_excluded,
-    _without_non_mutable_secrets,
 )
 from .template_registry import SurfaceTemplate, TemplateRegistry
 
@@ -329,14 +327,14 @@ class DecisionRenderTool:
     ) -> tuple[PlanCacheKey, Mapping[str, Any], tuple[PointerSummary, ...]]:
         """Builds the tool-mode `PlanCacheKey`, normalized data model, and pointers."""
         data = _as_data_model(block.payload)
-        pointers = _without_non_mutable_secrets(
-            _with_labels(
-                _without_excluded(
-                    inspect_payload_pointers(data, mutable_paths=block.mutable_paths),
-                    block.exclude,
-                ),
-                block.labels,
-            )
+        pointers = self.synthesizer.inspect_pointers(
+            data,
+            exclude=block.exclude,
+            mutable_paths=block.mutable_paths,
+            labels=block.labels,
+        )
+        normalized_layout = _coerce_layout_brief(
+            block.layout, self.synthesizer.archetypes
         )
         key = self.synthesizer.make_cache_key(
             self.name,
@@ -346,7 +344,7 @@ class DecisionRenderTool:
             exclude=block.exclude,
             mutable_paths=block.mutable_paths,
             labels=block.labels,
-            layout=block.layout,
+            layout=normalized_layout,
             title=block.title,
             summary=block.summary,
         )
@@ -476,17 +474,12 @@ class DecisionRenderTool:
             ]
         return result
 
-    async def run_async(
-        self, args: Mapping[str, Any], *, include_trace: bool | None = None
-    ) -> SynthesisOutput:
+    async def run_async(self, args: Mapping[str, Any]) -> SynthesisOutput:
         """Renders one tool call.
 
         Args:
             args: The tool-call arguments, with the field names from
                 `parameters_json_schema` (snake_case aliases are accepted).
-            include_trace: Accepted for compatibility; the trace is always on
-                the returned output, and `format_result` decides whether to
-                serialize it.
 
         Returns:
             The `SynthesisOutput` emitted for the tool call.
@@ -496,7 +489,6 @@ class DecisionRenderTool:
                 string or `layout` is invalid.
             TypeError: If `payload` is neither an object nor an array.
         """
-        del include_trace
         block, kwargs = self._synthesis_kwargs(args)
         cache_key, target_surface_id, hit = self._check_tool_cache(block, kwargs)
         if hit is not None:
@@ -506,11 +498,8 @@ class DecisionRenderTool:
         )
         return self._record_tool_output(block, cache_key, target_surface_id, output)
 
-    def run_sync(
-        self, args: Mapping[str, Any], *, include_trace: bool | None = None
-    ) -> SynthesisOutput:
+    def run_sync(self, args: Mapping[str, Any]) -> SynthesisOutput:
         """Renders one tool call from synchronous code. See `run_async`."""
-        del include_trace
         block, kwargs = self._synthesis_kwargs(args)
         cache_key, target_surface_id, hit = self._check_tool_cache(block, kwargs)
         if hit is not None:

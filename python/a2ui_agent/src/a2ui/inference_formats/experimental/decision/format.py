@@ -249,6 +249,7 @@ class DecisionFormatFactory(InferenceFormatFactory):
         surface_id: str = "main",
         fallback_fn: FallbackCallback | None = None,
         block_examples: Sequence[DecisionBlock] = (),
+        max_conversations: int = 256,
     ) -> None:
         """Stores the settings every created format shares. See `DecisionFormat`.
 
@@ -263,14 +264,20 @@ class DecisionFormatFactory(InferenceFormatFactory):
             surface_id: See `DecisionFormat`.
             fallback_fn: See `DecisionFormat`.
             block_examples: See `DecisionFormat`.
+            max_conversations: See `DecisionFormat`.
 
         Raises:
             TypeError: If `backend` is None.
+            ValueError: If `max_conversations` is less than 1.
         """
         if backend is None:
             raise TypeError(
                 "DecisionFormatFactory requires a decision backend; pass"
                 " backend=create_decision_backend() to read the environment."
+            )
+        if max_conversations < 1:
+            raise ValueError(
+                f"max_conversations must be >= 1, got {max_conversations}."
             )
         self._backend: DecisionBackend = backend
         self._config = config
@@ -283,6 +290,7 @@ class DecisionFormatFactory(InferenceFormatFactory):
         self._surface_id = surface_id
         self._fallback_fn = fallback_fn
         self._block_examples = tuple(block_examples)
+        self._max_conversations = int(max_conversations)
 
     @property
     def backend(self) -> DecisionBackend:
@@ -317,6 +325,7 @@ class DecisionFormatFactory(InferenceFormatFactory):
             surface_id=self._surface_id,
             fallback_fn=self._fallback_fn,
             block_examples=self._block_examples,
+            max_conversations=self._max_conversations,
         )
 
     async def aclose(self) -> None:

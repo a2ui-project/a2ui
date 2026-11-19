@@ -368,3 +368,70 @@ def test_decision_format_conversation_states_lru_and_clear_conversation() -> Non
 
     fmt.clear_conversation("c1")
     assert fmt.state_for("c1") is not s1
+
+
+@pytest.mark.asyncio
+async def test_parser_backend_error_wrapping_multi_block_compile_and_extract() -> None:
+    from a2ui.inference_formats.experimental.decision import (
+        DecisionBackendError,
+        DecisionFormatFactory,
+        DecisionSynthesizer,
+        extract_decision_blocks,
+    )
+    from a2ui.parser import A2uiCompilationError, A2uiCompilationValidationError
+
+    class _FailingBackend(DeterministicMockBackend):
+
+        async def answer(self, batch):  # type: ignore[override]
+            raise DecisionBackendError("boom", backend_kind="jev", model_id="m")
+
+    fail_parser = DecisionParser(DecisionSynthesizer([CATALOG], _FailingBackend()))
+    block_json = json.dumps({"intent": HOST.intent, "payload": dict(HOST.payload)})
+    with pytest.raises(A2uiCompilationError) as info:
+        await fail_parser.synthesize_blocks(block_json)
+    assert isinstance(info.value.__cause__, DecisionBackendError)
+
+    ok_parser = DecisionParser(
+        DecisionSynthesizer([CATALOG], mock_backend(**HOST_SCRIPTED))
+    )
+    with pytest.raises(A2uiCompilationValidationError, match="at least one block"):
+        ok_parser.read_blocks("[]")
+
+    two_same_surface = (
+        f"<a2ui>{json.dumps({'intent': HOST.intent, 'payload': dict(HOST.payload), 'surfaceId': 's1'})}</a2ui>\n"
+        f"<a2ui>{json.dumps({'intent': HOST.intent, 'payload': {**HOST.payload, 'cpu': 0.1}, 'surfaceId': 's1'})}</a2ui>"
+    )
+    compiled = ok_parser.compile(two_same_surface)
+    assert sum(1 for m in to_message_dicts(compiled) if "updateDataModel" in m) == 2
+
+    assert extract_decision_blocks("plain assistant text", require_tags=True) == []
+    assert len(extract_decision_blocks(two_same_surface, require_tags=True)) == 2
+    with pytest.raises(A2uiCompilationError):
+        extract_decision_blocks("<a2ui>{bad json</a2ui>", require_tags=True)
+
+    factory = DecisionFormatFactory(
+        backend=mock_backend(**HOST_SCRIPTED), max_conversations=2
+    )
+    created_fmt = factory.create_format([CATALOG])
+    s1 = created_fmt.state_for("a")
+    created_fmt.state_for("b")
+    created_fmt.state_for("c")
+    assert created_fmt.state_for("a") is not s1
+
+
+def test_tool_cache_key_normalizes_layout_strings() -> None:
+    backend = mock_backend(**HOST_SCRIPTED)
+    tool = DecisionRenderTool.create([CATALOG], backend=backend)
+    first = tool.run_sync({
+        "intent": HOST.intent,
+        "payload": dict(HOST.payload),
+        "layout": ["headline:cpu"],
+    })
+    second = tool.run_sync({
+        "intent": HOST.intent,
+        "payload": dict(HOST.payload),
+        "layout": ["headline:/cpu"],
+    })
+    assert first.cache_hit is False
+    assert second.cache_hit is True
+    assert len(backend.batches) == 1

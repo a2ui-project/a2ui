@@ -67,6 +67,73 @@ def surface_operation_for(
     return operation, bool(surface.send_data_model)
 
 
+def _read_decision_blocks(format_content: str) -> list[DecisionBlock]:
+    """Parses the JSON body of a block into one or more decision blocks."""
+    try:
+        parsed: Any = read_json(clean(format_content))
+    except Exception as exc:
+        raise A2uiCompilationParseError(
+            message=f"Decision block is not valid JSON: {exc}",
+            raw_content=format_content,
+            help_message=(
+                "Emit one JSON object with 'intent' and 'payload' fields inside"
+                " the <a2ui> tags."
+            ),
+        ) from exc
+    items = parsed if isinstance(parsed, list) else [parsed]
+    if not items:
+        raise A2uiCompilationValidationError(
+            message="Decision block array must contain at least one block.",
+            raw_content=format_content,
+        )
+    blocks: list[DecisionBlock] = []
+    for item in items:
+        if not isinstance(item, Mapping):
+            raise A2uiCompilationValidationError(
+                message="Each decision block must be a JSON object.",
+                raw_content=format_content,
+            )
+        try:
+            blocks.append(DecisionBlock.from_mapping(item))
+        except (TypeError, ValueError) as exc:
+            raise A2uiCompilationValidationError(
+                message=str(exc), raw_content=format_content
+            ) from exc
+    return blocks
+
+
+def extract_decision_blocks(
+    format_content: str, *, require_tags: bool = False
+) -> list[DecisionBlock]:
+    """Extracts `DecisionBlock`s from `<a2ui>` tags or raw JSON content.
+
+    Args:
+        format_content: LLM output containing `<a2ui>` tags, or raw block JSON.
+        require_tags: When True, return `[]` if no `<a2ui>` tags are present
+            instead of parsing the whole string as JSON. Malformed JSON inside
+            `<a2ui>` tags still raises `A2uiCompilationError`.
+
+    Returns:
+        Parsed `DecisionBlock` instances in document order.
+    """
+    lexer = BlockLexer(
+        open_tag=A2UI_INFERENCE_OPEN_TAG,
+        close_tag=A2UI_INFERENCE_CLOSE_TAG,
+        string_delimiters={'"'},
+    )
+    raw_parts = [
+        part.part.a2ui_raw
+        for part in lexer.tokenize(format_content)
+        if isinstance(part.part, RawA2uiPart)
+    ]
+    if not raw_parts:
+        return [] if require_tags else _read_decision_blocks(format_content)
+    blocks: list[DecisionBlock] = []
+    for raw in raw_parts:
+        blocks.extend(_read_decision_blocks(raw))
+    return blocks
+
+
 @experimental
 class DecisionParser(Parser):
     """Compiles `<a2ui>` decision blocks through a `DecisionSynthesizer`.
@@ -225,48 +292,17 @@ class DecisionParser(Parser):
 
     def read_blocks(self, format_content: str) -> list[DecisionBlock]:
         """Parses the JSON body of a block into one or more decision blocks."""
-        try:
-            parsed: Any = read_json(clean(format_content))
-        except Exception as exc:
-            raise A2uiCompilationParseError(
-                message=f"Decision block is not valid JSON: {exc}",
-                raw_content=format_content,
-                help_message=(
-                    "Emit one JSON object with 'intent' and 'payload' fields inside"
-                    " the <a2ui> tags."
-                ),
-            ) from exc
-        items = parsed if isinstance(parsed, list) else [parsed]
-        blocks: list[DecisionBlock] = []
-        for item in items:
-            if not isinstance(item, Mapping):
-                raise A2uiCompilationValidationError(
-                    message="Each decision block must be a JSON object.",
-                    raw_content=format_content,
-                )
-            try:
-                blocks.append(DecisionBlock.from_mapping(item))
-            except (TypeError, ValueError) as exc:
-                raise A2uiCompilationValidationError(
-                    message=str(exc), raw_content=format_content
-                ) from exc
-        return blocks
+        return _read_decision_blocks(format_content)
 
     _read_blocks = read_blocks
 
-    def _extract_blocks(self, format_content: str) -> list[DecisionBlock]:
+    def extract_blocks(
+        self, format_content: str, *, require_tags: bool = False
+    ) -> list[DecisionBlock]:
         """Extracts `DecisionBlock`s from `<a2ui>` tags or raw JSON content."""
-        raw_parts = [
-            part.part.a2ui_raw
-            for part in self.unwrap(format_content)
-            if isinstance(part.part, RawA2uiPart)
-        ]
-        if not raw_parts:
-            return self.read_blocks(format_content)
-        blocks: list[DecisionBlock] = []
-        for raw in raw_parts:
-            blocks.extend(self.read_blocks(raw))
-        return blocks
+        return extract_decision_blocks(format_content, require_tags=require_tags)
+
+    _extract_blocks = extract_blocks
 
     async def synthesize_blocks(
         self, format_content: str, *, default_surface_id: str | None = None
@@ -283,7 +319,7 @@ class DecisionParser(Parser):
                 fallback produced any messages, or the decision backend
                 fails or times out.
         """
-        blocks = self._extract_blocks(format_content)
+        blocks = self.extract_blocks(format_content)
         outputs: list[SynthesisOutput] = []
         base_surface_id = (
             default_surface_id if default_surface_id is not None else self.surface_id
@@ -298,6 +334,8 @@ class DecisionParser(Parser):
                     block.payload,
                     **block.to_synthesis_kwargs(default_surface_id=default_id),
                 )
+            except DecisionBackendError as exc:
+                raise _as_compilation_error(exc, format_content) from exc
             except A2uiError:
                 raise
             except Exception as exc:
@@ -321,17 +359,15 @@ class DecisionParser(Parser):
                 fallback produced any messages.
         """
         del is_final
-        messages_by_surface: dict[str, list[AgentToRendererMessage]] = {}
-        blocks = self._extract_blocks(format_content)
+        messages: list[AgentToRendererMessage] = []
+        blocks = self.extract_blocks(format_content)
         for idx, block in enumerate(blocks, start=1):
             default_id = self._default_surface_id(idx, len(blocks))
             output = self._synthesize_block_sync(
                 block, default_id, format_content, None
             )
-            messages_by_surface[block.surface_id or default_id] = list(output.messages)
-        return [
-            msg for surface_msgs in messages_by_surface.values() for msg in surface_msgs
-        ]
+            messages.extend(output.messages)
+        return messages
 
     def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
         """Renders messages as a wrapped decision block.

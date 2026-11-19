@@ -48,13 +48,20 @@ from .models import (
     PageBindings,
     PatternCapabilities,
     SlotBinding,
+    SlotKind,
 )
 from .payload_inspector import PointerSummary, split_pointer
 
 _PLACEHOLDER_RE = re.compile(r"\{([A-Za-z0-9_$.]+)\}")
 _HEADING_LINE_RE = re.compile(r"^\s*#{1,6}\s")
+_CURRENCY_CODE_RE = re.compile(r"^[A-Z]{3}$")
 
 _OMIT = object()
+
+
+def _escape_format_string_literal(text: str) -> str:
+    """Escapes backslashes and ``${`` markers in literal `formatString` text."""
+    return text.replace("\\", "\\\\").replace("${", "\\${")
 
 
 class PatternError(A2uiValidationError):
@@ -840,6 +847,7 @@ class _ExpansionScope:
     in_template_repeat: bool = False
     in_item_repeat: bool = False
     declared_functions: frozenset[str] = frozenset()
+    graph: CatalogDecisionGraph | None = None
     tracker: _ExpansionTracker = field(default_factory=_ExpansionTracker)
 
 
@@ -877,31 +885,46 @@ def _escape_markdown_inline(text: str, *, in_heading: bool) -> str:
     return cleaned
 
 
+def _eval_text_placeholder(
+    token: str, scope: _ExpansionScope, *, in_heading: bool
+) -> tuple[str, bool]:
+    """Resolves one ``{slot}`` or ``{$index1}`` placeholder to `(text, is_expr)`."""
+    if token == "$index1":
+        return str((scope.item_index or 0) + 1), False
+    binding = _lookup_slot(scope, token)
+    if binding is None or not binding.bound:
+        return "", False
+    if binding.pointer:
+        return f"${{{binding.pointer}}}", True
+    if binding.literal is not None:
+        return (
+            _escape_markdown_inline(str(binding.literal), in_heading=in_heading),
+            False,
+        )
+    return "", False
+
+
 def _eval_text_directive(template: str, scope: _ExpansionScope) -> Any:
     """Evaluates a ``$text`` string with ``{slot}`` and ``{$index1}`` placeholders."""
     in_heading = bool(_HEADING_LINE_RE.match(template))
-    has_pointer = False
-
-    def _replace(match: re.Match[str]) -> str:
-        """Substitutes one ``{slot}`` or ``{$index1}`` placeholder token."""
-        nonlocal has_pointer
-        token = match.group(1)
-        if token == "$index1":
-            return str((scope.item_index or 0) + 1)
-        binding = _lookup_slot(scope, token)
-        if binding is None or not binding.bound:
-            return ""
-        if binding.pointer:
-            has_pointer = True
-            return f"${{{binding.pointer}}}"
-        if binding.literal is not None:
-            return _escape_markdown_inline(str(binding.literal), in_heading=in_heading)
-        return ""
-
-    interpolated = _PLACEHOLDER_RE.sub(_replace, template)
-    if has_pointer:
+    parts: list[tuple[str, bool]] = []
+    last = 0
+    for match in _PLACEHOLDER_RE.finditer(template):
+        if match.start() > last:
+            parts.append((template[last : match.start()], False))
+        parts.append(
+            _eval_text_placeholder(match.group(1), scope, in_heading=in_heading)
+        )
+        last = match.end()
+    if last < len(template):
+        parts.append((template[last:], False))
+    if any(is_expr for _, is_expr in parts):
+        interpolated = "".join(
+            seg if is_expr else _escape_format_string_literal(seg)
+            for seg, is_expr in parts
+        )
         return make_function_call("formatString", {"value": interpolated}, is_v10=True)
-    return interpolated
+    return "".join(seg for seg, _ in parts)
 
 
 def _literal_to_str(val: Any) -> str:
@@ -1320,7 +1343,8 @@ def _format_currency_pointer(
     """Formats a currency pointer using `formatCurrency` when declared."""
     if "formatCurrency" not in declared:
         return _wrap_format_template(f"${{{ptr}}}", None, ptr, template, declared)
-    currency = str(hints.get("currency") or "USD").upper().replace("'", "")
+    raw_currency = str(hints.get("currency") or "USD").strip().upper()
+    currency = raw_currency if _CURRENCY_CODE_RE.match(raw_currency) else "USD"
     call = make_function_call(
         "formatCurrency",
         {
@@ -1351,7 +1375,8 @@ def _format_unit_pointer(
             )
         return make_data_binding(ptr, is_v10=True)
     num_expr = f"${{formatNumber(value:${{{ptr}}})}}" if has_num else f"${{{ptr}}}"
-    unit_expr = f"{num_expr} {unit}"
+    safe_unit = _escape_format_string_literal(unit)
+    unit_expr = f"{num_expr} {safe_unit}"
     return _format_string_call(
         template.replace("{value}", unit_expr) if template else unit_expr
     )
@@ -1605,6 +1630,7 @@ def _order_repeat_items(
             item_fields=fields,
             item_index=idx,
             declared_functions=scope.declared_functions,
+            graph=scope.graph,
             tracker=scope.tracker,
         )
         return _lookup_instance_or_knob(sub_scope, "primary") in (
@@ -1694,23 +1720,140 @@ def _ensure_template_emitted(
         )
 
 
+_CONTAINER_SLOT_KINDS = frozenset(
+    {SlotKind.CHILD, SlotKind.CHILD_LIST, SlotKind.NAMED_CHILD_ARRAY}
+)
+
+
+def _slot_kind_for(
+    raw_comp: Mapping[str, Any],
+    prop_name: str,
+    graph: CatalogDecisionGraph | None,
+) -> tuple[SlotKind | None, str | None]:
+    """Resolves container `(SlotKind, child_id_key)` for `prop_name` on `raw_comp`."""
+    comp_type = raw_comp.get("component")
+    if graph is not None and isinstance(comp_type, str):
+        spec = graph.get_component(comp_type)
+        if spec is not None:
+            slot = spec.get_slot(prop_name)
+            if slot is not None and slot.kind in _CONTAINER_SLOT_KINDS:
+                return slot.kind, slot.child_id_key
+            return None, None
+    if prop_name == "child":
+        return SlotKind.CHILD, None
+    if prop_name == "children":
+        return SlotKind.CHILD_LIST, None
+    return None, None
+
+
+def _container_slots_for(
+    comp: Mapping[str, Any],
+    graph: CatalogDecisionGraph | None,
+) -> tuple[tuple[str, SlotKind, str | None], ...]:
+    """Returns `(prop_name, SlotKind, child_id_key)` for container slots present on `comp`."""
+    comp_type = comp.get("component")
+    if graph is not None and isinstance(comp_type, str):
+        spec = graph.get_component(comp_type)
+        if spec is not None:
+            return tuple(
+                (slot.name, slot.kind, slot.child_id_key)
+                for slot in spec.slots
+                if slot.kind in _CONTAINER_SLOT_KINDS and slot.name in comp
+            )
+    fallback: list[tuple[str, SlotKind, str | None]] = []
+    if "child" in comp:
+        fallback.append(("child", SlotKind.CHILD, None))
+    if "children" in comp:
+        fallback.append(("children", SlotKind.CHILD_LIST, None))
+    return tuple(fallback)
+
+
 def _expand_child_property(
     comp_dict: dict[str, Any],
     comp_id: str,
+    prop_key: str,
     val: Any,
     templates_by_id: Mapping[str, Mapping[str, Any]],
     scope: _ExpansionScope,
     emitted: list[dict[str, Any]],
 ) -> None:
-    """Expands a single-child ``child`` property on `comp_dict`."""
+    """Expands a single-child container property (`prop_key`) on `comp_dict`."""
     if isinstance(val, Mapping) and "component" in val:
-        inline_id = f"{comp_id}_child"
+        inline_id = f"{comp_id}_{prop_key}"
         _expand_inline_component(val, inline_id, templates_by_id, scope, emitted)
-        comp_dict["child"] = inline_id
+        comp_dict[prop_key] = inline_id
     elif isinstance(val, str):
         target_id = _prefix_for_scope(scope, val)
-        comp_dict["child"] = target_id
+        comp_dict[prop_key] = target_id
         _ensure_template_emitted(val, target_id, templates_by_id, scope, emitted)
+
+
+def _expand_named_child_array_entry(
+    entry: Mapping[str, Any],
+    comp_id: str,
+    prop_key: str,
+    child_id_key: str,
+    idx: int,
+    templates_by_id: Mapping[str, Mapping[str, Any]],
+    scope: _ExpansionScope,
+    prefix_fn: Any,
+    emitted: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Expands one object entry in a `SlotKind.NAMED_CHILD_ARRAY` slot."""
+    if not _child_conditions_pass(entry, scope):
+        return None
+    out: dict[str, Any] = {}
+    for k, v in entry.items():
+        if k.startswith("$"):
+            continue
+        if k == child_id_key:
+            if isinstance(v, Mapping) and "component" in v:
+                inline_id = f"{comp_id}_{prop_key}_{idx}"
+                _expand_inline_component(v, inline_id, templates_by_id, scope, emitted)
+                out[k] = inline_id
+            elif isinstance(v, str):
+                target_id = prefix_fn(v)
+                out[k] = target_id
+                _ensure_template_emitted(v, target_id, templates_by_id, scope, emitted)
+        else:
+            resolved = _eval_property_value(v, scope)
+            if resolved is not _OMIT:
+                out[k] = resolved
+    return out
+
+
+def _expand_named_child_array_property(
+    comp_dict: dict[str, Any],
+    comp_id: str,
+    prop_key: str,
+    child_id_key: str,
+    raw_items: Any,
+    templates_by_id: Mapping[str, Mapping[str, Any]],
+    scope: _ExpansionScope,
+    prefix_fn: Any,
+    emitted: list[dict[str, Any]],
+) -> None:
+    """Expands a `SlotKind.NAMED_CHILD_ARRAY` property (such as `Tabs.tabs`)."""
+    if not isinstance(raw_items, Sequence) or isinstance(raw_items, (str, bytes)):
+        return
+    entries: list[dict[str, Any]] = []
+    for idx, entry in enumerate(raw_items):
+        if not isinstance(entry, Mapping):
+            continue
+        expanded = _expand_named_child_array_entry(
+            entry,
+            comp_id,
+            prop_key,
+            child_id_key,
+            idx,
+            templates_by_id,
+            scope,
+            prefix_fn,
+            emitted,
+        )
+        if expanded is not None:
+            entries.append(expanded)
+    comp_dict[prop_key] = entries
 
 
 def _expand_inline_component(
@@ -1729,13 +1872,26 @@ def _expand_inline_component(
     for key, val in raw_comp.items():
         if key == "id" or key.startswith("$"):
             continue
-        if key == "child":
+        slot_kind, child_id_key = _slot_kind_for(raw_comp, key, scope.graph)
+        if slot_kind is SlotKind.CHILD:
             _expand_child_property(
-                comp_dict, comp_id, val, templates_by_id, scope, emitted
+                comp_dict, comp_id, key, val, templates_by_id, scope, emitted
             )
-        elif key == "children":
+        elif slot_kind is SlotKind.CHILD_LIST:
             _expand_children_property(
-                comp_dict, comp_id, val, templates_by_id, scope, prefix_fn, emitted
+                comp_dict, comp_id, key, val, templates_by_id, scope, prefix_fn, emitted
+            )
+        elif slot_kind is SlotKind.NAMED_CHILD_ARRAY and child_id_key:
+            _expand_named_child_array_property(
+                comp_dict,
+                comp_id,
+                key,
+                child_id_key,
+                val,
+                templates_by_id,
+                scope,
+                prefix_fn,
+                emitted,
             )
         else:
             resolved = _eval_property_value(val, scope)
@@ -1760,6 +1916,7 @@ def _infer_element_pointer(fields: Mapping[str, SlotBinding]) -> str | None:
 
 def _expand_template_child_list(
     comp_dict: dict[str, Any],
+    prop_key: str,
     binding: SlotBinding,
     tpl_local_id: str,
     templates_by_id: Mapping[str, Mapping[str, Any]],
@@ -1792,10 +1949,11 @@ def _expand_template_child_list(
         in_template_repeat=True,
         in_item_repeat=True,
         declared_functions=scope.declared_functions,
+        graph=scope.graph,
         tracker=scope.tracker,
     )
     _ensure_template_emitted(tpl_local_id, tpl_id, templates_by_id, tpl_scope, emitted)
-    comp_dict["children"] = {"path": binding.pointer, "componentId": tpl_id}
+    comp_dict[prop_key] = {"path": binding.pointer, "componentId": tpl_id}
 
 
 def _expand_single_repeat_item(
@@ -1830,6 +1988,7 @@ def _expand_single_repeat_item(
             in_template_repeat=scope.in_template_repeat,
             in_item_repeat=is_item_repeat,
             declared_functions=scope.declared_functions,
+            graph=scope.graph,
             tracker=scope.tracker,
         )
         fv_template = _select_field_variant_template(
@@ -1856,6 +2015,7 @@ def _expand_single_repeat_item(
         in_template_repeat=scope.in_template_repeat,
         in_item_repeat=is_item_repeat,
         declared_functions=scope.declared_functions,
+        graph=scope.graph,
         tracker=scope.tracker,
     )
     return _expand_inline_component(
@@ -1886,13 +2046,14 @@ def _fallback_unrolled_items(
 def _expand_repeat_children(
     comp_dict: dict[str, Any],
     parent_id: str,
+    prop_key: str,
     repeat_spec: Mapping[str, Any],
     templates_by_id: Mapping[str, Mapping[str, Any]],
     scope: _ExpansionScope,
     prefix_fn: Any,
     emitted: list[dict[str, Any]],
 ) -> None:
-    """Expands a ``{"$repeat": ...}`` ``children`` directive on `comp_dict`."""
+    """Expands a ``{"$repeat": ...}`` child-list directive on `comp_dict`."""
     slot_name = str(repeat_spec["$repeat"])
     binding = _lookup_slot(scope, slot_name)
     comp_target = repeat_spec["component"]
@@ -1906,6 +2067,7 @@ def _expand_repeat_children(
     ):
         _expand_template_child_list(
             comp_dict,
+            prop_key,
             binding,
             comp_target,
             templates_by_id,
@@ -1919,7 +2081,7 @@ def _expand_repeat_children(
     items_to_expand = unrolled_items or _fallback_unrolled_items(binding)
     order = scope.knobs.get("order") or repeat_spec.get("order")
     ordered = _order_repeat_items(items_to_expand, str(order) if order else None, scope)
-    comp_dict["children"] = [
+    comp_dict[prop_key] = [
         _expand_single_repeat_item(
             out_idx,
             orig_idx,
@@ -1952,17 +2114,19 @@ def _find_matching_template_id(
 def _expand_children_property(
     comp_dict: dict[str, Any],
     comp_id: str,
+    prop_key: str,
     raw_children: Any,
     templates_by_id: Mapping[str, Mapping[str, Any]],
     scope: _ExpansionScope,
     prefix_fn: Any,
     emitted: list[dict[str, Any]],
 ) -> None:
-    """Expands a ``children`` list or ``$repeat`` object on `comp_dict`."""
+    """Expands a `SlotKind.CHILD_LIST` list or ``$repeat`` object on `comp_dict`."""
     if isinstance(raw_children, Mapping) and "$repeat" in raw_children:
         _expand_repeat_children(
             comp_dict,
             comp_id,
+            prop_key,
             raw_children,
             templates_by_id,
             scope,
@@ -1975,7 +2139,7 @@ def _expand_children_property(
     child_ids: list[str] = []
     for idx, entry in enumerate(raw_children):
         if isinstance(entry, Mapping) and "component" in entry:
-            inline_id = f"{comp_id}_child_{idx}"
+            inline_id = f"{comp_id}_{prop_key}_{idx}"
             _expand_inline_component(entry, inline_id, templates_by_id, scope, emitted)
             child_ids.append(inline_id)
             continue
@@ -1986,29 +2150,76 @@ def _expand_children_property(
                 _ensure_template_emitted(
                     local_match, cid, templates_by_id, scope, emitted
                 )
-    comp_dict["children"] = child_ids
+    comp_dict[prop_key] = child_ids
+
+
+def _prune_child_list_slot(
+    comp: dict[str, Any], prop_name: str, live_ids: set[str]
+) -> bool:
+    """Prunes dead references from a `CHILD_LIST` slot and returns whether live refs remain."""
+    val = comp.get(prop_name)
+    if isinstance(val, list):
+        comp[prop_name] = [x for x in val if x in live_ids]
+        return bool(comp[prop_name])
+    return isinstance(val, Mapping)
+
+
+def _prune_named_child_array_slot(
+    comp: dict[str, Any], prop_name: str, child_id_key: str, live_ids: set[str]
+) -> bool:
+    """Prunes dead entries from a `NAMED_CHILD_ARRAY` slot and returns whether entries remain."""
+    val = comp.get(prop_name)
+    if not isinstance(val, list):
+        return False
+    comp[prop_name] = [
+        entry
+        for entry in val
+        if isinstance(entry, Mapping) and entry.get(child_id_key) in live_ids
+    ]
+    return bool(comp[prop_name])
+
+
+def _prune_container_slot(
+    comp: dict[str, Any],
+    prop_name: str,
+    slot_kind: SlotKind,
+    child_id_key: str | None,
+    live_ids: set[str],
+) -> bool:
+    """Prunes dead references from one container slot and returns whether it has live refs."""
+    if slot_kind is SlotKind.CHILD:
+        val = comp.get(prop_name)
+        return isinstance(val, str) and val in live_ids
+    if slot_kind is SlotKind.CHILD_LIST:
+        return _prune_child_list_slot(comp, prop_name, live_ids)
+    if slot_kind is SlotKind.NAMED_CHILD_ARRAY and child_id_key:
+        return _prune_named_child_array_slot(comp, prop_name, child_id_key, live_ids)
+    return False
 
 
 def _is_container_now_empty(
     comp: dict[str, Any],
     by_id: Mapping[str, dict[str, Any]],
     preserve_ids: set[str],
+    graph: CatalogDecisionGraph | None = None,
 ) -> bool:
     """Updates container child references and returns whether the container is empty."""
-    children = comp.get("children")
-    if isinstance(children, list):
-        comp["children"] = [x for x in children if x in by_id or x in preserve_ids]
-        return not comp["children"]
-    child = comp.get("child")
-    if isinstance(child, str):
-        return child not in by_id and child not in preserve_ids
-    return False
+    slots = _container_slots_for(comp, graph)
+    if not slots:
+        return False
+    live_ids = set(by_id) | preserve_ids
+    has_live = False
+    for prop_name, slot_kind, child_id_key in slots:
+        if _prune_container_slot(comp, prop_name, slot_kind, child_id_key, live_ids):
+            has_live = True
+    return not has_live
 
 
 def _drop_empty_non_root_containers(
     by_id: dict[str, dict[str, Any]],
     root_id: str,
     preserve_ids: set[str],
+    graph: CatalogDecisionGraph | None = None,
 ) -> set[str]:
     """Iteratively removes empty non-root containers from `by_id`."""
     removed_all: set[str] = set()
@@ -2016,7 +2227,8 @@ def _drop_empty_non_root_containers(
         empty_ids = {
             cid
             for cid, comp in list(by_id.items())
-            if cid != root_id and _is_container_now_empty(comp, by_id, preserve_ids)
+            if cid != root_id
+            and _is_container_now_empty(comp, by_id, preserve_ids, graph)
         }
         if not empty_ids:
             break
@@ -2026,24 +2238,56 @@ def _drop_empty_non_root_containers(
     return removed_all
 
 
-def _referenced_children(comp: Mapping[str, Any]) -> list[str]:
+def _child_list_refs(val: Any) -> list[str]:
+    """Extracts child IDs from a `CHILD_LIST` list or template dict."""
+    if isinstance(val, list):
+        return [str(x) for x in val if isinstance(x, str)]
+    if isinstance(val, Mapping) and isinstance(val.get("componentId"), str):
+        return [val["componentId"]]
+    return []
+
+
+def _named_child_array_refs(val: Any, child_id_key: str) -> list[str]:
+    """Extracts child IDs from a `NAMED_CHILD_ARRAY` list of dicts."""
+    if not isinstance(val, list):
+        return []
+    return [
+        entry[child_id_key]
+        for entry in val
+        if isinstance(entry, Mapping) and isinstance(entry.get(child_id_key), str)
+    ]
+
+
+def _slot_referenced_children(
+    val: Any, slot_kind: SlotKind, child_id_key: str | None
+) -> list[str]:
+    """Extracts child component IDs from one container slot value."""
+    if slot_kind is SlotKind.CHILD:
+        return [val] if isinstance(val, str) else []
+    if slot_kind is SlotKind.CHILD_LIST:
+        return _child_list_refs(val)
+    if slot_kind is SlotKind.NAMED_CHILD_ARRAY and child_id_key:
+        return _named_child_array_refs(val, child_id_key)
+    return []
+
+
+def _referenced_children(
+    comp: Mapping[str, Any],
+    graph: CatalogDecisionGraph | None = None,
+) -> list[str]:
     """Returns direct child component IDs referenced by `comp`."""
     refs: list[str] = []
-    child = comp.get("child")
-    if isinstance(child, str):
-        refs.append(child)
-    children = comp.get("children")
-    if isinstance(children, list):
-        refs.extend(str(x) for x in children if isinstance(x, str))
-    elif isinstance(children, Mapping):
-        tpl_id = children.get("componentId")
-        if isinstance(tpl_id, str):
-            refs.append(tpl_id)
+    for prop_name, slot_kind, child_id_key in _container_slots_for(comp, graph):
+        refs.extend(
+            _slot_referenced_children(comp.get(prop_name), slot_kind, child_id_key)
+        )
     return refs
 
 
 def _collect_reachable_ids(
-    by_id: Mapping[str, dict[str, Any]], root_id: str
+    by_id: Mapping[str, dict[str, Any]],
+    root_id: str,
+    graph: CatalogDecisionGraph | None = None,
 ) -> set[str]:
     """Returns component IDs reachable from `root_id`."""
     reachable: set[str] = set()
@@ -2053,7 +2297,7 @@ def _collect_reachable_ids(
         if curr in reachable or curr not in by_id:
             continue
         reachable.add(curr)
-        queue.extend(_referenced_children(by_id[curr]))
+        queue.extend(_referenced_children(by_id[curr], graph))
     return reachable
 
 
@@ -2062,19 +2306,25 @@ def _prune_empty_containers(
     root_id: str,
     *,
     preserve_ids: set[str] | None = None,
+    graph: CatalogDecisionGraph | None = None,
 ) -> list[dict[str, Any]]:
     """Removes non-root empty containers and unreachable components."""
     preserved = preserve_ids or set()
     by_id = {str(c["id"]): c for c in components if "id" in c}
-    _drop_empty_non_root_containers(by_id, root_id, preserved)
+    _drop_empty_non_root_containers(by_id, root_id, preserved, graph)
 
     root_comp = by_id.get(root_id)
-    if root_comp is not None and isinstance(root_comp.get("children"), list):
-        root_comp["children"] = [
-            x for x in root_comp["children"] if x in by_id or x in preserved
-        ]
+    if root_comp is not None:
+        live_ids = set(by_id) | preserved
+        for prop_name, slot_kind, child_id_key in _container_slots_for(
+            root_comp, graph
+        ):
+            if slot_kind in (SlotKind.CHILD_LIST, SlotKind.NAMED_CHILD_ARRAY):
+                _prune_container_slot(
+                    root_comp, prop_name, slot_kind, child_id_key, live_ids
+                )
 
-    reachable = _collect_reachable_ids(by_id, root_id)
+    reachable = _collect_reachable_ids(by_id, root_id, graph)
     return [c for c in components if c.get("id") in reachable]
 
 
@@ -2135,10 +2385,11 @@ def _adapt_prose_slots(
     slots: dict[str, SlotBinding], head_key: str, body_key: str
 ) -> None:
     """Remaps `banner` or `outcome` slots into `prose` `heading` and `body`."""
-    if head_key in slots and "heading" not in slots:
-        slots["heading"] = slots[head_key]
-    if body_key in slots and "body" not in slots:
-        slots["body"] = slots[body_key]
+    if body_key in slots:
+        if head_key in slots and "heading" not in slots:
+            slots["heading"] = slots[head_key]
+        if "body" not in slots:
+            slots["body"] = slots[body_key]
     elif head_key in slots and "body" not in slots:
         slots["body"] = slots[head_key]
 
@@ -2543,6 +2794,7 @@ class PatternExpander:
             instances=active_instances,
             field_variants=cat_pattern.field_variants,
             declared_functions=self._declared_functions_for(cat_pattern.name),
+            graph=self.graph,
             tracker=tracker,
         )
         emitted: list[dict[str, Any]] = []
@@ -2553,7 +2805,7 @@ class PatternExpander:
             scope,
             emitted,
         )
-        pruned = _prune_empty_containers(emitted, root_id)
+        pruned = _prune_empty_containers(emitted, root_id, graph=self.graph)
         self._stamp_multi_catalog_components(pruned, owner)
         has_mut = _block_has_mutable(block_id, effective_bindings)
         return Expansion(
@@ -2611,6 +2863,7 @@ class PatternExpander:
             field_variants=cat_pattern.field_variants,
             block_roots=tuple(block_roots),
             declared_functions=self._declared_functions_for("page"),
+            graph=self.graph,
             tracker=tracker,
         )
         emitted: list[dict[str, Any]] = []
@@ -2627,7 +2880,7 @@ class PatternExpander:
         )
         return Expansion(
             components=_prune_empty_containers(
-                emitted, "root", preserve_ids=set(block_roots)
+                emitted, "root", preserve_ids=set(block_roots), graph=self.graph
             ),
             send_data_model=send_dm,
             _has_mutable=has_mut,

@@ -31,6 +31,7 @@ import json
 from pathlib import Path
 import re
 import sys
+from types import MappingProxyType
 from typing import Any
 
 from jsonschema import Draft202012Validator
@@ -78,19 +79,31 @@ CAPABILITY_FLAGS: tuple[str, ...] = ("actions_allowed",)
 """Planner flags a question's `requires` entry may name."""
 
 _ASSETS_PACKAGE = "a2ui.inference_formats.experimental.decision"
-_REPO_CATALOGS_ROOT = Path(__file__).resolve().parents[7] / "catalogs"
-_DEV_ASSET_FALLBACKS: Mapping[tuple[str, ...], Path] = {
-    ("archetypes.json",): _REPO_CATALOGS_ROOT / "decision" / "v1" / "archetypes.json",
-    ("archetype_definition.json",): (
-        _REPO_CATALOGS_ROOT / "decision" / "v1" / "archetype_definition.json"
-    ),
-    ("pattern_definition.json",): (
-        _REPO_CATALOGS_ROOT / "decision" / "v1" / "pattern_definition.json"
-    ),
-    ("patterns", "basic_v1_0.json"): (
-        _REPO_CATALOGS_ROOT / "basic" / "v1" / "patterns.json"
-    ),
-}
+
+
+def _build_dev_asset_fallbacks(module_file: str) -> Mapping[tuple[str, ...], Path]:
+    """Resolves repo-local ``catalogs/`` asset fallbacks when running from a checkout."""
+    parents = Path(module_file).resolve().parents
+    if len(parents) <= 7:
+        return MappingProxyType({})
+    repo_catalogs = parents[7] / "catalogs"
+    return MappingProxyType({
+        ("archetypes.json",): repo_catalogs / "decision" / "v1" / "archetypes.json",
+        ("archetype_definition.json",): (
+            repo_catalogs / "decision" / "v1" / "archetype_definition.json"
+        ),
+        ("pattern_definition.json",): (
+            repo_catalogs / "decision" / "v1" / "pattern_definition.json"
+        ),
+        ("patterns", "basic_v1_0.json"): (
+            repo_catalogs / "basic" / "v1" / "patterns.json"
+        ),
+    })
+
+
+_DEV_ASSET_FALLBACKS: Mapping[tuple[str, ...], Path] = _build_dev_asset_fallbacks(
+    __file__
+)
 _PLACEHOLDER_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _PATTERN_KNOB_RE = re.compile(r"^([a-z_]+):([a-z_]+)$")
 _PATTERN_VARIANT_RE = re.compile(r"^pattern:([a-z_]+):([a-z_]+)$")
@@ -763,10 +776,10 @@ class ArchetypeGrammar:
             )
         return cls(
             version=str(data["grammarVersion"]),
-            thresholds=thresholds,
-            job=job,
+            thresholds=MappingProxyType(thresholds),
+            job=MappingProxyType(job),
             archetypes=archetypes,
-            blocks={b.id: b for b in blocks},
+            blocks=MappingProxyType({b.id: b for b in blocks}),
             rules=tuple(
                 Rule(id=r["id"], rule=r["rule"]) for r in data.get("rules", ())
             ),
