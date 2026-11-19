@@ -17,18 +17,15 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 Schema _quoteSchema() => Schema.fromMap({
-      'type': 'object',
-      'properties': {
-        'symbol': {'type': 'string'},
-        'quantity': {'type': 'integer', 'default': 1},
-      },
-      'required': ['symbol'],
-    });
+  'type': 'object',
+  'properties': {
+    'symbol': {'type': 'string'},
+    'quantity': {'type': 'integer', 'default': 1},
+  },
+  'required': ['symbol'],
+});
 
-Object? _noopHandler(
-  Map<String, dynamic> args,
-  AgentFunctionContext context,
-) =>
+Object? _noopHandler(Map<String, dynamic> args, AgentFunctionContext context) =>
     {
       'symbol': args['symbol'],
       'quantity': args['quantity'],
@@ -38,43 +35,43 @@ Object? _noopHandler(
 /// A v1.0 catalog document with a schema-only function, `verifyProvider`,
 /// which renderers leave to the agent, and `formatCurrency`.
 CatalogApi _financeCatalog() => Catalog.fromJson({
-      'catalogId': 'https://example.com/finance.json',
-      'protocolVersion': '1.0.0',
-      'components': <String, Object?>{},
-      'functions': {
-        'verifyProvider': {
+  'catalogId': 'https://example.com/finance.json',
+  'protocolVersion': '1.0.0',
+  'components': <String, Object?>{},
+  'functions': {
+    'verifyProvider': {
+      'type': 'object',
+      'description': 'Checks that a provider is licensed.',
+      'returnType': 'boolean',
+      'properties': {
+        '@call': {'const': 'verifyProvider'},
+        'args': {
           'type': 'object',
-          'description': 'Checks that a provider is licensed.',
-          'returnType': 'boolean',
           'properties': {
-            '@call': {'const': 'verifyProvider'},
-            'args': {
-              'type': 'object',
-              'properties': {
-                'providerId': {'type': 'string'},
-              },
-              'required': ['providerId'],
-            },
+            'providerId': {'type': 'string'},
           },
-          'required': ['@call', 'args'],
-        },
-        'formatCurrency': {
-          'type': 'object',
-          'returnType': 'string',
-          'properties': {
-            '@call': {'const': 'formatCurrency'},
-            'args': {
-              'type': 'object',
-              'properties': {
-                'value': {'type': 'number'},
-              },
-              'required': ['value'],
-            },
-          },
-          'required': ['@call', 'args'],
+          'required': ['providerId'],
         },
       },
-    });
+      'required': ['@call', 'args'],
+    },
+    'formatCurrency': {
+      'type': 'object',
+      'returnType': 'string',
+      'properties': {
+        '@call': {'const': 'formatCurrency'},
+        'args': {
+          'type': 'object',
+          'properties': {
+            'value': {'type': 'number'},
+          },
+          'required': ['value'],
+        },
+      },
+      'required': ['@call', 'args'],
+    },
+  },
+});
 
 void main() {
   group('AgentFunction', () {
@@ -187,8 +184,7 @@ void main() {
       );
     });
 
-    test(
-        'fromApi rejects requiresUserActivation unless the function is '
+    test('fromApi rejects requiresUserActivation unless the function is '
         'rendererOnly', () {
       expect(
         () => AgentFunction.fromApi(
@@ -264,8 +260,8 @@ void main() {
         agentFunctions: [AgentFunction.fromApi(declaration, _noopHandler)],
       );
       Object? other(Map<String, dynamic> args, AgentFunctionContext _) => false;
-      final AgentFunction rebound =
-          bound.agentFunctions['verifyProvider']!.withHandler(other);
+      final AgentFunction rebound = bound.agentFunctions['verifyProvider']!
+          .withHandler(other);
       expect(rebound.declaration, same(declaration));
       expect(rebound.handler, same(other));
       expect(rebound.allowedCallers, declaration.allowedCallers);
@@ -300,8 +296,7 @@ void main() {
   });
 
   group('Catalog.agentFunctions', () {
-    test(
-        'an AgentFunction listed in functions appears in functions, '
+    test('an AgentFunction listed in functions appears in functions, '
         'agentFunctions, toJson, and validationSchema', () {
       final fn = AgentFunction(
         name: 'fetchQuote',
@@ -348,8 +343,11 @@ void main() {
         handler: _noopHandler,
       );
       final CatalogApi withFn = catalog.copyWith(agentFunctions: [fn]);
-      expect(withFn.functions.keys,
-          ['verifyProvider', 'formatCurrency', 'fetchRate']);
+      expect(withFn.functions.keys, [
+        'verifyProvider',
+        'formatCurrency',
+        'fetchRate',
+      ]);
       expect(withFn.agentFunctions.keys, ['fetchRate']);
       expect(
         (withFn.toJson()['functions']! as Map<String, Object?>).keys,
@@ -409,8 +407,7 @@ void main() {
       expect(twice.toJson(), equals(catalog.toJson()));
     });
 
-    test(
-        'fromApi of a declaration the catalog does not have is a catalog '
+    test('fromApi of a declaration the catalog does not have is a catalog '
         'error', () {
       final CatalogApi catalog = _financeCatalog();
       final foreign = FunctionApi(
@@ -429,8 +426,7 @@ void main() {
       );
     });
 
-    test(
-        'fromApi of the same declaration from another copy of the catalog '
+    test('fromApi of the same declaration from another copy of the catalog '
         'has its own message', () {
       final CatalogApi catalog = _financeCatalog();
       final CatalogApi reloaded = _financeCatalog();
@@ -460,30 +456,32 @@ void main() {
       );
     });
 
-    test('copyWith keeps the agent functions among the functions it is given',
-        () {
-      final CatalogApi catalog = _financeCatalog();
-      final kept = AgentFunction(
-        name: 'fetchRate',
-        argumentSchema: Schema.fromMap({'type': 'object'}),
-        handler: _noopHandler,
-      );
-      final added = AgentFunction(
-        name: 'fetchQuote',
-        argumentSchema: _quoteSchema(),
-        handler: _noopHandler,
-      );
-      final CatalogApi copy = catalog.copyWith(
-        functions: [...catalog.functions.values, kept],
-        agentFunctions: [added],
-      );
-      expect(copy.agentFunctions.keys, ['fetchRate', 'fetchQuote']);
-      expect(copy.agentFunctions['fetchRate'], same(kept));
+    test(
+      'copyWith keeps the agent functions among the functions it is given',
+      () {
+        final CatalogApi catalog = _financeCatalog();
+        final kept = AgentFunction(
+          name: 'fetchRate',
+          argumentSchema: Schema.fromMap({'type': 'object'}),
+          handler: _noopHandler,
+        );
+        final added = AgentFunction(
+          name: 'fetchQuote',
+          argumentSchema: _quoteSchema(),
+          handler: _noopHandler,
+        );
+        final CatalogApi copy = catalog.copyWith(
+          functions: [...catalog.functions.values, kept],
+          agentFunctions: [added],
+        );
+        expect(copy.agentFunctions.keys, ['fetchRate', 'fetchQuote']);
+        expect(copy.agentFunctions['fetchRate'], same(kept));
 
-      // With functions omitted, existing agent functions are replaced.
-      final CatalogApi replaced = copy.copyWith(agentFunctions: const []);
-      expect(replaced.agentFunctions, isEmpty);
-    });
+        // With functions omitted, existing agent functions are replaced.
+        final CatalogApi replaced = copy.copyWith(agentFunctions: const []);
+        expect(replaced.agentFunctions, isEmpty);
+      },
+    );
 
     test('agent function argument names must be UAX #31 identifiers', () {
       for (final Map<String, Object?> schema in [
@@ -608,11 +606,7 @@ void main() {
                 'message',
                 contains('more than one agent function'),
               )
-              .having(
-                (e) => e.message,
-                'message',
-                isNot(contains('fromApi')),
-              ),
+              .having((e) => e.message, 'message', isNot(contains('fromApi'))),
         ),
       );
 
@@ -680,36 +674,37 @@ void main() {
       );
     });
 
-    test('rendererFunctions lists the functions that are not agent functions',
-        () {
-      final CatalogApi catalog = _financeCatalog();
-      expect(catalog.rendererFunctions.keys, [
-        'verifyProvider',
-        'formatCurrency',
-      ]);
-
-      final CatalogApi withFn = catalog.copyWith(
-        agentFunctions: [
-          AgentFunction.fromApi(
-            catalog.functions['verifyProvider']!,
-            _noopHandler,
-          ),
-        ],
-      );
-      expect(withFn.rendererFunctions.keys, ['formatCurrency']);
-      expect(
-        withFn.rendererFunctions['formatCurrency'],
-        same(catalog.functions['formatCurrency']),
-      );
-      expect(
-        () =>
-            withFn.rendererFunctions['x'] = withFn.functions['formatCurrency']!,
-        throwsUnsupportedError,
-      );
-    });
-
     test(
-        'agent function argument names reached through the catalog '
+      'rendererFunctions lists the functions that are not agent functions',
+      () {
+        final CatalogApi catalog = _financeCatalog();
+        expect(catalog.rendererFunctions.keys, [
+          'verifyProvider',
+          'formatCurrency',
+        ]);
+
+        final CatalogApi withFn = catalog.copyWith(
+          agentFunctions: [
+            AgentFunction.fromApi(
+              catalog.functions['verifyProvider']!,
+              _noopHandler,
+            ),
+          ],
+        );
+        expect(withFn.rendererFunctions.keys, ['formatCurrency']);
+        expect(
+          withFn.rendererFunctions['formatCurrency'],
+          same(catalog.functions['formatCurrency']),
+        );
+        expect(
+          () => withFn.rendererFunctions['x'] =
+              withFn.functions['formatCurrency']!,
+          throwsUnsupportedError,
+        );
+      },
+    );
+
+    test('agent function argument names reached through the catalog '
         'definitions are checked', () {
       Catalog<ComponentApi, FunctionApi> build(Map<String, Object?> pair) =>
           Catalog(
@@ -720,9 +715,7 @@ void main() {
             functions: [
               AgentFunction(
                 name: 'fetchRate',
-                argumentSchema: Schema.fromMap({
-                  r'$ref': r'#/$defs/Pair',
-                }),
+                argumentSchema: Schema.fromMap({r'$ref': r'#/$defs/Pair'}),
                 handler: _noopHandler,
               ),
             ],
@@ -858,10 +851,7 @@ void main() {
         () => validator.validateComponent({
           'id': 'root',
           'component': 'Text',
-          'text': {
-            '@call': 'fetchQuote',
-            'args': <String, Object?>{},
-          },
+          'text': {'@call': 'fetchQuote', 'args': <String, Object?>{}},
         }),
         throwsA(isA<A2uiValidationError>()),
       );
@@ -895,8 +885,7 @@ void main() {
       expect(derived.agentFunctions['fetchQuote'], same(quote));
     });
 
-    test(
-        'merges local agent function \$defs with catalog definitions across '
+    test('merges local agent function \$defs with catalog definitions across '
         'UAX #31 checks, validation, and serialization', () {
       expect(
         () => Catalog(
@@ -1056,41 +1045,40 @@ void main() {
       expect(derived.definitions.containsKey('DroppedArgs'), isFalse);
     });
 
-    test(
-        'follows multi-segment \$defs pointers and function-level \$defs '
+    test('follows multi-segment \$defs pointers and function-level \$defs '
         'for parameter names and required arguments', () {
       Matcher rejects(String name) => throwsA(
-            isA<A2uiCatalogError>().having(
-              (e) => e.message,
-              'message',
-              contains(name),
-            ),
-          );
+        isA<A2uiCatalogError>().having(
+          (e) => e.message,
+          'message',
+          contains(name),
+        ),
+      );
       CatalogApi build(Map<String, Object?> schema) => Catalog(
-            id: 'cat',
-            protocolVersion: A2uiProtocolVersion.v1_0,
-            components: const <ComponentApi>[],
-            definitions: {
-              'Bundle': {
+        id: 'cat',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: const <ComponentApi>[],
+        definitions: {
+          'Bundle': {
+            'type': 'object',
+            'properties': {
+              'inner': {
                 'type': 'object',
                 'properties': {
-                  'inner': {
-                    'type': 'object',
-                    'properties': {
-                      'bad-deep': {'type': 'string'},
-                    },
-                  },
+                  'bad-deep': {'type': 'string'},
                 },
               },
             },
-            functions: [
-              AgentFunction(
-                name: 'fn',
-                argumentSchema: Schema.fromMap(schema),
-                handler: _noopHandler,
-              ),
-            ],
-          );
+          },
+        },
+        functions: [
+          AgentFunction(
+            name: 'fn',
+            argumentSchema: Schema.fromMap(schema),
+            handler: _noopHandler,
+          ),
+        ],
+      );
 
       // A pointer into a definition is followed to the node it names.
       expect(
@@ -1138,19 +1126,20 @@ void main() {
         functions: [
           AgentFunction(
             name: 'fn',
-            argumentSchema:
-                Schema.fromMap({r'$ref': r'#/$defs/Bundle/properties/inner'}),
+            argumentSchema: Schema.fromMap({
+              r'$ref': r'#/$defs/Bundle/properties/inner',
+            }),
             handler: _noopHandler,
           ),
         ],
       );
-      final fnOut = (catalog.toJson()['functions']! as Map)['fn']!
-          as Map<String, Object?>;
+      final fnOut =
+          (catalog.toJson()['functions']! as Map)['fn']!
+              as Map<String, Object?>;
       expect(fnOut['required'], ['@call', 'args']);
     });
 
-    test(
-        'rejects duplicate names, @-prefixed names, non-UAX31 names, and '
+    test('rejects duplicate names, @-prefixed names, non-UAX31 names, and '
         'pre-v1.0 catalogs', () {
       final fn1 = AgentFunction(
         name: 'fetchQuote',
@@ -1239,20 +1228,18 @@ void main() {
       CatalogApi build({
         Map<String, Object?> definitions = const {},
         List<FunctionApi> functions = const [],
-      }) =>
-          Catalog(
-            id: 'cat',
-            protocolVersion: A2uiProtocolVersion.v1_0,
-            components: const <ComponentApi>[],
-            definitions: definitions,
-            functions: functions,
-          );
+      }) => Catalog(
+        id: 'cat',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: const <ComponentApi>[],
+        definitions: definitions,
+        functions: functions,
+      );
       Matcher rejects(List<String> parts) => throwsA(
-            isA<A2uiCatalogError>()
-                .having(
-                    (e) => e.message, 'message', stringContainsInOrder(parts))
-                .having((e) => e.catalogId, 'catalogId', 'cat'),
-          );
+        isA<A2uiCatalogError>()
+            .having((e) => e.message, 'message', stringContainsInOrder(parts))
+            .having((e) => e.catalogId, 'catalogId', 'cat'),
+      );
 
       test('a local def that differs from a catalog def is rejected', () {
         expect(
@@ -1333,10 +1320,7 @@ void main() {
 
   group('A2uiRpcError custom codes', () {
     test('supports custom wire codes and preserves them in withContext', () {
-      final custom = A2uiRpcError.custom(
-        'Symbol Delisted',
-        'SYMBOL_DELISTED',
-      );
+      final custom = A2uiRpcError.custom('Symbol Delisted', 'SYMBOL_DELISTED');
       expect(custom.code, 'SYMBOL_DELISTED');
       expect(custom.rpcCode, RpcErrorCode.unknownError);
 

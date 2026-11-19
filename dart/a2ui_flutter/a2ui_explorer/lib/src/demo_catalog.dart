@@ -29,8 +29,7 @@ final CatalogImplementation demoCatalog = basicCatalog().copyWith(
 );
 
 final Schema _dynamicNumber = Schema.fromMap({
-  r'$ref':
-      'https://a2ui.org/specification/v0_9/common_types.json#/\$defs/DynamicNumber',
+  r'$ref': 'https://a2ui.org/specification/v0_9/common_types.json#/\$defs/DynamicNumber',
 });
 
 /// A `CustomGrid`: its `title` and `description` over its `children` in two

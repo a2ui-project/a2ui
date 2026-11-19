@@ -52,8 +52,9 @@ void main() {
   // The suite's `validate` cases render basic-catalog components on a
   // surface, so `message_processor_conformance_test.dart` runs them.
   final List<ConformanceTestCase> cases = [
-    for (final ConformanceTestCase testCase
-        in loadConformanceSuite('core/expressions.yaml'))
+    for (final ConformanceTestCase testCase in loadConformanceSuite(
+      'core/expressions.yaml',
+    ))
       if (testCase['action'] != 'validate') testCase,
   ];
 

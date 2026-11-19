@@ -175,68 +175,62 @@ void main() {
       }
     });
 
-    test(
-      'Rule 3: rejects overlapping alternation inside repetition with '
-      'OVERLAPPING_ALTERNATION',
-      () {
-        const evilAlt = <String>[
-          '(a|ab)+',
-          '(a|ab)*c',
-          r'(\d|[0-5])+',
-          r'(\w|\d)+',
-          '([a-m]|[g-z])*',
-        ];
-        for (final pattern in evilAlt) {
-          final RegexAnalysisResult res = analyzeRegex(pattern);
-          expect(res.ok, isFalse, reason: 'Expected rejected: $pattern');
-          expect(res.reason, RegexRejection.overlappingAlternation);
-        }
+    test('Rule 3: rejects overlapping alternation inside repetition with '
+        'OVERLAPPING_ALTERNATION', () {
+      const evilAlt = <String>[
+        '(a|ab)+',
+        '(a|ab)*c',
+        r'(\d|[0-5])+',
+        r'(\w|\d)+',
+        '([a-m]|[g-z])*',
+      ];
+      for (final pattern in evilAlt) {
+        final RegexAnalysisResult res = analyzeRegex(pattern);
+        expect(res.ok, isFalse, reason: 'Expected rejected: $pattern');
+        expect(res.reason, RegexRejection.overlappingAlternation);
+      }
 
-        const safeAlt = <String>[
-          '(a|b)*c',
-          '(cat|dog)+',
-          '(a|ab)',
-          '(a|ab)?',
-          r'(\d|[a-f])+',
-        ];
-        for (final pattern in safeAlt) {
-          expect(analyzeRegex(pattern).ok, isTrue, reason: pattern);
-        }
-      },
-    );
+      const safeAlt = <String>[
+        '(a|b)*c',
+        '(cat|dog)+',
+        '(a|ab)',
+        '(a|ab)?',
+        r'(\d|[a-f])+',
+      ];
+      for (final pattern in safeAlt) {
+        expect(analyzeRegex(pattern).ok, isTrue, reason: pattern);
+      }
+    });
 
-    test(
-      'Rule 4: rejects adjacent unbounded quantifiers with overlapping sets '
-      'with ADJACENT_OVERLAP',
-      () {
-        const evilAdj = <String>[
-          r'\d+\d+',
-          '.*.*',
-          r'\d+\s*\d+',
-          r'\w+\d+',
-          'a+a+',
-          '.*a*.*',
-          r'\s*.*',
-          r'(\d+)(\d+)',
-          r'\d+\b\d+',
-        ];
-        for (final pattern in evilAdj) {
-          final RegexAnalysisResult res = analyzeRegex(pattern);
-          expect(res.ok, isFalse, reason: 'Expected rejected: $pattern');
-          expect(res.reason, RegexRejection.adjacentOverlap);
-        }
+    test('Rule 4: rejects adjacent unbounded quantifiers with overlapping sets '
+        'with ADJACENT_OVERLAP', () {
+      const evilAdj = <String>[
+        r'\d+\d+',
+        '.*.*',
+        r'\d+\s*\d+',
+        r'\w+\d+',
+        'a+a+',
+        '.*a*.*',
+        r'\s*.*',
+        r'(\d+)(\d+)',
+        r'\d+\b\d+',
+      ];
+      for (final pattern in evilAdj) {
+        final RegexAnalysisResult res = analyzeRegex(pattern);
+        expect(res.ok, isFalse, reason: 'Expected rejected: $pattern');
+        expect(res.reason, RegexRejection.adjacentOverlap);
+      }
 
-        const safeAdj = <String>[
-          r'^\d+-\d+$',
-          r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
-          r'\d+[a-z]+\d+',
-          r'\d{1,3}\d+',
-        ];
-        for (final pattern in safeAdj) {
-          expect(analyzeRegex(pattern).ok, isTrue, reason: pattern);
-        }
-      },
-    );
+      const safeAdj = <String>[
+        r'^\d+-\d+$',
+        r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+        r'\d+[a-z]+\d+',
+        r'\d{1,3}\d+',
+      ];
+      for (final pattern in safeAdj) {
+        expect(analyzeRegex(pattern).ok, isTrue, reason: pattern);
+      }
+    });
   });
 
   group('compileGuarded — Unicode semantics and LRU cache', () {
