@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import '@pagefind/default-ui/css/ui.css';
 import project from 'virtual:starlight/project-context';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -346,8 +345,12 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
         if (this.pagefindPromise) return this.pagefindPromise;
         this.pagefindPromise = (async () => {
           try {
-            // @ts-expect-error — Missing types for @pagefind/default-ui package.
-            const { PagefindUI } = await import('@pagefind/default-ui');
+            const [, pagefindMod] = await Promise.all([
+              import('@pagefind/default-ui/css/ui.css'),
+              // @ts-expect-error — Missing types for @pagefind/default-ui package.
+              import('@pagefind/default-ui'),
+            ]);
+            const { PagefindUI } = pagefindMod;
             new PagefindUI({
               ...pagefindUserConfig,
               element: '#starlight__search',
@@ -462,40 +465,30 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
         }
       };
 
+      const warmPagefind = () => {
+        void ensurePagefind();
+      };
+
       openBtn.addEventListener('click', openModal);
+      openBtn.addEventListener('pointerenter', warmPagefind, { once: true });
+      openBtn.addEventListener('focusin', warmPagefind, { once: true });
       closeBtn.addEventListener('click', closeModal);
       dialog.addEventListener('close', onDialogClose);
       dialog.addEventListener('keydown', onDialogKeyDown);
       searchContainer.addEventListener('input', onSearchInput);
       window.addEventListener('keydown', onKeyDown);
 
-      const onIdle = window.requestIdleCallback || ((cb: () => void) => window.setTimeout(cb, 1));
-      let idleId: number | null = null;
-      const triggerIdle = () => {
-        idleId = onIdle(() => ensurePagefind());
-      };
-
-      if (document.readyState === 'loading') {
-        window.addEventListener('DOMContentLoaded', triggerIdle);
-      } else {
-        triggerIdle();
-      }
-
       this.cleanup = () => {
         observer.disconnect();
         openBtn.removeEventListener('click', openModal);
+        openBtn.removeEventListener('pointerenter', warmPagefind);
+        openBtn.removeEventListener('focusin', warmPagefind);
         closeBtn.removeEventListener('click', closeModal);
         dialog.removeEventListener('close', onDialogClose);
         dialog.removeEventListener('keydown', onDialogKeyDown);
         searchContainer.removeEventListener('input', onSearchInput);
         window.removeEventListener('keydown', onKeyDown);
         window.removeEventListener('click', onClick);
-        window.removeEventListener('DOMContentLoaded', triggerIdle);
-        if (idleId !== null && window.cancelIdleCallback) {
-          window.cancelIdleCallback(idleId);
-        } else if (idleId !== null) {
-          window.clearTimeout(idleId);
-        }
       };
     }
 
@@ -514,9 +507,19 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 
 <script>
   let renderGeneration = 0;
+  let mermaidObserver: IntersectionObserver | null = null;
+  let mermaidModPromise: Promise<typeof import('mermaid')> | null = null;
 
-  const renderMermaid = async () => {
-    const generation = ++renderGeneration;
+  const getMermaid = async () => {
+    if (!mermaidModPromise) {
+      mermaidModPromise = import('mermaid');
+    }
+    const { default: mermaid } = await mermaidModPromise;
+    await document.fonts?.ready;
+    return mermaid;
+  };
+
+  const prepareMermaidPlaceholders = () => {
     for (const pre of document.querySelectorAll<HTMLPreElement>('pre[data-language="mermaid"]')) {
       const lines = pre.querySelectorAll('.ec-line');
       const code = (
@@ -537,14 +540,11 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
         pre.replaceWith(div);
       }
     }
+  };
 
-    const blocks = document.querySelectorAll<HTMLElement>(
-      '.mermaid-rendered[data-mermaid-source]',
-    );
+  const renderMermaidBlocks = async (blocks: HTMLElement[], generation: number) => {
     if (!blocks.length) return;
-
-    const {default: mermaid} = await import('mermaid');
-    await document.fonts?.ready;
+    const mermaid = await getMermaid();
     if (generation !== renderGeneration) return;
 
     const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
@@ -562,9 +562,10 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
       if (!code) continue;
       try {
         const id = `mermaid-svg-${generation}-${i}-${Date.now().toString(36)}`;
-        const {svg} = await mermaid.render(id, code);
+        const { svg } = await mermaid.render(id, code);
         if (generation === renderGeneration) {
           div.innerHTML = svg;
+          div.dataset.mermaidRendered = 'true';
         }
       } catch (err) {
         if (!div.innerHTML) {
@@ -577,20 +578,78 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
     }
   };
 
+  const observeOrRenderMermaid = (rerenderExisting = false) => {
+    const generation = ++renderGeneration;
+    prepareMermaidPlaceholders();
+    mermaidObserver?.disconnect();
+    mermaidObserver = null;
+
+    const blocks = Array.from(
+      document.querySelectorAll<HTMLElement>('.mermaid-rendered[data-mermaid-source]'),
+    );
+    if (!blocks.length) return;
+
+    if (rerenderExisting) {
+      const alreadyRendered = blocks.filter(el => el.dataset.mermaidRendered === 'true');
+      const unrendered = blocks.filter(el => el.dataset.mermaidRendered !== 'true');
+      if (alreadyRendered.length) {
+        void renderMermaidBlocks(alreadyRendered, generation);
+      }
+      if (!unrendered.length) return;
+    }
+
+    if (!('IntersectionObserver' in window)) {
+      void renderMermaidBlocks(blocks, generation);
+      return;
+    }
+
+    const pendingQueue = new Set<HTMLElement>();
+    let flushScheduled = false;
+    const flushPending = () => {
+      flushScheduled = false;
+      if (!pendingQueue.size || generation !== renderGeneration) return;
+      const batch = Array.from(pendingQueue);
+      pendingQueue.clear();
+      void renderMermaidBlocks(batch, generation);
+    };
+
+    mermaidObserver = new IntersectionObserver(
+      entries => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const target = entry.target as HTMLElement;
+          mermaidObserver?.unobserve(target);
+          pendingQueue.add(target);
+        }
+        if (pendingQueue.size && !flushScheduled) {
+          flushScheduled = true;
+          queueMicrotask(flushPending);
+        }
+      },
+      { rootMargin: '300px 0px' },
+    );
+
+    for (const block of blocks) {
+      if (!rerenderExisting || block.dataset.mermaidRendered !== 'true') {
+        mermaidObserver.observe(block);
+      }
+    }
+  };
+
   let lastTheme = document.documentElement.getAttribute('data-theme');
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       lastTheme = document.documentElement.getAttribute('data-theme');
-      void renderMermaid();
+      observeOrRenderMermaid(false);
     });
   } else {
-    void renderMermaid();
+    observeOrRenderMermaid(false);
   }
   new MutationObserver(() => {
     const currentTheme = document.documentElement.getAttribute('data-theme');
     if (currentTheme !== lastTheme) {
       lastTheme = currentTheme;
-      void renderMermaid();
+      observeOrRenderMermaid(true);
     }
   }).observe(document.documentElement, {
     attributes: true,

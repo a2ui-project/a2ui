@@ -433,6 +433,10 @@ header.header > .a2-sl-header {
   border: 1px solid var(--a2-border);
 }
 
+.mermaid-rendered[data-mermaid-source]:empty {
+  min-height: 120px;
+}
+
 .mermaid-rendered svg {
   max-width: 100%;
   height: auto;

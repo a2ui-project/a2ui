@@ -18,6 +18,7 @@ import '../styles/tokens.css';
 
 import assetsManifest from '../../assets-manifest.json';
 import CopilotKitLogo from '../components/CopilotKitLogo.astro';
+import MarketingHead from '../components/MarketingHead.astro';
 import ProductionShowcase from '../components/ProductionShowcase.astro';
 import StarlightHeader from '../components/StarlightHeader.astro';
 
@@ -174,36 +175,13 @@ const stories: Story[] = [
 ];
 ---
 
+<!doctype html>
 <html lang="en" data-theme="light">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Built with A2UI | A2UI</title>
-    <meta
-      name="description"
-      content="What teams at Alation, ByteDance, Atlassian, and Google ship with A2UI."
+    <MarketingHead
+      title="Built with A2UI | A2UI"
+      description="What teams at Alation, ByteDance, Atlassian, and Google ship with A2UI."
     />
-    <link rel="icon" type="image/svg+xml" href={`${base}/assets/favicon.svg`} />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"
-      rel="stylesheet"
-    />
-    <script is:inline>
-      (() => {
-        try {
-          const saved =
-            localStorage.getItem('starlight-theme') || localStorage.getItem('a2ui-theme');
-          document.documentElement.setAttribute(
-            'data-theme',
-            saved === 'dark' || saved === 'light' ? saved : 'light'
-          );
-        } catch (e) {
-          document.documentElement.setAttribute('data-theme', 'light');
-        }
-      })();
-    </script>
   </head>
 
   <body class="a2-page">
