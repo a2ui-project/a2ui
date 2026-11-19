@@ -85,7 +85,7 @@ export function main(argv: readonly string[] = process.argv.slice(2)): void {
   }
   const {app, format} = createServer(config);
   const port = config.port ?? 10011;
-  app.listen(port, '0.0.0.0', () => {
+  app.listen(port, '127.0.0.1', () => {
     console.log(`A2UI E2E test agent (TypeScript) listening on http://localhost:${port}/`);
     console.log(`Format: ${format}`);
     console.log(`Scenarios: ${(config.scenarioDirs ?? [DEFAULT_SCENARIO_DIR]).join(', ')}`);

@@ -45,9 +45,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   live-pairs:
     runs-on: ubuntu-24.04 # Playwright has no Chromium build for Ubuntu 26.04 yet
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -72,6 +77,14 @@ jobs:
             --from '{@a2ui/e2e-web,@a2ui/e2e-agent-ts}' run build
       - name: Sync the Python agent
         run: uv sync --all-packages
+      - name: Type-check and test the e2e packages
+        run: |
+          uv run mypy e2e/agents/python/src
+          uv run pytest e2e/agents/python/tests
+          yarn workspace @a2ui/e2e-agent-ts exec tsc -p tsconfig.check.json --noEmit
+          yarn workspace @a2ui/e2e-web exec tsc -p tsconfig.json --noEmit
+          yarn workspace @a2ui/e2e-agent-ts test
+          yarn workspace @a2ui/e2e-web test
       - name: Install Playwright Chromium
         run: yarn workspace @a2ui/e2e-web exec playwright install --with-deps chromium
       - name: Run the live-pair tests

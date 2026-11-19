@@ -27,7 +27,7 @@ import {html, nothing, render as renderTemplate} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
 
 import {A2aSession, type Capabilities, type Progress, readQuery} from './a2a-session.js';
-import {markComponentIds, rendererCatalogs, type Shell} from './shell-common.js';
+import {errorMessage, markComponentIds, rendererCatalogs, type Shell} from './shell-common.js';
 
 import '@a2ui/lit';
 
@@ -61,6 +61,10 @@ export class LitShell implements Shell {
         this.progress = progress;
         this.update();
       },
+      onFailure: error => {
+        this.failure = errorMessage(error);
+        this.update();
+      },
     });
     this.render();
     markComponentIds(container.querySelector('#surfaces')!);
@@ -73,7 +77,7 @@ export class LitShell implements Shell {
     try {
       await this.session.send(text);
     } catch (e) {
-      this.failure = e instanceof Error ? e.message : String(e);
+      this.failure = errorMessage(e);
       this.update();
     }
   }

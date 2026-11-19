@@ -80,6 +80,11 @@ export const AGENT_FUNCTIONS: readonly AgentFunction[] = [
   }),
 ];
 
+/** Turns a caught rejection into a displayable failure string. */
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /** The catalogs a renderer of `version` registers, in priority order. */
 export function rendererCatalogs<T extends ComponentApi>(version: ProtocolVersion): Catalog<T>[] {
   if (version === '1.0') {

@@ -27,7 +27,7 @@ import {type FormEvent, useCallback, useEffect, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 
 import {A2aSession, type Capabilities, type Progress, readQuery} from './a2a-session.js';
-import {markComponentIds, rendererCatalogs, type Shell} from './shell-common.js';
+import {errorMessage, markComponentIds, rendererCatalogs, type Shell} from './shell-common.js';
 
 interface TranscriptEntry {
   readonly turn: number;
@@ -60,6 +60,9 @@ function ShellPage() {
       onText: (text, turn) => setTranscript(entries => appendText(entries, text, turn)),
       onSurfaces: setSurfaces,
       onProgress: setProgress,
+      onFailure: error => {
+        setFailure(errorMessage(error));
+      },
     });
   });
 
@@ -69,7 +72,7 @@ function ShellPage() {
       try {
         await session.send(text);
       } catch (e) {
-        setFailure(e instanceof Error ? e.message : String(e));
+        setFailure(errorMessage(e));
       }
     },
     [session],

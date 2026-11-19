@@ -142,7 +142,14 @@ test('an action that calls a failing agent function halts with an error', async 
   const page = await open('v1_0');
   await sendPrompt(page, openingText(scenario));
   await expect(componentLocator(page, 'prices', 'price')).toHaveText('$10.00');
-  await waitForTurns(page, 2);
+  // Wait for `broken`'s async EXPRESSION_ERROR turn (`turns === 3`) so its envelope does not race
+  // with `failBtn`'s error assertions below.
+  await waitForTurns(page, 3);
+  await expect
+    .poll(() => errors(capture.envelopes()), {
+      message: 'broken binding reported its failure before the button click',
+    })
+    .not.toEqual([]);
   const before = capture.envelopes().length;
   const callsBefore = calls(capture.envelopes()).length;
 

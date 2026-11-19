@@ -63,6 +63,8 @@ export interface SessionOptions<T extends ComponentApi> {
   readonly onSurfaces: (surfaces: SurfaceModel<T>[]) => void;
   /** Receives the number of messages in flight and the number of turns completed. */
   readonly onProgress: (progress: Progress) => void;
+  /** Receives failures from automatic outbound turns so rejections are not dropped. */
+  readonly onFailure?: (error: unknown) => void;
 }
 
 export interface Progress {
@@ -212,9 +214,12 @@ export class A2aSession<T extends ComponentApi> {
    */
   private enqueue(envelope: OutboundEnvelope): void {
     this.pending.push(envelope);
-    this.chain(() =>
+    void this.chain(() =>
       this.pending.length > 0 ? this.exchange(undefined, this.takePending()) : Promise.resolve(),
-    );
+    ).catch(error => {
+      console.error('Automatic A2A turn failed:', error);
+      this.options.onFailure?.(error);
+    });
   }
 
   private takePending(): OutboundEnvelope[] {
