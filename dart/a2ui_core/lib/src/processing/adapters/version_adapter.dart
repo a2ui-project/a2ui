@@ -54,9 +54,7 @@ abstract class VersionAdapter {
     Map<String, Object?> rawMessage, {
     bool allowUnknownElements = false,
   }) {
-    checkServes(
-      A2uiProtocolVersion.fromJson(rawMessage['version']),
-    );
+    checkServes(A2uiProtocolVersion.fromJson(rawMessage['version']));
     final Map<String, Object?> prepared = preparePayloadForValidation(
       rawMessage,
       allowUnknownElements: allowUnknownElements,
@@ -74,8 +72,7 @@ abstract class VersionAdapter {
   Map<String, Object?> preparePayloadForValidation(
     Map<String, Object?> rawMessage, {
     required bool allowUnknownElements,
-  }) =>
-      rawMessage;
+  }) => rawMessage;
 
   /// Maps one parsed agent-to-renderer message onto operations.
   ///
@@ -100,8 +97,9 @@ abstract class VersionAdapter {
 
   /// The release [message] declares, checked to be one this adapter serves.
   A2uiProtocolVersion servedVersionOf(AgentToRendererMessage message) {
-    final A2uiProtocolVersion declared =
-        A2uiProtocolVersion.fromJson(message.version);
+    final A2uiProtocolVersion declared = A2uiProtocolVersion.fromJson(
+      message.version,
+    );
     checkServes(declared);
     return declared;
   }
@@ -109,9 +107,9 @@ abstract class VersionAdapter {
   /// Throws [A2uiValidationError] for a [messageType] this adapter's version
   /// does not define.
   Never rejectMessage(String messageType) => throw A2uiValidationError(
-        "Invalid ${version.jsonValue} message: '$messageType' is not defined "
-        'in this version.',
-      );
+    "Invalid ${version.jsonValue} message: '$messageType' is not defined "
+    'in this version.',
+  );
 }
 
 /// The [VersionAdapter]s a `MessageProcessor` routes messages through, one
@@ -126,7 +124,7 @@ class VersionAdapterRegistry {
   ///
   /// Throws [ArgumentError] if two adapters serve the same release.
   VersionAdapterRegistry(Iterable<VersionAdapter> adapters)
-      : _adapters = _index(adapters);
+    : _adapters = _index(adapters);
 
   /// The registry a `MessageProcessor` uses by default: [V0_9Adapter] for
   /// v0.9 and v0.9.1, and [V1_0Adapter] for v1.0.
@@ -169,9 +167,8 @@ class VersionAdapterRegistry {
   ///
   /// Throws [A2uiValidationError] if [rawMessage] declares no version, one
   /// this SDK does not know, or one no adapter here serves.
-  VersionAdapter resolve(Map<String, Object?> rawMessage) => adapterFor(
-        A2uiProtocolVersion.fromJson(rawMessage['version']),
-      );
+  VersionAdapter resolve(Map<String, Object?> rawMessage) =>
+      adapterFor(A2uiProtocolVersion.fromJson(rawMessage['version']));
 
   /// The adapter for the version [message] declares.
   ///

@@ -242,9 +242,8 @@ class SurfaceComponentsModel {
   Map<String, ComponentRefFields>? _refFields;
 
   /// Creates an empty model whose graph queries find child references through
-  /// [catalog]'s reference properties, or find none when [catalog] is null.
-  SurfaceComponentsModel({Catalog<ComponentApi, FunctionApi>? catalog})
-      : _catalog = catalog;
+  /// [_catalog]'s reference properties, or find none when [_catalog] is null.
+  SurfaceComponentsModel({this._catalog});
 
   /// Which properties hold child references, per component type.
   ///
@@ -312,9 +311,9 @@ class SurfaceComponentsModel {
   /// in the order the first component naming each was added.
   @internal
   List<String?> get catalogIds => _catalogIds ??= {
-        for (final ComponentModel component in _components.values)
-          component.catalog,
-      }.toList();
+    for (final ComponentModel component in _components.values)
+      component.catalog,
+  }.toList();
 
   /// Adds a component to the model.
   void addComponent(ComponentModel component) {
@@ -374,8 +373,9 @@ class SurfaceComponentsModel {
       previous = index;
     }
     final int first = added.first.$1;
-    final List<MapEntry<String, ComponentModel>> later =
-        _components.entries.skip(first).toList();
+    final List<MapEntry<String, ComponentModel>> later = _components.entries
+        .skip(first)
+        .toList();
     for (final entry in later) {
       _components.remove(entry.key);
     }
@@ -427,17 +427,13 @@ class SurfaceComponentsModel {
   ///
   /// Empty when the model holds no component with [id].
   List<String> getChildIds(String id) => [
-        for (final ComponentReference reference in _referencesOf(id))
-          reference.id,
-      ];
+    for (final ComponentReference reference in _referencesOf(id)) reference.id,
+  ];
 
   Iterable<ComponentReference> _referencesOf(String id) {
     final ComponentModel? component = _components[id];
     if (component == null) return const <ComponentReference>[];
-    return componentReferences(
-      component.properties,
-      refFields[component.type],
-    );
+    return componentReferences(component.properties, refFields[component.type]);
   }
 
   /// Checks for self-references, cycles and over-deep chains, and returns the
@@ -452,14 +448,13 @@ class SurfaceComponentsModel {
     String rootId = 'root',
     int? maxDepth,
     bool allowMissingRoot = false,
-  }) =>
-      detectComponentCycles(
-        _components.keys.toSet(),
-        _referencesOf,
-        rootId: rootId,
-        allowMissingRoot: allowMissingRoot,
-        maxDepth: maxDepth,
-      );
+  }) => detectComponentCycles(
+    _components.keys.toSet(),
+    _referencesOf,
+    rootId: rootId,
+    allowMissingRoot: allowMissingRoot,
+    maxDepth: maxDepth,
+  );
 
   /// Checks the model as a surface's component graph against [config].
   ///
@@ -535,9 +530,7 @@ class SurfaceComponentsModel {
     for (final component in components) {
       final Object? id = component['id'];
       if (id is! String) {
-        throw A2uiValidationError(
-          "Component missing an 'id'.",
-        );
+        throw A2uiValidationError("Component missing an 'id'.");
       }
       final Object? type = component['component'];
       final ComponentModel? existing = _components[id];
@@ -552,7 +545,8 @@ class SurfaceComponentsModel {
       }
     }
 
-    final bool bounded = config.allowDanglingReferences &&
+    final bool bounded =
+        config.allowDanglingReferences &&
         (config.allowOrphanComponents || config.allowMissingRoot);
     final ComponentGraphBound? bound = _bound;
     final bool current = bound != null && _boundAt == _changes;
@@ -583,10 +577,15 @@ class SurfaceComponentsModel {
         entry.key: (entry.value.type, entry.value.properties),
       ...batch,
     };
-    checkComponentGraph(candidate.keys.toSet(), (String id) {
-      final (String type, Map<String, Object?> source) = candidate[id]!;
-      return componentReferences(source, refFields[type]);
-    }, config, defaultRootId: defaultRootId);
+    checkComponentGraph(
+      candidate.keys.toSet(),
+      (String id) {
+        final (String type, Map<String, Object?> source) = candidate[id]!;
+        return componentReferences(source, refFields[type]);
+      },
+      config,
+      defaultRootId: defaultRootId,
+    );
     if (bounded) {
       _bound = ComponentGraphBound.of(candidate, refFields);
       _boundBatch = components;
