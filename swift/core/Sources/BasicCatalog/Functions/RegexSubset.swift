@@ -709,10 +709,7 @@ public enum RegexSubset {
         return hasNestedQuantifier(child)
       }
       // The repeat runs its child more than once, so every way the child can match is multiplied.
-      if hasUnbounded(child) {
-        return true
-      }
-      if max != nil && boundedRunIsAmbiguous(unwrap(child)) {
+      if hasUnbounded(child) || boundedRunIsAmbiguous(unwrap(child)) {
         return true
       }
       return hasNestedQuantifier(child)
@@ -727,10 +724,13 @@ public enum RegexSubset {
   /// match the empty string, so that N runs leave the matcher free to choose where each run starts
   /// and ends.
   ///
-  /// A backtracking engine takes exponential time on a counted repetition of such a body:
+  /// A backtracking engine takes exponential time on a repetition of such a body:
   /// `NSRegularExpression` needs over a second for `(a?){1000}a{1000}` on `"aa!"` and does not
   /// return within five seconds on `"aaa!"`. A body with a single way to match it, like
   /// `(\d{1,3}){1,4}`, stays linear.
+  ///
+  /// This applies to repeats without an upper bound as well. Unlike V8, ICU runs the mandatory
+  /// repetitions first, so `(a?){1000,}a{1000}` and `(a{0,2})+b` also take seconds on short values.
   ///
   /// `node` is a repeat child, already unwrapped of its outer groups.
   private static func boundedRunIsAmbiguous(_ node: RegexNode) -> Bool {

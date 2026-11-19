@@ -163,10 +163,10 @@ struct RegexSubsetTests {
     }
   }
 
-  @Test func rule2RejectsCountedRepetitionOfAmbiguousNullableGroup() {
-    // A counted repeat that runs its child more than once multiplies every way the child can
-    // match. The ICU engine behind `NSRegularExpression` runs for seconds on each of these
-    // patterns with a value only a few characters long.
+  @Test func rule2RejectsRepetitionOfAmbiguousNullableGroup() {
+    // A repeat that runs its child more than once multiplies every way the child can match. The
+    // ICU engine behind `NSRegularExpression` runs for seconds on each of these patterns with a
+    // value only a few characters long, with or without an upper bound on the repeat.
     let evil = [
       "(a?){1000}a{1000}",
       "(a?){500}a{500}",
@@ -174,11 +174,18 @@ struct RegexSubsetTests {
       "((a?)){1000}a{1000}",
       "(a?b?){100}a{1000}",
       "(a|b?){1000}a{1000}",
+      "(a|){1000}a{1000}",
+      "(a{0,2}){2}",
+      "((?:a?){1}){2}",
+      "(a?){1000,}a{1000}",
+      "(a|b?){300,}a{300}",
+      "(a{0,2})+b",
+      "(a?)*a{1000}",
     ]
     for pattern in evil {
-      let res = RegexSubset.analyze(pattern)
-      #expect(!res.ok, "Expected nested quantifier rejection: \(pattern)")
-      #expect(res.reason == .nestedQuantifier, "Unexpected reason for \(pattern)")
+      let result = RegexSubset.analyze(pattern)
+      #expect(!result.ok, "Expected nested quantifier rejection: \(pattern)")
+      #expect(result.reason == .nestedQuantifier, "Unexpected reason for \(pattern)")
     }
 
     let safe = [
@@ -186,6 +193,9 @@ struct RegexSubsetTests {
       "(?:ab?){0,2}",
       "(a|b){2,4}",
       "(?:\\d{2,4}){2}",
+      "(a?){1}",
+      "(a?){0,1}",
+      "(?:ab?)+c",
     ]
     for pattern in safe {
       #expect(RegexSubset.analyze(pattern).ok, "Expected safe: \(pattern)")
