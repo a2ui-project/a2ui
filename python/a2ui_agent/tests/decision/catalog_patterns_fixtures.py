@@ -336,7 +336,9 @@ _ENTRY_FIELD_VARIANT: dict[str, Any] = {
 }
 
 DESIGN_SYSTEM_PATTERNS: dict[str, Any] = {
-    "$schema": "https://a2ui.org/specification/v1_0/decision/pattern_definition.json",
+    "$schema": (
+        "https://a2ui.org/specification/inference_formats/experimental/decision/v1/pattern_definition.json"
+    ),
     "catalogId": DESIGN_SYSTEM_CATALOG_ID,
     "grammarVersion": "1",
     "patterns": {

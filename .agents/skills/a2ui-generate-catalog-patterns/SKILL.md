@@ -58,7 +58,7 @@ Follow the mode reported by `inspect`:
 
 Use the **Components**, **Page Container Candidates**, **Patterns Scaffold**, and **Layout Grammar Block Candidates** sections from the inspection report, along with [references/patterns_authoring_guide.md](references/patterns_authoring_guide.md):
 
-1. Set `"$schema": "https://a2ui.org/specification/v1_0/decision/pattern_definition.json"`, `"catalogId": "<catalog_id>"`, and `"grammarVersion": "1"`.
+1. Set `"$schema": "https://a2ui.org/specification/inference_formats/experimental/decision/v1/pattern_definition.json"`, `"catalogId": "<catalog_id>"`, and `"grammarVersion": "1"`.
 2. Author `"page"` first using the top candidate in `page_candidates` (such as `Column` or `Stack`). Include `"title"`, `"subtitle"`, `"mark"`, and `{"$blocks": true}` in its children list.
 3. Author the foundational content patterns in priority order:
    - `headline`, `facts`, `prose`, `picture`, `collection`, `actions`, `form`
