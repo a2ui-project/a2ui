@@ -18,6 +18,13 @@ This package currently holds:
   `@a2ui/catalog-vegachart`, and a `withRows` function that feeds a chart the
   table's rows. `src/catalog/catalog_schema.json` is its generated JSON schema;
   run `yarn generate:schema` after changing the catalog.
+- The domain layer (`src/compose`, `src/explain`, `src/sql_tools.ts`): view
+  composition from a result's shape (KPI cards, chart and table tabs, or a
+  table), the schema browser, text summaries for the model, Refresh and
+  "Break down by …" events with dimensions found through foreign keys, and
+  `explain`, where Gemini writes the SQL and designs a layout that is validated
+  before use, with the default layout as fallback. `explain` reads
+  `GEMINI_API_KEY` from the environment; copy `.env.example` to `.env`.
 
 ## Run the tests
 

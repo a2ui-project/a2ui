@@ -4582,7 +4582,9 @@ __metadata:
   dependencies:
     "@a2ui/catalog-vegachart": "portal:../../../../typescript/catalogs/vegachart"
     "@a2ui/web_core": "npm:*"
+    "@google/genai": "npm:^2.8.0"
     "@types/node": "npm:^25.9.3"
+    ajv: "npm:^8.17.1"
     eslint: "npm:^10.4.1"
     jsdom: "npm:^29.1.1"
     lit: "npm:^3.3.3"

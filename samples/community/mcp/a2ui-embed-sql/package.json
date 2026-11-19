@@ -17,11 +17,13 @@
   "dependencies": {
     "@a2ui/catalog-vegachart": "portal:../../../../typescript/catalogs/vegachart",
     "@a2ui/web_core": "*",
+    "@google/genai": "^2.8.0",
     "lit": "^3.3.3",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",
+    "ajv": "^8.17.1",
     "eslint": "^10.4.1",
     "jsdom": "^29.1.1",
     "typescript": "5.9.3",
