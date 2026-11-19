@@ -686,7 +686,7 @@ void checkPathsAndRecursion(
 
 bool _inferUsesDirectives(Object? data) {
   final Object? rawVersion = switch (data) {
-    AgentToRendererMessage(:final version) => version,
+    AgentToRendererMessage(:final String version) => version,
     Map() => data['version'],
     _ => null,
   };

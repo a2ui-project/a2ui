@@ -41,10 +41,10 @@ fs.rmSync(path.join(siteRoot, '.astro'), {recursive: true, force: true});
 // 1. Ensure public/ exists
 fs.mkdirSync(publicDir, {recursive: true});
 
-// 2. Copy static assets from docs/public/assets and CNAME, and render llms.txt
-copyRecursive(path.join(repoRoot, 'docs/public/assets'), path.join(publicDir, 'assets'));
-if (fs.existsSync(path.join(repoRoot, 'docs/public/CNAME'))) {
-  fs.copyFileSync(path.join(repoRoot, 'docs/public/CNAME'), path.join(publicDir, 'CNAME'));
+// 2. Copy static assets from docs/assets and docs/site/CNAME, and render llms.txt
+copyRecursive(path.join(repoRoot, 'docs/assets'), path.join(publicDir, 'assets'));
+if (fs.existsSync(path.join(siteRoot, 'CNAME'))) {
+  fs.copyFileSync(path.join(siteRoot, 'CNAME'), path.join(publicDir, 'CNAME'));
 }
 // Render llms.txt from docs/site/llms.txt, filling version info from specification/versions.json
 // (the single source of truth for protocol version status).

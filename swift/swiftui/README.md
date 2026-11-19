@@ -80,10 +80,16 @@ extra work:
 - `label`: `accessibilityLabel`
 - `description`: `accessibilityHint`
 - `hidden`: `accessibilityHidden` for the whole subtree
-- `live` (`polite` / `assertive`) announces the explicit `label` whenever it changes, for
-  example when it is bound to the data model
+- `live` (`polite` / `assertive`) announces the explicit `label` followed by the visible text
+  inside the component whenever either changes, for example when it is bound to the data model
 
 Only values the agent sets are applied, so SwiftUI keeps inferring labels from visible text.
+
+A live region reads the text that components inside it report. If your component renders text,
+call `.a2uiAccessibleText(text)` with the text as it reads on screen (for example without Markdown
+syntax), before any `.a2uiAccessibilityElement(for:children:)`, so an explicit label on a
+`.combine` element replaces it. The basic catalog's `Text` does this. Outside a live region the
+text is not built.
 
 SwiftUI applies a label set on a stack to every element inside it. If your component's root is a
 stack:
@@ -104,9 +110,10 @@ the selected trait. On iOS 17 and macOS 14 and later, the row of tab headers als
 bar trait.
 
 Limitations: SwiftUI drops an accessibility hint on a group, so `description` has no effect on
-layout containers or other `.contain` groups (for example `ChoicePicker`). Announcing changes to
-a live component's visible text, rather than its label, is tracked in
-[#3147](https://github.com/a2ui-project/a2ui/issues/3147).
+layout containers or other `.contain` groups (for example `ChoicePicker`), tracked in
+[#3147](https://github.com/a2ui-project/a2ui/issues/3147). Of the basic catalog components, only
+`Text` reports its visible text to live regions so far. On iOS 17 and macOS 14, changing a bound
+`hidden` value rebuilds the component's subtree, which resets its state.
 
 ---
 

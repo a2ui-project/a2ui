@@ -14,4 +14,9 @@
  * limitations under the License.
  */
 
-export * from '../v0_8/styles/index';
+export {
+  injectStyles,
+  removeStyles,
+  structuralStyles,
+  componentSpecificStyles,
+} from '../v0_8/styles/index';
