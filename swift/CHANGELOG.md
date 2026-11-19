@@ -103,6 +103,10 @@
   `/name` is a string, as a `DATA_ERROR` to the surface's `ActionHandling` and the
   `MessageProcessor` outbound listener instead of dropping it silently. The data model stays
   unchanged. [#4257](https://github.com/a2ui-project/a2ui/pull/4257)
+- Draw SVG elliptical arc commands (`A` and `a`) in `SVGPathParser`, so `Icon` `svgPath` values
+  with arcs render circles and rounded shapes instead of dropping those segments. Arc flags written
+  without separators (for example `a1 1 0 011 1`) are also accepted.
+  [#4260](https://github.com/a2ui-project/a2ui/pull/4260)
 
 ## 0.10.0
 
