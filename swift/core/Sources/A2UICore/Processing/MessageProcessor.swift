@@ -298,6 +298,10 @@ public final class MessageProcessor: ObservableObject {
       catalogDictionary["protocolVersion"] = .string(semver)
     }
     catalogDictionary["catalogId"] = .string(catalog.id)
+    // Only v1.0 `catalog_definition.json` defines `instructions`.
+    if version.isAtLeastV10, let instructions = catalog.instructions {
+      catalogDictionary["instructions"] = .string(instructions)
+    }
     if !componentsDictionary.isEmpty {
       catalogDictionary["components"] = .object(componentsDictionary)
     }
