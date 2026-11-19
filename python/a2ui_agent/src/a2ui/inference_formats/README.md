@@ -97,6 +97,12 @@ synthesizer = DecisionSynthesizer(
 
 ## Backend Configuration
 
+The HTTP backends (`systemone`, `jev`, `gemini`, `step0`) require the optional `decision` extra:
+
+```bash
+pip install 'a2ui-agent-sdk[decision]'
+```
+
 | Backend     | Setup                                                               | Characteristics                                                                              |
 | :---------- | :------------------------------------------------------------------ | :------------------------------------------------------------------------------------------- |
 | `systemone` | Set `A2UI_DECISION_URL` and `JEV_API_KEY` (or `A2UI_DECISION_AUTH`) | Hosted or local `/v1/systemone` decision API over HTTP.                                      |

@@ -99,8 +99,7 @@ jobs:
           assert not leaked, f'a2ui-agent-sdk pulls in agent frameworks: {leaked}'
           assert 'httpx' not in sys.modules, 'barrel import should not load httpx'
           exp_loaded = [m for m in sys.modules if m.startswith('a2ui.inference_formats.experimental')]
-          if exp_loaded:
-              print(f'WARNING: barrel still loads experimental modules (cleaned in #4155): {exp_loaded}')
+          assert not exp_loaded, f'barrel import should not load experimental modules: {exp_loaded}'
           import a2ui.inference_formats.experimental.decision as d
           assert importlib.util.find_spec('httpx') is None, 'a2ui-agent-sdk should not require httpx by default'
           d.DeterministicMockBackend()

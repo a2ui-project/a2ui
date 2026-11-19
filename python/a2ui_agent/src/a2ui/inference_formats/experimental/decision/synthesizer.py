@@ -1370,9 +1370,8 @@ class DecisionSynthesizer:
     ) -> list[AgentToRendererMessage]:
         """Compiles Express fallback DSL, adding the payload as the data model.
 
-        The Express package is imported lazily: `a2ui.inference_formats`
-        imports this package before `express`, so a module-level import would
-        see a partially initialized package.
+        The Express package is imported lazily so Express is only loaded when
+        fallback DSL is compiled.
         """
         from a2ui.inference_formats.express import ExpressCompiler
 
