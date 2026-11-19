@@ -1,0 +1,793 @@
+#!/usr/bin/env python3
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+import json
+import subprocess
+import os
+import glob
+import sys
+
+# Constants
+TEST_DIR = os.path.dirname(os.path.abspath(__file__))
+SPEC_DIR = os.path.abspath(os.path.join(TEST_DIR, ".."))
+REPO_ROOT = os.path.abspath(os.path.join(TEST_DIR, "../../.."))
+SCHEMA_DIR = os.path.join(SPEC_DIR, "json")
+CASES_DIR = os.path.join(TEST_DIR, "cases")
+TEMP_FILE = os.path.join(TEST_DIR, "temp_data.json")
+TEMP_CATALOG_FILE = os.path.join(TEST_DIR, "catalog.json")
+# Catalogs are versioned independently of the protocol and live under the
+# top-level catalogs/ directory.
+BASIC_CATALOG_FILE = os.path.join(REPO_ROOT, "catalogs/basic/v1/catalog.json")
+
+# The schemas of common_types.json that an external $ref inside a catalog may
+# target, per rule 3 ("Restricted `$ref` Targets") of the catalog schema rules
+# in docs/a2ui_protocol.md.
+ALLOWED_EXTERNAL_REF_TARGETS = {
+    "ComponentId",
+    "Child",
+    "ChildList",
+    "DynamicString",
+    "DynamicNumber",
+    "DynamicBoolean",
+    "DynamicStringList",
+    "DynamicValue",
+    "AccessibilityAttributes",
+    "CheckRule",
+    "Checkable",
+    "Action",
+    "DataBinding",
+    "FunctionCall",
+}
+
+# Keys whose values are annotations or literal data rather than subschemas, so a
+# "$ref" appearing inside them is not a reference.
+NON_SCHEMA_KEYS = ("metadata", "examples", "const", "default", "enum", "description")
+
+# Map of schema filenames to their full paths
+# Note: catalog.json is dynamically created from catalogs/basic/v1/catalog.json
+SCHEMAS = {
+    "agent_to_renderer.json": os.path.join(SCHEMA_DIR, "agent_to_renderer.json"),
+    "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
+    "catalog.json": TEMP_CATALOG_FILE,
+    "renderer_to_agent.json": os.path.join(SCHEMA_DIR, "renderer_to_agent.json"),
+    "catalog_definition.json": os.path.join(SCHEMA_DIR, "catalog_definition.json"),
+    "agent_capabilities.json": os.path.join(SCHEMA_DIR, "agent_capabilities.json"),
+}
+
+
+def setup_catalog_alias(catalog_file=None):
+    """
+    Creates a temporary catalog.json from catalogs/basic/v1/catalog.json (or
+    the specified file, resolved relative to the test directory and then the
+    repository root) with the $id modified to match what agent_to_renderer.json
+    expects.
+    """
+    if catalog_file is None:
+        catalog_file = BASIC_CATALOG_FILE
+        basic_catalog_path = BASIC_CATALOG_FILE
+    else:
+        basic_catalog_path = os.path.join(TEST_DIR, catalog_file)
+        if not os.path.exists(basic_catalog_path):
+            basic_catalog_path = os.path.join(REPO_ROOT, catalog_file)
+
+    if not os.path.exists(basic_catalog_path):
+        print(
+            f"Error: Catalog file not found: {catalog_file} (resolved to"
+            f" {basic_catalog_path})"
+        )
+        sys.exit(1)
+
+    with open(basic_catalog_path, "r") as f:
+        try:
+            catalog = json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"Error parsing catalog.json: {e}")
+            sys.exit(1)
+
+    # Modify the $id to be the generic catalog reference
+    # This allows agent_to_renderer.json to refer to "catalog.json"
+    # and have it resolve to this schema content.
+    if "$id" in catalog:
+        import re
+
+        match = re.match(
+            r"^(https://a2ui\.org/specification/v\d+_\d+/)", catalog["$id"]
+        )
+        if match:
+            catalog["$id"] = match.group(1) + "catalog.json"
+
+    with open(TEMP_CATALOG_FILE, "w") as f:
+        json.dump(catalog, f, indent=2)
+
+
+def cleanup_catalog_alias():
+    if os.path.exists(TEMP_CATALOG_FILE):
+        os.remove(TEMP_CATALOG_FILE)
+
+
+def validate_ajv(schema_path, data_path, all_schemas):
+    """Runs ajv validate via subprocess."""
+    cmd = [
+        "yarn",
+        "workspace",
+        "@a2ui/specification-v1_0-test",
+        "exec",
+        "ajv",
+        "validate",
+        "-s",
+        schema_path,
+        "--spec=draft2020",
+        "--strict=false",
+        "-c",
+        "ajv-formats",
+        "-d",
+        data_path,
+    ]
+
+    # Add all other schemas as references
+    for name, path in all_schemas.items():
+        if path != schema_path:
+            cmd.extend(["-r", path])
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT)
+        return result.returncode == 0, result.stdout + result.stderr
+    except FileNotFoundError:
+        print(
+            "Error: 'ajv' command not found. Please ensure dependencies are installed"
+            " (e.g., 'yarn install')."
+        )
+        sys.exit(1)
+
+
+def run_suite(suite_path):
+    with open(suite_path, "r") as f:
+        try:
+            suite = json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"Error parsing JSON in {suite_path}: {e}")
+            return 0, 0
+
+    setup_catalog_alias(suite.get("catalog"))
+
+    try:
+        schema_name = suite.get("schema", "agent_to_renderer.json")
+        if schema_name not in SCHEMAS:
+            print(f"Error: Unknown schema '{schema_name}' referenced in {suite_path}")
+            return 0, 0
+
+        schema_path = SCHEMAS[schema_name]
+        tests = suite.get("tests", [])
+
+        print(f"\nRunning suite: {os.path.basename(suite_path)} ({len(tests)} tests)")
+        print(f"Target Schema: {schema_name}")
+
+        passed = 0
+        failed = 0
+
+        for i, test in enumerate(tests):
+            description = test.get("description", f"Test #{i+1}")
+            expect_valid = test.get("valid", True)
+            data = test.get("data")
+
+            # Write data to temp file
+            with open(TEMP_FILE, "w") as f:
+                json.dump(data, f)
+
+            is_valid, output = validate_ajv(schema_path, TEMP_FILE, SCHEMAS)
+
+            if is_valid == expect_valid:
+                passed += 1
+                # print(f"  [PASS] {description}")
+            else:
+                failed += 1
+                print(f"  [FAIL] {description}")
+                print(f"         Expected Valid: {expect_valid}, Got Valid: {is_valid}")
+                if not is_valid:
+                    print(f"         Output: {output.strip()}")
+
+        return passed, failed
+    finally:
+        cleanup_catalog_alias()
+
+
+def validate_jsonl_example(jsonl_path):
+    if not os.path.exists(jsonl_path):
+        print(f"Error: Example file not found: {jsonl_path}")
+        return 0, 1
+
+    print(f"\nValidating JSONL example: {os.path.basename(jsonl_path)}")
+    print(f"Target Schema: agent_to_renderer.json")
+
+    passed = 0
+    failed = 0
+    schema_path = SCHEMAS["agent_to_renderer.json"]
+
+    setup_catalog_alias()
+    try:
+        with open(jsonl_path, "r") as f:
+            for i, line in enumerate(f):
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Use temp file for each line
+                with open(TEMP_FILE, "w") as tf:
+                    tf.write(line)
+
+                is_valid, output = validate_ajv(schema_path, TEMP_FILE, SCHEMAS)
+                if is_valid:
+                    passed += 1
+                    # print(f"  [PASS] Line {i+1}")
+                else:
+                    failed += 1
+                    print(f"  [FAIL] Line {i+1}")
+                    print(f"         Output: {output.strip()}")
+
+        return passed, failed
+    finally:
+        cleanup_catalog_alias()
+
+
+def validate_catalogs_structure():
+    """
+    Validates the catalog files directly against the Catalog definition in
+    catalog_definition.json schema.
+    """
+    catalog_def_path = os.path.join(SCHEMA_DIR, "catalog_definition.json")
+    if not os.path.exists(catalog_def_path):
+        print(f"Error: catalog_definition.json not found at {catalog_def_path}")
+        return 0, 1
+
+    temp_validator_path = os.path.join(TEST_DIR, "temp_catalog_validator.json")
+
+    # We reference the absolute ID of catalog_definition.json which gets loaded as a reference
+    validator_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "https://a2ui.org/specification/v1_0/catalog_definition.json",
+    }
+
+    with open(temp_validator_path, "w") as f:
+        json.dump(validator_schema, f)
+
+    catalogs_to_validate = [
+        ("catalogs/basic/v1/catalog.json", BASIC_CATALOG_FILE),
+        (
+            "catalogs/mcp/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/mcp/v1/catalog.json"),
+        ),
+        (
+            "catalogs/vegachart/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/vegachart/v1/catalog.json"),
+        ),
+        ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
+    ]
+
+    passed = 0
+    failed = 0
+
+    print(
+        "\nValidating catalog structural integrity against catalog_definition.json..."
+    )
+
+    ref_schemas = {
+        "catalog_definition.json": catalog_def_path,
+        "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
+    }
+
+    try:
+        for name, path in catalogs_to_validate:
+            if not os.path.exists(path):
+                print(f"  [FAIL] {name} (File not found)")
+                failed += 1
+                continue
+
+            is_valid, output = validate_ajv(temp_validator_path, path, ref_schemas)
+            if is_valid:
+                passed += 1
+                # print(f"  [PASS] {name}")
+            else:
+                failed += 1
+                print(f"  [FAIL] {name}")
+                print(f"         Output: {output.strip()}")
+
+        return passed, failed
+    finally:
+        if os.path.exists(temp_validator_path):
+            os.remove(temp_validator_path)
+
+
+def validate_catalogs_identifiers():
+    """
+    Validates that all entity keys (components, functions) in all catalog files
+    strictly conform to Unicode UAX #31 identifier naming rules.
+    """
+    catalogs_to_validate = [
+        ("catalogs/basic/v1/catalog.json", BASIC_CATALOG_FILE),
+        (
+            "catalogs/mcp/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/mcp/v1/catalog.json"),
+        ),
+        (
+            "catalogs/vegachart/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/vegachart/v1/catalog.json"),
+        ),
+        ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
+    ]
+
+    passed = 0
+    failed = 0
+
+    print("\nValidating catalog entities against Unicode UAX #31 identifier rules...")
+
+    for name, path in catalogs_to_validate:
+        if not os.path.exists(path):
+            print(f"  [FAIL] {name} (File not found)")
+            failed += 1
+            continue
+
+        with open(path, "r") as f:
+            try:
+                catalog = json.load(f)
+            except json.JSONDecodeError as e:
+                print(f"  [FAIL] {name} (JSON Decode Error: {e})")
+                failed += 1
+                continue
+
+        errors = []
+
+        # Reserved protocol directives are defined by the specification, not by
+        # the catalog author, and their leading '@' is deliberately outside the
+        # UAX #31 identifier grammar. Catalogs may not introduce their own
+        # '@'-prefixed names, so exempt only this fixed set.
+        reserved_directives = {"@path", "@call"}
+
+        def check_schema_properties(obj):
+            if isinstance(obj, dict):
+                # 1. Validate property names
+                if "properties" in obj and isinstance(obj["properties"], dict):
+                    for prop_name, prop_def in obj["properties"].items():
+                        if (
+                            prop_name not in reserved_directives
+                            and not prop_name.isidentifier()
+                        ):
+                            errors.append(
+                                f"Invalid argument/property name: '{prop_name}'"
+                            )
+                        check_schema_properties(prop_def)
+                # 2. Validate extension identifiers (UAX #31), but do NOT recurse
+                # into values
+                if "metadata" in obj and isinstance(obj["metadata"], dict):
+                    extensions = obj["metadata"].get("extensions")
+                    if isinstance(extensions, dict):
+                        for ext_name in extensions:
+                            if not ext_name.isidentifier():
+                                errors.append(
+                                    f"Invalid extension identifier: '{ext_name}'"
+                                )
+                # 3. Recurse into schema children, skipping non-schema annotations
+                for k, v in obj.items():
+                    if k not in (
+                        "properties",
+                        "metadata",
+                        "examples",
+                        "description",
+                        "const",
+                        "default",
+                    ):
+                        if isinstance(v, (dict, list)):
+                            check_schema_properties(v)
+            elif isinstance(obj, list):
+                for item in obj:
+                    if isinstance(item, (dict, list)):
+                        check_schema_properties(item)
+
+        components = catalog.get("components", {})
+        for comp_name, comp_def in components.items():
+            if not comp_name.isidentifier():
+                errors.append(f"Invalid component name: '{comp_name}'")
+            check_schema_properties(comp_def)
+
+        functions = catalog.get("functions", {})
+        if isinstance(functions, dict):
+            for func_name, func_def in functions.items():
+                check_name = func_name[1:] if func_name.startswith("@") else func_name
+                if not check_name.isidentifier():
+                    errors.append(f"Invalid function name: '{func_name}'")
+                check_schema_properties(func_def)
+
+        defs = catalog.get("$defs", {})
+        if isinstance(defs, dict):
+            for def_name, def_schema in defs.items():
+                if def_name in ("anyComponent", "anyFunction"):
+                    continue
+                if not def_name.isidentifier():
+                    errors.append(f"Invalid $defs name: '{def_name}'")
+                check_schema_properties(def_schema)
+
+        if errors:
+            failed += 1
+            print(f"  [FAIL] {name}")
+            for err in errors:
+                print(f"         {err}")
+        else:
+            passed += 1
+
+    return passed, failed
+
+
+def validate_catalogs_ref_targets():
+    """
+    Validates that every $ref inside a catalog conforms to rule 3 ("Restricted
+    `$ref` Targets") of the catalog schema rules in docs/a2ui_protocol.md: a
+    local target names a component or function the catalog declares, and an
+    external target names one of the allowed common_types.json schemas.
+    """
+    catalogs_to_validate = [
+        ("catalogs/basic/v1/catalog.json", BASIC_CATALOG_FILE),
+        (
+            "catalogs/mcp/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/mcp/v1/catalog.json"),
+        ),
+        (
+            "catalogs/vegachart/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/vegachart/v1/catalog.json"),
+        ),
+        ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
+    ]
+
+    passed = 0
+    failed = 0
+
+    print("\nValidating catalog $ref targets against the allowed target list...")
+
+    for name, path in catalogs_to_validate:
+        if not os.path.exists(path):
+            print(f"  [FAIL] {name} (File not found)")
+            failed += 1
+            continue
+
+        with open(path, "r") as f:
+            try:
+                catalog = json.load(f)
+            except json.JSONDecodeError as e:
+                print(f"  [FAIL] {name} (JSON Decode Error: {e})")
+                failed += 1
+                continue
+
+        if not isinstance(catalog, dict):
+            print(f"  [FAIL] {name} (Catalog is not a JSON object)")
+            failed += 1
+            continue
+
+        refs = []
+
+        def collect_refs(obj):
+            if isinstance(obj, dict):
+                ref = obj.get("$ref")
+                if isinstance(ref, str):
+                    refs.append(ref)
+                # Declared properties are subschemas whatever they are named, so
+                # a property named "metadata" stays in scope here.
+                properties = obj.get("properties")
+                if isinstance(properties, dict):
+                    for prop_def in properties.values():
+                        collect_refs(prop_def)
+                for k, v in obj.items():
+                    if k not in ("properties",) + NON_SCHEMA_KEYS:
+                        if isinstance(v, (dict, list)):
+                            collect_refs(v)
+            elif isinstance(obj, list):
+                for item in obj:
+                    if isinstance(item, (dict, list)):
+                        collect_refs(item)
+
+        components = catalog.get("components", {})
+        functions = catalog.get("functions", {})
+        defs = catalog.get("$defs", {})
+        for section in (components, functions, defs):
+            if isinstance(section, dict):
+                for definition in section.values():
+                    collect_refs(definition)
+
+        errors = []
+        for ref in refs:
+            if ref.startswith("#/components/"):
+                target = ref[len("#/components/") :]
+                if not isinstance(components, dict) or target not in components:
+                    errors.append(f"Unknown local $ref target: '{ref}'")
+            elif ref.startswith("#/functions/"):
+                target = ref[len("#/functions/") :]
+                if not isinstance(functions, dict) or target not in functions:
+                    errors.append(f"Unknown local $ref target: '{ref}'")
+            elif ref.startswith("#/$defs/"):
+                target = ref[len("#/$defs/") :]
+                if target in ("anyComponent", "anyFunction"):
+                    errors.append(f"Disallowed $ref target: '{ref}'")
+                elif not isinstance(defs, dict) or target not in defs:
+                    errors.append(f"Unknown local $ref target: '{ref}'")
+            elif ref.startswith("common_types.json#/$defs/"):
+                target = ref[len("common_types.json#/$defs/") :]
+                if target not in ALLOWED_EXTERNAL_REF_TARGETS:
+                    errors.append(f"Disallowed external $ref target: '{ref}'")
+            else:
+                errors.append(f"Disallowed $ref target: '{ref}'")
+
+        if errors:
+            failed += 1
+            print(f"  [FAIL] {name}")
+            for err in errors:
+                print(f"         {err}")
+        else:
+            passed += 1
+
+    return passed, failed
+
+
+def validate_sample_schema():
+    """
+    Validates that the sample.json schema is valid and can successfully
+    validate a sample payload, ensuring all internal references are correct.
+    """
+    sample_schema_path = os.path.join(SCHEMA_DIR, "sample.json")
+    if not os.path.exists(sample_schema_path):
+        print(f"Error: sample.json not found at {sample_schema_path}")
+        return 0, 1
+
+    print("\nValidating sample.json schema integrity...")
+
+    temp_sample_data_path = os.path.join(TEST_DIR, "temp_sample_data.json")
+
+    # A minimal valid sample payload matching sample.json
+    sample_data = {
+        "name": "Test Sample",
+        "description": "A minimal sample for testing schema integrity",
+        "messages": [{
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "test_surface",
+                "catalogId": (
+                    "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+                ),
+            },
+        }],
+    }
+
+    with open(temp_sample_data_path, "w") as f:
+        json.dump(sample_data, f)
+
+    ref_schemas = {
+        "agent_to_renderer_list.json": os.path.join(
+            SCHEMA_DIR, "agent_to_renderer_list.json"
+        ),
+        "agent_to_renderer.json": os.path.join(SCHEMA_DIR, "agent_to_renderer.json"),
+        "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
+        "catalog.json": TEMP_CATALOG_FILE,
+    }
+
+    setup_catalog_alias()
+    try:
+        is_valid, output = validate_ajv(
+            sample_schema_path, temp_sample_data_path, ref_schemas
+        )
+        if is_valid:
+            # print("  [PASS] sample.json schema is valid and resolved all references.")
+            return 1, 0
+        else:
+            print("  [FAIL] sample.json schema validation failed.")
+            print(f"         Output: {output.strip()}")
+            return 0, 1
+    finally:
+        cleanup_catalog_alias()
+        if os.path.exists(temp_sample_data_path):
+            os.remove(temp_sample_data_path)
+
+
+def validate_a2a_schemas():
+    """
+    Validates all A2A-specific schemas (capabilities, data model, and message lists)
+    against mock payloads to ensure structural integrity and correct references.
+    """
+    print("\nValidating A2A-specific schemas and references...")
+
+    passed = 0
+    failed = 0
+
+    # Define test payloads and their target schemas
+    tests = [
+        {
+            "name": "renderer_capabilities.json",
+            "schema_path": os.path.join(SCHEMA_DIR, "renderer_capabilities.json"),
+            "data": {
+                "1.0": {
+                    "supportedCatalogIds": [
+                        "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+                    ],
+                    "inlineCatalogs": [],
+                }
+            },
+            "refs": {
+                "catalog_definition.json": os.path.join(
+                    SCHEMA_DIR, "catalog_definition.json"
+                ),
+                "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
+            },
+        },
+        {
+            "name": "agent_capabilities.json",
+            "schema_path": os.path.join(SCHEMA_DIR, "agent_capabilities.json"),
+            "data": {
+                "1.0": {
+                    "supportedCatalogIds": [
+                        "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+                    ],
+                    "acceptsInlineCatalogs": True,
+                }
+            },
+            "refs": {},
+        },
+        {
+            "name": "renderer_data_model.json",
+            "schema_path": os.path.join(SCHEMA_DIR, "renderer_data_model.json"),
+            "data": {
+                "version": "1.0",
+                "surfaces": {"surface_123": {"user": {"name": "Alice"}}},
+            },
+            "refs": {},
+        },
+        {
+            "name": "agent_to_renderer_list_wrapper.json",
+            "schema_path": os.path.join(
+                SCHEMA_DIR, "agent_to_renderer_list_wrapper.json"
+            ),
+            "data": {
+                "messages": [{
+                    "version": "1.0",
+                    "createSurface": {
+                        "surfaceId": "test_surface",
+                        "catalogId": (
+                            "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+                        ),
+                    },
+                }]
+            },
+            "refs": {
+                "agent_to_renderer_list.json": os.path.join(
+                    SCHEMA_DIR, "agent_to_renderer_list.json"
+                ),
+                "agent_to_renderer.json": os.path.join(
+                    SCHEMA_DIR, "agent_to_renderer.json"
+                ),
+                "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
+                "catalog.json": TEMP_CATALOG_FILE,
+            },
+        },
+        {
+            "name": "renderer_to_agent_list_wrapper.json",
+            "schema_path": os.path.join(
+                SCHEMA_DIR, "renderer_to_agent_list_wrapper.json"
+            ),
+            "data": {
+                "messages": [{
+                    "version": "1.0",
+                    "action": {
+                        "name": "click_button",
+                        "surfaceId": "test_surface",
+                        "sourceComponentId": "btn_1",
+                        "timestamp": "2026-06-22T17:00:00Z",
+                        "context": {},
+                    },
+                }]
+            },
+            "refs": {
+                "renderer_to_agent_list.json": os.path.join(
+                    SCHEMA_DIR, "renderer_to_agent_list.json"
+                ),
+                "renderer_to_agent.json": os.path.join(
+                    SCHEMA_DIR, "renderer_to_agent.json"
+                ),
+                "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
+                "catalog.json": TEMP_CATALOG_FILE,
+            },
+        },
+    ]
+
+    temp_test_data = os.path.join(TEST_DIR, "temp_a2a_test_data.json")
+
+    setup_catalog_alias()
+    try:
+        for t in tests:
+            with open(temp_test_data, "w") as f:
+                json.dump(t["data"], f)
+
+            is_valid, output = validate_ajv(t["schema_path"], temp_test_data, t["refs"])
+            if is_valid:
+                passed += 1
+                # print(f"  [PASS] {t['name']}")
+            else:
+                failed += 1
+                print(f"  [FAIL] {t['name']} validation failed.")
+                print(f"         Output: {output.strip()}")
+
+        return passed, failed
+    finally:
+        cleanup_catalog_alias()
+        if os.path.exists(temp_test_data):
+            os.remove(temp_test_data)
+
+
+def main():
+    if not os.path.exists(CASES_DIR):
+        print(f"No cases directory found at {CASES_DIR}")
+        return
+
+    try:
+        test_files = glob.glob(os.path.join(CASES_DIR, "*.json"))
+
+        total_passed = 0
+        total_failed = 0
+
+        # 1. Run standard test suites
+        for test_file in sorted(test_files):
+            p, f = run_suite(test_file)
+            total_passed += p
+            total_failed += f
+
+        # 2. Run .jsonl example validation
+        example_path = os.path.join(CASES_DIR, "contact_form_example.jsonl")
+        p, f = validate_jsonl_example(example_path)
+        total_passed += p
+        total_failed += f
+
+        # 3. Validate catalogs structural integrity
+        p, f = validate_catalogs_structure()
+        total_passed += p
+        total_failed += f
+
+        # 4. Validate catalogs UAX #31 entity identifiers
+        p, f = validate_catalogs_identifiers()
+        total_passed += p
+        total_failed += f
+
+        # 5. Validate catalogs $ref targets
+        p, f = validate_catalogs_ref_targets()
+        total_passed += p
+        total_failed += f
+
+        # 6. Validate sample.json schema integrity and references
+        p, f = validate_sample_schema()
+        total_passed += p
+        total_failed += f
+
+        # 7. Validate A2A capability and message list schemas
+        p, f = validate_a2a_schemas()
+        total_passed += p
+        total_failed += f
+
+        print("\n" + "=" * 30)
+        print(f"Total Passed: {total_passed}")
+        print(f"Total Failed: {total_failed}")
+
+    finally:
+        if os.path.exists(TEMP_FILE):
+            os.remove(TEMP_FILE)
+
+    if total_failed > 0:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

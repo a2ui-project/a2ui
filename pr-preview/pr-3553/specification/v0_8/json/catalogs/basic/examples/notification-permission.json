@@ -1,0 +1,140 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-notification-permission",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-column"
+            }
+          }
+        },
+        {
+          "id": "main-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["icon", "title", "description", "actions"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "path": "/icon"
+              }
+            }
+          }
+        },
+        {
+          "id": "title",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/title"
+              },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "description",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/description"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "actions",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["yes-btn", "no-btn"]
+              },
+              "distribution": "center"
+            }
+          }
+        },
+        {
+          "id": "yes-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Yes"
+              }
+            }
+          }
+        },
+        {
+          "id": "yes-btn",
+          "component": {
+            "Button": {
+              "child": "yes-btn-text",
+              "action": {
+                "name": "accept",
+                "context": []
+              }
+            }
+          }
+        },
+        {
+          "id": "no-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "No"
+              }
+            }
+          }
+        },
+        {
+          "id": "no-btn",
+          "component": {
+            "Button": {
+              "child": "no-btn-text",
+              "action": {
+                "name": "decline",
+                "context": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-notification-permission",
+      "contents": [
+        {
+          "key": "icon",
+          "valueString": "check"
+        },
+        {
+          "key": "title",
+          "valueString": "Enable notification"
+        },
+        {
+          "key": "description",
+          "valueString": "Get alerts for order status changes"
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-notification-permission",
+      "root": "root"
+    }
+  }
+]
