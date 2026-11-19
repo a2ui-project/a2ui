@@ -21,7 +21,7 @@ import {resolve} from 'node:path';
 import {z} from 'zod';
 import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 import {Catalog} from './types.js';
-import {convertFunctionArgsJsonSchemaToZod} from './schema_loader.js';
+import {convertFunctionArgsJsonSchemaToZod, isShorthandParameterMap} from './schema_loader.js';
 import {analyzeChildRefSchema} from './reference-map.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {STRICT_VALIDATION} from '../validation/integrity-checker.js';
@@ -1373,10 +1373,10 @@ describe('Catalog.fromJson & schema_loader', () => {
       assert.strictEqual(anyOfSchema.safeParse({}).success, false);
     });
 
-    it('allows conditional and combinator branch properties under additionalProperties: false (including nested and rootless schemas)', () => {
+    it('enforces unevaluatedProperties: false and additionalProperties: false per Draft 2020-12 across conditional and combinator branches', () => {
       const nestedConditionalSchema = convertFunctionArgsJsonSchemaToZod({
         type: 'object',
-        additionalProperties: false,
+        unevaluatedProperties: false,
         properties: {
           mode: {type: 'string'},
         },
@@ -1421,12 +1421,31 @@ describe('Catalog.fromJson & schema_loader', () => {
         }).success,
         false,
       );
+      // Rejects key from unselected `else` branch when `if` matches
+      assert.strictEqual(
+        nestedConditionalSchema.safeParse({
+          mode: 'advanced',
+          tier: 'enterprise',
+          ssoUrl: 'https://example.com',
+          basicFlag: true,
+        }).success,
+        false,
+      );
       assert.strictEqual(
         nestedConditionalSchema.safeParse({
           mode: 'simple',
           basicFlag: true,
         }).success,
         true,
+      );
+      // Rejects keys from unselected `then` branch when `if` does not match
+      assert.strictEqual(
+        nestedConditionalSchema.safeParse({
+          mode: 'simple',
+          basicFlag: true,
+          tier: 'enterprise',
+        }).success,
+        false,
       );
       assert.strictEqual(
         nestedConditionalSchema.safeParse({
@@ -1437,10 +1456,10 @@ describe('Catalog.fromJson & schema_loader', () => {
         false,
       );
 
-      // Rootless additionalProperties: false with if/then/else (no top-level `properties`)
+      // Rootless unevaluatedProperties: false with if/then/else
       const rootlessConditionalSchema = convertFunctionArgsJsonSchemaToZod({
         type: 'object',
-        additionalProperties: false,
+        unevaluatedProperties: false,
         if: {
           properties: {kind: {const: 'a'}},
           required: ['kind'],
@@ -1467,14 +1486,18 @@ describe('Catalog.fromJson & schema_loader', () => {
         true,
       );
       assert.strictEqual(
+        rootlessConditionalSchema.safeParse({kind: 'a', aVal: 42, bVal: false}).success,
+        false,
+      );
+      assert.strictEqual(
         rootlessConditionalSchema.safeParse({kind: 'a', aVal: 42, extra: 'nope'}).success,
         false,
       );
 
-      // Rootless additionalProperties: false with oneOf (no top-level `properties`)
+      // Rootless unevaluatedProperties: false with oneOf rejects unselected branch keys
       const rootlessOneOfSchema = convertFunctionArgsJsonSchemaToZod({
         type: 'object',
-        additionalProperties: false,
+        unevaluatedProperties: false,
         oneOf: [
           {
             properties: {url: {type: 'string'}},
@@ -1490,21 +1513,82 @@ describe('Catalog.fromJson & schema_loader', () => {
       assert.strictEqual(rootlessOneOfSchema.safeParse({url: 'https://example.com'}).success, true);
       assert.strictEqual(rootlessOneOfSchema.safeParse({path: '/var/log'}).success, true);
       assert.strictEqual(
+        rootlessOneOfSchema.safeParse({url: 'https://example.com', path: '/var/log'}).success,
+        false,
+      );
+      assert.strictEqual(
         rootlessOneOfSchema.safeParse({url: 'https://example.com', unexpected: true}).success,
+        false,
+      );
+
+      // anyOf with unevaluatedProperties: false rejects keys from non-matching branches
+      const anyOfUnevaluatedSchema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        unevaluatedProperties: false,
+        anyOf: [
+          {properties: {a: {type: 'string'}}, required: ['a']},
+          {properties: {b: {type: 'string'}, c: {type: 'string'}}, required: ['b', 'c']},
+        ],
+      });
+
+      assert.strictEqual(anyOfUnevaluatedSchema.safeParse({a: 'x'}).success, true);
+      assert.strictEqual(
+        anyOfUnevaluatedSchema.safeParse({a: 'x', b: 'unselected'}).success,
         false,
       );
     });
 
-    it('enforces additionalProperties: false alongside top-level anyOf (Issue #3998 Row 4)', () => {
+    it('enforces additionalProperties: false locally without accepting keys from sibling anyOf branches (Issue #3998 Row 4)', () => {
       const schema = convertFunctionArgsJsonSchemaToZod({
         type: 'object',
         anyOf: [{properties: {a: {type: 'string'}}, required: ['a']}],
         additionalProperties: false,
       });
 
-      assert.strictEqual(schema.safeParse({a: 'x'}).success, true);
-      assert.strictEqual(schema.safeParse({a: 'x', zzz: 1}).success, false);
+      assert.strictEqual(schema.safeParse({a: 'x'}).success, false);
       assert.strictEqual(schema.safeParse({}).success, false);
+
+      const withLocalProp = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {a: {type: 'string'}},
+        anyOf: [{required: ['a']}],
+        additionalProperties: false,
+      });
+
+      assert.strictEqual(withLocalProp.safeParse({a: 'x'}).success, true);
+      assert.strictEqual(withLocalProp.safeParse({a: 'x', zzz: 1}).success, false);
+      assert.strictEqual(withLocalProp.safeParse({}).success, false);
+    });
+
+    it('does not treat typeless allOf subschemas as shorthand parameter maps', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        allOf: [
+          {
+            type: 'object',
+            properties: {
+              a: {type: 'string'},
+              b: {type: 'string'},
+            },
+          },
+          {
+            dependentRequired: {a: ['b']},
+          },
+          {
+            if: {properties: {a: {const: 'req'}}, required: ['a']},
+            then: {required: ['b']},
+          },
+          {
+            required: ['a'],
+          },
+          {
+            additionalProperties: false,
+          },
+        ],
+      });
+
+      assert.strictEqual(schema.safeParse({a: 'ok', b: 'present'}).success, true);
+      assert.strictEqual(schema.safeParse({a: 'ok'}).success, false);
+      assert.strictEqual(schema.safeParse({a: 'ok', b: 'present', extra: 1}).success, false);
     });
 
     it('isolates typeless schema constraints to their applicable runtime primitive types', () => {
@@ -1609,6 +1693,66 @@ describe('Catalog.fromJson & schema_loader', () => {
       assert.strictEqual(schema.safeParse({emptyOnly: {}, typelessBounds: {}}).success, false);
       assert.strictEqual(
         schema.safeParse({emptyOnly: {}, typelessBounds: {a: 1, b: 2, c: 3}}).success,
+        false,
+      );
+    });
+
+    it('enforces unevaluatedProperties: false in allOf property schemas with conditional branches', () => {
+      const doc = {
+        $defs: {
+          ConditionalPayload: {
+            unevaluatedProperties: false,
+            allOf: [
+              {
+                type: 'object',
+                properties: {
+                  kind: {type: 'string'},
+                },
+                required: ['kind'],
+              },
+              {
+                if: {
+                  properties: {kind: {const: 'alpha'}},
+                  required: ['kind'],
+                },
+                then: {
+                  properties: {alphaValue: {type: 'string'}},
+                  required: ['alphaValue'],
+                },
+                else: {
+                  properties: {betaValue: {type: 'number'}},
+                  required: ['betaValue'],
+                },
+              },
+            ],
+          },
+        },
+      };
+
+      const schema = convertFunctionArgsJsonSchemaToZod(
+        {
+          type: 'object',
+          properties: {
+            payload: {$ref: '#/$defs/ConditionalPayload'},
+          },
+          required: ['payload'],
+        },
+        doc,
+      );
+
+      assert.strictEqual(
+        schema.safeParse({payload: {kind: 'alpha', alphaValue: 'ok'}}).success,
+        true,
+      );
+      assert.strictEqual(schema.safeParse({payload: {kind: 'beta', betaValue: 42}}).success, true);
+      // Rejects key from unselected `else` branch when `if` matches
+      assert.strictEqual(
+        schema.safeParse({payload: {kind: 'alpha', alphaValue: 'ok', betaValue: 42}}).success,
+        false,
+      );
+      // Rejects key from unselected `then` branch when `if` does not match
+      assert.strictEqual(
+        schema.safeParse({payload: {kind: 'beta', betaValue: 42, alphaValue: 'no'}}).success,
         false,
       );
     });
