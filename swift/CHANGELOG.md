@@ -18,6 +18,11 @@
   writes them into v1.0 inline catalogs when set.
   [#3842](https://github.com/a2ui-project/a2ui/issues/3842),
   [#4312](https://github.com/a2ui-project/a2ui/pull/4312)
+- Add an `isUserActivated` parameter (default `false`) to `MessageProcessor.processMessages(_:)`,
+  `process(payload:)`, `process(message:)`, and `process(messages:)`. Pass `true` when the payload
+  is handled within a user gesture so a v1.0 `callRendererFunction` may run functions that set
+  `requiresUserActivation`, such as a nested call in its arguments.
+  [#4311](https://github.com/a2ui-project/a2ui/pull/4311)
 
 ## 0.11.0
 
