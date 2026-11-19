@@ -124,9 +124,9 @@ Interactive input components (such as `TextField`, `CheckBox`, or `Slider`) bind
 
 ### Computing values with function calls
 
-A dynamic property can also hold a function call instead of a path. The renderer evaluates the function from the surface's [catalog](/concepts/catalogs/) and displays the result. Function arguments can contain data bindings, so the renderer evaluates the function again whenever a bound path changes. In v1.0 the function name goes in `@call`; in v0.9.1 it goes in `call`.
+A dynamic property can also hold a function call instead of a path. The renderer evaluates the function from the surface's [catalog](../catalogs/) and displays the result. Function arguments can contain data bindings, so the renderer evaluates the function again whenever a bound path changes. In v1.0 the function name goes in `@call`; in v0.9.1 it goes in `call`.
 
-The [`formatString`](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/functions/formatString) function from the Basic Catalog mixes static text with data model values. Its `value` argument is a template string in which each `${...}` expression is replaced by its result:
+The [`formatString`](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/functions/formatString) function from the Basic Catalog mixes static text with data model values. Its `value` argument is a template string in which each `${...}` expression is replaced by its result:
 
 - `${/reservation/destination}` reads an absolute data model path.
 - `${name}` reads a path relative to the current list item inside a list template (see [Displaying dynamic lists of data](#displaying-dynamic-lists-of-data)).
@@ -209,7 +209,7 @@ Other functions take data bindings as regular arguments. For example, `formatCur
   </TabItem>
 </Tabs>
 
-The full expression syntax is defined in the [`formatString` section of the v1.0 specification](/specification/v1.0-a2ui/#the-formatstring-function). Functions used in validation checks and button actions are covered in [Actions and Functions](/concepts/actions-and-functions/).
+The full expression syntax is defined in the [`formatString` section of the v1.0 specification](../../specification/v1.0-a2ui/#the-formatstring-function). Functions used in validation checks and button actions are covered in [Actions and Functions](../actions-and-functions/).
 
 ### Referencing the data model in events
 
@@ -379,7 +379,7 @@ The following diagram shows how the `/guests` array and the `guestRow` template 
 }
 ```
 
-`@index` belongs to no catalog, and catalogs cannot define functions whose names start with `@`. Inside nested list templates it returns the index of the innermost template. Calling it outside a list template is an error. See [the `@index` function](/specification/v1.0-a2ui/#the-index-function) in the v1.0 specification.
+`@index` belongs to no catalog, and catalogs cannot define functions whose names start with `@`. Inside nested list templates it returns the index of the innermost template. Calling it outside a list template is an error. See [the `@index` function](../../specification/v1.0-a2ui/#the-index-function) in the v1.0 specification.
 
 ---
 
