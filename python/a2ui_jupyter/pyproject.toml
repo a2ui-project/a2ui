@@ -60,8 +60,16 @@ git_describe_command = [
 packages = ["src/a2ui_jupyter"]
 core-metadata-version = "2.4"
 
+[tool.hatch.build.targets.wheel.force-include]
+"src/a2ui_jupyter/static/widget.js" = "a2ui_jupyter/static/widget.js"
+"src/a2ui_jupyter/static/widget.css" = "a2ui_jupyter/static/widget.css"
+
 [tool.hatch.build.targets.sdist]
 core-metadata-version = "2.4"
+
+[tool.hatch.build.targets.sdist.force-include]
+"src/a2ui_jupyter/static/widget.js" = "src/a2ui_jupyter/static/widget.js"
+"src/a2ui_jupyter/static/widget.css" = "src/a2ui_jupyter/static/widget.css"
 
 [dependency-groups]
 dev = [

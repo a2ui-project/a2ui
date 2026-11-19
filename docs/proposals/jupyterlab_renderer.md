@@ -17,6 +17,8 @@ Two capabilities are required:
 
 The recorded feasibility spike reports that both capabilities work with a stock IPython kernel (see [Feasibility](#feasibility)). Treat the result as preliminary: the probe is not checked in, and enriched input must be awaited rather than blocked.
 
+Keep the renderer and its reusable notebooks in this repository. The separate [JupyterLite demo](https://github.com/MRYingLEE/jupyterlite-demo) owns the deployed site, its kernel environments, and smoke tests. The [Python examples](../../python/a2ui_jupyter/examples) use callbacks so the same files can be run with IPython, Pyodide, and xeus-python without assuming that a waiting cell can receive widget messages.
+
 ## Feasibility
 
 ### Method
@@ -64,7 +66,7 @@ Test pitfall: ipywidgets opens an extra comm at import time. A test must read th
 
 **Design consequence:** the browser side runs web_core's `MessageProcessor` for the chosen version, and `A2uiSurface` renders the resulting surface. The checked-in test source covers v1.0 rendering, but not action dispatch. Action dispatch and the bridge must be tested before release. If the pattern needs more wiring, add a `v1_0` entry point to the React package. That change is out of scope for this proposal.
 
-The React build externalizes `react`, `react-dom`, and `markdown-it` ([tsup.config.ts](../../typescript/renderers/react/tsup.config.ts)). anywidget needs one self-contained ES module, so the bundle must inline them. A v1.0 entry (`A2uiSurface`, `MessageProcessor`, and the v1 basic catalog) bundled with esbuild in production mode is 709,076 bytes minified and 198,002 bytes gzipped, with React 19.2.7 inlined.
+The React build externalizes `react`, `react-dom`, and `markdown-it` ([tsup.config.ts](../../typescript/renderers/react/tsup.config.ts)). An inline anywidget `_esm` cannot import relative or bare specifiers, so an inline bundle must include them. The current build (`scripts/build.mjs`, esbuild, minified, React inlined) is 908,719 bytes minified and 267,085 bytes gzipped. An earlier figure of 709,076 bytes could not be reproduced from the checked-in build.
 
 ## Architecture
 
@@ -114,7 +116,7 @@ action = await surface.next_action()  # enriched input: the cell resumes with th
 - `on_action` and `next_action` both receive the same renderer-to-agent `action` message.
 - `on_message` and `next_message` expose all validated renderer-to-agent messages, including function calls and renderer responses. Agent code must return `agentFunctionResponse` messages through `send` to settle renderer-initiated function calls.
 - `next_action` and `next_message` require top-level `await`; blocking waits cannot receive frontend messages. See [Kernel compatibility](#kernel-compatibility) for supported IPython kernel versions. Installing a package dependency does not upgrade an already-running kernel; the package and kernel must use a compatible environment.
-- The Jupyter renderer hides a surface after forwarding an action whose name contains `submit`, preventing repeat submissions while the action is handled. The surface becomes visible again when the agent sends `updateComponents` or `createSurface` for it. Other actions do not hide the surface. The agent still owns the surface lifecycle: after an action it can send `updateComponents`, `updateDataModel`, or `deleteSurface`, or disable the Button with an `@checks` rule bound to the data model. Clicks made before that update arrives are queued, so a later `next_action()` can return a stale action.
+- The Jupyter renderer hides a surface after forwarding an action whose name contains `submit`, preventing repeat submissions while the action is handled. The surface becomes visible again when the agent sends `updateComponents` or `createSurface` for it; `updateDataModel` alone does not make it visible. Other actions do not hide the surface. The agent still owns the surface lifecycle: after an action it can send `updateComponents`, `updateDataModel`, or `deleteSurface`, or disable the Button with an `@checks` rule bound to the data model. Clicks made before that update arrives are queued, so a later `next_action()` can return a stale action.
 - **Interrupt:** the spike report says an interrupt cancels the awaited future with `asyncio.CancelledError`, not `KeyboardInterrupt`, and describes delayed error display and shell replies running behind. These details have not been independently reproduced. The API must propagate cancellation and must not swallow `CancelledError`. Tests must correlate `execute_reply` by `parent_header.msg_id`, not arrival order.
 - **Restart:** a restart loses the pending cell, namespace, and widget connection. Re-running the cell that creates the widget is required; an existing frontend widget cannot connect to the new kernel. The report's exact no-reply behavior remains to be reproduced, and replay state persistence is a separate open question.
 - The default protocol is v1.0. `A2UISurface(version="0.9")` selects the web_core v0.9 adapter, as an optional later addition.
@@ -145,7 +147,7 @@ Not independently verified:
 
 1. **Kernel spike:** the results above, including the IPython kernel 7.4.0 behavior, are recorded in this proposal, but the probe and environment are not checked in.
 2. **Interrupt/restart:** no reproducible test artifact is available. Keep the cancellation and reply behavior provisional until the Python integration suite covers it.
-3. **Bundle size:** 709,076 bytes minified and 198,002 bytes gzipped were reported for an esbuild production bundle with React inlined. The bundle entry, command, and generated artifact are not checked in, so the measurement cannot be repeated from this checkout.
+3. **Bundle size:** the earlier 709,076-byte figure could not be reproduced. The checked-in build gives 908,719 bytes minified and 267,085 bytes gzipped.
 4. **IOPub limit:** the cited `jupyter_server` source and version are not available here. Verify the defaults and end-to-end delivery behavior against each supported host configuration.
 5. **Replay:** replaying 1,302 messages into a newly displayed view took 78 ms, but notebook save/reopen behavior and a log retention policy have not been tested.
 6. **Browser and action flow:** a live smoke test with JupyterLab 4.6.6 and IPython kernel 7.4.0 verified surface rendering, text-field binding, action dispatch, and awaited `next_action()` resumption with the resolved context. The first run exposed an invalid test component ID (`submit-label`); changing it to the valid UAX #31 identifier `submit_label` passed. Asynchronous context resolution through `callAgentFunction`, replay/save-and-reopen, and other JupyterLab or kernel versions remain untested.
@@ -153,4 +155,4 @@ Not independently verified:
 
 ## Relationship to xeus-x
 
-This design does not use xeus-x or its APIs. It depends only on anywidget.
+The Python renderer does not use xeus-x or its APIs. Its dependencies are listed in [pyproject.toml](../../python/a2ui_jupyter/pyproject.toml).

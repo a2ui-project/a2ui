@@ -4,7 +4,9 @@
 renderer messages to Python. It uses `anywidget` and the A2UI React renderer.
 It requires Python 3.11 or newer.
 
-## Install
+## Installation
+
+The package has not been published yet. After publication, install it with:
 
 ```bash
 pip install a2ui-jupyter
@@ -26,6 +28,9 @@ corepack yarn workspace @a2ui/jupyter build
 
 Then install the Python package in the same environment as the Jupyter kernel.
 For a source checkout, run `uv sync --all-packages` from the repository root.
+Build the bundle before building a source distribution or wheel: the generated
+files are not checked into Git, and the distribution build fails if they are
+missing.
 
 ## Use in a notebook
 
@@ -81,21 +86,27 @@ is waiting in `next_action()` or `next_message()`. Use `on_action` or
 
 ## Examples
 
-The [examples](./examples) folder contains notebooks that run in JupyterLab.
+The [examples](./examples) folder contains Python notebooks for JupyterLab and
+JupyterLite. Keep these examples with the renderer so that changes to its API
+can be tested alongside them. The separate
+[JupyterLite demo](https://github.com/MRYingLEE/jupyterlite-demo) contains
+deployment configuration and kernel-specific smoke tests.
 [renderer_setup.py](./examples/renderer_setup.py) is a shared helper. It checks
 that the widget bundle is built and creates a surface that uses the basic
 catalog. Notebooks import it with `from renderer_setup import new_surface`, so
-open them from the `examples` folder or keep the working directory there.
+open them from the `examples` folder or keep the working directory there. The
+package must already be installed in the selected Python kernel.
 
 - `01_text_and_layout.ipynb`: text, rows, columns, cards, and dividers.
-- `02_button_action.ipynb`: a button that sends an action, waited on with `next_action`.
+- `02_button_action.ipynb`: a button that sends an action to a callback.
 - `03_login_form.ipynb`: text fields with `checks` validation and a login action.
 - `04_streaming_updates.ipynb`: appending to a data model and editing components in place.
 - `05_event_handlers.ipynb`: `on_action` and `on_message` handlers and unsubscribing.
 - `06_agent_function_call.ipynb`: a button that calls an agent function and replies with `agentFunctionResponse`.
 
-The notebooks that wait for a click (`02` and `03`) stop at `await
-surface.next_action()` until you click the surface in JupyterLab.
+The interactive examples use callbacks rather than waiting for clicks in a
+running cell. The same notebook can therefore be selected with an IPython,
+Pyodide, or xeus-python kernel; kernel installation differs.
 
 ## Kernel compatibility
 
@@ -119,6 +130,8 @@ The table applies only to IPython kernels. JupyterLite's Pyodide and xeus-python
 kernels are not covered by it. In Pyodide, use callbacks instead of awaiting
 renderer messages. With xeus-python, `A2UISurface` imports and displays
 surfaces, but the awaited methods (`next_action`, `next_message`) were not tested.
+The examples use callbacks for both kernels; run the demo smoke test to verify
+interaction in your own JupyterLite build.
 
 Installing this package does not upgrade a kernel that is already running.
 Restart the kernel after changing the kernel version.
@@ -169,7 +182,8 @@ Common choices:
 1. Replace the form with a confirmation by sending `updateComponents` with new
    children for the root component. The [example notebook](./examples/manual_smoke_test.ipynb)
    does this.
-2. Keep the form and show the result by sending `updateDataModel`.
+2. Keep the form and show the result by sending `updateDataModel` followed by
+   `updateComponents` to make the surface visible again.
 3. Remove the surface with `deleteSurface`.
 4. Disable the button. Add a check to the Button, for example
    `"@checks": [{"condition": {"@call": "not", "args": {"value": {"@path": "/submitted"}}}, "message": "Already submitted"}]`,
@@ -210,10 +224,9 @@ JupyterLab needs a Python kernel to run notebooks. Install one into the same
 environment. `a2ui-jupyter` does not depend on a specific kernel package.
 
 In JupyterLab, open [`examples/manual_smoke_test.ipynb`](./examples/manual_smoke_test.ipynb)
-and select a Python kernel. Run the form cell. While it waits, enter
-a name and click **Submit**. The cell returns an `action` message containing
-the name and replaces the form with a confirmation. Interrupt the kernel to
-cancel the wait.
+and select a Python kernel. Run the form cell, enter a name, and click
+**Submit**. The callback replaces the form with a confirmation. The next cell
+shows the `action` message containing the name.
 After rebuilding the bundle, restart the notebook kernel and refresh JupyterLab
 so the widget loads the new JavaScript.
 

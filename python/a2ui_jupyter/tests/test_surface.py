@@ -15,8 +15,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import subprocess
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -61,6 +63,73 @@ RENDERER_MESSAGES = [
     },
     {"version": "1.0", "error": {"code": "FAILED", "message": "Renderer failed."}},
 ]
+
+
+@pytest.mark.parametrize(
+    ("notebook", "surface_id", "action_name", "context", "status"),
+    [
+        (
+            "02_button_action.ipynb",
+            "button-action",
+            "button_clicked",
+            {},
+            "Received button_clicked from button-1",
+        ),
+        (
+            "03_login_form.ipynb",
+            "login-form",
+            "login",
+            {"email": "ada@example.com"},
+            "Signed in as ada@example.com",
+        ),
+        (
+            "manual_smoke_test.ipynb",
+            "manual-smoke-test",
+            "submit",
+            {"name": "Ada"},
+            "Submitted: Ada",
+        ),
+    ],
+)
+def test_interactive_examples_handle_actions_without_waiting(
+    monkeypatch: pytest.MonkeyPatch,
+    notebook: str,
+    surface_id: str,
+    action_name: str,
+    context: dict[str, str],
+    status: str,
+) -> None:
+    examples = Path(__file__).parents[1] / "examples"
+    monkeypatch.syspath_prepend(str(examples))
+    monkeypatch.setattr(anywidget.AnyWidget, "send", lambda *args, **kwargs: None)
+    cells = json.loads((examples / notebook).read_text())["cells"]
+    namespace: dict[str, Any] = {}
+    exec(compile("".join(cells[1]["source"]), notebook, "exec"), namespace)
+
+    action = {
+        "version": "1.0",
+        "action": {
+            "name": action_name,
+            "surfaceId": surface_id,
+            "sourceComponentId": "button-1",
+            "timestamp": "2026-11-11T00:00:00Z",
+            "context": context,
+        },
+    }
+    surface = namespace["surface"]
+    surface._handle_frontend_message(surface, {"type": "a2ui", "message": action}, [])
+
+    assert namespace["action_data"] == action
+    messages = [entry["message"] for entry in surface.message_log]
+    assert any(
+        message.get("updateDataModel", {}).get("value") == status
+        for message in messages
+    )
+    if action_name == "submit":
+        assert messages[-1]["updateComponents"]["components"][0]["children"] == [
+            "title",
+            "status",
+        ]
 
 
 def test_send_validates_the_full_batch_before_sending(
