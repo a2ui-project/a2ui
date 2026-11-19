@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v0_9/client_to_server_list_wrapper.json",
+  "title": "A2UI Client-to-Server Message List Wrapper",
+  "description": "An object wrapping a list of A2UI Client-to-Server messages. Intended for protocols that require a top-level JSON object instead of a raw array.",
+  "type": "object",
+  "properties": {
+    "messages": {
+      "$ref": "client_to_server_list.json"
+    }
+  },
+  "additionalProperties": false,
+  "required": ["messages"]
+}
