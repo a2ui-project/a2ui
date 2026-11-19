@@ -24,7 +24,6 @@ requires-python = ">=3.10"
 dependencies = [
   "a2ui-core>=0.7.0,<0.8.0",
   "antlr4-python3-runtime>=4.13.0,<4.14.0",
-  "httpx>=0.27.0",
   "jsonschema>=4.0.0",
   "pydantic>=2.11.0",
   "pyyaml>=6.0"
@@ -35,6 +34,9 @@ Homepage = "https://a2ui.org/"
 Repository = "https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_agent"
 Changelog = "https://github.com/a2ui-project/a2ui/blob/main/python/a2ui_agent/CHANGELOG.md"
 Issues = "https://github.com/a2ui-project/a2ui/issues"
+
+[project.optional-dependencies]
+decision = ["httpx>=0.27.0"]
 
 [project.scripts]
 pyink = "pyink:patched_main"
@@ -83,6 +85,7 @@ default = true
 [dependency-groups]
 dev = [
     "antlr4-tools>=0.2.1",
+    "httpx>=0.27.0",
     "types-jsonschema",
     "types-pyyaml",
 ]

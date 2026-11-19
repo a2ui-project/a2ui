@@ -17,7 +17,8 @@
 Every backend answers a whole `DecisionBatch` in one `answer` call, names
 itself through `backend_kind` and a pinned `model_id`, declares its
 `BackendCapabilities`, and applies a per-model `Calibration`. Failures and
-timeouts raise `DecisionBackendError`.
+timeouts raise `DecisionBackendError`. The HTTP backends require the optional
+`decision` extra (`pip install 'a2ui-agent-sdk[decision]'`).
 
 Environment variables read by `create_decision_backend`:
 - `A2UI_DECISION_BACKEND`: Backend kind ('mock', 'jev', 'gemini', 'systemone',
@@ -43,7 +44,10 @@ import time
 from typing import Any, Protocol, TypeAlias, TypeVar, cast, runtime_checkable
 import urllib.parse
 
-import httpx
+try:
+    import httpx
+except ImportError:  # pragma: no cover - exercised via monkeypatch
+    httpx = None  # type: ignore[assignment]
 
 from a2ui.core import A2uiValidationError
 
@@ -57,6 +61,18 @@ from .models import (
     DecisionWireFormat,
     QuestionKind,
 )
+
+_HTTPX_INSTALL_HINT = (
+    "The decision format's HTTP backends need httpx. Install the extra with"
+    " `pip install 'a2ui-agent-sdk[decision]'`."
+)
+
+
+def _require_httpx() -> None:
+    """Raises `ImportError` with an install hint when `httpx` is unavailable."""
+    if httpx is None:
+        raise ImportError(_HTTPX_INSTALL_HINT)
+
 
 _CAMEL_BOUNDARY_RE = re.compile(r"([a-z0-9])([A-Z])")
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -1146,6 +1162,7 @@ class JevHttpBackend(_HttpClientOwner):
             calibration: A `Calibration`, a profile file to load it from, or
                 None for the bundled profile of ``<backend_kind>/<model>``.
         """
+        _require_httpx()
         self._endpoint_url = endpoint_url
         self._wire_format = str(getattr(wire_format, "value", wire_format))
         if self._is_gemini_decisions():
@@ -1375,6 +1392,7 @@ class StepZeroLogprobBackend(_HttpClientOwner):
         Raises:
             ValueError: If `max_logprobs` is outside [1, 20].
         """
+        _require_httpx()
         if not (1 <= max_logprobs <= 20):
             raise ValueError(f"max_logprobs must be in [1, 20], got {max_logprobs}")
         self._endpoint_url = endpoint_url
@@ -1724,6 +1742,7 @@ def _default_jev_url_and_model(vendor_key: str | None) -> tuple[str | None, str]
 
 def _create_jev_backend(settings: _BackendSettings) -> JevHttpBackend:
     """Creates a `JevHttpBackend` configured for Jev, SystemOne, or Gemini Decisions."""
+    _require_httpx()
     default_url, default_model = _default_jev_url_and_model(settings.vendor_key)
     endpoint = _require_url(settings.kind, settings.url or default_url)
     if endpoint.rstrip("/").endswith("/v1beta/decisions"):
@@ -1752,6 +1771,7 @@ def _create_jev_backend(settings: _BackendSettings) -> JevHttpBackend:
 
 def _create_gemini_backend(settings: _BackendSettings) -> JevHttpBackend:
     """Creates a `JevHttpBackend` configured for the Gemini Decisions API."""
+    _require_httpx()
     default_url = _DEFAULT_GEMINI_DECISIONS_URL if settings.vendor_key else None
     default_model = (
         os.environ.get("GEMINI_DECISION_MODEL") or DEFAULT_GEMINI_DECISION_MODEL
@@ -1769,6 +1789,7 @@ def _create_gemini_backend(settings: _BackendSettings) -> JevHttpBackend:
 
 def _create_step_zero_backend(settings: _BackendSettings) -> StepZeroLogprobBackend:
     """Creates a `StepZeroLogprobBackend` from resolved backend settings."""
+    _require_httpx()
     endpoint = _require_url(DecisionBackendType.STEP_ZERO.value, settings.url)
     return StepZeroLogprobBackend(
         endpoint,
