@@ -9,13 +9,26 @@ Apps through `@a2ui/embed`. It answers questions about the
 [Chinook](https://github.com/lerocha/chinook-database) sample database (a
 digital music store).
 
-This package currently holds the data layer: read-only `node:sqlite` access
-with a SQL guard, a read-only authorizer, a row cap and a per-query timeout in
-a worker thread.
+This package currently holds:
+
+- The data layer: read-only `node:sqlite` access with a SQL guard, a read-only
+  authorizer, a row cap and a per-query timeout in a worker thread.
+- The sample catalog (`src/catalog`): the basic catalog, a sortable and
+  selectable `DataTable` Lit component, the `VegaChart` from
+  `@a2ui/catalog-vegachart`, and a `withRows` function that feeds a chart the
+  table's rows. `src/catalog/catalog_schema.json` is its generated JSON schema;
+  run `yarn generate:schema` after changing the catalog.
 
 ## Run the tests
 
+The catalog uses the monorepo's `@a2ui/web_core` and `@a2ui/catalog-vegachart`
+through `portal:` dependencies, so build them first:
+
 ```sh
+# From the repository root
+yarn install
+yarn workspace @a2ui/catalog-vegachart run build
+
 # From samples/community
 yarn install
 cd mcp/a2ui-embed-sql

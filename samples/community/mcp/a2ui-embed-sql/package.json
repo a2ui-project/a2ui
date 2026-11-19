@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "fetch-data": "node scripts/fetch-data.mjs",
+    "generate:schema": "UPDATE_SCHEMA=1 vitest run src/catalog/catalog_schema.test.ts",
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "format": "prettier --write .",
@@ -13,9 +14,16 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
+  "dependencies": {
+    "@a2ui/catalog-vegachart": "portal:../../../../typescript/catalogs/vegachart",
+    "@a2ui/web_core": "*",
+    "lit": "^3.3.3",
+    "zod": "^3.25.76"
+  },
   "devDependencies": {
     "@types/node": "^25.9.3",
     "eslint": "^10.4.1",
+    "jsdom": "^29.1.1",
     "typescript": "5.9.3",
     "vitest": "^4.1.8"
   }
