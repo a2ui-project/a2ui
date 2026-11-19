@@ -29,8 +29,7 @@ void main() {
       expect(identical(s1, s3), isTrue);
     });
 
-    test(
-        'returns identical cached ReadonlySignal for relative and '
+    test('returns identical cached ReadonlySignal for relative and '
         'absolute equivalents', () {
       final model = DataModel({'foo': 'bar'});
       addTearDown(model.dispose);
@@ -116,8 +115,7 @@ void main() {
       expect(model.get('/form/email'), 'second');
     });
 
-    test(
-        'normalizes untyped Map<dynamic, dynamic> on init and set for '
+    test('normalizes untyped Map<dynamic, dynamic> on init and set for '
         'traversal', () {
       final decoded = <dynamic, dynamic>{
         'form': <dynamic, dynamic>{'email': 'a@b.com'},
@@ -145,24 +143,23 @@ void main() {
   });
 
   group('DataModel root writes and primitive root guard', () {
-    test('set at root with primitive stores primitive and rejects child writes',
-        () {
-      final model = DataModel();
-      addTearDown(model.dispose);
+    test(
+      'set at root with primitive stores primitive and rejects child writes',
+      () {
+        final model = DataModel();
+        addTearDown(model.dispose);
 
-      model.set('/', 42);
-      expect(model.get('/'), 42);
-      expect(
-        () => model.set('/a', 1),
-        throwsA(isA<A2uiDataError>()),
-      );
-      expect(model.get('/'), 42);
+        model.set('/', 42);
+        expect(model.get('/'), 42);
+        expect(() => model.set('/a', 1), throwsA(isA<A2uiDataError>()));
+        expect(model.get('/'), 42);
 
-      model.set('/', null);
-      expect(model.get('/'), <String, Object?>{});
-      model.set('/a', 1);
-      expect(model.get('/a'), 1);
-    });
+        model.set('/', null);
+        expect(model.get('/'), <String, Object?>{});
+        model.set('/a', 1);
+        expect(model.get('/a'), 1);
+      },
+    );
   });
 
   group('DataModel delete, hasPath, and resolvePath', () {
@@ -185,19 +182,21 @@ void main() {
       expect(childSignal.value, isNull);
     });
 
-    test('delete nulls an in-bounds list slot and ignores one out of bounds',
-        () {
-      final model = DataModel({
-        'items': ['x', 'y'],
-      });
-      addTearDown(model.dispose);
+    test(
+      'delete nulls an in-bounds list slot and ignores one out of bounds',
+      () {
+        final model = DataModel({
+          'items': ['x', 'y'],
+        });
+        addTearDown(model.dispose);
 
-      model.delete('/items/0');
-      expect(model.get('/items'), [null, 'y']);
+        model.delete('/items/0');
+        expect(model.get('/items'), [null, 'y']);
 
-      model.delete('/items/99');
-      expect(model.get('/items'), [null, 'y']);
-    });
+        model.delete('/items/99');
+        expect(model.get('/items'), [null, 'y']);
+      },
+    );
 
     test('hasPath distinguishes explicit null from absent key', () {
       final model = DataModel({
@@ -216,36 +215,42 @@ void main() {
       expect(model.hasPath('/items/nonNumeric'), isFalse);
     });
 
-    test('static resolvePath resolves relative, absolute, empty, and dot paths',
-        () {
-      expect(DataModel.resolvePath('/abs/path', '/base'), '/abs/path');
-      expect(DataModel.resolvePath('rel', '/base'), '/base/rel');
-      expect(DataModel.resolvePath('rel/sub', '/base/'), '/base/rel/sub');
-      expect(DataModel.resolvePath('rel/sub', '/base///'), '/base/rel/sub');
-      expect(DataModel.resolvePath('standalone'), '/standalone');
-      expect(DataModel.resolvePath('standalone', '/'), '/standalone');
-      expect(DataModel.resolvePath('', '/user'), '/user');
-      expect(DataModel.resolvePath('', '/user/'), '/user');
-      expect(DataModel.resolvePath('.', '/user'), '/user');
-      expect(DataModel.resolvePath('', '/'), '/');
-      expect(DataModel.resolvePath('.', '/'), '/');
-      expect(DataModel.resolvePath(''), '/');
-      expect(DataModel.resolvePath('.'), '/');
-    });
+    test(
+      'static resolvePath resolves relative, absolute, empty, and dot paths',
+      () {
+        expect(DataModel.resolvePath('/abs/path', '/base'), '/abs/path');
+        expect(DataModel.resolvePath('rel', '/base'), '/base/rel');
+        expect(DataModel.resolvePath('rel/sub', '/base/'), '/base/rel/sub');
+        expect(DataModel.resolvePath('rel/sub', '/base///'), '/base/rel/sub');
+        expect(DataModel.resolvePath('standalone'), '/standalone');
+        expect(DataModel.resolvePath('standalone', '/'), '/standalone');
+        expect(DataModel.resolvePath('', '/user'), '/user');
+        expect(DataModel.resolvePath('', '/user/'), '/user');
+        expect(DataModel.resolvePath('.', '/user'), '/user');
+        expect(DataModel.resolvePath('', '/'), '/');
+        expect(DataModel.resolvePath('.', '/'), '/');
+        expect(DataModel.resolvePath(''), '/');
+        expect(DataModel.resolvePath('.'), '/');
+      },
+    );
 
-    test('get and set reject malformed tilde escapes directly on DataModel',
-        () {
-      final model = DataModel({'a': 1});
-      addTearDown(model.dispose);
+    test(
+      'get and set reject malformed tilde escapes directly on DataModel',
+      () {
+        final model = DataModel({'a': 1});
+        addTearDown(model.dispose);
 
-      expect(() => model.get('/a~2b'), throwsA(isA<A2uiDataError>()));
-      expect(() => model.set('/a~', 1), throwsA(isA<A2uiDataError>()));
-      expect(() => model.hasPath('/a~2b'), throwsA(isA<A2uiDataError>()));
-      expect(() => model.delete('/a~'), throwsA(isA<A2uiDataError>()));
-      expect(
-          () => model.watch<Object?>('a~9/b'), throwsA(isA<A2uiDataError>()));
-      expect(() => model.get('/a~~0b'), throwsA(isA<A2uiDataError>()));
-    });
+        expect(() => model.get('/a~2b'), throwsA(isA<A2uiDataError>()));
+        expect(() => model.set('/a~', 1), throwsA(isA<A2uiDataError>()));
+        expect(() => model.hasPath('/a~2b'), throwsA(isA<A2uiDataError>()));
+        expect(() => model.delete('/a~'), throwsA(isA<A2uiDataError>()));
+        expect(
+          () => model.watch<Object?>('a~9/b'),
+          throwsA(isA<A2uiDataError>()),
+        );
+        expect(() => model.get('/a~~0b'), throwsA(isA<A2uiDataError>()));
+      },
+    );
   });
 
   group('DataModel JSON Pointer parsing', () {
@@ -265,16 +270,16 @@ void main() {
       expect(model.get('/'), {
         'a/b': 1,
         'a~b': 2,
-        'a': {'b': 3}
+        'a': {'b': 3},
       });
       expect(
-          identical(
-              model.watch<Object?>('/a~1b'), model.watch<Object?>('/a/b')),
-          isFalse);
+        identical(model.watch<Object?>('/a~1b'), model.watch<Object?>('/a/b')),
+        isFalse,
+      );
       expect(
-          identical(
-              model.watch<Object?>('/a~1b'), model.watch<Object?>('/a~1b')),
-          isTrue);
+        identical(model.watch<Object?>('/a~1b'), model.watch<Object?>('/a~1b')),
+        isTrue,
+      );
     });
 
     test('notifies a watcher whose key contains an escaped slash', () {
@@ -302,15 +307,18 @@ void main() {
           throwsA(isA<A2uiDataError>()),
         );
         expect(
-            () => model.delete('/$forbidden'), throwsA(isA<A2uiDataError>()));
-        expect(() => model.watch<Object?>('/$forbidden'),
-            throwsA(isA<A2uiDataError>()));
+          () => model.delete('/$forbidden'),
+          throwsA(isA<A2uiDataError>()),
+        );
+        expect(
+          () => model.watch<Object?>('/$forbidden'),
+          throwsA(isA<A2uiDataError>()),
+        );
       }
       expect(model.get('/'), {'safe': 1});
     });
 
-    test(
-        'treats empty, root, and doubled-slash paths as the root or the same '
+    test('treats empty, root, and doubled-slash paths as the root or the same '
         'segments', () {
       final model = DataModel({'foo': 'bar'});
       addTearDown(model.dispose);
@@ -321,31 +329,33 @@ void main() {
       expect(model.hasPath(''), isTrue);
     });
 
-    test('subscribe reads value, notifies on change, and stops on unsubscribe',
-        () {
-      final model = DataModel({
-        'user': {'name': 'Alice'}
-      });
-      addTearDown(model.dispose);
+    test(
+      'subscribe reads value, notifies on change, and stops on unsubscribe',
+      () {
+        final model = DataModel({
+          'user': {'name': 'Alice'},
+        });
+        addTearDown(model.dispose);
 
-      final changes = <String?>[];
-      final DataSubscription<String> sub = model.subscribe<String>(
-        '/user/name',
-        changes.add,
-      );
-      expect(sub, isA<Subscription>());
-      expect(sub.value, 'Alice');
-      expect(changes, isEmpty);
+        final changes = <String?>[];
+        final DataSubscription<String> sub = model.subscribe<String>(
+          '/user/name',
+          changes.add,
+        );
+        expect(sub, isA<Subscription>());
+        expect(sub.value, 'Alice');
+        expect(changes, isEmpty);
 
-      model.set('/user/name', 'Bob');
-      expect(sub.value, 'Bob');
-      expect(changes, ['Bob']);
+        model.set('/user/name', 'Bob');
+        expect(sub.value, 'Bob');
+        expect(changes, ['Bob']);
 
-      sub.unsubscribe();
-      sub.unsubscribe();
-      model.set('/user/name', 'Charlie');
-      expect(changes, ['Bob']);
-    });
+        sub.unsubscribe();
+        sub.unsubscribe();
+        model.set('/user/name', 'Charlie');
+        expect(changes, ['Bob']);
+      },
+    );
 
     test('dispose unsubscribes active DataSubscriptions', () {
       final model = DataModel({'count': 1});
@@ -393,8 +403,9 @@ void main() {
       final ReadonlySignal<String?> typedWatcher = model.watch<String>('/name');
       expect(typedWatcher.value, 'Ada');
 
-      final ReadonlySignal<String?> secondWatcher =
-          model.watch<String>('/name');
+      final ReadonlySignal<String?> secondWatcher = model.watch<String>(
+        '/name',
+      );
       expect(identical(typedWatcher, secondWatcher), isTrue);
 
       model.set('/name', 'Grace');
@@ -402,17 +413,19 @@ void main() {
       expect(sub.value, 'Grace');
     });
 
-    test('watch<String> followed by non-string set does not throw TypeError',
-        () {
-      final model = DataModel({'value': 'initial'});
-      addTearDown(model.dispose);
+    test(
+      'watch<String> followed by non-string set does not throw TypeError',
+      () {
+        final model = DataModel({'value': 'initial'});
+        addTearDown(model.dispose);
 
-      final ReadonlySignal<String?> watcher = model.watch<String>('/value');
-      expect(watcher.value, 'initial');
+        final ReadonlySignal<String?> watcher = model.watch<String>('/value');
+        expect(watcher.value, 'initial');
 
-      // Writing a non-string value (int) to the path must not throw.
-      expect(() => model.set('/value', 42), returnsNormally);
-      expect(model.get('/value'), 42);
-    });
+        // Writing a non-string value (int) to the path must not throw.
+        expect(() => model.set('/value', 42), returnsNormally);
+        expect(model.get('/value'), 42);
+      },
+    );
   });
 }

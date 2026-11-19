@@ -44,7 +44,7 @@ typedef BasicFunctionBody = Object? Function(
 /// A basic catalog function whose behaviour is a closure, so each catalog
 /// version can bind its own locale, callbacks and return shapes.
 class BasicFunction extends FunctionImplementation {
-  /// Creates a function named [name] that evaluates calls with [body].
+  /// Creates a function named [name] that evaluates calls with [_body].
   BasicFunction({
     required super.name,
     required super.argumentSchema,
@@ -52,8 +52,8 @@ class BasicFunction extends FunctionImplementation {
     super.description,
     super.allowedCallers,
     super.requiresUserActivation,
-    required BasicFunctionBody body,
-  }) : _body = body;
+    required this._body,
+  });
 
   final BasicFunctionBody _body;
 
@@ -62,8 +62,7 @@ class BasicFunction extends FunctionImplementation {
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      _body(args, context);
+  ]) => _body(args, context);
 }
 
 // ---------------------------------------------------------------------------
@@ -73,10 +72,10 @@ class BasicFunction extends FunctionImplementation {
 /// Whether [value] is truthy: everything except `null`, `false`, `0`, `NaN`
 /// and the empty string. Lists and maps are truthy, even when empty.
 bool isTruthy(Object? value) => switch (value) {
-      null || false || '' => false,
-      final num n => n != 0 && !n.isNaN,
-      _ => true,
-    };
+  null || false || '' => false,
+  final num n => n != 0 && !n.isNaN,
+  _ => true,
+};
 
 /// Coerces [value] to a `bool` according to the `DynamicBoolean` rules.
 bool isTruthyOrValid(Object? value) => coerceDynamicBoolean(value);
@@ -87,12 +86,12 @@ bool isTruthyOrValid(Object? value) => coerceDynamicBoolean(value);
 /// after trimming, with a blank string reading as 0. `null`, lists and maps
 /// are not numbers.
 num toNumber(Object? value) => switch (value) {
-      final num n => n,
-      final bool b => b ? 1 : 0,
-      final String s when s.trim().isEmpty => 0,
-      final String s => double.tryParse(s.trim()) ?? double.nan,
-      _ => double.nan,
-    };
+  final num n => n,
+  final bool b => b ? 1 : 0,
+  final String s when s.trim().isEmpty => 0,
+  final String s => double.tryParse(s.trim()) ?? double.nan,
+  _ => double.nan,
+};
 
 /// Renders [value] as text: `null` as an empty string, integral doubles
 /// without a trailing `.0`, and maps and lists as compact JSON.
@@ -123,16 +122,14 @@ String _numberToString(num value) {
 /// Rewrites integral doubles nested in [value] as integers, so JSON output
 /// prints `3` rather than `3.0`.
 Object? _normalizeNumbers(Object? value) => switch (value) {
-      final double d when d.isFinite && d == d.truncateToDouble() => d.toInt(),
-      final Map<Object?, Object?> m => {
-          for (final MapEntry<Object?, Object?> e in m.entries)
-            e.key.toString(): _normalizeNumbers(e.value),
-        },
-      final List<Object?> l => [
-          for (final Object? e in l) _normalizeNumbers(e)
-        ],
-      _ => value,
-    };
+  final double d when d.isFinite && d == d.truncateToDouble() => d.toInt(),
+  final Map<Object?, Object?> m => {
+    for (final MapEntry<Object?, Object?> e in m.entries)
+      e.key.toString(): _normalizeNumbers(e.value),
+  },
+  final List<Object?> l => [for (final Object? e in l) _normalizeNumbers(e)],
+  _ => value,
+};
 
 // ---------------------------------------------------------------------------
 // Validation rules
@@ -202,14 +199,15 @@ ValidationResult validateNumeric(Object? value, Object? min, Object? max) {
   return _valid;
 }
 
-final RegExp _email =
-    RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+final RegExp _email = RegExp(
+  r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+);
 
 /// Checks that [value] is a string with basic email address syntax.
 ValidationResult validateEmail(Object? value) =>
     value is String && _email.hasMatch(value)
-        ? _valid
-        : _invalid('Must be a valid email address.');
+    ? _valid
+    : _invalid('Must be a valid email address.');
 
 // ---------------------------------------------------------------------------
 // Logic
@@ -217,8 +215,10 @@ ValidationResult validateEmail(Object? value) =>
 
 List<Object?> _logicOperands(String name, Object? values) {
   if (values is List<Object?> && values.length >= 2) return values;
-  throw A2uiExpressionError('$name requires at least 2 values',
-      expression: name);
+  throw A2uiExpressionError(
+    '$name requires at least 2 values',
+    expression: name,
+  );
 }
 
 /// Whether every entry of [values] is truthy by [truthy]. Throws
@@ -226,16 +226,14 @@ List<Object?> _logicOperands(String name, Object? values) {
 bool evaluateAnd(
   Object? values, [
   bool Function(Object?) truthy = coerceDynamicBoolean,
-]) =>
-    _logicOperands('and', values).every(truthy);
+]) => _logicOperands('and', values).every(truthy);
 
 /// Whether any entry of [values] is truthy by [truthy]. Throws
 /// [A2uiExpressionError] for fewer than two values.
 bool evaluateOr(
   Object? values, [
   bool Function(Object?) truthy = coerceDynamicBoolean,
-]) =>
-    _logicOperands('or', values).any(truthy);
+]) => _logicOperands('or', values).any(truthy);
 
 // ---------------------------------------------------------------------------
 // formatString

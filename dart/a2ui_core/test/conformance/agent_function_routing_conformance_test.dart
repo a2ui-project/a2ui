@@ -60,10 +60,10 @@ const String _noSchemaOnlyFunctions =
 const Map<String, String> _knownDivergences = {
   'test_agent_routing_cancelled_call_is_sent_again_on_unrelated_change':
       'Known divergence: a nested call re-evaluates only when its own '
-          'arguments change, so an unrelated path change does not re-evaluate '
-          'it; the rule is covered by '
-          'test_agent_routing_cancelled_call_is_sent_again_when_its_value_'
-          'is_rewritten.',
+      'arguments change, so an unrelated path change does not re-evaluate '
+      'it; the rule is covered by '
+      'test_agent_routing_cancelled_call_is_sent_again_when_its_value_'
+      'is_rewritten.',
 };
 
 /// The component that check rules and actions are bound to, resolved by a
@@ -114,15 +114,16 @@ Object? _checkOutcome(GenericBinder binder) =>
 
 /// The fields of a dispatched [action] that a case compares.
 Map<String, Object?> _actionFields(A2uiRendererAction action) => {
-      'name': action.name,
-      'context': action.context,
-      if (action.userMessage case final String userMessage)
-        'userMessage': userMessage,
-    };
+  'name': action.name,
+  'context': action.context,
+  if (action.userMessage case final String userMessage)
+    'userMessage': userMessage,
+};
 
 Future<void> _runCase(ConformanceTestCase testCase) async {
-  final A2uiProtocolVersion version =
-      A2uiProtocolVersion.tryParseSemVer(caseVersion(testCase)!)!;
+  final A2uiProtocolVersion version = A2uiProtocolVersion.tryParseSemVer(
+    caseVersion(testCase)!,
+  )!;
   final Map<String, Object?> surfaceBlock =
       testCase['surface'] as Map<String, Object?>? ?? const {};
   final outbound = <CallAgentFunctionMessage>[];
@@ -271,7 +272,8 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
     expect(
       reported,
       hasLength(expectedErrors.length),
-      reason: '$label: reported errors '
+      reason:
+          '$label: reported errors '
           '${[for (final e in reported) '${e.code}: ${e.message}']}',
     );
     for (var i = 0; i < expectedErrors.length; i++) {

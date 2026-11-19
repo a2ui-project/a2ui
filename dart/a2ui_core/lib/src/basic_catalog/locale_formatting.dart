@@ -217,11 +217,7 @@ DateSymbols _dateSymbolsFor(String locale) {
 /// wall-clock fields, so `2026-09-04T23:30:00-05:00` formats as `2026-09-04`.
 /// The pattern `ISO` emits the UTC instant as `YYYY-MM-DDTHH:mm:ss.sssZ`.
 /// Returns an empty string for a missing or unparseable [value].
-String formatDate(
-  Object? value, {
-  Object? pattern,
-  required String locale,
-}) {
+String formatDate(Object? value, {Object? pattern, required String locale}) {
   if (!isTruthy(value)) return '';
   final _Timestamp? parsed = _parseTimestamp(coerceToString(value));
   if (parsed == null) return '';
