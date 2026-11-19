@@ -115,7 +115,7 @@
       "required": ["id", "component"]
     },
     "fieldVariant": {
-      "description": "An id-less component template selected by `$byInstance`; the expander assigns the id. A `fieldVariant` may either be a single inline component template or include an inline `child` or `children` array of id-less component definitions that the expander recursively hoists into the surface component list with generated ids.",
+      "description": "An id-less component template selected by `$byInstance`; the expander assigns the id. A `fieldVariant` may either be a single inline component template or include an inline container property (`child`, `children`, or any container slot declared by the catalog schema) of id-less component definitions that the expander recursively hoists into the surface component list with generated ids.",
       "allOf": [{"$ref": "#/$defs/templateObject"}],
       "required": ["component"]
     },
@@ -203,7 +203,7 @@
     "ifInstanceDirective": {
       "type": "object",
       "minProperties": 1,
-      "description": "Instance answer name to required value; the enclosing property is emitted only when each holds. When used inside a property value wrapper (`{\"$ifInstance\": {...}, \"value\": ...}` or inside `$switch` cases), the sibling `value` key holds the value emitted when the predicate matches.",
+      "description": "Instance answer name to required value; the enclosing property is emitted only when each holds. When used inside a property value wrapper (`{\"$ifInstance\": {...}, \"value\": ...}`), the sibling `value` key holds the value emitted when the predicate matches.",
       "additionalProperties": {"type": ["string", "boolean"]}
     },
     "byTypeDirective": {
@@ -227,9 +227,18 @@
       "description": "Knob or instance answer name; the sibling key matching its value is the literal to emit."
     },
     "eventDirective": {
-      "type": "string",
-      "minLength": 1,
-      "description": "A slot bound to an agent action id, which becomes the event name. When the slot is unbound, `$default` beside it is the literal event name (the slot name itself if there is no `$default`). Labels never become event names. Emits `{\"event\": {\"name\": ...}}` plus `context`."
+      "oneOf": [
+        {"type": "string", "minLength": 1},
+        {
+          "type": "object",
+          "required": ["$action"],
+          "additionalProperties": false,
+          "properties": {
+            "$action": {"type": "string", "minLength": 1}
+          }
+        }
+      ],
+      "description": "A slot bound to an agent action id (either `\"action\"` or `{\"$action\": \"action\"}`), which becomes the event name. When the slot is unbound, `$default` beside it is the literal event name (the slot name itself if there is no `$default`). Labels never become event names. Emits `{\"event\": {\"name\": ...}}` plus `context`."
     },
     "blocksDirective": {
       "const": true,
