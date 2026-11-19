@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import A2UICore
+import Foundation
 import JSONSchema
 import OrderedJSON
 import SwiftUI
@@ -43,6 +44,10 @@ public struct ComponentImplementation: ComponentAPI, @unchecked Sendable {
 
   /// The closure that constructs a SwiftUI view from a resolved engine node.
   public let builder: ComponentViewBuilder
+
+  /// Per-instance identity used by ``CatalogRegistry`` to diff catalog maps without comparing
+  /// view builder closures.
+  let identity = UUID()
 
   /// Creates a new component implementation with a type name, schema, and view builder.
   ///

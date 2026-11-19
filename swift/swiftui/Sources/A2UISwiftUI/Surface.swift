@@ -23,8 +23,19 @@ import SwiftUI
 /// the SwiftUI environment.
 public struct Surface: View {
   @ObservedObject public var viewModel: SurfaceViewModel
+  @Environment(\.a2uiProvidedCatalogs) private var providedCatalogs
 
-  public let catalogs: [String: Catalog<ComponentImplementation>]
+  private let localCatalogRegistry: CatalogRegistry
+
+  /// Component catalogs passed directly to this surface's initializer.
+  ///
+  /// When rendered, catalogs provided by ancestor views via ``SwiftUI/View/a2uiCatalog(_:)`` or
+  /// ``SwiftUI/View/a2uiCatalogs(_:)`` are merged beneath these, with initializer catalogs winning
+  /// on catalog ID collisions.
+  public var catalogs: [String: Catalog<ComponentImplementation>] {
+    localCatalogRegistry.catalogs
+  }
+
   public let defaultCatalogID: String?
   public let surfaceID: String
 
@@ -34,8 +45,7 @@ public struct Surface: View {
     defaultCatalogID: String? = nil
   ) {
     self.viewModel = viewModel
-    let dict = Dictionary(catalogs.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
-    self.catalogs = dict
+    self.localCatalogRegistry = CatalogRegistry(catalogs: catalogs)
     self.defaultCatalogID = defaultCatalogID ?? catalogs.first?.id
     self.surfaceID = viewModel.surfaceID
   }
@@ -46,7 +56,7 @@ public struct Surface: View {
     defaultCatalogID: String? = nil
   ) {
     self.viewModel = viewModel
-    self.catalogs = catalogs
+    self.localCatalogRegistry = CatalogRegistry(catalogs: catalogs)
     self.defaultCatalogID = defaultCatalogID ?? catalogs.keys.sorted().first
     self.surfaceID = viewModel.surfaceID
   }
@@ -60,11 +70,13 @@ public struct Surface: View {
 
   public var body: some View {
     if let rootNode = viewModel.rootNode {
+      let activeCatalogs = providedCatalogs.merging(localCatalogRegistry)
+      let effectiveDefaultCatalogID = defaultCatalogID ?? viewModel.defaultCatalogID
       ComponentNodeView(node: rootNode)
         .environment(\.a2uiTheme, viewModel.theme)
         .environment(\.a2uiSurfaceMetadata, viewModel.metadata)
-        .environment(\.a2uiCatalogs, catalogs)
-        .environment(\.a2uiDefaultCatalogID, defaultCatalogID)
+        .environment(\.a2uiActiveCatalogRegistry, activeCatalogs)
+        .environment(\.a2uiDefaultCatalogID, effectiveDefaultCatalogID)
     } else {
       // Nothing to show until the root component arrives.
       EmptyView()
