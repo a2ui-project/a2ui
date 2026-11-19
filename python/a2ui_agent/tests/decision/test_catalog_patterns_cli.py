@@ -240,3 +240,35 @@ def test_cli_subprocess_smoke_on_basic_catalog(tmp_path: Path) -> None:
     assert report["ok"] is True
     assert len([a for a in report["archetypes"] if a["eligible"]]) == 14
     assert len(report["payloadEligible"]) >= 8
+
+
+def test_cli_json_reports_schema_ok_false_on_malformed_patterns(tmp_path: Path) -> None:
+    """Verifies `--format json` emits `schemaOk: false` and `schemaError` with exit code 1."""
+    cat_path = write_json(tmp_path, "catalog.json", design_system_catalog_dict("1.0"))
+    pay_path = write_json(
+        tmp_path, "sample_payloads.json", DESIGN_SYSTEM_SAMPLE_PAYLOADS
+    )
+    malformed_pat = tmp_path / "patterns.json"
+    malformed_pat.write_text(
+        '{"catalogId": "broken", "patterns": "not-an-object"}', encoding="utf-8"
+    )
+    out_json = tmp_path / "malformed_report.json"
+
+    rc = catalog_patterns_tool.main([
+        "validate",
+        "--catalog",
+        str(cat_path),
+        "--patterns",
+        str(malformed_pat),
+        "--payload",
+        str(pay_path),
+        "--format",
+        "json",
+        "--out",
+        str(out_json),
+    ])
+    assert rc == 1
+    report = json.loads(out_json.read_text(encoding="utf-8"))
+    assert report["ok"] is False
+    assert report["schemaOk"] is False
+    assert isinstance(report["schemaError"], str) and report["schemaError"]

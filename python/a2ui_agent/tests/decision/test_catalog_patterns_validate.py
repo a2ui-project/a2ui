@@ -420,3 +420,79 @@ def test_markdown_report_renders_unknown_patterns_and_warnings(tmp_path: Path) -
     assert "## Unknown Patterns: `extra_unused_pattern`" in md_text
     assert "## Warnings" in md_text
     assert "never selected" in md_text
+
+
+def test_required_slots_only_dry_run_catches_unbound_optional_schema_error(
+    tmp_path: Path,
+) -> None:
+    """Verifies that required-slots-only dry runs catch missing `$default`/`$if` on optional slots."""
+    basic_cat = REPO_ROOT / "catalogs" / "basic" / "v1" / "catalog.json"
+    basic_pat_path = REPO_ROOT / "catalogs" / "basic" / "v1" / "patterns.json"
+    broken = json.loads(basic_pat_path.read_text(encoding="utf-8"))
+
+    # Remove `$default` from `compose_field.value` so unbound optional `draft` fails schema.
+    for comp in broken["patterns"]["compose"]["components"]:
+        if comp.get("id") == "compose_field":
+            comp["value"] = {"$slot": "draft"}
+
+    pat_path = write_json(tmp_path, "patterns.json", broken)
+    pay_path = write_json(
+        tmp_path, "sample_payloads.json", DESIGN_SYSTEM_SAMPLE_PAYLOADS
+    )
+    loaded = _common.load_catalog(basic_cat)
+    report = validate_patterns.validate_catalog_artifacts(
+        loaded, payload_path=pay_path, patterns_path=pat_path
+    )
+    assert report.ok is False
+    assert any(f.pattern == "compose" and f.stage == "schema" for f in report.failures)
+
+
+def test_malformed_sidecar_returns_schema_ok_false_and_custom_child_slots_lint(
+    tmp_path: Path,
+) -> None:
+    """Verifies malformed JSON sets `schema_ok=False` and custom child slots are linted."""
+    cat_path = write_json(tmp_path, "catalog.json", design_system_catalog_dict("1.0"))
+    pay_path = write_json(
+        tmp_path, "sample_payloads.json", DESIGN_SYSTEM_SAMPLE_PAYLOADS
+    )
+    bad_json_path = tmp_path / "patterns.json"
+    bad_json_path.write_text("{not valid json", encoding="utf-8")
+
+    loaded = _common.load_catalog(cat_path)
+    report = validate_patterns.validate_catalog_artifacts(
+        loaded, payload_path=pay_path, patterns_path=bad_json_path
+    )
+    assert report.ok is False
+    assert report.schema_ok is False
+    assert report.schema_error is not None
+
+    # Custom container slot (`items` / `body`) derived from CatalogDecisionGraph catches empty containers.
+    custom_cat = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "https://example.com/catalogs/custom-slots/v1/catalog.json",
+        "protocolVersion": "1.0",
+        "components": {
+            "SlotBox": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "SlotBox"},
+                    "entries": {"$ref": "common_types.json#/$defs/ChildList"},
+                },
+                "required": ["component", "entries"],
+            },
+        },
+        "functions": {},
+    }
+    custom_cat_path = write_json(tmp_path / "custom", "catalog.json", custom_cat)
+    custom_loaded = _common.load_catalog(custom_cat_path)
+    lint_failures = validate_patterns._check_expanded_surface(
+        "facts",
+        "facts",
+        {},
+        [{"id": "facts_root", "component": "SlotBox", "entries": []}],
+        {},
+        custom_loaded.graph,
+    )
+    assert any(
+        f.stage == "lint" and "empty_container" in f.message for f in lint_failures
+    )

@@ -24,7 +24,7 @@ This skill prepares any A2UI v1.0 component catalog (`catalog.json`) for the dec
 
 Depending on the catalog's structure, the workflow generates and validates one or both sidecar files plus a required sample payload verification bundle:
 
-1. `patterns.json`: Maps the 19 layout grammar blocks (`page` plus the 19 content blocks in `archetypes.json`) onto the catalog's composable container and leaf components.
+1. `patterns.json`: Maps the 20 abstract patterns (`page` plus the 19 content blocks in `archetypes.json`) onto the catalog's composable container and leaf components.
 2. `templates.json`: Registers deterministic `SurfaceTemplate` definitions for monolithic fixed-surface or domain-card components.
 3. `sample_payloads.json`: Representative JSON payloads required by the validator to verify runtime archetype eligibility and template matching.
 
@@ -126,13 +126,24 @@ from a2ui.inference_formats.experimental.decision import (
 catalog_dir = Path("<target_dir>")
 catalog = Catalog.from_json(json.loads((catalog_dir / "catalog.json").read_text()))
 graph = CatalogDecisionGraph([catalog])
-backend = create_decision_backend("gemini")
+backend = create_decision_backend()
+
+patterns_path = catalog_dir / "patterns.json"
+templates_path = catalog_dir / "templates.json"
 
 # Load patterns.json when present (composable or hybrid catalogs):
-pattern_lib = MergedPatternLibrary([PatternLibrary.from_file(catalog_dir)])
+pattern_lib = (
+    MergedPatternLibrary([PatternLibrary.from_file(patterns_path)])
+    if patterns_path.is_file()
+    else MergedPatternLibrary([])
+)
 
 # Load templates.json when present (fixed_surface or hybrid catalogs):
-template_registry = TemplateRegistry.from_file(catalog_dir)
+template_registry = (
+    TemplateRegistry.from_file(templates_path)
+    if templates_path.is_file()
+    else TemplateRegistry()
+)
 
 synthesizer = DecisionSynthesizer(
     graph,
