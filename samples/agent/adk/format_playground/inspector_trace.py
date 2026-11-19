@@ -22,7 +22,6 @@ pipeline stages into an `application/x-a2ui-playground-trace+json` A2A `DataPart
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import replace
 import json
 from typing import Any, Literal
 import urllib.parse
@@ -45,10 +44,10 @@ from a2ui.inference_formats.experimental.decision import (
     PlannedBlock,
     PointerSummary,
     QuestionKind,
+    SurfaceTemplate,
     SynthesisOutput,
     coerce_decision_payload,
     eligible_archetypes,
-    inspect_payload_pointers,
 )
 from modes import LlmTurn, RenderMode, RenderResult, TurnMetrics
 from renderers import stage2_user_text
@@ -361,39 +360,6 @@ def _normalize_payload_data(payload: Any) -> Mapping[str, Any]:
     return {"items": list(coerced)}
 
 
-def _inspect_filtered_pointers(
-    data: Mapping[str, Any],
-    block: DecisionBlock,
-) -> tuple[PointerSummary, ...]:
-    """Inspects payload pointers, drops `block.exclude`, and applies `block.labels`.
-
-    Args:
-        data: Normalized payload mapping.
-        block: Source `DecisionBlock` carrying `mutable_paths`, `exclude`, and
-            `labels`.
-
-    Returns:
-        A tuple of filtered and relabeled `PointerSummary` entries.
-    """
-    raw = inspect_payload_pointers(data, mutable_paths=block.mutable_paths or ())
-    if block.exclude:
-        filtered = tuple(
-            p
-            for p in raw
-            if not any(
-                p.path == ex or p.path.startswith(f"{ex}/") for ex in block.exclude
-            )
-        )
-    else:
-        filtered = tuple(raw)
-    labels = dict(block.labels) if block.labels else {}
-    if not labels:
-        return filtered
-    return tuple(
-        replace(p, label=labels[p.path]) if p.path in labels else p for p in filtered
-    )
-
-
 def _parse_optional_brief(
     block: DecisionBlock, synthesizer: DecisionSynthesizer
 ) -> LayoutBrief | None:
@@ -436,14 +402,19 @@ def _reconstruct_batch_and_key(
         A `(batch, cache_key, pointers)` tuple.
     """
     data = _normalize_payload_data(block.payload)
-    pointers = _inspect_filtered_pointers(data, block)
+    labels = dict(block.labels) if block.labels else {}
+    pointers = synthesizer.inspect_pointers(
+        data,
+        exclude=block.exclude,
+        mutable_paths=block.mutable_paths,
+        labels=labels,
+    )
     brief = _parse_optional_brief(block, synthesizer)
     copy = (
         AuthoredCopy(title=block.title, summary=block.summary)
         if (block.title is not None or block.summary is not None)
         else None
     )
-    labels = dict(block.labels) if block.labels else {}
     cache_key = synthesizer.make_cache_key(
         surface_id,
         block.intent,
@@ -460,6 +431,48 @@ def _reconstruct_batch_and_key(
         synthesizer, block, data, pointers, brief, copy, labels, output
     )
     return batch, cache_key, pointers
+
+
+def _has_region_plan(block: DecisionBlock, output: SynthesisOutput | None) -> bool:
+    """Returns whether `block.region` targets an existing block in `output.layout_plan`."""
+    return (
+        block.region is not None
+        and output is not None
+        and output.layout_plan is not None
+        and block.region in output.layout_plan.block_ids()
+    )
+
+
+def _build_two_stage_batch(
+    synthesizer: DecisionSynthesizer,
+    block: DecisionBlock,
+    data: Mapping[str, Any],
+    pointers: tuple[PointerSummary, ...],
+    brief: LayoutBrief | None,
+    copy: AuthoredCopy | None,
+    templates: Sequence[SurfaceTemplate],
+    labels: dict[str, str],
+    output: SynthesisOutput | None,
+) -> DecisionBatch:
+    """Reconstructs the combined two-stage `DecisionBatch` for `block`."""
+    planner = synthesizer.planner
+    s1_batch, state = planner.build_stage1_batch(
+        block.intent,
+        pointers,
+        brief=brief,
+        payload=data,
+        copy=copy,
+        templates=templates,
+        actions=block.actions,
+        labels=labels or None,
+        exclude=block.exclude,
+    )
+    answers = output.decision_answers if output is not None else ()
+    s1_len = len(s1_batch.questions)
+    if s1_len > 0 and len(answers) >= s1_len:
+        planner.build_stage2_batch(state, answers[:s1_len])
+        return state.batch
+    return s1_batch
 
 
 def _build_planner_batch(
@@ -488,12 +501,9 @@ def _build_planner_batch(
         The reconstructed `DecisionBatch` matching `DecisionSynthesizer._plan_layout`.
     """
     planner = synthesizer.planner
-    if (
-        block.region is not None
-        and output is not None
-        and output.layout_plan is not None
-        and block.region in output.layout_plan.block_ids()
-    ):
+    if _has_region_plan(block, output):
+        assert output is not None and output.layout_plan is not None
+        assert block.region is not None
         batch, _ = planner.build_block_batch(
             output.layout_plan,
             block.region,
@@ -508,7 +518,8 @@ def _build_planner_batch(
     eligible = eligible_archetypes(
         synthesizer.archetypes, synthesizer.patterns, pointers
     )
-    if not eligible:
+    templates = synthesizer.registry.matching_templates([p.path for p in pointers])
+    if not eligible and not templates:
         return DecisionBatch(
             shared_context={
                 "intent": block.intent,
@@ -516,25 +527,10 @@ def _build_planner_batch(
             },
             questions=(),
         )
-    templates = synthesizer.registry.matching_templates([p.path for p in pointers])
     if synthesizer.backend.capabilities.two_stage:
-        s1_batch, state = planner.build_stage1_batch(
-            block.intent,
-            pointers,
-            brief=brief,
-            payload=data,
-            copy=copy,
-            templates=templates,
-            actions=block.actions,
-            labels=labels or None,
-            exclude=block.exclude,
+        return _build_two_stage_batch(
+            synthesizer, block, data, pointers, brief, copy, templates, labels, output
         )
-        answers = output.decision_answers if output is not None else ()
-        s1_len = len(s1_batch.questions)
-        if s1_len > 0 and len(answers) >= s1_len:
-            planner.build_stage2_batch(state, answers[:s1_len])
-            return state.batch
-        return s1_batch
     batch, _ = planner.build_batch(
         block.intent,
         pointers,
@@ -885,12 +881,13 @@ def _serialize_planned_block(
     Returns:
         A serialized block dictionary for the inspector block tree.
     """
-    prefix = f"{planned.block_id}_"
+    base_id = planned.id_prefix or planned.block_id
+    prefix = f"{base_id}_"
     matching = [
         c
         for c in components
         if isinstance(c.get("id"), str)
-        and (c["id"] == planned.block_id or str(c["id"]).startswith(prefix))
+        and (c["id"] in {base_id, f"{base_id}_root"} or str(c["id"]).startswith(prefix))
     ]
     comp_name = (
         _component_type_name(matching[0]) if matching else ""

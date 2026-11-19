@@ -27,15 +27,13 @@ import json
 import logging
 from typing import Any
 
-from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
+from a2ui.core import A2uiError
 from a2ui.inference_formats.experimental.decision import (
     ArchetypeGrammar,
     DecisionBlock,
     decision_rules,
+    extract_decision_blocks,
 )
-from a2ui.inference_formats.direct_json.blocks import clean
-from a2ui.inference_formats.direct_json.json_reader import read_json
-from a2ui.parser import BlockLexer, RawA2uiPart
 
 logger = logging.getLogger(__name__)
 
@@ -162,26 +160,9 @@ def extract_block(text: str) -> DecisionBlock | None:
         contains malformed JSON that the tolerant reader cannot repair, or
         fails `DecisionBlock.from_mapping` validation.
     """
-    lexer = BlockLexer(
-        open_tag=A2UI_INFERENCE_OPEN_TAG,
-        close_tag=A2UI_INFERENCE_CLOSE_TAG,
-        string_delimiters={'"'},
-    )
-    blocks = lexer.tokenize(text)
-    raw_parts = [b.part for b in blocks if isinstance(b.part, RawA2uiPart)]
-    if not raw_parts:
-        return None
     try:
-        parsed: Any = read_json(clean(raw_parts[0].a2ui_raw))
-    except Exception as exc:  # read_json raises ValueError on invalid JSON
-        logger.warning("Stage 1 block is not valid JSON: %s", exc)
-        return None
-    item = parsed[0] if isinstance(parsed, list) and parsed else parsed
-    if not isinstance(item, Mapping):
-        logger.warning("Stage 1 block is not a JSON object: %r", type(item).__name__)
-        return None
-    try:
-        return DecisionBlock.from_mapping(item)
-    except (TypeError, ValueError) as exc:
+        blocks = extract_decision_blocks(text, require_tags=True)
+    except A2uiError as exc:
         logger.warning("Stage 1 block rejected: %s", exc)
         return None
+    return blocks[0] if blocks else None

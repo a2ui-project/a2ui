@@ -46,12 +46,12 @@ The decision backend is chosen by `A2UI_DECISION_BACKEND` and the other
 `A2UI_DECISION_*` variables, as `create_decision_backend()` documents
 them. The resolved backend is shown in `/help` and in every footer.
 
-| Backend             | Setup                                                                            | What to expect                                                                                     |
-| :------------------ | :------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
-| `mock`              | Nothing. Runs offline.                                                           | A deterministic keyword heuristic. Layouts are plain; use it to check the wiring, not the quality. |
-| `jev` / `systemone` | `A2UI_DECISION_BACKEND=jev A2UI_DECISION_URL=https://... A2UI_DECISION_AUTH=adc` | Remote decision model over HTTP (`/v1/systemone`).                                                 |
-| `gemini`            | `A2UI_DECISION_BACKEND=gemini GEMINI_API_KEY=...`                                | Google Gemini Decisions API (`/v1beta/decisions`, model `gemini-decision-1`).                      |
-| `step0`             | `A2UI_DECISION_BACKEND=step0 A2UI_DECISION_URL=https://.../v1/completions`       | Step-0 single-token logprob scoring over an OpenAI-compatible completions endpoint.                |
+| Backend             | Setup                                                                                               | What to expect                                                                                     |
+| :------------------ | :-------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
+| `mock`              | Nothing. Runs offline.                                                                              | A deterministic keyword heuristic. Layouts are plain; use it to check the wiring, not the quality. |
+| `jev` / `systemone` | `A2UI_DECISION_BACKEND=systemone A2UI_DECISION_URL=https://.../v1/systemone A2UI_DECISION_AUTH=adc` | Remote decision model over HTTP (`/v1/systemone`).                                                 |
+| `gemini`            | `A2UI_DECISION_BACKEND=gemini GEMINI_API_KEY=...`                                                   | Google Gemini Decisions API (`/v1beta/decisions`, model `gemini-decision-1`).                      |
+| `step0`             | `A2UI_DECISION_BACKEND=step0 A2UI_DECISION_URL=https://.../v1/completions`                          | Step-0 single-token logprob scoring over an OpenAI-compatible completions endpoint.                |
 
 ## Running the client
 

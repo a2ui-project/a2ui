@@ -27,12 +27,14 @@ import uuid
 
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill, Part, TextPart
 from google.adk.agents import run_config
+from google.adk.agents.context import Context
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.models import Gemini
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
+from google.adk.tools.base_tool import BaseTool
 from google.genai import types
 
 from a2ui.a2a import get_a2ui_agent_extension
@@ -113,6 +115,18 @@ def default_thinking_budget() -> int:
     return int(raw) if raw is not None else _DEFAULT_THINKING_BUDGET
 
 
+def _skip_tool_summarization(
+    tool: BaseTool,
+    args: dict[str, Any],
+    tool_context: Context,
+    tool_response: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Skips the post-tool LLM summarization turn in `tool` mode."""
+    del tool, args, tool_response
+    tool_context.actions.skip_summarization = True
+    return None
+
+
 class AdkLlmCaller:
     """`LlmCaller` implementation over ADK with one `Runner` per instruction key."""
 
@@ -170,6 +184,7 @@ class AdkLlmCaller:
                 description="Format playground stage agent.",
                 instruction=instruction,
                 tools=list(tools) if tools else [],
+                after_tool_callback=_skip_tool_summarization if tools else None,
                 generate_content_config=types.GenerateContentConfig(
                     thinking_config=types.ThinkingConfig(
                         thinking_budget=self._thinking_budget
@@ -246,7 +261,7 @@ class AdkLlmCaller:
                 _append_part_texts(event.content.parts, chunks)
             usage = getattr(event, "usage_metadata", None)
             if usage is not None:
-                prompt_tokens = int(usage.prompt_token_count or 0)
+                prompt_tokens += int(usage.prompt_token_count or 0)
                 output_tokens += int(usage.candidates_token_count or 0)
         return LlmTurn(
             text="".join(chunks),
@@ -305,7 +320,7 @@ class AdkLlmCaller:
                 )
             usage = getattr(event, "usage_metadata", None)
             if usage is not None:
-                prompt_tokens = int(usage.prompt_token_count or 0)
+                prompt_tokens += int(usage.prompt_token_count or 0)
                 output_tokens += int(usage.candidates_token_count or 0)
 
         if tool_name and tool_result is None:

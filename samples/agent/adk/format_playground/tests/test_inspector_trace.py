@@ -23,11 +23,24 @@ from a2a.types import DataPart
 import httpx
 import pytest
 
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.experimental.decision import (
     BackendCapabilities,
+    BlockBindings,
     DecisionBlock,
+    DecisionSynthesizer,
     DeterministicMockBackend,
     JevHttpBackend,
+    LayoutPlan,
+    PageBindings,
+    PatternLibrary,
+    PlannedBlock,
+    SlotBinding,
+    SurfaceOperation,
+    SurfaceTemplate,
+    SynthesisOutput,
+    SynthesisStage,
+    TemplateRegistry,
     inspect_payload_pointers,
 )
 from inspector_trace import (
@@ -538,3 +551,262 @@ async def test_build_turn_trace_empty_payload_returns_zero_questions_when_no_arc
     assert d_in is not None
     assert d_in["questionCount"] == 0
     assert d_in["questions"] == []
+
+
+async def test_build_turn_trace_strips_non_mutable_secret_pointers() -> None:
+    """Verifies `build_turn_trace` strips non-mutable secret pointers via `synthesizer.inspect_pointers`."""
+    renderers = Renderers(versions=["1.0"], backend=DeterministicMockBackend())
+    synthesizer = renderers.synthesizer_or_none("1.0")
+    assert synthesizer is not None
+
+    secret_block = DecisionBlock(
+        intent="Edit account credentials",
+        payload={
+            "username": "alex.smith",
+            "apiKey": "sk-live-secret-value",
+            "accessToken": "tok-secret-value",
+            "password": "",
+        },
+        mutable_paths=("/password",),
+    )
+    res = await renderers.render_decision(
+        secret_block, surface_id="main", version="1.0"
+    )
+    assert res.ok and res.metrics is not None
+    trace = build_turn_trace(
+        turn=1,
+        query="account credentials",
+        compare=False,
+        active_mode=RenderMode.DECISION,
+        stage1_source="llm",
+        model_name="fake-model",
+        stage1_turn=None,
+        tool_name=None,
+        tool_args=None,
+        block=secret_block,
+        stage1_error=None,
+        candidates=[(RenderMode.DECISION, "main", res, res.metrics)],
+        synthesizer=synthesizer,
+    )
+    d_in = trace["candidates"][0]["decisionInput"]
+    assert d_in is not None
+    paths = {p["path"] for p in d_in["pointers"]}
+    assert "/username" in paths
+    assert "/password" in paths
+    assert "/apiKey" not in paths
+    assert "/accessToken" not in paths
+
+    expected_pointers = synthesizer.inspect_pointers(
+        dict(secret_block.payload),
+        mutable_paths=secret_block.mutable_paths,
+    )
+    expected_key = synthesizer.make_cache_key(
+        "main",
+        secret_block.intent,
+        expected_pointers,
+        mutable_paths=secret_block.mutable_paths,
+    )
+    assert d_in["shapeSignature"] == expected_key.shape_signature
+
+
+async def test_build_turn_trace_reconstructs_template_only_batch_without_eligible_archetypes() -> (
+    None
+):
+    """Verifies `_build_planner_batch` emits template questions when only templates match."""
+    catalog = BasicCatalog("1.0")
+    registry = TemplateRegistry()
+    registry.register(
+        SurfaceTemplate(
+            template_id="notice_banner",
+            description="Single notice banner",
+            surface_id="main",
+            catalog_id=catalog.catalog_id,
+            protocol_version="1.0",
+            components=(
+                {
+                    "id": "root",
+                    "component": "Text",
+                    "text": {"path": "/notice"},
+                },
+            ),
+            required_pointers=("/notice",),
+        )
+    )
+    empty_patterns = PatternLibrary(catalog.catalog_id, {})
+    backend = DeterministicMockBackend(
+        scripted={"template": {"notice_banner": 0.95, "compose": 0.05}}
+    )
+    synthesizer = DecisionSynthesizer(
+        [catalog],
+        backend,
+        registry=registry,
+        patterns=empty_patterns,
+    )
+    block = DecisionBlock(
+        intent="Display maintenance notice",
+        payload={"notice": "Scheduled window at 02:00 UTC"},
+    )
+    output = await synthesizer.synthesize(
+        block.intent, block.payload, surface_id="main"
+    )
+    assert output.stage is SynthesisStage.TEMPLATE_SELECT
+    assert output.selected_template_id == "notice_banner"
+
+    metrics = TurnMetrics(
+        mode=RenderMode.DECISION,
+        backend="mock",
+        llm_calls=0,
+        latency_ms=5.0,
+        decision_calls=output.decision_calls,
+    )
+    result = RenderResult(
+        parts=[],
+        metrics=metrics,
+        output=output,
+        messages=(),
+    )
+    trace = build_turn_trace(
+        turn=1,
+        query="maintenance notice",
+        compare=False,
+        active_mode=RenderMode.DECISION,
+        stage1_source="llm",
+        model_name="fake-model",
+        stage1_turn=None,
+        tool_name=None,
+        tool_args=None,
+        block=block,
+        stage1_error=None,
+        candidates=[(RenderMode.DECISION, "main", result, metrics)],
+        synthesizer=synthesizer,
+    )
+    d_in = trace["candidates"][0]["decisionInput"]
+    assert d_in is not None
+    assert d_in["questionCount"] >= 1
+    assert any(q["id"] == "template" for q in d_in["questions"])
+
+
+async def test_build_turn_trace_matches_grouped_id_prefix_components() -> None:
+    """Verifies `_serialize_planned_block` isolates grouped blocks by `id_prefix`."""
+    plan = LayoutPlan(
+        family="browse",
+        archetype="detail",
+        confidence=0.91,
+        page=PageBindings(title=SlotBinding(literal="Overview")),
+        blocks=(
+            PlannedBlock(
+                block_id="sections",
+                pattern="facts",
+                id_prefix="sections_0",
+                bindings=BlockBindings(slots={"value": SlotBinding(pointer="/a")}),
+            ),
+            PlannedBlock(
+                block_id="sections",
+                pattern="prose",
+                id_prefix="sections_1",
+                bindings=BlockBindings(slots={"body": SlotBinding(pointer="/b")}),
+            ),
+            PlannedBlock(
+                block_id="hero",
+                pattern="media",
+                id_prefix="hero_direct",
+                bindings=BlockBindings(slots={"image": SlotBinding(pointer="/img")}),
+            ),
+        ),
+    )
+    messages = (
+        {
+            "version": "1.0",
+            "createSurface": {"surfaceId": "main"},
+        },
+        {
+            "version": "1.0",
+            "updateComponents": {
+                "surfaceId": "main",
+                "components": [
+                    {
+                        "id": "root",
+                        "component": "Column",
+                        "children": [
+                            "sections_0_root",
+                            "sections_1_root",
+                            "hero_direct",
+                        ],
+                    },
+                    {
+                        "id": "sections_0_root",
+                        "component": "Card",
+                        "child": "sections_0_label",
+                    },
+                    {
+                        "id": "sections_0_label",
+                        "component": "Text",
+                        "text": "First",
+                    },
+                    {
+                        "id": "sections_1_root",
+                        "component": "Column",
+                        "children": ["sections_1_body"],
+                    },
+                    {
+                        "id": "sections_1_body",
+                        "component": "Text",
+                        "text": "Second",
+                    },
+                    {
+                        "id": "hero_direct",
+                        "component": "Image",
+                        "url": "https://example.com/a.png",
+                    },
+                ],
+            },
+        },
+    )
+    output = SynthesisOutput(
+        stage=SynthesisStage.ARCHETYPE,
+        messages=[],
+        confidence=0.91,
+        entropy=0.1,
+        layout_plan=plan,
+        operation=SurfaceOperation.CREATE,
+    )
+    metrics = TurnMetrics(
+        mode=RenderMode.DECISION,
+        backend="mock",
+        llm_calls=0,
+        latency_ms=4.0,
+    )
+    result = RenderResult(
+        parts=[],
+        metrics=metrics,
+        output=output,
+        messages=messages,
+    )
+    trace = build_turn_trace(
+        turn=1,
+        query="grouped sections",
+        compare=False,
+        active_mode=RenderMode.DECISION,
+        stage1_source="llm",
+        model_name="fake-model",
+        stage1_turn=None,
+        tool_name=None,
+        tool_args=None,
+        block=DecisionBlock(
+            intent="Show grouped sections",
+            payload={"a": "1", "b": "2", "img": "https://example.com/a.png"},
+        ),
+        stage1_error=None,
+        candidates=[(RenderMode.DECISION, "main", result, metrics)],
+        synthesizer=None,
+    )
+    d_out = trace["candidates"][0]["decisionOutput"]
+    assert d_out is not None and d_out["layoutPlan"] is not None
+    blocks = d_out["layoutPlan"]["blocks"]
+    assert len(blocks) == 3
+    assert blocks[0]["component"] == "Card"
+    assert blocks[0]["children"] == ["sections_0_label"]
+    assert blocks[1]["component"] == "Column"
+    assert blocks[1]["children"] == ["sections_1_body"]
+    assert blocks[2]["component"] == "Image"
+    assert blocks[2]["children"] == []

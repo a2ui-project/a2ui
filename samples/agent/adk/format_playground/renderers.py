@@ -29,14 +29,17 @@ from dataclasses import dataclass
 import json
 import logging
 import os
+import re
 import time
 from typing import Any
+import urllib.parse
 
 from a2a.types import Part
 
 from a2ui.a2a import create_a2ui_part
 from a2ui.core import A2uiError
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.inference_formats.experimental.decision import (
     DEFAULT_GEMINI_DECISION_MODEL,
     DEFAULT_TYPESAFE_MODEL,
@@ -55,13 +58,11 @@ from a2ui.inference_formats.experimental.decision import (
     create_decision_backend,
     surface_operation_for,
 )
-from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.inference_formats.express import (
     ExpressDecompiler,
     ExpressFormatFactory,
 )
-from a2ui.parser import A2uiPart
-from a2ui.parser.messages import to_message_dicts
+from a2ui.parser import A2uiPart, to_message_dicts
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import RendererState, to_version_number
 from modes import (
@@ -83,6 +84,30 @@ _VERCEL_SYSTEMONE_URL = "https://ai-gateway.vercel.sh/typesafe/v1/systemone"
 DECISION_VERSION = "1.0"
 """The only protocol version the decision format renders."""
 _DECISION_ERRORS = (A2uiError, ValueError, TypeError, DecisionBackendError)
+_URL_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9+.-]*://[^\s'\"<>]+")
+
+
+def _redact_one_url(match: re.Match[str]) -> str:
+    """Strips credentials, query parameters, and fragments from one matched URL."""
+    raw = match.group(0)
+    trimmed = raw.rstrip(".,;:)")
+    suffix = raw[len(trimmed) :]
+    parts = urllib.parse.urlsplit(trimmed)
+    netloc = parts.netloc.rsplit("@", 1)[-1]
+    cleaned = urllib.parse.urlunsplit((parts.scheme, netloc, parts.path, "", ""))
+    return f"{cleaned}{suffix}"
+
+
+def _redact_urls(text: str) -> str:
+    """Strips credentials, query strings, and fragments from URLs in `text`.
+
+    Args:
+        text: Raw error or log string that may contain endpoint URLs.
+
+    Returns:
+        `text` with `user:pass@`, `?query`, and `#fragment` stripped from URLs.
+    """
+    return _URL_RE.sub(_redact_one_url, text)
 
 
 def backend_display_name(backend: DecisionBackend) -> str:
@@ -414,10 +439,14 @@ class Renderers:
     async def set_backend(self, backend: DecisionBackend) -> None:
         """Replaces the active decision backend and closes the previous factory.
 
+        Preserves `plan_cache` across processor rebuilds so stateful `region`
+        updates on existing surfaces keep working after `/backend` switches.
+
         Args:
             backend: Replacement `DecisionBackend` instance.
         """
         old_factory = self._decision_factory
+        old_synthesizer = self.synthesizer_or_none(DECISION_VERSION)
         self._raw_backend = backend
         self._decision_factory = DecisionFormatFactory(
             backend=backend, config=self._config
@@ -426,6 +455,9 @@ class Renderers:
             self._processors[(RenderMode.DECISION, DECISION_VERSION)] = (
                 self._build_processor(DECISION_VERSION, self._decision_factory)
             )
+            new_synthesizer = self.synthesizer_or_none(DECISION_VERSION)
+            if old_synthesizer is not None and new_synthesizer is not None:
+                new_synthesizer.plan_cache = old_synthesizer.plan_cache
         await old_factory.aclose()
 
     @staticmethod
@@ -685,9 +717,10 @@ class Renderers:
                 conversation_id=conversation_id,
             )
         except _DECISION_ERRORS as exc:
-            logger.warning("Decision render failed: %s", exc)
+            redacted = _redact_urls(str(exc))
+            logger.warning("Decision render failed: %s", redacted)
             return self._decision_result(
-                block, started, mode, output=None, version=version, error=str(exc)
+                block, started, mode, output=None, version=version, error=redacted
             )
         return self._decision_result(
             block, started, mode, output=output, version=version
@@ -811,7 +844,7 @@ class Renderers:
         try:
             response_parts = processor.parse_response(turn.text)
         except (A2uiError, ValueError, json.JSONDecodeError) as exc:
-            return _Stage2Attempt(turn=turn, parts=[], error=str(exc))
+            return _Stage2Attempt(turn=turn, parts=[], error=_redact_urls(str(exc)))
         parsed_models = [
             msg
             for part in response_parts

@@ -87,6 +87,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   private _inspectorOpen = true;
 
   private _toastTimeout: number | undefined;
+  private _adoptedConfigSheet: CSSStyleSheet | null = null;
 
   static override styles = [
     css`
@@ -745,25 +746,52 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   }
 
   /**
+   * Removes any adopted config stylesheet when the shell element is disconnected.
+   */
+  override disconnectedCallback() {
+    this.#removeAdoptedConfigStyles();
+    super.disconnectedCallback();
+  }
+
+  /**
    * Idempotently adopts `config.cssOverrides` onto both `document` and `this.shadowRoot`
    * so token overrides and Light DOM surface selectors apply inside `<a2ui-shell>`.
    */
   #adoptConfigStyles() {
-    const sheet = this.config.cssOverrides;
-    if (!sheet) return;
-    if (
-      Array.isArray(document.adoptedStyleSheets) &&
-      !document.adoptedStyleSheets.includes(sheet)
-    ) {
-      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+    const sheet = this.config.cssOverrides ?? null;
+    if (this._adoptedConfigSheet && this._adoptedConfigSheet !== sheet) {
+      this.#removeAdoptedConfigStyles();
     }
-    const root = this.shadowRoot;
-    if (
-      root &&
-      Array.isArray(root.adoptedStyleSheets) &&
-      !root.adoptedStyleSheets.includes(sheet)
-    ) {
-      root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+    if (!sheet) return;
+    this.#addAdoptedSheetTo(document, sheet);
+    if (this.shadowRoot) {
+      this.#addAdoptedSheetTo(this.shadowRoot, sheet);
+    }
+    this._adoptedConfigSheet = sheet;
+  }
+
+  /**
+   * Removes the tracked config stylesheet from `document` and `this.shadowRoot`.
+   */
+  #removeAdoptedConfigStyles() {
+    const previous = this._adoptedConfigSheet;
+    if (!previous) return;
+    this.#removeAdoptedSheetFrom(document, previous);
+    if (this.shadowRoot) {
+      this.#removeAdoptedSheetFrom(this.shadowRoot, previous);
+    }
+    this._adoptedConfigSheet = null;
+  }
+
+  #addAdoptedSheetTo(target: Document | ShadowRoot, sheet: CSSStyleSheet) {
+    if (Array.isArray(target.adoptedStyleSheets) && !target.adoptedStyleSheets.includes(sheet)) {
+      target.adoptedStyleSheets = [...target.adoptedStyleSheets, sheet];
+    }
+  }
+
+  #removeAdoptedSheetFrom(target: Document | ShadowRoot, sheet: CSSStyleSheet) {
+    if (Array.isArray(target.adoptedStyleSheets) && target.adoptedStyleSheets.includes(sheet)) {
+      target.adoptedStyleSheets = target.adoptedStyleSheets.filter(s => s !== sheet);
     }
   }
 
@@ -1232,22 +1260,89 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   }
 
   /**
+   * Checks whether a surface identifier belongs to a turn-scoped auxiliary card
+   * (`-status`, `-footer`, or `-compare`) rather than a primary render surface.
+   *
+   * @param surfaceId Surface identifier to classify.
+   * @return `true` when `surfaceId` uses an auxiliary turn suffix.
+   */
+  #isTurnAuxiliarySurface(surfaceId: string): boolean {
+    return (
+      surfaceId.endsWith('-status') ||
+      surfaceId.endsWith('-footer') ||
+      surfaceId.endsWith('-compare')
+    );
+  }
+
+  /**
+   * Extracts the target `surfaceId` from a surface-scoped A2UI wire message.
+   *
+   * @param msg Incoming A2UI wire message.
+   * @return The target surface identifier, if present.
+   */
+  #getMessageSurfaceId(msg: unknown): unknown {
+    if (typeof msg !== 'object' || msg === null) {
+      return undefined;
+    }
+    const record = msg as {
+      createSurface?: {surfaceId?: unknown};
+      updateComponents?: {surfaceId?: unknown};
+      updateDataModel?: {surfaceId?: unknown};
+    };
+    return (
+      record.createSurface?.surfaceId ??
+      record.updateComponents?.surfaceId ??
+      record.updateDataModel?.surfaceId
+    );
+  }
+
+  /**
+   * Collects surface identifiers explicitly deleted by `deleteSurface` messages in a batch.
+   *
+   * @param messages Incoming A2UI wire message batch.
+   * @return Set of deleted surface identifiers.
+   */
+  #collectDeletedSurfaceIds(messages: unknown[]): Set<string> {
+    const deleted = new Set<string>();
+    for (const msg of messages) {
+      const deletedId = (msg as {deleteSurface?: {surfaceId?: unknown}})?.deleteSurface?.surfaceId;
+      if (typeof deletedId === 'string') {
+        deleted.add(deletedId);
+      }
+    }
+    return deleted;
+  }
+
+  /**
    * Checks whether any message in a batch creates a turn-scoped render surface.
    *
    * @param messages Incoming A2UI wire message batch.
    * @return `true` if a `turn-*` render surface (not `-status`, `-footer`, or `-compare`) is created.
    */
-  #createsTurnRenderSurface(messages: any[]): boolean {
+  #createsTurnRenderSurface(messages: unknown[]): boolean {
     return messages.some(msg => {
-      const id = msg?.createSurface?.surfaceId;
-      return (
-        typeof id === 'string' &&
-        id.startsWith('turn-') &&
-        !id.endsWith('-status') &&
-        !id.endsWith('-footer') &&
-        !id.endsWith('-compare')
-      );
+      const id = (msg as {createSurface?: {surfaceId?: unknown}})?.createSurface?.surfaceId;
+      return typeof id === 'string' && id.startsWith('turn-') && !this.#isTurnAuxiliarySurface(id);
     });
+  }
+
+  /**
+   * Determines whether an existing `turn-*` surface should be pruned before applying a batch.
+   *
+   * @param surfaceId Existing surface identifier.
+   * @param createsTurnRender Whether the batch creates a new `turn-*` render surface.
+   * @param targetsMain Whether the batch creates or updates `'main'`.
+   * @return `true` if the surface should be deleted before processing the batch.
+   */
+  #shouldPruneTurnSurface(
+    surfaceId: string,
+    createsTurnRender: boolean,
+    targetsMain: boolean,
+  ): boolean {
+    if (!surfaceId.startsWith('turn-')) {
+      return false;
+    }
+    return createsTurnRender || targetsMain || this.#isTurnAuxiliarySurface(surfaceId);
   }
 
   /**
@@ -1256,24 +1351,25 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
    *
    * @param messages Incoming A2UI wire message batch.
    */
-  #pruneTurnSurfacesBeforeBatch(messages: any[]) {
-    const deletedInBatch = new Set<string>();
-    for (const msg of messages) {
-      const deletedId = msg?.deleteSurface?.surfaceId;
-      if (typeof deletedId === 'string') {
-        deletedInBatch.add(deletedId);
-      }
-    }
-    if (this.#createsTurnRenderSurface(messages) && this._processor.model.surfacesMap.has('main')) {
+  #pruneTurnSurfacesBeforeBatch(messages: unknown[]) {
+    if (messages.length === 0) return;
+
+    const deletedInBatch = this.#collectDeletedSurfaceIds(messages);
+    const createsTurnRender = this.#createsTurnRenderSurface(messages);
+    const targetsMain = messages.some(msg => this.#getMessageSurfaceId(msg) === 'main');
+
+    if (createsTurnRender && this._processor.model.surfacesMap.has('main')) {
       this._processor.model.deleteSurface('main');
     }
+
     for (const surfaceId of Array.from(this._processor.model.surfacesMap.keys())) {
-      if (surfaceId.startsWith('turn-')) {
+      if (this.#shouldPruneTurnSurface(surfaceId, createsTurnRender, targetsMain)) {
         this._processor.model.deleteSurface(surfaceId);
       }
     }
+
     for (const msg of messages) {
-      const createdId = msg?.createSurface?.surfaceId;
+      const createdId = (msg as {createSurface?: {surfaceId?: unknown}})?.createSurface?.surfaceId;
       if (
         typeof createdId === 'string' &&
         !deletedInBatch.has(createdId) &&

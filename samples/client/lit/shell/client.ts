@@ -136,7 +136,7 @@ export class A2UIClient {
   #parseStringMessageParts(message: string): Part[] {
     try {
       const parsed = JSON.parse(message);
-      if (typeof parsed === 'object' && parsed !== null) {
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
         return [
           {
             kind: 'data',
@@ -150,6 +150,26 @@ export class A2UIClient {
       // Fall through to plain text part.
     }
     return [{kind: 'text', text: message}];
+  }
+
+  /**
+   * Validates the structural contract of an in-band playground trace payload.
+   *
+   * @param value Raw `DataPart.data` payload.
+   * @return `true` when `value` matches `PlaygroundTurnTrace` schema v1.
+   */
+  #isPlaygroundTurnTrace(value: unknown): value is PlaygroundTurnTrace {
+    if (Array.isArray(value) || typeof value !== 'object' || value === null) {
+      return false;
+    }
+    const candidate = value as Record<string, unknown>;
+    return (
+      candidate.schemaVersion === 1 &&
+      candidate.stage1 !== null &&
+      typeof candidate.stage1 === 'object' &&
+      !Array.isArray(candidate.stage1) &&
+      Array.isArray(candidate.candidates)
+    );
   }
 
   /**
@@ -176,7 +196,9 @@ export class A2UIClient {
       const rawMime = dataPart.metadata?.mimeType ?? dataPart.mimeType;
       const mimeType = typeof rawMime === 'string' ? rawMime : undefined;
       if (mimeType === PLAYGROUND_TRACE_MIME_TYPE) {
-        trace = dataPart.data as unknown as PlaygroundTurnTrace;
+        if (this.#isPlaygroundTurnTrace(dataPart.data)) {
+          trace = dataPart.data;
+        }
       } else if (!mimeType || mimeType === A2UI_MIME_TYPE || mimeType === LEGACY_A2UI_MIME_TYPE) {
         messages.push(dataPart.data);
       }

@@ -372,6 +372,90 @@ describe('A2UIClient.sendTurn', () => {
       mimeType: 'application/a2ui+json',
     });
   });
+
+  it('routes bare JSON arrays as text parts instead of A2A DataParts', async () => {
+    const sendMessageMock = vi.fn().mockResolvedValue({
+      result: {
+        kind: 'task',
+        id: 'task-array',
+        contextId: 'ctx-array',
+        status: {
+          state: 'input-required',
+          message: {
+            kind: 'message',
+            messageId: 'm-array',
+            role: 'agent',
+            parts: [],
+          },
+        },
+      },
+    });
+
+    vi.spyOn(A2AClient, 'fromCardUrl').mockResolvedValue({
+      sendMessage: sendMessageMock,
+    } as unknown as A2AClient);
+
+    const client = new A2UIClient('http://localhost:10010');
+    const rawArrayPayload = '[{"createSurface":{"surfaceId":"main"}}]';
+    await client.sendTurn(rawArrayPayload, {v1_0: {}});
+
+    expect(sendMessageMock.mock.calls[0][0].message.parts).toEqual([
+      {kind: 'text', text: rawArrayPayload},
+      {kind: 'data', data: {useStreaming: false}, mimeType: 'application/json'},
+    ]);
+  });
+
+  it('rejects malformed or future schemaVersion playground traces', async () => {
+    const invalidPayloads: unknown[] = [
+      {schemaVersion: 2, stage1: {}, candidates: []},
+      {schemaVersion: 1, stage1: null, candidates: []},
+      {schemaVersion: 1, stage1: 'not-an-object', candidates: []},
+      {schemaVersion: 1, stage1: {}, candidates: 'not-an-array'},
+      null,
+    ];
+
+    const sendMessageMock = vi.fn();
+    for (const payload of invalidPayloads) {
+      sendMessageMock.mockResolvedValueOnce({
+        result: {
+          kind: 'task',
+          id: 'task-bad-trace',
+          contextId: 'ctx-bad-trace',
+          status: {
+            state: 'input-required',
+            message: {
+              kind: 'message',
+              messageId: 'm-bad-trace',
+              role: 'agent',
+              parts: [
+                {
+                  kind: 'data',
+                  data: {createSurface: {surfaceId: 'main'}},
+                  metadata: {mimeType: 'application/a2ui+json'},
+                },
+                {
+                  kind: 'data',
+                  data: payload as Record<string, unknown>,
+                  metadata: {mimeType: PLAYGROUND_TRACE_MIME_TYPE},
+                },
+              ],
+            },
+          },
+        },
+      });
+    }
+
+    vi.spyOn(A2AClient, 'fromCardUrl').mockResolvedValue({
+      sendMessage: sendMessageMock,
+    } as unknown as A2AClient);
+
+    const client = new A2UIClient('http://localhost:10010');
+    for (const _ of invalidPayloads) {
+      const result = await client.sendTurn('hello', {v1_0: {}}, {inspector: true});
+      expect(result.trace).toBeNull();
+      expect(result.messages).toEqual([{createSurface: {surfaceId: 'main'}}]);
+    }
+  });
 });
 
 describe('<playground-inspector>', () => {
