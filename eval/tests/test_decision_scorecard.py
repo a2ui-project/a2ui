@@ -185,3 +185,54 @@ backends:
         "--strict",
     ])
     assert rc_strict == 1
+
+
+def test_scorecard_cli_empty_split_exits_nonzero(tmp_path: Path) -> None:
+    """Verifies empty `--split tuning` returns non-zero instead of an empty scorecard."""
+    ds_dir = tmp_path / "ds"
+    ds_dir.mkdir()
+    _write_heldout_only(ds_dir / "heldout_v1.yaml")
+
+    rc_empty = decision_scorecard.main(
+        ["--dataset", str(ds_dir), "--split", "tuning", "--spec", "mock/mock"]
+    )
+    assert rc_empty != 0
+
+
+@pytest.mark.asyncio
+async def test_scorecard_always_includes_mock_baseline(
+    tmp_path: Path,
+) -> None:
+    """Verifies mock/mock baseline is added for remote-only specs."""
+    ds_dir = tmp_path / "ds"
+    ds_dir.mkdir()
+    _write_heldout_only(ds_dir / "heldout_v1.yaml")
+
+    remote_only = [
+        decision_scorecard.ScorecardTargetSpec(backend="jev", model="jev-1.14.0")
+    ]
+    cases = decision_scorecard.load_plan_cases(
+        ds_dir, split="heldout", include_unverified=True
+    )
+    report = await decision_scorecard.run_scorecard(
+        remote_only, [("heldout", cases)], repeat=1, strict=False
+    )
+    assert any(r.spec.backend == "mock" for r in report.rows_by_split["heldout"])
+
+
+def _write_heldout_only(path: Path) -> None:
+    """Writes a minimal heldout-only YAML dataset for split filtering tests."""
+    path.write_text(
+        """
+- name: heldout_one
+  intent: "Show host CPU load"
+  payload:
+    cpu: 0.72
+  expected:
+    family: "monitor"
+    archetypes: ["dashboard"]
+  split: "heldout"
+  verified: true
+""",
+        encoding="utf-8",
+    )

@@ -200,7 +200,7 @@ def _load_split_groups(
             split="tuning",
             include_unverified=args.include_unverified,
         )
-        return [("tuning", loaded)]
+        return [("tuning", loaded)] if loaded else []
     if args.split == "heldout":
         loaded = load_plan_cases(
             cases_path,
@@ -208,7 +208,7 @@ def _load_split_groups(
             split="heldout",
             include_unverified=True,
         )
-        return [("heldout", loaded)]
+        return [("heldout", loaded)] if loaded else []
 
     tuning = load_plan_cases(
         cases_path,

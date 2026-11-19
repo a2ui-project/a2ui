@@ -340,3 +340,45 @@ def test_on_disk_tuning_and_heldout_datasets_conformance() -> None:
     for case in heldout_cases:
         _assert_no_family_word_in_case(case)
     _assert_zero_overlap(v1_cases, heldout_cases)
+
+
+def test_paraphrase_table_schema_none_and_urlless_auth_precheck(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verifies paraphrase prompts match archetypes.json, family='none' forbids archetypes, and auth pre-checks."""
+    from a2ui.inference_formats.experimental.decision import ArchetypeGrammar
+    from a2ui_eval.decision_common import (
+        PARAPHRASE_PROMPT_TABLE,
+        build_decision_backend,
+    )
+
+    grammar = ArchetypeGrammar.default()
+    table_sources = {src for src, _ in PARAPHRASE_PROMPT_TABLE}
+    for key in ("family", "stakes", "urgency"):
+        assert grammar.job[key].question in table_sources
+
+    schema = _load_schema()
+    bad_none = [{
+        "name": "bad_none_with_arch",
+        "intent": "Draw a shader",
+        "payload": {"fps": 60},
+        "expected": {"family": "none", "archetypes": ["dashboard"]},
+        "split": "tuning",
+        "verified": True,
+    }]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=bad_none, schema=schema)
+
+    for var in (
+        "A2UI_DECISION_URL",
+        "JEV_API_KEY",
+        "TYPESAFE_API_KEY",
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+    ):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("A2UI_DECISION_AUTH", "adc")
+    with pytest.raises(ValueError, match="systemone decision backend"):
+        build_decision_backend("systemone")
+    with pytest.raises(ValueError, match="gemini decision backend"):
+        build_decision_backend("gemini")

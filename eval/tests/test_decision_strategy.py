@@ -375,3 +375,45 @@ async def test_compile_decision_payload_closes_factory_if_create_format_raises()
             await step(state, noop_generate)  # type: ignore[arg-type]
 
     assert closed is True
+
+
+@pytest.mark.asyncio
+async def test_decision_solver_reraises_backend_error_without_llm_retries() -> None:
+    """Verifies direct and wrapped DecisionBackendError propagate without entering LLM retries."""
+    from a2ui.inference_formats.experimental.decision import (
+        DecisionBackendError,
+        DeterministicMockBackend,
+    )
+
+    class _BoomBackend(DeterministicMockBackend):
+
+        async def answer(self, batch: Any) -> Any:
+            del batch
+            raise DecisionBackendError("service down", backend_kind="jev", model_id="m")
+
+    retry_calls = 0
+
+    async def failing_generate(st: TaskState, *args: Any, **kwargs: Any) -> TaskState:
+        nonlocal retry_calls
+        del args, kwargs
+        retry_calls += 1
+        return st
+
+    state = _make_state(
+        metadata={
+            "catalog": "catalogs/basic/v1/catalog.json",
+            "allowed_surface_ids": ["main"],
+        },
+        completion=f"<a2ui>\n{HOST_BLOCK}\n</a2ui>",
+    )
+    with patch(
+        "a2ui_eval.strategies.decision.build_decision_backend",
+        return_value=_BoomBackend(),
+    ):
+        step = compile_decision_payload("1.0", decision_backend="mock")
+        with pytest.raises(Exception) as info:
+            await step(state, failing_generate)
+    assert isinstance(info.value, DecisionBackendError) or isinstance(
+        info.value.__cause__, DecisionBackendError
+    )
+    assert retry_calls == 0

@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping
 import json
 from pathlib import Path
 import sys
@@ -153,6 +154,47 @@ def _infer_family(meta: dict[str, Any], arch: str) -> str:
     return "monitor"
 
 
+def _extract_stub_intent_and_payload(
+    block_data: Mapping[str, Any], sample: Mapping[str, Any]
+) -> tuple[str, dict[str, Any] | list[Any]] | None:
+    """Validates and extracts `(intent, payload)` for a seeded case stub."""
+    raw_intent = block_data.get("intent")
+    if not isinstance(raw_intent, str) or not raw_intent.strip():
+        raw_intent = sample.get("input")
+    if not isinstance(raw_intent, str) or not raw_intent.strip():
+        return None
+    raw_payload = block_data.get("payload")
+    if raw_payload is None:
+        payload: dict[str, Any] | list[Any] = {}
+    elif isinstance(raw_payload, list):
+        payload = list(raw_payload)
+    elif isinstance(raw_payload, Mapping):
+        payload = dict(raw_payload)
+    else:
+        return None
+    return raw_intent.strip(), payload
+
+
+def _attach_optional_stub_fields(
+    stub: dict[str, Any], block_data: dict[str, Any]
+) -> None:
+    """Copies optional decision-block metadata fields onto a case stub."""
+    actions = block_data.get("actions")
+    if isinstance(actions, dict) and actions:
+        stub["actions"] = actions
+    mutable_paths = (
+        block_data.get("mutable_paths") or block_data.get("mutablePaths") or []
+    )
+    if mutable_paths:
+        stub["mutable_paths"] = list(mutable_paths)
+    exclude = block_data.get("exclude")
+    if exclude:
+        stub["exclude"] = list(exclude)
+    layout = block_data.get("layout")
+    if layout:
+        stub["layout"] = list(layout)
+
+
 def _sample_to_case_stub(
     sample: dict[str, Any],
     *,
@@ -172,24 +214,34 @@ def _sample_to_case_stub(
     """
     meta = sample.get("metadata") or {}
     block_data = _parse_block_dict(meta.get("decision_block"))
+    if block_data is None:
+        return None
+    is_abstain = meta.get("decision_stage") == "abstain_fallback"
     arch = meta.get("decision_archetype")
-    if block_data is None or not arch or arch == "unknown":
+    if not is_abstain and (not arch or arch == "unknown"):
         return None
 
+    extracted = _extract_stub_intent_and_payload(block_data, sample)
+    if extracted is None:
+        return None
+    intent, payload = extracted
+
     sample_id = str(sample.get("id") or sample.get("name") or "sample")
-    case_name = f"{sample_id}_{arch}"
+    suffix = "abstain" if is_abstain else str(arch)
+    case_name = f"{sample_id}_{suffix}"
     if case_name in existing_names:
         return None
 
-    family = _infer_family(meta, str(arch))
+    family = "none" if is_abstain else _infer_family(meta, str(arch))
+    expected_archetypes = [] if family == "none" else [str(arch)]
 
     stub: dict[str, Any] = {
         "name": case_name,
-        "intent": block_data.get("intent") or sample.get("input") or "",
-        "payload": block_data.get("payload") or {},
+        "intent": intent,
+        "payload": payload,
         "expected": {
             "family": family,
-            "archetypes": [arch],
+            "archetypes": expected_archetypes,
             "blocks": {
                 "required": _normalize_blocks_list(meta.get("decision_blocks")),
             },
@@ -203,20 +255,7 @@ def _sample_to_case_stub(
             "sample_id": sample_id,
         },
     }
-    actions = block_data.get("actions")
-    if isinstance(actions, dict) and actions:
-        stub["actions"] = actions
-    mutable_paths = (
-        block_data.get("mutable_paths") or block_data.get("mutablePaths") or []
-    )
-    if mutable_paths:
-        stub["mutable_paths"] = list(mutable_paths)
-    exclude = block_data.get("exclude")
-    if exclude:
-        stub["exclude"] = list(exclude)
-    layout = block_data.get("layout")
-    if layout:
-        stub["layout"] = list(layout)
+    _attach_optional_stub_fields(stub, block_data)
     return stub
 
 
@@ -233,7 +272,7 @@ def _collect_eval_files(log_paths: list[str | Path]) -> list[Path]:
     for log_path_str in log_paths:
         log_path = Path(log_path_str)
         candidates = (
-            list(log_path.glob("**/*.eval")) if log_path.is_dir() else [log_path]
+            sorted(log_path.glob("**/*.eval")) if log_path.is_dir() else [log_path]
         )
         files.extend(f for f in candidates if f.is_file())
     return files
