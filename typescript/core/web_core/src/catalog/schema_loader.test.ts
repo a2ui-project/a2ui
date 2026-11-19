@@ -1757,6 +1757,133 @@ describe('Catalog.fromJson & schema_loader', () => {
       );
     });
 
+    it('isShorthandParameterMap rejects typeless schema applicator objects while preserving valid parameter names', () => {
+      assert.strictEqual(isShorthandParameterMap({dependentRequired: {a: ['b']}}), false);
+      assert.strictEqual(
+        isShorthandParameterMap({
+          if: {properties: {a: {const: 'x'}}},
+          then: {required: ['b']},
+        }),
+        false,
+      );
+      assert.strictEqual(isShorthandParameterMap({required: ['a']}), false);
+      assert.strictEqual(isShorthandParameterMap({additionalProperties: false}), false);
+      assert.strictEqual(isShorthandParameterMap({unevaluatedProperties: false}), false);
+      assert.strictEqual(
+        isShorthandParameterMap({patternProperties: {'^x_': {type: 'string'}}}),
+        false,
+      );
+
+      // Valid shorthand parameter maps whose parameter names happen to match primitive JSON Schema keywords
+      assert.strictEqual(
+        isShorthandParameterMap({
+          title: {type: 'string'},
+          format: {type: 'string'},
+          pattern: {type: 'string'},
+        }),
+        true,
+      );
+    });
+
+    it('enforces Draft 2020-12 additionalProperties: false and unevaluatedProperties: false on nested property schemas with unions and conditionals', () => {
+      const doc = {
+        $defs: {
+          StrictLocalWithAllOfConditional: {
+            type: 'object',
+            properties: {
+              shared: {type: 'string'},
+            },
+            additionalProperties: false,
+            allOf: [
+              {
+                if: {
+                  properties: {shared: {const: 'trigger'}},
+                  required: ['shared'],
+                },
+                then: {
+                  properties: {
+                    branchOnly: {type: 'string'},
+                  },
+                },
+              },
+            ],
+          },
+          ClosedUnionTarget: {
+            type: 'object',
+            unevaluatedProperties: false,
+            oneOf: [
+              {
+                properties: {url: {type: 'string'}},
+                required: ['url'],
+              },
+              {
+                properties: {path: {type: 'string'}},
+                required: ['path'],
+              },
+            ],
+          },
+          StrictLocalWithAnyOf: {
+            type: 'object',
+            properties: {
+              id: {type: 'string'},
+            },
+            additionalProperties: false,
+            anyOf: [
+              {
+                properties: {
+                  siblingOnly: {type: 'string'},
+                },
+              },
+            ],
+          },
+        },
+      };
+
+      const schema = convertFunctionArgsJsonSchemaToZod(
+        {
+          type: 'object',
+          properties: {
+            strictAllOf: {$ref: '#/$defs/StrictLocalWithAllOfConditional'},
+            closedUnion: {$ref: '#/$defs/ClosedUnionTarget'},
+            strictUnion: {$ref: '#/$defs/StrictLocalWithAnyOf'},
+          },
+        },
+        doc,
+      );
+
+      // Draft 2020-12 Section 10.3.2.3: additionalProperties: false only sees same-object
+      // `properties` and `patternProperties`, NOT properties inside `allOf`/`then`
+      assert.strictEqual(schema.safeParse({strictAllOf: {shared: 'ok'}}).success, true);
+      assert.strictEqual(
+        schema.safeParse({strictAllOf: {shared: 'trigger', branchOnly: 'rejected'}}).success,
+        false,
+      );
+
+      // Draft 2020-12 Section 11.3: unevaluatedProperties: false on a union property schema
+      // accepts keys from the single matching branch and rejects unselected/extra keys
+      assert.strictEqual(
+        schema.safeParse({closedUnion: {url: 'https://example.com'}}).success,
+        true,
+      );
+      assert.strictEqual(schema.safeParse({closedUnion: {path: '/var/log'}}).success, true);
+      assert.strictEqual(
+        schema.safeParse({closedUnion: {url: 'https://example.com', path: '/var/log'}}).success,
+        false,
+      );
+      assert.strictEqual(
+        schema.safeParse({closedUnion: {url: 'https://example.com', extra: 1}}).success,
+        false,
+      );
+
+      // Draft 2020-12 Section 10.3.2.3: additionalProperties: false on a union property schema
+      // rejects keys declared only inside sibling `anyOf` branches
+      assert.strictEqual(schema.safeParse({strictUnion: {id: '123'}}).success, true);
+      assert.strictEqual(
+        schema.safeParse({strictUnion: {id: '123', siblingOnly: 'rejected'}}).success,
+        false,
+      );
+    });
+
     it('preserves nested issue.path on conditional and union validation failures', () => {
       const conditionalSchema = convertFunctionArgsJsonSchemaToZod({
         type: 'object',

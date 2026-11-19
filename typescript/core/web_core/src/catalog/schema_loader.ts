@@ -324,6 +324,56 @@ function applyUnevaluatedPropertiesConstraint(
 }
 
 /**
+ * Enforces object-level keywords (`properties`, `patternProperties`, `required`,
+ * `additionalProperties: false`, `minProperties`, `maxProperties`, `dependentRequired`)
+ * declared directly on a schema object that also carries `oneOf`, `anyOf`, or `allOf`.
+ */
+function applyLocalObjectConstraints(
+  baseZod: z.ZodTypeAny,
+  propSchema: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
+  visitedPointers = new Set<string>(),
+  defCache = new Map<string, z.ZodTypeAny>(),
+): z.ZodTypeAny {
+  const hasLocalObjectKeywords =
+    OBJECT_APPLICATOR_KEYWORDS.some(
+      k => k !== 'unevaluatedProperties' && propSchema[k] !== undefined,
+    ) || propSchema.type === 'object';
+  if (!hasLocalObjectKeywords) {
+    return baseZod;
+  }
+  const localValidator =
+    propSchema.type === 'object'
+      ? convertObjectSchemaToZod(propSchema, rootDoc, visitedPointers, defCache)
+      : convertTypelessSchemaToZod(
+          {
+            ...propSchema,
+            if: undefined,
+            then: undefined,
+            else: undefined,
+            not: undefined,
+            unevaluatedProperties: undefined,
+          },
+          rootDoc,
+          visitedPointers,
+          defCache,
+        );
+  return baseZod.superRefine((val, ctx) => {
+    if (!isPlainObject(val)) return;
+    const res = localValidator.safeParse(val);
+    if (!res.success) {
+      for (const issue of res.error.issues) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: issue.message,
+          path: issue.path,
+        });
+      }
+    }
+  });
+}
+
+/**
  * Applies `not`, `default`, and `description` modifiers to a converted Zod schema.
  *
  * @param baseZod Base Zod schema before modifiers.
@@ -492,13 +542,24 @@ function convertUnionToZod(
     unionZod = isOneOf ? exclusiveUnion(tuple) : z.union(tuple);
   }
 
-  if (propSchema.default !== undefined) {
-    unionZod = unionZod.default(propSchema.default);
-  }
+  let result = applyLocalObjectConstraints(
+    unionZod,
+    propSchema,
+    rootDoc,
+    visitedPointers,
+    defCache,
+  );
   const desc =
     (typeof propSchema.description === 'string' ? propSchema.description : undefined) ||
     (enumBranch && hasBinding ? 'REF:common_types.json#/$defs/DynamicString' : undefined);
-  return desc ? unionZod.describe(desc) : unionZod;
+  result = finalizePropertyZod(
+    desc ? result.describe(desc) : result,
+    propSchema,
+    rootDoc,
+    visitedPointers,
+    defCache,
+  );
+  return result;
 }
 
 /**
@@ -598,7 +659,14 @@ function convertAllOfPropertyToZod(
   for (let i = 1; i < zodBranches.length; i++) {
     intersected = intersected.and(zodBranches[i]);
   }
-  return finalizePropertyZod(intersected, propSchema, rootDoc, visitedPointers, defCache);
+  const constrained = applyLocalObjectConstraints(
+    intersected,
+    propSchema,
+    rootDoc,
+    visitedPointers,
+    defCache,
+  );
+  return finalizePropertyZod(constrained, propSchema, rootDoc, visitedPointers, defCache);
 }
 
 /**
@@ -1586,55 +1654,6 @@ function extractRequiredDisjunction(branches: unknown): string[][] | undefined {
     groups.push(req);
   }
   return groups;
-}
-
-/**
- * Recursively collects property names declared inside conditional (`then`, `else`)
- * and combinator (`allOf`, `oneOf`, `anyOf`) subschemas—including `$ref` targets—so
- * that strict object schemas (`additionalProperties: false`) permit valid branch
- * properties prior to conditional/union refinement.
- *
- * Intentionally skips `if` and `not` subschemas because `if` only tests conditions
- * and `not` negates schemas rather than introducing valid properties.
- */
-function collectConditionalAndBranchPropertyNames(
-  node: unknown,
-  rootDoc: Record<string, unknown> | undefined,
-  seen: Set<unknown>,
-  out: Set<string>,
-): void {
-  if (!isPlainObject(node) || seen.has(node)) {
-    return;
-  }
-  seen.add(node);
-
-  if (typeof node.$ref === 'string' && rootDoc) {
-    const target = resolveJsonPointer(rootDoc, node.$ref);
-    if (isPlainObject(target)) {
-      collectConditionalAndBranchPropertyNames(target, rootDoc, seen, out);
-    }
-  }
-
-  if (isPlainObject(node.properties)) {
-    for (const propName of Object.keys(node.properties)) {
-      out.add(propName);
-    }
-  }
-
-  for (const branchKey of ['then', 'else'] as const) {
-    if (isPlainObject(node[branchKey])) {
-      collectConditionalAndBranchPropertyNames(node[branchKey], rootDoc, seen, out);
-    }
-  }
-
-  for (const combinatorKey of ['allOf', 'oneOf', 'anyOf'] as const) {
-    const branches = node[combinatorKey];
-    if (Array.isArray(branches)) {
-      for (const branch of branches) {
-        collectConditionalAndBranchPropertyNames(branch, rootDoc, seen, out);
-      }
-    }
-  }
 }
 
 /**
