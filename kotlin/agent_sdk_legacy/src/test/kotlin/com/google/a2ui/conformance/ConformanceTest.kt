@@ -801,11 +801,6 @@ class ConformanceTest {
         "test_v09_incremental_update_self_reference_error",
         "test_v09_incremental_update_circular_reference_error",
         "test_v09_incremental_update_duplicate_component_id_error",
-        // `A2uiValidator` checks a component against the catalog schema, and the time that takes
-        // multiplies with each level of function call nesting: six nested `formatString` calls
-        // do not finish within minutes. `ValidatorTest` checks that the depth check itself
-        // accepts calls nested deeper than five.
-        "test_v09_nested_function_calls_within_global_depth",
       )
 
     private val VALIDATION_ERROR_CLASS_NAMES =

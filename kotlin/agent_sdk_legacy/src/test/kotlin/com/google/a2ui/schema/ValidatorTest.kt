@@ -16,7 +16,9 @@
 
 package com.google.a2ui.schema
 
+import com.google.a2ui.basic_catalog.BasicCatalog
 import com.google.a2ui.exceptions.A2uiRecursionException
+import com.google.a2ui.exceptions.A2uiValidationException
 import kotlin.io.path.createTempFile
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -24,6 +26,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -366,5 +370,164 @@ class ValidatorTest {
       }
 
     assertEquals("Global recursion limit exceeded: Depth > 50", exception.message)
+  }
+
+  private val v09BasicValidator: A2uiValidator by lazy {
+    A2uiSchemaManager(
+        version = A2uiVersion.VERSION_0_9,
+        catalogs = listOf(BasicCatalog.getConfig(A2uiVersion.VERSION_0_9)),
+      )
+      .getSelectedCatalog()
+      .validator
+  }
+
+  /**
+   * Returns [depth] nested `formatString` calls, with the innermost call taking [innermost] as its
+   * `value` argument.
+   */
+  private fun nestedFormatString(
+    depth: Int,
+    innermost: JsonElement = JsonPrimitive("leaf"),
+  ): JsonObject {
+    var value: JsonElement = innermost
+    repeat(depth) {
+      value =
+        JsonObject(
+          mapOf(
+            "call" to JsonPrimitive("formatString"),
+            "args" to JsonObject(mapOf("value" to value)),
+          )
+        )
+    }
+    return value as JsonObject
+  }
+
+  private fun v09SurfaceMessages(text: JsonElement): JsonArray =
+    JsonArray(
+      listOf(
+        JsonObject(
+          mapOf(
+            "version" to JsonPrimitive("v0.9"),
+            "createSurface" to
+              JsonObject(
+                mapOf(
+                  "surfaceId" to JsonPrimitive("s1"),
+                  "catalogId" to
+                    JsonPrimitive(BasicCatalog.BASIC_CATALOG_IDS.getValue(A2uiVersion.VERSION_0_9)),
+                )
+              ),
+          )
+        ),
+        JsonObject(
+          mapOf(
+            "version" to JsonPrimitive("v0.9"),
+            "updateComponents" to
+              JsonObject(
+                mapOf(
+                  "surfaceId" to JsonPrimitive("s1"),
+                  "components" to
+                    JsonArray(
+                      listOf(
+                        JsonObject(
+                          mapOf(
+                            "id" to JsonPrimitive("root"),
+                            "component" to JsonPrimitive("Text"),
+                            "text" to text,
+                          )
+                        )
+                      )
+                    ),
+                )
+              ),
+          )
+        ),
+      )
+    )
+
+  @Test
+  fun validatesDeeplyNestedV09BasicCatalogFunctionCallsWithStrictIntegrity() {
+    v09BasicValidator.validate(v09SurfaceMessages(nestedFormatString(10)), strictIntegrity = true)
+    // 23 nested calls reach depth 50 from the message and must validate linearly rather than
+    // branching exponentially across `FunctionCall` and `anyFunction`.
+    v09BasicValidator.validate(v09SurfaceMessages(nestedFormatString(23)), strictIntegrity = true)
+
+    val recursionError =
+      assertFailsWith<A2uiRecursionException> {
+        v09BasicValidator.validate(
+          v09SurfaceMessages(nestedFormatString(24)),
+          strictIntegrity = true,
+        )
+      }
+    assertEquals("Global recursion limit exceeded: Depth > 50", recursionError.message)
+  }
+
+  @Test
+  fun rejectsInvalidNestedV09BasicCatalogFunctionCallsWithStrictIntegrity() {
+    val invalidInnermostCalls =
+      listOf(
+        // Unknown function name nested ten deep
+        JsonObject(
+          mapOf(
+            "call" to JsonPrimitive("unknownFunc"),
+            "args" to JsonObject(mapOf("value" to JsonPrimitive("x"))),
+          )
+        ),
+        // Wrong argument type nested ten deep
+        JsonObject(
+          mapOf(
+            "call" to JsonPrimitive("formatString"),
+            "args" to JsonObject(mapOf("value" to JsonPrimitive(42))),
+          )
+        ),
+        // Undeclared extra argument nested ten deep
+        JsonObject(
+          mapOf(
+            "call" to JsonPrimitive("formatString"),
+            "args" to JsonObject(mapOf("value" to JsonPrimitive("x"), "extra" to JsonPrimitive(1))),
+          )
+        ),
+        // Missing required `args` nested ten deep
+        JsonObject(mapOf("call" to JsonPrimitive("formatString"))),
+        // Undeclared top-level field on call nested ten deep
+        JsonObject(
+          mapOf(
+            "call" to JsonPrimitive("formatString"),
+            "args" to JsonObject(mapOf("value" to JsonPrimitive("x"))),
+            "bogus" to JsonPrimitive(1),
+          )
+        ),
+        // Mismatched `returnType` for `formatString` nested ten deep
+        JsonObject(
+          mapOf(
+            "call" to JsonPrimitive("formatString"),
+            "args" to JsonObject(mapOf("value" to JsonPrimitive("x"))),
+            "returnType" to JsonPrimitive("number"),
+          )
+        ),
+        // Boolean-returning call in a `DynamicString` slot nested ten deep
+        JsonObject(
+          mapOf(
+            "call" to JsonPrimitive("required"),
+            "args" to JsonObject(mapOf("value" to JsonPrimitive("x"))),
+            "returnType" to JsonPrimitive("boolean"),
+          )
+        ),
+        // Null argument value nested ten deep
+        JsonObject(
+          mapOf(
+            "call" to JsonPrimitive("formatString"),
+            "args" to JsonObject(mapOf("value" to JsonNull)),
+          )
+        ),
+      )
+
+    for (invalidInnermost in invalidInnermostCalls) {
+      assertFailsWith<A2uiValidationException> {
+        v09BasicValidator.validate(
+          v09SurfaceMessages(nestedFormatString(9, innermost = invalidInnermost)),
+          strictIntegrity = true,
+        )
+      }
+    }
   }
 }

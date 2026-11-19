@@ -153,6 +153,123 @@ void main() {
     });
   }
 
+  group('nested function calls in the v0.9 basic catalog', () {
+    /// [depth] `formatString` calls, each the `value` of the one before; the
+    /// innermost takes [innermost] for its `value`.
+    Map<String, Object?> nestedFormatString(
+      int depth, {
+      Object? innermost = 'leaf',
+    }) {
+      var value = innermost;
+      for (var i = 0; i < depth; i++) {
+        value = {
+          'call': 'formatString',
+          'args': {'value': value},
+        };
+      }
+      return value! as Map<String, Object?>;
+    }
+
+    void process(Object? text) {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [BasicCatalog.v0_9()],
+        defaultVersion: A2uiProtocolVersion.v0_9,
+      );
+      processor.processMessages(
+        AgentToRendererMessage.parseAll([
+          {
+            'version': 'v0.9',
+            'createSurface': {
+              'surfaceId': 's1',
+              'catalogId': BasicCatalog.v0_9Id,
+            },
+          },
+          {
+            'version': 'v0.9',
+            'updateComponents': {
+              'surfaceId': 's1',
+              'components': [
+                {'id': 'root', 'component': 'Text', 'text': text},
+              ],
+            },
+          },
+        ], protocolVersion: A2uiProtocolVersion.v0_9),
+      );
+    }
+
+    // Checking a call against every function of the catalog, arguments and
+    // all, takes time that multiplies with each level of nesting: ten levels
+    // would not finish. The timeout fails the test instead.
+    for (final depth in [10, 20, 23]) {
+      test(
+        'MessageProcessor accepts $depth nested calls',
+        timeout: const Timeout(Duration(seconds: 30)),
+        () {
+          expect(() => process(nestedFormatString(depth)), returnsNormally);
+        },
+      );
+    }
+
+    for (final (String label, Object? innermost) in [
+      (
+        'names an unknown function',
+        {
+          'call': 'nope',
+          'args': {'value': 'x'},
+        },
+      ),
+      (
+        'passes an argument of the wrong type',
+        {
+          'call': 'formatString',
+          'args': {'value': 3},
+        },
+      ),
+      (
+        'passes an undeclared argument',
+        {
+          'call': 'formatString',
+          'args': {'value': 'x', 'extra': 1},
+        },
+      ),
+      (
+        'has an undeclared field',
+        {
+          'call': 'formatString',
+          'args': {'value': 'x'},
+          'bogus': 1,
+        },
+      ),
+      (
+        'states a return type the function does not have',
+        {
+          'call': 'formatString',
+          'args': {'value': 'x'},
+          'returnType': 'number',
+        },
+      ),
+      (
+        'returns a boolean where a string is expected',
+        {
+          'call': 'required',
+          'args': {'value': 'x'},
+          'returnType': 'boolean',
+        },
+      ),
+    ]) {
+      test(
+        'MessageProcessor rejects a call nested ten deep that $label',
+        timeout: const Timeout(Duration(seconds: 30)),
+        () {
+          expect(
+            () => process(nestedFormatString(9, innermost: innermost)),
+            throwsA(isA<A2uiValidationError>()),
+          );
+        },
+      );
+    }
+  });
+
   _registerExamples(
     'the v0.9.1 basic catalog examples against the v0.9.1 document',
     '../catalogs/basic/v0_9_1/examples',

@@ -20,11 +20,15 @@ import com.google.a2ui.exceptions.A2uiErrorDetail
 import com.google.a2ui.exceptions.A2uiIntegrityException
 import com.google.a2ui.exceptions.A2uiRecursionException
 import com.google.a2ui.exceptions.A2uiValidationException
+import com.networknt.schema.AbsoluteIri
 import com.networknt.schema.InputFormat
 import com.networknt.schema.Schema
 import com.networknt.schema.SchemaRegistry
 import com.networknt.schema.SchemaRegistryConfig
 import com.networknt.schema.dialect.Dialects
+import com.networknt.schema.resource.InputStreamSource
+import com.networknt.schema.resource.IriResourceLoader
+import com.networknt.schema.resource.ResourceLoader
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -48,19 +52,36 @@ constructor(
   private val catalog: A2uiCatalog,
   private val schemaMappings: Map<String, String> = emptyMap(),
 ) {
+  private val jsonFmt = Json { prettyPrint = false }
+  private val validationCatalogSchema: JsonObject by lazy {
+    buildValidationCatalogSchema(catalog.catalogSchema)
+  }
+  private val validationCatalogSchemaString: String by lazy {
+    jsonFmt.encodeToString(JsonElement.serializer(), validationCatalogSchema)
+  }
+  private val validationCommonTypesSchemaString: String? by lazy {
+    loadValidationCommonTypesSchemaString()
+  }
   private val shared0_9Registry: SchemaRegistry by lazy {
     SchemaRegistry.withDialect(Dialects.getDraft202012()) { builder ->
       builder.schemaIdResolvers { schemaIdResolvers ->
         schemaMappings.forEach { (prefix, target) -> schemaIdResolvers.mapPrefix(prefix, target) }
       }
       builder.resourceLoaders { resourceLoaders ->
-        resourceLoaders.add(com.networknt.schema.resource.IriResourceLoader.getInstance())
+        resourceLoaders.add(
+          ResourceLoader { iri ->
+            resolve0_9SchemaResource(iri)?.let { schemaJson ->
+              InputStreamSource { schemaJson.byteInputStream(Charsets.UTF_8) }
+            }
+          }
+        )
+        resourceLoaders.add(IriResourceLoader.getInstance())
       }
     }
   }
   private val sharedConfig: SchemaRegistryConfig by lazy { SchemaRegistryConfig.builder().build() }
   private val subValidators = mutableMapOf<String, Schema>()
-  private val validator: Schema = buildValidator()
+  private val validator: Schema by lazy { buildValidator() }
 
   private fun buildValidator(): Schema =
     if (catalog.version == A2uiVersion.VERSION_0_8) build0_8Validator() else build0_9Validator()
@@ -159,9 +180,153 @@ constructor(
       SchemaResourceLoader.wrapAsJsonArray(catalog.serverToClientSchema).toMutableMap()
     fullSchema[KEY_DOLLAR_SCHEMA] = JsonPrimitive(SCHEMA_DRAFT_2020_12)
 
-    val jsonFmt = Json { prettyPrint = false }
     val schemaString = jsonFmt.encodeToString(JsonElement.serializer(), JsonObject(fullSchema))
     return shared0_9Registry.getSchema(schemaString, InputFormat.JSON)
+  }
+
+  /**
+   * Returns [catalogSchema] with each branch of `$defs.anyFunction` allowing any object for `args`.
+   *
+   * Leaving the full recursive argument schemas in `anyFunction` makes `networknt` re-evaluate
+   * nested calls across both `FunctionCall.properties.args` and `anyFunction.oneOf` at every level
+   * of nesting. [getNestedFunctionCallErrors] validates each call's arguments in a single linear
+   * pass against `#/functions/<name>` instead.
+   */
+  private fun buildValidationCatalogSchema(catalogSchema: JsonObject): JsonObject {
+    if (catalogSchema.isEmpty()) return catalogSchema
+    val defs = (catalogSchema[KEY_DOLLAR_DEFS] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
+    val functionsObj = catalogSchema[A2uiConstants.CATALOG_FUNCTIONS_KEY] as? JsonObject
+    val anyFunction = defs[DEF_ANY_FUNCTION] as? JsonObject
+    val branches = anyFunction?.get("oneOf") as? JsonArray
+
+    val rewrittenAnyFunction =
+      when {
+        branches != null ->
+          JsonObject(
+            anyFunction.toMutableMap().apply {
+              put(
+                "oneOf",
+                JsonArray(
+                  branches.map { branch ->
+                    withoutArgumentSchema(resolveLocalRef(branch, catalogSchema)) ?: branch
+                  }
+                ),
+              )
+            }
+          )
+        !functionsObj.isNullOrEmpty() ->
+          JsonObject(
+            mapOf(
+              "oneOf" to
+                JsonArray(
+                  functionsObj.values.map { fnDef -> withoutArgumentSchema(fnDef) ?: fnDef }
+                )
+            )
+          )
+        else -> JsonObject(mapOf("not" to JsonObject(emptyMap())))
+      }
+
+    defs[DEF_ANY_FUNCTION] = rewrittenAnyFunction
+    return JsonObject(catalogSchema.toMutableMap().apply { put(KEY_DOLLAR_DEFS, JsonObject(defs)) })
+  }
+
+  private fun withoutArgumentSchema(definition: JsonElement?): JsonObject? {
+    val defObj = definition as? JsonObject ?: return null
+    val props = defObj[PROP_PROPERTIES] as? JsonObject ?: return null
+    if (PROP_ARGS !in props) return null
+    val newProps =
+      props.toMutableMap().apply {
+        put(PROP_ARGS, JsonObject(mapOf("type" to JsonPrimitive("object"))))
+      }
+    return JsonObject(defObj.toMutableMap().apply { put(PROP_PROPERTIES, JsonObject(newProps)) })
+  }
+
+  private fun resolveLocalRef(schema: JsonElement, document: JsonObject): JsonElement? {
+    val obj = schema as? JsonObject ?: return null
+    if (obj.size != 1) return null
+    val ref =
+      (obj[KEY_DOLLAR_REF] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+    if (!ref.startsWith("#/")) return null
+    var target: JsonElement = document
+    for (segment in ref.substring(2).split("/")) {
+      val map = target as? JsonObject ?: return null
+      val key = segment.replace("~1", "/").replace("~0", "~")
+      target = map[key] ?: return null
+    }
+    return target
+  }
+
+  /**
+   * Replaces `FunctionCall.properties.args.additionalProperties` (`anyOf[DynamicValue, object]`)
+   * with its non-recursive equivalent (`{"not": {"type": "null"}}`), since any non-null JSON value
+   * matches either `DynamicValue` or `{"type": "object"}` and [getNestedFunctionCallErrors] checks
+   * nested calls in a single linear pass.
+   */
+  private fun buildValidationCommonTypesSchema(commonTypes: JsonObject): JsonObject {
+    val defs = commonTypes[KEY_DOLLAR_DEFS] as? JsonObject ?: return commonTypes
+    val fnCall = defs[DEF_FUNCTION_CALL] as? JsonObject ?: return commonTypes
+    val props = fnCall[PROP_PROPERTIES] as? JsonObject ?: return commonTypes
+    val argsObj = props[PROP_ARGS] as? JsonObject ?: return commonTypes
+    val newArgs =
+      JsonObject(
+        argsObj.toMutableMap().apply {
+          put(
+            PROP_ADDITIONAL_PROPERTIES,
+            JsonObject(mapOf("not" to JsonObject(mapOf("type" to JsonPrimitive("null"))))),
+          )
+        }
+      )
+    val newProps = JsonObject(props.toMutableMap().apply { put(PROP_ARGS, newArgs) })
+    val newFnCall = JsonObject(fnCall.toMutableMap().apply { put(PROP_PROPERTIES, newProps) })
+    val newDefs = JsonObject(defs.toMutableMap().apply { put(DEF_FUNCTION_CALL, newFnCall) })
+    return JsonObject(commonTypes.toMutableMap().apply { put(KEY_DOLLAR_DEFS, newDefs) })
+  }
+
+  private fun loadValidationCommonTypesSchemaString(): String? {
+    val inMemoryDefs = catalog.commonTypesSchema[KEY_DOLLAR_DEFS] as? JsonObject
+    val rawCommonTypes: JsonObject? =
+      if (!inMemoryDefs.isNullOrEmpty()) {
+        catalog.commonTypesSchema
+      } else {
+        val mappedUri =
+          schemaMappings[FILE_COMMON_TYPES]
+            ?: schemaMappings.entries.firstOrNull { it.key.endsWith("/$FILE_COMMON_TYPES") }?.value
+        val fromMapped =
+          mappedUri?.let { uri ->
+            runCatching {
+                IriResourceLoader.getInstance()
+                  .getResource(AbsoluteIri.of(uri))
+                  ?.inputStream
+                  ?.bufferedReader(Charsets.UTF_8)
+                  ?.use { Json.parseToJsonElement(it.readText()) as? JsonObject }
+              }
+              .getOrNull()
+          }
+        fromMapped
+          ?: runCatching {
+              SchemaResourceLoader.loadFromBundledResource(catalog.version.value, FILE_COMMON_TYPES)
+            }
+            .getOrNull()
+      }
+    return rawCommonTypes?.let {
+      jsonFmt.encodeToString(JsonElement.serializer(), buildValidationCommonTypesSchema(it))
+    }
+  }
+
+  private fun resolve0_9SchemaResource(iri: AbsoluteIri): String? {
+    val iriStr = iri.toString()
+    val catalogDollarId =
+      (catalog.catalogSchema[KEY_DOLLAR_ID] as? JsonPrimitive)?.takeIf { it.isString }?.content
+    return when {
+      iriStr == FILE_CATALOG ||
+        iriStr.endsWith("/$FILE_CATALOG") ||
+        iriStr == schemaMappings[FILE_CATALOG] ||
+        (catalogDollarId != null && iriStr == catalogDollarId) -> validationCatalogSchemaString
+      iriStr == FILE_COMMON_TYPES ||
+        iriStr.endsWith("/$FILE_COMMON_TYPES") ||
+        iriStr == schemaMappings[FILE_COMMON_TYPES] -> validationCommonTypesSchemaString
+      else -> null
+    }
   }
 
   /**
@@ -177,13 +342,15 @@ constructor(
   fun validate(a2uiJson: JsonElement, strictIntegrity: Boolean = true) {
     val messages = a2uiJson as? JsonArray ?: JsonArray(listOf(a2uiJson))
 
-    // A payload nested past the global depth limit is rejected before schema validation, whose
-    // cost grows steeply with the depth of nested function calls.
+    // Reject payloads nested past the global depth limit before schema validation, matching the
+    // validation order of the other SDKs.
     for (message in messages) {
       A2uiRecursionValidator(strictIntegrity).validateDepth(message)
     }
 
-    if (catalog.version == A2uiVersion.VERSION_0_9) {
+    if (
+      catalog.version == A2uiVersion.VERSION_0_9 || catalog.version == A2uiVersion.VERSION_0_9_1
+    ) {
       validate0_9Custom(messages, strictIntegrity)
     } else {
       // Basic schema validation
@@ -271,6 +438,12 @@ constructor(
         "createSurface" in messageElem -> {
           val valSchema = getSubValidator("CreateSurfaceMessage")
           allErrors.addAll(getFormattedErrors(valSchema, messageElem, basePath))
+          val themeObj = (messageElem["createSurface"] as? JsonObject)?.get("theme") as? JsonObject
+          if (themeObj != null) {
+            allErrors.addAll(
+              getNestedFunctionCallErrors(themeObj, "$basePath.createSurface.theme", emptySet())
+            )
+          }
         }
         "updateComponents" in messageElem -> {
           allErrors.addAll(getUpdateComponentsErrors(messageElem, basePath))
@@ -360,7 +533,9 @@ constructor(
     val errors = mutableListOf<A2uiErrorDetail>()
 
     val version = message["version"]?.jsonPrimitive?.content
-    if (version != "v0.9") {
+    val validVersions =
+      if (catalog.version == A2uiVersion.VERSION_0_9_1) setOf("v0.9", "v0.9.1") else setOf("v0.9")
+    if (version !in validVersions) {
       errors.add(
         A2uiErrorDetail(
           path = normalizePath("version", path),
@@ -475,20 +650,106 @@ constructor(
 
     val validator =
       subValidators.getOrPut("comp_$compType") {
+        val escapedCompType = compType.replace("~", "~0").replace("/", "~1")
         val tempSchema =
           JsonObject(
-            catalogSchema.toMutableMap() +
+            validationCatalogSchema.toMutableMap() +
               mapOf(
-                "\$schema" to JsonPrimitive(SCHEMA_DRAFT_2020_12),
-                "\$ref" to JsonPrimitive("#/${A2uiConstants.CATALOG_COMPONENTS_KEY}/$compType"),
+                KEY_DOLLAR_SCHEMA to JsonPrimitive(SCHEMA_DRAFT_2020_12),
+                KEY_DOLLAR_REF to
+                  JsonPrimitive("#/${A2uiConstants.CATALOG_COMPONENTS_KEY}/$escapedCompType"),
               )
           )
-        val jsonFmt = Json { prettyPrint = false }
         val schemaString = jsonFmt.encodeToString(JsonElement.serializer(), tempSchema)
         shared0_9Registry.getSchema(schemaString, InputFormat.JSON)
       }
 
-    return getFormattedErrors(validator, comp, path)
+    val errors = getFormattedErrors(validator, comp, path).toMutableList()
+    errors.addAll(getNestedFunctionCallErrors(comp, path))
+    return errors
+  }
+
+  private fun getFunctionSubValidator(fnName: String): Schema {
+    return subValidators.getOrPut("func_$fnName") {
+      val escapedFnName = fnName.replace("~", "~0").replace("/", "~1")
+      val tempSchema =
+        JsonObject(
+          validationCatalogSchema.toMutableMap() +
+            mapOf(
+              KEY_DOLLAR_SCHEMA to JsonPrimitive(SCHEMA_DRAFT_2020_12),
+              KEY_DOLLAR_REF to
+                JsonPrimitive("#/${A2uiConstants.CATALOG_FUNCTIONS_KEY}/$escapedFnName"),
+            )
+        )
+      val schemaString = jsonFmt.encodeToString(JsonElement.serializer(), tempSchema)
+      shared0_9Registry.getSchema(schemaString, InputFormat.JSON)
+    }
+  }
+
+  /**
+   * Walks [rootObj] once in a single linear pass, validating every function call against its full
+   * schema in `catalogSchema["functions"]` (whose nested `anyFunction` references are stubbed to
+   * non-recursive envelopes).
+   */
+  private fun getNestedFunctionCallErrors(
+    rootObj: JsonObject,
+    basePath: String,
+    skipRootKeys: Set<String> = setOf("id", "component"),
+  ): List<A2uiErrorDetail> {
+    val errors = mutableListOf<A2uiErrorDetail>()
+    val functionsObj = catalog.catalogSchema[A2uiConstants.CATALOG_FUNCTIONS_KEY] as? JsonObject
+    val stack = ArrayDeque<Pair<JsonElement, String>>()
+
+    for ((propKey, propVal) in rootObj.entries.toList().asReversed()) {
+      if (propKey !in skipRootKeys) {
+        stack.addLast(propVal to "$basePath.$propKey")
+      }
+    }
+
+    while (stack.isNotEmpty()) {
+      val (elem, currentPath) = stack.removeLast()
+      when (elem) {
+        is JsonArray -> {
+          for (idx in elem.indices.reversed()) {
+            stack.addLast(elem[idx] to "$currentPath.$idx")
+          }
+        }
+        is JsonObject -> {
+          val callName =
+            (elem[PROP_CALL] as? JsonPrimitive)
+              ?.takeIf { it.isString }
+              ?.content
+              ?.takeIf { it.isNotEmpty() }
+          if (callName != null) {
+            if (functionsObj == null || callName !in functionsObj) {
+              errors.add(
+                A2uiErrorDetail(
+                  path = currentPath,
+                  code = "invalid_value",
+                  message = "Unknown function: $callName",
+                )
+              )
+            } else {
+              val funcValidator = getFunctionSubValidator(callName)
+              errors.addAll(getFormattedErrors(funcValidator, elem, currentPath))
+            }
+            val argsObj = elem[PROP_ARGS] as? JsonObject
+            if (argsObj != null) {
+              for ((argKey, argVal) in argsObj.entries.toList().asReversed()) {
+                stack.addLast(argVal to "$currentPath.$PROP_ARGS.$argKey")
+              }
+            }
+          } else {
+            for ((k, v) in elem.entries.toList().asReversed()) {
+              stack.addLast(v to "$currentPath.$k")
+            }
+          }
+        }
+        else -> {}
+      }
+    }
+
+    return errors
   }
 
   private fun calculateSurfaceRootIds(messages: JsonArray): Map<String, String> {
@@ -693,10 +954,18 @@ constructor(
     // JSON Schema standard keys
     private const val KEY_DOLLAR_SCHEMA = "\$schema"
     private const val KEY_DOLLAR_ID = "\$id"
+    private const val KEY_DOLLAR_DEFS = "\$defs"
+    private const val KEY_DOLLAR_REF = "\$ref"
+    private const val PROP_PROPERTIES = "properties"
     private const val PROP_ADDITIONAL_PROPERTIES = "additionalProperties"
+    private const val PROP_CALL = "call"
+    private const val PROP_ARGS = "args"
+    private const val DEF_ANY_FUNCTION = "anyFunction"
+    private const val DEF_FUNCTION_CALL = "FunctionCall"
 
     // Types & Drafts
     private const val SCHEMA_DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
     private const val FILE_COMMON_TYPES = "common_types.json"
+    private const val FILE_CATALOG = "catalog.json"
   }
 }
