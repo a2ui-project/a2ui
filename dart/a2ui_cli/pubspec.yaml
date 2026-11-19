@@ -20,7 +20,7 @@ repository: https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_cli
 resolution: workspace
 
 environment:
-  sdk: ">=3.10.0 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
   a2ui_core: ^0.8.0

@@ -141,7 +141,7 @@ jobs:
           name: a2ui_monorepo
           publish_to: none
           environment:
-            sdk: ">=3.10.0 <4.0.0"
+            sdk: ">=3.13.0 <4.0.0"
           workspace:
             - dart/a2ui_core
             - dart/a2ui_cli
@@ -202,7 +202,7 @@ jobs:
           name: a2ui_monorepo
           publish_to: none
           environment:
-            sdk: ">=3.10.0 <4.0.0"
+            sdk: ">=3.13.0 <4.0.0"
           workspace:
             - dart/a2ui_core
             - dart/a2ui_cli

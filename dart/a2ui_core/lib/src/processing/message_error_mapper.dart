@@ -50,10 +50,12 @@ class MessageErrorMapper {
     final String version = _resolveVersion(rawMessage, defaultVersion);
     final bool isCallFn =
         isCallRendererFunction || _hasKey(rawMessage, 'callRendererFunction');
-    final String? resolvedSurfaceId = _nonEmpty(error.surfaceId) ??
+    final String? resolvedSurfaceId =
+        _nonEmpty(error.surfaceId) ??
         _nonEmpty(surfaceId) ??
         _extractBodyString(rawMessage, 'surfaceId');
-    final String? resolvedFunctionCallId = _nonEmpty(error.functionCallId) ??
+    final String? resolvedFunctionCallId =
+        _nonEmpty(error.functionCallId) ??
         _nonEmpty(functionCallId) ??
         _extractBodyString(rawMessage, 'functionCallId');
     final String code = _mapCode(error, version, isCallFn);
@@ -132,7 +134,7 @@ class MessageErrorMapper {
   static String _mapValidationCode(A2uiValidationError error, String version) {
     final bool isCompositionCode =
         error.code == A2uiRendererError.unallowedParentCode ||
-            error.code == A2uiRendererError.unallowedChildCode;
+        error.code == A2uiRendererError.unallowedChildCode;
     if (isCompositionCode) {
       return (version == '1.0' ||
               version == 'v1.0' ||

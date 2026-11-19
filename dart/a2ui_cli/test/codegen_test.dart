@@ -51,9 +51,9 @@ void main() {
           entry.value,
         );
 
-        final catalogJson =
-            jsonDecode(File(catalogPath).readAsStringSync())
-                as Map<String, dynamic>;
+        final catalogJson = jsonDecode(
+          File(catalogPath).readAsStringSync(),
+        ) as Map<String, dynamic>;
         final catalog = CodegenCatalog.fromJson(catalogJson);
         final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(
           catalog,
@@ -61,9 +61,10 @@ void main() {
         final emitter = PythonEmitter(analysed);
         final String generated = emitter.generate().trim();
 
-        final String expected = File(
-          goldenPath,
-        ).readAsStringSync().replaceAll('\r\n', '\n').trim();
+        final String expected = File(goldenPath)
+            .readAsStringSync()
+            .replaceAll('\r\n', '\n')
+            .trim();
 
         expect(
           generated,
@@ -82,9 +83,9 @@ void main() {
           fixturesDir,
           'catalogs/functions.json',
         );
-        final catalogJson =
-            jsonDecode(File(catalogPath).readAsStringSync())
-                as Map<String, dynamic>;
+        final catalogJson = jsonDecode(
+          File(catalogPath).readAsStringSync(),
+        ) as Map<String, dynamic>;
         final catalog = CodegenCatalog.fromJson(catalogJson);
         final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(
           catalog,
@@ -116,9 +117,9 @@ void main() {
         fixturesDir,
         'catalogs/nested_types.json',
       );
-      final catalogJson =
-          jsonDecode(File(catalogPath).readAsStringSync())
-              as Map<String, dynamic>;
+      final catalogJson = jsonDecode(
+        File(catalogPath).readAsStringSync(),
+      ) as Map<String, dynamic>;
       final catalog = CodegenCatalog.fromJson(catalogJson);
       final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(catalog);
       final emitter = PythonEmitter(analysed);
@@ -140,9 +141,9 @@ void main() {
 
     test('supports custom base import and catalog name overrides', () {
       final String catalogPath = p.join(fixturesDir, 'catalogs/enums.json');
-      final catalogJson =
-          jsonDecode(File(catalogPath).readAsStringSync())
-              as Map<String, dynamic>;
+      final catalogJson = jsonDecode(
+        File(catalogPath).readAsStringSync(),
+      ) as Map<String, dynamic>;
       final catalog = CodegenCatalog.fromJson(catalogJson);
       final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(catalog);
       final emitter = PythonEmitter(
@@ -166,9 +167,9 @@ void main() {
           repoRoot,
           'catalogs/basic/v0_9_1/catalog.json',
         );
-        final catalogJson =
-            jsonDecode(File(catalogPath).readAsStringSync())
-                as Map<String, dynamic>;
+        final catalogJson = jsonDecode(
+          File(catalogPath).readAsStringSync(),
+        ) as Map<String, dynamic>;
         final catalog = CodegenCatalog.fromJson(catalogJson);
         final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(
           catalog,
@@ -251,9 +252,9 @@ void main() {
         repoRoot,
         'catalogs/basic/v1/catalog.json',
       );
-      final catalogJson =
-          jsonDecode(File(catalogPath).readAsStringSync())
-              as Map<String, dynamic>;
+      final catalogJson = jsonDecode(
+        File(catalogPath).readAsStringSync(),
+      ) as Map<String, dynamic>;
       final catalog = CodegenCatalog.fromJson(catalogJson);
       final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(catalog);
       final emitter = PythonEmitter(analysed);
