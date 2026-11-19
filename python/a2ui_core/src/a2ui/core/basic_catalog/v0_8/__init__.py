@@ -81,8 +81,11 @@ from ...catalog import Catalog, ModelComponentApi, FunctionImplementation
 def _basic_catalog_id(protocol_version: str) -> str:
     if protocol_version == "v0.8":
         return f"{PROTOCOL_BASE_URL}/v0_8/standard_catalog_definition.json"
+    ver_dir = (
+        protocol_version if protocol_version.startswith("v") else f"v{protocol_version}"
+    )
     return (
-        f"{PROTOCOL_BASE_URL}/{protocol_version.replace('.', '_')}/catalogs/basic/catalog.json"
+        f"{PROTOCOL_BASE_URL}/{ver_dir.replace('.', '_')}/catalogs/basic/catalog.json"
     )
 
 

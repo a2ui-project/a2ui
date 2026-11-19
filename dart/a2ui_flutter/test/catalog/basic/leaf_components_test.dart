@@ -62,9 +62,8 @@ void main() {
           {'id': v, 'component': 'Text', 'text': v, 'variant': v},
       ], catalog: _catalog);
 
-      final TextTheme theme = Theme.of(
-        tester.element(find.text('h1')),
-      ).textTheme;
+      final TextTheme theme = Theme.of(tester.element(find.text('h1')))
+          .textTheme;
       TextStyle? styleOf(String text) =>
           tester.widget<Text>(find.text(text)).style;
       for (final (variant, expected) in [

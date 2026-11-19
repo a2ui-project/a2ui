@@ -202,21 +202,16 @@ class SurfaceModel<T extends ComponentApi> {
     this.protocolVersion,
     this.rootId = 'root',
     Map<String, Object?>? metadata,
-    AgentFunctionCaller? callAgentFunction,
+    this._callAgentFunction,
     this.maxAgentCallCacheEntries = 256,
-  })  : _callAgentFunction = callAgentFunction,
-        availableCatalogs = Map.unmodifiable(
-          _indexCatalogs(
-            id,
-            protocolVersion,
-            [
-              if (defaultCatalog != null) defaultCatalog,
-              ...availableCatalogs,
-            ],
-          ),
-        ),
-        dataModel = DataModel(),
-        componentsModel = SurfaceComponentsModel(catalog: defaultCatalog) {
+  }) : availableCatalogs = Map.unmodifiable(
+         _indexCatalogs(id, protocolVersion, [
+           ?defaultCatalog,
+           ...availableCatalogs,
+         ]),
+       ),
+       dataModel = DataModel(),
+       componentsModel = SurfaceComponentsModel(catalog: defaultCatalog) {
     if (maxAgentCallCacheEntries < 1) {
       throw ArgumentError.value(
         maxAgentCallCacheEntries,
@@ -279,7 +274,7 @@ class SurfaceModel<T extends ComponentApi> {
   }
 
   static Map<String, Catalog<T, FunctionImplementation>>
-      _indexCatalogs<T extends ComponentApi>(
+  _indexCatalogs<T extends ComponentApi>(
     String surfaceId,
     String? protocolVersion,
     Iterable<Catalog<T, FunctionImplementation>> catalogs,
@@ -369,15 +364,17 @@ class SurfaceModel<T extends ComponentApi> {
         A2uiRendererError(
           code: 'INVALID_ACTION',
           surfaceId: id,
-          message: "Invalid action payload in component '$sourceComponentId': "
+          message:
+              "Invalid action payload in component '$sourceComponentId': "
               'missing event or action name.',
           details: payload,
         ),
       );
       return;
     }
-    final Object? payloadMetadata =
-        event.containsKey('metadata') ? event['metadata'] : payload['metadata'];
+    final Object? payloadMetadata = event.containsKey('metadata')
+        ? event['metadata']
+        : payload['metadata'];
     final A2uiMetadata? clonedMetadata = mergeActionMetadata(
       payloadMetadata,
       metadata,
@@ -389,7 +386,8 @@ class SurfaceModel<T extends ComponentApi> {
         A2uiRendererError(
           code: 'INVALID_ACTION',
           surfaceId: id,
-          message: "Invalid action payload in component '$sourceComponentId': "
+          message:
+              "Invalid action payload in component '$sourceComponentId': "
               'action name must be a non-empty string.',
           details: payload,
         ),
@@ -469,14 +467,14 @@ class SurfaceModel<T extends ComponentApi> {
 /// Copies maps and lists, so an action listener cannot reach the component or
 /// data model the payload was resolved from.
 Object? _detach(Object? value) => switch (value) {
-      Map() when value.keys.every((key) => key is String) => <String, dynamic>{
-          for (final MapEntry<Object?, Object?> entry in value.entries)
-            entry.key as String: _detach(entry.value),
-        },
-      Map() => <Object?, Object?>{
-          for (final MapEntry<Object?, Object?> entry in value.entries)
-            entry.key: _detach(entry.value),
-        },
-      List() => <Object?>[for (final Object? item in value) _detach(item)],
-      _ => value,
-    };
+  Map() when value.keys.every((key) => key is String) => <String, dynamic>{
+    for (final MapEntry<Object?, Object?> entry in value.entries)
+      entry.key as String: _detach(entry.value),
+  },
+  Map() => <Object?, Object?>{
+    for (final MapEntry<Object?, Object?> entry in value.entries)
+      entry.key: _detach(entry.value),
+  },
+  List() => <Object?>[for (final Object? item in value) _detach(item)],
+  _ => value,
+};

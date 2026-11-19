@@ -18,21 +18,21 @@ import 'package:flutter/widgets.dart';
 import 'component_props.dart';
 
 /// Builds the widget for one child node of the component being built.
-typedef ChildWidgetBuilder =
-    Widget Function(ComponentNode<ComponentImplementation> child);
+typedef ChildWidgetBuilder = Widget Function(
+  ComponentNode<ComponentImplementation> child,
+);
 
 /// Builds the widget for a resolved [node].
 ///
 /// [props] is the node's current resolved properties. Render child nodes
 /// through [buildChild]. A builder that wraps each child in another widget
 /// puts `KeyedSubtree(key: NodeKey(child.instanceId), ...)` outermost.
-typedef ComponentWidgetBuilder =
-    Widget Function(
-      BuildContext context,
-      ComponentNode<ComponentImplementation> node,
-      ComponentProps props,
-      ChildWidgetBuilder buildChild,
-    );
+typedef ComponentWidgetBuilder = Widget Function(
+  BuildContext context,
+  ComponentNode<ComponentImplementation> node,
+  ComponentProps props,
+  ChildWidgetBuilder buildChild,
+);
 
 /// The key of the widget built for the node with the instance id [value].
 ///

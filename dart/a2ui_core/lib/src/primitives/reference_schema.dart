@@ -53,9 +53,9 @@ final class NestedRef extends RefKind {
 
   /// The item properties holding a single reference.
   Set<String> get keys => {
-        for (final entry in fields.entries)
-          if (entry.value is SingleRef) entry.key,
-      };
+    for (final entry in fields.entries)
+      if (entry.value is SingleRef) entry.key,
+  };
 }
 
 /// The child-reference properties of one component type, by property name.
@@ -82,14 +82,14 @@ final class ComponentRefMap {
     Map<String, Object?> document = const {},
     Map<String, Object?>? commonTypes,
   }) : _byType = Map.unmodifiable({
-          for (final MapEntry<String, Map<String, Object?>> entry
-              in componentSchemas.entries)
-            entry.key: ReferenceSchemaReader(
-              entry.value,
-              document: document,
-              commonTypes: commonTypes,
-            ).fields(),
-        });
+         for (final MapEntry<String, Map<String, Object?>> entry
+             in componentSchemas.entries)
+           entry.key: ReferenceSchemaReader(
+             entry.value,
+             document: document,
+             commonTypes: commonTypes,
+           ).fields(),
+       });
 
   /// The reference properties of each component type, by type name.
   Map<String, RefFields> get byType => _byType;
@@ -142,8 +142,9 @@ class ReferenceSchemaReader {
     final visited = HashSet<Object>.identity();
     void collect(Object? value) {
       if (value is! Map || !visited.add(value)) return;
-      final Map<String, Object?> node =
-          value is Map<String, Object?> ? value : value.cast<String, Object?>();
+      final Map<String, Object?> node = value is Map<String, Object?>
+          ? value
+          : value.cast<String, Object?>();
       result.add(node);
       final Object? ref = node[r'$ref'];
       if (ref is String) {
@@ -237,7 +238,8 @@ class ReferenceSchemaReader {
         items(schemas),
       );
       return ListRef(
-        inferred: !_marks(itemSchemas, r'/$defs/ComponentId') &&
+        inferred:
+            !_marks(itemSchemas, r'/$defs/ComponentId') &&
             !_marks(itemSchemas, r'/$defs/Child'),
       );
     }
