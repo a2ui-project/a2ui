@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The colors that GitHub shows a label in: `background`, the label's own
 /// color, and `foreground`, black or white, whichever reads better on it.

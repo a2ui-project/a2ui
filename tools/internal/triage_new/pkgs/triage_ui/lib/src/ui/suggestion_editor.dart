@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:triage/triage.dart';
 
 import '../github/triage_service.dart';
@@ -179,16 +179,19 @@ class SuggestionEditor extends StatelessWidget {
                 ..._onlyPriorities(draft.addedLabels),
               ],
             ),
-            RemoveListField(
-              label: 'Remove labels',
-              colorsOf: colorsOf,
-              names: _withoutPriorities(item.labels),
-              removed: draft.removedLabels,
-              onChanged: (List<String> v) => draft.removedLabels = [
-                ...v,
-                ..._onlyPriorities(draft.removedLabels),
-              ],
-            ),
+            if (_shownLabels(item.labels).isNotEmpty)
+              ChipListField(
+                label: 'Remove labels',
+                colorsOf: colorsOf,
+                chooseTooltip: 'Choose labels to remove',
+                deleteTooltip: (String name) => 'Keep $name',
+                values: _shownLabels(draft.removedLabels),
+                options: _shownLabels(item.labels),
+                onChanged: (List<String> v) => draft.removedLabels = [
+                  ..._hiddenLabels(draft.removedLabels),
+                  ...v,
+                ],
+              ),
             ChipListField(
               label: 'Assign',
               chooseTooltip: 'Choose people to assign',
@@ -248,6 +251,21 @@ List<String> _withoutPriorities(List<String> labels) => [
 List<String> _onlyPriorities(List<String> labels) => [
   for (final l in labels)
     if (_priorities.contains(l)) l,
+];
+
+/// Whether **Remove labels** leaves out [label]: the priority has a field of
+/// its own, and apply always removes `status: needs-triage`.
+bool _isHidden(String label) =>
+    _priorities.contains(label) || label == needsTriageLabel;
+
+List<String> _shownLabels(List<String> labels) => [
+  for (final l in labels)
+    if (!_isHidden(l)) l,
+];
+
+List<String> _hiddenLabels(List<String> labels) => [
+  for (final l in labels)
+    if (_isHidden(l)) l,
 ];
 
 /// What each priority means, from `docs/contributing/triage/triage.md`.

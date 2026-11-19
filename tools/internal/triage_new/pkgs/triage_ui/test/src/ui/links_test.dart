@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:triage_ui/src/ui/links.dart';
 
 void main() {

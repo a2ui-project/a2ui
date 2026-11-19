@@ -12,11 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
-import 'label_colors.dart';
-
-/// A field that lists what the item has, such as its labels, with a
+/// A field that lists what the item has, such as its assignees, with a
 /// checkbox by each to remove it. A checked name is grayed out.
 ///
 /// Shows nothing if [names] is empty, since there is nothing to remove.
@@ -27,10 +25,9 @@ class RemoveListField extends StatelessWidget {
     required this.names,
     required this.removed,
     required this.onChanged,
-    this.colorsOf,
   });
 
-  /// The title on the field's border, such as "Remove labels".
+  /// The title on the field's border, such as "Unassign".
   final String label;
 
   /// What the item has.
@@ -40,10 +37,6 @@ class RemoveListField extends StatelessWidget {
   final List<String> removed;
 
   final ValueChanged<List<String>> onChanged;
-
-  /// The colors to show a name in, such as a label's colors on GitHub.
-  /// If it is set, the names are shown as labels.
-  final LabelColors? Function(String name)? colorsOf;
 
   @override
   Widget build(BuildContext context) {
@@ -62,8 +55,6 @@ class RemoveListField extends StatelessWidget {
             _Entry(
               name,
               checked: removed.contains(name),
-              asLabel: colorsOf != null,
-              colors: colorsOf?.call(name),
               onChanged: (bool checked) => onChanged([
                 for (final r in removed)
                   if (r != name) r,
@@ -77,21 +68,10 @@ class RemoveListField extends StatelessWidget {
 }
 
 class _Entry extends StatelessWidget {
-  const _Entry(
-    this.name, {
-    required this.checked,
-    required this.asLabel,
-    required this.onChanged,
-    this.colors,
-  });
+  const _Entry(this.name, {required this.checked, required this.onChanged});
 
   final String name;
   final bool checked;
-
-  /// Whether to show [name] as a label, in [colors] or, without them, in
-  /// the theme's colors.
-  final bool asLabel;
-  final LabelColors? colors;
   final ValueChanged<bool> onChanged;
 
   @override
@@ -108,10 +88,7 @@ class _Entry extends StatelessWidget {
             onChanged: (bool? value) => onChanged(value ?? false),
             semanticLabel: 'Remove $name',
           ),
-          Opacity(
-            opacity: checked ? 0.38 : 1,
-            child: asLabel ? LabelPill(name, colors: colors) : Text(name),
-          ),
+          Opacity(opacity: checked ? 0.38 : 1, child: Text(name)),
           const SizedBox(width: 4),
         ],
       ),

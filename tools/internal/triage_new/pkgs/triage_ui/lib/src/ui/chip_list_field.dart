@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'label_colors.dart';
 
@@ -31,7 +31,13 @@ class ChipListField extends StatefulWidget {
     this.options = const [],
     this.colorsOf,
     this.single = false,
+    this.deleteTooltip = _removeTooltip,
   });
+
+  static String _removeTooltip(String name) => 'Remove $name';
+
+  /// The tooltip of a chip's delete button, such as "Remove type: bug".
+  final String Function(String name) deleteTooltip;
 
   /// Whether the field holds at most one name, such as a milestone. Checking
   /// a name in the dropdown then replaces the one the field holds.
@@ -93,7 +99,7 @@ class _ChipListFieldState extends State<ChipListField> {
     deleteIconColor: colors?.foreground,
     side: colors == null ? null : BorderSide.none,
     onDeleted: () => _toggle(value, checked: false),
-    deleteButtonTooltipMessage: 'Remove $value',
+    deleteButtonTooltipMessage: widget.deleteTooltip(value),
   );
 
   @override

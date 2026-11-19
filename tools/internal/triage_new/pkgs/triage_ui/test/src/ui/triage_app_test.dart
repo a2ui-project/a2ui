@@ -15,10 +15,10 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:triage/triage.dart';
 import 'package:triage_ui/src/github_item.dart';
 import 'package:triage_ui/src/model/item_context.dart';
@@ -181,8 +181,9 @@ void main() {
     expect(priorityOf(tester), {'P1'});
     expect(find.widgetWithText(InputChip, 'P1'), findsNothing);
     expect(find.widgetWithText(InputChip, 'octocat'), findsOneWidget);
-    // Item 10 has a label to remove, and no assignee or milestone.
-    expect(find.text('Remove labels'), findsWidgets);
+    // Item 10 has only `status: needs-triage`, which apply removes without
+    // showing it, and no assignee or milestone.
+    expect(find.text('Remove labels'), findsNothing);
     expect(find.text('Unassign'), findsNothing);
     expect(find.text('Remove milestone'), findsNothing);
     expect(find.widgetWithText(ActionChip, 'Issue #1234'), findsOneWidget);
@@ -308,8 +309,8 @@ void main() {
     expect(find.text('Issues with open PRs (0/1)'), findsOneWidget);
   });
 
-  testWidgets('removes labels, assignees and the milestone with checkboxes, '
-      'and clears the priority', (tester) async {
+  testWidgets('removes labels from the dropdown, assignees and the milestone '
+      'with checkboxes, and clears the priority', (tester) async {
     github.items[10]!
       ..['labels'] = {
         'nodes': [
@@ -326,24 +327,18 @@ void main() {
       ..['milestone'] = {'title': 'November launch'};
     await pumpApp(tester);
 
-    // The priority is not among the labels to remove, and
-    // `status: needs-triage` starts checked.
-    expect(find.byTooltip('Keep $needsTriageLabel'), findsOneWidget);
-    expect(find.byTooltip('Remove type: bug'), findsOneWidget);
-    expect(find.byTooltip('Remove P2'), findsNothing);
-
-    // A checked label is grayed out.
-    await tester.tap(find.byTooltip('Remove type: bug'));
+    // The priority and `status: needs-triage` are not among the labels to
+    // remove; apply removes `status: needs-triage` anyway.
+    await tester.tap(find.byTooltip('Choose labels to remove').first);
     await tester.pumpAndSettle();
-    final Opacity bug = tester.widget(
-      find
-          .ancestor(
-            of: find.widgetWithText(LabelPill, 'type: bug').last,
-            matching: find.byType(Opacity),
-          )
-          .first,
-    );
-    expect(bug.opacity, lessThan(1));
+    expect(find.widgetWithText(MenuItemButton, 'type: bug'), findsOneWidget);
+    expect(find.widgetWithText(MenuItemButton, 'P2'), findsNothing);
+    expect(find.widgetWithText(MenuItemButton, needsTriageLabel), findsNothing);
+    await tester.tap(find.widgetWithText(MenuItemButton, 'type: bug'));
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Keep type: bug'), findsOneWidget);
+    expect(find.byTooltip('Keep $needsTriageLabel'), findsNothing);
     for (final name in ['hubot', 'November launch']) {
       await tester.ensureVisible(find.byTooltip('Remove $name'));
       await tester.pumpAndSettle();
@@ -432,8 +427,8 @@ void main() {
       tester.widget<Text>(find.text('type: bug').first).style!.color,
       Colors.black,
     );
-    // In the labels of the item, and in the labels to remove.
-    expect(find.widgetWithText(LabelPill, needsTriageLabel), findsNWidgets(2));
+    // In the labels of the item, and not in the labels to remove.
+    expect(find.widgetWithText(LabelPill, needsTriageLabel), findsOneWidget);
   });
 
   testWidgets('picks labels from the dropdown', (tester) async {
@@ -1006,8 +1001,8 @@ void main() {
     expect(find.textContaining('outdated'), findsNothing);
   });
 
-  testWidgets('an item without a suggestion starts removing only '
-      '"$needsTriageLabel"', (tester) async {
+  testWidgets('an item without a suggestion removes only '
+      '"$needsTriageLabel", without showing it', (tester) async {
     await pumpApp(tester);
     await expand(tester, 'Needs triage (3/3)');
     await expand(tester, 'Issues without open PRs (1/1)');
@@ -1015,15 +1010,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('no suggestion yet'), findsNothing);
-    expect(find.byTooltip('Keep $needsTriageLabel'), findsOneWidget);
+    expect(find.text('Remove labels'), findsNothing);
     final Finder apply = find.widgetWithText(FilledButton, 'Apply');
     expect(tester.widget<FilledButton>(apply).onPressed, isNotNull);
-
-    // Without it, there is nothing to apply.
-    await tester.tap(find.byTooltip('Keep $needsTriageLabel'));
-    await tester.pump();
-    expect(find.text('Nothing to apply.'), findsOneWidget);
-    expect(tester.widget<FilledButton>(apply).onPressed, isNull);
 
     await tester.tap(find.text('Close as duplicate'));
     await tester.pump();

@@ -14,7 +14,7 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:triage/triage.dart';
 
 import '../model/triage_item.dart';
