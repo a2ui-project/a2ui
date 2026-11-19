@@ -16,7 +16,7 @@
   `process(payload:)`, `process(message:)`, and `process(messages:)`. Pass `true` when the payload
   is handled within a user gesture so a v1.0 `callRendererFunction` may run functions that set
   `requiresUserActivation`, such as a nested call in its arguments.
-  [#NNNN](https://github.com/a2ui-project/a2ui/pull/NNNN)
+  [#4311](https://github.com/a2ui-project/a2ui/pull/4311)
 
 ## 0.11.0
 
