@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Bump `dompurify` to `^3.4.17` to resolve security advisories GHSA-cg2g-xh64-v4q7 and GHSA-mrv2-3pqr-j5jr ([#4278](https://github.com/a2ui-project/a2ui/issues/4278), [#4284](https://github.com/a2ui-project/a2ui/pull/4284)).
+
 ## 0.2.3
 
 - Bump dependencies for compatibility with `@a2ui/web_core: ^0.16.0`.
