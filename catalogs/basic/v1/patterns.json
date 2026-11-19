@@ -375,10 +375,7 @@
           "id": "filters_col",
           "component": "Column",
           "children": [
-            {
-              "$if": "query",
-              "id": "filters_search"
-            },
+            "filters_search",
             {
               "$if": "categories",
               "id": "filters_categories"
@@ -390,7 +387,8 @@
           "component": "TextField",
           "label": "Search",
           "value": {
-            "$slot": "query"
+            "$slot": "query",
+            "$default": ""
           },
           "variant": "shortText"
         },
@@ -440,7 +438,10 @@
           "component": "Column",
           "align": "start",
           "children": [
-            "headline_label",
+            {
+              "$if": "label",
+              "id": "headline_label"
+            },
             "headline_value",
             {
               "$ifKnob": {
@@ -657,12 +658,14 @@
                   "$ifKnob": {
                     "leading": ["thumbnail"]
                   },
+                  "$if": "picture",
                   "id": "item_thumb"
                 },
                 {
                   "$ifKnob": {
                     "leading": ["avatar"]
                   },
+                  "$if": "picture",
                   "id": "item_avatar"
                 },
                 {
@@ -1300,7 +1303,8 @@
           "variant": "mutuallyExclusive",
           "displayStyle": "chips",
           "options": {
-            "$slot": "options"
+            "$slot": "options",
+            "$default": []
           },
           "value": {
             "$slot": "value"
@@ -1332,7 +1336,8 @@
           "variant": "multipleSelection",
           "displayStyle": "checkbox",
           "options": {
-            "$slot": "options"
+            "$slot": "options",
+            "$default": []
           },
           "value": {
             "$slot": "value"
@@ -1368,7 +1373,8 @@
             "$slot": "min"
           },
           "max": {
-            "$slot": "max"
+            "$slot": "max",
+            "$default": 100
           },
           "@checks": {
             "$ifInstance": {
@@ -1702,7 +1708,8 @@
           "component": "TextField",
           "label": "Message",
           "value": {
-            "$slot": "draft"
+            "$slot": "draft",
+            "$default": ""
           },
           "variant": "longText",
           "weight": 1
