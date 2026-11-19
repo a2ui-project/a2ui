@@ -16,7 +16,7 @@ Every `patterns.json` file declares a single `"catalogId"` matching its `catalog
 
 ```json
 {
-  "$schema": "https://a2ui.org/specification/v1_0/decision/pattern_definition.json",
+  "$schema": "https://a2ui.org/specification/inference_formats/experimental/decision/v1/pattern_definition.json",
   "catalogId": "https://example.com/catalogs/my_catalog/v1/catalog.json",
   "grammarVersion": "1",
   "patterns": {

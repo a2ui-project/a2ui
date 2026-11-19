@@ -574,7 +574,7 @@ def inspect_catalog(loaded: LoadedCatalog) -> InspectReport:
     notes = _collect_notes(mode, page_candidates, summaries, blocks, templates)
     patterns_scaffold: dict[str, Any] = {
         "$schema": (
-            "https://a2ui.org/specification/v1_0/decision/pattern_definition.json"
+            "https://a2ui.org/specification/inference_formats/experimental/decision/v1/pattern_definition.json"
         ),
         "catalogId": loaded.catalog.catalog_id,
         "grammarVersion": loaded.grammar.version,
