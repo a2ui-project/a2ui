@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Enforce `minProperties`, `maxProperties`, `dependentRequired`, conditional `if`/`then`/`else` subschemas, typeless schema constraints (such as `{"not": {"required": ["b"]}}`), top-level `not`, and function argument combinators (`allOf`, `oneOf`, `anyOf`) when converting JSON Schema definitions to Zod in `Catalog.fromJson()` and `AgentFunction` schemas ([#3998](https://github.com)).
+- Enforce `minProperties`, `maxProperties`, `dependentRequired`, conditional `if`/`then`/`else` subschemas, typeless schema constraints (such as `{"not": {"required": ["b"]}}`), top-level `not`, and function argument combinators (`allOf`, `oneOf`, `anyOf`) when converting JSON Schema definitions to Zod in `Catalog.fromJson()` and `AgentFunction` schemas ([#3998](https://github.com/a2ui-project/a2ui/issues/3998)).
 
 ## 0.16.0
 
