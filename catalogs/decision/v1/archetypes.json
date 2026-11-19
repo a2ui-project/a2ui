@@ -1,5 +1,5 @@
 {
-  "$schema": "https://a2ui.org/specification/v1_0/decision/archetype_definition.json",
+  "$schema": "https://a2ui.org/specification/inference_formats/experimental/decision/v1/archetype_definition.json",
   "grammarVersion": "1",
   "thresholds": {
     "family": 0.4,
