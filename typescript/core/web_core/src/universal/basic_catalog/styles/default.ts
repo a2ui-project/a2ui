@@ -20,31 +20,35 @@
  * This should be only variable definitions, so they can pierce into the
  * shadow DOM of components.
  *
- * It uses `:where()` to ensure zero specificity, allowing page styles to
- * override these defaults as needed without having to deal with specificity.
+ * Document-level selectors use `:where()` to ensure zero specificity, allowing
+ * page styles to override these defaults as needed without having to deal with
+ * specificity. `:host` selectors cannot be wrapped in `:where()`, since a
+ * shadow host is only matched by a direct `:host` compound selector.
  *
  * By default, the theme follows the user's `color-scheme` preference, but
  * developers can force either the light/dark variants using the `a2ui-light`
- * or `a2ui-dark` classes on the root element of their app.
+ * or `a2ui-dark` classes on the root element of their app. Inside a shadow
+ * root, set the class, and any `--a2ui-*` overrides, on the shadow host.
  */
 const DEFAULT_CSS = `
-  :where(:root, :host) {
+  :where(:root), :host {
     color-scheme: light dark;
   }
 
-  :where(.a2ui-dark), :where(:host(.a2ui-dark)) {
+  :where(.a2ui-dark), :host(.a2ui-dark) {
     color-scheme: dark;
   }
 
-  :where(.a2ui-light), :where(:host(.a2ui-light)) {
+  :where(.a2ui-light), :host(.a2ui-light) {
     color-scheme: light;
   }
 
-  :where(:root, :host),
+  :where(:root),
+  :host,
   :where(.a2ui-dark),
   :where(.a2ui-light),
-  :where(:host(.a2ui-dark)),
-  :where(:host(.a2ui-light)) {
+  :host(.a2ui-dark),
+  :host(.a2ui-light) {
     --a2ui-color-background: light-dark(#eee, #111);
     --a2ui-color-on-background: light-dark(#333, #eee);
 
@@ -112,8 +116,9 @@ let defaultStyleSheet: CSSStyleSheet | undefined;
  */
 function getDefaultStyleSheet(): CSSStyleSheet {
   if (!defaultStyleSheet) {
-    defaultStyleSheet = new CSSStyleSheet();
-    defaultStyleSheet.replaceSync(DEFAULT_CSS);
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(DEFAULT_CSS);
+    defaultStyleSheet = sheet;
   }
   return defaultStyleSheet;
 }
@@ -140,44 +145,42 @@ function getDefaultStyleSheet(): CSSStyleSheet {
  * @param targetRoot An optional Document or ShadowRoot to adopt the stylesheet
  *     into. Defaults to `document`.
  */
-export function injectBasicCatalogStyles(targetRoot?: Document | ShadowRoot) {
+export function injectBasicCatalogStyles(targetRoot?: Document | ShadowRoot): void {
   if (typeof document === 'undefined') return;
   const target = targetRoot ?? document;
-  const targetAny = target as any;
 
-  if ('adoptedStyleSheets' in target && Array.isArray(targetAny.adoptedStyleSheets)) {
+  try {
     const sheet = getDefaultStyleSheet();
-    const targetSheets = targetAny.adoptedStyleSheets as CSSStyleSheet[];
-    if (typeof targetSheets.includes === 'function' && !targetSheets.includes(sheet)) {
-      try {
-        targetAny.adoptedStyleSheets = [...targetSheets, sheet];
-        return;
-      } catch {
-        // Fallback to <style> tag below if stylesheet adoption throws
-      }
-    } else if (targetSheets.includes(sheet)) {
+    const sheets = target.adoptedStyleSheets;
+    if (Array.isArray(sheets)) {
+      if (sheets.includes(sheet)) return;
+      // In a shadow root the sheet goes first, so `:host` rules from components
+      // that connect later still win by source order.
+      target.adoptedStyleSheets = isDocument(target) ? [...sheets, sheet] : [sheet, ...sheets];
       return;
     }
+  } catch {
+    // Constructable stylesheets or adoption are unavailable or threw: fall back
+    // to a <style> element below.
   }
 
-  // Fallback for environments where stylesheet adoption is unsupported or throws
   injectStyleTagFallback(target);
 }
 
-function injectStyleTagFallback(target: Document | ShadowRoot) {
-  const targetAny = target as any;
-  if (typeof targetAny.querySelector === 'function') {
-    const existing = targetAny.querySelector('style[data-a2ui-basic-catalog]');
-    if (existing) return;
-  }
-  const style = document.createElement('style');
+function isDocument(target: Document | ShadowRoot): target is Document {
+  return 'createElement' in target;
+}
+
+function injectStyleTagFallback(target: Document | ShadowRoot): void {
+  if (target.querySelector('style[data-a2ui-basic-catalog]')) return;
+
+  const ownerDoc = isDocument(target) ? target : (target.ownerDocument ?? document);
+  const style = ownerDoc.createElement('style');
   style.setAttribute('data-a2ui-basic-catalog', '');
   style.textContent = DEFAULT_CSS;
-  if ('head' in target && (target as Document).head) {
-    (target as Document).head.appendChild(style);
-  } else if (typeof targetAny.appendChild === 'function') {
-    targetAny.appendChild(style);
-  }
+
+  const parent = isDocument(target) ? (target.head ?? target.documentElement) : target;
+  parent?.appendChild(style);
 }
 
 /**

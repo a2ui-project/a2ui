@@ -165,34 +165,76 @@ describe('BasicCatalogA2uiLitElement', () => {
   });
 
   it('adopts basic catalog styles only into shadow root when connected inside a shadow root', () => {
+    document.adoptedStyleSheets = [];
     const host = document.createElement('div');
     const shadowRoot = host.attachShadow({mode: 'open'});
     document.body.appendChild(host);
 
-    const docSheetsBefore = [...(document.adoptedStyleSheets ?? [])];
-
     const shadowElement = document.createElement('a2ui-test-basic-element');
     shadowRoot.appendChild(shadowElement);
 
-    assert.ok(shadowRoot.adoptedStyleSheets.length > 0);
-    assert.deepStrictEqual([...(document.adoptedStyleSheets ?? [])], docSheetsBefore);
+    const sheetsAfterConnect = shadowRoot.adoptedStyleSheets.length;
+    assert.ok(sheetsAfterConnect > 0);
+    // Re-running is a no-op only if connectedCallback already adopted the sheet,
+    // which the component's own `static styles` cannot account for.
+    injectBasicCatalogStyles(shadowRoot);
+    assert.strictEqual(shadowRoot.adoptedStyleSheets.length, sheetsAfterConnect);
+    assert.strictEqual(document.adoptedStyleSheets.length, 0);
 
     host.remove();
   });
 
   it('injectBasicCatalogStyles adopts into targetRoot when provided without polluting document', () => {
+    document.adoptedStyleSheets = [];
     const host = document.createElement('div');
     const shadowRoot = host.attachShadow({mode: 'open'});
     document.body.appendChild(host);
 
-    const docSheetsBefore = [...(document.adoptedStyleSheets ?? [])];
+    injectBasicCatalogStyles(shadowRoot);
+
+    assert.strictEqual(shadowRoot.adoptedStyleSheets.length, 1);
+    assert.strictEqual(document.adoptedStyleSheets.length, 0);
+
+    host.remove();
+  });
+
+  it('injectBasicCatalogStyles falls back to a style tag when a shadow root rejects adoption', () => {
+    const host = document.createElement('div');
+    const shadowRoot = host.attachShadow({mode: 'open'});
+    Object.defineProperty(shadowRoot, 'adoptedStyleSheets', {
+      get: () => [],
+      set: () => {
+        throw new Error('adoption is not supported');
+      },
+    });
 
     injectBasicCatalogStyles(shadowRoot);
 
-    assert.ok(shadowRoot.adoptedStyleSheets.length > 0);
-    assert.deepStrictEqual([...(document.adoptedStyleSheets ?? [])], docSheetsBefore);
+    assert.ok(shadowRoot.querySelector('style[data-a2ui-basic-catalog]') !== null);
+    assert.strictEqual(document.head.querySelector('style[data-a2ui-basic-catalog]'), null);
+  });
 
-    host.remove();
+  it('injectBasicCatalogStyles falls back to a style tag in the document head when adoption is unavailable', () => {
+    const original = document.adoptedStyleSheets;
+    Object.defineProperty(document, 'adoptedStyleSheets', {
+      value: undefined,
+      writable: true,
+      configurable: true,
+    });
+    try {
+      injectBasicCatalogStyles(document);
+      injectBasicCatalogStyles(document);
+
+      const styleEls = document.head.querySelectorAll('style[data-a2ui-basic-catalog]');
+      assert.strictEqual(styleEls.length, 1);
+    } finally {
+      document.head.querySelector('style[data-a2ui-basic-catalog]')?.remove();
+      Object.defineProperty(document, 'adoptedStyleSheets', {
+        value: original,
+        writable: true,
+        configurable: true,
+      });
+    }
   });
 
   it('injectBasicCatalogStyles falls back to style tag injection when adoptedStyleSheets is absent', () => {

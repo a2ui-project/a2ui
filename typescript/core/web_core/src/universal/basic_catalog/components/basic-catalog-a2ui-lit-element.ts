@@ -25,6 +25,9 @@ import {
   setHostAccessibilityAttributes,
 } from './accessibility.js';
 
+/** `Node.nodeType` of a `DocumentFragment`, which every `ShadowRoot` is. */
+const DOCUMENT_FRAGMENT_NODE = 11;
+
 /**
  * The resolved props this base class reads. Not every protocol version
  * defines all of them, so each one is optional.
@@ -54,13 +57,12 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
    */
   override connectedCallback() {
     super.connectedCallback();
+    if (!this.isConnected) return;
     const root = this.getRootNode();
-    const doc = this.ownerDocument ?? (typeof document !== 'undefined' ? document : null);
-    const targetRoot =
-      root && root !== doc && ('host' in root || 'adoptedStyleSheets' in root)
-        ? (root as Document | ShadowRoot)
-        : undefined;
-    injectBasicCatalogStyles(targetRoot);
+    // Checked structurally so a shadow root from another realm (such as an
+    // iframe) is recognized, which `instanceof ShadowRoot` would miss.
+    const isShadowRoot = root.nodeType === DOCUMENT_FRAGMENT_NODE && 'host' in root;
+    injectBasicCatalogStyles(isShadowRoot ? (root as ShadowRoot) : this.ownerDocument);
   }
 
   /**
