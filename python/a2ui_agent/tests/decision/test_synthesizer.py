@@ -870,3 +870,79 @@ async def test_grouped_nested_array_menu_synthesizes_all_sections_and_validates(
         assert f"/menuSections/{idx}/items" in serialized
         assert f"/menuSections/{idx}/category" in serialized
     assert "prose_group_0_prose_body" not in serialized
+
+
+@pytest.mark.asyncio
+async def test_stateless_plans_are_isolated_from_stateful_and_bounded() -> None:
+    from a2ui.inference_formats.experimental.decision import PlanCache
+    from a2ui.utils import RendererState
+
+    backend = mock_backend(**HOST_SCRIPTED)
+    synth = DecisionSynthesizer([CATALOG], backend, plan_cache=PlanCache(max_entries=2))
+    state = RendererState([CATALOG])
+
+    stateful_out = await synth.synthesize(
+        HOST.intent, HOST.payload, surface_id="shared_id", state=state
+    )
+    state.apply(stateful_out.messages)
+    assert "shared_id" not in synth._stateless_plans
+
+    for sid in ("s1", "s2", "s3"):
+        await synth.synthesize(HOST.intent, HOST.payload, surface_id=sid)
+    assert list(synth._stateless_plans.keys()) == ["s2", "s3"]
+
+
+@pytest.mark.asyncio
+async def test_grouped_collection_rejects_region_update() -> None:
+    payload = {
+        "menuSections": [
+            {"category": "Starters", "items": [{"name": "Gyoza", "price": "$9"}]},
+            {"category": "Mains", "items": [{"name": "Ramen", "price": "$17"}]},
+        ]
+    }
+    synth = DecisionSynthesizer(
+        [CATALOG],
+        mock_backend(
+            family=("browse", 0.90),
+            **{"archetype:browse": ("feed", 0.90), "gate:collection": 0.95},
+        ),
+    )
+    await synth.synthesize("Show menu", payload, surface_id="menu")
+    with pytest.raises(ValueError, match="grouped or multi-instance"):
+        await synth.synthesize(
+            "Update menu", payload, surface_id="menu", region="collection"
+        )
+
+
+@pytest.mark.asyncio
+async def test_currency_hint_change_misses_plan_cache_and_inspect_pointers_redacts() -> (
+    None
+):
+    from a2ui.utils import RendererState
+
+    backend = mock_backend(
+        family=("monitor", 0.90),
+        **{"archetype:monitor": ("dashboard", 0.90), "gate:headline": 0.95},
+    )
+    synth = DecisionSynthesizer([CATALOG], backend)
+    state = RendererState([CATALOG])
+
+    usd = {"amount": 42.0, "currency": "USD", "api_key": "sk-secret", "note": "ok"}
+    eur = {"amount": 42.0, "currency": "EUR", "api_key": "sk-secret", "note": "ok"}
+    first = await synth.synthesize("Show amount", usd, surface_id="pay", state=state)
+    state.apply(first.messages)
+    second = await synth.synthesize(
+        "Show amount",
+        eur,
+        surface_id="pay",
+        operation=SurfaceOperation.UPDATE_ROOT,
+        state=state,
+    )
+    assert second.cache_hit is False
+    assert "EUR" in json.dumps(to_message_dicts(second.messages))
+
+    ptrs = synth.inspect_pointers(usd, exclude=("/note",), labels={"/amount": "Total"})
+    by_path = {p.path: p for p in ptrs}
+    assert "/api_key" not in by_path
+    assert "/note" not in by_path
+    assert by_path["/amount"].label == "Total"

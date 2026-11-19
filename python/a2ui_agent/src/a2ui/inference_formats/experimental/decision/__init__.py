@@ -84,7 +84,7 @@ from .models import (
     coerce_decision_payload,
     plan_shape_signature,
 )
-from .parser import DecisionParser, surface_operation_for
+from .parser import DecisionParser, extract_decision_blocks, surface_operation_for
 from .patterns import (
     CatalogPattern,
     Expansion,
@@ -208,6 +208,7 @@ __all__ = [
     "decision_block_from_messages",
     "decision_rules",
     "eligible_archetypes",
+    "extract_decision_blocks",
     "humanize_key",
     "inspect_payload_pointers",
     "lint_components",

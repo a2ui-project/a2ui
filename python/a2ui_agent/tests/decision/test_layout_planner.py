@@ -2020,3 +2020,52 @@ def test_grouped_nested_arrays_expand_section_headings_and_collections() -> None
             "/menuSections/0/category",
             "/menuSections/1/category",
         ]
+
+
+def test_grouped_collection_downgrades_reel_and_unescapes_picture_keys() -> None:
+    from a2ui.inference_formats.experimental.decision.layout_planner import (
+        _is_collection_picture_sparse,
+    )
+
+    grouped_payload = {
+        "sections": [
+            {
+                "category": "Starters",
+                "items": [{"name": "Gyoza", "price": "$9"}],
+            },
+            {
+                "category": "Mains",
+                "items": [{"name": "Ramen", "price": "$17"}],
+            },
+        ]
+    }
+    fixture = LayoutFixture(
+        name="grouped_reel",
+        intent="Browse menu sections",
+        payload=grouped_payload,
+    )
+    _, _, _, out, _ = _run_fixture(
+        fixture,
+        {
+            "family": ("browse", 0.90),
+            "archetype:browse": ("feed", 0.90),
+            "gate:collection": 0.95,
+            "anatomy:collection.layout": ("reel", 0.95),
+        },
+    )
+    assert out.plan is not None
+    collections = [b for b in out.plan.blocks if b.block_id == "collection"]
+    assert len(collections) == 2
+    assert all(b.variant_knobs.get("layout") != "reel" for b in collections)
+
+    items_binding = SlotBinding(
+        pointer="/items",
+        fields={"picture": SlotBinding(pointer="cover~1url")},
+    )
+    payload_escaped = {
+        "items": [
+            {"cover/url": "https://example.com/1.jpg"},
+            {"cover/url": "https://example.com/2.jpg"},
+        ]
+    }
+    assert _is_collection_picture_sparse(items_binding, payload_escaped) is False

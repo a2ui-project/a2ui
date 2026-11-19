@@ -25,6 +25,7 @@ import copy as copy_lib
 from dataclasses import dataclass, field, replace
 import inspect
 import re
+import threading
 import time
 from typing import TYPE_CHECKING, Any, TypeAlias
 
@@ -549,11 +550,15 @@ class DecisionSynthesizer:
         self.plan_cache: PlanCache = (
             plan_cache if plan_cache is not None else PlanCache()
         )
-        self._stateless_plans: dict[str, tuple[PlanCacheKey, CachedPlan]] = {}
+        self._stateless_plans: collections.OrderedDict[
+            str, tuple[PlanCacheKey, CachedPlan]
+        ] = collections.OrderedDict()
+        self._stateless_lock = threading.Lock()
         self._child_slot_keys = _child_slot_keys(self.graph)
         self._eligibility_cache: collections.OrderedDict[
             tuple[Any, ...], tuple[LayoutArchetype, ...]
         ] = collections.OrderedDict()
+        self._eligibility_lock = threading.Lock()
 
     @classmethod
     def from_env(
@@ -589,6 +594,34 @@ class DecisionSynthesizer:
         if self.graph.surface_catalog_id is not None:
             return self.graph.surface_catalog_id
         return ",".join(c.catalog_id for c in self.graph.catalogs)
+
+    def inspect_pointers(
+        self,
+        data: Mapping[str, Any],
+        *,
+        exclude: Collection[str] = (),
+        mutable_paths: Collection[str] = (),
+        labels: Mapping[str, str] | None = None,
+    ) -> tuple[PointerSummary, ...]:
+        """Inspects `data` into filtered, labeled `PointerSummary` entries.
+
+        Applies the same inspection, `exclude` filtering, label overrides, and
+        non-mutable secret redaction used by `synthesize`, so tools and
+        inspectors share one consistent pointer pipeline.
+        """
+        return tuple(
+            _without_non_mutable_secrets(
+                _with_labels(
+                    _without_excluded(
+                        inspect_payload_pointers(
+                            data, mutable_paths=mutable_paths or ()
+                        ),
+                        exclude,
+                    ),
+                    dict(labels) if labels else {},
+                )
+            )
+        )
 
     def make_cache_key(
         self,
@@ -712,13 +745,12 @@ class DecisionSynthesizer:
             region=region,
         )
         data = _as_data_model(payload)
-        pointers = _without_non_mutable_secrets(
-            _with_labels(
-                _without_excluded(
-                    inspect_payload_pointers(data, mutable_paths=mutable_paths or ()),
-                    exclude,
-                ),
-                request.labels,
+        pointers = list(
+            self.inspect_pointers(
+                data,
+                exclude=exclude,
+                mutable_paths=mutable_paths,
+                labels=request.labels,
             )
         )
         if operation is SurfaceOperation.REPLACE:
@@ -770,13 +802,25 @@ class DecisionSynthesizer:
             return operation, surface_sends_data_model
         return SurfaceOperation.UPDATE_ROOT, bool(existing.send_data_model)
 
+    def _put_stateless_plan(
+        self, surface_id: str, cache_key: PlanCacheKey, entry: CachedPlan
+    ) -> None:
+        """Stores `(cache_key, entry)` in the bounded stateless-plan LRU."""
+        with self._stateless_lock:
+            self._stateless_plans[surface_id] = (cache_key, entry)
+            self._stateless_plans.move_to_end(surface_id)
+            while len(self._stateless_plans) > self.plan_cache.max_entries:
+                self._stateless_plans.popitem(last=False)
+
     def _invalidate_surface_cache(
         self, state: RendererState | None, surface_id: str
     ) -> None:
-        """Evicts cached plans for `surface_id` from `plan_cache` and `_stateless_plans`."""
+        """Evicts cached plans for `surface_id` from `plan_cache` or `_stateless_plans`."""
         if state is not None:
             self.plan_cache.invalidate(state, surface_id)
-        self._stateless_plans.pop(surface_id, None)
+            return
+        with self._stateless_lock:
+            self._stateless_plans.pop(surface_id, None)
 
     async def _run_full_synthesis(
         self,
@@ -842,7 +886,8 @@ class DecisionSynthesizer:
         )
         if state is not None:
             self.plan_cache.put(state, cache_key, entry)
-        self._stateless_plans[cache_key.surface_id] = (cache_key, entry)
+        else:
+            self._put_stateless_plan(cache_key.surface_id, cache_key, entry)
         return entry
 
     def _cached_data_only_output(
@@ -926,16 +971,18 @@ class DecisionSynthesizer:
         self, state: RendererState | None, surface_id: str
     ) -> tuple[PlanCacheKey, CachedPlan]:
         """Returns the cached `(PlanCacheKey, CachedPlan)` for a region update on `surface_id`."""
-        found = (
-            self.plan_cache.get_for_surface(
+        if state is not None:
+            found = self.plan_cache.get_for_surface(
                 state,
                 surface_id,
                 catalog_id=self.cache_catalog_id(),
                 grammar_version=self.archetypes.version,
             )
-            if state is not None
-            else self._stateless_plans.get(surface_id)
-        )
+        else:
+            with self._stateless_lock:
+                found = self._stateless_plans.get(surface_id)
+                if found is not None:
+                    self._stateless_plans.move_to_end(surface_id)
         if found is None or found[1].plan.template_id is not None:
             raise ValueError(
                 f"Cannot update region on surface {surface_id!r}: no cached"
@@ -1001,11 +1048,18 @@ class DecisionSynthesizer:
         """Re-plans only `request.region` against the cached plan and updates its subtree."""
         region = request.region or ""
         existing_key, cached = self._lookup_region_plan(state, request.surface_id)
-        if region not in cached.plan.block_ids():
+        matching_blocks = [b for b in cached.plan.blocks if b.block_id == region]
+        if not matching_blocks:
             raise ValueError(
                 f"Surface {request.surface_id!r} plan ({cached.plan.archetype!r})"
                 f" has no block {region!r}; active blocks are"
                 f" {list(cached.plan.block_ids())}."
+            )
+        if len(matching_blocks) > 1 or bool(matching_blocks[0].id_prefix):
+            raise ValueError(
+                f"Cannot update region {region!r} on surface"
+                f" {request.surface_id!r}: grouped or multi-instance blocks"
+                " require a full-surface update."
             )
         timings: list[float] = []
         token = _DECISION_CALL_TIMINGS.set(timings)
@@ -1063,7 +1117,8 @@ class DecisionSynthesizer:
         if state is not None:
             self.plan_cache.invalidate(state, request.surface_id)
             self.plan_cache.put(state, tainted_key, updated_entry)
-        self._stateless_plans[request.surface_id] = (tainted_key, updated_entry)
+        else:
+            self._put_stateless_plan(request.surface_id, tainted_key, updated_entry)
         return SynthesisOutput(
             stage=SynthesisStage.ARCHETYPE,
             messages=messages,
@@ -1583,14 +1638,17 @@ class DecisionSynthesizer:
     ) -> tuple[LayoutArchetype, ...]:
         """Memoizes `eligible_archetypes` per payload shape on this synthesizer."""
         key = shape_signature(pointers)
-        cached = self._eligibility_cache.get(key)
-        if cached is not None:
-            self._eligibility_cache.move_to_end(key)
-            return cached
+        with self._eligibility_lock:
+            cached = self._eligibility_cache.get(key)
+            if cached is not None:
+                self._eligibility_cache.move_to_end(key)
+                return cached
         result = eligible_archetypes(self.archetypes, self.patterns, pointers)
-        self._eligibility_cache[key] = result
-        while len(self._eligibility_cache) > _ELIGIBILITY_CACHE_SIZE:
-            self._eligibility_cache.popitem(last=False)
+        with self._eligibility_lock:
+            self._eligibility_cache[key] = result
+            self._eligibility_cache.move_to_end(key)
+            while len(self._eligibility_cache) > _ELIGIBILITY_CACHE_SIZE:
+                self._eligibility_cache.popitem(last=False)
         return result
 
     def _has_templates_for(self, pointers: Sequence[PointerSummary]) -> bool:

@@ -17,7 +17,7 @@
   `decision` extra (`pip install 'a2ui-agent-sdk[decision]'`).
   - `DecisionFormat` and `DecisionFormatFactory` implement `InferenceFormat`
     and `InferenceFormatFactory`, so `A2uiRequestProcessor(catalogs,
-    format_factory=DecisionFormatFactory(backend=create_decision_backend()))`
+format_factory=DecisionFormatFactory(backend=create_decision_backend()))`
     works like the Express and Direct JSON factories. `DecisionPromptGenerator`
     asks for `<a2ui>` decision blocks, few-shot examples are `DecisionBlock`
     instances passed as `block_examples` (A2UI message examples are ignored
@@ -85,7 +85,7 @@
     `DecisionQuestion`, `DecisionAnswer`, `DecisionBatch`, and `QuestionKind`
     (`choice`, `boolean`, `score`) describe batched questions;
     `TemplateRegistry` holds reviewable surface templates, and
-    `promote_synthesized` turns an output into one
+    `TemplateRegistry.promote_synthesized` turns an output into one
     ([#4155](https://github.com/a2ui-project/a2ui/pull/4155)).
 
 ## 0.12.1 (2026-11-23)

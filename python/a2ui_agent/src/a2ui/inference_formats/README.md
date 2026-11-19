@@ -46,8 +46,13 @@ In chat mode, the language model writes a decision block inside `<a2ui>` tags an
 - `layout`, `title`, `summary`, and `fallbackDsl`.
 
 ```python
-from a2ui.inference_formats.experimental.decision import DecisionBlock, DecisionSynthesizer
+from a2ui.inference_formats.experimental.decision import (
+    DecisionBlock,
+    DecisionSynthesizer,
+    create_decision_backend,
+)
 
+synthesizer = DecisionSynthesizer(catalogs, create_decision_backend())
 block = DecisionBlock(
     intent="Show stock portfolio overview",
     payload={"portfolio": "Growth", "totalValue": 128450.0},
@@ -86,12 +91,22 @@ from a2ui.inference_formats.experimental.decision import (
 
 catalog_dir = Path("/path/to/custom_catalog")
 catalog = Catalog.from_json(json.loads((catalog_dir / "catalog.json").read_text()))
+patterns_path = catalog_dir / "patterns.json"
+templates_path = catalog_dir / "templates.json"
 
 synthesizer = DecisionSynthesizer(
     CatalogDecisionGraph([catalog]),
     backend,
-    registry=TemplateRegistry.from_file(catalog_dir),
-    patterns=MergedPatternLibrary([PatternLibrary.from_file(catalog_dir)]),
+    registry=(
+        TemplateRegistry.from_file(templates_path)
+        if templates_path.is_file()
+        else TemplateRegistry()
+    ),
+    patterns=(
+        MergedPatternLibrary([PatternLibrary.from_file(patterns_path)])
+        if patterns_path.is_file()
+        else MergedPatternLibrary([])
+    ),
 )
 ```
 
@@ -122,7 +137,7 @@ Each backend applies a per-model `Calibration` (temperature scaling) from a bund
 
 ### Operational Notes
 
-- **Payload Privacy**: Remote backends receive pointer paths, labels, and sample scalar values from the payload. Use `exclude` or filter the payload before sending secrets to a third-party endpoint.
+- **Payload Privacy**: Remote backends receive pointer paths, labels, and sample scalar values from the payload. `exclude` omits fields from decision batches and component bindings, while the emitted `updateDataModel` message still carries the full payload passed to synthesis. Remove sensitive fields from the payload before calling synthesis if they must not reach either the decision backend or the client renderer.
 - **Payload Size**: The planner caps a batch at `SynthesisConfig.max_pairs` (question and option pairs, default 400). For payloads with hundreds of keys, pass only the fields the surface needs.
 
 ## Catalog-Agnostic Prompt Generation Rules

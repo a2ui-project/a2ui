@@ -496,3 +496,19 @@ def test_parse_slots_and_questions_handle_none() -> None:
 
     slot = SlotSpec.from_json("items", {"from": ["array_of_objects"], "fields": None})
     assert slot.fields == {}
+
+
+def test_shallow_install_path_and_readonly_default_grammar_mappings() -> None:
+    from a2ui.inference_formats.experimental.decision.archetypes import (
+        _build_dev_asset_fallbacks,
+    )
+
+    assert dict(_build_dev_asset_fallbacks("/app/archetypes.py")) == {}
+
+    grammar = ArchetypeGrammar.default()
+    with pytest.raises(TypeError):
+        grammar.thresholds["family"] = 0.0  # type: ignore[index]
+    with pytest.raises(TypeError):
+        grammar.job["family"] = grammar.job["family"]  # type: ignore[index]
+    with pytest.raises(TypeError):
+        grammar.blocks["prose"] = grammar.blocks["prose"]  # type: ignore[index]

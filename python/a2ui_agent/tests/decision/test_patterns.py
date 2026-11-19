@@ -1955,3 +1955,187 @@ def test_format_directive_custom_catalog_falls_back_gracefully() -> None:
             },
         ],
     )
+
+
+def test_format_string_escapes_interpolation_and_validates_currency() -> None:
+    import json
+
+    catalog = BasicCatalog("v1.0")
+    lib = MergedPatternLibrary.for_catalogs([catalog])
+    graph = CatalogDecisionGraph([catalog])
+    expander = PatternExpander(lib, graph)
+
+    hl = expander.expand_block(
+        "headline",
+        "headline",
+        BlockBindings(
+            slots={
+                "items": SlotBinding(
+                    items=(
+                        {
+                            "label": SlotBinding(literal="Cost ${/secret}"),
+                            "value": SlotBinding(
+                                pointer="/amount",
+                                semantic_type=SemanticType.CURRENCY,
+                                format_hints={"currency": "USD'), evil('x"},
+                            ),
+                        },
+                        {
+                            "label": SlotBinding(literal="Rate"),
+                            "value": SlotBinding(
+                                pointer="/rate",
+                                semantic_type=SemanticType.QUANTITY,
+                                format_hints={"unit": "ms/${/token}"},
+                            ),
+                        },
+                    )
+                )
+            }
+        ),
+    )
+    by_id = {c["id"]: c for c in hl.components}
+    assert by_id["headline_0_headline_value"]["text"] == {
+        "@call": "formatString",
+        "args": {
+            "value": (
+                "### ${formatCurrency(value:${/amount}, currency:'USD', decimals:2)}"
+            )
+        },
+    }
+    assert by_id["headline_1_headline_value"]["text"] == {
+        "@call": "formatString",
+        "args": {"value": "### ${formatNumber(value:${/rate})} ms/\\${/token}"},
+    }
+    # Literal-only $text containing `${` escapes when mixed with a pointer slot.
+    facts = expander.expand_block(
+        "facts",
+        "facts",
+        BlockBindings(
+            slots={
+                "rows": SlotBinding(
+                    items=(
+                        {
+                            "label": SlotBinding(literal="Env ${/secret}"),
+                            "value": SlotBinding(pointer="/val"),
+                        },
+                    )
+                )
+            }
+        ),
+    )
+    serialized = json.dumps(facts.components)
+    assert "evil" not in serialized
+    assert "\\${/token}" in json.dumps(hl.components)
+
+
+def test_custom_container_slot_names_expand_and_prune_via_catalog_graph() -> None:
+    custom_cat_id = "https://example.com/catalogs/custom-containers/v1/catalog.json"
+    schema: dict[str, Any] = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": custom_cat_id,
+        "protocolVersion": "1.0",
+        "components": {
+            "ShellFrame": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "ShellFrame"},
+                    "body": {"$ref": "common_types.json#/$defs/ComponentId"},
+                },
+                "required": ["component", "body"],
+            },
+            "DeckList": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "DeckList"},
+                    "entries": {"$ref": "common_types.json#/$defs/ChildList"},
+                },
+                "required": ["component", "entries"],
+            },
+            "TabSet": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "TabSet"},
+                    "panes": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "title": {
+                                    "$ref": "common_types.json#/$defs/DynamicString"
+                                },
+                                "panel": {
+                                    "$ref": "common_types.json#/$defs/ComponentId"
+                                },
+                            },
+                            "required": ["title", "panel"],
+                        },
+                    },
+                },
+                "required": ["component", "panes"],
+            },
+            "Label": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "Label"},
+                    "text": {"$ref": "common_types.json#/$defs/DynamicString"},
+                },
+                "required": ["component", "text"],
+            },
+        },
+        "functions": {},
+    }
+    catalog = Catalog.from_json(schema)
+    graph = CatalogDecisionGraph([catalog])
+    lib = PatternLibrary.from_json({
+        "catalogId": custom_cat_id,
+        "grammarVersion": "1",
+        "patterns": {
+            "facts": {
+                "slots": ["rows"],
+                "variants": [{
+                    "root": "shell",
+                    "components": [
+                        {"id": "shell", "component": "ShellFrame", "body": "tabs"},
+                        {
+                            "id": "tabs",
+                            "component": "TabSet",
+                            "panes": [
+                                {"title": "Main", "panel": "deck"},
+                                {
+                                    "$if": "missing_slot",
+                                    "title": "Skip",
+                                    "panel": "unused",
+                                },
+                            ],
+                        },
+                        {
+                            "id": "deck",
+                            "component": "DeckList",
+                            "entries": {"$repeat": "rows", "component": "row_lbl"},
+                        },
+                        {
+                            "id": "row_lbl",
+                            "component": "Label",
+                            "text": {"$slot": "value", "$default": ""},
+                        },
+                        {"id": "unused", "component": "Label", "text": "Unused"},
+                    ],
+                }],
+            }
+        },
+    })
+    expander = PatternExpander(lib, graph)
+    exp = expander.expand_block(
+        "facts",
+        "facts",
+        BlockBindings(
+            slots={
+                "rows": SlotBinding(items=({"value": SlotBinding(literal="Alpha")},))
+            }
+        ),
+    )
+    by_id = {c["id"]: c for c in exp.components}
+    assert by_id["facts_root"]["body"] == "facts_tabs"
+    assert by_id["facts_tabs"]["panes"] == [{"title": "Main", "panel": "facts_deck"}]
+    assert by_id["facts_deck"]["entries"] == ["facts_row_lbl_0"]
+    assert "facts_unused" not in by_id

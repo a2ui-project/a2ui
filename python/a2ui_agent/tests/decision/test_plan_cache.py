@@ -447,3 +447,30 @@ async def test_unrolled_array_length_change_misses_cache_and_replans() -> None:
     assert third.cache_hit is True
     assert len(backend.batches) == 2
     assert _kinds(to_message_dicts(third.messages)) == ["updateDataModel"]
+
+
+def test_plan_cache_concurrent_thread_stress() -> None:
+    import concurrent.futures
+
+    from a2ui.inference_formats.experimental.decision import CachedPlan
+
+    cache = PlanCache(max_entries=16)
+    plan = LayoutPlan(archetype="dashboard", family="monitor", blocks=())
+    entry = CachedPlan(
+        plan=plan,
+        components=({"id": "root", "component": "Column", "children": []},),
+    )
+
+    def _worker(tid: int) -> None:
+        for i in range(50):
+            key = PlanCacheKey(f"tool_{tid % 4}", "basic", "1", f"sig_{tid}_{i}")
+            cache.put_tool(key, entry)
+            cache.get_tool(key)
+            if i % 10 == 0:
+                cache.invalidate_tool(f"tool_{tid % 4}")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        futs = [pool.submit(_worker, tid) for tid in range(8)]
+        for fut in futs:
+            fut.result()
+    assert len(cache._tool_entries) <= 16
