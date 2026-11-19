@@ -99,6 +99,10 @@
   modifier (collected through `A2UIAccessibleTextKey`). `A2UIText` reports its text without
   Markdown syntax, and custom components that render text can call the modifier too.
   [#4021](https://github.com/a2ui-project/a2ui/pull/4021)
+- Draw SVG elliptical arc commands (`A` and `a`) in `SVGPathParser`, so `Icon` `svgPath` values
+  with arcs render circles and rounded shapes instead of dropping those segments. Arc flags written
+  without separators (for example `a1 1 0 011 1`) are also accepted.
+  [#4260](https://github.com/a2ui-project/a2ui/pull/4260)
 
 ## 0.10.0
 
