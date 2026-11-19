@@ -10,9 +10,7 @@
 
 - Add `MessageProcessor.addCatalog(catalog)`, which adds a catalog to a processor after it is built. `createSurface` messages, renderer function calls and `getRendererCapabilities` see the catalog from then on; surfaces created before the call keep the catalogs they were created with. A catalog whose id the processor already holds is rejected with `A2uiCatalogError`. The processor keeps its own copy of the array passed to its constructor, which `addCatalog` adds to, and `MessageProcessor.catalogs` lists the added catalog too ([#3303](https://github.com/a2ui-project/a2ui/issues/3303), [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
 - (v0_8) Make the `h1` through `h5`, `body`, and `caption` keys optional on the hinted style branch of `Theme.additionalStyles.Text` so themes can define styles for a subset of text usage hints ([#602](https://github.com/a2ui-project/a2ui/issues/602), [#4355](https://github.com/a2ui-project/a2ui/pull/4355)).
-- Enforce `minProperties`, `maxProperties`, `dependentRequired`, conditional `if`/`then`/`else` subschemas, typeless schema constraints (such as `{"not": {"required": ["b"]}}`), top-level `not`, and function argument combinators (`allOf`, `oneOf`, `anyOf`) when converting JSON Schema definitions to Zod in `Catalog.fromJson()` and `AgentFunction` schemas ([#3998](https://github.com)).
-
-## 0.16.0
+- Enforce `minProperties`, `maxProperties`, `dependentRequired`, conditional `if`/`then`/`else` subschemas, typeless schema constraints (such as `{"not": {"required": ["b"]}}`), top-level `not`, and function argument combinators (`allOf`, `oneOf`, `anyOf`) when converting JSON Schema definitions to Zod in `Catalog.fromJson()` and `AgentFunction` schemas ([#3998](https://github.com/a2ui-project/a2ui/pull/4285)).
 
 ## 0.16.0
 
