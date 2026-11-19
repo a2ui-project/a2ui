@@ -629,7 +629,7 @@ class DecisionBackend(Protocol):
 | `StepZeroLogprobBackend`                                       | `"step0"`             | Caller-supplied (for example `"gemini-2.5-flash"`)                                              | Prompts an OpenAI-compatible `/v1/chat/completions` endpoint to output a single choice token (`A` through `J`, supporting up to 10 options per question) with `max_tokens = 1` and `top_logprobs = 20` (`max_logprobs = 20`), converts token logprobs into a normalized distribution, and runs with `two_stage = True`.                                                                                                                                                                                                                                                                                                  |
 | `DeterministicMockBackend`                                     | `"mock"`              | `"mock"`                                                                                        | Rule-based in-memory backend for unit tests, CI, and offline conformance checks. Requires no network access.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
-`create_decision_backend(kind=None, *, endpoint_url=None, model=None, auth=None, calibration=None, timeout_seconds=30.0)` constructs any of the backends (`"jev"`, `"gemini"`, `"step0"`, or `"mock"`) from explicit arguments or environment variables. Every backend model ID is pinned (such as `"jev-1.14.0"` or `"gemini-decision-1"`); floating aliases are not used.
+`create_decision_backend(kind=None, *, endpoint_url=None, model=None, auth=None, calibration=None, timeout_seconds=30.0)` constructs any of the backends (`"jev"`, `"gemini"`, `"step0"`, or `"mock"`) from explicit arguments or environment variables. Every backend model ID is pinned (such as `"jev-1.14.0"` or `"gemini-decision-1"`); floating aliases are not used. The HTTP backends (`JevHttpBackend` and `StepZeroLogprobBackend`) require the optional `decision` extra (`pip install 'a2ui-agent-sdk[decision]'`), while `DeterministicMockBackend` works without `httpx`.
 
 ### Temperature calibration (`calibration_profiles.json`)
 
@@ -662,7 +662,7 @@ Each v1.0 component catalog owns a `patterns.json` file beside its `catalog.json
 
 ```json
 {
-  "$schema": "https://a2ui.org/specification/v1_0/decision/pattern_definition.json",
+  "$schema": "https://a2ui.org/specification/inference_formats/experimental/decision/v1/pattern_definition.json",
   "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
   "grammarVersion": "1",
   "patterns": {

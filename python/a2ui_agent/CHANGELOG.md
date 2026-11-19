@@ -1,41 +1,23 @@
 ## Unreleased
 
-## 0.12.1 (2026-11-23)
-
-- `DirectJsonParser` rejects a number out of the range of a double, such as
-  `1e400`, with `A2uiParseError`, as the Dart SDK does. It used to read it as
-  `inf`, which `json.dumps` writes as `Infinity`, a token JSON does not have
-  ([#3847](https://github.com/a2ui-project/a2ui/pull/3847)).
-
-## 0.12.0 (2026-11-17)
-
-- **BREAKING CHANGE**: (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`,
-  and `@checks` on v1.0 components across `ExpressCompiler`,
-  `AtomCompiler`, `ElementalCompiler`, `MacroExpander`, `RendererState`, and the
-  v1.0 Pydantic builder models (`a2ui.builder.v1_0`), while keeping Python
-  builder keyword arguments (`catalog_id=`, `accessibility=`, `extensions=`,
-  `checks=`) and v0.9 wire keys unchanged. `ExpressDecompiler`,
-  `AtomDecompiler`, and `ElementalDecompiler` read both `@`-prefixed and legacy
-  bare component envelope keys on v1.0 payloads when the component schema does
-  not declare a custom property with the same bare name
-  ([#1376](https://github.com/a2ui-project/a2ui/issues/1376),
-  [#3403](https://github.com/a2ui-project/a2ui/issues/3403),
-  [#3466](https://github.com/a2ui-project/a2ui/issues/3466),
-  [#3626](https://github.com/a2ui-project/a2ui/issues/3626),
-  [#4012](https://github.com/a2ui-project/a2ui/issues/4012),
-  [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
-- Add `read_renderer_capabilities(metadata, version)` in `a2ui.utils` to extract
-  and validate version-keyed renderer capability dictionaries from transport
-  metadata (`a2uiRendererCapabilities` in v1.0 and `a2uiClientCapabilities` in
-  v0.8, v0.9, and v0.9.1).
-  [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
+- **BREAKING CHANGE**: `AtomFormat`, `AtomFormatFactory`, `AtomParser`,
+  `ElementalFormat`, `ElementalFormatFactory`, and `ElementalParser` are no
+  longer re-exported from `a2ui.inference_formats`. Import them from
+  `a2ui.inference_formats.experimental.atom` and
+  `a2ui.inference_formats.experimental.elemental` directly
+  ([#4155](https://github.com/a2ui-project/a2ui/pull/4155)).
 - Add the decision inference format, `a2ui.inference_formats.experimental.decision`, in
   which the model emits an intent and data and a decision model picks and binds
   the components. The format is experimental and supports protocol v1.0 only;
   a catalog with another protocol version raises `ValueError` at construction.
+  Decision symbols are importable only from
+  `a2ui.inference_formats.experimental.decision` (not from the
+  `a2ui.inference_formats` barrel), constructing the entry points emits an
+  `@experimental` warning, and the HTTP backends require the optional
+  `decision` extra (`pip install 'a2ui-agent-sdk[decision]'`).
   - `DecisionFormat` and `DecisionFormatFactory` implement `InferenceFormat`
     and `InferenceFormatFactory`, so `A2uiRequestProcessor(catalogs,
-format_factory=DecisionFormatFactory(backend=create_decision_backend()))`
+    format_factory=DecisionFormatFactory(backend=create_decision_backend()))`
     works like the Express and Direct JSON factories. `DecisionPromptGenerator`
     asks for `<a2ui>` decision blocks, few-shot examples are `DecisionBlock`
     instances passed as `block_examples` (A2UI message examples are ignored
@@ -105,6 +87,36 @@ format_factory=DecisionFormatFactory(backend=create_decision_backend()))`
     `TemplateRegistry` holds reviewable surface templates, and
     `promote_synthesized` turns an output into one
     ([#4155](https://github.com/a2ui-project/a2ui/pull/4155)).
+
+## 0.12.1 (2026-11-23)
+
+- `DirectJsonParser` rejects a number out of the range of a double, such as
+  `1e400`, with `A2uiParseError`, as the Dart SDK does. It used to read it as
+  `inf`, which `json.dumps` writes as `Infinity`, a token JSON does not have
+  ([#3847](https://github.com/a2ui-project/a2ui/pull/3847)).
+
+## 0.12.0 (2026-11-17)
+
+- **BREAKING CHANGE**: (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`,
+  and `@checks` on v1.0 components across `ExpressCompiler`,
+  `AtomCompiler`, `ElementalCompiler`, `MacroExpander`, `RendererState`, and the
+  v1.0 Pydantic builder models (`a2ui.builder.v1_0`), while keeping Python
+  builder keyword arguments (`catalog_id=`, `accessibility=`, `extensions=`,
+  `checks=`) and v0.9 wire keys unchanged. `ExpressDecompiler`,
+  `AtomDecompiler`, and `ElementalDecompiler` read both `@`-prefixed and legacy
+  bare component envelope keys on v1.0 payloads when the component schema does
+  not declare a custom property with the same bare name
+  ([#1376](https://github.com/a2ui-project/a2ui/issues/1376),
+  [#3403](https://github.com/a2ui-project/a2ui/issues/3403),
+  [#3466](https://github.com/a2ui-project/a2ui/issues/3466),
+  [#3626](https://github.com/a2ui-project/a2ui/issues/3626),
+  [#4012](https://github.com/a2ui-project/a2ui/issues/4012),
+  [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+- Add `read_renderer_capabilities(metadata, version)` in `a2ui.utils` to extract
+  and validate version-keyed renderer capability dictionaries from transport
+  metadata (`a2uiRendererCapabilities` in v1.0 and `a2uiClientCapabilities` in
+  v0.8, v0.9, and v0.9.1).
+  [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
 - Package dependency updated to require `a2ui-core>=0.7.0,<0.8.0`.
   [#4258](https://github.com/a2ui-project/a2ui/pull/4258)
 
