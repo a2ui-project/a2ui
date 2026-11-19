@@ -17,19 +17,19 @@
 import {ChangeDetectionStrategy, Component, computed} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {
-  A2uiClientMessageSchema,
-  CommonSchemas,
   type ComponentNode,
   createFunctionImplementation,
+  FunctionImplementation,
   isComponentNode,
   peekValue,
   type ProcessableMessage,
   ResolvedBinding,
   type SurfaceModel,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
 import {basicCatalog, createBasicCatalogFunctions} from '@a2ui/web_core/catalogs/basic/v1';
-import type {A2uiWebComponentElement} from '@a2ui/web_core/v0_9/universal';
-import {FunctionImplementation, RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
+import type {A2uiWebComponentElement} from '@a2ui/web_core/universal';
+import {A2uiClientMessageSchema, CommonSchemas} from '@a2ui/web_core/v0_9';
+import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
 import {z} from 'zod';
 import {BasicCatalogBase as V09BasicCatalogBase} from './v0_9';
 import {

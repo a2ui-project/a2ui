@@ -205,7 +205,10 @@ public final class RPCHandler {
     if let capturedError = argHandler.capturedError {
       let errorPayload = FunctionErrorPayload(
         code: .executionError,
-        message: Self.argumentErrorMessage(capturedError)
+        message: Self.errorMessage(
+          capturedError,
+          fallback: "An argument of the function call could not be resolved."
+        )
       )
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
@@ -239,7 +242,10 @@ public final class RPCHandler {
     } catch {
       let errorPayload = FunctionErrorPayload(
         code: .executionError,
-        message: "An error occurred during function execution."
+        message: Self.errorMessage(
+          error,
+          fallback: "An error occurred during function execution."
+        )
       )
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
@@ -249,9 +255,9 @@ public final class RPCHandler {
     }
   }
 
-  /// The message of an error that a nested argument of an agent-initiated call failed with, or a
-  /// descriptive fallback when the error has none.
-  private static func argumentErrorMessage(_ error: any Error) -> String {
+  /// The message of an error thrown while answering an agent-initiated call, or `fallback` when
+  /// the error has no message.
+  private static func errorMessage(_ error: any Error, fallback: String) -> String {
     let message: String
     if let a2uiError = error as? any A2UIError {
       message = a2uiError.message
@@ -261,7 +267,7 @@ public final class RPCHandler {
       message = String(describing: error)
     }
     guard message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return message }
-    return "An argument of the function call could not be resolved."
+    return fallback
   }
 
   // MARK: - Outgoing Calls (Renderer -> Agent)
