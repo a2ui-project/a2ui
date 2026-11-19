@@ -32,7 +32,7 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<ButtonSup
    *
    * - `--a2ui-button-padding`: Padding of the default and `primary` variants (`borderless` forces `0`). Defaults to `--a2ui-spacing-m` vertically and `--a2ui-spacing-l` horizontally.
    * - `--a2ui-button-border-radius`: Border radius of the button. Defaults to `--a2ui-spacing-s`.
-   * - `--a2ui-button-border`: Border shorthand of the default variant. Defaults to `--a2ui-border-width` solid `--a2ui-color-border`.
+   * - `--a2ui-button-border`: Border shorthand of the default variant. Defaults to `var(--a2ui-border-width) solid var(--a2ui-color-border)`.
    * - `--a2ui-button-margin`: Outer margin of the button. Defaults to `--a2ui-spacing-m`.
    * - `--a2ui-button-background`: Background of the default variant. Defaults to `--a2ui-color-surface`.
    * - `--a2ui-button-box-shadow`: Box shadow of the button. Defaults to `none`.

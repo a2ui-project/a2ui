@@ -30,7 +30,7 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<CardSupportedApi
    * - `--a2ui-card-border-radius`: Border radius of the card. Defaults to `--a2ui-border-radius`.
    * - `--a2ui-card-box-shadow`: Box shadow of the card. Defaults to `0 2px 4px rgba(0, 0, 0, 0.1)`.
    * - `--a2ui-card-background`: Background of the card. Defaults to `--a2ui-color-surface`.
-   * - `--a2ui-card-border`: Border shorthand of the card. Defaults to `--a2ui-border-width` solid `--a2ui-color-border`.
+   * - `--a2ui-card-border`: Border shorthand of the card. Defaults to `var(--a2ui-border-width) solid var(--a2ui-color-border)`.
    * - `--a2ui-card-margin`: Outer margin of the card. Defaults to `--a2ui-spacing-m`.
    *
    * Global theme variables read by this component:
