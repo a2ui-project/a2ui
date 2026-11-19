@@ -1146,3 +1146,24 @@ async def test_gemini_decisions_wire_format_and_error_surfacing() -> None:
         )
         with pytest.raises(DecisionBackendError, match="safety: Request blocked"):
             await backend.answer(blocked_batch)
+
+
+def test_http_backends_require_the_decision_extra(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del clean_env
+    from a2ui.inference_formats.experimental.decision import backends
+
+    monkeypatch.setattr(backends, "httpx", None)
+
+    assert isinstance(DeterministicMockBackend(), DeterministicMockBackend)
+    assert isinstance(create_decision_backend("mock"), DeterministicMockBackend)
+
+    pattern = r"a2ui-agent-sdk\[decision\]"
+    with pytest.raises(ImportError, match=pattern):
+        JevHttpBackend("http://localhost:9999")
+    with pytest.raises(ImportError, match=pattern):
+        StepZeroLogprobBackend("http://localhost:9999", "test-model")
+    for kind in ("jev", "gemini", "step0"):
+        with pytest.raises(ImportError, match=pattern):
+            create_decision_backend(kind)
