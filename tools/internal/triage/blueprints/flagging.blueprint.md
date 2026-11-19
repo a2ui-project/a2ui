@@ -34,7 +34,6 @@ The script uses the following rules to decide if a PR or issue should get **the 
          - It is `P1` and has been stale for more than 30 days.
          - It is `P1` with no milestone.
          - It has no priority label (`P0`–`P3`).
-         - The latest comment is from an out-of-team contributor.
        - **NO LABEL** otherwise.
      - If not assigned:
        - **LABEL** when one of the following is true:
