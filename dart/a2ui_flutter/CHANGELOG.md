@@ -19,7 +19,7 @@
 ## Unreleased
 
 - **Breaking:** Raises the minimum Dart/Flutter SDK bounds from `sdk: ">=3.10.0 <4.0.0"` and `flutter: ">=3.38.0"` to `sdk: ">=3.13.0 <4.0.0"` and `flutter: ">=3.47.0"`. Upgrade to Flutter 3.47.0+ (Dart 3.13.0+) before updating to this release ([#4303](https://github.com/a2ui-project/a2ui/pull/4303)).
-- **Breaking:** Migrates from `package:flutter/material.dart` to `package:material_ui/material_ui.dart` (`^1.0.0`). Apps that still import `package:flutter/material.dart` should migrate to `material_ui` or wrap legacy subtrees with `MaterialUiCompatibilityBridge` ([#3235](https://github.com/a2ui-project/a2ui/issues/3235), [#4280](https://github.com/a2ui-project/a2ui/pull/4280)).
+- **Breaking:** Migrates from `package:flutter/material.dart` to the standalone `material_ui` package (`package:material_ui/material_ui.dart`, `^1.0.0`). Migrate your app to the standalone `material_ui` package following the [Flutter Material UI migration guide](https://docs.flutter.dev/release/breaking-changes/material-ui-and-cupertino-ui) (or wrap legacy `package:flutter/material.dart` subtrees with `MaterialUiCompatibilityBridge` during incremental migration) ([#3235](https://github.com/a2ui-project/a2ui/issues/3235), [#4280](https://github.com/a2ui-project/a2ui/pull/4280)).
 
 ## 0.4.0
 
