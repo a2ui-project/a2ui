@@ -225,55 +225,64 @@ function isProtocolWireEnvelope(
     return false;
   }
   visited.add(s);
-  if (
-    Array.isArray(s.allOf) &&
-    s.allOf.some(sub => {
-      if (!sub || typeof sub !== 'object') {
-        return false;
+  try {
+    if (
+      Array.isArray(s.allOf) &&
+      s.allOf.some(sub => {
+        if (!sub || typeof sub !== 'object' || visited.has(sub)) {
+          return false;
+        }
+        visited.add(sub);
+        try {
+          const resolved = helper.dereferenceLocalSchema(sub) ?? (sub as Record<string, unknown>);
+          return isProtocolWireEnvelope(resolved, helper, visited);
+        } finally {
+          visited.delete(sub);
+        }
+      })
+    ) {
+      return true;
+    }
+    const props =
+      s.properties && typeof s.properties === 'object'
+        ? (s.properties as Record<string, unknown>)
+        : undefined;
+    const reqs = Array.isArray(s.required) ? s.required : undefined;
+    if (!props || !reqs) {
+      return false;
+    }
+    const keys = Object.keys(props);
+    if (keys.length === 1) {
+      const k = keys[0];
+      if (k === helper.keys.path && reqs.includes(k)) {
+        return true;
       }
-      const resolved = helper.dereferenceLocalSchema(sub) ?? (sub as Record<string, unknown>);
-      return isProtocolWireEnvelope(resolved, helper, visited);
-    })
-  ) {
-    return true;
-  }
-  const props =
-    s.properties && typeof s.properties === 'object'
-      ? (s.properties as Record<string, unknown>)
-      : undefined;
-  const reqs = Array.isArray(s.required) ? s.required : undefined;
-  if (!props || !reqs) {
-    return false;
-  }
-  const keys = Object.keys(props);
-  if (keys.length === 1) {
-    const k = keys[0];
-    if (k === helper.keys.path && reqs.includes(k)) {
+      if ((k === 'event' || k === 'functionCall') && reqs.includes(k)) {
+        return isObjectOrRefSchema(props[k]);
+      }
+      return false;
+    }
+    if (helper.keys.call === '@call') {
+      if ('@call' in props && reqs.includes('@call')) {
+        return true;
+      }
+    } else if (
+      'call' in props &&
+      ('args' in props || 'returnType' in props) &&
+      reqs.includes('call')
+    ) {
       return true;
     }
-    if ((k === 'event' || k === 'functionCall') && reqs.includes(k)) {
-      return isObjectOrRefSchema(props[k]);
-    }
-    return false;
+    return (
+      keys.length === 2 &&
+      'componentId' in props &&
+      'path' in props &&
+      reqs.includes('componentId') &&
+      reqs.includes('path')
+    );
+  } finally {
+    visited.delete(s);
   }
-  if (helper.keys.call === '@call') {
-    if ('@call' in props && reqs.includes('@call')) {
-      return true;
-    }
-  } else if (
-    'call' in props &&
-    ('args' in props || 'returnType' in props) &&
-    reqs.includes('call')
-  ) {
-    return true;
-  }
-  return (
-    keys.length === 2 &&
-    'componentId' in props &&
-    'path' in props &&
-    reqs.includes('componentId') &&
-    reqs.includes('path')
-  );
 }
 
 function applyDefaultCatalogToCalls(val: unknown, defaultCatalogId: string): unknown {

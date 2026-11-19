@@ -1121,5 +1121,30 @@ describe('ExpressPromptGenerator', () => {
       expect(instructions).toContain('* event - Log event name');
       expect(instructions).not.toContain('functionCall');
     });
+
+    it('handles cyclic allOf $defs without stack overflow', () => {
+      const cat = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        catalogId: 'test/cyclic_allof',
+        protocolVersion: '1.0',
+        components: {
+          CyclicAllOfWidget: {
+            type: 'object',
+            properties: {
+              component: {const: 'CyclicAllOfWidget'},
+              node: {$ref: '#/$defs/SelfAllOf'},
+            },
+            required: ['component'],
+          },
+        },
+        $defs: {
+          SelfAllOf: {
+            allOf: [{$ref: '#/$defs/SelfAllOf'}, {type: 'string'}],
+          },
+        },
+      });
+      const instructions = new ExpressPromptGenerator([cat]).generateCatalogInstructions(cat);
+      expect(instructions).toContain('• CyclicAllOfWidget(node? (static))');
+    });
   });
 });
