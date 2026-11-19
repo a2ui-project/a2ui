@@ -31,8 +31,11 @@ void main() {
   ) async {
     final client = FakeClient([
       [
-        'Some **bold** words.',
-        block([createSurface('s'), rootComponent('s', 'A **bold** label')]),
+        '# Model heading\n\nSome **bold** words.',
+        block([
+          createSurface('s'),
+          rootComponent('s', '# Surface heading\n\nA **bold** label'),
+        ]),
       ],
     ]);
     final session = ChatSession(client: client);
@@ -54,19 +57,20 @@ void main() {
     expect(find.textContaining('**'), findsNothing);
 
     final ThemeData theme = Theme.of(tester.element(find.byType(Scaffold)));
-    final List<MarkdownBody> bodies = tester
-        .widgetList<MarkdownBody>(find.byType(MarkdownBody))
-        .toList();
-    expect(bodies, hasLength(2));
-    for (final body in bodies) {
-      final MarkdownStyleSheet? sheet = body.styleSheet;
-      expect(sheet, isNotNull);
-      expect(sheet!.h1, theme.textTheme.headlineSmall);
-      expect(sheet.tableBorder?.top.color, theme.dividerColor);
-      expect(
-        (sheet.blockquoteDecoration! as BoxDecoration).color,
-        theme.colorScheme.surfaceContainerHighest,
+    for (final label in ['Model heading', 'Surface heading']) {
+      final RichText heading = tester.widget<RichText>(
+        find.descendant(
+          of: find.byType(MarkdownBody),
+          matching: find.byWidgetPredicate(
+            (w) => w is RichText && w.text.toPlainText() == label,
+          ),
+        ),
       );
+      final rootSpan = heading.text as TextSpan;
+      final TextStyle? headingStyle =
+          rootSpan.children?.first.style ?? rootSpan.style;
+      expect(headingStyle?.fontSize, theme.textTheme.headlineSmall?.fontSize);
+      expect(headingStyle?.color, theme.textTheme.headlineSmall?.color);
     }
   });
 

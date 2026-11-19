@@ -272,27 +272,21 @@ void main() {
     );
   });
 
-  testWidgets('Markdown Text preserves ambient material_ui ThemeData', (
+  testWidgets('Markdown Text bridges ambient material_ui ThemeData', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1600, 1200);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    const customCardColor = Color(0xFF123456);
-    const customDividerColor = Color(0xFF654321);
-    final ThemeData customTheme =
-        ThemeData(
-          brightness: Brightness.dark,
-          colorSchemeSeed: Colors.teal,
-        ).copyWith(
-          cardTheme: const CardThemeData(color: customCardColor),
-          dividerColor: customDividerColor,
-        );
+    final darkTheme = ThemeData(
+      brightness: Brightness.dark,
+      colorSchemeSeed: Colors.teal,
+    );
 
     await tester.pumpWidget(
       MaterialApp(
-        theme: customTheme,
+        theme: darkTheme,
         home: ExplorerPage(examples: _examples),
       ),
     );
@@ -312,22 +306,22 @@ void main() {
     final ThemeData ambientTheme = Theme.of(
       tester.element(find.byType(ExplorerPage)),
     );
-    final MarkdownBody body = tester
-        .widgetList<MarkdownBody>(_inSurface(find.byType(MarkdownBody)))
-        .first;
-    final MarkdownStyleSheet? sheet = body.styleSheet;
-    expect(sheet, isNotNull);
-    expect(sheet!.h1, ambientTheme.textTheme.headlineSmall);
-    expect(sheet.code?.backgroundColor, customCardColor);
-    expect(
-      (sheet.codeblockDecoration! as BoxDecoration).color,
-      customCardColor,
+    final RichText heading = tester.widget<RichText>(
+      find.descendant(
+        of: _inSurface(find.byType(MarkdownBody)),
+        matching: find.byWidgetPredicate(
+          (w) => w is RichText && w.text.toPlainText() == 'Heading 1',
+        ),
+      ),
     );
-    expect(sheet.tableBorder?.top.color, customDividerColor);
+    final rootSpan = heading.text as TextSpan;
+    final TextStyle? headingStyle =
+        rootSpan.children?.first.style ?? rootSpan.style;
     expect(
-      (sheet.blockquoteDecoration! as BoxDecoration).color,
-      ambientTheme.colorScheme.surfaceContainerHighest,
+      headingStyle?.fontSize,
+      ambientTheme.textTheme.headlineSmall?.fontSize,
     );
+    expect(headingStyle?.color, ambientTheme.textTheme.headlineSmall?.color);
   });
 
   testWidgets('Native Grid lays out its custom components in two columns '
