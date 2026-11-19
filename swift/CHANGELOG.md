@@ -16,7 +16,8 @@
   `Catalog`, with an `instructions:` parameter on `Catalog.init` and `Catalog.derive`. `derive`
   does not keep the source catalog's instructions, and `MessageProcessor.getRendererCapabilities`
   writes them into v1.0 inline catalogs when set.
-  [#3842](https://github.com/a2ui-project/a2ui/issues/3842)
+  [#3842](https://github.com/a2ui-project/a2ui/issues/3842),
+  [#4312](https://github.com/a2ui-project/a2ui/pull/4312)
 
 ## 0.11.0
 
