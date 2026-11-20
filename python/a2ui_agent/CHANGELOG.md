@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Add `ProseSurfaceUpgrader`, `ProseTemplateSpec`, `TypedFieldSpec`,
+  `FieldExtractor`, `StructuredOutputExtractor`, and `DeterministicMockExtractor`
+  in `a2ui.inference_formats.experimental.decision_prose_upgrade` for
+  decision-gated prose-to-surface upgrades with confidence, null-probability,
+  and verbatim source-span grounding guards.
+
 - Add `GatedTemplateEvaluator`, `GatedTemplateSpec`, `extract_gates_and_variants`,
   and `prune_components` in
   `a2ui.inference_formats.experimental.decision_gated_templates` for evaluating
