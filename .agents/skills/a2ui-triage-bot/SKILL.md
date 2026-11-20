@@ -280,7 +280,7 @@ Suggestion: set P1 and assign `flutter-owner`.
 The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.
 
 **Why flagged for triage:**
-This issue has external input but no priority label yet.
+This issue has no priority label.
 
 **Suggestion:**
 Set P1 and assign `flutter-owner`, who wrote [most recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column` and probably has the same cause.
@@ -310,7 +310,7 @@ root = TriageSuggestion(
   tldr="""Case: this issue reports a crash.
 Suggestion: set P1 and assign `flutter-owner`.""",
   summary="""The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.""",
-  reason="This issue has external input but no priority label yet.",
+  reason="This issue has no priority label.",
   suggestion="""Set P1 and assign `flutter-owner`, who wrote [most recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column` and probably has the same cause.""",
   reply="""Thanks for the report and the payload that reproduces it. Setting P1 and assigning `flutter-owner`, who maintains the Flutter renderer. [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column`.""",
   added_labels=["type: bug", "P1", "component: flutter adapter", "status: first-line-handled"],
@@ -339,7 +339,7 @@ Suggestion: close as a duplicate.
 The issue asks for a `Slider` component in the basic catalog.
 
 **Why flagged for triage:**
-This issue has external input but no priority label yet.
+This issue has no priority label.
 
 **Suggestion:**
 Close as a duplicate of [#1100](https://github.com/a2ui-project/a2ui/issues/1100), which asks for the same component and already has P2. The issue adds no new use case.
@@ -368,7 +368,7 @@ root = TriageSuggestion(
   tldr="""Case: this issue duplicates [#1100](https://github.com/a2ui-project/a2ui/issues/1100).
 Suggestion: close as a duplicate.""",
   summary="The issue asks for a `Slider` component in the basic catalog.",
-  reason="This issue has external input but no priority label yet.",
+  reason="This issue has no priority label.",
   suggestion="Close as a duplicate of [#1100](https://github.com/a2ui-project/a2ui/issues/1100), which asks for the same component and already has P2. The issue adds no new use case.",
   reply="""Thanks for the request. [#1100](https://github.com/a2ui-project/a2ui/issues/1100) tracks the same component, so we are closing this issue as a duplicate. Add your use case there if it is not covered yet.""",
   close_as="duplicate",

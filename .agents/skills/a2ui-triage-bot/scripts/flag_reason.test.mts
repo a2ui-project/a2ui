@@ -122,7 +122,7 @@ describe('itemReason', () => {
   it('returns the reason for a flagged item, as a sentence', async () => {
     assert.deepEqual(await itemReason(reader(item()), ref, NOW), {
       url: 'https://github.com/a2ui-project/a2ui/issues/7',
-      reason: 'This issue has external input but no priority label yet.',
+      reason: 'This issue has no priority label.',
     });
   });
 
@@ -140,7 +140,7 @@ describe('itemReason', () => {
       user: {login: 'reporter', type: 'User'},
     };
     const {reason} = await itemReason(reader(teamIssue, [external]), ref, NOW);
-    assert.match(reason ?? '', /^The latest contribution is from an external contributor/);
+    assert.match(reason ?? '', /^The latest comment is from an out-of-team contributor/);
   });
 
   it('reads when the timed labels were added', async () => {
@@ -170,7 +170,7 @@ describe('itemReason', () => {
       user: {login: 'reporter', type: 'User'},
     };
     const {reason} = await itemReason(reader(parked, [reply], [labeled]), ref, NOW);
-    assert.equal(reason, 'This issue has external input but no priority label yet.');
+    assert.equal(reason, 'This issue has no priority label.');
   });
 
   it('builds the URL when the API does not return one', async () => {
