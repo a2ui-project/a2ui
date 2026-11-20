@@ -1,0 +1,149 @@
+{
+  "name": "Step Counter",
+  "description": "Example of step counter demonstrating number formatting.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-step-counter",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-step-counter",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main-column"
+          },
+          {
+            "id": "main-column",
+            "component": "Column",
+            "children": ["header", "steps-display", "goal-text", "divider", "stats-row"],
+            "align": "center"
+          },
+          {
+            "id": "header",
+            "component": "Row",
+            "children": ["steps-icon", "title"],
+            "align": "center"
+          },
+          {
+            "id": "steps-icon",
+            "component": "Icon",
+            "name": "person"
+          },
+          {
+            "id": "title",
+            "component": "Text",
+            "text": "Today's Steps",
+            "variant": "h4"
+          },
+          {
+            "id": "steps-display",
+            "component": "Text",
+            "text": {
+              "call": "formatNumber",
+              "args": {
+                "value": {
+                  "path": "/steps"
+                }
+              },
+              "returnType": "string"
+            },
+            "variant": "h1"
+          },
+          {
+            "id": "goal-text",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "${/progress}% of ${formatNumber(value: ${/goal})} goal"
+              },
+              "returnType": "string"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "divider",
+            "component": "Divider"
+          },
+          {
+            "id": "stats-row",
+            "component": "Row",
+            "children": ["distance-col", "calories-col"],
+            "justify": "spaceAround"
+          },
+          {
+            "id": "distance-col",
+            "component": "Column",
+            "children": ["distance-value", "distance-label"],
+            "align": "center"
+          },
+          {
+            "id": "distance-value",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "${/distance} mi"
+              },
+              "returnType": "string"
+            },
+            "variant": "h3"
+          },
+          {
+            "id": "distance-label",
+            "component": "Text",
+            "text": "Distance",
+            "variant": "caption"
+          },
+          {
+            "id": "calories-col",
+            "component": "Column",
+            "children": ["calories-value", "calories-label"],
+            "align": "center"
+          },
+          {
+            "id": "calories-value",
+            "component": "Text",
+            "text": {
+              "call": "formatNumber",
+              "args": {
+                "value": {
+                  "path": "/calories"
+                }
+              },
+              "returnType": "string"
+            },
+            "variant": "h3"
+          },
+          {
+            "id": "calories-label",
+            "component": "Text",
+            "text": "Calories",
+            "variant": "caption"
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-step-counter",
+        "value": {
+          "steps": 8432,
+          "goal": 10000,
+          "progress": 84,
+          "distance": 3.8,
+          "calories": 312
+        }
+      }
+    }
+  ]
+}

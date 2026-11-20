@@ -1,0 +1,118 @@
+[
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-simple-login-form",
+      "path": "/",
+      "contents": [
+        {
+          "key": "username",
+          "valueString": ""
+        },
+        {
+          "key": "password",
+          "valueString": ""
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-simple-login-form",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["form_title", "username_field", "password_field", "submit_button"]
+              },
+              "distribution": "start",
+              "alignment": "stretch"
+            }
+          }
+        },
+        {
+          "id": "form_title",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Login"
+              },
+              "usageHint": "h2"
+            }
+          }
+        },
+        {
+          "id": "username_field",
+          "component": {
+            "TextField": {
+              "label": {
+                "literalString": "Username"
+              },
+              "text": {
+                "path": "/username"
+              },
+              "textFieldType": "shortText"
+            }
+          }
+        },
+        {
+          "id": "password_field",
+          "component": {
+            "TextField": {
+              "label": {
+                "literalString": "Password"
+              },
+              "text": {
+                "path": "/password"
+              },
+              "textFieldType": "obscured"
+            }
+          }
+        },
+        {
+          "id": "submit_button",
+          "component": {
+            "Button": {
+              "child": "submit_label",
+              "primary": true,
+              "action": {
+                "name": "login_submitted",
+                "context": [
+                  {
+                    "key": "user",
+                    "value": {
+                      "path": "/username"
+                    }
+                  },
+                  {
+                    "key": "pass",
+                    "value": {
+                      "path": "/password"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "submit_label",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Sign In"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-simple-login-form",
+      "root": "root"
+    }
+  }
+]

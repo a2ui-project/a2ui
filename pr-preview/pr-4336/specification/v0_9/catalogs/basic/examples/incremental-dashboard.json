@@ -1,0 +1,128 @@
+{
+  "name": "Incremental Dashboard",
+  "description": "Demonstrates structural evolution of a UI where loading placeholders are incrementally replaced by actual components.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-incremental-dashboard",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-incremental-dashboard",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["header", "content-grid"],
+            "align": "stretch"
+          },
+          {
+            "id": "header",
+            "component": "Text",
+            "text": "System Dashboard",
+            "variant": "h2"
+          },
+          {
+            "id": "content-grid",
+            "component": "Row",
+            "children": ["left-panel", "right-panel"]
+          },
+          {
+            "id": "left-panel",
+            "component": "Column",
+            "children": ["panel-a-loading"],
+            "weight": 1
+          },
+          {
+            "id": "right-panel",
+            "component": "Column",
+            "children": ["panel-b-loading"],
+            "weight": 1
+          },
+          {
+            "id": "panel-a-loading",
+            "component": "Text",
+            "text": "Loading analytics...",
+            "variant": "caption"
+          },
+          {
+            "id": "panel-b-loading",
+            "component": "Text",
+            "text": "Loading logs...",
+            "variant": "caption"
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-incremental-dashboard",
+        "components": [
+          {
+            "id": "left-panel",
+            "component": "Column",
+            "children": ["analytics-card"],
+            "weight": 1
+          },
+          {
+            "id": "analytics-card",
+            "component": "Card",
+            "child": "analytics-text"
+          },
+          {
+            "id": "analytics-text",
+            "component": "Text",
+            "text": "Analytics are ready.",
+            "variant": "body"
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-incremental-dashboard",
+        "components": [
+          {
+            "id": "right-panel",
+            "component": "Column",
+            "children": ["logs-list"],
+            "weight": 1
+          },
+          {
+            "id": "logs-list",
+            "component": "List",
+            "children": {
+              "path": "/logs",
+              "componentId": "log-template"
+            }
+          },
+          {
+            "id": "log-template",
+            "component": "Text",
+            "text": {"path": "message"},
+            "variant": "caption"
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-incremental-dashboard",
+        "value": {
+          "logs": [
+            {"message": "System boot complete."},
+            {"message": "All services healthy."},
+            {"message": "Waiting for user input."}
+          ]
+        }
+      }
+    }
+  ]
+}
