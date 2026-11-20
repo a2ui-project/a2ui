@@ -207,14 +207,14 @@ class SurfaceTemplate:
     """Pre-validated A2UI surface template parameterized by JSON Pointer paths.
 
     Attributes:
-        template_id: Unique identifier for this template in a registry.
-        description: Human-readable summary shown to the template selector.
-        surface_id: Default A2UI surface ID used when rendering messages.
-        catalog_id: Optional catalog identifier associated with the surface.
-        protocol_version: A2UI protocol version of `components`.
-        components: Pre-validated A2UI component dictionaries.
+        template_id: Unique identifier of the template in a `TemplateRegistry`.
+        description: Human-readable summary used as the option text in template questions.
+        surface_id: Default surface identifier when rendering the template.
+        catalog_id: Target catalog identifier, or None for multi-catalog templates.
+        protocol_version: A2UI protocol version string (for example `1.0`).
+        components: Frozen tuple of pre-validated A2UI component dictionaries.
         required_pointers: Absolute JSON Pointers that a payload must provide.
-        is_mutable: Whether the template's data is user-editable.
+        is_mutable: Whether the template contains user-editable bindings (`sendDataModel`).
     """
 
     template_id: str
@@ -229,14 +229,26 @@ class SurfaceTemplate:
     def matches_payload(self, available_pointers: Collection[str]) -> bool:
         """Returns whether all required JSON Pointers are present in the payload.
 
+        An array pointer such as ``"/steps"`` also satisfies unrolled array
+        element pointers such as ``"/steps/0/title"``, whereas parent object
+        prefixes without a numeric array index segment do not match.
+
         Args:
             available_pointers: JSON Pointers present in the candidate payload.
 
         Returns:
-            Whether every pointer in `required_pointers` is in
+            Whether every pointer in `required_pointers` is satisfied by
             `available_pointers`.
         """
-        return all(req in available_pointers for req in self.required_pointers)
+        return all(
+            req in available_pointers
+            or any(
+                req.startswith(f"{avail}/")
+                and req[len(avail) + 1 :].split("/", 1)[0].isdigit()
+                for avail in available_pointers
+            )
+            for req in self.required_pointers
+        )
 
     def root_component(self) -> str | None:
         """Returns the component type name of the root component in this template."""
@@ -281,6 +293,8 @@ class SurfaceTemplate:
         create_surface_body: dict[str, Any] = {"surfaceId": target_surface_id}
         if self.catalog_id is not None:
             create_surface_body["catalogId"] = self.catalog_id
+        if self.is_mutable:
+            create_surface_body["sendDataModel"] = True
 
         raw_messages: list[dict[str, Any]] = [
             {
