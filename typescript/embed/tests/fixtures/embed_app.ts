@@ -15,9 +15,10 @@
  */
 
 /**
- * The app under test: `startEmbedApp` with the basic catalog, as the build command generates it.
- * The handle is exposed on `window` so the tests can close the app.
+ * The app under test: `startEmbedApp` with the basic catalog and the markdown renderer, as the
+ * build command generates it. The handle is exposed on `window` so the tests can close the app.
  */
+import {renderMarkdown} from '@a2ui/markdown-it';
 import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 import {startEmbedApp, type EmbedAppHandle} from '../../src/mcp/index.js';
 
@@ -30,4 +31,5 @@ declare global {
 window.embedApp = startEmbedApp({
   catalogs: [basicCatalog],
   appInfo: {name: 'embed-test-app', version: '0.0.0'},
+  markdown: renderMarkdown,
 });

@@ -103,6 +103,7 @@ export default defineConfig({catalogs: [basicCatalog], output: 'app.html'});
     assert.equal(root.started, 'true');
     assert.equal(root.catalogs, 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json');
     assert.equal(root.marker, '</script><!-- end -->');
+    assert.equal(root.markdown, 'function');
   });
 
   it('reports a runtime that needs eval', async () => {

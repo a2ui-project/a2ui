@@ -130,6 +130,9 @@ export function validateConfig(value: unknown, source: string): EmbedBuildConfig
   if (config.title !== undefined && typeof config.title !== 'string') {
     fail('`title` must be a string.');
   }
+  if (config.markdown !== undefined && typeof config.markdown !== 'boolean') {
+    fail('`markdown` must be `true` or `false`.');
+  }
   return config as EmbedBuildConfig;
 }
 
