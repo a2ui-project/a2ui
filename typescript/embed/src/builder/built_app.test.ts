@@ -110,6 +110,26 @@ function surfaceText(): string {
 }
 
 /**
+ * The markdown the surface rendered: the text of its `<strong>` and of its list items. Like
+ * {@link surfaceText}, it walks shadow roots and declares no nested functions.
+ */
+function renderedMarkdown(): {strong: string | undefined; items: string[]} {
+  const result: {strong: string | undefined; items: string[]} = {strong: undefined, items: []};
+  const surface = document.querySelector('a2ui-surface');
+  const pending: Node[] = surface ? [surface] : [];
+  while (pending.length > 0) {
+    const node = pending.shift()!;
+    if (node instanceof Element) {
+      if (node.localName === 'strong') result.strong = node.textContent ?? '';
+      if (node.localName === 'li') result.items.push(node.textContent ?? '');
+      if (node.shadowRoot) pending.push(node.shadowRoot);
+    }
+    pending.push(...Array.from(node.childNodes));
+  }
+  return result;
+}
+
+/**
  * Polls `read` in `frame` until `accept` holds. Playwright's `waitForFunction` evaluates strings,
  * which the app's CSP blocks, while `evaluate` with a function is exempt.
  */
@@ -143,7 +163,7 @@ const PAYLOAD = {
         components: [
           {id: 'root', component: 'Column', children: ['title', 'body']},
           {id: 'title', component: 'Text', text: 'Revenue'},
-          {id: 'body', component: 'Text', text: 'Grew 12% in March.'},
+          {id: 'body', component: 'Text', text: 'Grew **12%** in March.\n\n- EMEA\n- APAC'},
         ],
       },
     },
@@ -186,10 +206,14 @@ export default defineConfig({catalogs: [basicCatalog], output: 'dist/app.html'})
     await project.remove();
   });
 
-  it('renders a tool result under the default CSP and reports its size', async () => {
+  it('renders a tool result with markdown under the default CSP and reports its size', async () => {
     const {htmlPath, htmlBytes} = await build({cwd: project.dir});
     const appHtml = await readFile(htmlPath, 'utf8');
     console.log(`Built app: ${htmlBytes} bytes`);
+    const warnings: string[] = [];
+    page.on('console', message => {
+      if (message.type() === 'warning') warnings.push(message.text());
+    });
 
     await page.addInitScript({content: RECORD_VIOLATIONS});
     await page.route(HOST_URL, route =>
@@ -228,10 +252,18 @@ export default defineConfig({catalogs: [basicCatalog], output: 'dist/app.html'})
     const text = await waitUntil(
       app,
       surfaceText,
-      value => value.includes('Grew 12% in March.'),
+      value => value.includes('APAC'),
       'the surface to render',
     );
     assert.match(text, /Revenue/);
+    assert.deepEqual(await app.evaluate(renderedMarkdown), {
+      strong: '12%',
+      items: ['EMEA', 'APAC'],
+    });
+    assert.deepEqual(
+      warnings.filter(warning => warning.includes('MarkdownDirective')),
+      [],
+    );
     await waitUntil(
       hostFrame,
       () => (globalThis as unknown as PageGlobals).host!.sizes,

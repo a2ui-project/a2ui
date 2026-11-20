@@ -78,6 +78,7 @@
       "dependencies": [
         "../core/web_core:build",
         "../renderers/lit:build",
+        "../renderers/markdown-it:build",
         "copy-spec"
       ],
       "files": [
@@ -156,6 +157,7 @@
       "dependencies": [
         "../core/web_core:build",
         "../renderers/lit:build",
+        "../renderers/markdown-it:build",
         "copy-spec"
       ],
       "files": [
@@ -177,6 +179,8 @@
   },
   "author": "Google",
   "dependencies": {
+    "@a2ui/markdown-it": "workspace:*",
+    "@lit/context": "^1.1.6",
     "@modelcontextprotocol/ext-apps": "^1.7.4",
     "ajv": "^8.17.1",
     "esbuild": "^0.28.1",

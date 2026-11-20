@@ -136,6 +136,7 @@ The message text only comes from the template in your code. Each `{name}` placeh
 `@a2ui/embed/mcp` runs inside the app's iframe. `startEmbedApp` connects to the host with the [MCP Apps App SDK](https://github.com/modelcontextprotocol/ext-apps) and renders the A2UI payload of each tool result with the Lit renderer and the catalogs you pass.
 
 ```ts
+import {renderMarkdown} from '@a2ui/markdown-it';
 import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 import {startEmbedApp} from '@a2ui/embed/mcp';
 
@@ -144,6 +145,7 @@ startEmbedApp({
   appInfo: {name: 'sales-app', version: '1.0.0'}, // Optional (default: {name: 'a2ui-embed', version: '1.0.0'})
   root: document.getElementById('app')!, // Optional (default: document.body)
   modelContext: {maxBytes: 8192}, // Optional (default: {maxBytes: 16384})
+  markdown: renderMarkdown, // Optional (default: none, the text shows as typed)
 });
 ```
 
@@ -156,6 +158,8 @@ The app:
 - Sends every A2UI action to the server's `a2ui_action` tool as an `ActionCall`, with at most four calls in flight. The messages in the result update the surfaces in place. A `followUp.text` is posted to the conversation as a user message when the host supports `ui/message`. A failed action shows a dismissible notice and keeps the surfaces.
 - Reports its size to the host and follows the host theme: it applies the host's theme, style variables and fonts, and maps the standard MCP Apps variables onto the A2UI basic catalog theme.
 - Shares the data model of each surface created with `sendDataModel: true` with the model, as described below.
+- Renders the markdown of the basic catalog's body `Text` with the `markdown` renderer, as described below.
+- Opens links through the host's `ui/open-link` request instead of following them in its frame. It only opens `http:`, `https:` and `mailto:` links, and shows a notice when the host does not open links.
 - Runs under the default MCP Apps CSP (`default-src 'none'` with inline scripts and styles): it never evaluates code or makes network requests.
 
 ### Model context
@@ -167,6 +171,12 @@ When the user changes the data model of a surface created with `sendDataModel: t
 - The JSON of one update is limited to `modelContext.maxBytes` (16 KiB by default). Above it, the largest data models are left out, largest first, and named with their size instead, so the model never reads partial JSON.
 - A new tool result clears the shared context, and deleting a `sendDataModel` surface removes its data model from it.
 - Nothing is sent when the host does not support `ui/update-model-context`.
+
+### Markdown
+
+The basic catalog renders body `Text` as markdown with the `markdown` renderer, which receives the text and returns HTML. Without one, the app shows the text as typed. The app HTML built by `a2ui-embed build` passes `renderMarkdown` from `@a2ui/markdown-it` unless the config sets `markdown: false`.
+
+Tool results are untrusted, so the renderer must sanitize the HTML it returns. `renderMarkdown` does: it leaves raw HTML in the markdown as text, drops `javascript:` and other script links, and sanitizes the result with DOMPurify. Images still follow the host's content security policy, which by default only loads `data:` and `blob:` images.
 
 ### Theming
 
@@ -212,6 +222,7 @@ export default defineConfig({
   renderer: 'lit', // Optional (default: 'lit')
   output: 'dist/a2ui-app.html',
   title: 'Sales', // Optional (default: 'A2UI app')
+  markdown: false, // Optional (default: true)
 });
 ```
 
@@ -227,6 +238,8 @@ The command writes two files, at paths relative to the config file:
 - `dist/a2ui-app.catalog.json`: the catalog schema file, with the JSON schema, `protocolVersion`, and optional `instructions` of each catalog keyed by catalog ID. Your server validates the components it sends against it.
 
 `catalogs` lists web_core `Catalog` objects for A2UI v1.x, with unique IDs. `basicCatalog` is the A2UI v1.0 basic catalog. Custom components can be Lit elements or plain Web Components.
+
+`markdown` decides whether body `Text` renders markdown with `@a2ui/markdown-it`, as described in [Markdown](#markdown). Set it to `false` to show the text as typed; the app is then about 150 KiB smaller.
 
 The build evaluates the config file in Node to write the catalog schema file, and bundles the same config file into the app, so the schema and the app always come from the same catalogs. As a result, the config file and the catalog modules it imports must load both in Node and in the browser: keep browser-only code, such as `document` access, inside component methods that run on render, and Node-only code, such as `node:fs`, out of the config file.
 
