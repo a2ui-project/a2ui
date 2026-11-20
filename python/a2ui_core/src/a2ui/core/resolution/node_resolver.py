@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 import re
 from typing import Any
 
+from ..catalog.catalog import _get_readonly_validation_schema
 from ..catalog.reference_map import ComponentRefSpec, analyze_child_ref_schema
 from ..common import Subscription
 from ..common.events import EventSource
@@ -130,7 +131,7 @@ def _resolve_ref_spec(
     if schema is None:
         comp = _lookup_component_api(cat, model.type)
         schema = getattr(comp, "schema", None) if comp is not None else None
-    cat_schema = getattr(cat, "validation_schema", None) or getattr(cat, "schema", None)
+    cat_schema = _get_readonly_validation_schema(cat) or getattr(cat, "schema", None)
     return analyze_child_ref_schema(schema, catalog_schema=cat_schema)
 
 

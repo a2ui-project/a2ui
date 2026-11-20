@@ -36,7 +36,7 @@ from ..catalog import (
     is_system_function_name,
     system_functions_for,
 )
-from ..catalog.catalog import CatalogApi
+from ..catalog.catalog import CatalogApi, _get_readonly_validation_schema
 from ..common.metadata import validate_metadata
 from ..common.semver import is_at_least_version, to_protocol_version
 from ..common.uax31 import is_valid_uax31_identifier
@@ -396,7 +396,7 @@ class PayloadValidator:
             else None
         )
         if c is None and isinstance(comp_type, str):
-            cat_schema = getattr(target_cat, "validation_schema", {}) or {}
+            cat_schema = _get_readonly_validation_schema(target_cat, {}) or {}
             comps_dict = (
                 cat_schema.get("components", {}) if isinstance(cat_schema, dict) else {}
             )
@@ -874,7 +874,7 @@ class PayloadValidator:
             return
 
         base_schema = (
-            getattr(target_cat, "validation_schema", {}) or {} if target_cat else {}
+            _get_readonly_validation_schema(target_cat, {}) or {} if target_cat else {}
         )
         defs = (
             dict(base_schema.get("$defs", {})) if isinstance(base_schema, dict) else {}
@@ -1355,11 +1355,11 @@ class PayloadValidator:
             comp_fn = cat.get_function(name)
             if comp_fn:
                 fn_def = comp_fn
-                base_schema = getattr(cat, "validation_schema", {}) or {}
                 if hasattr(comp_fn, "schema") and isinstance(comp_fn.schema, dict):
+                    base_schema = _get_readonly_validation_schema(cat, {}) or {}
                     fn_schema = _resolved_entry_schema(cat, "function", comp_fn)
         if fn_def is None:
-            cat_schema = getattr(cat, "validation_schema", {}) or {}
+            cat_schema = _get_readonly_validation_schema(cat, {}) or {}
             funcs_schema = cat_schema.get("functions", {})
             if isinstance(funcs_schema, dict) and name in funcs_schema:
                 fn_schema = funcs_schema[name]
@@ -1615,7 +1615,7 @@ class PayloadValidator:
                     )
                 ],
             )
-        base_schema = getattr(self.catalog, "validation_schema", {}) or {}
+        base_schema = _get_readonly_validation_schema(self.catalog, {}) or {}
         defs: dict[str, Any] = (
             base_schema.get("$defs", {}) if isinstance(base_schema, dict) else {}
         )
