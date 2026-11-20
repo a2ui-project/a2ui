@@ -41,120 +41,123 @@ class _TriagePageState extends State<TriagePage> {
     final String? error = controller.error;
     final int total = controller.queueLength;
     final int remaining = controller.remaining;
-    // Every text on the page can be selected and copied.
-    return SelectionArea(
-      child: Scaffold(
-        appBar: AppBar(
-          leading: MenuAnchor(
-            builder: (context, menu, _) => IconButton(
-              icon: const Icon(Icons.menu),
-              tooltip: 'Menu',
-              onPressed: () => menu.isOpen ? menu.close() : menu.open(),
-            ),
-            menuChildren: [
-              Tooltip(
-                message:
-                    'Get the prompt that asks an agent for the triage report '
-                    'of this session',
-                child: MenuItemButton(
-                  leadingIcon: const Icon(Icons.summarize_outlined),
-                  onPressed: () => showReportDialog(context),
-                  child: const Text('Create report'),
-                ),
-              ),
-            ],
+    // Every text on the page can be selected and copied. The texts have
+    // selection areas of their own, side by side, not one around the page:
+    // in nested areas, a press held before a drag gave the focus to the
+    // outer area, so Cmd+C copied nothing from the inner one.
+    return Scaffold(
+      appBar: AppBar(
+        leading: MenuAnchor(
+          builder: (context, menu, _) => IconButton(
+            icon: const Icon(Icons.menu),
+            tooltip: 'Menu',
+            onPressed: () => menu.isOpen ? menu.close() : menu.open(),
           ),
-          title: const Text('A2UI triage'),
-          actions: [
-            if (controller.isConnected) ...[
-              Tooltip(
-                message:
-                    'Load the items from GitHub again. Your edits are kept, '
-                    'except for items that changed on GitHub.',
-                child: TextButton.icon(
-                  icon: const Icon(Icons.refresh),
-                  onPressed: controller.loading ? null : controller.refresh,
-                  label: const Text('Refresh'),
-                ),
+          menuChildren: [
+            Tooltip(
+              message:
+                  'Get the prompt that asks an agent for the triage report '
+                  'of this session',
+              child: MenuItemButton(
+                leadingIcon: const Icon(Icons.summarize_outlined),
+                onPressed: () => showReportDialog(context),
+                child: const Text('Create report'),
               ),
-              Tooltip(
-                message:
-                    'Hide the items that do not belong to '
-                    'the group after the applied editing.',
-                child: TextButton.icon(
-                  icon: const Icon(Icons.visibility_off_outlined),
-                  onPressed: controller.hasTriaged
-                      ? controller.hideTriaged
-                      : null,
-                  label: const Text('Hide triaged'),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Padding(
-                padding: const EdgeInsets.only(right: 24),
-                child: Tooltip(
-                  message:
-                      '$remaining of the $total items in the queue are not '
-                      'triaged or sent to the team yet',
-                  child: Text('$remaining/$total'),
-                ),
-              ),
-            ],
+            ),
           ],
-          bottom: controller.loading
-              ? const PreferredSize(
-                  preferredSize: Size.fromHeight(4),
-                  child: LinearProgressIndicator(),
-                )
-              : null,
         ),
-        body: Column(
-          children: [
-            if (error != null && controller.isConnected)
-              MaterialBanner(
-                content: Text(error),
-                actions: [
-                  Tooltip(
-                    message: 'Hide this message',
-                    child: TextButton(
-                      onPressed: controller.dismissError,
-                      child: const Text('Dismiss'),
-                    ),
-                  ),
-                ],
+        title: const SelectionArea(child: Text('A2UI triage')),
+        actions: [
+          if (controller.isConnected) ...[
+            Tooltip(
+              message:
+                  'Load the items from GitHub again. Your edits are kept, '
+                  'except for items that changed on GitHub.',
+              child: TextButton.icon(
+                icon: const Icon(Icons.refresh),
+                onPressed: controller.loading ? null : controller.refresh,
+                label: const Text('Refresh'),
               ),
-            Expanded(
-              child: controller.isConnected
-                  ? LayoutBuilder(
-                      builder: (context, constraints) {
-                        final double width = clampColumnWidth(
-                          _listWidth,
-                          constraints.maxWidth,
-                        );
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // The list and the details have selection areas
-                            // of their own. In the page's one, a click on an
-                            // item left a caret in the list, and then a drag
-                            // in the details selected nothing.
-                            SizedBox(
-                              width: width,
-                              child: const SelectionArea(child: ItemList()),
-                            ),
-                            ColumnDivider(
-                              label: 'Resize the item list',
-                              onDrag: (double delta) =>
-                                  setState(() => _listWidth = width + delta),
-                            ),
-                            const Expanded(
-                              child: SelectionArea(child: ItemDetails()),
-                            ),
-                          ],
-                        );
-                      },
-                    )
-                  : Center(
+            ),
+            Tooltip(
+              message:
+                  'Hide the items that do not belong to '
+                  'the group after the applied editing.',
+              child: TextButton.icon(
+                icon: const Icon(Icons.visibility_off_outlined),
+                onPressed: controller.hasTriaged
+                    ? controller.hideTriaged
+                    : null,
+                label: const Text('Hide triaged'),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Padding(
+              padding: const EdgeInsets.only(right: 24),
+              child: Tooltip(
+                message:
+                    '$remaining of the $total items in the queue are not '
+                    'triaged or sent to the team yet',
+                child: SelectionArea(child: Text('$remaining/$total')),
+              ),
+            ),
+          ],
+        ],
+        bottom: controller.loading
+            ? const PreferredSize(
+                preferredSize: Size.fromHeight(4),
+                child: LinearProgressIndicator(),
+              )
+            : null,
+      ),
+      body: Column(
+        children: [
+          if (error != null && controller.isConnected)
+            MaterialBanner(
+              content: SelectionArea(child: Text(error)),
+              actions: [
+                Tooltip(
+                  message: 'Hide this message',
+                  child: TextButton(
+                    onPressed: controller.dismissError,
+                    child: const Text('Dismiss'),
+                  ),
+                ),
+              ],
+            ),
+          Expanded(
+            child: controller.isConnected
+                ? LayoutBuilder(
+                    builder: (context, constraints) {
+                      final double width = clampColumnWidth(
+                        _listWidth,
+                        constraints.maxWidth,
+                      );
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // The list and the details have selection areas
+                          // of their own, so that a click on an item does
+                          // not leave a caret that keeps a drag in the
+                          // details from selecting.
+                          SizedBox(
+                            width: width,
+                            child: const SelectionArea(child: ItemList()),
+                          ),
+                          ColumnDivider(
+                            label: 'Resize the item list',
+                            onDrag: (double delta) =>
+                                setState(() => _listWidth = width + delta),
+                          ),
+                          const Expanded(
+                            child: SelectionArea(child: ItemDetails()),
+                          ),
+                        ],
+                      );
+                    },
+                  )
+                : Center(
+                    child: SelectionArea(
                       child: controller.loading
                           ? const Text('Loading the items from GitHub...')
                           : Column(
@@ -172,9 +175,9 @@ class _TriagePageState extends State<TriagePage> {
                               ],
                             ),
                     ),
-            ),
-          ],
-        ),
+                  ),
+          ),
+        ],
       ),
     );
   }

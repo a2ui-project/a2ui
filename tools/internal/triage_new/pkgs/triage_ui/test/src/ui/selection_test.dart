@@ -74,12 +74,20 @@ void main() {
 
   /// Drags the mouse across [text], copies the selection with Cmd+C, and
   /// returns what was copied.
-  Future<String> dragAndCopy(WidgetTester tester, Finder text) async {
+  ///
+  /// The mouse stays down for [hold] before it moves, as when a person
+  /// presses the button and then starts to drag.
+  Future<String> dragAndCopy(
+    WidgetTester tester,
+    Finder text, {
+    Duration hold = Duration.zero,
+  }) async {
     final Rect rect = tester.getRect(text);
     final TestGesture mouse = await tester.startGesture(
       rect.centerLeft + const Offset(1, 0),
       kind: PointerDeviceKind.mouse,
     );
+    await tester.pump(hold);
     for (var i = 1; i <= 10; i++) {
       await tester.pump(const Duration(milliseconds: 16));
       await mouse.moveTo(
@@ -116,6 +124,24 @@ void main() {
     expect(
       await dragAndCopy(tester, find.textContaining('Age:')),
       startsWith('Age: '),
+    );
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('text on the card can be copied after the mouse is held down '
+      'before the drag', (tester) async {
+    await pumpApp(tester);
+    await click(tester, '#10 Crash');
+
+    // Held past the press timeout, a press used to give the focus to the
+    // page's selection area, around the card's one, so Cmd+C copied
+    // nothing.
+    expect(
+      await dragAndCopy(
+        tester,
+        find.textContaining('Author:'),
+        hold: const Duration(milliseconds: 300),
+      ),
+      'Author: author10.',
     );
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 }

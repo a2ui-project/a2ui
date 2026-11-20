@@ -205,9 +205,25 @@ void main() {
     // The item's age and author, on rows of their own.
     expect(find.textContaining(RegExp(r'^Age: \d+ days\.$')), findsWidgets);
     expect(find.text('Author: author10.'), findsOneWidget);
-    // The texts can be selected: on the page, in the list and in the
-    // details, each in a selection area of its own.
-    expect(find.byType(SelectionArea), findsNWidgets(3));
+    // The texts can be selected: the list and the details each have a
+    // selection area of their own, and no selection area is inside another,
+    // which would take the focus, and so Cmd+C, from the inner one.
+    for (final text in ['#10 Flutter renderer', 'Author: author10.']) {
+      expect(
+        find.ancestor(
+          of: find.textContaining(text).first,
+          matching: find.byType(SelectionArea),
+        ),
+        findsOneWidget,
+      );
+    }
+    expect(
+      find.descendant(
+        of: find.byType(SelectionArea),
+        matching: find.byType(SelectionArea),
+      ),
+      findsNothing,
+    );
     // The label and assignee fields have no text box, only the dropdown.
     expect(
       find.descendant(
