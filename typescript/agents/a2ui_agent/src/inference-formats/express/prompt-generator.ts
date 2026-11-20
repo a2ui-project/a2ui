@@ -27,7 +27,12 @@ import {agentCallableFunctions} from '../../utils/agent-callable.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 import {buildSchemaHelpers, catalogsDefining, resolveExpressVersion} from './catalogs.js';
 import {ExpressDecompiler, RawNumber} from './decompiler.js';
-import {CatalogSchemaHelper, commonDefName, getEnvelopeValue} from './schema-helper.js';
+import {
+  CatalogSchemaHelper,
+  commonDefName,
+  getEnvelopeValue,
+  isObjectOrRefSchema,
+} from './schema-helper.js';
 
 const EVENT_RULE_V10 = `8. Action events: represent server-side actions using the Event helper, \`Event(name, context?, userMessage=...)\`:
    Event("save_deal", {rep: $/form/rep})
@@ -176,19 +181,24 @@ function isTranslatableMessage(msg: unknown): boolean {
   );
 }
 
-function getSchemaEnum(propSchema: unknown): string[] | undefined {
-  if (!propSchema || typeof propSchema !== 'object') {
+function getSchemaEnum(
+  propSchema: unknown,
+  helper?: CatalogSchemaHelper,
+  visited: Set<unknown> = new Set(),
+): string[] | undefined {
+  if (!propSchema || typeof propSchema !== 'object' || visited.has(propSchema)) {
     return undefined;
   }
-  const s = propSchema as Record<string, unknown>;
+  visited.add(propSchema);
+  const s = helper?.dereferenceLocalSchema(propSchema) ?? (propSchema as Record<string, unknown>);
   if (Array.isArray(s.enum)) {
     return s.enum as string[];
   }
-  for (const key of ['oneOf', 'anyOf'] as const) {
+  for (const key of ['oneOf', 'anyOf', 'allOf'] as const) {
     const list = s[key];
     if (Array.isArray(list)) {
       for (const sub of list) {
-        const val = getSchemaEnum(sub);
+        const val = getSchemaEnum(sub, helper, visited);
         if (val) {
           return val;
         }
@@ -196,6 +206,83 @@ function getSchemaEnum(propSchema: unknown): string[] | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * Returns whether an object schema is an A2UI protocol wire envelope
+ * (`DataBinding`, `FunctionCall`, `ChildList` template, or `Action` branch)
+ * rather than a user-defined map property.
+ */
+function isProtocolWireEnvelope(
+  s: Record<string, unknown>,
+  helper: CatalogSchemaHelper,
+  visited: Set<unknown> = new Set(),
+): boolean {
+  if (typeof s.$ref === 'string' && commonDefName(s.$ref) !== undefined) {
+    return true;
+  }
+  if (visited.has(s)) {
+    return false;
+  }
+  visited.add(s);
+  try {
+    if (
+      Array.isArray(s.allOf) &&
+      s.allOf.some(sub => {
+        if (!sub || typeof sub !== 'object' || visited.has(sub)) {
+          return false;
+        }
+        visited.add(sub);
+        try {
+          const resolved = helper.dereferenceLocalSchema(sub) ?? (sub as Record<string, unknown>);
+          return isProtocolWireEnvelope(resolved, helper, visited);
+        } finally {
+          visited.delete(sub);
+        }
+      })
+    ) {
+      return true;
+    }
+    const props =
+      s.properties && typeof s.properties === 'object'
+        ? (s.properties as Record<string, unknown>)
+        : undefined;
+    const reqs = Array.isArray(s.required) ? s.required : undefined;
+    if (!props || !reqs) {
+      return false;
+    }
+    const keys = Object.keys(props);
+    if (keys.length === 1) {
+      const k = keys[0];
+      if (k === helper.keys.path && reqs.includes(k)) {
+        return true;
+      }
+      if ((k === 'event' || k === 'functionCall') && reqs.includes(k)) {
+        return isObjectOrRefSchema(props[k]);
+      }
+      return false;
+    }
+    if (helper.keys.call === '@call') {
+      if ('@call' in props && reqs.includes('@call')) {
+        return true;
+      }
+    } else if (
+      'call' in props &&
+      ('args' in props || 'returnType' in props) &&
+      reqs.includes('call')
+    ) {
+      return true;
+    }
+    return (
+      keys.length === 2 &&
+      'componentId' in props &&
+      'path' in props &&
+      reqs.includes('componentId') &&
+      reqs.includes('path')
+    );
+  } finally {
+    visited.delete(s);
+  }
 }
 
 function applyDefaultCatalogToCalls(val: unknown, defaultCatalogId: string): unknown {
@@ -646,30 +733,139 @@ export class ExpressPromptGenerator extends PromptGenerator {
     return argLabel;
   }
 
-  private formatSubKeyLines(properties: Record<string, unknown>): string {
+  private formatSubKeyLines(
+    properties: Record<string, unknown>,
+    helper: CatalogSchemaHelper,
+  ): string {
     return Object.entries(properties)
       .map(([subK, subV]) => {
+        const resolvedSub = helper.dereferenceLocalSchema(subV);
         const desc =
-          subV &&
-          typeof subV === 'object' &&
-          typeof (subV as Record<string, unknown>).description === 'string'
-            ? (subV as Record<string, unknown>).description
-            : '';
+          resolvedSub && typeof resolvedSub.description === 'string' ? resolvedSub.description : '';
         return `    * ${subK}${desc ? ` - ${desc}` : ''}`;
       })
       .join('\n');
   }
 
+  private resolveObjectProperties(
+    schema: unknown,
+    helper: CatalogSchemaHelper,
+    visited: Set<unknown> = new Set(),
+  ): Record<string, unknown> | undefined {
+    if (!schema || typeof schema !== 'object' || visited.has(schema)) {
+      return undefined;
+    }
+    visited.add(schema);
+    try {
+      const s = helper.dereferenceLocalSchema(schema);
+      if (!s || isProtocolWireEnvelope(s, helper)) {
+        return undefined;
+      }
+      if (Array.isArray(s.allOf)) {
+        const mergedProps: Record<string, unknown> = {};
+        for (const sub of s.allOf) {
+          const subProps = this.resolveObjectProperties(sub, helper, visited);
+          if (subProps) {
+            Object.assign(mergedProps, subProps);
+          }
+        }
+        if (s.properties && typeof s.properties === 'object') {
+          Object.assign(mergedProps, s.properties as Record<string, unknown>);
+        }
+        if (Object.keys(mergedProps).length > 0) {
+          return mergedProps;
+        }
+      }
+      if (
+        (s.type === 'object' || s.type === undefined) &&
+        s.properties &&
+        typeof s.properties === 'object' &&
+        Object.keys(s.properties as Record<string, unknown>).length > 0
+      ) {
+        return s.properties as Record<string, unknown>;
+      }
+      for (const key of ['oneOf', 'anyOf'] as const) {
+        const list = s[key];
+        if (Array.isArray(list)) {
+          for (const sub of list) {
+            const props = this.resolveObjectProperties(sub, helper, visited);
+            if (props) {
+              return props;
+            }
+          }
+        }
+      }
+      return undefined;
+    } finally {
+      visited.delete(schema);
+    }
+  }
+
+  private resolveStructuredProperty(
+    schema: unknown,
+    helper: CatalogSchemaHelper,
+    visited: Set<unknown> = new Set(),
+  ):
+    | {kind: 'object'; properties: Record<string, unknown>}
+    | {kind: 'array'; properties: Record<string, unknown>}
+    | undefined {
+    if (!schema || typeof schema !== 'object' || visited.has(schema)) {
+      return undefined;
+    }
+    const s = helper.dereferenceLocalSchema(schema);
+    if (!s || isProtocolWireEnvelope(s, helper)) {
+      return undefined;
+    }
+    if (Array.isArray(s.allOf)) {
+      const objProps = this.resolveObjectProperties(schema, helper);
+      if (objProps) {
+        return {kind: 'object', properties: objProps};
+      }
+    }
+    visited.add(schema);
+    try {
+      if (
+        (s.type === 'object' || s.type === undefined) &&
+        s.properties &&
+        typeof s.properties === 'object' &&
+        Object.keys(s.properties as Record<string, unknown>).length > 0
+      ) {
+        return {kind: 'object', properties: s.properties as Record<string, unknown>};
+      }
+      if (s.type === 'array' && s.items && typeof s.items === 'object') {
+        const itemProps = this.resolveObjectProperties(s.items, helper);
+        if (itemProps) {
+          return {kind: 'array', properties: itemProps};
+        }
+      }
+      for (const key of ['oneOf', 'anyOf', 'allOf'] as const) {
+        const list = s[key];
+        if (Array.isArray(list)) {
+          for (const sub of list) {
+            const resolved = this.resolveStructuredProperty(sub, helper, visited);
+            if (resolved) {
+              return resolved;
+            }
+          }
+        }
+      }
+      return undefined;
+    } finally {
+      visited.delete(schema);
+    }
+  }
+
   private formatComponentPropertyDetail(
     propName: string,
     pSchema: Record<string, unknown> | undefined,
+    helper: CatalogSchemaHelper,
   ): string | undefined {
     if (!pSchema || typeof pSchema !== 'object') {
       return undefined;
     }
 
     const pDesc = typeof pSchema.description === 'string' ? pSchema.description : undefined;
-    const enumVals = getSchemaEnum(pSchema);
+    const enumVals = getSchemaEnum(pSchema, helper);
     const lineParts: string[] = [];
     if (pDesc) {
       lineParts.push(pDesc);
@@ -680,19 +876,15 @@ export class ExpressPromptGenerator extends PromptGenerator {
 
     let detail = lineParts.length > 0 ? `  - ${propName}: ${lineParts.join(' ')}` : undefined;
 
-    if (pSchema.type === 'object' && pSchema.properties && typeof pSchema.properties === 'object') {
-      const subKeys = this.formatSubKeyLines(pSchema.properties as Record<string, unknown>);
-      detail = detail
-        ? `${detail}\n    Map keys:\n${subKeys}`
-        : `  - ${propName}: Map with keys:\n${subKeys}`;
-    } else if (pSchema.type === 'array' && pSchema.items && typeof pSchema.items === 'object') {
-      const itemsSchema = pSchema.items as Record<string, unknown>;
-      if (
-        itemsSchema.type === 'object' &&
-        itemsSchema.properties &&
-        typeof itemsSchema.properties === 'object'
-      ) {
-        const subKeys = this.formatSubKeyLines(itemsSchema.properties as Record<string, unknown>);
+    if (!enumVals) {
+      const structured = this.resolveStructuredProperty(pSchema, helper);
+      if (structured?.kind === 'object') {
+        const subKeys = this.formatSubKeyLines(structured.properties, helper);
+        detail = detail
+          ? `${detail}\n    Map keys:\n${subKeys}`
+          : `  - ${propName}: Map with keys:\n${subKeys}`;
+      } else if (structured?.kind === 'array') {
+        const subKeys = this.formatSubKeyLines(structured.properties, helper);
         detail = detail
           ? `${detail}\n    List of maps keys:\n${subKeys}`
           : `  - ${propName}: List of maps with keys:\n${subKeys}`;
@@ -714,7 +906,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
         for (const p of props) {
           const pSchema = helper.getPropertySchema(name, p);
           orderedArgs.push(this.formatComponentArgLabel(p, reqs.includes(p), pSchema, helper));
-          const detail = this.formatComponentPropertyDetail(p, pSchema);
+          const detail = this.formatComponentPropertyDetail(p, pSchema, helper);
           if (detail) {
             propDetails.push(detail);
           }
