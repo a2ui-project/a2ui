@@ -156,13 +156,16 @@ RPC_FORMS: tuple[RpcFormSpec, ...] = (
         predicate=NamedPredicateSpec(
             name="is_polite_feedback",
             question_prompt=(
-                "Is this product feedback constructive and free of abusive or"
-                " profane language?"
+                "Is this text relevant, professional, and constructive product"
+                " feedback (free of profanity, abuse, or crude/off-topic"
+                " remarks)?"
             ),
             max_input_length=500,
             timeout_seconds=10.0,
         ),
-        failure_message="Please keep feedback constructive and respectful.",
+        failure_message=(
+            "Please keep feedback on-topic, constructive, and professional."
+        ),
     ),
     RpcFormSpec(
         alias="refund",
