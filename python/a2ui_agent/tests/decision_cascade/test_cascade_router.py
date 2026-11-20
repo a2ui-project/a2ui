@@ -148,7 +148,7 @@ async def test_gate_below_threshold_returns_text_only() -> None:
     assert decision.template is None
     assert decision.template_id is None
     assert decision.needs_ui_probability == pytest.approx(0.49)
-    assert backend.timeouts == [1.2]
+    assert backend.timeouts == [None]
     assert len(backend.batches) == 1
     assert backend.batches[0].state is not None
     assert backend.batches[0].shared_context == {}
@@ -173,7 +173,17 @@ async def test_tight_latency_budget_selects_confident_template_or_text_only() ->
     assert hit.template_id == "flight_status"
     assert hit.template == templates[1]
     assert hit.template_confidence == pytest.approx(0.72)
-    assert backend_hit.timeouts == [0.3]
+    # Tight routing budget does not shorten the decision backend transport timeout.
+    assert backend_hit.timeouts == [None]
+
+    explicit = await router_hit.route(
+        "Check flight UA 100",
+        [_basic_v1()],
+        latency_budget_ms=300.0,
+        timeout_seconds=2.5,
+    )
+    assert explicit.tier is CascadeTier.TEMPLATE
+    assert backend_hit.timeouts == [None, 2.5]
     q_ids = [q.id for q in backend_hit.batches[0].questions]
     assert not any(qid.startswith("prune:") for qid in q_ids)
 
@@ -459,6 +469,8 @@ async def test_validation_and_experimental_warning(
         await router.route("hi", [])
     with pytest.raises(ValueError, match="latency_budget_ms must be positive"):
         await router.route("hi", [_basic_v1()], latency_budget_ms=0.0)
+    with pytest.raises(ValueError, match="timeout_seconds must be positive"):
+        await router.route("hi", [_basic_v1()], timeout_seconds=0.0)
     with pytest.raises(TypeError, match="DecisionBackend"):
         DecisionCascadeRouter("not-a-backend")  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="Duplicate ExpressSurfaceSpec"):

@@ -753,38 +753,46 @@ class DecisionCascadeRouter:
         catalogs: Sequence[CatalogApi],
         latency_budget_ms: float | None = None,
         allow_sandbox_app: bool = False,
+        *,
+        timeout_seconds: float | None = None,
     ) -> RouteDecision:
         """Evaluates UI gating, tier routing, and component pruning in one batch.
 
         Args:
             prompt: User prompt or turn intent text.
             catalogs: Validated catalogs available for the turn.
-            latency_budget_ms: Optional latency budget in milliseconds. Sets
-                `timeout_seconds = latency_budget_ms / 1000.0` on the backend
-                call and restricts tight budgets (`< tight_budget_ms`) to
-                `TEMPLATE` or `TEXT_ONLY`.
+            latency_budget_ms: Optional turn-level latency budget in
+                milliseconds. Restricts tight budgets (`< tight_budget_ms`) to
+                `TEMPLATE` or `TEXT_ONLY` without shortening the decision
+                backend's transport timeout.
             allow_sandbox_app: Whether `CascadeTier.SANDBOX_APP` may be selected.
+            timeout_seconds: Optional explicit transport deadline in seconds
+                forwarded to `DecisionBackend.answer`. Defaults to `None` (uses
+                the backend's configured timeout).
 
         Returns:
             A `RouteDecision` describing the selected tier, catalogs, and
             optional template.
 
         Raises:
-            ValueError: If `catalogs` is empty or `latency_budget_ms` is
-                non-positive.
+            ValueError: If `catalogs` is empty, `latency_budget_ms` is
+                non-positive, or `timeout_seconds` is non-positive.
             DecisionBackendError: If the decision backend fails or omits answers.
         """
         if not catalogs:
             raise ValueError(
                 "DecisionCascadeRouter.route requires at least one catalog."
             )
-        timeout_seconds: float | None = None
         if latency_budget_ms is not None:
             if not math.isfinite(latency_budget_ms) or latency_budget_ms <= 0.0:
                 raise ValueError(
                     f"latency_budget_ms must be positive, got {latency_budget_ms}."
                 )
-            timeout_seconds = latency_budget_ms / 1000.0
+        if timeout_seconds is not None:
+            if not math.isfinite(timeout_seconds) or timeout_seconds <= 0.0:
+                raise ValueError(
+                    f"timeout_seconds must be positive, got {timeout_seconds}."
+                )
 
         graph = CatalogDecisionGraph(catalogs)
         batch = _build_cascade_batch(
