@@ -31,6 +31,7 @@ import issueTriage, {
   type RawContribution,
   type User,
   ASSIGNED_FOR_TRIAGE_LABEL,
+  ASSIGNEE_OR_MILESTONE_PRIORITIES,
   ASSIGNEE_REQUIRED_PRIORITIES,
   externalHasResponded,
   FLAG_LABEL,
@@ -38,7 +39,6 @@ import issueTriage, {
   isBot,
   isTriageBotComment,
   lastHumanContribution,
-  ASSIGNEE_OR_MILESTONE_PRIORITIES,
   PR_STALE_DAYS,
   PRIORITY_LABELS,
   STALE_DAYS,
@@ -362,6 +362,13 @@ describe('flagReason — issues', () => {
     }
   });
 
+  it('does not let a milestone stand in for the assignee', () => {
+    for (const priority of ASSIGNEE_REQUIRED_PRIORITIES) {
+      const item = externalIssue({labels: [priority], milestone: {number: 1}});
+      assertReason(flagReason(item, [], NOW), /no assignee/, priority);
+    }
+  });
+
   it('handles a missing assignees field without throwing', () => {
     const [priority] = ASSIGNEE_REQUIRED_PRIORITIES;
     const item = externalIssue({labels: [priority], assignees: undefined});
@@ -411,6 +418,16 @@ describe('flagReason — issues', () => {
     it(`does not flag an unassigned ${priority} with a milestone`, () => {
       const item = externalIssue({labels: [priority], milestone: {number: 1}});
       assert.equal(flagReason(item, [], NOW), null);
+    });
+
+    // A milestone settles the planning, not the conversation.
+    it(`flags an unassigned ${priority} with a milestone for an unanswered out-of-team comment`, () => {
+      const item = externalIssue({labels: [priority], milestone: {number: 1}, comments: 1});
+      const comment = event({
+        author_association: 'NONE',
+        user: {login: 'reporter', type: 'User'},
+      });
+      assertReason(flagReason(item, [comment], NOW), /latest comment/);
     });
 
     it(`does not flag a fresh assigned ${priority} with no milestone`, () => {
