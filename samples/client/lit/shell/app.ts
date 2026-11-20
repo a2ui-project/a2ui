@@ -1220,7 +1220,10 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     if (trace.activeMode) {
       this._activeMode = trace.activeMode;
     }
-    const backendKind = trace.candidates[0]?.decisionInput?.backendKind;
+    const payload = trace.stage1?.block?.payload as Record<string, unknown> | undefined;
+    const backendKind =
+      trace.candidates[0]?.decisionInput?.backendKind ??
+      (typeof payload?.backend === 'string' ? payload.backend : undefined);
     if (typeof backendKind === 'string' && backendKind.length > 0) {
       this._activeBackend = backendKind === 'systemone' ? 'jev' : backendKind;
     }
@@ -1249,8 +1252,8 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     const clearsSurfaces = this.config.clearSurfacesOnResponse ?? true;
     if (this._requesting && clearsSurfaces) return nothing;
 
-    return html`<div class="quick-actions" aria-label="Tool mode examples">
-      <span class="quick-actions-label">Tool mode (0 LLM calls):</span>
+    return html`<div class="quick-actions" aria-label="Playground examples">
+      <span class="quick-actions-label">Examples:</span>
       ${actions.map(
         action =>
           html`<button

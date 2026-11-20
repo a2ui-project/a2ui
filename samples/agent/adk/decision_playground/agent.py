@@ -308,16 +308,39 @@ class PlaygroundAgent:
                 include_trace=include_trace,
                 ok=False,
             )
-        updated = replace(settings.next_turn(), mode=RenderMode.BINDER)
+        updated = settings.next_turn()
+        active_mode = (
+            RenderMode.BINDER if updated.mode is RenderMode.RPC else updated.mode
+        )
+        updated = replace(updated, mode=active_mode)
         self._set_settings(context_id, updated)
         payload = entry.fn()
-        outcome, calls = await self._renderers.run_binder_direct(
-            intent=entry.intent,
-            tool_name=entry.fn.__name__,
-            tool_output=payload,
-            actions=entry.actions,
-            surface_id="main",
+        prompt_with_data = (
+            f"{entry.intent}\n\nData:\n```json\n{json.dumps(payload, indent=2)}\n```"
         )
+        if active_mode is RenderMode.CASCADE:
+            outcome, calls = await self._renderers.run_cascade(
+                prompt_with_data,
+                surface_id="main",
+                budget_ms=updated.budget_ms,
+                session_id=context_id,
+                data_payload=payload if isinstance(payload, Mapping) else None,
+            )
+        elif active_mode in (RenderMode.EXPRESS, RenderMode.DIRECT):
+            outcome, calls = await self._renderers.run_baseline(
+                prompt_with_data,
+                mode=active_mode,
+                surface_id=f"turn-{updated.turn}-{active_mode.value}",
+                session_id=context_id,
+            )
+        else:
+            outcome, calls = await self._renderers.run_binder_direct(
+                intent=entry.intent,
+                tool_name=entry.fn.__name__,
+                tool_output=payload,
+                actions=entry.actions,
+                surface_id="main",
+            )
         candidate = build_candidate_trace(
             outcome,
             calls,
@@ -328,7 +351,7 @@ class PlaygroundAgent:
         trace = build_turn_trace(
             turn=updated.turn,
             query=f"/tool {alias}",
-            active_mode=RenderMode.BINDER,
+            active_mode=active_mode,
             compare=False,
             stage1_source="direct_tool",
             tool_name=entry.fn.__name__,
