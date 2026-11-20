@@ -767,6 +767,8 @@ class _MacroMetadata:
     func: Callable[..., Any]
     parameters: dict[str, _MacroParameter]
     return_type: Any
+    allowed_parents: tuple[str, ...] = ()
+    allowed_children: tuple[str, ...] = ()
     target_version: MacroVersionFamily | None = field(init=False)
 
     def __post_init__(self) -> None:
@@ -817,12 +819,19 @@ class _MacroMetadata:
             schema["required"] = required
         if self.description:
             schema["description"] = self.description
+        if self.allowed_parents:
+            schema["allowedParents"] = list(self.allowed_parents)
+        if self.allowed_children:
+            schema["allowedChildren"] = list(self.allowed_children)
         return schema
 
 
 def macro(
     name: str | Callable[..., Any] | None = None,
     description: str | None = None,
+    *,
+    allowed_parents: Sequence[str] = (),
+    allowed_children: Sequence[str] = (),
 ) -> Any:
     """Decorator to define an A2UI macro.
 
@@ -918,12 +927,22 @@ def macro(
 
         ret_type = hints.get("return", sig.return_annotation)
 
+        if isinstance(allowed_parents, (str, bytes)):
+            raise TypeError(
+                "allowed_parents must be a sequence of component names, not a string."
+            )
+        if isinstance(allowed_children, (str, bytes)):
+            raise TypeError(
+                "allowed_children must be a sequence of component names, not a string."
+            )
         meta = _MacroMetadata(
             name=macro_name,
             description=doc,
             func=func,
             parameters=params,
             return_type=ret_type,
+            allowed_parents=tuple(allowed_parents),
+            allowed_children=tuple(allowed_children),
         )
         func.__a2ui_macro__ = meta  # type: ignore[attr-defined]
         return func
