@@ -625,8 +625,43 @@ def test_extract_operations_unwraps_containers_before_per_message_depth_check(
         with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
             adapter.extract_operations(container)
 
-    deeply_wrapped: object = at_limit
-    for _ in range(51):
-        deeply_wrapped = {"messages": [deeply_wrapped]}
+    with pytest.raises(
+        A2uiValidationError,
+        match="Message wrapper has unexpected properties: extra",
+    ):
+        adapter.extract_operations({"messages": [at_limit], "extra": 1})
+
+    with pytest.raises(
+        A2uiValidationError,
+        match="Message wrapper has unexpected properties: updateComponents",
+    ):
+        adapter.extract_operations(
+            {"messages": [at_limit], "updateComponents": {"surfaceId": "s1"}}
+        )
+
+    nested_arrays_50: object = at_limit
+    for _ in range(50):
+        nested_arrays_50 = [nested_arrays_50]
+    assert len(adapter.extract_operations(nested_arrays_50)) == 1
+
+    nested_arrays_51: object = [nested_arrays_50]
     with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
-        adapter.extract_operations(deeply_wrapped)
+        adapter.extract_operations(nested_arrays_51)
+
+    wrapped_25: object = at_limit
+    for _ in range(25):
+        wrapped_25 = {"messages": [wrapped_25]}
+    assert len(adapter.extract_operations(wrapped_25)) == 1
+
+    wrapped_26: object = {"messages": [wrapped_25]}
+    with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
+        adapter.extract_operations(wrapped_26)
+
+    empty_wrapped_25: object = {"messages": []}
+    for _ in range(24):
+        empty_wrapped_25 = {"messages": [empty_wrapped_25]}
+    assert adapter.extract_operations(empty_wrapped_25) == []
+
+    empty_wrapped_26: object = {"messages": [empty_wrapped_25]}
+    with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
+        adapter.extract_operations(empty_wrapped_26)

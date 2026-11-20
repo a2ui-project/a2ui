@@ -1006,7 +1006,7 @@ The matrix below details the specific validation checks, their responsible compo
 | **Depth & Syntax**       | JSON Pointer path syntax validation                                                                  | `MessageProcessor.processMessages()`                                      | `A2uiValidationError`                      |
 
 > [!NOTE]
-> **Per-Message Depth & `ValidationConfig` Gating**: Batch arrays (`[...]`) and `{"messages": [...]}` envelopes are unwrapped before `validateRecursionAndPaths()` runs, so each message begins traversal at depth 0 regardless of how messages are batched. In TypeScript and Dart, `validateRecursionAndPaths()` is gated on an active `ValidationConfig` on `MessageProcessor`; in Python and Swift, version adapters enforce `validateRecursionAndPaths()` unconditionally during envelope extraction.
+> **Per-Message Depth, Wrapper Bounds & `ValidationConfig` Gating**: Implementations MUST bound nested batch arrays (`[...]`) and `{"messages": [...]}` envelopes by `MAX_GLOBAL_DEPTH` (`50`), reject unexpected sibling keys on `{"messages": [...]}` wrappers per the list-wrapper schemas, and start each individual message's `validateRecursionAndPaths()` traversal at depth `0`. In TypeScript and Dart, `validateRecursionAndPaths()` is gated on an active `ValidationConfig` on `MessageProcessor`; in Python and Swift, version adapters enforce `validateRecursionAndPaths()` unconditionally during envelope extraction (Dart `MessageProcessor` and Swift `BaseVersionAdapter` currently unwrap one container level and check depth after envelope parsing).
 
 ---
 

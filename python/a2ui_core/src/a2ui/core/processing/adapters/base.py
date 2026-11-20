@@ -296,8 +296,9 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             and isinstance(raw["messages"], list)
         ):
             if len(raw) > 1:
-                validate_recursion_and_paths(
-                    {k: v for k, v in raw.items() if k != "messages"}
+                extra = sorted(k for k in raw if k != "messages")
+                raise A2uiValidationError(
+                    f"Message wrapper has unexpected properties: {', '.join(extra)}"
                 )
             return self._unwrap_message_items(raw["messages"], wrapper_depth + 1)
         return [raw]

@@ -868,12 +868,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     onItemContext?: (ctx: ErrorEnvelopeContext) => void,
     wrapperDepth = 0,
   ): InternalOperation[] {
-    if (this.validationConfig && wrapperDepth > MAX_GLOBAL_DEPTH) {
+    if (wrapperDepth > MAX_GLOBAL_DEPTH) {
       throw new A2uiRecursionError(`Global recursion limit exceeded: Depth > ${MAX_GLOBAL_DEPTH}`);
     }
 
     if (Array.isArray(item)) {
-      return this.prepareOperations(item, onItemContext, wrapperDepth + 1);
+      return this.prepareOperations(item, onItemContext, wrapperDepth);
     }
 
     const wrappedMessages = this.unwrapMessagesEnvelope(item);
@@ -906,19 +906,16 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
     const candidate = (item as {messages?: unknown}).messages;
     if (!Array.isArray(candidate)) return undefined;
-    if (this.validationConfig) {
-      this.validateWrapperSiblingKeys(item as Record<string, unknown>);
-    }
+    this.validateWrapperSiblingKeys(item as Record<string, unknown>);
     return candidate as ProcessableMessagePayload;
   }
 
   private validateWrapperSiblingKeys(wrapperObj: Record<string, unknown>): void {
-    if (Object.keys(wrapperObj).length <= 1) return;
-    const rest: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(wrapperObj)) {
-      if (k !== 'messages') rest[k] = v;
-    }
-    validateRecursionAndPaths(rest);
+    const extraKeys = Object.keys(wrapperObj).filter(k => k !== 'messages');
+    if (extraKeys.length === 0) return;
+    throw new A2uiValidationError(
+      `Message wrapper must not contain additional properties: ${extraKeys.join(', ')}.`,
+    );
   }
 
   private prepareOperations(
@@ -926,11 +923,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     onItemContext?: (ctx: ErrorEnvelopeContext) => void,
     wrapperDepth = 0,
   ): InternalOperation[] {
-    if (!messages || (Array.isArray(messages) && messages.length === 0)) return [];
-
-    if (this.validationConfig && wrapperDepth > MAX_GLOBAL_DEPTH) {
+    if (wrapperDepth > MAX_GLOBAL_DEPTH) {
       throw new A2uiRecursionError(`Global recursion limit exceeded: Depth > ${MAX_GLOBAL_DEPTH}`);
     }
+
+    if (!messages || (Array.isArray(messages) && messages.length === 0)) return [];
 
     if (Array.isArray(messages)) {
       return messages.flatMap(item =>

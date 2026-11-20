@@ -1294,6 +1294,14 @@ void v1RulesTests() {
               'additionalProperties': true,
             }),
           ),
+          FunctionApi(
+            name: 'unevaluatedEcho',
+            returnType: A2uiReturnType.string,
+            argumentSchema: Schema.fromMap(const {
+              'type': 'object',
+              'unevaluatedProperties': true,
+            }),
+          ),
         ],
       );
       final PayloadValidator<ComponentApi, FunctionApi> validator =
@@ -1339,6 +1347,65 @@ void v1RulesTests() {
             'args': {'anyKey': 123},
           }),
         ),
+        returnsNormally,
+      );
+
+      // Direct validateFunction & validateFunctionArgs share closure rules.
+      expect(
+        () => validator.validateFunction('greet', {'name': 'Ada'}),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateFunctionArgs('greet', {'name': 'Ada'}),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateFunction('greet', {
+          'name': 'Ada',
+          'undeclared': 1,
+        }),
+        throwsA(_validationError(message: contains("Call to 'greet'"))),
+      );
+      expect(
+        () => validator.validateFunctionArgs('greet', {
+          'name': 'Ada',
+          'undeclared': 1,
+        }),
+        throwsA(_validationError(message: contains("Call to 'greet'"))),
+      );
+
+      expect(
+        () => validator.validateFunction('ping', const {}),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateFunctionArgs('ping', const {}),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateFunction('ping', {'undeclared': 1}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => validator.validateFunctionArgs('ping', {'undeclared': 1}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+
+      expect(
+        () => validator.validateFunction('openEcho', {'anyKey': 123}),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateFunctionArgs('openEcho', {'anyKey': 123}),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateFunction('unevaluatedEcho', {'anyKey': 123}),
+        returnsNormally,
+      );
+      expect(
+        () =>
+            validator.validateFunctionArgs('unevaluatedEcho', {'anyKey': 123}),
         returnsNormally,
       );
     });

@@ -63,10 +63,11 @@ constructor(
     jsonFmt.encodeToString(JsonElement.serializer(), validationCatalogSchema)
   }
   private val rawCommonTypesSchema: JsonObject? by lazy { loadRawCommonTypesSchema() }
+  private val validationCommonTypesSchema: JsonObject? by lazy {
+    rawCommonTypesSchema?.let { buildValidationCommonTypesSchema(it) }
+  }
   private val validationCommonTypesSchemaString: String? by lazy {
-    rawCommonTypesSchema?.let {
-      jsonFmt.encodeToString(JsonElement.serializer(), buildValidationCommonTypesSchema(it))
-    }
+    validationCommonTypesSchema?.let { jsonFmt.encodeToString(JsonElement.serializer(), it) }
   }
   private val shared0_9Registry: SchemaRegistry by lazy {
     SchemaRegistry.withDialect(Dialects.getDraft202012()) { builder ->
@@ -87,6 +88,7 @@ constructor(
   }
   private val sharedConfig: SchemaRegistryConfig by lazy { SchemaRegistryConfig.builder().build() }
   private val subValidators = mutableMapOf<String, Schema>()
+  private val unionBranchValidators = mutableMapOf<String, Schema>()
   private val validator: Schema by lazy { buildValidator() }
 
   private fun buildValidator(): Schema =
@@ -290,17 +292,11 @@ constructor(
 
   private fun resolveLocalRef(schema: JsonElement, document: JsonObject): JsonElement? {
     val obj = schema as? JsonObject ?: return null
-    if (obj.size != 1) return null
+    if (!obj.keys.all { it == KEY_DOLLAR_REF || it in ANNOTATION_SCHEMA_KEYS }) return null
     val ref =
       (obj[KEY_DOLLAR_REF] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
     if (!ref.startsWith("#/")) return null
-    var target: JsonElement = document
-    for (segment in ref.substring(2).split("/")) {
-      val map = target as? JsonObject ?: return null
-      val key = segment.replace("~1", "/").replace("~0", "~")
-      target = map[key] ?: return null
-    }
-    return target
+    return resolvePointerInDoc(ref.substring(2), document)
   }
 
   /**
@@ -356,19 +352,32 @@ constructor(
 
   private fun resolve0_9SchemaResource(iri: AbsoluteIri): String? {
     val iriStr = iri.toString()
-    val catalogDollarId =
-      (catalog.catalogSchema[KEY_DOLLAR_ID] as? JsonPrimitive)?.takeIf { it.isString }?.content
     return when {
-      iriStr == FILE_CATALOG ||
-        iriStr.endsWith("/$FILE_CATALOG") ||
-        iriStr == schemaMappings[FILE_CATALOG] ||
-        (catalogDollarId != null && iriStr == catalogDollarId) -> validationCatalogSchemaString
-      iriStr == FILE_COMMON_TYPES ||
-        iriStr.endsWith("/$FILE_COMMON_TYPES") ||
-        iriStr == schemaMappings[FILE_COMMON_TYPES] -> validationCommonTypesSchemaString
+      matchesCatalogUri(iriStr) -> validationCatalogSchemaString
+      matchesCommonTypesUri(iriStr) -> validationCommonTypesSchemaString
       else -> null
     }
   }
+
+  private fun matchesCatalogUri(uri: String): Boolean {
+    val catalogDollarId =
+      (catalog.catalogSchema[KEY_DOLLAR_ID] as? JsonPrimitive)?.takeIf { it.isString }?.content
+    return uri == FILE_CATALOG ||
+      uri.endsWith("/$FILE_CATALOG") ||
+      (catalogDollarId != null &&
+        (uri == catalogDollarId || uri == schemaMappings[catalogDollarId])) ||
+      isMappedSchemaUri(uri, FILE_CATALOG)
+  }
+
+  private fun matchesCommonTypesUri(uri: String): Boolean =
+    uri == FILE_COMMON_TYPES ||
+      uri.endsWith("/$FILE_COMMON_TYPES") ||
+      isMappedSchemaUri(uri, FILE_COMMON_TYPES)
+
+  private fun isMappedSchemaUri(uri: String, fileName: String): Boolean =
+    schemaMappings.any { (k, v) ->
+      (k == fileName || k.endsWith("/$fileName")) && (v == uri || k == uri)
+    }
 
   /**
    * Parses and validates raw A2UI JSON payload against the designated schema, throwing an
@@ -565,21 +574,29 @@ constructor(
     }
   }
 
-  private fun getUpdateComponentsErrors(message: JsonObject, path: String): List<A2uiErrorDetail> {
-    val errors = mutableListOf<A2uiErrorDetail>()
-
+  private fun checkUpdateComponentsVersion(
+    message: JsonObject,
+    path: String,
+    errors: MutableList<A2uiErrorDetail>,
+  ) {
     val version = message["version"]?.jsonPrimitive?.content
     val validVersions =
       if (catalog.version == A2uiVersion.VERSION_0_9_1) setOf("v0.9", "v0.9.1") else setOf("v0.9")
     if (version !in validVersions) {
+      val expected = validVersions.sorted().joinToString(" or ") { "'$it'" }
       errors.add(
         A2uiErrorDetail(
           path = normalizePath("version", path),
           code = "invalid_value",
-          message = "Invalid version, expected 'v0.9'",
+          message = "Invalid version, expected $expected",
         )
       )
     }
+  }
+
+  private fun getUpdateComponentsErrors(message: JsonObject, path: String): List<A2uiErrorDetail> {
+    val errors = mutableListOf<A2uiErrorDetail>()
+    checkUpdateComponentsVersion(message, path, errors)
 
     val ucElem = message["updateComponents"]
     if (ucElem !is JsonObject) {
@@ -722,15 +739,20 @@ constructor(
 
   private fun schemaReferencesFunctionCall(rootSchema: JsonObject): Boolean {
     val queue = ArrayDeque<JsonElement>()
+    val visitedRefs = mutableSetOf<String>()
     queue.addLast(rootSchema)
     while (queue.isNotEmpty()) {
       val current = queue.removeFirst()
-      if (isDirectFunctionRefNode(current, queue)) return true
+      if (isDirectFunctionRefNode(current, queue, visitedRefs)) return true
     }
     return false
   }
 
-  private fun isDirectFunctionRefNode(node: JsonElement, queue: ArrayDeque<JsonElement>): Boolean {
+  private fun isDirectFunctionRefNode(
+    node: JsonElement,
+    queue: ArrayDeque<JsonElement>,
+    visitedRefs: MutableSet<String>,
+  ): Boolean {
     if (node is JsonArray) {
       node.forEach { queue.addLast(it) }
       return false
@@ -738,8 +760,8 @@ constructor(
     if (node !is JsonObject) return false
     val ref = (node[KEY_DOLLAR_REF] as? JsonPrimitive)?.takeIf { it.isString }?.content
     if (ref != null && isFunctionBearingRef(ref)) return true
-    if (ref != null && ref.startsWith("#/")) {
-      resolveLocalRef(node, catalog.catalogSchema)?.let { queue.addLast(it) }
+    if (ref != null && ref.startsWith("#/") && visitedRefs.add(ref)) {
+      resolvePointerInDoc(ref.substring(2), catalog.catalogSchema)?.let { queue.addLast(it) }
     }
     node.values.forEach { queue.addLast(it) }
     return false
@@ -816,12 +838,13 @@ constructor(
     errors: MutableList<A2uiErrorDetail>,
   ) {
     if (isFunctionCallSlotSchema(item.schema)) {
-      if (item.elem is JsonObject) {
+      if (item.elem is JsonObject && nonEmptyCallName(item.elem) != null) {
         validateCallAtSlot(item.elem, item.path, stack, validatedPaths, errors)
+        return
       }
-      return
+      if (KEY_DOLLAR_REF in item.schema && "oneOf" !in item.schema) return
     }
-    if (enqueueDereferencedSchema(item, stack)) return
+    enqueueDereferencedSchema(item, stack)
     enqueueSchemaCombinators(item, stack)
     if (item.elem is JsonObject) enqueueSchemaObjectChildren(item.elem, item, stack)
     if (item.elem is JsonArray) enqueueSchemaArrayChildren(item.elem, item, stack)
@@ -867,19 +890,14 @@ constructor(
     return primitive.content
   }
 
-  private fun enqueueDereferencedSchema(
-    item: SchemaWalkItem,
-    stack: ArrayDeque<SchemaWalkItem>,
-  ): Boolean {
+  private fun enqueueDereferencedSchema(item: SchemaWalkItem, stack: ArrayDeque<SchemaWalkItem>) {
     val ref =
-      (item.schema[KEY_DOLLAR_REF] as? JsonPrimitive)?.takeIf { it.isString }?.content
-        ?: return false
-    if (item.refDepth >= MAX_SCHEMA_REF_HOPS) return true
-    val resolved = dereferenceSchemaRef(ref, item.doc) ?: return true
+      (item.schema[KEY_DOLLAR_REF] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return
+    if (item.refDepth >= MAX_SCHEMA_REF_HOPS) return
+    val resolved = dereferenceSchemaRef(ref, item.doc) ?: return
     stack.addLast(
       SchemaWalkItem(item.elem, resolved.first, resolved.second, item.path, item.refDepth + 1)
     )
-    return true
   }
 
   private fun dereferenceSchemaRef(
@@ -901,9 +919,8 @@ constructor(
 
   private fun selectReferencedDoc(docPart: String): JsonObject? =
     when {
-      docPart == FILE_COMMON_TYPES || docPart.endsWith("/$FILE_COMMON_TYPES") ->
-        rawCommonTypesSchema
-      docPart == FILE_CATALOG || docPart.endsWith("/$FILE_CATALOG") -> catalog.catalogSchema
+      matchesCommonTypesUri(docPart) -> rawCommonTypesSchema
+      matchesCatalogUri(docPart) -> catalog.catalogSchema
       else -> null
     }
 
@@ -917,13 +934,57 @@ constructor(
   }
 
   private fun enqueueSchemaCombinators(item: SchemaWalkItem, stack: ArrayDeque<SchemaWalkItem>) {
+    if (item.refDepth >= MAX_SCHEMA_REF_HOPS) return
     for (keyword in COMBINATOR_KEYWORDS) {
       val branches = item.schema[keyword] as? JsonArray ?: continue
       for (idx in branches.indices.reversed()) {
         val branchObj = branches[idx] as? JsonObject ?: continue
-        stack.addLast(SchemaWalkItem(item.elem, branchObj, item.doc, item.path))
+        if (keyword != "allOf" && !matchesUnionBranch(item.elem, branchObj, item.doc)) continue
+        stack.addLast(SchemaWalkItem(item.elem, branchObj, item.doc, item.path, item.refDepth))
       }
     }
+  }
+
+  private fun matchesUnionBranch(
+    elem: JsonElement,
+    branchObj: JsonObject,
+    doc: JsonObject,
+  ): Boolean {
+    val schema = getUnionBranchValidator(branchObj, doc)
+    val elemStr = jsonFmt.encodeToString(JsonElement.serializer(), elem)
+    return schema.validate(elemStr, InputFormat.JSON).isEmpty()
+  }
+
+  private fun getUnionBranchValidator(branchObj: JsonObject, doc: JsonObject): Schema {
+    val isCommon = rawCommonTypesSchema != null && doc === rawCommonTypesSchema
+    val branchJson = jsonFmt.encodeToString(JsonElement.serializer(), branchObj)
+    val cacheKey = "${if (isCommon) "common" else "cat"}:$branchJson"
+    return unionBranchValidators.getOrPut(cacheKey) {
+      val baseDoc = (if (isCommon) validationCommonTypesSchema else null) ?: validationCatalogSchema
+      val baseDefs = (baseDoc[KEY_DOLLAR_DEFS] as? JsonObject) ?: JsonObject(emptyMap())
+      val tempSchema = buildUnionBranchTempSchema(baseDoc, baseDefs, branchObj)
+      val schemaString = jsonFmt.encodeToString(JsonElement.serializer(), tempSchema)
+      shared0_9Registry.getSchema(schemaString, InputFormat.JSON)
+    }
+  }
+
+  private fun buildUnionBranchTempSchema(
+    baseDoc: JsonObject,
+    baseDefs: JsonObject,
+    branchObj: JsonObject,
+  ): JsonObject {
+    val map = mutableMapOf<String, JsonElement>()
+    map[KEY_DOLLAR_SCHEMA] = JsonPrimitive(SCHEMA_DRAFT_2020_12)
+    baseDoc[KEY_DOLLAR_ID]?.let { map[KEY_DOLLAR_ID] = it }
+    baseDoc[A2uiConstants.CATALOG_COMPONENTS_KEY]?.let {
+      map[A2uiConstants.CATALOG_COMPONENTS_KEY] = it
+    }
+    baseDoc[A2uiConstants.CATALOG_FUNCTIONS_KEY]?.let {
+      map[A2uiConstants.CATALOG_FUNCTIONS_KEY] = it
+    }
+    map[KEY_DOLLAR_DEFS] = JsonObject(baseDefs + (UNION_BRANCH_DEF_KEY to branchObj))
+    map[KEY_DOLLAR_REF] = JsonPrimitive("#/$KEY_DOLLAR_DEFS/$UNION_BRANCH_DEF_KEY")
+    return JsonObject(map)
   }
 
   private fun enqueueSchemaObjectChildren(
@@ -1160,6 +1221,8 @@ constructor(
     private const val PROP_ARGS = "args"
     private const val DEF_ANY_FUNCTION = "anyFunction"
     private const val DEF_FUNCTION_CALL = "FunctionCall"
+    private const val UNION_BRANCH_DEF_KEY = "__a2ui_union_branch__"
+    private val ANNOTATION_SCHEMA_KEYS = setOf("description", "title", "\$comment")
 
     private const val MAX_SCHEMA_REF_HOPS = 16
     private val COMBINATOR_KEYWORDS = listOf("allOf", "anyOf", "oneOf")

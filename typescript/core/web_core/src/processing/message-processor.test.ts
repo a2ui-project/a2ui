@@ -3334,7 +3334,7 @@ describe('MessageProcessor component envelope mixins', () => {
       const createMsg = {version: '1.0', createSurface: {surfaceId: 's', catalogId: catId}};
       const atLimit = buildUpdate(23);
       const pastLimit = buildUpdate(24);
-      const relaxedConfig = STRICT_VALIDATION;
+      const strictConfig = STRICT_VALIDATION;
 
       // Standalone message, array batch, and `{messages: [...]}` wrapper all accept exact depth 50 (23 calls).
       for (const makeBatch of [
@@ -3342,14 +3342,14 @@ describe('MessageProcessor component envelope mixins', () => {
         () => ({messages: [createMsg, atLimit]}),
       ]) {
         const proc = new MessageProcessor<ComponentApi>([cat], undefined, {
-          validationConfig: relaxedConfig,
+          validationConfig: strictConfig,
         });
         assert.doesNotThrow(() => proc.processMessages(makeBatch() as never));
         proc.dispose();
       }
 
       const standaloneProc = new MessageProcessor<ComponentApi>([cat], undefined, {
-        validationConfig: relaxedConfig,
+        validationConfig: strictConfig,
       });
       standaloneProc.processMessages(createMsg as never);
       assert.doesNotThrow(() => standaloneProc.processMessages(atLimit as never));
@@ -3364,17 +3364,65 @@ describe('MessageProcessor component envelope mixins', () => {
         );
       }
 
-      // Deeply nested outer wrappers past MAX_GLOBAL_DEPTH also raise A2uiRecursionError.
-      let deeplyWrapped: unknown = atLimit;
-      for (let i = 0; i < 51; i++) {
-        deeplyWrapped = {messages: [deeplyWrapped]};
+      // Unexpected sibling keys on `{messages: [...]}` wrappers fail with and without validationConfig.
+      const defaultProc = new MessageProcessor<ComponentApi>([cat]);
+      defaultProc.processMessages(createMsg as never);
+      for (const proc of [standaloneProc, defaultProc]) {
+        assert.throws(
+          () => proc.processMessages({messages: [atLimit], extra: 1} as never),
+          (err: unknown) =>
+            err instanceof A2uiValidationError &&
+            err.message.includes('Message wrapper must not contain additional properties: extra'),
+        );
+        assert.throws(
+          () =>
+            proc.processMessages({
+              messages: [atLimit],
+              updateComponents: {surfaceId: 's', components: []},
+            } as never),
+          (err: unknown) =>
+            err instanceof A2uiValidationError &&
+            err.message.includes(
+              'Message wrapper must not contain additional properties: updateComponents',
+            ),
+        );
       }
-      assert.throws(
-        () => standaloneProc.processMessages(deeplyWrapped as never),
-        (err: unknown) =>
-          err instanceof A2uiRecursionError &&
-          err.message.includes('Global recursion limit exceeded'),
-      );
+
+      // Exact wrapper depth boundaries apply both with strictConfig and without validationConfig:
+      // 50 nested arrays pass, 51 fail; 25 `{messages}` wrappers pass, 26 fail (including empty `[]` leaves).
+      let nestedArrays50: unknown = atLimit;
+      for (let i = 0; i < 50; i++) {
+        nestedArrays50 = [nestedArrays50];
+      }
+      const nestedArrays51: unknown = [nestedArrays50];
+
+      let wrapped25: unknown = atLimit;
+      for (let i = 0; i < 25; i++) {
+        wrapped25 = {messages: [wrapped25]};
+      }
+      const wrapped26: unknown = {messages: [wrapped25]};
+
+      let emptyWrapped25: unknown = {messages: []};
+      for (let i = 0; i < 24; i++) {
+        emptyWrapped25 = {messages: [emptyWrapped25]};
+      }
+      const emptyWrapped26: unknown = {messages: [emptyWrapped25]};
+
+      for (const proc of [standaloneProc, defaultProc]) {
+        assert.doesNotThrow(() => proc.processMessages(nestedArrays50 as never));
+        assert.doesNotThrow(() => proc.processMessages(wrapped25 as never));
+        assert.doesNotThrow(() => proc.processMessages(emptyWrapped25 as never));
+
+        for (const overLimit of [nestedArrays51, wrapped26, emptyWrapped26]) {
+          assert.throws(
+            () => proc.processMessages(overLimit as never),
+            (err: unknown) =>
+              err instanceof A2uiRecursionError &&
+              err.message.includes('Global recursion limit exceeded'),
+          );
+        }
+      }
+      defaultProc.dispose();
       standaloneProc.dispose();
     });
   });
