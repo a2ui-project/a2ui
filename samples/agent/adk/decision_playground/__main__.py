@@ -128,6 +128,9 @@ class AdkLlmCaller:
         cache_key = f"{instruction_key}:{len(tools or ())}"
         runner = self._runners.get(cache_key)
         if runner is None:
+            # Pass a callable InstructionProvider so ADK does not treat JSON
+            # schema braces (such as `\p{XID_Start}`) as session-state variables.
+            static_prompt = instruction
             agent = LlmAgent(
                 model=Gemini(
                     model=self._model_name,
@@ -137,7 +140,7 @@ class AdkLlmCaller:
                     f"playground_{instruction_key.replace(':', '_').replace('.', '_')}"
                 ),
                 description="Decision playground LLM runner.",
-                instruction=instruction,
+                instruction=lambda _ctx, _text=static_prompt: _text,
                 tools=list(tools) if tools else [],
                 generate_content_config=types.GenerateContentConfig(
                     thinking_config=types.ThinkingConfig(
