@@ -1595,8 +1595,8 @@
     },
     "InferenceFormatName": {
       "type": "string",
-      "enum": ["direct_json", "express", "elemental", "atom"],
-      "description": "The inference format strategy the case exercises. `elemental` and `atom` are experimental and Python-only."
+      "enum": ["direct_json", "express", "elemental", "atom", "a2ui-xml"],
+      "description": "The inference format strategy the case exercises. `elemental`, `atom`, and `a2ui-xml` are experimental and Python-only."
     },
     "CatalogExpectation": {
       "type": "object",

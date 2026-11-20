@@ -28,6 +28,11 @@ from .conformance_helpers import (
 )
 
 ACTIVE_SUITES: frozenset[str] = frozenset({
+    "agent/a2ui_xml/compiler.yaml",
+    "agent/a2ui_xml/decompiler.yaml",
+    "agent/a2ui_xml/prompt_generator.yaml",
+    "agent/a2ui_xml/response_parser.yaml",
+    "agent/a2ui_xml/response_streaming.yaml",
     "agent/agent_functions.yaml",
     "agent/atom/compiler.yaml",
     "agent/builder/builder.yaml",

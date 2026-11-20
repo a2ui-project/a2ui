@@ -22,6 +22,18 @@ from .direct_json import DirectJsonDecompiler
 from .direct_json import DirectJsonFormat
 from .direct_json import DirectJsonFormatFactory
 from .direct_json import DirectJsonParser
+from .experimental import a2ui_xml as a2ui_xml
+from .experimental.a2ui_xml import (
+    A2uiXmlCompileDiagnostics,
+    A2uiXmlCompiler,
+    A2uiXmlDecompiler,
+    A2uiXmlFormat,
+    A2uiXmlFormatFactory,
+    A2uiXmlParser,
+    A2uiXmlPromptGenerator,
+    A2uiXmlResponseStream,
+    A2uiXmlStrictViolation,
+)
 from .experimental.atom import AtomFormat
 from .experimental.atom import AtomFormatFactory
 from .experimental.atom import AtomParser
@@ -34,6 +46,15 @@ from .express import ExpressParser
 from .express import ExpressResponseStream
 
 __all__ = [
+    "A2uiXmlCompileDiagnostics",
+    "A2uiXmlCompiler",
+    "A2uiXmlDecompiler",
+    "A2uiXmlFormat",
+    "A2uiXmlFormatFactory",
+    "A2uiXmlParser",
+    "A2uiXmlPromptGenerator",
+    "A2uiXmlResponseStream",
+    "A2uiXmlStrictViolation",
     "AtomFormat",
     "AtomFormatFactory",
     "AtomParser",
@@ -48,6 +69,7 @@ __all__ = [
     "ExpressFormatFactory",
     "ExpressParser",
     "ExpressResponseStream",
+    "a2ui_xml",
     "direct_json",
     "express",
     "to_message_dicts",
