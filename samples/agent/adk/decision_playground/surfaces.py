@@ -30,12 +30,14 @@ EXPRESS_TEMPLATES: tuple[ExpressSurfaceSpec, ...] = (
         id="host_health",
         description="Production host health metrics card with CPU, status, and uptime",
         dsl=(
-            "root = Card(Column(["
-            'Text("### Host Health"), '
-            "Text($/host), "
-            "Row([Text($/status), Text($/cpu), Text($/cpuDelta)]), "
-            "Text($/uptimeHours)"
-            "]))"
+            'root = Card(Column([Row([Icon("warning"), Text("### Host Health"),'
+            ' Text($/status, variant="caption")], justify="spaceBetween"), Divider(),'
+            ' Row([Column([Text("Host", variant="caption"), Text($/host)]),'
+            ' Column([Text("CPU", variant="caption"), Row([Text($/cpu),'
+            ' Text($/cpuDelta, variant="caption")])]), Column([Text("Uptime (hrs)",'
+            ' variant="caption"), Text($/uptimeHours)])], justify="spaceBetween"),'
+            ' Divider(), Row([Button(Text("Restart Host"), variant="primary",'
+            ' action={event: {name: "restart_host"}})], justify="end")]))'
         ),
         required_paths=("/host", "/cpu", "/status"),
     ),
@@ -43,12 +45,13 @@ EXPRESS_TEMPLATES: tuple[ExpressSurfaceSpec, ...] = (
         id="ski_resort",
         description="Mountain ski resort snow report with elevation and open runs",
         dsl=(
-            "root = Card(Column(["
-            'Text("### Ski Resort Report"), '
-            "Text($/name), "
-            "Row([Text($/elevation), Text($/openRuns)]), "
-            "Row([Text($/snowDepth), Text($/status)])"
-            "]))"
+            'root = Card(Column([Row([Icon("locationOn"), Column([Text("### Ski Resort'
+            ' Report"), Text($/name)])]), Divider(),'
+            ' Row([Card(Column([Text("Elevation", variant="caption"),'
+            ' Text($/elevation), Text("Open Runs", variant="caption"),'
+            ' Text($/openRuns)])), Card(Column([Text("Snow Depth", variant="caption"),'
+            ' Text($/snowDepth), Text("Status", variant="caption"),'
+            " Text($/status)]))])]))"
         ),
         required_paths=("/name", "/elevation"),
     ),
@@ -56,12 +59,18 @@ EXPRESS_TEMPLATES: tuple[ExpressSurfaceSpec, ...] = (
         id="transfer_quote",
         description="Outbound wire transfer quote and confirmation summary",
         dsl=(
-            "root = Card(Column(["
-            'Text("### Wire Transfer Quote"), '
-            "Text($/recipient), "
-            "Row([Text($/amount), Text($/fee)]), "
-            "Text($/sourceAccount)"
-            "]))"
+            'root = Card(Column([Row([Icon("payment"), Text("### Review Wire'
+            ' Transfer")]), Text("Verify the details below before authorizing this'
+            ' transfer.", variant="caption"), Divider(), Row([Text("Recipient",'
+            ' variant="caption"), Text($/recipient)], justify="spaceBetween"),'
+            ' Row([Text("Amount", variant="caption"), Text($/amount)],'
+            ' justify="spaceBetween"), Row([Text("Wire Fee", variant="caption"),'
+            ' Text($/fee)], justify="spaceBetween"), Row([Text("Source Account",'
+            ' variant="caption"), Text($/sourceAccount)], justify="spaceBetween"),'
+            ' Divider(), Row([Button(Text("Cancel"), variant="borderless",'
+            ' action={event: {name: "cancel_transfer"}}), Button(Text("Confirm'
+            ' Transfer"), variant="primary", action={event: {name:'
+            ' "confirm_transfer"}})], justify="end")]))'
         ),
         required_paths=("/recipient", "/amount"),
     ),
@@ -69,12 +78,12 @@ EXPRESS_TEMPLATES: tuple[ExpressSurfaceSpec, ...] = (
         id="playback_settings",
         description="Audio, subtitle, and theme playback settings panel",
         dsl=(
-            "root = Card(Column(["
-            'Text("### Playback Settings"), '
-            "Text($/theme), "
-            'Slider("Volume", 0, 100, $/volume), '
-            'CheckBox("Subtitles", $/subtitles)'
-            "]))"
+            'root = Card(Column([Row([Icon("settings"), Text("### Playback'
+            ' Settings")]), Divider(), Row([Text("Theme", variant="caption"),'
+            ' Text($/theme)], justify="spaceBetween"), Slider("Volume", 0, 100,'
+            ' $/volume), CheckBox("Subtitles", $/subtitles), Divider(),'
+            ' Row([Button(Text("Save Preferences"), variant="primary", action={event:'
+            ' {name: "save_settings"}})], justify="end")]))'
         ),
         required_paths=("/volume", "/subtitles"),
     ),
@@ -82,12 +91,16 @@ EXPRESS_TEMPLATES: tuple[ExpressSurfaceSpec, ...] = (
         id="order_details",
         description="Order fulfillment status, carrier, and delivery estimate",
         dsl=(
-            "root = Card(Column(["
-            'Text("### Order Status"), '
-            "Row([Text($/orderId), Text($/status)]), "
-            "Text($/carrier), "
-            "Row([Text($/estimatedDelivery), Text($/totalUsd)])"
-            "]))"
+            'root = Card(Column([Row([Row([Icon("shoppingCart"), Text("### Order'
+            ' Status")]), Text($/orderId, variant="caption")], justify="spaceBetween"),'
+            ' Divider(), Row([Column([Text("Status", variant="caption"),'
+            ' Text($/status)]), Column([Text("Estimated Delivery", variant="caption"),'
+            ' Text($/estimatedDelivery)])], justify="spaceBetween"),'
+            ' Row([Text("Carrier", variant="caption"), Text($/carrier)],'
+            ' justify="spaceBetween"), Divider(), Row([Row([Text("Total",'
+            ' variant="caption"), Text($/totalUsd)]), Button(Text("Track Package"),'
+            ' variant="primary", action={event: {name: "track_order"}})],'
+            ' justify="spaceBetween")]))'
         ),
         required_paths=("/orderId", "/status"),
     ),
@@ -95,12 +108,11 @@ EXPRESS_TEMPLATES: tuple[ExpressSurfaceSpec, ...] = (
         id="deploy_runbook",
         description="Production service rollout checklist and deployment runbook",
         dsl=(
-            "root = Card(Column(["
-            'Text("### Deployment Runbook"), '
-            "Row([Text($/service), Text($/version)]), "
-            "Text($/environment), "
-            "Text($/checklist)"
-            "]))"
+            'root = Card(Column([Row([Icon("check"), Text("### Deployment'
+            ' Runbook")]), Row([Text($/service), Text($/version, variant="caption"),'
+            ' Text($/environment, variant="caption")], justify="spaceBetween"),'
+            ' Divider(), Text("Rollout Checklist", variant="caption"),'
+            " Text($/checklist)]))"
         ),
         required_paths=("/service", "/checklist"),
     ),
