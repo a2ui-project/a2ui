@@ -1,5 +1,18 @@
 ## Unreleased
 
+- Add submit-time named-predicate agent functions (`NamedPredicateSpec`,
+  `SessionRateLimiter`, `build_predicate_agent_functions`) in
+  `a2ui.rpc.experimental.decision`.
+
+- Add `ToolPointerBinder` in
+  `a2ui.inference_formats.experimental.decision_binder` for binding tool-result
+  JSON Pointers directly into Express templates, `@macro` components, and
+  Client-Side Templates without an extra LLM synthesis call.
+
+- Add `DecisionCascadeRouter` in
+  `a2ui.inference_formats.experimental.decision_cascade` for single-batch UI
+  gating, template selection, and `ComponentPruningTransformer` catalog pruning.
+
 - Add `allowed_parents` and `allowed_children` parameters to the `@macro`
   decorator (`a2ui.transformers.macros`), emitting `allowedParents` and
   `allowedChildren` metadata on generated macro component schemas.

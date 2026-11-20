@@ -36,7 +36,7 @@ Usage Example:
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 import dataclasses
 import inspect
 import logging
@@ -113,6 +113,7 @@ class A2uiEventConverter:
         *,
         a2ui_processor: A2uiRequestProcessor | EventProcessorProvider,
         stream_idle_timeout: float = 600.0,
+        allowed_a2ui_tool_names: Collection[str] = (),
     ):
         """Initializes the converter.
 
@@ -131,9 +132,20 @@ class A2uiEventConverter:
               to it, since every conversation would share that state.
             stream_idle_timeout: The seconds after which a stream that gets no
               event is dropped.
+            allowed_a2ui_tool_names: Optional allowlist of domain tool names
+              forwarded to `A2uiPartConverter` so callback-verified tools can
+              emit `A2uiPart` items from `A2UI_VALIDATED_JSON_KEY`.
         """
         self._bypass_tool_check = bypass_tool_check
         self._fallback_text = fallback_text
+        if isinstance(allowed_a2ui_tool_names, (str, bytes)):
+            raise TypeError(
+                "allowed_a2ui_tool_names must be a collection of tool names, not a"
+                " string."
+            )
+        self._allowed_a2ui_tool_names: frozenset[str] = frozenset(
+            allowed_a2ui_tool_names
+        )
         if (
             isinstance(a2ui_processor, A2uiRequestProcessor)
             and a2ui_processor.state is not None
@@ -206,6 +218,7 @@ class A2uiEventConverter:
             processor,
             bypass_tool_check=self._bypass_tool_check,
             fallback_text=self._fallback_text,
+            allowed_a2ui_tool_names=self._allowed_a2ui_tool_names,
         )
         key: _StreamKey = (
             invocation_context.invocation_id,
