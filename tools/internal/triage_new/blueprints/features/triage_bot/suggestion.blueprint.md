@@ -44,11 +44,11 @@ Triage suggestion:
 <summary>For humans</summary>
 
 **TL;DR**
-Case: issue highlights a problem.
-Suggestion: assign for triage to an expert.
+Case: this issue highlights a problem.
+Suggestion: set P1 and assign for triage to an expert.
 
 **Summary:**
-The issue highlights the problem: Flutter renderer throws an exception when a `Row` has an empty `children` list. [Per blueprint](the_blueprint.md), it should not.
+The issue highlights the problem: Flutter renderer throws an exception when a `Row` has an empty `children` list. [Per blueprint](response.blueprint.md), it should not.
 
 **Why flagged for triage:**
 This issue has external input but no priority label yet.
@@ -56,7 +56,7 @@ This issue has external input but no priority label yet.
 **Suggestion:**
 Set P1 and assign for triage to `octocat`, who made [most of the recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.
 
-1. Add labels: `status: assigned-for-triage` ,`type: bug`, `P1`, `component: flutter adapter`, `status: first-line-handled`
+1. Add labels: `status: assigned-for-triage`, `type: bug`, `P1`, `component: flutter adapter`, `status: first-line-handled`
 2. Assign: `octocat`
 3. Related issues: #1234
 
@@ -78,11 +78,13 @@ tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issu
 ```
 <a2ui>
 root = TriageSuggestion(
-  summary="""The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.""",
+  tldr_case="issue highlights a problem.",
+  tldr_suggestion="assign for triage to an expert.",
+  summary="""The issue highlights the problem: Flutter renderer throws an exception when a `Row` has an empty `children` list. [Per blueprint](the_blueprint.md), it should not.""",
   reason="This issue has external input but no priority label yet.",
-  suggestion="""Set P1 and assign `octocat`, who made [most of the recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.""",
+  suggestion="""Set P1 and assign for triage to `octocat`, who made [most of the recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.""",
   reply="""Thanks for the report and the payload that reproduces it. We confirmed the crash and plan to fix it soon. #1234 reports the same crash for `Column`.""",
-  added_labels=["type: bug", "P1", "component: flutter adapter", "status: first-line-handled"],
+  added_labels=["status: assigned-for-triage", "type: bug", "P1", "component: flutter adapter", "status: first-line-handled"],
   new_assignees=["octocat"],
   related_issues=[1234]
 )
@@ -96,10 +98,11 @@ The parts of the comment, in order:
 
 1. The triage bot prefix, and the line "Triage suggestion:".
 2. The **For humans** section, collapsed:
-   1. The `summary`, the `reason` and the `suggestion`, as paragraphs under **Summary**, **Why flagged for triage** and **Suggestion**. The **Why flagged for triage** paragraph is left out when there is no reason.
-   2. The other properties that have values, as a numbered list: **Close as**, **Add labels**, **Remove labels**, **Assign**, **Unassign**, **Related issues** and **Related PRs**. An example of **Close as** is "Close as: duplicate of #1100".
-   3. The `reply`, quoted, under **Reply**. The part is left out when there is no reply.
-   4. The command that opens the item in the triage UI.
+   1. The `tldr_case` and the `tldr_suggestion`, as the lines **Case** and **Suggestion** under **TL;DR**. A line is left out when its property has no value, and **TL;DR** is left out when both have none.
+   2. The `summary`, the `reason` and the `suggestion`, as paragraphs under **Summary**, **Why flagged for triage** and **Suggestion**. The **Why flagged for triage** paragraph is left out when there is no reason.
+   3. The other properties that have values, as a numbered list: **Close as**, **Add labels**, **Remove labels**, **Assign**, **Unassign**, **Related issues** and **Related PRs**. An example of **Close as** is "Close as: duplicate of #1100".
+   4. The `reply`, quoted, under **Reply**. The part is left out when there is no reply.
+   5. The command that opens the item in the triage UI.
 3. The **For software** section, collapsed: the component.
 
 The component is written in [A2UI Express](../../../../../../specification/inference_formats/express/Express.g4), as one `root = TriageSuggestion(...)` statement. The code fence makes GitHub show it as written, and the triage UI reads the text between `<a2ui>` and `</a2ui>`.
@@ -119,14 +122,15 @@ An item can have several suggestion comments. When the suggestion is outdated, t
 
 The component is defined in [triage_suggestion.dart](../../../pkgs/triage/lib/src/triage_bot/triage_suggestion.dart). Its properties:
 
-1. `summary` (required): what the item is about, in plain English.
-2. `reason`: why the item is flagged for triage, in plain English, such as "This issue has external input but no priority label yet." It is the reason that the [flagger](../../../../triage/blueprints/flagging.blueprint.md) gives for the item, as [flag_reason.mts](../../../../../../.agents/skills/a2ui-triage-bot/scripts/flag_reason.mts) prints it, and is omitted when the flagger does not flag the item.
-3. `suggestion` (required): what the triager should do and why, in plain English.
-4. `reply`: a comment for the item's author or other participants. When the suggestion is applied, the triage UI posts it from the triager's account.
-5. `close_as`: how to close the item: `completed`, `not_planned` or `duplicate`. When it is omitted, the item stays open. A PR has no close reason, so any value closes it.
-6. `duplicate_of`: the number of the item that this item duplicates. It is set only with `close_as: duplicate`.
-7. `added_labels` and `removed_labels`: labels to add and remove.
-8. `new_assignees` and `removed_assignees`: GitHub logins to assign and unassign.
-9. `related_issues` and `related_prs`: numbers of related issues and PRs, which the triager may want to read. The triage UI does not change them. For an open PR related to an issue, the `suggestion` says whether the PR closes the issue. The triage UI counts a PR as an open PR of the issue only when the PR is linked to close it, so a PR that only mentions the issue is not one, and the suggestion says so.
+1. `tldr_case` and `tldr_suggestion`: what kind of case the item is, and what to do with it, in a few words each, such as "issue highlights a problem." and "assign for triage to an expert." They are the short form of the `summary` and the `suggestion`.
+2. `summary` (required): what the item is about, in plain English.
+3. `reason`: why the item is flagged for triage, in plain English, such as "This issue has external input but no priority label yet." It is the reason that the [flagger](../../../../triage/blueprints/flagging.blueprint.md) gives for the item, as [flag_reason.mts](../../../../../../.agents/skills/a2ui-triage-bot/scripts/flag_reason.mts) prints it, and is omitted when the flagger does not flag the item.
+4. `suggestion` (required): what the triager should do and why, in plain English.
+5. `reply`: a comment for the item's author or other participants. When the suggestion is applied, the triage UI posts it from the triager's account.
+6. `close_as`: how to close the item: `completed`, `not_planned` or `duplicate`. When it is omitted, the item stays open. A PR has no close reason, so any value closes it.
+7. `duplicate_of`: the number of the item that this item duplicates. It is set only with `close_as: duplicate`.
+8. `added_labels` and `removed_labels`: labels to add and remove.
+9. `new_assignees` and `removed_assignees`: GitHub logins to assign and unassign.
+10. `related_issues` and `related_prs`: numbers of related issues and PRs, which the triager may want to read. The triage UI does not change them. For an open PR related to an issue, the `suggestion` says whether the PR closes the issue. The triage UI counts a PR as an open PR of the issue only when the PR is linked to close it, so a PR that only mentions the issue is not one, and the suggestion says so.
 
 Item numbers refer to the item's own repository. An omitted list means none.
