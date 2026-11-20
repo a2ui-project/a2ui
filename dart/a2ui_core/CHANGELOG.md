@@ -20,6 +20,11 @@
 - Resolve component properties that reference `FunctionCall` directly in `GenericBinder`, and (v1_0) coerce inline `oneOf` unions of `boolean`, `DataBinding`, and `FunctionCall` to a boolean as `DynamicBoolean` properties are ([#3809](https://github.com/a2ui-project/a2ui/issues/3809)).
 - Add explicit type annotations to internal local and pattern variables to satisfy the `specify_nonobvious_local_variable_types` analyzer lint on Dart 3.15+ ([#4233](https://github.com/a2ui-project/a2ui/pull/4233)).
 
+- `MessageProcessor` reports unknown envelope keys, including misspelled message
+  types, at the key's JSON Pointer instead of `/version`. Validation error
+  details keep dot paths and the message index
+  ([#4194](https://github.com/a2ui-project/a2ui/issues/4194)).
+
 ## 0.7.0
 
 - **Breaking:** (v0_9) `MessageProcessor` treats a component's `metadata` key
