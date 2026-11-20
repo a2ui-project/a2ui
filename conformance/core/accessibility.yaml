@@ -13,6 +13,7 @@
 # limitations under the License.
 
 - name: test_accessibility_attributes_plumbing
+  features: [F-RND-15, F-BP-07]
   description: Verifies plumbing of AccessibilityAttributes (label, description, live, hidden) to accessibility node trees and axe-core rules.
   protocolVersion: "1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
@@ -32,7 +33,7 @@
             action:
               event:
                 name: "tap"
-            accessibility:
+            "@accessibility":
               label: "Mute Notifications"
               description: "Silences notifications about this conversation"
           - id: "btn1_label"
@@ -41,7 +42,7 @@
           - id: "status_text"
             component: "Text"
             text: "Status: Active"
-            accessibility:
+            "@accessibility":
               live: "polite"
   surface:
     id: root
@@ -55,7 +56,7 @@
         action:
           event:
             name: "tap"
-        accessibility:
+        "@accessibility":
           label: "Mute Notifications"
           description: "Silences notifications about this conversation"
       btn1_label:
@@ -64,7 +65,7 @@
       status_text:
         component: Text
         text: "Status: Active"
-        accessibility:
+        "@accessibility":
           live: "polite"
   assertions:
     axeCore:
@@ -95,7 +96,7 @@
           - id: "alert_box"
             component: "Text"
             text: "Connection Lost!"
-            accessibility:
+            "@accessibility":
               label: "Critical Alert"
               live: "assertive"
   surface:
@@ -106,7 +107,7 @@
       alert_box:
         component: Text
         text: "Connection Lost!"
-        accessibility:
+        "@accessibility":
           label: "Critical Alert"
           live: "assertive"
   assertions:
@@ -130,7 +131,7 @@
         components:
           - id: "root"
             component: "Column"
-            accessibility:
+            "@accessibility":
               hidden: true
             children: ["visible_text", "decorative_icon"]
           - id: "visible_text"
@@ -142,7 +143,7 @@
   surface:
     id: root
     component: Column
-    accessibility:
+    "@accessibility":
       hidden: true
     children: [visible_text, decorative_icon]
     components:
@@ -224,7 +225,7 @@
             action:
               event:
                 name: "tap"
-            accessibility:
+            "@accessibility":
               label: "Submit Feedback"
           - id: "btn_label"
             component: "Text"
@@ -233,13 +234,13 @@
             component: "TextField"
             label: "Your Email"
             value: ""
-            accessibility:
+            "@accessibility":
               description: "Enter a valid email address"
           - id: "check_box"
             component: "CheckBox"
             label: "I agree to terms"
             value: true
-            accessibility:
+            "@accessibility":
               label: "Accept Terms and Conditions"
           - id: "choice_picker"
             component: "ChoicePicker"
@@ -250,7 +251,7 @@
                 value: "1"
               - label: "Option 2"
                 value: "2"
-            accessibility:
+            "@accessibility":
               label: "Select Preference"
   surface:
     id: root
@@ -264,7 +265,7 @@
         action:
           event:
             name: "tap"
-        accessibility:
+        "@accessibility":
           label: "Submit Feedback"
       btn_label:
         component: Text
@@ -273,14 +274,14 @@
         component: TextField
         label: "Your Email"
         value: ""
-        accessibility:
+        "@accessibility":
           description: "Enter a valid email address"
       check_box:
         component: CheckBox
         label: "I agree to terms"
         value: true
         checked: true
-        accessibility:
+        "@accessibility":
           label: "Accept Terms and Conditions"
       choice_picker:
         component: ChoicePicker
@@ -292,7 +293,7 @@
           - label: "Option 2"
             value: "2"
         selectedIndex: 0
-        accessibility:
+        "@accessibility":
           label: "Select Preference"
   assertions:
     axeCore:
@@ -338,7 +339,7 @@
             action:
               event:
                 name: "tap"
-            accessibility:
+            "@accessibility":
               label:
                 "@path": "/buttonLabel"
               hidden:
@@ -349,7 +350,7 @@
           - id: "dynamic_status"
             component: "Text"
             text: "Status"
-            accessibility:
+            "@accessibility":
               hidden:
                 "@path": "/isStatusHidden"
   steps:
@@ -372,7 +373,7 @@
                 action:
                   event:
                     name: "tap"
-                accessibility:
+                "@accessibility":
                   label:
                     "@path": "/buttonLabel"
                   hidden:
@@ -383,7 +384,7 @@
               - id: "dynamic_status"
                 component: "Text"
                 text: "Status"
-                accessibility:
+                "@accessibility":
                   hidden:
                     "@path": "/isStatusHidden"
       assertions:
@@ -429,7 +430,7 @@
         action:
           event:
             name: "tap"
-        accessibility:
+        "@accessibility":
           label:
             "@path": "/buttonLabel"
           hidden:
@@ -440,7 +441,7 @@
       dynamic_status:
         component: Text
         text: "Status"
-        accessibility:
+        "@accessibility":
           hidden:
             "@path": "/isStatusHidden"
   assertions:
@@ -456,3 +457,44 @@
       dynamic_status:
         hidden:
           path: "/isStatusHidden"
+
+# --- v1.0 transition: legacy bare `accessibility` dual-read ---
+#
+# During the v1.0 transition window, renderers still read a legacy bare
+# `accessibility` key on a v1.0 component whose schema does not declare a
+# custom `accessibility` property. Agents emit only `@accessibility`. This case
+# is removed when the legacy bare fallback is dropped.
+
+- name: test_accessibility_v1_0_legacy_bare_accessibility_dual_read
+  description: Verifies that a v1.0 component carrying the legacy bare accessibility key, which its schema does not declare as a custom property, still exposes its accessibility attributes during the transition window.
+  protocolVersion: "1.0"
+  catalogPath: "catalogs/basic/v1/catalog.json"
+  action: accessibility_check
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "a11y_surface"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["legacy_text"]
+          - id: "legacy_text"
+            component: "Text"
+            text: "Legacy"
+            accessibility:
+              label: "Legacy Label"
+  surface:
+    id: root
+    component: Column
+    children: [legacy_text]
+    components:
+      legacy_text:
+        component: Text
+        text: "Legacy"
+        accessibility:
+          label: "Legacy Label"
+  assertions:
+    accessibilityTree:
+      legacy_text:
+        label: "Legacy Label"

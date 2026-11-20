@@ -48,6 +48,10 @@ The following directories contain the base protocol logic, parsing, and schema o
 
 - **`catalog_resolver.py`**: `resolve_catalogs` returns the catalogs that are
   active for the capabilities that a renderer sent.
+- **`renderer_capabilities.py`**: `read_renderer_capabilities` reads and
+  validates the version-keyed capabilities dictionary from transport metadata
+  (`a2uiRendererCapabilities` in v1.0 and `a2uiClientCapabilities` in v0.8 and
+  v0.9).
 - **`examples.py`**: `load_examples` reads few-shot examples from a directory
   or glob pattern and can validate them against the active catalogs.
 - **`schemas.py`**: `load_agent_to_renderer_schema` and

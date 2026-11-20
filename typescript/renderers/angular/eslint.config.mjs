@@ -15,7 +15,11 @@
  */
 
 import preset from '../../../eslint.preset.mjs';
-import {BOUNDARY_ALLOWLIST, BOUNDARY_RESTRICTED} from './eslint.boundary.mjs';
+import {
+  BOUNDARY_ALLOWLIST,
+  BOUNDARY_FORBIDDEN_PATTERNS,
+  BOUNDARY_RESTRICTED,
+} from './eslint.boundary.mjs';
 
 const boundaryPaths = BOUNDARY_RESTRICTED.from.map(name => ({
   name,
@@ -46,12 +50,25 @@ export default [
   },
   {
     files: ['src/core/**/*.ts', 'src/catalog/**/*.ts', 'src/*.ts'],
-    ignores: ['**/*.spec.ts', ...BOUNDARY_ALLOWLIST],
+    ignores: ['**/*.spec.ts', 'src/adapter_harness.ts', ...BOUNDARY_ALLOWLIST],
     rules: {
       'no-restricted-imports': [
         'error',
         {
           paths: [rootSelfImportPath, ...boundaryPaths],
+          patterns: [...BOUNDARY_FORBIDDEN_PATTERNS],
+        },
+      ],
+    },
+  },
+  {
+    files: [...BOUNDARY_ALLOWLIST.filter(f => !f.startsWith('src/v0_9/'))],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [rootSelfImportPath],
+          patterns: [...BOUNDARY_FORBIDDEN_PATTERNS],
         },
       ],
     },
@@ -61,7 +78,7 @@ export default [
       'src/core/**/*.spec.ts',
       'src/catalog/**/*.spec.ts',
       'src/*.spec.ts',
-      ...BOUNDARY_ALLOWLIST.filter(f => !f.startsWith('src/v0_9/')),
+      'src/adapter_harness.ts',
     ],
     rules: {
       'no-restricted-imports': [

@@ -34,8 +34,7 @@ final ComponentImplementation _rating = ComponentImplementation(
     properties: {
       'label': CommonSchemas.dynamicString,
       'value': Schema.fromMap({
-        r'$ref':
-            'https://a2ui.org/specification/v0_9/common_types.json#/\$defs/DynamicNumber',
+        r'$ref': 'https://a2ui.org/specification/v0_9/common_types.json#/\$defs/DynamicNumber',
       }),
       'onChanged': CommonSchemas.action,
     },
@@ -227,6 +226,49 @@ void main() {
     expect(harness.data('/stars'), 4);
     expect(find.byIcon(Icons.star), findsNWidgets(4));
     expect(harness.actions.single.name, 'rated');
+    expect(harness.errors, isEmpty);
+  });
+
+  testWidgets('renders a component whose properties and list items declare '
+      'event as plain values', (tester) async {
+    final select = ComponentImplementation(
+      name: 'Select',
+      schema: Schema.object(
+        properties: {
+          'label': Schema.string(),
+          'event': Schema.string(),
+          'options': Schema.list(
+            items: Schema.object(
+              properties: {'label': Schema.string(), 'event': Schema.string()},
+            ),
+          ),
+        },
+      ),
+      builder: (context, node, props, buildChild) => Column(
+        children: [
+          Text('${props.string('label')}: ${props.string('event')}'),
+          for (final Object? option in props.list('options'))
+            if (option is Map) Text('${option['label']}: ${option['event']}'),
+        ],
+      ),
+    );
+
+    final SurfaceHarness harness = await pumpComponents(tester, [
+      {
+        'id': 'root',
+        'component': 'Select',
+        'label': 'Color',
+        'event': 'picked',
+        'options': [
+          {'label': 'Red', 'event': 'red'},
+          {'label': 'Blue', 'event': 'blue'},
+        ],
+      },
+    ], catalog: _demoCatalog([select]));
+
+    expect(find.text('Color: picked'), findsOneWidget);
+    expect(find.text('Red: red'), findsOneWidget);
+    expect(find.text('Blue: blue'), findsOneWidget);
     expect(harness.errors, isEmpty);
   });
 

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import A2UICore
-import BasicCatalogSwiftUI
+@_spi(Testing) import BasicCatalogSwiftUI
 import SwiftUI
 import Testing
 
@@ -51,6 +51,21 @@ struct A2UITextTests {
       properties: ["text": "# One\n\n## Two\n\n##### Five\n\n###### Six\n\nBody"]
     )
     _ = A2UIText(node: node).body
+  }
+
+  @Test func rendersDuplicateMarkdownBlocksAndSingleLineTripleBackticks() {
+    let node = Node(
+      id: "markdown_duplicates",
+      type: "Text",
+      properties: [
+        "text": "# Repeated\n\n# Repeated\n\n- Same item\n- Same item\n\n```inline```"
+      ]
+    )
+    let textView = A2UIText(node: node)
+    _ = textView.body
+    let summary = textView.renderedMarkdown
+    #expect(summary.visibleText == "Repeated Repeated Same item Same item inline")
+    #expect(summary.presentSemantics == ["heading", "list_item", "code"])
   }
 
   // MARK: - Accessibility headings

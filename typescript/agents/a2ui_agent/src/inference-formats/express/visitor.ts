@@ -394,8 +394,9 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
   };
 
   override visitCall = (ctx: CallContext): ExpressCallNode => {
-    // call : identifier '(' (arg (',' arg)*)? ','? ')' ;
-    const name = ctx.identifier()!.getText();
+    // call : function_name '(' (arg (',' arg)*)? ','? ')' ;
+    // function_name : identifier | SYSTEM_IDENTIFIER ;
+    const name = ctx.function_name()!.getText();
     const args: ExpressValue[] = [];
     const kwargs: Record<string, ExpressValue> = {};
 

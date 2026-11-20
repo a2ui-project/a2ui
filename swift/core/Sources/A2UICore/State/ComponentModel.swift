@@ -32,7 +32,11 @@ public struct ComponentModel: Sendable, Equatable {
   /// The raw, unresolved properties of the component.
   ///
   /// This excludes the `id` and `component` keys from the original
-  /// JSON payload, which are promoted to top-level fields.
+  /// JSON payload, which are promoted to top-level fields. In v1.0 it also excludes the
+  /// `@catalogId` and `@metadata` mixins (promoted to ``catalogID`` and ``metadata``), and holds
+  /// the accessibility and checks mixins under `@accessibility` and `@checks`, apart from any
+  /// `accessibility` or `checks` property of the component's own. Before v1.0, `catalogId` and
+  /// `metadata` are ordinary properties.
   public var properties: [String: JSONValue]
 
   /// Optional metadata envelope (`["extensions": .object(...)]`) attached to the component.
@@ -49,7 +53,7 @@ public struct ComponentModel: Sendable, Equatable {
   ///   - id: The unique identifier for this component.
   ///   - type: The component type name.
   ///   - catalogID: Optional catalog identifier overriding surface default.
-  ///   - properties: The raw properties (excluding `id`, `component`, `catalogId`, and `metadata`).
+  ///   - properties: The raw properties (see ``properties``).
   ///   - metadata: Optional metadata dictionary.
   public init(
     id: String,

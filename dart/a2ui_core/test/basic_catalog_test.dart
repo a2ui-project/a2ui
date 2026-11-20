@@ -153,14 +153,15 @@ void main() {
         expect(
           File(entry.output).readAsStringSync(),
           equals(generated),
-          reason: '${entry.output} is out of date with ${entry.source}. '
+          reason:
+              '${entry.output} is out of date with ${entry.source}. '
               'Run `dart run tool/generate_basic_catalogs.dart`.',
         );
       }
     });
 
     for (final (String label, _RendererCatalog catalog, String path) in [
-      ('v0.9', v09, 'specification/v0_9/catalogs/basic/catalog.json'),
+      ('v0.9', v09, 'catalogs/basic/v0_9/catalog.json'),
       ('1.0', v10, 'catalogs/basic/v1/catalog.json'),
     ]) {
       test('$label implements every published function, and no other', () {
@@ -252,7 +253,8 @@ void main() {
         final String content = file.readAsStringSync();
         for (final RegExpMatch match in importPattern.allMatches(content)) {
           final String uri = match.group(1)!;
-          final bool isAllowedException = (normalizedPath.endsWith(
+          final bool isAllowedException =
+              (normalizedPath.endsWith(
                     'lib/src/basic_catalog/basic_catalog.dart',
                   ) ||
                   normalizedPath.endsWith(
@@ -275,9 +277,7 @@ void main() {
           .whereType<File>()
           .where((file) => file.path.endsWith('.dart'))
           .toList();
-      const allowedInboundImporters = <String>{
-        'lib/a2ui_core.dart',
-      };
+      const allowedInboundImporters = <String>{'lib/a2ui_core.dart'};
       for (final file in allLibFiles) {
         final String normalizedPath = file.path.replaceAll(r'\', '/');
         if (normalizedPath.contains('lib/src/basic_catalog/')) continue;
@@ -407,13 +407,14 @@ void main() {
           required Object? phone,
         }) =>
             _call(v10, 'and', {
-              'values': [
-                required(terms),
-                _call(v10, 'or', {
-                  'values': [required(email), required(phone)],
-                }),
-              ],
-            })! as bool;
+                  'values': [
+                    required(terms),
+                    _call(v10, 'or', {
+                      'values': [required(email), required(phone)],
+                    }),
+                  ],
+                })!
+                as bool;
 
         expect(buttonEnabled(terms: null, email: '', phone: ''), isFalse);
         expect(buttonEnabled(terms: true, email: '', phone: ''), isFalse);
@@ -427,64 +428,48 @@ void main() {
           protocolVersion: A2uiProtocolVersion.v1_0,
         );
         expect(
-          v10.invoke(
-              'and',
-              {
-                'values': [required('x'), required('')],
-              },
-              context),
+          v10.invoke('and', {
+            'values': [required('x'), required('')],
+          }, context),
           isFalse,
         );
         expect(
-          v10.invoke(
-              'or',
-              {
-                'values': [required(''), required('x')],
-              },
-              context),
+          v10.invoke('or', {
+            'values': [required(''), required('x')],
+          }, context),
           isTrue,
         );
         expect(v10.invoke('not', {'value': required('')}, context), isTrue);
       });
 
-      test(
-          'invoke checks a result object from the data model as its '
+      test('invoke checks a result object from the data model as its '
           'validity', () {
         final DataContext context = _contextFor(
           v10,
           protocolVersion: A2uiProtocolVersion.v1_0,
         );
         expect(
-          v10.invoke(
-              'not',
-              {
-                'value': {'valid': false, 'message': 'Too short.'},
-              },
-              context),
+          v10.invoke('not', {
+            'value': {'valid': false, 'message': 'Too short.'},
+          }, context),
           isTrue,
         );
         expect(
-          v10.invoke(
-              'and',
-              {
-                'values': [
-                  {'valid': true},
-                  {'valid': true, 'severity': 'warning', 'fieldPath': '/email'},
-                ],
-              },
-              context),
+          v10.invoke('and', {
+            'values': [
+              {'valid': true},
+              {'valid': true, 'severity': 'warning', 'fieldPath': '/email'},
+            ],
+          }, context),
           isTrue,
         );
       });
 
       test('a v0.9 invoke also coerces a result object by its validity', () {
         expect(
-          v09.invoke(
-              'not',
-              {
-                'value': {'valid': false},
-              },
-              _contextFor(v09)),
+          v09.invoke('not', {
+            'value': {'valid': false},
+          }, _contextFor(v09)),
           isTrue,
         );
       });
@@ -587,14 +572,11 @@ void main() {
         dataModel: dataModel,
       );
       expect(
-        _call(
-            v10,
-            'formatString',
-            {
-              'value': r"${/name}: ${pluralize(value: /count, one: 'one', "
-                  r"other: 'many')} ${not(value: false)}",
-            },
-            context: context),
+        _call(v10, 'formatString', {
+          'value':
+              r"${/name}: ${pluralize(value: /count, one: 'one', "
+              r"other: 'many')} ${not(value: false)}",
+        }, context: context),
         'Ada: many true',
       );
     });

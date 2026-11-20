@@ -19,46 +19,66 @@
 <div class="ic-root" id="hero-chat-visual" role="region" aria-label="One app screen whose surface is composed differently for each customer intent">
   <div class="ic-split">
     <!-- =================================================================
-         INTENTS — four requests, one screen. Auto-plays; click/swipe to pick.
+         INTENTS — four requests, one screen. Explicit trigger; zero timers.
          ================================================================= -->
     <div class="ic-picker">
-      <div class="ic-steps" id="ic-steps">
+      <div class="ic-steps" id="ic-steps" role="group" aria-label="Choose a customer intent to compose">
         <button type="button" class="ic-step is-active" data-ic="dinner" aria-pressed="true">
-          <span class="ic-step__idx">01 <em>PLAN</em></span>
-          <span class="ic-step__q">“Dinner for four tonight, one vegetarian, under $40.”</span>
+          <span class="ic-step__head">
+            <span class="ic-step__tag">PLAN</span>
+            <span class="ic-step__play" aria-hidden="true">
+              <i class="ic-step__play-ico"></i>
+              <span class="ic-step__play-lbl" data-lbl-idle="Play" data-lbl-live="Live"></span>
+            </span>
+          </span>
+          <span class="ic-step__q">"Dinner for four tonight, one vegetarian, under $40."</span>
           <span class="ic-step__desc">A recipe that fits the diet and the budget, a basket built from it, pantry items skipped, and the 5:30 slot booked — as one screen.</span>
-          <span class="ic-step__bar" aria-hidden="true"></span>
         </button>
 
         <button type="button" class="ic-step" data-ic="bill" aria-pressed="false">
-          <span class="ic-step__idx">02 <em>EXPLAIN</em></span>
-          <span class="ic-step__q">“Why was last week’s order $23 more than usual?”</span>
+          <span class="ic-step__head">
+            <span class="ic-step__tag">EXPLAIN</span>
+            <span class="ic-step__play" aria-hidden="true">
+              <i class="ic-step__play-ico"></i>
+              <span class="ic-step__play-lbl" data-lbl-idle="Play" data-lbl-live="Live"></span>
+            </span>
+          </span>
+          <span class="ic-step__q">"Why was last week's order $23 more than usual?"</span>
           <span class="ic-step__desc">Same screen, different shape: a comparison, the three lines that moved, and a switch that stops it happening again.</span>
-          <span class="ic-step__bar" aria-hidden="true"></span>
         </button>
 
         <button type="button" class="ic-step" data-ic="party" aria-pressed="false">
-          <span class="ic-step__idx">03 <em>HOST</em></span>
-          <span class="ic-step__q">“Hosting twelve kids Saturday afternoon — help me not forget anything.”</span>
-          <span class="ic-step__desc">Now it’s a plan: a timeline to the party, a checklist seeded from the RSVPs, and the two nut allergies already flagged.</span>
-          <span class="ic-step__bar" aria-hidden="true"></span>
+          <span class="ic-step__head">
+            <span class="ic-step__tag">HOST</span>
+            <span class="ic-step__play" aria-hidden="true">
+              <i class="ic-step__play-ico"></i>
+              <span class="ic-step__play-lbl" data-lbl-idle="Play" data-lbl-live="Live"></span>
+            </span>
+          </span>
+          <span class="ic-step__q">"Hosting twelve kids Saturday afternoon — help me not forget anything."</span>
+          <span class="ic-step__desc">Now it's a plan: a timeline to the party, a checklist seeded from the RSVPs, and the two nut allergies already flagged.</span>
         </button>
 
         <button type="button" class="ic-step" data-ic="eggs" aria-pressed="false">
-          <span class="ic-step__idx">04 <em>FIX</em></span>
-          <span class="ic-step__q">“Half the eggs arrived cracked.”</span>
+          <span class="ic-step__head">
+            <span class="ic-step__tag">FIX</span>
+            <span class="ic-step__play" aria-hidden="true">
+              <i class="ic-step__play-ico"></i>
+              <span class="ic-step__play-lbl" data-lbl-idle="Play" data-lbl-live="Live"></span>
+            </span>
+          </span>
+          <span class="ic-step__q">"Half the eggs arrived cracked."</span>
           <span class="ic-step__desc">No form, no ticket. The item is already found, you say how many, pick refund or replace, done.</span>
-          <span class="ic-step__bar" aria-hidden="true"></span>
         </button>
       </div>
     </div>
 
     <!-- =================================================================
-         RIGHT: STICKY STAGE — THE SAME ASSIST SCREEN
+         RIGHT: INTERACTIVE STAGE — THE SAME ASSIST SCREEN
          ================================================================= -->
-    <!-- The phone, on its own -->
+    <!-- The phone, interactive inside assist_zone -->
     <div class="ic-stage">
-        <div class="ic-device" inert aria-hidden="true">
+        <div class="ic-device" role="group" aria-label="Interactive A2UI composed surface preview">
           <div class="ic-device__status" aria-hidden="true">
             <span>9:41</span>
             <span class="ic-device__sig"><i></i><i></i><i></i></span>
@@ -81,7 +101,7 @@
 
             <!-- The one surface slot that A2UI composes -->
             <div class="ic-zone">
-            <span class="ic-zone__tag" aria-hidden="true">A2UI SURFACE · assist_zone</span>
+            <span class="ic-zone__tag" aria-hidden="true">A2UI SURFACE · interactive</span>
 
             <div class="ic-zone__skel" aria-hidden="true">
               <span class="ic-zone__skel-lbl">COMPOSING FROM INTENT…</span>
@@ -182,93 +202,160 @@
   </div>
 
   <!-- ===================================================================
-       WHAT THE AGENT COMPOSES FROM — THREE OPEN COLUMNS, LINE ILLUSTRATIONS
+       WHAT THE AGENT COMPOSES FROM — THREE ALIGNED ARCHITECTURAL COLUMNS
        =================================================================== -->
   <div class="ic-sources">
     <div class="ic-sources__grid">
-      <!-- 01 · Customer intent: a sentence on a plane, the parts that matter drawn out into structure -->
+      <!-- 01 · Personalized in the moment: user intent + preferences -> tailored UI surface -->
       <div class="ic-source">
-        <svg class="ic-art" viewBox="0 0 320 160" preserveAspectRatio="xMinYMid meet" aria-hidden="true">
-          <path class="ln mark" d="M20 26h8M24 22v8M286 136h8M290 132v8" />
-          <polygon class="plane" points="96,56 236,56 190,114 50,114" />
-          <circle class="ln" cx="236" cy="56" r="2" />
-          <line class="ln ln-strong" x1="85" y1="70" x2="140" y2="70" />
-          <line class="acc w2" x1="148" y1="70" x2="196" y2="70" />
-          <line class="ln ln-strong" x1="74" y1="84" x2="130" y2="84" />
-          <line class="acc w2" x1="138" y1="84" x2="178" y2="84" />
-          <line class="ln ln-strong" x1="63" y1="98" x2="120" y2="98" />
-          <rect class="acc-fill ic-art__caret" x="123" y="93" width="1.5" height="10" />
-          <path class="ln dash" d="M196 70 C 222 70, 236 48, 262 48" />
-          <path class="ln dash" d="M178 84 L 262 84" />
-          <path class="ln dash" d="M120 98 C 170 98, 215 120, 262 120" />
-          <line class="ln" x1="262" y1="40" x2="262" y2="128" />
-          <rect class="acc-fill" x="265" y="45" width="6" height="6" />
-          <rect class="acc-fill" x="265" y="81" width="6" height="6" />
-          <rect class="node" x="265" y="117" width="6" height="6" />
+        <svg class="ic-art" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <!-- Left: user prompt + personal constraints -->
+          <text class="lbl lbl--tiny" x="6" y="23">USER INTENT</text>
+          <rect class="card-surface" x="4" y="29" width="128" height="44" rx="4" />
+          <text class="lbl lbl--ink" x="13" y="46">"Dinner for 4,</text>
+          <text class="lbl lbl--acc" x="13" y="61">under $40"</text>
+
+          <rect class="card-surface" x="4" y="83" width="128" height="47" rx="4" />
+          <text class="lbl lbl--tiny" x="13" y="98">PREFERENCES</text>
+          <rect class="soft-fill acc" x="12" y="105" width="60" height="17" rx="3" />
+          <text class="lbl lbl--chip" x="42" y="116.5" text-anchor="middle">vegetarian</text>
+          <rect class="node" x="76" y="105" width="48" height="17" rx="3" />
+          <text class="lbl lbl--chip-muted" x="100" y="116.5" text-anchor="middle">5:30pm</text>
+
+          <!-- Middle: dynamic composition -->
+          <path class="ln dash" d="M132 51 C 149 51, 151 80, 164 80" />
+          <path class="ln dash" d="M132 106 C 149 106, 151 80, 164 80" />
+          <rect class="node" x="158" y="74" width="12" height="12" transform="rotate(45 164 80)" />
+          <rect class="acc-fill ic-art__blink" x="161.5" y="77.5" width="5" height="5" transform="rotate(45 164 80)" />
+          <line class="acc ic-art__flow" x1="172" y1="80" x2="188" y2="80" />
+          <path class="acc" d="M184 76l4 4-4 4" />
+
+          <!-- Right: bespoke UI tailored to that exact user -->
+          <rect class="card-surface" x="192" y="22" width="124" height="116" rx="5" />
+          <line class="ln-subtle" x1="192" y1="41" x2="316" y2="41" />
+          <circle class="acc-fill" cx="202" cy="31.5" r="2.5" />
+          <text class="lbl lbl--tiny" x="210" y="34.5">TAILORED UI</text>
+
+          <rect class="soft-fill acc" x="200" y="48" width="108" height="35" rx="3" />
+          <text class="lbl lbl--card-strong" x="207" y="61.5">Veg gnocchi</text>
+          <text class="lbl lbl--chip" x="207" y="75">Serves 4 · $24.92</text>
+
+          <rect class="node" x="200" y="89" width="108" height="18" rx="3" />
+          <text class="lbl lbl--chip-muted" x="207" y="101">5:30pm slot</text>
+          <path class="acc w15" d="M294 98l2.5 2.5 5-5" />
+
+          <rect class="acc-fill" x="200" y="113" width="108" height="17" rx="3" />
+          <text class="lbl lbl--cta" x="254" y="124.5" text-anchor="middle">Add 5 items →</text>
         </svg>
 
-        <h3>Built for personalization</h3>
+        <h3>Personalized in the moment</h3>
         <p>Your agent constructs UI that adapts to each user's unique needs and preferences.</p>
       </div>
 
-      <!-- 02 · Your catalog: a locked isometric grid; three parts lifted into the surface -->
+      <!-- 02 · Native to your brand: locked component catalog -> 1:1 native host widgets -->
       <div class="ic-source">
-        <svg class="ic-art" viewBox="0 0 320 160" preserveAspectRatio="xMinYMid meet" aria-hidden="true">
-          <path class="ln mark" d="M286 136h8M290 132v8" />
-          <path class="ln" d="M24 140l6 6M30 140l-6 6" />
-          <!-- floor grid -->
-          <polygon class="plane" points="160,44 298,95 160,146 22,95" />
-          <path class="ln" d="M206 61L68 112M252 78L114 129" />
-          <path class="ln" d="M114 61L252 112M68 78L206 129" />
-          <!-- picked cells -->
-          <polygon class="soft-fill acc" points="114,61 160,78 114,95 68,78" />
-          <polygon class="soft-fill acc" points="160,78 206,95 160,112 114,95" />
-          <polygon class="soft-fill acc" points="252,78 298,95 252,112 206,95" />
-          <!-- risers into the composed layer -->
-          <path class="ln dash" d="M114 78V34M160 95V51M252 95V51" />
-          <path class="ln dash" d="M114 34L160 51L252 51" />
-          <rect class="acc-fill" x="111" y="31" width="6" height="6" />
-          <rect class="acc-fill" x="157" y="48" width="6" height="6" />
-          <rect class="acc-fill" x="249" y="48" width="6" height="6" />
-          <!-- lock -->
-          <rect class="ln ln-strong" x="26" y="34" width="11" height="8" rx="1" />
-          <path class="ln ln-strong" d="M28 34v-2.5a3.5 3.5 0 0 1 7 0V34" />
+        <svg class="ic-art" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <!-- Left: locked component catalog -->
+          <rect class="card-surface" x="4" y="22" width="130" height="116" rx="5" />
+          <line class="ln-subtle" x1="4" y1="41" x2="134" y2="41" />
+          <rect class="acc w15" x="12" y="30.5" width="7.5" height="5.5" rx="1" />
+          <path class="acc w15" d="M13.6 30.5v-1.8a2.15 2.15 0 0 1 4.3 0v1.8" />
+          <text class="lbl lbl--tiny lbl--acc" x="24" y="34.5">LOCKED CATALOG</text>
+
+          <!-- Registered components -->
+          <rect class="soft-fill acc" x="12" y="48" width="114" height="18" rx="3" />
+          <text class="lbl lbl--chip" x="20" y="60">Card</text>
+          <circle class="acc-fill" cx="126" cy="57" r="2.3" />
+
+          <rect class="soft-fill acc" x="12" y="70" width="114" height="18" rx="3" />
+          <text class="lbl lbl--chip" x="20" y="82">ChoiceChip</text>
+          <circle class="acc-fill" cx="126" cy="79" r="2.3" />
+
+          <rect class="node" x="12" y="92" width="114" height="18" rx="3" />
+          <text class="lbl lbl--chip-muted" x="20" y="104">DatePicker</text>
+
+          <rect class="soft-fill acc" x="12" y="114" width="114" height="18" rx="3" />
+          <text class="lbl lbl--chip" x="20" y="126">Button</text>
+          <circle class="acc-fill" cx="126" cy="123" r="2.3" />
+
+          <!-- Middle: 1:1 catalog-to-widget binding -->
+          <path class="acc dash-map" d="M128 57 C 158 57, 168 59, 200 59" />
+          <path class="acc dash-map" d="M128 79 C 158 79, 168 86, 200 86" />
+          <path class="acc dash-map" d="M128 123 C 158 123, 168 121, 200 121" />
+
+          <!-- Right: native host app styled by your design system -->
+          <rect class="card-surface" x="192" y="22" width="124" height="116" rx="5" />
+          <line class="ln-subtle" x1="192" y1="41" x2="316" y2="41" />
+          <rect class="acc-fill" x="200" y="28" width="7" height="7" rx="1.5" />
+          <text class="lbl lbl--tiny" x="212" y="34.5">YOUR DESIGN SYSTEM</text>
+
+          <!-- Native Card -->
+          <rect class="plane" x="200" y="48" width="108" height="22" rx="3" />
+          <line class="ln ln-strong w2" x1="208" y1="56" x2="262" y2="56" />
+          <line class="ln" x1="208" y1="63" x2="244" y2="63" />
+
+          <!-- Native ChoiceChips -->
+          <rect class="soft-fill acc" x="200" y="77" width="52" height="18" rx="9" />
+          <circle class="acc-fill" cx="209" cy="86" r="2" />
+          <line class="acc w2" x1="215" y1="86" x2="242" y2="86" />
+          <rect class="node" x="256" y="77" width="52" height="18" rx="9" />
+          <line class="ln" x1="267" y1="86" x2="296" y2="86" />
+
+          <!-- Native Branded Button -->
+          <rect class="acc-fill" x="200" y="112" width="108" height="18" rx="4" />
+          <line class="cta-bar" x1="234" y1="121" x2="274" y2="121" />
         </svg>
 
-        <h3>Your catalog</h3>
+        <h3>Native to your brand</h3>
         <p>Your design system, locked. Agents place only components you registered.</p>
       </div>
 
-      <!-- 03 · Swappable formats: Express, direct JSON or your own DSL all compile to one wire message -->
+      <!-- 03 · Fast, reliable, secure: Jev, Express, or your own DSL + server macros all compile to one wire message -->
       <div class="ic-source">
-        <svg class="ic-art" viewBox="0 0 320 160" preserveAspectRatio="xMinYMid meet" aria-hidden="true">
-          <path class="ln mark" d="M20 26h8M24 22v8M286 136h8M290 132v8" />
-          <!-- three ways the model can write the UI -->
-          <rect class="plane" x="24" y="30" width="92" height="26" rx="3" />
-          <rect class="plane" x="24" y="67" width="92" height="26" rx="3" />
-          <rect class="plane" x="24" y="104" width="92" height="26" rx="3" />
-          <text class="lbl" x="34" y="47">&#123; "json" &#125;</text>
-          <text class="lbl" x="34" y="84">&lt;a2ui&gt; express</text>
-          <text class="lbl" x="34" y="121">your format</text>
-          <!-- all of them meet at the compiler -->
-          <path class="ln dash" d="M116 43 C146 43 150 80 176 80" />
-          <path class="ln dash" d="M116 80 H176" />
-          <path class="ln dash" d="M116 117 C146 117 150 80 176 80" />
-          <rect class="node" x="170" y="74" width="12" height="12" transform="rotate(45 176 80)" />
-          <rect class="acc-fill ic-art__blink" x="173.5" y="77.5" width="5" height="5" transform="rotate(45 176 80)" />
-          <!-- one wire message out -->
-          <line class="acc ic-art__flow" x1="183" y1="80" x2="226" y2="80" />
-          <path class="acc" d="M222 76l4 4-4 4" />
-          <text class="lbl lbl--tiny" x="184" y="98">ONE WIRE</text>
-          <!-- the same component, whichever way it was written -->
-          <rect class="plane" x="232" y="50" width="68" height="60" rx="3" />
-          <path class="ln-strong ln" d="M242 63h36" />
-          <path class="ln" d="M242 72h26M242 80h30" />
-          <rect class="acc-fill" x="242" y="92" width="48" height="9" rx="1" />
+        <svg class="ic-art" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <!-- Left: swappable model formats -->
+          <rect class="card-surface" x="4" y="24" width="104" height="28" rx="4" />
+          <text class="lbl lbl--ink" x="14" y="41.5">jev format</text>
+
+          <rect class="soft-fill acc" x="4" y="66" width="104" height="28" rx="4" />
+          <text class="lbl lbl--acc" x="14" y="83.5">&lt;a2ui&gt; express</text>
+
+          <rect class="card-surface" x="4" y="108" width="104" height="28" rx="4" />
+          <text class="lbl" x="14" y="125.5">your format</text>
+
+          <!-- Middle: @MACRO compiler -> ONE WIRE stream -->
+          <path class="ln dash" d="M108 38 C 131 38, 136 80, 147 80" />
+          <path class="acc dash-map" d="M108 80 H147" />
+          <path class="ln dash" d="M108 122 C 131 122, 136 80, 147 80" />
+
+          <text class="lbl lbl--tiny lbl--acc" x="154" y="61" text-anchor="middle">@MACRO</text>
+          <rect class="node" x="148" y="74" width="12" height="12" transform="rotate(45 154 80)" />
+          <rect class="acc-fill ic-art__blink" x="151.5" y="77.5" width="5" height="5" transform="rotate(45 154 80)" />
+
+          <line class="acc ic-art__flow" x1="162" y1="80" x2="204" y2="80" />
+          <path class="acc" d="M200 76l4 4-4 4" />
+          <text class="lbl lbl--tiny" x="183" y="96" text-anchor="middle">ONE WIRE</text>
+
+          <!-- Right: progressive streamed surface -->
+          <rect class="card-surface" x="210" y="22" width="106" height="116" rx="5" />
+          <line class="ln-subtle" x1="210" y1="41" x2="316" y2="41" />
+          <circle class="acc-fill ic-art__blink" cx="220" cy="31.5" r="2.5" />
+          <text class="lbl lbl--tiny" x="228" y="34.5">STREAMING</text>
+
+          <rect class="plane" x="218" y="48" width="90" height="25" rx="3" />
+          <line class="ln ln-strong w2" x1="225" y1="57" x2="274" y2="57" />
+          <line class="ln" x1="225" y1="65" x2="258" y2="65" />
+
+          <rect class="soft-fill acc" x="218" y="80" width="90" height="24" rx="3" />
+          <line class="acc w2" x1="225" y1="89" x2="282" y2="89" />
+          <line class="ln" x1="225" y1="97" x2="264" y2="97" />
+
+          <rect class="acc-fill" x="218" y="112" width="90" height="18" rx="4" />
+          <line class="cta-bar" x1="246" y1="121" x2="280" y2="121" />
         </svg>
 
-        <h3>Swappable formats</h3>
-        <p>Let the model write A2UI Express, direct JSON, or a format of your own — every one compiles to the same wire messages.</p>
+        <h3>Fast, reliable, secure in production</h3>
+        <p>Agents compose UI with A2UI Express or Jev-style decision models. Macros bind data and components reliably, and the client streams it in as the agent thinks.</p>
       </div>
     </div>
   </div>
@@ -281,52 +368,165 @@
 
     const intents = {
       dinner: {
-        idx: '01',
         quote: 'Dinner for four tonight, one vegetarian, under $40.',
       },
       bill: {
-        idx: '02',
-        quote: 'Why was last week’s order $23 more than usual?',
+        quote: "Why was last week's order $23 more than usual?",
       },
       party: {
-        idx: '03',
         quote: 'Hosting twelve kids Saturday afternoon — help me not forget anything.',
       },
       eggs: {
-        idx: '04',
         quote: 'Half the eggs arrived cracked.',
       },
     };
 
-    const steps = root.querySelectorAll('[data-ic]');
-    const screens = root.querySelectorAll('[data-ic-screen]');
+    const steps = Array.from(root.querySelectorAll('[data-ic]'));
+    const screens = Array.from(root.querySelectorAll('[data-ic-screen]'));
     const zone = root.querySelector('.ic-zone');
     const composer = document.getElementById('ic-composer');
     const composerText = document.getElementById('ic-composer-text');
     const sentBubble = document.getElementById('ic-sent');
     const sentText = document.getElementById('ic-sent-text');
-    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reduceMotion =
+      window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const narrow = window.matchMedia ? window.matchMedia('(max-width: 920px)') : { matches: false };
 
-    /* --- Intent -> typed into the composer -> surface composes -> renders --- */
+    /* --- Interactive surface controls inside assist_zone --- */
+    const ctas = Array.from(root.querySelectorAll('[data-ic-cta]'));
+    ctas.forEach((btn) => {
+      const firstSpan = btn.querySelector('span');
+      if (firstSpan && !btn.dataset.defaultLabel) {
+        btn.dataset.defaultLabel = firstSpan.textContent || '';
+      }
+    });
+
+    const resetCta = (btn) => {
+      btn.classList.remove('is-done');
+      const label = btn.dataset.defaultLabel || '';
+      btn.innerHTML = '';
+      const txt = document.createElement('span');
+      txt.textContent = label;
+      const arr = document.createElement('span');
+      arr.setAttribute('aria-hidden', 'true');
+      arr.textContent = '→';
+      btn.append(txt, arr);
+    };
+
+    const syncPartyChecklistCta = () => {
+      const list = document.getElementById('ic-pt-list');
+      const ptCta = document.getElementById('ic-pt-cta');
+      if (!list || !ptCta) return;
+      const items = Array.from(list.querySelectorAll('.ic-ck'));
+      const missing = items.filter((el) => !el.classList.contains('is-done')).length;
+      const nextLabel =
+        missing === 0
+          ? 'Confirm all 3 · Sat 10am'
+          : `Add the ${missing} missing · Sat 10am`;
+      ptCta.dataset.defaultLabel = nextLabel;
+      resetCta(ptCta);
+    };
+
+    const resetDeviceState = () => {
+      const partyItems = Array.from(root.querySelectorAll('#ic-pt-list .ic-ck'));
+      partyItems.forEach((el, idx) => {
+        const done = idx === 0;
+        el.classList.toggle('is-done', done);
+        el.setAttribute('aria-pressed', done ? 'true' : 'false');
+      });
+
+      const eggChoices = Array.from(root.querySelectorAll('[data-eg-choice]'));
+      eggChoices.forEach((el) => {
+        const on = el.getAttribute('data-eg-choice') === 'refund';
+        el.classList.toggle('is-on', on);
+        el.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      const egCta = document.getElementById('ic-eg-cta');
+      if (egCta) {
+        egCta.dataset.defaultLabel = 'Refund $3.25 now';
+        egCta.setAttribute('data-done', '✓ Refunded $3.25 · back today');
+      }
+
+      syncPartyChecklistCta();
+      ctas.forEach(resetCta);
+    };
+
+    root.querySelectorAll('#ic-pt-list .ic-ck').forEach((item) => {
+      item.setAttribute('aria-pressed', item.classList.contains('is-done') ? 'true' : 'false');
+      item.addEventListener('click', () => {
+        const nowDone = !item.classList.contains('is-done');
+        item.classList.toggle('is-done', nowDone);
+        item.setAttribute('aria-pressed', nowDone ? 'true' : 'false');
+        syncPartyChecklistCta();
+      });
+    });
+
+    root.querySelectorAll('[data-eg-choice]').forEach((choice) => {
+      choice.setAttribute('aria-pressed', choice.classList.contains('is-on') ? 'true' : 'false');
+      choice.addEventListener('click', () => {
+        const mode = choice.getAttribute('data-eg-choice');
+        root.querySelectorAll('[data-eg-choice]').forEach((other) => {
+          const on = other === choice;
+          other.classList.toggle('is-on', on);
+          other.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        const egCta = document.getElementById('ic-eg-cta');
+        if (egCta) {
+          if (mode === 'replace') {
+            egCta.dataset.defaultLabel = 'Replace tomorrow 7–9am';
+            egCta.setAttribute('data-done', '✓ Replacement booked · 7–9am');
+          } else {
+            egCta.dataset.defaultLabel = 'Refund $3.25 now';
+            egCta.setAttribute('data-done', '✓ Refunded $3.25 · back today');
+          }
+          resetCta(egCta);
+        }
+      });
+    });
+
+    ctas.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (btn.classList.contains('is-done')) {
+          resetCta(btn);
+          return;
+        }
+        const doneText = btn.getAttribute('data-done') || '✓ Done';
+        btn.classList.add('is-done');
+        btn.innerHTML = '';
+        const span = document.createElement('span');
+        span.textContent = doneText;
+        btn.appendChild(span);
+      });
+    });
+
+    /* --- Explicit user-triggered intent selection (zero background timers) --- */
     let timers = [];
     let current = 'dinner';
-    const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
+    const clearTimers = () => {
+      timers.forEach(clearTimeout);
+      timers = [];
+    };
 
     const showScreen = (key) => {
-      screens.forEach((s) => s.classList.toggle('is-active', s.getAttribute('data-ic-screen') === key));
+      screens.forEach((s) =>
+        s.classList.toggle('is-active', s.getAttribute('data-ic-screen') === key),
+      );
     };
 
     const composeZone = (key) => {
-      if (!zone || reduceMotion) { showScreen(key); return; }
-      zone.classList.add('is-composing');
-      timers.push(setTimeout(() => {
+      if (!zone || reduceMotion) {
         showScreen(key);
-        zone.classList.remove('is-composing');
-      }, 760));
+        return;
+      }
+      zone.classList.add('is-composing');
+      timers.push(
+        setTimeout(() => {
+          showScreen(key);
+          zone.classList.remove('is-composing');
+        }, 560),
+      );
     };
 
-    /* The typed prompt leaves the composer and rises into the thread as a sent message */
     const sendPrompt = (text) => {
       if (sentText) sentText.textContent = text;
       if (composerText) composerText.textContent = '';
@@ -348,25 +548,29 @@
       const chars = Array.from(text);
       let i = 0;
       const step = () => {
-        i += 1;
+        i += 2;
         composerText.textContent = chars.slice(0, i).join('');
         if (i < chars.length) {
-          timers.push(setTimeout(step, 12));
+          timers.push(setTimeout(step, 14));
         } else {
           composer.classList.remove('is-typing');
           composer.classList.add('is-sent');
-          timers.push(setTimeout(() => composer.classList.remove('is-sent'), 700));
+          timers.push(setTimeout(() => composer.classList.remove('is-sent'), 550));
           done();
         }
       };
       step();
     };
 
-    const setIntent = (key, animate, force) => {
+    const setIntent = (key, animate) => {
       const d = intents[key];
-      if (!d || (key === current && animate && !force)) return;
+      if (!d) return;
       current = key;
       clearTimers();
+      if (zone) zone.classList.remove('is-composing');
+      if (composer) composer.classList.remove('is-typing', 'is-sent');
+      resetDeviceState();
+
       steps.forEach((s) => {
         const on = s.getAttribute('data-ic') === key;
         s.classList.toggle('is-active', on);
@@ -385,51 +589,46 @@
       });
     };
 
-    /* --- Autoplay: the four intents take turns on the same screen; click or swipe to pick one --- */
-    const order = Array.from(steps).map((st) => st.getAttribute('data-ic') || 'dinner');
+    const order = steps.map((st) => st.getAttribute('data-ic') || 'dinner');
     const strip = document.getElementById('ic-steps');
-    const HOLD = 5100;            // ms per intent: typing + composing + reading time
-    let holdTimer = 0;
-    let inView = true;
-    root.style.setProperty('--ic-hold', `${HOLD}ms`);
 
     const stripScrollTo = (st, smooth) => {
       if (!strip || !narrow.matches) return;
       const left = st.offsetLeft - (strip.clientWidth - st.offsetWidth) / 2;
-      strip.scrollTo({ left: Math.max(0, left), behavior: smooth && !reduceMotion ? 'smooth' : 'auto' });
-    };
-
-    const restartBar = () => {
-      const live = root.querySelector('.ic-step.is-active .ic-step__bar');
-      if (!live) return;
-      live.style.animation = 'none';
-      void live.offsetWidth;
-      live.style.removeProperty('animation');
-    };
-
-    const armNext = () => {
-      clearTimeout(holdTimer);
-      if (reduceMotion || !inView || document.hidden) return;
-      holdTimer = setTimeout(() => {
-        const i = order.indexOf(current);
-        go(order[(i + 1) % order.length], true);
-      }, HOLD);
+      strip.scrollTo({
+        left: Math.max(0, left),
+        behavior: smooth && !reduceMotion ? 'smooth' : 'auto',
+      });
     };
 
     const go = (key, animate) => {
       setIntent(key, animate);
       const st = root.querySelector(`.ic-step[data-ic="${key}"]`);
       if (st) stripScrollTo(st, true);
-      restartBar();
-      armNext();
     };
 
-    // click (desktop list / narrow cards) selects and restarts the clock
     steps.forEach((st) => {
       st.addEventListener('click', () => {
         const key = st.getAttribute('data-ic') || 'dinner';
-        if (key === current) return;
         go(key, true);
+      });
+      st.addEventListener('keydown', (e) => {
+        if (
+          e.key !== 'ArrowDown' &&
+          e.key !== 'ArrowRight' &&
+          e.key !== 'ArrowUp' &&
+          e.key !== 'ArrowLeft'
+        ) {
+          return;
+        }
+        e.preventDefault();
+        const idx = order.indexOf(st.getAttribute('data-ic') || 'dinner');
+        const delta = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1;
+        const nextIdx = (idx + delta + order.length) % order.length;
+        const nextKey = order[nextIdx];
+        const nextEl = steps[nextIdx];
+        if (nextEl) nextEl.focus();
+        go(nextKey, true);
       });
     });
 
@@ -444,78 +643,54 @@
         steps.forEach((st) => {
           const c = st.offsetLeft + st.offsetWidth / 2;
           const dist = Math.abs(c - mid);
-          if (dist < bestDist) { bestDist = dist; best = st; }
+          if (dist < bestDist) {
+            bestDist = dist;
+            best = st;
+          }
         });
         if (!best) return;
         const key = best.getAttribute('data-ic') || 'dinner';
         if (key !== current) go(key, true);
       };
-      strip.addEventListener('scroll', () => {
-        clearTimeout(scrollEndTimer);
-        scrollEndTimer = setTimeout(onSettle, 140);
-      }, { passive: true });
+      strip.addEventListener(
+        'scroll',
+        () => {
+          clearTimeout(scrollEndTimer);
+          scrollEndTimer = setTimeout(onSettle, 140);
+        },
+        { passive: true },
+      );
     }
 
-    // only run while the section is on screen and the tab is visible
-    if ('IntersectionObserver' in window) {
-      new IntersectionObserver((entries) => {
-        entries.forEach((e) => {
-          const was = inView;
-          inView = e.isIntersecting;
-          if (inView && !was) { restartBar(); armNext(); }
-          if (!inView) clearTimeout(holdTimer);
-        });
-      }, { threshold: 0.25 }).observe(root);
+    if (narrow.addEventListener) {
+      narrow.addEventListener('change', () => {
+        const st = root.querySelector('.ic-step.is-active');
+        if (st) stripScrollTo(st, false);
+      });
     }
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) clearTimeout(holdTimer); else { restartBar(); armNext(); }
-    });
-    if (narrow.addEventListener) narrow.addEventListener('change', () => {
-      const st = root.querySelector('.ic-step.is-active');
-      if (st) stripScrollTo(st, false);
-    });
-
-    // the first request plays itself once the section is reached
-    if (!reduceMotion && 'IntersectionObserver' in window) {
-      let kicked = false;
-      const kick = new IntersectionObserver((entries) => {
-        entries.forEach((e) => {
-          if (kicked || !e.isIntersecting) return;
-          kicked = true;
-          setIntent(current, true, true);
-          restartBar();
-          armNext();
-          kick.disconnect();
-        });
-      }, { threshold: 0.35 });
-      kick.observe(root);
-    } else {
-      armNext();
-    }
-
   })();
 </script>
 
 <style>
-  /* Scroll-driven: each intent is typed, sent up the thread, and answered by a composed surface. */
+  /* User-triggered: each intent is typed, sent up the thread, and answered by an interactive surface. */
   .ic-root {
     width: 100%;
     color: var(--a2-text);
   }
 
   /* =======================================================================
-     SPLIT: INTENT LIST | STAGE  (auto-plays; no scroll-jacking, no sticky)
+     SPLIT: INTENT LIST | INTERACTIVE STAGE  (zero timers, zero layout shift)
      ======================================================================= */
   .ic-split {
     display: grid;
-    grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.1fr);
+    grid-template-columns: minmax(300px, 0.94fr) minmax(0, 1.06fr);
     gap: 56px;
     align-items: center;
   }
 
-  /* --- Intents: a vertical list beside the phone; the live one unfolds and runs a progress line --- */
+  /* --- Intents: static-height list beside the phone with explicit Play trigger --- */
   .ic-picker {
-    padding-top: 6px;
+    padding-top: 2px;
   }
 
   .ic-steps {
@@ -529,92 +704,128 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 22px 0 24px;
+    gap: 6px;
+    padding: 15px 4px 16px 14px;
     border: none;
+    border-left: 2px solid transparent;
     border-bottom: 1px solid var(--a2-border);
     background: transparent;
     color: var(--a2-text);
     font-family: inherit;
     text-align: left;
     cursor: pointer;
-    transition: opacity 0.3s ease;
+    transition:
+      opacity 0.2s ease,
+      border-color 0.2s ease,
+      background-color 0.2s ease;
+  }
+
+  .ic-step.is-active {
+    border-left-color: var(--a2-accent);
+    background: var(--a2-accent-soft);
   }
 
   .ic-step:not(.is-active) {
-    opacity: 0.5;
+    opacity: 0.66;
   }
 
   .ic-step:not(.is-active):hover {
-    opacity: 0.8;
+    opacity: 0.96;
+    background: var(--a2-surface-subtle);
   }
 
-  .ic-step__idx {
+  .ic-step:focus-visible {
+    outline: 2px solid var(--a2-accent);
+    outline-offset: -2px;
+  }
+
+  .ic-step__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-right: 8px;
+  }
+
+  .ic-step__tag {
     font-family: var(--a2-font-mono);
     font-size: 10.5px;
     font-weight: 700;
     letter-spacing: 0.1em;
-    color: var(--a2-text-muted);
+    color: var(--a2-accent);
   }
 
-  .ic-step__idx em {
-    font-style: normal;
-    margin-left: 8px;
-    color: var(--a2-accent);
+  .ic-step__play {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 7px;
+    border-radius: 2px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-surface);
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--a2-text-secondary);
+    transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .ic-step:not(.is-active):hover .ic-step__play {
+    border-color: var(--a2-accent);
+    color: var(--a2-accent-strong);
+  }
+
+  .ic-step.is-active .ic-step__play {
+    border-color: var(--a2-accent-border);
+    background: var(--a2-bg);
+    color: var(--a2-accent-strong);
+  }
+
+  .ic-step__play-ico {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 3.5px 0 3.5px 6px;
+    border-color: transparent transparent transparent currentColor;
+  }
+
+  .ic-step.is-active .ic-step__play-ico {
+    width: 6px;
+    height: 6px;
+    border: none;
+    border-radius: 50%;
+    background: var(--a2-accent);
+  }
+
+  .ic-step__play-lbl::before {
+    content: attr(data-lbl-idle);
+  }
+
+  .ic-step.is-active .ic-step__play-lbl::before {
+    content: attr(data-lbl-live);
   }
 
   .ic-step__q {
     font-family: var(--a2-font-display);
     font-weight: 600;
-    font-size: clamp(18px, 1.5vw, 21px);
-    line-height: 1.3;
+    font-size: clamp(16.5px, 1.38vw, 19px);
+    line-height: 1.28;
     letter-spacing: var(--a2-tracking-h3);
     color: var(--a2-text);
+    padding-right: 8px;
   }
 
-  /* description unfolds for the live intent only */
+  /* Always rendered so switching intents causes zero vertical layout shift */
   .ic-step__desc {
     display: block;
-    font-size: 14px;
-    line-height: 1.58;
+    font-size: 13.5px;
+    line-height: 1.52;
     color: var(--a2-text-secondary);
-    max-width: 44ch;
-    max-height: 0;
-    overflow: hidden;
-    opacity: 0;
-    transition: max-height 0.4s ease, opacity 0.3s ease 0.08s;
-  }
-
-  .ic-step.is-active .ic-step__desc {
-    max-height: 120px;
-    opacity: 1;
-  }
-
-  /* progress line: fills while the intent is live */
-  .ic-step__bar {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -1px;
-    height: 1px;
-    overflow: hidden;
-  }
-
-  .ic-step__bar::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: var(--a2-accent);
-    transform: scaleX(0);
-    transform-origin: left;
-  }
-
-  .ic-step.is-active .ic-step__bar::after {
-    animation: icHold var(--ic-hold, 6s) linear forwards;
-  }
-
-  @keyframes icHold {
-    to { transform: scaleX(1); }
+    max-width: 46ch;
+    padding-right: 8px;
   }
 
   /* --- Narrow: the intents become swipeable cards above a full-size phone --- */
@@ -633,6 +844,7 @@
 
     .ic-steps {
       flex-direction: row;
+      align-items: stretch;
       gap: 12px;
       padding: 0 36px 4px;
       border-top: none;
@@ -649,31 +861,30 @@
     .ic-step {
       flex: 0 0 min(84%, 400px);
       scroll-snap-align: center;
-      padding: 18px 18px 22px;
+      padding: 18px 18px 20px;
       border: 1px solid var(--a2-border-strong);
+      border-left-width: 2px;
       border-radius: 3px;
       background: var(--a2-bg);
     }
 
+    .ic-step.is-active {
+      border-color: var(--a2-accent-border);
+      border-left-color: var(--a2-accent);
+    }
+
     .ic-step:not(.is-active) {
-      opacity: 0.62;
+      opacity: 0.72;
+    }
+
+    .ic-step__head,
+    .ic-step__q,
+    .ic-step__desc {
+      padding-right: 0;
     }
 
     .ic-step__q {
-      font-size: 19px;
-    }
-
-    .ic-step__desc {
-      max-height: none;
-      opacity: 1;
-      transition: none;
-    }
-
-    .ic-step__bar {
-      left: 18px;
-      right: 18px;
-      bottom: 0;
-      height: 2px;
+      font-size: 18px;
     }
   }
 
@@ -694,10 +905,8 @@
     padding: 8px 0;
   }
 
-  /* --- Device + constant shell --- */
-  /* a preview, not a UI: no pointer, no selection, no cursor changes inside (colours come from tokens) */
+  /* --- Device + constant shell (assist_zone is live & interactive) --- */
   .ic-device {
-    pointer-events: none;
     user-select: none;
     width: 328px;
     max-width: 100%;
@@ -1245,10 +1454,10 @@
   /* --- Wire JSON --- */
 
   /* =======================================================================
-     WHAT THE AGENT COMPOSES FROM — OPEN COLUMNS + LINE ILLUSTRATIONS
+     WHAT THE AGENT COMPOSES FROM — SYMMETRIC 3-COLUMN GRID + SUBGRID ALIGNMENT
      ======================================================================= */
   .ic-sources {
-    margin-top: 104px;
+    margin-top: 96px;
     display: flex;
     flex-direction: column;
     gap: 30px;
@@ -1257,40 +1466,68 @@
   .ic-sources__grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: 64px;
+    align-items: start;
   }
 
-  @media (max-width: 820px) {
+  .ic-source {
+    position: relative;
+    display: grid;
+    grid-row: span 3;
+    grid-template-rows: subgrid;
+    row-gap: 0;
+    padding: 0;
+  }
+
+  .ic-source + .ic-source::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    bottom: 0;
+    left: -32px;
+    width: 1px;
+    background: var(--a2-border);
+  }
+
+  @media (max-width: 1080px) {
+    .ic-sources__grid {
+      column-gap: 44px;
+    }
+
+    .ic-source + .ic-source::before {
+      left: -22px;
+    }
+  }
+
+  @media (max-width: 860px) {
     .ic-sources__grid {
       grid-template-columns: 1fr;
       row-gap: 48px;
     }
-  }
 
-  .ic-source {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 6px 40px 0 0;
-  }
+    .ic-source {
+      display: flex;
+      flex-direction: column;
+      grid-row: auto;
+      gap: 10px;
+    }
 
-  .ic-source + .ic-source {
-    padding-left: 40px;
-    border-left: 1px solid var(--a2-border);
-  }
-
-  @media (max-width: 820px) {
-    .ic-source,
     .ic-source + .ic-source {
-      padding: 0;
-      border-left: none;
+      padding-top: 36px;
+      border-top: 1px solid var(--a2-border);
+    }
+
+    .ic-source + .ic-source::before {
+      display: none;
     }
   }
 
   .ic-source h3 {
-    margin: 6px 0 0;
+    margin: 0 0 10px;
     font-family: var(--a2-font-display);
-    font-size: 19px;
-    font-weight: 620;
+    font-size: clamp(17.5px, 1.38vw, 18.5px);
+    font-weight: 640;
+    line-height: 1.24;
     letter-spacing: -0.022em;
     color: var(--a2-text);
   }
@@ -1298,17 +1535,18 @@
   .ic-source p {
     margin: 0;
     font-size: 14px;
-    line-height: 1.58;
+    line-height: 1.6;
     color: var(--a2-text-secondary);
     max-width: 38ch;
   }
 
-  /* --- Technical line illustrations (equal height so the three titles align; labels in mono) --- */
+  /* --- Architectural schematics (identical bounding box + shared visual grammar) --- */
   .ic-art {
     width: 100%;
-    height: 150px;
+    height: auto;
+    aspect-ratio: 2 / 1;
     display: block;
-    margin-bottom: 14px;
+    margin-bottom: 18px;
     overflow: visible;
   }
 
@@ -1318,7 +1556,13 @@
     stroke-width: 1;
     stroke-linecap: round;
     stroke-linejoin: round;
-    opacity: 0.8;
+    opacity: 0.78;
+  }
+
+  .ic-art .ln-subtle {
+    fill: none;
+    stroke: var(--a2-border-strong);
+    stroke-width: 1;
   }
 
   .ic-art .ln-strong {
@@ -1327,18 +1571,25 @@
   }
 
   .ic-art .dash {
-    stroke-dasharray: 2 3;
+    stroke-dasharray: 2.5 3;
   }
 
-  .ic-art .mark {
-    opacity: 0.5;
+  .ic-art .dash-map {
+    fill: none;
+    stroke-dasharray: 3 3;
+    opacity: 0.75;
+  }
+
+  .ic-art .card-surface {
+    fill: var(--a2-bg);
+    stroke: var(--a2-border-strong);
+    stroke-width: 1;
   }
 
   .ic-art .plane {
     fill: var(--a2-surface-subtle);
-    stroke: var(--a2-text-muted);
+    stroke: var(--a2-border-strong);
     stroke-width: 1;
-    opacity: 0.9;
   }
 
   .ic-art .acc {
@@ -1346,10 +1597,22 @@
     stroke: var(--a2-accent);
     stroke-width: 1;
     stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .ic-art .w15 {
+    stroke-width: 1.4;
   }
 
   .ic-art .w2 {
     stroke-width: 2;
+  }
+
+  .ic-art .cta-bar {
+    stroke: #ffffff;
+    stroke-width: 2;
+    stroke-linecap: round;
+    opacity: 0.92;
   }
 
   .ic-art .acc-fill {
@@ -1361,24 +1624,9 @@
   }
 
   .ic-art .node {
-    fill: var(--a2-bg);
-    stroke: var(--a2-text-muted);
+    fill: var(--a2-surface-subtle);
+    stroke: var(--a2-border-strong);
     stroke-width: 1;
-  }
-
-  .ic-art__caret {
-    animation: icCaret 0.9s steps(1) infinite;
-  }
-
-  .ic-art__hand {
-    stroke-width: 1.4;
-    transform-box: view-box;
-    transform-origin: 160px 92px;
-    animation: icSweep 16s linear infinite;
-  }
-
-  @keyframes icSweep {
-    to { transform: rotate(360deg); }
   }
 
   .ic-art__blink {
@@ -1388,15 +1636,52 @@
   .ic-art .lbl {
     font-family: var(--a2-font-mono);
     font-size: 9.5px;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
     fill: var(--a2-text-secondary);
+  }
+
+  .ic-art .lbl--ink {
+    fill: var(--a2-text);
+    font-weight: 600;
+  }
+
+  .ic-art .lbl--card-strong {
+    font-family: var(--a2-font-sans);
+    font-size: 9.5px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    fill: var(--a2-text);
+  }
+
+  .ic-art .lbl--chip {
+    font-size: 8.5px;
+    font-weight: 600;
+    fill: var(--a2-accent-strong);
+  }
+
+  .ic-art .lbl--chip-muted {
+    font-size: 8.5px;
+    fill: var(--a2-text-muted);
+  }
+
+  .ic-art .lbl--cta {
+    font-family: var(--a2-font-sans);
+    font-size: 8.5px;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+    fill: #ffffff;
   }
 
   .ic-art .lbl--tiny {
     font-size: 7px;
     font-weight: 700;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.09em;
     fill: var(--a2-text-muted);
+  }
+
+  .ic-art .lbl--acc {
+    fill: var(--a2-accent-strong);
+    font-weight: 600;
   }
 
   .ic-art__flow {

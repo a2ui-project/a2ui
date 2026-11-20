@@ -33,6 +33,7 @@
 # --- Component pruning ---
 
 - name: test_component_pruning_keeps_allowlist
+  features: [F-AGT-02]
   description: Pruning to an allowlist keeps those components and drops the rest.
   action: transform_catalog
   args:
@@ -43,6 +44,7 @@
     components: ["Text", "Card"]
 
 - name: test_component_pruning_ignores_unknown_name
+  features: [F-AGT-02]
   description: A name the catalog does not declare is ignored rather than rejected.
   action: transform_catalog
   args:
@@ -63,6 +65,7 @@
     components: ["Text"]
 
 - name: test_component_pruning_null_allowlist_keeps_nothing
+  features: [F-AGT-02]
   description: A null component allowlist leaves no components and leaves functions alone, since keeping everything is said by applying no transformer.
   action: transform_catalog
   args:
@@ -74,6 +77,7 @@
     functions: ["required", "formatString", "openUrl"]
 
 - name: test_component_pruning_empty_allowlist_keeps_nothing
+  features: [F-AGT-02]
   description: An empty allowlist leaves no components, since keeping everything is said by applying no transformer.
   action: transform_catalog
   args:
@@ -85,6 +89,7 @@
     functions: ["required", "formatString", "openUrl"]
 
 - name: test_component_pruning_leaves_functions_alone
+  features: [F-AGT-02]
   description: Pruning components does not touch the function definitions.
   action: transform_catalog
   args:
@@ -98,6 +103,7 @@
 # --- Function pruning ---
 
 - name: test_function_pruning_keeps_allowlist
+  features: [F-AGT-03]
   description: Pruning to an allowlist keeps those functions and drops the rest.
   action: transform_catalog
   args:
@@ -108,6 +114,7 @@
     functions: ["required"]
 
 - name: test_function_pruning_null_allowlist_keeps_nothing
+  features: [F-AGT-03]
   description: A null function allowlist leaves no functions and leaves components alone, since keeping everything is said by applying no transformer.
   action: transform_catalog
   args:
@@ -119,6 +126,7 @@
     functions: []
 
 - name: test_function_pruning_empty_allowlist_keeps_nothing
+  features: [F-AGT-03]
   description: An empty function allowlist leaves no functions, and the components are untouched.
   action: transform_catalog
   args:
@@ -140,6 +148,7 @@
     functions: ["required"]
 
 - name: test_function_pruning_on_catalog_without_functions
+  features: [F-AGT-03]
   description: Pruning functions on a catalog that declares none succeeds and leaves the components alone.
   action: transform_catalog
   args:
@@ -153,6 +162,7 @@
 # --- Sequencing ---
 
 - name: test_transformers_apply_in_sequence
+  features: [F-AGT-01]
   description: Several transformers apply one after another, each seeing the previous result.
   action: transform_catalog
   args:
@@ -164,6 +174,7 @@
     components: ["Text"]
 
 - name: test_transformer_order_does_not_change_the_result
+  features: [F-AGT-01]
   description: Pruning components then functions leaves the same catalog as pruning functions then components.
   action: transform_catalog
   args:
@@ -176,6 +187,7 @@
     functions: ["required"]
 
 - name: test_no_transformers_keeps_the_whole_catalog
+  features: [F-AGT-01]
   description: A catalog registered without transformers reaches the prompt whole.
   action: transform_catalog
   args:
@@ -187,6 +199,7 @@
 # --- What survives a transform ---
 
 - name: test_transform_preserves_catalog_identity
+  features: [F-AGT-01]
   description: A transformed catalog keeps the id and protocol version of the document it came from.
   action: transform_catalog
   args:

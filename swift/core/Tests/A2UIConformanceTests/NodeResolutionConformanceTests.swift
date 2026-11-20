@@ -144,7 +144,11 @@ struct NodeResolutionConformanceTests {
     let version: A2UIProtocolVersion = isV10 ? .v10 : .v091
 
     let capture = NodeResolutionActionCapture()
-    let catalogs = buildNodeResolutionCatalogs(capture: capture, version: version)
+    let catalogs = try buildNodeResolutionCatalogs(
+      capture: capture,
+      version: version,
+      fixtureCatalog: fixtureCatalog
+    )
     let processor = MessageProcessor(
       catalogs: catalogs,
       actionHandler: capture,
@@ -194,8 +198,9 @@ struct NodeResolutionConformanceTests {
 
   private func buildNodeResolutionCatalogs(
     capture: NodeResolutionActionCapture,
-    version: A2UIProtocolVersion
-  ) -> [AnyCatalog] {
+    version: A2UIProtocolVersion,
+    fixtureCatalog: String
+  ) throws -> [AnyCatalog] {
     let baseCatalog = BasicCatalog.makeCatalog(version: version)
     let wrappedFunctions: [any FunctionImplementation] = baseCatalog.functions.values.map { fn in
       RecordingFunctionImplementation(api: fn.api, base: fn, capture: capture)
@@ -205,6 +210,14 @@ struct NodeResolutionConformanceTests {
       components.append(AnyComponentAPI(name: "Tabs", schema: tabsSchema))
     }
     let versionString = version == .v10 ? "1.0" : "v0.9.1"
+    // A test catalog under test_data/ adds its components to the basic ones.
+    if fixtureCatalog.hasPrefix("test_data/") {
+      let testCatalog = ConformanceTestHelper.buildCatalog(
+        catalogSchema: try ConformanceTestHelper.loadJSON(filename: fixtureCatalog),
+        commonTypes: try ConformanceTestHelper.commonTypesSchema(forProtocolVersion: versionString)
+      )
+      components += testCatalog.components.values
+    }
     return ["basic", baseCatalog.id].map { id in
       Catalog(
         id: id,
@@ -700,7 +713,32 @@ struct NodeResolutionConformanceTests {
     nodePath: String,
     caseName: String
   ) {
-    if let expStr = expectedVal.stringValue {
+    if expectedVal == .null {
+      let rawProp = node.properties[propKey]
+      let isNullOrUnsetBinding: Bool
+      switch rawProp {
+      case let b as DataBinding<JSONValue>:
+        isNullOrUnsetBinding = b.value == nil || b.value == .null
+      case let b as DataBinding<String>:
+        isNullOrUnsetBinding = b.value == nil
+      case let b as DataBinding<Double>:
+        isNullOrUnsetBinding = b.value == nil
+      case let b as DataBinding<Bool>:
+        isNullOrUnsetBinding = b.value == nil
+      case let b as DataBinding<Int>:
+        isNullOrUnsetBinding = b.value == nil
+      case let b as DataBinding<[String]>:
+        isNullOrUnsetBinding = b.value == nil
+      case let json as JSONValue:
+        isNullOrUnsetBinding = json == .null
+      default:
+        isNullOrUnsetBinding = false
+      }
+      #expect(
+        isNullOrUnsetBinding,
+        "[\(caseName)] \(nodePath).\(propKey) expected null binding"
+      )
+    } else if let expStr = expectedVal.stringValue {
       #expect(
         node.string(for: propKey) == expStr,
         """
@@ -712,6 +750,18 @@ struct NodeResolutionConformanceTests {
       #expect(
         node.bool(for: propKey) == expBool,
         "[\(caseName)] \(nodePath).\(propKey) bool mismatch"
+      )
+      // DynamicNumber bindings store DataBinding<Double>, so nil node.int(for:)
+      // falls through to expectedVal.doubleValue below.
+    } else if let expInt = expectedVal.intValue, let actualInt = node.int(for: propKey) {
+      #expect(
+        actualInt == expInt,
+        "[\(caseName)] \(nodePath).\(propKey) int mismatch"
+      )
+    } else if let expDbl = expectedVal.doubleValue {
+      #expect(
+        node.double(for: propKey) == expDbl,
+        "[\(caseName)] \(nodePath).\(propKey) double mismatch"
       )
     }
   }

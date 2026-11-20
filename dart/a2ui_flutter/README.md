@@ -132,7 +132,6 @@ transport:
 
 ```dart
 late final MessageProcessor<ComponentImplementation> processor;
-final String version = A2uiProtocolVersion.v1_0.jsonValue;
 final surfaces = ValueNotifier<List<SurfaceModel<ComponentImplementation>>>(
   const [],
 );
@@ -145,15 +144,10 @@ void sendToAgent(RendererToAgentMessage message) => send(
 processor = MessageProcessor<ComponentImplementation>(
   catalogs: [basicCatalog()],
   outboundListener: sendToAgent,
+  unifiedOutbound: true,
 );
 
-processor.model.onAction.subscribe(
-  (action) => sendToAgent(ActionMessage(version: version, action: action)),
-);
 processor.model.onSurfaceCreated.subscribe((surface) {
-  surface.onError.subscribe(
-    (error) => sendToAgent(ErrorMessage(version: version, error: error)),
-  );
   surfaces.value = [...surfaces.value, surface];
 });
 processor.model.onSurfaceDeleted.subscribe((id) {
@@ -191,8 +185,14 @@ processor.dispose();
   as `a2uiRendererCapabilities` in the transport metadata.
 - Send `processor.getRendererDataModel()` as `a2uiRendererDataModel` in the
   transport metadata of each message to the agent, when it is not null.
-- `outboundListener` receives the `rendererFunctionResponse` answering each
-  `callRendererFunction`, and each `callAgentFunction` the processor makes.
+- With `unifiedOutbound: true`, `outboundListener` receives each `action`
+  message, each processing `error` message from `processMessages`, the
+  `rendererFunctionResponse` answering each `callRendererFunction`, and each
+  `callAgentFunction` the processor makes. Subscribe to
+  `processor.model.onError` (or `surface.onError`) to report runtime expression
+  and action errors (and ignore `ErrorMessage` in `outboundListener` if you
+  forward `onError` to the agent, since `processMessages` errors are emitted to
+  both).
 - Key each surface's widget by `ObjectKey(surface)`, and remove it when the
   surface is deleted.
 - Error listeners may call `setState` directly.
@@ -360,7 +360,7 @@ agent you trust.
 ## Protocol v0.9
 
 `package:a2ui_flutter/v0_9/basic_catalog.dart` implements the
-[v0.9 basic catalog](../../specification/v0_9/catalogs/basic/catalog.json)
+[v0.9 basic catalog](../../catalogs/basic/v0_9/catalog.json)
 under the same names, with the v0.9 differences: Text has the `h1` to `h5`
 variants, TextField checks `validationRegexp`, and the components take the
 surface theme's `primaryColor` as the Material theme's primary color.
@@ -415,4 +415,4 @@ surface's data model and a log of actions and errors.
 
 `test/catalog/basic/examples_test.dart` renders every
 [v1.0 basic catalog example](../../catalogs/basic/v1/examples) and every
-[v0.9 one](../../specification/v0_9/catalogs/basic/examples).
+[v0.9 one](../../catalogs/basic/v0_9/examples).

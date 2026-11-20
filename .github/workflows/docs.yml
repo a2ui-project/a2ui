@@ -12,16 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Builds and publishes the MkDocs documentation site (`docs/public`) and the
-# Astro preview site (`docs/site`, published under `/preview/`).
+# Builds and publishes the Astro documentation site (`docs/site`) to the root of
+# `https://a2ui.org/`.
 #
-# On a pull request that touches docs sources, it runs a build-only check for
-# both sites to catch errors without publishing. On a push to `main`, it builds
-# both sites, stages the Astro output into `site/preview/`, and deploys to
-# GitHub Pages via `ghp-import`. Before building, it copies the
-# specification schemas into the docs tree (flattening versioned JSON to the
-# version root for clean URLs) and converts GitHub-style admonitions to the
-# MkDocs format. Runs only on the upstream `a2ui-project/a2ui` repository.
+# On a pull request that touches docs sources, it runs a build-only check to
+# catch errors without publishing. On a push to `main`, it builds `docs/site`
+# (which stages `specification/` and `catalogs/` schemas, `CNAME`, `.nojekyll`,
+# and `llms.txt` into `docs/site/dist/`) and deploys to GitHub Pages via
+# `ghp-import`. Runs only on the upstream `a2ui-project/a2ui` repository.
 name: Docs
 
 on:
@@ -34,8 +32,6 @@ on:
       - "requirements-docs.txt"
       - "pyproject.toml"
       - "lychee.toml"
-      - "mkdocs.yaml"
-      - "hooks.py"
       - "specification/**"
       - "catalogs/**"
       - "docs/**"
@@ -43,9 +39,11 @@ on:
     branches:
       - main
 
+# Shared `gh-pages-deploy` group on main-branch pushes coordinates with
+# `docs_site_preview_deploy.yml` so `gh-pages` updates never race.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'push' && 'gh-pages-deploy' || format('{0}-{1}', github.workflow, github.ref_name || github.ref) }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
   changes:
@@ -76,8 +74,6 @@ jobs:
               - ".github/actions/setup-python/**"
               - "requirements-docs.txt"
               - "pyproject.toml"
-              - "mkdocs.yaml"
-              - "hooks.py"
               - "lychee.toml"
               - "specification/**"
               - "catalogs/**"
@@ -130,47 +126,18 @@ jobs:
       - name: Install preview site dependencies
         run: npm --prefix docs/site ci || npm --prefix docs/site install --no-package-lock
 
-      - name: Validate documentation conversion script
-        run: uv run pytest docs/scripts/test_convert_docs.py
+      - name: Run preview site tests
+        run: npm --prefix docs/site test
 
       - name: Validate documentation example validator
         run: uv run pytest docs/scripts/test_validate_doc_examples.py
 
       - name: Validate JSON examples in documentation
-        run: uv run python docs/scripts/validate_doc_examples.py --paths docs/public docs/site/src/content/docs
+        run: uv run python docs/scripts/validate_doc_examples.py --paths docs/site/src/content/docs
 
-      - name: Copy schemas to documentation
-        run: |
-          mkdir -p docs/public/specification/
-          cp -R specification/* docs/public/specification/
-          # Catalogs live in the top-level catalogs/ directory but are published
-          # under specification/<version>/catalogs/ so that catalog $id URLs
-          # (e.g. https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json)
-          # keep resolving.
-          mkdir -p docs/public/specification/v1_0/catalogs/basic
-          cp catalogs/basic/v1/catalog.json docs/public/specification/v1_0/catalogs/basic/
-          cp -R catalogs/basic/v1/examples docs/public/specification/v1_0/catalogs/basic/
-          # The MCP catalog v1 targets protocol v1.0.
-          mkdir -p docs/public/specification/v1_0/catalogs/mcp
-          cp catalogs/mcp/v1/catalog.json docs/public/specification/v1_0/catalogs/mcp/
-          cp -R catalogs/mcp/v1/examples docs/public/specification/v1_0/catalogs/mcp/
-          # Flatten JSON files to version roots to support clean URLs without redirects
-          for version in v0_8 v0_9 v0_9_1 v1_0; do
-            if [ -d "docs/public/specification/$version/json" ]; then
-              cp docs/public/specification/$version/json/*.json docs/public/specification/$version/
-            fi
-          done
-
-      - name: Convert Admonitions in Documentation
-        run: uv run python docs/scripts/convert_docs.py
-
-      - name: Build Documentation (PR Check)
+      - name: Build Site (PR Check)
         if: github.event_name == 'pull_request'
-        run: uv run mkdocs build
-
-      - name: Build Preview Site (PR Check)
-        if: github.event_name == 'pull_request'
-        run: ASTRO_BASE=/preview/ npm --prefix docs/site run build
+        run: npm --prefix docs/site run build
 
       # Pre-submit only: verify that links in every Markdown file resolve,
       # catching broken internal paths and dead external URLs. Placeholder URLs
@@ -201,12 +168,12 @@ jobs:
       - name: Deploy development version from main branch
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          uv run mkdocs build
-          ASTRO_BASE=/preview/ npm --prefix docs/site run build
-          rm -rf site/preview && cp -R docs/site/dist site/preview
-          # llms.txt is rendered by the Astro build; serve it from the site root.
-          cp docs/site/dist/llms.txt site/llms.txt
-          rm -f site/preview/CNAME site/preview/.nojekyll
+          npm --prefix docs/site run build
+          # Preserve active PR previews published under /pr-preview/ on gh-pages.
+          rm -rf docs/site/dist/pr-preview
+          if git fetch origin gh-pages && git rev-parse --verify origin/gh-pages:pr-preview >/dev/null 2>&1; then
+            git archive origin/gh-pages pr-preview | tar -x -C docs/site/dist
+          fi
           uv run ghp-import --no-jekyll --push \
-            --message "Deployed $(git rev-parse --short HEAD) with MkDocs version: $(uv run python -c 'import mkdocs; print(mkdocs.__version__)')" \
-            site
+            --message "Deployed $(git rev-parse --short HEAD) from docs/site" \
+            docs/site/dist

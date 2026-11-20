@@ -20,6 +20,18 @@ import {fileURLToPath} from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Normalizes an `ASTRO_BASE` value (e.g. `""`, `"/"`, `"/preview/"`, `"preview"`)
+ * into a clean path prefix (`""` or `"/preview"`).
+ */
+export function normalizeBasePrefix(rawBase) {
+  const trimmed = String(rawBase || '')
+    .trim()
+    .replace(/\/+$/, '');
+  if (!trimmed) return '';
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+}
+
 export function findRepoRoot(startDir = __dirname) {
   let curr = startDir;
   for (let i = 0; i < 6; i++) {
@@ -49,7 +61,7 @@ export const SPEC_DOC_ROUTES = {
   'specification/v0_9_1/docs/a2ui_extension_specification.md':
     'specification/v0.9.1-a2ui-extension-specification',
   'specification/v0_9_1/docs/evolution_guide.md': 'specification/v0.9.1-evolution-guide',
-  'specification/v0_9_1/docs/basic_catalog_implementation_guide.md':
+  'catalogs/basic/v0_9_1/basic_catalog_implementation_guide.md':
     'specification/v0.9.1-basic-catalog-implementation-guide',
 
 };
@@ -214,7 +226,7 @@ export const SPEC_CATALOG_SCHEMAS = {
     {
       category: 'Catalog Schema',
       alias: 'basic_catalog.json',
-      sourcePath: 'specification/v0_9_1/catalogs/basic/catalog.json',
+      sourcePath: 'catalogs/basic/v0_9_1/catalog.json',
       rawPublicPath: '/specification/v0_9_1/catalogs/basic/catalog.json',
       guideRoute: 'specification/v0.9.1-basic-catalog-implementation-guide',
     },
@@ -243,9 +255,12 @@ export function resolveSchemaExplorerUrl(relRepoPath, rawAnchor = '', basePrefix
   const normalized = relRepoPath.replace(/\\/g, '/');
   let entry = SCHEMA_SOURCE_TO_EXPLORER.get(normalized);
 
-  // Also map specification/v0_9/... (schemas and basic catalog) to v0.9.1 explorer / guide
+  // Also map specification/v0_9/... and catalogs/basic/v0_9/... to v0.9.1 explorer / guide
   if (!entry && normalized.startsWith('specification/v0_9/')) {
     const as091 = normalized.replace(/^specification\/v0_9\//, 'specification/v0_9_1/');
+    entry = SCHEMA_SOURCE_TO_EXPLORER.get(as091);
+  } else if (!entry && normalized.startsWith('catalogs/basic/v0_9/')) {
+    const as091 = normalized.replace(/^catalogs\/basic\/v0_9\//, 'catalogs/basic/v0_9_1/');
     entry = SCHEMA_SOURCE_TO_EXPLORER.get(as091);
   }
   if (!entry) return null;

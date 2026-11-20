@@ -42,8 +42,11 @@ export const appConfig: ApplicationConfig = {
       provide: A2UI_RENDERER_CONFIG,
       useValue: {
         catalogs: [new BasicCatalog()],
-        actionHandler: action => {
-          console.log('Action received:', action);
+        processorOptions: {
+          outboundListener: message => {
+            console.log('Outbound message:', message);
+          },
+          unifiedOutbound: true,
         },
       },
     },

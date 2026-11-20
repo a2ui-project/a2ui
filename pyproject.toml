@@ -28,6 +28,7 @@ constraint-dependencies = ["a2a-sdk>=0.3.0,<0.4.0"]
 [tool.uv.workspace]
 members = [
   "conformance",
+  "e2e/agents/python",
   "python/a2ui_a2a",
   "python/a2ui_adk",
   "python/a2ui_agent",
@@ -35,8 +36,6 @@ members = [
   "eval",
   "samples/agent/adk/custom-components-example",
   "samples/agent/adk/restaurant_finder",
-  "samples/community/agent/adk/gemini_enterprise/agent_engine",
-  "samples/community/agent/adk/gemini_enterprise/cloud_run",
   "samples/community/agent/adk/mcp-apps-in-a2ui-sample",
   "samples/community/agent/adk/mcp_app_proxy",
   "samples/community/agent/adk/file_upload_summarizer",
@@ -71,6 +70,7 @@ release = [
 [tool.pytest.ini_options]
 testpaths = [
     "conformance/tests",
+    "e2e/agents/python/tests",
     "python/a2ui_a2a/tests",
     "python/a2ui_adk/tests",
     "python/a2ui_agent/tests",
@@ -139,9 +139,8 @@ exclude = [
     "^python/a2ui_a2a/tests/",
     "^python/a2ui_adk/tests/",
     "^conformance/tests/",
+    "^e2e/agents/python/tests/",
     "^eval/",
-    # TODO(#1614): Typecheck all packages here.
-    "^python/a2ui_agent/src/a2ui/inference_formats/experimental/",
     "^python/a2ui_agent/src/a2ui/inference_formats/express/generated/",
     "^samples/",
     "^tools/",
@@ -149,7 +148,6 @@ exclude = [
     "^scripts/",
     "^specification/",
     "^blueprints/",
-    "^hooks\\.py$",
 ]
 
 [[tool.mypy.overrides]]

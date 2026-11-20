@@ -27,15 +27,7 @@ struct MessageProcessorScalingConformanceTests {
   private static let suite = "core/message_processor_scaling.yaml"
 
   /// Cases the Swift core fails, with the reason, which are skipped.
-  ///
-  /// `SurfaceViewModel` resolves the whole node tree again after each `updateComponents`, so the
-  /// time to resolve a surface arriving in n messages grows with n squared. At the sizes of the
-  /// composition case, 1000 and 4000, that dominates; making resolution incremental (#3231) is
-  /// expected to remove it.
-  static let knownGaps: [String: String] = [
-    "test_scaling_process_single_component_messages_composition_v10":
-      "the node tree is resolved again after each message (#3231)"
-  ]
+  static let knownGaps: [String: String] = [:]
 
   private static let knownCaseKeys: Set<String> = [
     "action",

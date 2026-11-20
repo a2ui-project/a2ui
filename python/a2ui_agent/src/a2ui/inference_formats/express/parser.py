@@ -191,8 +191,12 @@ class ExpressParser(Parser):
 
     def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
         """Decompiles structured A2UI payload messages into this format's raw notation."""
-        return ExpressDecompiler(self._catalogs).decompile(a2ui_payload)
+        return ExpressDecompiler(self._catalogs, version=self.version).decompile(
+            a2ui_payload
+        )
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
-        return ExpressDecompiler(self._catalogs).wrap_decompiled_blocks(blocks)
+        return ExpressDecompiler(
+            self._catalogs, version=self.version
+        ).wrap_decompiled_blocks(blocks)

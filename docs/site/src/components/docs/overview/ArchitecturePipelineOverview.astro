@@ -17,6 +17,30 @@
 
 import DiagramCard from '@components/docs/common/DiagramCard.astro';
 
+/**
+ * Optional details for a page that shows one particular app, such as the
+ * quickstart. Without props the diagram is the general one.
+ */
+interface Props {
+  /** Where each part lives in that app, shown under the part. */
+  paths?: Partial<
+    Record<'catalog' | 'tools' | 'skillGenerator' | 'compiler' | 'agent' | 'app' | 'renderer', string>
+  >;
+  /** Replaces the agent SDK's language list. */
+  sdkLanguages?: string;
+  /** Replaces the transport names. */
+  transport?: string;
+  /** Replaces the renderer platform list. */
+  renderers?: string;
+}
+
+const {
+  paths = {},
+  sdkLanguages = 'TypeScript · Python · Dart',
+  transport = 'AG-UI · A2A · MCP · WebSockets',
+  renderers = 'Flutter · Web · SwiftUI · Compose',
+} = Astro.props;
+
 const mermaidSpec = `
 flowchart TB
   subgraph Server["SERVER · YOUR AGENT"]
@@ -61,27 +85,31 @@ flowchart TB
           <div class="a2-card-tag">SDK CONFIG</div>
           <div class="a2-card-title">Component catalog</div>
           <p class="a2-card-desc"><code>catalog.json</code>: the UI components and functions available to render on the client.</p>
+          {paths.catalog && <code class="a2-path">{paths.catalog}</code>}
         </div>
         <div class="a2-card">
           <div class="a2-card-tag">AGENT INPUT</div>
           <div class="a2-card-title">Domain tools</div>
           <p class="a2-card-desc">Your APIs and data, such as flight search and booking.</p>
+          {paths.tools && <code class="a2-path">{paths.tools}</code>}
         </div>
       </div>
 
       <div class="a2-sdk-boundary">
         <div class="a2-boundary-header">
           <span class="a2-boundary-label">A2UI AGENT SDK</span>
-          <span class="a2-boundary-langs">TypeScript · Python · Dart</span>
+          <span class="a2-boundary-langs">{sdkLanguages}</span>
         </div>
         <div class="a2-two-col">
           <div class="a2-card">
             <div class="a2-card-title">Skill generator</div>
             <p class="a2-card-desc">Turns the catalog into an A2UI skill with prompt instructions and grammar rules.</p>
+            {paths.skillGenerator && <code class="a2-path">{paths.skillGenerator}</code>}
           </div>
           <div class="a2-card">
             <div class="a2-card-title">Compiler &amp; validator</div>
             <p class="a2-card-desc">Parses model output, checks it against the catalog, and emits wire messages.</p>
+            {paths.compiler && <code class="a2-path">{paths.compiler}</code>}
           </div>
         </div>
       </div>
@@ -100,6 +128,7 @@ flowchart TB
           Calls your tools and the model (GenAI SDK, ADK, A2A, Anthropic, OpenAI, LangChain), then hands the model's UI
           output to the compiler.
         </p>
+        {paths.agent && <code class="a2-path">{paths.agent}</code>}
       </div>
     </section>
 
@@ -107,7 +136,7 @@ flowchart TB
     <div class="a2-transport" aria-label="Transport">
       <div class="a2-transport-label">
         <span class="a2-transport-title">TRANSPORT</span>
-        <span class="a2-transport-names">AG-UI · A2A · MCP · WebSockets</span>
+        <span class="a2-transport-names">{transport}</span>
       </div>
       <div class="a2-transport-chips">
         <span class="a2-chip a2-chip-layout">↓ <code>updateComponents</code></span>
@@ -180,15 +209,17 @@ flowchart TB
           <div class="a2-legend-item a2-legend-app">
             <div class="a2-legend-title">Your app</div>
             <p class="a2-card-desc">The screen, navigation, and chat. Everything outside the surface is yours.</p>
+            {paths.app && <code class="a2-path">{paths.app}</code>}
           </div>
           <div class="a2-legend-item a2-legend-renderer">
             <div class="a2-boundary-header">
               <span class="a2-boundary-label">A2UI RENDERER</span>
             </div>
-            <span class="a2-boundary-langs">Flutter · Web · SwiftUI · Compose</span>
+            <span class="a2-boundary-langs">{renderers}</span>
             <p class="a2-card-desc">
               Draws the surface with native widgets. Bound values update locally; taps send <code>action</code> messages.
             </p>
+            {paths.renderer && <code class="a2-path">{paths.renderer}</code>}
           </div>
         </div>
       </div>
@@ -205,6 +236,16 @@ flowchart TB
     margin: 0.6rem 0 1rem;
     font-size: 0.85rem;
     line-height: 1.45;
+  }
+
+  .a2-path {
+    display: inline-block;
+    margin-top: 0.35rem;
+    color: var(--sl-color-gray-2, #bdc1c6);
+  }
+
+  :root[data-theme='light'] .a2-path {
+    color: #334155;
   }
 
   .a2-pipeline-root code {

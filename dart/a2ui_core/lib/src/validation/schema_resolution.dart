@@ -25,7 +25,7 @@ const String _catalogDocument = 'catalog.json';
 /// The unions a catalog document may omit when it declares nothing for them.
 const Set<String> _catalogUnions = {
   r'/$defs/anyFunction',
-  r'/$defs/anyComponent'
+  r'/$defs/anyComponent',
 };
 
 /// Rewrites a component schema so it can be validated without any I/O.
@@ -158,7 +158,8 @@ class _RefResolver {
 
     Object? found = followJsonPointer(source.schema, pointer);
     _DocumentRef origin = source;
-    final bool localShared = found is! Map &&
+    final bool localShared =
+        found is! Map &&
         target.isEmpty &&
         source.name == 'catalog' &&
         pointer.startsWith(r'/$defs/');
@@ -218,7 +219,7 @@ class _RefResolver {
   String _defName(String key) {
     final String base = key.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_');
     if (!defs.containsKey(base)) return base;
-    for (var i = 2;; i++) {
+    for (var i = 2; ; i++) {
       final candidate = '$base$i';
       if (!defs.containsKey(candidate)) return candidate;
     }
@@ -323,24 +324,24 @@ Object? followJsonPointer(Object? document, String pointer) {
 /// Checks if [name] is a standard A2UI common type definition, in either the
 /// v0.9 or the v1.0 `common_types.json`.
 bool isCommonTypeDef(String name) => const {
-      'ComponentId',
-      'DynamicString',
-      'DynamicNumber',
-      'DynamicBoolean',
-      'DynamicStringList',
-      'DynamicValue',
-      'DataBinding',
-      'FunctionCall',
-      'ChildList',
-      'Action',
-      'CheckRule',
-      'AccessibilityAttributes',
-      // Added in v1.0.
-      'Child',
-      'FunctionCommon',
-      'IndexSystemFunction',
-      'Surface',
-      'CallId',
-      'FunctionResponse',
-      'Extensions',
-    }.contains(name);
+  'ComponentId',
+  'DynamicString',
+  'DynamicNumber',
+  'DynamicBoolean',
+  'DynamicStringList',
+  'DynamicValue',
+  'DataBinding',
+  'FunctionCall',
+  'ChildList',
+  'Action',
+  'CheckRule',
+  'AccessibilityAttributes',
+  // Added in v1.0.
+  'Child',
+  'FunctionCommon',
+  'IndexSystemFunction',
+  'Surface',
+  'CallId',
+  'FunctionResponse',
+  'Extensions',
+}.contains(name);

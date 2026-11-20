@@ -238,6 +238,8 @@ class _EvaluationScope:
     user_activated: bool
     in_action: bool
     agent_calls: _AgentCallMemory | None
+    active_catalog_id: str | None = None
+    active_catalog: Any = None
 
 
 _T = TypeVar("_T")
@@ -433,6 +435,33 @@ class DataContext:
         self._agent_calls: _AgentCallMemory | None = None
         # Set while resolving an agent's callRendererFunction arguments.
         self._agent_disabled = False
+        # The catalog ID of the currently executing catalog function, if any.
+        self._active_catalog_id: str | None = None
+        # Optional catalog instance for standalone RPC calls not in surface.available_catalogs.
+        self._active_catalog: Any = None
+
+    @property
+    def active_catalog_id(self) -> str | None:
+        """The catalog ID of the currently executing catalog function, if any."""
+        if self._active_catalog_id is not None:
+            return self._active_catalog_id
+        if self.parent is not None:
+            parent_id = getattr(self.parent, "active_catalog_id", None)
+            return parent_id if isinstance(parent_id, str) else None
+        return None
+
+    def _lookup_active_catalog(self, catalog_id: str) -> Any:
+        """Looks up a scoped catalog instance matching `catalog_id` in the nearest active call scope."""
+        ctx: Any = self
+        while isinstance(ctx, DataContext):
+            if ctx._active_catalog_id is not None:
+                return (
+                    ctx._active_catalog
+                    if ctx._active_catalog_id == catalog_id
+                    else None
+                )
+            ctx = ctx.parent
+        return None
 
     @property
     def is_user_activated(self) -> bool:
@@ -454,23 +483,50 @@ class DataContext:
         )
 
     def _capture_scope(
-        self, *, user_activated: bool | None = None, in_action: bool = False
+        self,
+        *,
+        user_activated: bool | None = None,
+        in_action: bool = False,
+        active_catalog_id: str | None = None,
+        active_catalog: Any = None,
     ) -> _EvaluationScope:
         """Captures the state that a later part of this evaluation runs in."""
+        effective_catalog_id = (
+            self.active_catalog_id if active_catalog_id is None else active_catalog_id
+        )
+        effective_catalog = (
+            active_catalog
+            if active_catalog is not None
+            else (
+                self._lookup_active_catalog(effective_catalog_id)
+                if effective_catalog_id is not None
+                else None
+            )
+        )
         return _EvaluationScope(
             user_activated=(
                 self.is_user_activated if user_activated is None else user_activated
             ),
             in_action=in_action or self._in_action_execution,
             agent_calls=self._agent_calls,
+            active_catalog_id=effective_catalog_id,
+            active_catalog=effective_catalog,
         )
 
     def _run_in_scope(self, scope: _EvaluationScope, run: Callable[[], _T]) -> _T:
         """Runs `run` in `scope`, then restores the current state."""
-        previous = (self._user_activated, self._is_action_execution, self._agent_calls)
+        previous = (
+            self._user_activated,
+            self._is_action_execution,
+            self._agent_calls,
+            self._active_catalog_id,
+            self._active_catalog,
+        )
         self._user_activated = scope.user_activated
         self._is_action_execution = scope.in_action
         self._agent_calls = scope.agent_calls
+        self._active_catalog_id = scope.active_catalog_id
+        self._active_catalog = scope.active_catalog
         try:
             return run()
         finally:
@@ -478,14 +534,27 @@ class DataContext:
                 self._user_activated,
                 self._is_action_execution,
                 self._agent_calls,
+                self._active_catalog_id,
+                self._active_catalog,
             ) = previous
 
     def _surface_protocol_version(self) -> Any:
         """Returns the surface's protocol version, which outlives its default catalog."""
-        return getattr(self.surface, "protocol_version", None) or getattr(
-            getattr(self.surface, "default_catalog", None),
-            "protocol_version",
-            None,
+        active_cat_id = self.active_catalog_id
+        return (
+            getattr(self.surface, "protocol_version", None)
+            or getattr(
+                getattr(self.surface, "default_catalog", None),
+                "protocol_version",
+                None,
+            )
+            or getattr(
+                self._lookup_active_catalog(active_cat_id)
+                if active_cat_id is not None
+                else None,
+                "protocol_version",
+                None,
+            )
         )
 
     @property
@@ -542,6 +611,31 @@ class DataContext:
             index=index,
             parent=self,
         )
+
+    def with_active_catalog_id(
+        self, catalog_id: str | None, *, catalog: Any = None
+    ) -> DataContext:
+        """Returns a derived context scoped to `catalog_id` as the active function catalog.
+
+        Internal: not part of the package's public API.
+        """
+        if not catalog_id or (
+            catalog_id == self.active_catalog_id
+            and (catalog is None or self._lookup_active_catalog(catalog_id) is catalog)
+        ):
+            return self
+        scoped = DataContext(
+            surface=self.surface,
+            path=self.path,
+            index=self._index,
+            parent=self,
+        )
+        scoped._agent_calls = self._agent_calls
+        scoped._agent_disabled = self._agent_disabled
+        scoped._active_catalog_id = catalog_id
+        scoped._active_catalog = catalog
+        scoped._cached_at_least_v10 = None
+        return scoped
 
     def resolve_path(self, absolute_or_relative: str) -> str:
         """Resolves a relative path string against this context scope path."""
@@ -1219,9 +1313,22 @@ class DataContext:
                 if fn is None:
                     raise A2uiExpressionError(f"System function '{name}' not found.")
             else:
-                target_catalog = self.surface.resolve_catalog(
-                    catalog_id, subject=f"Function call '{name}'"
+                scoped_catalog = (
+                    self._lookup_active_catalog(catalog_id)
+                    if isinstance(catalog_id, str)
+                    else None
                 )
+                if scoped_catalog is not None:
+                    target_catalog = scoped_catalog
+                elif self.surface is not None:
+                    target_catalog = self.surface.resolve_catalog(
+                        catalog_id, subject=f"Function call '{name}'"
+                    )
+                else:
+                    raise A2uiCatalogError(
+                        "No surface available to resolve catalog:"
+                        f" {catalog_id or 'default'}"
+                    )
                 fn = (
                     target_catalog.get_function(name)
                     if hasattr(target_catalog, "get_function")
@@ -1278,7 +1385,11 @@ class DataContext:
             local_fn = fn
             local_catalog = target_catalog
             scope = self._capture_scope(
-                user_activated=effective_user_activated, in_action=is_action
+                user_activated=effective_user_activated,
+                in_action=is_action,
+                active_catalog_id=getattr(local_catalog, "catalog_id", None)
+                or catalog_id,
+                active_catalog=local_catalog,
             )
 
             def _run_local(args: Any) -> Any:
