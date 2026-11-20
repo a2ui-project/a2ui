@@ -6,8 +6,10 @@
   "type": "module",
   "scripts": {
     "capture-fixtures": "node scripts/capture-fixtures.mjs",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && a2ui-embed build",
+    "start": "node --preserve-symlinks dist/server.js",
     "test": "vitest run",
+    "e2e": "node scripts/e2e.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
