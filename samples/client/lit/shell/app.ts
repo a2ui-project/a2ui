@@ -26,9 +26,58 @@ import {repeat} from 'lit/directives/repeat.js';
 
 // A2UI
 import * as v0_9 from '@a2ui/web_core/v0_9';
-import {basicCatalog as v1BasicCatalog, injectBasicCatalogStyles} from '@a2ui/web_core/v1_0';
+import {
+  Catalog as V1Catalog,
+  basicCatalog as v1BasicCatalog,
+  injectBasicCatalogStyles,
+} from '@a2ui/web_core/v1_0';
 import {basicCatalog, Context} from '@a2ui/lit/v0_9';
 import {renderMarkdown} from '@a2ui/markdown-it';
+
+function makeRpcPredicateFunction(name: string, description: string) {
+  return {
+    type: 'object',
+    description,
+    returnType: 'boolean',
+    allowedCallers: 'rendererOrAgent',
+    properties: {
+      '@call': {const: name},
+      args: {
+        type: 'object',
+        properties: {
+          value: {
+            anyOf: [{type: 'string'}, {type: 'object'}],
+          },
+        },
+        required: ['value'],
+        unevaluatedProperties: false,
+      },
+    },
+    required: ['@call', 'args'],
+  };
+}
+
+const playgroundRpcCatalog = V1Catalog.fromJson({
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  $id: 'https://a2ui.org/samples/decision_playground/rpc/v1',
+  protocolVersion: '1.0',
+  catalogId: 'https://a2ui.org/samples/decision_playground/rpc/v1',
+  components: {},
+  functions: {
+    is_specific_bug_report: makeRpcPredicateFunction(
+      'is_specific_bug_report',
+      'Checks whether a bug report includes concrete reproduction steps.',
+    ),
+    is_polite_feedback: makeRpcPredicateFunction(
+      'is_polite_feedback',
+      'Checks whether product feedback is constructive and polite.',
+    ),
+    is_valid_refund_reason: makeRpcPredicateFunction(
+      'is_valid_refund_reason',
+      'Checks whether a refund request describes a concrete order issue.',
+    ),
+  },
+});
 
 // Configurations
 import {A2UIClient} from './client.js';
@@ -726,7 +775,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
 
   // Create a Message Processor that uses the catalogs.
   private _processor = new v0_9.MessageProcessor<any>(
-    [basicCatalog, v1BasicCatalog],
+    [basicCatalog, v1BasicCatalog, playgroundRpcCatalog],
     async (action: v0_9.A2uiClientAction): Promise<any> => {
       console.debug('Handling action', action);
 
