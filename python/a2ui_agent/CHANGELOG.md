@@ -1,6 +1,6 @@
 ## Unreleased
 
-- **BREAKING CHANGE**: (v1_0) `validate_payload`, `RendererState.apply`, and inference format parsers check function calls nested in `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions while accepting `agentOnly` and `rendererOrAgent` functions. Recommended migration: set `allowedCallers` to `"rendererOrAgent"` or `"agentOnly"` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774)).
+- **BREAKING CHANGE**: (v1_0) `validate_payload`, `RendererState.apply`, and inference format parsers check function calls nested in `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions while accepting `agentOnly` and `rendererOrAgent` functions. Recommended migration: set `allowedCallers` to `"rendererOrAgent"` or `"agentOnly"` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774), [#4336](https://github.com/a2ui-project/a2ui/pull/4336)).
 
 ## 0.12.0 (2026-11-17)
 

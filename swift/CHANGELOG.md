@@ -9,7 +9,8 @@
   `rendererOrAgent` functions, and checking nested `@call` objects before any sibling argument runs.
   Recommended migration: set `allowedCallers` to `.rendererOrAgent` or `.agentOnly` on functions
   nested inside `callRendererFunction` arguments.
-  [#3774](https://github.com/a2ui-project/a2ui/issues/3774)
+  [#3774](https://github.com/a2ui-project/a2ui/issues/3774),
+  [#4336](https://github.com/a2ui-project/a2ui/pull/4336)
 - **BREAKING CHANGE**: Make `EnvironmentValues.a2uiCatalogs`,
   `EnvironmentValues.a2uiDefaultCatalogID`, and `EnvironmentValues.a2uiSurfaceMetadata` read-only
   (`public internal(set)`) in `A2UISwiftUI`, and remove `A2UICatalogsKey` and
