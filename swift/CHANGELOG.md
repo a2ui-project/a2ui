@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **BREAKING CHANGE**: Remove the limit of 5 on nested function calls from message validation in
+  `A2UICore`. Function call nesting is bounded only by the global depth limit of 50, so payloads
+  that failed with `functionCall depth > 5` are now accepted
+  ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
 - **BREAKING CHANGE**: Make `EnvironmentValues.a2uiCatalogs`,
   `EnvironmentValues.a2uiDefaultCatalogID`, and `EnvironmentValues.a2uiSurfaceMetadata` read-only
   (`public internal(set)`) in `A2UISwiftUI`, and remove `A2UICatalogsKey` and

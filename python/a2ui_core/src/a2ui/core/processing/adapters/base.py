@@ -26,8 +26,15 @@ from ..format_pydantic_error import (
     format_validation_error_summary,
     to_json_pointer,
 )
-from ...exceptions import A2uiErrorDetail, A2uiValidationError
-from ...state.validation_helpers import validate_recursion_and_paths
+from ...exceptions import (
+    A2uiErrorDetail,
+    A2uiRecursionError,
+    A2uiValidationError,
+)
+from ...state.validation_helpers import (
+    MAX_GLOBAL_DEPTH,
+    validate_recursion_and_paths,
+)
 from ...schema import AgentToRendererMessage, AgentToRendererMessagePayload, ProtocolVersion
 from ...common.semver import (
     SemVer,
@@ -263,6 +270,40 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             return val
         return ""
 
+    def _unwrap_message_items(
+        self,
+        payload: Any,
+        wrapper_depth: int = 0,
+    ) -> list[Any]:
+        """Unwraps batch arrays and `{"messages": [...]}` envelopes into individual messages."""
+        if wrapper_depth > MAX_GLOBAL_DEPTH:
+            raise A2uiRecursionError(
+                f"Global recursion limit exceeded: Depth > {MAX_GLOBAL_DEPTH}"
+            )
+        raw: Any = (
+            payload.model_dump(by_alias=True, exclude_none=True)
+            if hasattr(payload, "model_dump")
+            else payload
+        )
+        if isinstance(raw, list):
+            items: list[Any] = []
+            for child in raw:
+                items.extend(self._unwrap_message_items(child, wrapper_depth + 1))
+            return items
+        if (
+            isinstance(raw, dict)
+            and "messages" in raw
+            and isinstance(raw["messages"], list)
+        ):
+            # Keys beside "messages" carry no operations and are otherwise ignored.
+            # Their depth counts from the wrapper that holds them.
+            validate_recursion_and_paths(
+                {k: v for k, v in raw.items() if k != "messages"},
+                start_depth=wrapper_depth,
+            )
+            return self._unwrap_message_items(raw["messages"], wrapper_depth + 1)
+        return [raw]
+
     def extract_operations(
         self,
         payload: AgentToRendererMessagePayload,
@@ -273,102 +314,91 @@ class BaseVersionAdapter(VersionAdapter, ABC):
         if isinstance(payload, list) and not payload:
             return []
 
-        raw_payload: Any = payload
-        validate_recursion_and_paths(raw_payload)
+        items = self._unwrap_message_items(payload)
+        for item in items:
+            validate_recursion_and_paths(item)
+        for item in items:
+            if isinstance(item, dict):
+                self._extract_single_action(item)
 
-        if hasattr(raw_payload, "model_dump"):
-            raw_payload = raw_payload.model_dump(by_alias=True, exclude_none=True)
+        ops: list[InternalOperation] = []
+        for item in items:
+            ops.extend(self._extract_single_message_operations(item))
+        return ops
 
-        if isinstance(raw_payload, list):
-            for item in raw_payload:
-                if isinstance(item, dict):
-                    self._extract_single_action(item)
-            ops: list[InternalOperation] = []
-            for item in raw_payload:
-                ops.extend(self.extract_operations(item))
-            return ops
+    def _extract_single_message_operations(
+        self,
+        raw_payload: Any,
+    ) -> list[InternalOperation]:
+        """Validates and extracts operations from one unwrapped message object."""
+        if not isinstance(raw_payload, dict):
+            return []
 
-        if isinstance(raw_payload, dict):
-            if "messages" in raw_payload and isinstance(raw_payload["messages"], list):
-                return self.extract_operations(
-                    raw_payload["messages"],
-                )
-
-            action = self._extract_single_action(raw_payload)
-
-            if not isinstance(raw_payload[action], dict):
-                raise A2uiValidationError(
-                    f"Payload for action '{action}' must be an object"
-                )
-
-            ver_str = (
-                self.version.value
-                if hasattr(self.version, "value")
-                else str(self.version)
-            )
-            if ver_str != "v0.8":
-                if "version" not in raw_payload:
-                    msg = (
-                        f"Invalid {self.version} message: version: 'version'"
-                        " is a required property"
-                    )
-                    raise A2uiValidationError(
-                        msg,
-                        details=[
-                            A2uiErrorDetail(
-                                path="messages.0.version",
-                                code="missing_field",
-                                message="'version' is a required property",
-                            )
-                        ],
-                        path="/version",
-                    )
-                raw_ver = raw_payload["version"]
-                canonical_ver = (
-                    to_canonical_version(raw_ver)
-                    if isinstance(raw_ver, (str, ProtocolVersion, SemVer))
-                    else None
-                )
-                if (
-                    not canonical_ver
-                    or canonical_ver not in self.compatible_catalog_versions
-                ):
-                    expected = (
-                        f"'{ver_str}'"
-                        if len(self.compatible_catalog_versions) == 1
-                        else (
-                            "one of"
-                            f" {sorted(f'v{v}' for v in self.compatible_catalog_versions)}"
-                        )
-                    )
-                    msg = (
-                        f"Invalid {self.version} message: version: Input"
-                        f" should be {expected}"
-                    )
-                    raise A2uiValidationError(
-                        msg,
-                        details=[
-                            A2uiErrorDetail(
-                                path="messages.0.version",
-                                code="invalid_value",
-                                message=f"Input should be {expected}",
-                            )
-                        ],
-                        path="/version",
-                    )
-
-            prepared_msg = self.prepare_payload_for_validation(raw_payload)
-            try:
-                self.schema.model_validate({"messages": [prepared_msg]})
-            except ValidationError as e:
-                self._raise_envelope_validation_error(e, raw_payload, action)
-
-            return self._extract_operations_for_action(
-                action,
-                raw_payload,
+        action = self._extract_single_action(raw_payload)
+        if not isinstance(raw_payload[action], dict):
+            raise A2uiValidationError(
+                f"Payload for action '{action}' must be an object"
             )
 
-        return []
+        self._validate_message_version(raw_payload)
+        prepared_msg = self.prepare_payload_for_validation(raw_payload)
+        try:
+            self.schema.model_validate({"messages": [prepared_msg]})
+        except ValidationError as e:
+            self._raise_envelope_validation_error(e, raw_payload, action)
+
+        return self._extract_operations_for_action(action, raw_payload)
+
+    def _validate_message_version(self, raw_payload: dict[str, Any]) -> None:
+        """Checks the `version` header on pre-v0.8+ envelopes that require one."""
+        ver_str = (
+            self.version.value if hasattr(self.version, "value") else str(self.version)
+        )
+        if ver_str == "v0.8":
+            return
+        if "version" not in raw_payload:
+            msg = (
+                f"Invalid {self.version} message: version: 'version' is a"
+                " required property"
+            )
+            raise A2uiValidationError(
+                msg,
+                details=[
+                    A2uiErrorDetail(
+                        path="messages.0.version",
+                        code="missing_field",
+                        message="'version' is a required property",
+                    )
+                ],
+                path="/version",
+            )
+        raw_ver = raw_payload["version"]
+        canonical_ver = (
+            to_canonical_version(raw_ver)
+            if isinstance(raw_ver, (str, ProtocolVersion, SemVer))
+            else None
+        )
+        if canonical_ver and canonical_ver in self.compatible_catalog_versions:
+            return
+        expected = self._format_expected_versions(ver_str)
+        msg = f"Invalid {self.version} message: version: Input should be {expected}"
+        raise A2uiValidationError(
+            msg,
+            details=[
+                A2uiErrorDetail(
+                    path="messages.0.version",
+                    code="invalid_value",
+                    message=f"Input should be {expected}",
+                )
+            ],
+            path="/version",
+        )
+
+    def _format_expected_versions(self, ver_str: str) -> str:
+        if len(self.compatible_catalog_versions) == 1:
+            return f"'{ver_str}'"
+        versions = sorted(f"v{v}" for v in self.compatible_catalog_versions)
+        return f"one of {versions}"
 
     def _raise_envelope_validation_error(
         self,

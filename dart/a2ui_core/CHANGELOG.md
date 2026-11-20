@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Breaking:** Remove the limit of 5 on nested function calls from `checkPathsAndRecursion` and `MessageProcessor`. Function call nesting is bounded only by the global depth limit of 50, so payloads that failed with `functionCall depth > 5` are now accepted ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
+- **Breaking:** (v0_9) `PayloadValidator` closes code-defined pre-v1.0 object `argumentSchema`s with `unevaluatedProperties: false` in `validateFunction` and `validateFunctionArgs` to match `Catalog.validationSchema`. Set `additionalProperties: true` (or `unevaluatedProperties: true`) on schemas that accept undeclared arguments ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
 - **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.5.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
 - Regenerate the v0.9 basic catalog bindings and update documentation paths after moving the pre-1.0 catalogs to `catalogs/` ([#4150](https://github.com/a2ui-project/a2ui/pull/4150)).
 - Added `MessageProcessor.addCatalog`, which adds a catalog to a processor

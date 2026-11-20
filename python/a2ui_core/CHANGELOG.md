@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: Remove the limit of 5 on nested function calls from `validate_recursion_and_paths`, and remove `MAX_FUNC_CALL_DEPTH`. Function call nesting is bounded only by the global depth limit (`MAX_GLOBAL_DEPTH`), so payloads that failed with `functionCall depth > 5` are now accepted. Recommended migration: drop references to `MAX_FUNC_CALL_DEPTH` ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
 - Add `MessageProcessor.add_catalog(catalog)`, which adds a catalog to a
   processor after it is built. `createSurface` messages, renderer function
   calls and `get_renderer_capabilities` see the catalog from then on; surfaces

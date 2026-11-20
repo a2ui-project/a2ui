@@ -1009,8 +1009,12 @@ The matrix below details the specific validation checks, their responsible compo
 | **Graph Topology**       | Unreachable / orphan component detection                                                             | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`                       |
 | **Graph Topology**       | Composition constraints (`allowedParents` / `allowedChildren`)                                       | `SurfaceComponentsModel.validateComponentsUpdate()`                       | `A2uiValidationError`                      |
 | **State Invariant**      | Duplicate component ID against the live surface (mutation guard, not a validation pass)              | `SurfaceComponentsModel.addComponent()`                                   | `A2uiStateError`                           |
-| **Depth & Syntax**       | Global recursion depth limit (>50) & function nesting (>5)                                           | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiRecursionError`                       |
+| **Graph Topology**       | Component graph logical depth limit (>50)                                                            | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiRecursionError`                       |
+| **Depth & Syntax**       | Per-message JSON nesting depth limit (>50, depth 0 per message), which also bounds call nesting      | `MessageProcessor.processMessages()` (`validateRecursionAndPaths()`)      | `A2uiRecursionError`                       |
 | **Depth & Syntax**       | JSON Pointer path syntax validation                                                                  | `MessageProcessor.processMessages()`                                      | `A2uiValidationError`                      |
+
+> [!NOTE]
+> **Per-Message Depth, Wrapper Bounds & `ValidationConfig` Gating**: Implementations MUST bound nested batch arrays (`[...]`) and `{"messages": [...]}` envelopes by `MAX_GLOBAL_DEPTH` (`50`), ignore sibling keys on `{"messages": [...]}` wrappers when extracting operations while holding their values to the same depth limit counted from the wrapper's depth, and start each individual message's `validateRecursionAndPaths()` traversal at depth `0`. In TypeScript and Dart, `validateRecursionAndPaths()` is gated on an active `ValidationConfig` on `MessageProcessor`; in Python and Swift, version adapters enforce `validateRecursionAndPaths()` unconditionally during envelope extraction (Dart `MessageProcessor` and Swift `BaseVersionAdapter` currently unwrap one container level, check depth after envelope parsing, and leave wrapper sibling keys unchecked).
 
 ---
 

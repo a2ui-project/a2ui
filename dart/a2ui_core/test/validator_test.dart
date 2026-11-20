@@ -17,7 +17,7 @@ import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/validation/component_graph.dart'
-    show maxFunctionCallArgs, maxFunctionCallDepth;
+    show maxComponentDepth, maxFunctionCallArgs;
 import 'package:a2ui_core/src/validation/component_refs.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
@@ -422,11 +422,11 @@ void main() {
       );
     });
 
-    test('rejects function calls nested past the cap', () {
+    test('rejects function calls nested past the global depth limit', () {
       final MessageProcessor<ComponentApi> processor =
           newProcessorWithSurface();
       Map<String, Object?> call = {'call': 'f', 'args': <String, Object?>{}};
-      for (var i = 0; i < maxFunctionCallDepth + 1; i++) {
+      for (var i = 0; i < maxComponentDepth; i++) {
         call = {
           'call': 'f',
           'args': {'inner': call},
@@ -444,7 +444,7 @@ void main() {
           isA<A2uiRecursionError>().having(
             (e) => e.message,
             'message',
-            contains('functionCall depth'),
+            contains('Global recursion limit exceeded'),
           ),
         ),
       );
@@ -1251,6 +1251,162 @@ void v1RulesTests() {
           }),
         ),
         throwsA(_validationError(message: contains("Call to 'f'"))),
+      );
+    });
+
+    test('code-defined v0.9 function closes object argumentSchema against '
+        'undeclared arguments unless additionalProperties is true', () {
+      final CatalogApi catalog = CatalogApi(
+        id: 'code-v09',
+        protocolVersion: A2uiProtocolVersion.v0_9,
+        components: [
+          ComponentApi(
+            name: 'Box',
+            schema: Schema.fromMap({
+              'type': 'object',
+              'properties': {
+                'value': {
+                  r'$ref': r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString',
+                },
+              },
+            }),
+          ),
+        ],
+        functions: [
+          FunctionApi(
+            name: 'greet',
+            returnType: A2uiReturnType.string,
+            argumentSchema: Schema.object(
+              properties: {'name': Schema.string()},
+              required: ['name'],
+            ),
+          ),
+          FunctionApi(
+            name: 'ping',
+            returnType: A2uiReturnType.string,
+            argumentSchema: Schema.object(),
+          ),
+          FunctionApi(
+            name: 'openEcho',
+            returnType: A2uiReturnType.string,
+            argumentSchema: Schema.fromMap(const {
+              'type': 'object',
+              'additionalProperties': true,
+            }),
+          ),
+          FunctionApi(
+            name: 'unevaluatedEcho',
+            returnType: A2uiReturnType.string,
+            argumentSchema: Schema.fromMap(const {
+              'type': 'object',
+              'unevaluatedProperties': true,
+            }),
+          ),
+        ],
+      );
+      final PayloadValidator<ComponentApi, FunctionApi> validator =
+          PayloadValidator(catalog: catalog);
+
+      expect(
+        () => validator.validateComponent(
+          _box({
+            'call': 'greet',
+            'args': {'name': 'Ada'},
+          }),
+        ),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateComponent(
+          _box({
+            'call': 'greet',
+            'args': {'name': 'Ada', 'undeclared': 1},
+          }),
+        ),
+        throwsA(_validationError(message: contains("Call to 'greet'"))),
+      );
+      expect(
+        () => validator.validateComponent(
+          _box({'call': 'ping', 'args': <String, Object?>{}}),
+        ),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateComponent(
+          _box({
+            'call': 'ping',
+            'args': {'undeclared': 1},
+          }),
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => validator.validateComponent(
+          _box({
+            'call': 'openEcho',
+            'args': {'anyKey': 123},
+          }),
+        ),
+        returnsNormally,
+      );
+
+      // Direct validateFunction & validateFunctionArgs share closure rules.
+      expect(
+        () => validator.validateFunction('greet', {'name': 'Ada'}),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateFunctionArgs('greet', {'name': 'Ada'}),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateFunction('greet', {
+          'name': 'Ada',
+          'undeclared': 1,
+        }),
+        throwsA(_validationError(message: contains("Call to 'greet'"))),
+      );
+      expect(
+        () => validator.validateFunctionArgs('greet', {
+          'name': 'Ada',
+          'undeclared': 1,
+        }),
+        throwsA(_validationError(message: contains("Call to 'greet'"))),
+      );
+
+      expect(
+        () => validator.validateFunction('ping', const {}),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateFunctionArgs('ping', const {}),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateFunction('ping', {'undeclared': 1}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => validator.validateFunctionArgs('ping', {'undeclared': 1}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+
+      expect(
+        () => validator.validateFunction('openEcho', {'anyKey': 123}),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateFunctionArgs('openEcho', {'anyKey': 123}),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateFunction('unevaluatedEcho', {'anyKey': 123}),
+        returnsNormally,
+      );
+      expect(
+        () =>
+            validator.validateFunctionArgs('unevaluatedEcho', {'anyKey': 123}),
+        returnsNormally,
       );
     });
 
