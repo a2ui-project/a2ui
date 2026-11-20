@@ -503,4 +503,27 @@ describe('a2ui-shell layout and inspector integration', () => {
       expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual(['main']);
     }
   });
+
+  it('shows gated presets in gated mode and macro example only in binder mode', () => {
+    const gatedActions = (playgroundConfig.quickActions ?? []).filter(
+      a => !a.modes || a.modes.includes('gated')
+    );
+    expect(gatedActions.map(a => a.label)).toEqual([
+      'Incident (Degraded)',
+      'Incident (Healthy)',
+      'Order (Delayed)',
+      'Order (Delivered)',
+    ]);
+
+    const binderActions = (playgroundConfig.quickActions ?? []).filter(
+      a => !a.modes || a.modes.includes('binder')
+    );
+    expect(binderActions.map(a => a.label)).toContain('Incident Alert (Macro)');
+
+    const cascadeActions = (playgroundConfig.quickActions ?? []).filter(
+      a => !a.modes || a.modes.includes('cascade')
+    );
+    expect(cascadeActions.map(a => a.label)).not.toContain('Incident Alert (Macro)');
+    expect(cascadeActions.map(a => a.label)).not.toContain('Incident (Degraded)');
+  });
 });

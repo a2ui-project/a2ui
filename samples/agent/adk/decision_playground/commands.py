@@ -26,6 +26,7 @@ CommandKind = Literal[
     "backend",
     "budget",
     "tool",
+    "gated",
     "form",
     "compare",
     "trace",
@@ -58,6 +59,7 @@ def parse_command(text: str) -> ParsedCommand | None:
         "/backend": "backend",
         "/budget": "budget",
         "/tool": "tool",
+        "/gated": "gated",
         "/form": "form",
         "/compare": "compare",
         "/trace": "trace",
@@ -97,19 +99,21 @@ def format_help(
     budget_ms: float | None,
     tool_aliases: tuple[str, ...],
     form_aliases: tuple[str, ...],
+    gated_aliases: tuple[str, ...] = (),
 ) -> str:
     """Formats the `/help` status and command reference card text."""
     budget_label = f"{budget_ms:g} ms" if budget_ms is not None else "off"
     tools_str = " | ".join(tool_aliases)
     forms_str = " | ".join(form_aliases)
-    return "\n".join([
+    gated_str = " | ".join(gated_aliases)
+    lines = [
         "### A2UI Decision Playground",
         f"- Active mode: `{mode.value}`",
         f"- Decision backend: `{backend_kind}` (`{model_id}`)",
         f"- Latency budget: `{budget_label}`",
         "",
         "**Commands**",
-        "- `/mode cascade | binder | rpc | express | direct`",
+        "- `/mode cascade | binder | gated | rpc | express | direct`",
         "- `/backend mock | gemini | jev | step0`",
         (
             "- `/budget <ms> | off` (for example `/budget 300` to test tight-budget"
@@ -119,6 +123,13 @@ def format_help(
             f"- `/tool {tools_str}` (run a domain tool directly via"
             " `ToolPointerBinder`, 0 LLM calls)"
         ),
+    ]
+    if gated_str:
+        lines.append(
+            f"- `/gated {gated_str}` (evaluate optional regions and variants on a"
+            " gated template)"
+        )
+    lines.extend([
         (
             f"- `/form {forms_str}` (render an A2UI v1.0 form backed by submit-time RPC"
             " predicates)"
@@ -127,3 +138,4 @@ def format_help(
         "- `/trace` (summarize the last decision batch)",
         "- `/help` (show this message)",
     ])
+    return "\n".join(lines)

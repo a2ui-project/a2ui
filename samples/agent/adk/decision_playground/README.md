@@ -3,7 +3,8 @@
 A chat-style sample agent for trying out the standalone A2UI decision-model capabilities interactively:
 
 - `cascade`: routes each request through `DecisionCascadeRouter` across `TEXT_ONLY`, `TEMPLATE`, and `PRUNED_EXPRESS` tiers with an optional latency budget (`/budget <ms>`).
-- `binder`: binds structured tool outputs (`get_host_health`, `get_resort`, `get_transfer_quote`, `get_order_details`) to templates via `ToolPointerBinder` with zero UI LLM calls and automatic redaction of secret fields such as `apiKey`.
+- `binder`: binds structured tool outputs (`get_host_health`, `get_resort`, `get_transfer_quote`, `get_order_details`, `get_incident_alert`) to Express templates or Python `@macro` components (`IncidentAlertCard`) via `ToolPointerBinder` with zero UI LLM calls and automatic redaction of secret fields such as `apiKey`.
+- `gated`: evaluates boolean region gates (`a2ui_gate`) and mutually exclusive layout variants (`a2ui_variant`) stored in A2UI v1.0 `@metadata.extensions` via `GatedTemplateEvaluator` (`service_incident_gated` and `order_status_gated`).
 - `rpc`: renders interactive forms whose submit buttons invoke `callAgentFunction` against `build_predicate_agent_functions` (guarded by `SessionRateLimiter`) and return `agentFunctionResponse` verdicts inline without clearing the form surface.
 - `express` and `direct`: LLM baselines using `ExpressFormat` and `DirectJsonFormat`, plus `/compare` to run `cascade`, `express`, and `direct` side by side on the same prompt.
 
@@ -48,10 +49,11 @@ Use the header `Mode` and `Backend` pills, the quick-action buttons below the in
 
 | Command | Effect |
 | :--- | :--- |
-| `/mode cascade` \| `binder` \| `rpc` \| `express` \| `direct` | Switches the active render mode. |
+| `/mode cascade` \| `binder` \| `gated` \| `rpc` \| `express` \| `direct` | Switches the active render mode. |
 | `/backend mock` \| `gemini` \| `jev` \| `step0` | Switches the active decision backend at runtime (rolls back on configuration error). |
 | `/budget <ms>` \| `off` | Sets or clears the `DecisionCascadeRouter` latency budget in milliseconds. |
-| `/tool host` \| `resort` \| `transfer` \| `order` | Runs a deterministic sample tool through `ToolPointerBinder` (0 LLM calls). |
+| `/tool host` \| `resort` \| `transfer` \| `order` \| `incident` | Runs a deterministic sample tool through `ToolPointerBinder` (0 LLM calls). |
+| `/gated incident_degraded` \| `incident_healthy` \| `order_delayed` \| `order_delivered` | Evaluates optional regions and variants on a gated v1.0 template. |
 | `/form bug` \| `feedback` \| `refund` | Renders an interactive form wired to a `callAgentFunction` decision predicate. |
 | `/compare` | Runs the next prompt through `cascade`, `express`, and `direct` side by side. |
 | `/trace` | Prints the most recent inspector trace JSON as a card. |
