@@ -17,7 +17,13 @@
 
 import {readFileSync, writeFileSync} from 'node:fs';
 import {parseArgs} from 'node:util';
-import {getPackageGraph, incrementVersion, runCommand} from './lib/workspace.mjs';
+import {
+  ansi,
+  getPackageGraph,
+  incrementVersion,
+  runCommand,
+  satisfiesCaretRange,
+} from './lib/workspace.mjs';
 
 const {values, positionals} = parseArgs({
   args: process.argv.slice(2),
@@ -91,6 +97,19 @@ writeFileSync(pkg.path, JSON.stringify(pkgJson, null, 2) + '\n');
 
 // 2. Find all internal dependents and sync them
 const dependents = Object.values(graph).filter(p => p.internalDependencies.includes(pkg.name));
+
+if (!satisfiesCaretRange(`^${oldVersion}`, newVersion)) {
+  const publishableRuntimeDependents = dependents.filter(dep => {
+    if (dep.private) return false;
+    const runtimeAndPeerDeps = {...dep.dependencies, ...dep.peerDependencies};
+    return pkg.name in runtimeAndPeerDeps;
+  });
+  if (publishableRuntimeDependents.length > 0) {
+    console.warn(
+      `${ansi.yellow}⚠️  WARNING: ${pkg.name} ${oldVersion} -> ${newVersion} breaks the ^${oldVersion} caret range. Ensure these publishable dependents also have their versions bumped before publishing: ${publishableRuntimeDependents.map(d => d.name).join(', ')}${ansi.reset}`,
+    );
+  }
+}
 
 if (dependents.length > 0 && !skipSync) {
   console.log(`Updating ${dependents.length} dependents...`);
