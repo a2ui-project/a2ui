@@ -64,11 +64,11 @@ class DataModel {
   Object? _data;
   final Map<String, WeakReference<Signal<Object?>>> _signals = {};
   final Map<(String, Type), WeakReference<ReadonlySignal<Object?>>>
-      _typedSignals = {};
+  _typedSignals = {};
   final Set<DataSubscription<Object?>> _subscriptions = {};
 
   DataModel([Object? initialData])
-      : _data = _own(initialData) ?? <String, Object?>{};
+    : _data = _own(initialData) ?? <String, Object?>{};
 
   /// Returns a modifiable deep copy of [value], normalizing string-keyed maps
   /// to `Map<String, Object?>` and lists to `List<Object?>`.
@@ -245,8 +245,9 @@ class DataModel {
 
           if (current is Map<String, Object?>) {
             if (!current.containsKey(segment) || current[segment] == null) {
-              current[segment] =
-                  isNextNumeric ? <Object?>[] : <String, Object?>{};
+              current[segment] = isNextNumeric
+                  ? <Object?>[]
+                  : <String, Object?>{};
             }
             current = current[segment];
           } else if (current is List<Object?>) {
@@ -267,8 +268,9 @@ class DataModel {
               current.add(null);
             }
             if (current[index] == null) {
-              current[index] =
-                  isNextNumeric ? <Object?>[] : <String, Object?>{};
+              current[index] = isNextNumeric
+                  ? <Object?>[]
+                  : <String, Object?>{};
             }
             current = current[index];
           } else {

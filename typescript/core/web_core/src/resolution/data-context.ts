@@ -449,8 +449,9 @@ export class DataContext {
     } else {
       this.surface = surface;
       this.dataModel = surface.dataModel;
+      const defaultCatalog = surface.defaultCatalog ?? surface.catalog;
       this.functionInvoker =
-        surface.defaultCatalog?.invoker ??
+        defaultCatalog?.invoker ??
         ((name, ...rest) =>
           resolveSurfaceCatalog(surface, undefined, `Function call '${name}'`).invoker(
             name,
@@ -521,7 +522,8 @@ export class DataContext {
     return (
       this.surface?.protocolVersion ??
       this.surface?.defaultCatalog?.protocolVersion ??
-      this.activeCatalog?.protocolVersion
+      this.activeCatalog?.protocolVersion ??
+      this.surface?.catalog?.protocolVersion
     );
   }
 

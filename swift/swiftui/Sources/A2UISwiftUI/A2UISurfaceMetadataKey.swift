@@ -17,5 +17,5 @@ import SwiftUI
 
 extension EnvironmentValues {
   /// The A2UI surface metadata dictionary injected by ``Surface``.
-  @Entry public var a2uiSurfaceMetadata: [String: JSONValue]? = nil
+  @Entry public internal(set) var a2uiSurfaceMetadata: [String: JSONValue]? = nil
 }

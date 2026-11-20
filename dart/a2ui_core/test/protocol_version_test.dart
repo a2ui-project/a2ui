@@ -29,10 +29,7 @@ void main() {
         A2uiProtocolVersion.v0_9_1,
         A2uiProtocolVersion.v1_0,
       ]);
-      expect(
-        A2uiProtocolVersion.supportedVersions,
-        "'v0.9', 'v0.9.1', '1.0'",
-      );
+      expect(A2uiProtocolVersion.supportedVersions, "'v0.9', 'v0.9.1', '1.0'");
     });
 
     test('parses and round-trips every version', () {
@@ -72,9 +69,13 @@ void main() {
 
     test('isAtLeast compares against a minimum version', () {
       expect(
-          A2uiProtocolVersion.v1_0.isAtLeast(A2uiProtocolVersion.v0_9), isTrue);
+        A2uiProtocolVersion.v1_0.isAtLeast(A2uiProtocolVersion.v0_9),
+        isTrue,
+      );
       expect(
-          A2uiProtocolVersion.v1_0.isAtLeast(A2uiProtocolVersion.v1_0), isTrue);
+        A2uiProtocolVersion.v1_0.isAtLeast(A2uiProtocolVersion.v1_0),
+        isTrue,
+      );
       expect(
         A2uiProtocolVersion.v0_9_1.isAtLeast(A2uiProtocolVersion.v0_9),
         isTrue,
@@ -83,8 +84,10 @@ void main() {
         A2uiProtocolVersion.v0_9.isAtLeast(A2uiProtocolVersion.v0_9_1),
         isFalse,
       );
-      expect(A2uiProtocolVersion.v0_9.isAtLeast(A2uiProtocolVersion.v1_0),
-          isFalse);
+      expect(
+        A2uiProtocolVersion.v0_9.isAtLeast(A2uiProtocolVersion.v1_0),
+        isFalse,
+      );
     });
 
     test('parse rejects an unknown version; tryParse returns null', () {

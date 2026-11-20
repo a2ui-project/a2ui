@@ -84,9 +84,9 @@ void main() {
     'catalogs/mcp/catalog.json',
     'catalogs/vegachart/v1/catalog.json',
     'catalogs/vegachart/v0_9/catalog.json',
-    'specification/v0_9/catalogs/basic/catalog.json',
-    'specification/v0_9/catalogs/minimal/catalog.json',
-    'specification/v0_9_1/catalogs/basic/catalog.json',
+    'catalogs/basic/v0_9/catalog.json',
+    'catalogs/minimal/v0_9/catalog.json',
+    'catalogs/basic/v0_9_1/catalog.json',
     'specification/v1_0/test/testing_catalog.json',
   ];
 
@@ -1142,71 +1142,68 @@ void main() {
       expect(result.stderr, contains('Error: Catalog file not found at:'));
     });
 
-    test(
-      'exits 0 on warnings by default and exits 1 with --fatal-warnings',
-      () async {
-        final Directory tmpDir = Directory.systemTemp.createTempSync(
-          'lint-test-warn-',
-        );
-        try {
-          final warnFile = File(p.join(tmpDir.path, 'warn_catalog.json'))
-            ..writeAsStringSync(
-              jsonEncode(
-                _v1Catalog(
-                  components: {
-                    'LegacyWrapped': {
-                      'type': 'object',
-                      'allOf': [
-                        {r'$ref': r'common_types.json#/$defs/ComponentCommon'},
-                        {
-                          'type': 'object',
-                          'properties': {
-                            'component': {'const': 'LegacyWrapped'},
-                          },
-                          'required': ['component'],
+    test('exits 0 on warnings by default and exits 1 with --fatal-warnings', () async {
+      final Directory tmpDir = Directory.systemTemp.createTempSync(
+        'lint-test-warn-',
+      );
+      try {
+        final warnFile = File(p.join(tmpDir.path, 'warn_catalog.json'))
+          ..writeAsStringSync(
+            jsonEncode(
+              _v1Catalog(
+                components: {
+                  'LegacyWrapped': {
+                    'type': 'object',
+                    'allOf': [
+                      {r'$ref': r'common_types.json#/$defs/ComponentCommon'},
+                      {
+                        'type': 'object',
+                        'properties': {
+                          'component': {'const': 'LegacyWrapped'},
                         },
-                      ],
-                    },
+                        'required': ['component'],
+                      },
+                    ],
                   },
-                ),
+                },
               ),
-            );
-
-          final String canonicalWarnPath = p.canonicalize(warnFile.path);
-          final ({int exitCode, String stdout, String stderr}) defaultResult =
-              await _captureCli(['lint', '-c', warnFile.path]);
-          expect(defaultResult.exitCode, equals(0));
-          expect(defaultResult.stdout, isEmpty);
-          expect(
-            defaultResult.stderr,
-            contains(
-              '$canonicalWarnPath: '
-              'warning[redundant_component_common] (/components/LegacyWrapped): '
-              "Component 'LegacyWrapped' wraps 'ComponentCommon'",
             ),
           );
 
-          final ({int exitCode, String stdout, String stderr}) fatalResult =
-              await _captureCli([
-                'lint',
-                '--fatal-warnings',
-                '--catalog',
-                warnFile.path,
-              ]);
-          expect(fatalResult.exitCode, equals(1));
-          expect(
-            fatalResult.stderr,
-            contains(
-              '$canonicalWarnPath: '
-              'warning[redundant_component_common] (/components/LegacyWrapped): '
-              "Component 'LegacyWrapped' wraps 'ComponentCommon'",
-            ),
-          );
-        } finally {
-          tmpDir.deleteSync(recursive: true);
-        }
-      },
-    );
+        final String canonicalWarnPath = p.canonicalize(warnFile.path);
+        final ({int exitCode, String stdout, String stderr}) defaultResult =
+            await _captureCli(['lint', '-c', warnFile.path]);
+        expect(defaultResult.exitCode, equals(0));
+        expect(defaultResult.stdout, isEmpty);
+        expect(
+          defaultResult.stderr,
+          contains(
+            '$canonicalWarnPath: '
+            'warning[redundant_component_common] (/components/LegacyWrapped): '
+            "Component 'LegacyWrapped' wraps 'ComponentCommon'",
+          ),
+        );
+
+        final ({int exitCode, String stdout, String stderr}) fatalResult =
+            await _captureCli([
+              'lint',
+              '--fatal-warnings',
+              '--catalog',
+              warnFile.path,
+            ]);
+        expect(fatalResult.exitCode, equals(1));
+        expect(
+          fatalResult.stderr,
+          contains(
+            '$canonicalWarnPath: '
+            'warning[redundant_component_common] (/components/LegacyWrapped): '
+            "Component 'LegacyWrapped' wraps 'ComponentCommon'",
+          ),
+        );
+      } finally {
+        tmpDir.deleteSync(recursive: true);
+      }
+    });
 
     test(
       'exits 1 on malformed JSON, non-object root, or catalog lint errors',

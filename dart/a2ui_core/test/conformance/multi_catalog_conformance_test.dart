@@ -26,22 +26,9 @@ const Map<String, Set<String>> _knownKeys = {
     'expectError',
     'expectSelected',
   },
-  'args:select_catalog': {
-    'catalogs',
-    'components',
-    'functionCall',
-    'surface',
-  },
-  'surface:select_catalog': {
-    'defaultCatalogId',
-    'id',
-    'supportedCatalogIds',
-  },
-  'functionCall:select_catalog': {
-    'args',
-    'call',
-    'catalogId',
-  },
+  'args:select_catalog': {'catalogs', 'components', 'functionCall', 'surface'},
+  'surface:select_catalog': {'defaultCatalogId', 'id', 'supportedCatalogIds'},
+  'functionCall:select_catalog': {'args', 'call', 'catalogId'},
 };
 
 /// Runs the shared `conformance/core/multi_catalog.yaml` suite against
@@ -51,19 +38,16 @@ void main() {
   // The suite's `validate` cases render basic-catalog components on a
   // surface, so `message_processor_conformance_test.dart` runs them.
   final List<Map<String, Object?>> cases = [
-    for (final Map<String, Object?> testCase
-        in loadConformanceSuite('core/multi_catalog.yaml'))
+    for (final Map<String, Object?> testCase in loadConformanceSuite(
+      'core/multi_catalog.yaml',
+    ))
       if (testCase['action'] != 'validate') testCase,
   ];
 
   group('conformance core/multi_catalog.yaml', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
 
-    runConformanceSuite(
-      cases,
-      _runCase,
-      suite: 'core/multi_catalog.yaml',
-    );
+    runConformanceSuite(cases, _runCase, suite: 'core/multi_catalog.yaml');
   });
 }
 
@@ -119,8 +103,9 @@ void _runSelectCatalogCase(Map<String, Object?> testCase) {
   final surfaceArgs = args['surface']! as Map<String, Object?>;
   final String surfaceId = surfaceArgs['id'] as String? ?? 'main_surface';
   final defaultId = surfaceArgs['defaultCatalogId'] as String?;
-  final String surfaceVersion = (testCase['catalog']
-          as Map<String, Object?>?)?['protocolVersion'] as String? ??
+  final String surfaceVersion =
+      (testCase['catalog'] as Map<String, Object?>?)?['protocolVersion']
+          as String? ??
       '1.0';
   final functionCall = args['functionCall'] as Map<String, Object?>?;
   final functionName = functionCall?['call'] as String?;
@@ -129,16 +114,15 @@ void _runSelectCatalogCase(Map<String, Object?> testCase) {
   Catalog<ComponentApi, FunctionImplementation> catalogFor(
     String id,
     String version,
-  ) =>
-      Catalog<ComponentApi, FunctionImplementation>(
-        id: id,
-        components: const [],
-        functions: [
-          if (functionName != null)
-            _RecordingFunction(functionName, id, selections),
-        ],
-        protocolVersion: A2uiProtocolVersion.parse(version),
-      );
+  ) => Catalog<ComponentApi, FunctionImplementation>(
+    id: id,
+    components: const [],
+    functions: [
+      if (functionName != null)
+        _RecordingFunction(functionName, id, selections),
+    ],
+    protocolVersion: A2uiProtocolVersion.parse(version),
+  );
 
   final declared = args['catalogs'] as Map<String, Object?>?;
   final catalogs = <String, Catalog<ComponentApi, FunctionImplementation>>{
@@ -209,9 +193,9 @@ void _runSelectCatalogCase(Map<String, Object?> testCase) {
     // The suite words an unsupported catalog as this case's surface would;
     // this SDK, like the Python and TypeScript ones, reports it as
     // "Catalog not found: <id>".
-    final RegExpMatch? unsupported =
-        RegExp(r"^Catalog '([^']*)' is not supported by surface ")
-            .firstMatch(message);
+    final RegExpMatch? unsupported = RegExp(
+      r"^Catalog '([^']*)' is not supported by surface ",
+    ).firstMatch(message);
     expect(
       select,
       throwsA(
@@ -239,7 +223,7 @@ class _RecordingFunction extends FunctionImplementation {
   final List<String> calls;
 
   _RecordingFunction(String name, this.catalogId, this.calls)
-      : super(name: name, argumentSchema: Schema.object());
+    : super(name: name, argumentSchema: Schema.object());
 
   @override
   Object? execute(
