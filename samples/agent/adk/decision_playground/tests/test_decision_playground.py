@@ -160,11 +160,16 @@ async def test_budget_command_updates_settings_and_rejects_invalid() -> None:
 @pytest.mark.asyncio
 async def test_binder_tool_host_redacts_api_key_in_wire_and_trace() -> None:
     agent = _make_agent()
+    await agent.handle_text_turn("/mode binder", context_id="ctx-4", include_trace=True)
     result = await agent.handle_text_turn(
         "/tool host", context_id="ctx-4", include_trace=True
     )
     assert result.trace is not None
     assert result.trace["activeMode"] == "binder"
+    records = result.trace["candidates"][0]["decisionOutput"]["records"]
+    assert isinstance(records[0]["probabilities"], list)
+    assert "option" in records[0]["probabilities"][0]
+    assert "prob" in records[0]["probabilities"][0]
     wire_json = json.dumps(result.messages)
     assert "sk-live-secret-do-not-expose" not in wire_json
     stage4_json = json.dumps(result.trace["candidates"][0]["wireOutput"]["messages"])
@@ -173,8 +178,29 @@ async def test_binder_tool_host_redacts_api_key_in_wire_and_trace() -> None:
 
 
 @pytest.mark.asyncio
+async def test_tool_command_preserves_non_binder_mode() -> None:
+    fake_llm = _FakeLlmCaller(
+        '[{"version": "1.0", "createSurface": {"surfaceId": "turn-1-direct",'
+        ' "catalogId":'
+        ' "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}}]'
+    )
+    agent = _make_agent(llm=fake_llm)
+    await agent.handle_text_turn(
+        "/mode direct", context_id="ctx-direct", include_trace=True
+    )
+    res = await agent.handle_text_turn(
+        "/tool resort", context_id="ctx-direct", include_trace=True
+    )
+    assert agent.get_settings("ctx-direct").mode is RenderMode.DIRECT
+    assert res.trace is not None
+    assert res.trace["activeMode"] == "direct"
+    assert fake_llm.calls == 1
+
+
+@pytest.mark.asyncio
 async def test_binder_tool_resort_binds_without_llm() -> None:
     agent = _make_agent()
+    await agent.handle_text_turn("/mode binder", context_id="ctx-5", include_trace=True)
     result = await agent.handle_text_turn(
         "/tool resort", context_id="ctx-5", include_trace=True
     )

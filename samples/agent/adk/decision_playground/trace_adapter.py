@@ -65,16 +65,23 @@ def _serialize_answer_record(
     """Serializes one `(question, answer)` pair for Stage 3 probability bars."""
     is_bool = question.kind is QuestionKind.BOOLEAN
     winner, winner_prob = answer.top()
+    passed = (winner == "yes" and winner_prob >= 0.5) if is_bool else True
+    ranked = sorted(
+        answer.distribution.probabilities.items(),
+        key=lambda item: item[1],
+        reverse=True,
+    )
     return {
         "questionId": question.id,
         "kind": "boolean" if is_bool else "categorical",
         "winner": winner,
         "winnerProb": round(winner_prob, 4),
-        "probabilities": {
-            k: round(v, 4) for k, v in answer.distribution.probabilities.items()
-        },
         "threshold": 0.5 if is_bool else None,
-        "passed": (winner == "yes" and winner_prob >= 0.5) if is_bool else True,
+        "outcome": ("pass" if passed else "fail") if is_bool else "selected",
+        "pruned": False,
+        "probabilities": [
+            {"option": opt, "prob": round(prob, 4)} for opt, prob in ranked
+        ],
     }
 
 
@@ -118,10 +125,16 @@ def _build_decision_stages(
         "fallbackReason": outcome.fallback_reason,
         "operation": outcome.operation,
         "records": records,
-        "plan": None,
+        "layoutPlan": None,
         "rawAnswers": [
             {
-                "questionId": ans.question_id,
+                "id": ans.question_id,
+                "kind": (
+                    "boolean"
+                    if ans.question_id
+                    in {q.id for q in questions if q.kind is QuestionKind.BOOLEAN}
+                    else "categorical"
+                ),
                 "probabilities": dict(ans.distribution.probabilities),
             }
             for ans in answers
@@ -179,6 +192,8 @@ def build_candidate_trace(
         "decisionOutput": decision_output,
         "llmStage2": None,
         "wireOutput": {
+            "surfaceId": outcome.surface_id,
+            "operation": outcome.operation,
             "messageCount": len(msg_list),
             "messageKinds": _message_kinds(msg_list),
             "messages": msg_list,
