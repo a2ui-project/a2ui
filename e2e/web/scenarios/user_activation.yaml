@@ -1,0 +1,203 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# A live-only scenario: the test agents serve it next to the hub seeds, but the
+# hub runners do not read it, because what it checks is a browser's user
+# activation. A button opens a URL on a real click; a second turn binds the same
+# call to a Text, which evaluates without a gesture and must be refused.
+
+- name: user_activation
+  action: e2e_scenario
+  description: A button whose action calls openUrl, then a passive binding to openUrl that no gesture backs.
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  formats:
+    - direct_json
+    - express
+  source:
+    kind: hand_authored
+  turns:
+    - userText: "Show a button that opens the A2UI site with openUrl."
+      modelChunks:
+        direct_json:
+          - "Here is a button that opens the site.\n\n<a"
+          - "2ui-json>\n"
+          - |
+            [
+              {
+                "version": "1.0",
+                "createSurface": {
+                  "surfaceId": "links",
+                  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+                  "components": [
+                    {
+                      "id": "root",
+                      "component": "Column",
+                      "children": ["note", "openBtn"]
+                    },
+                    {
+                      "id": "note",
+                      "component": "Text",
+                      "text": "Click to open the site."
+                    },
+                    {
+                      "id": "openBtn",
+                      "component": "Button",
+                      "variant": "primary",
+                      "child": "openLabel",
+                      "action": {
+                        "functionCall": {
+                          "@call": "openUrl",
+                          "args": {"url": "https://a2ui.org/opened"}
+                        }
+                      }
+                    },
+                    {
+                      "id": "openLabel",
+                      "component": "Text",
+                      "text": "Open the site"
+                    }
+                  ]
+                }
+              }
+            ]
+            </a2ui-json>
+        express:
+          - "Here is a button that opens the site.\n\n<a"
+          - "2ui>\n"
+          - |
+            surface("links")
+            root = Column([note, openBtn])
+            note = Text("Click to open the site.")
+            openBtn = Button(openLabel, "primary", openUrl(url="https://a2ui.org/opened"))
+            openLabel = Text("Open the site")
+            </a2ui>
+      expectWire:
+        - text: "Here is a button that opens the site."
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: links
+                catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+                components:
+                  - id: root
+                    component: Column
+                    children: [note, openBtn]
+                  - id: note
+                    component: Text
+                    text: Click to open the site.
+                  - id: openBtn
+                    component: Button
+                    variant: primary
+                    child: openLabel
+                    action:
+                      functionCall:
+                        "@call": openUrl
+                        args:
+                          url: https://a2ui.org/opened
+                  - id: openLabel
+                    component: Text
+                    text: Open the site
+      expectViewTree:
+        links:
+          id: root
+          type: Column
+          children:
+            - id: note
+              type: Text
+              text: Click to open the site.
+            - id: openBtn
+              type: Button
+              children:
+                - id: openLabel
+                  type: Text
+                  text: Open the site
+    - userText: "Now open it yourself, without me clicking."
+      modelChunks:
+        direct_json:
+          - "I will try.\n\n<a"
+          - "2ui-json>\n"
+          - |
+            [
+              {
+                "version": "1.0",
+                "updateComponents": {
+                  "surfaceId": "links",
+                  "components": [
+                    {
+                      "id": "root",
+                      "component": "Column",
+                      "children": ["note", "openBtn", "autoOpen"]
+                    },
+                    {
+                      "id": "autoOpen",
+                      "component": "Text",
+                      "text": {
+                        "@call": "openUrl",
+                        "args": {"url": "https://a2ui.org/blocked"}
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+            </a2ui-json>
+        express:
+          - "I will try.\n\n<a"
+          - "2ui>\n"
+          - |
+            surface("links", update=true)
+            root = Column([note, openBtn, autoOpen])
+            autoOpen = Text(openUrl(url="https://a2ui.org/blocked"))
+            </a2ui>
+      expectWire:
+        - text: "I will try."
+        - a2ui:
+            - version: "1.0"
+              updateComponents:
+                surfaceId: links
+                components:
+                  - id: root
+                    component: Column
+                    children: [note, openBtn, autoOpen]
+                  - id: autoOpen
+                    component: Text
+                    text:
+                      "@call": openUrl
+                      args:
+                        url: https://a2ui.org/blocked
+      expectViewTree:
+        links:
+          id: root
+          type: Column
+          children:
+            - id: note
+              type: Text
+              text: Click to open the site.
+            - id: openBtn
+              type: Button
+              children:
+                - id: openLabel
+                  type: Text
+                  text: Open the site
+            - id: autoOpen
+              type: Text
+      expectOutbound:
+        - version: "1.0"
+          error:
+            code: EXPRESSION_ERROR
+            surfaceId: links
+            message:
+              $match: any
