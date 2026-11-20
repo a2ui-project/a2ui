@@ -1,0 +1,20 @@
+{
+  "name": "@a2ui/specification-v1_0-test",
+  "version": "1.0.0",
+  "description": "This directory contains test cases and a runner for validating the A2UI JSON schemas.",
+  "main": "index.js",
+  "scripts": {
+    "test": "python3 run_tests.py",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "echo \"Workspace has no lint configuration.\"",
+    "lint:fix": "echo \"Workspace has no lint configuration.\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ajv-cli": "^5.0.0",
+    "ajv-formats": "^3.0.1"
+  }
+}

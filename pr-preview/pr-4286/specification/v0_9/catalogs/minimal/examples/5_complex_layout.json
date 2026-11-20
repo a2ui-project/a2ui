@@ -1,0 +1,65 @@
+{
+  "name": "Complex Layout",
+  "description": "Nested rows and columns",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "example_5",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/minimal/catalog.json"
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "example_5",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["header", "form_row", "footer"],
+            "justify": "spaceBetween",
+            "align": "stretch"
+          },
+          {
+            "id": "header",
+            "component": "Text",
+            "text": "User Profile Form",
+            "variant": "h1"
+          },
+          {
+            "id": "form_row",
+            "component": "Row",
+            "children": ["first_name", "last_name"],
+            "justify": "start",
+            "align": "start"
+          },
+          {
+            "id": "first_name",
+            "component": "TextField",
+            "label": "First Name",
+            "value": {
+              "path": "/firstName"
+            },
+            "weight": 1
+          },
+          {
+            "id": "last_name",
+            "component": "TextField",
+            "label": "Last Name",
+            "value": {
+              "path": "/lastName"
+            },
+            "weight": 1
+          },
+          {
+            "id": "footer",
+            "component": "Text",
+            "text": "Please fill out all fields.",
+            "variant": "caption"
+          }
+        ]
+      }
+    }
+  ]
+}
