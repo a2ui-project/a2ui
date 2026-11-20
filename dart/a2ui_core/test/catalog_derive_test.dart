@@ -24,9 +24,8 @@ import 'conformance/conformance_harness.dart';
 void main() {
   final CatalogApi basic = Catalog.fromJson(
     jsonDecode(
-      File(
-        resolveConformancePath('../catalogs/basic/v1/catalog.json'),
-      ).readAsStringSync(),
+      File(resolveConformancePath('../catalogs/basic/v1/catalog.json'))
+          .readAsStringSync(),
     ) as Map<String, Object?>,
   );
   const chatId = 'https://example.com/chat';
@@ -124,11 +123,8 @@ void main() {
     test('drops definitions that only left-out entries referenced', () {
       final CatalogApi v09 = Catalog.fromJson(
         jsonDecode(
-          File(
-            resolveConformancePath(
-              '../specification/v0_9_1/catalogs/basic/catalog.json',
-            ),
-          ).readAsStringSync(),
+          File(resolveConformancePath('../catalogs/basic/v0_9_1/catalog.json'))
+              .readAsStringSync(),
         ) as Map<String, Object?>,
         catalogId:
             'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',

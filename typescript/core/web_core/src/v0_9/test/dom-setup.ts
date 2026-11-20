@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export * from '../../test/dom-setup.js';
+export {setupTestDom, teardownTestDom, asyncUpdate} from '../../test/dom-setup.js';

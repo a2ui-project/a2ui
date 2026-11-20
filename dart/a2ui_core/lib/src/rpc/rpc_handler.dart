@@ -98,9 +98,9 @@ class ExecutionContext {
 class RpcHandler {
   RpcHandler({
     required this.catalogs,
-    OutboundMessageListener? outboundListener,
+    this._outboundListener,
     this.defaultTimeout = const Duration(seconds: 30),
-  }) : _outboundListener = outboundListener;
+  });
 
   /// Catalogs an inbound call may name when the target surface does not
   /// hold the catalog itself.
@@ -294,8 +294,9 @@ class RpcHandler {
         ),
       );
     } catch (error) {
-      final String errorMessage =
-          error is A2uiError ? error.message : error.toString();
+      final String errorMessage = error is A2uiError
+          ? error.message
+          : error.toString();
       response = A2uiFunctionResponse.error(
         functionCallId,
         A2uiFunctionResponseError(
@@ -371,12 +372,7 @@ class RpcHandler {
       );
     }
     final DataContext dataContext = dataContextWithCallCatalog(
-      _dataContextFor(
-        surface,
-        catalog,
-        message.version,
-        execution,
-      ),
+      _dataContextFor(surface, catalog, message.version, execution),
       catalog.id,
       catalog.invoke,
     );
@@ -387,8 +383,9 @@ class RpcHandler {
           entry.key: dataContext.resolveDynamicValue(entry.value),
       };
     } catch (error) {
-      final String errorMessage =
-          error is A2uiError ? error.message : error.toString();
+      final String errorMessage = error is A2uiError
+          ? error.message
+          : error.toString();
       throw A2uiRpcError(
         errorMessage.isEmpty
             ? 'An argument of the function call could not be resolved.'
@@ -397,8 +394,10 @@ class RpcHandler {
         cause: error,
       );
     }
-    final List<ValidationError> errors =
-        catalog.argumentErrors(fn, resolvedArgs);
+    final List<ValidationError> errors = catalog.argumentErrors(
+      fn,
+      resolvedArgs,
+    );
     if (errors.isNotEmpty) {
       throw A2uiRpcError(
         "Invalid function arguments for '$name': "
@@ -413,8 +412,9 @@ class RpcHandler {
       if (result is ReadonlySignal) result = result.value;
       return A2uiFunctionResponse.value(functionCallId, result);
     } catch (error) {
-      final String errorMessage =
-          error is A2uiError ? error.message : error.toString();
+      final String errorMessage = error is A2uiError
+          ? error.message
+          : error.toString();
       throw A2uiRpcError(
         errorMessage.isEmpty
             ? 'An error occurred during function execution.'
@@ -469,9 +469,7 @@ class RpcHandler {
         '/',
         protocolVersion: surface.protocolVersion == null
             ? null
-            : A2uiProtocolVersion.tryParseSemVer(
-                surface.protocolVersion!,
-              ),
+            : A2uiProtocolVersion.tryParseSemVer(surface.protocolVersion!),
         invokerForCatalog: (catalogId) {
           if (catalogId == catalog.id) {
             return catalog.invoke;
@@ -488,7 +486,8 @@ class RpcHandler {
       DataModel(),
       catalog.invoke,
       '/',
-      protocolVersion: A2uiProtocolVersion.tryParseSemVer(version) ??
+      protocolVersion:
+          A2uiProtocolVersion.tryParseSemVer(version) ??
           A2uiProtocolVersion.v1_0,
       invokerForCatalog: (catalogId) {
         if (catalogId == catalog.id) return catalog.invoke;

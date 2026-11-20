@@ -30,7 +30,7 @@ is intentionally partial, put `<!-- example: skip -->` on one of the two lines
 above its opening fence.
 
 Usage:
-    python docs/scripts/validate_doc_examples.py --paths docs/public docs/site/src/content/docs
+    python docs/scripts/validate_doc_examples.py --paths docs/site/src/content/docs
 """
 
 from __future__ import annotations
@@ -79,7 +79,7 @@ _VERSION_FILES: dict[str, _VersionFiles] = {
     # never be loaded into the same registry.
     V0_9_1: _VersionFiles(
         json_dir=REPO_ROOT / "specification/v0_9_1/json",
-        catalog=REPO_ROOT / "specification/v0_9_1/catalogs/basic/catalog.json",
+        catalog=REPO_ROOT / "catalogs/basic/v0_9_1/catalog.json",
         base=f"{_SPEC_BASE}/v0_9",
         to_renderer="server_to_client.json",
         from_renderer="client_to_server.json",
@@ -428,7 +428,7 @@ def main(argv: list[str] | None = None) -> int:
         "--paths",
         nargs="+",
         type=pathlib.Path,
-        default=[REPO_ROOT / "docs/public", REPO_ROOT / "docs/site/src/content/docs"],
+        default=[REPO_ROOT / "docs/site/src/content/docs"],
         help="Markdown/MDX files or directories to check.",
     )
     args = parser.parse_args(argv)

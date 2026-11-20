@@ -744,7 +744,7 @@ def _published_function_names(version: str) -> set[str]:
         )
     else:
         catalog_path = os.path.join(
-            SPEC_ROOT, version, "catalogs", "basic", "catalog.json"
+            REPO_ROOT, "catalogs", "basic", version, "catalog.json"
         )
     with open(catalog_path, "r", encoding="utf-8") as catalog_file:
         return set(json.load(catalog_file)["functions"])
@@ -1353,3 +1353,224 @@ def test_renderer_to_agent_and_catalog_definition_extract_nested_metadata_models
             "type": "object",
             "metadata": {"extensions": {"bad-key": 1}},
         })
+
+
+def _imported_binding_names(py_source: str) -> list[str]:
+    tree = ast.parse(py_source)
+    bound: list[str] = []
+    for node in tree.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            for alias in node.names:
+                if alias.name != "*":
+                    bound.append(alias.asname or alias.name)
+    return bound
+
+
+def test_catalog_theme_def_does_not_duplicate_into_components():
+    """`$defs.theme` belongs to `styles.py`; referenced `$defs.Theme` disambiguates cleanly."""
+    from a2ui.core.basic_catalog import v0_8, v0_9, v1_0
+
+    unreferenced_theme_catalog = {
+        "components": {
+            "Text": {
+                "properties": {"text": {"type": "string"}},
+                "required": ["text"],
+            }
+        },
+        "$defs": {
+            "theme": {
+                "type": "object",
+                "properties": {"primaryColor": {"type": "string"}},
+                "additionalProperties": True,
+            },
+            "Weight": {"type": "number"},
+            "anyComponent": {
+                "oneOf": [{"$ref": "#/components/Text"}],
+                "discriminator": {"propertyName": "component"},
+            },
+        },
+    }
+    comp_code = codegen_pydantic.generate_basic_catalog_components(
+        "v0.9", unreferenced_theme_catalog
+    )
+    style_code = codegen_pydantic.generate_basic_catalog_styles(
+        "v0.9", unreferenced_theme_catalog
+    )
+    init_code = codegen_pydantic.generate_basic_catalog_index(
+        "v0.9",
+        "/nonexistent_out_dir",
+        comp_code,
+        "",
+        style_code,
+        catalog_data=unreferenced_theme_catalog,
+    )
+    assert "ThemeItem" not in comp_code
+    assert 'CatalogDef("theme")' not in comp_code
+    assert 'CatalogDef("Weight")' in comp_code
+    assert style_code is not None and "class Theme(BaseModel):" in style_code
+    init_bindings = _imported_binding_names(init_code)
+    assert len(init_bindings) == len(set(init_bindings)), init_bindings
+
+    referenced_theme_catalog = {
+        "components": {
+            "Badge": {
+                "properties": {"badgeTheme": {"$ref": "#/$defs/Theme"}},
+            }
+        },
+        "$defs": {
+            "Theme": {
+                "type": "object",
+                "properties": {"accent": {"type": "string"}},
+            }
+        },
+    }
+    comp_ref = codegen_pydantic.generate_basic_catalog_components(
+        "v1.0", referenced_theme_catalog
+    )
+    style_ref = codegen_pydantic.generate_basic_catalog_styles(
+        "v1.0", referenced_theme_catalog
+    )
+    init_ref = codegen_pydantic.generate_basic_catalog_index(
+        "v1.0", "/nonexistent_out_dir", comp_ref, "", style_ref
+    )
+    assert style_ref is None
+    assert 'CatalogDef("Theme")' in comp_ref
+    ref_bindings = _imported_binding_names(init_ref)
+    assert len(ref_bindings) == len(set(ref_bindings)), ref_bindings
+
+    both_themes_catalog = {
+        "components": {
+            "Badge": {
+                "properties": {"badgeTheme": {"$ref": "#/$defs/Theme"}},
+            }
+        },
+        "$defs": {
+            "theme": {
+                "type": "object",
+                "properties": {"primaryColor": {"type": "string"}},
+            },
+            "Theme": {
+                "type": "object",
+                "properties": {"accent": {"type": "string"}},
+            },
+            "AccentAlias": {"$ref": "#/$defs/Theme"},
+        },
+    }
+    comp_both = codegen_pydantic.generate_basic_catalog_components(
+        "v1.0", both_themes_catalog
+    )
+    style_both = codegen_pydantic.generate_basic_catalog_styles(
+        "v1.0", both_themes_catalog
+    )
+    init_both = codegen_pydantic.generate_basic_catalog_index(
+        "v1.0", "/nonexistent_out_dir", comp_both, "", style_both
+    )
+    assert style_both is not None and "class Theme(" in style_both
+    assert 'ThemeDef = Annotated[Accent, CatalogDef("Theme")]' in comp_both
+    assert 'AccentAlias = Annotated[ThemeDef, CatalogDef("AccentAlias")]' in comp_both
+    both_bindings = _imported_binding_names(init_both)
+    assert len(both_bindings) == len(set(both_bindings)), both_bindings
+
+    with pytest.raises(ValueError, match=r"\$defs\.theme"):
+        codegen_pydantic.generate_basic_catalog_components(
+            "v0.9",
+            {
+                "components": {
+                    "Badge": {"properties": {"t": {"$ref": "#/$defs/theme"}}}
+                },
+                "$defs": {
+                    "theme": {
+                        "type": "object",
+                        "properties": {"primaryColor": {"type": "string"}},
+                    }
+                },
+            },
+        )
+
+    for mod in (v0_8, v0_9, v1_0):
+        assert (
+            mod._basic_catalog_id("0.9")
+            == "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        )
+        assert (
+            mod._basic_catalog_id("1.0")
+            == "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        )
+
+
+def test_committed_basic_catalogs_have_no_ast_drift():
+    """Generated schema and basic catalog modules match committed ASTs across versions."""
+    import shutil
+
+    committed_core = os.path.join(
+        REPO_ROOT, "python", "a2ui_core", "src", "a2ui", "core"
+    )
+    versions = ["v0.8", "v0.9", "v1.0"]
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_core = os.path.join(tmpdir, "core")
+        shutil.copytree(
+            committed_core,
+            tmp_core,
+            ignore=shutil.ignore_patterns("__pycache__"),
+        )
+        for ver in versions:
+            codegen_pydantic.generate_version_schemas(ver, SPEC_ROOT, tmp_core)
+            codegen_pydantic.generate_basic_catalog(ver, SPEC_ROOT, tmp_core)
+        codegen_pydantic.update_root_schema_init(versions, out_root=tmp_core)
+
+        for ver_dir in ("v0_8", "v0_9", "v1_0"):
+            gen_dir = os.path.join(tmp_core, "basic_catalog", ver_dir)
+            com_dir = os.path.join(committed_core, "basic_catalog", ver_dir)
+            for fname in (
+                "components.py",
+                "function_apis.py",
+                "styles.py",
+                "__init__.py",
+            ):
+                gen_path = os.path.join(gen_dir, fname)
+                com_path = os.path.join(com_dir, fname)
+                assert os.path.exists(gen_path) == os.path.exists(com_path), (
+                    ver_dir,
+                    fname,
+                )
+                if not os.path.exists(gen_path):
+                    continue
+                with open(gen_path, "r", encoding="utf-8") as gf:
+                    gen_src = gf.read()
+                with open(com_path, "r", encoding="utf-8") as cf:
+                    com_src = cf.read()
+                assert ast.dump(ast.parse(gen_src)) == ast.dump(
+                    ast.parse(com_src)
+                ), f"AST drift in basic_catalog/{ver_dir}/{fname}"
+                if fname == "__init__.py":
+                    bindings = _imported_binding_names(gen_src)
+                    assert len(bindings) == len(set(bindings)), (ver_dir, bindings)
+
+            gen_schema_dir = os.path.join(tmp_core, "schema", ver_dir)
+            com_schema_dir = os.path.join(committed_core, "schema", ver_dir)
+            for fname in sorted(os.listdir(com_schema_dir)):
+                if not fname.endswith(".py"):
+                    continue
+                with open(
+                    os.path.join(gen_schema_dir, fname), "r", encoding="utf-8"
+                ) as gf:
+                    gen_src = gf.read()
+                with open(
+                    os.path.join(com_schema_dir, fname), "r", encoding="utf-8"
+                ) as cf:
+                    com_src = cf.read()
+                assert ast.dump(ast.parse(gen_src)) == ast.dump(
+                    ast.parse(com_src)
+                ), f"AST drift in schema/{ver_dir}/{fname}"
+
+        with open(
+            os.path.join(tmp_core, "schema", "__init__.py"), "r", encoding="utf-8"
+        ) as gf:
+            gen_root_init = gf.read()
+        with open(
+            os.path.join(committed_core, "schema", "__init__.py"), "r", encoding="utf-8"
+        ) as cf:
+            com_root_init = cf.read()
+        assert ast.dump(ast.parse(gen_root_init)) == ast.dump(
+            ast.parse(com_root_init)
+        ), "AST drift in schema/__init__.py"

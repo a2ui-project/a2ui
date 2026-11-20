@@ -224,6 +224,31 @@
       expectError:
         category: ValidationError
 
+- name: test_v10_child_list_is_ids_or_template
+  features: [F-CORE-13]
+  description: ChildList in v1.0 is either an array of component IDs or a template with exactly componentId and plain path, rejecting @path.
+  action: validate_common_type
+  protocolVersion: "1.0"
+  definition: ChildList
+  steps:
+    - value: ["header", "body"]
+    - value: {componentId: "row", path: "/items"}
+    - value: "header"
+      expectError:
+        category: ValidationError
+    - value: {componentId: "row"}
+      expectError:
+        category: ValidationError
+    - value: {componentId: "row", "@path": "/items"}
+      expectError:
+        category: ValidationError
+    - value: {componentId: "row", path: "/items", "@path": "/items"}
+      expectError:
+        category: ValidationError
+    - value: {componentId: "row", path: "/items", extra: 1}
+      expectError:
+        category: ValidationError
+
 - name: test_v09_function_call_rejects_unknown_keys
   description: FunctionCall accepts call, args and returnType, and rejects any other key.
   action: validate_common_type

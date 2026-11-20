@@ -39,10 +39,10 @@ void main() {
       );
 
   Map<String, Object?> textCalling(Map<String, Object?> call) => {
-        'id': 't',
-        'component': 'Text',
-        'text': call,
-      };
+    'id': 't',
+    'component': 'Text',
+    'text': call,
+  };
 
   final Matcher rejected = throwsA(isA<A2uiValidationError>());
 
@@ -357,42 +357,41 @@ void main() {
     PayloadValidator<ComponentApi, FunctionApi> closed(
       Map<String, Object?> properties, {
       List<String> required = const [],
-    }) =>
-        PayloadValidator<ComponentApi, FunctionApi>(
-          catalog: Catalog<ComponentApi, FunctionApi>(
-            id: 'closed',
-            components: [
-              ComponentApi(
-                name: 'Tag',
-                schema: Schema.fromMap({
-                  'type': 'object',
-                  'properties': properties,
-                  'required': required,
-                  'additionalProperties': false,
-                }),
-              ),
-            ],
-            functions: const [],
+    }) => PayloadValidator<ComponentApi, FunctionApi>(
+      catalog: Catalog<ComponentApi, FunctionApi>(
+        id: 'closed',
+        components: [
+          ComponentApi(
+            name: 'Tag',
+            schema: Schema.fromMap({
+              'type': 'object',
+              'properties': properties,
+              'required': required,
+              'additionalProperties': false,
+            }),
           ),
-          protocolVersion: A2uiProtocolVersion.v1_0,
-          commonTypesSchema: commonTypes,
-        );
+        ],
+        functions: const [],
+      ),
+      protocolVersion: A2uiProtocolVersion.v1_0,
+      commonTypesSchema: commonTypes,
+    );
 
     final Map<String, PayloadValidator<ComponentApi, FunctionApi>> validators =
         {
-      'declaring no envelope key': closed({
-        'label': {'type': 'string'},
-      }),
-      // Each envelope key is judged on its own: declaring `component` does
-      // not keep `id`, `catalogId` or `metadata` in the schema's view.
-      'declaring only component': closed(
-        {
-          'component': {'const': 'Tag'},
-          'label': {'type': 'string'},
-        },
-        required: ['component'],
-      ),
-    };
+          'declaring no envelope key': closed({
+            'label': {'type': 'string'},
+          }),
+          // Each envelope key is judged on its own: declaring `component` does
+          // not keep `id`, `catalogId` or `metadata` in the schema's view.
+          'declaring only component': closed(
+            {
+              'component': {'const': 'Tag'},
+              'label': {'type': 'string'},
+            },
+            required: ['component'],
+          ),
+        };
 
     validators.forEach((description, v) {
       group('a closed schema $description', () {
@@ -500,17 +499,17 @@ void main() {
       commonTypesSchema: commonTypes,
     );
     Map<String, Object?> boxCalling(Map<String, Object?> call) => {
-          'id': 'b',
-          'component': 'Box',
-          'value': call,
-        };
+      'id': 'b',
+      'component': 'Box',
+      'value': call,
+    };
     Matcher rejectedWith(String message) => throwsA(
-          isA<A2uiValidationError>().having(
-            (e) => e.message,
-            'message',
-            contains(message),
-          ),
-        );
+      isA<A2uiValidationError>().having(
+        (e) => e.message,
+        'message',
+        contains(message),
+      ),
+    );
 
     test('rejects @index naming a catalogId', () {
       expect(
@@ -920,8 +919,7 @@ void main() {
           ]),
         );
 
-    test(
-        "checks a call against the surface default, not the component's "
+    test("checks a call against the surface default, not the component's "
         'catalog', () {
       // The Text belongs to the basic catalog, but its call names no
       // catalogId, so it runs in the surface default, `extra`.
@@ -939,8 +937,7 @@ void main() {
       );
     });
 
-    test(
-        'accepts a catalogless call to a function only the surface default '
+    test('accepts a catalogless call to a function only the surface default '
         'declares, in a component of another catalog', () {
       // `formatString` is a basic function, which `extra` lacks.
       expect(
@@ -957,8 +954,7 @@ void main() {
       );
     });
 
-    test(
-        'checks a catalogless call in a component of another catalog against '
+    test('checks a catalogless call in a component of another catalog against '
         'the surface default', () {
       useStrict();
       expect(
@@ -990,10 +986,10 @@ void main() {
     // ValidationConfig.relaxed allows unknown component types, but the calls
     // in their properties still run, so they are checked.
     Map<String, Object?> widgetCalling(Map<String, Object?> call) => {
-          'id': 'root',
-          'component': 'Widget',
-          'text': call,
-        };
+      'id': 'root',
+      'component': 'Widget',
+      'text': call,
+    };
 
     test('accepts a valid call in a component type its catalog lacks', () {
       expect(
@@ -1029,8 +1025,7 @@ void main() {
       );
     });
 
-    test(
-        'checks catalogless calls once in a component naming the surface '
+    test('checks catalogless calls once in a component naming the surface '
         'default', () {
       useStrict();
       // A component that names the surface default catalog is in the
@@ -1199,20 +1194,19 @@ void main() {
 /// Returns its `value` argument.
 class _ShoutFunction extends FunctionImplementation {
   _ShoutFunction()
-      : super(
-          name: 'shout',
-          argumentSchema: Schema.object(
-            properties: {'value': Schema.string()},
-            required: ['value'],
-          ),
-          returnType: A2uiReturnType.string,
-        );
+    : super(
+        name: 'shout',
+        argumentSchema: Schema.object(
+          properties: {'value': Schema.string()},
+          required: ['value'],
+        ),
+        returnType: A2uiReturnType.string,
+      );
 
   @override
   Object? execute(
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      args['value'];
+  ]) => args['value'];
 }

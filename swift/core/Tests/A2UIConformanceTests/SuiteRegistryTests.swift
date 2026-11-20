@@ -52,12 +52,6 @@ struct SuiteRegistryTests {
 
   @MainActor
   private func verifyOverrideTablesAreUsed() {
-    let deriveNames = Set(
-      ConformanceTestHelper.cases("core/catalog.yaml", action: "derive").map(\.name))
-    for skippedName in CatalogDeriveConformanceTests.skippedCases.keys {
-      #expect(deriveNames.contains(skippedName), "Unused skip entry '\(skippedName)'")
-    }
-
     let mpV10Names = Set(
       ConformanceTestHelper.cases("core/message_processor_v1_0.yaml").map(\.name))
     for skippedName in MessageProcessorConformanceTests.skippedCases.keys {

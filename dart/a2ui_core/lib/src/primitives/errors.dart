@@ -47,11 +47,11 @@ class A2uiErrorDetail {
 
   /// Serializes this error detail as a JSON map.
   Map<String, Object?> toJson() => {
-        'path': path,
-        'code': code,
-        'message': message,
-        if (surfaceId != null) 'surfaceId': surfaceId,
-      };
+    'path': path,
+    'code': code,
+    'message': message,
+    if (surfaceId != null) 'surfaceId': surfaceId,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -212,16 +212,15 @@ class A2uiExpressionError extends A2uiError {
   A2uiExpressionError withContext({
     String? surfaceId,
     String? functionCallId,
-  }) =>
-      A2uiExpressionError(
-        message,
-        expression: expression,
-        details: details,
-        code: code,
-        cause: cause,
-        surfaceId: this.surfaceId ?? surfaceId,
-        functionCallId: this.functionCallId ?? functionCallId,
-      );
+  }) => A2uiExpressionError(
+    message,
+    expression: expression,
+    details: details,
+    code: code,
+    cause: cause,
+    surfaceId: this.surfaceId ?? surfaceId,
+    functionCallId: this.functionCallId ?? functionCallId,
+  );
 }
 
 /// Thrown for structural issues in the UI tree (missing surfaces, duplicate
@@ -325,16 +324,15 @@ class A2uiCatalogResolutionError extends A2uiCatalogError {
   A2uiCatalogResolutionError withContext({
     String? surfaceId,
     String? functionCallId,
-  }) =>
-      A2uiCatalogResolutionError(
-        message,
-        catalogId: catalogId,
-        functionName: functionName,
-        code: code,
-        cause: cause,
-        surfaceId: this.surfaceId ?? surfaceId,
-        functionCallId: this.functionCallId ?? functionCallId,
-      );
+  }) => A2uiCatalogResolutionError(
+    message,
+    catalogId: catalogId,
+    functionName: functionName,
+    code: code,
+    cause: cause,
+    surfaceId: this.surfaceId ?? surfaceId,
+    functionCallId: this.functionCallId ?? functionCallId,
+  );
 }
 
 /// Why a function call across the wire failed, in the form both directions
@@ -421,14 +419,14 @@ class A2uiRpcError extends A2uiError {
     Object? details,
     Object? cause,
   }) : this(
-          message,
-          RpcErrorCode.tryParse(code) ?? RpcErrorCode.unknownError,
-          code: code,
-          functionCallId: functionCallId,
-          surfaceId: surfaceId,
-          details: details,
-          cause: cause,
-        );
+         message,
+         RpcErrorCode.tryParse(code) ?? RpcErrorCode.unknownError,
+         code: code,
+         functionCallId: functionCallId,
+         surfaceId: surfaceId,
+         details: details,
+         cause: cause,
+       );
 
   @override
   A2uiRpcError withContext({String? surfaceId, String? functionCallId}) =>

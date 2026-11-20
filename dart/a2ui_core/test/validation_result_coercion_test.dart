@@ -20,15 +20,14 @@ import 'package:test/test.dart';
 /// Echoes its arguments, so a test can see what the invoker handed it.
 class _EchoFn extends FunctionImplementation {
   _EchoFn(Schema argumentSchema)
-      : super(name: 'echo', argumentSchema: argumentSchema);
+    : super(name: 'echo', argumentSchema: argumentSchema);
 
   @override
   Object? execute(
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      args;
+  ]) => args;
 }
 
 const Map<String, Object?> _dynamicBoolean = {
@@ -47,24 +46,22 @@ final Schema _flagSchema = Schema.fromMap(const {
 
 Catalog<ComponentApi, FunctionImplementation> _catalog(
   A2uiProtocolVersion version,
-) =>
-    Catalog<ComponentApi, FunctionImplementation>(
-      id: 'cat',
-      protocolVersion: version,
-      components: const [],
-      functions: [_EchoFn(_flagSchema)],
-    );
+) => Catalog<ComponentApi, FunctionImplementation>(
+  id: 'cat',
+  protocolVersion: version,
+  components: const [],
+  functions: [_EchoFn(_flagSchema)],
+);
 
 DataContext _context(
   Catalog<ComponentApi, FunctionImplementation> catalog, [
   Map<String, Object?> data = const {},
-]) =>
-    DataContext(
-      DataModel()..set('/', data),
-      catalog.invoke,
-      '/',
-      protocolVersion: catalog.protocolVersion,
-    );
+]) => DataContext(
+  DataModel()..set('/', data),
+  catalog.invoke,
+  '/',
+  protocolVersion: catalog.protocolVersion,
+);
 
 void main() {
   const invalid = ValidationResult(valid: false, message: 'Required');
@@ -103,28 +100,25 @@ void main() {
 
   group('Catalog.invoke DynamicBoolean coercion', () {
     test('coerces DynamicBoolean arguments across all value types in v1.0', () {
-      final Catalog<ComponentApi, FunctionImplementation> catalog =
-          _catalog(A2uiProtocolVersion.v1_0);
-      final Object? result = catalog.invoke(
-        'echo',
-        {
-          'on': invalid,
-          'all': [
-            invalidMap,
-            true,
-            const ValidationResult(valid: true),
-            'True',
-            'false',
-            'hello',
-            3,
-            0,
-            null,
-            const {'other': 1},
-            const [true],
-          ],
-        },
-        _context(catalog),
+      final Catalog<ComponentApi, FunctionImplementation> catalog = _catalog(
+        A2uiProtocolVersion.v1_0,
       );
+      final Object? result = catalog.invoke('echo', {
+        'on': invalid,
+        'all': [
+          invalidMap,
+          true,
+          const ValidationResult(valid: true),
+          'True',
+          'false',
+          'hello',
+          3,
+          0,
+          null,
+          const {'other': 1},
+          const [true],
+        ],
+      }, _context(catalog));
       expect(result, {
         'on': false,
         'all': [
@@ -143,44 +137,42 @@ void main() {
       });
     });
 
-    test('leaves a ValidationResult alone outside DynamicBoolean positions',
-        () {
-      final Catalog<ComponentApi, FunctionImplementation> catalog =
-          _catalog(A2uiProtocolVersion.v1_0);
-      final Object? result = catalog.invoke(
-        'echo',
-        {'on': true, 'payload': invalidMap},
-        _context(catalog),
-      );
-      expect(result, {'on': true, 'payload': invalidMap});
-    });
+    test(
+      'leaves a ValidationResult alone outside DynamicBoolean positions',
+      () {
+        final Catalog<ComponentApi, FunctionImplementation> catalog = _catalog(
+          A2uiProtocolVersion.v1_0,
+        );
+        final Object? result = catalog.invoke('echo', {
+          'on': true,
+          'payload': invalidMap,
+        }, _context(catalog));
+        expect(result, {'on': true, 'payload': invalidMap});
+      },
+    );
 
     test('coerces non-ValidationResult maps and other values to false', () {
-      final Catalog<ComponentApi, FunctionImplementation> catalog =
-          _catalog(A2uiProtocolVersion.v1_0);
+      final Catalog<ComponentApi, FunctionImplementation> catalog = _catalog(
+        A2uiProtocolVersion.v1_0,
+      );
       expect(
-        catalog.invoke(
-          'echo',
-          {
-            'on': {'other': 1},
-          },
-          _context(catalog),
-        ),
+        catalog.invoke('echo', {
+          'on': {'other': 1},
+        }, _context(catalog)),
         {'on': false},
       );
     });
 
     test('coerces DynamicBoolean arguments in v0.9 as well', () {
-      final Catalog<ComponentApi, FunctionImplementation> catalog =
-          _catalog(A2uiProtocolVersion.v0_9);
-      expect(
-        catalog.invoke('echo', {'on': invalidMap}, _context(catalog)),
-        {'on': false},
+      final Catalog<ComponentApi, FunctionImplementation> catalog = _catalog(
+        A2uiProtocolVersion.v0_9,
       );
-      expect(
-        catalog.invoke('echo', {'on': 'TRUE'}, _context(catalog)),
-        {'on': true},
-      );
+      expect(catalog.invoke('echo', {'on': invalidMap}, _context(catalog)), {
+        'on': false,
+      });
+      expect(catalog.invoke('echo', {'on': 'TRUE'}, _context(catalog)), {
+        'on': true,
+      });
     });
 
     test('applies to a basic catalog function other than the logic ones', () {
@@ -188,76 +180,69 @@ void main() {
           BasicCatalog.v1_0();
       final DataContext context = _context(catalog);
       Map<String, dynamic> call(Object? grouping) => {
-            '@call': 'formatNumber',
-            'args': {
-              'value': 1234,
-              'decimals': 0,
-              'grouping': grouping,
-            },
-          };
+        '@call': 'formatNumber',
+        'args': {'value': 1234, 'decimals': 0, 'grouping': grouping},
+      };
       Map<String, Object?> required(String value) => {
-            '@call': 'required',
-            'args': {'value': value},
-          };
+        '@call': 'required',
+        'args': {'value': value},
+      };
       expect(context.resolveDynamicValue(call(required(''))), '1234');
       expect(context.resolveDynamicValue(call(required('x'))), '1,234');
     });
   });
 
   group('GenericBinder DynamicBoolean property coercion', () {
-    test('coerces bound DynamicBoolean component properties across all rows',
-        () {
-      final Catalog<ComponentApi, FunctionImplementation> catalog =
-          BasicCatalog.v1_0();
-      final surface = SurfaceModel<ComponentApi>(
-        's1',
-        defaultCatalog: catalog,
-        protocolVersion: '1.0',
-      );
-      surface.componentsModel.addComponent(
-        ComponentModel(
-          'root',
-          'CheckBox',
-          {
+    test(
+      'coerces bound DynamicBoolean component properties across all rows',
+      () {
+        final Catalog<ComponentApi, FunctionImplementation> catalog =
+            BasicCatalog.v1_0();
+        final surface = SurfaceModel<ComponentApi>(
+          's1',
+          defaultCatalog: catalog,
+          protocolVersion: '1.0',
+        );
+        surface.componentsModel.addComponent(
+          ComponentModel('root', 'CheckBox', {
             'label': 'Flag',
             'value': {'@path': '/flag'},
-          },
-        ),
-      );
-      final resolver = NodeResolver<ComponentApi>(
-        surface,
-      );
+          }),
+        );
+        final resolver = NodeResolver<ComponentApi>(surface);
 
-      final cases = <(Object?, bool)>[
-        (true, true),
-        (false, false),
-        (const ValidationResult(valid: true), true),
-        (invalid, false),
-        (const {'valid': true}, true),
-        (invalidMap, false),
-        ('true', true),
-        ('True', true),
-        ('TRUE', true),
-        ('false', false),
-        ('FALSE', false),
-        ('hello', false),
-        ('', false),
-        (1, true),
-        (-2, true),
-        (0, false),
-        (null, false),
-        (const {'other': 1}, false),
-        (const [true], false),
-      ];
+        final cases = <(Object?, bool)>[
+          (true, true),
+          (false, false),
+          (const ValidationResult(valid: true), true),
+          (invalid, false),
+          (const {'valid': true}, true),
+          (invalidMap, false),
+          ('true', true),
+          ('True', true),
+          ('TRUE', true),
+          ('false', false),
+          ('FALSE', false),
+          ('hello', false),
+          ('', false),
+          (1, true),
+          (-2, true),
+          (0, false),
+          (null, false),
+          (const {'other': 1}, false),
+          (const [true], false),
+        ];
 
-      for (final (Object? raw, bool expected) in cases) {
-        surface.dataModel.set('/flag', raw);
-        final bound = resolver.rootNode.value!.props.peek()['value']!
-            as ResolvedBinding<Object?>;
-        expect(bound.value, expected, reason: 'Failed for $raw');
-      }
-      resolver.dispose();
-      surface.dispose();
-    });
+        for (final (Object? raw, bool expected) in cases) {
+          surface.dataModel.set('/flag', raw);
+          final bound =
+              resolver.rootNode.value!.props.peek()['value']!
+                  as ResolvedBinding<Object?>;
+          expect(bound.value, expected, reason: 'Failed for $raw');
+        }
+        resolver.dispose();
+        surface.dispose();
+      },
+    );
   });
 }

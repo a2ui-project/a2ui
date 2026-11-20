@@ -17,6 +17,73 @@ import Foundation
 /// Discovers and parses specification sample stream resources at runtime from the app bundle.
 public enum SampleLoader: Sendable {
 
+  /// Explicit display order of example files in the gallery.
+  public static let exampleOrder: [String] = [
+    "scaffold-simple-text.json",
+    "scaffold-row-layout.json",
+    "scaffold-interactive-button.json",
+    "scaffold-simple-login-form.json",
+    "scaffold-complex-layout.json",
+    "scaffold-formatted-text.json",
+    "scaffold-incremental.json",
+    "flight-status.json",
+    "email-compose.json",
+    "calendar-day.json",
+    "weather-current.json",
+    "product-card.json",
+    "music-player.json",
+    "task-card.json",
+    "user-profile.json",
+    "login-form.json",
+    "notification-permission.json",
+    "purchase-complete.json",
+    "chat-message.json",
+    "coffee-order.json",
+    "sports-player.json",
+    "account-balance.json",
+    "workout-summary.json",
+    "event-detail.json",
+    "track-list.json",
+    "software-purchase.json",
+    "restaurant-card.json",
+    "shipping-status.json",
+    "credit-card.json",
+    "step-counter.json",
+    "recipe-card.json",
+    "contact-card.json",
+    "podcast-episode.json",
+    "stats-card.json",
+    "countdown-timer.json",
+    "movie-card.json",
+    "modal-sample.json",
+    "live-invitation-builder.json",
+    "incremental-dashboard.json",
+    "advanced-form-validator.json",
+    "financial-data-grid.json",
+    "child-list-template.json",
+    "markdown-text.json",
+    "modal.json",
+    "native-grid.json",
+    "mcp-app-3d-geometry.json",
+  ]
+
+  private static let exampleOrderIndex: [String: Int] = Dictionary(
+    uniqueKeysWithValues: exampleOrder.enumerated().map { ($0.element, $0.offset) }
+  )
+
+  private static func compareExampleFileNames(_ a: String, _ b: String) -> Bool {
+    switch (exampleOrderIndex[a], exampleOrderIndex[b]) {
+    case (let indexA?, let indexB?):
+      return indexA < indexB
+    case (_?, nil):
+      return true
+    case (nil, _?):
+      return false
+    case (nil, nil):
+      return a < b
+    }
+  }
+
   /// Scans the application bundle for copied specification example folders (`examples/v0_9_1`,
   /// `examples/v1_0`, and `cases`), parsing `.json` message files and `.jsonl` streaming files into
   /// structured ``SampleStream`` instances.
@@ -84,7 +151,7 @@ public enum SampleLoader: Sendable {
     let jsonFiles =
       files
       .filter { $0.pathExtension.lowercased() == "json" }
-      .sorted { $0.lastPathComponent < $1.lastPathComponent }
+      .sorted { compareExampleFileNames($0.lastPathComponent, $1.lastPathComponent) }
     return jsonFiles.compactMap { url in
       parseJSONExampleFile(at: url, protocolVersion: protocolVersion, idPrefix: idPrefix)
     }
@@ -135,7 +202,16 @@ public enum SampleLoader: Sendable {
     }
 
     let rawSlug = url.deletingPathExtension().lastPathComponent
-    let fallbackTitle = rawSlug.replacingOccurrences(of: "_", with: " ").capitalized
+    let cleanedSlug = rawSlug.replacingOccurrences(
+      of: "^(?:scaffold-|[0-9]+_)",
+      with: "",
+      options: .regularExpression
+    )
+    let fallbackTitle =
+      cleanedSlug
+      .replacingOccurrences(of: "-", with: " ")
+      .replacingOccurrences(of: "_", with: " ")
+      .capitalized
     let title: String
     let description: String?
     let messagesArray: [Any]
