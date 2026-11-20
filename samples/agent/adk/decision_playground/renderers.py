@@ -40,6 +40,7 @@ from a2ui.inference_formats.experimental.decision_cascade import (
     DecisionCascadeRouter,
 )
 from a2ui.inference_formats.express import ExpressCompiler, ExpressDecompiler
+from a2ui.parser import A2uiPart
 from a2ui.rpc import RendererToAgentMessageProcessor
 from a2ui.rpc.experimental.decision import (
     SessionRateLimiter,
@@ -457,7 +458,12 @@ class PlaygroundRenderers:
         )
         elapsed = (time.perf_counter() - start) * 1000.0
         try:
-            parsed = list(fmt.parser.parse(turn.text))
+            parts = fmt.create_parser().parse_response(turn.text)
+            parsed = [
+                msg for part in parts if isinstance(part, A2uiPart) for msg in part.a2ui
+            ]
+            if not parsed:
+                raise ValueError("LLM response contained no A2UI messages.")
             dicts = tuple(to_message_dicts(parsed))
         except Exception as exc:
             err = f"{mode.value} parse error: {exc}"
