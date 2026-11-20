@@ -4,11 +4,11 @@ The terms are defined in [core.blueprint.md](../../core.blueprint.md). The [tria
 
 A triage suggestion says what the triager should do with an issue or a PR. It goes through these steps:
 
-1. The triage bot, the [a2ui-triage-bot](../../../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill, takes each open item with `status: needs-triage` or `status: needs-team-input`, or each item named in its prompt. An item with `status: needs-team-input` is waiting for the team, so the triage bot posts no suggestion on it, and only [responds to requests](response.blueprint.md). If any other item has no [current suggestion](#current-and-outdated-suggestions), the triage bot:
+1. The triage bot, the [a2ui-triage-bot](../../../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill, takes each open item with `status: needs-triage` or `status: needs-team-input`, or each item named in its prompt. If the item has no [current suggestion](#current-and-outdated-suggestions), the triage bot:
 
    1. Researches the item and decides what the triager should do.
    2. Writes the decision as a [`TriageSuggestion`](#the-triagesuggestion-component) A2UI component.
-   3. Posts a new [suggestion comment](#the-suggestion-comment) on the item.
+   3. Posts the drafted [suggestion comment](#the-suggestion-comment) on the item.
 
 2. The [triage UI](../ui.blueprint.md):
 
@@ -120,7 +120,7 @@ The [triage_ui.sh](../../../triage_ui.sh) command takes the item's URL, for exam
 1. Sends the URL to the triage UI if the app is running. The app listens on `127.0.0.1:47123`, accepts `POST /open` with the URL in the `item` form field, and accepts only URLs of issues and PRs in `a2ui-project/a2ui` and `flutter/genui`.
 2. Otherwise starts the app on macOS with `flutter run`, passing the URL as the app's argument.
 
-The `summary`, the `suggestion` and the `reply` link every artifact they mention, so that the triager can check it in one click: files, folders, lines of code, issues, PRs, commits, workflow runs, docs pages and specifications. The link is on the words that name the artifact: in "The `genui` package README links to `./DESIGN.md`", "README" links to the README file, not to its repository. Links to files point to a commit SHA, not to a branch, so that they keep showing what the triage bot read. When the text is about specific lines, such as a broken link or the code that causes a bug, it links to those lines with a permalink, the commit SHA and a line anchor such as `#L10-L20`, not to the whole file. Issues and PRs are written as `#123`, or `owner/repo#123` in another repository, which GitHub turns into links.
+The `summary`, the `suggestion` and the `reply` link every artifact they mention, so that the triager can check it in one click: files, folders, lines of code, issues, PRs, commits, workflow runs, docs pages and specifications. The link is on the words that name the artifact: in "The `genui` package README links to `./DESIGN.md`", "README" links to the README file, not to its repository. When the text says what someone said, asked, decided or did, the words link to where they did it, such as the comment: in "`jacobsimionato` declined the Go SDK in #1279 and asked `nan-yu` to confirm", "declined" and "asked" link to `jacobsimionato`'s comment. Links to files point to a commit SHA, not to a branch, so that they keep showing what the triage bot read. When the text is about specific lines, such as a broken link or the code that causes a bug, it links to those lines with a permalink, the commit SHA and a line anchor such as `#L10-L20`, not to the whole file. Issues and PRs are written as `#123`, or `owner/repo#123` in another repository, which GitHub turns into links.
 
 The comment names people by their GitHub login in backticks, without `@`. A suggestion is not a decision yet, so it does not notify the people it names.
 

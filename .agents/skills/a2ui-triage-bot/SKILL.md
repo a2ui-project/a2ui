@@ -168,11 +168,12 @@ Rules for links in `summary`, `suggestion` and `reply`:
 
 1. Link every artifact you mention, so that the triager can check it in one click: files, folders, lines of code, commits, workflow runs, docs pages and specifications.
 2. Put the link on the words that name the artifact. In "The `genui` package README links to `./DESIGN.md`", link "README" to the README file, not to its repository.
-3. Write an issue or a PR as `#123` in `a2ui-project/a2ui`, and as `owner/repo#123` in another repository. GitHub turns both into links.
-4. Link files to a commit SHA, not to a branch, so that the link keeps showing what you read after the branch moves: `https://github.com/<owner>/<repo>/blob/<sha>/<path>`. Get the SHA of `main` with `gh api repos/<owner>/<repo>/commits/main -q .sha`.
-5. When the text is about specific lines, such as a broken link, a line of a stack trace, or the code that causes a bug, link to those lines with a permalink, not to the whole file: the commit SHA and a line anchor, `https://github.com/<owner>/<repo>/blob/<sha>/<path>#L10` for one line or `#L10-L20` for a range. For a Markdown file, add `?plain=1` before the anchor, as in `.../README.md?plain=1#L81`, or GitHub shows the rendered file and ignores the anchor.
-6. When you name someone as an owner or an expert from the commit history in step 4, link the history: `https://github.com/a2ui-project/a2ui/commits/main/<path>`.
-7. Check that every link resolves before you post, and that each line link points at the lines the text describes.
+3. When you say what someone said, asked, decided or did, link the words to where they did it: the comment, review, commit or PR. In "`jacobsimionato` declined the Go SDK in #1279 and asked `nan-yu` to confirm", link "declined" and "asked" to the comment, as in "`jacobsimionato` [declined](https://github.com/a2ui-project/a2ui/pull/1279#issuecomment-4332390778) the Go SDK in #1279 and [asked](https://github.com/a2ui-project/a2ui/pull/1279#issuecomment-4332390778) `nan-yu` to confirm". Get the link of a comment from its `url` in the output of [item.graphql](references/item.graphql), or from `html_url` in the GitHub API. Before you write "the last", "the only" or "never", check every candidate: such a claim is wrong if one item is missed.
+4. Write an issue or a PR as `#123` in `a2ui-project/a2ui`, and as `owner/repo#123` in another repository. GitHub turns both into links.
+5. Link files to a commit SHA, not to a branch, so that the link keeps showing what you read after the branch moves: `https://github.com/<owner>/<repo>/blob/<sha>/<path>`. Get the SHA of `main` with `gh api repos/<owner>/<repo>/commits/main -q .sha`.
+6. When the text is about specific lines, such as a broken link, a line of a stack trace, or the code that causes a bug, link to those lines with a permalink, not to the whole file: the commit SHA and a line anchor, `https://github.com/<owner>/<repo>/blob/<sha>/<path>#L10` for one line or `#L10-L20` for a range. For a Markdown file, add `?plain=1` before the anchor, as in `.../README.md?plain=1#L81`, or GitHub shows the rendered file and ignores the anchor.
+7. When you name someone as an owner or an expert from the commit history in step 4, link the history: `https://github.com/a2ui-project/a2ui/commits/main/<path>`.
+8. Check that every link resolves before you post, and that each line link points at the lines the text describes.
 
 ## Step 7: Format the comment
 
