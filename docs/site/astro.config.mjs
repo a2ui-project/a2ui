@@ -200,6 +200,10 @@ export default defineConfig({
               slug: 'concepts/overview',
             },
             {
+              label: 'Surfaces',
+              slug: 'concepts/surfaces',
+            },
+            {
               label: 'Messages',
               slug: 'concepts/messages',
             },
