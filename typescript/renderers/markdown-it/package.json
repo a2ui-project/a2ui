@@ -45,7 +45,7 @@
   },
   "dependencies": {
     "dompurify": "^3.4.17",
-    "markdown-it": "^14.2.0"
+    "markdown-it": "^14.3.3"
   },
   "devDependencies": {
     "@a2ui/web_core": "workspace:*",
