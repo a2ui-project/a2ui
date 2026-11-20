@@ -37,7 +37,7 @@ from agent_executor import PlaygroundAgentExecutor, _extract_incoming_parts
 from modes import PLAYGROUND_TRACE_MIME_TYPE, LlmToolTurn, LlmTurn, RenderMode
 from recording_backend import PlaygroundMockBackend, RecordingDecisionBackend
 from renderers import PlaygroundRenderers
-from surfaces import RPC_PREDICATE_CATALOG_ID
+from surfaces import EXPRESS_TEMPLATES, RPC_PREDICATE_CATALOG_ID
 
 
 class _FakeLlmCaller:
@@ -407,6 +407,16 @@ async def test_compare_runs_cascade_express_and_direct() -> None:
     assert res.trace["compare"] is True
     modes = [c["mode"] for c in res.trace["candidates"]]
     assert modes == ["cascade", "express", "direct"]
+
+
+def test_all_express_templates_compile_cleanly() -> None:
+    from a2ui.core.basic_catalog import BasicCatalog
+    from a2ui.inference_formats.express import ExpressCompiler
+
+    compiler = ExpressCompiler([BasicCatalog("v1.0")])
+    for spec in EXPRESS_TEMPLATES:
+        compiled = list(compiler.compile(spec.dsl, surface_id="main"))
+        assert compiled, f"Template {spec.id} produced no messages"
 
 
 @pytest.mark.asyncio
