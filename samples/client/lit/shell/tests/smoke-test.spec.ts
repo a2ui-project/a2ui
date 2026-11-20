@@ -330,6 +330,64 @@ describe('a2ui-shell layout and inspector integration', () => {
 
     const explainerBefore = el.shadowRoot?.querySelector('[data-testid="mode-explainer"]');
     expect(explainerBefore?.textContent).toContain('Cascade Mode');
+    const quickLabelsBefore = Array.from(
+      el.shadowRoot?.querySelectorAll('.quick-action-btn') ?? [],
+    ).map(b => b.textContent?.trim());
+    expect(quickLabelsBefore).toContain('Host Health');
+    expect(quickLabelsBefore).not.toContain('Bug Report');
+
+    const rpcBtn = el.shadowRoot?.querySelector<HTMLButtonElement>('[data-mode="rpc"]');
+    expect(rpcBtn).not.toBeNull();
+    internal._a2uiClient.sendTurn = async (message: unknown) => {
+      sentPayloads.push(message);
+      const mode = String(message).split(' ')[1] ?? 'cascade';
+      return {
+        messages: [],
+        trace: {
+          schemaVersion: 1,
+          turn: 1,
+          query: String(message),
+          activeMode: mode,
+          compare: false,
+          stage1: {
+            source: 'direct_tool',
+            model: 'playground',
+            latencyMs: 1,
+            promptTokens: 0,
+            outputTokens: 0,
+          },
+          candidates: [
+            {
+              mode,
+              ok: true,
+              metrics: {
+                backend: 'gemini',
+                modelId: 'gemini-decision-1',
+                llmCalls: 0,
+                decisionMs: 0,
+                totalMs: 1,
+                promptTokens: 0,
+                outputTokens: 0,
+              },
+              decisionInput: {
+                backendKind: 'gemini',
+                modelId: 'gemini-decision-1',
+                wireFormat: 'gemini',
+                cacheHit: false,
+                questions: [],
+              },
+            },
+          ],
+        },
+      };
+    };
+    rpcBtn!.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await el.updateComplete;
+    const rpcQuickLabels = Array.from(
+      el.shadowRoot?.querySelectorAll('.quick-action-btn') ?? [],
+    ).map(b => b.textContent?.trim());
+    expect(rpcQuickLabels).toEqual(['Bug Report', 'Product Feedback', 'Refund Request']);
 
     const binderBtn = el.shadowRoot?.querySelector<HTMLButtonElement>(
       '[data-mode="binder"]',
@@ -339,7 +397,7 @@ describe('a2ui-shell layout and inspector integration', () => {
     await new Promise(resolve => setTimeout(resolve, 0));
     await el.updateComplete;
 
-    expect(sentPayloads).toEqual(['/mode binder']);
+    expect(sentPayloads).toEqual(['/mode rpc', '/mode binder']);
     expect(binderBtn!.classList.contains('active')).toBe(true);
     const explainerAfter = el.shadowRoot?.querySelector('[data-testid="mode-explainer"]');
     expect(explainerAfter?.textContent).toContain('Binder Mode');
