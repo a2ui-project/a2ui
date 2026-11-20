@@ -212,6 +212,35 @@ describe('regex_subset', () => {
         assert.strictEqual(res.ok, true);
       });
     }
+
+    // A bounded repeat that runs its child more than once multiplies every way the child can match.
+    // These patterns compile to a single RegExp whose `test` never returns within the value limit:
+    // `(a?b?){100}a{1000}` hangs from a 1000-character value, the limit being 4096.
+    const rejectedBounded = [
+      '(a?){1000}a{1000}',
+      '(a?){500}a{500}',
+      '(?:a?){1000}a{1000}',
+      '((a?)){1000}a{1000}',
+      '(a?b?){100}a{1000}',
+      '(a|b?){1000}a{1000}',
+    ];
+    for (const pattern of rejectedBounded) {
+      it(`rejects ${pattern} with NESTED_QUANTIFIER`, () => {
+        const res = analyzeRegex(pattern);
+        assert.strictEqual(res.ok, false);
+        if (!res.ok) {
+          assert.strictEqual(res.reason, 'NESTED_QUANTIFIER');
+        }
+      });
+    }
+
+    const acceptedBounded = ['(?:ab?){3}c', '(?:ab?){0,2}', '(a|b){2,4}', '(?:\\d{2,4}){2}'];
+    for (const pattern of acceptedBounded) {
+      it(`accepts single-derivation bounded repeat ${pattern}`, () => {
+        const res = analyzeRegex(pattern);
+        assert.strictEqual(res.ok, true);
+      });
+    }
   });
 
   describe('Rule 3: OVERLAPPING_ALTERNATION', () => {
