@@ -525,5 +525,15 @@ describe('a2ui-shell layout and inspector integration', () => {
     );
     expect(cascadeActions.map(a => a.label)).not.toContain('Incident Alert (Macro)');
     expect(cascadeActions.map(a => a.label)).not.toContain('Incident (Degraded)');
+
+    const proseActions = (playgroundConfig.quickActions ?? []).filter(
+      a => !a.modes || a.modes.includes('prose')
+    );
+    expect(proseActions.map(a => a.label)).toEqual([
+      'Order Prose',
+      'Host Prose',
+      'Ski Report Prose',
+      'Unstructured Prose',
+    ]);
   });
 });

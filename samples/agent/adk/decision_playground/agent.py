@@ -35,6 +35,8 @@ from renderers import PlaygroundRenderers
 from surfaces import (
     GATED_PRESET_ALIASES,
     GATED_PRESET_BY_ALIAS,
+    PROSE_PRESET_ALIASES,
+    PROSE_PRESET_BY_ALIAS,
     RPC_FORM_ALIASES,
     RPC_FORM_BY_ALIAS,
     build_rpc_form_messages,
@@ -163,6 +165,8 @@ class PlaygroundAgent:
             return await self._cmd_tool(cmd.arg, context_id, settings, include_trace)
         if cmd.kind == "gated":
             return await self._cmd_gated(cmd.arg, context_id, settings, include_trace)
+        if cmd.kind == "prose":
+            return await self._cmd_prose(cmd.arg, context_id, settings, include_trace)
         if cmd.kind == "form":
             return self._cmd_form(cmd.arg, context_id, settings, include_trace)
         if cmd.kind == "compare":
@@ -193,6 +197,7 @@ class PlaygroundAgent:
                 tool_aliases=TOOL_ALIASES,
                 form_aliases=RPC_FORM_ALIASES,
                 gated_aliases=GATED_PRESET_ALIASES,
+                prose_aliases=PROSE_PRESET_ALIASES,
             )
             return self._status_result(
                 help_md, settings=settings, query=cmd.raw, include_trace=include_trace
@@ -230,6 +235,8 @@ class PlaygroundAgent:
             return await self._cmd_gated(
                 "incident_degraded", context_id, updated, include_trace
             )
+        if parsed is RenderMode.PROSE:
+            return await self._cmd_prose("order", context_id, updated, include_trace)
         return self._status_result(
             f"Switched active mode to `{parsed.value}`.",
             settings=updated,
@@ -320,7 +327,7 @@ class PlaygroundAgent:
         updated = settings.next_turn()
         active_mode = (
             RenderMode.BINDER
-            if updated.mode in (RenderMode.RPC, RenderMode.GATED)
+            if updated.mode in (RenderMode.RPC, RenderMode.GATED, RenderMode.PROSE)
             else updated.mode
         )
         updated = replace(updated, mode=active_mode)
@@ -424,6 +431,54 @@ class PlaygroundAgent:
             trace=trace if include_trace else None,
         )
 
+    async def _cmd_prose(
+        self,
+        arg: str,
+        context_id: str,
+        settings: PlaygroundSettings,
+        include_trace: bool,
+    ) -> AgentTurnResult:
+        alias = arg.strip().lower() or "order"
+        preset = PROSE_PRESET_BY_ALIAS.get(alias)
+        if preset is None:
+            return self._status_result(
+                f"Unknown prose preset `{arg}`. Choose from:"
+                f" {', '.join(PROSE_PRESET_ALIASES)}.",
+                settings=settings,
+                query=f"/prose {arg}",
+                include_trace=include_trace,
+                ok=False,
+            )
+        updated = replace(settings.next_turn(), mode=RenderMode.PROSE)
+        self._set_settings(context_id, updated)
+        outcome, calls = await self._renderers.run_prose(
+            prose=preset.prose,
+            mock_values=preset.mock_values,
+            surface_id="main",
+        )
+        candidate = build_candidate_trace(
+            outcome,
+            calls,
+            backend_kind=self._renderers.backend_kind,
+            model_id=self._renderers.model_id,
+            endpoint_url=self._renderers.endpoint_url,
+        )
+        trace = build_turn_trace(
+            turn=updated.turn,
+            query=f"/prose {alias}",
+            active_mode=RenderMode.PROSE,
+            compare=False,
+            stage1_source="direct_tool",
+            tool_name=f"prose:{alias}",
+            payload={"prose": preset.prose},
+            candidates=[candidate],
+        )
+        self._last_trace[context_id] = trace
+        return AgentTurnResult(
+            messages=list(outcome.messages),
+            trace=trace if include_trace else None,
+        )
+
     def _cmd_form(
         self,
         arg: str,
@@ -495,7 +550,15 @@ class PlaygroundAgent:
                 include_trace=include_trace,
             )
 
-        if updated.mode is RenderMode.GATED:
+        if updated.mode is RenderMode.PROSE:
+            prose_text = text.strip() or PROSE_PRESET_BY_ALIAS["order"].prose
+            outcome, calls = await self._renderers.run_prose(
+                prose=prose_text,
+                surface_id="main",
+            )
+            source = "llm"
+            payload = {"prose": prose_text}
+        elif updated.mode is RenderMode.GATED:
             default_preset = GATED_PRESET_BY_ALIAS["incident_degraded"]
             payload = (
                 pasted_payload if pasted_payload is not None else default_preset.payload

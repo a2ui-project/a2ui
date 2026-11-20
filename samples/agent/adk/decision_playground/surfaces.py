@@ -27,6 +27,11 @@ from a2ui.inference_formats.experimental.decision_gated_templates import (
     VARIANT_EXTENSION_KEY,
     GatedTemplateSpec,
 )
+from a2ui.inference_formats.experimental.decision_prose_upgrade import (
+    FieldType,
+    ProseTemplateSpec,
+    TypedFieldSpec,
+)
 from a2ui.rpc.experimental.decision import NamedPredicateSpec
 from a2ui.transformers.macros import macro
 
@@ -716,3 +721,117 @@ GATED_PRESETS: tuple[GatedPresetSpec, ...] = (
 
 GATED_PRESET_BY_ALIAS: dict[str, GatedPresetSpec] = {p.alias: p for p in GATED_PRESETS}
 GATED_PRESET_ALIASES: tuple[str, ...] = tuple(p.alias for p in GATED_PRESETS)
+
+_EXPRESS_BY_ID = {spec.id: spec for spec in EXPRESS_TEMPLATES}
+
+PROSE_TEMPLATES: tuple[ProseTemplateSpec, ...] = (
+    ProseTemplateSpec(
+        id="order_details",
+        description="Order fulfillment status, carrier, and delivery estimate",
+        surface=_EXPRESS_BY_ID["order_details"],
+        fields=(
+            TypedFieldSpec("/orderId", FieldType.TEXT, "Order identifier (e.g. ORD-8492)"),
+            TypedFieldSpec("/status", FieldType.TEXT, "Current shipping or delivery status"),
+            TypedFieldSpec("/carrier", FieldType.TEXT, "Shipping carrier name", required=False),
+            TypedFieldSpec(
+                "/estimatedDelivery",
+                FieldType.TEXT,
+                "Estimated delivery date or window",
+                required=False,
+            ),
+            TypedFieldSpec("/totalUsd", FieldType.TEXT, "Total order amount", required=False),
+        ),
+    ),
+    ProseTemplateSpec(
+        id="host_health",
+        description="Production host health metrics with hostname, CPU, status, and uptime",
+        surface=_EXPRESS_BY_ID["host_health"],
+        fields=(
+            TypedFieldSpec("/host", FieldType.TEXT, "Server hostname"),
+            TypedFieldSpec("/cpu", FieldType.TEXT, "CPU utilization percentage"),
+            TypedFieldSpec("/status", FieldType.TEXT, "Operational health status"),
+            TypedFieldSpec("/cpuDelta", FieldType.TEXT, "CPU delta change", required=False),
+            TypedFieldSpec(
+                "/uptimeHours", FieldType.NUMBER, "Uptime in hours", required=False
+            ),
+        ),
+    ),
+    ProseTemplateSpec(
+        id="ski_resort",
+        description="Mountain ski resort snow report with elevation, snow depth, and open runs",
+        surface=_EXPRESS_BY_ID["ski_resort"],
+        fields=(
+            TypedFieldSpec("/name", FieldType.TEXT, "Ski resort name"),
+            TypedFieldSpec("/elevation", FieldType.TEXT, "Summit or base elevation"),
+            TypedFieldSpec("/openRuns", FieldType.TEXT, "Count of open runs", required=False),
+            TypedFieldSpec("/snowDepth", FieldType.TEXT, "Snow depth measurement", required=False),
+            TypedFieldSpec("/status", FieldType.TEXT, "Operating status", required=False),
+        ),
+    ),
+)
+
+
+@dataclass(frozen=True)
+class ProsePresetSpec:
+    """One plain-prose example preset for `prose` mode."""
+
+    alias: str
+    prose: str
+    mock_values: dict[str, Any]
+
+
+PROSE_PRESETS: tuple[ProsePresetSpec, ...] = (
+    ProsePresetSpec(
+        alias="order",
+        prose=(
+            "Your order ORD-8492 ($148.50) is currently Out for delivery via"
+            " Courier Express and should arrive Today by 5:00 PM."
+        ),
+        mock_values={
+            "/orderId": "ORD-8492",
+            "/status": "Out for delivery",
+            "/carrier": "Courier Express",
+            "/estimatedDelivery": "Today by 5:00 PM",
+            "/totalUsd": "$148.50",
+        },
+    ),
+    ProsePresetSpec(
+        alias="host",
+        prose=(
+            "Production server prod-web-04 is currently degraded at 87% CPU"
+            " (+12%) after 412 hours of uptime."
+        ),
+        mock_values={
+            "/host": "prod-web-04",
+            "/cpu": "87%",
+            "/cpuDelta": "+12%",
+            "/status": "degraded",
+            "/uptimeHours": 412,
+        },
+    ),
+    ProsePresetSpec(
+        alias="resort",
+        prose=(
+            "Snowbird is currently Open with a summit elevation of 11,000 ft,"
+            " 114 in of snow depth, and 85 / 140 runs open today."
+        ),
+        mock_values={
+            "/name": "Snowbird",
+            "/elevation": "11,000 ft",
+            "/openRuns": "85 / 140",
+            "/snowDepth": "114 in",
+            "/status": "Open",
+        },
+    ),
+    ProsePresetSpec(
+        alias="unstructured",
+        prose=(
+            "When debugging high CPU on Linux servers, start with top or perf to"
+            " see whether user-space threads or kernel I/O dominate."
+        ),
+        mock_values={},
+    ),
+)
+
+PROSE_PRESET_BY_ALIAS: dict[str, ProsePresetSpec] = {p.alias: p for p in PROSE_PRESETS}
+PROSE_PRESET_ALIASES: tuple[str, ...] = tuple(p.alias for p in PROSE_PRESETS)

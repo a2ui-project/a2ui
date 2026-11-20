@@ -30,6 +30,7 @@ class RenderMode(str, Enum):
     CASCADE = "cascade"
     BINDER = "binder"
     GATED = "gated"
+    PROSE = "prose"
     RPC = "rpc"
     EXPRESS = "express"
     DIRECT = "direct"
