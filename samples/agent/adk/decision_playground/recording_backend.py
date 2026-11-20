@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+import re
 import time
 from typing import Any
 
@@ -107,12 +108,26 @@ def _is_vague_complaint(state_low: str) -> bool:
     )
 
 
+_CAMEL_BOUNDARY_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+
+
 def _score_boolean_offline(state_low: str, question: DecisionQuestion) -> float:
     """Offline boolean heuristic so `mock` mode exercises pass and fail paths."""
     if question.id == "gate:needs_ui":
         return (
             0.15 if any(cue in state_low for cue in _FACTUAL_TEXT_ONLY_CUES) else 0.88
         )
+    if question.id.startswith("gate:"):
+        target = question.id.rsplit(":", 1)[-1].lower()
+        if "rollback" in target:
+            return 0.90 if ("degraded" in state_low or "critical" in state_low) else 0.12
+        if "postmortem" in target:
+            return 0.88 if "postmortem #" in state_low else 0.14
+        if "delay" in target or "refund" in target:
+            return 0.89 if ("delayed" in state_low or "damaged" in state_low) else 0.11
+        return 0.72
+    if question.id.startswith("bind:") and question.id.endswith(":page_oncall"):
+        return 0.91 if ("critical" in state_low or "spike" in state_low) else 0.18
     if question.id.startswith("prune:"):
         comp_name = question.id.rsplit(":", 1)[-1].lower()
         if comp_name in ("text", "card", "column", "row", "button"):
@@ -121,6 +136,17 @@ def _score_boolean_offline(state_low: str, question: DecisionQuestion) -> float:
     if question.id.startswith("predicate:"):
         return 0.18 if _is_vague_complaint(state_low) else 0.86
     return 0.65
+
+
+def _candidate_tokens(cand: str) -> list[str]:
+    """Extracts lowercase keyword tokens from an Express, macro, or variant key."""
+    trimmed = cand.rsplit(":", 1)[-1]
+    split_camel = _CAMEL_BOUNDARY_RE.sub(" ", trimmed)
+    return [
+        tok.lower()
+        for tok in split_camel.replace("_", " ").replace("/", " ").split()
+        if len(tok) > 2
+    ]
 
 
 def _best_keyword_candidate(
@@ -132,12 +158,8 @@ def _best_keyword_candidate(
     for cand in candidates:
         if cand == "none":
             continue
-        tokens = [
-            tok
-            for tok in cand.replace("express:", "").replace("_", " ").split()
-            if len(tok) > 2
-        ]
-        hits = sum(1 for tok in tokens if tok.lower() in state_low)
+        tokens = _candidate_tokens(cand)
+        hits = sum(1 for tok in tokens if tok in state_low)
         if hits > best_hits:
             best_hits = hits
             best = cand

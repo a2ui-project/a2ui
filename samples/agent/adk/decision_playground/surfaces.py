@@ -17,11 +17,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
+from a2ui.builder.v1_0 import Action, Button, Card, Column, Divider, DynamicString, Icon, Row, Text
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.experimental.decision import ExpressSurfaceSpec
+from a2ui.inference_formats.experimental.decision_gated_templates import (
+    GATE_EXTENSION_KEY,
+    VARIANT_EXTENSION_KEY,
+    GatedTemplateSpec,
+)
 from a2ui.rpc.experimental.decision import NamedPredicateSpec
+from a2ui.transformers.macros import macro
 
 RPC_PREDICATE_CATALOG_ID = "https://a2ui.org/samples/decision_playground/rpc/v1"
 
@@ -296,3 +303,416 @@ def build_status_card_messages(surface_id: str, markdown: str) -> list[dict[str,
             },
         },
     ]
+
+
+@macro()
+def IncidentAlertCard(
+    title: DynamicString,
+    summary: DynamicString,
+    service: str,
+    affected_hosts: int,
+    severity: Literal["info", "warning", "critical"] = "info",
+    page_oncall: bool = False,
+    on_ack: Action | None = None,
+) -> Card:
+    """Renders a production incident alert card with severity, host count, and paging status."""
+    paging_label = "Paging on-call" if page_oncall else "No page required"
+    children: list[Any] = [
+        Row(
+            children=[
+                Icon(name="warning"),
+                Text(text=title),
+                Text(text=f"[{severity.upper()}]", variant="caption"),
+            ],
+            justify="spaceBetween",
+        ),
+        Divider(),
+        Text(text=summary),
+        Row(
+            children=[
+                Column(children=[Text(text="Service", variant="caption"), Text(text=service)]),
+                Column(
+                    children=[
+                        Text(text="Affected Hosts", variant="caption"),
+                        Text(text=str(affected_hosts)),
+                    ]
+                ),
+                Column(
+                    children=[
+                        Text(text="Escalation", variant="caption"),
+                        Text(text=paging_label),
+                    ]
+                ),
+            ],
+            justify="spaceBetween",
+        ),
+    ]
+    if on_ack is not None:
+        children.extend([
+            Divider(),
+            Row(
+                children=[
+                    Button(
+                        child=Text(text="Acknowledge Incident"),
+                        variant="primary",
+                        action=on_ack,
+                    )
+                ],
+                justify="end",
+            ),
+        ])
+    return Card(child=Column(children=children))
+
+
+PLAYGROUND_MACROS: tuple[Any, ...] = (IncidentAlertCard,)
+
+
+@dataclass(frozen=True)
+class GatedPresetSpec:
+    """One interactive payload preset for `gated` mode."""
+
+    alias: str
+    template_id: str
+    intent: str
+    payload: dict[str, Any]
+
+
+_BASIC_V1_ID = BasicCatalog("v1.0").catalog_id
+
+GATED_TEMPLATES: tuple[GatedTemplateSpec, ...] = (
+    GatedTemplateSpec(
+        id="service_incident_gated",
+        description=(
+            "Service health dashboard with optional rollback alert, postmortem"
+            " link, and compact vs detailed metrics layout."
+        ),
+        catalog_id=_BASIC_V1_ID,
+        required_paths=("/service", "/status"),
+        components=(
+            {"id": "root", "component": "Card", "child": "main_col"},
+            {
+                "id": "main_col",
+                "component": "Column",
+                "children": [
+                    "header_row",
+                    "top_div",
+                    "rollback_alert",
+                    "metrics_compact",
+                    "metrics_detailed",
+                    "postmortem_card",
+                ],
+            },
+            {
+                "id": "header_row",
+                "component": "Row",
+                "justify": "spaceBetween",
+                "children": ["header_left", "status_badge"],
+            },
+            {
+                "id": "header_left",
+                "component": "Row",
+                "children": ["header_icon", "header_title"],
+            },
+            {"id": "header_icon", "component": "Icon", "name": "warning"},
+            {"id": "header_title", "component": "Text", "text": {"@path": "/service"}},
+            {
+                "id": "status_badge",
+                "component": "Text",
+                "text": {"@path": "/status"},
+                "variant": "caption",
+            },
+            {"id": "top_div", "component": "Divider"},
+            {
+                "id": "rollback_alert",
+                "component": "Card",
+                "child": "rollback_col",
+                "@metadata": {
+                    "extensions": {
+                        GATE_EXTENSION_KEY: {
+                            "condition": (
+                                "Show the rollback alert banner when the service is"
+                                " degraded, critical, or experiencing elevated errors."
+                            ),
+                            "threshold": 0.5,
+                        }
+                    }
+                },
+            },
+            {
+                "id": "rollback_col",
+                "component": "Column",
+                "children": ["rollback_title", "rollback_btn"],
+            },
+            {
+                "id": "rollback_title",
+                "component": "Text",
+                "text": "Active degradation detected. Roll back to the previous release.",
+            },
+            {
+                "id": "rollback_btn",
+                "component": "Button",
+                "child": "rollback_btn_label",
+                "variant": "primary",
+                "action": {"event": {"name": "trigger_rollback"}},
+            },
+            {
+                "id": "rollback_btn_label",
+                "component": "Text",
+                "text": "Start Rollback",
+            },
+            {
+                "id": "metrics_compact",
+                "component": "Row",
+                "justify": "spaceBetween",
+                "children": ["compact_cpu", "compact_err"],
+                "@metadata": {
+                    "extensions": {
+                        VARIANT_EXTENSION_KEY: {
+                            "group": "metrics_layout",
+                            "name": "compact",
+                            "description": (
+                                "Single-row compact metrics when the service is healthy"
+                                " and routine."
+                            ),
+                            "prompt": (
+                                "Choose compact or detailed metrics layout for this"
+                                " service status."
+                            ),
+                        }
+                    }
+                },
+            },
+            {"id": "compact_cpu", "component": "Text", "text": {"@path": "/cpu"}},
+            {"id": "compact_err", "component": "Text", "text": {"@path": "/errorRate"}},
+            {
+                "id": "metrics_detailed",
+                "component": "Column",
+                "children": ["detail_cpu_row", "detail_err_row", "detail_region_row"],
+                "@metadata": {
+                    "extensions": {
+                        VARIANT_EXTENSION_KEY: {
+                            "group": "metrics_layout",
+                            "name": "detailed",
+                            "description": (
+                                "Expanded multi-row telemetry breakdown when the"
+                                " service is degraded or under investigation."
+                            ),
+                        }
+                    }
+                },
+            },
+            {
+                "id": "detail_cpu_row",
+                "component": "Row",
+                "justify": "spaceBetween",
+                "children": ["detail_cpu_lbl", "detail_cpu_val"],
+            },
+            {"id": "detail_cpu_lbl", "component": "Text", "text": "CPU Utilization", "variant": "caption"},
+            {"id": "detail_cpu_val", "component": "Text", "text": {"@path": "/cpu"}},
+            {
+                "id": "detail_err_row",
+                "component": "Row",
+                "justify": "spaceBetween",
+                "children": ["detail_err_lbl", "detail_err_val"],
+            },
+            {"id": "detail_err_lbl", "component": "Text", "text": "5xx Error Rate", "variant": "caption"},
+            {"id": "detail_err_val", "component": "Text", "text": {"@path": "/errorRate"}},
+            {
+                "id": "detail_region_row",
+                "component": "Row",
+                "justify": "spaceBetween",
+                "children": ["detail_region_lbl", "detail_region_val"],
+            },
+            {"id": "detail_region_lbl", "component": "Text", "text": "Region", "variant": "caption"},
+            {"id": "detail_region_val", "component": "Text", "text": {"@path": "/region"}},
+            {
+                "id": "postmortem_card",
+                "component": "Card",
+                "child": "postmortem_text",
+                "@metadata": {
+                    "extensions": {
+                        GATE_EXTENSION_KEY: {
+                            "condition": (
+                                "Show the postmortem notes card when the payload"
+                                " includes a postmortem summary or resolved incident"
+                                " notes."
+                            ),
+                            "threshold": 0.5,
+                        }
+                    }
+                },
+            },
+            {
+                "id": "postmortem_text",
+                "component": "Text",
+                "text": {"@path": "/postmortemNote"},
+            },
+        ),
+    ),
+    GatedTemplateSpec(
+        id="order_status_gated",
+        description=(
+            "Order fulfillment card with optional delay warning, refund action,"
+            " and in-transit vs delivered layout."
+        ),
+        catalog_id=_BASIC_V1_ID,
+        required_paths=("/orderId", "/status"),
+        components=(
+            {"id": "root", "component": "Card", "child": "order_col"},
+            {
+                "id": "order_col",
+                "component": "Column",
+                "children": [
+                    "order_header",
+                    "order_div",
+                    "delay_warning",
+                    "delivery_in_transit",
+                    "delivery_delivered",
+                    "refund_action_row",
+                ],
+            },
+            {
+                "id": "order_header",
+                "component": "Row",
+                "justify": "spaceBetween",
+                "children": ["order_title", "order_id_text"],
+            },
+            {"id": "order_title", "component": "Text", "text": "### Order Fulfillment"},
+            {"id": "order_id_text", "component": "Text", "text": {"@path": "/orderId"}, "variant": "caption"},
+            {"id": "order_div", "component": "Divider"},
+            {
+                "id": "delay_warning",
+                "component": "Card",
+                "child": "delay_text",
+                "@metadata": {
+                    "extensions": {
+                        GATE_EXTENSION_KEY: {
+                            "condition": (
+                                "Show the shipping delay warning when the order is"
+                                " delayed, late, or held in transit."
+                            ),
+                            "threshold": 0.5,
+                        }
+                    }
+                },
+            },
+            {"id": "delay_text", "component": "Text", "text": {"@path": "/delayReason"}},
+            {
+                "id": "delivery_in_transit",
+                "component": "Row",
+                "justify": "spaceBetween",
+                "children": ["transit_lbl", "transit_eta"],
+                "@metadata": {
+                    "extensions": {
+                        VARIANT_EXTENSION_KEY: {
+                            "group": "delivery_view",
+                            "name": "in_transit",
+                            "description": "ETA view when the package has not arrived yet.",
+                            "prompt": "Is this order still in transit or already delivered?",
+                        }
+                    }
+                },
+            },
+            {"id": "transit_lbl", "component": "Text", "text": "Estimated Arrival", "variant": "caption"},
+            {"id": "transit_eta", "component": "Text", "text": {"@path": "/eta"}},
+            {
+                "id": "delivery_delivered",
+                "component": "Row",
+                "justify": "spaceBetween",
+                "children": ["delivered_lbl", "delivered_at"],
+                "@metadata": {
+                    "extensions": {
+                        VARIANT_EXTENSION_KEY: {
+                            "group": "delivery_view",
+                            "name": "delivered",
+                            "description": "Completed delivery confirmation view.",
+                        }
+                    }
+                },
+            },
+            {"id": "delivered_lbl", "component": "Text", "text": "Delivered", "variant": "caption"},
+            {"id": "delivered_at", "component": "Text", "text": {"@path": "/deliveredAt"}},
+            {
+                "id": "refund_action_row",
+                "component": "Row",
+                "justify": "end",
+                "children": ["refund_btn"],
+                "@metadata": {
+                    "extensions": {
+                        GATE_EXTENSION_KEY: {
+                            "condition": (
+                                "Show the request-refund button when the order is"
+                                " delayed or damaged."
+                            ),
+                            "threshold": 0.5,
+                        }
+                    }
+                },
+            },
+            {
+                "id": "refund_btn",
+                "component": "Button",
+                "child": "refund_btn_lbl",
+                "variant": "primary",
+                "action": {"event": {"name": "request_refund"}},
+            },
+            {"id": "refund_btn_lbl", "component": "Text", "text": "Request Refund"},
+        ),
+    ),
+)
+
+GATED_PRESETS: tuple[GatedPresetSpec, ...] = (
+    GatedPresetSpec(
+        alias="incident_degraded",
+        template_id="service_incident_gated",
+        intent="Show degraded service incident requiring detailed metrics and rollback",
+        payload={
+            "service": "checkout-api",
+            "status": "degraded",
+            "cpu": "94%",
+            "errorRate": "7.8%",
+            "region": "us-west-2",
+            "postmortemNote": "",
+        },
+    ),
+    GatedPresetSpec(
+        alias="incident_healthy",
+        template_id="service_incident_gated",
+        intent="Show healthy routine service status with compact metrics",
+        payload={
+            "service": "checkout-api",
+            "status": "healthy",
+            "cpu": "22%",
+            "errorRate": "0.01%",
+            "region": "us-west-2",
+            "postmortemNote": "Postmortem #412 published: connection pool limit raised.",
+        },
+    ),
+    GatedPresetSpec(
+        alias="order_delayed",
+        template_id="order_status_gated",
+        intent="Show delayed in-transit order with refund option",
+        payload={
+            "orderId": "ORD-9104",
+            "status": "delayed in transit",
+            "eta": "Delayed until Thursday",
+            "deliveredAt": "",
+            "delayReason": "Weather delay at Memphis hub (+48 hours).",
+        },
+    ),
+    GatedPresetSpec(
+        alias="order_delivered",
+        template_id="order_status_gated",
+        intent="Show completed delivered order confirmation",
+        payload={
+            "orderId": "ORD-9104",
+            "status": "delivered",
+            "eta": "",
+            "deliveredAt": "Left at front porch at 2:14 PM",
+            "delayReason": "",
+        },
+    ),
+)
+
+GATED_PRESET_BY_ALIAS: dict[str, GatedPresetSpec] = {p.alias: p for p in GATED_PRESETS}
+GATED_PRESET_ALIASES: tuple[str, ...] = tuple(p.alias for p in GATED_PRESETS)

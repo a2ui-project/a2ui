@@ -28,7 +28,6 @@ from a2a.types import (
     AgentCard,
     DataPart,
     Part,
-    Task,
     TaskState,
     TextPart,
     UnsupportedOperationError,

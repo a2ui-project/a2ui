@@ -31,7 +31,7 @@ export const playgroundConfig: AppConfig = {
   clearSurfacesOnResponse: false,
   inspector: true,
   modeControls: {
-    modes: ['cascade', 'binder', 'rpc', 'express', 'direct'],
+    modes: ['cascade', 'binder', 'gated', 'rpc', 'express', 'direct'],
     backends: ['mock', 'gemini', 'jev', 'step0'],
     modeExplainers: {
       cascade: {
@@ -39,8 +39,12 @@ export const playgroundConfig: AppConfig = {
         body: 'Runs one batched decision call (up to 21 questions) to route each request to the cheapest tier that fits: plain text for factual questions (try "What is the capital of France?"), a 0-LLM pre-authored template for known shapes (try clicking Host Health or Ski Resorts), or an LLM call over a pruned component subset for novel UIs (try "Build a monthly budget calculator"). Use /budget 300 to test latency-budget downgrading.',
       },
       binder: {
-        title: 'Binder Mode (ToolPointerBinder)',
-        body: 'Renders structured tool outputs with 0 UI LLM calls. Click any example button or paste raw JSON to run a single select:target decision over the inspected JSON pointers and bind directly into a template. Sensitive fields like apiKey on Host Health are automatically redacted from Stage 4 wire messages, and unrecognized shapes abstain instead of forcing a bad layout.',
+        title: 'Binder Mode (ToolPointerBinder + @macro)',
+        body: 'Renders structured tool outputs with 0 UI LLM calls. Click any example button or paste raw JSON to run a single select:target decision over the inspected JSON pointers and bind directly into an Express template or a Python @macro (try Incident Alert (Macro) to see bool, Literal enum, plain primitives, DynamicString, and Action slots lowered to Basic Catalog primitives). Sensitive fields like apiKey on Host Health are automatically redacted.',
+      },
+      gated: {
+        title: 'Gated Mode (GatedTemplateEvaluator)',
+        body: 'Evaluates optional regions (a2ui_gate) and mutually exclusive layout variants (a2ui_variant) stored in A2UI v1.0 @metadata.extensions. Compare Incident (Degraded) vs Incident (Healthy) or Order (Delayed) vs Order (Delivered) to watch the decision model keep or prune subtrees in one batch and emit clean v1.0 wire messages.',
       },
       rpc: {
         title: 'RPC Mode (Submit-Time Decision Predicates)',
@@ -86,6 +90,36 @@ export const playgroundConfig: AppConfig = {
       message: '/tool order',
       title: 'Render order status and delivery estimate',
       modes: ['cascade', 'binder', 'express', 'direct'],
+    },
+    {
+      label: 'Incident Alert (Macro)',
+      message: '/tool incident',
+      title: 'Bind a Python @macro (DynamicString, primitives, bool, Literal, Action) and lower to v1.0',
+      modes: ['binder'],
+    },
+    {
+      label: 'Incident (Degraded)',
+      message: '/gated incident_degraded',
+      title: 'Gated template: keeps rollback alert and picks detailed metrics variant',
+      modes: ['gated'],
+    },
+    {
+      label: 'Incident (Healthy)',
+      message: '/gated incident_healthy',
+      title: 'Gated template: prunes rollback alert, keeps postmortem card, picks compact metrics',
+      modes: ['gated'],
+    },
+    {
+      label: 'Order (Delayed)',
+      message: '/gated order_delayed',
+      title: 'Gated template: keeps delay warning and refund action, picks in_transit variant',
+      modes: ['gated'],
+    },
+    {
+      label: 'Order (Delivered)',
+      message: '/gated order_delivered',
+      title: 'Gated template: prunes delay warning and refund action, picks delivered variant',
+      modes: ['gated'],
     },
     {
       label: 'Bug Report',

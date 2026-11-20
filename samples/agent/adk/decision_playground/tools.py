@@ -89,6 +89,17 @@ def get_deploy_runbook(service: str = "checkout-api") -> dict[str, Any]:
     }
 
 
+def get_incident_alert(service: str = "checkout-api") -> dict[str, Any]:
+    """Fetches a critical production incident payload for `@macro` binding."""
+    return {
+        "title": "Checkout 5xx Spike",
+        "summary": "Elevated 503 responses after canary rollout in us-west-2.",
+        "service": service,
+        "affectedHosts": 6,
+        "severity": "critical",
+    }
+
+
 @dataclass(frozen=True)
 class SampleToolEntry:
     """Metadata for one sample tool available via `/tool <alias>`."""
@@ -136,6 +147,12 @@ SAMPLE_TOOLS: tuple[SampleToolEntry, ...] = (
         fn=get_deploy_runbook,
         intent="Show production deployment runbook",
         actions=(ActionSpec(id="start_rollout", label="Start Canary Rollout"),),
+    ),
+    SampleToolEntry(
+        alias="incident",
+        fn=get_incident_alert,
+        intent="Show critical incident alert card for checkout-api",
+        actions=(ActionSpec(id="ack_incident", label="Acknowledge Incident"),),
     ),
 )
 
