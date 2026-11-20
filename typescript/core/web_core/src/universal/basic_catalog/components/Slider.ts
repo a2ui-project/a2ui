@@ -31,11 +31,24 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<SliderSupporte
   /**
    * The slider can be customized with the following CSS variables:
    *
-   * - `--a2ui-slider-track-color`: Color of the slider track. Defaults to `--a2ui-color-secondary`.
-   * - `--a2ui-slider-thumb-color`: Color of the slider thumb. Defaults to `--a2ui-color-primary`.
    * - `--a2ui-slider-margin`: Outer margin of the component. Defaults to `--a2ui-spacing-m`.
-   * - `--a2ui-slider-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
-   * - `--a2ui-slider-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
+   * - `--a2ui-slider-label-font-size`: Font size of the header label and value readout. Defaults to `--a2ui-label-font-size`, then `--a2ui-font-size-s`.
+   * - `--a2ui-slider-label-font-weight`: Font weight of the header label and value readout. Defaults to `bold`.
+   * - `--a2ui-slider-thumb-color`: Accent color of the slider thumb. Defaults to `--a2ui-color-primary`.
+   * - `--a2ui-slider-track-color`: Background color of the slider track. Defaults to `--a2ui-color-secondary`.
+   * - `--a2ui-slider-color-error`: Text color of validation error messages. Defaults to `red`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-spacing-xs`: Gap between the header, range input, and validation errors.
+   * - `--a2ui-spacing-m`: Fallback outer margin of the component.
+   * - `--a2ui-label-font-size`: Fallback font size of the header. Defaults to `--a2ui-font-size-s`.
+   * - `--a2ui-font-size-s`: Fallback header font size when `--a2ui-label-font-size` is unset.
+   * - `--a2ui-font-size-xs`: Font size of validation error messages.
+   * - `--a2ui-text-color-text`: Text color of the header. Defaults to `--a2ui-color-on-background`.
+   * - `--a2ui-color-on-background`: Fallback text color of the header.
+   * - `--a2ui-color-primary`: Fallback accent color of the slider thumb.
+   * - `--a2ui-color-secondary`: Fallback background color of the slider track.
    *
    * @nocollapse
    */
