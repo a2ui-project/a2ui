@@ -38,51 +38,48 @@ class V1_0Adapter extends VersionAdapter {
     final A2uiProtocolVersion declared = servedVersionOf(message);
     return switch (message) {
       CreateSurfaceMessage() => [
-          CreateSurfaceOp(
-            version: declared,
-            surfaceId: message.surfaceId,
-            catalogId: message.catalogId,
-            sendDataModel: message.sendDataModel,
-            components: message.components,
-            dataModel: message.dataModel,
-            metadata: message.metadata,
-          ),
-        ],
+        CreateSurfaceOp(
+          version: declared,
+          surfaceId: message.surfaceId,
+          catalogId: message.catalogId,
+          sendDataModel: message.sendDataModel,
+          components: message.components,
+          dataModel: message.dataModel,
+          metadata: message.metadata,
+        ),
+      ],
       UpdateComponentsMessage() => [
-          UpdateComponentsOp(
-            version: declared,
-            surfaceId: message.surfaceId,
-            components: [
-              for (final Map<String, dynamic> c in message.components)
-                c.cast<String, Object?>(),
-            ],
-          ),
-        ],
+        UpdateComponentsOp(
+          version: declared,
+          surfaceId: message.surfaceId,
+          components: [
+            for (final Map<String, dynamic> c in message.components)
+              c.cast<String, Object?>(),
+          ],
+        ),
+      ],
       UpdateDataModelMessage() => [
-          UpdateDataModelOp(
-            version: declared,
-            surfaceId: message.surfaceId,
-            path: message.path,
-            value: message.value,
-          ),
-        ],
+        UpdateDataModelOp(
+          version: declared,
+          surfaceId: message.surfaceId,
+          path: message.path,
+          value: message.value,
+        ),
+      ],
       DeleteSurfaceMessage() => [
-          DeleteSurfaceOp(version: declared, surfaceId: message.surfaceId),
-        ],
+        DeleteSurfaceOp(version: declared, surfaceId: message.surfaceId),
+      ],
       CallRendererFunctionMessage() => [
-          CallRendererFunctionOp(
-            version: declared,
-            surfaceId: message.surfaceId,
-            functionCallId: message.functionCallId,
-            callFunction: message.callFunction,
-          ),
-        ],
+        CallRendererFunctionOp(
+          version: declared,
+          surfaceId: message.surfaceId,
+          functionCallId: message.functionCallId,
+          callFunction: message.callFunction,
+        ),
+      ],
       AgentFunctionResponseMessage() => [
-          AgentFunctionResponseOp(
-            version: declared,
-            response: message.response,
-          ),
-        ],
+        AgentFunctionResponseOp(version: declared, response: message.response),
+      ],
       _ => rejectMessage(message.runtimeType.toString()),
     };
   }

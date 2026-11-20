@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/validation/component_graph.dart'
     show maxFunctionCallArgs, maxFunctionCallDepth;
@@ -31,9 +34,9 @@ const String childListRef =
     'https://a2ui.org/specification/v0_9/common_types.json#/\$defs/ChildList';
 
 Map<String, Object?> createSurface({String version = 'v0.9'}) => {
-      'version': version,
-      'createSurface': {'surfaceId': 's1', 'catalogId': catalogId},
-    };
+  'version': version,
+  'createSurface': {'surfaceId': 's1', 'catalogId': catalogId},
+};
 
 Map<String, Object?> updateComponents(List<Map<String, Object?>> components) =>
     {
@@ -44,51 +47,51 @@ Map<String, Object?> updateComponents(List<Map<String, Object?>> components) =>
 /// A catalog exercising every way a component can reference another: a single
 /// id, a `ChildList`, and an array of objects with id-bearing keys.
 Map<String, Object?> testCatalogDocument() => {
-      'catalogId': catalogId,
-      'components': {
-        'Card': {
-          'type': 'object',
-          'properties': {
-            'component': {'const': 'Card'},
-            'child': {r'$ref': componentIdRef},
-          },
-          'required': ['component'],
-        },
-        'Text': {
-          'type': 'object',
-          'properties': {
-            'component': {'const': 'Text'},
-            'text': {'type': 'string'},
-          },
-          'required': ['component', 'text'],
-        },
-        'Column': {
-          'type': 'object',
-          'properties': {
-            'component': {'const': 'Column'},
-            'children': {r'$ref': childListRef},
-          },
-          'required': ['component', 'children'],
-        },
-        'Tabs': {
-          'type': 'object',
-          'properties': {
-            'component': {'const': 'Tabs'},
-            'items': {
-              'type': 'array',
-              'items': {
-                'type': 'object',
-                'properties': {
-                  'label': {'type': 'string'},
-                  'child': {r'$ref': componentIdRef},
-                },
-              },
+  'catalogId': catalogId,
+  'components': {
+    'Card': {
+      'type': 'object',
+      'properties': {
+        'component': {'const': 'Card'},
+        'child': {r'$ref': componentIdRef},
+      },
+      'required': ['component'],
+    },
+    'Text': {
+      'type': 'object',
+      'properties': {
+        'component': {'const': 'Text'},
+        'text': {'type': 'string'},
+      },
+      'required': ['component', 'text'],
+    },
+    'Column': {
+      'type': 'object',
+      'properties': {
+        'component': {'const': 'Column'},
+        'children': {r'$ref': childListRef},
+      },
+      'required': ['component', 'children'],
+    },
+    'Tabs': {
+      'type': 'object',
+      'properties': {
+        'component': {'const': 'Tabs'},
+        'items': {
+          'type': 'array',
+          'items': {
+            'type': 'object',
+            'properties': {
+              'label': {'type': 'string'},
+              'child': {r'$ref': componentIdRef},
             },
           },
-          'required': ['component'],
         },
       },
-    };
+      'required': ['component'],
+    },
+  },
+};
 
 CatalogApi testCatalog() => Catalog.fromJson(testCatalogDocument());
 
@@ -103,12 +106,11 @@ PayloadValidator<ComponentApi, FunctionApi> newValidator() =>
 /// scoped to one catalog.
 MessageProcessor<ComponentApi> newProcessor({
   ValidationConfig validationConfig = ValidationConfig.strict,
-}) =>
-    MessageProcessor<ComponentApi>(
-      catalogs: [rendererCatalog(testCatalogDocument())],
-      defaultVersion: A2uiProtocolVersion.v0_9,
-      validationConfig: validationConfig,
-    );
+}) => MessageProcessor<ComponentApi>(
+  catalogs: [rendererCatalog(testCatalogDocument())],
+  defaultVersion: A2uiProtocolVersion.v0_9,
+  validationConfig: validationConfig,
+);
 
 /// A processor for a surface that arrives across several payloads.
 ///
@@ -137,16 +139,16 @@ AgentToRendererMessagePayload parse(List<Map<String, Object?>> payload) =>
     );
 
 Map<String, Object?> text(String id, [String value = 'x']) => {
-      'id': id,
-      'component': 'Text',
-      'text': value,
-    };
+  'id': id,
+  'component': 'Text',
+  'text': value,
+};
 
 Map<String, Object?> card(String id, String child) => {
-      'id': id,
-      'component': 'Card',
-      'child': child,
-    };
+  'id': id,
+  'component': 'Card',
+  'child': child,
+};
 
 void main() {
   v1RulesTests();
@@ -471,29 +473,28 @@ void main() {
 
   group('MessageProcessor catalog resolution', () {
     Map<String, Object?> namedCatalogDocument(String id, String component) => {
-          'catalogId': id,
-          'components': {
-            component: {
-              'type': 'object',
-              'properties': {
-                'id': {'type': 'string'},
-                'component': {'const': component},
-                // v1.0 lets a component name a catalog of its own,
-                // overriding the surface-level default.
-                'catalogId': {'type': 'string'},
-                'a': {'type': 'string'},
-              },
-              'required': ['component', 'a'],
-              'additionalProperties': false,
-            },
+      'catalogId': id,
+      'components': {
+        component: {
+          'type': 'object',
+          'properties': {
+            'id': {'type': 'string'},
+            'component': {'const': component},
+            // v1.0 lets a component name a catalog of its own,
+            // overriding the surface-level default.
+            'catalogId': {'type': 'string'},
+            'a': {'type': 'string'},
           },
-        };
+          'required': ['component', 'a'],
+          'additionalProperties': false,
+        },
+      },
+    };
 
     Catalog<ComponentApi, FunctionImplementation> namedCatalog(
       String id,
       String component,
-    ) =>
-        rendererCatalog(namedCatalogDocument(id, component));
+    ) => rendererCatalog(namedCatalogDocument(id, component));
 
     /// A processor supporting [ids], each with one component named after it.
     // Strict, so that a type the catalog does not declare is rejected rather
@@ -530,14 +531,14 @@ void main() {
     /// An incremental payload: v0.9 declares `catalogId` on `createSurface`
     /// only, so this carries none.
     List<Map<String, Object?>> incremental(Map<String, Object?> component) => [
-          {
-            'version': 'v0.9',
-            'updateComponents': {
-              'surfaceId': 's1',
-              'components': [component],
-            },
-          },
-        ];
+      {
+        'version': 'v0.9',
+        'updateComponents': {
+          'surfaceId': 's1',
+          'components': [component],
+        },
+      },
+    ];
 
     /// A payload creating [surfaceId] against [catalogId] and putting
     /// [component] on it.
@@ -545,33 +546,32 @@ void main() {
       String surfaceId,
       String catalogId,
       Map<String, Object?> component,
-    ) =>
-        [
-          {
-            'version': 'v0.9',
-            'createSurface': {'surfaceId': surfaceId, 'catalogId': catalogId},
-          },
-          {
-            'version': 'v0.9',
-            'updateComponents': {
-              'surfaceId': surfaceId,
-              'components': [component],
-            },
-          },
-        ];
+    ) => [
+      {
+        'version': 'v0.9',
+        'createSurface': {'surfaceId': surfaceId, 'catalogId': catalogId},
+      },
+      {
+        'version': 'v0.9',
+        'updateComponents': {
+          'surfaceId': surfaceId,
+          'components': [component],
+        },
+      },
+    ];
 
     Map<String, Object?> alpha({String? catalogId}) => {
-          'id': 'root',
-          'component': 'Alpha',
-          if (catalogId != null) 'catalogId': catalogId,
-          'a': 'x',
-        };
+      'id': 'root',
+      'component': 'Alpha',
+      'catalogId': ?catalogId,
+      'a': 'x',
+    };
     Map<String, Object?> beta({String? catalogId}) => {
-          'id': 'root',
-          'component': 'Beta',
-          if (catalogId != null) 'catalogId': catalogId,
-          'a': 'x',
-        };
+      'id': 'root',
+      'component': 'Beta',
+      'catalogId': ?catalogId,
+      'a': 'x',
+    };
     final Map<String, Object?> bogus = {
       'id': 'root',
       'component': 'Nonexistent',
@@ -658,10 +658,7 @@ void main() {
           catalogs: [
             for (final String id in ids)
               rendererCatalog({
-                ...namedCatalogDocument(
-                  id,
-                  id == 'cat1' ? 'Alpha' : 'Beta',
-                ),
+                ...namedCatalogDocument(id, id == 'cat1' ? 'Alpha' : 'Beta'),
                 'protocolVersion': '1.0',
               }),
           ],
@@ -673,20 +670,19 @@ void main() {
       String surfaceId,
       String catalogId,
       Map<String, Object?> component,
-    ) =>
-        [
-          {
-            'version': '1.0',
-            'createSurface': {'surfaceId': surfaceId, 'catalogId': catalogId},
-          },
-          {
-            'version': '1.0',
-            'updateComponents': {
-              'surfaceId': surfaceId,
-              'components': [component],
-            },
-          },
-        ];
+    ) => [
+      {
+        'version': '1.0',
+        'createSurface': {'surfaceId': surfaceId, 'catalogId': catalogId},
+      },
+      {
+        'version': '1.0',
+        'updateComponents': {
+          'surfaceId': surfaceId,
+          'components': [component],
+        },
+      },
+    ];
 
     test('checks a component against the catalog it names for itself', () {
       // v1.0 lets one surface mix catalogs: a component may override the
@@ -772,20 +768,20 @@ const String _v0_9CommonTypes =
 /// A function document shaped as a protocol version spells a call: `@call` from
 /// v1.0, `call` before it.
 Map<String, Object?> _functionDocument(String name, {required bool v1}) => {
+  'type': 'object',
+  'properties': {
+    if (v1) '@call': {'const': name} else 'call': {'const': name},
+    'args': {
       'type': 'object',
       'properties': {
-        if (v1) '@call': {'const': name} else 'call': {'const': name},
-        'args': {
-          'type': 'object',
-          'properties': {
-            'value': {'type': 'string'},
-          },
-          'required': ['value'],
-          'additionalProperties': false,
-        },
+        'value': {'type': 'string'},
       },
-      'required': [if (v1) '@call' else 'call', 'args'],
-    };
+      'required': ['value'],
+      'additionalProperties': false,
+    },
+  },
+  'required': [if (v1) '@call' else 'call', 'args'],
+};
 
 /// A catalog with one `Box` component whose `value` is a `DynamicValue` (v1.0)
 /// or `DynamicString` (v0.9), one `Loose` component whose `value` is
@@ -795,7 +791,7 @@ CatalogApi _versionedCatalog(String? protocolVersion) {
   final String common = v1 ? _v1CommonTypes : _v0_9CommonTypes;
   return Catalog.fromJson({
     'catalogId': 'versioned',
-    if (protocolVersion != null) 'protocolVersion': protocolVersion,
+    'protocolVersion': ?protocolVersion,
     'components': {
       'Box': {
         'type': 'object',
@@ -821,17 +817,16 @@ CatalogApi _versionedCatalog(String? protocolVersion) {
 PayloadValidator<ComponentApi, FunctionApi> _versionedValidator(
   String? protocolVersion, {
   ValidationConfig config = ValidationConfig.strict,
-}) =>
-    PayloadValidator(
-      catalog: _versionedCatalog(protocolVersion),
-      config: config,
-    );
+}) => PayloadValidator(
+  catalog: _versionedCatalog(protocolVersion),
+  config: config,
+);
 
 Map<String, Object?> _box(Object? value, {String type = 'Box'}) => {
-      'id': 'b',
-      'component': type,
-      'value': value,
-    };
+  'id': 'b',
+  'component': type,
+  'value': value,
+};
 
 Matcher _validationError({String? code, String? path, Object? message}) =>
     isA<A2uiValidationError>()
@@ -899,66 +894,68 @@ void v1RulesTests() {
       );
     });
 
-    test('recognizes accessibility declared within anyOf and oneOf branches',
-        () {
-      final anyOfComponent = ComponentApi(
-        name: 'AnyOfButton',
-        schema: Schema.fromMap({
-          'type': 'object',
-          'anyOf': [
-            {
-              'properties': {
-                'accessibility': {'type': 'string'},
+    test(
+      'recognizes accessibility declared within anyOf and oneOf branches',
+      () {
+        final anyOfComponent = ComponentApi(
+          name: 'AnyOfButton',
+          schema: Schema.fromMap({
+            'type': 'object',
+            'anyOf': [
+              {
+                'properties': {
+                  'accessibility': {'type': 'string'},
+                },
               },
+            ],
+            'properties': {
+              'component': {'const': 'AnyOfButton'},
             },
-          ],
-          'properties': {
-            'component': {'const': 'AnyOfButton'},
-          },
-        }),
-      );
-      final oneOfComponent = ComponentApi(
-        name: 'OneOfButton',
-        schema: Schema.fromMap({
-          'type': 'object',
-          'oneOf': [
-            {
-              'properties': {
-                'accessibility': {'type': 'string'},
+          }),
+        );
+        final oneOfComponent = ComponentApi(
+          name: 'OneOfButton',
+          schema: Schema.fromMap({
+            'type': 'object',
+            'oneOf': [
+              {
+                'properties': {
+                  'accessibility': {'type': 'string'},
+                },
               },
+            ],
+            'properties': {
+              'component': {'const': 'OneOfButton'},
             },
-          ],
-          'properties': {
-            'component': {'const': 'OneOfButton'},
-          },
-        }),
-      );
-      final catalog = Catalog<ComponentApi, FunctionApi>(
-        id: 'custom_a11y',
-        protocolVersion: A2uiProtocolVersion.v1_0,
-        components: [anyOfComponent, oneOfComponent],
-      );
-      final validator = PayloadValidator<ComponentApi, FunctionApi>(
-        catalog: catalog,
-      );
+          }),
+        );
+        final catalog = Catalog<ComponentApi, FunctionApi>(
+          id: 'custom_a11y',
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          components: [anyOfComponent, oneOfComponent],
+        );
+        final validator = PayloadValidator<ComponentApi, FunctionApi>(
+          catalog: catalog,
+        );
 
-      expect(
-        () => validator.validateComponent({
-          'id': 'b1',
-          'component': 'AnyOfButton',
-          'accessibility': 'Custom label string',
-        }),
-        returnsNormally,
-      );
-      expect(
-        () => validator.validateComponent({
-          'id': 'b2',
-          'component': 'OneOfButton',
-          'accessibility': 'Custom label string',
-        }),
-        returnsNormally,
-      );
-    });
+        expect(
+          () => validator.validateComponent({
+            'id': 'b1',
+            'component': 'AnyOfButton',
+            'accessibility': 'Custom label string',
+          }),
+          returnsNormally,
+        );
+        expect(
+          () => validator.validateComponent({
+            'id': 'b2',
+            'component': 'OneOfButton',
+            'accessibility': 'Custom label string',
+          }),
+          returnsNormally,
+        );
+      },
+    );
 
     test('accepts v1.0 metadata and accessibility on a closed schema', () {
       expect(
@@ -1044,27 +1041,24 @@ void v1RulesTests() {
         throwsA(_validationError(path: '/@metadata')),
       );
       expect(
-        () => _versionedValidator('1.0').validateComponent({
-          ..._box('x'),
-          '@checks': <Object?>[],
-        }),
+        () =>
+            _versionedValidator('1.0')
+                .validateComponent({..._box('x'), '@checks': <Object?>[]}),
         throwsA(_validationError(path: '/@checks')),
       );
     });
 
     test('rejects a null @catalogId or legacy bare catalogId on v1.0', () {
       expect(
-        () => _versionedValidator('1.0').validateComponent({
-          ..._box('x'),
-          'catalogId': null,
-        }),
+        () =>
+            _versionedValidator('1.0')
+                .validateComponent({..._box('x'), 'catalogId': null}),
         throwsA(_validationError(path: '/catalogId')),
       );
       expect(
-        () => _versionedValidator('1.0').validateComponent({
-          ..._box('x'),
-          '@catalogId': null,
-        }),
+        () =>
+            _versionedValidator('1.0')
+                .validateComponent({..._box('x'), '@catalogId': null}),
         throwsA(_validationError(path: '/@catalogId')),
       );
     });
@@ -1073,17 +1067,15 @@ void v1RulesTests() {
   group('PayloadValidator v1.0 identifiers', () {
     test('rejects a component id that is not a UAX #31 identifier', () {
       expect(
-        () => _versionedValidator('1.0').validateComponent({
-          ..._box('x'),
-          'id': 'bad-id',
-        }),
+        () =>
+            _versionedValidator('1.0')
+                .validateComponent({..._box('x'), 'id': 'bad-id'}),
         throwsA(_validationError(path: '/id')),
       );
       expect(
-        () => _versionedValidator('v0.9').validateComponent({
-          ..._box('x'),
-          'id': 'bad-id',
-        }),
+        () =>
+            _versionedValidator('v0.9')
+                .validateComponent({..._box('x'), 'id': 'bad-id'}),
         returnsNormally,
       );
     });
@@ -1113,9 +1105,7 @@ void v1RulesTests() {
         () => Catalog.fromJson({
           'catalogId': 'c',
           'protocolVersion': '1.0',
-          'functions': {
-            'bad-fn': _functionDocument('bad-fn', v1: true),
-          },
+          'functions': {'bad-fn': _functionDocument('bad-fn', v1: true)},
         }),
         throwsA(isA<A2uiCatalogError>()),
       );
@@ -1275,18 +1265,21 @@ void v1RulesTests() {
 
     test('allowUnknownElements admits an unknown v0.9 function', () {
       expect(
-        () => _versionedValidator(
-          'v0.9',
-          config: const ValidationConfig(allowUnknownElements: true),
-        ).validateComponent(
-          _box({'call': 'nope', 'args': <String, Object?>{}}, type: 'Loose'),
-        ),
+        () =>
+            _versionedValidator(
+              'v0.9',
+              config: const ValidationConfig(allowUnknownElements: true),
+            ).validateComponent(
+              _box({
+                'call': 'nope',
+                'args': <String, Object?>{},
+              }, type: 'Loose'),
+            ),
         returnsNormally,
       );
     });
 
-    test(
-        'accepts an unknown nested function naming another catalog in a v1.0 '
+    test('accepts an unknown nested function naming another catalog in a v1.0 '
         'catalog', () {
       expect(
         () => _versionedValidator('1.0').validateComponent(
@@ -1299,21 +1292,21 @@ void v1RulesTests() {
         returnsNormally,
       );
       expect(
-        () => _versionedValidator(
-          '1.0',
-          config: const ValidationConfig(allowUnknownElements: true),
-        ).validateComponent(
-          _box({
-            '@call': 'nope',
-            'args': {'anything': 1},
-          }),
-        ),
+        () =>
+            _versionedValidator(
+              '1.0',
+              config: const ValidationConfig(allowUnknownElements: true),
+            ).validateComponent(
+              _box({
+                '@call': 'nope',
+                'args': {'anything': 1},
+              }),
+            ),
         returnsNormally,
       );
     });
 
-    test(
-        'rejects an unknown nested function that runs in this catalog in a '
+    test('rejects an unknown nested function that runs in this catalog in a '
         'v1.0 catalog', () {
       expect(
         () => _versionedValidator('1.0').validateComponent(
@@ -1328,15 +1321,15 @@ void v1RulesTests() {
 
     test('rejects a call with more than maxFunctionCallArgs arguments', () {
       Map<String, Object?> call(int count) => {
-            '@call': 'nope',
-            'catalogId': 'other',
-            'args': {for (var i = 0; i < count; i++) 'a$i': i},
-          };
+        '@call': 'nope',
+        'catalogId': 'other',
+        'args': {for (var i = 0; i < count; i++) 'a$i': i},
+      };
       final PayloadValidator<ComponentApi, FunctionApi> validator =
           _versionedValidator(
-        '1.0',
-        config: const ValidationConfig(allowUnknownElements: true),
-      );
+            '1.0',
+            config: const ValidationConfig(allowUnknownElements: true),
+          );
 
       expect(maxFunctionCallArgs, 1000);
       expect(
@@ -1348,9 +1341,8 @@ void v1RulesTests() {
         throwsA(_validationError(message: contains('1000'))),
       );
       expect(
-        () => _versionedValidator('v0.9').validateFunction('f', {
-          for (var i = 0; i < 1001; i++) 'a$i': 'x',
-        }),
+        () => _versionedValidator('v0.9')
+            .validateFunction('f', {for (var i = 0; i < 1001; i++) 'a$i': 'x'}),
         throwsA(_validationError(message: contains('1000'))),
       );
     });
@@ -1361,39 +1353,39 @@ void v1RulesTests() {
       // unconstrained `inner`.
       final PayloadValidator<ComponentApi, FunctionApi> validator =
           PayloadValidator(
-        catalog: Catalog.fromJson({
-          'catalogId': 'caller',
-          'protocolVersion': '0.9',
-          'components': {
-            'Caller': {
-              'type': 'object',
-              'properties': {
-                'call': {'type': 'string'},
-                'value': <String, Object?>{},
-              },
-              'additionalProperties': false,
-            },
-          },
-          'functions': {
-            'g': {
-              'type': 'object',
-              'properties': {
-                'call': {'const': 'g'},
-                'args': {
+            catalog: Catalog.fromJson({
+              'catalogId': 'caller',
+              'protocolVersion': '0.9',
+              'components': {
+                'Caller': {
                   'type': 'object',
                   'properties': {
                     'call': {'type': 'string'},
-                    'inner': <String, Object?>{},
+                    'value': <String, Object?>{},
                   },
                   'additionalProperties': false,
                 },
               },
-              'required': ['call', 'args'],
-            },
-          },
-        }),
-        config: ValidationConfig.strict,
-      );
+              'functions': {
+                'g': {
+                  'type': 'object',
+                  'properties': {
+                    'call': {'const': 'g'},
+                    'args': {
+                      'type': 'object',
+                      'properties': {
+                        'call': {'type': 'string'},
+                        'inner': <String, Object?>{},
+                      },
+                      'additionalProperties': false,
+                    },
+                  },
+                  'required': ['call', 'args'],
+                },
+              },
+            }),
+            config: ValidationConfig.strict,
+          );
 
       test('a component property named call is a property', () {
         expect(
@@ -1445,63 +1437,69 @@ void v1RulesTests() {
   });
 
   group('PayloadValidator cross-catalog function calls', () {
-    test(
-        'accepts foreign catalog call even when function name collides '
+    test('accepts foreign catalog call even when function name collides '
         'with local function', () {
       final PayloadValidator<ComponentApi, FunctionApi> validator =
           _versionedValidator('1.0');
       // Local 'f' requires {'value': <string>}.
       // A foreign call to 'f' on 'catB' taking different args must pass.
       expect(
-        () => validator.validateComponent(_box({
-          '@call': 'f',
-          'catalogId': 'catB',
-          'args': {'other': 123},
-        })),
+        () => validator.validateComponent(
+          _box({
+            '@call': 'f',
+            'catalogId': 'catB',
+            'args': {'other': 123},
+          }),
+        ),
         returnsNormally,
       );
 
       // Even if foreign call's args match local 'f' schema, it must not fail
       // oneOf.
       expect(
-        () => validator.validateComponent(_box({
-          '@call': 'f',
-          'catalogId': 'catB',
-          'args': {'value': 'ok'},
-        })),
+        () => validator.validateComponent(
+          _box({
+            '@call': 'f',
+            'catalogId': 'catB',
+            'args': {'value': 'ok'},
+          }),
+        ),
         returnsNormally,
       );
     });
 
     test('accepts foreign catalog call under allowUnknownElements', () {
       final PayloadValidator<ComponentApi, FunctionApi> validator =
-          _versionedValidator(
-        '1.0',
-        config: ValidationConfig.relaxed,
-      );
+          _versionedValidator('1.0', config: ValidationConfig.relaxed);
       expect(
-        () => validator.validateComponent(_box({
-          '@call': 'f',
-          'catalogId': 'catB',
-          'args': {'other': 123},
-        })),
+        () => validator.validateComponent(
+          _box({
+            '@call': 'f',
+            'catalogId': 'catB',
+            'args': {'other': 123},
+          }),
+        ),
         returnsNormally,
       );
     });
 
-    test('rejects foreign-shaped call when catalogId matches local catalog.id',
-        () {
-      final PayloadValidator<ComponentApi, FunctionApi> validator =
-          _versionedValidator('1.0');
-      expect(
-        () => validator.validateComponent(_box({
-          '@call': 'f',
-          'catalogId': 'versioned',
-          'args': {'other': 123},
-        })),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
+    test(
+      'rejects foreign-shaped call when catalogId matches local catalog.id',
+      () {
+        final PayloadValidator<ComponentApi, FunctionApi> validator =
+            _versionedValidator('1.0');
+        expect(
+          () => validator.validateComponent(
+            _box({
+              '@call': 'f',
+              'catalogId': 'versioned',
+              'args': {'other': 123},
+            }),
+          ),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      },
+    );
   });
 
   group('PayloadValidator v1.0 reserved keys', () {
@@ -1533,9 +1531,9 @@ void v1RulesTests() {
 
     test('ignores @ keys in v0.9 catalogs', () {
       expect(
-        () => _versionedValidator('v0.9').validateComponent(
-          _box({'@if': true}, type: 'Loose'),
-        ),
+        () =>
+            _versionedValidator('v0.9')
+                .validateComponent(_box({'@if': true}, type: 'Loose')),
         returnsNormally,
       );
     });
@@ -1674,5 +1672,45 @@ void v1RulesTests() {
         throwsA(isA<A2uiValidationError>()),
       );
     });
+  });
+
+  group('v0.9 function_catalog_validation.json specification suite', () {
+    final suiteJson = jsonDecode(
+      File(
+        '../../specification/v0_9/test/cases/function_catalog_validation.json',
+      ).readAsStringSync(),
+    ) as Map<String, Object?>;
+    final List<Map<String, Object?>> tests =
+        (suiteJson['tests'] as List<Object?>).cast<Map<String, Object?>>();
+
+    for (final testCase in tests) {
+      final description = testCase['description']! as String;
+      final expectedValid = testCase['valid']! as bool;
+      final data = testCase['data']! as Map<String, Object?>;
+      final update = data['updateComponents']! as Map<String, Object?>;
+      final List<Map<String, Object?>> components =
+          (update['components'] as List<Object?>).cast<Map<String, Object?>>();
+
+      test(description, () {
+        final validator = PayloadValidator<ComponentApi, FunctionApi>(
+          catalog: BasicCatalog.v0_9(),
+          config: ValidationConfig.strict,
+        );
+        if (expectedValid) {
+          for (final component in components) {
+            expect(
+              () => validator.validateComponent(component),
+              returnsNormally,
+            );
+          }
+        } else {
+          expect(() {
+            for (final component in components) {
+              validator.validateComponent(component);
+            }
+          }, throwsA(isA<A2uiValidationError>()));
+        }
+      });
+    }
   });
 }

@@ -15,7 +15,8 @@
  */
 
 import {TestBed} from '@angular/core/testing';
-import {A2uiClientMessageSchema, A2uiError} from '@a2ui/web_core/v0_9';
+import {A2uiError} from '@a2ui/web_core';
+import {A2uiClientMessageSchema} from '@a2ui/web_core/v0_9';
 import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
 
 import {
@@ -35,7 +36,8 @@ import {
   type HarnessState,
   type ManifestRecord,
 } from './adapter_harness';
-import {type AngularCatalog, SurfaceComponent} from './public-api';
+import {type AngularCatalog} from './catalog/types';
+import {SurfaceComponent} from './core/surface.component';
 import {BasicCatalogBase as V09BasicCatalogBase} from './v0_9';
 
 const E2E_SCENARIO_KNOWN_KEYS = new Set([

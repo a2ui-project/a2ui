@@ -94,7 +94,7 @@ String toSnakeCase(String name) {
 
 String typeToPython(TypeDescriptor desc) {
   switch (desc) {
-    case PrimitiveType(:final primitive):
+    case PrimitiveType(:final PrimitiveKind primitive):
       switch (primitive) {
         case PrimitiveKind.string:
           return 'str';
@@ -107,7 +107,7 @@ String typeToPython(TypeDescriptor desc) {
         case PrimitiveKind.any:
           return 'Any';
       }
-    case EnumType(:final name):
+    case EnumType(:final String name):
       return name;
     case ComponentRefType():
       return 'Child';
@@ -115,9 +115,9 @@ String typeToPython(TypeDescriptor desc) {
       return 'ChildList';
     case AccessibilityType():
       return 'AccessibilityAttributes';
-    case ObjectModelType(:final name):
+    case ObjectModelType(:final String name):
       return name;
-    case DynamicType(:final inner):
+    case DynamicType(:final TypeDescriptor inner):
       final String innerPy = typeToPython(inner);
       return '$innerPy | DataBinding | FunctionCall';
     case ActionType():
@@ -126,11 +126,11 @@ String typeToPython(TypeDescriptor desc) {
       return 'DataBinding';
     case CheckRuleType():
       return 'CheckRule';
-    case ListType(:final elementType):
+    case ListType(:final TypeDescriptor elementType):
       return 'Sequence[${typeToPython(elementType)}]';
-    case MapType(:final valueType):
+    case MapType(:final TypeDescriptor valueType):
       return 'Mapping[str, ${typeToPython(valueType)}]';
-    case UnionType(:final options):
+    case UnionType(:final List<TypeDescriptor> options):
       return options.map(typeToPython).join(' | ');
   }
 }

@@ -3,7 +3,7 @@
 <!-- markdownlint-disable MD034 -->
 <div style="text-align: center;">
   <div class="centered-logo-text-group">
-    <img src="../../../docs/public/assets/A2UI_dark.svg" alt="A2UI Protocol Logo" width="100">
+    <img src="../../../docs/assets/A2UI_dark.svg" alt="A2UI Protocol Logo" width="100">
     <h1>A2UI Protocol v0.9.1</h1>
   </div>
 </div>
@@ -860,7 +860,7 @@ When `sendDataModel` is enabled for a surface, the client includes the `a2uiClie
 
 This message is used to report a client-side error to the server.
 
-[`catalogs/basic/catalog.json`]: ../catalogs/basic/catalog.json
+[`catalogs/basic/catalog.json`]: ../../../catalogs/basic/v0_9_1/catalog.json
 [`common_types.json`]: ../json/common_types.json
 [`server_to_client.json`]: ../json/server_to_client.json
 [`client_to_server.json`]: ../json/client_to_server.json

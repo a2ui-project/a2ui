@@ -42,14 +42,14 @@ void main() {
   tearDown(() => processor.model.dispose());
 
   void create({String? catalogId}) => processor.processMessages(
-        AgentToRendererMessagePayload([
-          CreateSurfaceMessage(
-            version: '1.0',
-            surfaceId: 's',
-            catalogId: catalogId,
-          ),
-        ]),
-      );
+    AgentToRendererMessagePayload([
+      CreateSurfaceMessage(
+        version: '1.0',
+        surfaceId: 's',
+        catalogId: catalogId,
+      ),
+    ]),
+  );
 
   void update(List<Map<String, dynamic>> components) =>
       processor.processMessages(
@@ -69,8 +69,10 @@ void main() {
       create();
 
       expect(surface().defaultCatalog, isNull);
-      expect(surface().availableCatalogs.keys,
-          unorderedEquals(['cat-a', 'cat-b']));
+      expect(
+        surface().availableCatalogs.keys,
+        unorderedEquals(['cat-a', 'cat-b']),
+      );
       expect(surface().protocolVersion, '1.0');
     });
   });
@@ -79,21 +81,23 @@ void main() {
     // The rejection of such an update is covered by the conformance case
     // test_v10_component_update_without_catalog_id_uses_surface_default; this
     // checks the catalog the accepted update is bound to.
-    test('an update that names no catalogId is bound to the surface default',
-        () {
-      create(catalogId: 'cat-a');
-      update([
-        {'id': 'root', 'component': 'Beta', 'catalogId': 'cat-b'},
-      ]);
+    test(
+      'an update that names no catalogId is bound to the surface default',
+      () {
+        create(catalogId: 'cat-a');
+        update([
+          {'id': 'root', 'component': 'Beta', 'catalogId': 'cat-b'},
+        ]);
 
-      update([
-        {'id': 'root', 'component': 'Alpha'},
-      ]);
-      final ComponentModel root = surface().componentsModel.get('root')!;
-      expect(root.properties.containsKey('catalogId'), isFalse);
-      expect(root.catalog, isNull);
-      expect(surface().resolveCatalog(root.catalog).id, 'cat-a');
-    });
+        update([
+          {'id': 'root', 'component': 'Alpha'},
+        ]);
+        final ComponentModel root = surface().componentsModel.get('root')!;
+        expect(root.properties.containsKey('catalogId'), isFalse);
+        expect(root.catalog, isNull);
+        expect(surface().resolveCatalog(root.catalog).id, 'cat-a');
+      },
+    );
 
     test('a component\'s references are read through its own catalog', () {
       // Both catalogs declare `Box`, but only `boxes` gives it a child. The
@@ -135,7 +139,7 @@ void main() {
             'id': 'root',
             'component': 'Box',
             'catalogId': 'boxes',
-            'child': 'x'
+            'child': 'x',
           },
         ]),
         throwsA(isA<A2uiIntegrityError>()),
@@ -155,8 +159,10 @@ void main() {
 
       final ComponentModel root = surface().componentsModel.get('root')!;
       expect(root.catalog, 'cat-b');
-      expect(surface().resolveCatalog(root.catalog),
-          same(processor.catalogFor('cat-b')));
+      expect(
+        surface().resolveCatalog(root.catalog),
+        same(processor.catalogFor('cat-b')),
+      );
       expect(root.toJson()['@catalogId'], 'cat-b');
     });
 
@@ -191,8 +197,10 @@ void main() {
       final ComponentModel second = surface().componentsModel.get('root')!;
       expect(second, isNot(same(first)));
       expect(second.catalog, 'cat-b');
-      expect(surface().resolveCatalog(second.catalog),
-          same(processor.catalogFor('cat-b')));
+      expect(
+        surface().resolveCatalog(second.catalog),
+        same(processor.catalogFor('cat-b')),
+      );
     });
   });
 
@@ -320,31 +328,29 @@ Catalog<ComponentApi, FunctionImplementation> _catalog(
   String id,
   String component,
   FunctionImplementation function,
-) =>
-    Catalog<ComponentApi, FunctionImplementation>(
-      id: id,
-      protocolVersion: A2uiProtocolVersion.v1_0,
-      components: [ComponentApi(name: component, schema: Schema.object())],
-      functions: [function],
-    );
+) => Catalog<ComponentApi, FunctionImplementation>(
+  id: id,
+  protocolVersion: A2uiProtocolVersion.v1_0,
+  components: [ComponentApi(name: component, schema: Schema.object())],
+  functions: [function],
+);
 
 /// Returns its `value` argument.
 class _EchoFunction extends FunctionImplementation {
   _EchoFunction(String name)
-      : super(
-          name: name,
-          argumentSchema: Schema.object(
-            properties: {'value': Schema.string()},
-            required: ['value'],
-          ),
-          returnType: A2uiReturnType.string,
-        );
+    : super(
+        name: name,
+        argumentSchema: Schema.object(
+          properties: {'value': Schema.string()},
+          required: ['value'],
+        ),
+        returnType: A2uiReturnType.string,
+      );
 
   @override
   Object? execute(
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      args['value'];
+  ]) => args['value'];
 }

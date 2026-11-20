@@ -29,19 +29,19 @@ import 'package:test/test.dart';
 
 class _TestComponentApi extends ComponentApi {
   _TestComponentApi(String name, Schema schema)
-      : super(name: name, schema: schema);
+    : super(name: name, schema: schema);
 }
 
 class _ShoutFunction extends FunctionImplementation {
   _ShoutFunction()
-      : super(
-          name: 'shout',
-          returnType: A2uiReturnType.string,
-          argumentSchema: Schema.object(
-            properties: {'value': Schema.string()},
-            required: ['value'],
-          ),
-        );
+    : super(
+        name: 'shout',
+        returnType: A2uiReturnType.string,
+        argumentSchema: Schema.object(
+          properties: {'value': Schema.string()},
+          required: ['value'],
+        ),
+      );
 
   @override
   Object? execute(
@@ -57,11 +57,11 @@ class _PingFunction extends FunctionImplementation {
   int invocationCount = 0;
 
   _PingFunction()
-      : super(
-          name: 'ping',
-          returnType: A2uiReturnType.string,
-          argumentSchema: Schema.object(properties: {}),
-        );
+    : super(
+        name: 'ping',
+        returnType: A2uiReturnType.string,
+        argumentSchema: Schema.object(properties: {}),
+      );
 
   @override
   Object? execute(
@@ -76,14 +76,14 @@ class _PingFunction extends FunctionImplementation {
 
 class _JoinFunction extends FunctionImplementation {
   _JoinFunction()
-      : super(
-          name: 'join',
-          returnType: A2uiReturnType.string,
-          argumentSchema: Schema.object(
-            properties: {'values': Schema.list(items: Schema.string())},
-            required: ['values'],
-          ),
-        );
+    : super(
+        name: 'join',
+        returnType: A2uiReturnType.string,
+        argumentSchema: Schema.object(
+          properties: {'values': Schema.list(items: Schema.string())},
+          required: ['values'],
+        ),
+      );
 
   @override
   Object? execute(
@@ -202,8 +202,9 @@ Object? bound(ComponentNode node, String key) =>
     (props(node)[key] as ResolvedBinding<Object?>?)?.value;
 
 ComponentNode child(ComponentNode node, String key, [int? index]) {
-  final Object? value =
-      index == null ? props(node)[key] : (props(node)[key] as List)[index];
+  final Object? value = index == null
+      ? props(node)[key]
+      : (props(node)[key] as List)[index];
   expect(
     value,
     isA<ComponentNode>(),
@@ -249,7 +250,10 @@ ProcessorSetup setupProcessor([
   processor.processMessages(
     AgentToRendererMessagePayload.of(
       CreateSurfaceMessage(
-          version: 'v0.9', surfaceId: 'surf-1', catalogId: effectiveCatalog.id),
+        version: 'v0.9',
+        surfaceId: 'surf-1',
+        catalogId: effectiveCatalog.id,
+      ),
     ),
   );
   final SurfaceModel<ComponentApi> surface = processor.model.getSurface(
@@ -368,8 +372,7 @@ void processorContractTests() {
       ('missing', NodeState.pending),
       ('root', NodeState.cyclic),
     ]) {
-      test(
-          'accepts an unmarked structural ${state.jsonValue} reference and '
+      test('accepts an unmarked structural ${state.jsonValue} reference and '
           'reports it through the node', () async {
         // Graph validation classifies references from catalog markers only, so
         // an unmarked structural template is invisible to it and the batch is
@@ -455,8 +458,10 @@ void unresolvedReferenceTests() {
     TestSetup nestedSetup() {
       final Catalog<ComponentApi, FunctionImplementation> catalog =
           nestedCatalog();
-      final surface =
-          SurfaceModel<ComponentApi>('nested', defaultCatalog: catalog);
+      final surface = SurfaceModel<ComponentApi>(
+        'nested',
+        defaultCatalog: catalog,
+      );
       final resolver = NodeResolver<ComponentApi>(surface);
       addTearDown(() {
         resolver.dispose();
@@ -472,11 +477,11 @@ void unresolvedReferenceTests() {
       final warnings = <LogRecord>[];
       final StreamSubscription<LogRecord> subscription =
           Logger('a2ui_core.resolution').onRecord.listen((record) {
-        if (record.loggerName == 'a2ui_core.resolution' &&
-            record.level == Level.WARNING) {
-          warnings.add(record);
-        }
-      });
+            if (record.loggerName == 'a2ui_core.resolution' &&
+                record.level == Level.WARNING) {
+              warnings.add(record);
+            }
+          });
       addTearDown(subscription.cancel);
       return warnings;
     }
@@ -650,13 +655,13 @@ void unresolvedReferenceTests() {
       var warnings = 0;
       final StreamSubscription<LogRecord> subscription =
           Logger('a2ui_core.resolution').onRecord.listen((record) {
-        if (record.loggerName != 'a2ui_core.resolution' ||
-            record.level != Level.WARNING) {
-          return;
-        }
-        warnings++;
-        fixture.resolver.dispose();
-      });
+            if (record.loggerName != 'a2ui_core.resolution' ||
+                record.level != Level.WARNING) {
+              return;
+            }
+            warnings++;
+            fixture.resolver.dispose();
+          });
       addTearDown(subscription.cancel);
       add(fixture.surface, 'root', 'Nested', {
         'groups': [
@@ -701,12 +706,14 @@ void snapshotOwnershipTests() {
           (action.context['profile'] as Map)['name'] = 'mutated';
         });
 
-        final action = props(fixture.resolver.rootNode.value!)['action']
-            as Future<void> Function();
+        final action =
+            props(fixture.resolver.rootNode.value!)['action']
+                as Future<void> Function();
         await action();
 
-        final Map<String, Object?> model =
-            fixture.surface.componentsModel.get('root')!.properties;
+        final Map<String, Object?> model = fixture.surface.componentsModel
+            .get('root')!
+            .properties;
         expect(((model['action'] as Map)['event'] as Map)['context'], {
           'nested': {'k': 'original'},
           'profile': {'path': '/profile'},
@@ -739,8 +746,9 @@ void snapshotOwnershipTests() {
         (action) => contexts.add(action.context),
       );
 
-      final action = props(fixture.resolver.rootNode.value!)['action']
-          as Future<void> Function();
+      final action =
+          props(fixture.resolver.rootNode.value!)['action']
+              as Future<void> Function();
       await action();
 
       expect(contexts, [
@@ -934,11 +942,11 @@ void materializationFailureTests() {
       final records = <LogRecord>[];
       final StreamSubscription<LogRecord> subscription =
           Logger('a2ui.EventNotifier').onRecord.listen((record) {
-        if (record.loggerName == 'a2ui.EventNotifier' &&
-            record.level == Level.SEVERE) {
-          records.add(record);
-        }
-      });
+            if (record.loggerName == 'a2ui.EventNotifier' &&
+                record.level == Level.SEVERE) {
+              records.add(record);
+            }
+          });
       addTearDown(subscription.cancel);
       return records;
     }
@@ -949,8 +957,11 @@ void materializationFailureTests() {
     /// A throw from inside a signal effect reaches the notifier wrapped in a
     /// [SignalEffectException]; the matcher is applied to the original error.
     void expectSwallowed(List<LogRecord> records, Matcher error) {
-      expect(records, isNotEmpty,
-          reason: 'the materialization throw must be logged, not lost');
+      expect(
+        records,
+        isNotEmpty,
+        reason: 'the materialization throw must be logged, not lost',
+      );
       expect(
         records.map((record) {
           final Object? e = record.error;
@@ -961,8 +972,7 @@ void materializationFailureTests() {
       records.clear();
     }
 
-    test(
-        'a throw while materializing leaves no orphaned record, and the '
+    test('a throw while materializing leaves no orphaned record, and the '
         'tree builds once the offending component is corrected', () {
       final TestSetup fixture = setupWithPoisonedLeaf();
       final List<LogRecord> listenerErrors = collectListenerErrors();
@@ -973,13 +983,15 @@ void materializationFailureTests() {
       expect(
         fixture.resolver.activeNodeCount,
         0,
-        reason: 'the half-built node must be unregistered before the throw '
+        reason:
+            'the half-built node must be unregistered before the throw '
             'propagates',
       );
       expect(
         fixture.resolver.rootNode.peek(),
         isNull,
-        reason: 'the root never finished materializing, so nothing is '
+        reason:
+            'the root never finished materializing, so nothing is '
             'published',
       );
       expect(fixture.resolver.disposed, isFalse);
@@ -1000,8 +1012,7 @@ void materializationFailureTests() {
       );
     });
 
-    test(
-        'a throw partway through a child list disposes the siblings '
+    test('a throw partway through a child list disposes the siblings '
         'created before it', () {
       final TestSetup fixture = setupWithPoisonedLeaf();
       final List<LogRecord> listenerErrors = collectListenerErrors();
@@ -1032,8 +1043,7 @@ void materializationFailureTests() {
       expect(fixture.resolver.rootNode.peek()?.componentId, 'root');
     });
 
-    test(
-        'disposing an aborted cyclic sibling keeps the retained '
+    test('disposing an aborted cyclic sibling keeps the retained '
         "placeholder's diagnostic reservation", () async {
       final TestSetup fixture = setupWithPoisonedLeaf();
       final List<LogRecord> listenerErrors = collectListenerErrors();
@@ -1067,13 +1077,13 @@ void materializationFailureTests() {
       expect(
         errors,
         ['CYCLIC_REFERENCE'],
-        reason: 'the first placeholder never left the tree, so its condition '
+        reason:
+            'the first placeholder never left the tree, so its condition '
             'is not reported again',
       );
     });
 
-    test(
-        'a failed update keeps the identity of a committed child whose '
+    test('a failed update keeps the identity of a committed child whose '
         'same-edge replacement was aborted', () {
       final TestSetup fixture = setupWithPoisonedLeaf();
       final List<LogRecord> listenerErrors = collectListenerErrors();
@@ -1139,8 +1149,10 @@ void main() {
             ),
           ],
         );
-        final surface =
-            SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
+        final surface = SurfaceModel<ComponentApi>(
+          'surf-1',
+          defaultCatalog: catalog,
+        );
         final NodeResolver<ComponentApi> resolver = NodeResolver(surface);
         addTearDown(() {
           resolver.dispose();
@@ -1179,8 +1191,10 @@ void main() {
           ),
         ],
       );
-      final surface =
-          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
+      final surface = SurfaceModel<ComponentApi>(
+        'surf-1',
+        defaultCatalog: catalog,
+      );
       final NodeResolver<ComponentApi> resolver = NodeResolver(surface);
       addTearDown(() {
         resolver.dispose();
@@ -1201,8 +1215,10 @@ void main() {
     test('ignores a root removed before its creation event is handled', () {
       final Catalog<ComponentApi, FunctionImplementation> catalog =
           makeCatalog();
-      final surface =
-          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
+      final surface = SurfaceModel<ComponentApi>(
+        'surf-1',
+        defaultCatalog: catalog,
+      );
       var removedOnce = false;
       surface.componentsModel.onCreated.subscribe((component) {
         if (component.id == 'root' && !removedOnce) {
@@ -1228,8 +1244,10 @@ void main() {
     test('re-arms a pending child removed during its creation event', () {
       final Catalog<ComponentApi, FunctionImplementation> catalog =
           makeCatalog();
-      final surface =
-          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
+      final surface = SurfaceModel<ComponentApi>(
+        'surf-1',
+        defaultCatalog: catalog,
+      );
       var removedOnce = false;
       surface.componentsModel.onCreated.subscribe((component) {
         if (component.id == 'child' && !removedOnce) {
@@ -1255,8 +1273,7 @@ void main() {
       expect(resolver.activeNodeCount, 2);
     });
 
-    test(
-        'never emits mixed old and new dynamic properties during a '
+    test('never emits mixed old and new dynamic properties during a '
         'component update', () {
       final TestSetup fixture = setupPair();
       final ComponentNode<ComponentApi> root = fixture.resolver.rootNode.value!;
@@ -1283,8 +1300,7 @@ void main() {
       ]);
     });
 
-    test(
-        'does not emit when an action-bearing component is resent '
+    test('does not emit when an action-bearing component is resent '
         'unchanged', () {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> _,
@@ -1332,8 +1348,7 @@ void main() {
       resolver.dispose();
     });
 
-    test(
-        'resolves the root and upgrades and downgrades referenced children '
+    test('resolves the root and upgrades and downgrades referenced children '
         '(lifecycle)', () {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
@@ -1360,13 +1375,14 @@ void main() {
       surface.dispose();
     });
 
-    test(
-        'resolves a root that existed before the resolver was constructed, '
+    test('resolves a root that existed before the resolver was constructed, '
         'and rebuilds it after deletion and re-send', () {
       final Catalog<ComponentApi, FunctionImplementation> catalog =
           makeCatalog();
-      final surface =
-          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
+      final surface = SurfaceModel<ComponentApi>(
+        'surf-1',
+        defaultCatalog: catalog,
+      );
       add(surface, 'root', 'Text', {'text': 'early'});
       final resolver = NodeResolver<ComponentApi>(surface);
       final ComponentNode? initial = resolver.rootNode.value;
@@ -1403,8 +1419,7 @@ void main() {
       resolver.dispose();
     });
 
-    test(
-        'exposes the resolved catalog entry on impl, and none on a '
+    test('exposes the resolved catalog entry on impl, and none on a '
         'placeholder', () {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
@@ -1463,8 +1478,8 @@ void main() {
       add(surface, 'c1', 'Text', {'text': 'C1'});
       add(surface, 'c2', 'Text', {'text': 'C2'});
       final ComponentNode root = resolver.rootNode.value!;
-      final List<ComponentNode> children =
-          (props(root)['children'] as List).cast<ComponentNode>();
+      final List<ComponentNode> children = (props(root)['children'] as List)
+          .cast<ComponentNode>();
       expect(children, hasLength(2));
       expect(bound(children[0], 'text'), 'C1');
       expect(bound(children[1], 'text'), 'C2');
@@ -1472,8 +1487,7 @@ void main() {
     });
 
     for (final NodeState state in NodeState.values) {
-      test(
-          'keeps sibling instance ids distinct after insertion for '
+      test('keeps sibling instance ids distinct after insertion for '
           '${state.jsonValue} nodes', () {
         final TestSetup fixture = setup();
         final SurfaceModel<ComponentApi> surface = fixture.surface;
@@ -1504,8 +1518,8 @@ void main() {
         surface.componentsModel.get('root')!.properties = {
           'children': ['x', id, id],
         };
-        final List<ComponentNode> shifted =
-            (props(root)['children'] as List).cast<ComponentNode>();
+        final List<ComponentNode> shifted = (props(root)['children'] as List)
+            .cast<ComponentNode>();
         expect(shifted.map((node) => node.instanceId), ['x', id, '$id#2']);
         expect(shifted[1].state, state);
         expect(shifted[2].state, state);
@@ -1521,8 +1535,8 @@ void main() {
         };
         expect(
           (props(root)['children'] as List).cast<ComponentNode>().map(
-                (node) => node.instanceId,
-              ),
+            (node) => node.instanceId,
+          ),
           [id, '$id#2'],
         );
       });
@@ -1541,8 +1555,8 @@ void main() {
       });
       final ComponentNode root = resolver.rootNode.value!;
       void expectChildren(NodeState state) {
-        final List<ComponentNode> children =
-            (props(root)['children'] as List).cast<ComponentNode>();
+        final List<ComponentNode> children = (props(root)['children'] as List)
+            .cast<ComponentNode>();
         expect(children.map((node) => node.instanceId), ['a', 'a#2']);
         expect(children.map((node) => node.state), [state, state]);
       }
@@ -1607,8 +1621,10 @@ void main() {
           ),
         ],
       );
-      final surface =
-          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
+      final surface = SurfaceModel<ComponentApi>(
+        'surf-1',
+        defaultCatalog: catalog,
+      );
       final resolver = NodeResolver<ComponentApi>(surface);
       addTearDown(() {
         resolver.dispose();
@@ -1650,8 +1666,8 @@ void main() {
         'text': {'path': 'name'},
       });
       final ComponentNode root = resolver.rootNode.value!;
-      final List<ComponentNode> children =
-          (props(root)['children'] as List).cast<ComponentNode>();
+      final List<ComponentNode> children = (props(root)['children'] as List)
+          .cast<ComponentNode>();
       expect(children, hasLength(2));
       expect(children[0].instanceId, 'item_tpl-[/items/0]');
       expect(children[0].dataPath, '/items/0');
@@ -1677,15 +1693,14 @@ void main() {
         'text': {'path': 'name'},
       });
       final ComponentNode root = fixture.resolver.rootNode.value!;
-      final List<ComponentNode> children =
-          (props(root)['children'] as List).cast<ComponentNode>();
+      final List<ComponentNode> children = (props(root)['children'] as List)
+          .cast<ComponentNode>();
       expect(children, hasLength(maxDynamicChildListSize));
       expect(bound(children.last, 'text'), 'row${maxDynamicChildListSize - 1}');
       expect(fixture.resolver.activeNodeCount, maxDynamicChildListSize + 1);
     });
 
-    test(
-        'mounts template items when the bound array arrives after the '
+    test('mounts template items when the bound array arrives after the '
         'component', () {
       final TestSetup fixture = setup();
       addTearDown(() {
@@ -1707,8 +1722,8 @@ void main() {
         {'name': 'A'},
         {'name': 'B'},
       ]);
-      final List<ComponentNode> children =
-          (props(root)['children'] as List).cast<ComponentNode>();
+      final List<ComponentNode> children = (props(root)['children'] as List)
+          .cast<ComponentNode>();
       expect(children.map((c) => c.instanceId), [
         'item_tpl-[/items/0]',
         'item_tpl-[/items/1]',
@@ -1774,15 +1789,15 @@ void main() {
         add(surface, 'c2', 'Text', {'text': 'C2'});
         add(surface, 'c3', 'Text', {'text': 'C3'});
         final ComponentNode root = resolver.rootNode.value!;
-        final List<ComponentNode> before =
-            (props(root)['children'] as List).cast<ComponentNode>();
+        final List<ComponentNode> before = (props(root)['children'] as List)
+            .cast<ComponentNode>();
 
         surface.componentsModel.get('root')!.properties = {
           'children': ['c1', 'c3'],
         };
 
-        final List<ComponentNode> after =
-            (props(root)['children'] as List).cast<ComponentNode>();
+        final List<ComponentNode> after = (props(root)['children'] as List)
+            .cast<ComponentNode>();
         expect(after, hasLength(2));
         expect(identical(after[0], before[0]), isTrue);
         expect(bound(after[1], 'text'), 'C3');
@@ -1814,8 +1829,8 @@ void main() {
         'children': {'componentId': 'item_tpl', 'path': '/items'},
       };
 
-      final List<ComponentNode> children =
-          (props(root)['children'] as List).cast<ComponentNode>();
+      final List<ComponentNode> children = (props(root)['children'] as List)
+          .cast<ComponentNode>();
       expect(children, hasLength(1));
       expect(bound(children[0], 'text'), 'T0');
       expect(explicitChild.disposed, isTrue);
@@ -1862,8 +1877,8 @@ void main() {
       add(surface, 't1', 'Text', {'text': 'First'});
       add(surface, 't2', 'Text', {'text': 'Second'});
       final ComponentNode root = resolver.rootNode.value!;
-      final List<Map<Object?, Object?>> items =
-          (props(root)['items'] as List).cast<Map<Object?, Object?>>();
+      final List<Map<Object?, Object?>> items = (props(root)['items'] as List)
+          .cast<Map<Object?, Object?>>();
       expect(items, hasLength(2));
       expect(items[0]['title'], 'One');
       final Object? first = items[0]['child'];
@@ -1875,8 +1890,7 @@ void main() {
       resolver.dispose();
     });
 
-    test(
-        'reconciles a deleted component back to a placeholder, leaving '
+    test('reconciles a deleted component back to a placeholder, leaving '
         'siblings alone', () {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
@@ -1889,21 +1903,20 @@ void main() {
       add(surface, 'c1', 'Text', {'text': 'C1'});
       add(surface, 'c2', 'Text', {'text': 'C2'});
       final ComponentNode root = resolver.rootNode.value!;
-      final List<ComponentNode> before =
-          (props(root)['children'] as List).cast<ComponentNode>();
+      final List<ComponentNode> before = (props(root)['children'] as List)
+          .cast<ComponentNode>();
 
       surface.componentsModel.removeComponent('c2');
 
-      final List<ComponentNode> after =
-          (props(root)['children'] as List).cast<ComponentNode>();
+      final List<ComponentNode> after = (props(root)['children'] as List)
+          .cast<ComponentNode>();
       expect(identical(after[0], before[0]), isTrue);
       expect(after[1].type, placeholderType);
       expect(before[1].disposed, isTrue);
       resolver.dispose();
     });
 
-    test(
-        'serializes the resolved tree, rendering actions and placeholders '
+    test('serializes the resolved tree, rendering actions and placeholders '
         'specially', () {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
@@ -1940,8 +1953,7 @@ void main() {
   });
 
   group('NodeResolver actions and ownership', () {
-    test(
-        'resolves dynamic values nested inside literal context structure '
+    test('resolves dynamic values nested inside literal context structure '
         'at dispatch', () async {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
@@ -1974,8 +1986,7 @@ void main() {
       resolver.dispose();
     });
 
-    test(
-        'keeps a shared child alive for one parent when the other stops '
+    test('keeps a shared child alive for one parent when the other stops '
         'referencing it', () {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
@@ -2007,8 +2018,7 @@ void main() {
       resolver.dispose();
     });
 
-    test(
-        'does not emit a parent props signal when only a child property '
+    test('does not emit a parent props signal when only a child property '
         'changes (no bubbling)', () {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
@@ -2065,34 +2075,35 @@ void main() {
   });
 
   group('NodeResolver malformed and unusual payloads', () {
-    test('renders cyclic references as placeholders instead of recursing',
-        () async {
-      final (
-        catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
-        surface: SurfaceModel<ComponentApi> surface,
-        resolver: NodeResolver<ComponentApi> resolver,
-      ) = setup();
-      final errors = <A2uiRendererError>[];
-      surface.onError.subscribe(errors.add);
-      add(surface, 'root', 'Card', {'child': 'a'});
-      add(surface, 'a', 'Card', {'child': 'b'});
-      add(surface, 'b', 'Card', {'child': 'a'});
-
-      final ComponentNode root = resolver.rootNode.value!;
-      final ComponentNode a = child(root, 'child');
-      final ComponentNode b = child(a, 'child');
-      final ComponentNode backReference = child(b, 'child');
-      expect(backReference.type, placeholderType);
-      expect(backReference.state, NodeState.cyclic);
-      expect(backReference.componentId, 'a');
-      await Future<void>.delayed(Duration.zero);
-      expect(errors.any((e) => e.code == 'CYCLIC_REFERENCE'), isTrue);
-      expect(resolver.activeNodeCount, lessThanOrEqualTo(5));
-      resolver.dispose();
-    });
-
     test(
-        'resolves a call to an unknown function to null and dispatches an '
+      'renders cyclic references as placeholders instead of recursing',
+      () async {
+        final (
+          catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
+          surface: SurfaceModel<ComponentApi> surface,
+          resolver: NodeResolver<ComponentApi> resolver,
+        ) = setup();
+        final errors = <A2uiRendererError>[];
+        surface.onError.subscribe(errors.add);
+        add(surface, 'root', 'Card', {'child': 'a'});
+        add(surface, 'a', 'Card', {'child': 'b'});
+        add(surface, 'b', 'Card', {'child': 'a'});
+
+        final ComponentNode root = resolver.rootNode.value!;
+        final ComponentNode a = child(root, 'child');
+        final ComponentNode b = child(a, 'child');
+        final ComponentNode backReference = child(b, 'child');
+        expect(backReference.type, placeholderType);
+        expect(backReference.state, NodeState.cyclic);
+        expect(backReference.componentId, 'a');
+        await Future<void>.delayed(Duration.zero);
+        expect(errors.any((e) => e.code == 'CYCLIC_REFERENCE'), isTrue);
+        expect(resolver.activeNodeCount, lessThanOrEqualTo(5));
+        resolver.dispose();
+      },
+    );
+
+    test('resolves a call to an unknown function to null and dispatches an '
         'expression error instead of throwing', () async {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
@@ -2127,8 +2138,7 @@ void main() {
       resolver.dispose();
     });
 
-    test(
-        'propagates replacement of an opaque value '
+    test('propagates replacement of an opaque value '
         'inside a binding map', () {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
@@ -2152,8 +2162,7 @@ void main() {
       resolver.dispose();
     });
 
-    test(
-        'replaces a pending placeholder with an unknown-type placeholder '
+    test('replaces a pending placeholder with an unknown-type placeholder '
         'when the definition arrives with an uncataloged type', () async {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
@@ -2227,8 +2236,7 @@ void main() {
       expect(fixture.surface.dataModel.get('/tags/inner'), ['a', 'b', 'c']);
     });
 
-    test(
-        'rebinding a prop to a new path replaces the binding even when '
+    test('rebinding a prop to a new path replaces the binding even when '
         'values are equal', () {
       final TestSetup fixture = setup();
       addTearDown(() {
@@ -2277,8 +2285,9 @@ void main() {
       expect(literal.value, 'Hi');
       expect(literal, isNot(isA<WritableBinding<Object?>>()));
 
-      final pathBound = props(child(root, 'children', 1))['label']
-          as ResolvedBinding<Object?>;
+      final pathBound =
+          props(child(root, 'children', 1))['label']
+              as ResolvedBinding<Object?>;
       expect(pathBound.value, 'Go');
       if (pathBound is! WritableBinding<Object?>) {
         fail('expected a WritableBinding for a path-bound property');
@@ -2306,8 +2315,8 @@ void main() {
         'text': {'path': 'name'},
       });
       final ComponentNode root = resolver.rootNode.value!;
-      final List<ComponentNode> children =
-          (props(root)['children'] as List).cast<ComponentNode>();
+      final List<ComponentNode> children = (props(root)['children'] as List)
+          .cast<ComponentNode>();
 
       final second = props(children[1])['text'] as ResolvedBinding<Object?>;
       if (second is! WritableBinding<Object?>) {
@@ -2323,8 +2332,7 @@ void main() {
       resolver.dispose();
     });
 
-    test(
-        'serializes path-bound values as their snapshot, no setter '
+    test('serializes path-bound values as their snapshot, no setter '
         'entries', () {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
@@ -2345,8 +2353,7 @@ void main() {
   });
 
   group('NodeResolver functionCall actions', () {
-    test(
-        'executes a functionCall action through the evaluator when fired, '
+    test('executes a functionCall action through the evaluator when fired, '
         'emitting no action event', () async {
       final ping = _PingFunction();
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
@@ -2365,8 +2372,10 @@ void main() {
         ],
         functions: [ping],
       );
-      final surface =
-          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
+      final surface = SurfaceModel<ComponentApi>(
+        'surf-1',
+        defaultCatalog: catalog,
+      );
       final resolver = NodeResolver<ComponentApi>(surface);
       final actions = <A2uiRendererAction>[];
       final errors = <A2uiRendererError>[];
@@ -2392,8 +2401,7 @@ void main() {
       resolver.dispose();
     });
 
-    test(
-        'resolves an unknown function in a functionCall action to an '
+    test('resolves an unknown function in a functionCall action to an '
         'expression error instead of throwing', () async {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
@@ -2426,8 +2434,7 @@ void main() {
   });
 
   group('NodeResolver construction and disposal', () {
-    test(
-        'resolves bindings inside a function-call list argument '
+    test('resolves bindings inside a function-call list argument '
         'reactively', () {
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'join-catalog',
@@ -2435,8 +2442,10 @@ void main() {
         components: makeCatalog().components.values.toList(),
         functions: [_JoinFunction()],
       );
-      final surface =
-          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
+      final surface = SurfaceModel<ComponentApi>(
+        'surf-1',
+        defaultCatalog: catalog,
+      );
       final resolver = NodeResolver<ComponentApi>(surface);
       addTearDown(() {
         resolver.dispose();
@@ -2462,8 +2471,7 @@ void main() {
       expect(bound(root, 'text'), 'two,lit');
     });
 
-    test(
-        'a late resolver dispose after surface disposal still tears '
+    test('a late resolver dispose after surface disposal still tears '
         'everything down', () {
       final TestSetup fixture = setup();
       add(fixture.surface, 'root', 'Card', {'child': 'txt'});

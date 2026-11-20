@@ -705,7 +705,11 @@ public enum RegexSubset {
     case .group(_, let child), .lookahead(_, let child):
       return hasNestedQuantifier(child)
     case .repeatNode(let child, _, let max, _):
-      if (max == nil || max! > 1) && hasUnbounded(child) {
+      if let max, max <= 1 {
+        return hasNestedQuantifier(child)
+      }
+      // The repeat runs its child more than once, so every way the child can match is multiplied.
+      if hasUnbounded(child) || boundedRunIsAmbiguous(unwrap(child)) {
         return true
       }
       return hasNestedQuantifier(child)
@@ -713,6 +717,50 @@ public enum RegexSubset {
       return items.contains(where: hasNestedQuantifier)
     case .alt(let branches):
       return branches.contains(where: hasNestedQuantifier)
+    }
+  }
+
+  /// Returns true when one run of `node` can match the same text in more than one way and can
+  /// match the empty string, so that N runs leave the matcher free to choose where each run starts
+  /// and ends.
+  ///
+  /// A backtracking engine takes exponential time on a repetition of such a body:
+  /// `NSRegularExpression` needs over a second for `(a?){1000}a{1000}` on `"aa!"` and does not
+  /// return within five seconds on `"aaa!"`. A body with a single way to match it, like
+  /// `(\d{1,3}){1,4}`, stays linear.
+  ///
+  /// This applies to repeats without an upper bound as well. Unlike V8, ICU runs the mandatory
+  /// repetitions first, so `(a?){1000,}a{1000}` and `(a{0,2})+b` also take seconds on short values.
+  ///
+  /// `node` is a repeat child, already unwrapped of its outer groups.
+  private static func boundedRunIsAmbiguous(_ node: RegexNode) -> Bool {
+    return isNullable(node) && hasMatchShorterThanItsLongest(node)
+  }
+
+  /// Returns true when some string `node` matches has two derivations.
+  ///
+  /// Every node has a single maximal match length, so a second derivation exists exactly when a
+  /// shorter match of the same string does. This walks the tree looking for the place where that
+  /// shorter match can come from.
+  private static func hasMatchShorterThanItsLongest(_ node: RegexNode) -> Bool {
+    switch node {
+    case .empty, .anchor, .charSet:
+      return false
+    case .group(_, let child), .lookahead(_, let child):
+      return hasMatchShorterThanItsLongest(child)
+    case .repeatNode(let child, let min, let max, _):
+      // `a?` adds one derivation, the empty string. A quantifier that admits a count above one
+      // adds more (`a{0,2}` matches `a` and the empty string), and a repeated group multiplies
+      // them.
+      if let max, max <= 1 {
+        return min == 0 || hasMatchShorterThanItsLongest(child)
+      }
+      return true
+    case .concat(let items):
+      return items.allSatisfy(isNullable) || items.contains(where: hasMatchShorterThanItsLongest)
+    case .alt(let branches):
+      return branches.contains(where: isNullable)
+        || branches.contains(where: hasMatchShorterThanItsLongest)
     }
   }
 

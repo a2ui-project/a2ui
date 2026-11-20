@@ -76,87 +76,91 @@ void main() {
       expect(comp.toJson(), {'text': 'hi', 'id': 'c1', 'component': 'Text'});
     });
 
-    test('toJson writes @catalogId and @metadata beside same-named properties',
-        () {
-      final comp = ComponentModel(
-        'c1',
-        'Table',
-        {
+    test(
+      'toJson writes @catalogId and @metadata beside same-named properties',
+      () {
+        final comp = ComponentModel(
+          'c1',
+          'Table',
+          {
+            'catalogId': 'source-a',
+            'metadata': {'pageNumber': 0},
+          },
+          catalog: 'cat',
+          metadata: {
+            'extensions': {'k': 'v'},
+          },
+        );
+
+        expect(comp.toJson(), {
+          'id': 'c1',
+          'component': 'Table',
           'catalogId': 'source-a',
           'metadata': {'pageNumber': 0},
-        },
-        catalog: 'cat',
-        metadata: {
-          'extensions': {'k': 'v'},
-        },
-      );
+          '@catalogId': 'cat',
+          '@metadata': {
+            'extensions': {'k': 'v'},
+          },
+        });
+      },
+    );
 
-      expect(comp.toJson(), {
-        'id': 'c1',
-        'component': 'Table',
-        'catalogId': 'source-a',
-        'metadata': {'pageNumber': 0},
-        '@catalogId': 'cat',
-        '@metadata': {
-          'extensions': {'k': 'v'},
-        },
-      });
-    });
+    test(
+      'supports metadata accessors, events, and extension helpers',
+      () async {
+        final comp = ComponentModel('c1', 'Text', {'text': 'hi'});
+        final metadataChanges = <Map<String, Object?>?>[];
+        var updateCount = 0;
+        comp.onMetadataChanged.subscribe(metadataChanges.add);
+        comp.onUpdated.subscribe((_) => updateCount++);
 
-    test('supports metadata accessors, events, and extension helpers',
-        () async {
-      final comp = ComponentModel('c1', 'Text', {'text': 'hi'});
-      final metadataChanges = <Map<String, Object?>?>[];
-      var updateCount = 0;
-      comp.onMetadataChanged.subscribe(metadataChanges.add);
-      comp.onUpdated.subscribe((_) => updateCount++);
+        expect(comp.metadata, isNull);
+        expect(comp.extensions, isNull);
 
-      expect(comp.metadata, isNull);
-      expect(comp.extensions, isNull);
-
-      comp.setExtension('theme_ext', {'mode': 'dark'});
-      await Future<void>.microtask(() {});
-      expect(comp.metadata, {
-        'extensions': {
+        comp.setExtension('theme_ext', {'mode': 'dark'});
+        await Future<void>.microtask(() {});
+        expect(comp.metadata, {
+          'extensions': {
+            'theme_ext': {'mode': 'dark'},
+          },
+        });
+        expect(comp.extensions, {
           'theme_ext': {'mode': 'dark'},
-        },
-      });
-      expect(comp.extensions, {
-        'theme_ext': {'mode': 'dark'},
-      });
-      expect(metadataChanges, hasLength(1));
-      expect(updateCount, 0);
+        });
+        expect(metadataChanges, hasLength(1));
+        expect(updateCount, 0);
 
-      // No-op on identical value
-      comp.setExtension('theme_ext', {'mode': 'dark'});
-      await Future<void>.microtask(() {});
-      expect(metadataChanges, hasLength(1));
+        // No-op on identical value
+        comp.setExtension('theme_ext', {'mode': 'dark'});
+        await Future<void>.microtask(() {});
+        expect(metadataChanges, hasLength(1));
 
-      // setExtension with null stores null
-      comp.setExtension('theme_ext', null);
-      await Future<void>.microtask(() {});
-      expect(comp.extensions, {'theme_ext': null});
-      expect(metadataChanges, hasLength(2));
+        // setExtension with null stores null
+        comp.setExtension('theme_ext', null);
+        await Future<void>.microtask(() {});
+        expect(comp.extensions, {'theme_ext': null});
+        expect(metadataChanges, hasLength(2));
 
-      // removeExtension deletes key and collapses empty metadata to null
-      comp.removeExtension('theme_ext');
-      await Future<void>.microtask(() {});
-      expect(comp.metadata, isNull);
-      expect(comp.extensions, isNull);
-      expect(metadataChanges, hasLength(3));
-      expect(metadataChanges.last, isNull);
+        // removeExtension deletes key and collapses empty metadata to null
+        comp.removeExtension('theme_ext');
+        await Future<void>.microtask(() {});
+        expect(comp.metadata, isNull);
+        expect(comp.extensions, isNull);
+        expect(metadataChanges, hasLength(3));
+        expect(metadataChanges.last, isNull);
 
-      // Empty metadata envelopes normalize to null via setter
-      comp.metadata = <String, Object?>{};
-      expect(comp.metadata, isNull);
-      comp.metadata = <String, Object?>{'extensions': <String, Object?>{}};
-      expect(comp.metadata, isNull);
+        // Empty metadata envelopes normalize to null via setter
+        comp.metadata = <String, Object?>{};
+        expect(comp.metadata, isNull);
+        comp.metadata = <String, Object?>{'extensions': <String, Object?>{}};
+        expect(comp.metadata, isNull);
 
-      expect(
-        () => comp.setExtension('bad-key', 1),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
+        expect(
+          () => comp.setExtension('bad-key', 1),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      },
+    );
   });
 
   group('SurfaceComponentsModel', () {
@@ -224,8 +228,7 @@ void main() {
       expect(model.catalogIds, ['first', null, 'later']);
     });
 
-    test(
-        'restoreReferenceFields puts back the fields saveReferenceFields '
+    test('restoreReferenceFields puts back the fields saveReferenceFields '
         'found', () {
       // Derived from the catalog on first use, so nothing is saved yet.
       final SavedReferenceFields derived = model.saveReferenceFields();
@@ -335,48 +338,39 @@ void main() {
       final List<A2uiValidationError> errors = model.validateReferences();
       expect(errors, hasLength(1));
       expect(errors.single, isA<A2uiIntegrityError>());
-      expect(
-        model.validateReferences(ValidationConfig.relaxed),
-        isEmpty,
-      );
+      expect(model.validateReferences(ValidationConfig.relaxed), isEmpty);
     });
 
     test('detectCycles returns what the root reaches', () {
       expect(model.detectCycles(), {'root', 'a'});
     });
 
-    test(
-      'detectCycles throws A2uiIntegrityError on cycles and self-references '
-      'and A2uiRecursionError when maxDepth is exceeded',
-      () {
-        model.addComponent(
-          ComponentModel('self', 'Column', {
-            'children': ['self'],
-          }),
-        );
-        expect(
-          () => model.detectCycles(rootId: 'self'),
-          throwsA(isA<A2uiIntegrityError>()),
-        );
+    test('detectCycles throws A2uiIntegrityError on cycles and self-references '
+        'and A2uiRecursionError when maxDepth is exceeded', () {
+      model.addComponent(
+        ComponentModel('self', 'Column', {
+          'children': ['self'],
+        }),
+      );
+      expect(
+        () => model.detectCycles(rootId: 'self'),
+        throwsA(isA<A2uiIntegrityError>()),
+      );
 
-        model.addComponent(
-          ComponentModel('b', 'Column', {
-            'children': ['root'],
-          }),
-        );
-        expect(
-          () => model.detectCycles(),
-          throwsA(isA<A2uiIntegrityError>()),
-        );
+      model.addComponent(
+        ComponentModel('b', 'Column', {
+          'children': ['root'],
+        }),
+      );
+      expect(() => model.detectCycles(), throwsA(isA<A2uiIntegrityError>()));
 
-        model.removeComponent('self');
-        model.removeComponent('b');
-        expect(
-          () => model.detectCycles(maxDepth: 0),
-          throwsA(isA<A2uiRecursionError>()),
-        );
-      },
-    );
+      model.removeComponent('self');
+      model.removeComponent('b');
+      expect(
+        () => model.detectCycles(maxDepth: 0),
+        throwsA(isA<A2uiRecursionError>()),
+      );
+    });
 
     test('validateComponentsUpdate checks a candidate without mutating', () {
       expect(

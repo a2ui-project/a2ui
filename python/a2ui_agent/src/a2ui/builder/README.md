@@ -283,7 +283,7 @@ cd dart/a2ui_cli
 
 # Protocol v0.9 / v0.9.1:
 dart run bin/a2ui.dart codegen \
-  --catalog ../../specification/v0_9_1/catalogs/basic/catalog.json \
+  --catalog ../../catalogs/basic/v0_9_1/catalog.json \
   --out ../../python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/
 
 # Protocol v1.0:

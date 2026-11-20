@@ -65,7 +65,7 @@
   description: Tests that the published v0.9 basic catalog loads with fromJson into a catalog equivalent to the SDK's own v0.9 basic catalog implementation, with its common_types references localised so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9/catalog.json"
   expect:
     selfContained: true
     matchesBuiltinCatalog: true
@@ -511,7 +511,7 @@
   description: Tests that the published v0.9 basic catalog accepts a Button whose action calls a catalog function, and rejects a call to a function the catalog does not define.
   action: from_json
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9/catalog.json"
   expect:
     validComponents:
       - id: btn1
@@ -534,7 +534,7 @@
   description: Tests that the published v0.9 basic catalog rejects a function call carrying a key that its function definition does not declare.
   action: from_json
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9/catalog.json"
   expect:
     invalidComponents:
       - id: btn1
@@ -551,7 +551,7 @@
   description: Tests that the published v0.9 minimal catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/minimal/catalog.json"
+  catalogPath: "catalogs/minimal/v0_9/catalog.json"
   expect:
     selfContained: true
 
@@ -559,7 +559,7 @@
   description: Tests that the published v0.9 minimal catalog accepts a Button whose action calls a catalog function, and rejects a call to a function the catalog does not define.
   action: from_json
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/minimal/catalog.json"
+  catalogPath: "catalogs/minimal/v0_9/catalog.json"
   expect:
     validComponents:
       - id: btn1
@@ -582,7 +582,7 @@
   description: Tests that the published v0.9 minimal catalog rejects a function call carrying a key that its function definition does not declare.
   action: from_json
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/minimal/catalog.json"
+  catalogPath: "catalogs/minimal/v0_9/catalog.json"
   expect:
     invalidComponents:
       - id: btn1
@@ -599,7 +599,7 @@
   description: Tests that the published v0.9.1 basic catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "v0.9.1"
-  catalogPath: "specification/v0_9_1/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9_1/catalog.json"
   expect:
     selfContained: true
 
@@ -607,7 +607,7 @@
   description: Tests that the published v0.9.1 basic catalog accepts a Button whose action calls a catalog function, and rejects a call to a function the catalog does not define.
   action: from_json
   protocolVersion: "v0.9.1"
-  catalogPath: "specification/v0_9_1/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9_1/catalog.json"
   expect:
     validComponents:
       - id: btn1
@@ -630,7 +630,7 @@
   description: Tests that the published v0.9.1 basic catalog rejects a function call carrying a key that its function definition does not declare.
   action: from_json
   protocolVersion: "v0.9.1"
-  catalogPath: "specification/v0_9_1/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9_1/catalog.json"
   expect:
     invalidComponents:
       - id: btn1
@@ -958,7 +958,7 @@
   action: to_json
   protocolVersion: "v0.9"
   builtinCatalog: basic
-  expectFile: "specification/v0_9/catalogs/basic/catalog.json"
+  expectFile: "catalogs/basic/v0_9/catalog.json"
 
 - name: test_v10_basic_catalog_to_json
   description: Tests that toJson of the SDK's own v1 basic catalog equals the published v1 basic catalog.
@@ -988,19 +988,19 @@
   description: Tests that the published v0.9 basic catalog round-trips with its absolute common types references, local CatalogComponentCommon mixin and theme intact.
   action: round_trip
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9/catalog.json"
 
 - name: test_v091_basic_catalog_round_trip
   description: Tests that the published v0.9.1 basic catalog round-trips unchanged.
   action: round_trip
   protocolVersion: "v0.9.1"
-  catalogPath: "specification/v0_9_1/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9_1/catalog.json"
 
 - name: test_v09_minimal_catalog_round_trip
   description: Tests that the published v0.9 minimal catalog round-trips unchanged.
   action: round_trip
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/minimal/catalog.json"
+  catalogPath: "catalogs/minimal/v0_9/catalog.json"
 
 - name: test_mcp_catalog_round_trip
   description: Tests that the MCP catalog, whose anyComponent is not a oneOf union, round-trips unchanged.
@@ -1102,7 +1102,7 @@
   description: Tests that the validationSchema of the published v0.9 basic catalog, loaded with fromJson, equals the golden bundled schema, which flattens envelopes, adds the id envelope and inlines the referenced v0.9 common types.
   action: validation_schema
   protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
+  catalogPath: "catalogs/basic/v0_9/catalog.json"
   expectFile: "conformance/test_data/validation_schema/test_v09_basic_validation_schema.json"
 
 - name: test_v10_basic_validation_schema

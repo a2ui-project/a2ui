@@ -29,11 +29,8 @@ import 'package:test/test.dart';
 void main() {
   final CatalogApi basic = Catalog.fromJson(
     jsonDecode(
-          File(
-            '../../specification/v0_9/catalogs/basic/catalog.json',
-          ).readAsStringSync(),
-        )
-        as Map<String, Object?>,
+      File('../../catalogs/basic/v0_9/catalog.json').readAsStringSync(),
+    ) as Map<String, Object?>,
   );
   final CatalogApi custom = Catalog.fromJson({
     'catalogId': 'https://example.com/custom.json',
@@ -374,9 +371,8 @@ void main() {
     test('v1.0 surface and component metadata.extensions as extensions=', () {
       final CatalogApi v1Basic = Catalog.fromJson(
         jsonDecode(
-              File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
-            )
-            as Map<String, Object?>,
+          File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
+        ) as Map<String, Object?>,
         protocolVersion: A2uiProtocolVersion.v1_0,
       );
       final Parser v1Parser = const ExpressFormatFactory().createFormat([
@@ -548,9 +544,8 @@ void main() {
     test('a non-UAX 31 component id in protocol v1.0', () {
       final CatalogApi v1Basic = Catalog.fromJson(
         jsonDecode(
-              File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
-            )
-            as Map<String, Object?>,
+          File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
+        ) as Map<String, Object?>,
         protocolVersion: A2uiProtocolVersion.v1_0,
       );
       final Parser v1Parser = const ExpressFormatFactory().createFormat([

@@ -437,7 +437,6 @@ Widget _markdown(BuildContext context, String markdown, TextStyle style) =>
         final Uri? uri = href == null ? null : Uri.tryParse(href);
         if (uri != null) launchUrl(uri).ignore();
       },
-      styleSheet: MarkdownStyleSheet.fromTheme(
-        Theme.of(context),
-      ).copyWith(p: style),
+      styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context))
+          .copyWith(p: style),
     );

@@ -22,7 +22,7 @@
   action: "validate"
   protocolVersion: "v0.9"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   payload:
     - version: "v0.9"
       createSurface:
@@ -69,7 +69,7 @@
   action: "validate"
   protocolVersion: "1.0"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   payload:
     - version: "1.0"
       createSurface:
