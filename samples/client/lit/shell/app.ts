@@ -1357,6 +1357,17 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
         this.#syncHeaderControlsFromTrace(result.trace);
       }
       if (result.messages.length > 0) {
+        const rateLimited = (result.messages as Array<Record<string, unknown>>).some(msg => {
+          const resp = msg['agentFunctionResponse'] as Record<string, unknown> | undefined;
+          const err = resp?.['error'] as Record<string, unknown> | undefined;
+          return err?.['code'] === 'RATE_LIMITED';
+        });
+        if (rateLimited) {
+          this.showToast(
+            'Validation paused (rate limit reached); try again in a few seconds.',
+            'info',
+          );
+        }
         this._processor.processMessages(result.messages as any[]);
       }
     } catch (err) {
@@ -1378,7 +1389,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     }
     const now = Date.now();
     const lastSent = this._rpcLastSent.get(key) ?? 0;
-    const delayMs = 350;
+    const delayMs = 800;
     if (now - lastSent >= delayMs) {
       this._rpcLastSent.set(key, now);
       void this.#dispatchOutboundRpc(message);
