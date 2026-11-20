@@ -52,9 +52,7 @@ const Map<String, Map<String, Object?>> _v1CommonEnvelopeTypes = {
   },
   'checks': {
     'type': 'array',
-    'items': {
-      r'$ref': r'common_types.json#/$defs/CheckRule',
-    },
+    'items': {r'$ref': r'common_types.json#/$defs/CheckRule'},
   },
 };
 
@@ -163,25 +161,30 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     A2uiProtocolVersion? protocolVersion,
     Map<String, Object?>? commonTypesSchema,
     this.config = ValidationConfig.strict,
-  })  : protocolVersion = protocolVersion ??
-            catalog.protocolVersion ??
-            A2uiProtocolVersion.v0_9,
-        _v1 = (protocolVersion ?? catalog.protocolVersion)
-                ?.isAtLeast(A2uiProtocolVersion.v1_0) ??
-            false,
-        _fallbackCommonTypes = commonTypesSchema == null
-            ? commonTypesFor(
-                ((protocolVersion ?? catalog.protocolVersion)
-                            ?.isAtLeast(A2uiProtocolVersion.v1_0) ??
-                        false)
-                    ? A2uiProtocolVersion.v0_9
-                    : A2uiProtocolVersion.v1_0,
-              )
-            : null,
-        commonTypesSchema = commonTypesSchema ??
-            documents.commonTypesForProtocolVersion(
-              protocolVersion ?? catalog.protocolVersion,
-            );
+  }) : protocolVersion =
+           protocolVersion ??
+           catalog.protocolVersion ??
+           A2uiProtocolVersion.v0_9,
+       _v1 =
+           (protocolVersion ?? catalog.protocolVersion)?.isAtLeast(
+             A2uiProtocolVersion.v1_0,
+           ) ??
+           false,
+       _fallbackCommonTypes = commonTypesSchema == null
+           ? commonTypesFor(
+               ((protocolVersion ?? catalog.protocolVersion)?.isAtLeast(
+                         A2uiProtocolVersion.v1_0,
+                       ) ??
+                       false)
+                   ? A2uiProtocolVersion.v0_9
+                   : A2uiProtocolVersion.v1_0,
+             )
+           : null,
+       commonTypesSchema =
+           commonTypesSchema ??
+           documents.commonTypesForProtocolVersion(
+             protocolVersion ?? catalog.protocolVersion,
+           );
 
   /// The `common_types.json` document this package publishes for [version].
   ///
@@ -205,12 +208,11 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     Object? version, {
     required Catalog<C, F> catalog,
     Map<String, Object?>? commonTypesSchema,
-  }) =>
-      PayloadValidator<C, F>(
-        catalog: catalog,
-        commonTypesSchema: commonTypesSchema,
-        protocolVersion: A2uiProtocolVersion.fromJson(version),
-      );
+  }) => PayloadValidator<C, F>(
+    catalog: catalog,
+    commonTypesSchema: commonTypesSchema,
+    protocolVersion: A2uiProtocolVersion.fromJson(version),
+  );
 
   /// Checks the `version` field of one payload envelope.
   ///
@@ -262,8 +264,9 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     component = _jsonMap(component);
     final Object? id = component['id'];
     final String type = _checkComponentHeader(component, id);
-    final Set<String> customProps =
-        _v1 ? catalog.customComponentProperties(type) : const <String>{};
+    final Set<String> customProps = _v1
+        ? catalog.customComponentProperties(type)
+        : const <String>{};
     final bool isCheckable = _v1 && catalog.isComponentCheckable(type);
     if (_v1) {
       _checkV1EnvelopeConflicts(component, customProps, id);
@@ -271,8 +274,11 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     }
     final Schema? schema = _resolvedComponentSchemas[type];
     if (schema == null && !config.allowUnknownElements) {
-      _throwDetail('/component', 'invalid_value',
-          "Catalog '${catalog.id}' declares no component named '$type'.");
+      _throwDetail(
+        '/component',
+        'invalid_value',
+        "Catalog '${catalog.id}' declares no component named '$type'.",
+      );
     }
     if (_v1 &&
         schema != null &&
@@ -286,8 +292,9 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       );
     }
 
-    final Set<String> declared =
-        schema == null ? const {} : _declaredProperties(schema.value);
+    final Set<String> declared = schema == null
+        ? const {}
+        : _declaredProperties(schema.value);
     final bool allowEnvelopeChecks = schema == null || isCheckable;
     final List<String> envelopeKeys = _v1
         ? _v1EnvelopeKeysFor(customProps, allowChecks: allowEnvelopeChecks)
@@ -298,7 +305,9 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     };
     final Object? componentCatalogId = _v1
         ? (component['@catalogId'] ??
-            (customProps.contains('catalogId') ? null : component['catalogId']))
+              (customProps.contains('catalogId')
+                  ? null
+                  : component['catalogId']))
         : null;
 
     // Calls and reserved keys first, so their errors name the call rather
@@ -347,19 +356,18 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   static List<String> _v1EnvelopeKeysFor(
     Set<String> customProps, {
     required bool allowChecks,
-  }) =>
-      <String>[
-        'id',
-        'component',
-        '@catalogId',
-        if (!customProps.contains('catalogId')) 'catalogId',
-        '@metadata',
-        if (!customProps.contains('metadata')) 'metadata',
-        '@accessibility',
-        if (!customProps.contains('accessibility')) 'accessibility',
-        if (allowChecks) '@checks',
-        if (allowChecks && !customProps.contains('checks')) 'checks',
-      ];
+  }) => <String>[
+    'id',
+    'component',
+    '@catalogId',
+    if (!customProps.contains('catalogId')) 'catalogId',
+    '@metadata',
+    if (!customProps.contains('metadata')) 'metadata',
+    '@accessibility',
+    if (!customProps.contains('accessibility')) 'accessibility',
+    if (allowChecks) '@checks',
+    if (allowChecks && !customProps.contains('checks')) 'checks',
+  ];
 
   static void _checkV1EnvelopeConflicts(
     Map<String, Object?> component,
@@ -390,27 +398,32 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           (entry.key == 'metadata' && !customProps.contains('metadata'))) {
         continue;
       }
-      _checkCallEnvelopes(
-        entry.value,
-        id,
-        '/${_escape(entry.key)}',
-      );
+      _checkCallEnvelopes(entry.value, id, '/${_escape(entry.key)}');
     }
   }
 
   String _checkComponentHeader(Map<String, Object?> component, Object? id) {
     if (_v1 && id is String && !isValidUax31Identifier(id)) {
-      _throwDetail('/id', 'invalid_value',
-          "Component id '$id' must be a valid UAX #31 identifier");
+      _throwDetail(
+        '/id',
+        'invalid_value',
+        "Component id '$id' must be a valid UAX #31 identifier",
+      );
     }
     final Object? type = component['component'];
     if (type is! String) {
-      _throwDetail('/component', 'missing_field',
-          "Component '$id' does not name a component type.");
+      _throwDetail(
+        '/component',
+        'missing_field',
+        "Component '$id' does not name a component type.",
+      );
     }
     if (_v1 && !isValidUax31Identifier(type)) {
-      _throwDetail('/component', 'invalid_value',
-          "Component type '$type' must be a valid UAX #31 identifier");
+      _throwDetail(
+        '/component',
+        'invalid_value',
+        "Component type '$type' must be a valid UAX #31 identifier",
+      );
     }
     if (_v1) {
       _checkV1CatalogIdHeader(component, type, id);
@@ -613,14 +626,13 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     Map<String, Object?> args, {
     Object? componentId,
     String? path,
-  }) =>
-      _checkArgs(
-        name,
-        _jsonMap(args),
-        componentId: componentId,
-        path: path,
-        rendererCall: componentId != null,
-      );
+  }) => _checkArgs(
+    name,
+    _jsonMap(args),
+    componentId: componentId,
+    path: path,
+    rendererCall: componentId != null,
+  );
 
   /// Rejects a field of [call], a v1.0 function call of [catalog], that
   /// `FunctionCall` does not evaluate: one other than `@call`, `catalogId`,
@@ -712,8 +724,9 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       strictFormat: true,
     );
     if (errors.isNotEmpty) {
-      final argsPrefix =
-          (path != null && path.isNotEmpty) ? '$path/args' : '/args';
+      final argsPrefix = (path != null && path.isNotEmpty)
+          ? '$path/args'
+          : '/args';
       final List<A2uiErrorDetail> details = _buildErrorDetails(
         errors,
         argsPrefix,
@@ -834,13 +847,14 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         null => const <String, Object?>{},
         final Map<Object?, Object?> map => map.cast<String, Object?>(),
         final Object other => throw A2uiValidationError(
-            "Call to '$name' passes 'args' that is not an object "
-            '(got ${other.runtimeType}).',
-            path: '$path/args',
-          ),
+          "Call to '$name' passes 'args' that is not an object "
+          '(got ${other.runtimeType}).',
+          path: '$path/args',
+        ),
       };
       final Object? callCatalog = object['catalogId'];
-      final bool runsInThisCatalog = !_v1 ||
+      final bool runsInThisCatalog =
+          !_v1 ||
           nestedCallRunsInCatalog(
             callCatalog,
             catalog.id,
@@ -922,8 +936,9 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       _checkSingleCallEnvelope(node, name, componentId, path);
     }
     for (final MapEntry<Object?, Object?> entry in node.entries) {
-      final childPath =
-          entry.key is String ? '$path/${_escape(entry.key as String)}' : path;
+      final childPath = entry.key is String
+          ? '$path/${_escape(entry.key as String)}'
+          : path;
       _checkCallEnvelopes(entry.value, componentId, childPath);
     }
   }
@@ -1029,8 +1044,9 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     final pointer =
         '$basePath${error.path.map((p) => '/${_escape(p)}').join()}';
     if (error.error == ValidationErrorType.requiredPropertyMissing) {
-      final RegExpMatch? match =
-          _missingPropPattern.firstMatch(error.details ?? '');
+      final RegExpMatch? match = _missingPropPattern.firstMatch(
+        error.details ?? '',
+      );
       if (match != null) {
         return '$pointer/${_escape(match.group(1)!)}';
       }
@@ -1040,8 +1056,8 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
 
   static String _detailCodeFor(ValidationError error) =>
       error.error == ValidationErrorType.requiredPropertyMissing
-          ? 'missing_field'
-          : 'invalid_value';
+      ? 'missing_field'
+      : 'invalid_value';
 
   static List<A2uiErrorDetail> _buildErrorDetails(
     List<ValidationError> errors,
@@ -1157,19 +1173,18 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         for (final MapEntry<String, Object?> entry in object.entries)
           entry.key: switch (entry.key) {
             'required' when entry.value is List => [
-                for (final Object? key in entry.value! as List)
-                  if (!stripped.contains(key)) key,
-              ],
+              for (final Object? key in entry.value! as List)
+                if (!stripped.contains(key)) key,
+            ],
             'properties' when entry.value is Map => <String, Object?>{
-                for (final MapEntry<Object?, Object?> property
-                    in (entry.value! as Map).entries)
-                  if (!stripped.contains(property.key))
-                    property.key! as String: property.value,
-              },
+              for (final MapEntry<Object?, Object?> property
+                  in (entry.value! as Map).entries)
+                if (!stripped.contains(property.key))
+                  property.key! as String: property.value,
+            },
             'allOf' || 'anyOf' || 'oneOf' when entry.value is List => [
-                for (final Object? branch in entry.value! as List)
-                  strip(branch),
-              ],
+              for (final Object? branch in entry.value! as List) strip(branch),
+            ],
             _ => entry.value,
           },
       };
@@ -1181,21 +1196,21 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   }
 
   Map<String, Schema> get _resolvedComponentSchemas => _resolvedComponents ??= {
-        for (final MapEntry<String, Schema> entry
-            in catalog.resolvedComponentSchemas.entries)
-          entry.key: _resolve(entry.value.value),
-      };
+    for (final MapEntry<String, Schema> entry
+        in catalog.resolvedComponentSchemas.entries)
+      entry.key: _resolve(entry.value.value),
+  };
 
   Map<String, Schema> get _resolvedFunctionSchemas => _resolvedFunctions ??= {
-        for (final MapEntry<String, F> entry in catalog.functions.entries)
-          entry.key: _resolve(entry.value.argumentSchema.value),
-      };
+    for (final MapEntry<String, F> entry in catalog.functions.entries)
+      entry.key: _resolve(entry.value.argumentSchema.value),
+  };
 
   Map<String, Schema> get _resolvedEnvelopeSchemas => _resolvedEnvelope ??= {
-        for (final MapEntry<String, Map<String, Object?>> entry
-            in _v1CommonEnvelopeTypes.entries)
-          entry.key: _resolve(entry.value),
-      };
+    for (final MapEntry<String, Map<String, Object?>> entry
+        in _v1CommonEnvelopeTypes.entries)
+      entry.key: _resolve(entry.value),
+  };
 
   /// The document local references resolve against: the catalog's
   /// [Catalog.validationSchema], except that from v1.0 its function union
@@ -1216,13 +1231,34 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   }();
 
   Schema _resolve(Map<String, Object?> schema) => Schema.fromMap(
-        resolveSchemaRefs(
-          schema,
-          _resolutionDocument,
-          commonTypes: commonTypesSchema,
-          fallbackCommonTypes: _fallbackCommonTypes,
-        ),
-      );
+    _enforceStrictUriFormat(
+      resolveSchemaRefs(
+        schema,
+        _resolutionDocument,
+        commonTypes: commonTypesSchema,
+        fallbackCommonTypes: _fallbackCommonTypes,
+      ),
+    ),
+  );
+
+  static const String _uriFormatPattern = r'^[A-Za-z][A-Za-z0-9+.-]*:\S*$';
+
+  static Map<String, Object?> _enforceStrictUriFormat(
+    Map<String, Object?> schema,
+  ) => _enforceStrictUriValue(schema)! as Map<String, Object?>;
+
+  static Object? _enforceStrictUriValue(Object? value) => switch (value) {
+    final Map<Object?, Object?> map => <String, Object?>{
+      for (final MapEntry<Object?, Object?> entry in map.entries)
+        '${entry.key}': _enforceStrictUriValue(entry.value),
+      if (map['format'] == 'uri' && !map.containsKey('pattern'))
+        'pattern': _uriFormatPattern,
+    },
+    final List<Object?> list => <Object?>[
+      for (final Object? item in list) _enforceStrictUriValue(item),
+    ],
+    _ => value,
+  };
 
   static const Map<String, Object?> _anyV1FunctionCall = {
     'type': 'object',
@@ -1240,13 +1276,13 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       _jsonValue(value)! as Map<String, Object?>;
 
   static Object? _jsonValue(Object? value) => switch (value) {
-        final Map<Object?, Object?> map => <String, Object?>{
-            for (final MapEntry<Object?, Object?> entry in map.entries)
-              '${entry.key}': _jsonValue(entry.value),
-          },
-        final List<Object?> list => <Object?>[
-            for (final Object? item in list) _jsonValue(item),
-          ],
-        _ => value,
-      };
+    final Map<Object?, Object?> map => <String, Object?>{
+      for (final MapEntry<Object?, Object?> entry in map.entries)
+        '${entry.key}': _jsonValue(entry.value),
+    },
+    final List<Object?> list => <Object?>[
+      for (final Object? item in list) _jsonValue(item),
+    ],
+    _ => value,
+  };
 }

@@ -68,7 +68,7 @@ void main() {
   final String fixturesDir = p.join(repoRoot, 'dart/a2ui_cli/test/fixtures');
   final String basicCatalogPath = p.join(
     repoRoot,
-    'specification/v0_9_1/catalogs/basic/catalog.json',
+    'catalogs/basic/v0_9_1/catalog.json',
   );
 
   final String pythonBin = getPythonExecutable(repoRoot);
@@ -254,9 +254,9 @@ print(json.dumps(output))
                 'Python script failed:\n${pyResult.stdout}\n${pyResult.stderr}',
           );
 
-          final result =
-              jsonDecode(pyResult.stdout.toString().trim())
-                  as Map<String, dynamic>;
+          final result = jsonDecode(
+            pyResult.stdout.toString().trim(),
+          ) as Map<String, dynamic>;
 
           // Verify surface messages envelope
           final surfaceMsgs = result['surface_messages'] as List;
@@ -373,9 +373,9 @@ print(json.dumps({"authoring": authoring, "parsed_variant": parsed.variant}))
               'Python script failed:\n${pyResult.stdout}\n${pyResult.stderr}',
         );
 
-        final output =
-            jsonDecode(pyResult.stdout.toString().trim())
-                as Map<String, dynamic>;
+        final output = jsonDecode(
+          pyResult.stdout.toString().trim(),
+        ) as Map<String, dynamic>;
         expect(output['authoring'], equals('REJECTED'));
         expect(output['parsed_variant'], equals('custom-hero-heading'));
       });

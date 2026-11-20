@@ -150,9 +150,8 @@ void _createFormat(Map<String, Object?> testCase, SuiteVersion version) {
     _knownKeys['args:create_format']!,
     'args:create_format',
   );
-  InferenceFormat create() => _factory(
-    args['format'],
-  ).createFormat(version.catalogs(args), examples: _examples(args, version));
+  InferenceFormat create() => _factory(args['format'])
+      .createFormat(version.catalogs(args), examples: _examples(args, version));
   if (testCase['expect_error'] case final Object error) {
     expectThrowsCategory(create, error);
     return;

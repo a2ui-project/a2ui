@@ -113,8 +113,10 @@ class ComponentGraphBound {
       _parents[child]?.remove(id);
     }
     final children = <String>[];
-    for (final ComponentReference reference
-        in componentReferences(source, refFields[type])) {
+    for (final ComponentReference reference in componentReferences(
+      source,
+      refFields[type],
+    )) {
       final String child = reference.id;
       children.add(child);
       (_parents[child] ??= <String>{}).add(id);

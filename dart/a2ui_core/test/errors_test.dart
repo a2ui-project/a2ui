@@ -61,18 +61,22 @@ void main() {
   });
 
   group('A2uiValidationError', () {
-    test('defaults code to VALIDATION_FAILED, path to null, errors to empty',
-        () {
-      final error = A2uiValidationError('Invalid payload');
+    test(
+      'defaults code to VALIDATION_FAILED, path to null, errors to empty',
+      () {
+        final error = A2uiValidationError('Invalid payload');
 
-      expect(error.message, 'Invalid payload');
-      expect(error.code, 'VALIDATION_FAILED');
-      expect(error.path, isNull);
-      expect(error.errors, isEmpty);
-      expect(error.cause, isNull);
-      expect(error.toString(),
-          'A2uiValidationError [VALIDATION_FAILED]: Invalid payload');
-    });
+        expect(error.message, 'Invalid payload');
+        expect(error.code, 'VALIDATION_FAILED');
+        expect(error.path, isNull);
+        expect(error.errors, isEmpty);
+        expect(error.cause, isNull);
+        expect(
+          error.toString(),
+          'A2uiValidationError [VALIDATION_FAILED]: Invalid payload',
+        );
+      },
+    );
 
     test('stores code, path, errors, and cause', () {
       const cause = FormatException('bad json');
@@ -103,8 +107,7 @@ void main() {
   });
 
   group('A2uiError hierarchy and cause chaining', () {
-    test(
-        'pins A2uiIntegrityError and A2uiRecursionError under '
+    test('pins A2uiIntegrityError and A2uiRecursionError under '
         'A2uiValidationError', () {
       final cause = StateError('root cause');
       final integrityError = A2uiIntegrityError(
@@ -155,11 +158,7 @@ void main() {
         details: 'detail',
         cause: cause,
       );
-      final dataError = A2uiDataError(
-        'data',
-        path: '/a/b',
-        cause: cause,
-      );
+      final dataError = A2uiDataError('data', path: '/a/b', cause: cause);
       final stateError = A2uiStateError('state', cause: cause);
       final parseError = A2uiParseError(
         'parse',

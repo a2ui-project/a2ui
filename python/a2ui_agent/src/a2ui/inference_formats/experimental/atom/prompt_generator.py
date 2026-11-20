@@ -99,12 +99,13 @@ You MUST surround the entire A2UI Atom block with sentinel tags `<a2ui>` and `</
 """
 
 
-def _get_schema_enum(prop_schema: Any) -> list[str] | None:
+def _get_schema_enum(prop_schema: Any) -> list[Any] | None:
     """Helper to recursively find enum definitions inside a JSON schema."""
     if not isinstance(prop_schema, dict):
         return None
-    if "enum" in prop_schema:
-        return prop_schema["enum"]
+    enum_val = prop_schema.get("enum")
+    if isinstance(enum_val, list):
+        return list(enum_val)
     if "oneOf" in prop_schema or "anyOf" in prop_schema:
         subs = prop_schema.get("oneOf", []) + prop_schema.get("anyOf", [])
         for sub in subs:
@@ -254,13 +255,14 @@ class AtomPromptGenerator(PromptGenerator):
         if not include_schema:
             return ""
         if catalog is not None:
-            helper = self.schema_helpers.get(
-                getattr(catalog, "catalog_id", None)
-            ) or CatalogSchemaHelper(catalog)
-            return self._catalog_body(helper)
+            cat_id = getattr(catalog, "catalog_id", None)
+            cached = (
+                self.schema_helpers.get(cat_id) if isinstance(cat_id, str) else None
+            )
+            return self._catalog_body(cached or CatalogSchemaHelper(catalog))
         if len(self.schema_helpers) <= 1:
-            helper = self._default_helper()
-            return self._catalog_body(helper) if helper else ""
+            default_helper = self._default_helper()
+            return self._catalog_body(default_helper) if default_helper else ""
         sections = [
             f"## Catalog `{cat_id}`\n\n{self._catalog_body(helper)}"
             for cat_id, helper in self.schema_helpers.items()

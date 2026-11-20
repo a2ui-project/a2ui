@@ -616,11 +616,10 @@ abstract class _ExpressStream<P extends StreamPart> extends ResponseReader<P> {
     this._parser, {
     required bool wrapped,
     required this.state,
-    required bool continues,
+    required this._continues,
     Set<String>? progressiveKeys,
   }) : _compiler = ExpressCompiler(_parser.catalogs),
        _wrapped = wrapped,
-       _continues = continues,
        _inBlock = !wrapped,
        _progressiveKeys = Set.unmodifiable(
          progressiveKeys ?? _parser.progressiveKeys,

@@ -39,14 +39,12 @@ final CatalogImplementation _catalog = basicTestCatalog([
 
 /// The spec's Modal example: a Button that opens a Column with one Text.
 List<Map<String, Object?>> _example() {
-  final example =
-      jsonDecode(
-            File(
-              '../../specification/v0_9/catalogs/basic/examples/'
-              'modal.json',
-            ).readAsStringSync(),
-          )
-          as Map<String, Object?>;
+  final example = jsonDecode(
+    File(
+      '../../catalogs/basic/v0_9/examples/'
+      'modal.json',
+    ).readAsStringSync(),
+  ) as Map<String, Object?>;
   return (example['messages']! as List<Object?>).cast<Map<String, Object?>>();
 }
 
