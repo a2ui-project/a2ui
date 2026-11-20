@@ -630,6 +630,53 @@ struct MessageProcessorTests {
     #expect(emptyCatalog["$defs"] == expectedEmptyDefs)
   }
 
+  @Test func getRendererCapabilitiesWritesInstructionsForV10Only() throws {
+    let schema = try Schema(instance: "{\"type\": \"object\"}")
+    let components = [AnyComponentAPI(name: "Button", schema: schema)]
+    let withInstructionsV10 = Catalog(
+      id: "cat-instructions-v10",
+      protocolVersion: .v10,
+      components: components,
+      instructions: "Prefer Button for actions."
+    )
+    let withoutInstructionsV10 = Catalog(
+      id: "cat-plain-v10",
+      protocolVersion: .v10,
+      components: components
+    )
+    let withInstructionsV091 = Catalog(
+      id: "cat-instructions-v091",
+      protocolVersion: .v091,
+      components: components,
+      instructions: "Prefer Button for actions."
+    )
+    let processor = MessageProcessor(
+      catalogs: [withInstructionsV10, withoutInstructionsV10, withInstructionsV091]
+    )
+    let capabilities = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(
+        versions: [.v091, .v10],
+        includeInlineCatalogs: true
+      )
+    )
+
+    let inlineV10 = try #require(capabilities["1.0"]?["inlineCatalogs"]?.arrayValue)
+    let instructionsV10 = try #require(
+      inlineV10.first { $0["catalogId"]?.stringValue == "cat-instructions-v10" }
+    )
+    #expect(instructionsV10["instructions"]?.stringValue == "Prefer Button for actions.")
+    let plainV10 = try #require(
+      inlineV10.first { $0["catalogId"]?.stringValue == "cat-plain-v10" }
+    )
+    #expect(plainV10["instructions"] == nil)
+
+    let inlineV091 = try #require(capabilities["v0.9.1"]?["inlineCatalogs"]?.arrayValue)
+    let instructionsV091 = try #require(
+      inlineV091.first { $0["catalogId"]?.stringValue == "cat-instructions-v091" }
+    )
+    #expect(instructionsV091["instructions"] == nil)
+  }
+
   @Test func getRendererCapabilitiesEscapesUnionReferencesForV10() throws {
     let schema = try Schema(instance: "{\"type\": \"object\"}")
     let catalog = Catalog(

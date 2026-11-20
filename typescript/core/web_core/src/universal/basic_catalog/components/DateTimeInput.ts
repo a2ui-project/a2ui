@@ -78,13 +78,27 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
    * CSS variables:
    *
    * - `--a2ui-datetimeinput-width`: Width of the component. Defaults to `100%`.
-   * - `--a2ui-datetimeinput-background`: Controls the background of inputs.
-   * - `--a2ui-datetimeinput-color`: Controls the text color of inputs.
-   * - `--a2ui-datetimeinput-border`: Controls the border of inputs.
-   * - `--a2ui-datetimeinput-border-radius`: Controls the border radius of inputs.
-   * - `--a2ui-datetimeinput-padding`: Controls the padding of inputs.
-   * - `--a2ui-datetimeinput-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
-   * - `--a2ui-datetimeinput-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
+   * - `--a2ui-datetimeinput-background`: Background color of the input elements. Defaults to `--a2ui-color-input`.
+   * - `--a2ui-datetimeinput-color`: Text color of the input elements. Defaults to `--a2ui-color-on-input`.
+   * - `--a2ui-datetimeinput-border`: Border of the input elements. Defaults to `1px solid var(--a2ui-color-border)`.
+   * - `--a2ui-datetimeinput-border-radius`: Border radius of the input elements. Defaults to `4px`.
+   * - `--a2ui-datetimeinput-padding`: Padding of the input elements. Defaults to `8px`.
+   * - `--a2ui-datetimeinput-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size`, then `--a2ui-font-size-s`.
+   * - `--a2ui-datetimeinput-label-font-weight`: Font weight of the label. Defaults to `bold`.
+   * - `--a2ui-datetimeinput-color-error`: Text color of validation error messages. Defaults to `red`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-spacing-xs`: Gap between the label, input row, and validation errors.
+   * - `--a2ui-spacing-s`: Gap between combined date and time inputs.
+   * - `--a2ui-label-font-size`: Fallback font size of the label. Defaults to `--a2ui-font-size-s`.
+   * - `--a2ui-font-size-s`: Fallback label font size when `--a2ui-label-font-size` is unset.
+   * - `--a2ui-font-size-xs`: Font size of validation error messages.
+   * - `--a2ui-text-color-text`: Text color of the label. Defaults to `--a2ui-color-on-background`.
+   * - `--a2ui-color-on-background`: Fallback text color of the label.
+   * - `--a2ui-color-border`: Fallback border color of the input elements.
+   * - `--a2ui-color-input`: Fallback background color of the input elements.
+   * - `--a2ui-color-on-input`: Fallback text color of the input elements.
    *
    * @nocollapse
    */

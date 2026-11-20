@@ -12,6 +12,25 @@
   `\.a2uiCatalogs`, `\.a2uiDefaultCatalogID`, and `\.a2uiSurfaceMetadata` from `@Environment`.
   [#4195](https://github.com/a2ui-project/a2ui/issues/4195),
   [#4275](https://github.com/a2ui-project/a2ui/pull/4275)
+- **BREAKING CHANGE**: `RegexSubset.analyze`, `RegexSubset.compileGuarded`, and the `regex`
+  function in `BasicCatalog` reject a repetition of a group that can match the empty string in
+  more than one way, such as `(a?){1000}a{1000}` or `(a{0,2})+b`, with `NESTED_QUANTIFIER`. Such a
+  pattern made `NSRegularExpression` run for seconds or longer on a value only a few characters
+  long. Recommended migration: rewrite the group so each repetition consumes at least one
+  character, for example `(?:ab?){3}` instead of `(?:a?b?){3}`.
+  [#4236](https://github.com/a2ui-project/a2ui/issues/4236),
+  [#4310](https://github.com/a2ui-project/a2ui/pull/4310)
+- Add optional `instructions` (Markdown design guidelines for agents) to `CatalogProtocol` and
+  `Catalog`, with an `instructions:` parameter on `Catalog.init` and `Catalog.derive`. `derive`
+  does not keep the source catalog's instructions, and `MessageProcessor.getRendererCapabilities`
+  writes them into v1.0 inline catalogs when set.
+  [#3842](https://github.com/a2ui-project/a2ui/issues/3842),
+  [#4312](https://github.com/a2ui-project/a2ui/pull/4312)
+- Add an `isUserActivated` parameter (default `false`) to `MessageProcessor.processMessages(_:)`,
+  `process(payload:)`, `process(message:)`, and `process(messages:)`. Pass `true` when the payload
+  is handled within a user gesture so a v1.0 `callRendererFunction` may run functions that set
+  `requiresUserActivation`, such as a nested call in its arguments.
+  [#4311](https://github.com/a2ui-project/a2ui/pull/4311)
 
 ## 0.11.0
 
