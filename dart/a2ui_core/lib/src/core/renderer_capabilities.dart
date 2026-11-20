@@ -111,16 +111,16 @@ class A2uiVersionCapabilities {
   /// `functions` as a list of definitions, and `theme` as the theme's
   /// property map.
   Map<String, Object?> toJson({required A2uiProtocolVersion version}) => {
-        'supportedCatalogIds': supportedCatalogIds,
-        if (inlineCatalogs.isNotEmpty)
-          'inlineCatalogs': [
-            for (final CatalogApi catalog in inlineCatalogs)
-              if (version.isAtLeast(A2uiProtocolVersion.v1_0))
-                catalog.toJson()
-              else
-                catalog.toV09InlineCatalog(),
-          ],
-      };
+    'supportedCatalogIds': supportedCatalogIds,
+    if (inlineCatalogs.isNotEmpty)
+      'inlineCatalogs': [
+        for (final CatalogApi catalog in inlineCatalogs)
+          if (version.isAtLeast(A2uiProtocolVersion.v1_0))
+            catalog.toJson()
+          else
+            catalog.toV09InlineCatalog(),
+      ],
+  };
 }
 
 /// The rendering capabilities a renderer advertises, mirroring
@@ -153,15 +153,14 @@ class A2uiRendererCapabilities {
     List<String> supportedCatalogIds, {
     List<CatalogApi> inlineCatalogs = const [],
     A2uiProtocolVersion version = A2uiProtocolVersion.v0_9,
-  }) =>
-      A2uiRendererCapabilities(
-        versions: {
-          version: A2uiVersionCapabilities(
-            supportedCatalogIds: supportedCatalogIds,
-            inlineCatalogs: inlineCatalogs,
-          ),
-        },
-      );
+  }) => A2uiRendererCapabilities(
+    versions: {
+      version: A2uiVersionCapabilities(
+        supportedCatalogIds: supportedCatalogIds,
+        inlineCatalogs: inlineCatalogs,
+      ),
+    },
+  );
 
   /// Parses an `a2uiClientCapabilities` object.
   ///
@@ -226,8 +225,8 @@ class A2uiRendererCapabilities {
   }
 
   Map<String, Object?> toJson() => {
-        for (final MapEntry<A2uiProtocolVersion, A2uiVersionCapabilities> entry
-            in versions.entries)
-          entry.key.jsonValue: entry.value.toJson(version: entry.key),
-      };
+    for (final MapEntry<A2uiProtocolVersion, A2uiVersionCapabilities> entry
+        in versions.entries)
+      entry.key.jsonValue: entry.value.toJson(version: entry.key),
+  };
 }

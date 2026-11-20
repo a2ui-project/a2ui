@@ -233,10 +233,10 @@ class Action {
 
   /// Serializes this action to a JSON map.
   Map<String, dynamic> toJson({bool? reservedKeys}) => {
-        if (event != null) 'event': event,
-        if (functionCall != null)
-          'functionCall': functionCall!.toJson(reservedKeys: reservedKeys),
-      };
+    if (event != null) 'event': event,
+    if (functionCall != null)
+      'functionCall': functionCall!.toJson(reservedKeys: reservedKeys),
+  };
 }
 
 /// A template for generating a dynamic list of children.

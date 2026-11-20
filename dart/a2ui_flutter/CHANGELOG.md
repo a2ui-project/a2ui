@@ -18,6 +18,7 @@
 
 ## Unreleased
 
+- **Breaking:** Raises the minimum Dart/Flutter SDK bounds from `sdk: ">=3.10.0 <4.0.0"` and `flutter: ">=3.38.0"` to `sdk: ">=3.13.0 <4.0.0"` and `flutter: ">=3.47.0"`. Upgrade to Flutter 3.47.0+ (Dart 3.13.0+) before updating to this release ([#4303](https://github.com/a2ui-project/a2ui/pull/4303)).
 - `Slider` treats an infinite `min` or `max`, which a JSON number such as
   `-1e400` decodes to, as absent, as an HTML range input does. A `min` of
   negative infinity failed a Material `Slider` assertion

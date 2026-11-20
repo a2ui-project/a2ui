@@ -305,9 +305,12 @@ export function canSchemaHoldObjectOrArray(schema: z.ZodTypeAny): boolean {
  * @returns Map of child-referencing property names to their reference kinds.
  */
 export function extractRefFields(
-  schema: z.ZodTypeAny,
+  schema: z.ZodTypeAny | undefined,
   options?: ChildRefAnalysisOptions,
 ): RefFields {
+  if (!schema) {
+    return EMPTY_REF_FIELDS;
+  }
   const cacheKey = options ?? DEFAULT_OPTIONS_CACHE_KEY;
   let schemaCache = refFieldsCache.get(cacheKey);
   if (schemaCache) {

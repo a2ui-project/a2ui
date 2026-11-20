@@ -129,11 +129,10 @@ class RendererState {
 
   RendererState._(
     List<CatalogApi> catalogs, {
-    required bool assumesUnknownSurfaces,
+    required this._assumesUnknownSurfaces,
     MessageProcessor<ComponentApi>? processor,
   }) : catalogs = List.unmodifiable(catalogs),
        _protocolVersion = _checkCatalogs(catalogs),
-       _assumesUnknownSurfaces = assumesUnknownSurfaces,
        _sharesProcessor = processor != null {
     _processor =
         processor ??
@@ -239,9 +238,8 @@ class RendererState {
         );
       }
       _record(() {
-        final SurfaceComponentsModel? current = getSurface(
-          surfaceId,
-        )?.componentsModel;
+        final SurfaceComponentsModel? current = getSurface(surfaceId)
+            ?.componentsModel;
         if (current == null) return;
         current.removeComponent(componentId);
         current.insertComponent(
@@ -679,9 +677,8 @@ class RendererState {
       }
     }
     return () {
-      final SurfaceComponentsModel? components = getSurface(
-        surfaceId,
-      )?.componentsModel;
+      final SurfaceComponentsModel? components = getSurface(surfaceId)
+          ?.componentsModel;
       if (components == null) return;
       final recreated = <(int?, ComponentModel)>[];
       for (final _ComponentRecord record in previous.reversed) {

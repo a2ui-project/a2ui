@@ -28,12 +28,20 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<TabsSupportedApis> {
    * The styles of the tabs can be customized by redefining the following
    * CSS variables:
    *
-   * - `--a2ui-tabs-border`: Controls the border of the tab bar. Defaults to `2px solid var(--a2ui-color-border, #eee)`.
-   * - `--a2ui-tabs-header-background`: Controls the background of tab buttons. Defaults to `transparent`.
-   * - `--a2ui-tabs-header-color`: Controls the text color of tab buttons. Defaults to `var(--a2ui-text-caption-color, #666)`.
-   * - `--a2ui-tabs-header-background-active`: Controls the background of the active tab button. Defaults to `transparent`.
-   * - `--a2ui-tabs-header-color-active`: Controls the text color of the active tab button. Defaults to `var(--a2ui-color-primary, #007bff)`.
-   * - `--a2ui-tabs-content-padding`: Controls the padding of the tab content. Defaults to `var(--a2ui-spacing-m, 16px) 0`.
+   * - `--a2ui-tabs-border`: Bottom border of the tab bar. Defaults to `2px solid var(--a2ui-color-border)`.
+   * - `--a2ui-tabs-header-background`: Background of inactive tab buttons. Defaults to `transparent`.
+   * - `--a2ui-tabs-header-color`: Text color of inactive tab buttons. Defaults to `--a2ui-text-caption-color` (`#666`).
+   * - `--a2ui-tabs-header-background-active`: Background of the active tab button. Defaults to `transparent`.
+   * - `--a2ui-tabs-header-color-active`: Text color of the active tab button. Defaults to `--a2ui-color-primary`.
+   * - `--a2ui-tabs-content-padding`: Padding of the tab panel content. Defaults to `var(--a2ui-spacing-m) 0`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-color-border`: Fallback bottom border color of the tab bar.
+   * - `--a2ui-color-primary`: Active tab bottom border color and fallback active tab text color.
+   * - `--a2ui-text-caption-color`: Fallback text color of inactive tab buttons. Defaults to `#666`.
+   * - `--a2ui-spacing-s`: Vertical padding of tab buttons.
+   * - `--a2ui-spacing-m`: Gap between tab buttons, horizontal tab button padding, and fallback vertical tab panel padding.
    *
    * @nocollapse
    */

@@ -68,10 +68,10 @@ void main() {
   }
 
   Map<String, Object?> column(String id, List<String> children) => {
-        'id': id,
-        'component': 'Column',
-        'children': children,
-      };
+    'id': id,
+    'component': 'Column',
+    'children': children,
+  };
 
   for (final config in [
     relaxed,
@@ -81,8 +81,7 @@ void main() {
       maxDepth: 4,
     ),
   ]) {
-    test(
-        'reaches the verdict the whole graph does, '
+    test('reaches the verdict the whole graph does, '
         'allowMissingRoot: ${config.allowMissingRoot}', () {
       final List<String> ids = ['root', for (var i = 0; i < 9; i++) 'c$i'];
       for (var seed = 0; seed < 300; seed++) {
@@ -93,8 +92,9 @@ void main() {
         final whole = SurfaceComponentsModel(catalog: TestCatalog());
         for (var step = 0; step < 30; step++) {
           final List<Map<String, Object?>> batch = [
-            for (final String id
-                in (ids.toList()..shuffle(random)).take(1 + random.nextInt(3)))
+            for (final String id in (ids.toList()..shuffle(random)).take(
+              1 + random.nextInt(3),
+            ))
               random.nextInt(3) == 0
                   ? {'id': id, 'component': 'Text', 'text': 'x'}
                   : column(id, [
@@ -127,8 +127,7 @@ void main() {
     });
   }
 
-  test(
-      'reads only the references of the batch once the one before it is '
+  test('reads only the references of the batch once the one before it is '
       'applied', () {
     final model = SurfaceComponentsModel(catalog: TestCatalog());
     final reads = _CountingMap(model.refFields);
@@ -149,8 +148,7 @@ void main() {
     expect(reads.count, lessThan(10));
   });
 
-  test(
-      'walks the whole graph again after a component changes outside a '
+  test('walks the whole graph again after a component changes outside a '
       'check', () {
     final model = SurfaceComponentsModel(catalog: TestCatalog());
     final List<Map<String, Object?>> first = [
@@ -174,8 +172,7 @@ void main() {
     );
   });
 
-  test(
-      'walks the whole graph again after a check whose batch was not '
+  test('walks the whole graph again after a check whose batch was not '
       'applied', () {
     final model = SurfaceComponentsModel(catalog: TestCatalog());
     final List<Map<String, Object?>> first = [
