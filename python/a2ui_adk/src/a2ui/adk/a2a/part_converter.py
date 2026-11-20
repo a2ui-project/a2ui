@@ -34,7 +34,9 @@ Usage Example:
 
 from __future__ import annotations
 
+from collections.abc import Collection
 import logging
+from typing import Any
 
 from a2a import types as a2a_types
 from google.adk.a2a.converters import part_converter
@@ -64,6 +66,9 @@ class A2uiPartConverter:
         processor: The request processor for the client's catalogs.
         bypass_tool_check: If True, bypass tool validation.
         fallback_text: Optional text to fall back on if parsing fails.
+        allowed_a2ui_tool_names: Optional allowlist of domain tool names whose
+            `A2UI_VALIDATED_JSON_KEY` payloads (populated by trusted callbacks
+            such as `make_adk_after_tool_callback`) are emitted as A2UI parts.
     """
 
     def __init__(
@@ -72,12 +77,77 @@ class A2uiPartConverter:
         *,
         bypass_tool_check: bool = False,
         fallback_text: str | None = None,
+        allowed_a2ui_tool_names: Collection[str] = (),
     ):
         self._processor = processor
         self._bypass_tool_check = bypass_tool_check
         self._fallback_text = fallback_text
+        if isinstance(allowed_a2ui_tool_names, (str, bytes)):
+            raise TypeError(
+                "allowed_a2ui_tool_names must be a collection of tool names, not a"
+                " string."
+            )
+        self._allowed_a2ui_tool_names: frozenset[str] = frozenset(
+            allowed_a2ui_tool_names
+        )
         self._parser = processor.parser
         self._state = processor.state
+
+    def _convert_validated_tool_response(
+        self,
+        response_dict: Any,
+        *,
+        is_a2ui_tool: bool,
+    ) -> list[a2a_types.Part] | None:
+        """Converts `A2UI_VALIDATED_JSON_KEY` or `A2UI_TOOL_ERROR_KEY` responses."""
+        if not isinstance(response_dict, dict):
+            return [] if is_a2ui_tool else None
+
+        if (
+            is_a2ui_tool or self._bypass_tool_check
+        ) and constants.A2UI_TOOL_ERROR_KEY in response_dict:
+            # The error may quote the payload, so it is only logged at debug level.
+            logger.warning("A2UI tool call failed.")
+            logger.debug(
+                "A2UI tool error: %s",
+                response_dict[constants.A2UI_TOOL_ERROR_KEY],
+            )
+            return []
+
+        json_data = response_dict.get(constants.A2UI_VALIDATED_JSON_KEY)
+        if json_data:
+            return [create_a2ui_part(message) for message in json_data]
+
+        if is_a2ui_tool:
+            logger.info("No result in A2UI tool response")
+            return []
+        return None
+
+    def _convert_function_response(
+        self, function_response: genai_types.FunctionResponse
+    ) -> list[a2a_types.Part] | None:
+        """Converts an A2UI-bearing `FunctionResponse`, or returns None to fall back."""
+        is_a2ui_tool = function_response.name == constants.A2UI_TOOL_NAME
+        is_allowed_tool = function_response.name in self._allowed_a2ui_tool_names
+
+        if is_a2ui_tool or is_allowed_tool or self._bypass_tool_check:
+            converted = self._convert_validated_tool_response(
+                function_response.response or {},
+                is_a2ui_tool=is_a2ui_tool,
+            )
+            if converted is not None:
+                return converted
+
+        response = function_response.response
+        result = response.get("result") if isinstance(response, dict) else None
+        if isinstance(result, str) and self._parser.has_format_content(result):
+            return parse_content_to_parts(
+                result,
+                parser=self._parser,
+                fallback_text=self._fallback_text,
+                state=self._state,
+            )
+        return None
 
     def convert(self, part: genai_types.Part) -> list[a2a_types.Part]:
         """Converts a GenAI part to A2A parts, with A2UI validation.
@@ -90,44 +160,9 @@ class A2uiPartConverter:
         """
         # 1. Handle Tool Responses (FunctionResponse)
         if function_response := part.function_response:
-            is_send_a2ui_json_to_client_response = (
-                function_response.name == constants.A2UI_TOOL_NAME
-            )
-
-            if is_send_a2ui_json_to_client_response or self._bypass_tool_check:
-                response_dict = function_response.response or {}
-
-                if constants.A2UI_TOOL_ERROR_KEY in response_dict:
-                    # The error may quote the payload, so it is only logged at
-                    # debug level.
-                    logger.warning("A2UI tool call failed.")
-                    logger.debug(
-                        "A2UI tool error: %s",
-                        response_dict[constants.A2UI_TOOL_ERROR_KEY],
-                    )
-                    return []
-
-                if (
-                    isinstance(response_dict, dict)
-                    and constants.A2UI_VALIDATED_JSON_KEY in response_dict
-                ):
-                    json_data = response_dict.get(constants.A2UI_VALIDATED_JSON_KEY)
-                    if json_data:
-                        return [create_a2ui_part(message) for message in json_data]
-
-                if is_send_a2ui_json_to_client_response:
-                    logger.info("No result in A2UI tool response")
-                    return []
-
-            if function_response.response:
-                result = function_response.response.get("result")
-                if isinstance(result, str) and self._parser.has_format_content(result):
-                    return parse_content_to_parts(
-                        result,
-                        parser=self._parser,
-                        fallback_text=self._fallback_text,
-                        state=self._state,
-                    )
+            converted = self._convert_function_response(function_response)
+            if converted is not None:
+                return converted
 
         # 2. Handle Tool Calls (FunctionCall) - Skip sending to client
         if (
