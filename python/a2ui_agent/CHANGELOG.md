@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Add `DecisionCascadeRouter` in
+  `a2ui.inference_formats.experimental.decision_cascade` for single-batch UI
+  gating, template selection, and `ComponentPruningTransformer` catalog pruning.
+
 - Add `allowed_parents` and `allowed_children` parameters to the `@macro`
   decorator (`a2ui.transformers.macros`), emitting `allowedParents` and
   `allowedChildren` metadata on generated macro component schemas.
