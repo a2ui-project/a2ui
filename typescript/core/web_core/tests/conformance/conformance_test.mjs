@@ -321,6 +321,8 @@ const UNIMPLEMENTED_ACTIONS = new Map([
     'the timing cases depend on the machine, so `yarn test:timing` runs them apart from the other tests (tests/timing/)',
   ],
   ['measure_overhead', 'web_core has no streaming inference parser'],
+  ['url_policy_check', 'URL security policy not implemented yet (#4045)'],
+  ['url_policy_resolution', 'URL security policy not implemented yet (#4045)'],
 ]);
 
 const UNSUPPORTED = UNIMPLEMENTED_ACTIONS;
