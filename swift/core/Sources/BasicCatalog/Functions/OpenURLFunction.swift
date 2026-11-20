@@ -56,9 +56,14 @@ public final class OpenURLFunction: FunctionImplementation, @unchecked Sendable 
           {
             "type": "object",
             "properties": {
-              "url": { "type": "string" }
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:\\\\S*$"
+              }
             },
-            "required": ["url"]
+            "required": ["url"],
+            "additionalProperties": false
           }
           """
       ),

@@ -139,7 +139,7 @@ registerCatalog({ name: 'main', isDefault: true, version: 'v0.9' });
 - **Problem & Rationale**: Examples under `specification/**/examples/` are the source of truth for cross-framework and cross-language conformance tests. Naming files or JSON payloads after specific frameworks (e.g. `angular-grid.json`) creates confusion and discourages reuse across other SDKs and renderers.
 - **Reviewer Checklist**:
   - [ ] Check file names and JSON metadata in `specification/**/examples/`.
-  - [ ] Verify that all filenames and title attributes describe the UI pattern or functionality neutrally (e.g. `37_native-grid.json` instead of `37_angular-grid.json`).
+  - [ ] Verify that all filenames and title attributes describe the UI pattern or functionality neutrally (e.g. `native-grid.json` instead of `angular-grid.json`).
 
 ---
 

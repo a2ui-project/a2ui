@@ -37,9 +37,7 @@ from a2ui_eval.runner import (
 )
 from a2ui_eval.shared.utils import GIT_ROOT
 
-V091_CATALOG = str(
-    GIT_ROOT / "specification" / "v0_9_1" / "catalogs" / "basic" / "catalog.json"
-)
+V091_CATALOG = str(GIT_ROOT / "catalogs" / "basic" / "v0_9_1" / "catalog.json")
 V10_CATALOG = str(GIT_ROOT / "catalogs" / "basic" / "v1" / "catalog.json")
 V09_CATALOG_ID = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
 V10_CATALOG_ID = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"

@@ -24,10 +24,9 @@ const List<A2uiProtocolVersion> turnVersions = [
 /// The published basic catalog of [version], read from this package's root.
 CatalogApi loadBasicCatalog(A2uiProtocolVersion version) =>
     version.isAtLeast(A2uiProtocolVersion.v1_0)
-    ? const FileSystemCatalogProvider(
-        '../../../catalogs/basic/v1/catalog.json',
-      ).load()
+    ? const FileSystemCatalogProvider('../../../catalogs/basic/v1/catalog.json')
+          .load()
     : FileSystemCatalogProvider(
-        '../../../specification/v0_9/catalogs/basic/catalog.json',
+        '../../../catalogs/basic/v0_9/catalog.json',
         protocolVersion: version,
       ).load();

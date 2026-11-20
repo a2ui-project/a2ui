@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {A2uiMetadata, ComponentApi} from '@a2ui/web_core/v0_9';
+import {A2uiMetadata, ComponentApi} from '@a2ui/web_core';
 import {Directive, computed, input} from '@angular/core';
 import {ComponentApiToProps} from './types';
 import {CatalogComponentInstance} from './catalog_component_instance';

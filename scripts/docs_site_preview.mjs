@@ -316,6 +316,9 @@ function candidateRoutesForChangedFile(filePath) {
   if (normalized.startsWith('catalogs/basic/v1/')) {
     return ['/specification/v1.0-basic-catalog-implementation-guide/'];
   }
+  if (normalized.startsWith('catalogs/basic/v0_9_1/')) {
+    return ['/specification/v0.9.1-basic-catalog-implementation-guide/'];
+  }
   if (normalized.startsWith('catalogs/mcp/v1/')) {
     return ['/guides/mcp-catalog/'];
   }

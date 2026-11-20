@@ -1,9 +1,13 @@
 ## Unreleased
 
+## 0.4.0 (2026-11-17)
+
 - Add `renderer_capabilities_from_message(message, version)` to read and
   validate A2UI renderer capabilities from an inbound A2A `Message` across
   `message.metadata`, `DataPart.metadata`, and legacy `DataPart.data["metadata"]`.
   [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
+- Package dependency updated to require `a2ui-agent-sdk>0.11.0`.
+  [#4258](https://github.com/a2ui-project/a2ui/pull/4258)
 
 ## 0.3.0 (2026-11-10)
 
