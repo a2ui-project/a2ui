@@ -313,7 +313,7 @@ export class PayloadValidator {
 
     const result = componentApi.schema.safeParse(properties);
     if (!result.success) {
-      const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
+      const formattedErrors = result.error.issues.map(formatZodIssue).join(', ');
       const details = zodIssuesToDetails(result.error.issues);
       const uniquePaths = new Set(details.map(d => d.path));
       const firstPath = uniquePaths.size === 1 ? details[0]?.path : undefined;
@@ -464,7 +464,7 @@ export class PayloadValidator {
   ): void {
     const result = schema.safeParse(value);
     if (result.success) return;
-    const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
+    const formattedErrors = result.error.issues.map(formatZodIssue).join(', ');
     const details = zodIssuesToDetails(result.error.issues, path);
     throw new A2uiValidationError(
       `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
@@ -746,7 +746,7 @@ export class PayloadValidator {
 
     const result = fn.schema.safeParse(args ?? {});
     if (!result.success) {
-      const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
+      const formattedErrors = result.error.issues.map(formatZodIssue).join(', ');
       const details = zodIssuesToDetails(result.error.issues, '/args');
       throw new A2uiValidationError(
         `Validation failed for function '${name}': ${formattedErrors}`,
@@ -773,7 +773,7 @@ export class PayloadValidator {
 
     const result = themeSchema.safeParse(theme);
     if (!result.success) {
-      const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
+      const formattedErrors = result.error.issues.map(formatZodIssue).join(', ');
       const details = zodIssuesToDetails(result.error.issues, '/theme');
       throw new A2uiValidationError(
         `Validation failed for theme: ${formattedErrors}`,
