@@ -1,0 +1,170 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# A live-only scenario: the test agents serve it next to the hub seeds, but the
+# hub runners do not read it, because its bindings call the agent functions
+# only the test agents implement (`lookupPrice` and `failingLookup`).
+
+- name: agent_functions
+  action: e2e_scenario
+  description: A Text bound to an agent function, a binding to one that fails, and a button whose action calls the failing one.
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  formats:
+    - direct_json
+    - express
+  source:
+    kind: hand_authored
+  turns:
+    - userText: "Show the price of sku-100 with lookupPrice."
+      modelChunks:
+        direct_json:
+          - "Here is the price lookup.\n\n<a"
+          - "2ui-json>\n"
+          - |
+            [
+              {
+                "version": "1.0",
+                "createSurface": {
+                  "surfaceId": "prices",
+                  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+                  "components": [
+                    {
+                      "id": "root",
+                      "component": "Column",
+                      "children": ["priceLabel", "price", "broken", "sibling", "failBtn"]
+                    },
+                    {
+                      "id": "priceLabel",
+                      "component": "Text",
+                      "text": "Price of sku-100:"
+                    },
+                    {
+                      "id": "price",
+                      "component": "Text",
+                      "text": {
+                        "@call": "lookupPrice",
+                        "args": {"sku": "sku-100"}
+                      }
+                    },
+                    {
+                      "id": "broken",
+                      "component": "Text",
+                      "text": {
+                        "@call": "failingLookup",
+                        "args": {}
+                      }
+                    },
+                    {
+                      "id": "sibling",
+                      "component": "Text",
+                      "text": "Sibling still renders"
+                    },
+                    {
+                      "id": "failBtn",
+                      "component": "Button",
+                      "variant": "primary",
+                      "child": "failLabel",
+                      "action": {
+                        "functionCall": {
+                          "@call": "failingLookup",
+                          "args": {}
+                        }
+                      }
+                    },
+                    {
+                      "id": "failLabel",
+                      "component": "Text",
+                      "text": "Run the failing lookup"
+                    }
+                  ]
+                }
+              }
+            ]
+            </a2ui-json>
+        express:
+          - "Here is the price lookup.\n\n<a"
+          - "2ui>\n"
+          - |
+            surface("prices")
+            root = Column([priceLabel, price, broken, sibling, failBtn])
+            priceLabel = Text("Price of sku-100:")
+            price = Text(lookupPrice(sku="sku-100"))
+            broken = Text(failingLookup())
+            sibling = Text("Sibling still renders")
+            failBtn = Button(failLabel, "primary", failingLookup())
+            failLabel = Text("Run the failing lookup")
+            </a2ui>
+      expectWire:
+        - text: "Here is the price lookup."
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: prices
+                catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+                components:
+                  - id: root
+                    component: Column
+                    children: [priceLabel, price, broken, sibling, failBtn]
+                  - id: priceLabel
+                    component: Text
+                    text: "Price of sku-100:"
+                  - id: price
+                    component: Text
+                    text:
+                      "@call": lookupPrice
+                      args:
+                        sku: sku-100
+                  - id: broken
+                    component: Text
+                    text:
+                      "@call": failingLookup
+                      args: {}
+                  - id: sibling
+                    component: Text
+                    text: Sibling still renders
+                  - id: failBtn
+                    component: Button
+                    variant: primary
+                    child: failLabel
+                    action:
+                      functionCall:
+                        "@call": failingLookup
+                        args: {}
+                  - id: failLabel
+                    component: Text
+                    text: Run the failing lookup
+      expectViewTree:
+        prices:
+          id: root
+          type: Column
+          children:
+            - id: priceLabel
+              type: Text
+              text: "Price of sku-100:"
+            - id: price
+              type: Text
+              text: "$10.00"
+            - id: broken
+              type: Text
+            - id: sibling
+              type: Text
+              text: Sibling still renders
+            - id: failBtn
+              type: Button
+              children:
+                - id: failLabel
+                  type: Text
+                  text: Run the failing lookup

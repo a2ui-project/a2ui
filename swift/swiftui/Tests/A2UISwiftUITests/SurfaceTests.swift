@@ -54,6 +54,21 @@ private func makeTestSurfaceCatalogForRendering() throws -> AnyCatalog {
   )
 }
 
+private struct SurfaceMetadataEnvironmentProbeView: View {
+  @Environment(\.a2uiSurfaceMetadata) private var metadata
+  let onRead: ([String: JSONValue]?) -> Void
+
+  var body: some View {
+    Color.clear
+      .onAppear {
+        onRead(metadata)
+      }
+      .onChange(of: metadata) { _, newValue in
+        onRead(newValue)
+      }
+  }
+}
+
 @Suite(.serialized)
 @MainActor
 struct SurfaceTests {
@@ -146,6 +161,45 @@ struct SurfaceTests {
     viewModel.removeExtension("surfaceTheme")
     viewModel.removeExtension("mode")
     #expect(viewModel.metadata == nil)
+  }
+
+  @Test func surfaceMetadataEnvironmentDefaultsToNilAndPropagatesUpdates() throws {
+    #expect(EnvironmentValues().a2uiSurfaceMetadata == nil)
+
+    let schema = try Schema(instance: #"{"type": "object"}"#)
+    var observedMetadata: [String: JSONValue]?
+    let probeComponent = ComponentImplementation(name: "probe", schema: schema) { _ in
+      SurfaceMetadataEnvironmentProbeView { metadata in
+        observedMetadata = metadata
+      }
+    }
+    let catalog = Catalog(id: "default", components: [probeComponent])
+    let initialMetadata: [String: JSONValue] = [
+      "extensions": .object(["surfaceTheme": .string("dark")])
+    ]
+    let viewModel = SurfaceViewModel(
+      surfaceID: "metadata-env",
+      catalog: catalog,
+      metadata: initialMetadata
+    )
+    viewModel.componentsModel.addComponent(
+      ComponentModel(id: "root", type: "probe", properties: [:])
+    )
+    let driver = HostedViewDriver(surface: Surface(viewModel: viewModel, catalog: catalog))
+    defer { driver.tearDown() }
+
+    #expect(observedMetadata == initialMetadata)
+
+    try viewModel.setExtension("mode", value: .string("compact"))
+    driver.flush()
+    #expect(
+      observedMetadata == [
+        "extensions": .object([
+          "surfaceTheme": .string("dark"),
+          "mode": .string("compact"),
+        ])
+      ]
+    )
   }
 
   @Test func swappingSurfaceViewModelsDisposesOldResolverAndRendersNewSurface() throws {

@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.12.0 (2026-11-17)
+
 - **BREAKING CHANGE**: (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`,
   and `@checks` on v1.0 components across `ExpressCompiler`,
   `AtomCompiler`, `ElementalCompiler`, `MacroExpander`, `RendererState`, and the
@@ -20,6 +22,8 @@
   metadata (`a2uiRendererCapabilities` in v1.0 and `a2uiClientCapabilities` in
   v0.8, v0.9, and v0.9.1).
   [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
+- Package dependency updated to require `a2ui-core>=0.7.0,<0.8.0`.
+  [#4258](https://github.com/a2ui-project/a2ui/pull/4258)
 
 ## 0.11.0 (2026-11-10)
 

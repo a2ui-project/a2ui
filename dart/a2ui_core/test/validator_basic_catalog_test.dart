@@ -35,7 +35,7 @@ Map<String, Object?> _readJson(String relativePath) =>
         as Map<String, Object?>;
 
 Map<String, Object?> basicCatalogDocument() =>
-    _readJson('../specification/v0_9_1/catalogs/basic/catalog.json');
+    _readJson('../catalogs/basic/v0_9_1/catalog.json');
 
 void main() {
   group('the basic catalog', () {
@@ -90,27 +90,26 @@ void main() {
   // their `format` inside a `oneOf`. Without format checking every string
   // matches all three branches, so `oneOf` rejects even a valid bound.
   final Map<String, PayloadValidator<ComponentApi, FunctionApi> Function()>
-      dateTimeValidators = {
+  dateTimeValidators = {
     'v0.9.1': () => PayloadValidator<ComponentApi, FunctionApi>(
-          catalog: Catalog.fromJson(basicCatalogDocument()),
-          protocolVersion: A2uiProtocolVersion.v0_9,
-        ),
+      catalog: Catalog.fromJson(basicCatalogDocument()),
+      protocolVersion: A2uiProtocolVersion.v0_9,
+    ),
     'v1': () => PayloadValidator<ComponentApi, FunctionApi>(
-          catalog:
-              Catalog.fromJson(_readJson('../catalogs/basic/v1/catalog.json')),
-          protocolVersion: A2uiProtocolVersion.v1_0,
-          commonTypesSchema: _readJson(
-            '../specification/v1_0/json/common_types.json',
-          ),
-        ),
+      catalog: Catalog.fromJson(_readJson('../catalogs/basic/v1/catalog.json')),
+      protocolVersion: A2uiProtocolVersion.v1_0,
+      commonTypesSchema: _readJson(
+        '../specification/v1_0/json/common_types.json',
+      ),
+    ),
   };
 
   Map<String, Object?> dateTimeInput(Map<String, Object?> bounds) => {
-        'id': 'when',
-        'component': 'DateTimeInput',
-        'value': '',
-        ...bounds,
-      };
+    'id': 'when',
+    'component': 'DateTimeInput',
+    'value': '',
+    ...bounds,
+  };
 
   for (final MapEntry(key: catalogName, value: newValidator)
       in dateTimeValidators.entries) {
@@ -120,11 +119,7 @@ void main() {
       late final PayloadValidator<ComponentApi, FunctionApi> validator =
           newValidator();
 
-      for (final bound in [
-        '2026-01-01',
-        '09:00:00',
-        '2026-01-01T09:00:00Z',
-      ]) {
+      for (final bound in ['2026-01-01', '09:00:00', '2026-01-01T09:00:00Z']) {
         test('accept the literal $bound', () {
           expect(
             () => validator.validateComponent(
@@ -160,13 +155,13 @@ void main() {
 
   _registerExamples(
     'the v0.9.1 basic catalog examples against the v0.9.1 document',
-    '../specification/v0_9_1/catalogs/basic/examples',
+    '../catalogs/basic/v0_9_1/examples',
     () => rendererCatalog(basicCatalogDocument()),
     A2uiProtocolVersion.v0_9,
   );
   _registerExamples(
     'the v0.9 basic catalog examples against BasicCatalog.v0_9()',
-    '../specification/v0_9/catalogs/basic/examples',
+    '../catalogs/basic/v0_9/examples',
     BasicCatalog.v0_9,
     A2uiProtocolVersion.v0_9,
   );
@@ -192,8 +187,7 @@ void _registerExamples(
     final examples = Directory(resolveConformancePath(directory));
     final List<File> files = examples.listSync().whereType<File>().where((f) {
       return f.path.endsWith('.json');
-    }).toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
+    }).toList()..sort((a, b) => a.path.compareTo(b.path));
 
     test('the examples are present', () {
       expect(files, isNotEmpty, reason: examples.path);
@@ -203,8 +197,9 @@ void _registerExamples(
       final String name = file.uri.pathSegments.last;
       test(name, skip: skips[name], () async {
         final Object? document = jsonDecode(file.readAsStringSync());
-        final Object? messages =
-            document is Map ? document['messages'] : document;
+        final Object? messages = document is Map
+            ? document['messages']
+            : document;
         expect(
           messages,
           isA<List<Object?>>(),

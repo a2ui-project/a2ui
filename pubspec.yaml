@@ -17,8 +17,8 @@ publish_to: none
 license: BSD-3-Clause
 
 environment:
-  sdk: ">=3.10.0 <4.0.0"
-  flutter: ">=3.35.7 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.0"
 
 workspace:
   - samples/client/flutter/restaurant_finder/app

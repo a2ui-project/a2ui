@@ -26,11 +26,11 @@ class _RecordingFunction extends FunctionImplementation {
   final List<Map<String, Object?>> calls = [];
 
   _RecordingFunction(FunctionApi api)
-      : super(
-          name: api.name,
-          argumentSchema: api.argumentSchema,
-          returnType: api.returnType,
-        );
+    : super(
+        name: api.name,
+        argumentSchema: api.argumentSchema,
+        returnType: api.returnType,
+      );
 
   @override
   Object? execute(
@@ -53,11 +53,8 @@ void main() {
     setUp(() {
       final CatalogApi parsed = Catalog.fromJson(
         jsonDecode(
-          File(
-            resolveConformancePath(
-              '../specification/v0_9_1/catalogs/basic/catalog.json',
-            ),
-          ).readAsStringSync(),
+          File(resolveConformancePath('../catalogs/basic/v0_9_1/catalog.json'))
+              .readAsStringSync(),
         ) as Map<String, Object?>,
       );
       openUrl = _RecordingFunction(parsed.functions['openUrl']!);
@@ -75,7 +72,10 @@ void main() {
       processor.processMessages(
         AgentToRendererMessagePayload.of(
           CreateSurfaceMessage(
-              version: 'v0.9', surfaceId: 's', catalogId: catalog.id),
+            version: 'v0.9',
+            surfaceId: 's',
+            catalogId: catalog.id,
+          ),
         ),
       );
       surface = processor.model.getSurface('s')!;
@@ -411,13 +411,12 @@ class _ConstantFunction extends FunctionImplementation {
   final Object? result;
 
   _ConstantFunction(String name, this.result)
-      : super(name: name, argumentSchema: Schema.object());
+    : super(name: name, argumentSchema: Schema.object());
 
   @override
   Object? execute(
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      result;
+  ]) => result;
 }
