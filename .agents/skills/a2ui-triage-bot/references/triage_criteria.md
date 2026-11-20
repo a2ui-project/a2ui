@@ -6,7 +6,7 @@ This document says how to turn an issue or a PR into a [`TriageSuggestion`](../.
 2. [labels.md](../../../../docs/contributing/triage/labels.md): triage labels and who manages each one.
 3. [templates.md](../../../../docs/contributing/triage/templates.md): standard replies.
 
-Triage of an issue is done when the issue has a priority and no comment from an out-of-team contributor is left unanswered. Triage of a PR is done when the team has decided to review it or has closed it with an explanation. Every suggestion should get the item to that state, or say what is missing.
+Triage of an issue is done when the issue has a priority and no comment from an out-of-team contributor is left unanswered. Triage of a PR is done when the team has decided to review it, has assigned it to an expert with `status: assigned-for-triage`, or has closed it with an explanation. Every suggestion should get the item to that state, or say what is missing.
 
 ## Rules for every item
 
@@ -23,6 +23,8 @@ Triage of an issue is done when the issue has a priority and no comment from an 
    2. If it has `status: needs-team-input`, the team is discussing it. Write no suggestion, and answer only the requests to the triage bot, in a response comment.
 
    If you find no expert who can be assigned, say so, and suggest only `status: needs-team-input`.
+
+   This rule does not apply to a PR that is a good candidate for review or that overlaps with other PRs: for those, follow [Pull requests](#pull-requests).
 
 10. If a team member asked the triage bot for something, answer it at the start of `suggestion`, or in a response comment on an item with `status: needs-team-input`, as [Requests to the triage bot](../SKILL.md#requests-to-the-triage-bot) says. Follow these rules for what the answer suggests: a request does not override them.
 
@@ -62,13 +64,17 @@ If Dependabot opened the PR (author `dependabot`, or `dependabot[bot]` in the RE
 
 If a team member other than the PR author submitted a review, in any state, that team member started reviewing the PR, and the team has decided to review it. Suggest assigning the reviewer, link to their review in `suggestion`, say it in `reply`, such as "Assigning this PR to `xyz`, because they already started reviewing it.", and skip the review criteria below. If several team members reviewed, suggest the one whose review came first. If the reviewer is already assigned, suggest no assignee. Bots, such as `gemini-code-assist`, are not team members, so their reviews do not count.
 
-Otherwise, suggest a review when all of the following are true, and say which ones you checked:
+Otherwise, the PR is a good candidate for review when all of the following are true. Say which ones you checked:
 
 1. The PR is a minor change, such as a docs fix or a small bug fix with a test, or it addresses an issue that is assigned to the PR author.
 2. It does not overlap with open PRs or work in progress. List overlapping PRs in `related_items`.
 3. The team can maintain the change long term.
 
-If you suggest a review, list the issues the PR targets in `targeted_issues`, and suggest no assignee: assign a PR only to a team member who started reviewing it, as the rule above says. You may name an owner of the changed files in `suggestion` as a possible reviewer, with the evidence, but do not put them in `new_assignees`.
+If the PR is a good candidate, suggest assigning it to an expert in the changed files (see step 4 of the [skill](../SKILL.md#step-4-research-the-item)) and adding `status: assigned-for-triage`. The expert decides whether the team reviews the PR. Name the expert in `suggestion` with the evidence, such as "wrote 9 of the 15 commits to `generic-binder.ts`", and list the issues the PR targets in `targeted_issues`.
+
+If the PR meets the other criteria but overlaps with open PRs or work in progress, do the same: suggest assigning an expert and adding `status: assigned-for-triage`. List the overlapping PRs in `related_items`, and say in `suggestion` what the expert needs to decide, such as which of the PRs to take. Do not suggest `status: needs-team-input` for it.
+
+Do not promise a review in `reply` or anywhere else: write nothing like "we will review it". The team has not decided yet, and the expert may close the PR. Say only who the PR is assigned to and why, such as "Assigning this PR to `xyz`, who maintains `web_core`, to decide on it."
 
 Otherwise, set `close_as` to `not_planned` and use the reply from [Triage a PR](../../../../docs/contributing/triage/triage.md#triage-a-pr) as the `reply`.
 

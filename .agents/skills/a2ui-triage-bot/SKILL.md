@@ -159,7 +159,7 @@ Rules for the lists:
 1. Omit a list that is empty.
 2. Use only labels that exist in the repository (`gh label list -R a2ui-project/a2ui --limit 200`). Add only labels the item does not have, and remove only labels it has.
 3. Never add or remove `status: needs-triage`. The [flagger](../../../tools/internal/triage/blueprints/flagging.blueprint.md) manages it and would undo the change.
-4. Assign only logins that pass the assignee check in step 4, and that are not assigned yet. Assign a PR only to a team member who started reviewing it (see [Pull requests](references/triage_criteria.md#pull-requests)).
+4. Assign only logins that pass the assignee check in step 4, and that are not assigned yet. Assign a PR only to a team member who started reviewing it, or to an expert together with `status: assigned-for-triage` (see [Pull requests](references/triage_criteria.md#pull-requests)).
 5. List an item in `related_items` only if the suggestion says how it relates. Do not list the item itself, the item in `duplicate_of`, or an item in `targeting_prs` or `targeted_issues`.
 6. For each PR in `targeting_prs`, say whether it closes the issue. A PR closes it only when it is linked to close it, with `Fixes #<number>` or in the sidebar. A PR that works on the issue without that link still targets it, so write that it does not close the issue, such as "[#4092](https://github.com/a2ui-project/a2ui/pull/4092) works on this issue but does not close it". A PR that only mentions the issue goes in `related_items`.
 7. Do not repeat an entry in a list.
