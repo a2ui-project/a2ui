@@ -44,7 +44,7 @@ export const playgroundConfig: AppConfig = {
       },
       rpc: {
         title: 'RPC Mode (Submit-Time Decision Predicates)',
-        body: 'Serves an interactive v1.0 form (/form bug, /form feedback, or /form refund) whose TextField @checks rule invokes a server-side decision predicate via callAgentFunction. Edit the text box to watch the predicate evaluate live against the active decision backend and return agentFunctionResponse without clearing the form: concrete steps pass, vague complaints fail, and rapid bursts trigger SessionRateLimiter.',
+        body: 'Serves an interactive v1.0 form (pick Bug Report, Product Feedback, or Refund Request below) whose TextField @checks rule invokes a server-side decision predicate via callAgentFunction. Edit the text box to watch the predicate evaluate live against the active decision backend and return agentFunctionResponse without clearing the form.',
       },
       express: {
         title: 'Express Mode (LLM Baseline)',
@@ -60,32 +60,50 @@ export const playgroundConfig: AppConfig = {
     {
       label: 'Host Health',
       message: '/tool host',
-      title: 'Binder mode: render server health metrics (0 LLM calls, redacts apiKey)',
+      title: 'Render server health metrics (redacts apiKey in binder/cascade)',
+      modes: ['cascade', 'binder', 'express', 'direct'],
     },
     {
       label: 'Ski Resorts',
       message: '/tool resort',
-      title: 'Binder mode: render mountain resort list directly (0 LLM calls)',
+      title: 'Render mountain resort snow report',
+      modes: ['cascade', 'binder', 'express', 'direct'],
     },
     {
       label: 'Transfer Quote',
       message: '/tool transfer',
-      title: 'Binder mode: render wire transfer confirmation directly (0 LLM calls)',
+      title: 'Render wire transfer confirmation summary',
+      modes: ['cascade', 'binder', 'express', 'direct'],
     },
     {
       label: 'Playback Settings',
       message: '/tool settings',
-      title: 'Binder mode: render editable settings form directly (0 LLM calls)',
+      title: 'Render editable playback settings panel',
+      modes: ['cascade', 'binder', 'express', 'direct'],
     },
     {
       label: 'Order Details',
       message: '/tool order',
-      title: 'Binder mode: render order status card directly (0 LLM calls)',
+      title: 'Render order status and delivery estimate',
+      modes: ['cascade', 'binder', 'express', 'direct'],
     },
     {
-      label: 'Bug Report Form (RPC)',
+      label: 'Bug Report',
       message: '/form bug',
-      title: 'RPC mode: render v1.0 form validated via callAgentFunction decision predicate',
+      title: 'Validate bug reproduction steps via is_specific_bug_report',
+      modes: ['rpc'],
+    },
+    {
+      label: 'Product Feedback',
+      message: '/form feedback',
+      title: 'Validate constructive feedback via is_polite_feedback',
+      modes: ['rpc'],
+    },
+    {
+      label: 'Refund Request',
+      message: '/form refund',
+      title: 'Validate refund eligibility via is_valid_refund_reason',
+      modes: ['rpc'],
     },
   ],
 };

@@ -24,6 +24,8 @@ export interface QuickAction {
   message: string;
   /** Optional tooltip text. */
   title?: string;
+  /** Optional list of active playground modes in which this button is shown. */
+  modes?: string[];
 }
 
 /**

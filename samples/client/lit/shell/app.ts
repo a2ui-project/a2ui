@@ -1409,7 +1409,9 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
    * @return The quick actions bar template, or `nothing`.
    */
   #maybeRenderQuickActions() {
-    const actions = this.config.quickActions;
+    const actions = this.config.quickActions?.filter(
+      action => !action.modes || action.modes.includes(this._activeMode),
+    );
     if (!actions?.length || this._isLocalMode) return nothing;
     const clearsSurfaces = this.config.clearSurfacesOnResponse ?? true;
     if (this._requesting && clearsSurfaces) return nothing;
