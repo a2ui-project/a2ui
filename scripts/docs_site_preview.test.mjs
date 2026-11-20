@@ -32,6 +32,7 @@ import reconcileDocsSitePreviews, {
   PREVIEW_COMMENT_MARKER,
   resolveWorkflowRunPr,
   runCli,
+  sanitizePreviewHtml,
   stagePreviewBundle,
   syncGhPagesPreviewTree,
   validateSiteDirectory,
@@ -58,37 +59,96 @@ describe('docs_site_preview', () => {
     fs.rmSync(tmpDir, {recursive: true, force: true});
   });
 
-  describe('injectNoindexMeta', () => {
+  describe('injectNoindexMeta & sanitizePreviewHtml', () => {
     it('inserts noindex meta tag before </head>', () => {
       const html = '<!doctype html><html><head><title>A2UI</title></head><body>Hi</body></html>';
       const out = injectNoindexMeta(html);
       assert.match(out, /<meta name="robots" content="noindex, nofollow">\n<\/head>/);
     });
 
-    it('preserves existing robots meta tag without duplicating', () => {
-      const html =
-        '<html><head><meta name="robots" content="noindex"><title>A2UI</title></head></html>';
-      assert.equal(injectNoindexMeta(html), html);
+    it('replaces any existing robots meta tag (quoted, unquoted, reversed, or index, follow) without duplicating', () => {
+      for (const rawMeta of [
+        '<meta name="robots" content="noindex">',
+        '<meta name="robots" content="index, follow">',
+        '<meta content="all" name=\'ROBOTS\'/>',
+        '<meta name=robots content=index>',
+        '<meta name="robots" content="index"><meta name="robots" content="follow">',
+      ]) {
+        const html = `<html><head>${rawMeta}<title>A2UI</title></head></html>`;
+        const out = injectNoindexMeta(html);
+        const matches = out.match(/<meta\b[^>]*\bname\s*=\s*["']?robots["']?[^>]*>/gi) || [];
+        assert.deepEqual(matches, ['<meta name="robots" content="noindex, nofollow">']);
+      }
+    });
+
+    it('injects noindex, nofollow into headless Astro redirect HTML stubs', () => {
+      const redirectStub =
+        '<!doctype html><title>Redirecting</title><meta http-equiv="refresh" content="0;url=/pr-preview/pr-42/quickstart/"><meta name="robots" content="noindex"><body><a href="/pr-preview/pr-42/quickstart/">Redirect</a></body>';
+      const out = injectNoindexMeta(redirectStub);
+      const matches = out.match(/<meta\b[^>]*\bname\s*=\s*["']?robots["']?[^>]*>/gi) || [];
+      assert.deepEqual(matches, ['<meta name="robots" content="noindex, nofollow">']);
+      assert.ok(out.indexOf('noindex, nofollow') < out.indexOf('<body>'));
+    });
+
+    it('strips canonical and sitemap <link> tags while preserving stylesheets, icons, scripts, templates, and comments', () => {
+      const html = [
+        '<!doctype html><html><head>',
+        '  <link rel="canonical" href="https://a2ui.org/pr-preview/pr-42/quickstart/">',
+        '  <link href="https://a2ui.org/pr-preview/pr-42/other/" rel="canonical"/>',
+        '  <link rel=sitemap href=/pr-preview/pr-42/sitemap-index.xml>',
+        '  <link rel="stylesheet" href="/pr-preview/pr-42/_astro/main.css">',
+        '  <link rel="icon" href="/pr-preview/pr-42/assets/favicon.svg">',
+        '  <link rel="alternate" type="text/markdown" href="/pr-preview/pr-42/llms.txt">',
+        '  <meta name="robots" content="index, follow">',
+        '  <!-- <link rel="canonical" href="https://keep-comment.example/"> -->',
+        '  <template><link rel="canonical" href="https://keep-template.example/"></template>',
+        '  <script>const snippet = \'<link rel="canonical" href="https://keep-script.example/"><meta name="robots" content="index">\';</script>',
+        '</head><body></body></html>',
+      ].join('\n');
+
+      const out = sanitizePreviewHtml(html);
+      assert.doesNotMatch(out, /pr-preview\/pr-42\/quickstart/);
+      assert.doesNotMatch(out, /pr-preview\/pr-42\/other/);
+      assert.doesNotMatch(out, /sitemap-index\.xml/);
+      assert.doesNotMatch(out, /index,\s*follow/);
+      assert.match(out, /<meta name="robots" content="noindex, nofollow">/);
+      assert.match(out, /rel="stylesheet"/);
+      assert.match(out, /rel="icon"/);
+      assert.match(out, /rel="alternate"/);
+      assert.match(out, /keep-comment\.example/);
+      assert.match(out, /keep-template\.example/);
+      assert.match(out, /keep-script\.example/);
     });
   });
 
   describe('stagePreviewBundle & validateSiteDirectory', () => {
-    it('stages dist/, strips CNAME and .nojekyll, injects noindex, and writes pr-metadata.json', () => {
+    it('stages dist/, strips CNAME/.nojekyll/robots.txt/sitemaps, strips canonical & sitemap links, enforces noindex, and writes pr-metadata.json', () => {
       const distDir = path.join(tmpDir, 'dist');
       const outDir = path.join(tmpDir, 'bundle');
 
       writeFile(
         distDir,
         'index.html',
-        '<html><head><title>Home</title></head><body></body></html>',
+        '<html><head><title>Home</title><link rel="canonical" href="https://a2ui.org/pr-preview/pr-4055/"><link rel="sitemap" href="/pr-preview/pr-4055/sitemap-index.xml"></head><body></body></html>',
       );
       writeFile(
         distDir,
         'quickstart/index.html',
-        '<html><head><title>Quickstart</title></head><body></body></html>',
+        '<html><head><meta name="robots" content="index, follow"><link href="https://a2ui.org/pr-preview/pr-4055/quickstart/" rel="canonical"/><title>Quickstart</title></head><body></body></html>',
+      );
+      writeFile(
+        distDir,
+        'actions/index.html',
+        '<!doctype html><title>Redirecting</title><meta http-equiv="refresh" content="0;url=/pr-preview/pr-4055/concepts/actions-and-functions/"><meta name="robots" content="noindex"><link rel="canonical" href="https://a2ui.org/pr-preview/pr-4055/concepts/actions-and-functions/"><body></body>',
       );
       writeFile(distDir, 'CNAME', 'a2ui.org\n');
       writeFile(distDir, '.nojekyll', '');
+      writeFile(distDir, 'robots.txt', 'User-agent: *\nAllow: /\n');
+      writeFile(distDir, 'sitemap.xml', '<urlset/>');
+      writeFile(distDir, 'sitemap.xml.gz', 'gz');
+      writeFile(distDir, 'sitemap-index.xml', '<sitemapindex/>');
+      writeFile(distDir, 'sitemap-0.xml', '<urlset/>');
+      writeFile(distDir, 'nested/sitemap-extra.xml', '<urlset/>');
 
       const metadata = stagePreviewBundle({
         distDir,
@@ -98,11 +158,30 @@ describe('docs_site_preview', () => {
       });
 
       assert.deepEqual(metadata, {pr_number: 4055, head_sha: SHA_A});
-      assert.equal(fs.existsSync(path.join(outDir, 'site/CNAME')), false);
-      assert.equal(fs.existsSync(path.join(outDir, 'site/.nojekyll')), false);
+      for (const removedRel of [
+        'CNAME',
+        '.nojekyll',
+        'robots.txt',
+        'sitemap.xml',
+        'sitemap.xml.gz',
+        'sitemap-index.xml',
+        'sitemap-0.xml',
+        'nested/sitemap-extra.xml',
+      ]) {
+        assert.equal(
+          fs.existsSync(path.join(outDir, 'site', removedRel)),
+          false,
+          `Expected ${removedRel} to be stripped from staged preview`,
+        );
+      }
 
-      const stagedHome = fs.readFileSync(path.join(outDir, 'site/index.html'), 'utf8');
-      assert.match(stagedHome, /<meta name="robots" content="noindex, nofollow">/);
+      for (const htmlRel of ['index.html', 'quickstart/index.html', 'actions/index.html']) {
+        const stagedHtml = fs.readFileSync(path.join(outDir, 'site', htmlRel), 'utf8');
+        assert.match(stagedHtml, /<meta name="robots" content="noindex, nofollow">/);
+        assert.doesNotMatch(stagedHtml, /rel=["']?canonical["']?/i);
+        assert.doesNotMatch(stagedHtml, /rel=["']?sitemap["']?/i);
+        assert.doesNotMatch(stagedHtml, /index,\s*follow/i);
+      }
       const stagedMeta = JSON.parse(fs.readFileSync(path.join(outDir, 'pr-metadata.json'), 'utf8'));
       assert.deepEqual(stagedMeta, {pr_number: 4055, head_sha: SHA_A});
     });

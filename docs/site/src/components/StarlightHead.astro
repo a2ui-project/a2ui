@@ -1,0 +1,101 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+import Default from '@astrojs/starlight/components/Head.astro';
+import config from 'virtual:starlight/user-config';
+
+import {DEFAULT_OG_IMAGE_PATH, DEFAULT_SITE_ORIGIN, GOOGLE_FONTS_URL} from '../lib/seo.mjs';
+import {normalizeBasePrefix} from '../lib/spec-schemas.mjs';
+
+const {entry, lang, siteTitle} = Astro.locals.starlightRoute;
+const {data} = entry;
+
+const base = normalizeBasePrefix(import.meta.env.BASE_URL);
+const is404 = entry.id === '404' || entry.slug === '404';
+const shouldNoindex = is404 || Boolean(base);
+
+const siteUrl = Astro.site ?? new URL(DEFAULT_SITE_ORIGIN);
+const description = data.description || config.description;
+const ogImageHref = new URL(`${base}${DEFAULT_OG_IMAGE_PATH}`, siteUrl).href;
+const faviconHref = `${base}${config.favicon.href.startsWith('/') ? '' : '/'}${config.favicon.href}`;
+
+type HeadEntry = {
+  tag: string;
+  attrs?: Record<string, string | boolean | undefined>;
+  content?: string;
+};
+
+const userHeadEntries: HeadEntry[] = [...(config.head ?? []), ...(data.head ?? [])];
+const hasCustomOgImage = userHeadEntries.some(
+  item => item.tag === 'meta' && item.attrs?.property === 'og:image',
+);
+const hasCustomTwitterImage = userHeadEntries.some(
+  item => item.tag === 'meta' && item.attrs?.name === 'twitter:image',
+);
+
+const filteredNoindexHeadEntries = userHeadEntries.filter(item => {
+  if (item.tag === 'link') {
+    const rel = String(item.attrs?.rel ?? '').toLowerCase();
+    if (rel === 'canonical' || rel === 'sitemap') return false;
+  }
+  if (item.tag === 'meta') {
+    const prop = String(item.attrs?.property ?? '').toLowerCase();
+    const name = String(item.attrs?.name ?? '').toLowerCase();
+    if (prop === 'og:url' || name === 'robots') return false;
+  }
+  return true;
+});
+---
+
+{
+  shouldNoindex ? (
+    <>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>{`${data.title} ${config.titleDelimiter} ${siteTitle}`}</title>
+      <meta name="robots" content="noindex, nofollow" />
+      {description && <meta name="description" content={description} />}
+      <meta name="generator" content={Astro.generator} />
+      <link rel="shortcut icon" href={faviconHref} type={config.favicon.type} />
+      <meta property="og:title" content={data.title} />
+      <meta property="og:type" content="article" />
+      <meta property="og:locale" content={lang} />
+      {description && <meta property="og:description" content={description} />}
+      <meta property="og:site_name" content={siteTitle} />
+      {!hasCustomOgImage && <meta property="og:image" content={ogImageHref} />}
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={data.title} />
+      {description && <meta name="twitter:description" content={description} />}
+      {!hasCustomTwitterImage && <meta name="twitter:image" content={ogImageHref} />}
+      {filteredNoindexHeadEntries.map(({tag: Tag, attrs = {}, content = ''}) => (
+        <Tag {...attrs} set:html={content} />
+      ))}
+    </>
+  ) : (
+    <>
+      <Default>
+        <slot />
+      </Default>
+      {!hasCustomOgImage && <meta property="og:image" content={ogImageHref} />}
+      <meta name="twitter:title" content={data.title} />
+      {description && <meta name="twitter:description" content={description} />}
+      {!hasCustomTwitterImage && <meta name="twitter:image" content={ogImageHref} />}
+    </>
+  )
+}
+<link rel="preload" as="style" href={GOOGLE_FONTS_URL} />
+<link rel="stylesheet" href={GOOGLE_FONTS_URL} media="print" onload="this.media='all'" />
+<noscript><link rel="stylesheet" href={GOOGLE_FONTS_URL} /></noscript>

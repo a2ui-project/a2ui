@@ -46,17 +46,20 @@ function walkFiles(dir, suffix, out = []) {
   return out.sort();
 }
 
-test('injectGoogleAnalyticsHead injects gtag.js into <head>, is idempotent, and skips redirects', () => {
+test('injectGoogleAnalyticsHead injects deferred gtag.js into <head>, is idempotent, and skips redirects', () => {
   assert.equal(DEFAULT_GA_MEASUREMENT_ID, EXPECTED_GA_ID);
 
   const pageHtml = '<!doctype html><html><head><title>Test</title></head><body>Hi</body></html>';
   const injected = injectGoogleAnalyticsHead(pageHtml, EXPECTED_GA_ID);
   assert.match(
     injected,
-    new RegExp(
-      `<script async src="https://www\\.googletagmanager\\.com/gtag/js\\?id=${EXPECTED_GA_ID}"></script>`,
-    ),
+    new RegExp(`https://www\\.googletagmanager\\.com/gtag/js\\?id=${EXPECTED_GA_ID}`),
   );
+  assert.doesNotMatch(
+    injected,
+    /<script\b[^>]*\bsrc\s*=\s*["']https:\/\/www\.googletagmanager\.com\/gtag\/js/i,
+  );
+  assert.match(injected, /requestIdleCallback/);
   assert.match(injected, new RegExp(`gtag\\('config', '${EXPECTED_GA_ID}'\\);`));
   assert.ok(injected.indexOf('googletagmanager.com') < injected.indexOf('</head>'));
 

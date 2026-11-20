@@ -19,6 +19,7 @@ import CopilotKitLogo from '../components/CopilotKitLogo.astro';
 import GenUiSpectrum from '../components/GenUiSpectrum.astro';
 import HeroChatGeneration from '../components/HeroChatGeneration.astro';
 import HeroFormFactors from '../components/HeroFormFactors.astro';
+import MarketingHead from '../components/MarketingHead.astro';
 import RendererLogo from '../components/RendererLogo.astro';
 import StarlightHeader from '../components/StarlightHeader.astro';
 import TeamLogo from '../components/TeamLogo.astro';
@@ -29,41 +30,11 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 <!doctype html>
 <html lang="en" data-theme="light">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>A2UI — Build delightful, fast, reliable agentic experiences</title>
-    <meta
-      name="description"
-      content="An open-source generative UI framework with an agent-optimized streaming protocol, native web and mobile renderers, and multi-language agent SDKs."
+    <MarketingHead
+      title="A2UI — Build delightful, fast, reliable agentic experiences"
+      description="An open-source generative UI framework with an agent-optimized streaming protocol, native web and mobile renderers, and multi-language agent SDKs."
+      includeWebSiteJsonLd
     />
-    <link rel="icon" type="image/svg+xml" href={`${base}/assets/favicon.svg`} />
-    <link
-      rel="alternate"
-      type="text/markdown"
-      href={`${base}/llms.txt`}
-      title="A2UI documentation index for LLMs"
-    />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Playfair+Display:ital,wght@0,400..700;1,400..700&display=swap"
-      rel="stylesheet"
-    />
-    <script is:inline>
-      (() => {
-        try {
-          const saved =
-            localStorage.getItem('starlight-theme') || localStorage.getItem('a2ui-theme');
-          if (saved === 'dark' || saved === 'light') {
-            document.documentElement.setAttribute('data-theme', saved);
-          } else {
-            document.documentElement.setAttribute('data-theme', 'light');
-          }
-        } catch (e) {
-          document.documentElement.setAttribute('data-theme', 'light');
-        }
-      })();
-    </script>
   </head>
 
   <body class="a2-page">

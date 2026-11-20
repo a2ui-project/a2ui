@@ -86,6 +86,12 @@ function rewrite(node, manifest, basePrefix) {
         node.properties.height = entry.height;
       }
     }
+    if (node.properties.loading == null) {
+      node.properties.loading = 'lazy';
+    }
+    if (node.properties.decoding == null) {
+      node.properties.decoding = 'async';
+    }
   }
   if (
     (node.type === 'mdxJsxFlowElement' || node.type === 'mdxJsxTextElement') &&
@@ -117,6 +123,20 @@ function rewrite(node, manifest, basePrefix) {
           });
         }
       }
+    }
+    if (!node.attributes.some(attr => attr.name === 'loading')) {
+      node.attributes.push({
+        type: 'mdxJsxAttribute',
+        name: 'loading',
+        value: 'lazy',
+      });
+    }
+    if (!node.attributes.some(attr => attr.name === 'decoding')) {
+      node.attributes.push({
+        type: 'mdxJsxAttribute',
+        name: 'decoding',
+        value: 'async',
+      });
     }
   }
   if (Array.isArray(node.children)) {

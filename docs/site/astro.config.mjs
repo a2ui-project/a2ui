@@ -86,6 +86,8 @@ export default defineConfig({
     '/specification/v0.8-a2a-extension': `${basePrefix}/specification/v1.0-a2ui-extension-specification/`,
     '/specification/v0.8-custom-catalog-changes': `${basePrefix}/specification/v1.0-a2ui/`,
     '/specification/v0.8/schemas': `${basePrefix}/specification/v1.0/schemas/`,
+    '/a2a-extension/a2ui/v1.0': `${basePrefix}/specification/v1.0-a2ui-extension-specification/`,
+    '/a2a-extension/a2ui/v0.9.1': `${basePrefix}/specification/v0.9.1-a2ui-extension-specification/`,
     '/consultants': `${basePrefix}/get-help/#consultants`,
     // Pages from the MkDocs site that blog posts and other sites still link to.
     '/composer': `${basePrefix}/quickstart/#other-fast-paths`,
@@ -123,6 +125,8 @@ export default defineConfig({
   },
   integrations: [
     googleAnalytics('G-YX9TPV8DCC'),
+    // Suppress @astrojs/sitemap on subpath (ASTRO_BASE) preview builds.
+    ...(basePrefix ? [{name: '@astrojs/sitemap', hooks: {}}] : []),
     starlight({
       title: 'A2UI',
       description:
@@ -155,13 +159,6 @@ export default defineConfig({
         {
           tag: 'link',
           attrs: {
-            rel: 'stylesheet',
-            href: 'https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,400..700;1,400..700&display=swap',
-          },
-        },
-        {
-          tag: 'link',
-          attrs: {
             rel: 'alternate',
             type: 'text/markdown',
             href: `${basePrefix}/llms.txt`,
@@ -170,6 +167,7 @@ export default defineConfig({
         },
       ],
       components: {
+        Head: './src/components/StarlightHead.astro',
         Header: './src/components/StarlightHeader.astro',
       },
       customCss: ['./src/styles/tokens.css', './src/styles/custom.css'],
