@@ -482,7 +482,7 @@ class _Slot {
   final CatalogSchemaHelper helper;
 
   /// Whether the slot takes an action.
-  bool get holdsAction => isAction(schema);
+  bool get holdsAction => helper.isAction(schema);
 
   /// The slot of the items of an array, or null when the schema declares
   /// none.

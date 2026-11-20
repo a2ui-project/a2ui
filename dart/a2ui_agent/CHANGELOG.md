@@ -3,6 +3,13 @@
 ## Unreleased
 
 - **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.10.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
+- Express finds actions that a catalog declares inside `allOf`, `oneOf` or
+  `anyOf`, behind a `$ref` or through a local `$defs` alias, also next to
+  `additionalProperties`. `ExpressCompiler` now compiles a function call there
+  to a `functionCall` action, `ExpressDecompiler` writes it back as a call, and
+  `ExpressPromptGenerator` marks the property `(action)`
+  ([#3724](https://github.com/a2ui-project/a2ui/issues/3724),
+  [#4330](https://github.com/a2ui-project/a2ui/pull/4330)).
 
 ## 0.4.0
 

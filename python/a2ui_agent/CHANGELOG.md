@@ -1,5 +1,11 @@
 ## Unreleased
 
+- The Express compiler finds an action declared inside `allOf`, `oneOf` or
+  `anyOf`, or behind a `$ref`, next to `additionalProperties`, so a function
+  call there now compiles to a `functionCall` action
+  ([#3724](https://github.com/a2ui-project/a2ui/issues/3724),
+  [#4330](https://github.com/a2ui-project/a2ui/pull/4330)).
+
 ## 0.12.0 (2026-11-17)
 
 - **BREAKING CHANGE**: (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`,

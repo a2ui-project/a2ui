@@ -809,6 +809,103 @@ void main() {
       );
     });
 
+    test('a functionCall in a slot whose definition refers to Action', () {
+      // A recursive definition is only inlined two levels deep, so the third
+      // level still reaches its action through the MenuAction alias.
+      final CatalogApi menu = Catalog.fromJson({
+        'catalogId': 'https://example.com/menu.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'Menu': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'Menu'},
+              'entries': {
+                'type': 'array',
+                'items': {r'$ref': r'#/$defs/MenuEntry'},
+              },
+            },
+            'required': ['component', 'entries'],
+          },
+        },
+        'functions': {
+          'openUrl': {
+            'type': 'object',
+            'returnType': 'void',
+            'properties': {
+              '@call': {'const': 'openUrl'},
+              'args': {
+                'type': 'object',
+                'properties': {
+                  'url': {'type': 'string'},
+                },
+                'required': ['url'],
+              },
+            },
+            'required': ['@call', 'args'],
+          },
+        },
+        r'$defs': {
+          'MenuEntry': {
+            'type': 'object',
+            'properties': {
+              'label': {'type': 'string'},
+              'action': {r'$ref': r'#/$defs/MenuAction'},
+              'submenu': {
+                'type': 'array',
+                'items': {r'$ref': r'#/$defs/MenuEntry'},
+              },
+            },
+            'required': ['label'],
+          },
+          'MenuAction': {r'$ref': r'common_types.json#/$defs/Action'},
+        },
+      });
+      final String written = ExpressDecompiler([menu]).decompile([
+        AgentToRendererMessage.fromJson({
+          'version': '1.0',
+          'createSurface': {
+            'surfaceId': 's1',
+            'catalogId': menu.id,
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Menu',
+                'entries': [
+                  {
+                    'label': 'Help',
+                    'submenu': [
+                      {
+                        'label': 'Guides',
+                        'submenu': [
+                          {
+                            'label': 'Docs',
+                            'action': {
+                              'functionCall': {
+                                '@call': 'openUrl',
+                                'args': {'url': 'https://a2ui.org'},
+                              },
+                            },
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      ]);
+      expect(
+        written,
+        contains(
+          'root = Menu([{label: "Help", submenu: [{label: "Guides", '
+          'submenu: [{label: "Docs", action: openUrl("https://a2ui.org")}]}]}])',
+        ),
+      );
+    });
+
     test('an event with a userMessage as a map literal before v1.0', () {
       // v0.9 has no userMessage and its compiler rejects `userMessage=`, so
       // the object stays data that compiles back as written.

@@ -38,7 +38,6 @@ from a2ui.inference_formats._shared import (
     catalogs_defining,
     catalogs_protocol_version,
     check_mixed_catalogs,
-    is_action_slot,
     surface_catalog_id,
     to_message_models,
 )
@@ -130,6 +129,11 @@ def _property_slot(slot: _ValueSlot | None, name: str) -> _ValueSlot | None:
         return None
     schema = slot.helper.resolve_property_schema(slot.schema, name)
     return _ValueSlot(schema, slot.helper) if schema else None
+
+
+def _holds_action(slot: _ValueSlot | None) -> bool:
+    """Whether a value slot takes an action."""
+    return slot is not None and slot.helper.is_action_slot(slot.schema)
 
 
 def _schema_ref_type(schema: Any) -> str | None:
@@ -2097,7 +2101,7 @@ class ExpressCompiler:
                 arg,
                 raw_symbols,
                 ctx,
-                is_action=is_action_slot(prop_schema),
+                is_action=comp_helper.is_action_slot(prop_schema),
                 parent_id=comp_id,
                 parent_prop=prop_name,
                 allow_component_ref=(prop_type == "Child"),
@@ -2457,9 +2461,7 @@ class ExpressCompiler:
                         entry_ref_type = "Child"
                     elif k == "children":
                         entry_ref_type = "ChildList"
-                entry_is_action = is_action or (
-                    entry_slot is not None and is_action_slot(entry_slot.schema)
-                )
+                entry_is_action = is_action or _holds_action(entry_slot)
                 dict_res[k] = self._compile_value(
                     v,
                     raw_symbols,
@@ -2479,9 +2481,7 @@ class ExpressCompiler:
             item_ref_type = (
                 _schema_ref_type(item_slot.schema) if item_slot is not None else None
             )
-            item_is_action = is_action or (
-                item_slot is not None and is_action_slot(item_slot.schema)
-            )
+            item_is_action = is_action or _holds_action(item_slot)
             return [
                 self._compile_value(
                     item,

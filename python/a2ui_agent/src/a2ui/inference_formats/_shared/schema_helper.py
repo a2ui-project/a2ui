@@ -72,29 +72,6 @@ def _common_def_name(ref: Any) -> str | None:
     return m.group(1) if m else None
 
 
-def is_action_slot(schema: Any) -> bool:
-    """Checks whether a property schema is an Action slot.
-
-    A property is an action slot when its schema references the common `Action`
-    def, directly or through `oneOf`/`anyOf`/`allOf`.
-
-    Args:
-        schema: The property JSON schema to inspect.
-
-    Returns:
-        True if the schema references the common `Action` type.
-    """
-    if not isinstance(schema, dict):
-        return False
-    if _common_def_name(schema.get("$ref")) == "Action":
-        return True
-    for key in ("allOf", "oneOf", "anyOf"):
-        subs = schema.get(key)
-        if isinstance(subs, list) and any(is_action_slot(sub) for sub in subs):
-            return True
-    return False
-
-
 def _find_enum(s: Any) -> list[Any] | None:
     """Returns the first `enum` list found in a schema or its combinators."""
     if isinstance(s, dict):
@@ -675,11 +652,82 @@ class CatalogSchemaHelper:
         """
         return self._resolve_at(schema, name)
 
+    def is_action_slot(self, schema: Any) -> bool:
+        """Checks whether a property schema is an Action slot.
+
+        A property is an action slot when its schema refers to the common
+        `Action` def, directly, through another definition in the catalog or
+        the common types, or through `oneOf`/`anyOf`/`allOf`.
+
+        Args:
+            schema: The property JSON schema to inspect.
+
+        Returns:
+            True if the schema references the common `Action` type.
+        """
+        visited: set[int] = set()
+
+        def _check(s: Any, in_common_types: bool) -> bool:
+            if not isinstance(s, dict) or id(s) in visited:
+                return False
+            visited.add(id(s))
+
+            ref = s.get("$ref")
+            if isinstance(ref, str):
+                target = self._follow_ref(ref, in_common_types)
+                if target is not None:
+                    common_name, resolved, resolved_in_common_types = target
+                    if common_name == "Action" or _check(
+                        resolved, resolved_in_common_types
+                    ):
+                        return True
+
+            for combinator in ("allOf", "oneOf", "anyOf"):
+                subs = s.get(combinator)
+                if isinstance(subs, list) and any(
+                    _check(sub, in_common_types) for sub in subs
+                ):
+                    return True
+
+            return False
+
+        return _check(schema, False)
+
+    def _follow_ref(
+        self, ref: str, in_common_types: bool
+    ) -> tuple[str | None, Any, bool] | None:
+        """Finds the schema a `$ref` points to.
+
+        A common type, or a local reference made inside the common types, is
+        looked up in the common types, and any other local reference in the
+        catalog.
+
+        Returns:
+            The common type's name if it is one, the schema, and whether the
+            schema is in the common types; or None when the reference points
+            anywhere else.
+        """
+        common_name = _common_def_name(ref)
+        if common_name is None and in_common_types:
+            if ref.startswith("#/$defs/"):
+                common_name = ref[8:]
+            elif ref.startswith("#/definitions/"):
+                common_name = ref[14:]
+        if common_name is not None:
+            return common_name, self._lookup_common_def(common_name), True
+        if ref.startswith("#/"):
+            return None, self._resolve_json_pointer(self.catalog, ref), False
+        return None
+
     def _resolve_at(self, schema: Any, prop: str | None) -> dict[str, Any] | None:
         """Resolves the schema at a property, or at the array items when `prop` is None."""
         visited: set[int] = set()
+        # Keep the first `additionalProperties` as a fallback: it only applies
+        # when no `$ref` or `allOf`/`oneOf`/`anyOf` member declares the property.
+        additional: dict[str, Any] | None = None
 
         def _resolve(s: Any, in_common_types: bool) -> dict[str, Any] | None:
+            nonlocal additional
             if not isinstance(s, dict) or id(s) in visited:
                 return None
             visited.add(id(s))
@@ -693,28 +741,18 @@ class CatalogSchemaHelper:
                 declared = props.get(prop) if isinstance(props, dict) else None
                 if isinstance(declared, dict):
                     return declared
-                additional = s.get("additionalProperties")
-                if isinstance(additional, dict):
-                    return additional
+                more = s.get("additionalProperties")
+                if isinstance(more, dict) and additional is None:
+                    additional = more
 
             ref = s.get("$ref")
             if isinstance(ref, str):
-                def_name = _common_def_name(ref)
-                if def_name:
-                    found = _resolve(self._lookup_common_def(def_name), True)
-                elif in_common_types and (
-                    ref.startswith("#/$defs/") or ref.startswith("#/definitions/")
-                ):
-                    name = ref[8:] if ref.startswith("#/$defs/") else ref[14:]
-                    found = _resolve(self._lookup_common_def(name), True)
-                elif ref.startswith("#/"):
-                    found = _resolve(
-                        self._resolve_json_pointer(self.catalog, ref), False
-                    )
-                else:
-                    found = None
-                if found:
-                    return found
+                target = self._follow_ref(ref, in_common_types)
+                if target is not None:
+                    _, resolved, resolved_in_common_types = target
+                    found = _resolve(resolved, resolved_in_common_types)
+                    if found:
+                        return found
 
             for combinator in ("allOf", "oneOf", "anyOf"):
                 subs = s.get(combinator)
@@ -726,4 +764,5 @@ class CatalogSchemaHelper:
 
             return None
 
-        return _resolve(schema, False)
+        found = _resolve(schema, False)
+        return found if found is not None else additional

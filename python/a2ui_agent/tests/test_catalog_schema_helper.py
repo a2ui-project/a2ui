@@ -333,3 +333,68 @@ def test_custom_properties_named_after_envelope_mixins_are_ordinary(
     assert envelope_helper.get_custom_envelope_properties("Custom") == frozenset(
         {"metadata", "accessibility", "checks", "catalogId"}
     )
+
+
+@pytest.fixture
+def composed_helper() -> CatalogSchemaHelper:
+    catalog = Catalog.from_json({
+        "catalogId": "composed",
+        "protocolVersion": "1.0",
+        "components": {
+            "Menu": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "Menu"},
+                    "entry": {"$ref": "#/$defs/MenuEntry"},
+                },
+                "required": ["component"],
+            },
+        },
+        "$defs": {
+            "MenuEntry": {
+                "type": "object",
+                "properties": {"action": {"$ref": "#/$defs/MenuAction"}},
+            },
+            "MenuAction": {"$ref": "common_types.json#/$defs/Action"},
+            "Cycle": {"anyOf": [{"$ref": "#/$defs/Cycle"}, {"type": "string"}]},
+        },
+    })
+    return CatalogSchemaHelper(catalog)
+
+
+def test_property_behind_all_of_or_ref_comes_before_additional_properties(
+    composed_helper,
+):
+    action = {"$ref": "common_types.json#/$defs/Action"}
+    extra = {"type": "string"}
+
+    composed = {
+        "allOf": [{"properties": {"action": action}}],
+        "additionalProperties": extra,
+    }
+    assert composed_helper.resolve_property_schema(composed, "action") == action
+    assert composed_helper.resolve_property_schema(composed, "tooltip") == extra
+
+    referenced = {"$ref": "#/$defs/MenuEntry", "additionalProperties": extra}
+    assert composed_helper.resolve_property_schema(referenced, "action") == action
+    assert composed_helper.resolve_property_schema(referenced, "tooltip") == extra
+
+
+def test_action_slot_through_local_definitions_and_combinators(composed_helper):
+    assert composed_helper.is_action_slot({"$ref": "#/$defs/MenuAction"})
+    assert composed_helper.is_action_slot(
+        {"allOf": [{"$ref": "#/$defs/MenuAction"}], "description": "On long press."}
+    )
+    assert not composed_helper.is_action_slot({"$ref": "#/$defs/MenuEntry"})
+    assert not composed_helper.is_action_slot({"$ref": "#/$defs/Cycle"})
+
+
+def test_action_slot_through_a_local_alias_inside_the_common_types(
+    composed_helper,
+):
+    defs = composed_helper.common_types["$defs"]
+    composed_helper.common_types = {
+        **composed_helper.common_types,
+        "$defs": {**defs, "Handler": {"$ref": "#/$defs/Action"}},
+    }
+    assert composed_helper.is_action_slot({"$ref": "common_types.json#/$defs/Handler"})

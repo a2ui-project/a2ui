@@ -972,6 +972,82 @@
                     args:
                       url: "https://a2ui.org"
 
+- name: test_compile_express_function_call_in_action_slot_declared_beside_additional_properties
+  description: A list item that declares its action in an allOf member still has an action slot there, even with additionalProperties next to it, since additionalProperties only covers the fields nothing else declares.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/action_slot_schemas_catalog_v1_0.json"
+  input: |-
+    root = Menu([{label: "Docs", action: openUrl("https://a2ui.org")}])
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/action_slot_schemas"
+        components:
+          - id: "root"
+            component: "Menu"
+            entries:
+              - label: "Docs"
+                action:
+                  functionCall:
+                    "@call": "openUrl"
+                    args:
+                      url: "https://a2ui.org"
+
+- name: test_compile_express_function_call_in_action_slot_through_local_definition
+  description: A slot typed through a local $defs alias of the common Action is an action slot, both at the top level and inside a list item.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/action_slot_schemas_catalog_v1_0.json"
+  input: |-
+    root = Shortcuts([{label: "Docs", action: openUrl("https://a2ui.org")}], primary=openUrl("https://a2ui.org/start"))
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/action_slot_schemas"
+        components:
+          - id: "root"
+            component: "Shortcuts"
+            items:
+              - label: "Docs"
+                action:
+                  functionCall:
+                    "@call": "openUrl"
+                    args:
+                      url: "https://a2ui.org"
+            primary:
+              functionCall:
+                "@call": "openUrl"
+                args:
+                  url: "https://a2ui.org/start"
+
+- name: test_compile_express_function_call_in_action_slot_inside_all_of
+  description: A slot that wraps the common Action in allOf, which is how a schema gives a reference its own description, is an action slot.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/action_slot_schemas_catalog_v1_0.json"
+  input: |-
+    root = Shortcuts([], secondary=openUrl("https://a2ui.org/help"))
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/action_slot_schemas"
+        components:
+          - id: "root"
+            component: "Shortcuts"
+            items: []
+            secondary:
+              functionCall:
+                "@call": "openUrl"
+                args:
+                  url: "https://a2ui.org/help"
+
 - name: test_compile_express_data_model_assignment
   features: [F-AGT-23]
   description: A data path assignment beside a root fills the surface's initial data model.

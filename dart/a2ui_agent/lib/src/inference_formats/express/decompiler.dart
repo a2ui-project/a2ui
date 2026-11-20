@@ -604,7 +604,9 @@ class _Component {
   }
 
   String _value(Object? value, Map<String, Object?>? schema) {
-    if (isAction(schema) && value != null) return _action(value);
+    if ((_helper?.isAction(schema) ?? false) && value != null) {
+      return _action(value);
+    }
     if (isComponentId(schema) && value is String) return _reference(value);
     if (isChildList(schema)) {
       if (value is List && value.every((Object? v) => v is String)) {

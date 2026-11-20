@@ -263,7 +263,7 @@ String _componentSignatures(CatalogSchemaHelper helper) {
       final optional = required.contains(property) ? '' : '?';
       final annotation = isComponentId(schema)
           ? ' (component ID)'
-          : isAction(schema)
+          : helper.isAction(schema)
           ? ' (action)'
           : allowsBinding(schema)
           ? ''

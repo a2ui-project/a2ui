@@ -159,6 +159,10 @@ class CatalogSchemaHelper {
     final Map<Object?, Object?>? defs = defsObj is Map ? defsObj : null;
     // A definition may refer to itself, so each is followed once.
     final visitedRefs = <String>{};
+    // Keep the first `additionalProperties` as a fallback: it only applies
+    // when no `$ref` or `allOf`, `oneOf` or `anyOf` member declares the
+    // property.
+    Map<String, Object?>? additional;
 
     Map<String, Object?>? resolve(Map<String, Object?>? s) {
       if (s == null) return null;
@@ -171,7 +175,7 @@ class CatalogSchemaHelper {
           return found.cast<String, Object?>();
         }
         if (s['additionalProperties'] case final Map<Object?, Object?> more) {
-          return more.cast<String, Object?>();
+          additional ??= more.cast<String, Object?>();
         }
       }
       if (_refName(s) case final String ref when visitedRefs.add(ref)) {
@@ -187,7 +191,33 @@ class CatalogSchemaHelper {
       return null;
     }
 
-    return resolve(schema);
+    return resolve(schema) ?? additional;
+  }
+
+  /// Whether [schema] is an action: an event for the agent, or a local call.
+  ///
+  /// The schema can refer to the common `Action` directly, through another
+  /// definition in [catalog]'s validation schema, or from a member of `allOf`,
+  /// `oneOf` or `anyOf`.
+  bool isAction(Map<String, Object?>? schema) {
+    final Object? defsObj = catalog.validationSchema[r'$defs'];
+    final Map<Object?, Object?>? defs = defsObj is Map ? defsObj : null;
+    // A definition may refer to itself, so each is followed once.
+    final visitedRefs = <String>{};
+
+    bool check(Map<String, Object?> s) {
+      final String? ref = _refName(s);
+      if (ref == 'Action') return true;
+      if (ref != null && visitedRefs.add(ref)) {
+        if (defs?[ref] case final Map<Object?, Object?> target
+            when check(target.cast<String, Object?>())) {
+          return true;
+        }
+      }
+      return _alternatives(s).any(check);
+    }
+
+    return schema != null && check(schema);
   }
 
   /// The component's own description, if its schema has one.
@@ -446,10 +476,6 @@ bool isComponentId(Map<String, Object?>? schema) =>
 bool isChildList(Map<String, Object?>? schema) =>
     schema != null &&
     (_refName(schema) == 'ChildList' || _alternatives(schema).any(isChildList));
-
-/// Whether [schema] is an action: an event for the agent, or a local call.
-bool isAction(Map<String, Object?>? schema) =>
-    schema != null && _refName(schema) == 'Action';
 
 /// The values an enum property admits, or null.
 List<Object?>? enumOf(Map<String, Object?>? schema) {

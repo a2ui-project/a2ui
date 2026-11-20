@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/action_slot_schemas_catalog_v1_0.json",
+  "protocolVersion": "1.0",
+  "title": "Conformance Action Slot Schemas Catalog (v1.0)",
+  "description": "A catalog that declares its actions in an allOf member next to additionalProperties, through a local $defs alias and wrapped in allOf, for testing that an Express function call in each compiles to a functionCall action.",
+  "catalogId": "conformance/action_slot_schemas",
+  "components": {
+    "Menu": {
+      "type": "object",
+      "description": "A menu of entries, each firing an action when chosen.",
+      "properties": {
+        "component": { "const": "Menu" },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "allOf": [
+              {
+                "properties": {
+                  "label": { "type": "string" },
+                  "action": { "$ref": "common_types.json#/$defs/Action" }
+                },
+                "required": ["label", "action"]
+              }
+            ],
+            "additionalProperties": {
+              "description": "Any other field of an entry is passed to the renderer as written."
+            }
+          }
+        }
+      },
+      "required": ["component", "entries"]
+    },
+    "Shortcuts": {
+      "type": "object",
+      "description": "A list of labelled shortcuts, each firing an action when chosen.",
+      "properties": {
+        "component": { "const": "Shortcuts" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string" },
+              "action": { "$ref": "#/$defs/ShortcutAction" }
+            },
+            "required": ["label", "action"]
+          }
+        },
+        "primary": { "$ref": "#/$defs/ShortcutAction" },
+        "secondary": {
+          "allOf": [{ "$ref": "common_types.json#/$defs/Action" }],
+          "description": "Fired on a long press."
+        }
+      },
+      "required": ["component", "items"]
+    }
+  },
+  "functions": {
+    "openUrl": {
+      "type": "object",
+      "description": "Opens a URL.",
+      "returnType": "void",
+      "properties": {
+        "@call": { "const": "openUrl" },
+        "args": {
+          "type": "object",
+          "properties": {
+            "url": { "type": "string" }
+          },
+          "required": ["url"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    }
+  },
+  "$defs": {
+    "ShortcutAction": {
+      "$ref": "common_types.json#/$defs/Action",
+      "description": "What choosing a shortcut does."
+    }
+  }
+}

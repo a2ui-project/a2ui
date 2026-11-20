@@ -24,7 +24,6 @@ import {
   CatalogSchemaHelper,
   commonDefName,
   expectsOptionObjects,
-  isActionSlot,
 } from '../../../../src/inference-formats/express/schema-helper.js';
 import {Catalog} from '../../../../src/internal/web-core.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
@@ -252,18 +251,48 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
             const schema = helper.getPropertySchema(compName, propName);
             if (compName === 'Button' && propName === 'action') {
               expect(
-                isActionSlot(schema),
+                helper.isActionSlot(schema),
                 `Button.action in ${version} should be action slot`,
               ).toBe(true);
             } else {
               expect(
-                isActionSlot(schema),
+                helper.isActionSlot(schema),
                 `${compName}.${propName} in ${version} should not be action slot`,
               ).toBe(false);
             }
           }
         }
       }
+    });
+
+    it('follows local definitions that refer to the common Action, and stops at a cycle', () => {
+      const helper = new CatalogSchemaHelper(
+        Catalog.fromJson({
+          catalogId: 'test_action_aliases',
+          protocolVersion: '1.0',
+          components: {
+            Shortcuts: {
+              type: 'object',
+              properties: {
+                component: {const: 'Shortcuts'},
+                primary: {$ref: '#/$defs/ShortcutAction'},
+                secondary: {$ref: '#/$defs/LongPressAction'},
+              },
+            },
+          },
+          $defs: {
+            ShortcutAction: {$ref: 'common_types.json#/$defs/Action'},
+            LongPressAction: {allOf: [{$ref: '#/$defs/ShortcutAction'}]},
+            Cycle: {anyOf: [{$ref: '#/$defs/Cycle'}, {type: 'string'}]},
+          },
+        }),
+        '1.0',
+      );
+
+      expect(helper.isActionSlot(helper.getPropertySchema('Shortcuts', 'primary'))).toBe(true);
+      expect(helper.isActionSlot(helper.getPropertySchema('Shortcuts', 'secondary'))).toBe(true);
+      expect(helper.isActionSlot({oneOf: [{$ref: '#/$defs/ShortcutAction'}]})).toBe(true);
+      expect(helper.isActionSlot({$ref: '#/$defs/Cycle'})).toBe(false);
     });
   });
 
@@ -397,11 +426,11 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
       const helper = new CatalogSchemaHelper(customCat, '1.0');
 
       const actionSlotSchema = helper.getPropertySchema('CustomComp', 'actionSlot');
-      expect(isActionSlot(actionSlotSchema)).toBe(false);
+      expect(helper.isActionSlot(actionSlotSchema)).toBe(false);
       expect(helper.admitsPath(actionSlotSchema)).toBe(false);
 
       const dynamicFooSchema = helper.getPropertySchema('CustomComp', 'dynamicFoo');
-      expect(isActionSlot(dynamicFooSchema)).toBe(false);
+      expect(helper.isActionSlot(dynamicFooSchema)).toBe(false);
       expect(helper.admitsPath(dynamicFooSchema)).toBe(false);
 
       const withPathSchema = helper.getPropertySchema('CustomComp', 'withPath');
@@ -596,7 +625,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
         'checks',
       ]);
       expect(helper.isCheckable('MaterialButton')).toBe(true);
-      expect(isActionSlot(helper.getPropertySchema('MaterialButton', 'action'))).toBe(true);
+      expect(helper.isActionSlot(helper.getPropertySchema('MaterialButton', 'action'))).toBe(true);
     });
   });
 
@@ -637,6 +666,41 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
 
       expect(helper.resolveItemSchema(null)).toBeUndefined();
       expect(helper.resolvePropertySchema({}, 'nonexistent')).toBeUndefined();
+    });
+
+    it('resolves a property declared behind allOf or $ref before additionalProperties', () => {
+      const helper = new CatalogSchemaHelper(
+        Catalog.fromJson({
+          catalogId: 'test_additional_properties',
+          protocolVersion: '1.0',
+          components: {
+            Menu: {
+              type: 'object',
+              properties: {
+                component: {const: 'Menu'},
+                entry: {$ref: '#/$defs/MenuEntry'},
+              },
+            },
+          },
+          $defs: {
+            MenuEntry: {
+              type: 'object',
+              properties: {action: {$ref: 'common_types.json#/$defs/Action'}},
+            },
+          },
+        }),
+        '1.0',
+      );
+      const action = {$ref: 'common_types.json#/$defs/Action'};
+      const extra = {type: 'string'};
+
+      const composed = {allOf: [{properties: {action}}], additionalProperties: extra};
+      expect(helper.resolvePropertySchema(composed, 'action')).toEqual(action);
+      expect(helper.resolvePropertySchema(composed, 'tooltip')).toEqual(extra);
+
+      const referenced = {$ref: '#/$defs/MenuEntry', additionalProperties: extra};
+      expect(helper.resolvePropertySchema(referenced, 'action')).toEqual(action);
+      expect(helper.resolvePropertySchema(referenced, 'tooltip')).toEqual(extra);
     });
 
     it('reads v0.9.1 schemas with the v0.9 common types', async () => {

@@ -144,32 +144,6 @@ export function getEnvelopeValue(
 }
 
 /**
- * Checks whether a property schema is an Action slot.
- *
- * A property is an action slot when its schema references the common `Action` def,
- * directly or through `oneOf`/`anyOf`/`allOf`.
- *
- * @param schema The property JSON schema to inspect.
- * @returns True if the schema references the common `Action` type.
- */
-export function isActionSlot(schema: unknown): boolean {
-  if (!schema || typeof schema !== 'object') {
-    return false;
-  }
-  const s = schema as Record<string, unknown>;
-  if (typeof s.$ref === 'string' && commonDefName(s.$ref) === 'Action') {
-    return true;
-  }
-  for (const key of ['allOf', 'oneOf', 'anyOf'] as const) {
-    const list = s[key];
-    if (Array.isArray(list) && list.some(sub => isActionSlot(sub))) {
-      return true;
-    }
-  }
-  return false;
-}
-
-/**
  * Checks if a property's schema expects a list of objects with label/value properties.
  *
  * Ported verbatim from Python's `_schema_expects_option_objects` (compiler.py:124-152).
@@ -1213,6 +1187,79 @@ export class CatalogSchemaHelper {
   }
 
   /**
+   * Checks whether a property schema is an Action slot.
+   *
+   * A property is an action slot when its schema refers to the common `Action` def, directly,
+   * through another definition in the catalog or the common types, or through
+   * `oneOf`/`anyOf`/`allOf`.
+   *
+   * @param schema The property JSON schema to inspect.
+   * @returns True if the schema references the common `Action` type.
+   */
+  isActionSlot(schema: unknown): boolean {
+    const visited = new Set<unknown>();
+
+    const check = (s: unknown, inCommonTypes: boolean): boolean => {
+      if (!s || typeof s !== 'object' || visited.has(s)) {
+        return false;
+      }
+      visited.add(s);
+
+      const obj = s as Record<string, unknown>;
+
+      if (typeof obj.$ref === 'string') {
+        const target = this.followRef(obj.$ref, inCommonTypes);
+        if (
+          target &&
+          (target.commonName === 'Action' || check(target.schema, target.inCommonTypes))
+        ) {
+          return true;
+        }
+      }
+
+      for (const k of ['allOf', 'oneOf', 'anyOf'] as const) {
+        const list = obj[k];
+        if (Array.isArray(list) && list.some(sub => check(sub, inCommonTypes))) {
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    return check(schema, false);
+  }
+
+  /**
+   * Finds the schema a `$ref` points to. A common type, or a local reference made inside the
+   * common types, is looked up in the common types, and any other local reference in the
+   * catalog.
+   *
+   * @returns The schema, the common type's name if it is one, and whether the schema is in the
+   *   common types; or undefined when the reference points anywhere else.
+   */
+  private followRef(
+    ref: string,
+    inCommonTypes: boolean,
+  ): {schema: unknown; commonName?: string; inCommonTypes: boolean} | undefined {
+    let commonName = commonDefName(ref);
+    if (!commonName && inCommonTypes) {
+      if (ref.startsWith('#/$defs/')) {
+        commonName = ref.slice(8);
+      } else if (ref.startsWith('#/definitions/')) {
+        commonName = ref.slice(14);
+      }
+    }
+    if (commonName) {
+      return {schema: this.lookupCommonDef(commonName), commonName, inCommonTypes: true};
+    }
+    if (ref.startsWith('#/')) {
+      return {schema: this.resolveJsonPointer(this.catalog, ref), inCommonTypes: false};
+    }
+    return undefined;
+  }
+
+  /**
    * @param property The property to resolve, or undefined for the array items.
    */
   private resolveAt(
@@ -1220,6 +1267,9 @@ export class CatalogSchemaHelper {
     property: string | undefined,
   ): Record<string, unknown> | undefined {
     const visited = new Set<unknown>();
+    // Keep the first `additionalProperties` as a fallback: it only applies when no `$ref` or
+    // `allOf`/`oneOf`/`anyOf` member declares the property.
+    let additional: Record<string, unknown> | undefined;
 
     const resolve = (s: unknown, inCommonTypes: boolean): Record<string, unknown> | undefined => {
       if (!s || typeof s !== 'object') {
@@ -1245,35 +1295,15 @@ export class CatalogSchemaHelper {
           }
         }
         if (obj.additionalProperties && typeof obj.additionalProperties === 'object') {
-          return obj.additionalProperties as Record<string, unknown>;
+          additional ??= obj.additionalProperties as Record<string, unknown>;
         }
       }
 
       if (typeof obj.$ref === 'string') {
-        const ref = obj.$ref;
-        const defName = commonDefName(ref);
-        if (defName) {
-          const target = this.lookupCommonDef(defName);
-          const found = resolve(target, true);
-          if (found) {
-            return found;
-          }
-        } else if (
-          inCommonTypes &&
-          (ref.startsWith('#/$defs/') || ref.startsWith('#/definitions/'))
-        ) {
-          const name = ref.startsWith('#/$defs/') ? ref.slice(8) : ref.slice(14);
-          const target = this.lookupCommonDef(name);
-          const found = resolve(target, true);
-          if (found) {
-            return found;
-          }
-        } else if (ref.startsWith('#/')) {
-          const target = this.resolveJsonPointer(this.catalog, ref);
-          const found = resolve(target, false);
-          if (found) {
-            return found;
-          }
+        const target = this.followRef(obj.$ref, inCommonTypes);
+        const found = target && resolve(target.schema, target.inCommonTypes);
+        if (found) {
+          return found;
         }
       }
 
@@ -1292,6 +1322,6 @@ export class CatalogSchemaHelper {
       return undefined;
     };
 
-    return resolve(schema, false);
+    return resolve(schema, false) ?? additional;
   }
 }

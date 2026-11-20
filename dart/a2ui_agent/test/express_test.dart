@@ -1599,6 +1599,148 @@ surface("s1")
       );
     });
 
+    test(
+      'looks up an action declared in allOf before additionalProperties',
+      () {
+        final CatalogApi menu = Catalog.fromJson({
+          'catalogId': 'https://example.com/menu.json',
+          'protocolVersion': '1.0',
+          'components': {
+            'Menu': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Menu'},
+                'entries': {
+                  'type': 'array',
+                  'items': {
+                    'type': 'object',
+                    'allOf': [
+                      {
+                        'properties': {
+                          'label': {'type': 'string'},
+                          'action': {
+                            r'$ref': r'common_types.json#/$defs/Action',
+                          },
+                        },
+                      },
+                    ],
+                    // Any other field of an entry.
+                    'additionalProperties': {
+                      'description': 'Passed as written.',
+                    },
+                  },
+                },
+              },
+              'required': ['component', 'entries'],
+            },
+          },
+          'functions': {'openUrl': openUrlFunction},
+        });
+        expect(
+          rootOf(
+            menu,
+            'root = Menu([{label: "Docs", action: openUrl("https://a2ui.org"), '
+            'tooltip: "Read the docs"}])',
+          )['entries'],
+          [
+            {
+              'label': 'Docs',
+              'action': wrappedOpenUrl,
+              'tooltip': 'Read the docs',
+            },
+          ],
+        );
+      },
+    );
+
+    test('finds an action wrapped in allOf', () {
+      final CatalogApi button = Catalog.fromJson({
+        'catalogId': 'https://example.com/button.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'IconButton': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'IconButton'},
+              'onLongPress': {
+                'allOf': [
+                  {r'$ref': r'common_types.json#/$defs/Action'},
+                ],
+                'description': 'Fired on a long press.',
+              },
+            },
+            'required': ['component'],
+          },
+        },
+        'functions': {'openUrl': openUrlFunction},
+      });
+      expect(
+        rootOf(
+          button,
+          'root = IconButton(onLongPress=openUrl("https://a2ui.org"))',
+        )['onLongPress'],
+        wrappedOpenUrl,
+      );
+    });
+
+    test('follows a local definition that refers to Action', () {
+      // A recursive definition is only inlined two levels deep, so the third
+      // level still reaches its action through the MenuAction alias.
+      final CatalogApi menu = Catalog.fromJson({
+        'catalogId': 'https://example.com/menu.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'Menu': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'Menu'},
+              'entries': {
+                'type': 'array',
+                'items': {r'$ref': r'#/$defs/MenuEntry'},
+              },
+            },
+            'required': ['component', 'entries'],
+          },
+        },
+        'functions': {'openUrl': openUrlFunction},
+        r'$defs': {
+          'MenuEntry': {
+            'type': 'object',
+            'properties': {
+              'label': {'type': 'string'},
+              'action': {r'$ref': r'#/$defs/MenuAction'},
+              'submenu': {
+                'type': 'array',
+                'items': {r'$ref': r'#/$defs/MenuEntry'},
+              },
+            },
+            'required': ['label'],
+          },
+          'MenuAction': {r'$ref': r'common_types.json#/$defs/Action'},
+        },
+      });
+      expect(
+        rootOf(
+          menu,
+          'root = Menu([{label: "Help", submenu: [{label: "Guides", '
+          'submenu: [{label: "Docs", action: openUrl("https://a2ui.org")}]}]}])',
+        )['entries'],
+        [
+          {
+            'label': 'Help',
+            'submenu': [
+              {
+                'label': 'Guides',
+                'submenu': [
+                  {'label': 'Docs', 'action': wrappedOpenUrl},
+                ],
+              },
+            ],
+          },
+        ],
+      );
+    });
+
     test('keeps a function call outside an action slot as a plain call', () {
       expect(
         items(

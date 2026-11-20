@@ -56,7 +56,6 @@ import {
   CatalogSchemaHelper,
   envelopeKey,
   expectsOptionObjects,
-  isActionSlot,
   type ReservedKeys,
 } from './schema-helper.js';
 import {
@@ -181,6 +180,13 @@ function itemSlot(slot: ValueSlot | undefined): ValueSlot | undefined {
 function propertySlot(slot: ValueSlot | undefined, name: string): ValueSlot | undefined {
   const schema = slot?.schema ? slot.helper.resolvePropertySchema(slot.schema, name) : undefined;
   return schema && slot ? {schema, helper: slot.helper} : undefined;
+}
+
+/**
+ * Whether a value slot takes an action.
+ */
+function holdsAction(slot: ValueSlot | undefined): boolean {
+  return slot ? slot.helper.isActionSlot(slot.schema) : false;
 }
 
 /**
@@ -2258,7 +2264,7 @@ export class ExpressCompiler {
       const propSchema = compHelper.getPropertySchema(compName, propName);
       const propType = resolvePropertyType(compHelper, propName, propSchema);
       // Sanctioned departure §5.2 item 1: action slot via isActionSlot
-      const isAction = isActionSlot(propSchema);
+      const isAction = compHelper.isActionSlot(propSchema);
 
       let mappedVal = this._compileValue(
         arg,
@@ -2829,7 +2835,7 @@ export class ExpressCompiler {
     if (Array.isArray(val)) {
       // Resolved once for the array, since every item shares the schema.
       const itemsSlot = itemSlot(slot);
-      const itemIsAction = isAction || isActionSlot(itemsSlot?.schema);
+      const itemIsAction = isAction || holdsAction(itemsSlot);
       const itemPropType = itemsSlot
         ? resolvePropertyType(
             itemsSlot.helper,
@@ -2927,7 +2933,7 @@ export class ExpressCompiler {
     const dictRes: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(entries)) {
       const entrySlot = propertySlot(slot, k);
-      const entryIsAction = isAction || isActionSlot(entrySlot?.schema);
+      const entryIsAction = isAction || holdsAction(entrySlot);
       const entryPropType = entrySlot
         ? resolvePropertyType(
             entrySlot.helper,
