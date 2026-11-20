@@ -32,8 +32,23 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<TextSupport
    * The styles of the text component can be customized by redefining the following
    * CSS variables:
    *
-   * - `--a2ui-text-color-text`: The color of the text. Defaults to `--a2ui-color-on-background`.
-   * - `--a2ui-text-caption-color`: The color for caption text. Defaults to `light-dark(#666, #aaa)`.
+   * - `--a2ui-text-color-text`: Text color of body and heading variants. Defaults to `--a2ui-color-on-background`.
+   * - `--a2ui-text-caption-color`: Text color of the `caption` variant. Defaults to `light-dark(#666, #aaa)`.
+   * - `--a2ui-text-a-color`: Text color of rendered Markdown links. Defaults to `inherit`.
+   * - `--a2ui-text-a-font-weight`: Font weight of rendered Markdown links. Defaults to `inherit`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-color-on-background`: Fallback text color when `--a2ui-text-color-text` is unset.
+   * - `--a2ui-font-family-title`: Font family of `h1` through `h6` headings. Defaults to `inherit`.
+   * - `--a2ui-line-height-headings`: Line height of `h1` through `h6` headings. Defaults to `1.2`.
+   * - `--a2ui-line-height-body`: Line height of paragraph text. Defaults to `1.5`.
+   * - `--a2ui-font-size-2xl`: Font size of `h1` headings.
+   * - `--a2ui-font-size-xl`: Font size of `h2` headings.
+   * - `--a2ui-font-size-l`: Font size of `h3` headings.
+   * - `--a2ui-font-size-m`: Font size of paragraphs and `h4` headings.
+   * - `--a2ui-font-size-s`: Font size of `h5` headings.
+   * - `--a2ui-font-size-xs`: Font size of `caption` text.
    *
    * @nocollapse
    */
