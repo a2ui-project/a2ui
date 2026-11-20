@@ -662,14 +662,20 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   processMessagesWithErrors(messages: unknown, context?: ExecutionContext): RendererErrorMessage[] {
     return this.withValidationConfig(context, () => {
       const items = Array.isArray(messages) ? messages : [messages];
+      // An item of a top-level array is one wrapper deep, as it is in `processMessages`.
+      const wrapperDepth = Array.isArray(messages) ? 1 : 0;
       const errors: RendererErrorMessage[] = [];
       for (const item of items) {
         const itemEnvelopeContext = extractEnvelopeErrorContext(item, this.defaultVersion);
         let currentContext = itemEnvelopeContext;
         try {
-          const operations = this.prepareOperations(item as ProcessableMessagePayload, ctx => {
-            currentContext = ctx;
-          });
+          const operations = this.prepareOperations(
+            item as ProcessableMessagePayload,
+            ctx => {
+              currentContext = ctx;
+            },
+            wrapperDepth,
+          );
           for (const op of operations) {
             currentContext = this.contextFromOperation(op, itemEnvelopeContext);
             this.processOperation(op, context);

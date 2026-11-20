@@ -29,6 +29,9 @@ import com.networknt.schema.dialect.Dialects
 import com.networknt.schema.resource.InputStreamSource
 import com.networknt.schema.resource.IriResourceLoader
 import com.networknt.schema.resource.ResourceLoader
+import java.net.URI
+import java.util.Collections
+import java.util.IdentityHashMap
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -63,6 +66,12 @@ constructor(
     jsonFmt.encodeToString(JsonElement.serializer(), validationCatalogSchema)
   }
   private val rawCommonTypesSchema: JsonObject? by lazy { loadRawCommonTypesSchema() }
+  private val catalogDollarId: String? by lazy {
+    stringProperty(catalog.catalogSchema, KEY_DOLLAR_ID)
+  }
+  private val commonTypesDollarId: String? by lazy {
+    rawCommonTypesSchema?.let { stringProperty(it, KEY_DOLLAR_ID) }
+  }
   private val validationCommonTypesSchema: JsonObject? by lazy {
     rawCommonTypesSchema?.let { buildValidationCommonTypesSchema(it) }
   }
@@ -88,7 +97,7 @@ constructor(
   }
   private val sharedConfig: SchemaRegistryConfig by lazy { SchemaRegistryConfig.builder().build() }
   private val subValidators = mutableMapOf<String, Schema>()
-  private val unionBranchValidators = mutableMapOf<String, Schema>()
+  private val unionBranchValidators = IdentityHashMap<JsonObject, Schema>()
   private val validator: Schema by lazy { buildValidator() }
 
   private fun buildValidator(): Schema =
@@ -237,11 +246,28 @@ constructor(
     branches: JsonArray,
     catalogSchema: JsonObject,
   ): JsonObject {
-    val rewritten =
-      branches.map { branch ->
-        withoutArgumentSchema(resolveLocalRef(branch, catalogSchema) ?: branch) ?: branch
-      }
+    val rewritten = branches.map { branch -> withoutBranchArgumentSchema(branch, catalogSchema) }
     return JsonObject(anyFunction.toMutableMap().apply { put(keyword, JsonArray(rewritten)) })
+  }
+
+  /**
+   * Returns [branch] of the function union with `args` allowing any object, in the function a local
+   * `$ref` names when the branch holds one. A branch left pointing at the function as written takes
+   * exponential time on nested calls, so the function replaces the `$ref`, and the keywords beside
+   * the `$ref` stay in force.
+   */
+  private fun withoutBranchArgumentSchema(
+    branch: JsonElement,
+    catalogSchema: JsonObject,
+  ): JsonElement {
+    val target =
+      withoutArgumentSchema(resolveLocalRef(branch, catalogSchema))
+        ?: return withoutArgumentSchema(branch) ?: branch
+    val siblings = (branch as JsonObject) - KEY_DOLLAR_REF
+    // Annotations do not affect validation, so the function stands in for the branch.
+    if (siblings.keys.all { it in ANNOTATION_SCHEMA_KEYS }) return target
+    val allOf = (siblings["allOf"] as? JsonArray).orEmpty() + target
+    return JsonObject(siblings + ("allOf" to JsonArray(allOf)))
   }
 
   private fun collectCatalogFunctionSchemas(catalogSchema: JsonObject): Map<String, JsonObject> {
@@ -290,14 +316,16 @@ constructor(
     return JsonObject(defObj.toMutableMap().apply { put(PROP_PROPERTIES, JsonObject(newProps)) })
   }
 
+  /** The schema that the local `$ref` of [schema] names, whatever keywords sit beside it. */
   private fun resolveLocalRef(schema: JsonElement, document: JsonObject): JsonElement? {
     val obj = schema as? JsonObject ?: return null
-    if (!obj.keys.all { it == KEY_DOLLAR_REF || it in ANNOTATION_SCHEMA_KEYS }) return null
-    val ref =
-      (obj[KEY_DOLLAR_REF] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+    val ref = stringProperty(obj, KEY_DOLLAR_REF) ?: return null
     if (!ref.startsWith("#/")) return null
     return resolvePointerInDoc(ref.substring(2), document)
   }
+
+  private fun stringProperty(obj: JsonObject, key: String): String? =
+    (obj[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
 
   /**
    * Replaces `FunctionCall.properties.args.additionalProperties` (`anyOf[DynamicValue, object]`)
@@ -359,25 +387,30 @@ constructor(
     }
   }
 
-  private fun matchesCatalogUri(uri: String): Boolean {
-    val catalogDollarId =
-      (catalog.catalogSchema[KEY_DOLLAR_ID] as? JsonPrimitive)?.takeIf { it.isString }?.content
-    return uri == FILE_CATALOG ||
-      uri.endsWith("/$FILE_CATALOG") ||
-      (catalogDollarId != null &&
-        (uri == catalogDollarId || uri == schemaMappings[catalogDollarId])) ||
-      isMappedSchemaUri(uri, FILE_CATALOG)
-  }
+  private fun matchesCatalogUri(uri: String): Boolean =
+    identifiesSchema(uri, FILE_CATALOG, catalogDollarId)
 
   private fun matchesCommonTypesUri(uri: String): Boolean =
-    uri == FILE_COMMON_TYPES ||
-      uri.endsWith("/$FILE_COMMON_TYPES") ||
-      isMappedSchemaUri(uri, FILE_COMMON_TYPES)
+    identifiesSchema(uri, FILE_COMMON_TYPES, commonTypesDollarId)
 
-  private fun isMappedSchemaUri(uri: String, fileName: String): Boolean =
-    schemaMappings.any { (k, v) ->
-      (k == fileName || k.endsWith("/$fileName")) && (v == uri || k == uri)
-    }
+  /**
+   * Whether [uri] names the schema document known as [fileName] or [dollarId], either directly or
+   * as the IRI that a [schemaMappings] prefix rewrites such a name to.
+   *
+   * [resolve0_9SchemaResource] and [selectReferencedDoc] both decide through this, so the documents
+   * `networknt` gets the non-recursive schemas for are the ones [getNestedFunctionCallErrors]
+   * walks.
+   */
+  private fun identifiesSchema(uri: String, fileName: String, dollarId: String?): Boolean =
+    namesSchema(uri, fileName, dollarId) ||
+      schemaMappings.any { (prefix, target) ->
+        uri.startsWith(target) &&
+          namesSchema(prefix + uri.substring(target.length), fileName, dollarId)
+      }
+
+  private fun namesSchema(uri: String, fileName: String, dollarId: String?): Boolean {
+    return uri == fileName || uri.endsWith("/$fileName") || uri == dollarId
+  }
 
   /**
    * Parses and validates raw A2UI JSON payload against the designated schema, throwing an
@@ -737,33 +770,39 @@ constructor(
     return getNestedFunctionCallErrors(themeObj, themeSchema, "$basePath.createSurface.theme")
   }
 
+  /**
+   * Whether [rootSchema], a schema of the catalog, reaches a function call slot.
+   *
+   * Follows each `$ref` in the document that holds it and visits each target once, so a schema that
+   * refers back to itself ends the search.
+   */
   private fun schemaReferencesFunctionCall(rootSchema: JsonObject): Boolean {
-    val queue = ArrayDeque<JsonElement>()
-    val visitedRefs = mutableSetOf<String>()
-    queue.addLast(rootSchema)
+    val queue = ArrayDeque<Pair<JsonElement, JsonObject>>()
+    val visitedTargets: MutableSet<JsonObject> = Collections.newSetFromMap(IdentityHashMap())
+    queue.addLast(rootSchema to catalog.catalogSchema)
     while (queue.isNotEmpty()) {
-      val current = queue.removeFirst()
-      if (isDirectFunctionRefNode(current, queue, visitedRefs)) return true
+      val (node, doc) = queue.removeFirst()
+      if (isDirectFunctionRefNode(node, doc, queue, visitedTargets)) return true
     }
     return false
   }
 
   private fun isDirectFunctionRefNode(
     node: JsonElement,
-    queue: ArrayDeque<JsonElement>,
-    visitedRefs: MutableSet<String>,
+    doc: JsonObject,
+    queue: ArrayDeque<Pair<JsonElement, JsonObject>>,
+    visitedTargets: MutableSet<JsonObject>,
   ): Boolean {
     if (node is JsonArray) {
-      node.forEach { queue.addLast(it) }
+      node.forEach { queue.addLast(it to doc) }
       return false
     }
     if (node !is JsonObject) return false
-    val ref = (node[KEY_DOLLAR_REF] as? JsonPrimitive)?.takeIf { it.isString }?.content
+    val ref = stringProperty(node, KEY_DOLLAR_REF)
     if (ref != null && isFunctionBearingRef(ref)) return true
-    if (ref != null && ref.startsWith("#/") && visitedRefs.add(ref)) {
-      resolvePointerInDoc(ref.substring(2), catalog.catalogSchema)?.let { queue.addLast(it) }
-    }
-    node.values.forEach { queue.addLast(it) }
+    val target = ref?.let { dereferenceSchemaRef(it, doc) }
+    if (target != null && visitedTargets.add(target.first)) queue.addLast(target)
+    node.values.forEach { queue.addLast(it to doc) }
     return false
   }
 
@@ -807,13 +846,29 @@ constructor(
     val schema: JsonObject,
     val doc: JsonObject,
     val path: String,
-    val refDepth: Int = 0,
   )
+
+  /** A payload node paired with a schema node, both compared by identity. */
+  private class SchemaWalkKey(val path: String, val elem: JsonElement, val schema: JsonObject) {
+    override fun equals(other: Any?): Boolean =
+      other is SchemaWalkKey && elem === other.elem && schema === other.schema && path == other.path
+
+    override fun hashCode(): Int =
+      31 * (31 * path.hashCode() + System.identityHashCode(elem)) + System.identityHashCode(schema)
+  }
 
   /**
    * Walks [rootObj] alongside [rootSchema] in a single linear pass, validating only objects at
    * schema positions that admit `FunctionCall` so literal maps carrying a `"call"` key in themes,
    * untyped parameters, or custom object properties are never mistaken for function calls.
+   *
+   * Each payload node is walked against a given schema node once. That bounds the walk by the size
+   * of the payload times the size of the schemas, whatever cycles or repeated branches the schemas
+   * hold through `$ref`, `allOf`, `anyOf` and `oneOf`.
+   *
+   * The walk follows those four keywords along with `properties`, `additionalProperties` and
+   * `items`. A call that a schema admits through any other keyword is checked for its name and
+   * return type by `networknt`, and its arguments are not checked.
    */
   private fun getNestedFunctionCallErrors(
     rootObj: JsonObject,
@@ -822,11 +877,15 @@ constructor(
   ): List<A2uiErrorDetail> {
     val errors = mutableListOf<A2uiErrorDetail>()
     val validatedPaths = mutableSetOf<String>()
+    val visited = mutableSetOf<SchemaWalkKey>()
     val stack = ArrayDeque<SchemaWalkItem>()
     stack.addLast(SchemaWalkItem(rootObj, rootSchema, catalog.catalogSchema, basePath))
 
     while (stack.isNotEmpty()) {
-      processSchemaWalkItem(stack.removeLast(), stack, validatedPaths, errors)
+      val item = stack.removeLast()
+      if (visited.add(SchemaWalkKey(item.path, item.elem, item.schema))) {
+        processSchemaWalkItem(item, stack, validatedPaths, errors)
+      }
     }
     return errors
   }
@@ -891,13 +950,9 @@ constructor(
   }
 
   private fun enqueueDereferencedSchema(item: SchemaWalkItem, stack: ArrayDeque<SchemaWalkItem>) {
-    val ref =
-      (item.schema[KEY_DOLLAR_REF] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return
-    if (item.refDepth >= MAX_SCHEMA_REF_HOPS) return
+    val ref = stringProperty(item.schema, KEY_DOLLAR_REF) ?: return
     val resolved = dereferenceSchemaRef(ref, item.doc) ?: return
-    stack.addLast(
-      SchemaWalkItem(item.elem, resolved.first, resolved.second, item.path, item.refDepth + 1)
-    )
+    stack.addLast(SchemaWalkItem(item.elem, resolved.first, resolved.second, item.path))
   }
 
   private fun dereferenceSchemaRef(
@@ -912,9 +967,18 @@ constructor(
     if (hashIdx < 0) return null
     val docPart = ref.substring(0, hashIdx)
     val pointer = ref.substring(hashIdx + 2)
-    val targetDoc = selectReferencedDoc(docPart) ?: return null
+    val targetDoc =
+      selectReferencedDoc(docPart)
+        ?: resolveAgainstDocumentId(docPart, currentDoc)?.let { selectReferencedDoc(it) }
+        ?: return null
     val target = resolvePointerInDoc(pointer, targetDoc) as? JsonObject ?: return null
     return target to targetDoc
+  }
+
+  /** Resolves [docPart] against the `$id` of [currentDoc], as a relative `$ref` resolves. */
+  private fun resolveAgainstDocumentId(docPart: String, currentDoc: JsonObject): String? {
+    val base = stringProperty(currentDoc, KEY_DOLLAR_ID) ?: return null
+    return runCatching { URI(base).resolve(docPart).toString() }.getOrNull()
   }
 
   private fun selectReferencedDoc(docPart: String): JsonObject? =
@@ -934,17 +998,23 @@ constructor(
   }
 
   private fun enqueueSchemaCombinators(item: SchemaWalkItem, stack: ArrayDeque<SchemaWalkItem>) {
-    if (item.refDepth >= MAX_SCHEMA_REF_HOPS) return
     for (keyword in COMBINATOR_KEYWORDS) {
       val branches = item.schema[keyword] as? JsonArray ?: continue
       for (idx in branches.indices.reversed()) {
         val branchObj = branches[idx] as? JsonObject ?: continue
         if (keyword != "allOf" && !matchesUnionBranch(item.elem, branchObj, item.doc)) continue
-        stack.addLast(SchemaWalkItem(item.elem, branchObj, item.doc, item.path, item.refDepth))
+        stack.addLast(SchemaWalkItem(item.elem, branchObj, item.doc, item.path))
       }
     }
   }
 
+  /**
+   * Whether [elem] satisfies [branchObj], a `oneOf` or `anyOf` branch held by [doc].
+   *
+   * The branch is checked against the non-recursive validation schemas, as the payload was before
+   * the walk, so nested calls count as matching by their name and return type alone and the walk
+   * goes on to check their arguments.
+   */
   private fun matchesUnionBranch(
     elem: JsonElement,
     branchObj: JsonObject,
@@ -955,37 +1025,25 @@ constructor(
     return schema.validate(elemStr, InputFormat.JSON).isEmpty()
   }
 
-  private fun getUnionBranchValidator(branchObj: JsonObject, doc: JsonObject): Schema {
-    val isCommon = rawCommonTypesSchema != null && doc === rawCommonTypesSchema
-    val branchJson = jsonFmt.encodeToString(JsonElement.serializer(), branchObj)
-    val cacheKey = "${if (isCommon) "common" else "cat"}:$branchJson"
-    return unionBranchValidators.getOrPut(cacheKey) {
-      val baseDoc = (if (isCommon) validationCommonTypesSchema else null) ?: validationCatalogSchema
-      val baseDefs = (baseDoc[KEY_DOLLAR_DEFS] as? JsonObject) ?: JsonObject(emptyMap())
-      val tempSchema = buildUnionBranchTempSchema(baseDoc, baseDefs, branchObj)
+  /** One compiled schema for each union branch of the catalog and common types documents. */
+  private fun getUnionBranchValidator(branchObj: JsonObject, doc: JsonObject): Schema =
+    unionBranchValidators.getOrPut(branchObj) {
+      val baseDoc =
+        validationCommonTypesSchema?.takeIf { doc === rawCommonTypesSchema }
+          ?: validationCatalogSchema
+      val baseDefs = baseDoc[KEY_DOLLAR_DEFS] as? JsonObject ?: JsonObject(emptyMap())
+      val tempSchema =
+        JsonObject(
+          baseDoc +
+            mapOf(
+              KEY_DOLLAR_SCHEMA to JsonPrimitive(SCHEMA_DRAFT_2020_12),
+              KEY_DOLLAR_DEFS to JsonObject(baseDefs + (UNION_BRANCH_DEF_KEY to branchObj)),
+              KEY_DOLLAR_REF to JsonPrimitive("#/$KEY_DOLLAR_DEFS/$UNION_BRANCH_DEF_KEY"),
+            )
+        )
       val schemaString = jsonFmt.encodeToString(JsonElement.serializer(), tempSchema)
       shared0_9Registry.getSchema(schemaString, InputFormat.JSON)
     }
-  }
-
-  private fun buildUnionBranchTempSchema(
-    baseDoc: JsonObject,
-    baseDefs: JsonObject,
-    branchObj: JsonObject,
-  ): JsonObject {
-    val map = mutableMapOf<String, JsonElement>()
-    map[KEY_DOLLAR_SCHEMA] = JsonPrimitive(SCHEMA_DRAFT_2020_12)
-    baseDoc[KEY_DOLLAR_ID]?.let { map[KEY_DOLLAR_ID] = it }
-    baseDoc[A2uiConstants.CATALOG_COMPONENTS_KEY]?.let {
-      map[A2uiConstants.CATALOG_COMPONENTS_KEY] = it
-    }
-    baseDoc[A2uiConstants.CATALOG_FUNCTIONS_KEY]?.let {
-      map[A2uiConstants.CATALOG_FUNCTIONS_KEY] = it
-    }
-    map[KEY_DOLLAR_DEFS] = JsonObject(baseDefs + (UNION_BRANCH_DEF_KEY to branchObj))
-    map[KEY_DOLLAR_REF] = JsonPrimitive("#/$KEY_DOLLAR_DEFS/$UNION_BRANCH_DEF_KEY")
-    return JsonObject(map)
-  }
 
   private fun enqueueSchemaObjectChildren(
     obj: JsonObject,
@@ -1222,9 +1280,18 @@ constructor(
     private const val DEF_ANY_FUNCTION = "anyFunction"
     private const val DEF_FUNCTION_CALL = "FunctionCall"
     private const val UNION_BRANCH_DEF_KEY = "__a2ui_union_branch__"
-    private val ANNOTATION_SCHEMA_KEYS = setOf("description", "title", "\$comment")
+    private val ANNOTATION_SCHEMA_KEYS =
+      setOf(
+        "\$comment",
+        "title",
+        "description",
+        "default",
+        "deprecated",
+        "readOnly",
+        "writeOnly",
+        "examples",
+      )
 
-    private const val MAX_SCHEMA_REF_HOPS = 16
     private val COMBINATOR_KEYWORDS = listOf("allOf", "anyOf", "oneOf")
     private val FUNCTION_SLOT_REF_SUFFIXES =
       listOf(

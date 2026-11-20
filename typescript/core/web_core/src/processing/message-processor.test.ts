@@ -3421,6 +3421,15 @@ describe('MessageProcessor component envelope mixins', () => {
               err.message.includes('Global recursion limit exceeded'),
           );
         }
+
+        // `processMessagesWithErrors` counts wrapper depth as `processMessages` does.
+        assert.deepStrictEqual(proc.processMessagesWithErrors(nestedArrays50), []);
+        for (const overLimit of [nestedArrays51, wrapped26, emptyWrapped26]) {
+          assert.deepStrictEqual(
+            proc.processMessagesWithErrors(overLimit).map(e => e.error.code),
+            ['RECURSION_LIMIT_EXCEEDED'],
+          );
+        }
       }
       defaultProc.dispose();
       standaloneProc.dispose();

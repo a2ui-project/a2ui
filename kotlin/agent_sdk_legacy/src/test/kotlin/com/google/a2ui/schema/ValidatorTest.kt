@@ -30,6 +30,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 
 class ValidatorTest {
@@ -916,322 +917,462 @@ class ValidatorTest {
     }
   }
 
-  @Test
-  fun validatesThemeFunctionCallsRefSiblingsAndCyclicSchemas() {
-    val s2c = SchemaResourceLoader.loadFromBundledResource("0.9", "server_to_client.json")!!
-    val commonTypes = SchemaResourceLoader.loadFromBundledResource("0.9", "common_types.json")!!
+  private val dynamicString =
+    "https://a2ui.org/specification/v0_9/common_types.json#/@defs/DynamicString"
 
-    fun nestWrapText(depth: Int, leaf: JsonElement = JsonPrimitive("ok")): JsonObject {
-      var cur: JsonElement = leaf
-      repeat(depth) {
-        cur =
-          JsonObject(
-            mapOf("call" to JsonPrimitive("wrapText"), "args" to JsonObject(mapOf("value" to cur)))
-          )
-      }
-      return cur as JsonObject
+  /** Parses [json], written with `@` for `$` so that schema keywords read as they do in JSON. */
+  private fun schemaJson(json: String): JsonObject =
+    Json.parseToJsonElement(json.replace('@', '$')).jsonObject
+
+  private fun bundledSchema(name: String): JsonObject =
+    SchemaResourceLoader.loadFromBundledResource("0.9", name)!!
+
+  /** A function schema, as JSON, for [name] taking one `DynamicString` as `value`. */
+  private fun oneArgFunction(name: String, returnType: String): String =
+    """
+    {
+      "type": "object",
+      "properties": {
+        "call": {"const": "$name"},
+        "args": {
+          "type": "object",
+          "properties": {"value": {"@ref": "$dynamicString"}},
+          "required": ["value"],
+          "additionalProperties": false
+        },
+        "returnType": {"const": "$returnType"}
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
     }
+    """
 
-    // 1. Cyclic `$defs.theme` with no FunctionCall refs terminates without hanging.
-    val cyclicNonFnThemeCatalog =
-      Json.parseToJsonElement(
-          """
-          {
-            "${"\$schema"}": "https://json-schema.org/draft/2020-12/schema",
-            "catalogId": "cyclic-non-fn-theme",
-            "components": {},
-            "${"\$defs"}": {
-              "theme": {
-                "type": "object",
-                "properties": {
-                  "color": {"type": "string"},
-                  "nested": {"${"\$ref"}": "#/${"\$defs"}/ThemeNode", "description": "Child theme"}
-                },
-                "additionalProperties": false
-              },
-              "ThemeNode": {
-                "type": "object",
-                "properties": {
-                  "color": {"type": "string"},
-                  "nested": {"${"\$ref"}": "#/${"\$defs"}/ThemeNode"}
-                },
-                "additionalProperties": false
-              }
-            }
-          }
-          """
-        )
-        .jsonObject
-
-    val cyclicNonFnValidator =
-      A2uiValidator(
-        A2uiCatalog(
-          version = A2uiVersion.VERSION_0_9,
-          name = "cyclic-non-fn",
-          serverToClientSchema = s2c,
-          commonTypesSchema = commonTypes,
-          catalogSchema = cyclicNonFnThemeCatalog,
-        )
-      )
-    cyclicNonFnValidator.validate(
-      JsonObject(
-        mapOf(
-          "version" to JsonPrimitive("v0.9"),
-          "createSurface" to
-            JsonObject(
-              mapOf(
-                "surfaceId" to JsonPrimitive("s1"),
-                "catalogId" to JsonPrimitive("cyclic-non-fn-theme"),
-                "theme" to
-                  JsonObject(
-                    mapOf(
-                      "color" to JsonPrimitive("#112233"),
-                      "nested" to JsonObject(mapOf("color" to JsonPrimitive("#445566"))),
-                    )
-                  ),
-              )
-            ),
-        )
-      ),
-      strictIntegrity = false,
+  /**
+   * Returns a v0.9 catalog that declares `wrapText`, returning a string, and `isSet`, returning a
+   * boolean, along with [components] and the `$defs` entries in [defs].
+   */
+  private fun wrapTextCatalog(
+    defs: String,
+    components: String = "{}",
+    anyFunction: String =
+      """{"oneOf": [{"@ref": "#/functions/wrapText"}, {"@ref": "#/functions/isSet"}]}""",
+  ): JsonObject =
+    schemaJson(
+      """
+      {
+        "@schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "wrap-text-catalog",
+        "components": $components,
+        "functions": {
+          "wrapText": ${oneArgFunction("wrapText", "string")},
+          "isSet": ${oneArgFunction("isSet", "boolean")}
+        },
+        "@defs": {
+          "anyFunction": $anyFunction,
+          $defs
+        }
+      }
+      """
     )
 
-    // 2. `$defs.theme` referencing DynamicString both directly and via a local `$ref` with a
-    //    sibling `"description"` keyword, plus a recursive `$ref` cycle.
-    val dynamicThemeCatalog =
-      Json.parseToJsonElement(
+  private fun validatorFor(
+    catalogSchema: JsonObject,
+    serverToClientSchema: JsonObject = bundledSchema("server_to_client.json"),
+    schemaMappings: Map<String, String> = emptyMap(),
+  ): A2uiValidator =
+    A2uiValidator(
+      A2uiCatalog(
+        version = A2uiVersion.VERSION_0_9,
+        name = "custom",
+        serverToClientSchema = serverToClientSchema,
+        commonTypesSchema = bundledSchema("common_types.json"),
+        catalogSchema = catalogSchema,
+      ),
+      schemaMappings,
+    )
+
+  /** Returns [depth] nested calls of [name] around [innermost]. */
+  private fun nestedCalls(
+    name: String,
+    depth: Int,
+    innermost: JsonElement = JsonPrimitive("ok"),
+  ): JsonElement {
+    var value = innermost
+    repeat(depth) {
+      value =
+        JsonObject(
+          mapOf("call" to JsonPrimitive(name), "args" to JsonObject(mapOf("value" to value)))
+        )
+    }
+    return value
+  }
+
+  private fun nestedWrapText(
+    depth: Int,
+    innermost: JsonElement = JsonPrimitive("ok"),
+  ): JsonElement = nestedCalls("wrapText", depth, innermost)
+
+  private fun createSurfaceMessage(theme: JsonElement): JsonObject =
+    JsonObject(
+      mapOf(
+        "version" to JsonPrimitive("v0.9"),
+        "createSurface" to
+          JsonObject(
+            mapOf(
+              "surfaceId" to JsonPrimitive("s1"),
+              "catalogId" to JsonPrimitive("wrap-text-catalog"),
+              "theme" to theme,
+            )
+          ),
+      )
+    )
+
+  private fun componentMessage(
+    component: String,
+    properties: Map<String, JsonElement>,
+  ): JsonObject =
+    JsonObject(
+      mapOf(
+        "version" to JsonPrimitive("v0.9"),
+        "updateComponents" to
+          JsonObject(
+            mapOf(
+              "surfaceId" to JsonPrimitive("s1"),
+              "components" to
+                JsonArray(
+                  listOf(
+                    JsonObject(
+                      mapOf(
+                        "id" to JsonPrimitive("root"),
+                        "component" to JsonPrimitive(component),
+                      ) + properties
+                    )
+                  )
+                ),
+            )
+          ),
+      )
+    )
+
+  /** Fails, rather than hangs, when [block] does not return: a walk that never ends would not. */
+  private fun assertCompletes(block: () -> Unit) {
+    var failure: Throwable? = null
+    val worker = Thread {
+      try {
+        block()
+      } catch (t: Throwable) {
+        failure = t
+      }
+    }
+    worker.isDaemon = true
+    worker.start()
+    worker.join(30_000)
+    assertTrue(!worker.isAlive, "Validation did not finish within 30 seconds")
+    failure?.let { throw it }
+  }
+
+  @Test
+  fun validatesNestedCallsInThemeHoweverItsSchemaReachesThem() {
+    val themeColor = "\"ThemeColor\": {\"@ref\": \"$dynamicString\"}"
+    val themeDefs =
+      listOf(
+        // A `Dynamic*` reference directly on a theme property.
+        """
+        "theme": {
+          "type": "object",
+          "properties": {"accent": {"@ref": "$dynamicString"}},
+          "additionalProperties": false
+        }
+        """,
+        // A local `$ref` that has an annotation beside it.
+        """
+        $themeColor,
+        "theme": {
+          "type": "object",
+          "properties": {"accent": {"@ref": "#/@defs/ThemeColor", "description": "Accent"}},
+          "additionalProperties": false
+        }
+        """,
+        // A `$ref` that names the catalog document.
+        """
+        $themeColor,
+        "theme": {
+          "type": "object",
+          "properties": {"accent": {"@ref": "catalog.json#/@defs/ThemeColor"}},
+          "additionalProperties": false
+        }
+        """,
+      )
+
+    for (defs in themeDefs) {
+      val validator = validatorFor(wrapTextCatalog(defs))
+      fun themed(accent: JsonElement) = createSurfaceMessage(JsonObject(mapOf("accent" to accent)))
+
+      validator.validate(themed(nestedWrapText(6)), strictIntegrity = false)
+      assertFailsWith<A2uiValidationException>(defs) {
+        validator.validate(themed(nestedWrapText(6, JsonPrimitive(9))), strictIntegrity = false)
+      }
+    }
+  }
+
+  @Test
+  fun endsOnThemeSchemasThatReferBackToThemselves() {
+    // A recursive theme schema that holds no function call slot: the search for one has to end.
+    val recursiveTheme =
+      validatorFor(
+        wrapTextCatalog(
           """
-          {
-            "${"\$schema"}": "https://json-schema.org/draft/2020-12/schema",
-            "catalogId": "dynamic-theme-cat",
-            "components": {},
-            "functions": {
-              "wrapText": {
-                "type": "object",
-                "properties": {
-                  "call": {"const": "wrapText"},
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "value": {"${"\$ref"}": "https://a2ui.org/specification/v0_9/common_types.json#/${"\$defs"}/DynamicString"}
-                    },
-                    "required": ["value"],
-                    "additionalProperties": false
-                  },
-                  "returnType": {"const": "string"}
-                },
-                "required": ["call", "args"],
-                "unevaluatedProperties": false
-              }
+          "ThemeNode": {
+            "type": "object",
+            "properties": {
+              "color": {"type": "string"},
+              "child": {"@ref": "#/@defs/ThemeNode", "description": "A nested theme"}
             },
-            "${"\$defs"}": {
-              "anyFunction": {
-                "oneOf": [{"${"\$ref"}": "#/functions/wrapText", "description": "Wrap text fn"}]
-              },
-              "ThemeColor": {
-                "${"\$ref"}": "https://a2ui.org/specification/v0_9/common_types.json#/${"\$defs"}/DynamicString"
-              },
-              "ThemeSubtree": {
+            "additionalProperties": false
+          },
+          "theme": {"@ref": "#/@defs/ThemeNode"}
+          """
+        )
+      )
+    val nestedTheme =
+      Json.parseToJsonElement("""{"color": "#112233", "child": {"color": "#445566"}}""")
+    assertCompletes {
+      recursiveTheme.validate(createSurfaceMessage(nestedTheme), strictIntegrity = false)
+    }
+
+    // `allOf` branches that lead straight back to the schema that holds them. `networknt` cannot
+    // evaluate such a schema, so these messages leave the theme to the walk alone.
+    val messagesWithUncheckedTheme =
+      schemaJson(
+        """
+        {
+          "@defs": {
+            "CreateSurfaceMessage": {
+              "type": "object",
+              "properties": {"version": {"const": "v0.9"}, "createSurface": {"type": "object"}},
+              "required": ["version", "createSurface"]
+            }
+          }
+        }
+        """
+      )
+    val itself = "{\"@ref\": \"#/@defs/Looping\"}"
+    val loopingTheme =
+      validatorFor(
+        wrapTextCatalog(
+          """
+          "Looping": {
+            "allOf": [$itself, $itself, $itself, $itself],
+            "properties": {"label": {"@ref": "$dynamicString"}}
+          },
+          "theme": {"@ref": "#/@defs/Looping"}
+          """
+        ),
+        serverToClientSchema = messagesWithUncheckedTheme,
+      )
+    fun labelled(label: JsonElement) = createSurfaceMessage(JsonObject(mapOf("label" to label)))
+
+    assertCompletes { loopingTheme.validate(labelled(nestedWrapText(4)), strictIntegrity = false) }
+    assertCompletes {
+      assertFailsWith<A2uiValidationException> {
+        loopingTheme.validate(
+          labelled(nestedWrapText(4, JsonPrimitive(9))),
+          strictIntegrity = false,
+        )
+      }
+    }
+  }
+
+  @Test
+  fun stubsFunctionUnionBranchesThatHoldKeywordsBesideTheirRef() {
+    val validator =
+      validatorFor(
+        wrapTextCatalog(
+          defs = "\"theme\": {\"type\": \"object\"}",
+          components =
+            """
+            {
+              "Label": {
                 "type": "object",
                 "properties": {
-                  "accent": {
-                    "${"\$ref"}": "#/${"\$defs"}/ThemeColor",
-                    "description": "Accent color with sibling keyword"
-                  },
-                  "child": {"${"\$ref"}": "#/${"\$defs"}/ThemeSubtree"}
+                  "id": {"type": "string"},
+                  "component": {"const": "Label"},
+                  "text": {"@ref": "$dynamicString"},
+                  "shown": {"@ref": "${dynamicString.replace("DynamicString", "DynamicBoolean")}"}
                 },
-                "additionalProperties": false
-              },
-              "theme": {
-                "type": "object",
-                "properties": {
-                  "directLabel": {
-                    "${"\$ref"}": "https://a2ui.org/specification/v0_9/common_types.json#/${"\$defs"}/DynamicString"
-                  },
-                  "accent": {
-                    "${"\$ref"}": "#/${"\$defs"}/ThemeColor",
-                    "description": "Top-level accent with sibling description"
-                  },
-                  "subtree": {"${"\$ref"}": "#/${"\$defs"}/ThemeSubtree"}
-                },
+                "required": ["id", "component"],
                 "additionalProperties": false
               }
             }
-          }
-          """
-        )
-        .jsonObject
-
-    val dynamicThemeValidator =
-      A2uiValidator(
-        A2uiCatalog(
-          version = A2uiVersion.VERSION_0_9,
-          name = "dynamic-theme",
-          serverToClientSchema = s2c,
-          commonTypesSchema = commonTypes,
-          catalogSchema = dynamicThemeCatalog,
+            """,
+          anyFunction =
+            """
+            {
+              "oneOf": [
+                {"@ref": "#/functions/wrapText", "description": "Wraps text."},
+                {"@ref": "#/functions/isSet", "maxProperties": 2}
+              ]
+            }
+            """,
         )
       )
+    fun label(property: String, value: JsonElement) =
+      componentMessage("Label", mapOf(property to value))
 
-    fun createSurfaceWithTheme(theme: JsonObject): JsonObject =
-      JsonObject(
-        mapOf(
-          "version" to JsonPrimitive("v0.9"),
-          "createSurface" to
-            JsonObject(
-              mapOf(
-                "surfaceId" to JsonPrimitive("s1"),
-                "catalogId" to JsonPrimitive("dynamic-theme-cat"),
-                "theme" to theme,
-              )
-            ),
+    // Either branch, left pointing at its function as written, takes exponential time here.
+    for (name in listOf("wrapText", "isSet")) {
+      assertCompletes {
+        validator.validate(label("text", nestedCalls(name, 23)), strictIntegrity = true)
+      }
+      assertFailsWith<A2uiValidationException>(name) {
+        validator.validate(
+          label("text", nestedCalls(name, 6, JsonPrimitive(9))),
+          strictIntegrity = true,
         )
-      )
+      }
+    }
 
-    dynamicThemeValidator.validate(
-      createSurfaceWithTheme(
+    // `maxProperties` beside the `$ref` to `isSet` still applies.
+    val isSet = nestedCalls("isSet", 1).jsonObject
+    validator.validate(label("shown", isSet), strictIntegrity = true)
+    assertFailsWith<A2uiValidationException> {
+      validator.validate(
+        label("shown", JsonObject(isSet + ("returnType" to JsonPrimitive("boolean")))),
+        strictIntegrity = true,
+      )
+    }
+  }
+
+  @Test
+  fun validatesNestedCallsInsideCommonTypeUnions() {
+    // `Action` is a `oneOf` in the common types document, so its branches are matched there.
+    fun buttonMessages(action: JsonElement): JsonArray {
+      val surface = v09SurfaceMessages(JsonPrimitive("Send"))
+      val update = surface[1].jsonObject.getValue("updateComponents").jsonObject
+      val button =
         JsonObject(
           mapOf(
-            "directLabel" to nestWrapText(6),
-            "accent" to nestWrapText(6),
-            "subtree" to JsonObject(mapOf("accent" to nestWrapText(6))),
+            "id" to JsonPrimitive("root"),
+            "component" to JsonPrimitive("Button"),
+            "child" to JsonPrimitive("label"),
+            "action" to action,
           )
         )
-      ),
-      strictIntegrity = false,
-    )
-
-    // Invalid nested arg in direct DynamicString theme field fails.
-    assertFailsWith<A2uiValidationException> {
-      dynamicThemeValidator.validate(
-        createSurfaceWithTheme(
-          JsonObject(mapOf("directLabel" to nestWrapText(5, JsonPrimitive(9))))
-        ),
-        strictIntegrity = false,
+      val label =
+        JsonObject(
+          update.getValue("components").jsonArray[0].jsonObject + ("id" to JsonPrimitive("label"))
+        )
+      val components = JsonArray(listOf(button, label))
+      return JsonArray(
+        listOf(
+          surface[0],
+          JsonObject(
+            surface[1].jsonObject +
+              ("updateComponents" to JsonObject(update + ("components" to components)))
+          ),
+        )
       )
     }
-    // Invalid nested arg behind local `$ref` with `"description"` sibling also fails.
-    assertFailsWith<A2uiValidationException> {
-      dynamicThemeValidator.validate(
-        createSurfaceWithTheme(JsonObject(mapOf("accent" to nestWrapText(5, JsonPrimitive(9))))),
-        strictIntegrity = false,
+    fun event(note: JsonElement) =
+      JsonObject(
+        mapOf(
+          "event" to
+            JsonObject(
+              mapOf("name" to JsonPrimitive("send"), "context" to JsonObject(mapOf("note" to note)))
+            )
+        )
       )
-    }
+    fun functionCall(call: JsonElement) = JsonObject(mapOf("functionCall" to call))
+    val valid = nestedFormatString(3)
+    val invalid = nestedFormatString(3, innermost = JsonPrimitive(42))
 
-    // 3. Unguarded combinator `$defs` cycle (`allOf` -> `$ref` back to itself without changing
-    //    `item.elem`) stops at MAX_SCHEMA_REF_HOPS instead of looping infinitely.
-    val unguardedS2c =
-      Json.parseToJsonElement(
-          """
-          {
-            "${"\$schema"}": "https://json-schema.org/draft/2020-12/schema",
-            "${"\$defs"}": {
-              "CreateSurfaceMessage": {
+    for (action in listOf(event(valid), functionCall(valid))) {
+      v09BasicValidator.validate(buttonMessages(action), strictIntegrity = true)
+    }
+    for (action in listOf(event(invalid), functionCall(invalid))) {
+      assertFailsWith<A2uiValidationException>(action.toString()) {
+        v09BasicValidator.validate(buttonMessages(action), strictIntegrity = true)
+      }
+    }
+  }
+
+  @Test
+  fun treatsMappedSchemaLocationsAsTheDocumentsTheyStandFor() {
+    val specification = "https://a2ui.org/specification/v0_9"
+    val commonTypesFile = createTempFile("a2ui-types", ".json").toFile()
+    commonTypesFile.writeText(bundledSchema("common_types.json").toString())
+    commonTypesFile.deleteOnExit()
+    val mappedCommonTypes = commonTypesFile.toURI().toString()
+    // This file holds a catalog that accepts no function, so a call validates only when the
+    // validator answers for the mapped location from the catalog it was given.
+    val catalogFile = createTempFile("a2ui-functions", ".json").toFile()
+    catalogFile.writeText(schemaJson("""{"@defs": {"anyFunction": {"not": {}}}}""").toString())
+    catalogFile.deleteOnExit()
+
+    val validator =
+      validatorFor(
+        wrapTextCatalog(
+          defs = "\"theme\": {\"type\": \"object\"}",
+          components =
+            """
+            {
+              "Field": {
                 "type": "object",
                 "properties": {
-                  "version": {"const": "v0.9"},
-                  "createSurface": {
-                    "type": "object",
-                    "properties": {
-                      "surfaceId": {"type": "string"},
-                      "catalogId": {"type": "string"},
-                      "theme": {"type": "object"}
-                    },
-                    "required": ["surfaceId", "catalogId"]
+                  "id": {"type": "string"},
+                  "component": {"const": "Field"},
+                  "label": {"@ref": "$dynamicString"},
+                  "checks": {
+                    "type": "array",
+                    "items": {"@ref": "$mappedCommonTypes#/@defs/CheckRule"}
                   }
                 },
-                "required": ["version", "createSurface"]
+                "required": ["id", "component"],
+                "additionalProperties": false
               }
             }
-          }
-          """
-        )
-        .jsonObject
-
-    val combinatorCycleCatalog =
-      Json.parseToJsonElement(
-          """
-          {
-            "${"\$schema"}": "https://json-schema.org/draft/2020-12/schema",
-            "catalogId": "combinator-cycle-cat",
-            "components": {},
-            "functions": {
-              "wrapText": {
-                "type": "object",
-                "properties": {
-                  "call": {"const": "wrapText"},
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "value": {"${"\$ref"}": "https://a2ui.org/specification/v0_9/common_types.json#/${"\$defs"}/DynamicString"}
-                    },
-                    "required": ["value"],
-                    "additionalProperties": false
-                  },
-                  "returnType": {"const": "string"}
-                },
-                "required": ["call", "args"],
-                "unevaluatedProperties": false
-              }
-            },
-            "${"\$defs"}": {
-              "anyFunction": {"oneOf": [{"${"\$ref"}": "#/functions/wrapText"}]},
-              "CyclicAllOf": {
-                "allOf": [{"${"\$ref"}": "#/${"\$defs"}/CyclicAllOf"}],
-                "properties": {
-                  "label": {"${"\$ref"}": "https://a2ui.org/specification/v0_9/common_types.json#/${"\$defs"}/DynamicString"}
-                }
-              },
-              "theme": {"${"\$ref"}": "#/${"\$defs"}/CyclicAllOf"}
-            }
-          }
-          """
-        )
-        .jsonObject
-
-    val combinatorCycleValidator =
-      A2uiValidator(
-        A2uiCatalog(
-          version = A2uiVersion.VERSION_0_9,
-          name = "combinator-cycle",
-          serverToClientSchema = unguardedS2c,
-          commonTypesSchema = commonTypes,
-          catalogSchema = combinatorCycleCatalog,
+            """,
+        ),
+        schemaMappings =
+          mapOf(
+            "$specification/common_types.json" to mappedCommonTypes,
+            "$specification/catalog.json" to catalogFile.toURI().toString(),
+          ),
+      )
+    fun check(value: JsonElement) =
+      JsonArray(
+        listOf(
+          JsonObject(
+            mapOf(
+              "condition" to
+                JsonObject(
+                  mapOf(
+                    "call" to JsonPrimitive("isSet"),
+                    "args" to JsonObject(mapOf("value" to value)),
+                  )
+                ),
+              "message" to JsonPrimitive("Required"),
+            )
+          )
         )
       )
 
-    combinatorCycleValidator.validate(
-      JsonObject(
-        mapOf(
-          "version" to JsonPrimitive("v0.9"),
-          "createSurface" to
-            JsonObject(
-              mapOf(
-                "surfaceId" to JsonPrimitive("s1"),
-                "catalogId" to JsonPrimitive("combinator-cycle-cat"),
-                "theme" to JsonObject(mapOf("label" to nestWrapText(4))),
-              )
-            ),
-        )
-      ),
-      strictIntegrity = false,
+    // 23 nested calls take exponential time against the schemas as written.
+    assertCompletes {
+      validator.validate(
+        componentMessage("Field", mapOf("label" to nestedWrapText(23))),
+        strictIntegrity = true,
+      )
+    }
+    validator.validate(
+      componentMessage("Field", mapOf("checks" to check(nestedWrapText(4)))),
+      strictIntegrity = true,
     )
+    // The check rule is reached through the mapped location of the common types.
     assertFailsWith<A2uiValidationException> {
-      combinatorCycleValidator.validate(
-        JsonObject(
-          mapOf(
-            "version" to JsonPrimitive("v0.9"),
-            "createSurface" to
-              JsonObject(
-                mapOf(
-                  "surfaceId" to JsonPrimitive("s1"),
-                  "catalogId" to JsonPrimitive("combinator-cycle-cat"),
-                  "theme" to JsonObject(mapOf("label" to nestWrapText(4, JsonPrimitive(123)))),
-                )
-              ),
-          )
-        ),
-        strictIntegrity = false,
+      validator.validate(
+        componentMessage("Field", mapOf("checks" to check(nestedWrapText(4, JsonPrimitive(9))))),
+        strictIntegrity = true,
       )
     }
   }
@@ -1255,6 +1396,9 @@ class ValidatorTest {
                 "properties": {
                   "subtitle": {
                     "${"\$ref"}": "$customCatalogId#/${"\$defs"}/SharedDynamicString"
+                  },
+                  "footer": {
+                    "${"\$ref"}": "custom-v09-bundle#/${"\$defs"}/SharedDynamicString"
                   },
                   "payloadUnion": {
                     "oneOf": [
@@ -1428,6 +1572,15 @@ class ValidatorTest {
     assertFailsWith<A2uiValidationException> {
       validator.validate(
         widgetMsg(mapOf("subtitle" to nestWrapText(4, JsonPrimitive(999)))),
+        strictIntegrity = true,
+      )
+    }
+
+    // A `$ref` relative to the catalog's `$id` leads back to the catalog as well.
+    validator.validate(widgetMsg(mapOf("footer" to nestWrapText(4))), strictIntegrity = true)
+    assertFailsWith<A2uiValidationException> {
+      validator.validate(
+        widgetMsg(mapOf("footer" to nestWrapText(4, JsonPrimitive(999)))),
         strictIntegrity = true,
       )
     }
