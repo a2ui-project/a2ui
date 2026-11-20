@@ -33,6 +33,28 @@ export const playgroundConfig: AppConfig = {
   modeControls: {
     modes: ['cascade', 'binder', 'rpc', 'express', 'direct'],
     backends: ['mock', 'gemini', 'jev', 'step0'],
+    modeExplainers: {
+      cascade: {
+        title: 'Cascade Mode (DecisionCascadeRouter)',
+        body: 'Runs one batched decision call (up to 21 questions) to route each request to the cheapest tier that fits: plain text for factual questions (try "What is the capital of France?"), a 0-LLM pre-authored template for known shapes (try clicking Host Health or Ski Resorts), or an LLM call over a pruned component subset for novel UIs (try "Build a monthly budget calculator"). Use /budget 300 to test latency-budget downgrading.',
+      },
+      binder: {
+        title: 'Binder Mode (ToolPointerBinder)',
+        body: 'Renders structured tool outputs with 0 UI LLM calls. Click any example button or paste raw JSON to run a single select:target decision over the inspected JSON pointers and bind directly into a template. Sensitive fields like apiKey on Host Health are automatically redacted from Stage 4 wire messages, and unrecognized shapes abstain instead of forcing a bad layout.',
+      },
+      rpc: {
+        title: 'RPC Mode (Submit-Time Decision Predicates)',
+        body: 'Serves an interactive v1.0 form (/form bug, /form feedback, or /form refund) whose TextField @checks rule invokes a server-side decision predicate via callAgentFunction. Edit the text box to watch the predicate evaluate live against the active decision backend and return agentFunctionResponse without clearing the form: concrete steps pass, vague complaints fail, and rapid bursts trigger SessionRateLimiter.',
+      },
+      express: {
+        title: 'Express Mode (LLM Baseline)',
+        body: 'Baseline mode that sends the full Basic Catalog prompt in A2UI Express DSL directly to Gemini with no decision model in the loop. Click any example button or type a prompt to compare token count, latency, and rendered layout against cascade and binder (or run /compare to execute cascade, express, and direct side by side).',
+      },
+      direct: {
+        title: 'Direct JSON Mode (LLM Baseline)',
+        body: 'Baseline mode that asks Gemini to emit raw A2UI v1.0 JSON wire messages directly with no decision model or Express compiler. Useful as the upper-bound baseline for prompt tokens and latency when comparing against express, cascade, and binder.',
+      },
+    },
   },
   quickActions: [
     {
