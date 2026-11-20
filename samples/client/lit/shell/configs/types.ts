@@ -60,6 +60,7 @@ export interface AppConfig {
   modeControls?: {
     modes: string[];
     backends: string[];
+    modeExplainers?: Record<string, {title: string; body: string}>;
   };
   /** Whether to render the split-screen <playground-inspector> side panel. */
   inspector?: boolean;

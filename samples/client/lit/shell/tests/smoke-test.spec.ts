@@ -328,6 +328,9 @@ describe('a2ui-shell layout and inspector integration', () => {
       };
     };
 
+    const explainerBefore = el.shadowRoot?.querySelector('[data-testid="mode-explainer"]');
+    expect(explainerBefore?.textContent).toContain('Cascade Mode');
+
     const binderBtn = el.shadowRoot?.querySelector<HTMLButtonElement>(
       '[data-mode="binder"]',
     );
@@ -338,6 +341,8 @@ describe('a2ui-shell layout and inspector integration', () => {
 
     expect(sentPayloads).toEqual(['/mode binder']);
     expect(binderBtn!.classList.contains('active')).toBe(true);
+    const explainerAfter = el.shadowRoot?.querySelector('[data-testid="mode-explainer"]');
+    expect(explainerAfter?.textContent).toContain('Binder Mode');
 
     const geminiBtn = el.shadowRoot?.querySelector<HTMLButtonElement>(
       '[data-backend="gemini"]',
