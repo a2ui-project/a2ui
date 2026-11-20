@@ -33,6 +33,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_markdown_plus: ^1.0.7
+  material_ui: ^1.0.0
   url_launcher: ^6.3.2
 
 dev_dependencies:

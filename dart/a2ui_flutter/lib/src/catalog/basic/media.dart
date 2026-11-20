@@ -14,8 +14,7 @@
 
 import 'dart:async';
 
-// ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
 
 /// Plays the media at [url] with a play button and a progress bar, below the

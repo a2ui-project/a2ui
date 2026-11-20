@@ -17,10 +17,10 @@ import 'dart:async';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:a2ui_flutter_example/chat_app.dart';
 import 'package:a2ui_flutter_example/chat_session.dart';
-// ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'fake_client.dart';
 import 'replies.dart';
@@ -31,8 +31,11 @@ void main() {
   ) async {
     final client = FakeClient([
       [
-        'Some **bold** words.',
-        block([createSurface('s'), rootComponent('s', 'A **bold** label')]),
+        '# Model heading\n\nSome **bold** words.',
+        block([
+          createSurface('s'),
+          rootComponent('s', '# Surface heading\n\nA **bold** label'),
+        ]),
       ],
     ]);
     final session = ChatSession(client: client);
@@ -52,6 +55,23 @@ void main() {
       findsOne,
     );
     expect(find.textContaining('**'), findsNothing);
+
+    final ThemeData theme = Theme.of(tester.element(find.byType(Scaffold)));
+    for (final label in ['Model heading', 'Surface heading']) {
+      final RichText heading = tester.widget<RichText>(
+        find.descendant(
+          of: find.byType(MarkdownBody),
+          matching: find.byWidgetPredicate(
+            (w) => w is RichText && w.text.toPlainText() == label,
+          ),
+        ),
+      );
+      final rootSpan = heading.text as TextSpan;
+      final TextStyle? headingStyle =
+          rootSpan.children?.first.style ?? rootSpan.style;
+      expect(headingStyle?.fontSize, theme.textTheme.headlineSmall?.fontSize);
+      expect(headingStyle?.color, theme.textTheme.headlineSmall?.color);
+    }
   });
 
   testWidgets('opens a link tapped in the model text or in a Text', (

@@ -16,9 +16,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-// ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A 200x100 PNG.
 final List<int> widePng = base64Decode(

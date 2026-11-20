@@ -15,11 +15,10 @@
 import 'package:a2ui_explorer/src/example.dart';
 import 'package:a2ui_explorer/src/explorer_app.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
-// ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 late final List<Example> _examples;
 
@@ -271,6 +270,58 @@ void main() {
       _inSurface(find.textContaining('**', findRichText: true)),
       findsNothing,
     );
+  });
+
+  testWidgets('Markdown Text bridges ambient material_ui ThemeData', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final darkTheme = ThemeData(
+      brightness: Brightness.dark,
+      colorSchemeSeed: Colors.teal,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: darkTheme,
+        home: ExplorerPage(examples: _examples),
+      ),
+    );
+    final Finder item = find.byKey(const ValueKey('markdown-text.json'));
+    await tester.scrollUntilVisible(
+      item,
+      200,
+      scrollable: find.descendant(
+        of: find.byKey(const Key('examples')),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(item);
+    await tester.pump();
+
+    final ThemeData ambientTheme = Theme.of(
+      tester.element(find.byType(ExplorerPage)),
+    );
+    final RichText heading = tester.widget<RichText>(
+      find.descendant(
+        of: _inSurface(find.byType(MarkdownBody)),
+        matching: find.byWidgetPredicate(
+          (w) => w is RichText && w.text.toPlainText() == 'Heading 1',
+        ),
+      ),
+    );
+    final rootSpan = heading.text as TextSpan;
+    final TextStyle? headingStyle =
+        rootSpan.children?.first.style ?? rootSpan.style;
+    expect(
+      headingStyle?.fontSize,
+      ambientTheme.textTheme.headlineSmall?.fontSize,
+    );
+    expect(headingStyle?.color, ambientTheme.textTheme.headlineSmall?.color);
   });
 
   testWidgets('Native Grid lays out its custom components in two columns '

@@ -27,6 +27,7 @@ dependencies:
   a2ui_core: ^0.8.0
   flutter:
     sdk: flutter
+  material_ui: ^1.0.0
   path_parsing: ^1.1.0
   video_player: ^2.11.1
 

@@ -16,9 +16,8 @@ import 'dart:math' as math;
 
 import 'package:a2ui_core/a2ui_core.dart' hide Action;
 import 'package:flutter/gestures.dart';
-// ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../component_implementation.dart';
 import '../../component_props.dart';
