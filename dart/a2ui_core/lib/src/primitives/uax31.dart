@@ -33,8 +33,9 @@ final RegExp _uax31Identifier = RegExp(
 /// `@` are rejected.
 bool isValidUax31Identifier(String value, {bool allowLeadingAt = false}) {
   if (value.isEmpty) return false;
-  final String candidate =
-      allowLeadingAt && value.startsWith('@') ? value.substring(1) : value;
+  final String candidate = allowLeadingAt && value.startsWith('@')
+      ? value.substring(1)
+      : value;
   if (candidate.isEmpty) return false;
   return _uax31Identifier.hasMatch(candidate);
 }

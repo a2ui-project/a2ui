@@ -175,3 +175,48 @@
           root:
             component: "Text"
             text: "2026-09-04"
+
+- name: test_multi_catalog_format_string_index_and_catalog_call_without_default
+  description: Verifies @index() stays catalogless while sibling ${pluralize(...)} calls inherit formatString's catalogId on a defaultless v1.0 surface.
+  action: validate
+  catalogs:
+    - catalogId: "app-cat"
+      protocolVersion: "1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            label:
+              type: string
+  steps:
+    - payload:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "main"
+            dataModel:
+              items:
+                - count: 1
+                - count: 2
+            components:
+              - id: "root"
+                component: "List"
+                catalogId: "basic"
+                children:
+                  path: "/items"
+                  componentId: "row"
+              - id: "row"
+                component: "Text"
+                catalogId: "basic"
+                text:
+                  "@call": "formatString"
+                  catalogId: "basic"
+                  args:
+                    value: "Row ${@index()}: ${pluralize(value: count, one: 'drop', other: 'drops')}"
+  expect:
+    surfaces:
+      main:
+        components:
+          row_0:
+            text: "Row 0: drop"
+          row_1:
+            text: "Row 1: drops"

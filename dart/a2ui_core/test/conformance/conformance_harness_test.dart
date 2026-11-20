@@ -22,141 +22,146 @@ import 'conformance_harness.dart';
 
 void main() {
   group('runConformanceCase', () {
-    test('marks test skipped when listed in expectedFailures and body fails',
-        () async {
-      final skippedMessages = <String>[];
-      await runConformanceCase(
-        const {'name': 'failing_case'},
-        () => fail('not implemented yet'),
-        expectedFailures: const {
-          'failing_case': 'pending v1.0 validator support',
-        },
-        onSkip: skippedMessages.add,
-      );
-
-      expect(skippedMessages, hasLength(1));
-      expect(
-        skippedMessages.single,
-        allOf(
-          contains('expected failure: pending v1.0 validator support'),
-          contains('not implemented yet'),
-        ),
-      );
-    });
-
-    test('marks test skipped when listed in expectedFailures and async throws',
-        () async {
-      final skippedMessages = <String>[];
-      await runConformanceCase(
-        const {'name': 'async_failing_case'},
-        () async {
-          await Future<void>.delayed(Duration.zero);
-          throw StateError('async failure');
-        },
-        expectedFailures: const {
-          'async_failing_case': 'pending async RPC support',
-        },
-        onSkip: skippedMessages.add,
-      );
-
-      expect(skippedMessages, hasLength(1));
-      expect(
-        skippedMessages.single,
-        allOf(
-          contains('expected failure: pending async RPC support'),
-          contains('async failure'),
-        ),
-      );
-    });
-
     test(
-        'live markTestSkipped integration marks listed failing test as skipped',
-        () async {
-      await runConformanceCase(
-        const {'name': 'live_expected_failure'},
-        () => fail('expected failure in live test'),
-        expectedFailures: const {
-          'live_expected_failure': 'exercising default markTestSkipped hook',
-        },
-      );
-    });
-
-    test('throws TestFailure when listed in expectedFailures and body succeeds',
-        () async {
-      final skippedMessages = <String>[];
-      Object? caught;
-      try {
+      'marks test skipped when listed in expectedFailures and body fails',
+      () async {
+        final skippedMessages = <String>[];
         await runConformanceCase(
-          const {'name': 'now_passing_case'},
-          () {
-            expect(1 + 1, equals(2));
-          },
+          const {'name': 'failing_case'},
+          () => fail('not implemented yet'),
           expectedFailures: const {
-            'now_passing_case': 'should have failed',
+            'failing_case': 'pending v1.0 validator support',
           },
           onSkip: skippedMessages.add,
         );
-      } catch (error) {
-        caught = error;
-      }
 
-      expect(skippedMessages, isEmpty);
-      expect(
-        caught,
-        isA<TestFailure>().having(
-          (e) => e.message,
-          'message',
+        expect(skippedMessages, hasLength(1));
+        expect(
+          skippedMessages.single,
           allOf(
-            contains('now_passing_case'),
-            contains('passed unexpectedly'),
-            contains('remove'),
-            contains('expectedFailures'),
+            contains('expected failure: pending v1.0 validator support'),
+            contains('not implemented yet'),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
-    test('passes normally when not listed in expectedFailures and body passes',
-        () async {
-      final skippedMessages = <String>[];
-      var executed = false;
-      await runConformanceCase(
-        const {'name': 'normal_passing_case'},
-        () {
-          executed = true;
-        },
-        expectedFailures: const {
-          'other_case': 'unrelated reason',
-        },
-        onSkip: skippedMessages.add,
-      );
-
-      expect(executed, isTrue);
-      expect(skippedMessages, isEmpty);
-    });
-
-    test('propagates error when not listed in expectedFailures and body fails',
-        () async {
-      final skippedMessages = <String>[];
-      await expectLater(
-        () => runConformanceCase(
-          const {'name': 'normal_failing_case'},
-          () => throw StateError('unexpected failure'),
+    test(
+      'marks test skipped when listed in expectedFailures and async throws',
+      () async {
+        final skippedMessages = <String>[];
+        await runConformanceCase(
+          const {'name': 'async_failing_case'},
+          () async {
+            await Future<void>.delayed(Duration.zero);
+            throw StateError('async failure');
+          },
           expectedFailures: const {
-            'other_case': 'unrelated reason',
+            'async_failing_case': 'pending async RPC support',
           },
           onSkip: skippedMessages.add,
-        ),
-        throwsA(
-          isA<StateError>().having(
+        );
+
+        expect(skippedMessages, hasLength(1));
+        expect(
+          skippedMessages.single,
+          allOf(
+            contains('expected failure: pending async RPC support'),
+            contains('async failure'),
+          ),
+        );
+      },
+    );
+
+    test(
+      'live markTestSkipped integration marks listed failing test as skipped',
+      () async {
+        await runConformanceCase(
+          const {'name': 'live_expected_failure'},
+          () => fail('expected failure in live test'),
+          expectedFailures: const {
+            'live_expected_failure': 'exercising default markTestSkipped hook',
+          },
+        );
+      },
+    );
+
+    test(
+      'throws TestFailure when listed in expectedFailures and body succeeds',
+      () async {
+        final skippedMessages = <String>[];
+        Object? caught;
+        try {
+          await runConformanceCase(
+            const {'name': 'now_passing_case'},
+            () {
+              expect(1 + 1, equals(2));
+            },
+            expectedFailures: const {'now_passing_case': 'should have failed'},
+            onSkip: skippedMessages.add,
+          );
+        } catch (error) {
+          caught = error;
+        }
+
+        expect(skippedMessages, isEmpty);
+        expect(
+          caught,
+          isA<TestFailure>().having(
             (e) => e.message,
             'message',
-            equals('unexpected failure'),
+            allOf(
+              contains('now_passing_case'),
+              contains('passed unexpectedly'),
+              contains('remove'),
+              contains('expectedFailures'),
+            ),
           ),
-        ),
-      );
-      expect(skippedMessages, isEmpty);
-    });
+        );
+      },
+    );
+
+    test(
+      'passes normally when not listed in expectedFailures and body passes',
+      () async {
+        final skippedMessages = <String>[];
+        var executed = false;
+        await runConformanceCase(
+          const {'name': 'normal_passing_case'},
+          () {
+            executed = true;
+          },
+          expectedFailures: const {'other_case': 'unrelated reason'},
+          onSkip: skippedMessages.add,
+        );
+
+        expect(executed, isTrue);
+        expect(skippedMessages, isEmpty);
+      },
+    );
+
+    test(
+      'propagates error when not listed in expectedFailures and body fails',
+      () async {
+        final skippedMessages = <String>[];
+        await expectLater(
+          () => runConformanceCase(
+            const {'name': 'normal_failing_case'},
+            () => throw StateError('unexpected failure'),
+            expectedFailures: const {'other_case': 'unrelated reason'},
+            onSkip: skippedMessages.add,
+          ),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              equals('unexpected failure'),
+            ),
+          ),
+        );
+        expect(skippedMessages, isEmpty);
+      },
+    );
   });
 
   group('runConformanceSuite', () {
@@ -255,49 +260,52 @@ void main() {
       );
     });
 
-    test('fails by default when expectError.path is absent on thrown error',
-        () {
-      final errorWithoutPath = A2uiParseError('Missing field');
+    test(
+      'fails by default when expectError.path is absent on thrown error',
+      () {
+        final errorWithoutPath = A2uiParseError('Missing field');
 
-      expect(
-        () => expect(
-          errorWithoutPath,
-          matchesErrorFields(const {'path': 'messages.0.version'}),
-        ),
-        throwsA(
-          isA<TestFailure>().having(
-            (e) => e.message,
-            'message',
-            allOf(
-              contains('code/path not asserted'),
-              contains('messages.0.version'),
+        expect(
+          () => expect(
+            errorWithoutPath,
+            matchesErrorFields(const {'path': 'messages.0.version'}),
+          ),
+          throwsA(
+            isA<TestFailure>().having(
+              (e) => e.message,
+              'message',
+              allOf(
+                contains('code/path not asserted'),
+                contains('messages.0.version'),
+              ),
             ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
-    test('invokes custom onUnassertedField when expectError.path is absent',
-        () {
-      final skippedMessages = <String>[];
-      final errorWithoutPath = A2uiParseError('Missing field');
+    test(
+      'invokes custom onUnassertedField when expectError.path is absent',
+      () {
+        final skippedMessages = <String>[];
+        final errorWithoutPath = A2uiParseError('Missing field');
 
-      expect(
-        errorWithoutPath,
-        matchesErrorFields(
-          const {'path': 'messages.0.version'},
-          onUnassertedField: skippedMessages.add,
-        ),
-      );
-      expect(skippedMessages, hasLength(1));
-      expect(
-        skippedMessages.single,
-        allOf(
-          contains('code/path not asserted'),
-          contains('messages.0.version'),
-        ),
-      );
-    });
+        expect(
+          errorWithoutPath,
+          matchesErrorFields(const {
+            'path': 'messages.0.version',
+          }, onUnassertedField: skippedMessages.add),
+        );
+        expect(skippedMessages, hasLength(1));
+        expect(
+          skippedMessages.single,
+          allOf(
+            contains('code/path not asserted'),
+            contains('messages.0.version'),
+          ),
+        );
+      },
+    );
   });
 
   group('assertKnownKeys', () {
@@ -326,90 +334,94 @@ void main() {
       );
     });
 
-    test('expectedFailures does not swallow assertKnownKeys failures',
-        () async {
-      final skippedMessages = <String>[];
-      await expectLater(
-        () => runConformanceCase(
-          const {'name': 'xfailing_case', 'bogus': true},
-          () {
-            assertKnownKeys(
-              const {'name': 'xfailing_case', 'bogus': true},
-              const {'name'},
-              'case',
-            );
-          },
-          expectedFailures: const {'xfailing_case': 'known gap'},
-          onSkip: skippedMessages.add,
-        ),
-        throwsA(isA<UnknownConformanceKeyError>()),
-      );
-      expect(skippedMessages, isEmpty);
-    });
+    test(
+      'expectedFailures does not swallow assertKnownKeys failures',
+      () async {
+        final skippedMessages = <String>[];
+        await expectLater(
+          () => runConformanceCase(
+            const {'name': 'xfailing_case', 'bogus': true},
+            () {
+              assertKnownKeys(
+                const {'name': 'xfailing_case', 'bogus': true},
+                const {'name'},
+                'case',
+              );
+            },
+            expectedFailures: const {'xfailing_case': 'known gap'},
+            onSkip: skippedMessages.add,
+          ),
+          throwsA(isA<UnknownConformanceKeyError>()),
+        );
+        expect(skippedMessages, isEmpty);
+      },
+    );
   });
 
   group('recordManifest', () {
-    test('writes passed, xfailed, and skipped records to manifestDir',
-        () async {
-      final Directory tempDir = Directory.systemTemp.createTempSync(
-        'a2ui_manifest_test_',
-      );
-      addTearDown(() => tempDir.deleteSync(recursive: true));
+    test(
+      'writes passed, xfailed, and skipped records to manifestDir',
+      () async {
+        final Directory tempDir = Directory.systemTemp.createTempSync(
+          'a2ui_manifest_test_',
+        );
+        addTearDown(() => tempDir.deleteSync(recursive: true));
 
-      await runConformanceCase(
-        const {'name': 'passing_case'},
-        () {},
-        suite: 'core/sample.yaml',
-        manifestDir: tempDir.path,
-      );
-      await runConformanceCase(
-        const {'name': 'xfailing_case'},
-        () => fail('expected gap'),
-        suite: 'core/sample.yaml',
-        expectedFailures: const {'xfailing_case': 'known gap'},
-        onSkip: (_) {},
-        manifestDir: tempDir.path,
-      );
-      await runConformanceCase(
-        const {'name': 'unsupported_case'},
-        () => fail('should not run'),
-        suite: 'core/sample.yaml',
-        unsupported: const {'unsupported_case': 'not implemented'},
-        onSkip: (_) {},
-        manifestDir: tempDir.path,
-      );
+        await runConformanceCase(
+          const {'name': 'passing_case'},
+          () {},
+          suite: 'core/sample.yaml',
+          manifestDir: tempDir.path,
+        );
+        await runConformanceCase(
+          const {'name': 'xfailing_case'},
+          () => fail('expected gap'),
+          suite: 'core/sample.yaml',
+          expectedFailures: const {'xfailing_case': 'known gap'},
+          onSkip: (_) {},
+          manifestDir: tempDir.path,
+        );
+        await runConformanceCase(
+          const {'name': 'unsupported_case'},
+          () => fail('should not run'),
+          suite: 'core/sample.yaml',
+          unsupported: const {'unsupported_case': 'not implemented'},
+          onSkip: (_) {},
+          manifestDir: tempDir.path,
+        );
 
-      final List<File> files = tempDir.listSync().whereType<File>().toList();
-      expect(files, hasLength(1));
-      final List<Map<String, Object?>> records = files.single
-          .readAsLinesSync()
-          .map((line) => jsonDecode(line) as Map<String, Object?>)
-          .toList();
-      expect(
-        records,
-        equals([
-          {
-            'harness': 'dart-core',
-            'suite': 'core/sample.yaml',
-            'case': 'passing_case',
-            'status': 'passed',
-          },
-          {
-            'harness': 'dart-core',
-            'suite': 'core/sample.yaml',
-            'case': 'xfailing_case',
-            'status': 'xfailed',
-            'reason': 'known gap',
-          },
-          {
-            'harness': 'dart-core',
-            'suite': 'core/sample.yaml',
-            'case': 'unsupported_case',
-            'status': 'skipped',
-            'reason': 'not implemented',
-          },
-        ]),
-      );
-    });
+        final List<File> files = tempDir.listSync().whereType<File>().toList();
+        expect(files, hasLength(1));
+        final List<Map<String, Object?>> records = files.single
+            .readAsLinesSync()
+            .map((line) => jsonDecode(line) as Map<String, Object?>)
+            .toList();
+        expect(
+          records,
+          equals([
+            {
+              'harness': 'dart-core',
+              'suite': 'core/sample.yaml',
+              'case': 'passing_case',
+              'status': 'passed',
+            },
+            {
+              'harness': 'dart-core',
+              'suite': 'core/sample.yaml',
+              'case': 'xfailing_case',
+              'status': 'xfailed',
+              'reason': 'known gap',
+            },
+            {
+              'harness': 'dart-core',
+              'suite': 'core/sample.yaml',
+              'case': 'unsupported_case',
+              'status': 'skipped',
+              'reason': 'not implemented',
+            },
+          ]),
+        );
+      },
+    );
   });
 }

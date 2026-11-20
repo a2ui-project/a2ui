@@ -1043,6 +1043,95 @@ struct NodeResolverTests {
     #expect(updated.explicitAccessibilityAttributes?.label == "iPhone 17 Pro")
   }
 
+  /// A v1.0 catalog whose `Table` declares `accessibility` and `checks` properties of its own.
+  private func makeTableCatalog() throws -> AnyCatalog {
+    let schema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "Table" },
+            "accessibility": { "type": "string" },
+            "checks": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    return Catalog(
+      id: "tables",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Table", schema: schema)]
+    ).eraseToAnyCatalog()
+  }
+
+  @Test func prefixedAccessibilityMixinResolvesBesideCustomAccessibilityProperty() throws {
+    let catalog = try makeTableCatalog()
+    let dataModel = DataModel(initial: .object(["caption": .string("Revenue")]))
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Table",
+          properties: [
+            "accessibility": .string("compact"),
+            "@accessibility": .object([
+              "label": .object(["@path": .string("/caption")])
+            ]),
+          ]
+        )
+      ]),
+      dataModel: dataModel,
+      protocolVersion: .v10
+    )
+
+    let node = try #require(resolver.resolveTree())
+    #expect(node.explicitAccessibilityAttributes == AccessibilityAttributes(label: "Revenue"))
+    #expect(node.string(for: "accessibility") == "compact")
+
+    dataModel.set("/caption", value: .string("Quarterly revenue"))
+    let updated = try #require(resolver.resolveTree())
+    #expect(updated.explicitAccessibilityAttributes?.label == "Quarterly revenue")
+  }
+
+  @Test func prefixedChecksMixinResolvesBesideCustomChecksProperty() throws {
+    let catalog = try makeTableCatalog()
+    let dataModel = DataModel(initial: .object(["accepted": .boolean(false)]))
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Table",
+          properties: [
+            "checks": .array([.string("non_empty_rows")]),
+            "@checks": .array([
+              .object([
+                "condition": .object(["@path": .string("/accepted")]),
+                "message": .string("Accept the terms"),
+              ])
+            ]),
+          ]
+        )
+      ]),
+      dataModel: dataModel,
+      protocolVersion: .v10
+    )
+
+    let node = try #require(resolver.resolveTree())
+    #expect(node.checks.map(\.message) == ["Accept the terms"])
+    #expect(node.validationErrors == ["Accept the terms"])
+
+    dataModel.set("/accepted", value: .boolean(true))
+    let updated = try #require(resolver.resolveTree())
+    #expect(updated.validationErrors.isEmpty)
+  }
+
   @Test func incrementalScopedBindingWriteAndNoOpDataSet() throws {
     let catalog = try makeCatalog()
     let componentsModel = SurfaceComponentsModel(

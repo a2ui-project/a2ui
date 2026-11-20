@@ -16,7 +16,7 @@
 
 import assert from 'node:assert';
 import {describe, it} from 'node:test';
-import {MessageProcessor, GenericBinder, ComponentContext} from '@a2ui/web_core/v0_9';
+import {MessageProcessor, GenericBinder, ComponentContext} from '@a2ui/web_core';
 import {basicCatalog} from '../v0_9/catalogs/basic/index.js';
 import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import fs from 'fs';
@@ -28,10 +28,7 @@ import path from 'path';
  *   the examples from web_core.
  */
 describe('v0.9 Basic Catalog Examples', () => {
-  const examplesDir = path.resolve(
-    process.cwd(),
-    '../../../specification/v0_9/catalogs/basic/examples',
-  );
+  const examplesDir = path.resolve(process.cwd(), '../../../catalogs/basic/v0_9/examples');
 
   const files = fs.readdirSync(examplesDir).filter(f => f.endsWith('.json'));
 

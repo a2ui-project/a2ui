@@ -129,11 +129,10 @@ class RendererState {
 
   RendererState._(
     List<CatalogApi> catalogs, {
-    required bool assumesUnknownSurfaces,
+    required this._assumesUnknownSurfaces,
     MessageProcessor<ComponentApi>? processor,
   }) : catalogs = List.unmodifiable(catalogs),
        _protocolVersion = _checkCatalogs(catalogs),
-       _assumesUnknownSurfaces = assumesUnknownSurfaces,
        _sharesProcessor = processor != null {
     _processor =
         processor ??
@@ -239,9 +238,8 @@ class RendererState {
         );
       }
       _record(() {
-        final SurfaceComponentsModel? current = getSurface(
-          surfaceId,
-        )?.componentsModel;
+        final SurfaceComponentsModel? current = getSurface(surfaceId)
+            ?.componentsModel;
         if (current == null) return;
         current.removeComponent(componentId);
         current.insertComponent(
@@ -679,9 +677,8 @@ class RendererState {
       }
     }
     return () {
-      final SurfaceComponentsModel? components = getSurface(
-        surfaceId,
-      )?.componentsModel;
+      final SurfaceComponentsModel? components = getSurface(surfaceId)
+          ?.componentsModel;
       if (components == null) return;
       final recreated = <(int?, ComponentModel)>[];
       for (final _ComponentRecord record in previous.reversed) {
@@ -742,8 +739,15 @@ class RendererState {
   ) {
     final Object? type = component['component'];
     if (type != null && type != existing.type) return true;
+    if (!component.containsKey('@catalogId') &&
+        component.containsKey('catalogId') &&
+        existing.catalog != null) {
+      return true;
+    }
     final Object? catalogId =
-        component['catalogId'] ?? (type == null ? existing.catalog : null);
+        component['@catalogId'] ??
+        component['catalogId'] ??
+        (type == null ? existing.catalog : null);
     return catalogId != existing.catalog;
   }
 
@@ -1093,7 +1097,8 @@ List<AgentToRendererMessage> _surfaceUpdates(
 Set<String> _componentTypes(List<AgentToRendererMessage> messages) => {
   for (final AgentToRendererMessage message in messages)
     for (final Map<String, Object?> component in _components(message))
-      if (!component.containsKey('catalogId'))
+      if (!component.containsKey('@catalogId') &&
+          !component.containsKey('catalogId'))
         if (component['component'] case final String type) type,
 };
 

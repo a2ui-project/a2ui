@@ -382,14 +382,14 @@ const String commonTypesV1_0Json = r'''
         "id": {
           "$ref": "#/$defs/ComponentId"
         },
-        "catalogId": {
+        "@catalogId": {
           "type": "string",
           "description": "The catalog ID for this component, overriding any surface-level default catalogId."
         },
-        "accessibility": {
+        "@accessibility": {
           "$ref": "#/$defs/AccessibilityAttributes"
         },
-        "metadata": {
+        "@metadata": {
           "type": "object",
           "description": "Optional component-level metadata for vendor extensions.",
           "properties": {
@@ -621,7 +621,7 @@ const String commonTypesV1_0Json = r'''
       "type": "object",
       "description": "Properties for components that support renderer-side checks.",
       "properties": {
-        "checks": {
+        "@checks": {
           "type": "array",
           "description": "A list of validation check rules to perform on the component.",
           "items": {

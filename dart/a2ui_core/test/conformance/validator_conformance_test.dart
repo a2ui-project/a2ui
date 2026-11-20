@@ -34,18 +34,18 @@ const Map<String, String> _reservedKeysExpectedFailures = {};
 const Map<String, String> _validationResultExpectedFailures = {
   'test_validation_result_dynamic_object_return':
       'NodeResolver does not expose a singular validationResult property on '
-          'resolved component props, and the built-in email function omits the '
-          'INVALID_EMAIL code and example suffix in its default message.',
+      'resolved component props, and the built-in email function omits the '
+      'INVALID_EMAIL code and example suffix in its default message.',
   'test_validation_result_boolean_fallback':
       'NodeResolver does not expose a singular validationResult property on '
-          'resolved component props.',
+      'resolved component props.',
   'test_validation_result_multiple_rules_preserve_order':
       'Built-in email validation function does not set code INVALID_EMAIL on '
-          'its ValidationResult.',
+      'its ValidationResult.',
   'test_validation_result_reactive_recovery_on_data_update':
       'Built-in email validation function returns "Must be a valid email '
-          'address." rather than the message with the '
-          '"(e.g. user@example.com)" suffix.',
+      'address." rather than the message with the '
+      '"(e.g. user@example.com)" suffix.',
 };
 
 /// Cases in `core/error_responses.yaml` expected to fail.
@@ -75,9 +75,7 @@ const Map<String, Set<String>> _knownKeys = {
     'messages',
     'payload',
   },
-  'expect:validate': {
-    'surfaces',
-  },
+  'expect:validate': {'surfaces'},
   'surface:validate': {
     'components',
     'isValid',
@@ -169,13 +167,10 @@ void _runCase(Map<String, Object?> testCase) {
   final bool strict = (testCase['strictMode'] as bool?) ?? true;
   final emittedErrors = <ErrorMessage>[];
   final processor = MessageProcessor<ComponentApi>(
-    catalogs: _catalogsFor(
-      _documentsFor(testCase),
-      allPayloads,
-      version,
-    ),
-    validationConfig:
-        strict ? ValidationConfig.strict : ValidationConfig.relaxed,
+    catalogs: _catalogsFor(_documentsFor(testCase), allPayloads, version),
+    validationConfig: strict
+        ? ValidationConfig.strict
+        : ValidationConfig.relaxed,
     outboundListener: (RendererToAgentMessage msg) {
       if (msg is ErrorMessage) emittedErrors.add(msg);
     },
@@ -194,9 +189,7 @@ void _runCase(Map<String, Object?> testCase) {
   }
 }
 
-List<Map<String, Object?>> _collectPayloads(
-  List<Map<String, Object?>> steps,
-) =>
+List<Map<String, Object?>> _collectPayloads(List<Map<String, Object?>> steps) =>
     [
       for (final Map<String, Object?> step in steps)
         if (step['messages'] ?? step['payload'] case final List<Object?> raw)
@@ -213,9 +206,11 @@ void _runValidatorStep(
   required List<ErrorMessage> emittedErrors,
 }) {
   if (!step.containsKey('messages') && !step.containsKey('payload')) return;
-  final Object? normalizedPayload =
-      _normalizeStepPayload(step['messages'] ?? step['payload']);
-  final Object? expectError = step['expectError'] ??
+  final Object? normalizedPayload = _normalizeStepPayload(
+    step['messages'] ?? step['payload'],
+  );
+  final Object? expectError =
+      step['expectError'] ??
       step['expect_error'] ??
       (isLastStep
           ? (testCase['expectError'] ?? testCase['expect_error'])
@@ -252,13 +247,13 @@ void _runValidatorStep(
 }
 
 Object? _normalizeStepPayload(Object? rawPayload) => switch (rawPayload) {
-      final List<Object?> list => [
-          for (final Object? item in list)
-            item is Map ? item.cast<String, Object?>() : item,
-        ],
-      final Map<Object?, Object?> map => map.cast<String, Object?>(),
-      _ => rawPayload,
-    };
+  final List<Object?> list => [
+    for (final Object? item in list)
+      item is Map ? item.cast<String, Object?>() : item,
+  ],
+  final Map<Object?, Object?> map => map.cast<String, Object?>(),
+  _ => rawPayload,
+};
 
 void _assertExpectedSurfaces(
   MessageProcessor<ComponentApi> processor,
@@ -272,14 +267,16 @@ void _assertExpectedSurfaces(
   final Object? surfaces = expectBlock['surfaces'];
   if (surfaces is! Map<String, Object?>) return;
   for (final MapEntry<String, Object?> entry in surfaces.entries) {
-    final SurfaceModel<ComponentApi>? surface =
-        processor.model.getSurface(entry.key);
+    final SurfaceModel<ComponentApi>? surface = processor.model.getSurface(
+      entry.key,
+    );
     expect(surface, isNotNull, reason: 'Surface ${entry.key} should exist');
     final resolver = NodeResolver<ComponentApi>(surface!);
     addTearDown(resolver.dispose);
 
-    final Map<String, ComponentNode<ComponentApi>> nodes =
-        _collectSurfaceNodes(resolver.rootNode.peek());
+    final Map<String, ComponentNode<ComponentApi>> nodes = _collectSurfaceNodes(
+      resolver.rootNode.peek(),
+    );
     final expectedSurface = entry.value as Map<String, Object?>?;
     if (expectedSurface == null) continue;
     assertKnownKeys(
@@ -367,15 +364,15 @@ void _assertSurfaceComponentProps(
 }
 
 Object? _unwrapResolved(Object? value) => switch (value) {
-      final ResolvedBinding<Object?> b => _unwrapResolved(b.value),
-      final ValidationResult vr => vr.toJson(),
-      final List<Object?> list => list.map(_unwrapResolved).toList(),
-      final Map<Object?, Object?> map => <String, Object?>{
-          for (final MapEntry<Object?, Object?> e in map.entries)
-            '${e.key}': _unwrapResolved(e.value),
-        },
-      _ => value,
-    };
+  final ResolvedBinding<Object?> b => _unwrapResolved(b.value),
+  final ValidationResult vr => vr.toJson(),
+  final List<Object?> list => list.map(_unwrapResolved).toList(),
+  final Map<Object?, Object?> map => <String, Object?>{
+    for (final MapEntry<Object?, Object?> e in map.entries)
+      '${e.key}': _unwrapResolved(e.value),
+  },
+  _ => value,
+};
 
 /// The catalog documents a case declares, inline or by path.
 ///
@@ -539,10 +536,10 @@ List<Catalog<ComponentApi, FunctionImplementation>> _singleDocumentCatalogs(
 
 /// The catalog ids the `createSurface` messages in [payload] name.
 Set<String> _catalogIdsNamedBy(List<Map<String, Object?>> payload) => <String>{
-      for (final Map<String, Object?> envelope in payload)
-        if (envelope['createSurface'] case final Map<String, Object?> body)
-          if (body['catalogId'] case final String id) id,
-    };
+  for (final Map<String, Object?> envelope in payload)
+    if (envelope['createSurface'] case final Map<String, Object?> body)
+      if (body['catalogId'] case final String id) id,
+};
 
 /// Matches the error a case expects, by category, message, code, and path.
 Matcher _matchesError(
@@ -554,8 +551,8 @@ Matcher _matchesError(
   if (expectError is String) {
     return _messageMatches(expectError);
   }
-  final Map<String, Object?> expected =
-      (expectError! as Map).cast<String, Object?>();
+  final Map<String, Object?> expected = (expectError! as Map)
+      .cast<String, Object?>();
   final matchers = <Matcher>[
     categoryMatches(expected['category'] as String?),
     if (expected['message'] case final String message) _messageMatches(message),
@@ -570,10 +567,10 @@ Matcher _matchesError(
 }
 
 Matcher _messageMatches(String pattern) => isA<A2uiError>().having(
-      (e) => e.message,
-      'message',
-      anyOf(
-        contains(pattern),
-        matches(RegExp(alignErrorPattern(pattern), caseSensitive: false)),
-      ),
-    );
+  (e) => e.message,
+  'message',
+  anyOf(
+    contains(pattern),
+    matches(RegExp(alignErrorPattern(pattern), caseSensitive: false)),
+  ),
+);

@@ -17,9 +17,9 @@
 import * as fs from 'fs';
 
 import {A2uiCatalogError} from '../errors.js';
-import {Catalog, CatalogApi, normalizeVersionString} from '../internal/web-core.js';
+import {Catalog, CatalogApi} from '../internal/web-core.js';
 import {ProtocolVersion} from '../types.js';
-import {toWireProtocolVersion} from '../utils/protocol-version.js';
+import {toReleaseLine, toWireProtocolVersion} from '../utils/protocol-version.js';
 
 /**
  * Builds a catalog from a parsed catalog document, filling in the id and protocol version
@@ -70,7 +70,7 @@ export function catalogFromDocument(
   if (
     protocolVersion !== undefined &&
     documentVersion !== undefined &&
-    normalizeVersionString(protocolVersion) !== normalizeVersionString(documentVersion)
+    toReleaseLine(protocolVersion) !== toReleaseLine(documentVersion)
   ) {
     throw new A2uiCatalogError(
       `Protocol version mismatch in ${source}. Provider: ${protocolVersion}, document: ${documentVersion}`,

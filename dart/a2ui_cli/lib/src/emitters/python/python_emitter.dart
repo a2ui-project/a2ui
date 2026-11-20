@@ -256,6 +256,7 @@ class PythonEmitter {
     }
 
     final Iterable<String> pydanticNames = [
+      'AliasChoices',
       'BaseModel',
       'ConfigDict',
       'Field',
@@ -382,12 +383,31 @@ class PythonEmitter {
       '    component: Literal[$compLiteral] = $compLiteral',
     ];
 
-    final seenNames = <String>{'component', 'id'};
+    final isV1 =
+        (A2uiProtocolVersion.tryParseSemVer(catalog.specVersion) ??
+            A2uiProtocolVersion.v0_9_1) ==
+        A2uiProtocolVersion.v1_0;
+    final bool hasAtChecks = comp.properties.containsKey('@checks');
+    final bool hasCustomChecks = comp.properties.containsKey('checks');
+    final seenNames = <String>{
+      'component',
+      'id',
+      if (isV1) ...[
+        'catalog_id',
+        'accessibility',
+        'extensions',
+        'metadata',
+        'with_extension',
+      ],
+      if (hasAtChecks) 'checks',
+    };
     for (final MapEntry<String, PropertyDescriptor> entry
         in comp.properties.entries) {
       // `component` is pinned above and `id` belongs to the base node.
       if (entry.key == 'component' || entry.key == 'id') continue;
-      lines.add(_fieldDeclaration(entry.key, entry.value, seenNames));
+      lines.add(
+        _fieldDeclaration(entry.key, entry.value, seenNames, hasCustomChecks),
+      );
     }
 
     return lines.join('\n');
@@ -398,9 +418,11 @@ class PythonEmitter {
     String rawName,
     PropertyDescriptor prop, [
     Set<String>? seenNames,
+    bool hasCustomChecks = false,
   ]) {
-    String pyName = toSnakeCase(rawName);
-    if (seenNames != null) {
+    final isAtChecks = rawName == '@checks';
+    String pyName = isAtChecks ? 'checks' : toSnakeCase(rawName);
+    if (seenNames != null && !isAtChecks) {
       var candidate = pyName;
       var suffix = 2;
       while (seenNames.contains(candidate)) {
@@ -408,6 +430,8 @@ class PythonEmitter {
         suffix++;
       }
       pyName = candidate;
+      seenNames.add(pyName);
+    } else if (seenNames != null) {
       seenNames.add(pyName);
     }
     final String pyType = typeToPython(prop.type);
@@ -421,7 +445,14 @@ class PythonEmitter {
 
     final args = <String>[
       if (!prop.isRequired) 'default=${defaultLiteral ?? 'None'}',
-      'alias=${_pyString(rawName)}',
+      if (isAtChecks) ...[
+        'serialization_alias="@checks"',
+        if (pyName == 'checks' && !hasCustomChecks)
+          'validation_alias=AliasChoices("@checks", "checks")'
+        else
+          'validation_alias="@checks"',
+      ] else
+        'alias=${_pyString(rawName)}',
     ];
     final annotation = prop.isRequired ? pyType : 'Optional[$pyType]';
     final oneLine = '    $pyName: $annotation = Field(${args.join(', ')})';

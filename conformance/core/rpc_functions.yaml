@@ -653,6 +653,41 @@
           mediaId: "video-456"
           formatted: "now-video-456"
 
+- name: test_rpc_call_renderer_function_format_string_arg_inherits_catalog
+  description: Verifies that a formatString call inside callRendererFunction arguments scopes nested ${...} template calls to formatString's catalogId rather than the surface default catalog or outer RPC catalog.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    surfaceId: "media_surface"
+    dataModel:
+      count: 2
+    message:
+      version: "1.0"
+      callRendererFunction:
+        functionCallId: "call-401b"
+        surfaceId: "media_surface"
+        callFunction:
+          "@call": "echoArgs"
+          catalogId: "media_catalog"
+          args:
+            formatted:
+              "@call": "formatString"
+              catalogId: "basic"
+              args:
+                value: "Clips: ${pluralize(value: /count, one: 'clip', other: 'clips')}"
+    functionMetadata:
+      echoArgs:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-401b"
+        value:
+          formatted: "Clips: clips"
+
 - name: test_rpc_call_renderer_function_without_surface_id_isolated_data_model
   description: Verifies that when surfaceId is omitted on callRendererFunction, @path in callFunction.args resolves against an isolated empty {} data model even when a surface with data exists.
   catalog:

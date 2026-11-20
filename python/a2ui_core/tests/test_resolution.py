@@ -13,9 +13,13 @@
 # limitations under the License.
 
 from typing import Any
+from unittest.mock import MagicMock
+
 import pytest
 
-from a2ui.core.state import ComponentModel, SurfaceModel, DataModel
+from a2ui.core.basic_catalog import BasicCatalog, v0_9, v1_0
+from a2ui.core.basic_catalog.v1_0.function_impls import _adapt_ast_part_for_v10
+from a2ui.core.catalog import Catalog, FunctionImplementation
 from a2ui.core.resolution import (
     ComponentContext,
     DataContext,
@@ -23,9 +27,8 @@ from a2ui.core.resolution import (
     MissingDataBindingWarning,
     coerce_dynamic_boolean,
 )
-from a2ui.core.catalog import Catalog, FunctionImplementation
-from a2ui.core.basic_catalog import BasicCatalog, v0_9
 from a2ui.core.schema.v0_9.common_types import DynamicString, StrictBaseModel
+from a2ui.core.state import ComponentModel, DataModel, SurfaceModel
 
 
 class _OrderArgs(StrictBaseModel):
@@ -1807,4 +1810,272 @@ async def test_agent_rpc_error_dispatches_expression_error_with_function_call_id
     assert errors[0]["functionCallId"] == "call-test-123"
     assert "surfaceId" not in errors[0]
     assert errors[0]["expression"] == "remoteFn"
+    binder.dispose()
+
+
+def test_v10_format_string_template_calls_inherit_catalog_and_preserve_index():
+    basic_cat = v1_0.BasicCatalog()
+    surface = SurfaceModel(
+        "s1",
+        default_catalog=None,
+        available_catalogs={basic_cat.catalog_id: basic_cat},
+        protocol_version="1.0",
+    )
+    surface.data_model.set("/", {"items": ["alpha", "beta"]})
+    ctx = DataContext(surface, path="/items/1", index=1)
+    errors: list[dict[str, Any]] = []
+    surface.on_error.subscribe(errors.append)
+
+    res = ctx.resolve_dynamic_value({
+        "@call": "formatString",
+        "catalogId": basic_cat.catalog_id,
+        "args": {
+            "value": (
+                "Item ${@index()}:"
+                " ${pluralize(value: 2, one: 'drop', other: 'drops')}"
+                " (${not(value: not(value: true))})"
+            )
+        },
+    })
+    assert res == "Item 1: drops (true)"
+    assert errors == []
+
+    # Even when the surface defines a non-matching default catalog, template calls
+    # follow the catalog that formatString resolved to.
+    custom_default = Catalog("custom-default", protocol_version="1.0")
+    mixed_surface = SurfaceModel(
+        "s-mixed",
+        default_catalog=custom_default,
+        available_catalogs={
+            custom_default.catalog_id: custom_default,
+            basic_cat.catalog_id: basic_cat,
+        },
+        protocol_version="1.0",
+    )
+    mixed_ctx = DataContext(mixed_surface, path="/")
+    mixed_errors: list[dict[str, Any]] = []
+    mixed_surface.on_error.subscribe(mixed_errors.append)
+    assert (
+        mixed_ctx.resolve_dynamic_value({
+            "@call": "formatString",
+            "catalogId": basic_cat.catalog_id,
+            "args": {
+                "value": "Count: ${pluralize(value: 2, one: 'drop', other: 'drops')}"
+            },
+        })
+        == "Count: drops"
+    )
+    assert mixed_errors == []
+
+    scoped_ctx = ctx.with_active_catalog_id(basic_cat.catalog_id)
+    assert scoped_ctx.active_catalog_id == basic_cat.catalog_id
+    assert scoped_ctx.index == 1
+    assert ctx.active_catalog_id is None
+
+    # Defensive parent attribute lookup when parent is a stub/mock without active_catalog_id.
+    stub_ctx = DataContext(surface, path="/")
+    stub_ctx.parent = object()  # type: ignore[assignment]
+    assert stub_ctx.active_catalog_id is None
+    stub_ctx.parent = MagicMock()
+    assert stub_ctx.active_catalog_id is None
+    assert (
+        stub_ctx.resolve_dynamic_value(
+            {"@call": "fn", "catalogId": "missing-cat", "args": {}}
+        )
+        is None
+    )
+
+    # An inner active catalog scope stops ancestor _active_catalog lookup.
+    rpc_only_cat = Catalog(
+        "rpc-only-cat",
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="rpcHelper",
+                execute=lambda args, context=None, *_: "from-rpc",
+            )
+        ],
+    )
+    rpc_scoped = mixed_ctx.with_active_catalog_id("rpc-only-cat", catalog=rpc_only_cat)
+    inner_scoped = rpc_scoped.nested("/sub", index=0).with_active_catalog_id(
+        custom_default.catalog_id, catalog=custom_default
+    )
+    mixed_errors.clear()
+    assert (
+        inner_scoped.resolve_dynamic_value(
+            {"@call": "rpcHelper", "catalogId": "rpc-only-cat", "args": {}}
+        )
+        is None
+    )
+    assert len(mixed_errors) == 1
+    assert mixed_errors[0]["code"] == "CATALOG_ERROR"
+
+    assert _adapt_ast_part_for_v10(
+        {
+            "@call": "fn",
+            "catalogId": "explicit-cat",
+            "args": {"x": {"path": "/a"}},
+            "returnType": "any",
+        },
+        "inherited-cat",
+    ) == {
+        "@call": "fn",
+        "catalogId": "explicit-cat",
+        "args": {"x": {"@path": "/a"}},
+    }
+
+
+def test_direct_data_binding_and_function_call_schemas() -> None:
+    """Direct DataBinding and FunctionCall property schemas resolve dynamically."""
+    cat = Catalog(
+        "direct-cat",
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="shout",
+                execute=lambda args, context=None, *_: f"{args['label']}!",
+            )
+        ],
+    )
+    surface = SurfaceModel("s1", cat, protocol_version="1.0")
+    surface.data_model.set("/name", "Ada")
+    comp = ComponentModel(
+        "c1",
+        "Probe",
+        cat,
+        {
+            "binding": {"@path": "/name"},
+            "computed": {"@call": "shout", "args": {"label": {"@path": "/name"}}},
+        },
+    )
+    surface.components_model.add_component(comp)
+    schema = {
+        "type": "object",
+        "properties": {
+            "binding": {"$ref": "common_types.json#/$defs/DataBinding"},
+            "computed": {"$ref": "common_types.json#/$defs/FunctionCall"},
+        },
+    }
+    binder = GenericBinder(
+        ComponentContext(comp, DataContext(surface, path="/")),
+        schema=schema,
+        expand_templates=True,
+    )
+    assert binder.current_props["binding"] == "Ada"
+    assert binder.current_props["computed"] == "Ada!"
+    binder.current_props["setBinding"]("Grace")
+    assert surface.data_model.get("/name") == "Grace"
+    assert binder.current_props["binding"] == "Grace"
+    assert binder.current_props["computed"] == "Grace!"
+    binder.dispose()
+
+
+def test_constrained_function_call_and_boolean_union() -> None:
+    """allOf-constrained FunctionCall branches resolve dynamically and coerce booleans."""
+    cat = Catalog(
+        "constrained-cat",
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="is_ready",
+                execute=lambda args, context=None, *_: bool(args.get("ready")),
+            )
+        ],
+    )
+    surface = SurfaceModel("s1", cat, protocol_version="1.0")
+    surface.data_model.set("/ready", True)
+    surface.data_model.set("/validation", {"valid": False, "message": "No"})
+    constrained_fn_schema = {
+        "allOf": [
+            {"$ref": "common_types.json#/$defs/FunctionCall"},
+            {"properties": {"returnType": {"const": "boolean"}}},
+        ]
+    }
+    comp = ComponentModel(
+        "c1",
+        "Probe",
+        cat,
+        {
+            "direct": {
+                "@call": "is_ready",
+                "args": {"ready": {"@path": "/ready"}},
+                "returnType": "boolean",
+            },
+            "flag": {"@path": "/validation"},
+            "computed_flag": {
+                "@call": "is_ready",
+                "args": {"ready": {"@path": "/ready"}},
+                "returnType": "boolean",
+            },
+        },
+    )
+    surface.components_model.add_component(comp)
+    schema = {
+        "type": "object",
+        "properties": {
+            "direct": constrained_fn_schema,
+            "flag": {
+                "oneOf": [
+                    {"type": "boolean"},
+                    constrained_fn_schema,
+                ]
+            },
+            "computed_flag": {
+                "oneOf": [
+                    {"type": "boolean"},
+                    {"$ref": "common_types.json#/$defs/DataBinding"},
+                    constrained_fn_schema,
+                ]
+            },
+        },
+    }
+    binder = GenericBinder(
+        ComponentContext(comp, DataContext(surface, path="/")),
+        schema=schema,
+        expand_templates=True,
+    )
+    assert binder.current_props["direct"] is True
+    assert binder.current_props["flag"] is False
+    assert binder.current_props["computed_flag"] is True
+    surface.data_model.set("/ready", False)
+    assert binder.current_props["direct"] is False
+    assert binder.current_props["computed_flag"] is False
+    binder.dispose()
+
+
+def test_v10_child_list_template_uses_path_only() -> None:
+    """v1.0 ChildList templates resolve plain path and ignore non-spec @path."""
+    cat = Catalog("tpl-cat", protocol_version="1.0")
+    surface = SurfaceModel("s1", cat, protocol_version="1.0")
+    surface.data_model.set("/items", [{"label": "A"}, {"label": "B"}])
+    schema = {
+        "type": "object",
+        "properties": {
+            "children": {"$ref": "common_types.json#/$defs/ChildList"},
+            "invalidChildren": {"$ref": "common_types.json#/$defs/ChildList"},
+        },
+    }
+    comp = ComponentModel(
+        "c1",
+        "Container",
+        cat,
+        {
+            "children": {"componentId": "row", "path": "/items"},
+            "invalidChildren": {"componentId": "row", "@path": "/items"},
+        },
+    )
+    surface.components_model.add_component(comp)
+    binder = GenericBinder(
+        ComponentContext(comp, DataContext(surface, path="/")),
+        schema=schema,
+        expand_templates=True,
+    )
+    assert binder.current_props["children"] == [
+        {"id": "row", "basePath": "/items/0"},
+        {"id": "row", "basePath": "/items/1"},
+    ]
+    assert binder.current_props["invalidChildren"] == {
+        "componentId": "row",
+        "@path": "/items",
+    }
     binder.dispose()

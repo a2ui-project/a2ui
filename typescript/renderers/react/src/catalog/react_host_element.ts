@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import type {ComponentContext, ComponentNode} from '@a2ui/web_core/v0_9';
-import {type A2uiWebComponentElement, bindHostAccessibility} from '@a2ui/web_core/v0_9/universal';
+import type {ComponentContext, ComponentNode} from '@a2ui/web_core';
+import {type A2uiWebComponentElement, bindHostAccessibility} from '@a2ui/web_core/universal';
 import {HostRegistry, isReactRendered, ownerAbove} from '../host_registry';
 import type {ReactComponentImplementation} from '../react_component_implementation';
 import {hostRefsOf} from './host_accessibility';
@@ -36,8 +36,14 @@ export interface ReactHostElement extends A2uiWebComponentElement {
   node?: ComponentNode<ReactComponentImplementation>;
 }
 
+// Importing this module must not need a DOM, so it can load during server-side rendering and in
+// plain Node. Without `HTMLElement` the base is an empty class. Nothing can define or create the
+// element there, because `customElements` is missing too.
+const ElementBase: typeof HTMLElement =
+  typeof HTMLElement === 'undefined' ? (class {} as unknown as typeof HTMLElement) : HTMLElement;
+
 /** The behaviour every host shares; `toWebComponent` derives one subclass per tag name. */
-export class ReactWcHost extends HTMLElement implements ReactHostElement {
+export class ReactWcHost extends ElementBase implements ReactHostElement {
   /** @deprecated Assign `node` instead. */
   context?: ComponentContext;
   private _node?: ComponentNode<ReactComponentImplementation>;

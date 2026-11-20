@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:json_schema_builder/json_schema_builder.dart';
 
@@ -52,6 +53,7 @@ typedef _RoutedMessage = ({
 typedef _CheckedBatch = ({
   List<Map<String, Object?>> resolved,
   Map<String, ComponentRefFields> refFields,
+  A2uiProtocolVersion version,
 });
 
 /// The central processor for A2UI messages on renderer side.
@@ -98,9 +100,15 @@ typedef _CheckedBatch = ({
 class MessageProcessor<T extends ComponentApi> {
   final SurfaceGroupModel<T> model;
 
-  /// The catalogs the processor was created with, in priority order. The
-  /// list cannot be modified.
-  final List<Catalog<T, FunctionImplementation>> catalogs;
+  /// The catalogs the processor holds, in priority order: the ones it was
+  /// created with, then the ones [addCatalog] added. The list cannot be
+  /// modified; add a catalog with [addCatalog].
+  late final List<Catalog<T, FunctionImplementation>> catalogs =
+      UnmodifiableListView(_catalogs);
+
+  /// The processor's own copy of the list passed to the constructor, which
+  /// [addCatalog] adds to.
+  final List<Catalog<T, FunctionImplementation>> _catalogs;
 
   /// The protocol version this processor targets by default, or null for
   /// none.
@@ -143,8 +151,11 @@ class MessageProcessor<T extends ComponentApi> {
 
   /// One validator per catalog, protocol version and whether unknown
   /// elements are allowed, built on first use.
-  final Map<(String, A2uiProtocolVersion, bool),
-      PayloadValidator<T, FunctionImplementation>> _validators = {};
+  final Map<
+    (String, A2uiProtocolVersion, bool),
+    PayloadValidator<T, FunctionImplementation>
+  >
+  _validators = {};
 
   /// Each catalog's child-reference fields, by catalog id, built on first use.
   final Map<String, Map<String, ComponentRefFields>> _refFields = {};
@@ -165,6 +176,14 @@ class MessageProcessor<T extends ComponentApi> {
 
   final OutboundMessageListener? _outboundListener;
   final Duration _defaultTimeout;
+  bool _disposed = false;
+
+  /// When true, [_outboundListener] also receives an [ActionMessage] for each
+  /// action emitted on [SurfaceGroupModel.onAction].
+  ///
+  /// Requires `outboundListener` on the constructor. `onAction` and
+  /// [SurfaceGroupModel.onAction] still fire.
+  final bool unifiedOutbound;
 
   /// When true, [processMessages] and [processMessagesAsync] emit mapped
   /// [ErrorMessage]s to [SurfaceGroupModel.onError] and [_outboundListener]
@@ -176,10 +195,14 @@ class MessageProcessor<T extends ComponentApi> {
   final int maxAgentCallCacheEntries;
 
   /// [outboundListener] receives every message the RPC layer sends to the
-  /// agent, and [defaultTimeout] bounds how long [callAgentFunction] waits
-  /// for an answer; see [RpcHandler]. [maxAgentCallCacheEntries] is passed
-  /// to each surface (see [SurfaceModel.maxAgentCallCacheEntries]); it must
-  /// be at least 1, or the constructor throws [ArgumentError].
+  /// agent and mapped [ErrorMessage]s from [processMessages]. When
+  /// [unifiedOutbound] is true, [outboundListener] also receives an
+  /// [ActionMessage] for each action emitted on [SurfaceGroupModel.onAction];
+  /// [outboundListener] must then be provided, or the constructor throws
+  /// [ArgumentError]. [_defaultTimeout] bounds how long [callAgentFunction]
+  /// waits for an answer; see [RpcHandler]. [maxAgentCallCacheEntries] is
+  /// passed to each surface (see [SurfaceModel.maxAgentCallCacheEntries]); it
+  /// must be at least 1, or the constructor throws [ArgumentError].
   MessageProcessor({
     required List<Catalog<T, FunctionImplementation>> catalogs,
     this.defaultVersion,
@@ -189,14 +212,21 @@ class MessageProcessor<T extends ComponentApi> {
     void Function(A2uiRendererAction)? onAction,
     void Function(A2uiRendererError)? onError,
     OutboundMessageListener? outboundListener,
-    Duration defaultTimeout = const Duration(seconds: 30),
+    this.unifiedOutbound = false,
+    this._defaultTimeout = const Duration(seconds: 30),
     this.reportErrorsOnly = false,
     this.maxAgentCallCacheEntries = 256,
-  })  : catalogs = List.unmodifiable(catalogs),
-        adapterRegistry = adapterRegistry ?? VersionAdapterRegistry.standard(),
-        model = SurfaceGroupModel<T>(),
-        _outboundListener = outboundListener,
-        _defaultTimeout = defaultTimeout {
+  }) : _catalogs = List.of(catalogs),
+       adapterRegistry = adapterRegistry ?? VersionAdapterRegistry.standard(),
+       model = SurfaceGroupModel<T>(),
+       _outboundListener = outboundListener {
+    if (unifiedOutbound && outboundListener == null) {
+      throw ArgumentError.value(
+        unifiedOutbound,
+        'unifiedOutbound',
+        'outboundListener must be provided when unifiedOutbound is true.',
+      );
+    }
     if (maxAgentCallCacheEntries < 1) {
       throw ArgumentError.value(
         maxAgentCallCacheEntries,
@@ -211,6 +241,9 @@ class MessageProcessor<T extends ComponentApi> {
         "ValidationConfig.targetVersion is '${target.jsonValue}' but this "
         "processor defaults to '${defaultVersion.jsonValue}'.",
       );
+    }
+    if (unifiedOutbound) {
+      model.onAction.subscribe(_forwardAction);
     }
     if (onAction != null) {
       model.onAction.subscribe(onAction);
@@ -246,25 +279,43 @@ class MessageProcessor<T extends ComponentApi> {
     void Function(A2uiRendererError)? onError,
     OutboundMessageListener? outboundListener,
     bool reportErrorsOnly = false,
-  }) =>
-      MessageProcessor<T>(
-        catalogs: [
-          for (final Catalog<T, FunctionApi> catalog in catalogs)
-            catalog.withFunctions(
-              catalog.functions.values.map(_FunctionSignature.new),
-            ),
-        ],
-        defaultVersion: defaultVersion,
-        validationConfig: validationConfig,
-        adapterRegistry: adapterRegistry,
-        onError: onError,
-        outboundListener: outboundListener,
-        reportErrorsOnly: reportErrorsOnly,
-      ).._checksOnly = true;
+  }) => MessageProcessor<T>(
+    catalogs: [
+      for (final Catalog<T, FunctionApi> catalog in catalogs)
+        catalog.withFunctions(
+          catalog.functions.values.map(_FunctionSignature.new),
+        ),
+    ],
+    defaultVersion: defaultVersion,
+    validationConfig: validationConfig,
+    adapterRegistry: adapterRegistry,
+    onError: onError,
+    outboundListener: outboundListener,
+    reportErrorsOnly: reportErrorsOnly,
+  ).._checksOnly = true;
 
   /// Whether this processor checks the function calls it receives rather
   /// than running them, as one from [MessageProcessor.forAgent] does.
   bool _checksOnly = false;
+
+  /// Adds [catalog] to the ones this processor holds.
+  ///
+  /// `createSurface` messages, renderer function calls and
+  /// [getRendererCapabilities] see the catalog from this call on. Surfaces
+  /// created before the call keep the catalogs they were created with.
+  ///
+  /// Throws [A2uiCatalogError] when this processor already holds a catalog
+  /// with the same id.
+  void addCatalog(Catalog<T, FunctionImplementation> catalog) {
+    if (catalogs.any((held) => held.id == catalog.id)) {
+      throw A2uiCatalogError(
+        "Catalog '${catalog.id}' is already registered.",
+        catalogId: catalog.id,
+      );
+    }
+    // The RPC handler holds a view of this same list, so it sees the catalog.
+    _catalogs.add(catalog);
+  }
 
   /// The validator for [catalog].
   ///
@@ -383,8 +434,10 @@ class MessageProcessor<T extends ComponentApi> {
         for (var i = 0; i < items.length; i++) _routeAt(items[i], i),
       ];
       for (final message in routed) {
-        for (final Future<void>? work
-            in _applySafely(message, isUserActivated)) {
+        for (final Future<void>? work in _applySafely(
+          message,
+          isUserActivated,
+        )) {
           // Never fails: handleCallRendererFunction answers errors instead.
           if (work != null) unawaited(work);
         }
@@ -537,12 +590,7 @@ class MessageProcessor<T extends ComponentApi> {
     String? inferredPointer;
     if (error.errors.isEmpty) {
       final (A2uiErrorDetail detail, String? pointer)? inferred =
-          _inferEnvelopeDetail(
-        error,
-        item,
-        index,
-        surfaceId,
-      );
+          _inferEnvelopeDetail(error, item, index, surfaceId);
       if (inferred != null) {
         details = [inferred.$1];
         inferredPointer = inferred.$2;
@@ -562,6 +610,26 @@ class MessageProcessor<T extends ComponentApi> {
     int index,
     String? surfaceId,
   ) {
+    final String? pointer = error.path;
+    // Body-relative details need the message type, so only infer envelope keys.
+    if (item is Map &&
+        pointer != null &&
+        pointer.startsWith('/') &&
+        !pointer.substring(1).contains('/')) {
+      final String key =
+          pointer.substring(1).replaceAll('~1', '/').replaceAll('~0', '~');
+      if (item.containsKey(key)) {
+        return (
+          A2uiErrorDetail(
+            path: 'messages.$index.$key',
+            code: 'invalid_value',
+            message: error.message,
+            surfaceId: surfaceId,
+          ),
+          pointer,
+        );
+      }
+    }
     if (item is Map && error.message.contains('version')) {
       return (
         A2uiErrorDetail(
@@ -590,8 +658,9 @@ class MessageProcessor<T extends ComponentApi> {
     if (invalid != null) {
       final String fullField = invalid.group(1)!;
       final List<String> parts = fullField.split('.');
-      final relPointer =
-          parts.length > 1 ? '/${parts.skip(1).join('/')}' : '/$fullField';
+      final relPointer = parts.length > 1
+          ? '/${parts.skip(1).join('/')}'
+          : '/$fullField';
       return (
         A2uiErrorDetail(
           path: 'messages.$index.$fullField',
@@ -608,11 +677,10 @@ class MessageProcessor<T extends ComponentApi> {
   static A2uiError _enrichApplyError(
     A2uiError error,
     Map<String, Object?> json,
-  ) =>
-      error.withContext(
-        surfaceId: _extractEnvelopeString(json, 'surfaceId'),
-        functionCallId: _extractEnvelopeString(json, 'functionCallId'),
-      );
+  ) => error.withContext(
+    surfaceId: _extractEnvelopeString(json, 'surfaceId'),
+    functionCallId: _extractEnvelopeString(json, 'functionCallId'),
+  );
 
   static String? _extractEnvelopeString(Object? item, String field) {
     if (item is! Map) return null;
@@ -629,13 +697,35 @@ class MessageProcessor<T extends ComponentApi> {
     final String? explicit =
         defaultVersion?.jsonValue ?? validationConfig?.targetVersion?.jsonValue;
     if (explicit != null) return explicit;
-    final bool allV1 = catalogs.isNotEmpty &&
+    final bool allV1 =
+        catalogs.isNotEmpty &&
         catalogs.every(
           (c) =>
               c.protocolVersion != null &&
               c.protocolVersion!.isAtLeast(A2uiProtocolVersion.v1_0),
         );
     return allV1 ? '1.0' : 'v0.9';
+  }
+
+  void _forwardAction(A2uiRendererAction action) {
+    if (_disposed) return;
+    final SurfaceModel<T>? surface = model.getSurface(action.surfaceId);
+    final String? protocolVersion = surface?.protocolVersion;
+    final String version =
+        (protocolVersion != null
+            ? A2uiProtocolVersion.tryParseSemVer(protocolVersion)?.jsonValue
+            : null) ??
+        _fallbackWireVersion();
+    final message = ActionMessage(version: version, action: action);
+    final OutboundMessageListener? listener = _outboundListener;
+    if (listener != null) {
+      try {
+        final FutureOr<void> result = listener(message);
+        if (result is Future) {
+          unawaited(result.catchError((Object _) {}));
+        }
+      } catch (_) {}
+    }
   }
 
   ErrorMessage _emitAndForwardError(A2uiError error, {Object? rawMessage}) {
@@ -654,10 +744,10 @@ class MessageProcessor<T extends ComponentApi> {
       model.emitError(errorMessage.error);
     }
     final OutboundMessageListener? listener = _outboundListener;
-    if (listener != null) {
+    if (!_disposed && listener != null) {
       try {
         final FutureOr<void> result = listener(errorMessage);
-        if (result is Future<void>) {
+        if (result is Future) {
           unawaited(result.catchError((Object _) {}));
         }
       } catch (_) {}
@@ -672,35 +762,34 @@ class MessageProcessor<T extends ComponentApi> {
     String surfaceId,
     FunctionCall call, {
     CallOptions? options,
-  }) =>
-      rpc.callAgentFunction(surfaceId, call, options: options);
+  }) => rpc.callAgentFunction(surfaceId, call, options: options);
 
   /// Disposes every surface and the RPC layer, failing its pending calls.
   void dispose() {
+    _disposed = true;
     model.dispose();
     rpc.dispose();
   }
 
   /// The items [payload] carries, each a raw envelope or a parsed message.
   static List<Object?> _itemsOf(Object? payload) => switch (payload) {
-        null => const [],
-        final AgentToRendererMessagePayload batch => batch.messages,
-        final AgentToRendererMessage message => [message],
+    null => const [],
+    final AgentToRendererMessagePayload batch => batch.messages,
+    final AgentToRendererMessage message => [message],
+    final List<Object?> list => list,
+    final Map<Object?, Object?> wrapper when wrapper.containsKey('messages') =>
+      switch (wrapper['messages']) {
         final List<Object?> list => list,
-        final Map<Object?, Object?> wrapper
-            when wrapper.containsKey('messages') =>
-          switch (wrapper['messages']) {
-            final List<Object?> list => list,
-            _ => throw A2uiValidationError(
-                "Payload field 'messages' must be a list of envelopes.",
-              ),
-          },
-        final Map<Object?, Object?> envelope => [envelope],
         _ => throw A2uiValidationError(
-            'Invalid JSON: Payload must be an envelope, a list of envelopes, '
-            'or a {messages: [...]} wrapper; got ${payload.runtimeType}.',
-          ),
-      };
+          "Payload field 'messages' must be a list of envelopes.",
+        ),
+      },
+    final Map<Object?, Object?> envelope => [envelope],
+    _ => throw A2uiValidationError(
+      'Invalid JSON: Payload must be an envelope, a list of envelopes, '
+      'or a {messages: [...]} wrapper; got ${payload.runtimeType}.',
+    ),
+  };
 
   /// Maps one payload item onto operations through the adapter for the
   /// version it declares.
@@ -709,8 +798,9 @@ class MessageProcessor<T extends ComponentApi> {
       case final AgentToRendererMessage message:
         return (
           json: message.toJson(),
-          operations:
-              adapterRegistry.resolveMessage(message).operationsFor(message),
+          operations: adapterRegistry
+              .resolveMessage(message)
+              .operationsFor(message),
         );
       case final Map<Object?, Object?> envelope
           when envelope.keys.every((key) => key is String):
@@ -833,8 +923,9 @@ class MessageProcessor<T extends ComponentApi> {
     bool assumesSurface = false,
   }) {
     final SurfaceModel<T>? surface = switch (message.surfaceId) {
-      final String surfaceId when !assumesSurface =>
-        model.getSurface(surfaceId),
+      final String surfaceId when !assumesSurface => model.getSurface(
+        surfaceId,
+      ),
       _ => null,
     };
     for (final InternalOperation operation in _route(message).operations) {
@@ -856,7 +947,8 @@ class MessageProcessor<T extends ComponentApi> {
   ) {
     SurfaceModel<T>? surface;
     if (operation.surfaceId case final String surfaceId) {
-      surface = model.getSurface(surfaceId) ??
+      surface =
+          model.getSurface(surfaceId) ??
           (throw A2uiValidationError(
             "Function call '${operation.functionCallId}' names surface "
             "'$surfaceId', which does not exist.",
@@ -901,7 +993,8 @@ class MessageProcessor<T extends ComponentApi> {
     // and `args`.
     final call = FunctionCall.fromJson(operation.callFunction);
     final String name = call.call;
-    final String catalogId = call.catalogId ??
+    final String catalogId =
+        call.catalogId ??
         (throw A2uiValidationError(
           '$subject names no catalogId, which a callRendererFunction '
           'requires.',
@@ -928,7 +1021,8 @@ class MessageProcessor<T extends ComponentApi> {
     }
 
     final Catalog<T, FunctionImplementation> catalog = held(catalogId, subject);
-    final FunctionImplementation function = catalog.functions[name] ??
+    final FunctionImplementation function =
+        catalog.functions[name] ??
         (throw A2uiValidationError(
           "$subject names '$name', which catalog '$catalogId' does not "
           'declare.',
@@ -1005,13 +1099,17 @@ class MessageProcessor<T extends ComponentApi> {
     );
   }
 
-  /// The envelope fields of a component message, which a [ComponentModel]
-  /// holds apart from its properties.
-  static const Set<String> _envelopeFields = {
+  /// The envelope fields of a pre-v1.0 component message, which a
+  /// [ComponentModel] holds apart from its properties.
+  static const Set<String> _preV1EnvelopeFields = {'id', 'component'};
+
+  /// The normalized envelope fields of a v1.0 component message, which a
+  /// [ComponentModel] holds apart from its properties.
+  static const Set<String> _v1NormalizedEnvelopeFields = {
     'id',
     'component',
-    'catalogId',
-    'metadata',
+    '@catalogId',
+    '@metadata',
   };
 
   /// Creates a surface: its data model first, as one root write, then its
@@ -1027,7 +1125,8 @@ class MessageProcessor<T extends ComponentApi> {
 
     if (model.getSurface(operation.surfaceId) != null) {
       throw A2uiIntegrityError(
-          'Surface ${operation.surfaceId} already exists.');
+        'Surface ${operation.surfaceId} already exists.',
+      );
     }
 
     // The theme arrives once, with the surface, so it is checked here rather
@@ -1058,7 +1157,8 @@ class MessageProcessor<T extends ComponentApi> {
       // Only a v1.0 surface routes calls to the agent, and only when this
       // processor can send it messages. Once the surface is deleted, a call
       // that was waiting on a local argument is cancelled instead of sent.
-      callAgentFunction: _outboundListener != null &&
+      callAgentFunction:
+          _outboundListener != null &&
               operation.version.isAtLeast(A2uiProtocolVersion.v1_0)
           ? (call) {
               if (!identical(model.getSurface(operation.surfaceId), surface)) {
@@ -1102,8 +1202,9 @@ class MessageProcessor<T extends ComponentApi> {
             }
             surface.dataModel.set('/', currentRoot);
           } else {
-            final String escapedKey =
-                entry.key.replaceAll('~', '~0').replaceAll('/', '~1');
+            final String escapedKey = entry.key
+                .replaceAll('~', '~0')
+                .replaceAll('/', '~1');
             surface.dataModel.set('/$escapedKey', entry.value);
           }
         }
@@ -1179,11 +1280,11 @@ class MessageProcessor<T extends ComponentApi> {
   ) {
     final ids = <String>{
       if (surface.defaultCatalog case final catalog?) catalog.id,
-      for (final String? id in componentCatalogIds)
-        if (id != null) id,
+      for (final String? id in componentCatalogIds) ?id,
     };
-    final Iterable<Catalog<T, FunctionImplementation>> involved =
-        ids.map(surface.resolveCatalog);
+    final Iterable<Catalog<T, FunctionImplementation>> involved = ids.map(
+      surface.resolveCatalog,
+    );
 
     final merged = <String, ComponentRefFields>{};
     for (final catalog in involved) {
@@ -1206,10 +1307,11 @@ class MessageProcessor<T extends ComponentApi> {
     final ids = <String>{
       if (surface.defaultCatalog case final catalog?) catalog.id,
       for (final Map<String, Object?> component in components)
-        if (component['catalogId'] case final String id) id,
+        if (component['@catalogId'] case final String id) id,
     };
-    final Iterable<Catalog<T, FunctionImplementation>> involved =
-        ids.map(surface.resolveCatalog);
+    final Iterable<Catalog<T, FunctionImplementation>> involved = ids.map(
+      surface.resolveCatalog,
+    );
 
     final merged = <String, CompositionRule>{};
     for (final catalog in involved) {
@@ -1223,11 +1325,10 @@ class MessageProcessor<T extends ComponentApi> {
 
   Map<String, CompositionRule> _rulesOf(
     Catalog<T, FunctionImplementation> catalog,
-  ) =>
-      _compositionRules.putIfAbsent(
-        catalog.id,
-        () => extractCompositionRules(catalog),
-      );
+  ) => _compositionRules.putIfAbsent(
+    catalog.id,
+    () => extractCompositionRules(catalog),
+  );
 
   SurfaceModel<T> _surfaceFor(String surfaceId) {
     final SurfaceModel<T>? surface = model.getSurface(surfaceId);
@@ -1273,7 +1374,7 @@ class MessageProcessor<T extends ComponentApi> {
 
     final List<String?> catalogIds = [
       ...model.catalogIds,
-      for (final Map<String, Object?> c in resolved) c['catalogId'] as String?,
+      for (final Map<String, Object?> c in resolved) c['@catalogId'] as String?,
     ];
     final Map<String, ComponentRefFields> refFields = _refFieldsFor(
       surface,
@@ -1298,14 +1399,18 @@ class MessageProcessor<T extends ComponentApi> {
     // and leaves nothing to check.
     final Catalog<T, FunctionImplementation>? defaultCatalog =
         surface.defaultCatalog;
-    final Set<String> ruled = {
-      if (defaultCatalog != null) defaultCatalog.id,
-      for (final String? id in catalogIds)
-        if (id != null) id,
+    final Set<String> ruled =
+        {
+              if (defaultCatalog != null) defaultCatalog.id,
+              for (final String? id in catalogIds) ?id,
+            }
+            .where(
+              (String id) => _rulesOf(surface.resolveCatalog(id)).isNotEmpty,
+            )
+            .toSet();
+    if (ruled.isEmpty) {
+      return (resolved: resolved, refFields: refFields, version: version);
     }
-        .where((String id) => _rulesOf(surface.resolveCatalog(id)).isNotEmpty)
-        .toSet();
-    if (ruled.isEmpty) return (resolved: resolved, refFields: refFields);
     // When the graph check started from what the check before found, the
     // surface passed the check of the batch before, so only the edges this
     // batch changes are checked. That needs constraints the surface passed:
@@ -1318,8 +1423,10 @@ class MessageProcessor<T extends ComponentApi> {
         ruled.single == defaultCatalog.id) {
       final types = <String, String>{
         for (final Map<String, Object?> c in resolved)
-          if ((c['id'], c['component'])
-              case (final String id, final String type))
+          if ((c['id'], c['component']) case (
+            final String id,
+            final String type,
+          ))
             id: type,
       };
       if (compositionHoldsAfter(
@@ -1330,13 +1437,13 @@ class MessageProcessor<T extends ComponentApi> {
         parentsOf: bound.parentsOf,
         rootId: surface.rootId,
       )) {
-        return (resolved: resolved, refFields: refFields);
+        return (resolved: resolved, refFields: refFields, version: version);
       }
     }
     final List<Map<String, Object?>> existing = [
       for (final ComponentModel c in model.all)
         if (!resolved.any((Map<String, Object?> r) => r['id'] == c.id))
-          c.toJson(),
+          {...c.toJson(), if (c.catalog != null) '@catalogId': c.catalog},
     ];
     checkCompositionConstraints(
       resolved,
@@ -1347,7 +1454,7 @@ class MessageProcessor<T extends ComponentApi> {
       surfaceId: surface.id,
     );
 
-    return (resolved: resolved, refFields: refFields);
+    return (resolved: resolved, refFields: refFields, version: version);
   }
 
   /// Applies a [batch] that [_checkComponents] accepted.
@@ -1364,21 +1471,33 @@ class MessageProcessor<T extends ComponentApi> {
   ) {
     final SurfaceComponentsModel model = surface.componentsModel;
     model.refFields = checkedBatch.refFields;
+    final bool atLeastV1 = checkedBatch.version.isAtLeast(
+      A2uiProtocolVersion.v1_0,
+    );
+    final Set<String> envelopeFields = atLeastV1
+        ? _v1NormalizedEnvelopeFields
+        : _preV1EnvelopeFields;
     for (final Map<String, Object?> entry in checkedBatch.resolved) {
       final id = entry['id']! as String;
       final type = entry['component']! as String;
-      final catalogId = entry['catalogId'] as String?;
-      final Map<String, Object?>? metadata = switch (entry['metadata']) {
-        final Map<Object?, Object?> map => Map<String, Object?>.from(map),
-        _ => null,
-      };
+      final String? catalogId = atLeastV1
+          ? entry['@catalogId'] as String?
+          : null;
+      final Map<String, Object?>? metadata = atLeastV1
+          ? switch (entry['@metadata']) {
+              final Map<Object?, Object?> map => Map<String, Object?>.from(map),
+              _ => null,
+            }
+          : null;
       final props = <String, dynamic>{
         for (final MapEntry<String, Object?> e in entry.entries)
-          if (!_envelopeFields.contains(e.key)) e.key: e.value,
+          if (!envelopeFields.contains(e.key)) e.key: e.value,
       };
 
-      final Catalog<T, FunctionImplementation> catalog =
-          surface.resolveCatalog(catalogId, subject: "Component '$id'");
+      final Catalog<T, FunctionImplementation> catalog = surface.resolveCatalog(
+        catalogId,
+        subject: "Component '$id'",
+      );
       final ComponentModel? existing = model.get(id);
       if (existing != null &&
           existing.type == type &&
@@ -1403,7 +1522,7 @@ class MessageProcessor<T extends ComponentApi> {
   ///
   /// Before v1.0 an entry that omits `component` updates a component the
   /// surface already holds: it keeps that component's type, and its
-  /// `catalogId` and `metadata` when it omits those too. Its properties
+  /// `catalogId` when it omits that too. Its properties
   /// replace the existing ones, so the entry is checked against the type's
   /// schema as it stands. From v1.0 every entry must name its type.
   ///
@@ -1479,41 +1598,17 @@ class MessageProcessor<T extends ComponentApi> {
   ) {
     final Object? id = entry['id'];
     if (id is! String) {
-      throw A2uiValidationError(
-        "Component missing an 'id'.",
-        path: '/id',
-      );
+      throw A2uiValidationError("Component missing an 'id'.", path: '/id');
     }
     final Object? rawType = entry['component'];
-    final Object? rawCatalog = entry['catalogId'];
-    final Object? rawMetadata = entry['metadata'];
+    final bool atLeastV1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
     if (rawType != null && rawType is! String) {
       throw A2uiValidationError(
         "Component '$id' has a 'component' type that is not a string.",
         path: '/component',
       );
     }
-    if (rawCatalog != null && rawCatalog is! String) {
-      throw A2uiValidationError(
-        "Component '$id' has a non-string 'catalogId'.",
-        path: '/catalogId',
-      );
-    }
-    if (rawMetadata != null &&
-        (rawMetadata is! Map || rawMetadata.keys.any((k) => k is! String))) {
-      // Checked here because a lazy `cast` would let a non-string key escape
-      // later as a `TypeError` rather than a payload error.
-      throw A2uiValidationError(
-        "Component '$id' has 'metadata' that is not an object with string "
-        'keys.',
-        path: '/metadata',
-      );
-    }
-    if (rawMetadata != null) {
-      validateMetadata(rawMetadata);
-    }
 
-    final bool atLeastV1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
     final ComponentModel? existing = surface.componentsModel.get(id);
     final partial = rawType == null;
     final String? type = rawType as String? ?? existing?.type;
@@ -1533,39 +1628,202 @@ class MessageProcessor<T extends ComponentApi> {
         path: '/component',
       );
     }
-    final String? catalogId =
-        rawCatalog as String? ?? (partial ? existing?.catalog : null);
-    final Object? metadata =
-        rawMetadata ?? (partial ? existing?.metadata : null);
+    if (!atLeastV1) {
+      final full = <String, Object?>{...entry, 'component': type};
+      final Catalog<T, FunctionImplementation> catalog = surface.resolveCatalog(
+        null,
+        subject: "Component '$id'",
+      );
+      validatorFor(catalog, version: version).validateComponent(full);
+      return full;
+    }
+    return _resolveV1Component(entry, id, type, surface, version);
+  }
 
-    final full = <String, Object?>{
-      ...entry,
-      'component': type,
-      if (catalogId != null) 'catalogId': catalogId,
-      if (metadata != null) 'metadata': metadata,
-    };
-
-    final Catalog<T, FunctionImplementation> catalog =
-        surface.resolveCatalog(catalogId, subject: "Component '$id'");
-    validatorFor(catalog, version: version).validateComponent(
-      atLeastV1 ? _componentForValidator(full, catalog, surface) : full,
+  Map<String, Object?> _resolveV1Component(
+    Map<String, Object?> entry,
+    String id,
+    String type,
+    SurfaceModel<T> surface,
+    A2uiProtocolVersion version,
+  ) {
+    final String? envCatalogId = _extractV1CatalogId(entry, id, type, surface);
+    final Catalog<T, FunctionImplementation> catalog = surface.resolveCatalog(
+      envCatalogId,
+      subject: "Component '$id'",
     );
-    if (atLeastV1) {
-      _validateNestedFunctionCalls(
-        <String, Object?>{
-          for (final MapEntry<String, Object?> entry in full.entries)
-            if (!_envelopeFields.contains(entry.key)) entry.key: entry.value,
-        },
-        home: catalog,
-        homeIsDefault: identical(catalog, surface.defaultCatalog),
-        resolve: (String? catalogId, String subject) =>
-            surface.resolveCatalog(catalogId, subject: subject),
-        version: version,
-        where: "in component '$id'",
-        componentId: id,
+    Set<String> customProps = catalog.customComponentProperties(type);
+    if (envCatalogId != null &&
+        !entry.containsKey('@catalogId') &&
+        customProps.contains('catalogId')) {
+      // The bare `catalogId` routed the component (its schema in the default
+      // catalog declares none), so it is the mixin even if the target
+      // catalog declares a `catalogId` property of its own.
+      customProps = {...customProps}..remove('catalogId');
+    }
+    final bool isCheckable = catalog.isComponentCheckable(type);
+
+    final (String? metaKey, Object? rawMetadata) = _extractV1Metadata(
+      entry,
+      customProps,
+      id,
+    );
+    if (rawMetadata != null) {
+      if (rawMetadata is! Map || rawMetadata.keys.any((k) => k is! String)) {
+        // Checked here because a lazy `cast` would let a non-string key escape
+        // later as a `TypeError` rather than a payload error.
+        throw A2uiValidationError(
+          "Component '$id' has '$metaKey' that is not an object with string "
+          'keys.',
+          path: '/$metaKey',
+        );
+      }
+      validateMetadata(rawMetadata);
+    }
+
+    validatorFor(catalog, version: version).validateComponent(
+      _componentForValidator(entry, catalog, surface, customProps),
+    );
+
+    final excludedFromNestedWalk = <String>{
+      'id',
+      'component',
+      '@catalogId',
+      '@metadata',
+      if (!customProps.contains('catalogId')) 'catalogId',
+      if (!customProps.contains('metadata')) 'metadata',
+    };
+    _validateNestedFunctionCalls(
+      <String, Object?>{
+        for (final MapEntry<String, Object?> e in entry.entries)
+          if (!excludedFromNestedWalk.contains(e.key)) e.key: e.value,
+      },
+      home: catalog,
+      homeIsDefault: identical(catalog, surface.defaultCatalog),
+      resolve: (String? catalogId, String subject) =>
+          surface.resolveCatalog(catalogId, subject: subject),
+      version: version,
+      where: "in component '$id'",
+      componentId: id,
+    );
+    return _normalizeV1Component(
+      entry,
+      type: type,
+      customProps: customProps,
+      isCheckable: isCheckable,
+      envCatalogId: envCatalogId,
+      envMetadata: rawMetadata,
+    );
+  }
+
+  String? _extractV1CatalogId(
+    Map<String, Object?> entry,
+    String id,
+    String type,
+    SurfaceModel<T> surface,
+  ) {
+    if (entry.containsKey('@catalogId')) {
+      final Object? raw = entry['@catalogId'];
+      if (raw is! String || raw.isEmpty) {
+        throw A2uiValidationError(
+          "Component '$id' has an invalid '@catalogId'.",
+          path: '/@catalogId',
+        );
+      }
+      return raw;
+    }
+    final bool customCatalogId =
+        surface.defaultCatalog
+            ?.customComponentProperties(type)
+            .contains('catalogId') ??
+        false;
+    if (!customCatalogId && entry.containsKey('catalogId')) {
+      // A legacy bare `catalogId` that is present names a catalog, so null
+      // is rejected like any other non-string rather than read as absent.
+      final Object? raw = entry['catalogId'];
+      if (raw is! String) {
+        throw A2uiValidationError(
+          "Component '$id' has a non-string 'catalogId'.",
+          path: '/catalogId',
+        );
+      }
+      return raw;
+    }
+    return null;
+  }
+
+  static (String?, Object?) _extractV1Metadata(
+    Map<String, Object?> entry,
+    Set<String> customProps,
+    String id,
+  ) {
+    final bool hasCustomMeta = customProps.contains('metadata');
+    if (!hasCustomMeta &&
+        entry.containsKey('@metadata') &&
+        entry.containsKey('metadata')) {
+      throw A2uiValidationError(
+        "Component '$id' cannot specify both '@metadata' and legacy "
+        "'metadata'.",
+        path: '/@metadata',
       );
     }
-    return full;
+    if (entry.containsKey('@metadata')) {
+      return ('@metadata', entry['@metadata']);
+    }
+    if (!hasCustomMeta && entry.containsKey('metadata')) {
+      return ('metadata', entry['metadata']);
+    }
+    return (null, null);
+  }
+
+  /// [entry] with its v1.0 envelope mixins moved to their `@`-prefixed keys.
+  ///
+  /// `@catalogId` and `@metadata` are set from [envCatalogId] and
+  /// [envMetadata]. `@accessibility` and `@checks` are read from their `@`
+  /// keys, or else from a legacy bare `accessibility` or `checks` that
+  /// [customProps] does not list (a bare `checks` only when [isCheckable]).
+  /// Every bare mixin key that is not one of the component's own properties is
+  /// dropped, so the result holds only `@` mixins and component properties.
+  ///
+  /// TODO(#4082): remove the legacy bare v1.0 mixin fallback. It only exists
+  /// while v1.0 schemas, catalogs, and agent emitters move to the `@` names.
+  static Map<String, Object?> _normalizeV1Component(
+    Map<String, Object?> entry, {
+    required String type,
+    required Set<String> customProps,
+    required bool isCheckable,
+    required String? envCatalogId,
+    required Object? envMetadata,
+  }) {
+    final Object? envAccessibility = entry.containsKey('@accessibility')
+        ? entry['@accessibility']
+        : (!customProps.contains('accessibility')
+              ? entry['accessibility']
+              : null);
+    final Object? envChecks = entry.containsKey('@checks')
+        ? entry['@checks']
+        : (!customProps.contains('checks') && isCheckable
+              ? entry['checks']
+              : null);
+    final strippedKeys = <String>{
+      '@catalogId',
+      '@metadata',
+      '@accessibility',
+      '@checks',
+      if (!customProps.contains('catalogId')) 'catalogId',
+      if (!customProps.contains('metadata')) 'metadata',
+      if (!customProps.contains('accessibility')) 'accessibility',
+      if (!customProps.contains('checks') && isCheckable) 'checks',
+    };
+    return <String, Object?>{
+      for (final MapEntry<String, Object?> e in entry.entries)
+        if (!strippedKeys.contains(e.key)) e.key: e.value,
+      'component': type,
+      '@catalogId': ?envCatalogId,
+      '@metadata': ?envMetadata,
+      '@accessibility': ?envAccessibility,
+      '@checks': ?envChecks,
+    };
   }
 
   /// [component] as the validator of [catalog], the catalog it resolved to,
@@ -1577,19 +1835,31 @@ class MessageProcessor<T extends ComponentApi> {
   /// to be in that catalog. What decides it is the catalog the component
   /// resolved to, not whether the payload wrote a `catalogId`: one that
   /// explicitly names the surface default is in it, so its catalogless calls
-  /// are checked by the validator. So `catalogId` is set to [catalog]'s id
+  /// are checked by the validator. So `@catalogId` is set to [catalog]'s id
   /// when [catalog] is not the surface default, and left out when it is.
   Map<String, Object?> _componentForValidator(
     Map<String, Object?> component,
     Catalog<T, FunctionImplementation> catalog,
     SurfaceModel<T> surface,
-  ) =>
-      <String, Object?>{
-        for (final MapEntry<String, Object?> entry in component.entries)
-          if (entry.key != 'catalogId') entry.key: entry.value,
-        if (!identical(catalog, surface.defaultCatalog))
-          'catalogId': catalog.id,
-      };
+    Set<String> customProps,
+  ) {
+    final bool hasCatalogConflict =
+        !customProps.contains('catalogId') &&
+        component.containsKey('@catalogId') &&
+        component.containsKey('catalogId');
+    final bool keepBareCatalogId =
+        customProps.contains('catalogId') || hasCatalogConflict;
+    return <String, Object?>{
+      for (final MapEntry<String, Object?> entry in component.entries)
+        if (entry.key != '@catalogId' &&
+            (entry.key != 'catalogId' || keepBareCatalogId))
+          entry.key: entry.value,
+      if (hasCatalogConflict)
+        '@catalogId': component['@catalogId']
+      else if (!identical(catalog, surface.defaultCatalog))
+        '@catalogId': catalog.id,
+    };
+  }
 
   /// The reserved system function that every v1.0 surface provides, whatever
   /// its catalogs. Names in the `@` namespace belong to no catalog.
@@ -1639,7 +1909,8 @@ class MessageProcessor<T extends ComponentApi> {
     required Catalog<T, FunctionImplementation>? Function(
       String? catalogId,
       String subject,
-    ) resolve,
+    )
+    resolve,
     List<Catalog<T, FunctionImplementation>> anyCatalogs = const [],
     required A2uiProtocolVersion version,
     required String where,
@@ -1650,19 +1921,19 @@ class MessageProcessor<T extends ComponentApi> {
     String path = '',
   }) {
     void visit(Object? child, String childPath) => _validateNestedFunctionCalls(
-          child,
-          home: home,
-          homeIsDefault: homeIsDefault,
-          resolve: resolve,
-          anyCatalogs: anyCatalogs,
-          version: version,
-          where: where,
-          componentId: componentId,
-          checkFields: checkFields,
-          disallowUserActivation: disallowUserActivation,
-          resolvedAtRoot: resolvedAtRoot,
-          path: childPath,
-        );
+      child,
+      home: home,
+      homeIsDefault: homeIsDefault,
+      resolve: resolve,
+      anyCatalogs: anyCatalogs,
+      version: version,
+      where: where,
+      componentId: componentId,
+      checkFields: checkFields,
+      disallowUserActivation: disallowUserActivation,
+      resolvedAtRoot: resolvedAtRoot,
+      path: childPath,
+    );
 
     if (node is List) {
       for (var i = 0; i < node.length; i++) {
@@ -1711,7 +1982,8 @@ class MessageProcessor<T extends ComponentApi> {
     required Catalog<T, FunctionImplementation>? Function(
       String? catalogId,
       String subject,
-    ) resolve,
+    )
+    resolve,
     required List<Catalog<T, FunctionImplementation>> anyCatalogs,
     required A2uiProtocolVersion version,
     required String where,
@@ -1728,7 +2000,7 @@ class MessageProcessor<T extends ComponentApi> {
       throw A2uiValidationError(
         catalogId == null
             ? "$subject has a null 'catalogId', and 'catalogId' must be a "
-                'string.'
+                  'string.'
             : "$subject has a non-string 'catalogId'.",
         path: '$path/catalogId',
       );
@@ -1737,13 +2009,13 @@ class MessageProcessor<T extends ComponentApi> {
       null when !node.containsKey('args') => const <String, Object?>{},
       final Map<Object?, Object?> map => map.cast<String, Object?>(),
       null => throw A2uiValidationError(
-          "$subject has null 'args', and 'args' must be an object.",
-          path: '$path/args',
-        ),
+        "$subject has null 'args', and 'args' must be an object.",
+        path: '$path/args',
+      ),
       _ => throw A2uiValidationError(
-          "$subject has non-object 'args'.",
-          path: '$path/args',
-        ),
+        "$subject has non-object 'args'.",
+        path: '$path/args',
+      ),
     };
     if (name == _indexFunction && resolvedAtRoot) {
       throw A2uiValidationError(
@@ -1817,7 +2089,8 @@ class MessageProcessor<T extends ComponentApi> {
         if (candidate.functions.containsKey(name)) candidate,
     ];
     if (declaring.isEmpty) {
-      final msg = "Unrecognized function '$name': $subject names no "
+      final msg =
+          "Unrecognized function '$name': $subject names no "
           'catalogId, and no catalog this processor holds declares it.';
       throw A2uiValidationError(
         msg,
@@ -1937,8 +2210,9 @@ class MessageProcessor<T extends ComponentApi> {
       for (final Catalog<T, FunctionImplementation> catalog in catalogs)
         catalog.id,
     ]);
-    final List<CatalogApi> inlineCatalogs =
-        options.includeInlineCatalogs ? List.unmodifiable(catalogs) : const [];
+    final List<CatalogApi> inlineCatalogs = options.includeInlineCatalogs
+        ? List.unmodifiable(catalogs)
+        : const [];
     return A2uiRendererCapabilities(
       versions: {
         for (final A2uiProtocolVersion version in options.versions)
@@ -2029,23 +2303,22 @@ extension SchemaExtension on Schema {
 /// [MessageProcessor.forAgent], which never runs it.
 class _FunctionSignature extends FunctionImplementation {
   _FunctionSignature(FunctionApi api)
-      : super(
-          name: api.name,
-          argumentSchema: api.argumentSchema,
-          returnType: api.returnType,
-          description: api.description,
-          allowedCallers: api.declaredAllowedCallers,
-          requiresUserActivation: api.declaredRequiresUserActivation,
-          definition: api.definition,
-        );
+    : super(
+        name: api.name,
+        argumentSchema: api.argumentSchema,
+        returnType: api.returnType,
+        description: api.description,
+        allowedCallers: api.declaredAllowedCallers,
+        requiresUserActivation: api.declaredRequiresUserActivation,
+        definition: api.definition,
+      );
 
   @override
   Object? execute(
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      throw UnsupportedError(
-        "Function '$name' is a signature only and cannot be invoked.",
-      );
+  ]) => throw UnsupportedError(
+    "Function '$name' is a signature only and cannot be invoked.",
+  );
 }

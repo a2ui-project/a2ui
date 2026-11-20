@@ -107,17 +107,18 @@ class ChatSession extends ChangeNotifier {
       defaultVersion: A2uiProtocolVersion.v1_0,
       validationConfig: ValidationConfig.relaxed,
       outboundListener: _sendOutbound,
+      unifiedOutbound: true,
     );
     processor.model.onSurfaceCreated.subscribe(_addSurface);
     processor.model.onSurfaceDeleted.subscribe(_removeSurface);
-    processor.model.onAction.subscribe(_sendAction);
   }
 
   final LlmClient client;
 
   /// The renderer's message processor, with the checks that a half-streamed
-  /// surface would fail turned off. Its calls of the model's functions, and
-  /// its responses to the model's calls, go to the model as the next turn.
+  /// surface would fail turned off. Its actions, calls of the model's
+  /// functions, and responses to the model's calls go to the model as the next
+  /// turn.
   late final MessageProcessor<ComponentImplementation> processor;
 
   static final String _version = A2uiProtocolVersion.v1_0.jsonValue;
@@ -287,9 +288,6 @@ class ChatSession extends ChangeNotifier {
     _notify();
   }
 
-  void _sendAction(A2uiRendererAction action) =>
-      _sendMessage(ActionMessage(version: _version, action: action));
-
   /// Sends [message], which [processor] sends to the agent, to the model as
   /// the next turn. An [ErrorMessage] is dropped, as [processor] also throws
   /// that error and the session reports it.
@@ -323,7 +321,9 @@ class ChatSession extends ChangeNotifier {
               'error ${error.code}',
             CallAgentFunctionMessage(:final String functionCallId) =>
               'function call $functionCallId',
-            RendererFunctionResponseMessage(:final response) =>
+            RendererFunctionResponseMessage(
+              :final A2uiFunctionResponse response,
+            ) =>
               'function response ${response.functionCallId}',
             _ => message.runtimeType.toString(),
           },

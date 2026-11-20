@@ -23,6 +23,8 @@ from typing import Any
 from ..catalog.reference_map import ComponentRefSpec, analyze_child_ref_schema
 from ..common import Subscription
 from ..common.events import EventSource
+from ..common.semver import is_at_least_version
+from ..schema import ProtocolVersion
 from ..state.component_model import ComponentModel
 from ..state.surface_model import SurfaceModel
 from .component_context import ComponentContext
@@ -53,7 +55,7 @@ _ID_ESCAPE_RE = re.compile(r"[~#\[\]>@]")
 
 _SKIP_BINDER_KEYS = frozenset({
     "weight",
-    "checks",
+    "@checks",
     "isValid",
     "validationErrors",
     "validationResults",
@@ -181,7 +183,17 @@ def _wrap_dynamic_object(
     for key, item in value.items():
         if key in setter_names or key in _SKIP_BINDER_KEYS:
             continue
-        child_behavior = shape.get(key) or BehaviorNode(BehaviorType.STATIC)
+        child_behavior = shape.get(key)
+        if (
+            key == "checks"
+            and child_behavior is not None
+            and child_behavior.type == BehaviorType.CHECKABLE
+        ):
+            # The binder reports check rules as validation state; a `checks`
+            # key the schema doesn't declare as check rules is an ordinary
+            # value.
+            continue
+        child_behavior = child_behavior or BehaviorNode(BehaviorType.STATIC)
         out[key] = _wrap_dynamic_values(
             item, child_behavior, raw_record.get(key), data_context
         )
@@ -867,6 +879,21 @@ class NodeResolver:
         model_props = (
             record.component_model.properties if record.component_model else {}
         )
+        # From v1.0 the check rules are stored under `@checks`, so a bare
+        # `checks` is a component property of that name.
+        surface_ver = self.surface.protocol_version
+        drop_bare_checks = not (
+            surface_ver and is_at_least_version(surface_ver, ProtocolVersion.V1_0)
+        )
+
+        def _unwrapped_props() -> dict[str, Any]:
+            return {
+                k: v
+                for k, v in next_props.items()
+                if k not in _SKIP_BINDER_KEYS
+                and not (drop_bare_checks and k == "checks")
+            }
+
         if record.behavior is not None and record.node.context is not None:
             raw_wrapped = _wrap_dynamic_values(
                 next_props,
@@ -877,12 +904,10 @@ class NodeResolver:
             wrapped: dict[str, Any] = (
                 dict(raw_wrapped)
                 if isinstance(raw_wrapped, dict)
-                else {k: v for k, v in next_props.items() if k not in _SKIP_BINDER_KEYS}
+                else _unwrapped_props()
             )
         else:
-            wrapped = {
-                k: v for k, v in next_props.items() if k not in _SKIP_BINDER_KEYS
-            }
+            wrapped = _unwrapped_props()
         prev = record.node.props
         for k in list(wrapped.keys()):
             wrapped[k] = _stabilize(prev.get(k), wrapped[k])

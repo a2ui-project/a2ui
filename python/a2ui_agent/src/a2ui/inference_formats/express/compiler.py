@@ -42,6 +42,7 @@ from a2ui.inference_formats._shared import (
     surface_catalog_id,
     to_message_models,
 )
+from a2ui.utils.component_envelope import envelope_key
 
 from .constants import SurfaceOperation
 from .errors import (
@@ -1978,15 +1979,22 @@ class ExpressCompiler:
         )
         comp_dict: dict[str, Any] = {"id": comp_id, "component": comp_name}
         if write_cat_id is not None:
-            comp_dict["catalogId"] = write_cat_id
+            comp_dict[envelope_key("catalogId", ctx.at_least_v10)] = write_cat_id
         if raw_extensions is not None:
             compiled_ext = self._compile_extensions(
                 raw_extensions, raw_symbols, f"Component '{comp_name}'", ctx
             )
-            comp_dict["metadata"] = {"extensions": compiled_ext}
+            comp_dict[envelope_key("metadata", ctx.at_least_v10)] = {
+                "extensions": compiled_ext
+            }
 
         sibling_value_path = None
-        non_check_properties = [p for p in properties if p != "checks"]
+        custom_envelope = comp_helper.get_custom_envelope_properties(comp_name)
+        non_check_properties = (
+            properties
+            if "checks" in custom_envelope
+            else [p for p in properties if p != "checks"]
+        )
         raw_checks = []
 
         # Collect (prop_name, arg_val) pairs from positional and keyword args
@@ -2123,7 +2131,11 @@ class ExpressCompiler:
             if prop_name == "value" and _resolves_to_path(arg, raw_symbols):
                 sibling_value_path = mapped_val
 
-        if raw_checks and "checks" not in properties:
+        if (
+            raw_checks
+            and "checks" not in properties
+            and not comp_helper.component_is_checkable.get(comp_name, False)
+        ):
             raise ExpressValidationError(
                 f"Component '{comp_name}' does not declare a 'checks' property,"
                 " so it cannot take checks."
@@ -2138,11 +2150,13 @@ class ExpressCompiler:
                     condition, message = self._compile_check(rc, raw_symbols, ctx)
                     compiled_checks.append({"condition": condition, "message": message})
             if compiled_checks:
-                comp_dict["checks"] = compiled_checks
+                comp_dict[envelope_key("checks", ctx.at_least_v10)] = compiled_checks
 
         ctx.active_value_path = None
         for req_prop in comp_helper.get_component_required(comp_name):
-            if req_prop not in comp_dict and req_prop != "checks":
+            if req_prop not in comp_dict and (
+                req_prop not in ("checks", "@checks") or req_prop in custom_envelope
+            ):
                 raise ExpressValidationError(
                     f"Component '{comp_name}' missing required property '{req_prop}'."
                 )

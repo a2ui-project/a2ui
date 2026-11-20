@@ -320,9 +320,9 @@ bool caseDeclaresV1(Map<String, Object?> args) =>
     ].any((Object? entry) {
       final Object? path = entry is Map ? entry['catalog'] : entry;
       if (path is! String) return false;
-      final document =
-          jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
-              as Map<String, Object?>;
+      final document = jsonDecode(
+        File('$conformanceRoot/$path').readAsStringSync(),
+      ) as Map<String, Object?>;
       return _isVersionAtLeast1_0(document['protocolVersion']);
     });
 
@@ -333,9 +333,9 @@ String? caseCatalogVersion(Map<String, Object?> args) {
       args['catalog'] ?? (args['catalogs'] as List?)?.firstOrNull;
   final Object? path = entry is Map ? entry['catalog'] : entry;
   if (path is! String) return null;
-  final document =
-      jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
-          as Map<String, Object?>;
+  final document = jsonDecode(
+    File('$conformanceRoot/$path').readAsStringSync(),
+  ) as Map<String, Object?>;
   return document['protocolVersion']?.toString();
 }
 
@@ -533,9 +533,9 @@ List<AgentToRendererMessage> loadExample(String path) => lowerMessages(
 /// without lowering to v0.9.
 List<AgentToRendererMessage> loadExampleUnlowered(String path) =>
     AgentToRendererMessage.parseAll([
-      for (final Object? item
-          in jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
-              as List<Object?>)
+      for (final Object? item in jsonDecode(
+        File('$conformanceRoot/$path').readAsStringSync(),
+      ) as List<Object?>)
         Map<String, Object?>.from(item! as Map),
     ], protocolVersion: A2uiProtocolVersion.v1_0).messages;
 
@@ -597,6 +597,11 @@ List<Object?> liftMessages(
 /// mapped to its v0.9 spelling.
 const Map<String, String> _reservedKeys = {'@path': 'path', '@call': 'call'};
 
+const Map<String, String> _componentMixinKeys = {
+  '@checks': 'checks',
+  '@accessibility': 'accessibility',
+};
+
 /// [message] with the reserved keys of its components, and of the function
 /// a `callRendererFunction` names, renamed to v0.9 when [lower] is true and
 /// to v1.0 otherwise.
@@ -626,7 +631,12 @@ Object? _renameKeysIn(Object? node, {required bool lower}) => switch (node) {
     for (final MapEntry<String, Object?> entry in map.entries)
       (map.containsKey('componentId')
           ? entry.key
-          : _renameKey(entry.key, lower)): _renameKeysIn(
+          : _renameKey(
+              entry.key,
+              lower,
+              isComponentRoot:
+                  map.containsKey('id') && map.containsKey('component'),
+            )): _renameKeysIn(
         entry.value,
         lower: lower,
       ),
@@ -634,11 +644,23 @@ Object? _renameKeysIn(Object? node, {required bool lower}) => switch (node) {
   _ => node,
 };
 
-String _renameKey(String key, bool lower) =>
-    (lower ? _reservedKeys : _liftedKeys)[key] ?? key;
+String _renameKey(String key, bool lower, {bool isComponentRoot = false}) {
+  if (isComponentRoot) {
+    final String? mixinKey = (lower
+        ? _componentMixinKeys
+        : _liftedComponentMixinKeys)[key];
+    if (mixinKey != null) return mixinKey;
+  }
+  return (lower ? _reservedKeys : _liftedKeys)[key] ?? key;
+}
 
 final Map<String, String> _liftedKeys = {
   for (final MapEntry<String, String> entry in _reservedKeys.entries)
+    entry.value: entry.key,
+};
+
+final Map<String, String> _liftedComponentMixinKeys = {
+  for (final MapEntry<String, String> entry in _componentMixinKeys.entries)
     entry.value: entry.key,
 };
 
@@ -782,9 +804,8 @@ Object? _plain(Object? node) => switch (node) {
 /// directory.
 final String conformanceRoot = () {
   Directory dir = Directory.current;
-  while (!File(
-    '${dir.path}/conformance/conformance_schema.json',
-  ).existsSync()) {
+  while (!File('${dir.path}/conformance/conformance_schema.json')
+      .existsSync()) {
     if (dir.parent.path == dir.path) {
       throw StateError('No conformance/ directory above ${Directory.current}.');
     }

@@ -31,6 +31,9 @@ SUITE_VERSIONS = ("v1.0", "v0.9-lowered")
 
 _RESERVED_KEYS_TO_V09 = {"@path": "path", "@call": "call"}
 _RESERVED_KEYS_TO_V10 = {"path": "@path", "call": "@call"}
+# v1.0 component envelope mixins, renamed only at a component's root.
+_MIXIN_KEYS_TO_V09 = {"@checks": "checks", "@accessibility": "accessibility"}
+_MIXIN_KEYS_TO_V10 = {v: k for k, v in _MIXIN_KEYS_TO_V09.items()}
 
 _VERSION_FIELD_RE = re.compile(
     r'([\u201c"]version[\u201d"]\s*:\s*[\u201c"])(v?1\.0|v0\.9)([\u201d"])'
@@ -141,6 +144,16 @@ V1_ONLY_CASES: dict[str, str] = {
     ),
     "test_compile_express_empty_extensions_preserved": (
         "Surface and component extensions require A2UI v1.0 or later."
+    ),
+    "test_decompile_express_component_metadata_writes_extensions": (
+        "Surface and component extensions require A2UI v1.0 or later."
+    ),
+    "test_decompile_express_legacy_bare_metadata_on_v1_0": (
+        "Surface and component extensions require A2UI v1.0 or later."
+    ),
+    "test_decompile_express_legacy_bare_checks_on_v1_0": (
+        "Tests v1.0 reading the legacy bare checks key, which is the v0.9 key, so"
+        " it runs as written in v1.0 only."
     ),
     "test_compile_express_standalone_call_renderer_or_agent_function": (
         "Protocol v0.9 has no callRendererFunction message."
@@ -376,6 +389,9 @@ def _rename_keys_in(node: Any, *, lower: bool) -> Any:
     if isinstance(node, dict):
         is_template = "componentId" in node
         key_map = _RESERVED_KEYS_TO_V09 if lower else _RESERVED_KEYS_TO_V10
+        if "id" in node and "component" in node:
+            mixins = _MIXIN_KEYS_TO_V09 if lower else _MIXIN_KEYS_TO_V10
+            key_map = {**key_map, **mixins}
         return {
             (k if is_template else key_map.get(k, k)): _rename_keys_in(v, lower=lower)
             for k, v in node.items()

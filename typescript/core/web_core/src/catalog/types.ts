@@ -17,7 +17,7 @@
 import {z} from 'zod';
 import type {ProtocolVersion} from '../processing/adapters/base.js';
 import {DataContext} from '../resolution/data-context.js';
-import {allowsAgentRouting} from '../resolution/data-context-internal.js';
+import {allowsAgentRouting, withActiveCallCatalogId} from '../resolution/data-context-internal.js';
 import type {SurfaceModel} from '../state/surface-model.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
@@ -636,7 +636,10 @@ export class Catalog<
    * @param functions The functions of the new catalog.
    * @returns A new catalog.
    */
-  withEntries(components: T[], functions: F[]): Catalog<T, F> {
+  withEntries<U extends ComponentApi = T, G extends FunctionApi = F>(
+    components: U[],
+    functions: G[],
+  ): Catalog<U, G> {
     return this.rebuild(components, functions, {
       id: this.id,
       schemaId: this.schemaId,
@@ -661,10 +664,14 @@ export class Catalog<
    *   `$defs` entry that the catalog's `$defs`, or another agent function's,
    *   defines differently.
    */
-  copyWith(options: CopyWithCatalogOptions<T, F> = {}): Catalog<T, F> {
-    const nextComponents =
-      options.components !== undefined ? [...options.components] : [...this.components.values()];
-    let baseFunctions: F[];
+  copyWith<U extends ComponentApi = T, G extends FunctionApi = F>(
+    options: CopyWithCatalogOptions<U, G> = {},
+  ): Catalog<U, G> {
+    const nextComponents: U[] =
+      options.components !== undefined
+        ? [...options.components]
+        : ([...this.components.values()] as unknown as U[]);
+    let baseFunctions: G[];
     if (options.functions !== undefined) {
       baseFunctions = [...options.functions];
     } else if (options.agentFunctions !== undefined) {
@@ -672,14 +679,14 @@ export class Catalog<
       for (const fn of this.functions.values()) {
         if (isAgentFunction(fn)) {
           if (fn.declaration !== undefined) {
-            baseFunctions.push(fn.declaration as unknown as F);
+            baseFunctions.push(fn.declaration as unknown as G);
           }
         } else {
-          baseFunctions.push(fn);
+          baseFunctions.push(fn as unknown as G);
         }
       }
     } else {
-      baseFunctions = [...this.functions.values()];
+      baseFunctions = [...this.functions.values()] as unknown as G[];
     }
     const nextId = options.catalogId ?? this.id;
     const mergedFunctions = mergeAgentFunctions(nextId, baseFunctions, options.agentFunctions);
@@ -713,12 +720,14 @@ export class Catalog<
    * @returns A new catalog.
    * @throws {A2uiCatalogError} If a name is not an entry of this catalog.
    */
-  derive(options: DeriveCatalogOptions<T, F>): Catalog<T, F> {
-    const pick = <E extends {name: string}>(
+  derive<U extends ComponentApi = T, G extends FunctionApi = F>(
+    options: DeriveCatalogOptions<U, G>,
+  ): Catalog<T | U, F | G> {
+    const pick = <Own extends {name: string}, Extra extends {name: string}>(
       kind: string,
-      own: ReadonlyMap<string, E>,
-      wanted: readonly (string | E)[] | undefined,
-    ): E[] => {
+      own: ReadonlyMap<string, Own>,
+      wanted: readonly (string | Extra)[] | undefined,
+    ): (Own | Extra)[] => {
       if (wanted === undefined) return [...own.values()];
       return wanted.map(item => {
         if (typeof item !== 'string') return item;
@@ -742,9 +751,9 @@ export class Catalog<
    * Builds a catalog with this catalog's version, theme and layout, the given
    * entries and the given fields that describe the catalog.
    */
-  private rebuild(
-    components: T[],
-    functions: F[],
+  private rebuild<U extends ComponentApi, G extends FunctionApi>(
+    components: U[],
+    functions: G[],
     described: {
       id: string;
       protocolVersion?: ProtocolVersion | string;
@@ -754,13 +763,13 @@ export class Catalog<
       description?: string;
       instructions?: string;
     },
-  ): Catalog<T, F> {
+  ): Catalog<U, G> {
     const componentsChanged =
       components.length !== this.components.size ||
-      components.some(c => this.components.get(c.name) !== c);
+      components.some(c => (this.components.get(c.name) as unknown) !== c);
     const functionsChanged =
       functions.length !== this.functions.size ||
-      functions.some(f => this.functions.get(f.name) !== f);
+      functions.some(f => (this.functions.get(f.name) as unknown) !== f);
     let baseDefs = this.defs;
     if (baseDefs && (componentsChanged || functionsChanged)) {
       const copy = {...baseDefs};
@@ -774,7 +783,7 @@ export class Catalog<
           anyFunction: this.unions.anyFunction || functionsChanged,
         }
       : undefined;
-    return new Catalog<T, F>(
+    return new Catalog<U, G>(
       described.id,
       described.protocolVersion ?? this.protocolVersion,
       components,
@@ -978,7 +987,7 @@ export class Catalog<
     this.commonTypesUri = options.commonTypesUri;
     this.themeLocation = options.themeLocation;
     this.defModels = options.defModels ? Object.freeze([...options.defModels]) : undefined;
-    this.invoker = createCatalogInvoker(this.id, this.protocolVersion, this.functions);
+    this.invoker = createCatalogInvoker(this.id, this.protocolVersion, this.functions, this);
   }
 
   /**
@@ -1172,6 +1181,7 @@ function createCatalogInvoker<F extends FunctionApi>(
   catalogId: string,
   protocolVersion: ProtocolVersion | string,
   functions: ReadonlyMap<string, F>,
+  catalog?: Catalog<any, any>,
 ): FunctionInvoker {
   const atLeastV10 = isAtLeastVersion(protocolVersion, SpecVersion.V1_0);
   return (name, rawArgs, ctx, abortSignal) => {
@@ -1206,11 +1216,16 @@ function createCatalogInvoker<F extends FunctionApi>(
       );
     }
 
+    const callCtx =
+      atLeastV10 && !name.startsWith('@') && catalogId && ctx instanceof DataContext
+        ? withActiveCallCatalogId(ctx, catalogId, catalog)
+        : ctx;
+
     return whenArgumentsSettle(rawArgs, abortSignal, resolvedArgs => {
       try {
         const args = coerceDynamicBooleans(fn.schema, resolvedArgs);
         const safeArgs = fn.schema.parse(args);
-        return execute.call(fn, safeArgs, ctx, abortSignal);
+        return execute.call(fn, safeArgs, callCtx, abortSignal);
       } catch (e: any) {
         if (e?.name === 'ZodError' || e instanceof z.ZodError) {
           throw new A2uiExpressionError(

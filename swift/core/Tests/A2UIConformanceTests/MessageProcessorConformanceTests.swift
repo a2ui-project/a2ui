@@ -32,8 +32,8 @@ private final class ConformanceActionCaptureHandler: ActionHandling,
   }
 }
 
-/// Runs the shared `conformance/core/message_processor_v0_9.yaml` and
-/// `conformance/core/message_processor_v1_0.yaml` suites.
+/// Runs the shared `conformance/core/message_processor_v0_9.yaml`,
+/// `conformance/core/message_processor_v1_0.yaml` and `conformance/core/add_catalog.yaml` suites.
 @MainActor
 struct MessageProcessorConformanceTests {
   /// `process_messages` cases whose payload is accepted but reports an error when it renders.
@@ -73,6 +73,7 @@ struct MessageProcessorConformanceTests {
   ]
 
   private static let knownStepKeys: Set<String> = [
+    "addCatalogPaths",
     "expect",
     "expectError",
     "messages",
@@ -126,6 +127,11 @@ struct MessageProcessorConformanceTests {
 
   @Test(arguments: ConformanceTestHelper.cases("core/message_processor_v1_0.yaml"))
   func messageProcessorV10Conformance(_ conformanceCase: ConformanceCase) throws {
+    try runSingleMessageProcessorCase(conformanceCase, defaultVersion: "1.0")
+  }
+
+  @Test(arguments: ConformanceTestHelper.cases("core/add_catalog.yaml"))
+  func addCatalogConformance(_ conformanceCase: ConformanceCase) throws {
     try runSingleMessageProcessorCase(conformanceCase, defaultVersion: "1.0")
   }
 
@@ -216,6 +222,7 @@ struct MessageProcessorConformanceTests {
       let inlineCatalogs = try buildInlineProcessorCatalogs(
         from: catalogList,
         action: action,
+        protocolVersion: explicitVer,
         commonTypes: commonTypes
       )
       catalogs.append(contentsOf: inlineCatalogs)
@@ -229,7 +236,7 @@ struct MessageProcessorConformanceTests {
       try augmentCatalogsWithFallbackComponents(&catalogs, defaultVersion: pVer)
     }
 
-    appendMissingReferencedCatalogAliases(&catalogs, from: testCase, defaultVersion: pVer)
+    try appendMissingReferencedCatalogAliases(&catalogs, from: testCase, defaultVersion: pVer)
     return catalogs
   }
 
@@ -244,21 +251,71 @@ struct MessageProcessorConformanceTests {
       catalogPaths.append(catalogPath)
     }
     return try catalogPaths.map { path in
-      let catalogSchema = try ConformanceTestHelper.loadRepositoryJSON(path: path)
-      let pathVersion = inferPathCatalogVersion(
-        catalogSchema: catalogSchema,
+      try loadPathCatalog(
         path: path,
-        explicitVersion: explicitVersion
+        explicitVersion: explicitVersion,
+        defaultVersion: defaultVersion,
+        commonTypes: commonTypes
       )
-      let pathCommonTypes =
-        (try? ConformanceTestHelper.commonTypesSchema(
-          forProtocolVersion: pathVersion ?? defaultVersion
-        )) ?? commonTypes
-      return ConformanceTestHelper.buildCatalog(
-        catalogSchema: catalogSchema,
-        commonTypes: pathCommonTypes,
-        protocolVersion: pathVersion
+    }
+  }
+
+  /// Loads the catalog at the repository-relative `path`.
+  private func loadPathCatalog(
+    path: String,
+    explicitVersion: String?,
+    defaultVersion: String,
+    commonTypes: JSONValue?
+  ) throws -> AnyCatalog {
+    let catalogSchema = try ConformanceTestHelper.loadRepositoryJSON(path: path)
+    let pathVersion = inferPathCatalogVersion(
+      catalogSchema: catalogSchema,
+      path: path,
+      explicitVersion: explicitVersion
+    )
+    let pathCommonTypes =
+      (try? ConformanceTestHelper.commonTypesSchema(
+        forProtocolVersion: pathVersion ?? defaultVersion
+      )) ?? commonTypes
+    return ConformanceTestHelper.buildCatalog(
+      catalogSchema: catalogSchema,
+      commonTypes: pathCommonTypes,
+      protocolVersion: pathVersion
+    )
+  }
+
+  /// The catalogs a `process_messages` step adds with `MessageProcessor.addCatalog(_:)`, from
+  /// its `addCatalogPaths`.
+  private func stepCatalogs(
+    _ step: [String: Any],
+    of testCase: [String: Any],
+    defaultVersion: String
+  ) throws -> [AnyCatalog] {
+    let explicitVer = testCase["protocolVersion"] as? String
+    let pVer = explicitVer ?? defaultVersion
+    let commonTypes = try? ConformanceTestHelper.commonTypesSchema(forProtocolVersion: pVer)
+    let paths = step["addCatalogPaths"] as? [String] ?? []
+    return try paths.map { path in
+      try loadPathCatalog(
+        path: path,
+        explicitVersion: explicitVer,
+        defaultVersion: pVer,
+        commonTypes: commonTypes
       )
+    }
+  }
+
+  /// Adds `catalogs` to `processor`, then processes the step's messages, if it has any.
+  private func runStep(
+    _ step: [String: Any],
+    adding catalogs: [AnyCatalog],
+    on processor: MessageProcessor
+  ) throws {
+    for catalog in catalogs {
+      try processor.addCatalog(catalog)
+    }
+    if let messages = step["messages"] {
+      try processor.processMessages(ConformanceTestHelper.toJSONValue(messages))
     }
   }
 
@@ -275,9 +332,12 @@ struct MessageProcessorConformanceTests {
     return explicitVersion
   }
 
+  /// Builds the inline catalogs of a case. A catalog that names no protocol version takes the
+  /// case's `protocolVersion`, when the case names one.
   private func buildInlineProcessorCatalogs(
     from catalogList: [[String: Any]],
     action: String,
+    protocolVersion: String?,
     commonTypes: JSONValue?
   ) throws -> [AnyCatalog] {
     let openSchema = try Schema(instance: "{\"type\": \"object\"}")
@@ -285,7 +345,8 @@ struct MessageProcessorConformanceTests {
     return catalogList.map { dict in
       let built = ConformanceTestHelper.buildCatalog(
         catalogSchema: ConformanceTestHelper.toJSONValue(dict),
-        commonTypes: commonTypes
+        commonTypes: commonTypes,
+        protocolVersion: protocolVersion
       )
       if action != "get_renderer_capabilities"
         && dict["components"] == nil
@@ -381,17 +442,21 @@ struct MessageProcessorConformanceTests {
     _ catalogs: inout [AnyCatalog],
     from testCase: [String: Any],
     defaultVersion: String
-  ) {
+  ) throws {
     var rawMessages = extractRawMessages(from: testCase)
+    // A catalog a step adds is missing until that step runs, so it gets no stand-in.
+    var addedIDs = Set<String>()
     if let steps = testCase["steps"] as? [[String: Any]] {
       for step in steps {
         rawMessages.append(contentsOf: extractRawMessages(from: step))
+        let added = try stepCatalogs(step, of: testCase, defaultVersion: defaultVersion)
+        addedIDs.formUnion(added.map(\.id))
       }
     }
     let neededIDs = collectNeededCatalogIDs(from: rawMessages)
     let existingIDs = Set(catalogs.map { $0.id })
     guard let base = catalogs.first else { return }
-    for neededID in neededIDs where !existingIDs.contains(neededID) {
+    for neededID in neededIDs.subtracting(addedIDs) where !existingIDs.contains(neededID) {
       catalogs.append(
         Catalog(
           id: neededID,
@@ -480,6 +545,7 @@ struct MessageProcessorConformanceTests {
         step,
         testCase: testCase,
         isFinalStep: index == steps.count - 1,
+        defaultVersion: defaultVersion,
         processor: processor,
         handler: handler,
         expectedRuntimeError: expectedRuntimeError,
@@ -492,12 +558,13 @@ struct MessageProcessorConformanceTests {
     _ step: [String: Any],
     testCase: [String: Any],
     isFinalStep: Bool,
+    defaultVersion: String,
     processor: MessageProcessor,
     handler: ConformanceActionCaptureHandler,
     expectedRuntimeError: ExpectedRuntimeError?,
     name: String
   ) throws {
-    let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
+    let addedCatalogs = try stepCatalogs(step, of: testCase, defaultVersion: defaultVersion)
     handler.capturedErrors.removeAll()
 
     let rawExpectError =
@@ -511,7 +578,8 @@ struct MessageProcessorConformanceTests {
         allowMetadata: false
       )
       try assertStepError(
-        payload: payload,
+        step: step,
+        adding: addedCatalogs,
         expectError: expectError,
         processor: processor,
         handler: handler,
@@ -520,7 +588,7 @@ struct MessageProcessorConformanceTests {
       return
     }
 
-    try processor.processMessages(payload)
+    try runStep(step, adding: addedCatalogs, on: processor)
     assertStepRuntimeErrors(
       capturedErrors: handler.capturedErrors,
       expected: expectedRuntimeError,
@@ -547,14 +615,15 @@ struct MessageProcessorConformanceTests {
   }
 
   private func assertStepError(
-    payload: JSONValue,
+    step: [String: Any],
+    adding addedCatalogs: [AnyCatalog],
     expectError: [String: Any],
     processor: MessageProcessor,
     handler: ConformanceActionCaptureHandler,
     name: String
   ) throws {
     do {
-      try processor.processMessages(payload)
+      try runStep(step, adding: addedCatalogs, on: processor)
       Issue.record("[\(name)] Expected error to be thrown for invalid message")
     } catch {
       try assertProcessErrorCategory(error: error, expectError: expectError, name: name)
@@ -801,14 +870,78 @@ struct MessageProcessorConformanceTests {
         """
       )
     }
-    if let expectedCatalogID = compObj["catalogId"] as? String {
+    let isV10 = surface.protocolVersion.isAtLeastV10
+    // Before v1.0, `catalogId` and `metadata` are properties of the component's own, so they are
+    // checked with its other properties below.
+    var envelopeKeys: Set<String> = ["id", "component"]
+    if isV10 {
+      envelopeKeys.formUnion(
+        verifyV10ComponentEnvelope(
+          compObj,
+          actualComp: actualComp,
+          surfaceID: surfaceID,
+          name: name
+        )
+      )
+    } else if compObj.keys.contains("metadata") {
+      #expect(
+        actualComp.metadata == nil,
+        "[\(name)] Component '\(id)' on a pre-1.0 surface must not have envelope metadata"
+      )
+    }
+    for (propKey, propVal) in compObj where !envelopeKeys.contains(propKey) {
+      let expected = ConformanceTestHelper.toJSONValue(propVal)
+      var actual = actualComp.properties[propKey]
+      // A v1.0 component keeps its accessibility and checks mixins under `@accessibility` and
+      // `@checks`, which an expectation may name by their legacy bare names.
+      if isV10, actual == nil, propKey == "accessibility" || propKey == "checks" {
+        actual = actualComp.properties["@\(propKey)"]
+      }
+      // An expectation may give a bound property's resolved value.
+      if actual != expected, let path = actual.flatMap(Self.bindingPath) {
+        actual = surface.dataModel.get(path)
+      }
+      if actual != expected, let node = surface.findNode(id: id),
+        let resolved = node.properties[propKey].flatMap(Self.resolvedJSON)
+      {
+        actual = resolved
+      }
+      #expect(
+        actual == expected,
+        "[\(name)] Component '\(id)' property '\(propKey)' mismatch"
+      )
+    }
+  }
+
+  /// Checks a v1.0 component's `@catalogId` and `@metadata` mixins, and returns the expectation
+  /// keys it checked.
+  ///
+  /// A bare `catalogId` is the component's own property when the expectation also names
+  /// `@catalogId`, or the component holds a property of that name; otherwise it is the legacy
+  /// name of the mixin. Only `@metadata` names the metadata mixin: a bare `metadata` is always
+  /// the component's own property, so the expectation alone decides which one is checked.
+  private func verifyV10ComponentEnvelope(
+    _ compObj: [String: Any],
+    actualComp: ComponentModel,
+    surfaceID: String,
+    name: String
+  ) -> Set<String> {
+    let id = actualComp.id
+    var checkedKeys: Set<String> = []
+    let bareCatalogIDIsProperty =
+      compObj["@catalogId"] != nil || actualComp.properties["catalogId"] != nil
+    for key in ["@catalogId", "catalogId"] {
+      guard let expectedCatalogID = compObj[key] as? String else { continue }
+      guard key == "@catalogId" || !bareCatalogIDIsProperty else { continue }
+      checkedKeys.insert(key)
       #expect(
         actualComp.catalogID == expectedCatalogID,
         "[\(name)] Component '\(id)' catalogId mismatch"
       )
     }
-    if compObj.keys.contains("metadata") {
-      let expectedMeta = compObj["metadata"].map { ConformanceTestHelper.toJSONValue($0) } ?? .null
+    if compObj.keys.contains("@metadata") {
+      checkedKeys.insert("@metadata")
+      let expectedMeta = compObj["@metadata"].map { ConformanceTestHelper.toJSONValue($0) } ?? .null
       if expectedMeta == .null {
         #expect(
           actualComp.metadata == nil,
@@ -822,14 +955,42 @@ struct MessageProcessorConformanceTests {
         )
       }
     }
-    for (propKey, propVal) in compObj
-    where propKey != "id" && propKey != "component" && propKey != "catalogId"
-      && propKey != "metadata"
-    {
-      #expect(
-        actualComp.properties[propKey] == ConformanceTestHelper.toJSONValue(propVal),
-        "[\(name)] Component '\(id)' property '\(propKey)' mismatch"
-      )
+    return checkedKeys
+  }
+
+  /// The data model path of a property bound with `{"path": ...}` or `{"@path": ...}`, or nil.
+  private static func bindingPath(_ value: JSONValue) -> String? {
+    guard let object = value.objectValue, object.count == 1 else { return nil }
+    return (object["path"] ?? object["@path"])?.stringValue
+  }
+
+  /// Converts a resolved property value to JSON, or returns nil when it holds no plain value.
+  private static func resolvedJSON(_ value: any Resolved) -> JSONValue? {
+    switch value {
+    case let json as JSONValue:
+      return json
+    case let string as String:
+      return .string(string)
+    case let bool as Bool:
+      return .boolean(bool)
+    case let binding as DataBinding<JSONValue>:
+      return binding.value
+    case let binding as DataBinding<String>:
+      return binding.value.map { .string($0) }
+    case let binding as DataBinding<Bool>:
+      return binding.value.map { .boolean($0) }
+    case let dictionary as ResolvedDictionary:
+      var object = OrderedDictionary<String, JSONValue>()
+      for key in dictionary.keys.sorted() {
+        guard let element = dictionary[key].flatMap(resolvedJSON) else { return nil }
+        object[key] = element
+      }
+      return .object(object)
+    case let array as ResolvedArray:
+      let elements = array.elements.compactMap(resolvedJSON)
+      return elements.count == array.elements.count ? .array(elements) : nil
+    default:
+      return nil
     }
   }
 

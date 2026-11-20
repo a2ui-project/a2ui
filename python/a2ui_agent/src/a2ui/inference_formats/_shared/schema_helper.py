@@ -32,8 +32,36 @@ from a2ui.core import (
     to_protocol_version,
 )
 from a2ui.core.schema import ProtocolVersion
+from a2ui.utils.component_envelope import AT_ENVELOPE_MIXIN_KEYS, ENVELOPE_MIXIN_NAMES
 
 _COMMON_DEF_RE = re.compile(r"(?:^|/)common_types\.json#/(?:\$defs|definitions)/(\w+)$")
+
+_STANDARD_CATALOG_ID_DESCRIPTION = (
+    "The catalog ID for this component, overriding any surface-level default catalogId."
+)
+
+
+def _is_standard_checks_schema(schema: Any) -> bool:
+    """Returns whether a bare `checks` property schema is the `Checkable` mixin's."""
+    if not isinstance(schema, dict):
+        return False
+    ref = schema.get("$ref")
+    if isinstance(ref, str) and ref.endswith("/Checkable"):
+        return True
+    items = schema.get("items")
+    return (
+        isinstance(items, dict)
+        and isinstance(items.get("$ref"), str)
+        and items["$ref"].endswith("/CheckRule")
+    )
+
+
+def _is_standard_catalog_id_schema(schema: Any) -> bool:
+    """Returns whether a bare `catalogId` property schema is `ComponentCommon`'s."""
+    return (
+        isinstance(schema, dict)
+        and schema.get("description") == _STANDARD_CATALOG_ID_DESCRIPTION
+    )
 
 
 def _common_def_name(ref: Any) -> str | None:
@@ -227,6 +255,7 @@ class CatalogSchemaHelper:
         self.component_properties: dict[str, list[str]] = {}
         self.component_required: dict[str, list[str]] = {}
         self.component_is_checkable: dict[str, bool] = {}
+        self.component_custom_envelope: dict[str, frozenset[str]] = {}
         self.component_property_enums: dict[tuple[str, str], list[str]] = {}
         self.function_properties: dict[str, list[str]] = {}
         self.function_required: dict[str, list[str]] = {}
@@ -237,6 +266,7 @@ class CatalogSchemaHelper:
         self.component_properties = {}
         self.component_required = {}
         self.component_is_checkable = {}
+        self.component_custom_envelope = {}
         self.component_property_enums = {}
 
         for name, schema in self.components.items():
@@ -264,10 +294,52 @@ class CatalogSchemaHelper:
                         if r not in reqs:
                             reqs.append(r)
 
-            # Filter out structural properties component, id, and catalogId,
-            # and checks, which a checkable component lists last.
-            excluded = {"component", "id", "catalogId"}
-            if is_checkable:
+            # A catalog may also declare the checks mixin inline: as the v1.0
+            # `@checks` key, or as a bare `checks` array of check rules.
+            if "@checks" in props or _is_standard_checks_schema(props.get("checks")):
+                is_checkable = True
+
+            # Bare names of the envelope mixins that the component declares as
+            # its own properties. A checkable component's own `checks` is the
+            # checks slot, and a `catalogId` with the standard mixin schema is
+            # the catalog override.
+            custom_envelope = {k for k in ENVELOPE_MIXIN_NAMES if k in props}
+            if "checks" in custom_envelope and _is_standard_checks_schema(
+                props["checks"]
+            ):
+                custom_envelope.discard("checks")
+            if "catalogId" in custom_envelope and _is_standard_catalog_id_schema(
+                props["catalogId"]
+            ):
+                custom_envelope.discard("catalogId")
+            meta_schema = props.get("metadata")
+            if (
+                isinstance(meta_schema, dict)
+                and isinstance(meta_schema.get("properties"), dict)
+                and set(meta_schema["properties"]) == {"extensions"}
+                and meta_schema.get("additionalProperties") is False
+            ):
+                custom_envelope.discard("metadata")
+            a11y_schema = props.get("accessibility")
+            if isinstance(a11y_schema, dict) and (
+                str(a11y_schema.get("$ref", "")).endswith("/AccessibilityAttributes")
+                or (
+                    isinstance(a11y_schema.get("properties"), dict)
+                    and {"label", "description"} <= set(a11y_schema["properties"])
+                    and a11y_schema.get("additionalProperties") is False
+                )
+            ):
+                custom_envelope.discard("accessibility")
+
+            # Filter out structural properties component, id, and catalogId
+            # (unless the component declares its own catalogId property), the
+            # `@`-prefixed v1.0 envelope mixin keys, which are not DSL
+            # parameters, and checks, which a checkable component lists last.
+            excluded = {"component", "id", *AT_ENVELOPE_MIXIN_KEYS}
+            excluded.update(
+                {"catalogId", "metadata", "accessibility"} - custom_envelope
+            )
+            if is_checkable and "checks" not in custom_envelope:
                 excluded.add("checks")
             ordered_keys = [k for k in props if k not in excluded]
 
@@ -279,14 +351,15 @@ class CatalogSchemaHelper:
                 if enum_val:
                     self.component_property_enums[(name, k)] = enum_val
 
-            # If it's checkable, add checks at the end, once, even when the
-            # component also defines it itself.
-            if is_checkable:
+            # If it's checkable, add checks at the end, once, unless the
+            # component defines a custom non-CheckRule checks property itself.
+            if is_checkable and "checks" not in custom_envelope:
                 ordered_keys.append("checks")
 
             self.component_properties[name] = ordered_keys
             self.component_required[name] = reqs
             self.component_is_checkable[name] = is_checkable
+            self.component_custom_envelope[name] = frozenset(custom_envelope)
 
         self.function_properties = {}
         self.function_required = {}
@@ -321,6 +394,15 @@ class CatalogSchemaHelper:
     def is_checkable(self, name: str) -> bool:
         """Returns whether the specified component supports client-side checks."""
         return self.component_is_checkable.get(name, False)
+
+    def get_custom_envelope_properties(self, name: str) -> frozenset[str]:
+        """Returns the envelope mixin names the component declares as its own properties.
+
+        These bare names (`catalogId`, `metadata`, `accessibility`, `checks`)
+        are ordinary catalog properties of the component. A v1.0 reader must
+        not fall back to them when the `@`-prefixed envelope key is absent.
+        """
+        return self.component_custom_envelope.get(name, frozenset())
 
     def get_function_properties(self, name: str) -> list[str]:
         """Returns the ordered properties of a catalog or system function's arguments."""

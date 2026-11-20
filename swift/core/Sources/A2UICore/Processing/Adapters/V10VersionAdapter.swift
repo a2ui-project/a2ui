@@ -19,7 +19,8 @@ import OrderedJSON
 ///
 /// Supports `createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`,
 /// `callRendererFunction`, and `agentFunctionResponse`. Per the v1.0 specification and
-/// core blueprint rule 6, `theme` is not extracted on `createSurface`.
+/// core blueprint rule 6, `theme` is not extracted on `createSurface`: a `createSurface` that
+/// carries it is rejected, unless unknown elements are allowed, in which case `theme` is dropped.
 public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
   private static let supportedActions: Set<String> = Set(InternalOperation.allOperationTypes)
   private static let supportedCatalogVersions: Set<String> = ["1.0"]
@@ -34,6 +35,25 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
 
   public override var compatibleCatalogVersions: Set<String> {
     Self.supportedCatalogVersions
+  }
+
+  /// Drops `theme` from a `createSurface` before validation when `allowUnknownElements` is set,
+  /// as relaxed renderers do; otherwise `theme` is rejected as an unrecognized property.
+  public override func preparePayloadForValidation(
+    _ message: OrderedDictionary<String, JSONValue>,
+    action: String,
+    allowUnknownElements: Bool
+  ) -> OrderedDictionary<String, JSONValue> {
+    guard allowUnknownElements,
+      action == "createSurface",
+      var createSurface = message["createSurface"]?.objectValue,
+      createSurface.removeValue(forKey: "theme") != nil
+    else {
+      return message
+    }
+    var updatedMessage = message
+    updatedMessage["createSurface"] = .object(createSurface)
+    return updatedMessage
   }
 
   public override func extractOperationsFromObject(
@@ -499,10 +519,13 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
           ]
         )
       }
-      if let rawMetadata = comp["metadata"] {
+      // `@metadata` is always the metadata mixin. Legacy bare `metadata` may instead be a
+      // property that the component's schema declares, so the message processor checks it once
+      // the component's catalog is known.
+      if let rawMetadata = comp["@metadata"] {
         _ = try MetadataValidator.validate(
           rawMetadata,
-          pathPrefix: "messages.0.\(action).components.\(index).metadata"
+          pathPrefix: "messages.0.\(action).components.\(index).@metadata"
         )
       }
     }
