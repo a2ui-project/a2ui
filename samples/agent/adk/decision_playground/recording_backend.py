@@ -117,6 +117,12 @@ def _score_boolean_offline(state_low: str, question: DecisionQuestion) -> float:
         return (
             0.15 if any(cue in state_low for cue in _FACTUAL_TEXT_ONLY_CUES) else 0.88
         )
+    if question.id == "gate:has_structured_content":
+        has_record = any(
+            cue in state_low
+            for cue in ("ord-", "prod-", "snowbird", "elevation", "cpu", "courier")
+        )
+        return 0.91 if has_record else 0.10
     if question.id.startswith("gate:"):
         target = question.id.rsplit(":", 1)[-1].lower()
         if "rollback" in target:
