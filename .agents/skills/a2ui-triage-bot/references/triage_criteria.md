@@ -26,7 +26,8 @@ Triage of an issue is done when the issue has a priority and no comment from an 
 
    This rule does not apply to a PR that is a good candidate for review or that overlaps with other PRs: for those, follow [Pull requests](#pull-requests).
 
-10. If a team member asked the triage bot for something, answer it at the start of `suggestion`, or in a response comment on an item with `status: needs-team-input`, as [Requests to the triage bot](../SKILL.md#requests-to-the-triage-bot) says. Follow these rules for what the answer suggests: a request does not override them.
+10. When you suggest an assignee for an item that relates to other open issues or PRs, such as a PR and the issue it targets, or PRs that overlap, suggest the same person for all of them. If one of the related items already has an assignee, suggest that person, unless they cannot be assigned; then say so in `suggestion`. Name the related items in `suggestion`, and list them in `targeted_issues`, `targeting_prs` or `related_items`.
+11. If a team member asked the triage bot for something, answer it at the start of `suggestion`, or in a response comment on an item with `status: needs-team-input`, as [Requests to the triage bot](../SKILL.md#requests-to-the-triage-bot) says. Follow these rules for what the answer suggests: a request does not override them.
 
 ## Issues
 
