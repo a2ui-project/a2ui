@@ -895,6 +895,10 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
    * Removes any adopted config stylesheet when the shell element is disconnected.
    */
   override disconnectedCallback() {
+    for (const timer of this._rpcTimers.values()) {
+      clearTimeout(timer);
+    }
+    this._rpcTimers.clear();
     this.#removeAdoptedConfigStyles();
     super.disconnectedCallback();
   }
@@ -1326,16 +1330,66 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     }
   }
 
-  async #sendOutboundRpc(message: unknown) {
+  private _rpcTimers = new Map<string, number>();
+  private _rpcLastSent = new Map<string, number>();
+
+  #rpcDebounceKey(message: unknown): string | null {
+    const call = (message as Record<string, unknown> | null)?.['callAgentFunction'] as
+      | Record<string, unknown>
+      | undefined;
+    if (!call) return null;
+    const fn = call['callFunction'] as Record<string, unknown> | undefined;
+    const surfaceId = typeof call['surfaceId'] === 'string' ? call['surfaceId'] : '';
+    const name = typeof fn?.['@call'] === 'string' ? fn['@call'] : '';
+    return `${surfaceId}:${name}`;
+  }
+
+  async #dispatchOutboundRpc(message: unknown) {
     if (this._isLocalMode) return;
-    const result = await this.#sendMessage(message);
-    if (result.trace !== null) {
-      this._trace = result.trace;
-      this.#syncHeaderControlsFromTrace(result.trace);
+    try {
+      const result = await this._a2uiClient.sendTurn(
+        message as any,
+        this._processor.getRendererCapabilities({versions: ['v0.9', '1.0']}),
+        {inspector: Boolean(this.config.inspector)},
+      );
+      if (result.trace !== null) {
+        this._trace = result.trace;
+        this.#syncHeaderControlsFromTrace(result.trace);
+      }
+      if (result.messages.length > 0) {
+        this._processor.processMessages(result.messages as any[]);
+      }
+    } catch (err) {
+      console.error(err);
     }
-    if (result.messages.length > 0) {
-      this._processor.processMessages(result.messages as any[]);
+  }
+
+  #sendOutboundRpc(message: unknown) {
+    if (this._isLocalMode) return;
+    const key = this.#rpcDebounceKey(message);
+    if (!key) {
+      void this.#dispatchOutboundRpc(message);
+      return;
     }
+    const existing = this._rpcTimers.get(key);
+    if (existing !== undefined) {
+      clearTimeout(existing);
+      this._rpcTimers.delete(key);
+    }
+    const now = Date.now();
+    const lastSent = this._rpcLastSent.get(key) ?? 0;
+    const delayMs = 350;
+    if (now - lastSent >= delayMs) {
+      this._rpcLastSent.set(key, now);
+      void this.#dispatchOutboundRpc(message);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      this._rpcTimers.delete(key);
+      this._rpcLastSent.set(key, Date.now());
+      void this.#dispatchOutboundRpc(message);
+    }, delayMs);
+    this._rpcTimers.set(key, timer);
   }
 
   /**
