@@ -13,7 +13,13 @@ description: >-
 
 # A2UI triage bot
 
-The triage bot is the triage job that writes triage suggestions (see [Triage jobs](../../../tools/internal/triage_new/blueprints/core.blueprint.md#triage-jobs)). For each item, it posts one suggestion comment that says in plain English what the triager should do, and carries the same suggestion as a `TriageSuggestion` A2UI component. The triage UI parses that component, the triager finalizes it, and the UI applies it. An item with `status: needs-team-input` is waiting for the team: the triage bot posts no suggestion on it, and comments only to answer [requests to the triage bot](#requests-to-the-triage-bot), in a response comment. The workflow is described in [triage_bot.blueprint.md](../../../tools/internal/triage_new/blueprints/features/triage_bot.blueprint.md).
+The triage bot runs three triage jobs (see [Triage jobs](../../../tools/internal/triage_new/blueprints/core.blueprint.md#triage-jobs)):
+
+1. The triage advisor writes triage suggestions. For each item, it posts one suggestion comment that says in plain English what the triager should do, and carries the same suggestion as a `TriageSuggestion` A2UI component. The triage UI parses that component, the triager finalizes it, and the UI applies it.
+2. The triage assistant answers [requests to the triage bot](#requests-to-the-triage-bot). An item with `status: needs-team-input` is waiting for the team: the triage bot posts no suggestion on it, and comments only to answer requests, in a response comment.
+3. The triage reporter writes the [triage report](#triage-report).
+
+The workflow is described in [triage_bot.blueprint.md](../../../tools/internal/triage_new/blueprints/features/triage_bot.blueprint.md).
 
 The triage bot only comments. It never adds or removes labels, assigns people, closes items, or changes milestones: those are the triager's decisions.
 

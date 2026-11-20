@@ -139,6 +139,11 @@ Avoid excessive bolding of keywords, "key takeaways," or names in the body text,
 
 Use numbered lists (`1.`, `2.`) instead of bullets, so readers can refer to an item by its number, as in "see point 3" (except in changelogs, which use `-` bullets; see [`update-changelog`](../update-changelog/SKILL.md)). Do not use emojis (🚀, 🧠) as list markers.
 
+When a paragraph lists several things and would run longer than two lines, write it as a numbered list instead.
+
+- Instead of: "The bot runs three jobs: the advisor, which posts suggestions on new items, the assistant, which answers requests from team members, and the reporter, which writes the weekly report."
+- Write: "The bot runs three jobs:" followed by a numbered list with one job per item.
+
 Avoid creating tables for simple information that easily fits in a sentence.
 
 Ensure markup is context-appropriate; do not use Markdown (like `##`) in formats that do not support it (like Wikitext) unless it is explicitly converted.
