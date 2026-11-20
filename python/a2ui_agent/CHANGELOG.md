@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Add `GatedTemplateEvaluator`, `GatedTemplateSpec`, `extract_gates_and_variants`,
+  and `prune_components` in
+  `a2ui.inference_formats.experimental.decision_gated_templates` for evaluating
+  boolean region gates (`a2ui_gate`) and mutually exclusive variants
+  (`a2ui_variant`) stored in A2UI v1.0 `@metadata.extensions`.
+
 - Add submit-time named-predicate agent functions (`NamedPredicateSpec`,
   `SessionRateLimiter`, `build_predicate_agent_functions`) in
   `a2ui.rpc.experimental.decision`.
