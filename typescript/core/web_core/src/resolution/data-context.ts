@@ -52,7 +52,11 @@ import {SpecVersion} from '../spec_versions.js';
 import {resolveSurfaceCatalog} from '../state/resolve-surface-catalog.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {IndexApi, SYSTEM_FUNCTIONS} from '../v1_0/functions/system_functions.js';
-import {registerDataContextInternals, type DataContextFlags} from './data-context-internal.js';
+import {
+  isInvalidFunctionCallError,
+  registerDataContextInternals,
+  type DataContextFlags,
+} from './data-context-internal.js';
 
 const schemaKeysCache = new WeakMap<z.ZodTypeAny, Set<string> | null>();
 
@@ -408,6 +412,8 @@ export class DataContext {
   private _isActionExecution = false;
   /** Whether calls the renderer does not implement must fail instead of going to the agent. */
   private _noAgentRouting = false;
+  /** Whether evaluation was initiated by an agent `callRendererFunction` request. */
+  private _isAgentCaller = false;
   /** Catalog ID of the currently executing catalog function, if any. */
   private _activeCatalogId?: string;
   /** Catalog instance of the currently executing catalog function, if any. */
@@ -421,6 +427,7 @@ export class DataContext {
       resolveValue: (ctx, value, depth, userActivated, keepPending) =>
         ctx.resolveValue(value, depth, userActivated, keepPending),
       allowsAgentRouting: ctx => ctx.allowsAgentRouting,
+      isAgentCaller: ctx => ctx.isAgentCaller,
       resolveSignalValue: (ctx, value, depth, keepPending) =>
         ctx.resolveSignalValue(value, depth, keepPending),
       activeCatalogId: ctx => ctx.activeCatalogId,
@@ -998,41 +1005,17 @@ export class DataContext {
         argSignals[key] = this.resolveSignalValue(argVal, depth + 1, true);
       }
 
-      if (Object.keys(argSignals).length === 0) {
-        const abortController = new AbortController();
-        const result = scope.evaluateFunctionReactive<V>(
+      const keys = Object.keys(argSignals);
+      if (keys.length === 0 || scope.isAgentCaller) {
+        return scope.resolveImmediateFunctionSignal<V>(
           callName,
-          {},
+          keys,
+          argSignals,
           targetCatalog.invoker,
-          abortController.signal,
           keepPending,
         );
-        let sig: Signal<V>;
-        if (isSignal(result)) {
-          sig = result;
-        } else if (isThenable(result)) {
-          const pendingSig = signal<V | undefined>(undefined);
-          if (keepPending) {
-            setValue(
-              pendingSig,
-              scope.keepPendingResult(result, callName, abortController.signal, {
-                onSignal: inner => scope.forwardSignal(pendingSig, inner, abortController.signal),
-              }) as V,
-            );
-          } else {
-            scope.settleIntoSignal(pendingSig, result, callName, abortController.signal);
-          }
-          sig = pendingSig as Signal<V>;
-        } else if (result instanceof FailedArgument) {
-          sig = signal((keepPending ? result : this.atLeastV10 ? null : undefined) as unknown as V);
-        } else {
-          sig = signal(result as V);
-        }
-        sig.unsubscribe = () => abortController.abort();
-        return sig;
       }
 
-      const keys = Object.keys(argSignals);
       const resultSig = signal<V | undefined>(undefined);
       let abortController: AbortController | undefined;
       let innerUnsubscribe: (() => void) | undefined;
@@ -1120,6 +1103,9 @@ export class DataContext {
             setValue(resultSig, res);
           }
         } catch (e: unknown) {
+          if (scope.isAgentCaller && isInvalidFunctionCallError(e)) {
+            throw e;
+          }
           failedArgsKey = argsKey;
           scope.dispatchExpressionError(e, callName);
           // In reactive mode, we should not throw. Instead, reset the signal value.
@@ -1465,6 +1451,7 @@ export class DataContext {
     view._isPassiveEvaluation = this._isPassiveEvaluation || Boolean(flags.passive);
     view._isActionExecution = this._isActionExecution || Boolean(flags.action);
     view._noAgentRouting = this._noAgentRouting || Boolean(flags.noAgentRouting);
+    view._isAgentCaller = this._isAgentCaller || Boolean(flags.agentCaller);
     view._activeCatalogId = flags.activeCatalogId ?? this._activeCatalogId;
     view._activeCatalog =
       flags.activeCatalog !== undefined
@@ -1515,6 +1502,10 @@ export class DataContext {
     return !this._noAgentRouting && (this.parent?.allowsAgentRouting ?? true);
   }
 
+  private get isAgentCaller(): boolean {
+    return this._isAgentCaller || Boolean(this.parent?.isAgentCaller);
+  }
+
   /**
    * The value of a failed call inside the arguments of another call.
    *
@@ -1543,6 +1534,55 @@ export class DataContext {
    * @param keepPending Whether the call is nested inside a function argument.
    * @returns The evaluated result as a reactive `Signal` or static value, or `undefined` on failure.
    */
+  private resolveImmediateFunctionSignal<V>(
+    callName: string,
+    keys: string[],
+    argSignals: Record<string, Signal<unknown>>,
+    invoker: FunctionInvoker,
+    keepPending: boolean,
+  ): Signal<V> {
+    const args: Record<string, unknown> = {};
+    for (let i = 0; i < keys.length; i++) {
+      defineOwn(args, keys[i], getValue(argSignals[keys[i]]));
+    }
+    const abortController = new AbortController();
+    const result = this.evaluateFunctionReactive<V>(
+      callName,
+      args,
+      invoker,
+      abortController.signal,
+      keepPending,
+    );
+    let sig: Signal<V>;
+    if (isSignal(result)) {
+      sig = result;
+    } else if (isThenable(result)) {
+      const pendingSig = signal<V | undefined>(undefined);
+      if (keepPending) {
+        setValue(
+          pendingSig,
+          this.keepPendingResult(result, callName, abortController.signal, {
+            onSignal: inner => this.forwardSignal(pendingSig, inner, abortController.signal),
+          }) as V,
+        );
+      } else {
+        this.settleIntoSignal(pendingSig, result, callName, abortController.signal);
+      }
+      sig = pendingSig as Signal<V>;
+    } else if (result instanceof FailedArgument) {
+      sig = signal((keepPending ? result : this.atLeastV10 ? null : undefined) as unknown as V);
+    } else {
+      sig = signal(result as V);
+    }
+    sig.unsubscribe = () => {
+      abortController.abort();
+      for (let i = 0; i < keys.length; i++) {
+        argSignals[keys[i]].unsubscribe?.();
+      }
+    };
+    return sig;
+  }
+
   private evaluateFunctionReactive<V>(
     name: string,
     args: Record<string, unknown>,
@@ -1553,6 +1593,9 @@ export class DataContext {
     try {
       return invoker(name, args, this, abortSignal) as Signal<V> | V;
     } catch (e: unknown) {
+      if (this.isAgentCaller && isInvalidFunctionCallError(e)) {
+        throw e;
+      }
       this.dispatchExpressionError(e, name);
       return (keepPending ? this.failedArgument(e) : undefined) as unknown as V;
     }

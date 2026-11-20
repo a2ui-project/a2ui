@@ -23,8 +23,15 @@ import {
   PluralizeImplementation,
 } from '../catalogs/basic/v1/functions/basic_functions.js';
 import {A2uiError} from '../errors.js';
-import {isSignal, peekValue, signal} from '../reactivity/signals.js';
+import {
+  _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
+  isSignal,
+  peekValue,
+  setSignalImplementation,
+  signal,
+} from '../reactivity/signals.js';
 import {DataContext} from '../resolution/data-context.js';
+import {DataModel} from '../state/data-model.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {IndexImplementation} from '../v1_0/functions/system_functions.js';
 import {A2uiRpcError, RpcErrorCode, RpcHandler} from './rpc-handler.js';
@@ -760,15 +767,30 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const standaloneId = 'https://example.com/standalone/catalog.json';
 
     const labelA = createFunctionImplementation(
-      {name: 'label', returnType: 'string' as const, schema: z.object({})},
+      {
+        name: 'label',
+        returnType: 'string' as const,
+        schema: z.object({}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
       () => 'from-A',
     );
     const labelB = createFunctionImplementation(
-      {name: 'label', returnType: 'string' as const, schema: z.object({})},
+      {
+        name: 'label',
+        returnType: 'string' as const,
+        schema: z.object({}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
       () => 'from-B',
     );
     const labelStandalone = createFunctionImplementation(
-      {name: 'label', returnType: 'string' as const, schema: z.object({})},
+      {
+        name: 'label',
+        returnType: 'string' as const,
+        schema: z.object({}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
       () => 'from-standalone',
     );
 
@@ -805,19 +827,23 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       ...FormatStringImplementation,
       allowedCallers: 'rendererOrAgent' as const,
     };
+    const rpcPluralize = {
+      ...PluralizeImplementation,
+      allowedCallers: 'rendererOrAgent' as const,
+    };
 
     const catA = new Catalog(
       catAId,
       '1.0',
       [],
-      [rpcFormatString, PluralizeImplementation, labelA, asyncFormatA],
+      [rpcFormatString, rpcPluralize, labelA, asyncFormatA],
     );
     const catB = new Catalog(catBId, '1.0', [], [rpcFormatString, labelB, asyncFormatB]);
     const standaloneCat = new Catalog(
       standaloneId,
       '1.0',
       [],
-      [rpcFormatString, PluralizeImplementation, labelStandalone],
+      [rpcFormatString, rpcPluralize, labelStandalone],
     );
 
     const surface = new SurfaceModel(
@@ -911,7 +937,12 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     // while targeting an unnegotiated catalog fails with `EXECUTION_ERROR`.
     const makeLabelHelper = (text: string) =>
       createFunctionImplementation(
-        {name: 'label', returnType: 'string' as const, schema: z.object({})},
+        {
+          name: 'label',
+          returnType: 'string' as const,
+          schema: z.object({}),
+          allowedCallers: 'rendererOrAgent' as const,
+        },
         () => text,
       );
     const echoLabelImpl = createFunctionImplementation(
@@ -927,7 +958,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       'https://example.com/rpc-echo-standalone/catalog.json',
       '1.0',
       [],
-      [echoLabelImpl, FormatStringImplementation, makeLabelHelper('arg-standalone')],
+      [echoLabelImpl, rpcFormatString, makeLabelHelper('arg-standalone')],
     );
     const otherUnnegotiatedCat = new Catalog(
       'https://example.com/rpc-other-unnegotiated/catalog.json',
@@ -997,6 +1028,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
           },
           label: {
             returnType: 'string',
+            allowedCallers: 'rendererOrAgent',
             parameters: {type: 'object', properties: {}},
           },
         },
@@ -1037,5 +1069,186 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       schemaOnlyCtx,
     );
     assert.strictEqual(sharedRes.rendererFunctionResponse.value, 'Resolved: from-exec-rpc');
+  });
+
+  it('rejects nested rendererOnly calls before sibling arguments execute and enforces caller boundary on DataModel templates', async () => {
+    const catId = 'https://example.com/rpc-nested-boundary/catalog.json';
+    const sideEffects: string[] = [];
+
+    const mutatingAllowed = createFunctionImplementation(
+      {
+        name: 'mutatingAllowed',
+        returnType: 'string' as const,
+        schema: z.object({}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
+      () => {
+        sideEffects.push('mutated');
+        return 'ok';
+      },
+    );
+    const secretRendererOnly = createFunctionImplementation(
+      {
+        name: 'secretRendererOnly',
+        returnType: 'string' as const,
+        schema: z.object({label: z.string().optional()}),
+        allowedCallers: 'rendererOnly' as const,
+      },
+      () => {
+        sideEffects.push('leaked');
+        return 'SECRET';
+      },
+    );
+    const agentOnlyFn = createFunctionImplementation(
+      {
+        name: 'agentOnlyFn',
+        returnType: 'string' as const,
+        schema: z.object({}),
+        allowedCallers: 'agentOnly' as const,
+      },
+      () => 'AGENT_SECRET',
+    );
+    const echoAll = createFunctionImplementation(
+      {
+        name: 'echoAll',
+        returnType: 'any' as const,
+        schema: z.record(z.string(), z.any()),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
+      args => args,
+    );
+    const renderTpl = createFunctionImplementation(
+      {
+        name: 'renderTpl',
+        returnType: 'any' as const,
+        schema: z.object({value: z.string()}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
+      (args, ctx) => {
+        const res = FormatStringImplementation.execute({value: args.value}, ctx);
+        return isSignal(res) ? peekValue(res) : res;
+      },
+    );
+
+    const cat = new Catalog(
+      catId,
+      '1.0',
+      [],
+      [mutatingAllowed, secretRendererOnly, agentOnlyFn, echoAll, renderTpl],
+    );
+    const surface = new SurfaceModel(
+      's-nested-boundary',
+      cat,
+      new Map([[catId, cat]]),
+      undefined,
+      false,
+      new DataModel({tpl: 'Leak: ${secretRendererOnly()}'}),
+      '1.0',
+    );
+    const ctx = new DataContext(surface, '/');
+    const handler = new RpcHandler({catalogs: [cat]});
+
+    // 1. Sibling `mutatingAllowed` must not run when a sibling nested `@call` is `rendererOnly`.
+    const siblingRes = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-sibling-atomic',
+          surfaceId: 's-nested-boundary',
+          callFunction: {
+            '@call': 'echoAll',
+            catalogId: catId,
+            args: {
+              first: {'@call': 'mutatingAllowed', catalogId: catId, args: {}},
+              second: [
+                {
+                  '@call': {'@call': 'secretRendererOnly', catalogId: catId, args: {}},
+                },
+              ],
+            },
+          },
+        },
+      },
+      ctx,
+    );
+    assert.strictEqual(
+      siblingRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
+    assert.deepStrictEqual(sideEffects, []);
+
+    // 2. Dynamic `${secretRendererOnly()}` stored in `DataModel` and loaded via `@path` is rejected with `INVALID_FUNCTION_CALL`.
+    const tplRes = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-datamodel-tpl',
+          surfaceId: 's-nested-boundary',
+          callFunction: {
+            '@call': 'renderTpl',
+            catalogId: catId,
+            args: {value: {'@path': '/tpl'}},
+          },
+        },
+      },
+      ctx,
+    );
+    assert.strictEqual(
+      tplRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
+    assert.deepStrictEqual(sideEffects, []);
+
+    // 2b. Multi-argument `${secretRendererOnly(label: 'x')}` still returns `INVALID_FUNCTION_CALL`
+    // under a deferred-effect reactivity backend (such as `@a2ui/angular`).
+    surface.dataModel.set('/tplWithArg', "Leak: ${secretRendererOnly(label: 'x')}");
+    setSignalImplementation({
+      ..._PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
+      effect: () => () => {},
+    });
+    try {
+      const deferredTplRes = await handler.handleCallRendererFunction(
+        {
+          version: '1.0',
+          callRendererFunction: {
+            functionCallId: 'nested-deferred-tpl',
+            surfaceId: 's-nested-boundary',
+            callFunction: {
+              '@call': 'renderTpl',
+              catalogId: catId,
+              args: {value: {'@path': '/tplWithArg'}},
+            },
+          },
+        },
+        ctx,
+      );
+      assert.strictEqual(
+        deferredTplRes.rendererFunctionResponse.error?.code,
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+      );
+      assert.deepStrictEqual(sideEffects, []);
+    } finally {
+      setSignalImplementation(_PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION);
+    }
+
+    // 3. Nested `agentOnly` call succeeds under `callRendererFunction`.
+    const agentRes = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-agent-only',
+          surfaceId: 's-nested-boundary',
+          callFunction: {
+            '@call': 'echoAll',
+            catalogId: catId,
+            args: {
+              token: {'@call': 'agentOnlyFn', catalogId: catId, args: {}},
+            },
+          },
+        },
+      },
+      ctx,
+    );
+    assert.deepStrictEqual(agentRes.rendererFunctionResponse.value, {token: 'AGENT_SECRET'});
   });
 });

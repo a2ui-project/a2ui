@@ -17,6 +17,7 @@ import 'dart:convert';
 
 import 'package:json_schema_builder/json_schema_builder.dart'
     hide ValidationResult;
+import 'package:preact_signals/preact_signals.dart' show SignalEffectException;
 
 import '../core/catalog.dart';
 import '../core/common.dart';
@@ -124,6 +125,9 @@ class DataContext {
   /// [FunctionApi.requiresUserActivation] is set runs only when this is true.
   final bool isUserActivated;
 
+  /// Whether this context evaluates an agent-initiated `callRendererFunction`.
+  final bool _isAgentCall;
+
   /// With [_onError], failed invocations are reported and resolve to null.
   /// Without it, the original exception is rethrown.
   ///
@@ -161,6 +165,7 @@ class DataContext {
     this.isUserActivated = false,
     this._callAgentFunction,
   }) : _invoke = invoke,
+       _isAgentCall = parent?._isAgentCall ?? false,
        _explicitIndex = index,
        _callCatalogId = parent?._callCatalogId,
        _callCatalogInvoker = parent?._callCatalogInvoker,
@@ -178,6 +183,7 @@ class DataContext {
     required this.protocolVersion,
     required this._invokerForCatalog,
     required this.isUserActivated,
+    required this._isAgentCall,
     required this._callAgentFunction,
     required this._agentCalls,
     this.parent,
@@ -1124,6 +1130,7 @@ class DataContext {
       protocolVersion: protocolVersion,
       invokerForCatalog: _invokerForCatalog,
       isUserActivated: isUserActivated,
+      isAgentCall: _isAgentCall,
       callAgentFunction: null,
       agentCalls: _agentCalls,
       parent: parent,
@@ -1556,6 +1563,7 @@ class DataContext {
     protocolVersion: protocolVersion,
     invokerForCatalog: _invokerForCatalog,
     isUserActivated: true,
+    isAgentCall: _isAgentCall,
     callAgentFunction: _callAgentFunction,
     agentCalls: _agentCalls,
     parent: parent,
@@ -1577,6 +1585,7 @@ class DataContext {
     protocolVersion: protocolVersion,
     invokerForCatalog: _invokerForCatalog,
     isUserActivated: isUserActivated,
+    isAgentCall: _isAgentCall,
     callAgentFunction: _callAgentFunction,
     agentCalls: _agentCalls,
     parent: parent,
@@ -1604,6 +1613,7 @@ class DataContext {
       protocolVersion: protocolVersion,
       invokerForCatalog: _invokerForCatalog,
       isUserActivated: isUserActivated,
+      isAgentCall: _isAgentCall,
       callAgentFunction: _callAgentFunction,
       agentCalls: _agentCalls,
       parent: this,
@@ -1965,6 +1975,7 @@ DataContext dataContextWithoutAgentCalls(DataContext context) =>
       protocolVersion: context.protocolVersion,
       invokerForCatalog: context._invokerForCatalog,
       isUserActivated: context.isUserActivated,
+      isAgentCall: context._isAgentCall,
       callAgentFunction: null,
       agentCalls: _AgentCallCache(),
       parent: context.parent,
@@ -1974,6 +1985,51 @@ DataContext dataContextWithoutAgentCalls(DataContext context) =>
       onMissingData: context._onMissingData,
       warnedPaths: context._warnedPaths,
     );
+
+/// Package-internal: [context] marked as an agent-initiated
+/// `callRendererFunction` evaluation so nested `@call` and `${...}` expressions
+/// enforce the agent caller boundary.
+DataContext dataContextForAgentCall(DataContext context) =>
+    DataContext._derived(
+      context.dataModel,
+      context._invoke,
+      context.path,
+      onError: context._onError,
+      protocolVersion: context.protocolVersion,
+      invokerForCatalog: context._invokerForCatalog,
+      isUserActivated: context.isUserActivated,
+      isAgentCall: true,
+      callAgentFunction: context._callAgentFunction,
+      agentCalls: context._agentCalls,
+      parent: context.parent,
+      index: context._explicitIndex,
+      callCatalogId: context._callCatalogId,
+      callCatalogInvoker: context._callCatalogInvoker,
+      onMissingData: context._onMissingData,
+      warnedPaths: context._warnedPaths,
+    );
+
+const Map<String, bool> _invalidFunctionCallDetail = {
+  'invalidFunctionCall': true,
+};
+
+/// Package-internal: unwraps any [SignalEffectException] wrappers around
+/// [error] thrown while evaluating a `Computed` signal.
+Object unwrapSignalError(Object error) {
+  var current = error;
+  while (current is SignalEffectException && current.error != null) {
+    current = current.error!;
+  }
+  return current;
+}
+
+/// Package-internal: whether [error] was thrown because a function violated its
+/// caller boundary or `requiresUserActivation` gate.
+bool isInvalidFunctionCallError(Object error) {
+  final Object unwrapped = unwrapSignalError(error);
+  return unwrapped is A2uiExpressionError &&
+      identical(unwrapped.details, _invalidFunctionCallDetail);
+}
 
 /// Package-internal: [context] with [catalogId] set as the active function
 /// catalog, so `${...}` template calls evaluated inside `formatString` inherit
@@ -2009,6 +2065,7 @@ DataContext createSurfaceDataContext(
       : A2uiProtocolVersion.tryParseSemVer(surface.protocolVersion!),
   invokerForCatalog: (catalogId) => surface.resolveCatalog(catalogId).invoke,
   isUserActivated: false,
+  isAgentCall: parentDataContext?._isAgentCall ?? false,
   callAgentFunction: surface.callAgentFunction,
   agentCalls: _surfaceAgentCalls[surface] ??= _AgentCallCache(
     defaultCatalogId: surface.defaultCatalog?.id,
@@ -2066,17 +2123,30 @@ extension CatalogInvokerExtension
         functionName: name,
       );
     }
-    if (fn.allowedCallers == AllowedCallers.agentOnly) {
-      throw A2uiExpressionError(
-        "Function '$name' cannot be called by renderer (allowedCallers is "
-        'agentOnly).',
-        expression: name,
-      );
+    if (!name.startsWith('@')) {
+      if (context._isAgentCall) {
+        if (fn.allowedCallers == AllowedCallers.rendererOnly) {
+          throw A2uiExpressionError(
+            "Function '$name' cannot be called by agent (allowedCallers is "
+            'rendererOnly).',
+            expression: name,
+            details: _invalidFunctionCallDetail,
+          );
+        }
+      } else if (fn.allowedCallers == AllowedCallers.agentOnly) {
+        throw A2uiExpressionError(
+          "Function '$name' cannot be called by renderer (allowedCallers is "
+          'agentOnly).',
+          expression: name,
+          details: _invalidFunctionCallDetail,
+        );
+      }
     }
     if (fn.requiresUserActivation && !context.isUserActivated) {
       throw A2uiExpressionError(
         "Function '$name' requires user activation context to execute.",
         expression: name,
+        details: _invalidFunctionCallDetail,
       );
     }
     final Map<String, dynamic> callArgs = coerceValidationResultArgs(

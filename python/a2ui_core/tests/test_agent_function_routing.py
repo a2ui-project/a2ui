@@ -1848,7 +1848,11 @@ async def test_nested_argument_error_without_message_has_a_fallback() -> None:
         raise RuntimeError()
 
     silent = FunctionImplementation(
-        name="silent", return_type="any", schema=_ProbeArgs, execute=_silent
+        name="silent",
+        return_type="any",
+        schema=_ProbeArgs,
+        execute=_silent,
+        allowed_callers="rendererOrAgent",
     )
     seen: list[tuple[bool, bool]] = []
     probe = _probe(seen)

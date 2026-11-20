@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Breaking:** (v1_0) With the updated `a2ui_core`, `validatePayload`, `RendererState.apply`, and the inference format parsers check function calls nested in `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions while accepting `agentOnly` and `rendererOrAgent` functions. Set `allowedCallers` to `rendererOrAgent` or `agentOnly` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774)).
 - **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.10.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
 
 ## 0.4.0

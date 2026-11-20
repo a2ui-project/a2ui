@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) `validatePayload`, `RendererState.apply`, and inference format parsers check function calls nested in `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions while accepting `agentOnly` and `rendererOrAgent` functions. Recommended migration: set `allowedCallers` to `'rendererOrAgent'` or `'agentOnly'` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774)).
+
 ## 0.2.0
 
 - **BREAKING CHANGE**: (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`, and `@checks` on v1.0 components in `ExpressCompiler`, `ExpressPromptGenerator`, `DirectJsonResponseStream`, and `RendererState`, while keeping v0.9 component output bare. `ExpressDecompiler` reads both `@`-prefixed and legacy bare component envelope keys on v1.0 payloads when the component schema does not declare a custom property with the same bare name ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#3403](https://github.com/a2ui-project/a2ui/issues/3403), [#3466](https://github.com/a2ui-project/a2ui/issues/3466), [#4012](https://github.com/a2ui-project/a2ui/issues/4012), [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).

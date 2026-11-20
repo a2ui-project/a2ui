@@ -19,8 +19,9 @@ import 'conformance/conformance_harness.dart';
 
 /// A call held in a component (a property binding, a check or an action) is
 /// one the renderer makes, so validation rejects one to a function whose
-/// `allowedCallers` is `agentOnly`, as does a call nested in the arguments
-/// of a `callRendererFunction`.
+/// `allowedCallers` is `agentOnly`, whereas a call nested in the arguments of
+/// a `callRendererFunction` runs under the agent's caller boundary and rejects
+/// `rendererOnly` functions instead.
 void main() {
   final Map<String, Object?> basicDocument = readConformanceJson(
     'catalogs/basic/v1/catalog.json',
@@ -382,43 +383,42 @@ void main() {
         ]);
       });
 
-      test('rejects an agentOnly function nested in its arguments', () {
-        expect(
-          () => processor([agentOnly]).processMessages([
-            call(agentOnly, {'value': formatHello}),
-          ]),
-          throwsA(
-            isA<A2uiValidationError>().having(
-              (e) => e.message,
-              'message',
-              allOf(
-                contains(
-                  "Function call 'formatString' in function call "
-                  "'f1'",
-                ),
-                contains(message),
-              ),
-            ),
-          ),
-        );
+      test('accepts an agentOnly function nested in its arguments', () {
+        processor([agentOnly]).processMessages([
+          call(agentOnly, {'value': formatHello}),
+        ]);
       });
 
-      test('rejects an agentOnly function of another catalog nested in its '
+      test('accepts an agentOnly function of another catalog nested in its '
           'arguments', () {
         final CatalogApi other = declaring({
           'formatString': 'agentOnly',
         }, id: 'https://example.com/other.json');
+        processor([shared, other]).processMessages([
+          call(shared, {
+            'value': {...formatHello, 'catalogId': other.id},
+          }),
+        ]);
+      });
+
+      test('rejects a rendererOnly function nested in its arguments', () {
+        final CatalogApi otherRendererOnly = declaring(
+          {},
+          id: 'https://example.com/other_renderer_only.json',
+        );
         expect(
-          () => processor([shared, other]).processMessages([
+          () => processor([shared, otherRendererOnly]).processMessages([
             call(shared, {
-              'value': {...formatHello, 'catalogId': other.id},
+              'value': {...formatHello, 'catalogId': otherRendererOnly.id},
             }),
           ]),
           throwsA(
             isA<A2uiValidationError>().having(
               (e) => e.message,
               'message',
-              contains(message),
+              "Function call 'formatString' in function call 'f1' is a call "
+                  "the agent can't make: Function 'formatString' cannot be "
+                  'called by agent (allowedCallers is rendererOnly).',
             ),
           ),
         );
@@ -434,19 +434,39 @@ void main() {
         '@call': 'openUrl',
         'args': {'url': 'https://example.com'},
       };
+      final FunctionApi openUrlSignature = shared.functions['openUrl']!;
+      final CatalogApi sharedWithOpenUrl = Catalog(
+        id: shared.id,
+        components: shared.components.values.toList(),
+        functions: [
+          for (final FunctionApi fn in shared.functions.values)
+            if (fn.name == 'openUrl')
+              FunctionApi(
+                name: openUrlSignature.name,
+                argumentSchema: openUrlSignature.argumentSchema,
+                returnType: openUrlSignature.returnType,
+                allowedCallers: AllowedCallers.rendererOrAgent,
+                requiresUserActivation: true,
+              )
+            else
+              fn,
+        ],
+        protocolVersion: shared.protocolVersion,
+        definitions: shared.definitions,
+      );
 
       test('rejects a function that requires a user activation nested in '
           'its arguments', () {
         expect(
-          () => processor([shared]).processMessages([
-            call(shared, {'value': openUrl}),
+          () => processor([sharedWithOpenUrl]).processMessages([
+            call(sharedWithOpenUrl, {'value': openUrl}),
           ]),
           throwsA(
             isA<A2uiValidationError>().having(
               (e) => e.message,
               'message',
               "Function call 'openUrl' in function call 'f1' is a call the "
-                  "renderer can't make: Function 'openUrl' requires a user "
+                  "agent can't make: Function 'openUrl' requires a user "
                   'activation, and a call from the agent has none.',
             ),
           ),
@@ -455,8 +475,8 @@ void main() {
 
       test('accepts one that requires a user activation when the call has '
           'one', () {
-        processor([shared]).processMessages([
-          call(shared, {'value': openUrl}),
+        processor([sharedWithOpenUrl]).processMessages([
+          call(sharedWithOpenUrl, {'value': openUrl}),
         ], isUserActivated: true);
       });
 

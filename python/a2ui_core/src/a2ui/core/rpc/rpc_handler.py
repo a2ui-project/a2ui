@@ -17,7 +17,7 @@ import concurrent.futures
 import inspect
 import logging
 import uuid
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any, TypeVar, Union, cast
 
@@ -104,6 +104,7 @@ class _PreparedRendererCall:
     version: str = "1.0"
     call_name: str = ""
     catalog: Any | None = None
+    is_user_activated: bool = False
     early_error_response: dict[str, Any] | None = None
 
 
@@ -395,6 +396,7 @@ class RpcHandler:
             error_sub = on_error.subscribe(_on_expr_err)
 
         resolved_args = args
+        err_code = RpcErrorCode.EXECUTION_ERROR
         try:
             # An agent's arguments never route back to the agent, nor read
             # its cached answers: an unimplemented function fails here.
@@ -403,6 +405,8 @@ class RpcHandler:
             )
             resolved_args = {k: resolve(v) for k, v in args.items()}
         except Exception as e:
+            if getattr(e, "code", None) == "INVALID_FUNCTION_CALL":
+                err_code = RpcErrorCode.INVALID_FUNCTION_CALL
             expression_error = str(e) or _UNRESOLVED_ARGUMENT_MESSAGE
         finally:
             if error_sub is not None and hasattr(error_sub, "unsubscribe"):
@@ -411,7 +415,7 @@ class RpcHandler:
         if expression_error is not None:
             err_resp = self._create_response_error(
                 call_id,
-                RpcErrorCode.EXECUTION_ERROR,
+                err_code,
                 expression_error,
                 version=version,
             )
@@ -424,6 +428,83 @@ class RpcHandler:
 
         return resolved_args, None
 
+    def _resolve_nested_call_catalog(
+        self,
+        call_obj: dict[str, Any],
+        context: DataContext | None,
+        active_catalog: Any,
+    ) -> Any:
+        raw_cat_id = call_obj.get("catalogId")
+        if (
+            "catalogId" in call_obj
+            and raw_cat_id is not None
+            and not isinstance(raw_cat_id, str)
+        ):
+            return None
+        surface = getattr(context, "surface", None)
+        if isinstance(raw_cat_id, str):
+            if getattr(active_catalog, "catalog_id", None) == raw_cat_id:
+                return active_catalog
+            avail = getattr(surface, "available_catalogs", None)
+            if isinstance(avail, dict) and raw_cat_id in avail:
+                return avail[raw_cat_id]
+            default_cat = getattr(surface, "default_catalog", None)
+            return (
+                default_cat
+                if getattr(default_cat, "catalog_id", None) == raw_cat_id
+                else None
+            )
+        return getattr(surface, "default_catalog", None)
+
+    def _check_nested_argument_permissions(
+        self,
+        value: Any,
+        context: DataContext | None,
+        active_catalog: Any,
+        is_user_activated: bool,
+    ) -> str | None:
+        stack: list[tuple[Any, int]] = [(value, 0)]
+        while stack:
+            current, depth = stack.pop()
+            if depth > 1000 or not isinstance(current, (dict, list)):
+                continue
+            children: Iterable[Any]
+            if isinstance(current, dict):
+                err = self._check_nested_call_record(
+                    current, context, active_catalog, is_user_activated
+                )
+                if err is not None:
+                    return err
+                children = current.values()
+            else:
+                children = current
+            children_list = list(children)
+            for child in reversed(children_list):
+                stack.append((child, depth + 1))
+        return None
+
+    def _check_nested_call_record(
+        self,
+        record: dict[str, Any],
+        context: DataContext | None,
+        active_catalog: Any,
+        is_user_activated: bool,
+    ) -> str | None:
+        call_name = record.get("@call")
+        if not isinstance(call_name, str) or call_name.startswith("@"):
+            return None
+        cat = self._resolve_nested_call_catalog(record, context, active_catalog)
+        if cat is None:
+            return None
+        fn = (
+            cat.get_function(call_name)
+            if hasattr(cat, "get_function")
+            else getattr(cat, "functions", {}).get(call_name)
+        )
+        if fn is None:
+            return None
+        return self._check_execution_permissions(fn, call_name, is_user_activated)
+
     def _prepare_target_function(
         self,
         matched_catalog: Any,
@@ -433,8 +514,26 @@ class RpcHandler:
         call_id: str,
         version: str,
         context: DataContext | None = None,
+        is_user_activated: bool = False,
     ) -> _TargetFnOrError:
         """Validates payload schema and resolves target callable."""
+        nested_access_err = self._check_nested_argument_permissions(
+            args, context, matched_catalog, is_user_activated
+        )
+        if nested_access_err is not None:
+            err_resp = self._create_response_error(
+                call_id,
+                RpcErrorCode.INVALID_FUNCTION_CALL,
+                nested_access_err,
+                version=version,
+            )
+            self._emit_outbound_response(
+                err_resp.model_dump(
+                    by_alias=True, exclude_none=True, exclude_unset=True
+                )
+            )
+            return _TargetFnOrError(error_response=err_resp)
+
         resolved_args, expr_err_resp = self._resolve_dynamic_arguments(
             args, context, call_id, version
         )
@@ -500,10 +599,17 @@ class RpcHandler:
 
     @staticmethod
     def _scope_call_context(
-        context: DataContext | None, matched_catalog: Any
+        context: DataContext | None,
+        matched_catalog: Any,
+        is_user_activated: bool = False,
     ) -> DataContext | None:
-        """Returns `context` scoped to `matched_catalog`'s ID when available."""
-        if context is None or matched_catalog is None:
+        """Returns `context` marked as agent caller and scoped to `matched_catalog`'s ID."""
+        if context is None:
+            return None
+        with_agent = getattr(context, "_with_agent_caller", None)
+        if callable(with_agent):
+            context = cast(DataContext, with_agent(is_user_activated=is_user_activated))
+        if matched_catalog is None:
             return context
         catalog_id = getattr(matched_catalog, "catalog_id", None)
         with_catalog = getattr(context, "with_active_catalog_id", None)
@@ -526,10 +632,13 @@ class RpcHandler:
         version: str,
         call_name: str = "",
         matched_catalog: Any = None,
+        is_user_activated: bool = False,
     ) -> RendererFunctionResponseMessage:
         """Safely executes a function implementation synchronously, returning response model."""
         effective_context = self._ensure_data_context(context, matched_catalog, call_id)
-        call_context = self._scope_call_context(effective_context, matched_catalog)
+        call_context = self._scope_call_context(
+            effective_context, matched_catalog, is_user_activated
+        )
         prepared = self._prepare_target_function(
             matched_catalog,
             call_name,
@@ -538,6 +647,7 @@ class RpcHandler:
             call_id,
             version,
             context=call_context,
+            is_user_activated=is_user_activated,
         )
         if prepared.error_response is not None:
             return prepared.error_response
@@ -576,9 +686,14 @@ class RpcHandler:
                 val = raw_res
             return self._build_success_response(val, call_id, version)
         except Exception as e:
+            err_code = (
+                RpcErrorCode.INVALID_FUNCTION_CALL
+                if getattr(e, "code", None) == "INVALID_FUNCTION_CALL"
+                else RpcErrorCode.EXECUTION_ERROR
+            )
             err_model = self._create_response_error(
                 call_id,
-                RpcErrorCode.EXECUTION_ERROR,
+                err_code,
                 str(e),
                 version=version,
             )
@@ -598,10 +713,13 @@ class RpcHandler:
         version: str,
         call_name: str = "",
         matched_catalog: Any = None,
+        is_user_activated: bool = False,
     ) -> RendererFunctionResponseMessage:
         """Safely executes a function implementation asynchronously, returning response model."""
         effective_context = self._ensure_data_context(context, matched_catalog, call_id)
-        call_context = self._scope_call_context(effective_context, matched_catalog)
+        call_context = self._scope_call_context(
+            effective_context, matched_catalog, is_user_activated
+        )
         prepared = self._prepare_target_function(
             matched_catalog,
             call_name,
@@ -610,6 +728,7 @@ class RpcHandler:
             call_id,
             version,
             context=call_context,
+            is_user_activated=is_user_activated,
         )
         if prepared.error_response is not None:
             return prepared.error_response
@@ -633,9 +752,14 @@ class RpcHandler:
             val = await cast(Any, raw_res) if inspect.isawaitable(raw_res) else raw_res
             return self._build_success_response(val, call_id, version)
         except Exception as e:
+            err_code = (
+                RpcErrorCode.INVALID_FUNCTION_CALL
+                if getattr(e, "code", None) == "INVALID_FUNCTION_CALL"
+                else RpcErrorCode.EXECUTION_ERROR
+            )
             err_model = self._create_response_error(
                 call_id,
-                RpcErrorCode.EXECUTION_ERROR,
+                err_code,
                 str(e),
                 version=version,
             )
@@ -724,6 +848,7 @@ class RpcHandler:
             version=version,
             call_name=call_name,
             catalog=resolved.catalog,
+            is_user_activated=is_user_activated,
         )
 
     async def handle_call_renderer_function_async(
@@ -745,6 +870,7 @@ class RpcHandler:
             prepared.version,
             call_name=prepared.call_name,
             matched_catalog=prepared.catalog,
+            is_user_activated=prepared.is_user_activated,
         )
         return resp_model.model_dump(by_alias=True, exclude_unset=True)
 
@@ -767,6 +893,7 @@ class RpcHandler:
             prepared.version,
             call_name=prepared.call_name,
             matched_catalog=prepared.catalog,
+            is_user_activated=prepared.is_user_activated,
         )
         return resp_model.model_dump(by_alias=True, exclude_unset=True)
 
