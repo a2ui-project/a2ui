@@ -78,10 +78,10 @@ Nothing is selected when the tool starts, unless it starts with an item from a s
 
 ### Several selected items
 
-When the triager selects more than one item with Shift, the details show what **Apply** would change on each of them, instead of the tabs:
+When the triager selects more than one item with Shift, the details show what **Apply** would change on each of them, instead of the tabs. At the top, the details list the selected items by number, each a link that opens the item in the browser. Below them:
 
 1. **Shared changes**: the changes that every selected item has, such as adding the same label or closing as not planned. The same reply counts as a shared change only if its text is the same.
-2. **Individual changes**: each selected item, with its icon, number and title, and its other changes. An item without changes says so, and **Apply** skips it.
+2. **Individual changes**: each selected item that has other changes, with its icon, and its number and title as a link that opens the item in the browser, followed by those changes. An item without other changes is not listed here. When no item has other changes, the section says "No items with individual changes."
 
 The changes are those of each item's [editable suggestion](#editable-suggestion), with the triager's edits: closing, the labels to add and remove, the assignees to add and remove, the milestone, and the reply. They are not editable here. To change an item's suggestion, the triager selects the item alone. The linked items of the selected items are not included.
 

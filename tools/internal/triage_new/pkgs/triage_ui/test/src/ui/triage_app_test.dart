@@ -30,6 +30,7 @@ import 'package:triage_ui/src/ui/chip_list_field.dart';
 import 'package:triage_ui/src/ui/item_info.dart';
 import 'package:triage_ui/src/ui/item_list.dart';
 import 'package:triage_ui/src/ui/label_colors.dart';
+import 'package:triage_ui/src/ui/links.dart';
 import 'package:triage_ui/src/ui/multi_selection_view.dart';
 import 'package:triage_ui/src/ui/triage_app.dart';
 
@@ -852,7 +853,21 @@ void main() {
     expect(inView(find.text('Thanks for the report.')), findsOneWidget);
     expect(inView(find.text('P1')), findsOneWidget);
     expect(inView(find.text('Assign: octocat')), findsOneWidget);
-    expect(inView(find.text('No other changes.')), findsOneWidget);
+    // Both items are listed by number at the top, as links.
+    for (final name in ['#10', '#11']) {
+      expect(inView(find.widgetWithText(LinkText, name)), findsOneWidget);
+    }
+    // #11 has no other changes, so only #10 is listed under them.
+    expect(
+      inView(
+        find.widgetWithText(
+          LinkText,
+          '#10 Flutter renderer crashes on an empty Row',
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(inView(find.textContaining('#11 Docs are unclear')), findsNothing);
 
     await tester.tap(find.widgetWithText(FilledButton, 'Apply to 2 items'));
     await tester.pump();
@@ -889,6 +904,37 @@ void main() {
     await tester.pumpAndSettle();
     expect(controller.multiSelection, isEmpty);
     expect(controller.selected!.number, 10);
+  });
+
+  testWidgets('says when no selected item has individual changes', (
+    tester,
+  ) async {
+    await pumpApp(tester, selectFirst: false);
+    await expand(tester, 'Needs triage (3/3)');
+    await expand(tester, 'Issues with open PRs (1/1)');
+    await expand(tester, 'Issues without open PRs (1/1)');
+    await tester.tap(inList('#10 Flutter renderer crashes on an empty Row'));
+    await tester.pumpAndSettle();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.tap(inList('#11 Docs are unclear'));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pumpAndSettle();
+
+    // Leave #10 with only the removal of `status: needs-triage`, as #11.
+    controller.draftFor(controller.multiSelection.first)
+      ..reply.text = ''
+      ..addedLabels = []
+      ..newAssignees = [];
+    await tester.pumpAndSettle();
+
+    final Finder view = find.byType(MultiSelectionView);
+    Finder inView(Finder finder) => find.descendant(of: view, matching: finder);
+    expect(
+      inView(find.text('No items with individual changes.')),
+      findsOneWidget,
+    );
+    expect(inView(find.textContaining('Flutter renderer')), findsNothing);
+    expect(inView(find.textContaining('Docs are unclear')), findsNothing);
   });
 
   testWidgets('shows an item opened by URL in its group', (tester) async {

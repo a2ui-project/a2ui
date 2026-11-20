@@ -27,8 +27,7 @@ import 'triage_scope.dart';
 /// The details when the triager selected several [items] with Shift-click:
 /// links to the items, the changes that **Apply** makes to all of them, then
 /// the other changes of each item that has some, not editable, and **Apply**
-/// below them. See "Several selected
-/// items" in `ui.blueprint.md`.
+/// below them. See "Several selected items" in `ui.blueprint.md`.
 class MultiSelectionView extends StatelessWidget {
   const MultiSelectionView({super.key, required this.items});
 
