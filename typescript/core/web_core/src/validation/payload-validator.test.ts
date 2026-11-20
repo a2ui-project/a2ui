@@ -18,6 +18,8 @@ import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 import {z} from 'zod';
 import {Catalog} from '../catalog/types.js';
+import {basicCatalog as v1BasicCatalog} from '../catalogs/basic/v1/catalog.js';
+import {basicCatalog as v09BasicCatalog} from '../v0_9/basic_catalog/catalog.js';
 import {nestedCallRunsInCatalog, PayloadValidator} from './payload-validator.js';
 import {STRICT_VALIDATION} from './integrity-checker.js';
 import {A2uiValidationError} from '../errors.js';
@@ -426,6 +428,469 @@ describe('PayloadValidator', () => {
           /Unrecognized function 'notAFunction'/,
         );
       }
+    });
+
+    it('rejects v0.9 function calls with wrong returnType or invalid arguments (#4173)', () => {
+      const jsonLoadedCatalog = Catalog.fromJson(
+        v09BasicCatalog.toJson() as Record<string, unknown>,
+      );
+      for (const catalog of [v09BasicCatalog, jsonLoadedCatalog]) {
+        const validator = new PayloadValidator(catalog, STRICT_VALIDATION);
+
+        // Positive cases that must continue to pass
+        assert.doesNotThrow(() =>
+          validator.validateComponent({
+            id: 'tf1',
+            component: 'TextField',
+            label: 'Input',
+            value: {path: '/val'},
+            checks: [
+              {
+                condition: {call: 'required', args: {value: {path: '/val'}}, returnType: 'boolean'},
+                message: 'Req',
+              },
+              {
+                condition: {call: 'length', args: {value: 'hello', min: 1, max: 10}},
+                message: 'Len',
+              },
+              {
+                condition: {call: 'email', args: {value: 'a@b.com'}},
+                message: 'Email',
+              },
+            ],
+          }),
+        );
+        assert.doesNotThrow(() =>
+          validator.validateComponent({
+            id: 't1',
+            component: 'Text',
+            text: {
+              call: 'formatString',
+              args: {value: 'Hello ${/user/name}'},
+              returnType: 'string',
+            },
+          }),
+        );
+        assert.doesNotThrow(() =>
+          validator.validateComponent({
+            id: 'btn1',
+            component: 'Button',
+            child: 'btn-text',
+            action: {
+              functionCall: {
+                call: 'openUrl',
+                args: {url: 'https://google.com'},
+                returnType: 'void',
+              },
+            },
+          }),
+        );
+
+        // 12 negative cases from specification/v0_9_1/test/cases/
+        const invalidComponents: Array<{name: string; comp: Record<string, unknown>}> = [
+          {
+            name: 'TextField with invalid function returnType in check',
+            comp: {
+              id: 'name-input',
+              component: 'TextField',
+              label: 'Enter your name',
+              value: {path: '/formData/name'},
+              checks: [
+                {
+                  condition: {
+                    call: 'formatString',
+                    args: {value: 'Hello ${/formData/name}'},
+                    returnType: 'string',
+                  },
+                  message: 'This should fail because returnType is string, not boolean',
+                },
+              ],
+            },
+          },
+          {
+            name: 'required: Invalid returnType',
+            comp: {
+              id: 'tf-1',
+              component: 'TextField',
+              label: 'Input',
+              value: {path: '/val'},
+              checks: [
+                {
+                  condition: {call: 'required', args: {value: '${/val}'}, returnType: 'string'},
+                  message: 'Req',
+                },
+              ],
+            },
+          },
+          {
+            name: 'formatString: Invalid returnType',
+            comp: {
+              id: 'text-1',
+              component: 'Text',
+              text: {call: 'formatString', args: {value: 'Hi'}, returnType: 'boolean'},
+            },
+          },
+          {
+            name: 'openUrl: Invalid returnType',
+            comp: {
+              id: 'btn-1',
+              component: 'Button',
+              child: 'btn-text',
+              action: {
+                functionCall: {
+                  call: 'openUrl',
+                  args: {url: 'https://google.com'},
+                  returnType: 'boolean',
+                },
+              },
+            },
+          },
+          {
+            name: 'not: Invalid returnType',
+            comp: {
+              id: 'tf-1',
+              component: 'TextField',
+              label: 'Input',
+              value: {path: '/val'},
+              checks: [
+                {
+                  condition: {
+                    call: 'not',
+                    args: {value: {call: 'required', args: {value: '${/val}'}}},
+                    returnType: 'string',
+                  },
+                  message: 'Err',
+                },
+              ],
+            },
+          },
+          {
+            name: 'regex: Invalid returnType',
+            comp: {
+              id: 'tf-1',
+              component: 'TextField',
+              label: 'Input',
+              value: {path: '/val'},
+              checks: [
+                {
+                  condition: {
+                    call: 'regex',
+                    args: {value: 'abc', pattern: '.*'},
+                    returnType: 'string',
+                  },
+                  message: 'Err',
+                },
+              ],
+            },
+          },
+          {
+            name: 'and: Invalid returnType',
+            comp: {
+              id: 'tf-1',
+              component: 'TextField',
+              label: 'Input',
+              value: {path: '/val'},
+              checks: [
+                {
+                  condition: {
+                    call: 'and',
+                    args: {values: [true, true]},
+                    returnType: 'string',
+                  },
+                  message: 'Err',
+                },
+              ],
+            },
+          },
+          {
+            name: 'length: Invalid constraint (empty object)',
+            comp: {
+              id: 'tf-1',
+              component: 'TextField',
+              label: 'Input',
+              value: {path: '/val'},
+              checks: [
+                {
+                  condition: {call: 'length', args: {value: 'hello'}},
+                  message: 'Err',
+                },
+              ],
+            },
+          },
+          {
+            name: 'length: Invalid max value (negative)',
+            comp: {
+              id: 'tf-1',
+              component: 'TextField',
+              label: 'Input',
+              value: {path: '/val'},
+              checks: [
+                {
+                  condition: {call: 'length', args: {value: 'hello', max: -1}},
+                  message: 'Err',
+                },
+              ],
+            },
+          },
+          {
+            name: 'email: Invalid args count (too many)',
+            comp: {
+              id: 'tf-1',
+              component: 'TextField',
+              label: 'Input',
+              value: {path: '/val'},
+              checks: [
+                {
+                  condition: {
+                    call: 'email',
+                    args: {value: 'test@example.com', extra: 'invalid'},
+                  },
+                  message: 'Err',
+                },
+              ],
+            },
+          },
+          {
+            name: 'openUrl: Invalid URL format (not a URI)',
+            comp: {
+              id: 'btn-1',
+              component: 'Button',
+              child: 'btn-text',
+              action: {
+                functionCall: {
+                  call: 'openUrl',
+                  args: {url: 'not a uri'},
+                },
+              },
+            },
+          },
+          {
+            name: 'required: Too many arguments',
+            comp: {
+              id: 'tf-1',
+              component: 'TextField',
+              label: 'Input',
+              value: {path: '/val'},
+              checks: [
+                {
+                  condition: {
+                    call: 'required',
+                    args: {value: '${/val}', extra: 123},
+                  },
+                  message: 'Req',
+                },
+              ],
+            },
+          },
+          {
+            name: 'DateTimeInput.min (allOf DynamicString): Invalid returnType',
+            comp: {
+              id: 'dt-1',
+              component: 'DateTimeInput',
+              value: '2026-01-01',
+              min: {
+                call: 'formatString',
+                args: {value: '2026-01-01'},
+                returnType: 'number',
+              },
+            },
+          },
+        ];
+
+        for (const {name, comp} of invalidComponents) {
+          assert.throws(
+            () => validator.validateComponent(comp),
+            A2uiValidationError,
+            `Expected A2uiValidationError for case '${name}'`,
+          );
+        }
+      }
+
+      for (const catalog of [
+        v1BasicCatalog,
+        Catalog.fromJson(v1BasicCatalog.toJson() as Record<string, unknown>),
+      ]) {
+        const validator = new PayloadValidator(catalog, STRICT_VALIDATION);
+        assert.throws(
+          () => validator.validateFunction('openUrl', {url: 'not a uri'}),
+          A2uiValidationError,
+        );
+      }
+
+      const oneOfCatalog = Catalog.fromJson({
+        catalogId: 'https://example.com/oneof.json',
+        protocolVersion: '0.9',
+        components: {
+          Badge: {
+            type: 'object',
+            properties: {
+              content: {
+                oneOf: [
+                  {
+                    type: 'object',
+                    properties: {
+                      kind: {const: 'num'},
+                      label: {$ref: 'common_types.json#/$defs/DynamicNumber'},
+                    },
+                    required: ['kind', 'label'],
+                    additionalProperties: false,
+                  },
+                  {
+                    type: 'object',
+                    properties: {
+                      kind: {const: 'str'},
+                      label: {$ref: 'common_types.json#/$defs/DynamicString'},
+                    },
+                    required: ['kind', 'label'],
+                    additionalProperties: false,
+                  },
+                ],
+              },
+              flexible: {
+                anyOf: [
+                  {$ref: 'common_types.json#/$defs/DynamicString'},
+                  {$ref: 'common_types.json#/$defs/DynamicValue'},
+                ],
+              },
+            },
+            required: ['content'],
+            additionalProperties: false,
+          },
+        },
+        functions: {
+          countItems: {
+            returnType: 'number',
+            parameters: {type: 'object', properties: {}, additionalProperties: false},
+          },
+          formatText: {
+            returnType: 'string',
+            parameters: {type: 'object', properties: {}, additionalProperties: false},
+          },
+          isFlagSet: {
+            returnType: 'boolean',
+            parameters: {type: 'object', properties: {}, additionalProperties: false},
+          },
+        },
+      });
+      const oneOfValidator = new PayloadValidator(oneOfCatalog, STRICT_VALIDATION);
+      assert.doesNotThrow(() =>
+        oneOfValidator.validateComponent({
+          id: 'b-1',
+          component: 'Badge',
+          content: {
+            kind: 'str',
+            label: {
+              call: 'formatText',
+              args: {},
+              returnType: 'string',
+            },
+          },
+          flexible: {
+            call: 'isFlagSet',
+            args: {},
+            returnType: 'boolean',
+          },
+        }),
+      );
+      assert.throws(
+        () =>
+          oneOfValidator.validateComponent({
+            id: 'b-1',
+            component: 'Badge',
+            content: {
+              kind: 'str',
+              label: {
+                call: 'countItems',
+                args: {},
+                returnType: 'number',
+              },
+            },
+          }),
+        A2uiValidationError,
+      );
+      assert.throws(
+        () =>
+          oneOfValidator.validateComponent({
+            id: 'b-1',
+            component: 'Badge',
+            content: {
+              kind: 'str',
+              label: {
+                call: 'isFlagSet',
+                args: {},
+                returnType: 'boolean',
+              },
+            },
+          }),
+        A2uiValidationError,
+      );
+    });
+
+    it('narrows ZodDiscriminatedUnion property schemas via discriminator lookup', () => {
+      const dynamicString = z.union([
+        z.string(),
+        z
+          .object({
+            call: z.string(),
+            args: z.record(z.any()).optional(),
+            returnType: z.literal('string').optional(),
+          })
+          .passthrough(),
+      ]);
+      const dynamicNumber = z.union([
+        z.number(),
+        z
+          .object({
+            call: z.string(),
+            args: z.record(z.any()).optional(),
+            returnType: z.literal('number'),
+          })
+          .passthrough(),
+      ]);
+      const discriminatedCatalog = new Catalog(
+        'https://example.com/discriminated.json',
+        '0.9',
+        [
+          {
+            name: 'Badge',
+            schema: z
+              .object({
+                content: z.discriminatedUnion('kind', [
+                  z.object({kind: z.literal('str'), value: dynamicString}).strict(),
+                  z.object({kind: z.literal('num'), value: dynamicNumber}).strict(),
+                ]),
+              })
+              .strict(),
+          },
+        ],
+        [
+          {name: 'formatText', returnType: 'string', schema: z.object({}).strict()},
+          {name: 'countItems', returnType: 'number', schema: z.object({}).strict()},
+        ],
+      );
+      const discValidator = new PayloadValidator(discriminatedCatalog, STRICT_VALIDATION);
+      assert.doesNotThrow(() =>
+        discValidator.validateComponent({
+          id: 'b-1',
+          component: 'Badge',
+          content: {
+            kind: 'str',
+            value: {call: 'formatText', args: {}, returnType: 'string'},
+          },
+        }),
+      );
+      assert.throws(
+        () =>
+          discValidator.validateComponent({
+            id: 'b-1',
+            component: 'Badge',
+            content: {
+              kind: 'str',
+              value: {call: 'countItems', args: {}, returnType: 'number'},
+            },
+          }),
+        A2uiValidationError,
+      );
     });
   });
 

@@ -34,12 +34,12 @@ For more details on building the renderers, see:
     yarn dev
     ```
     This command will:
-    - Load all JSON examples from `specification/v0_9/catalogs/basic/examples/`.
+    - Load all JSON examples from `catalogs/basic/v0_9/examples/`.
     - Start the Vite server at `http://localhost:5173`.
 
 ## Architecture
 
 - **Agentless**: Unlike other samples, this does not require a running Python agent. It simulates agent responses locally for interactive components (like the Login Form).
-- **Dynamic Loading**: The app automatically discovers and loads _all_ `.json` files present in the v0.9 basic specification folder at build time. To add a new test case, simply drop a JSON file into that specification folder and restart the dev server.
+- **Dynamic Loading**: The app automatically discovers and loads _all_ `.json` files present in `catalogs/basic/v0_9/examples/` at build time. To add a new test case, simply drop a JSON file into `catalogs/basic/v0_9/examples/` and restart the dev server.
 - **Surface Isolation**: Each example is rendered into its own independent `a2ui-surface` with a unique ID derived from the filename.
 - **Mock Agent Console**: All user interactions (button clicks, form submissions) are intercepted and logged to a sidebar, demonstrating how the renderer resolves actions and contexts.

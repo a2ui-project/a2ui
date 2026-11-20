@@ -51,9 +51,7 @@ void main() {
       expect((result as Map)['meta'], 'resolved');
       expect(result['static'], 'value');
 
-      final ReadonlySignal<Object?> listenable = context.resolveSignal(
-        payload,
-      );
+      final ReadonlySignal<Object?> listenable = context.resolveSignal(payload);
       expect((listenable.value as Map)['meta'], 'resolved');
 
       dataModel.set('/x', 'updated');
@@ -157,8 +155,7 @@ void main() {
         Exception('failed'),
         A2uiExpressionError('failed', expression: 'inner'),
       ]) {
-        test(
-            'without a reporter does not normalize the original '
+        test('without a reporter does not normalize the original '
             '${original.runtimeType}', () {
           context = DataContext(
             dataModel,
@@ -248,34 +245,31 @@ void main() {
       }
 
       Object? resolve(SurfaceModel<ComponentApi> s, Object? value) {
-        final root = ComponentModel(
-          'root',
-          'Text',
-          {},
-        );
+        final root = ComponentModel('root', 'Text', {});
         return ComponentContext(s, root).dataContext.resolveDynamicValue(value);
       }
 
-      test('dispatches CATALOG_ERROR for a call naming an unknown catalog',
-          () async {
-        final SurfaceModel<ComponentApi> s = v1Surface();
-
-        expect(
-          resolve(s, {
-            '@call': 'capitalize',
-            'catalogId': 'https://example.com/missing.json',
-            'args': <String, Object?>{},
-          }),
-          isNull,
-        );
-        await Future<void>.delayed(Duration.zero);
-        expect(v1Errors, hasLength(1));
-        expect(v1Errors.single.code, 'CATALOG_ERROR');
-        expect(v1Errors.single.message, contains('Catalog not found'));
-      });
-
       test(
-          'dispatches CATALOG_ERROR for a call naming no catalog on a surface '
+        'dispatches CATALOG_ERROR for a call naming an unknown catalog',
+        () async {
+          final SurfaceModel<ComponentApi> s = v1Surface();
+
+          expect(
+            resolve(s, {
+              '@call': 'capitalize',
+              'catalogId': 'https://example.com/missing.json',
+              'args': <String, Object?>{},
+            }),
+            isNull,
+          );
+          await Future<void>.delayed(Duration.zero);
+          expect(v1Errors, hasLength(1));
+          expect(v1Errors.single.code, 'CATALOG_ERROR');
+          expect(v1Errors.single.message, contains('Catalog not found'));
+        },
+      );
+
+      test('dispatches CATALOG_ERROR for a call naming no catalog on a surface '
           'without a default', () async {
         final SurfaceModel<ComponentApi> s = v1Surface(withDefault: false);
 
@@ -289,8 +283,7 @@ void main() {
         expect(v1Errors.single.message, contains('no default catalogId'));
       });
 
-      test(
-          'dispatches EXPRESSION_ERROR for a function missing from the '
+      test('dispatches EXPRESSION_ERROR for a function missing from the '
           'resolved catalog', () async {
         final SurfaceModel<ComponentApi> s = v1Surface();
 
@@ -304,18 +297,20 @@ void main() {
         expect(v1Errors.single.message, contains('Function not found'));
       });
 
-      test('dispatches EXPRESSION_ERROR for an unknown system function',
-          () async {
-        final SurfaceModel<ComponentApi> s = v1Surface(withDefault: false);
+      test(
+        'dispatches EXPRESSION_ERROR for an unknown system function',
+        () async {
+          final SurfaceModel<ComponentApi> s = v1Surface(withDefault: false);
 
-        expect(
-          resolve(s, {'@call': '@missing', 'args': <String, Object?>{}}),
-          isNull,
-        );
-        await Future<void>.delayed(Duration.zero);
-        expect(v1Errors, hasLength(1));
-        expect(v1Errors.single.code, 'EXPRESSION_ERROR');
-      });
+          expect(
+            resolve(s, {'@call': '@missing', 'args': <String, Object?>{}}),
+            isNull,
+          );
+          await Future<void>.delayed(Duration.zero);
+          expect(v1Errors, hasLength(1));
+          expect(v1Errors.single.code, 'EXPRESSION_ERROR');
+        },
+      );
     });
 
     test('dispatches an expression error to the surface by default', () async {
@@ -351,7 +346,9 @@ void main() {
           isNull,
         );
         expect(
-            child.dataContext.resolveDynamicValue({'call': 'missing'}), isNull);
+          child.dataContext.resolveDynamicValue({'call': 'missing'}),
+          isNull,
+        );
         expect(child.dataContext.path, '/users/0');
         expect(errors, hasLength(2));
         expect(errors.map((error) => error.expression), ['missing', 'missing']);
@@ -477,24 +474,26 @@ void main() {
       expect(context.resolveDynamicValue({'@foo': 'bar'}), {'@foo': 'bar'});
     });
 
-    test('v1.0 resolveListenable unescapes @@ keys and validates directives',
-        () {
-      final context = DataContext(
-        dataModel,
-        mockInvoker,
-        '/',
-        protocolVersion: A2uiProtocolVersion.v1_0,
-      );
+    test(
+      'v1.0 resolveListenable unescapes @@ keys and validates directives',
+      () {
+        final context = DataContext(
+          dataModel,
+          mockInvoker,
+          '/',
+          protocolVersion: A2uiProtocolVersion.v1_0,
+        );
 
-      final escaped = <String, dynamic>{'@@path': '/static/file'};
-      final ReadonlySignal<Object?> signal = context.resolveSignal(escaped);
-      expect(signal.value, {'@path': '/static/file'});
+        final escaped = <String, dynamic>{'@@path': '/static/file'};
+        final ReadonlySignal<Object?> signal = context.resolveSignal(escaped);
+        expect(signal.value, {'@path': '/static/file'});
 
-      expect(
-        () => context.resolveSignal({'@invalid': true}),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
+        expect(
+          () => context.resolveSignal({'@invalid': true}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      },
+    );
 
     test('atLeastV10 matches versions >= 1.0 semantically', () {
       final ctx1 = DataContext(
@@ -524,11 +523,7 @@ void main() {
       expect(ctx3.atLeastV10, isFalse);
       expect(ctx3.usesDirectives, isFalse);
 
-      final ctx4 = DataContext(
-        dataModel,
-        mockInvoker,
-        '/',
-      );
+      final ctx4 = DataContext(dataModel, mockInvoker, '/');
       expect(ctx4.atLeastV10, isFalse);
       expect(ctx4.usesDirectives, isFalse);
     });
@@ -562,7 +557,9 @@ void main() {
 
       expect(v09Ctx.isDataBinding({'path': '/x'}), isTrue);
       expect(
-          v09Ctx.isDataBinding({'path': '/x', 'componentId': 'row'}), isFalse);
+        v09Ctx.isDataBinding({'path': '/x', 'componentId': 'row'}),
+        isFalse,
+      );
       expect(v09Ctx.isDataBinding({'@path': '/x'}), isFalse);
       expect(v09Ctx.isDataBinding({'path': 123}), isFalse);
       expect(v09Ctx.isDataBinding('not a map'), isFalse);
@@ -614,169 +611,154 @@ void main() {
         },
       });
       expect(v10Ctx.adaptExpressionPart('text'), 'text');
-      expect(
-        v10Ctx.adaptExpressionPart({'path': '/x', 'componentId': 'row'}),
-        {'path': '/x', 'componentId': 'row'},
-      );
+      expect(v10Ctx.adaptExpressionPart({'path': '/x', 'componentId': 'row'}), {
+        'path': '/x',
+        'componentId': 'row',
+      });
       expect(
         v10Ctx.adaptExpressionPart({'@call': '@index', 'catalogId': null}),
         {'@call': '@index', 'catalogId': null, 'args': <String, Object?>{}},
       );
     });
 
-    test(
-      'adaptExpressionPart inherits active catalog, preserves @call, '
-      'and keeps @index catalogless',
-      () {
-        Map<String, Object?>? adaptedCall;
-        Map<String, Object?>? adaptedExplicit;
-        Map<String, Object?>? adaptedIndex;
-        final catalog = Catalog<ComponentApi, FunctionImplementation>(
-          id: 'cat-a',
-          components: const [],
-          protocolVersion: A2uiProtocolVersion.v1_0,
-          functions: [
-            _SyncFn('inspect', (args, ctx) {
-              adaptedCall = ctx.adaptExpressionPart({
-                'call': 'helper',
-                'args': <String, Object?>{},
-                'returnType': 'string',
-              }) as Map<String, Object?>;
-              adaptedExplicit = ctx.adaptExpressionPart({
-                '@call': 'other',
-                'catalogId': 'cat-b',
-                'args': <String, Object?>{},
-              }) as Map<String, Object?>;
-              adaptedIndex = ctx.adaptExpressionPart({
-                'call': '@index',
-                'args': <String, Object?>{},
-              }) as Map<String, Object?>;
-              return 'done';
+    test('adaptExpressionPart inherits active catalog, preserves @call, '
+        'and keeps @index catalogless', () {
+      Map<String, Object?>? adaptedCall;
+      Map<String, Object?>? adaptedExplicit;
+      Map<String, Object?>? adaptedIndex;
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'cat-a',
+        components: const [],
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        functions: [
+          _SyncFn('inspect', (args, ctx) {
+            adaptedCall = ctx.adaptExpressionPart({
+              'call': 'helper',
+              'args': <String, Object?>{},
+              'returnType': 'string',
+            }) as Map<String, Object?>;
+            adaptedExplicit = ctx.adaptExpressionPart({
+              '@call': 'other',
+              'catalogId': 'cat-b',
+              'args': <String, Object?>{},
+            }) as Map<String, Object?>;
+            adaptedIndex = ctx.adaptExpressionPart({
+              'call': '@index',
+              'args': <String, Object?>{},
+            }) as Map<String, Object?>;
+            return 'done';
+          }),
+        ],
+      );
+      final ctx = DataContext(
+        dataModel,
+        catalog.invoke,
+        '/',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+      );
+      expect(catalog.invoke('inspect', const {}, ctx), 'done');
+      expect(adaptedCall, {
+        '@call': 'helper',
+        'catalogId': 'cat-a',
+        'args': <String, Object?>{},
+      });
+      expect(adaptedExplicit, {
+        '@call': 'other',
+        'catalogId': 'cat-b',
+        'args': <String, Object?>{},
+      });
+      expect(adaptedIndex, {'@call': '@index', 'args': <String, Object?>{}});
+    });
+
+    test('action calls naming a catalogId report synchronous throws as '
+        'EXECUTION_ERROR while nested calls stay unmarked', () async {
+      final reported = <A2uiExpressionError>[];
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'cat-action',
+        components: const [],
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        functions: [
+          _SyncFn('boomSync', (args, ctx) => throw StateError('sync boom')),
+          _SyncFn(
+            'outerAction',
+            (args, ctx) => ctx.resolveDynamicValue({
+              '@call': 'boomSync',
+              'catalogId': 'cat-action',
+              'args': <String, Object?>{},
             }),
-          ],
-        );
-        final ctx = DataContext(
-          dataModel,
-          catalog.invoke,
-          '/',
-          protocolVersion: A2uiProtocolVersion.v1_0,
-        );
-        expect(catalog.invoke('inspect', const {}, ctx), 'done');
-        expect(adaptedCall, {
-          '@call': 'helper',
+          ),
+        ],
+      );
+      final ctx = DataContext(
+        dataModel,
+        catalog.invoke,
+        '/',
+        onError: reported.add,
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        invokerForCatalog: (id) => catalog.invoke,
+      );
+
+      await ctx.evaluateFunctionCall({
+        '@call': 'boomSync',
+        'catalogId': 'cat-action',
+        'args': <String, Object?>{},
+      });
+      expect(reported.single.code, 'EXECUTION_ERROR');
+      expect(reported.single.message, contains("Function 'boomSync' failed"));
+
+      reported.clear();
+      await ctx.evaluateFunctionCall({
+        '@call': 'outerAction',
+        'catalogId': 'cat-action',
+        'args': <String, Object?>{},
+      });
+      expect(reported.single.code, 'EXPRESSION_ERROR');
+    });
+
+    test('catalogless nested call on custom FunctionInvoker clears outer '
+        'active catalog scope', () {
+      late final DataContext rootCtx;
+      final catA = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'cat-a',
+        components: const [],
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        functions: [
+          _SyncFn(
+            'outerInA',
+            (args, ctx) => ctx.resolveDynamicValue({
+              '@call': 'customFormat',
+              'args': <String, Object?>{},
+            }),
+          ),
+        ],
+      );
+      rootCtx = DataContext(
+        dataModel,
+        (name, args, ctx) {
+          if (name == 'customFormat') {
+            return ctx.adaptExpressionPart({
+              'call': 'innerHelper',
+              'args': <String, Object?>{},
+            });
+          }
+          return null;
+        },
+        '/',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        invokerForCatalog: (id) {
+          if (id == 'cat-a') return catA.invoke;
+          throw A2uiCatalogResolutionError('Missing $id', catalogId: id);
+        },
+      );
+      expect(
+        rootCtx.resolveDynamicValue({
+          '@call': 'outerInA',
           'catalogId': 'cat-a',
           'args': <String, Object?>{},
-        });
-        expect(adaptedExplicit, {
-          '@call': 'other',
-          'catalogId': 'cat-b',
-          'args': <String, Object?>{},
-        });
-        expect(adaptedIndex, {
-          '@call': '@index',
-          'args': <String, Object?>{},
-        });
-      },
-    );
-
-    test(
-      'action calls naming a catalogId report synchronous throws as '
-      'EXECUTION_ERROR while nested calls stay unmarked',
-      () async {
-        final reported = <A2uiExpressionError>[];
-        final catalog = Catalog<ComponentApi, FunctionImplementation>(
-          id: 'cat-action',
-          components: const [],
-          protocolVersion: A2uiProtocolVersion.v1_0,
-          functions: [
-            _SyncFn('boomSync', (args, ctx) => throw StateError('sync boom')),
-            _SyncFn(
-              'outerAction',
-              (args, ctx) => ctx.resolveDynamicValue({
-                '@call': 'boomSync',
-                'catalogId': 'cat-action',
-                'args': <String, Object?>{},
-              }),
-            ),
-          ],
-        );
-        final ctx = DataContext(
-          dataModel,
-          catalog.invoke,
-          '/',
-          onError: reported.add,
-          protocolVersion: A2uiProtocolVersion.v1_0,
-          invokerForCatalog: (id) => catalog.invoke,
-        );
-
-        await ctx.evaluateFunctionCall({
-          '@call': 'boomSync',
-          'catalogId': 'cat-action',
-          'args': <String, Object?>{},
-        });
-        expect(reported.single.code, 'EXECUTION_ERROR');
-        expect(reported.single.message, contains("Function 'boomSync' failed"));
-
-        reported.clear();
-        await ctx.evaluateFunctionCall({
-          '@call': 'outerAction',
-          'catalogId': 'cat-action',
-          'args': <String, Object?>{},
-        });
-        expect(reported.single.code, 'EXPRESSION_ERROR');
-      },
-    );
-
-    test(
-      'catalogless nested call on custom FunctionInvoker clears outer '
-      'active catalog scope',
-      () {
-        late final DataContext rootCtx;
-        final catA = Catalog<ComponentApi, FunctionImplementation>(
-          id: 'cat-a',
-          components: const [],
-          protocolVersion: A2uiProtocolVersion.v1_0,
-          functions: [
-            _SyncFn(
-              'outerInA',
-              (args, ctx) => ctx.resolveDynamicValue({
-                '@call': 'customFormat',
-                'args': <String, Object?>{},
-              }),
-            ),
-          ],
-        );
-        rootCtx = DataContext(
-          dataModel,
-          (name, args, ctx) {
-            if (name == 'customFormat') {
-              return ctx.adaptExpressionPart({
-                'call': 'innerHelper',
-                'args': <String, Object?>{},
-              });
-            }
-            return null;
-          },
-          '/',
-          protocolVersion: A2uiProtocolVersion.v1_0,
-          invokerForCatalog: (id) {
-            if (id == 'cat-a') return catA.invoke;
-            throw A2uiCatalogResolutionError('Missing $id', catalogId: id);
-          },
-        );
-        expect(
-          rootCtx.resolveDynamicValue({
-            '@call': 'outerInA',
-            'catalogId': 'cat-a',
-            'args': <String, Object?>{},
-          }),
-          {
-            '@call': 'innerHelper',
-            'args': <String, Object?>{},
-          },
-        );
-      },
-    );
+        }),
+        {'@call': 'innerHelper', 'args': <String, Object?>{}},
+      );
+    });
 
     test('preserves identity of static maps in both v0.9 and v1.0', () {
       final v09Ctx = DataContext(
@@ -791,7 +773,9 @@ void main() {
       };
       expect(
         identical(
-            v09Ctx.resolveDynamicValue(v09LiteralWithAt), v09LiteralWithAt),
+          v09Ctx.resolveDynamicValue(v09LiteralWithAt),
+          v09LiteralWithAt,
+        ),
         isTrue,
       );
 
@@ -821,49 +805,46 @@ void main() {
       expect(identical(sig.value, v10LiteralWithUnprefixedKeys), isTrue);
     });
 
-    test(
-      'resolveListenable pre-builds argument signals outside computed',
-      () {
-        final countingModel = _WatchCountingDataModel();
-        addTearDown(countingModel.dispose);
+    test('resolveListenable pre-builds argument signals outside computed', () {
+      final countingModel = _WatchCountingDataModel();
+      addTearDown(countingModel.dispose);
 
-        for (final version in <A2uiProtocolVersion>[
-          A2uiProtocolVersion.v0_9,
-          A2uiProtocolVersion.v1_0,
-        ]) {
-          countingModel.set('/a', 'hello');
-          countingModel.set('/b', 'world');
-          countingModel.watchCounts.clear();
-          final ctx = DataContext(
-            countingModel,
-            (name, args, _) => '${args['first']}-${args['second']}',
-            '/',
-            protocolVersion: version,
-          );
-          final isV1 = version == A2uiProtocolVersion.v1_0;
-          final ReadonlySignal<Object?> sig = ctx.resolveSignal({
-            if (isV1) '@call': 'concat' else 'call': 'concat',
-            'args': {
-              'first': isV1 ? {'@path': '/a'} : {'path': '/a'},
-              'second': isV1 ? {'@path': '/b'} : {'path': '/b'},
-            },
-          });
+      for (final version in <A2uiProtocolVersion>[
+        A2uiProtocolVersion.v0_9,
+        A2uiProtocolVersion.v1_0,
+      ]) {
+        countingModel.set('/a', 'hello');
+        countingModel.set('/b', 'world');
+        countingModel.watchCounts.clear();
+        final ctx = DataContext(
+          countingModel,
+          (name, args, _) => '${args['first']}-${args['second']}',
+          '/',
+          protocolVersion: version,
+        );
+        final isV1 = version == A2uiProtocolVersion.v1_0;
+        final ReadonlySignal<Object?> sig = ctx.resolveSignal({
+          if (isV1) '@call': 'concat' else 'call': 'concat',
+          'args': {
+            'first': isV1 ? {'@path': '/a'} : {'path': '/a'},
+            'second': isV1 ? {'@path': '/b'} : {'path': '/b'},
+          },
+        });
 
-          expect(sig.value, 'hello-world');
-          expect(countingModel.watchCounts['/a'], 1);
-          expect(countingModel.watchCounts['/b'], 1);
+        expect(sig.value, 'hello-world');
+        expect(countingModel.watchCounts['/a'], 1);
+        expect(countingModel.watchCounts['/b'], 1);
 
-          countingModel.set('/a', 'hi');
-          expect(sig.value, 'hi-world');
-          countingModel.set('/b', 'there');
-          expect(sig.value, 'hi-there');
+        countingModel.set('/a', 'hi');
+        expect(sig.value, 'hi-world');
+        countingModel.set('/b', 'there');
+        expect(sig.value, 'hi-there');
 
-          // Re-evaluating the computed signal must not call watch() again.
-          expect(countingModel.watchCounts['/a'], 1);
-          expect(countingModel.watchCounts['/b'], 1);
-        }
-      },
-    );
+        // Re-evaluating the computed signal must not call watch() again.
+        expect(countingModel.watchCounts['/a'], 1);
+        expect(countingModel.watchCounts['/b'], 1);
+      }
+    });
 
     test('resolveAction rejects empty or non-string event names', () {
       expect(context.resolveAction(''), isNull);
@@ -932,8 +913,9 @@ void main() {
           throwsA(isA<A2uiValidationError>()),
         );
         expect(
-          () => v10Context
-              .resolveDynamicValue(<Object?, Object?>{123: 'bad_key'}),
+          () => v10Context.resolveDynamicValue(<Object?, Object?>{
+            123: 'bad_key',
+          }),
           throwsA(isA<A2uiValidationError>()),
         );
         expect(
@@ -962,8 +944,9 @@ void main() {
           throwsA(isA<A2uiValidationError>()),
         );
         expect(
-          () => v09Context
-              .resolveDynamicValue(<Object?, Object?>{123: 'bad_key'}),
+          () => v09Context.resolveDynamicValue(<Object?, Object?>{
+            123: 'bad_key',
+          }),
           throwsA(isA<A2uiValidationError>()),
         );
         expect(
@@ -974,78 +957,87 @@ void main() {
     );
   });
 
-  group('ComponentContext.childContext and CatalogInvokerExtension error types',
-      () {
-    late SurfaceModel surface;
-    late ComponentModel component;
+  group(
+    'ComponentContext.childContext and CatalogInvokerExtension error types',
+    () {
+      late SurfaceModel surface;
+      late ComponentModel component;
 
-    setUp(() {
-      surface = SurfaceModel('surf-err', defaultCatalog: TestCatalog());
-      component = ComponentModel('root', 'Column', {});
-      surface.componentsModel.addComponent(component);
-      surface.componentsModel.addComponent(ComponentModel('child', 'Text', {}));
-      addTearDown(surface.dispose);
-    });
+      setUp(() {
+        surface = SurfaceModel('surf-err', defaultCatalog: TestCatalog());
+        component = ComponentModel('root', 'Column', {});
+        surface.componentsModel.addComponent(component);
+        surface.componentsModel.addComponent(
+          ComponentModel('child', 'Text', {}),
+        );
+        addTearDown(surface.dispose);
+      });
 
-    test('childContext throws A2uiStateError when child component is missing',
+      test(
+        'childContext throws A2uiStateError when child component is missing',
         () {
-      final componentContext = ComponentContext(surface, component);
-      expect(
-        () => componentContext.childContext('nonexistent'),
-        throwsA(isA<A2uiStateError>()),
+          final componentContext = ComponentContext(surface, component);
+          expect(
+            () => componentContext.childContext('nonexistent'),
+            throwsA(isA<A2uiStateError>()),
+          );
+        },
       );
-    });
 
-    test('childContext throws A2uiStateError when basePath is not absolute',
+      test(
+        'childContext throws A2uiStateError when basePath is not absolute',
         () {
-      final componentContext = ComponentContext(surface, component);
-      expect(
-        () => componentContext.childContext('child', basePath: 'relative/path'),
-        throwsA(isA<A2uiStateError>()),
+          final componentContext = ComponentContext(surface, component);
+          expect(
+            () => componentContext.childContext(
+              'child',
+              basePath: 'relative/path',
+            ),
+            throwsA(isA<A2uiStateError>()),
+          );
+          expect(
+            () => componentContext.childContext('child', basePath: ''),
+            throwsA(isA<A2uiStateError>()),
+          );
+        },
       );
-      expect(
-        () => componentContext.childContext('child', basePath: ''),
-        throwsA(isA<A2uiStateError>()),
-      );
-    });
 
-    test(
-        'CatalogInvokerExtension.invoke throws A2uiCatalogError on unknown '
-        'function', () {
-      final componentContext = ComponentContext(surface, component);
-      final Catalog<ComponentApi, FunctionImplementation> catalog =
-          surface.defaultCatalog!;
-      expect(
-        () => catalog.invoke(
-          'unknownFn',
-          const <String, dynamic>{},
-          componentContext.dataContext,
-        ),
-        throwsA(
-          isA<A2uiCatalogError>().having(
-            (e) => e.catalogId,
-            'catalogId',
-            catalog.id,
+      test('CatalogInvokerExtension.invoke throws A2uiCatalogError on unknown '
+          'function', () {
+        final componentContext = ComponentContext(surface, component);
+        final Catalog<ComponentApi, FunctionImplementation> catalog =
+            surface.defaultCatalog!;
+        expect(
+          () => catalog.invoke(
+            'unknownFn',
+            const <String, dynamic>{},
+            componentContext.dataContext,
           ),
-        ),
-      );
-    });
-  });
+          throwsA(
+            isA<A2uiCatalogError>().having(
+              (e) => e.catalogId,
+              'catalogId',
+              catalog.id,
+            ),
+          ),
+        );
+      });
+    },
+  );
 
   group('DataContext resolution scope', () {
     DataContext v10Context({
       ExpressionErrorReporter? onError,
       MissingDataReporter? onMissingData,
       String path = '/',
-    }) =>
-        DataContext(
-          dataModel,
-          (name, args, context) => throw ArgumentError('Function not found'),
-          path,
-          onError: onError,
-          protocolVersion: A2uiProtocolVersion.v1_0,
-          onMissingData: onMissingData,
-        );
+    }) => DataContext(
+      dataModel,
+      (name, args, context) => throw ArgumentError('Function not found'),
+      path,
+      onError: onError,
+      protocolVersion: A2uiProtocolVersion.v1_0,
+      onMissingData: onMissingData,
+    );
 
     test('childContext links to its parent and resolves relative paths', () {
       dataModel.set('/items', [
@@ -1053,10 +1045,9 @@ void main() {
         {'name': 'B'},
       ]);
       final DataContext root = v10Context();
-      final DataContext item = root.childContext('items').childContext(
-            '1',
-            index: 1,
-          );
+      final DataContext item = root
+          .childContext('items')
+          .childContext('1', index: 1);
       expect(item.parent!.parent, same(root));
       expect(item.path, '/items/1');
       expect(item.resolveDynamicValue({'@path': 'name'}), 'B');
@@ -1081,9 +1072,12 @@ void main() {
     test('@index resolves to the iteration index plus offset', () {
       final DataContext item = v10Context().childContext('items/3', index: 3);
       expect(
-          item.resolveDynamicValue(
-              {'@call': '@index', 'args': <String, Object?>{}}),
-          3);
+        item.resolveDynamicValue({
+          '@call': '@index',
+          'args': <String, Object?>{},
+        }),
+        3,
+      );
       expect(
         item.resolveDynamicValue({
           '@call': '@index',
@@ -1102,8 +1096,10 @@ void main() {
 
     test('@index outside a collection scope raises A2uiValidationError', () {
       expect(
-        () => v10Context().resolveDynamicValue(
-            {'@call': '@index', 'args': <String, Object?>{}}),
+        () => v10Context().resolveDynamicValue({
+          '@call': '@index',
+          'args': <String, Object?>{},
+        }),
         throwsA(
           isA<A2uiValidationError>().having(
             (e) => e.message,
@@ -1115,8 +1111,9 @@ void main() {
       );
       final reported = <A2uiExpressionError>[];
       expect(
-        v10Context(onError: reported.add).resolveDynamicValue(
-            {'@call': '@index', 'args': <String, Object?>{}}),
+        v10Context(
+          onError: reported.add,
+        ).resolveDynamicValue({'@call': '@index', 'args': <String, Object?>{}}),
         isNull,
       );
       expect(reported.single.message, contains('collection template'));
@@ -1124,8 +1121,8 @@ void main() {
 
     test('@index rejects a non-numeric or non-finite offset', () {
       final reported = <A2uiExpressionError>[];
-      final DataContext item =
-          v10Context(onError: reported.add).childContext('items/0', index: 0);
+      final DataContext item = v10Context(onError: reported.add)
+          .childContext('items/0', index: 0);
       for (final Object offset in ['1', double.nan, double.infinity]) {
         expect(
           item.resolveDynamicValue({
@@ -1147,39 +1144,38 @@ void main() {
         index: 0,
       );
       expect(
-        () => v09Ctx.resolveDynamicValue(
-            {'call': '@index', 'args': <String, Object?>{}}),
+        () => v09Ctx.resolveDynamicValue({
+          'call': '@index',
+          'args': <String, Object?>{},
+        }),
         throwsArgumentError,
       );
     });
 
-    test('subscribeDynamicValue fires on change and stops after unsubscribe',
-        () {
-      dataModel.set('/name', 'Alice');
-      final seen = <Object?>[];
-      final DataSubscription subscription = v10Context().subscribeDynamicValue(
-        {'@path': '/name'},
-        seen.add,
-      );
-      expect(subscription.value, 'Alice');
-      expect(seen, isEmpty);
-      dataModel.set('/name', 'Bob');
-      expect(seen, ['Bob']);
-      expect(subscription.value, 'Bob');
-      subscription.unsubscribe();
-      dataModel.set('/name', 'Carol');
-      expect(seen, ['Bob']);
-      subscription.unsubscribe();
-    });
+    test(
+      'subscribeDynamicValue fires on change and stops after unsubscribe',
+      () {
+        dataModel.set('/name', 'Alice');
+        final seen = <Object?>[];
+        final DataSubscription subscription = v10Context()
+            .subscribeDynamicValue({'@path': '/name'}, seen.add);
+        expect(subscription.value, 'Alice');
+        expect(seen, isEmpty);
+        dataModel.set('/name', 'Bob');
+        expect(seen, ['Bob']);
+        expect(subscription.value, 'Bob');
+        subscription.unsubscribe();
+        dataModel.set('/name', 'Carol');
+        expect(seen, ['Bob']);
+        subscription.unsubscribe();
+      },
+    );
 
     test('subscribeDynamicValue<T> returns typed DataSubscription<T>', () {
       dataModel.set('/name', 'Alice');
       final seen = <String?>[];
-      final DataSubscription<String> subscription =
-          v10Context().subscribeDynamicValue<String>(
-        {'@path': '/name'},
-        seen.add,
-      );
+      final DataSubscription<String> subscription = v10Context()
+          .subscribeDynamicValue<String>({'@path': '/name'}, seen.add);
       expect(subscription.value, 'Alice');
       dataModel.set('/name', 'Bob');
       expect(seen, ['Bob']);
@@ -1206,8 +1202,9 @@ void main() {
       }
 
       expect(
-          unwrap(v10Context().resolveDynamicValue(nest(maxDynamicValueDepth))),
-          1);
+        unwrap(v10Context().resolveDynamicValue(nest(maxDynamicValueDepth))),
+        1,
+      );
       expect(
         () => v10Context().resolveDynamicValue(nest(maxDynamicValueDepth + 1)),
         throwsA(isA<A2uiExpressionError>()),
@@ -1244,7 +1241,7 @@ class _WatchCountingDataModel extends DataModel {
 
 class _SyncFn extends FunctionImplementation {
   _SyncFn(String name, this._body)
-      : super(name: name, argumentSchema: Schema.object());
+    : super(name: name, argumentSchema: Schema.object());
 
   final Object? Function(Map<String, dynamic> args, DataContext context) _body;
 
@@ -1253,6 +1250,5 @@ class _SyncFn extends FunctionImplementation {
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      _body(args, context);
+  ]) => _body(args, context);
 }

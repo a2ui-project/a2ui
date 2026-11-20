@@ -91,7 +91,7 @@ final class EmptyRegexNode extends RegexNode {
 final class CharSetRegexNode extends RegexNode {
   /// Creates a [CharSetRegexNode] with normalized [ranges].
   CharSetRegexNode(List<CodePointRange> ranges)
-      : ranges = List<CodePointRange>.unmodifiable(ranges);
+    : ranges = List<CodePointRange>.unmodifiable(ranges);
 
   /// Sorted, non-overlapping code-point ranges.
   final List<CodePointRange> ranges;
@@ -134,7 +134,7 @@ final class AnchorRegexNode extends RegexNode {
 final class ConcatRegexNode extends RegexNode {
   /// Creates a [ConcatRegexNode].
   ConcatRegexNode(List<RegexNode> items)
-      : items = List<RegexNode>.unmodifiable(items);
+    : items = List<RegexNode>.unmodifiable(items);
 
   /// The concatenated items in order.
   final List<RegexNode> items;
@@ -144,7 +144,7 @@ final class ConcatRegexNode extends RegexNode {
 final class AltRegexNode extends RegexNode {
   /// Creates an [AltRegexNode].
   AltRegexNode(List<RegexNode> branches)
-      : branches = List<RegexNode>.unmodifiable(branches);
+    : branches = List<RegexNode>.unmodifiable(branches);
 
   /// The branches of the alternation.
   final List<RegexNode> branches;
@@ -201,14 +201,14 @@ enum RegexRejection {
 final class RegexAnalysisResult {
   /// Creates a successful [RegexAnalysisResult].
   const RegexAnalysisResult.ok(RegexNode this.ast)
-      : ok = true,
-        reason = null,
-        detail = null;
+    : ok = true,
+      reason = null,
+      detail = null;
 
   /// Creates a rejected [RegexAnalysisResult].
   const RegexAnalysisResult.rejected(this.reason, [this.detail])
-      : ok = false,
-        ast = null;
+    : ok = false,
+      ast = null;
 
   /// Whether the pattern passed both syntax and static safety checks.
   final bool ok;
@@ -265,7 +265,8 @@ List<CodePointRange> _normalizeRanges(Iterable<CodePointRange> ranges) {
   ];
   if (nonEmpty.isEmpty) return const <CodePointRange>[];
   nonEmpty.sort(
-      (a, b) => a.lo != b.lo ? a.lo.compareTo(b.lo) : a.hi.compareTo(b.hi));
+    (a, b) => a.lo != b.lo ? a.lo.compareTo(b.lo) : a.hi.compareTo(b.hi),
+  );
   final out = <CodePointRange>[nonEmpty.first];
   for (var i = 1; i < nonEmpty.length; i++) {
     final CodePointRange cur = nonEmpty[i];
@@ -410,17 +411,17 @@ const Map<String, int> _controlEscapes = <String, int>{
 
 final Map<String, List<CodePointRange>> _charClassEscapes =
     <String, List<CodePointRange>>{
-  'd': _digitRanges,
-  'D': _nonDigitRanges,
-  'w': _wordRanges,
-  'W': _nonWordRanges,
-  's': _spaceRanges,
-  'S': _nonSpaceRanges,
-};
+      'd': _digitRanges,
+      'D': _nonDigitRanges,
+      'w': _wordRanges,
+      'W': _nonWordRanges,
+      's': _spaceRanges,
+      'S': _nonSpaceRanges,
+    };
 
 class _Parser {
   _Parser(List<int> runes)
-      : _cps = <String>[for (final int r in runes) String.fromCharCode(r)];
+    : _cps = <String>[for (final int r in runes) String.fromCharCode(r)];
 
   final List<String> _cps;
   int _pos = 0;
@@ -676,10 +677,7 @@ class _Parser {
       return CharSetRegexNode(<CodePointRange>[CodePointRange(cp, cp)]);
     }
 
-    throw RegexSyntaxError(
-      "Unsupported escape sequence '\\$ch'",
-      escStart,
-    );
+    throw RegexSyntaxError("Unsupported escape sequence '\\$ch'", escStart);
   }
 
   int? _parseScalarEscape(String ch, int escStart) {
@@ -767,7 +765,9 @@ class _Parser {
     }
     if (peek() == ']') {
       throw RegexSyntaxError(
-          'Empty character class is not allowed', startOffset);
+        'Empty character class is not allowed',
+        startOffset,
+      );
     }
 
     final ranges = <CodePointRange>[];
@@ -780,12 +780,8 @@ class _Parser {
           _pos,
         );
       }
-      final ({
-        bool isSet,
-        int? cp,
-        List<CodePointRange>? setRanges,
-        int offset
-      }) left = _parseClassAtom();
+      final ({bool isSet, int? cp, List<CodePointRange>? setRanges, int offset})
+      left = _parseClassAtom();
 
       if (peek() == '-' && peek(1) != ']') {
         final int dashOffset = _pos;
@@ -804,7 +800,8 @@ class _Parser {
           int? cp,
           List<CodePointRange>? setRanges,
           int offset,
-        }) right = _parseClassAtom();
+        })
+        right = _parseClassAtom();
         if (left.isSet || right.isSet) {
           throw RegexSyntaxError(
             'Character class range endpoint cannot be a multi-character '
@@ -831,13 +828,14 @@ class _Parser {
     }
     next(); // consume ']'
 
-    final List<CodePointRange> normalized =
-        negated ? _complementRanges(ranges) : _normalizeRanges(ranges);
+    final List<CodePointRange> normalized = negated
+        ? _complementRanges(ranges)
+        : _normalizeRanges(ranges);
     return CharSetRegexNode(normalized);
   }
 
   ({bool isSet, int? cp, List<CodePointRange>? setRanges, int offset})
-      _parseClassAtom() {
+  _parseClassAtom() {
     final int atomOffset = _pos;
     final String ch = next();
     if (ch == '[') {
@@ -908,33 +906,32 @@ RegexNode parseRegexSubset(String pattern) {
 
 /// Returns whether [node] can match the empty string (`""`).
 bool isNullable(RegexNode node) => switch (node) {
-      EmptyRegexNode() || AnchorRegexNode() || LookaheadRegexNode() => true,
-      CharSetRegexNode() => false,
-      GroupRegexNode(:final RegexNode body) => isNullable(body),
-      ConcatRegexNode(:final List<RegexNode> items) => items.every(isNullable),
-      AltRegexNode(:final List<RegexNode> branches) => branches.any(isNullable),
-      RepeatRegexNode(:final int min, :final RegexNode body) =>
-        min == 0 || isNullable(body),
-    };
+  EmptyRegexNode() || AnchorRegexNode() || LookaheadRegexNode() => true,
+  CharSetRegexNode() => false,
+  GroupRegexNode(:final RegexNode body) => isNullable(body),
+  ConcatRegexNode(:final List<RegexNode> items) => items.every(isNullable),
+  AltRegexNode(:final List<RegexNode> branches) => branches.any(isNullable),
+  RepeatRegexNode(:final int min, :final RegexNode body) =>
+    min == 0 || isNullable(body),
+};
 
 /// Returns the union of code points that can appear as the first consumed
 /// character of a non-empty match of [node].
 List<CodePointRange> firstSet(RegexNode node) => switch (node) {
-      EmptyRegexNode() ||
-      AnchorRegexNode() ||
-      LookaheadRegexNode() =>
-        const <CodePointRange>[],
-      CharSetRegexNode(:final List<CodePointRange> ranges) => ranges,
-      GroupRegexNode(:final RegexNode body) => firstSet(body),
-      AltRegexNode(:final List<RegexNode> branches) =>
-        branches.fold<List<CodePointRange>>(
-          const <CodePointRange>[],
-          (acc, branch) => _unionRanges(acc, firstSet(branch)),
-        ),
-      RepeatRegexNode(:final int? max, :final RegexNode body) =>
-        max == 0 ? const <CodePointRange>[] : firstSet(body),
-      ConcatRegexNode(:final List<RegexNode> items) => _concatFirstSet(items),
-    };
+  EmptyRegexNode() ||
+  AnchorRegexNode() ||
+  LookaheadRegexNode() => const <CodePointRange>[],
+  CharSetRegexNode(:final List<CodePointRange> ranges) => ranges,
+  GroupRegexNode(:final RegexNode body) => firstSet(body),
+  AltRegexNode(:final List<RegexNode> branches) =>
+    branches.fold<List<CodePointRange>>(
+      const <CodePointRange>[],
+      (acc, branch) => _unionRanges(acc, firstSet(branch)),
+    ),
+  RepeatRegexNode(:final int? max, :final RegexNode body) =>
+    max == 0 ? const <CodePointRange>[] : firstSet(body),
+  ConcatRegexNode(:final List<RegexNode> items) => _concatFirstSet(items),
+};
 
 List<CodePointRange> _concatFirstSet(List<RegexNode> items) {
   var acc = const <CodePointRange>[];
@@ -948,54 +945,52 @@ List<CodePointRange> _concatFirstSet(List<RegexNode> items) {
 /// Returns the union of all code points consumed anywhere inside [node]
 /// (ignoring lookahead assertions).
 List<CodePointRange> charsSet(RegexNode node) => switch (node) {
-      EmptyRegexNode() ||
-      AnchorRegexNode() ||
-      LookaheadRegexNode() =>
-        const <CodePointRange>[],
-      CharSetRegexNode(:final List<CodePointRange> ranges) => ranges,
-      GroupRegexNode(:final RegexNode body) => charsSet(body),
-      ConcatRegexNode(:final List<RegexNode> items) =>
-        items.fold<List<CodePointRange>>(
-          const <CodePointRange>[],
-          (acc, item) => _unionRanges(acc, charsSet(item)),
-        ),
-      AltRegexNode(:final List<RegexNode> branches) =>
-        branches.fold<List<CodePointRange>>(
-          const <CodePointRange>[],
-          (acc, branch) => _unionRanges(acc, charsSet(branch)),
-        ),
-      RepeatRegexNode(:final int? max, :final RegexNode body) =>
-        max == 0 ? const <CodePointRange>[] : charsSet(body),
-    };
+  EmptyRegexNode() ||
+  AnchorRegexNode() ||
+  LookaheadRegexNode() => const <CodePointRange>[],
+  CharSetRegexNode(:final List<CodePointRange> ranges) => ranges,
+  GroupRegexNode(:final RegexNode body) => charsSet(body),
+  ConcatRegexNode(:final List<RegexNode> items) =>
+    items.fold<List<CodePointRange>>(
+      const <CodePointRange>[],
+      (acc, item) => _unionRanges(acc, charsSet(item)),
+    ),
+  AltRegexNode(:final List<RegexNode> branches) =>
+    branches.fold<List<CodePointRange>>(
+      const <CodePointRange>[],
+      (acc, branch) => _unionRanges(acc, charsSet(branch)),
+    ),
+  RepeatRegexNode(:final int? max, :final RegexNode body) =>
+    max == 0 ? const <CodePointRange>[] : charsSet(body),
+};
 
 bool _isRepeatingQuantifier(RepeatRegexNode node) =>
     node.max == null || node.max! > 1;
 
 bool _hasUnbounded(RegexNode node) => switch (node) {
-      EmptyRegexNode() || CharSetRegexNode() || AnchorRegexNode() => false,
-      GroupRegexNode(:final RegexNode body) ||
-      LookaheadRegexNode(:final RegexNode body) =>
-        _hasUnbounded(body),
-      ConcatRegexNode(:final List<RegexNode> items) => items.any(_hasUnbounded),
-      AltRegexNode(:final List<RegexNode> branches) =>
-        branches.any(_hasUnbounded),
-      RepeatRegexNode(:final int? max, :final RegexNode body) =>
-        max == null || _hasUnbounded(body),
-    };
+  EmptyRegexNode() || CharSetRegexNode() || AnchorRegexNode() => false,
+  GroupRegexNode(:final RegexNode body) ||
+  LookaheadRegexNode(:final RegexNode body) => _hasUnbounded(body),
+  ConcatRegexNode(:final List<RegexNode> items) => items.any(_hasUnbounded),
+  AltRegexNode(:final List<RegexNode> branches) => branches.any(_hasUnbounded),
+  RepeatRegexNode(:final int? max, :final RegexNode body) =>
+    max == null || _hasUnbounded(body),
+};
 
 bool _hasNestedQuantifier(RegexNode node) => switch (node) {
-      EmptyRegexNode() || CharSetRegexNode() || AnchorRegexNode() => false,
-      GroupRegexNode(:final RegexNode body) ||
-      LookaheadRegexNode(:final RegexNode body) =>
+  EmptyRegexNode() || CharSetRegexNode() || AnchorRegexNode() => false,
+  GroupRegexNode(:final RegexNode body) ||
+  LookaheadRegexNode(:final RegexNode body) => _hasNestedQuantifier(body),
+  ConcatRegexNode(:final List<RegexNode> items) => items.any(
+    _hasNestedQuantifier,
+  ),
+  AltRegexNode(:final List<RegexNode> branches) => branches.any(
+    _hasNestedQuantifier,
+  ),
+  RepeatRegexNode(:final RegexNode body) =>
+    (_isRepeatingQuantifier(node) && _hasUnbounded(body)) ||
         _hasNestedQuantifier(body),
-      ConcatRegexNode(:final List<RegexNode> items) =>
-        items.any(_hasNestedQuantifier),
-      AltRegexNode(:final List<RegexNode> branches) =>
-        branches.any(_hasNestedQuantifier),
-      RepeatRegexNode(:final RegexNode body) =>
-        (_isRepeatingQuantifier(node) && _hasUnbounded(body)) ||
-            _hasNestedQuantifier(body),
-    };
+};
 
 RegexNode _unwrapSingle(RegexNode node) {
   var cur = node;
@@ -1018,24 +1013,27 @@ bool _branchesOverlap(List<RegexNode> branches) {
 }
 
 bool _hasOverlappingAlternationInRepeat(RegexNode node) => switch (node) {
-      EmptyRegexNode() || CharSetRegexNode() || AnchorRegexNode() => false,
-      GroupRegexNode(:final RegexNode body) ||
-      LookaheadRegexNode(:final RegexNode body) =>
-        _hasOverlappingAlternationInRepeat(body),
-      ConcatRegexNode(:final List<RegexNode> items) =>
-        items.any(_hasOverlappingAlternationInRepeat),
-      AltRegexNode(:final List<RegexNode> branches) =>
-        branches.any(_hasOverlappingAlternationInRepeat),
-      RepeatRegexNode(:final int? max, :final RegexNode body) => () {
-          final RegexNode inner = _unwrapSingle(body);
-          if (max == null &&
-              inner is AltRegexNode &&
-              _branchesOverlap(inner.branches)) {
-            return true;
-          }
-          return _hasOverlappingAlternationInRepeat(body);
-        }(),
-    };
+  EmptyRegexNode() || CharSetRegexNode() || AnchorRegexNode() => false,
+  GroupRegexNode(:final RegexNode body) ||
+  LookaheadRegexNode(
+    :final RegexNode body,
+  ) => _hasOverlappingAlternationInRepeat(body),
+  ConcatRegexNode(:final List<RegexNode> items) => items.any(
+    _hasOverlappingAlternationInRepeat,
+  ),
+  AltRegexNode(:final List<RegexNode> branches) => branches.any(
+    _hasOverlappingAlternationInRepeat,
+  ),
+  RepeatRegexNode(:final int? max, :final RegexNode body) => () {
+    final RegexNode inner = _unwrapSingle(body);
+    if (max == null &&
+        inner is AltRegexNode &&
+        _branchesOverlap(inner.branches)) {
+      return true;
+    }
+    return _hasOverlappingAlternationInRepeat(body);
+  }(),
+};
 
 bool _concatHasAdjacentOverlap(List<RegexNode> items) {
   for (var i = 0; i < items.length; i++) {
@@ -1055,16 +1053,16 @@ bool _concatHasAdjacentOverlap(List<RegexNode> items) {
 }
 
 bool _hasAdjacentOverlap(RegexNode node) => switch (node) {
-      EmptyRegexNode() || CharSetRegexNode() || AnchorRegexNode() => false,
-      GroupRegexNode(:final RegexNode body) ||
-      LookaheadRegexNode(:final RegexNode body) ||
-      RepeatRegexNode(:final RegexNode body) =>
-        _hasAdjacentOverlap(body),
-      AltRegexNode(:final List<RegexNode> branches) =>
-        branches.any(_hasAdjacentOverlap),
-      ConcatRegexNode(:final List<RegexNode> items) =>
-        _concatHasAdjacentOverlap(items) || items.any(_hasAdjacentOverlap),
-    };
+  EmptyRegexNode() || CharSetRegexNode() || AnchorRegexNode() => false,
+  GroupRegexNode(:final RegexNode body) ||
+  LookaheadRegexNode(:final RegexNode body) ||
+  RepeatRegexNode(:final RegexNode body) => _hasAdjacentOverlap(body),
+  AltRegexNode(:final List<RegexNode> branches) => branches.any(
+    _hasAdjacentOverlap,
+  ),
+  ConcatRegexNode(:final List<RegexNode> items) =>
+    _concatHasAdjacentOverlap(items) || items.any(_hasAdjacentOverlap),
+};
 
 /// Checks the four static safety rules against [pattern] and its parsed [tree].
 ///

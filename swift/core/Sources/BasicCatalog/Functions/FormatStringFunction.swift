@@ -28,7 +28,8 @@ public final class FormatStringFunction: FunctionImplementation, Sendable {
           "properties": {
             "value": { "type": "string" }
           },
-          "required": ["value"]
+          "required": ["value"],
+          "additionalProperties": false
         }
         """
     )

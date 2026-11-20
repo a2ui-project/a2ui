@@ -71,8 +71,9 @@ Object? _evaluate(Map<String, Object?> testCase) {
     _withCaseData(DataModel(), testCase),
     catalog.invoke,
     '/',
-    protocolVersion:
-        version == null ? null : A2uiProtocolVersion.tryParseSemVer(version),
+    protocolVersion: version == null
+        ? null
+        : A2uiProtocolVersion.tryParseSemVer(version),
   );
   final args = Map<String, dynamic>.from(
     testCase['args'] as Map<String, Object?>? ?? const {},
@@ -87,18 +88,17 @@ Object? _evaluate(Map<String, Object?> testCase) {
 _RendererCatalog _catalogOf(
   Map<String, Object?> document,
   Map<String, Object?> testCase,
-) =>
-    switch (document['catalogId']) {
-      BasicCatalog.v0_9Id => BasicCatalog.v0_9(
-          locale: _localeOf(testCase),
-          openUrl: _openUrl,
-        ),
-      BasicCatalog.v1_0Id => BasicCatalog.v1_0(
-          locale: _localeOf(testCase),
-          openUrl: _openUrl,
-        ),
-      _ => rendererCatalog(document),
-    };
+) => switch (document['catalogId']) {
+  BasicCatalog.v0_9Id => BasicCatalog.v0_9(
+    locale: _localeOf(testCase),
+    openUrl: _openUrl,
+  ),
+  BasicCatalog.v1_0Id => BasicCatalog.v1_0(
+    locale: _localeOf(testCase),
+    openUrl: _openUrl,
+  ),
+  _ => rendererCatalog(document),
+};
 
 /// Evaluates a case with a `surface` block as a call on a surface, so the
 /// call goes through catalog resolution.
@@ -170,26 +170,21 @@ const Map<String, Set<String>> _knownKeys = {
     'protocolVersion',
     'surface',
   },
-  'surface:evaluate_function': {
-    'catalogId',
-  },
+  'surface:evaluate_function': {'catalogId'},
 };
 
 void main() {
   // The suite's `validate` cases render basic-catalog components on a
   // surface, so `message_processor_conformance_test.dart` runs them.
   final List<Map<String, Object?>> cases = [
-    for (final Map<String, Object?> testCase
-        in loadConformanceSuite('core/functions.yaml'))
+    for (final Map<String, Object?> testCase in loadConformanceSuite(
+      'core/functions.yaml',
+    ))
       if (testCase['action'] != 'validate') testCase,
   ];
 
   group('functions conformance', () {
-    runConformanceSuite(
-      cases,
-      _runFunctionCase,
-      suite: 'core/functions.yaml',
-    );
+    runConformanceSuite(cases, _runFunctionCase, suite: 'core/functions.yaml');
   });
 }
 
@@ -252,10 +247,12 @@ void _assertFunctionError(
       predicate(
         (Object? e) {
           final bool matchesType = switch (category) {
-            'CatalogError' => e is A2uiCatalogError &&
-                (e is! A2uiCatalogResolutionError || e.functionName == null),
-            'ExpressionError' => e is A2uiExpressionError ||
-                (e is A2uiCatalogResolutionError && e.functionName != null),
+            'CatalogError' =>
+              e is A2uiCatalogError &&
+                  (e is! A2uiCatalogResolutionError || e.functionName == null),
+            'ExpressionError' =>
+              e is A2uiExpressionError ||
+                  (e is A2uiCatalogResolutionError && e.functionName != null),
             'ValidationError' => e is A2uiValidationError,
             _ => e.runtimeType == expectedType,
           };

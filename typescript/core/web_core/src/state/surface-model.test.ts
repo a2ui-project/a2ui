@@ -22,7 +22,8 @@ import {Catalog, ComponentApi} from '../catalog/types.js';
 import {ComponentModel} from './component-model.js';
 import {ComponentContext} from '../resolution/component-context.js';
 import {setValue} from '../reactivity/signals.js';
-import {A2uiRpcError, RpcErrorCode} from '../errors.js';
+import {A2uiCatalogError, A2uiRpcError, RpcErrorCode} from '../errors.js';
+import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
 
 describe('SurfaceModel', () => {
   let surface: SurfaceModel<ComponentApi>;
@@ -600,6 +601,26 @@ describe('SurfaceModel', () => {
             extensions: {'invalid-key': true},
           }),
         /Invalid UAX #31 extension identifier: "invalid-key"/,
+      );
+    });
+  });
+
+  describe('resolveSurfaceCatalog', () => {
+    it('resolves an explicit catalogId against surface.catalog on partial stand-ins', () => {
+      const mockCatalog = {id: 'legacy-catalog'};
+      const partialSurface = {id: 'surf-partial', catalog: mockCatalog};
+
+      assert.strictEqual(
+        resolveSurfaceCatalog(partialSurface, 'legacy-catalog', 'Test item'),
+        mockCatalog,
+      );
+      assert.strictEqual(
+        resolveSurfaceCatalog(partialSurface, undefined, 'Test item'),
+        mockCatalog,
+      );
+      assert.throws(
+        () => resolveSurfaceCatalog(partialSurface, 'other-catalog', 'Test item'),
+        A2uiCatalogError,
       );
     });
   });

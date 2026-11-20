@@ -15,9 +15,7 @@
 /// Maps each supported `core/*.yaml` conformance suite and `action` to the test
 /// file in `test/conformance/` that executes it.
 const Map<String, Map<String, String>> coreSuiteActions = {
-  'core/actions.yaml': {
-    'dispatch_action': 'actions_conformance_test.dart',
-  },
+  'core/actions.yaml': {'dispatch_action': 'actions_conformance_test.dart'},
   'core/agent_function_routing.yaml': {
     'route_agent_function': 'agent_function_routing_conformance_test.dart',
   },
@@ -39,18 +37,12 @@ const Map<String, Map<String, String>> coreSuiteActions = {
   'core/data_context.yaml': {
     'resolve_path': 'data_model_conformance_test.dart',
   },
-  'core/data_deletion.yaml': {
-    'validate': 'data_model_conformance_test.dart',
-  },
-  'core/data_model.yaml': {
-    'data_model': 'data_model_conformance_test.dart',
-  },
+  'core/data_deletion.yaml': {'validate': 'data_model_conformance_test.dart'},
+  'core/data_model.yaml': {'data_model': 'data_model_conformance_test.dart'},
   'core/data_model_pointers.yaml': {
     'validate': 'data_model_conformance_test.dart',
   },
-  'core/error_responses.yaml': {
-    'validate': 'validator_conformance_test.dart',
-  },
+  'core/error_responses.yaml': {'validate': 'validator_conformance_test.dart'},
   'core/expressions.yaml': {
     'parse_expression_template': 'expressions_conformance_test.dart',
     'validate': 'message_processor_conformance_test.dart',
@@ -88,18 +80,12 @@ const Map<String, Map<String, String>> coreSuiteActions = {
     'process_messages': 'message_processor_conformance_test.dart',
     'validate': 'validator_conformance_test.dart',
   },
-  'core/rpc_functions.yaml': {
-    'handle_rpc': 'rpc_conformance_test.dart',
-  },
+  'core/rpc_functions.yaml': {'handle_rpc': 'rpc_conformance_test.dart'},
   'core/validation_result.yaml': {
     'validate': 'validator_conformance_test.dart',
   },
-  'core/validator_v0_9.yaml': {
-    'validate': 'validator_conformance_test.dart',
-  },
-  'core/validator_v1_0.yaml': {
-    'validate': 'validator_conformance_test.dart',
-  },
+  'core/validator_v0_9.yaml': {'validate': 'validator_conformance_test.dart'},
+  'core/validator_v1_0.yaml': {'validate': 'validator_conformance_test.dart'},
 };
 
 /// `core/*.yaml` suites that `a2ui_core` intentionally does not execute, paired
@@ -107,10 +93,10 @@ const Map<String, Map<String, String>> coreSuiteActions = {
 const Map<String, String> unsupportedCoreSuites = {
   'core/accessibility.yaml':
       'Accessibility checks require a rendered UI tree and run in the '
-          'framework adapter harness.',
+      'framework adapter harness.',
   'core/adapter_conformance.yaml':
       'Adapter conformance cases require a UI framework renderer and run in '
-          'the framework adapter harness.',
+      'the framework adapter harness.',
   'core/agent_to_renderer.yaml':
       'Protocol envelope schema generation is not implemented in a2ui_core.',
   'core/message_processor_v0_8.yaml':
