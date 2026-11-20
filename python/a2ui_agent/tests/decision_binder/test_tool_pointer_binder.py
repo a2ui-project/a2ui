@@ -595,3 +595,234 @@ async def test_omitted_select_target_answer_raises_decision_backend_error() -> N
     )
     with pytest.raises(DecisionBackendError, match="select:target"):
         await binder.bind_tool_output("Show profile", "get_profile", {"name": "Ada"})
+
+
+@pytest.mark.asyncio
+async def test_plain_primitive_only_macro_binds_literals_and_lowers() -> None:
+    basic = _basic()
+    macro_cid = "urn:test:macros"
+
+    @macro()
+    def StatusBanner(
+        headline: str,
+        count: int,
+        severity: Literal["info", "warning", "error"] = "info",
+        dismissible: bool = False,
+    ) -> Card:
+        """Displays a status banner using only plain primitive parameters."""
+        suffix = " (dismissible)" if dismissible else ""
+        return Card(
+            child=Column(
+                children=[
+                    Text(text=f"[{severity.upper()}] {headline}{suffix}"),
+                    Text(text=f"Affected: {count}"),
+                ]
+            )
+        )
+
+    tkey = f"{macro_cid}:StatusBanner"
+    backend = _ScriptedBackend({
+        "select:target": (tkey, 0.93),
+        f"bind:{tkey}:headline": ("/message", 0.96),
+        f"bind:{tkey}:count": ("/hosts", 0.94),
+        f"bind:{tkey}:severity": ("warning", 0.91),
+        f"bind:{tkey}:dismissible": 0.88,
+    })
+    binder = ToolPointerBinder(
+        backend,
+        transport_catalogs=[basic],
+        macros=[StatusBanner],
+        macro_catalog_id=macro_cid,
+    )
+    result = await binder.bind_tool_output(
+        "Show degraded status banner",
+        "check_status",
+        {"message": "High latency in us-west", "hosts": 3},
+        surface_id="banner_s1",
+    )
+    assert not result.abstained
+    assert result.target_id == tkey
+    assert result.bindings == {
+        "headline": "High latency in us-west",
+        "count": 3,
+        "severity": "warning",
+        "dismissible": True,
+    }
+    dumped = [m.model_dump(by_alias=True, exclude_none=True) for m in result.messages]
+    comp_types = [c["component"] for c in dumped[1]["updateComponents"]["components"]]
+    assert "StatusBanner" not in comp_types
+    assert "Card" in comp_types
+
+
+@pytest.mark.asyncio
+async def test_optional_nullable_macro_parameters_bind_and_omit() -> None:
+    basic = _basic()
+    macro_cid = "urn:test:macros"
+
+    @macro()
+    def NullableNoteCard(
+        title: DynamicString,
+        subtitle: str | None = None,
+        retries: int | None = None,
+        tone: Literal["neutral", "alert"] | None = None,
+    ) -> Card:
+        """Displays a note card with optional nullable parameters."""
+        children: list[Any] = [Text(text=title)]
+        if subtitle is not None:
+            children.append(Text(text=subtitle))
+        if retries is not None:
+            children.append(Text(text=f"Retries: {retries}"))
+        if tone is not None:
+            children.append(Text(text=f"Tone: {tone}"))
+        return Card(child=Column(children=children))
+
+    tkey = f"{macro_cid}:NullableNoteCard"
+    # Case 1: optional nullable slots bound
+    backend_bound = _ScriptedBackend({
+        f"bind:{tkey}:title": ("/title", 0.95),
+        f"bind:{tkey}:subtitle": ("/detail", 0.91),
+        f"bind:{tkey}:retries": ("/attempts", 0.90),
+        f"bind:{tkey}:tone": ("alert", 0.89),
+    })
+    binder_bound = ToolPointerBinder(
+        backend_bound,
+        transport_catalogs=[basic],
+        macros=[NullableNoteCard],
+        macro_catalog_id=macro_cid,
+    )
+    bound_res = await binder_bound.fill_macro(
+        "Show full note",
+        {"title": "Job failed", "detail": "Timeout after 30s", "attempts": 2},
+        macro_name="NullableNoteCard",
+        surface_id="note_bound",
+    )
+    assert not bound_res.abstained
+    assert bound_res.decision_calls == 1
+    assert bound_res.bindings == {
+        "title": {"@path": "/title"},
+        "subtitle": "Timeout after 30s",
+        "retries": 2,
+        "tone": "alert",
+    }
+
+    # Case 2: optional nullable slots omitted ("none")
+    backend_omit = _ScriptedBackend({
+        f"bind:{tkey}:title": ("/title", 0.95),
+        f"bind:{tkey}:subtitle": ("none", 0.85),
+        f"bind:{tkey}:retries": ("none", 0.85),
+        f"bind:{tkey}:tone": ("none", 0.85),
+    })
+    binder_omit = ToolPointerBinder(
+        backend_omit,
+        transport_catalogs=[basic],
+        macros=[NullableNoteCard],
+        macro_catalog_id=macro_cid,
+    )
+    omit_res = await binder_omit.fill_macro(
+        "Show minimal note",
+        {"title": "Job started"},
+        macro_name=tkey,
+        surface_id="note_omit",
+    )
+    assert not omit_res.abstained
+    assert omit_res.bindings == {"title": {"@path": "/title"}}
+
+
+@pytest.mark.asyncio
+async def test_fill_macro_targeted_shadowed_and_auto_selected() -> None:
+    basic = _basic()
+    macro_cid = "urn:test:macros"
+    tkey = f"{macro_cid}:ProductCard"
+    express_spec = ExpressSurfaceSpec(
+        id="fallback_text",
+        description="Fallback text",
+        dsl="root = Text($/title)",
+        required_paths=("/title",),
+    )
+
+    # Auto-select among registered macros only (excludes Express targets).
+    backend = _ScriptedBackend({
+        "select:target": (tkey, 0.96),
+        f"bind:{tkey}:title": ("/title", 0.95),
+        f"bind:{tkey}:sku": ("/sku", 0.95),
+        f"bind:{tkey}:stock_count": ("/inventory", 0.92),
+        f"bind:{tkey}:in_stock": 0.91,
+        f"bind:{tkey}:variant": ("detailed", 0.88),
+        f"bind:{tkey}:on_buy": ("none", 0.80),
+    })
+    binder = ToolPointerBinder(
+        backend,
+        transport_catalogs=[basic],
+        macros=[ProductCard],
+        express_surfaces=[express_spec],
+        macro_catalog_id=macro_cid,
+    )
+    auto_res = await binder.fill_macro(
+        "Show product card",
+        {"title": "Trail Runner", "sku": "SKU-7", "inventory": 4},
+        surface_id="auto_macro",
+    )
+    assert not auto_res.abstained
+    assert auto_res.target_id == tkey
+    select_q = backend.batches[0].questions[0]
+    assert select_q.id == "select:target"
+    assert select_q.options == (tkey,)
+
+    # Unknown macro name raises A2uiCatalogError.
+    with pytest.raises(A2uiCatalogError, match="Unknown macro target"):
+        await binder.fill_macro(
+            "Show missing",
+            {"title": "X"},
+            macro_name="DoesNotExist",
+        )
+
+    # Binder with no macros raises A2uiCatalogError.
+    no_macro_binder = ToolPointerBinder(
+        backend,
+        transport_catalogs=[basic],
+        express_surfaces=[express_spec],
+    )
+    with pytest.raises(A2uiCatalogError, match="No @macro targets"):
+        await no_macro_binder.fill_macro("Show product", {"title": "X"})
+
+    # CST-shadowed macro resolves to the shadowing CST when targeted by bare name.
+    cst_catalog = Catalog.from_json(
+        {
+            "catalogId": "urn:test:cst",
+            "components": {
+                "ProductCard": {
+                    "type": "object",
+                    "description": "CST ProductCard",
+                    "properties": {
+                        "title": {"$ref": "common_types.json#/$defs/DynamicString"},
+                        "sku": {"type": "string"},
+                        "stock_count": {"type": "integer"},
+                    },
+                    "required": ["title", "sku", "stock_count"],
+                }
+            },
+        },
+        protocol_version=ProtocolVersion.V1_0,
+    )
+    cst_key = "urn:test:cst:ProductCard"
+    cst_backend = _ScriptedBackend({
+        f"bind:{cst_key}:title": ("/title", 0.95),
+        f"bind:{cst_key}:sku": ("/sku", 0.95),
+        f"bind:{cst_key}:stock_count": ("/inventory", 0.95),
+    })
+    shadow_binder = ToolPointerBinder(
+        cst_backend,
+        transport_catalogs=[basic, cst_catalog],
+        macros=[ProductCard],
+        macro_catalog_id=macro_cid,
+    )
+    shadow_res = await shadow_binder.fill_macro(
+        "Show product",
+        {"title": "Boots", "sku": "SKU-9", "inventory": 2},
+        macro_name="ProductCard",
+        surface_id="shadow_s1",
+    )
+    assert not shadow_res.abstained
+    assert shadow_res.target_id == cst_key
+    assert shadow_res.decision_calls == 1
+    assert shadow_res.confidence == 1.0

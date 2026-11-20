@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol, runtime_checkable
+from typing import Any, Literal
 
 from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
@@ -277,12 +277,14 @@ def _validate_macro_node_slots(
             f" schemas: {', '.join(missing_required)}."
         )
     has_bindable = any(
-        slot.kind in (SlotKind.DATA_VALUE, SlotKind.ACTION) for slot in node.slots
+        slot.kind in (SlotKind.DATA_VALUE, SlotKind.ACTION)
+        or (slot.kind is SlotKind.LITERAL_PRIMITIVE and slot.value_type != "boolean")
+        for slot in node.slots
     )
     if not has_bindable:
         raise A2uiCatalogError(
-            f"Macro '{macro_name}' must declare at least one Dynamic* data or Action"
-            " parameter for ToolPointerBinder."
+            f"Macro '{macro_name}' must declare at least one Dynamic* data,"
+            " primitive string/number, or Action parameter for ToolPointerBinder."
         )
 
 
@@ -742,6 +744,7 @@ class ToolPointerBinder:
         validated_macro_names = [
             _validate_macro_registration(fn) for fn in self._macros
         ]
+        self._registered_macro_names = frozenset(validated_macro_names)
         self._inference_catalogs = tuple(
             build_inference_catalogs(
                 self._transport_catalogs,
@@ -891,13 +894,16 @@ class ToolPointerBinder:
         pointers: Sequence[PointerSummary],
         data_model: Mapping[str, Any],
         actions: Sequence[ActionSpec],
+        *,
+        candidate_targets: Sequence[_TargetSpec] | None = None,
     ) -> tuple[list[_TargetSpec], dict[str, list[DecisionQuestion]]]:
         """Filters targets whose required paths or slots can be satisfied."""
         pointer_paths = {p.path for p in pointers}
         eligible: list[_TargetSpec] = []
         slot_questions_by_target: dict[str, list[DecisionQuestion]] = {}
+        pool = self._targets if candidate_targets is None else candidate_targets
 
-        for target in self._targets:
+        for target in pool:
             if target.kind == "express" and target.express is not None:
                 if all(path in pointer_paths for path in target.express.required_paths):
                     eligible.append(target)
@@ -1087,6 +1093,213 @@ class ToolPointerBinder:
                 bound[slot.name] = value
         return bound, ""
 
+    def _macro_targets(self) -> tuple[_TargetSpec, ...]:
+        """Returns registered macro targets, including CSTs shadowing a macro."""
+        return tuple(
+            t
+            for t in self._targets
+            if t.kind == "component"
+            and t.node is not None
+            and (t.is_macro or t.node.name in self._registered_macro_names)
+        )
+
+    def _resolve_macro_target(self, macro_name: str) -> _TargetSpec:
+        """Resolves a bare macro name or qualified target key to a macro target."""
+        candidates = self._macro_targets()
+        for target in candidates:
+            if target.target_key == macro_name:
+                return target
+        for target in candidates:
+            if target.node is not None and target.node.name == macro_name:
+                return target
+        raise A2uiCatalogError(f"Unknown macro target '{macro_name}'.")
+
+    async def fill_macro(
+        self,
+        intent: str,
+        payload: Any,
+        *,
+        macro_name: str | None = None,
+        actions: Sequence[ActionSpec | str] = (),
+        surface_id: str = "macro_surface",
+        exclude: Collection[str] = (),
+        mutable_paths: Collection[str] = (),
+        labels: Mapping[str, str] | None = None,
+        renderer_state: RendererState | None = None,
+        timeout_seconds: float | None = None,
+    ) -> BindResult:
+        """Fills a registered `@macro` directly from `payload`.
+
+        When `macro_name` is provided (either a bare macro name such as
+        `"ProductCard"` or a qualified `<catalog_id>:<name>` key), skips target
+        selection and runs a single slot-filling batch against that macro (or
+        the Client-Side Template shadowing it). When omitted, selects among
+        registered `@macro` targets only.
+
+        Raises:
+            A2uiCatalogError: If `macro_name` is not registered or no `@macro`
+                targets are registered on this binder.
+        """
+        macro_pool = self._macro_targets()
+        if not macro_pool:
+            raise A2uiCatalogError(
+                "No @macro targets registered on this ToolPointerBinder."
+            )
+
+        selected_target = (
+            self._resolve_macro_target(macro_name) if macro_name is not None else None
+        )
+
+        data_model = _normalize_tool_output(payload)
+        if data_model is None:
+            return BindResult(abstained=True, reason="empty or non-structured payload")
+
+        pointers = inspect_pointers(
+            data_model,
+            exclude=exclude,
+            mutable_paths=mutable_paths,
+            labels=labels,
+        )
+        if not pointers or all(p.semantic_type is SemanticType.EMPTY for p in pointers):
+            return BindResult(abstained=True, reason="empty pointers")
+
+        normalized_actions = _normalize_actions(actions)
+
+        if selected_target is not None:
+            questions = self._collect_component_slot_questions(
+                selected_target, pointers, data_model, normalized_actions
+            )
+            if questions is None:
+                return BindResult(
+                    abstained=True,
+                    reason=(
+                        f"required slots for macro '{selected_target.target_key}'"
+                        " have no compatible payload pointers"
+                    ),
+                    target_id=selected_target.target_key,
+                )
+            answer_map: dict[str, DecisionAnswer] = {}
+            calls = 0
+            if questions:
+                source_label = (
+                    selected_target.node.name
+                    if selected_target.node is not None
+                    else selected_target.target_key
+                )
+                state_text = _format_state_text(
+                    intent, source_label, pointers, normalized_actions
+                )
+                answers = await self._backend.answer(
+                    DecisionBatch(state=state_text, questions=tuple(questions)),
+                    timeout_seconds=timeout_seconds,
+                )
+                answer_map = {ans.question_id: ans for ans in answers}
+                calls = 1
+            safe_data_model = _redact_data_model(
+                data_model, exclude=exclude, mutable_paths=mutable_paths
+            )
+            return self._finalize_target(
+                selected_target,
+                answer_map=answer_map,
+                data_model=safe_data_model,
+                actions=normalized_actions,
+                surface_id=surface_id,
+                confidence=1.0,
+                decision_calls=calls,
+                renderer_state=renderer_state,
+            )
+
+        return await self._bind_from_pool(
+            intent=intent,
+            source_name="macro",
+            data_model=data_model,
+            pointers=pointers,
+            actions=normalized_actions,
+            candidate_targets=macro_pool,
+            surface_id=surface_id,
+            exclude=exclude,
+            mutable_paths=mutable_paths,
+            renderer_state=renderer_state,
+            timeout_seconds=timeout_seconds,
+        )
+
+    async def _bind_from_pool(
+        self,
+        *,
+        intent: str,
+        source_name: str,
+        data_model: Mapping[str, Any],
+        pointers: Sequence[PointerSummary],
+        actions: Sequence[ActionSpec],
+        candidate_targets: Sequence[_TargetSpec],
+        surface_id: str,
+        exclude: Collection[str],
+        mutable_paths: Collection[str],
+        renderer_state: RendererState | None,
+        timeout_seconds: float | None,
+    ) -> BindResult:
+        """Selects and binds the best target from `candidate_targets`."""
+        eligible, slot_questions_by_target = self._filter_eligible_targets(
+            pointers,
+            data_model,
+            actions,
+            candidate_targets=candidate_targets,
+        )
+        if not eligible:
+            return BindResult(
+                abstained=True, reason="no eligible targets for payload pointers"
+            )
+
+        state_text = _format_state_text(intent, source_name, pointers, actions)
+        target_answer, answer_map, calls = await self._evaluate_targets(
+            state_text,
+            eligible,
+            slot_questions_by_target,
+            timeout_seconds=timeout_seconds,
+        )
+        choice, prob = target_answer.top()
+        if not choice or choice == "none":
+            return BindResult(
+                abstained=True,
+                reason="target selection chose none",
+                confidence=prob,
+                decision_calls=calls,
+            )
+        if prob < self._min_confidence:
+            return BindResult(
+                abstained=True,
+                reason=(
+                    f"target confidence {prob:.3f} below min_confidence"
+                    f" {self._min_confidence:.3f}"
+                ),
+                target_id=choice,
+                confidence=prob,
+                decision_calls=calls,
+            )
+
+        target = self._target_by_key.get(choice)
+        if target is None:
+            return BindResult(
+                abstained=True,
+                reason=f"unknown target choice '{choice}'",
+                confidence=prob,
+                decision_calls=calls,
+            )
+
+        safe_data_model = _redact_data_model(
+            data_model, exclude=exclude, mutable_paths=mutable_paths
+        )
+        return self._finalize_target(
+            target,
+            answer_map=answer_map,
+            data_model=safe_data_model,
+            actions=actions,
+            surface_id=surface_id,
+            confidence=prob,
+            decision_calls=calls,
+            renderer_state=renderer_state,
+        )
+
     async def bind_tool_output(
         self,
         intent: str,
@@ -1134,62 +1347,18 @@ class ToolPointerBinder:
             return BindResult(abstained=True, reason="empty pointers")
 
         normalized_actions = _normalize_actions(actions)
-        eligible, slot_questions_by_target = self._filter_eligible_targets(
-            pointers, data_model, normalized_actions
-        )
-        if not eligible:
-            return BindResult(
-                abstained=True, reason="no eligible targets for payload pointers"
-            )
-
-        state_text = _format_state_text(intent, tool_name, pointers, normalized_actions)
-        target_answer, answer_map, calls = await self._evaluate_targets(
-            state_text,
-            eligible,
-            slot_questions_by_target,
-            timeout_seconds=timeout_seconds,
-        )
-        choice, prob = target_answer.top()
-        if not choice or choice == "none":
-            return BindResult(
-                abstained=True,
-                reason="target selection chose none",
-                confidence=prob,
-                decision_calls=calls,
-            )
-        if prob < self._min_confidence:
-            return BindResult(
-                abstained=True,
-                reason=(
-                    f"target confidence {prob:.3f} below min_confidence"
-                    f" {self._min_confidence:.3f}"
-                ),
-                target_id=choice,
-                confidence=prob,
-                decision_calls=calls,
-            )
-
-        target = self._target_by_key.get(choice)
-        if target is None:
-            return BindResult(
-                abstained=True,
-                reason=f"unknown target choice '{choice}'",
-                confidence=prob,
-                decision_calls=calls,
-            )
-
-        safe_data_model = _redact_data_model(
-            data_model, exclude=exclude, mutable_paths=mutable_paths
-        )
-        return self._finalize_target(
-            target,
-            answer_map=answer_map,
-            data_model=safe_data_model,
+        return await self._bind_from_pool(
+            intent=intent,
+            source_name=tool_name,
+            data_model=data_model,
+            pointers=pointers,
             actions=normalized_actions,
+            candidate_targets=self._targets,
             surface_id=surface_id,
-            confidence=prob,
-            decision_calls=calls,
+            exclude=exclude,
+            mutable_paths=mutable_paths,
             renderer_state=renderer_state,
+            timeout_seconds=timeout_seconds,
         )
 
     def _finalize_target(

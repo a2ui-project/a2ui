@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import importlib
 import sys
-from typing import Any
 from unittest.mock import MagicMock, patch
 import warnings
 
@@ -390,3 +389,66 @@ def test_bare_str_rejected_for_adk_tool_allowlists() -> None:
             a2ui_processor=processor,
             allowed_a2ui_tool_names="get_weather",  # type: ignore[arg-type]
         )
+
+
+@pytest.mark.asyncio
+async def test_callback_binds_and_lowers_macro_target() -> None:
+    from typing import Literal
+
+    from a2ui.builder.v1_0 import Card, Column, DynamicString, Text
+    from a2ui.transformers.macros import macro
+
+    @macro()
+    def AlertCard(
+        title: DynamicString,
+        service: str,
+        severity: Literal["info", "warning", "critical"] = "info",
+        page_oncall: bool = False,
+    ) -> Card:
+        """Displays a service alert card."""
+        flag = " [PAGING]" if page_oncall else ""
+        return Card(
+            child=Column(
+                children=[
+                    Text(text=title),
+                    Text(text=f"{service} ({severity}){flag}"),
+                ]
+            )
+        )
+
+    macro_cid = "urn:test:adk:macros"
+    tkey = f"{macro_cid}:AlertCard"
+    catalog = BasicCatalog(ProtocolVersion.V1_0)
+    backend = DeterministicMockBackend(
+        scripted_answers={
+            "select:target": (tkey, 0.94),
+            f"bind:{tkey}:title": ("/title", 0.95),
+            f"bind:{tkey}:service": ("/service", 0.93),
+            f"bind:{tkey}:severity": ("critical", 0.91),
+            f"bind:{tkey}:page_oncall": 0.92,
+        }
+    )
+    binder = ToolPointerBinder(
+        backend,
+        transport_catalogs=[catalog],
+        macros=[AlertCard],
+        macro_catalog_id=macro_cid,
+    )
+    ctx = _tool_context()
+    callback = make_adk_after_tool_callback(
+        binder,
+        allowed_tools=("get_alert",),
+    )
+    result = await callback(
+        tool=_tool_mock("get_alert"),
+        args={},
+        tool_context=ctx,
+        tool_response={"title": "DB pool exhausted", "service": "orders-api"},
+    )
+    assert result is not None
+    assert A2UI_VALIDATED_JSON_KEY in result
+    wire = result[A2UI_VALIDATED_JSON_KEY]
+    comp_types = [c["component"] for c in wire[1]["updateComponents"]["components"]]
+    assert "AlertCard" not in comp_types
+    assert "Card" in comp_types
+    assert ctx.actions.skip_summarization is True
