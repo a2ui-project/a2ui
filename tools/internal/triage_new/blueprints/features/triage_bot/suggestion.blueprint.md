@@ -107,7 +107,7 @@ The parts of the comment, in order:
    1. The `tldr`, under **TL;DR**. The part is left out when there is no TL;DR.
    2. The `summary`, the `targeting_prs`, the `targeted_issues`, the `reason` and the `suggestion`, as paragraphs under **Summary**, **Targeting PRs**, **Targeted issues**, **Why flagged for triage** and **Suggestion**. **Targeting PRs** and **Targeted issues** have the URL of each item on its own line. The **Targeting PRs**, **Targeted issues** and **Why flagged for triage** paragraphs are left out when their property has no value.
    3. The other properties that have values, as a numbered list: **Close as**, **Add labels**, **Remove labels**, **Assign**, **Unassign**, **Related items**. An example of **Close as** is "Close as: duplicate of #1100".
-   4. The `reply`, quoted, under **Reply**. The part is left out when there is no reply.
+   4. The `reply`, quoted, under **Reply**.
    5. The command that opens the item in the triage UI.
 3. The **For software** section, collapsed: the component.
 
@@ -132,7 +132,7 @@ The component is defined in [triage_suggestion.dart](../../../pkgs/triage/lib/sr
 2. `summary` (required): what the item is about, in plain English.
 3. `reason`: why the item is flagged for triage, in plain English, such as "This issue has external input but no priority label yet." It is the reason that the [flagger](../../../../triage/blueprints/flagging.blueprint.md) gives for the item, as [flag_reason.mts](../../../../../../.agents/skills/a2ui-triage-bot/scripts/flag_reason.mts) prints it, and is omitted when the flagger does not flag the item.
 4. `suggestion` (required): what the triager should do and why, in plain English.
-5. `reply`: a comment for the item's author or other participants. When the suggestion is applied, the triage UI posts it from the triager's account.
+5. `reply`: a short comment for the item's author or other participants, such as "Assigning this PR to `xyz`, because they already started reviewing it." The triage bot always writes one: it says at least what the triager does and why. When the suggestion is applied, the triage UI posts it from the triager's account.
 6. `close_as`: how to close the item: `completed`, `not_planned` or `duplicate`. When it is omitted, the item stays open. A PR has no close reason, so any value closes it.
 7. `duplicate_of`: the number of the item that this item duplicates. It is set only with `close_as: duplicate`.
 8. `added_labels` and `removed_labels`: labels to add and remove.

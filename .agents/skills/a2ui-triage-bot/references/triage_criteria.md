@@ -60,7 +60,7 @@ Follow [Triage a PR](../../../../docs/contributing/triage/triage.md#triage-a-pr)
 
 If Dependabot opened the PR (author `dependabot`, or `dependabot[bot]` in the REST API) and the PR has merge conflicts with `main`, set `close_as` to `not_planned` and skip the rules below. Say in `suggestion` that the PR has conflicts, and list in `related_items` any open Dependabot PR with the same updates. Use this `reply`: "Closing because this PR has merge conflicts with `main`."
 
-If a team member other than the PR author submitted a review, in any state, that team member started reviewing the PR, and the team has decided to review it. Suggest assigning the reviewer, link to their review in `suggestion`, and skip the review criteria below. If several team members reviewed, suggest the one whose review came first. If the reviewer is already assigned, suggest no assignee. Bots, such as `gemini-code-assist`, are not team members, so their reviews do not count.
+If a team member other than the PR author submitted a review, in any state, that team member started reviewing the PR, and the team has decided to review it. Suggest assigning the reviewer, link to their review in `suggestion`, say it in `reply`, such as "Assigning this PR to `xyz`, because they already started reviewing it.", and skip the review criteria below. If several team members reviewed, suggest the one whose review came first. If the reviewer is already assigned, suggest no assignee. Bots, such as `gemini-code-assist`, are not team members, so their reviews do not count.
 
 Otherwise, suggest a review when all of the following are true, and say which ones you checked:
 
@@ -68,7 +68,7 @@ Otherwise, suggest a review when all of the following are true, and say which on
 2. It does not overlap with open PRs or work in progress. List overlapping PRs in `related_items`.
 3. The team can maintain the change long term.
 
-If you suggest a review, suggest assigning an owner of the changed files, and list the issues the PR targets in `targeted_issues`.
+If you suggest a review, list the issues the PR targets in `targeted_issues`, and suggest no assignee: assign a PR only to a team member who started reviewing it, as the rule above says. You may name an owner of the changed files in `suggestion` as a possible reviewer, with the evidence, but do not put them in `new_assignees`.
 
 Otherwise, set `close_as` to `not_planned` and use the reply from [Triage a PR](../../../../docs/contributing/triage/triage.md#triage-a-pr) as the `reply`.
 
