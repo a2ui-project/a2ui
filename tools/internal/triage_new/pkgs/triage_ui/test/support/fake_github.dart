@@ -34,9 +34,7 @@ DateTime day(int n) => DateTime.utc(2026, 11, n);
 /// `<a2ui>` block.
 String suggestionComment(String component) =>
     '''
-**From triage bot:**
-
-Triage suggestion:
+**From triage bot, suggestion:**
 
 <details>
 <summary>For humans</summary>

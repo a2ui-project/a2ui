@@ -148,7 +148,7 @@ void main() {
         12,
         comments: [
           commentNode(suggestion, at: day(3), editedAt: day(6)),
-          commentNode('**From triage bot:**\n\nPing.', at: day(5)),
+          commentNode('**From triage bot, ping:** @a', at: day(5)),
         ],
         timeline: [
           labeledEvent(needsTriageLabel, day(5)),
