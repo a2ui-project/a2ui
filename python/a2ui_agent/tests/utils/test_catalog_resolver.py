@@ -108,7 +108,7 @@ def test_capabilities_models_and_field_names_are_accepted(capabilities):
                 {"v0.8": {"supportedCatalogIds": ["a"]}}
             ),
         ),
-        ("0.9.1", {"v0.9": {"supportedCatalogIds": ["a"]}}),
+        ("0.9.1", {"v0.9.1": {"supportedCatalogIds": ["a"]}}),
         (
             "1.0",
             v1_0.A2uiRendererCapabilities.model_validate(
@@ -116,7 +116,7 @@ def test_capabilities_models_and_field_names_are_accepted(capabilities):
             ),
         ),
     ],
-    ids=["v0.8", "v0.9.1_reads_v0.9", "v1.0"],
+    ids=["v0.8", "v0.9.1", "v1.0"],
 )
 def test_each_version_reads_its_own_capabilities_key(protocol_version, capabilities):
     resolved = resolve_catalogs([_config("a", protocol_version, "Text")], capabilities)
@@ -153,7 +153,7 @@ def test_v0_8_unkeyed_capabilities_may_declare_inline_catalogs():
 
 
 def test_unkeyed_capabilities_are_invalid_from_v0_9():
-    with pytest.raises(A2uiValidationError, match="no 'v0.9' entry"):
+    with pytest.raises(A2uiValidationError, match="no 'v0.9.1' or 'v0.9' entry"):
         resolve_catalogs([_config("a", "0.9", "Text")], {"supportedCatalogIds": ["a"]})
 
 
@@ -182,6 +182,84 @@ def test_a_renderer_may_send_capabilities_for_several_versions():
     assert _ids(resolved) == ["a"]
 
 
+def test_v0_9_catalogs_read_the_v0_9_1_entry():
+    resolved = resolve_catalogs(
+        [_config("a", "0.9", "Text")], {"v0.9.1": {"supportedCatalogIds": ["a"]}}
+    )
+
+    assert _ids(resolved) == ["a"]
+
+
+def test_v0_9_1_catalogs_fall_back_to_the_v0_9_entry():
+    resolved = resolve_catalogs(
+        [_config("a", "0.9.1", "Text")], {"v0.9": {"supportedCatalogIds": ["a"]}}
+    )
+
+    assert _ids(resolved) == ["a"]
+
+
+@pytest.mark.parametrize("protocol_version", ["0.9", "0.9.1"])
+def test_the_v0_9_1_entry_is_read_before_the_v0_9_entry(protocol_version):
+    catalogs = [
+        _config("a", protocol_version, "Text"),
+        _config("b", protocol_version, "Text"),
+    ]
+    capabilities = {
+        "v0.9": {"supportedCatalogIds": ["b"]},
+        "v0.9.1": {"supportedCatalogIds": ["a"]},
+    }
+
+    resolved = resolve_catalogs(catalogs, capabilities)
+
+    assert _ids(resolved) == ["a"]
+
+
+@pytest.mark.parametrize("protocol_version", ["0.9", "0.9.1"])
+def test_the_v0_9_entry_is_read_when_the_v0_9_1_entry_activates_no_catalog(
+    protocol_version,
+):
+    capabilities = {
+        "v0.9": {"supportedCatalogIds": ["a"]},
+        "v0.9.1": {"supportedCatalogIds": ["other"]},
+    }
+
+    resolved = resolve_catalogs([_config("a", protocol_version, "Text")], capabilities)
+
+    assert _ids(resolved) == ["a"]
+
+
+def test_no_match_in_either_v0_9_entry_names_the_registered_catalogs():
+    capabilities = {
+        "v0.9": {"supportedCatalogIds": ["other"]},
+        "v0.9.1": {"supportedCatalogIds": ["other"]},
+    }
+
+    with pytest.raises(
+        A2uiCatalogError, match=r"No client-supported catalog found.*\['a'\]"
+    ):
+        resolve_catalogs([_config("a", "0.9", "Text")], capabilities)
+
+
+def test_a_malformed_v0_9_entry_beside_a_v0_9_1_entry_is_invalid():
+    capabilities = {
+        "v0.9": {"supportedCatalogIds": "a"},
+        "v0.9.1": {"supportedCatalogIds": ["a"]},
+    }
+
+    with pytest.raises(A2uiValidationError, match="Invalid 'v0.9' renderer"):
+        resolve_catalogs([_config("a", "0.9", "Text")], capabilities)
+
+
+def test_v0_9_and_v0_9_1_catalogs_resolve_together():
+    catalogs = [_config("a", "0.9", "Text"), _config("b", "0.9.1", "Text")]
+
+    resolved = resolve_catalogs(
+        catalogs, {"v0.9.1": {"supportedCatalogIds": ["a", "b"]}}
+    )
+
+    assert _ids(resolved) == ["a", "b"]
+
+
 @pytest.mark.parametrize(
     "capabilities",
     [
@@ -194,7 +272,7 @@ def test_a_renderer_may_send_capabilities_for_several_versions():
     ids=["other_version_mapping", "other_version_model", "unkeyed"],
 )
 def test_capabilities_without_the_catalogs_version_are_invalid(capabilities):
-    with pytest.raises(A2uiValidationError, match="no 'v0.9' entry"):
+    with pytest.raises(A2uiValidationError, match="no 'v0.9.1' or 'v0.9' entry"):
         resolve_catalogs([_config("a", "0.9", "Text")], capabilities)
 
 
@@ -225,9 +303,19 @@ def test_catalogs_that_read_different_capabilities_keys_are_rejected():
         resolve_catalogs(catalogs, {"1.0": {"supportedCatalogIds": ["b"]}})
 
 
-def test_inline_catalogs_use_the_registered_catalogs_version():
+@pytest.mark.parametrize("key", ["v0.9", "v0.9.1"])
+@pytest.mark.parametrize(
+    "registered_versions",
+    [("0.9", "0.9.1"), ("0.9.1", "0.9")],
+    ids=["v0.9_first", "v0.9.1_first"],
+)
+def test_inline_catalogs_take_the_version_of_their_entry(key, registered_versions):
+    catalogs = [
+        _config(catalog_id, version, "Text")
+        for catalog_id, version in zip(["a", "b"], registered_versions)
+    ]
     capabilities = {
-        "v0.9": {
+        key: {
             "supportedCatalogIds": [],
             "inlineCatalogs": [{
                 "catalogId": "inline",
@@ -236,12 +324,10 @@ def test_inline_catalogs_use_the_registered_catalogs_version():
         }
     }
 
-    (resolved,) = resolve_catalogs(
-        [_config("a", "0.9", "Text")], capabilities, accepts_inline_catalogs=True
-    )
+    (resolved,) = resolve_catalogs(catalogs, capabilities, accepts_inline_catalogs=True)
 
     assert resolved.catalog_id == "inline"
-    assert resolved.protocol_version == "v0.9"
+    assert resolved.protocol_version == key
     assert set(resolved.components) == {"Marquee"}
 
 
