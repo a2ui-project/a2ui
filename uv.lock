@@ -293,7 +293,7 @@ name = "a2ui-eval"
 version = "0.1.0"
 source = { editable = "eval" }
 dependencies = [
-    { name = "a2ui-agent-sdk" },
+    { name = "a2ui-agent-sdk", extra = ["decision"] },
     { name = "google-genai" },
     { name = "inspect-ai" },
     { name = "jsonschema" },
@@ -312,7 +312,7 @@ frontier = [
 
 [package.metadata]
 requires-dist = [
-    { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
+    { name = "a2ui-agent-sdk", extras = ["decision"], editable = "python/a2ui_agent" },
     { name = "anthropic", marker = "extra == 'frontier'", specifier = ">=0.49.0" },
     { name = "google-genai", specifier = ">=1.27.0" },
     { name = "inspect-ai", specifier = ">=0.3.217" },

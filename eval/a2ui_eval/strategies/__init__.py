@@ -21,6 +21,7 @@ from typing import Any, Callable
 from inspect_ai.solver import Solver
 
 from ..runner import validate_strategy
+from .decision import decision_solver
 from .format import (
     compile_format_payload,
     format_solver,
@@ -39,6 +40,8 @@ from .subagent_tool import (
 STRATEGY_OPTION_KEYS: tuple[str, ...] = (
     "max_validation_retries",
     "subagent_format",
+    "decision_backend",
+    "cache_generations",
 )
 
 
@@ -46,16 +49,19 @@ def _format_strategy(format_name: str) -> Callable[..., list[Solver]]:
     """Builds the factory for a strategy that is one inference format."""
 
     def build(version: str, **options: Any) -> list[Solver]:
+        """Constructs the solver chain for `format_name` at `version`."""
         return format_solver(
             format_name,
             version,
             max_validation_retries=options.get("max_validation_retries", 0),
+            cache=options.get("cache_generations", False),
         )
 
     return build
 
 
 def _subagent_strategy(version: str, **options: Any) -> list[Solver]:
+    """Constructs the subagent tool strategy solver chain."""
     return subagent_tool_strategy(
         version,
         subagent_format=options.get("subagent_format") or "direct_json",
@@ -64,10 +70,21 @@ def _subagent_strategy(version: str, **options: Any) -> list[Solver]:
 
 
 def _skill_mode(version: str, **options: Any) -> list[Solver]:
+    """Constructs the skill mode strategy solver chain."""
     return skill_mode_strategy(
         "express",
         version,
         max_validation_retries=options.get("max_validation_retries", 0),
+    )
+
+
+def _decision_strategy(version: str, **options: Any) -> list[Solver]:
+    """Constructs the decision strategy solver chain."""
+    return decision_solver(
+        version,
+        decision_backend=options.get("decision_backend"),
+        max_validation_retries=options.get("max_validation_retries", 0),
+        cache=options.get("cache_generations", False),
     )
 
 
@@ -78,6 +95,7 @@ STRATEGIES: dict[str, Callable[..., list[Solver]]] = {
     "skill_mode": _skill_mode,
     "elemental": _format_strategy("elemental"),
     "atom": _format_strategy("atom"),
+    "decision": _decision_strategy,
 }
 
 
