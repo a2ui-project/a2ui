@@ -175,14 +175,14 @@ void main() {
     });
 
     void createSurface(String catalogId) => processor.processMessages(
-          AgentToRendererMessagePayload([
-            CreateSurfaceMessage(
-              version: '1.0',
-              surfaceId: 's1',
-              catalogId: catalogId,
-            ),
-          ]),
-        );
+      AgentToRendererMessagePayload([
+        CreateSurfaceMessage(
+          version: '1.0',
+          surfaceId: 's1',
+          catalogId: catalogId,
+        ),
+      ]),
+    );
 
     test('resolves a later createSurface naming the added catalog', () {
       expect(() => createSurface('late'), throwsA(isA<A2uiCatalogError>()));
@@ -209,10 +209,10 @@ void main() {
           )
           .toJson();
 
-      expect(
-        (json['1.0']! as Map<String, Object?>)['supportedCatalogIds'],
-        ['cat1', 'late'],
-      );
+      expect((json['1.0']! as Map<String, Object?>)['supportedCatalogIds'], [
+        'cat1',
+        'late',
+      ]);
     });
   });
 
