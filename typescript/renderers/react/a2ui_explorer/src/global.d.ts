@@ -27,3 +27,9 @@ declare module '*.module.css' {
   const classes: {readonly [key: string]: string};
   export default classes;
 }
+
+/**
+ * Declares typings for plain CSS side-effect imports (e.g. `import './App.css'`).
+ * TypeScript 6.0 requires a module declaration for these; they carry no exports.
+ */
+declare module '*.css';
