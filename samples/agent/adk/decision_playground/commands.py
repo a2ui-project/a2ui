@@ -27,6 +27,7 @@ CommandKind = Literal[
     "budget",
     "tool",
     "gated",
+    "prose",
     "form",
     "compare",
     "trace",
@@ -60,6 +61,7 @@ def parse_command(text: str) -> ParsedCommand | None:
         "/budget": "budget",
         "/tool": "tool",
         "/gated": "gated",
+        "/prose": "prose",
         "/form": "form",
         "/compare": "compare",
         "/trace": "trace",
@@ -100,12 +102,14 @@ def format_help(
     tool_aliases: tuple[str, ...],
     form_aliases: tuple[str, ...],
     gated_aliases: tuple[str, ...] = (),
+    prose_aliases: tuple[str, ...] = (),
 ) -> str:
     """Formats the `/help` status and command reference card text."""
     budget_label = f"{budget_ms:g} ms" if budget_ms is not None else "off"
     tools_str = " | ".join(tool_aliases)
     forms_str = " | ".join(form_aliases)
     gated_str = " | ".join(gated_aliases)
+    prose_str = " | ".join(prose_aliases)
     lines = [
         "### A2UI Decision Playground",
         f"- Active mode: `{mode.value}`",
@@ -113,7 +117,7 @@ def format_help(
         f"- Latency budget: `{budget_label}`",
         "",
         "**Commands**",
-        "- `/mode cascade | binder | gated | rpc | express | direct`",
+        "- `/mode cascade | binder | gated | prose | rpc | express | direct`",
         "- `/backend mock | gemini | jev | step0`",
         (
             "- `/budget <ms> | off` (for example `/budget 300` to test tight-budget"
@@ -128,6 +132,11 @@ def format_help(
         lines.append(
             f"- `/gated {gated_str}` (evaluate optional regions and variants on a"
             " gated template)"
+        )
+    if prose_str:
+        lines.append(
+            f"- `/prose {prose_str}` (upgrade plain prose into a companion A2UI"
+            " surface or abstain)"
         )
     lines.extend([
         (

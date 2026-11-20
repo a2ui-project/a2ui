@@ -17,6 +17,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import asyncio
+import json
 import os
 import time
 from typing import Any
@@ -44,6 +46,14 @@ from a2ui.inference_formats.experimental.decision_cascade import (
 from a2ui.inference_formats.experimental.decision_gated_templates import (
     GatedTemplateEvaluator,
 )
+from a2ui.inference_formats.experimental.decision_prose_upgrade import (
+    DeterministicMockExtractor,
+    ExtractionThresholds,
+    FieldExtractionError,
+    FieldExtractor,
+    ProseSurfaceUpgrader,
+    StructuredOutputExtractor,
+)
 from a2ui.inference_formats.express import ExpressCompiler, ExpressDecompiler
 from a2ui.parser import A2uiPart
 from a2ui.rpc import RendererToAgentMessageProcessor
@@ -61,6 +71,7 @@ from surfaces import (
     EXPRESS_TEMPLATES,
     GATED_TEMPLATES,
     PLAYGROUND_MACROS,
+    PROSE_TEMPLATES,
     RPC_PREDICATE_CATALOG_ID,
     RPC_PREDICATE_SPECS,
     build_status_card_messages,
@@ -524,6 +535,114 @@ class PlaygroundRenderers:
                 messages=dicts,
                 stage="template_select",
                 confidence=avg_conf,
+                selected_template_id=result.template_id,
+                total_latency_ms=elapsed,
+                decompiled_express=_decompile_express([self._catalog], result.messages),
+            ),
+            rec.calls,
+        )
+
+    def _build_prose_extractor(
+        self, mock_values: Mapping[str, Any] | None = None
+    ) -> tuple[FieldExtractor, bool]:
+        """Builds a live Gemini Flash-Lite extractor or offline mock extractor."""
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if self._backend.backend_kind == "mock" or not api_key:
+            return DeterministicMockExtractor(mock_values or {}), False
+
+        from google import genai
+        from google.genai import types as genai_types
+
+        client = genai.Client(api_key=api_key)
+        model_name = os.environ.get("PROSE_EXTRACTOR_MODEL", "gemini-2.5-flash-lite")
+
+        async def _call_flash(
+            prompt: str, schema: dict[str, Any], timeout: float | None
+        ) -> Mapping[str, Any]:
+            del timeout
+            resp = await asyncio.to_thread(
+                client.models.generate_content,
+                model=model_name,
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=schema,
+                    temperature=0.0,
+                    thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
+                ),
+            )
+            return dict(json.loads(resp.text or "{}"))
+
+        return StructuredOutputExtractor(_call_flash, model_id=model_name), True
+
+    async def run_prose(
+        self,
+        *,
+        prose: str,
+        mock_values: Mapping[str, Any] | None = None,
+        surface_id: str = "main",
+    ) -> tuple[RenderOutcome, list[RecordedBatchCall]]:
+        """Executes Idea 6 (`ProseSurfaceUpgrader`) over plain prose input."""
+        start = time.perf_counter()
+        rec = self._recorder()
+        extractor, require_grounded = self._build_prose_extractor(mock_values)
+        upgrader = ProseSurfaceUpgrader(
+            rec,
+            extractor,
+            transport_catalogs=[self._catalog],
+            templates=PROSE_TEMPLATES,
+            extraction_thresholds=ExtractionThresholds(
+                require_grounded_span=require_grounded
+            ),
+        )
+        try:
+            result = await upgrader.upgrade(prose, surface_id=surface_id)
+        except (DecisionBackendError, FieldExtractionError) as exc:
+            elapsed = (time.perf_counter() - start) * 1000.0
+            msg = f"Prose upgrade error: {exc}"
+            return (
+                RenderOutcome(
+                    mode=RenderMode.PROSE,
+                    surface_id=surface_id,
+                    messages=tuple(build_status_card_messages(surface_id, msg)),
+                    ok=False,
+                    error=msg,
+                    stage="abstain_fallback",
+                    fallback_reason="backend_error",
+                    total_latency_ms=elapsed,
+                ),
+                rec.calls,
+            )
+
+        elapsed = (time.perf_counter() - start) * 1000.0
+        if result.abstained or not result.messages:
+            summary = (
+                f"**Prose-only (abstained)**: {result.reason}\n\n> {prose.strip()}"
+            )
+            return (
+                RenderOutcome(
+                    mode=RenderMode.PROSE,
+                    surface_id=surface_id,
+                    messages=tuple(build_status_card_messages(surface_id, summary)),
+                    text=prose,
+                    stage="abstain_fallback",
+                    confidence=result.gate_probability,
+                    fallback_source="abstain",
+                    fallback_reason=result.reason,
+                    total_latency_ms=elapsed,
+                ),
+                rec.calls,
+            )
+
+        dicts = tuple(to_message_dicts(result.messages))
+        return (
+            RenderOutcome(
+                mode=RenderMode.PROSE,
+                surface_id=surface_id,
+                messages=dicts,
+                text=prose,
+                stage="template_select",
+                confidence=result.template_confidence,
                 selected_template_id=result.template_id,
                 total_latency_ms=elapsed,
                 decompiled_express=_decompile_express([self._catalog], result.messages),

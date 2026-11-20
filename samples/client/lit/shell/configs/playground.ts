@@ -31,7 +31,7 @@ export const playgroundConfig: AppConfig = {
   clearSurfacesOnResponse: false,
   inspector: true,
   modeControls: {
-    modes: ['cascade', 'binder', 'gated', 'rpc', 'express', 'direct'],
+    modes: ['cascade', 'binder', 'gated', 'prose', 'rpc', 'express', 'direct'],
     backends: ['mock', 'gemini', 'jev', 'step0'],
     modeExplainers: {
       cascade: {
@@ -45,6 +45,10 @@ export const playgroundConfig: AppConfig = {
       gated: {
         title: 'Gated Mode (GatedTemplateEvaluator)',
         body: 'Evaluates optional regions (a2ui_gate) and mutually exclusive layout variants (a2ui_variant) stored in A2UI v1.0 @metadata.extensions. Compare Incident (Degraded) vs Incident (Healthy) or Order (Delayed) vs Order (Delivered) to watch the decision model keep or prune subtrees in one batch and emit clean v1.0 wire messages.',
+      },
+      prose: {
+        title: 'Prose Mode (ProseSurfaceUpgrader)',
+        body: 'Upgrades plain LLM prose into a companion A2UI v1.0 surface with zero A2UI prompt instructions. One decision batch gates whether the prose holds concrete structured data and selects a template, then a typed FieldExtractor (gemini-2.5-flash-lite with thinking disabled) lifts grounded values into updateDataModel. Try the structured prose presets vs Unstructured Prose (Abstains), or paste any plain prose paragraph.',
       },
       rpc: {
         title: 'RPC Mode (Submit-Time Decision Predicates)',
@@ -120,6 +124,30 @@ export const playgroundConfig: AppConfig = {
       message: '/gated order_delivered',
       title: 'Gated template: prunes delay warning and refund action, picks delivered variant',
       modes: ['gated'],
+    },
+    {
+      label: 'Order Prose',
+      message: '/prose order',
+      title: 'Upgrade plain order-status prose into an Order Details card',
+      modes: ['prose'],
+    },
+    {
+      label: 'Host Prose',
+      message: '/prose host',
+      title: 'Upgrade plain server-health prose into a Host Health card',
+      modes: ['prose'],
+    },
+    {
+      label: 'Ski Report Prose',
+      message: '/prose resort',
+      title: 'Upgrade plain snow-report prose into a Ski Resort card',
+      modes: ['prose'],
+    },
+    {
+      label: 'Unstructured Prose',
+      message: '/prose unstructured',
+      title: 'Plain general advice prose that cleanly abstains from rendering a card',
+      modes: ['prose'],
     },
     {
       label: 'Bug Report',

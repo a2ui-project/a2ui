@@ -187,6 +187,7 @@ export type PlaygroundMode =
   | 'cascade'
   | 'binder'
   | 'gated'
+  | 'prose'
   | 'rpc'
   | 'express'
   | 'direct'

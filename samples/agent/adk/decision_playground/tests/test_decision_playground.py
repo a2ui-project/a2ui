@@ -484,3 +484,24 @@ async def test_binder_macro_incident_tool_lowers_to_basic_catalog() -> None:
     assert "IncidentAlertCard" not in comp_types
     assert "Card" in comp_types
     assert "Button" in comp_types
+
+
+@pytest.mark.asyncio
+async def test_prose_mode_upgrades_structured_prose_and_abstains_on_unstructured() -> None:
+    agent = _make_agent()
+
+    upgraded = await agent.handle_text_turn(
+        "/prose order", context_id="ctx-prose", include_trace=True
+    )
+    assert upgraded.trace is not None
+    assert upgraded.trace["activeMode"] == "prose"
+    data_msgs = [m["updateDataModel"]["value"] for m in upgraded.messages if "updateDataModel" in m]
+    assert len(data_msgs) == 1
+    assert data_msgs[0]["orderId"] == "ORD-8492"
+
+    abstained = await agent.handle_text_turn(
+        "/prose unstructured", context_id="ctx-prose", include_trace=True
+    )
+    assert abstained.trace is not None
+    assert abstained.trace["activeMode"] == "prose"
+    assert abstained.trace["candidates"][0]["decisionOutput"]["stage"] == "abstain_fallback"
