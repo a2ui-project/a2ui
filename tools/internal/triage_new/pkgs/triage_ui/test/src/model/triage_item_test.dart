@@ -78,6 +78,74 @@ void main() {
     expect(item.linkedItems, [12]);
   });
 
+  group('kind', () {
+    String targeting(String list, int number) => suggestionComment(
+      'root = TriageSuggestion(summary="A fix.", suggestion="Review it.", '
+      '$list=[$number])',
+    );
+
+    test('counts the linked items', () {
+      expect(read(itemNode(12, linked: [13])).kind, ItemKind.issueWithPrs);
+      expect(read(itemNode(12)).kind, ItemKind.issueWithoutPrs);
+      expect(
+        read(itemNode(13, pr: true, linked: [12])).kind,
+        ItemKind.prWithIssues,
+      );
+      expect(read(itemNode(13, pr: true)).kind, ItemKind.prWithoutIssues);
+    });
+
+    test('counts the issues that the suggestion of a PR says it targets', () {
+      final TriageItem item = read(
+        itemNode(
+          13,
+          pr: true,
+          comments: [commentNode(targeting('targeted_issues', 12), at: day(3))],
+        ),
+      );
+
+      expect(item.linkedItems, isEmpty);
+      expect(item.linkedAndTargetedItems, [12]);
+      expect(item.kind, ItemKind.prWithIssues);
+    });
+
+    test('counts the PRs that the suggestion of an issue says target it', () {
+      final TriageItem item = read(
+        itemNode(
+          12,
+          comments: [commentNode(targeting('targeting_prs', 13), at: day(3))],
+        ),
+      );
+
+      expect(item.linkedAndTargetedItems, [13]);
+      expect(item.kind, ItemKind.issueWithPrs);
+    });
+
+    test('does not repeat a linked item that the suggestion lists', () {
+      final TriageItem item = read(
+        itemNode(
+          13,
+          pr: true,
+          linked: [12],
+          comments: [commentNode(targeting('targeted_issues', 12), at: day(3))],
+        ),
+      );
+
+      expect(item.linkedAndTargetedItems, [12]);
+    });
+
+    test('ignores the list for the other kind of item', () {
+      final TriageItem item = read(
+        itemNode(
+          13,
+          pr: true,
+          comments: [commentNode(targeting('targeting_prs', 14), at: day(3))],
+        ),
+      );
+
+      expect(item.kind, ItemKind.prWithoutIssues);
+    });
+  });
+
   test('reads a current suggestion', () {
     final TriageItem item = read(
       itemNode(

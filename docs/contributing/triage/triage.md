@@ -57,6 +57,8 @@ The triage is done when the issue has a priority and every open question or comm
 
 ### Triage a PR
 
+Draft PRs are not triaged: they are still in their authors' hands. If a PR is unfinished and waits for its author, convert it to a draft, which takes it off the triage queue until the author marks it ready for review.
+
 Review the PR when all of the following are true:
 
 - It is a minor change (such as a docs fix or a small bug fix with a test), or it addresses an issue that is assigned to the PR author.

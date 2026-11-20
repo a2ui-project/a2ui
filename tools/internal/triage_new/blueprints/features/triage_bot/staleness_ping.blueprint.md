@@ -21,7 +21,7 @@ A current ping is **expired** when it is older than the grace period of its case
 
 ## Stale items
 
-An open issue or PR is **stale** when it matches one of these cases:
+An open issue or PR is **stale** when it matches one of these cases. A [draft PR](../../core.blueprint.md#draft-prs) is never stale.
 
 1. **Triage assignment.** Issue or PR that has `status: assigned-for-triage`, at least one assignee, and the label was last added more than 14 days ago. Grace period: 7 days.
 2. **Inactive `P0`.** It is an issue with `P0`, at least one assignee, and no team member contribution for more than 1 day. Grace period: 1 day.

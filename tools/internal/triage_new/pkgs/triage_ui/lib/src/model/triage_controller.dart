@@ -347,29 +347,23 @@ class TriageController extends ChangeNotifier {
   }
 
   /// The linked and related items that are neither in the queue nor opened
-  /// by URL, loaded by [loadLinked] and [closedAs].
+  /// by URL, loaded by [loadLinked] and [relatedItem].
   final Map<ItemRef, TriageItem> _linked = {};
 
-  /// "merged" if [ref] refers to a merged pull request, "closed" if the
-  /// item is closed otherwise, and null if it is open or not known yet.
+  /// The item that [ref] refers to, whether or not it needs triage, or null
+  /// if it is not loaded yet.
   ///
   /// An item that is not loaded is loaded in the background, and the
   /// controller notifies its listeners once it is.
-  String? closedAs(ItemRef ref) {
-    if (item(ref) ?? _linked[ref] case final TriageItem i) {
-      return i.isMerged
-          ? 'merged'
-          : i.isOpen
-          ? null
-          : 'closed';
-    }
+  TriageItem? relatedItem(ItemRef ref) {
+    if (item(ref) ?? _linked[ref] case final TriageItem i) return i;
     if (_service != null) {
       unawaited(_linkedFetches.putIfAbsent(ref, () => _fetch(ref)));
     }
     return null;
   }
 
-  /// The fetches that [loadLinked] and [closedAs] started, by item.
+  /// The fetches that [loadLinked] and [relatedItem] started, by item.
   final Map<ItemRef, Future<void>> _linkedFetches = {};
 
   /// [item] and all the items linked to it, whether or not they need

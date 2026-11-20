@@ -49,6 +49,8 @@ export interface Item {
   assignees?: readonly unknown[] | null;
   // Present only on PRs.
   pull_request?: unknown;
+  // Whether a PR is a draft. Present only on PRs.
+  draft?: boolean;
   // The number of top-level comments.
   comments?: number;
 }
@@ -267,6 +269,12 @@ export function flagReason(
   const labels = labelNames(item);
   const isPR = Boolean(item.pull_request);
   const assigneeCount = item.assignees?.length ?? 0;
+
+  // Step 0: a draft PR is still in its author's hands, so it is nobody's
+  // triage work until the author marks it ready for review.
+  if (isPR && item.draft) {
+    return null;
+  }
 
   // Step 1: a parked item is off the triage queue entirely. Its label is
   // cleared once an external contributor responds, which puts it back in play.

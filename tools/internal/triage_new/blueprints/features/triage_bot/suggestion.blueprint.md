@@ -137,7 +137,7 @@ The component is defined in [triage_suggestion.dart](../../../pkgs/triage/lib/sr
 7. `duplicate_of`: the number of the item that this item duplicates. It is set only with `close_as: duplicate`.
 8. `added_labels` and `removed_labels`: labels to add and remove.
 9. `new_assignees` and `removed_assignees`: GitHub logins to assign and unassign.
-10. `targeting_prs`: numbers of open PRs that target the item, such as PRs that fix it. A PR can target an issue without being linked to close it, so the `suggestion` says whether each PR closes the issue. The triage UI counts a PR as an open PR of the issue only when the PR is linked to close it.
+10. `targeting_prs`: numbers of open PRs that target the item, such as PRs that fix it. A PR can target an issue without being linked to close it, so the `suggestion` says whether each PR closes the issue. The triage UI lists the issue under **Issues with open PRs** when it has a PR in `targeting_prs` or a PR linked to close it, and a PR under **PRs with issues** when it has an issue in `targeted_issues` or an issue it is linked to close. See [Items](../ui.blueprint.md#items).
 11. `targeted_issues`: numbers of issues that the item targets, such as the issues that a PR fixes.
 12. `related_items`: numbers of other issues and PRs that relate to the item, which the triager may want to read.
 

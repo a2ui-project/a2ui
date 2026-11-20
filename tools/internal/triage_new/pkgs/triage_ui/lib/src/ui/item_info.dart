@@ -253,35 +253,22 @@ class _RelatedItems extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final TriageController controller = TriageScope.of(context);
     final int? duplicateOf = draft.toSuggestion().duplicateOf;
-    // "(closed)" or "(merged)" once the item is known to be.
+    // The number, its label, and whether it is a PR, if the label says.
     // The numbers are in the item's repository.
-    String closed(int n) => switch (controller.closedAs(item.refTo(n))) {
-      final String state => ' ($state)',
-      null => '',
-    };
-    String issue(int n) => issueUrl(item.refTo(n));
-    String pullRequest(int n) => pullRequestUrl(item.refTo(n));
-    final links = <(String, String)>[
+    final links = <(int, String, bool?)>[
       for (final int n in item.linkedItems)
         item.isPullRequest
-            ? ('Fixes issue #$n${closed(n)}', issue(n))
-            : ('Fixed by PR #$n${closed(n)}', pullRequest(n)),
+            ? (n, 'Fixes issue #$n', false)
+            : (n, 'Fixed by PR #$n', true),
       if (duplicateOf != null)
-        (
-          'Duplicate of #$duplicateOf${closed(duplicateOf)}',
-          issue(duplicateOf),
-        ),
+        (duplicateOf, 'Duplicate of #$duplicateOf', false),
       // The PRs and issues that GitHub links already have a link above.
       for (final int n in draft.targetingPrs)
-        if (!item.linkedItems.contains(n))
-          ('Targeted by PR #$n${closed(n)}', pullRequest(n)),
+        if (!item.linkedItems.contains(n)) (n, 'Targeted by PR #$n', true),
       for (final int n in draft.targetedIssues)
-        if (!item.linkedItems.contains(n))
-          ('Targets issue #$n${closed(n)}', issue(n)),
-      // GitHub redirects the issue URL of a PR to the PR.
-      for (final int n in draft.relatedItems) ('#$n${closed(n)}', issue(n)),
+        if (!item.linkedItems.contains(n)) (n, 'Targets issue #$n', false),
+      for (final int n in draft.relatedItems) (n, '#$n', null),
     ];
     if (links.isEmpty) return const SizedBox.shrink();
     return Column(
@@ -294,21 +281,75 @@ class _RelatedItems extends StatelessWidget {
           runSpacing: 4,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            for (final (String text, String url) in links)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 2,
-                children: [
-                  ActionChip(
-                    label: Text(text),
-                    tooltip: url,
-                    onPressed: () => openUrl(url),
-                  ),
-                  CopyLinkButton(url),
-                ],
+            for (final (int n, String text, bool? isPullRequest) in links)
+              _RelatedItem(
+                ref: item.refTo(n),
+                text: text,
+                isPullRequest: isPullRequest,
               ),
           ],
         ),
+      ],
+    );
+  }
+}
+
+/// A link to the item that [ref] refers to, with an icon for its type, in
+/// the color of its state, as GitHub shows them: green while it is open,
+/// purple once it is merged, or closed for an issue, and red for a PR
+/// closed without merging.
+class _RelatedItem extends StatelessWidget {
+  const _RelatedItem({
+    required this.ref,
+    required this.text,
+    required this.isPullRequest,
+  });
+
+  final ItemRef ref;
+  final String text;
+
+  /// Whether the item is a PR, as [text] says, or null if it does not say.
+  /// Once the item is loaded, the item says.
+  final bool? isPullRequest;
+
+  @override
+  Widget build(BuildContext context) {
+    final TriageItem? related = TriageScope.of(context).relatedItem(ref);
+    final bool? pr = related?.isPullRequest ?? isPullRequest;
+    // GitHub redirects the issue URL of a PR to the PR.
+    final String url = pr ?? false ? pullRequestUrl(ref) : issueUrl(ref);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    Color shade(MaterialColor color) => dark ? color.shade300 : color.shade700;
+    final (String? state, Color? color) = switch (related) {
+      null => (null, null),
+      TriageItem(isOpen: true) => ('Open', shade(Colors.green)),
+      TriageItem(isMerged: true) => ('Merged', shade(Colors.purple)),
+      TriageItem(isPullRequest: true) => ('Closed', shade(Colors.red)),
+      TriageItem() => ('Closed', shade(Colors.purple)),
+    };
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 2,
+      children: [
+        ActionChip(
+          avatar: switch (pr) {
+            null => null,
+            true => Icon(
+              Icons.call_merge,
+              color: color,
+              semanticLabel: state == null ? 'PR' : '$state PR',
+            ),
+            false => Icon(
+              Icons.adjust,
+              color: color,
+              semanticLabel: state == null ? 'Issue' : '$state issue',
+            ),
+          },
+          label: Text(text),
+          tooltip: url,
+          onPressed: () => openUrl(url),
+        ),
+        CopyLinkButton(url),
       ],
     );
   }

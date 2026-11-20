@@ -567,6 +567,19 @@ describe('flagReason — PRs', () => {
     assert.equal(flagReason({...item, assignees: dev}, [], NOW), null);
   });
 
+  it('never flags a draft PR, whatever else would flag it', () => {
+    const drafts = [
+      pr({draft: true}),
+      pr({draft: true, labels: [ASSIGNED_FOR_TRIAGE_LABEL]}),
+      pr({draft: true, author_association: 'MEMBER', labels: [ASSIGNED_FOR_TRIAGE_LABEL]}),
+    ];
+    for (const item of drafts) {
+      assert.equal(flagReason(item, [externalComment(0)], NOW), null);
+    }
+    // Marked ready for review, the same PR is flagged again.
+    assertReason(flagReason(pr({draft: false}), [], NOW), /no assignee/);
+  });
+
   it('never flags a maintainer-authored PR, however old', () => {
     for (const association of ['OWNER', 'MEMBER', 'COLLABORATOR']) {
       const item = pr({created_at: daysAgo(30), author_association: association});
@@ -710,6 +723,15 @@ describe('issueTriage reconciliation', () => {
     await issueTriage({github, context});
 
     assert.deepEqual(calls.removeLabel, [{number: 8, name: FLAG_LABEL}]);
+    assert.equal(calls.addLabels.length, 0);
+  });
+
+  it('removes the label from a PR converted to a draft', async () => {
+    const item = pr({number: 10, draft: true, labels: [FLAG_LABEL]});
+    github = makeGithub([item]);
+    await issueTriage({github, context});
+
+    assert.deepEqual(calls.removeLabel, [{number: 10, name: FLAG_LABEL}]);
     assert.equal(calls.addLabels.length, 0);
   });
 

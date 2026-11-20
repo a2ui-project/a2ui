@@ -43,6 +43,15 @@ void main() {
         createdAt: day(5),
       ),
       itemNode(41, pr: true, labels: [needsTeamInputLabel], createdAt: day(4)),
+      // Draft PRs are not in the queue, whatever their labels.
+      itemNode(50, pr: true, draft: true, createdAt: day(1)),
+      itemNode(
+        51,
+        pr: true,
+        draft: true,
+        labels: [needsTeamInputLabel],
+        createdAt: day(1),
+      ),
     ]);
     controller = TriageController(connect: () async => github.service());
   });
@@ -60,9 +69,9 @@ void main() {
   GitHubItem url(String path) =>
       GitHubItem.tryParse('https://github.com/a2ui-project/a2ui/$path')!;
 
-  test('loads the queue in groups: issues with open PRs, issues without open '
-      'PRs, PRs with issues, then PRs without issues, least recently updated '
-      'first', () async {
+  test('loads the queue without draft PRs, in groups: issues with open PRs, '
+      'issues without open PRs, PRs with issues, then PRs without issues, '
+      'least recently updated first', () async {
     await controller.start();
 
     expect(controller.isConnected, isTrue);
@@ -89,6 +98,13 @@ void main() {
         pr: true,
         labels: [needsTeamInputLabel],
         createdAt: day(6),
+      )
+      ..[13] = itemNode(
+        13,
+        repository: genuiRepository,
+        pr: true,
+        draft: true,
+        createdAt: day(1),
       )
       // Issues on genui are not in the queue.
       ..[12] = itemNode(12, repository: genuiRepository);

@@ -48,17 +48,21 @@ const String teamNoteHeading = '**$teamNoteTitle**\n\n';
 /// `ui.blueprint.md`.
 enum ItemKind {
   /// An issue that open pull requests are linked to close, whoever opened
-  /// them.
+  /// them, or that the suggestion lists pull requests in `targeting_prs`
+  /// for.
   issueWithPrs,
 
-  /// An issue that no open pull request is linked to close. Closed and
-  /// merged pull requests do not count.
+  /// An issue that no open pull request is linked to close, and whose
+  /// suggestion lists no pull request in `targeting_prs`. Closed and merged
+  /// pull requests do not count.
   issueWithoutPrs,
 
-  /// A pull request that closes issues.
+  /// A pull request that closes issues, or whose suggestion lists issues in
+  /// `targeted_issues`.
   prWithIssues,
 
-  /// A pull request that closes no issue.
+  /// A pull request that closes no issue, and whose suggestion lists no
+  /// issue in `targeted_issues`.
   prWithoutIssues,
 }
 
@@ -257,12 +261,23 @@ final class TriageItem {
 
   bool get needsTeamInput => labels.contains(needsTeamInputLabel);
 
-  ItemKind get kind => switch ((isPullRequest, linkedItems.isEmpty)) {
-    (false, false) => ItemKind.issueWithPrs,
-    (false, true) => ItemKind.issueWithoutPrs,
-    (true, false) => ItemKind.prWithIssues,
-    (true, true) => ItemKind.prWithoutIssues,
-  };
+  /// [linkedItems], then the other items that the [suggestion] lists in
+  /// `targeting_prs`, for an issue, or in `targeted_issues`, for a pull
+  /// request. The list groups and flags the item by them.
+  List<int> get linkedAndTargetedItems => {
+    ...linkedItems,
+    ...?(isPullRequest
+        ? suggestion?.suggestion.targetedIssues
+        : suggestion?.suggestion.targetingPrs),
+  }.toList();
+
+  ItemKind get kind =>
+      switch ((isPullRequest, linkedAndTargetedItems.isEmpty)) {
+        (false, false) => ItemKind.issueWithPrs,
+        (false, true) => ItemKind.issueWithoutPrs,
+        (true, false) => ItemKind.prWithIssues,
+        (true, true) => ItemKind.prWithoutIssues,
+      };
 
   ItemRef get ref => (repository: repository, number: number);
 

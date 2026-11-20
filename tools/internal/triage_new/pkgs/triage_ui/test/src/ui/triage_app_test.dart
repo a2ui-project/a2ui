@@ -749,24 +749,50 @@ void main() {
     expect(find.text('Remove labels: status: needs-triage'), findsOneWidget);
   });
 
-  testWidgets('says which related items are closed or merged', (tester) async {
-    // The suggestion names issue #1234 as related, and the issue is linked
-    // to PR #20, which this test merges.
+  testWidgets('shows the type and state of related items', (tester) async {
+    // The suggestion names PR #1234 as related, and the issue is linked to
+    // PR #20, which this test merges.
     github
-      ..items[1234] = itemNode(1234, state: 'CLOSED', labels: [])
+      ..items[1234] = itemNode(1234, pr: true, state: 'CLOSED', labels: [])
       ..items[20]!['state'] = 'MERGED';
     await pumpApp(tester);
+
+    Icon iconOf(String link) => tester.widget<Icon>(
+      find.descendant(
+        of: find.widgetWithText(ActionChip, link),
+        matching: find.byType(Icon),
+      ),
+    );
     // Loads #1234, which is not in the queue.
     await settle(
       tester,
       () => Future<void>.delayed(const Duration(milliseconds: 10)),
     );
 
-    expect(find.widgetWithText(ActionChip, '#1234 (closed)'), findsOneWidget);
-    expect(
-      find.widgetWithText(ActionChip, 'Fixed by PR #20 (merged)'),
-      findsOneWidget,
+    expect(find.textContaining('(closed)'), findsNothing);
+    expect(find.textContaining('(merged)'), findsNothing);
+    expect(iconOf('#1234').icon, Icons.call_merge);
+    expect(iconOf('#1234').color, Colors.red.shade700);
+    expect(iconOf('#1234').semanticLabel, 'Closed PR');
+    expect(iconOf('Fixed by PR #20').icon, Icons.call_merge);
+    expect(iconOf('Fixed by PR #20').color, Colors.purple.shade700);
+    expect(iconOf('Fixed by PR #20').semanticLabel, 'Merged PR');
+  });
+
+  testWidgets('shows open related issues in green', (tester) async {
+    await pumpApp(tester, selectFirst: false);
+    controller.select(a2ui(20));
+    await tester.pumpAndSettle();
+
+    final Icon icon = tester.widget<Icon>(
+      find.descendant(
+        of: find.widgetWithText(ActionChip, 'Fixes issue #10'),
+        matching: find.byType(Icon),
+      ),
     );
+    expect(icon.icon, Icons.adjust);
+    expect(icon.color, Colors.green.shade700);
+    expect(icon.semanticLabel, 'Open issue');
   });
 
   testWidgets('copies links with the button to their right', (tester) async {

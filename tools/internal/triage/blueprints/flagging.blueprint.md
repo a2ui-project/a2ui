@@ -8,6 +8,11 @@ A team member's comment that starts with `From triage bot` (in bold or not) is o
 
 The script uses the following rules to decide if a PR or issue should get **the label `status: needs-triage`**:
 
+0. Is the item **a draft PR**?
+
+   - If yes: **NO LABEL**. A draft PR is still in its author's hands, so it is not triage work until the author marks it ready for review.
+   - If no: continue processing.
+
 1. Does the item have `status: waiting-for-author-response` (the bot removes this label once a human external contributor responds)?
 
    - If yes: **NO LABEL**.
@@ -46,6 +51,6 @@ Staleness is calculated from the last human contribution (a comment or the issue
 
 The bot prints to the console which items it flags or unflags and why. You can use this to track triage progress. To see why specific items are flagged, without changing their labels, run [flag_reason.mts](../../../../.agents/skills/a2ui-triage-bot/scripts/flag_reason.mts) from the repository root, with item numbers or URLs: `node .agents/skills/a2ui-triage-bot/scripts/flag_reason.mts 123 456`. It reads GitHub with the `gh` CLI, and the [triage bot](../../../../.agents/skills/a2ui-triage-bot/SKILL.md) uses it for the `reason` of its suggestions.
 
-The workflow runs daily on a schedule (15:00 UTC / 07:00 PST), on manual dispatch, and automatically on issue events (opened, edited, labeled, unlabeled, assigned, unassigned, reopened), new issue comments, and submitted PR reviews or review comments.
+The workflow runs daily on a schedule (15:00 UTC / 07:00 PST), on manual dispatch, and automatically on issue events (opened, edited, labeled, unlabeled, assigned, unassigned, reopened), new issue comments, and submitted PR reviews or review comments. PR events, such as converting a PR to a draft or marking it ready for review, are not triggers, so such a change takes effect at the next run.
 
 Every run uses the script from `main`, whatever event triggers it. Without this, a PR review event runs the script from the PR's merge commit, which can contain an older version of the rules. Two versions then disagree on some items, and each run adds or removes the label that the previous run removed or added. To test a change to the rules, run the tests in [triage.test.mts](../flagging/triage.test.mts) with `node --test tools/internal/triage/flagging/triage.test.mts`. Running the workflow from a branch still applies the rules from `main`.

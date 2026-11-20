@@ -280,7 +280,7 @@ class _ItemTile extends StatelessWidget {
         ),
         SuggestionStatus.none => const _Flag('no suggestion', warning: true),
       },
-      for (final int n in item.linkedItems)
+      for (final int n in item.linkedAndTargetedItems)
         _Flag(item.isPullRequest ? 'issue #$n' : 'PR #$n'),
       if (item.needsTeamInput && group != ItemGroup.teamInput)
         const _Flag('needs team input'),

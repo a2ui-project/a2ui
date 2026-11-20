@@ -144,7 +144,7 @@ export interface Report {
   login: string;
   period: Period;
   items: ItemActions[];
-  /** How many open items have `status: needs-triage` now. */
+  /** How many open items have `status: needs-triage` now, except draft PRs. */
   stillNeedTriage: number;
 }
 
@@ -523,7 +523,8 @@ async function collect(login: string, period: Period): Promise<Report> {
     updatedItems(period),
     gh([
       'api', '-X', 'GET', 'search/issues',
-      '-f', `q=repo:${OWNER}/${REPO} is:open label:"${NEEDS_TRIAGE}"`,
+      // Draft PRs are not triage work, whatever their labels.
+      '-f', `q=repo:${OWNER}/${REPO} is:open label:"${NEEDS_TRIAGE}" -draft:true`,
       '-f', 'per_page=1', '-q', '.total_count',
     ]).then(Number),
   ]);

@@ -89,6 +89,7 @@ Map<String, Object?> itemNode(
   DateTime? updatedAt,
   DateTime? lastEditedAt,
   String state = 'OPEN',
+  bool draft = false,
   List<String> labels = const [needsTriageLabel],
   List<String> assignees = const [],
   List<Map<String, Object?>> comments = const [],
@@ -110,6 +111,7 @@ Map<String, Object?> itemNode(
     'updatedAt': (updatedAt ?? createdAt ?? day(1)).toIso8601String(),
     'lastEditedAt': lastEditedAt?.toIso8601String(),
     'state': state,
+    if (pr) 'isDraft': draft,
     'author': {'login': 'author$number'},
     'labels': nodes([
       for (final l in labels) {'name': l},
@@ -308,6 +310,8 @@ class FakeGitHub {
             'nodes': [
               for (final item in (genui ? genuiItems : items).values)
                 if (item['state'] == 'OPEN' &&
+                    !(searchQuery.contains('-draft:true') &&
+                        item['isDraft'] == true) &&
                     _names(item, 'labels', 'name').contains(label) &&
                     (!searchQuery.contains('is:pr') ||
                         item['__typename'] == 'PullRequest'))

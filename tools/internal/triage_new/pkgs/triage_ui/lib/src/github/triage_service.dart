@@ -58,12 +58,16 @@ class TriageService {
 
   /// The open items with `status: needs-triage` or
   /// `status: needs-team-input`: the issues and pull requests in
-  /// [a2uiRepository], and the pull requests in [genuiRepository].
+  /// [a2uiRepository], and the pull requests in [genuiRepository]. Draft
+  /// pull requests are left out: they are not triage work until their
+  /// authors mark them ready for review.
   Future<List<TriageItem>> fetchQueue() async {
     final List<List<TriageItem>> found = await [
       for (final label in [needsTriageLabel, needsTeamInputLabel]) ...[
-        _searchItems('repo:$a2uiRepository is:open label:"$label"'),
-        _searchItems('repo:$genuiRepository is:pr is:open label:"$label"'),
+        _searchItems('repo:$a2uiRepository is:open label:"$label" -draft:true'),
+        _searchItems(
+          'repo:$genuiRepository is:pr is:open label:"$label" -draft:true',
+        ),
       ],
     ].wait;
     final seen = <ItemRef>{};

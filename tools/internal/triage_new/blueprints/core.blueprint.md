@@ -8,6 +8,17 @@ The triage process is described in [triage.md](../../../../docs/contributing/tri
 2. An **out-of-team contributor** is anyone else. Bots are out-of-team contributors, so an issue filed by a workflow or a PR opened by dependabot needs triage like any other.
 3. The **triage bot** is the author of every comment that starts with `**From triage bot`, such as `**From triage bot, suggestion:**`, and is posted from a team member's or bot's account. The [flagger](../../triage/blueprints/flagging.blueprint.md) recognizes triage bot comments by this prefix, so that they do not count as a team reply.
 
+## Draft PRs
+
+A draft PR is still in its author's hands, so it is not triage work until the author marks it ready for review. Every triage job ignores draft PRs:
+
+1. The flagger does not flag them, and removes `status: needs-triage` from a PR converted to a draft.
+2. The staleness pinger does not ping their assignees.
+3. The triage advisor and the triage assistant do not comment on them.
+4. The triage UI does not list them in its groups.
+
+To take an unfinished PR off the triage queue, the triager converts it to a draft.
+
 ## Triage jobs
 
 1. The [flagger](../../triage/blueprints/flagging.blueprint.md) adds `status: needs-triage` to the items that need triage, and removes it from the rest.
