@@ -894,7 +894,10 @@ async function validateRpcTestCase(testCase) {
       } else if (fnName === 'renderTemplate') {
         return V1_0_FORMAT_STRING.execute(fnArgs, ctx, abortSignal);
       } else if (fnName === 'tagValue') {
-        return `tagged:${fnArgs?.value ?? ''}`;
+        if (!fnArgs || !('value' in fnArgs)) {
+          throw new Error("Missing required 'value' argument.");
+        }
+        return `tagged:${fnArgs.value}`;
       } else if (fnName === 'secretRendererOnly') {
         return 'SECRET';
       } else if (fnName === 'agentSecret') {

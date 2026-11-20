@@ -393,18 +393,27 @@ struct RPCConformanceTests {
         allowedCallers: callers,
         requiresUserActivation: requiresUserActivation
       ) { args, _ in
+        guard let rawValue = args["value"] else {
+          throw FunctionError.executionFailed(
+            name: functionName,
+            message: "Missing required 'value' argument."
+          )
+        }
         let rendered: String
-        switch args["value"] {
-        case .string(let s)?:
+        switch rawValue {
+        case .string(let s):
           rendered = s
-        case .integer(let i)?:
+        case .integer(let i):
           rendered = String(i)
-        case .number(let n)?:
+        case .number(let n):
           rendered = Int(exactly: n).map(String.init) ?? String(n)
-        case .boolean(let b)?:
+        case .boolean(let b):
           rendered = String(b)
         default:
-          rendered = ""
+          throw FunctionError.executionFailed(
+            name: functionName,
+            message: "Unsupported 'value' argument."
+          )
         }
         return .string("tagged:\(rendered)")
       }

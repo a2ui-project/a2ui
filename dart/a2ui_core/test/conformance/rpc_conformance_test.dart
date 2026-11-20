@@ -51,7 +51,7 @@ class _CannedFunction extends FunctionImplementation {
         return BasicCatalog.v1_0(openUrl: (_) {}).functions['formatString']!
             .execute(args, context, cancellationSignal);
       case 'tagValue':
-        return 'tagged:${args['value'] ?? ''}';
+        return 'tagged:${args['value']!}';
       case 'secretRendererOnly':
         return 'SECRET';
       case 'agentSecret':
