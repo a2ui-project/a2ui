@@ -150,6 +150,7 @@ class PlaygroundRenderers:
         surface_id: str,
         budget_ms: float | None = None,
         session_id: str | None = None,
+        data_payload: Mapping[str, Any] | None = None,
     ) -> tuple[RenderOutcome, list[RecordedBatchCall]]:
         """Executes Track 2A (`DecisionCascadeRouter`) plus downstream synthesis."""
         start = time.perf_counter()
@@ -205,7 +206,25 @@ class PlaygroundRenderers:
             compiled = list(
                 compiler.compile(decision.template.dsl, surface_id=surface_id)
             )
-            dicts = tuple(to_message_dicts(compiled))
+            msg_dicts = list(to_message_dicts(compiled))
+            if data_payload is not None:
+                safe_data = {
+                    k: v
+                    for k, v in data_payload.items()
+                    if not any(
+                        tok in k.lower()
+                        for tok in ("key", "secret", "token", "password")
+                    )
+                }
+                msg_dicts.append({
+                    "version": "1.0",
+                    "updateDataModel": {
+                        "surfaceId": surface_id,
+                        "path": "/",
+                        "value": safe_data,
+                    },
+                })
+            dicts = tuple(msg_dicts)
             elapsed = (time.perf_counter() - start) * 1000.0
             return (
                 RenderOutcome(
