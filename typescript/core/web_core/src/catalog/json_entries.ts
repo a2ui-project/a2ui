@@ -16,6 +16,7 @@
 
 import type {z} from 'zod';
 
+import {A2uiMetadata} from '../common/metadata.js';
 import type {JsonSchemaObject} from './spec_annotations.js';
 
 /**
@@ -34,6 +35,24 @@ const definitions = new WeakMap<object, JsonSchemaObject>();
  */
 export function loadedDefinition(entry: object): JsonSchemaObject | undefined {
   return definitions.get(entry);
+}
+
+/**
+ * Copies the JSON Schema definition loaded by `Catalog.fromJson` from `source`
+ * to `target`, when `source` has one.
+ *
+ * Used by `AgentFunction.fromApi` so that binding a handler to a loaded
+ * `JsonFunctionApi` preserves its authored JSON Schema definition when
+ * `Catalog.toJson` writes the catalog back out.
+ *
+ * @param source The original catalog entry.
+ * @param target The wrapper entry.
+ */
+export function copyLoadedDefinition(source: object, target: object): void {
+  const definition = definitions.get(source);
+  if (definition !== undefined) {
+    definitions.set(target, definition);
+  }
 }
 
 /**
@@ -89,6 +108,8 @@ export class JsonComponentApi {
   declare readonly allowedParents?: string[];
   /** Allowed child component types, as the definition declares them. */
   declare readonly allowedChildren?: string[];
+  /** Component-level metadata, as the definition declares it. */
+  declare readonly metadata?: A2uiMetadata;
 
   /**
    * @param name The component's name.
@@ -106,6 +127,8 @@ export class JsonComponentApi {
       schema: () => deriveSchema(jsonSchema),
       allowedParents: () => stringList(jsonSchema['allowedParents']),
       allowedChildren: () => stringList(jsonSchema['allowedChildren']),
+      metadata: () =>
+        isObject(jsonSchema['metadata']) ? (jsonSchema['metadata'] as A2uiMetadata) : undefined,
     });
     Object.freeze(this);
   }

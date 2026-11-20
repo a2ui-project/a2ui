@@ -16,21 +16,13 @@ import A2UICore
 import JSONSchema
 
 extension JSONValue {
-  /// Reads this value as an operand of the v1.0 `and`, `or` and `not` functions.
-  ///
-  /// In v1.0 the validation functions return a ValidationResult object, so an object that
-  /// carries a `valid` key reads as true only when `valid` is `true`. Every other value falls
-  /// back to ``isTruthy``, so a value cannot pass as a check and fail as an operand.
+  /// Coerces this value as a `DynamicBoolean` operand of the `and`, `or` and `not` functions.
   var isTruthyOrValid: Bool {
-    guard case .object(let members) = self, let valid = members["valid"] else {
-      return isTruthy
-    }
-    return valid == .boolean(true)
+    coercedDynamicBoolean
   }
 
-  /// Reads this value as an operand of `and`, `or` or `not`: as ``isTruthyOrValid`` when
-  /// `readsValidationResults` is `true`, as in v1.0, and as ``isTruthy`` otherwise.
+  /// Coerces this value as a `DynamicBoolean` operand of `and`, `or` or `not`.
   func isTruthy(readsValidationResults: Bool) -> Bool {
-    readsValidationResults ? isTruthyOrValid : isTruthy
+    coercedDynamicBoolean
   }
 }

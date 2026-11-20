@@ -28,26 +28,32 @@ import pytest
 
 SAMPLES_DIR = Path(__file__).parent.parent
 
-# Runs in the sample's directory. Every sample has its own `agent` module, and
+# Runs outside the sample's directory so relative paths in `agent.py` cannot
+# silently rely on `os.getcwd()`. Every sample has its own `agent` module, and
 # the workspace venv has all samples on its path, so each runs in a process of
-# its own, with its directory first on the path (`-c` puts it there).
+# its own, with its directory inserted first on `sys.path`.
 _DRIVER = """
 import asyncio
 import importlib
 import json
 from pathlib import Path
 import sys
+from unittest.mock import MagicMock
 
+from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.events import Event
 from google.genai import types
 
 from a2ui.core.schema import ProtocolVersion
 
-agent_class, example = sys.argv[1:]
+sample_dir, agent_class, example = sys.argv[1:]
+sys.path.insert(0, sample_dir)
 agent = getattr(importlib.import_module("agent"), agent_class)(
     base_url="http://localhost"
 )
-response = f"Here it is.\\n<a2ui-json>\\n{Path(example).read_text()}\\n</a2ui-json>"
+response = (
+    f"Here it is.\\n<a2ui-json>\\n{(Path(sample_dir) / example).read_text()}\\n</a2ui-json>"
+)
 
 
 async def run_async(**kwargs):
@@ -65,6 +71,19 @@ for runner in agent._ui_runners.values():
 
 
 async def main():
+    ctx = MagicMock(spec=ReadonlyContext)
+    ctx._invocation_context = MagicMock()
+    ctx._invocation_context.session.state = {"base_url": "http://localhost"}
+    instruction, bypass = await agent._ui_runners[
+        ProtocolVersion.V0_9
+    ].agent.canonical_instruction(ctx)
+    assert bypass is True
+    assert "---BEGIN " in instruction
+    assert "${expression}" in instruction
+    assert instruction.index("---BEGIN ") < instruction.index(
+        "---BEGIN A2UI JSON SCHEMA---"
+    )
+
     kinds = []
     async for event in agent.stream(
         "query", "session", ui_version=ProtocolVersion.V0_9
@@ -86,8 +105,15 @@ asyncio.run(main())
 )
 def test_sample_agent_streams_response(sample, agent_class, example):
     result = subprocess.run(
-        [sys.executable, "-c", _DRIVER, agent_class, example],
-        cwd=SAMPLES_DIR / sample,
+        [
+            sys.executable,
+            "-c",
+            _DRIVER,
+            str(SAMPLES_DIR / sample),
+            agent_class,
+            example,
+        ],
+        cwd=SAMPLES_DIR,
         capture_output=True,
         text=True,
         timeout=120,

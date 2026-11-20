@@ -150,10 +150,7 @@ class NodeResolver<T extends ComponentApi> {
   /// When given, [catalog] must be the surface's
   /// [SurfaceModel.defaultCatalog]; each component still resolves against the
   /// catalog it names. Throws [A2uiStateError] for any other catalog.
-  NodeResolver(
-    this._surface, {
-    Catalog<T, FunctionImplementation>? catalog,
-  }) {
+  NodeResolver(this._surface, {Catalog<T, FunctionImplementation>? catalog}) {
     if (catalog != null && !identical(catalog, _surface.defaultCatalog)) {
       throw A2uiStateError(
         'NodeResolver requires the default catalog of surface '
@@ -384,6 +381,7 @@ class NodeResolver<T extends ComponentApi> {
           NodeState.unknownType,
           type: model.type,
           occurrence: occurrence,
+          metadata: computed(() => model.metadataSignal.value),
         ),
         edgeKey: edgeKey,
         parent: parent,
@@ -408,6 +406,7 @@ class NodeResolver<T extends ComponentApi> {
           NodeState.unknownType,
           type: model.type,
           occurrence: occurrence,
+          metadata: computed(() => model.metadataSignal.value),
         ),
         edgeKey: edgeKey,
         parent: parent,
@@ -436,6 +435,8 @@ class NodeResolver<T extends ComponentApi> {
         dataPath,
         const {},
         api,
+        NodeState.resolved,
+        computed(() => model.metadataSignal.value),
       )..context = context,
       edgeKey: edgeKey,
       parent: parent,
@@ -495,6 +496,7 @@ class NodeResolver<T extends ComponentApi> {
     NodeState state, {
     String type = placeholderType,
     int occurrence = 1,
+    ReadonlySignal<Map<String, Object?>?>? metadata,
   }) {
     return MutableComponentNode<T>(
       _instanceIdFor(componentId, dataPath, occurrence),
@@ -504,6 +506,7 @@ class NodeResolver<T extends ComponentApi> {
       const {},
       null,
       state,
+      metadata,
     );
   }
 
@@ -584,19 +587,20 @@ class NodeResolver<T extends ComponentApi> {
       // either kind resolves when the type gains a catalog entry. Resolved
       // and unknown-type nodes must still refer to the current model. A node
       // whose sibling ordinal changed is rebuilt to keep ids distinct.
-      final bool upToDate = existing.componentId == componentId &&
+      final bool upToDate =
+          existing.componentId == componentId &&
           existing.dataPath == dataPath &&
           _records[existing]?.occurrence == occurrence &&
           (existing.isPlaceholder || _records[existing]?.index == index) &&
           (existing.isPlaceholder
               ? (model == null && existing.state == NodeState.pending) ||
-                  (model != null &&
-                      api == null &&
-                      existing.state == NodeState.unknownType &&
-                      identical(_records[existing]?.componentModel, model))
+                    (model != null &&
+                        api == null &&
+                        existing.state == NodeState.unknownType &&
+                        identical(_records[existing]?.componentModel, model))
               : model != null &&
-                  existing.type == model.type &&
-                  identical(_records[existing]?.componentModel, model));
+                    existing.type == model.type &&
+                    identical(_records[existing]?.componentModel, model));
       if (upToDate) {
         if (existing.state == NodeState.pending) {
           // Another creation listener may have removed the component before
@@ -623,9 +627,11 @@ class NodeResolver<T extends ComponentApi> {
     String dataPath,
     MutableComponentNode<T> parent,
   ) {
-    for (MutableComponentNode<T>? node = parent;
-        node != null;
-        node = _records[node]?.parent) {
+    for (
+      MutableComponentNode<T>? node = parent;
+      node != null;
+      node = _records[node]?.parent
+    ) {
       if (node.componentId == componentId && node.dataPath == dataPath) {
         return true;
       }
@@ -658,7 +664,12 @@ class NodeResolver<T extends ComponentApi> {
       final occurrenceKey = (componentId, dataPath);
       final int occurrence = (occurrences[occurrenceKey] ?? 0) + 1;
       occurrences[occurrenceKey] = occurrence;
-      final _EdgeKey edgeKey = (record.node, slot, componentId, dataPath);
+      final _EdgeKey edgeKey = (
+        record.node,
+        (slot.$1, slot.$2 ?? occurrence, slot.$3),
+        componentId,
+        dataPath,
+      );
       final MutableComponentNode<T> child;
       try {
         child = _childNode(
@@ -716,7 +727,7 @@ class NodeResolver<T extends ComponentApi> {
             final Object? item = value[index];
             if (item is ChildNode) {
               return resolveChild(
-                (key, index, null),
+                (key, item.index, null),
                 item.id,
                 item.basePath,
                 index: item.index,
@@ -724,7 +735,7 @@ class NodeResolver<T extends ComponentApi> {
             }
             if (item is String && item.isNotEmpty) {
               return resolveChild(
-                (key, index, null),
+                (key, null, null),
                 item,
                 record.node.dataPath,
               );
@@ -878,11 +889,16 @@ class NodeResolver<T extends ComponentApi> {
       }
     }
     if (releaseDiagnostics && node.state == NodeState.cyclic) {
-      // Replacements are committed before retired nodes are disposed. A new
-      // cyclic stand-in on this same edge still represents the old condition;
-      // retiring its predecessor must not erase the replacement's key.
-      final MutableComponentNode<T>? replacement = _nodesByEdge[record.edgeKey];
-      if ((replacement == null || replacement.state != NodeState.cyclic) &&
+      // Replacements are committed before retired nodes are disposed. Any
+      // live cyclic stand-in for the same (componentId, dataPath) still
+      // represents the old condition; retiring a cyclic node must not erase
+      // the shared key while another cyclic node for that scope remains.
+      final bool stillCyclic =
+          byId != null &&
+          byId.any(
+            (n) => n.state == NodeState.cyclic && n.dataPath == node.dataPath,
+          );
+      if (!stillCyclic &&
           identical(
             _dispatchedErrors[(node.componentId, node.dataPath)],
             record.diagnosticCodes,
@@ -911,9 +927,9 @@ const _idPartEscapes = {
 /// Escapes id parts in one pass so literal suffixes and scopes cannot collide
 /// with composed ids.
 String _escapeIdPart(String part) => part.replaceAllMapped(
-      RegExp(r'[~#\[\]>@]'),
-      (match) => _idPartEscapes[match[0]]!,
-    );
+  RegExp(r'[~#\[\]>@]'),
+  (match) => _idPartEscapes[match[0]]!,
+);
 
 String _instanceIdFor(String componentId, String dataPath, int occurrence) {
   String trimmed = dataPath.replaceAll(RegExp(r'/+$'), '');

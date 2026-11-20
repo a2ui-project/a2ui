@@ -12,6 +12,7 @@ import { Map_entryContext } from "./ExpressParser.js";
 import { PathContext } from "./ExpressParser.js";
 import { CheckContext } from "./ExpressParser.js";
 import { CallContext } from "./ExpressParser.js";
+import { Function_nameContext } from "./ExpressParser.js";
 import { ArgContext } from "./ExpressParser.js";
 import { Named_argContext } from "./ExpressParser.js";
 import { VariableContext } from "./ExpressParser.js";
@@ -88,6 +89,12 @@ export class ExpressVisitor<Result> extends AbstractParseTreeVisitor<Result> {
      * @return the visitor result
      */
     visitCall?: (ctx: CallContext) => Result;
+    /**
+     * Visit a parse tree produced by `ExpressParser.function_name`.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    visitFunction_name?: (ctx: Function_nameContext) => Result;
     /**
      * Visit a parse tree produced by `ExpressParser.arg`.
      * @param ctx the parse tree

@@ -26,13 +26,23 @@ true.
 
 from __future__ import annotations
 
+import math
 import types
 import typing
 from typing import Any
 
 from pydantic import BaseModel
 
+from ..schema.v0_9 import DynamicBoolean as V09DynamicBoolean
 from ..schema.v1_0 import DynamicBoolean
+
+__all__ = [
+    "coerce_dynamic_boolean",
+    "coerce_validation_results",
+    "is_dynamic_boolean_annotation",
+    "is_dynamic_boolean_schema",
+    "validity_of",
+]
 
 _DYNAMIC_BOOLEAN_DEF = "DynamicBoolean"
 
@@ -54,6 +64,36 @@ def validity_of(value: Any) -> bool | None:
     return None
 
 
+def coerce_dynamic_boolean(value: Any) -> bool:
+    """Coerces a resolved ``DynamicBoolean`` value to a boolean.
+
+    - A ``bool`` is returned unchanged.
+    - A ``ValidationResult`` dict (a dict whose ``valid`` member is a ``bool``)
+      coerces to its ``valid`` boolean.
+    - A ``str`` coerces to ``True`` only when it equals ``"true"``
+      case-insensitively; ``"false"`` and all other strings coerce to ``False``.
+    - An ``int`` or ``float`` (other than ``bool``) coerces to ``value != 0``
+      (``NaN`` coerces to ``False``).
+    - ``None``, any other dict, or any list coerces to ``False``.
+
+    Args:
+        value: Any resolved value.
+
+    Returns:
+        The coerced boolean value.
+    """
+    if isinstance(value, bool):
+        return value
+    valid = validity_of(value)
+    if valid is not None:
+        return valid
+    if isinstance(value, str):
+        return value.lower() == "true"
+    if isinstance(value, (int, float)):
+        return value != 0 and not math.isnan(value)
+    return False
+
+
 def _without_none(annotation: Any) -> list[Any]:
     """Returns the members of a union annotation other than None, unwrapping ``Annotated``."""
     origin = typing.get_origin(annotation)
@@ -71,24 +111,28 @@ def _without_none(annotation: Any) -> list[Any]:
 
 # The members of `DynamicBoolean` with their `Annotated` strictness markers
 # removed, as `_without_none` reads a field annotation.
-_DYNAMIC_BOOLEAN_MEMBERS: tuple[Any, ...] = tuple(_without_none(DynamicBoolean))
+_DYNAMIC_BOOLEAN_MEMBER_SETS: tuple[tuple[Any, ...], ...] = (
+    tuple(_without_none(DynamicBoolean)),
+    tuple(_without_none(V09DynamicBoolean)),
+)
 
 
 def is_dynamic_boolean_annotation(annotation: Any) -> bool:
     """Whether a model field annotation is the common ``DynamicBoolean`` type.
 
     ``DynamicBoolean`` is a union alias, so it is recognized by its members:
-    an annotation whose non-None members are exactly those of
-    ``DynamicBoolean``, under any ``Annotated`` or ``Optional`` wrapping.
+    an annotation whose non-None members are those of ``DynamicBoolean``,
+    under any ``Annotated`` or ``Optional`` wrapping.
 
     Args:
         annotation: A model field's annotation.
     """
     members = _without_none(annotation)
-    return (
-        len(members) == len(_DYNAMIC_BOOLEAN_MEMBERS)
-        and all(member in _DYNAMIC_BOOLEAN_MEMBERS for member in members)
-        and all(expected in members for expected in _DYNAMIC_BOOLEAN_MEMBERS)
+    return any(
+        len(members) == len(expected_set)
+        and all(member in expected_set for member in members)
+        and all(expected in members for expected in expected_set)
+        for expected_set in _DYNAMIC_BOOLEAN_MEMBER_SETS
     )
 
 
@@ -136,8 +180,7 @@ def _model_annotation(annotation: Any) -> type[BaseModel] | None:
 
 def _coerce_for_annotation(annotation: Any, value: Any) -> Any:
     if is_dynamic_boolean_annotation(annotation):
-        valid = validity_of(value)
-        return value if valid is None else valid
+        return coerce_dynamic_boolean(value)
     item_annotation = _list_item_annotation(annotation)
     if item_annotation is not None and isinstance(value, list):
         return [_coerce_for_annotation(item_annotation, item) for item in value]
@@ -174,8 +217,7 @@ def _coerce_for_json_schema(schema: Any, value: Any) -> Any:
     if not isinstance(schema, dict):
         return value
     if is_dynamic_boolean_schema(schema):
-        valid = validity_of(value)
-        return value if valid is None else valid
+        return coerce_dynamic_boolean(value)
     items = schema.get("items")
     if isinstance(items, dict) and isinstance(value, list):
         return [_coerce_for_json_schema(items, item) for item in value]
@@ -188,11 +230,13 @@ def _coerce_for_json_schema(schema: Any, value: Any) -> Any:
     return value
 
 
-def _json_schema_properties(schema: dict[str, Any]) -> dict[str, Any] | None:
+def json_schema_properties(schema: dict[str, Any]) -> dict[str, Any] | None:
     """Returns the argument properties of a function's document schema.
 
     Accepts the published form, an object schema with ``properties``, and
     the v0.9 inline form, a definition with ``parameters``.
+
+    Internal: shared with ``DataContext``, not part of the public API.
     """
     properties = schema.get("properties")
     if isinstance(properties, dict):
@@ -225,7 +269,7 @@ def coerce_validation_results(schema: Any, args: dict[str, Any]) -> dict[str, An
     if isinstance(schema, type) and issubclass(schema, BaseModel):
         return _coerce_for_model(schema, args)
     if isinstance(schema, dict):
-        properties = _json_schema_properties(schema)
+        properties = json_schema_properties(schema)
         if properties is not None:
             return {
                 key: _coerce_for_json_schema(properties.get(key), value)

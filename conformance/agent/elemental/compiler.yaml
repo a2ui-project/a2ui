@@ -1,0 +1,156 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Compiling and decompiling the experimental Elemental format: an HTML5
+# notation in which a `<body id="...">` element creates a surface, its `ui-*`
+# children are the surface's components, `<body ... update>` carries data model
+# updates in `<script type="application/json" path="...">` slots, and
+# `<ui-delete-surface surface-id="..."/>` removes a surface.
+#
+# Elemental is experimental and implemented only by the Python Agent SDK; the
+# other SDKs record this suite as skipped. The cases are written against v1.0,
+# where a new surface and its components travel in one `createSurface`
+# message. A decompile case with `expect_round_trip` states that compiling the
+# notation written for the messages gives the messages back.
+
+- name: test_compile_elemental_body_creates_a_surface
+  description: A body element with ui-* children compiles to one createSurface carrying the surface id, the catalog, and the component tree, with the component ids the elements declare.
+  action: compile
+  args:
+    format: elemental
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |
+    <body id="s1">
+      <ui-card id="root">
+        <ui-text id="body" text="Hello" />
+      </ui-card>
+    </body>
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "body"
+          - id: "body"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_elemental_update_body_updates_the_data_model
+  description: A body marked update that holds a JSON script slot with a path compiles to an updateDataModel message at that path.
+  action: compile
+  args:
+    format: elemental
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |
+    <body id="s1" update>
+      <script type="application/json" path="/title">
+        "Hello"
+      </script>
+    </body>
+  expect:
+    - version: "1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/title"
+        value: "Hello"
+
+- name: test_compile_elemental_delete_surface_element
+  description: A ui-delete-surface element compiles to a deleteSurface message for the surface it names.
+  action: compile
+  args:
+    format: elemental
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '<ui-delete-surface surface-id="s1" />'
+  expect:
+    - version: "1.0"
+      deleteSurface:
+        surfaceId: "s1"
+
+- name: test_compile_elemental_unknown_component_is_a_validation_error
+  description: A ui-* element naming a component the catalog does not declare is a validation error rather than an unknown component in the output.
+  action: compile
+  args:
+    format: elemental
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '<body id="s1"><ui-mystery id="root" /></body>'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_elemental_non_ui_element_is_a_validation_error
+  description: An element under body that is not a ui-* component is a validation error, so plain HTML cannot leak into a surface.
+  action: compile
+  args:
+    format: elemental
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '<body id="s1"><div id="root">Hello</div></body>'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_decompile_elemental_surface_round_trips
+  description: A createSurface message writes back out as a body element holding ui-* elements with the component ids, and compiling that notation gives the message back.
+  action: decompile
+  args:
+    format: elemental
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "body"
+          - id: "body"
+            component: "Text"
+            text: "Hello"
+  expect_contains:
+    - '<body id="s1">'
+    - '<ui-card id="root">'
+    - '<ui-text id="body" text="Hello" />'
+  expect_round_trip: true
+
+- name: test_decompile_elemental_data_model_update_round_trips
+  description: An updateDataModel message writes back out as an updating body with a JSON script slot at the path, and compiling that gives the message back.
+  action: decompile
+  args:
+    format: elemental
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/title"
+        value: "Hello"
+  expect_contains:
+    - '<body id="s1" update>'
+    - 'path="/title"'
+  expect_round_trip: true
+
+- name: test_decompile_elemental_delete_surface_round_trips
+  description: A deleteSurface message writes back out as a ui-delete-surface element, and compiling that gives the message back.
+  action: decompile
+  args:
+    format: elemental
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      deleteSurface:
+        surfaceId: "s1"
+  expect_contains:
+    - '<ui-delete-surface surface-id="s1" />'
+  expect_round_trip: true

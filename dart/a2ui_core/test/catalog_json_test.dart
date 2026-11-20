@@ -26,22 +26,21 @@ import 'conformance/conformance_harness.dart';
 import 'support/test_catalog.dart';
 
 /// The published basic catalog, which agent-side tests are measured against.
-const String basicCatalogPath =
-    '../specification/v0_9_1/catalogs/basic/catalog.json';
+const String basicCatalogPath = '../catalogs/basic/v0_9_1/catalog.json';
 
 const String basicCatalogId =
     'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
 
 Map<String, Object?> loadBasicCatalogJson() => jsonDecode(
-      File(resolveConformancePath(basicCatalogPath)).readAsStringSync(),
-    ) as Map<String, Object?>;
+  File(resolveConformancePath(basicCatalogPath)).readAsStringSync(),
+) as Map<String, Object?>;
 
 /// The published v1.0 basic catalog, which declares `protocolVersion: "1.0"`.
 const String basicCatalogV1Path = '../catalogs/basic/v1/catalog.json';
 
 Map<String, Object?> loadBasicCatalogV1Json() => jsonDecode(
-      File(resolveConformancePath(basicCatalogV1Path)).readAsStringSync(),
-    ) as Map<String, Object?>;
+  File(resolveConformancePath(basicCatalogV1Path)).readAsStringSync(),
+) as Map<String, Object?>;
 
 void main() {
   group('allOf property precedence', () {
@@ -88,9 +87,9 @@ void main() {
         },
       });
 
-      final properties = catalog
-          .resolvedComponentSchema('Toggle')!
-          .value['properties']! as Map<String, Object?>;
+      final properties =
+          catalog.resolvedComponentSchema('Toggle')!.value['properties']!
+              as Map<String, Object?>;
       expect(properties['checks'], {
         'type': 'string',
         'enum': ['strict'],
@@ -103,8 +102,9 @@ void main() {
 
       final validation =
           catalog.validationSchema['components']! as Map<String, Object?>;
-      final toggle = (validation['Toggle']!
-          as Map<String, Object?>)['properties']! as Map<String, Object?>;
+      final toggle =
+          (validation['Toggle']! as Map<String, Object?>)['properties']!
+              as Map<String, Object?>;
       expect(toggle['checks'], properties['checks']);
       expect(toggle['label'], properties['label']);
       expect(toggle['size'], properties['size']);
@@ -127,11 +127,14 @@ void main() {
       final List<Map<String, Object?>> checkable = reader.schemas(
         <String, Object?>{r'$ref': r'common_types.json#/$defs/Checkable'},
       );
+      final Map<String, Object?> checkableProps = reader.properties(checkable);
       final List<Map<String, Object?>> checks = reader.schemas(
-        reader.properties(checkable)['checks'],
+        checkableProps['@checks'] ?? checkableProps['checks'],
       );
       expect(reader.isCheckable(checks), isTrue);
-      return reader.schemas(reader.items(checks)).firstWhere(
+      return reader
+          .schemas(reader.items(checks))
+          .firstWhere(
             (Map<String, Object?> schema) => schema.containsKey('required'),
           );
     }
@@ -316,24 +319,23 @@ void main() {
       );
     });
 
-    test(
-        'rejects validationResult function returnType when effective '
+    test('rejects validationResult function returnType when effective '
         'protocolVersion is below 1.0', () {
       Map<String, Object?> docWithVersion(String? protocolVersion) => {
-            'catalogId': 'https://example.com/pre_v1_validation_catalog',
-            if (protocolVersion != null) 'protocolVersion': protocolVersion,
-            'functions': {
-              'checkEmail': {
-                'returnType': 'validationResult',
-                'parameters': {
-                  'type': 'object',
-                  'properties': {
-                    'value': {'type': 'string'},
-                  },
-                },
+        'catalogId': 'https://example.com/pre_v1_validation_catalog',
+        'protocolVersion': ?protocolVersion,
+        'functions': {
+          'checkEmail': {
+            'returnType': 'validationResult',
+            'parameters': {
+              'type': 'object',
+              'properties': {
+                'value': {'type': 'string'},
               },
             },
-          };
+          },
+        },
+      };
 
       for (final String? badVersion in [null, '0.9', 'v0.9', '0.9.1']) {
         expect(
@@ -375,9 +377,9 @@ void main() {
 
       for (final goodVersion in ['1.0', 'v1.0']) {
         expect(
-          Catalog.fromJson(
-            docWithVersion(goodVersion),
-          ).functions['checkEmail']!.returnType,
+          Catalog.fromJson(docWithVersion(goodVersion))
+              .functions['checkEmail']!
+              .returnType,
           A2uiReturnType.validationResult,
         );
         expect(
@@ -398,8 +400,7 @@ void main() {
       }
     });
 
-    test(
-        'GenericBinder evaluates checks on a JSON-loaded catalog referencing '
+    test('GenericBinder evaluates checks on a JSON-loaded catalog referencing '
         'common_types.json#/\$defs/Checkable', () {
       final CatalogApi parsed = Catalog.fromJson(loadBasicCatalogJson());
       final rendererCatalog = Catalog<ComponentApi, FunctionImplementation>(
@@ -504,8 +505,7 @@ void main() {
           'type': 'object',
           'properties': {
             'label': {
-              r'$ref':
-                  r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString',
+              r'$ref': r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString',
             },
           },
           'required': ['label'],
@@ -527,14 +527,8 @@ void main() {
       final args =
           (fnSchema['properties']! as Map<String, Object?>)['args']! as Map;
       final props = args['properties']! as Map;
-      expect(
-        (props['label']! as Map)[r'$ref'],
-        r'#/$defs/DynamicString',
-      );
-      expect(
-        (schema[r'$defs']! as Map).containsKey('DynamicString'),
-        isTrue,
-      );
+      expect((props['label']! as Map)[r'$ref'], r'#/$defs/DynamicString');
+      expect((schema[r'$defs']! as Map).containsKey('DynamicString'), isTrue);
     });
 
     test('is call before protocol 1.0 or without a version', () {
@@ -569,35 +563,47 @@ void main() {
     });
 
     test('writes allowedCallers and requiresUserActivation only when set', () {
-      final functions = Catalog.fromJson({
-        'catalogId': 'c',
-        'protocolVersion': '1.0',
-        'functions': {
-          'plain': {
-            'type': 'object',
-            'returnType': 'string',
-            'properties': {
-              '@call': {'const': 'plain'},
-            },
-          },
-          'guarded': {
-            'type': 'object',
-            'returnType': 'void',
-            'allowedCallers': 'agentOnly',
-            'requiresUserActivation': true,
-            'properties': {
-              '@call': {'const': 'guarded'},
-            },
-          },
-        },
-      }).validationSchema['functions']! as Map<String, Object?>;
+      final functions =
+          Catalog.fromJson({
+                'catalogId': 'c',
+                'protocolVersion': '1.0',
+                'functions': {
+                  'plain': {
+                    'type': 'object',
+                    'returnType': 'string',
+                    'properties': {
+                      '@call': {'const': 'plain'},
+                    },
+                  },
+                  'guarded': {
+                    'type': 'object',
+                    'returnType': 'void',
+                    'allowedCallers': 'agentOnly',
+                    'properties': {
+                      '@call': {'const': 'guarded'},
+                    },
+                  },
+                  'activated': {
+                    'type': 'object',
+                    'returnType': 'void',
+                    'requiresUserActivation': true,
+                    'properties': {
+                      '@call': {'const': 'activated'},
+                    },
+                  },
+                },
+              }).validationSchema['functions']!
+              as Map<String, Object?>;
       final plain = functions['plain']! as Map;
       final guarded = functions['guarded']! as Map;
+      final activated = functions['activated']! as Map;
 
       expect(plain.containsKey('allowedCallers'), isFalse);
       expect(plain.containsKey('requiresUserActivation'), isFalse);
       expect(guarded['allowedCallers'], 'agentOnly');
-      expect(guarded['requiresUserActivation'], isTrue);
+      expect(guarded.containsKey('requiresUserActivation'), isFalse);
+      expect(activated.containsKey('allowedCallers'), isFalse);
+      expect(activated['requiresUserActivation'], isTrue);
     });
 
     test('closes the entry and restates returnType before protocol 1.0', () {
@@ -622,8 +628,7 @@ void main() {
         Catalog.fromJson({
           'catalogId': 'c',
           'components': <String, Object?>{},
-        }, protocolVersion: A2uiProtocolVersion.v0_9)
-            .protocolVersion,
+        }, protocolVersion: A2uiProtocolVersion.v0_9).protocolVersion,
         A2uiProtocolVersion.v0_9,
       );
       expect(
@@ -699,8 +704,7 @@ void main() {
       expect(catalog.copyWith().protocolVersion, A2uiProtocolVersion.v1_0);
     });
 
-    test(
-        'does not misclassify top-level combinators in function args as '
+    test('does not misclassify top-level combinators in function args as '
         'parameters', () {
       final CatalogApi catalog = Catalog.fromJson({
         'catalogId': 'https://example.com/combinator.json',
@@ -759,7 +763,7 @@ void main() {
         components: const [],
         functions: [_EchoFunction()],
       );
-      final context = DataContext(DataModel(), (_, __, ___) => null, '/');
+      final context = DataContext(DataModel(), (_, _, _) => null, '/');
 
       expect(catalog.invoke('echo', {'value': 'hi'}, context), 'hi');
       expect(
@@ -775,37 +779,32 @@ void main() {
     });
 
     group('invoke checks a validation result argument', () {
-      final context = DataContext(DataModel(), (_, __, ___) => null, '/');
+      final context = DataContext(DataModel(), (_, _, _) => null, '/');
       const result = ValidationResult(valid: true);
 
       /// A catalog whose `echo` takes a `value` object of [properties].
       Catalog<ComponentApi, FunctionImplementation> catalogWith(
         Map<String, Schema> properties, {
         A2uiProtocolVersion? protocolVersion = A2uiProtocolVersion.v1_0,
-      }) =>
-          Catalog<ComponentApi, FunctionImplementation>(
-            id: 'c',
-            protocolVersion: protocolVersion,
-            components: const [],
-            functions: [
-              _EchoFunction(
-                argumentSchema: Schema.object(
-                  properties: {'value': Schema.object(properties: properties)},
-                  required: ['value'],
-                ),
-              ),
-            ],
-          );
+      }) => Catalog<ComponentApi, FunctionImplementation>(
+        id: 'c',
+        protocolVersion: protocolVersion,
+        components: const [],
+        functions: [
+          _EchoFunction(
+            argumentSchema: Schema.object(
+              properties: {'value': Schema.object(properties: properties)},
+              required: ['value'],
+            ),
+          ),
+        ],
+      );
 
       test('in a boolean position, nested in an object, as its validity', () {
         expect(
-          catalogWith({'flag': Schema.boolean()}).invoke(
-            'echo',
-            {
-              'value': {'flag': result},
-            },
-            context,
-          ),
+          catalogWith({'flag': Schema.boolean()}).invoke('echo', {
+            'value': {'flag': result},
+          }, context),
           {'flag': result},
         );
       });
@@ -813,10 +812,13 @@ void main() {
       test('in an object position as it is', () {
         final Catalog<ComponentApi, FunctionImplementation> catalog =
             catalogWith({
-          'status': Schema.object(
-            properties: {'valid': Schema.boolean(), 'note': Schema.string()},
-          ),
-        });
+              'status': Schema.object(
+                properties: {
+                  'valid': Schema.boolean(),
+                  'note': Schema.string(),
+                },
+              ),
+            });
         final args = <String, dynamic>{
           'value': {
             'status': {'valid': true, 'note': 'checked'},
@@ -825,13 +827,9 @@ void main() {
 
         expect(catalog.invoke('echo', args, context), args['value']);
         expect(
-          catalog.invoke(
-            'echo',
-            {
-              'value': {'status': result},
-            },
-            context,
-          ),
+          catalog.invoke('echo', {
+            'value': {'status': result},
+          }, context),
           {'status': result},
         );
       });
@@ -847,38 +845,28 @@ void main() {
 
         expect(catalog.invoke('echo', args, context), args['value']);
         expect(
-          () => catalog.invoke(
-            'echo',
-            {
-              'value': {
-                'flag': {'valid': 'yes'},
-              },
+          () => catalog.invoke('echo', {
+            'value': {
+              'flag': {'valid': 'yes'},
             },
-            context,
-          ),
+          }, context),
           throwsA(isA<A2uiExpressionError>()),
         );
       });
 
       test('in a catalog before v1.0 as its JSON object', () {
         expect(
-          () => catalogWith(
-            {'flag': Schema.boolean()},
-            protocolVersion: null,
-          ).invoke(
-            'echo',
-            {
-              'value': {'flag': result},
-            },
-            context,
-          ),
+          () => catalogWith({'flag': Schema.boolean()}, protocolVersion: null)
+              .invoke('echo', {
+                'value': {'flag': result},
+              }, context),
           throwsA(isA<A2uiExpressionError>()),
         );
       });
     });
 
     group('invoke resolves argument schema references', () {
-      final context = DataContext(DataModel(), (_, __, ___) => null, '/');
+      final context = DataContext(DataModel(), (_, _, _) => null, '/');
 
       Catalog<ComponentApi, FunctionImplementation> catalogWith(String ref) =>
           Catalog<ComponentApi, FunctionImplementation>(
@@ -952,7 +940,8 @@ void main() {
       final props = button['properties'] as Map<String, Object?>;
       expect(props['id'], {
         r'$ref': r'#/$defs/ComponentId',
-        'description': 'The unique identifier for a component, used for both '
+        'description':
+            'The unique identifier for a component, used for both '
             'definitions and references within the same surface.',
       });
       expect(props['component'], {'const': 'Button'});
@@ -973,7 +962,7 @@ void main() {
 
     for (final path in [
       '../catalogs/basic/v1/catalog.json',
-      '../specification/v0_9/catalogs/basic/catalog.json',
+      '../catalogs/basic/v0_9/catalog.json',
       '../catalogs/mcp/catalog.json',
     ]) {
       test('writes $path back unchanged', () {
@@ -1306,7 +1295,9 @@ void main() {
       expect(
         launch.argumentSchema.value,
         ((((_v10Document()['functions']! as Map)['launch']!
-                as Map)['properties']! as Map)['args']! as Map)
+                        as Map)['properties']!
+                    as Map)['args']!
+                as Map)
             .cast<String, Object?>(),
       );
     });
@@ -1400,9 +1391,11 @@ void main() {
       final CatalogApi catalog = Catalog.fromJson(_v10Document());
 
       final Map<String, Object?> withoutCard = catalog
-          .copyWith(components: [catalog.components['Spacer']!]).toJson();
-      final Map<String, Object?> withCard =
-          catalog.copyWith(components: [catalog.components['Card']!]).toJson();
+          .copyWith(components: [catalog.components['Spacer']!])
+          .toJson();
+      final Map<String, Object?> withCard = catalog
+          .copyWith(components: [catalog.components['Card']!])
+          .toJson();
 
       expect(withoutCard[r'$defs'], isNot(contains('Weighted')));
       expect(withoutCard[r'$defs'], contains('Unused'));
@@ -1543,9 +1536,8 @@ void main() {
 
     test('writes the basic catalog functions as published', () {
       final published = jsonDecode(
-        File(
-          resolveConformancePath('../catalogs/basic/v1/catalog.json'),
-        ).readAsStringSync(),
+        File(resolveConformancePath('../catalogs/basic/v1/catalog.json'))
+            .readAsStringSync(),
       ) as Map<String, Object?>;
 
       final Map<String, Object?> out = BasicCatalog.v1_0().toJson();
@@ -1559,8 +1551,7 @@ void main() {
       expect(_catalogDefinitionErrors(out), isEmpty);
     });
 
-    test(
-        'inlines catalog definitions in component schemas and '
+    test('inlines catalog definitions in component schemas and '
         'resolvedComponentSchemas and restores catalogDefRef markers', () {
       final Catalog<ComponentApi, FunctionImplementation> v10 =
           BasicCatalog.v1_0();
@@ -1568,41 +1559,46 @@ void main() {
           v10.components['Text']!.schema.value['properties']! as Map;
       expect(textInMemory['weight'], {
         'type': 'number',
-        'description': 'The relative weight of this component within a Row or '
+        'description':
+            'The relative weight of this component within a Row or '
             "Column. This is similar to the CSS 'flex-grow' property. Note: "
             'this may ONLY be set when the component is a direct descendant '
             'of a Row or Column.',
         'catalogDefRef': r'#/$defs/Weight',
       });
-      final textResolved = v10
-          .resolvedComponentSchema('Text')!
-          .value['properties']! as Map<String, Object?>;
+      final textResolved =
+          v10.resolvedComponentSchema('Text')!.value['properties']!
+              as Map<String, Object?>;
       expect(textResolved['weight'], {
         'type': 'number',
-        'description': 'The relative weight of this component within a Row or '
+        'description':
+            'The relative weight of this component within a Row or '
             "Column. This is similar to the CSS 'flex-grow' property. Note: "
             'this may ONLY be set when the component is a direct descendant '
             'of a Row or Column.',
       });
 
-      final Catalog<ComponentApi, FunctionApi> roundTripped =
-          Catalog.fromJson(v10.toJson());
+      final Catalog<ComponentApi, FunctionApi> roundTripped = Catalog.fromJson(
+        v10.toJson(),
+      );
       final rtTextInMemory =
           roundTripped.components['Text']!.schema.value['properties']! as Map;
       expect(rtTextInMemory['weight'], {
         'type': 'number',
-        'description': 'The relative weight of this component within a Row or '
+        'description':
+            'The relative weight of this component within a Row or '
             "Column. This is similar to the CSS 'flex-grow' property. Note: "
             'this may ONLY be set when the component is a direct descendant '
             'of a Row or Column.',
         'catalogDefRef': r'#/$defs/Weight',
       });
-      final rtTextResolved = roundTripped
-          .resolvedComponentSchema('Text')!
-          .value['properties']! as Map<String, Object?>;
+      final rtTextResolved =
+          roundTripped.resolvedComponentSchema('Text')!.value['properties']!
+              as Map<String, Object?>;
       expect(rtTextResolved['weight'], {
         'type': 'number',
-        'description': 'The relative weight of this component within a Row or '
+        'description':
+            'The relative weight of this component within a Row or '
             "Column. This is similar to the CSS 'flex-grow' property. Note: "
             'this may ONLY be set when the component is a direct descendant '
             'of a Row or Column.',
@@ -1642,9 +1638,9 @@ void main() {
         ],
       );
 
-      final boxResolved = custom
-          .resolvedComponentSchema('Box')!
-          .value['properties']! as Map<String, Object?>;
+      final boxResolved =
+          custom.resolvedComponentSchema('Box')!.value['properties']!
+              as Map<String, Object?>;
       expect(boxResolved['weight'], {
         'type': 'number',
         'description': 'Custom weight definition.',
@@ -1688,25 +1684,27 @@ void main() {
   group('Catalog.validationSchema', () {
     Map<String, Object?> standardDef(String path, String name) =>
         ((jsonDecode(File(resolveConformancePath(path)).readAsStringSync())
-                as Map<String, Object?>)[r'$defs']!
-            as Map<String, Object?>)[name]! as Map<String, Object?>;
+                    as Map<String, Object?>)[r'$defs']!
+                as Map<String, Object?>)[name]!
+            as Map<String, Object?>;
 
     Map<String, Object?> labelDocument(String? version) => {
-          'catalogId': 'label',
-          if (version != null) 'protocolVersion': version,
-          'components': {
-            'Label': {
-              'type': 'object',
-              'properties': {
-                'text': {r'$ref': r'common_types.json#/$defs/DynamicString'},
-              },
-            },
+      'catalogId': 'label',
+      'protocolVersion': ?version,
+      'components': {
+        'Label': {
+          'type': 'object',
+          'properties': {
+            'text': {r'$ref': r'common_types.json#/$defs/DynamicString'},
           },
-        };
+        },
+      },
+    };
 
     test('bundles the v1.0 common types for a v1.0 catalog', () {
-      final defs = Catalog.fromJson(labelDocument('1.0'))
-          .validationSchema[r'$defs']! as Map<String, Object?>;
+      final defs =
+          Catalog.fromJson(labelDocument('1.0')).validationSchema[r'$defs']!
+              as Map<String, Object?>;
 
       expect(
         defs['DynamicString'],
@@ -1719,8 +1717,9 @@ void main() {
 
     for (final String? version in [null, '0.9', '0.9.1']) {
       test('bundles the v0.9 common types for version $version', () {
-        final defs = Catalog.fromJson(labelDocument(version))
-            .validationSchema[r'$defs']! as Map<String, Object?>;
+        final defs =
+            Catalog.fromJson(labelDocument(version)).validationSchema[r'$defs']!
+                as Map<String, Object?>;
 
         expect(
           defs['DynamicString'],
@@ -1834,18 +1833,20 @@ void main() {
     });
 
     test('leaves v1.0 components open unless the source closes them', () {
-      final components = Catalog.fromJson({
-        'catalogId': 'v1',
-        'protocolVersion': '1.0',
-        'components': {
-          'Open': {'type': 'object', 'properties': <String, Object?>{}},
-          'Closed': {
-            'type': 'object',
-            'properties': <String, Object?>{},
-            'unevaluatedProperties': false,
-          },
-        },
-      }).validationSchema['components']! as Map<String, Object?>;
+      final components =
+          Catalog.fromJson({
+                'catalogId': 'v1',
+                'protocolVersion': '1.0',
+                'components': {
+                  'Open': {'type': 'object', 'properties': <String, Object?>{}},
+                  'Closed': {
+                    'type': 'object',
+                    'properties': <String, Object?>{},
+                    'unevaluatedProperties': false,
+                  },
+                },
+              }).validationSchema['components']!
+              as Map<String, Object?>;
 
       expect(
         (components['Open']! as Map).containsKey('unevaluatedProperties'),
@@ -1856,20 +1857,22 @@ void main() {
 
     group('theme', () {
       Map<String, Object?> theme(String version, {bool? open}) {
-        final defs = Catalog.fromJson({
-          'catalogId': 'themed',
-          'protocolVersion': version,
-          'components': <String, Object?>{},
-          r'$defs': {
-            'theme': {
-              'type': 'object',
-              'properties': {
-                'primaryColor': {'type': 'string'},
-              },
-              if (open != null) 'additionalProperties': open,
-            },
-          },
-        }).validationSchema[r'$defs']! as Map<String, Object?>;
+        final defs =
+            Catalog.fromJson({
+                  'catalogId': 'themed',
+                  'protocolVersion': version,
+                  'components': <String, Object?>{},
+                  r'$defs': {
+                    'theme': {
+                      'type': 'object',
+                      'properties': {
+                        'primaryColor': {'type': 'string'},
+                      },
+                      'additionalProperties': ?open,
+                    },
+                  },
+                }).validationSchema[r'$defs']!
+                as Map<String, Object?>;
         return defs['theme']! as Map<String, Object?>;
       }
 
@@ -1882,18 +1885,20 @@ void main() {
       });
 
       test('is not opened when closed by unevaluatedProperties', () {
-        final defs = Catalog.fromJson({
-          'catalogId': 'themed',
-          'protocolVersion': '0.9',
-          'components': <String, Object?>{},
-          r'$defs': {
-            'theme': {
-              'type': 'object',
-              'properties': <String, Object?>{},
-              'unevaluatedProperties': false,
-            },
-          },
-        }).validationSchema[r'$defs']! as Map<String, Object?>;
+        final defs =
+            Catalog.fromJson({
+                  'catalogId': 'themed',
+                  'protocolVersion': '0.9',
+                  'components': <String, Object?>{},
+                  r'$defs': {
+                    'theme': {
+                      'type': 'object',
+                      'properties': <String, Object?>{},
+                      'unevaluatedProperties': false,
+                    },
+                  },
+                }).validationSchema[r'$defs']!
+                as Map<String, Object?>;
 
         expect(defs['theme'], {
           'type': 'object',
@@ -1995,27 +2000,29 @@ void main() {
     });
 
     test('carries non-empty allowedParents and allowedChildren', () {
-      final components = Catalog.fromJson({
-        'catalogId': 'composition',
-        'protocolVersion': '1.0',
-        'components': {
-          'Row': {
-            'type': 'object',
-            'allowedChildren': ['Cell'],
-            'properties': <String, Object?>{},
-          },
-          'Cell': {
-            'type': 'object',
-            'allowedParents': ['Row'],
-            'properties': <String, Object?>{},
-          },
-          'Free': {
-            'type': 'object',
-            'allowedParents': <String>[],
-            'properties': <String, Object?>{},
-          },
-        },
-      }).validationSchema['components']! as Map<String, Object?>;
+      final components =
+          Catalog.fromJson({
+                'catalogId': 'composition',
+                'protocolVersion': '1.0',
+                'components': {
+                  'Row': {
+                    'type': 'object',
+                    'allowedChildren': ['Cell'],
+                    'properties': <String, Object?>{},
+                  },
+                  'Cell': {
+                    'type': 'object',
+                    'allowedParents': ['Row'],
+                    'properties': <String, Object?>{},
+                  },
+                  'Free': {
+                    'type': 'object',
+                    'allowedParents': <String>[],
+                    'properties': <String, Object?>{},
+                  },
+                },
+              }).validationSchema['components']!
+              as Map<String, Object?>;
 
       expect((components['Row']! as Map)['allowedChildren'], ['Cell']);
       expect((components['Row']! as Map).containsKey('allowedParents'), false);
@@ -2092,11 +2099,12 @@ void main() {
         'Extensions',
       );
       final metadata =
-          (common['properties']! as Map)['metadata'] as Map<String, Object?>;
+          (common['properties']! as Map)['@metadata'] as Map<String, Object?>;
 
-      expect(properties.keys, containsAll(['accessibility', 'metadata']));
+      expect(properties.keys, containsAll(['@accessibility', '@metadata']));
+      expect(properties.containsKey('@catalogId'), isFalse);
       expect(properties.containsKey('catalogId'), isFalse);
-      expect(properties['metadata'], {
+      expect(properties['@metadata'], {
         ...metadata,
         'properties': {
           'extensions': {
@@ -2153,7 +2161,7 @@ void main() {
       );
     });
 
-    test('use the legacy inline catalog shape before v1.0', () {
+    test('use the v0.9 inline catalog shape before v1.0', () {
       final Map<String, Object?> json = A2uiRendererCapabilities(
         versions: {
           A2uiProtocolVersion.v0_9: A2uiVersionCapabilities(
@@ -2163,11 +2171,12 @@ void main() {
         },
       ).toJson();
 
-      final legacy = ((json['v0.9']! as Map)['inlineCatalogs'] as List).single
-          as Map<String, Object?>;
-      expect(legacy, equals(catalog.toLegacyInlineCatalog()));
-      expect(legacy.keys, ['catalogId', 'components', 'functions']);
-      expect((legacy['functions']! as List).single, {
+      final v09Inline =
+          ((json['v0.9']! as Map)['inlineCatalogs'] as List).single
+              as Map<String, Object?>;
+      expect(v09Inline, equals(catalog.toV09InlineCatalog()));
+      expect(v09Inline.keys, ['catalogId', 'components', 'functions']);
+      expect((v09Inline['functions']! as List).single, {
         'name': 'launch',
         'description': 'Launches a URL.',
         'returnType': 'void',
@@ -2204,7 +2213,15 @@ void main() {
       );
       expect(
         ((json['v0.9']! as Map)['inlineCatalogs'] as List).single,
-        equals(TestCatalog().toLegacyInlineCatalog()),
+        equals(TestCatalog().toV09InlineCatalog()),
+      );
+    });
+
+    test('keep toLegacyInlineCatalog as a deprecated alias', () {
+      expect(
+        // ignore: deprecated_member_use_from_same_package
+        catalog.toLegacyInlineCatalog(),
+        equals(catalog.toV09InlineCatalog()),
       );
     });
   });
@@ -2213,55 +2230,55 @@ void main() {
     // A catalog whose component property and function argument both name
     // an authored definition and a deep pointer into the common types.
     Map<String, Object?> document() => {
-          'catalogId': 'https://example.com/refs',
-          'protocolVersion': '0.9',
-          'components': {
-            'Counter': {
+      'catalogId': 'https://example.com/refs',
+      'protocolVersion': '0.9',
+      'components': {
+        'Counter': {
+          'type': 'object',
+          'properties': {
+            'count': {r'$ref': r'#/$defs/PositiveInt'},
+            'label': {
+              r'$ref': r'common_types.json#/$defs/DynamicString/oneOf/0',
+            },
+          },
+          'required': ['count'],
+        },
+      },
+      'functions': {
+        'repeat': {
+          'type': 'object',
+          'properties': {
+            'call': {'const': 'repeat'},
+            'args': {
               'type': 'object',
               'properties': {
-                'count': {r'$ref': r'#/$defs/PositiveInt'},
-                'label': {
+                'times': {r'$ref': r'#/$defs/PositiveInt'},
+                'text': {
                   r'$ref': r'common_types.json#/$defs/DynamicString/oneOf/0',
                 },
               },
-              'required': ['count'],
             },
+            'returnType': {'const': 'string'},
           },
-          'functions': {
-            'repeat': {
-              'type': 'object',
-              'properties': {
-                'call': {'const': 'repeat'},
-                'args': {
-                  'type': 'object',
-                  'properties': {
-                    'times': {r'$ref': r'#/$defs/PositiveInt'},
-                    'text': {
-                      r'$ref':
-                          r'common_types.json#/$defs/DynamicString/oneOf/0',
-                    },
-                  },
-                },
-                'returnType': {'const': 'string'},
-              },
-            },
-          },
-          r'$defs': {
-            'PositiveInt': {'type': 'integer', 'minimum': 1},
-          },
-        };
+        },
+      },
+      r'$defs': {
+        'PositiveInt': {'type': 'integer', 'minimum': 1},
+      },
+    };
 
     Map<String, Object?> properties(Map<String, Object?> schema) =>
         ((schema['components']! as Map)['Counter'] as Map)['properties']
             as Map<String, Object?>;
     Map<String, Object?> arguments(Map<String, Object?> schema) =>
         ((((schema['functions']! as Map)['repeat'] as Map)['properties']
-            as Map)['args'] as Map)['properties'] as Map<String, Object?>;
+                    as Map)['args']
+                as Map)['properties']
+            as Map<String, Object?>;
 
     test('keeps the full path of a deep pointer into the common types', () {
-      final Map<String, Object?> schema = Catalog.fromJson(
-        document(),
-      ).validationSchema;
+      final Map<String, Object?> schema = Catalog.fromJson(document())
+          .validationSchema;
       const deep = {r'$ref': r'#/$defs/DynamicString/oneOf/0'};
 
       // No description: the pointer names part of a definition.
@@ -2271,9 +2288,8 @@ void main() {
     });
 
     test('keeps references to authored definitions and bundles them', () {
-      final Map<String, Object?> schema = Catalog.fromJson(
-        document(),
-      ).validationSchema;
+      final Map<String, Object?> schema = Catalog.fromJson(document())
+          .validationSchema;
       const ref = {r'$ref': r'#/$defs/PositiveInt'};
 
       expect(properties(schema)['count'], ref);
@@ -2382,114 +2398,194 @@ void main() {
       expect(props.containsKey('call'), isFalse);
     });
   });
+
+  group('Catalog.customComponentProperties', () {
+    /// The custom properties of a v1.0 component whose `properties` block
+    /// holds [properties], plus `id` when [inlineId].
+    Set<String> customOf(
+      Map<String, Object?> properties, {
+      required bool inlineId,
+    }) {
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'inline-mixins',
+        'protocolVersion': '1.0',
+        'components': {
+          'Box': {
+            'type': 'object',
+            'properties': {
+              if (inlineId) 'id': {'type': 'string'},
+              'component': {'const': 'Box'},
+              ...properties,
+            },
+          },
+        },
+      });
+      return catalog.customComponentProperties('Box');
+    }
+
+    const Map<String, Object?> standardMetadata = {
+      'type': 'object',
+      'properties': {
+        'extensions': {'type': 'object'},
+      },
+    };
+
+    test('reads an inline catalogId as the mixin only beside id and as a '
+        'string', () {
+      expect(
+        customOf({
+          'catalogId': {'type': 'string'},
+        }, inlineId: true),
+        isEmpty,
+      );
+      expect(
+        customOf({
+          'catalogId': {'type': 'integer'},
+        }, inlineId: true),
+        {'catalogId'},
+      );
+      expect(
+        customOf({
+          'catalogId': {'type': 'string'},
+        }, inlineId: false),
+        {'catalogId'},
+      );
+    });
+
+    test('reads an inline metadata as the mixin only beside id and as an '
+        'object holding only extensions', () {
+      expect(customOf({'metadata': standardMetadata}, inlineId: true), isEmpty);
+      expect(
+        customOf({
+          'metadata': {'type': 'string'},
+        }, inlineId: true),
+        {'metadata'},
+      );
+      expect(
+        customOf({
+          'metadata': {
+            'type': 'object',
+            'properties': {
+              'extensions': {'type': 'object'},
+              'pageNumber': {'type': 'number'},
+            },
+          },
+        }, inlineId: true),
+        {'metadata'},
+      );
+      expect(customOf({'metadata': standardMetadata}, inlineId: false), {
+        'metadata',
+      });
+    });
+  });
 }
 
 /// A v0.9 document with instructions, a top-level theme and a local mixin.
 Map<String, Object?> _themedDocument() => {
-      'catalogId': 'https://example.com/themed',
-      'instructions': 'Prefer Cards.',
-      'components': {
-        'Card': {
-          'type': 'object',
-          'allOf': [
-            {r'$ref': r'#/$defs/Weighted'},
-            {
-              'type': 'object',
-              'properties': {
-                'component': {'const': 'Card'},
-                'child': {r'$ref': r'common_types.json#/$defs/ComponentId'},
-              },
-              'required': ['component', 'child'],
-            },
-          ],
-          'unevaluatedProperties': false,
-        },
-      },
-      'theme': {
-        'primaryColor': {'type': 'string'},
-      },
-      r'$defs': {
-        'Weighted': {
+  'catalogId': 'https://example.com/themed',
+  'instructions': 'Prefer Cards.',
+  'components': {
+    'Card': {
+      'type': 'object',
+      'allOf': [
+        {r'$ref': r'#/$defs/Weighted'},
+        {
           'type': 'object',
           'properties': {
-            'weight': {'type': 'number'},
+            'component': {'const': 'Card'},
+            'child': {r'$ref': r'common_types.json#/$defs/ComponentId'},
           },
+          'required': ['component', 'child'],
         },
+      ],
+      'unevaluatedProperties': false,
+    },
+  },
+  'theme': {
+    'primaryColor': {'type': 'string'},
+  },
+  r'$defs': {
+    'Weighted': {
+      'type': 'object',
+      'properties': {
+        'weight': {'type': 'number'},
       },
-    };
+    },
+  },
+};
 
 /// A v1.0 document with metadata, functions, a mixin and both unions.
 Map<String, Object?> _v10Document() => {
-      r'$schema': Catalog.jsonSchemaDialect,
-      'protocolVersion': '1.0',
-      'title': 'Versioned',
-      'catalogId': 'https://example.com/v10',
-      'components': {
-        'Spacer': {
+  r'$schema': Catalog.jsonSchemaDialect,
+  'protocolVersion': '1.0',
+  'title': 'Versioned',
+  'catalogId': 'https://example.com/v10',
+  'components': {
+    'Spacer': {
+      'type': 'object',
+      'allowedParents': ['Surface'],
+      'allowedChildren': <Object?>[],
+      'properties': {
+        'component': {'const': 'Spacer'},
+      },
+      'required': ['component'],
+    },
+    'Card': {
+      'type': 'object',
+      'allOf': [
+        {r'$ref': r'#/$defs/Weighted'},
+        {
           'type': 'object',
-          'allowedParents': ['Surface'],
-          'allowedChildren': <Object?>[],
           'properties': {
-            'component': {'const': 'Spacer'},
+            'component': {'const': 'Card'},
           },
           'required': ['component'],
         },
-        'Card': {
-          'type': 'object',
-          'allOf': [
-            {r'$ref': r'#/$defs/Weighted'},
-            {
-              'type': 'object',
-              'properties': {
-                'component': {'const': 'Card'},
-              },
-              'required': ['component'],
-            },
-          ],
-        },
-      },
-      'functions': {
-        'launch': {
-          'type': 'object',
-          'description': 'Launches a URL.',
-          'returnType': 'void',
-          'allowedCallers': 'rendererOnly',
-          'requiresUserActivation': true,
-          'properties': {
-            '@call': {'const': 'launch'},
-            'args': {
-              'type': 'object',
-              'properties': {
-                'url': {r'$ref': r'common_types.json#/$defs/DynamicString'},
-              },
-              'required': ['url'],
-            },
-          },
-          'required': ['@call', 'args'],
-        },
-      },
-      r'$defs': {
-        'Weighted': {
+      ],
+    },
+  },
+  'functions': {
+    'launch': {
+      'type': 'object',
+      'description': 'Launches a URL.',
+      'returnType': 'void',
+      'allowedCallers': 'rendererOnly',
+      'requiresUserActivation': true,
+      'properties': {
+        '@call': {'const': 'launch'},
+        'args': {
           'type': 'object',
           'properties': {
-            'weight': {'type': 'number'},
+            'url': {r'$ref': r'common_types.json#/$defs/DynamicString'},
           },
-        },
-        'Unused': {'type': 'string'},
-        'anyComponent': {
-          'oneOf': [
-            {r'$ref': '#/components/Spacer'},
-            {r'$ref': '#/components/Card'},
-          ],
-          'discriminator': {'propertyName': 'component'},
-        },
-        'anyFunction': {
-          'oneOf': [
-            {r'$ref': '#/functions/launch'},
-          ],
+          'required': ['url'],
         },
       },
-    };
+      'required': ['@call', 'args'],
+    },
+  },
+  r'$defs': {
+    'Weighted': {
+      'type': 'object',
+      'properties': {
+        'weight': {'type': 'number'},
+      },
+    },
+    'Unused': {'type': 'string'},
+    'anyComponent': {
+      'oneOf': [
+        {r'$ref': '#/components/Spacer'},
+        {r'$ref': '#/components/Card'},
+      ],
+      'discriminator': {'propertyName': 'component'},
+    },
+    'anyFunction': {
+      'oneOf': [
+        {r'$ref': '#/functions/launch'},
+      ],
+    },
+  },
+};
 
 /// The errors validating [document] against the v1.0
 /// `catalog_definition.json`, with its references to the JSON Schema
@@ -2507,17 +2603,19 @@ List<ValidationError> _catalogDefinitionErrors(Map<String, Object?> document) {
     };
   }
 
-  final definition = acceptExternal(
-    jsonDecode(
-      File(
-        resolveConformancePath(
-          '../specification/v1_0/json/catalog_definition.json',
-        ),
-      ).readAsStringSync(),
-    ),
-  )! as Map<String, Object?>
-    ..remove(r'$schema')
-    ..remove(r'$id');
+  final definition =
+      acceptExternal(
+              jsonDecode(
+                File(
+                  resolveConformancePath(
+                    '../specification/v1_0/json/catalog_definition.json',
+                  ),
+                ).readAsStringSync(),
+              ),
+            )!
+            as Map<String, Object?>
+        ..remove(r'$schema')
+        ..remove(r'$id');
   return Schema.fromMap(definition).validateSync(document);
 }
 
@@ -2525,22 +2623,22 @@ List<ValidationError> _catalogDefinitionErrors(Map<String, Object?> document) {
 /// unless another [argumentSchema] is given.
 class _EchoFunction extends FunctionImplementation {
   _EchoFunction({Schema? argumentSchema})
-      : super(
-          name: 'echo',
-          argumentSchema: argumentSchema ??
-              Schema.object(
-                properties: {'value': Schema.string()},
-                required: ['value'],
-              ),
-        );
+    : super(
+        name: 'echo',
+        argumentSchema:
+            argumentSchema ??
+            Schema.object(
+              properties: {'value': Schema.string()},
+              required: ['value'],
+            ),
+      );
 
   @override
   Object? execute(
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      args['value'];
+  ]) => args['value'];
 }
 
 /// The local `#/$defs/` references in [schema] that name no definition.

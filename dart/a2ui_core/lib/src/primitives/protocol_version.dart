@@ -33,7 +33,11 @@ enum A2uiProtocolVersion implements Comparable<A2uiProtocolVersion> {
   v1_0('1.0', 1, 0, 0);
 
   const A2uiProtocolVersion(
-      this.jsonValue, this.major, this.minor, this._patch);
+    this.jsonValue,
+    this.major,
+    this.minor,
+    this._patch,
+  );
 
   /// The value used for the `version` field on the wire.
   final String jsonValue;
@@ -70,8 +74,8 @@ enum A2uiProtocolVersion implements Comparable<A2uiProtocolVersion> {
   static A2uiProtocolVersion fromJson(Object? value) {
     if (value == null) {
       throw A2uiValidationError(
-        "A2UI payloads must declare a 'version' field; this SDK supports "
-        'only $supportedVersions.',
+        'Missing required version field: A2UI payloads must declare a '
+        "'version' field; this SDK supports only $supportedVersions.",
       );
     }
     if (value is! String) {
@@ -91,8 +95,8 @@ enum A2uiProtocolVersion implements Comparable<A2uiProtocolVersion> {
     final A2uiProtocolVersion? version = tryParse(value);
     if (version != null) return version;
     throw A2uiValidationError(
-      "Unsupported A2UI protocol version '$value'; this SDK supports only "
-      '$supportedVersions.',
+      'Unsupported A2UI protocol version (Unsupported protocol version '
+      "'$value'); this SDK supports only $supportedVersions.",
     );
   }
 

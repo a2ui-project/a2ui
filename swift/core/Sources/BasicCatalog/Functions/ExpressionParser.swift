@@ -58,7 +58,7 @@ public struct ExpressionParser: Sendable {
     try parse(input, depth: 0)
   }
 
-  /// Parses an input template string into an array of dynamic `JSONValue` parts at a specific depth.
+  /// Parses an input template string into an array of dynamic `JSONValue` parts at `depth`.
   ///
   /// - Parameters:
   ///   - input: The raw template string to parse.
@@ -230,7 +230,7 @@ public struct ExpressionParser: Sendable {
 
     // 1. String literals ('...' or "...")
     if let char = scanner.peek(), char == "'" || char == "\"" {
-      return .string(parseStringLiteral(&scanner))
+      return .string(try parseStringLiteral(&scanner))
     }
 
     // 2. Number literals
@@ -250,12 +250,18 @@ public struct ExpressionParser: Sendable {
     }
 
     // 4. Identifiers / Paths / Function calls
-    let token = scanPathOrIdentifier(&scanner)
+    let token = try scanPathOrIdentifier(&scanner)
     scanner.skipWhitespace()
 
     if scanner.peek() == "(" {
       return try parseFunctionCall(funcName: token, scanner: &scanner, depth: depth)
     } else {
+      if token.hasPrefix("@") {
+        throw FunctionError.executionFailed(
+          name: "expressionParser",
+          message: "Expected '(' after function name '\(token)'"
+        )
+      }
       if token.isEmpty {
         return .string("")
       }
@@ -308,50 +314,72 @@ public struct ExpressionParser: Sendable {
     return .object(dict)
   }
 
-  private func scanPathOrIdentifier(_ scanner: inout Scanner) -> String {
+  private func scanPathOrIdentifier(_ scanner: inout Scanner) throws -> String {
     let start = scanner.pos
-    while !scanner.isAtEnd, let c = scanner.peek() {
-      if c.isLetter || c.isNumber || c == "/" || c == "." || c == "_" || c == "-" {
-        _ = scanner.advance(by: 1)
-      } else {
-        break
+    // A leading `@` starts a system function name such as `@index`, which every engine
+    // restricts to ASCII `[A-Za-z_][A-Za-z0-9_]*`.
+    if scanner.peek() == "@" {
+      guard let next = scanner.peek(offset: 1), Self.isSystemFunctionStart(next) else {
+        throw FunctionError.executionFailed(
+          name: "expressionParser",
+          message: "Invalid identifier starting with '@' in expression"
+        )
       }
+      scanner.advance(by: 1)
+      while let character = scanner.peek(), Self.isSystemFunctionContinue(character) {
+        scanner.advance(by: 1)
+      }
+      return String(scanner.input[start..<scanner.pos])
+    }
+    while let character = scanner.peek(), Self.isPathCharacter(character) {
+      scanner.advance(by: 1)
     }
     return String(scanner.input[start..<scanner.pos])
   }
 
   private func scanIdentifier(_ scanner: inout Scanner) -> String {
     let start = scanner.pos
-    while !scanner.isAtEnd, let c = scanner.peek() {
-      if c.isLetter || c.isNumber || c == "_" {
-        _ = scanner.advance(by: 1)
-      } else {
-        break
-      }
+    while let character = scanner.peek(), Self.isIdentifierCharacter(character) {
+      scanner.advance(by: 1)
     }
     return String(scanner.input[start..<scanner.pos])
   }
 
-  private func parseStringLiteral(_ scanner: inout Scanner) -> String {
+  private static func isSystemFunctionStart(_ c: Character) -> Bool {
+    c == "_" || (c.isASCII && c.isLetter)
+  }
+
+  private static func isSystemFunctionContinue(_ c: Character) -> Bool {
+    isSystemFunctionStart(c) || (c.isASCII && c.isNumber)
+  }
+
+  private func parseStringLiteral(_ scanner: inout Scanner) throws -> String {
     let quote = Character(scanner.advance(by: 1))
     var result = ""
+    var closed = false
     while !scanner.isAtEnd {
       let c = Character(scanner.advance(by: 1))
       if c == "\\" {
-        if !scanner.isAtEnd {
-          let next = Character(scanner.advance(by: 1))
-          switch next {
-          case "n": result.append("\n")
-          case "t": result.append("\t")
-          case "r": result.append("\r")
-          default: result.append(next)
-          }
+        if scanner.isAtEnd { break }
+        let next = Character(scanner.advance(by: 1))
+        switch next {
+        case "n": result.append("\n")
+        case "t": result.append("\t")
+        case "r": result.append("\r")
+        default: result.append(next)
         }
       } else if c == quote {
+        closed = true
         break
       } else {
         result.append(c)
       }
+    }
+    guard closed else {
+      throw FunctionError.executionFailed(
+        name: "expressionParser",
+        message: "Unclosed string literal: missing closing \(quote)"
+      )
     }
     return result
   }
@@ -433,6 +461,22 @@ public struct ExpressionParser: Sendable {
     return c >= "0" && c <= "9"
   }
 
+  /// Whether every scalar of `character` is in UAX #31 `XID_Continue`, which includes `_`.
+  /// Matches the other engines, unlike `Character.isLetter` or `isNumber`, which also accept
+  /// `½` or `²`.
+  private static func isIdentifierCharacter(_ character: Character) -> Bool {
+    character.unicodeScalars.allSatisfy(\.properties.isXIDContinue)
+  }
+
+  /// Whether every scalar of `character` may appear in a path: `XID_Continue`, `/`, `.`, or `-`.
+  /// A `Character` is a grapheme cluster, so a separator followed by a combining mark such as
+  /// U+0301 arrives as one `Character`; checking per scalar accepts it like the other engines.
+  private static func isPathCharacter(_ character: Character) -> Bool {
+    character.unicodeScalars.allSatisfy {
+      $0.properties.isXIDContinue || $0 == "/" || $0 == "." || $0 == "-"
+    }
+  }
+
   // MARK: - Nested Scanner
 
   private struct Scanner {
@@ -475,16 +519,14 @@ public struct ExpressionParser: Sendable {
     }
 
     mutating func matchesKeyword(_ keyword: String) -> Bool {
-      if matches(keyword) {
-        if let nextChar = peek(offset: keyword.count) {
-          if nextChar.isLetter || nextChar.isNumber || nextChar == "_" {
-            return false
-          }
-        }
-        advance(by: keyword.count)
-        return true
+      guard matches(keyword) else { return false }
+      if let nextCharacter = peek(offset: keyword.count),
+        ExpressionParser.isIdentifierCharacter(nextCharacter)
+      {
+        return false
       }
-      return false
+      advance(by: keyword.count)
+      return true
     }
 
     mutating func skipWhitespace() {

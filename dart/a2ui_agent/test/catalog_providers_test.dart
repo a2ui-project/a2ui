@@ -22,7 +22,7 @@ import 'package:test/test.dart';
 /// covers the file system provider against v1.0 documents: the in-memory
 /// provider, the spellings of a version, and malformed documents.
 void main() {
-  const basicPath = '../../specification/v0_9/catalogs/basic/catalog.json';
+  const basicPath = '../../catalogs/basic/v0_9/catalog.json';
   const A2uiProtocolVersion v0_9 = A2uiProtocolVersion.v0_9;
   const A2uiProtocolVersion v1_0 = A2uiProtocolVersion.v1_0;
 

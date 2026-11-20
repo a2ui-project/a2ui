@@ -34,6 +34,25 @@
         "primary": { "$ref": "common_types.json#/$defs/Action" }
       },
       "required": ["component", "items"]
+    },
+    "Tabs": {
+      "type": "object",
+      "description": "A tabbed view whose tabItems carry a title and a Child componentId.",
+      "properties": {
+        "component": { "const": "Tabs" },
+        "tabItems": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "$ref": "common_types.json#/$defs/DynamicString" },
+              "child": { "$ref": "common_types.json#/$defs/Child" }
+            },
+            "required": ["title", "child"]
+          }
+        }
+      },
+      "required": ["component", "tabItems"]
     }
   },
   "functions": {

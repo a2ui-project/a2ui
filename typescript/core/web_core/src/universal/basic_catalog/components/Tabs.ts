@@ -17,6 +17,7 @@
 import {html, nothing, css} from 'lit';
 import {state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
+import {getAccessibilityDescription, getAccessibilityLabel} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {TabsSupportedApis} from './supported_apis.js';
 
@@ -27,12 +28,20 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<TabsSupportedApis> {
    * The styles of the tabs can be customized by redefining the following
    * CSS variables:
    *
-   * - `--a2ui-tabs-border`: Controls the border of the tab bar. Defaults to `2px solid var(--a2ui-color-border, #eee)`.
-   * - `--a2ui-tabs-header-background`: Controls the background of tab buttons. Defaults to `transparent`.
-   * - `--a2ui-tabs-header-color`: Controls the text color of tab buttons. Defaults to `var(--a2ui-text-caption-color, #666)`.
-   * - `--a2ui-tabs-header-background-active`: Controls the background of the active tab button. Defaults to `transparent`.
-   * - `--a2ui-tabs-header-color-active`: Controls the text color of the active tab button. Defaults to `var(--a2ui-color-primary, #007bff)`.
-   * - `--a2ui-tabs-content-padding`: Controls the padding of the tab content. Defaults to `var(--a2ui-spacing-m, 16px) 0`.
+   * - `--a2ui-tabs-border`: Bottom border of the tab bar. Defaults to `2px solid var(--a2ui-color-border)`.
+   * - `--a2ui-tabs-header-background`: Background of inactive tab buttons. Defaults to `transparent`.
+   * - `--a2ui-tabs-header-color`: Text color of inactive tab buttons. Defaults to `--a2ui-text-caption-color` (`#666`).
+   * - `--a2ui-tabs-header-background-active`: Background of the active tab button. Defaults to `transparent`.
+   * - `--a2ui-tabs-header-color-active`: Text color of the active tab button. Defaults to `--a2ui-color-primary`.
+   * - `--a2ui-tabs-content-padding`: Padding of the tab panel content. Defaults to `var(--a2ui-spacing-m) 0`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-color-border`: Fallback bottom border color of the tab bar.
+   * - `--a2ui-color-primary`: Active tab bottom border color and fallback active tab text color.
+   * - `--a2ui-text-caption-color`: Fallback text color of inactive tab buttons. Defaults to `#666`.
+   * - `--a2ui-spacing-s`: Vertical padding of tab buttons.
+   * - `--a2ui-spacing-m`: Gap between tab buttons, horizontal tab button padding, and fallback vertical tab panel padding.
    *
    * @nocollapse
    */
@@ -81,12 +90,25 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<TabsSupportedApis> {
     const props = this.controller?.props;
     if (!props || !props.tabs) return nothing;
 
+    const tabPanelId = `${this.domId}-tabpanel`;
+    const activeTab = props.tabs[this.activeIndex];
+
     return html`
       <div class="a2ui-tabs">
-        <div class="a2ui-tab-bar">
+        <div
+          class="a2ui-tab-bar"
+          role="tablist"
+          aria-label=${getAccessibilityLabel(props.accessibility)}
+          aria-description=${getAccessibilityDescription(props.accessibility)}
+        >
           ${props.tabs?.map(
             (tab, i) => html`
               <button
+                type="button"
+                role="tab"
+                id="${this.domId}-tab-${i}"
+                aria-selected=${i === this.activeIndex ? 'true' : 'false'}
+                aria-controls=${tabPanelId}
                 class=${classMap({
                   'a2ui-tab-button': true,
                   'a2ui-tab-button-active': i === this.activeIndex,
@@ -98,10 +120,13 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<TabsSupportedApis> {
             `,
           )}
         </div>
-        <div class="a2ui-tab-content">
-          ${props.tabs[this.activeIndex]
-            ? html`${this.renderNode(props.tabs[this.activeIndex].child)}`
-            : nothing}
+        <div
+          class="a2ui-tab-content"
+          role="tabpanel"
+          id=${tabPanelId}
+          aria-labelledby=${activeTab ? `${this.domId}-tab-${this.activeIndex}` : nothing}
+        >
+          ${activeTab ? html`${this.renderNode(activeTab.child)}` : nothing}
         </div>
       </div>
     `;

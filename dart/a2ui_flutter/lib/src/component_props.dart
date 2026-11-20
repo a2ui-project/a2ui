@@ -82,8 +82,8 @@ extension type const ComponentProps(NodeProps _props) implements NodeProps {
 
   /// The action closure of [key]. Invoking it resolves the action's context
   /// at that moment.
-  Future<void> Function()? action(String key) => switch (this[key]) {
-    final Future<void> Function() a => a,
+  NodeAction? action(String key) => switch (this[key]) {
+    final NodeAction a => a,
     _ => null,
   };
 

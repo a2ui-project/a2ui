@@ -160,6 +160,27 @@ void main() {
       expect(dialog.lastDate, DateTime(2025, 7, 25));
     });
 
+    testWidgets('limits the picker to a literal min and max', (tester) async {
+      await _pumpInput(
+        tester,
+        {
+          'enableDate': true,
+          'value': {'path': '/due'},
+          'min': '2025-07-10',
+          'max': '2025-07-25T18:00:00',
+        },
+        data: {'due': '2025-07-15'},
+      );
+
+      await _open(tester);
+
+      final DatePickerDialog dialog = tester.widget(
+        find.byType(DatePickerDialog),
+      );
+      expect(dialog.firstDate, DateTime(2025, 7, 10));
+      expect(dialog.lastDate, DateTime(2025, 7, 25));
+    });
+
     testWidgets('opens on the nearest allowed date', (tester) async {
       final SurfaceHarness harness = await _pumpInput(
         tester,

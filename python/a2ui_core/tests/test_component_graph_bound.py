@@ -325,17 +325,11 @@ def test_container_rewritten_to_drop_a_child_it_disallows(
     assert pair.send(_comp("a", "Item"), _comp("h", "Header")) is None
     outcome = pair.send(_comp("root", "Strict", children=["a", "h"]))
     assert _error_code(outcome) == "UNALLOWED_CHILD"
-    # `h` would be left with no parent, which places it under the surface,
-    # and a `Header` may only be placed under a `Box`.
-    outcome = pair.send(_comp("root", "Strict", children=["a"]))
-    assert _error_code(outcome) == "UNALLOWED_PARENT"
-    assert (
-        pair.send(
-            _comp("root", "Strict", children=["a"]),
-            _comp("b", "Box", children=["h"]),
-        )
-        is None
-    )
+    # `h` is left with no parent. Only the root is placed under the surface,
+    # so an unreferenced `h` is an orphan for the topology check, not a
+    # `Header` under the surface.
+    assert pair.send(_comp("root", "Strict", children=["a"])) is None
+    assert pair.send(_comp("b", "Box", children=["h"])) is None
 
 
 @pytest.mark.parametrize("config_name", DIFFERENTIAL_CONFIGS)
@@ -362,14 +356,11 @@ def test_rejects_a_child_under_a_holder_its_allowed_parents_omits(
 @pytest.mark.parametrize("config_name", DIFFERENTIAL_CONFIGS)
 def test_root_the_surface_may_not_hold(config_name: str) -> None:
     pair = _Pair(CONFIGS[config_name])
-    # A root no component references is placed under the surface.
+    # The root is placed under the surface.
     assert _error_code(pair.send(_comp("root", "Header"))) == "UNALLOWED_PARENT"
-    # A root a `Box` references is placed under that `Box`.
-    assert (
-        pair.send(_comp("a", "Box", children=["root"]), _comp("root", "Header")) is None
-    )
-    # Dropping the reference leaves the root under the surface again.
-    outcome = pair.send(_comp("a", "Box"))
+    # It stays under the surface when a `Box` also references it, so a
+    # `Header`, which only a `Box` may hold, is still rejected as the root.
+    outcome = pair.send(_comp("a", "Box", children=["root"]), _comp("root", "Header"))
     assert _error_code(outcome) == "UNALLOWED_PARENT"
 
 

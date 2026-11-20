@@ -38,7 +38,9 @@ from .models import (
     DynamicString,
     DynamicStringList,
     DynamicValue,
+    Extensions,
     FunctionCall,
+    set_surface_extensions,
 )
 from . import catalogs as catalogs
 from .catalogs import basic as basic
@@ -126,6 +128,7 @@ __all__ = [
     "DynamicStringList",
     "DynamicValue",
     "Email",
+    "Extensions",
     "FlexAlign",
     "FlexJustify",
     "FormatCurrency",
@@ -166,4 +169,5 @@ __all__ = [
     "basic",
     "catalogs",
     "flatten_component_tree",
+    "set_surface_extensions",
 ]

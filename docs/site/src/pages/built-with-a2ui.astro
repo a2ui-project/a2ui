@@ -1,0 +1,888 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+import '../styles/tokens.css';
+
+import assetsManifest from '../../assets-manifest.json';
+import CopilotKitLogo from '../components/CopilotKitLogo.astro';
+import ProductionShowcase from '../components/ProductionShowcase.astro';
+import StarlightHeader from '../components/StarlightHeader.astro';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+/**
+ * Screenshots are listed in assets-manifest.json. The build downloads them from
+ * the docs-assets release into public/docs-assets/ (scripts/fetch-doc-assets.mjs),
+ * so the page serves its own copies.
+ */
+function releaseAsset(id: string) {
+  const asset = (
+    assetsManifest.assets as Record<string, {filename: string; width: number; height: number}>
+  )[id];
+  if (!asset) {
+    throw new Error(`Missing "${id}" in docs/site/assets-manifest.json.`);
+  }
+  return {url: `${base}/docs-assets/${asset.filename}`, width: asset.width, height: asset.height};
+}
+
+interface StoryLink {
+  label: string;
+  href: string;
+}
+
+interface Story {
+  /** Anchor that the logos in ProductionShowcase link to. */
+  id: string;
+  team: string;
+  product: string;
+  title: string;
+  body: string[];
+  image?: {asset: {url: string; width: number; height: number}; alt: string; caption: string; tall?: boolean};
+  /** Shown in place of an image when a team has no approved screenshot. */
+  docs?: (StoryLink & {kind: string})[];
+  links: StoryLink[];
+}
+
+const stories: Story[] = [
+  {
+    id: 'alation',
+    team: 'Alation',
+    product: 'Alation AIOS',
+    title:
+      'Alation shows its AI-generated data feeds with A2UI, in its own app and inside AI assistants such as Claude.',
+    body: [
+      'The Alation Intelligence Operating System (AIOS) builds its feeds using A2UI: metric cards, charts, and more. Each chart can show the SQL query and data behind it.',
+      'Ask Claude for a feed about profitable products, and the feed renders in the conversation using A2UI to render metric cards, charts, and custom components. The same feed with the same information can be viewed directly inside Alation with a nearly identical layout.',
+    ],
+    image: {
+      asset: releaseAsset('build-with-a2ui/alation-feed'),
+      alt: 'An Office Supplies Profitability Tracker feed with metric cards and bar charts, shown in a Claude conversation and in the Alation Data Products App.',
+      caption:
+        "The same Alation feed rendered in Claude (left) and in Alation's Data Products App (right).",
+    },
+    links: [{label: 'Alation', href: 'https://www.alation.com'}],
+  },
+  {
+    id: 'bytedance',
+    team: 'ByteDance',
+    product: 'Lynx',
+    title:
+      'ByteDance built an A2UI renderer into Lynx, its open-source framework for mobile, web and desktop apps.',
+    body: [
+      'ByteDance released an A2UI renderer for Lynx, its cross-platform framework, in June 2026. Lynx keeps streamed screens smooth and ships a default set of components built on its lynx-ui library.',
+      'In the Lynx GenUI Playground you can watch A2UI messages render natively, for example as a two-day trip planner for Kyoto. Lynx supports A2UI 0.9 today and is working with the A2UI team on 1.0 and A2UI Express.',
+    ],
+    image: {
+      asset: releaseAsset('build-with-a2ui/lynx-kyoto'),
+      alt: 'The Lynx GenUI Playground with A2UI createSurface and updateComponents messages on the left and a Kyoto trip planner rendered in a phone frame on the right.',
+      caption:
+        'In the Lynx GenUI Playground, A2UI messages (left) render natively in Lynx as a Kyoto trip planner (right).',
+    },
+    links: [
+      {label: 'Lynx GenUI Playground', href: 'https://lynx-stack.dev/genui/#/a2ui'},
+      {label: 'Lynx A2UI docs', href: 'https://lynxjs.org/next/react/genui/a2ui.html'},
+      {
+        label: 'Source',
+        href: 'https://github.com/lynx-family/lynx-stack/tree/main/packages/genui/a2ui',
+      },
+    ],
+  },
+  {
+    id: 'atlassian',
+    team: 'Atlassian',
+    product: 'Jira',
+    title:
+      'Atlassian is bringing A2UI to Jira, where teams can assign work items to AI agents.',
+    body: [
+      'When an agent needs a follow-up from the team to finish a work item, such as a missing detail or a decision, it asks with an interactive card in the work item, and the team answers right there in Jira.',
+    ],
+    image: {
+      asset: releaseAsset('build-with-a2ui/jira-follow-up'),
+      alt: 'An agent in Jira asks how many test cases to write for a sticky note colour feature, with four options, a field for another answer, and Skip and Send answers buttons.',
+      caption: 'An agent asks the team for a follow-up inside a Jira work item.',
+      tall: true,
+    },
+    links: [
+      {
+        label: 'AI agents in Jira',
+        href: 'https://www.atlassian.com/software/jira/dev',
+      },
+    ],
+  },
+  {
+    id: 'gemini-notebook',
+    team: 'Gemini',
+    product: 'Gemini Notebook',
+    title: 'Gemini Notebook uses A2UI cards to confirm what you want before it creates a slide deck.',
+    body: [
+      'Ask Gemini Notebook for a slide deck and it replies with a card that asks two things: presenter slides or a detailed deck, and which topics to focus on. A review card follows with the format, focus and visual style, which you can edit before it generates.',
+      'The same cards guide Video Overviews on the web and on mobile.',
+    ],
+    image: {
+      asset: releaseAsset('build-with-a2ui/gemini-notebook-slides'),
+      alt: 'Two Gemini Notebook cards for a slide deck: an options card to pick presenter slides or a detailed deck and the topics to focus on, and a review card to check the format, length, language, slide focus and visual style before generating.',
+      caption: 'The options card (left) and the review card (right) in Gemini Notebook.',
+    },
+    links: [],
+  },
+  {
+    id: 'gemini-enterprise',
+    team: 'Google Cloud',
+    product: 'Inside Gemini',
+    title: 'Gemini Enterprise supports A2UI agents that organizations build and register.',
+    body: [
+      'Organizations can register their own agents that respond with A2UI. Gemini Enterprise renders those responses using the components in its A2UI component gallery, and supports A2UI 0.9.1 today.',
+      'The Google Cloud documentation covers registering an agent and hosting one on Cloud Run.',
+    ],
+    docs: [
+      {
+        kind: 'Google Cloud blog',
+        label: 'Guide to Gemini Enterprise and A2UI integration',
+        href: 'https://cloud.google.com/blog/topics/developers-practitioners/guide-to-gemini-enterprise-and-a2ui-integration',
+      },
+      {
+        kind: 'Documentation',
+        label: 'Register and manage an A2UI agent',
+        href: 'https://docs.cloud.google.com/gemini/enterprise/docs/a2ui-agents/register-and-manage-an-a2ui-agent',
+      },
+      {
+        kind: 'Reference',
+        label: 'A2UI component gallery',
+        href: 'https://docs.cloud.google.com/gemini/enterprise/docs/a2ui-agents/a2ui-component-gallery-reference',
+      },
+      {
+        kind: 'Tutorial',
+        label: 'Host an A2UI agent on Cloud Run',
+        href: 'https://docs.cloud.google.com/gemini/enterprise/docs/a2ui-agents/tutorial-host-agent-cloud-run',
+      },
+    ],
+    links: [],
+  },
+];
+---
+
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Built with A2UI | A2UI</title>
+    <meta
+      name="description"
+      content="What teams at Alation, ByteDance, Atlassian, and Google ship with A2UI."
+    />
+    <link rel="icon" type="image/svg+xml" href={`${base}/assets/favicon.svg`} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <script is:inline>
+      (() => {
+        try {
+          const saved =
+            localStorage.getItem('starlight-theme') || localStorage.getItem('a2ui-theme');
+          document.documentElement.setAttribute(
+            'data-theme',
+            saved === 'dark' || saved === 'light' ? saved : 'light'
+          );
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
+  </head>
+
+  <body class="a2-page">
+    <header class="a2-topbar">
+      <div class="a2-topbar__inner">
+        <StarlightHeader />
+      </div>
+    </header>
+
+    <main data-pagefind-body>
+      <section class="a2-hero b-hero" id="hero">
+        <div class="a2-hero__grid-bg" aria-hidden="true"></div>
+
+        <div class="a2-wrap b-hero__inner">
+          <h1 class="a2-h1 b-h1">Built with <span class="a2-h-accent">A2UI.</span></h1>
+          <p class="a2-lead">
+            Teams at Google and at other companies use A2UI in their products. Here is what they
+            built.
+          </p>
+        </div>
+      </section>
+
+      <ProductionShowcase />
+
+      <section class="a2-section b-stories" id="stories" aria-labelledby="b-stories-title">
+        <div class="a2-wrap">
+          <h2 class="a2-h2 b-stories__title" id="b-stories-title">What each team built</h2>
+
+          <div class="b-list">
+            {
+              stories.map((story) => (
+                <article
+                  class:list={['b-story', {'b-story--tall': story.image?.tall}]}
+                  id={story.id}
+                  aria-labelledby={`${story.id}-title`}
+                >
+                  <div class="b-story__media">
+                    {story.image ? (
+                      <figure class="b-figure">
+                        <img
+                          src={story.image.asset.url}
+                          width={story.image.asset.width}
+                          height={story.image.asset.height}
+                          alt={story.image.alt}
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        <figcaption>{story.image.caption}</figcaption>
+                      </figure>
+                    ) : (
+                      <ul class="b-docs" aria-label={`${story.product} resources`}>
+                        {story.docs?.map((doc) => (
+                          <li>
+                            <a href={doc.href} target="_blank" rel="noopener noreferrer">
+                              <span class="b-docs__kind">{doc.kind}</span>
+                              <span class="b-docs__label">
+                                {doc.label} <span aria-hidden="true">↗</span>
+                              </span>
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div class="b-story__copy">
+                    <p class="b-story__eyebrow">
+                      <span>{story.team}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{story.product}</span>
+                    </p>
+                    <h3 class="b-story__title" id={`${story.id}-title`}>
+                      {story.title}
+                    </h3>
+                    {story.body.map((paragraph) => (
+                      <p class="b-story__body">{paragraph}</p>
+                    ))}
+                    {story.links.length > 0 && (
+                      <ul class="b-links">
+                        {story.links.map((link) => (
+                          <li>
+                            <a href={link.href} target="_blank" rel="noopener noreferrer">
+                              {link.label} <span aria-hidden="true">↗</span>
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </article>
+              ))
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- Closing: the same three next steps as the homepage hero -->
+      <section class="b-closing" aria-labelledby="b-closing-title">
+        <div class="a2-wrap b-closing__inner">
+          <h2 class="b-closing__title" id="b-closing-title">
+            Build your own with <span class="b-closing__hi">A2UI.</span>
+          </h2>
+          <div class="b-closing__btns">
+            <a href={`${base}/quickstart/`} class="b-btn b-btn--primary">
+              <span>Run in 5 Minutes</span>
+              <span aria-hidden="true">→</span>
+            </a>
+            <a
+              href="https://go.copilotkit.ai/a2ui-playground"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="b-btn b-btn--ghost"
+            >
+              <span class="b-closing__ck"><CopilotKitLogo idPrefix="built-ck" size={14} /></span>
+              <span>Playground</span>
+              <span aria-hidden="true">↗</span>
+            </a>
+            <button
+              type="button"
+              class="b-btn b-cmd"
+              data-copy="npx skills add a2ui-project/a2ui"
+              aria-label="Copy command to install A2UI agent skills: npx skills add a2ui-project/a2ui"
+            >
+              <span class="b-cmd__sig" aria-hidden="true">$</span>
+              <span>npx skills add a2ui-project/a2ui</span>
+              <span class="b-cmd__act" data-copy-label>COPY</span>
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="a2-footer">
+      <div class="a2-wrap a2-footer__inner">
+        <div class="a2-footer__brand">
+          <strong>A2UI</strong>
+          <span>/</span>
+          <span>Apache 2.0 Open Source Project</span>
+        </div>
+        <nav class="a2-footer__links" aria-label="Footer links">
+          <a href={`${base}/quickstart/`}>Quickstart</a>
+          <a href={`${base}/concepts/overview/`}>Concepts</a>
+          <a href={`${base}/concepts/sdks/`}>SDKs</a>
+          <a href={`${base}/ecosystem/renderers/`}>Ecosystem</a>
+          <a href={`${base}/specification/v1.0-a2ui/`}>Specification</a>
+          <a href={`${base}/get-help/`}>Get Help</a>
+          <a href="https://github.com/a2ui-project/a2ui" target="_blank" rel="noopener noreferrer"
+            >GitHub</a
+          >
+        </nav>
+      </div>
+    </footer>
+
+    <script>
+      const copyButton = document.querySelector<HTMLButtonElement>('.b-cmd');
+      const copyLabel = copyButton?.querySelector<HTMLElement>('[data-copy-label]');
+      let reset: ReturnType<typeof setTimeout> | undefined;
+      copyButton?.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(copyButton.dataset.copy ?? '');
+          if (copyLabel) copyLabel.textContent = 'COPIED ✓';
+          copyButton.classList.add('is-copied');
+          clearTimeout(reset);
+          reset = setTimeout(() => {
+            if (copyLabel) copyLabel.textContent = 'COPY';
+            copyButton.classList.remove('is-copied');
+          }, 1800);
+        } catch {
+          // Clipboard access can be blocked; the command stays visible to copy by hand.
+        }
+      });
+    </script>
+
+    <style>
+      :global(*, *::before, *::after) {
+        box-sizing: border-box;
+      }
+
+      :global(html) {
+        scroll-behavior: smooth;
+        background: var(--a2-bg);
+        color: var(--a2-text);
+        font-family: var(--a2-font-sans);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      .a2-page {
+        margin: 0;
+        background: var(--a2-bg);
+        color: var(--a2-text);
+        overflow-x: clip;
+      }
+
+      .a2-wrap {
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 36px;
+      }
+
+      @media (max-width: 640px) {
+        .a2-wrap {
+          padding: 0 20px;
+        }
+      }
+
+      .a2-topbar {
+        position: sticky;
+        top: 0;
+        z-index: 60;
+        height: 64px;
+        background: var(--a2-bg-nav);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--a2-border);
+      }
+
+      .a2-topbar__inner {
+        max-width: 1280px;
+        height: 100%;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+
+      .a2-hero {
+        position: relative;
+        padding: 72px 0 80px;
+        overflow: clip;
+      }
+
+      .a2-hero__grid-bg {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(to right, var(--a2-border-subtle) 1px, transparent 1px),
+          linear-gradient(to bottom, var(--a2-border-subtle) 1px, transparent 1px);
+        background-size: 64px 64px;
+        mask-image: radial-gradient(ellipse 90% 60% at 50% 18%, #000 15%, transparent 75%);
+        -webkit-mask-image: radial-gradient(ellipse 90% 60% at 50% 18%, #000 15%, transparent 75%);
+        pointer-events: none;
+      }
+
+      .b-hero__inner {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 24px;
+      }
+
+      .a2-h1 {
+        margin: 0;
+        font-family: var(--a2-font-display);
+        font-weight: 700;
+        letter-spacing: var(--a2-tracking-display);
+        color: var(--a2-text);
+      }
+
+      .b-h1 {
+        font-size: clamp(2.5rem, 4.6vw, 3.8rem);
+        line-height: 1.04;
+      }
+
+      .a2-h-accent {
+        color: var(--a2-heading-accent);
+      }
+
+      .a2-lead {
+        margin: 0;
+        max-width: 58ch;
+        font-size: 17px;
+        line-height: 1.65;
+        letter-spacing: var(--a2-tracking-body);
+        color: var(--a2-text-secondary);
+      }
+
+      .a2-section {
+        position: relative;
+        padding: 112px 0 128px;
+        border-top: 1px solid var(--a2-border-strong);
+        scroll-margin-top: 72px;
+      }
+
+      @media (max-width: 720px) {
+        .a2-section {
+          padding: 80px 0 88px;
+        }
+      }
+
+      .a2-h2 {
+        margin: 0;
+        font-family: var(--a2-font-display);
+        font-size: clamp(1.85rem, 3vw, 2.45rem);
+        font-weight: 700;
+        line-height: 1.1;
+        letter-spacing: var(--a2-tracking-h2);
+        color: var(--a2-text);
+      }
+
+      .b-stories__title {
+        margin-bottom: 56px;
+      }
+
+      .b-list {
+        display: flex;
+        flex-direction: column;
+        gap: 88px;
+      }
+
+      .b-story {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+        gap: 56px;
+        align-items: center;
+        scroll-margin-top: 88px;
+      }
+
+      .b-story:nth-child(even) .b-story__media {
+        order: 2;
+      }
+
+      .b-story--tall {
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
+      }
+
+      @media (max-width: 900px) {
+        .b-story,
+        .b-story--tall {
+          grid-template-columns: 1fr;
+          gap: 28px;
+        }
+
+        .b-story:nth-child(even) .b-story__media {
+          order: 0;
+        }
+
+        .b-list {
+          gap: 64px;
+        }
+      }
+
+      .b-story__media {
+        min-width: 0;
+      }
+
+      .b-figure {
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .b-figure img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border: 1px solid var(--a2-border-strong);
+        border-radius: 8px;
+        background: var(--a2-surface);
+      }
+
+      .b-story--tall .b-figure img {
+        max-width: 460px;
+        margin: 0 auto;
+      }
+
+      .b-figure figcaption {
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--a2-text-muted);
+      }
+
+      .b-docs {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      @media (max-width: 520px) {
+        .b-docs {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .b-docs a {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 18px;
+        border: 1px solid var(--a2-border-strong);
+        border-radius: 8px;
+        background: var(--a2-surface);
+        color: var(--a2-text);
+        text-decoration: none;
+        transition: border-color 0.15s ease;
+      }
+
+      .b-docs a:hover {
+        border-color: var(--a2-accent-border);
+      }
+
+      .b-docs__kind {
+        font-family: var(--a2-font-mono);
+        font-size: 11px;
+        letter-spacing: var(--a2-tracking-mono-wide);
+        text-transform: uppercase;
+        color: var(--a2-text-muted);
+      }
+
+      .b-docs__label {
+        font-size: 15px;
+        font-weight: 650;
+        line-height: 1.4;
+      }
+
+      .b-story__copy {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .b-story__eyebrow {
+        margin: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        font-family: var(--a2-font-mono);
+        font-size: 11.5px;
+        letter-spacing: var(--a2-tracking-mono-wide);
+        text-transform: uppercase;
+        color: var(--a2-accent);
+      }
+
+      .b-story__title {
+        margin: 0;
+        font-family: var(--a2-font-display);
+        font-size: clamp(1.3rem, 2vw, 1.6rem);
+        font-weight: 700;
+        line-height: 1.25;
+        letter-spacing: var(--a2-tracking-h3);
+        color: var(--a2-text);
+        text-wrap: balance;
+      }
+
+      .b-story__body {
+        margin: 0;
+        max-width: 60ch;
+        font-size: 15.5px;
+        line-height: 1.7;
+        color: var(--a2-text-secondary);
+      }
+
+      .b-links {
+        list-style: none;
+        margin: 4px 0 0;
+        padding: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 20px;
+      }
+
+      .b-links a {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--a2-accent);
+        text-decoration: none;
+      }
+
+      .b-links a:hover {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      .b-docs a:focus-visible,
+      .b-links a:focus-visible,
+      .a2-footer__links a:focus-visible {
+        outline: 2px solid var(--a2-accent);
+        outline-offset: 2px;
+      }
+
+      .b-closing {
+        padding: 112px 0 120px;
+        color: #ffffff;
+        background-color: #062e6f;
+        background-image:
+          linear-gradient(135deg, rgba(27, 110, 243, 0.34), transparent 60%),
+          radial-gradient(rgba(168, 199, 250, 0.22) 1px, transparent 1px);
+        background-size:
+          100% 100%,
+          16px 16px;
+        border-top: 1px solid rgba(168, 199, 250, 0.3);
+      }
+
+      @media (max-width: 720px) {
+        .b-closing {
+          padding: 80px 0 88px;
+        }
+      }
+
+      .b-closing__inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 36px;
+        text-align: center;
+      }
+
+      .b-closing__title {
+        margin: 0;
+        font-family: var(--a2-font-display);
+        font-size: clamp(2rem, 4vw, 3.2rem);
+        font-weight: 700;
+        line-height: 1.06;
+        letter-spacing: var(--a2-tracking-h2);
+        text-wrap: balance;
+        color: #ffffff;
+      }
+
+      .b-closing__hi {
+        color: #a8c7fa;
+      }
+
+      .b-closing__btns {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+      }
+
+      .b-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        height: 44px;
+        padding: 0 20px;
+        border-radius: 3px;
+        font-family: var(--a2-font-sans);
+        font-size: 13.5px;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+        transition:
+          border-color 0.15s ease,
+          transform 0.15s ease;
+      }
+
+      .b-btn--primary {
+        background: #ffffff;
+        color: #062e6f;
+        border: 1px solid #ffffff;
+      }
+
+      .b-btn--primary:hover {
+        transform: translateY(-1px);
+      }
+
+      .b-btn--ghost,
+      .b-cmd {
+        background: transparent;
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.4);
+      }
+
+      .b-btn--ghost:hover,
+      .b-cmd:hover {
+        border-color: #ffffff;
+      }
+
+      /* The kite is dark blue, so it sits on a white disc on the blue field */
+      .b-closing__ck {
+        display: inline-flex;
+        padding: 3px;
+        border-radius: 999px;
+        background: #ffffff;
+      }
+
+      .b-cmd {
+        padding: 0 14px;
+        font-family: var(--a2-font-mono);
+        font-size: 12.5px;
+        font-weight: 400;
+      }
+
+      @media (max-width: 420px) {
+        .b-cmd {
+          font-size: 11px;
+        }
+      }
+
+      .b-cmd span {
+        white-space: nowrap;
+      }
+
+      .b-cmd__sig {
+        color: #a8c7fa;
+        user-select: none;
+      }
+
+      .b-cmd__act {
+        padding-left: 10px;
+        border-left: 1px solid rgba(255, 255, 255, 0.3);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: rgba(255, 255, 255, 0.75);
+      }
+
+      .b-cmd.is-copied {
+        border-color: #a8c7fa;
+      }
+
+      .b-btn:focus-visible {
+        outline: 2px solid #a8c7fa;
+        outline-offset: 2px;
+      }
+
+      .a2-footer {
+        border-top: 1px solid var(--a2-border-strong);
+        padding: 40px 0 56px;
+      }
+
+      .a2-footer__inner {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+
+      .a2-footer__brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--a2-text-muted);
+      }
+
+      .a2-footer__brand strong {
+        color: var(--a2-text);
+        font-weight: 650;
+      }
+
+      .a2-footer__links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+      }
+
+      .a2-footer__links a {
+        font-size: 13px;
+        color: var(--a2-text-secondary);
+        text-decoration: none;
+      }
+
+      .a2-footer__links a:hover {
+        color: var(--a2-text);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        :global(html) {
+          scroll-behavior: auto;
+        }
+
+        .b-docs a,
+        .b-btn {
+          transition: none;
+        }
+
+        .b-btn--primary:hover {
+          transform: none;
+        }
+      }
+    </style>
+  </body>
+</html>

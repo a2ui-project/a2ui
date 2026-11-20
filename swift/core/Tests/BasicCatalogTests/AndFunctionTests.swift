@@ -76,13 +76,13 @@ struct AndFunctionTests {
     #expect(result == .boolean(true))
   }
 
-  @Test func readsValidationResultOperandAsPlainObjectInV09() throws {
+  @Test func readsValidationResultOperandByValidityInV09() throws {
     let result = try function.evaluate(
       arguments: [
         "values": .array([.object(["valid": .boolean(false)]), .boolean(true)])
       ],
       context: context)
-    #expect(result == .boolean(true))
+    #expect(result == .boolean(false))
   }
 
   @Test func throwsErrorWithEmptyArray() throws {

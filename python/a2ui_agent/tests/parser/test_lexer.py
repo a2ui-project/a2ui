@@ -144,6 +144,13 @@ class TestBlockLexer(unittest.TestCase):
         self.assertEqual(parts2[1].part.a2ui_raw, 'surface("main")\nroot = Text("Hi")')
         self.assertTrue(parts2[1].is_final)
 
+    def test_lexer_rejects_empty_block_comment_markers(self):
+        """Verify an empty block comment marker is rejected."""
+        with self.assertRaises(ValueError):
+            BlockLexer(block_comments=[("", "*/")])
+        with self.assertRaises(ValueError):
+            BlockLexer(block_comments=[("/*", "")])
+
 
 if __name__ == "__main__":
     unittest.main()

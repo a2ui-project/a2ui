@@ -41,13 +41,14 @@ from a2ui.a2a import (
     stream_response_to_parts,
     to_a2a_parts,
 )
+from a2ui.adk import A2uiInstruction
 from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.parser import A2uiPart
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.utils import to_version_number
+from a2ui.utils import load_examples, to_version_number
 from prompt_builder import (
     ROLE_DESCRIPTION,
     UI_DESCRIPTION,
@@ -78,9 +79,10 @@ class RestaurantAgent:
             processor = self._build_processor(version, generator)
             self._generators[version] = generator
             self._processors[version] = processor
-            agent = self._build_llm_agent(
-                processor, examples_path=f"examples/{to_version_number(version)}"
+            examples_path = os.path.join(
+                os.path.dirname(__file__), "examples", to_version_number(version)
             )
+            agent = self._build_llm_agent(processor, examples_path=examples_path)
             self._ui_runners[version] = self._build_runner(agent)
 
         self._agent_card = self._build_agent_card()
@@ -162,25 +164,28 @@ class RestaurantAgent:
         examples_path: str | None = None,
     ) -> LlmAgent:
         """Builds the LLM agent for the restaurant agent."""
-        from a2ui.utils import load_examples
-
         model_env = (
             os.getenv("MODEL_NAME") or os.getenv("LITELLM_MODEL") or "gemini-3.6-flash"
         )
         model_name = model_env.split("/")[-1]
 
         if processor:
-            prompt_parts = [
-                ROLE_DESCRIPTION,
-                f"## UI Description:\n{UI_DESCRIPTION}",
-                processor.prompt_snippet,
-            ]
             examples = load_examples(
                 processor.active_catalogs, examples_path, validate=True
             )
+            prompt_parts = [
+                ROLE_DESCRIPTION,
+                f"## UI Description:\n{UI_DESCRIPTION}",
+            ]
             if examples:
                 prompt_parts.append(f"### Examples:\n{examples}")
-            instruction = "\n\n".join(prompt_parts)
+            # A2uiInstruction appends the processor's prompt outside ADK's
+            # session state templates: the `${expression}` in the catalog
+            # schema is not a state key.
+            instruction = A2uiInstruction(
+                "\n\n".join(prompt_parts),
+                a2ui_processor=processor,
+            )
         else:
             instruction = get_text_prompt()
 
@@ -204,7 +209,7 @@ class RestaurantAgent:
         ui_version: str | None = None,
         use_streaming: bool = True,
     ) -> AsyncIterable[dict[str, Any]]:
-        session_state = {"base_url": self.base_url, "expression": "{expression}"}
+        session_state = {"base_url": self.base_url}
 
         # Determine which runner to use based on whether the a2ui extension is active.
         if ui_version:

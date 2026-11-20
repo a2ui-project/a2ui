@@ -39,10 +39,10 @@ export const V0_9: VersionProfile = {
   version: 'v0.9',
   capabilitiesKey: 'a2uiClientCapabilities',
   basicCatalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-  basicCatalogPath: 'specification/v0_9/catalogs/basic/catalog.json',
+  basicCatalogPath: 'catalogs/basic/v0_9/catalog.json',
 };
 
-/** The v1.0 candidate protocol. */
+/** The v1.0 protocol. */
 export const V1_0: VersionProfile = {
   version: '1.0',
   capabilitiesKey: 'a2uiRendererCapabilities',

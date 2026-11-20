@@ -24,6 +24,7 @@ on:
       - "catalogs/**"
       - "conformance/**"
       - "samples/agent/adk/**"
+      - "tools/build_catalog/**"
       - ".agents/skills/**"
       - "dart/a2ui_cli/**"
       - "scripts/run_skills_tests.py"
@@ -38,6 +39,7 @@ on:
       - "catalogs/**"
       - "conformance/**"
       - "samples/agent/adk/**"
+      - "tools/build_catalog/**"
       - ".agents/skills/**"
       - "dart/a2ui_cli/**"
       - "scripts/run_skills_tests.py"
@@ -110,7 +112,41 @@ jobs:
         run: |
           uv run --all-packages mypy .
       - name: Run Unit Tests
+        env:
+          A2UI_CONFORMANCE_MANIFEST_DIR: ${{ runner.temp }}/a2ui-manifest
         run: uv run pytest
+      - name: Verify Core Conformance Manifest
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness python-core \
+            --corpus core
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus extensions \
+            --only 'extensions/a2a/**' \
+            --harness python-a2a
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus extensions \
+            --only 'extensions/adk/**' \
+            --harness python-adk
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus agent \
+            --harness python-agent
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus e2e \
+            --harness python-agent
+      - name: Verify Conformance Feature Coverage
+        run: |
+          uv run --project conformance python conformance/scripts/check_feature_coverage.py --static
+          for h in python-core python-agent python-a2a python-adk; do
+            uv run --project conformance python conformance/scripts/check_feature_coverage.py \
+              --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+              --harness "$h"
+          done
       - name: Set Up Dart
         uses: ./.github/actions/setup-dart
       - name: Run CLI Python Runtime Tests

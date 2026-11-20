@@ -16,6 +16,7 @@
 
 import {html, nothing, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
+import {getAccessibilityDescription, getAccessibilityLabel} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {DividerSupportedApis} from './supported_apis.js';
 
@@ -26,8 +27,14 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<DividerSuppor
    * The styles of the divider can be customized by redefining the following
    * CSS variables:
    *
-   * - `--a2ui-divider-border`: The styling for the divider border. Defaults to `--a2ui-border-width` solid `--a2ui-color-border`.
-   * - `--a2ui-divider-spacing`: The spacing around the divider. Defaults to `--a2ui-spacing-m`.
+   * - `--a2ui-divider-border`: Border shorthand for the divider line. Defaults to `var(--a2ui-border-width) solid var(--a2ui-color-border)`.
+   * - `--a2ui-divider-spacing`: Block or inline margin around the divider. Defaults to `--a2ui-spacing-m`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-border-width`: Width of vertical dividers and fallback border width.
+   * - `--a2ui-color-border`: Fallback border color of the divider.
+   * - `--a2ui-spacing-m`: Fallback spacing around the divider.
    *
    * @nocollapse
    */
@@ -63,6 +70,11 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<DividerSuppor
       ['a2ui-divider-' + axis]: true,
     };
 
-    return html`<hr class=${classMap(classes)} />`;
+    return html`<hr
+      class=${classMap(classes)}
+      aria-orientation=${axis === 'vertical' ? 'vertical' : nothing}
+      aria-label=${getAccessibilityLabel(props.accessibility)}
+      aria-description=${getAccessibilityDescription(props.accessibility)}
+    />`;
   }
 }

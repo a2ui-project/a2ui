@@ -159,6 +159,28 @@ To support catalog flexibility and avoid hardcoding specific formatting or actio
   - Any other keyword argument on `Event` is an error, rather than being dropped from the compiled action.
 - An action slot is any catalog property whose schema is the common `Action` type, including one nested inside a list item or object property (for example `Cards([{label: "Docs", action: openUrl("https://a2ui.org")}])`). A function call in an action slot compiles to a `functionCall` action; outside an action slot, it compiles to a plain function call value.
 
+### System functions
+
+From v1.0, the protocol itself defines a few functions, such as `@index`, that no catalog declares. Their names start with `@`, and Express writes them like any other function call: `@index()`, `@index(1)` or `@index(offset=1)`. The compiler reads their parameters from the protocol version's common types, so positional and keyword arguments work as they do for a catalog function.
+
+```
+root = Column(_template($/items, itemRow))
+itemRow = Text(@index(offset=1))
+```
+
+```json
+{"id": "itemRow", "component": "Text", "text": {"@call": "@index", "args": {"offset": 1}}}
+```
+
+A system function call differs from a catalog function call in these ways:
+
+- It never carries a `catalogId`, so the compiler rejects a `catalogId` argument on it, even with several catalogs.
+- It can't be a statement of its own, since a standalone call compiles to a `callRendererFunction` that names a catalog function. The compiler rejects `@index()` on a line of its own.
+- A variable may hold one, as in `n = @index(offset=1)`. The variable is inlined wherever it's named, like a variable that holds a catalog function call.
+- `@index` returns the position of the current item in a `_template` list, so it's only meaningful inside a template row. The compiler doesn't check where it's used.
+
+A name starting with `@` that the target version doesn't define is a validation error, and so is any system function call before v1.0, which defines none. The decompiler writes a `{"@call": "@index", ...}` call back as `@index(...)`, and rejects one that names a `catalogId` or an unknown `@` name. From v1.0, the Express prompt lists the system functions in a section of their own.
+
 ### Validation and logic expressions
 
 Form validation checks are defined using the `?` prefix. If a component expects validation rules, the compiler converts these expressions into standard client-side functions:
@@ -188,7 +210,7 @@ The statements after `surface(...)`, up to the next surface statement, form one 
 
 With a single catalog, `createSurface` carries that catalog's `catalogId` (and `surface(surfaceId, catalogId)` is optional). With multiple catalogs (supported in v1.0 and newer), `createSurface` omits `catalogId`, naming a catalog on `surface(...)` is an error, and every compiled component and function call carries its own `catalogId`.
 
-A component or function call written without a `catalogId` resolves by name across the active catalogs when exactly one catalog defines it, and requires an explicit `catalogId` override when multiple catalogs define that name. From v1.0, a component or function call can specify its catalog with a `catalogId` keyword argument, and a check takes a `{catalogId: ...}` map argument:
+A component or function call written without a `catalogId` resolves by name across the active catalogs when exactly one catalog defines it, and requires an explicit `catalogId` override when multiple catalogs define that name. From v1.0, a component or function call can specify its catalog with a `catalogId` keyword argument, and a check takes a `{catalogId: ...}` map argument. A [system function](#system-functions) call is the exception: it belongs to no catalog and takes no `catalogId`.
 
 ```
 widget = Chart($/sales, catalogId="https://example.com/charts.json")
@@ -219,7 +241,7 @@ deleteSurface("dashboard-surface-1")
 
 #### Executing client-side functions (RPC)
 
-When the compiler encounters any other standalone function call, it resolves the arguments against catalog definitions and produces a `callRendererFunction` message with an auto-generated `functionCallId`. The call resolves its catalog from an explicit `catalogId` keyword argument, or else by function name across the active catalogs:
+When the compiler encounters any other standalone call of a catalog function, it resolves the arguments against catalog definitions and produces a `callRendererFunction` message with an auto-generated `functionCallId`. The call resolves its catalog from an explicit `catalogId` keyword argument, or else by function name across the active catalogs:
 
 ```
 openUrl("https://example.com")
@@ -243,7 +265,7 @@ openUrl("https://example.com")
 
 The n-th standalone call of a block gets the `functionCallId` `call_<n>`. To set another ID, pass the reserved `functionCallId` keyword argument, which every catalog accepts: `openUrl("https://example.com", functionCallId="open-docs")`. The decompiler writes the argument only when the ID differs from the one the compiler would generate.
 
-The `functionCallId` and the `callFunction` both sit inside `callRendererFunction`, and `catalogId` is required on the call. See `CallRendererFunctionMessage` in `specification/v1_0/json/agent_to_renderer.json` for the normative definition. `callRendererFunction` exists only in v1.0, so the compiler rejects a standalone function call for v0.9 and v0.9.1 targets.
+The `functionCallId` and the `callFunction` both sit inside `callRendererFunction`, and `catalogId` is required on the call. See `CallRendererFunctionMessage` in `specification/v1_0/json/agent_to_renderer.json` for the normative definition. `callRendererFunction` exists only in v1.0, so the compiler rejects a standalone function call for v0.9 and v0.9.1 targets. A [system function](#system-functions) call, such as `@index()`, can't be a standalone call, since no catalog defines it.
 
 #### v1.0 binding keys
 

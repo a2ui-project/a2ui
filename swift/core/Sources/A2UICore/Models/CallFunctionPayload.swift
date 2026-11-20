@@ -17,7 +17,7 @@ import OrderedJSON
 /// Describes a function call invocation envelope.
 ///
 /// Encodes as a v1.0 `FunctionCall`: the function name goes under `@call`. Decoding also accepts
-/// the legacy `call` key. v1.0 `FunctionCall` has no `returnType`; it lives only on the catalog's
+/// the unprefixed `call` key. v1.0 `FunctionCall` has no `returnType`; it lives only on the catalog's
 /// `FunctionAPI`.
 public struct CallFunctionPayload: Codable, Sendable, Equatable {
   public let call: String

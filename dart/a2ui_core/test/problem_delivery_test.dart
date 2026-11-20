@@ -20,13 +20,13 @@ import 'package:test/test.dart';
 
 class _MaybeFail extends FunctionImplementation {
   _MaybeFail()
-      : super(
-          name: 'maybeFail',
-          returnType: A2uiReturnType.string,
-          argumentSchema: Schema.object(
-            properties: {'flag': CommonSchemas.dynamicBoolean},
-          ),
-        );
+    : super(
+        name: 'maybeFail',
+        returnType: A2uiReturnType.string,
+        argumentSchema: Schema.object(
+          properties: {'flag': CommonSchemas.dynamicBoolean},
+        ),
+      );
 
   @override
   Object? execute(
@@ -40,30 +40,29 @@ class _MaybeFail extends FunctionImplementation {
 }
 
 Catalog<ComponentApi, FunctionImplementation> _catalog() => Catalog(
-      id: 'problem-delivery-test',
-      protocolVersion: A2uiProtocolVersion.v0_9,
-      functions: [_MaybeFail()],
-      components: [
-        ComponentApi(
-          name: 'Text',
-          schema: Schema.object(
-            properties: {
-              'text': CommonSchemas.dynamicString,
-              'value': CommonSchemas.dynamicString,
-            },
-          ),
-        ),
-        ComponentApi(
-          name: 'Button',
-          schema: Schema.object(properties: {'action': CommonSchemas.action}),
-        ),
-        ComponentApi(
-          name: 'Column',
-          schema:
-              Schema.object(properties: {'children': CommonSchemas.childList}),
-        ),
-      ],
-    );
+  id: 'problem-delivery-test',
+  protocolVersion: A2uiProtocolVersion.v0_9,
+  functions: [_MaybeFail()],
+  components: [
+    ComponentApi(
+      name: 'Text',
+      schema: Schema.object(
+        properties: {
+          'text': CommonSchemas.dynamicString,
+          'value': CommonSchemas.dynamicString,
+        },
+      ),
+    ),
+    ComponentApi(
+      name: 'Button',
+      schema: Schema.object(properties: {'action': CommonSchemas.action}),
+    ),
+    ComponentApi(
+      name: 'Column',
+      schema: Schema.object(properties: {'children': CommonSchemas.childList}),
+    ),
+  ],
+);
 
 SurfaceModel<ComponentApi> _surface([String id = 'surf']) =>
     SurfaceModel<ComponentApi>(id, defaultCatalog: _catalog());
@@ -77,17 +76,18 @@ void _add(
     surface.componentsModel.addComponent(ComponentModel(id, type, properties));
 
 Map<String, Object?> _maybeFail() => {
-      'call': 'maybeFail',
-      'args': {
-        'flag': {'path': '/flag'},
-      },
-      'returnType': 'string',
-    };
+  'call': 'maybeFail',
+  'args': {
+    'flag': {'path': '/flag'},
+  },
+  'returnType': 'string',
+};
 
 Future<void> _microtask() => Future<void>.microtask(() {});
 
-List<String> _codes(List<A2uiRendererError> errors) =>
-    [for (final error in errors) error.code];
+List<String> _codes(List<A2uiRendererError> errors) => [
+  for (final error in errors) error.code,
+];
 
 void main() {
   group('Problem delivery timing', () {
@@ -149,8 +149,9 @@ void main() {
       });
       final NodeResolver<ComponentApi> resolver = resolve();
       await _microtask();
-      final binding = resolver.rootNode.peek()!.props.peek()['value']!
-          as WritableBinding<Object?>;
+      final binding =
+          resolver.rootNode.peek()!.props.peek()['value']!
+              as WritableBinding<Object?>;
 
       binding.set(true);
       expect(errors, isEmpty);
@@ -166,8 +167,9 @@ void main() {
         },
       });
       final NodeResolver<ComponentApi> resolver = resolve();
-      final action = resolver.rootNode.peek()!.props.peek()['action']!
-          as Future<void> Function();
+      final action =
+          resolver.rootNode.peek()!.props.peek()['action']!
+              as Future<void> Function();
 
       unawaited(action());
       expect(errors, isEmpty);
@@ -209,19 +211,21 @@ void main() {
       expect(_codes(bErrors), ['SECOND']);
     });
 
-    test('a standalone surface added to a group delivers its reports once',
-        () async {
-      final SurfaceModel<ComponentApi> surface = _surface();
-      final surfaceErrors = <A2uiRendererError>[];
-      surface.onError.subscribe(surfaceErrors.add);
+    test(
+      'a standalone surface added to a group delivers its reports once',
+      () async {
+        final SurfaceModel<ComponentApi> surface = _surface();
+        final surfaceErrors = <A2uiRendererError>[];
+        surface.onError.subscribe(surfaceErrors.add);
 
-      unawaited(surface.dispatchError(error('surf', 'STANDALONE')));
-      group.addSurface(surface);
-      unawaited(surface.dispatchError(error('surf', 'GROUPED')));
+        unawaited(surface.dispatchError(error('surf', 'STANDALONE')));
+        group.addSurface(surface);
+        unawaited(surface.dispatchError(error('surf', 'GROUPED')));
 
-      await _microtask();
-      expect(_codes(surfaceErrors), ['STANDALONE', 'GROUPED']);
-    });
+        await _microtask();
+        expect(_codes(surfaceErrors), ['STANDALONE', 'GROUPED']);
+      },
+    );
   });
 
   group('Problem listeners', () {
@@ -235,22 +239,25 @@ void main() {
     A2uiRendererError error(String code) =>
         A2uiRendererError(code: code, surfaceId: 'surf', message: code);
 
-    test('a throwing listener does not stop later listeners or reports',
-        () async {
-      final received = <String>[];
-      surface.onError.subscribe((error) {
-        received.add('first ${error.code}');
-        if (error.code == 'A') throw StateError('listener failed');
-      });
-      surface.onError
-          .subscribe((error) => received.add('second ${error.code}'));
+    test(
+      'a throwing listener does not stop later listeners or reports',
+      () async {
+        final received = <String>[];
+        surface.onError.subscribe((error) {
+          received.add('first ${error.code}');
+          if (error.code == 'A') throw StateError('listener failed');
+        });
+        surface.onError.subscribe(
+          (error) => received.add('second ${error.code}'),
+        );
 
-      unawaited(surface.dispatchError(error('A')));
-      unawaited(surface.dispatchError(error('B')));
-      await _microtask();
+        unawaited(surface.dispatchError(error('A')));
+        unawaited(surface.dispatchError(error('B')));
+        await _microtask();
 
-      expect(received, ['first A', 'second A', 'first B', 'second B']);
-    });
+        expect(received, ['first A', 'second A', 'first B', 'second B']);
+      },
+    );
 
     test('a missing data binding reaches a warning listener', () async {
       _add(surface, 'root', 'Text', {
@@ -268,22 +275,24 @@ void main() {
       );
     });
 
-    test('errors and warnings reach their listeners in dispatch order',
-        () async {
-      final events = <String>[];
-      surface.onError.subscribe((error) => events.add(error.code));
-      surface.onWarning.subscribe((warning) => events.add(warning.code));
+    test(
+      'errors and warnings reach their listeners in dispatch order',
+      () async {
+        final events = <String>[];
+        surface.onError.subscribe((error) => events.add(error.code));
+        surface.onWarning.subscribe((warning) => events.add(warning.code));
 
-      unawaited(surface.dispatchError(error('E1')));
-      unawaited(
-        surface.dispatchWarning(const A2uiWarning(code: 'W', message: 'w')),
-      );
-      unawaited(surface.dispatchError(error('E2')));
-      expect(events, isEmpty);
+        unawaited(surface.dispatchError(error('E1')));
+        unawaited(
+          surface.dispatchWarning(const A2uiWarning(code: 'W', message: 'w')),
+        );
+        unawaited(surface.dispatchError(error('E2')));
+        expect(events, isEmpty);
 
-      await _microtask();
-      expect(events, ['E1', 'W', 'E2']);
-    });
+        await _microtask();
+        expect(events, ['E1', 'W', 'E2']);
+      },
+    );
   });
 
   group('Problem delivery through MessageProcessor', () {
@@ -293,22 +302,18 @@ void main() {
     Map<String, Object?> update(
       String surfaceId,
       List<Map<String, Object?>> components,
-    ) =>
-        {
-          'version': 'v0.9',
-          'updateComponents': {
-            'surfaceId': surfaceId,
-            'components': components,
-          },
-        };
+    ) => {
+      'version': 'v0.9',
+      'updateComponents': {'surfaceId': surfaceId, 'components': components},
+    };
 
     Map<String, Object?> create(String surfaceId) => {
-          'version': 'v0.9',
-          'createSurface': {
-            'surfaceId': surfaceId,
-            'catalogId': 'problem-delivery-test',
-          },
-        };
+      'version': 'v0.9',
+      'createSurface': {
+        'surfaceId': surfaceId,
+        'catalogId': 'problem-delivery-test',
+      },
+    };
 
     /// Creates surface `s` with a Text root and mounts a resolver on it.
     void mount() {
@@ -333,8 +338,9 @@ void main() {
       addTearDown(processor.dispose);
       processor.model.onSurfaceCreated.subscribe((surface) {
         surface.onError.subscribe((error) => events.add('error ${error.code}'));
-        surface.onWarning
-            .subscribe((warning) => events.add('warning ${warning.code}'));
+        surface.onWarning.subscribe(
+          (warning) => events.add('warning ${warning.code}'),
+        );
       });
     });
 
@@ -352,8 +358,7 @@ void main() {
       expect(events, ['error UNKNOWN_COMPONENT_TYPE']);
     });
 
-    test(
-        'an error found before a deleteSurface in the same payload is '
+    test('an error found before a deleteSurface in the same payload is '
         'still delivered', () async {
       mount();
 
@@ -372,25 +377,27 @@ void main() {
       expect(events, ['error UNKNOWN_COMPONENT_TYPE']);
     });
 
-    test('an error found before a message that throws is still delivered',
-        () async {
-      mount();
+    test(
+      'an error found before a message that throws is still delivered',
+      () async {
+        mount();
 
-      expect(
-        () => processor.processMessages([
-          update('s', [
-            {'id': 'root', 'component': 'Bogus'},
+        expect(
+          () => processor.processMessages([
+            update('s', [
+              {'id': 'root', 'component': 'Bogus'},
+            ]),
+            update('missing', [
+              {'id': 'root', 'component': 'Text', 'text': 'never'},
+            ]),
           ]),
-          update('missing', [
-            {'id': 'root', 'component': 'Text', 'text': 'never'},
-          ]),
-        ]),
-        throwsA(isA<A2uiError>()),
-      );
-      expect(events, isEmpty);
+          throwsA(isA<A2uiError>()),
+        );
+        expect(events, isEmpty);
 
-      await _microtask();
-      expect(events, ['error UNKNOWN_COMPONENT_TYPE']);
-    });
+        await _microtask();
+        expect(events, ['error UNKNOWN_COMPONENT_TYPE']);
+      },
+    );
   });
 }

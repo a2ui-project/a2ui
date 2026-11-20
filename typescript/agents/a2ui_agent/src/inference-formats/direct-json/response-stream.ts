@@ -28,6 +28,7 @@ import {
 } from '../../internal/web-core.js';
 import {ResponsePart, StreamPart} from '../../parser/response-part.js';
 import {ResponseStream} from '../../parser/response-stream.js';
+import {TextRun} from '../../parser/text-run.js';
 import {RendererState} from '../../utils/renderer-state.js';
 import {
   BlockScanner,
@@ -56,6 +57,7 @@ const VALUE_DEPTH = 2;
 export interface DirectJsonStreamSource {
   readonly catalogs: readonly {protocolVersion?: string}[];
   readonly progressiveKeys: ReadonlySet<string>;
+  readonly bufferIncompleteComponents?: boolean;
   compile(formatContent: string): AgentToRendererMessage[];
 }
 
@@ -131,15 +133,14 @@ type Growing =
 export class DirectJsonResponseStream<
   Part extends StreamPart = ResponsePart,
 > implements ResponseStream<Part> {
-  private readonly v10: boolean;
+  private readonly buffersComponents: boolean;
   private readonly wrapped: boolean;
   readonly state: RendererState;
   private readonly continues: boolean;
   private closed = false;
   // Text outside blocks.
   private held = '';
-  private runStarted = false;
-  private heldSpace = '';
+  private readonly text = new TextRun();
   private heldBackticks = '';
   private stripCloseBackticks = false;
   // The open block.
@@ -168,7 +169,9 @@ export class DirectJsonResponseStream<
     private readonly parser: DirectJsonStreamSource,
     {wrapped, state, afterRejectedBlock}: DirectJsonStreamOptions,
   ) {
-    this.v10 = isAtLeastVersion(parser.catalogs[0].protocolVersion ?? '1.0', '1.0');
+    this.buffersComponents =
+      Boolean(parser.bufferIncompleteComponents) ||
+      isAtLeastVersion(parser.catalogs[0].protocolVersion ?? '1.0', '1.0');
     this.wrapped = wrapped;
     this.state = state;
     this.continues = afterRejectedBlock === 'continue';
@@ -223,10 +226,10 @@ export class DirectJsonResponseStream<
       throw withPartialResults(e, parts.filter(isResponsePart));
     }
     if (this.heldBackticks) {
-      this.emitText(parts, this.heldBackticks);
+      this.text.emit(parts, this.heldBackticks);
       this.heldBackticks = '';
     } else if (this.held) {
-      this.emitText(parts, this.held);
+      this.text.emit(parts, this.held);
       this.held = '';
     }
     return parts;
@@ -318,9 +321,8 @@ export class DirectJsonResponseStream<
         if (textBefore.endsWith('`')) {
           textBefore = textBefore.replace(/`+$/, '');
         }
-        this.emitText(parts, textBefore);
-        this.runStarted = false;
-        this.heldSpace = '';
+        this.text.emit(parts, textBefore);
+        this.text.reset();
         this.heldBackticks = '';
         this.inBlock = true;
         input = input.slice(open.end);
@@ -343,20 +345,8 @@ export class DirectJsonResponseStream<
           textToEmit = textToEmit.slice(0, textToEmit.length - this.heldBackticks.length);
         }
       }
-      this.emitText(parts, textToEmit);
+      this.text.emit(parts, textToEmit);
     }
-  }
-
-  private emitText(parts: StreamPart[], text: string): void {
-    const body = (this.runStarted ? text : text.trimStart()).trimEnd();
-    if (!body) {
-      if (this.runStarted && !body) this.heldSpace += text;
-      return;
-    }
-    const start = this.runStarted ? 0 : text.indexOf(body);
-    parts.push({type: 'text', text: `${this.heldSpace}${body}`});
-    this.heldSpace = text.slice(start + body.length);
-    this.runStarted = true;
   }
 
   /**
@@ -374,7 +364,7 @@ export class DirectJsonResponseStream<
       this.readCache = new PartialReadCache();
     }
     const read = readPartialMessages(this.block, this.parser.progressiveKeys, {
-      wholeItemKeys: this.v10 ? ['components'] : [],
+      wholeItemKeys: this.buffersComponents ? ['components'] : [],
       cache: this.readCache,
       start,
       end: trailingFenceStart(this.block, start, end),
@@ -427,7 +417,7 @@ export class DirectJsonResponseStream<
     if (!isObject(envelope)) return false;
     const body = envelope.updateComponents;
     return (
-      this.v10 &&
+      this.buffersComponents &&
       typeof envelope.version === 'string' &&
       isObject(body) &&
       typeof body.surfaceId === 'string' &&

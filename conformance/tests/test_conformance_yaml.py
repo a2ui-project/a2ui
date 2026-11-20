@@ -19,6 +19,7 @@ from pathlib import Path
 
 import jsonschema
 import pytest
+import referencing
 import yaml
 
 
@@ -33,16 +34,92 @@ def load_yaml_file(path):
 
 
 CONFORMANCE_DIR = Path(__file__).resolve().parent.parent
+REPO_ROOT = CONFORMANCE_DIR.parent
 SCHEMA = load_json_file(CONFORMANCE_DIR / "conformance_schema.json")
 VALIDATOR = jsonschema.Draft202012Validator(SCHEMA)
 FIXTURE_VALIDATOR = jsonschema.Draft202012Validator(
     {"$ref": "#/$defs/NodeResolutionFixture", "$defs": SCHEMA["$defs"]}
 )
 
+V10_COMMON_TYPES = load_json_file(
+    REPO_ROOT / "specification" / "v1_0" / "json" / "common_types.json"
+)
+V10_RENDERER_TO_AGENT = load_json_file(
+    REPO_ROOT / "specification" / "v1_0" / "json" / "renderer_to_agent.json"
+)
+V09_COMMON_TYPES = load_json_file(
+    REPO_ROOT / "specification" / "v0_9" / "json" / "common_types.json"
+)
+V09_CLIENT_TO_SERVER = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://a2ui.org/specification/v0_9/client_to_server.json",
+    **load_json_file(
+        REPO_ROOT / "specification" / "v0_9" / "json" / "client_to_server.json"
+    ),
+}
+
+SPEC_REGISTRY = referencing.Registry().with_resources([
+    (
+        V10_COMMON_TYPES["$id"],
+        referencing.Resource.from_contents(V10_COMMON_TYPES),
+    ),
+    (
+        V10_RENDERER_TO_AGENT["$id"],
+        referencing.Resource.from_contents(V10_RENDERER_TO_AGENT),
+    ),
+    (
+        V09_COMMON_TYPES["$id"],
+        referencing.Resource.from_contents(V09_COMMON_TYPES),
+    ),
+    (
+        V09_CLIENT_TO_SERVER["$id"],
+        referencing.Resource.from_contents(V09_CLIENT_TO_SERVER),
+    ),
+])
+
+V10_RENDERER_TO_AGENT_VALIDATOR = jsonschema.Draft202012Validator(
+    V10_RENDERER_TO_AGENT, registry=SPEC_REGISTRY
+)
+V09_CLIENT_TO_SERVER_VALIDATOR = jsonschema.Draft202012Validator(
+    V09_CLIENT_TO_SERVER, registry=SPEC_REGISTRY
+)
+
+
+def validate_renderer_error_payload(renderer_error):
+    version = renderer_error.get("version")
+    if version == "1.0":
+        V10_RENDERER_TO_AGENT_VALIDATOR.validate(renderer_error)
+    elif version in ("v0.9", "v0.9.1"):
+        normalized = (
+            {**renderer_error, "version": "v0.9"}
+            if version == "v0.9.1"
+            else renderer_error
+        )
+        V09_CLIENT_TO_SERVER_VALIDATOR.validate(normalized)
+    else:
+        raise ValueError(f"Unsupported rendererError version: {version!r}")
+
+
+def _iter_container_renderer_errors(container):
+    for key in ("expectError", "expect_error"):
+        err = container.get(key)
+        if isinstance(err, dict) and "rendererError" in err:
+            yield err["rendererError"]
+
+
+def iter_renderer_errors(case):
+    yield from _iter_container_renderer_errors(case)
+    for step in case.get("steps") or []:
+        if isinstance(step, dict):
+            yield from _iter_container_renderer_errors(step)
+    for turn in case.get("turns") or []:
+        if isinstance(turn, dict):
+            yield from _iter_container_renderer_errors(turn)
+
 
 def get_yaml_files():
     files = []
-    for domain in ["core", "agent", "extensions"]:
+    for domain in ["core", "agent", "extensions", "adapter"]:
         pattern = os.path.join(CONFORMANCE_DIR, domain, "**", "*.yaml")
         files.extend(
             f
@@ -67,8 +144,10 @@ def validate_conformance_yaml(yaml_path, conformance_dir=CONFORMANCE_DIR):
     yaml_data = load_yaml_file(yaml_path)
     VALIDATOR.validate(yaml_data)
     for case in yaml_data:
-        if case["action"] == "resolve_nodes":
+        if case["action"] == "resolve_nodes" and "fixture" in case:
             validate_node_fixture(conformance_dir / case["fixture"], conformance_dir)
+        for renderer_error in iter_renderer_errors(case):
+            validate_renderer_error_payload(renderer_error)
 
 
 @pytest.mark.parametrize(
@@ -96,7 +175,7 @@ def node_case(**changes):
     }
 
 
-@pytest.mark.parametrize("missing", ["fixture", "expect", "steps"])
+@pytest.mark.parametrize("missing", ["expect", "steps"])
 def test_node_cases_require_their_fields(missing):
     case = {key: value for key, value in node_case().items() if key != missing}
     with pytest.raises(jsonschema.ValidationError):
@@ -114,6 +193,10 @@ def test_node_cases_require_their_fields(missing):
         {"op": "remove_component", "component_id": "root"},
         {"op": "write", "node": "root", "property": "value", "value": None},
         {"op": "invoke", "node": "root", "property": "action"},
+        {
+            "op": "process_messages",
+            "messages": [{"version": "1.0", "deleteSurface": {"surfaceId": "main"}}],
+        },
         {"op": "dispose"},
     ],
 )
@@ -131,7 +214,6 @@ def test_node_operations_require_their_operands(step):
     [
         {"op": "dipose", "expect": {"nodes": {}, "emissions": {}}},
         {"op": "dispose", "node": "root", "expect": {"nodes": {}, "emissions": {}}},
-        {"op": "dispose", "expect": {"nodes": {}}},
         {"op": "dispose", "expect": {"nodes": {}, "emisions": {}}},
         {"op": "dispose", "expect": {"nodes": {}, "emissions": {"root": 0}}},
     ],
@@ -166,6 +248,7 @@ def test_node_expectations_reject_unknown_or_incomplete_fields(expectation):
         {"catalog": "catalog.json", "data": {}, "components": {}},
         {"catalog": "catalog.json", "data": {}, "components": [{"id": "root"}]},
         {"catalog": "catalog.json", "data": {}, "components": [], "component": []},
+        {"catalog": "catalog.json", "surface": "no", "data": {}, "components": []},
     ],
 )
 def test_node_fixture_shape_is_validated(tmp_path, fixture):
@@ -208,3 +291,699 @@ def test_node_catalog_must_be_a_json_object(tmp_path, catalog):
     catalog_path.write_text(catalog, encoding="utf-8")
     with pytest.raises(ValueError):
         validate_conformance_yaml(suite_path, tmp_path)
+
+
+@pytest.mark.parametrize(
+    "valid_renderer_error",
+    [
+        {
+            "version": "1.0",
+            "error": {
+                "code": "VALIDATION_FAILED",
+                "surfaceId": "s1",
+                "path": "/components/0/text",
+                "message": "Invalid property type",
+            },
+        },
+        {
+            "version": "1.0",
+            "error": {
+                "code": "UNALLOWED_PARENT",
+                "surfaceId": "s1",
+                "path": "/components/1",
+                "message": "Parent not allowed",
+            },
+        },
+        {
+            "version": "1.0",
+            "error": {
+                "code": "INVALID_FUNCTION_CALL",
+                "functionCallId": "call-109",
+                "message": "Missing callFunction",
+            },
+        },
+        {
+            "version": "v0.9",
+            "error": {
+                "code": "VALIDATION_FAILED",
+                "surfaceId": "s1",
+                "path": "/components/0/text",
+                "message": "Invalid property type",
+            },
+        },
+        {
+            "version": "v0.9",
+            "error": {
+                "code": "INTEGRITY_ERROR",
+                "surfaceId": "s1",
+                "message": "Duplicate surfaceId",
+            },
+        },
+    ],
+)
+def test_renderer_error_validates_against_spec(valid_renderer_error):
+    validate_renderer_error_payload(valid_renderer_error)
+
+
+@pytest.mark.parametrize(
+    "invalid_renderer_error",
+    [
+        # v1.0 VALIDATION_FAILED missing required path
+        {
+            "version": "1.0",
+            "error": {
+                "code": "VALIDATION_FAILED",
+                "surfaceId": "s1",
+                "message": "Missing path",
+            },
+        },
+        # v1.0 generic error with both surfaceId and functionCallId violates oneOf
+        {
+            "version": "1.0",
+            "error": {
+                "code": "INVALID_FUNCTION_CALL",
+                "surfaceId": "s1",
+                "functionCallId": "call-1",
+                "message": "Both surfaceId and functionCallId",
+            },
+        },
+        # v0.9 UNALLOWED_PARENT is not allowed as a ValidationFailedError in v0.9 without downgrade
+        {
+            "version": "v0.9",
+            "error": {
+                "code": "VALIDATION_FAILED",
+                "surfaceId": "s1",
+                "message": "Missing path in v0.9",
+            },
+        },
+    ],
+)
+def test_renderer_error_rejects_spec_violations(invalid_renderer_error):
+    with pytest.raises(jsonschema.ValidationError):
+        validate_renderer_error_payload(invalid_renderer_error)
+
+
+def test_render_surface_strict_mode_and_expect_theme_absent_schema():
+    valid_case = {
+        "name": "v10_theme_dropped_in_permissive_mode_renders_like_none",
+        "action": "render_surface",
+        "protocolVersion": "1.0",
+        "strictMode": False,
+        "steps": [{
+            "op": "process_messages",
+            "messages": [],
+            "expectThemeAbsent": True,
+            "expectErrors": [],
+        }],
+    }
+    VALIDATOR.validate([valid_case])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([{**valid_case, "strictMode": "permissive"}])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([{
+            **valid_case,
+            "steps": [{**valid_case["steps"][0], "expectThemeAbsent": "yes"}],
+        }])
+
+
+def test_render_surface_teardown_step_expectations_schema():
+    valid_case = {
+        "name": "teardown_checks",
+        "action": "render_surface",
+        "protocolVersion": "1.0",
+        "steps": [{
+            "op": "process_messages",
+            "messages": [],
+            "expectSurfaceRemoved": True,
+            "expectNewViewIdentity": ["root/children/0"],
+            "expectDisposedNodes": ["old_child"],
+        }],
+    }
+    VALIDATOR.validate([valid_case])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([{
+            **valid_case,
+            "steps": [{**valid_case["steps"][0], "expectSurfaceRemoved": "yes"}],
+        }])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([{
+            **valid_case,
+            "steps": [
+                {**valid_case["steps"][0], "expectNewViewIdentity": "root/children/0"}
+            ],
+        }])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([{
+            **valid_case,
+            "steps": [{**valid_case["steps"][0], "expectDisposedNodes": "old_child"}],
+        }])
+
+
+def test_render_surface_view_tree_node_occupies_layout_and_hints_schema():
+    valid_case = {
+        "name": "fallback_and_hints_checks",
+        "action": "render_surface",
+        "protocolVersion": "1.0",
+        "steps": [{
+            "op": "process_messages",
+            "messages": [],
+            "expectViewTree": {
+                "id": "root",
+                "type": "Column",
+                "children": [
+                    {
+                        "id": "unknown_widget",
+                        "state": "unknown-type",
+                        "occupiesLayout": False,
+                    },
+                    {
+                        "id": "phone_input",
+                        "type": "TextField",
+                        "isValid": True,
+                        "hints": ["Optional: add a phone number"],
+                    },
+                ],
+            },
+        }],
+    }
+    VALIDATOR.validate([valid_case])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([{
+            **valid_case,
+            "steps": [{
+                **valid_case["steps"][0],
+                "expectViewTree": {
+                    "id": "root",
+                    "children": [{"id": "u", "occupiesLayout": "no"}],
+                },
+            }],
+        }])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([{
+            **valid_case,
+            "steps": [{
+                **valid_case["steps"][0],
+                "expectViewTree": {
+                    "id": "root",
+                    "children": [{"id": "p", "hints": [123]}],
+                },
+            }],
+        }])
+
+
+@pytest.mark.parametrize(
+    "valid_case",
+    [
+        {
+            "name": "multi-turn renderer state",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [
+                {
+                    "payload": [{
+                        "version": "1.0",
+                        "createSurface": {
+                            "surfaceId": "s1",
+                            "catalogId": "conformance/simplified",
+                        },
+                    }],
+                    "expect_surfaces": {
+                        "s1": {
+                            "components": {"root": {"component": "Text", "text": "Hi"}},
+                            "data": {},
+                        }
+                    },
+                },
+                {
+                    "response": '<a2ui>\nsurface("s1") { root = Text("Hi") }\n</a2ui>',
+                    "format": "express",
+                    "expectError": {"category": "ValidationError"},
+                },
+            ],
+        },
+        {
+            "name": "create processor with then_stream",
+            "action": "create_processor",
+            "args": {
+                "format": "direct_json",
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ],
+                "renderer_capabilities": {
+                    "1.0": {"supportedCatalogIds": ["conformance/simplified"]}
+                },
+            },
+            "expect": {"active_catalog_ids": ["conformance/simplified"]},
+            "then_stream": {
+                "steps": [
+                    {"input": "Hello ", "expect": [{"text": "Hello "}]},
+                ],
+                "expect_close": [],
+            },
+        },
+        {
+            "name": "create processor with then_stream close error",
+            "action": "create_processor",
+            "args": {
+                "format": "express",
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ],
+            },
+            "then_stream": {
+                "steps": [
+                    {"input": "<a2ui>\nroot = Text(", "expect": []},
+                ],
+                "expect_error": {"category": "ParseError"},
+            },
+        },
+        {
+            "name": "prompt snippet callable functions",
+            "action": "generate_prompt_snippet",
+            "args": {
+                "format": "express",
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ],
+            },
+            "expect_callable_functions": ["notifyAgent", "showToast"],
+            "expect_contains": ["notifyAgent", "showToast"],
+        },
+    ],
+)
+def test_agent_suite_schemas_accept_valid_cases(valid_case):
+    VALIDATOR.validate([valid_case])
+
+
+@pytest.mark.parametrize(
+    "valid_case",
+    [
+        {
+            "name": "rpc_cancelled_case",
+            "action": "handle_rpc",
+            "catalog": "test_rpc_cat_v10",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+                "afterCall": "cancel",
+            },
+            "expectError": {"code": "CANCELLED"},
+        },
+        {
+            "name": "rpc_disposed_late_response_case",
+            "action": "handle_rpc",
+            "catalog": "test_rpc_cat_v10",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+                "afterCall": "dispose",
+                "lateInboundResponse": {
+                    "version": "1.0",
+                    "agentFunctionResponse": {
+                        "functionCallId": "rpc_1",
+                        "value": "late",
+                    },
+                },
+            },
+            "expect": {"lateResponseIgnored": True},
+            "expectError": {"code": "DISPOSED"},
+        },
+        {
+            "name": "rpc_no_listener_case",
+            "action": "handle_rpc",
+            "catalog": "test_rpc_cat_v10",
+            "args": {
+                "outboundListener": False,
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+            },
+            "expectError": {"code": "NO_LISTENER"},
+        },
+        {
+            "name": "rpc_ui_binding_error_case",
+            "action": "handle_rpc",
+            "catalog": {"protocolVersion": "1.0"},
+            "args": {
+                "uiBindingScenario": {
+                    "surfaceId": "main_surface",
+                    "catalogId": "store_catalog",
+                    "components": [
+                        {
+                            "id": "root",
+                            "component": "Column",
+                            "children": ["bound_text", "sibling_text"],
+                        },
+                        {
+                            "id": "bound_text",
+                            "component": "Text",
+                            "text": {"@call": "remoteTitle"},
+                        },
+                        {
+                            "id": "sibling_text",
+                            "component": "Text",
+                            "text": "Static subtitle",
+                        },
+                    ],
+                    "observe": {"componentId": "bound_text", "property": "text"},
+                    "inboundResponseError": {
+                        "code": "EXECUTION_ERROR",
+                        "message": "Backend unavailable",
+                    },
+                }
+            },
+            "expect": {
+                "initialValue": None,
+                "outboundCall": {"version": "1.0", "callAgentFunction": {}},
+                "resolvedValue": None,
+                "siblings": {"sibling_text": {"text": "Static subtitle"}},
+                "surfaceError": {
+                    "code": "EXPRESSION_ERROR",
+                    "functionCallId": "$outboundCallId",
+                },
+            },
+        },
+        {
+            "name": "rpc_ui_action_error_case",
+            "action": "handle_rpc",
+            "catalog": {"protocolVersion": "1.0"},
+            "args": {
+                "uiActionFallbackScenario": {
+                    "surfaceId": "main_surface",
+                    "catalogId": "store_catalog",
+                    "localFunctions": {
+                        "markStarted": {
+                            "returnType": "boolean",
+                            "effect": {"setData": {"path": "/started", "value": True}},
+                        }
+                    },
+                    "actionPayload": {"functionCall": {"@call": "finish"}},
+                    "inboundResponseError": {
+                        "code": "EXECUTION_ERROR",
+                        "message": "Remote step failed",
+                    },
+                }
+            },
+            "expect": {
+                "outboundCall": {"version": "1.0", "callAgentFunction": {}},
+                "dataModel": {"started": True},
+                "surfaceError": {"code": "EXPRESSION_ERROR"},
+            },
+        },
+    ],
+)
+def test_handle_rpc_lifecycle_schema_accepts_valid_cases(valid_case):
+    jsonschema.validate(instance=[valid_case], schema=SCHEMA)
+
+
+@pytest.mark.parametrize(
+    "invalid_case",
+    [
+        # renderer_state_turns turn missing both payload and response
+        {
+            "name": "turn without payload or response",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [{"expect_surfaces": {}}],
+        },
+        # renderer_state_turns turn with both payload and response
+        {
+            "name": "turn with both payload and response",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [
+                {"payload": [], "response": "<a2ui></a2ui>", "expect_surfaces": {}}
+            ],
+        },
+        # renderer_state_turns turn missing outcome expectation
+        {
+            "name": "turn without outcome expectation",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [{"payload": []}],
+        },
+        # renderer_state_turns expect_surfaces with array components instead of map
+        {
+            "name": "expect_surfaces with array components",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [{"payload": [], "expect_surfaces": {"s1": {"components": []}}}],
+        },
+        # renderer_state_turns expect_surfaces with unknown surface expectation key
+        {
+            "name": "expect_surfaces with unknown key",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [{"payload": [], "expect_surfaces": {"s1": {"unknown_key": 1}}}],
+        },
+        # create_processor with unknown top-level key
+        {
+            "name": "create_processor unknown top-level key",
+            "action": "create_processor",
+            "args": {
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ]
+            },
+            "unknown_field": True,
+        },
+        # create_processor then_stream step missing both expect and expect_error
+        {
+            "name": "then_stream step without expectation",
+            "action": "create_processor",
+            "args": {
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ]
+            },
+            "then_stream": {"steps": [{"input": "chunk"}]},
+        },
+        # create_processor then_stream with both expect_close and expect_error
+        {
+            "name": "then_stream with both expect_close and expect_error",
+            "action": "create_processor",
+            "args": {
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ]
+            },
+            "then_stream": {
+                "steps": [{"input": "chunk", "expect": []}],
+                "expect_close": [],
+                "expect_error": {"category": "ParseError"},
+            },
+        },
+        # generate_prompt_snippet with non-array expect_callable_functions
+        {
+            "name": "non-array expect_callable_functions",
+            "action": "generate_prompt_snippet",
+            "args": {
+                "format": "express",
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ],
+            },
+            "expect_callable_functions": "notifyAgent",
+        },
+    ],
+)
+def test_agent_suite_schemas_reject_invalid_cases(invalid_case):
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([invalid_case])
+
+
+@pytest.mark.parametrize(
+    "invalid_case",
+    [
+        {
+            "name": "rpc_invalid_after_call_enum",
+            "action": "handle_rpc",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+                "afterCall": "abort",
+            },
+        },
+        {
+            "name": "rpc_unknown_args_key",
+            "action": "handle_rpc",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+                "unknownLifecycleFlag": True,
+            },
+        },
+        {
+            "name": "rpc_unknown_expect_key",
+            "action": "handle_rpc",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+            },
+            "expect": {"unknownExpectation": True},
+        },
+        {
+            "name": "rpc_non_bool_late_response_ignored",
+            "action": "handle_rpc",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+            },
+            "expect": {"lateResponseIgnored": "yes"},
+        },
+        {
+            "name": "rpc_ui_scenario_missing_response",
+            "action": "handle_rpc",
+            "args": {
+                "uiBindingScenario": {
+                    "surfaceId": "main_surface",
+                    "catalogId": "store_catalog",
+                    "component": {"id": "root", "component": "Text", "text": "hi"},
+                }
+            },
+        },
+        {
+            "name": "rpc_ui_scenario_both_responses",
+            "action": "handle_rpc",
+            "args": {
+                "uiBindingScenario": {
+                    "surfaceId": "main_surface",
+                    "catalogId": "store_catalog",
+                    "component": {"id": "root", "component": "Text", "text": "hi"},
+                    "inboundResponseValue": "ok",
+                    "inboundResponseError": {
+                        "code": "EXECUTION_ERROR",
+                        "message": "bad",
+                    },
+                }
+            },
+        },
+        {
+            "name": "rpc_ui_scenario_missing_target",
+            "action": "handle_rpc",
+            "args": {
+                "uiBindingScenario": {
+                    "surfaceId": "main_surface",
+                    "catalogId": "store_catalog",
+                    "inboundResponseValue": "ok",
+                }
+            },
+        },
+        {
+            "name": "rpc_ui_surface_error_missing_code",
+            "action": "handle_rpc",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+            },
+            "expect": {"surfaceError": {"functionCallId": "call-1"}},
+        },
+    ],
+)
+def test_handle_rpc_lifecycle_schema_rejects_invalid_cases(invalid_case):
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=[invalid_case], schema=SCHEMA)
+
+
+@pytest.mark.parametrize(
+    "valid_case",
+    [
+        {
+            "name": "read_caps_valid_expect",
+            "action": "read_renderer_capabilities",
+            "args": {
+                "version": "1.0",
+                "metadata": {
+                    "a2uiRendererCapabilities": {
+                        "1.0": {"supportedCatalogIds": ["cat-1"]}
+                    }
+                },
+            },
+            "expect": {"1.0": {"supportedCatalogIds": ["cat-1"]}},
+        },
+        {
+            "name": "read_caps_valid_null",
+            "action": "read_renderer_capabilities",
+            "args": {"version": "v0.9", "metadata": None},
+            "expect": None,
+        },
+        {
+            "name": "read_caps_valid_error",
+            "action": "read_renderer_capabilities",
+            "args": {
+                "version": "1.0",
+                "metadata": {"a2uiRendererCapabilities": "bad"},
+            },
+            "expect_error": {"category": "CatalogError"},
+        },
+    ],
+)
+def test_read_renderer_capabilities_schema_accepts_valid_cases(valid_case):
+    VALIDATOR.validate([valid_case])
+
+
+@pytest.mark.parametrize(
+    "invalid_case",
+    [
+        {
+            "name": "read_caps_missing_args",
+            "action": "read_renderer_capabilities",
+            "expect": None,
+        },
+        {
+            "name": "read_caps_missing_version",
+            "action": "read_renderer_capabilities",
+            "args": {"metadata": {}},
+            "expect": None,
+        },
+        {
+            "name": "read_caps_missing_metadata",
+            "action": "read_renderer_capabilities",
+            "args": {"version": "1.0"},
+            "expect": None,
+        },
+        {
+            "name": "read_caps_unknown_arg",
+            "action": "read_renderer_capabilities",
+            "args": {"version": "1.0", "metadata": {}, "extra": True},
+            "expect": None,
+        },
+        {
+            "name": "read_caps_missing_expectation",
+            "action": "read_renderer_capabilities",
+            "args": {"version": "1.0", "metadata": {}},
+        },
+        {
+            "name": "read_caps_both_expect_and_error",
+            "action": "read_renderer_capabilities",
+            "args": {"version": "1.0", "metadata": {}},
+            "expect": None,
+            "expect_error": {"category": "CatalogError"},
+        },
+    ],
+)
+def test_read_renderer_capabilities_schema_rejects_invalid_cases(invalid_case):
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([invalid_case])

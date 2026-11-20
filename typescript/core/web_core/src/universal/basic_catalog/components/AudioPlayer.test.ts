@@ -98,4 +98,141 @@ describe('AudioPlayer Component', () => {
     assert.strictEqual(audio?.getAttribute('src'), 'http://example.com/audio.mp3');
     assert.strictEqual(audio?.classList.contains('a2ui-audio'), true);
   });
+
+  it('should allow data: URLs on AudioPlayer', async () => {
+    const dataUrl = 'data:audio/mp3;base64,AAAA';
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'comp1',
+              component: 'AudioPlayer',
+              url: dataUrl,
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-audioplayer') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'comp1');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const audio = el.querySelector('audio');
+    assert.notStrictEqual(audio, null);
+    assert.strictEqual(audio?.getAttribute('src'), dataUrl);
+  });
+
+  it('should omit src when url uses a disallowed scheme', async () => {
+    const disallowedUrls = [
+      'javascript:alert(1)',
+      'vbscript:msgbox(1)',
+      'file:///etc/passwd',
+      'blob:https://example.com/123',
+      '//evil.example.com/audio.mp3',
+      '/\\evil.example.com/audio.mp3',
+      '/\t/evil.example.com/audio.mp3',
+      'http:evil.example.com/audio.mp3',
+      'https:evil.example.com/audio.mp3',
+    ];
+
+    const el = document.createElement('a2ui-audioplayer') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    for (const badUrl of disallowedUrls) {
+      processor.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'comp1',
+                component: 'AudioPlayer',
+                url: badUrl,
+              },
+            ],
+          },
+        },
+      ]);
+
+      const context = new ComponentContext(surface, 'comp1');
+      await asyncUpdate(el, e => {
+        e.context = context;
+      });
+
+      const audio = el.querySelector('audio');
+      assert.notStrictEqual(audio, null);
+      assert.strictEqual(
+        audio?.getAttribute('src'),
+        null,
+        `Expected src to be omitted for ${badUrl}`,
+      );
+    }
+  });
+
+  it('associates audio element with visible description and applies accessibility attributes', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'audio_desc',
+              component: 'AudioPlayer',
+              url: 'https://example.com/podcast.mp3',
+              description: 'Episode 1',
+            },
+            {
+              id: 'audio_a11y',
+              component: 'AudioPlayer',
+              url: 'https://example.com/podcast.mp3',
+              description: 'Episode 1',
+              accessibility: {
+                label: 'Play Episode 1',
+                description: '30 minute interview',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-audioplayer') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'audio_desc');
+    });
+
+    const descEl = el.querySelector('.a2ui-audio-description');
+    let audio = el.querySelector('audio');
+    assert.notStrictEqual(descEl, null);
+    assert.ok(descEl?.id);
+    assert.strictEqual(audio?.getAttribute('aria-labelledby'), descEl?.id);
+    assert.strictEqual(audio?.hasAttribute('aria-label'), false);
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'audio_a11y');
+    });
+
+    audio = el.querySelector('audio');
+    assert.strictEqual(audio?.getAttribute('aria-label'), 'Play Episode 1');
+    assert.strictEqual(audio?.hasAttribute('aria-labelledby'), false);
+    assert.strictEqual(audio?.getAttribute('aria-description'), '30 minute interview');
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    assert.strictEqual(el.hasAttribute('aria-description'), false);
+  });
 });

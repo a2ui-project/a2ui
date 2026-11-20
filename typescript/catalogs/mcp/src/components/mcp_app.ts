@@ -22,6 +22,7 @@ import {
 } from '@a2ui/web_core/v1_0';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 import {z} from 'zod';
+import type {McpToolDataPayload} from '../functions/callMcpTool.js';
 import {getMcpCatalogConfig} from '../mcp_catalog_config.js';
 import {ComponentContextFrameHost} from '../shared/sandbox/component_context_frame_host.js';
 import type {
@@ -201,7 +202,9 @@ class McpAppElement extends SandboxedFrameElement<typeof McpAppApi> {
       // Executed directly rather than through the catalog invoker: the invoker validates the
       // arguments as A2UI payload values, which excludes the plain objects an app may send, and
       // the bridge has already checked them for prototype pollution, depth and size.
-      const res = await callMcpTool.execute({name, arguments: args}, this.context.dataContext);
+      const payload = await callMcpTool.execute({name, arguments: args}, this.context.dataContext);
+      // `callMcpTool` returns its tool data payload; the app receives the raw result inside it.
+      const res = (payload as Partial<McpToolDataPayload> | undefined)?.toolResult ?? payload;
       if (res && typeof res === 'object' && Array.isArray((res as CallToolResult).content)) {
         return res as CallToolResult;
       }

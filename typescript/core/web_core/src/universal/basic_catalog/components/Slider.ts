@@ -15,6 +15,13 @@
  */
 
 import {html, nothing, css} from 'lit';
+import {
+  getAccessibilityDescription,
+  getAccessibilityLabel,
+  getValidationErrorId,
+  hasAttributeValue,
+  renderValidationErrors,
+} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {SliderSupportedApis} from './supported_apis.js';
 
@@ -24,11 +31,24 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<SliderSupporte
   /**
    * The slider can be customized with the following CSS variables:
    *
-   * - `--a2ui-slider-track-color`: Color of the slider track. Defaults to `--a2ui-color-secondary`.
-   * - `--a2ui-slider-thumb-color`: Color of the slider thumb. Defaults to `--a2ui-color-primary`.
    * - `--a2ui-slider-margin`: Outer margin of the component. Defaults to `--a2ui-spacing-m`.
-   * - `--a2ui-slider-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
-   * - `--a2ui-slider-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
+   * - `--a2ui-slider-label-font-size`: Font size of the header label and value readout. Defaults to `--a2ui-label-font-size`, then `--a2ui-font-size-s`.
+   * - `--a2ui-slider-label-font-weight`: Font weight of the header label and value readout. Defaults to `bold`.
+   * - `--a2ui-slider-thumb-color`: Accent color of the slider thumb. Defaults to `--a2ui-color-primary`.
+   * - `--a2ui-slider-track-color`: Background color of the slider track. Defaults to `--a2ui-color-secondary`.
+   * - `--a2ui-slider-color-error`: Text color of validation error messages. Defaults to `red`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-spacing-xs`: Gap between the header, range input, and validation errors.
+   * - `--a2ui-spacing-m`: Fallback outer margin of the component.
+   * - `--a2ui-label-font-size`: Fallback font size of the header. Defaults to `--a2ui-font-size-s`.
+   * - `--a2ui-font-size-s`: Fallback header font size when `--a2ui-label-font-size` is unset.
+   * - `--a2ui-font-size-xs`: Font size of validation error messages.
+   * - `--a2ui-text-color-text`: Text color of the header. Defaults to `--a2ui-color-on-background`.
+   * - `--a2ui-color-on-background`: Fallback text color of the header.
+   * - `--a2ui-color-primary`: Fallback accent color of the slider thumb.
+   * - `--a2ui-color-secondary`: Fallback background color of the slider track.
    *
    * @nocollapse
    */
@@ -73,22 +93,32 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<SliderSupporte
     const stepVal =
       typeof steps === 'number' && steps > 0 && max > min ? (max - min) / steps : nothing;
 
+    const inputId = `${this.domId}-input`;
+    const isInvalid = props.isValid === false;
+
     return html`
       <div class="a2ui-slider-container">
         <div class="a2ui-slider-header">
-          <span class="a2ui-slider-label">${props.label}</span>
+          ${hasAttributeValue(props.label)
+            ? html`<label class="a2ui-slider-label" for=${inputId}>${props.label}</label>`
+            : html`<span class="a2ui-slider-label"></span>`}
           <span class="a2ui-slider-value">${props.value}</span>
         </div>
         <input
+          id=${inputId}
           type="range"
           min=${min}
           max=${max}
           step=${stepVal}
+          aria-label=${getAccessibilityLabel(props.accessibility)}
+          aria-description=${getAccessibilityDescription(props.accessibility)}
+          aria-invalid=${isInvalid ? 'true' : nothing}
+          aria-describedby=${getValidationErrorId(this.domId, props)}
           .value=${props.value?.toString() || '0'}
           @input=${(e: Event) => props.setValue?.(Number((e.target as HTMLInputElement).value))}
           class="a2ui-slider"
         />
-        ${this.renderValidationErrors(props)}
+        ${renderValidationErrors(this.domId, props)}
       </div>
     `;
   }

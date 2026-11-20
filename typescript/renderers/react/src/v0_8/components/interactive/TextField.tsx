@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-import {useState, useCallback, useEffect, useId, memo} from 'react';
+import {memo, useCallback, useEffect, useState} from 'react';
 import {isSafeRegex} from '@a2ui/web_core';
 import type * as Types from '@a2ui/web_core/types/types';
-import type {A2UIComponentProps} from '../../types';
 import {useA2UIComponent} from '../../hooks/useA2UIComponent';
+import {useIdCompat} from '../../hooks/useIdCompat';
 import {classMapToString, stylesToObject} from '../../lib/utils';
+import type {A2UIComponentProps} from '../../types';
 
 type TextFieldType = 'shortText' | 'longText' | 'number' | 'date';
 
@@ -34,7 +35,7 @@ export const TextField = memo(function TextField({
 }: A2UIComponentProps<Types.TextFieldNode>) {
   const {theme, resolveString, setValue, getValue} = useA2UIComponent(node, surfaceId);
   const props = node.properties;
-  const id = useId();
+  const id = useIdCompat();
 
   const label = resolveString(props.label);
   const textPath = props.text?.path;

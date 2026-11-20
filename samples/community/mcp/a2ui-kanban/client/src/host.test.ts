@@ -15,12 +15,14 @@
  */
 
 /**
- * The four channels, as the chat host sees them, with a scripted agent double
- * that replays the Python agent's storyline and an in-process fake MCP client.
+ * The four channels plus the direct A2UI-to-MCP function pipeline, as the chat
+ * host sees them, with a scripted agent double that replays the Python agent's
+ * storyline and an in-process fake MCP client.
  */
 
 import type {Part} from '@a2a-js/sdk';
 import type {McpToolClient} from '@a2ui/catalog-mcp';
+import {DataContext, type SurfaceModel} from '@a2ui/web_core/v1_0';
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import {
   A2UI_MIME_TYPE,
@@ -30,21 +32,31 @@ import {
   type AgentReply,
 } from './a2a.js';
 import {
+  BOARD_PATH,
   formatDebugPayload,
   KanbanHost,
   MCP_APP_MESSAGE_ACTION,
   messageText,
+  QUICK_ADD_PATH,
   recordingMcpClientResolver,
+  SELECTION_PATH,
   singleServerResolver,
   summarizeDebugPayload,
 } from './host.js';
-import {BOARD_PATH, SELECTION_PATH, SUMMARY_PATH} from './summary.js';
 
 const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
 const MCP_CATALOG_ID = 'https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json';
 
+const QUICK_ADD_TITLE_PATH = `${QUICK_ADD_PATH}/title`;
+const QUICK_ADD_ASSIGNEE_PATH = `${QUICK_ADD_PATH}/assignee`;
+
 interface Board {
-  columns: Array<{id: string; title: string; wipLimit?: number; cards: Array<{id: string}>}>;
+  columns: Array<{
+    id: string;
+    title: string;
+    wipLimit?: number;
+    cards: Array<{id: string; title?: string; assignee?: string; due?: string; tags?: string[]}>;
+  }>;
 }
 
 function seedBoard(): Board {
@@ -70,6 +82,14 @@ function moveCard(board: Board, taskId: string, toColumn: string): Board {
   };
 }
 
+function mcpCall(name: string, args: Record<string, unknown>): Record<string, unknown> {
+  return {'@call': name, catalogId: MCP_CATALOG_ID, args};
+}
+
+function transform(data: unknown, jmespath: string): Record<string, unknown> {
+  return mcpCall('transformData', {jmespath, data});
+}
+
 /** What the scripted Python agent sends for "show me the board" (see a2ui_messages.py). */
 function boardSurfaceMessages(board: Board): Record<string, unknown>[] {
   return [
@@ -83,7 +103,7 @@ function boardSurfaceMessages(board: Board): Record<string, unknown>[] {
           board,
           toolResult: board,
           selection: null,
-          summary: {todoText: '', doneText: '', wipText: '', selectionText: 'No card selected'},
+          quickAdd: {title: 'Document MCP catalog', assignee: 'Ana'},
         },
       },
     },
@@ -92,15 +112,91 @@ function boardSurfaceMessages(board: Board): Record<string, unknown>[] {
       updateComponents: {
         surfaceId: 'kanban',
         components: [
-          {id: 'root', component: 'Column', children: ['summary', 'selection_text', 'board']},
+          {
+            id: 'root',
+            component: 'Column',
+            children: ['summary', 'selection_text', 'quick_add_card', 'board'],
+          },
           {id: 'summary', component: 'Row', children: ['todo_count', 'wip_badge', 'done_count']},
-          {id: 'todo_count', component: 'Text', text: {'@path': '/kanban/summary/todoText'}},
-          {id: 'wip_badge', component: 'Text', text: {'@path': '/kanban/summary/wipText'}},
-          {id: 'done_count', component: 'Text', text: {'@path': '/kanban/summary/doneText'}},
+          {
+            id: 'todo_count',
+            component: 'Text',
+            text: transform(
+              {'@path': BOARD_PATH},
+              "join('', ['Todo: ', to_string(length(columns[?id == 'todo'].cards[]))])",
+            ),
+          },
+          {
+            id: 'wip_badge',
+            component: 'Text',
+            text: transform(
+              {'@path': BOARD_PATH},
+              "columns[?id == 'review'] | [0] | join('', [title, ' ', to_string(length(cards)), '/', to_string(wipLimit), (length(cards) > wipLimit && ' (over limit)' || '')])",
+            ),
+          },
+          {
+            id: 'done_count',
+            component: 'Text',
+            text: transform(
+              {'@path': BOARD_PATH},
+              "join('', ['Done: ', to_string(length(columns[?id == 'done'].cards[]))])",
+            ),
+          },
           {
             id: 'selection_text',
             component: 'Text',
-            text: {'@path': '/kanban/summary/selectionText'},
+            text: transform(
+              {'@path': '/kanban'},
+              "(selection.title && join('', ['Selected: ', selection.title, (selection.column && join('', [' in ', selection.column]) || ''), (selection.assignee && selection.due && join('', [' (', selection.assignee, ', due ', selection.due, ')']) || selection.assignee && join('', [' (', selection.assignee, ')']) || selection.due && join('', [' (due ', selection.due, ')']) || '')])) || 'No card selected'",
+            ),
+          },
+          {id: 'quick_add_card', component: 'Card', child: 'quick_add_col'},
+          {
+            id: 'quick_add_col',
+            component: 'Column',
+            children: ['quick_add_row'],
+          },
+          {
+            id: 'quick_add_row',
+            component: 'Row',
+            children: ['quick_add_title', 'quick_add_assignee', 'quick_add_button'],
+          },
+          {
+            id: 'quick_add_title',
+            component: 'TextField',
+            label: 'Task title',
+            value: {'@path': QUICK_ADD_TITLE_PATH},
+          },
+          {
+            id: 'quick_add_assignee',
+            component: 'TextField',
+            label: 'Assignee',
+            value: {'@path': QUICK_ADD_ASSIGNEE_PATH},
+          },
+          {
+            id: 'quick_add_button',
+            component: 'Button',
+            child: 'quick_add_button_label',
+            variant: 'primary',
+            action: {
+              functionCall: mcpCall('updateDataModel', {
+                updates: transform(
+                  mcpCall('callMcpTool', {
+                    name: 'create_task',
+                    arguments: {
+                      title: {'@path': QUICK_ADD_TITLE_PATH},
+                      assignee: {'@path': QUICK_ADD_ASSIGNEE_PATH},
+                    },
+                  }),
+                  '{"/kanban/board": structuredContent, "/kanban/toolResult": toolResult}',
+                ),
+              }),
+            },
+          },
+          {
+            id: 'quick_add_button_label',
+            component: 'Text',
+            text: 'Add task',
           },
           {
             id: 'board',
@@ -122,6 +218,12 @@ function boardSurfaceMessages(board: Board): Record<string, unknown>[] {
       },
     },
   ];
+}
+
+function resolveText(surface: SurfaceModel, componentId: string): string {
+  const component = surface.componentsModel.get(componentId);
+  const context = new DataContext(surface, '/');
+  return context.resolveDynamicValue<string>(component!.properties['text'] as never);
 }
 
 /** Replays the scripted agent: records every turn, answers from a queue. */
@@ -155,16 +257,53 @@ describe('KanbanHost', () => {
   let mcpCalls: Array<{name: string; arguments: unknown}>;
   let host: KanbanHost;
   let changes: number;
+  let serverBoard: Board;
 
   beforeEach(async () => {
     agent = new ScriptedAgentDouble();
     mcpCalls = [];
     changes = 0;
+    serverBoard = seedBoard();
     const fakeMcp = {
-      callTool: async (params: {name: string; arguments?: unknown}) => {
-        mcpCalls.push({name: params.name, arguments: params.arguments});
-        return {content: [], structuredContent: seedBoard()};
+      request: async (request: {
+        method: string;
+        params?: {name?: string; arguments?: Record<string, unknown>};
+      }) => {
+        if (request.method === 'tools/call') {
+          const name = request.params?.name ?? '';
+          const args = request.params?.arguments ?? {};
+          mcpCalls.push({name, arguments: args});
+          if (name === 'create_task') {
+            const colId = String(args['column'] ?? 'todo');
+            serverBoard = {
+              columns: serverBoard.columns.map(col =>
+                col.id === colId
+                  ? {
+                      ...col,
+                      cards: [
+                        ...col.cards,
+                        {
+                          id: 't9',
+                          title: String(args['title'] ?? ''),
+                          assignee: String(args['assignee'] ?? ''),
+                          due: String(args['due'] ?? ''),
+                          tags: Array.isArray(args['tags']) ? (args['tags'] as string[]) : [],
+                        },
+                      ],
+                    }
+                  : col,
+              ),
+            };
+          }
+          return {
+            content: [{type: 'text', text: JSON.stringify(serverBoard)}],
+            structuredContent: serverBoard,
+          };
+        }
+        return {tools: []};
       },
+      readResource: async () => ({contents: []}),
+      listTools: async () => ({tools: []}),
     } as unknown as McpToolClient;
     host = new KanbanHost({
       agent,
@@ -184,20 +323,20 @@ describe('KanbanHost', () => {
     host.processor.dispose();
   });
 
-  it('creates the board surface from the agent reply and derives the sibling summary', () => {
-    const surface = host.boardSurface;
+  it('creates the board surface and evaluates the declarative transformData sibling badges', () => {
+    const surface = host.boardSurface!;
     expect(surface).toBeDefined();
     expect(host.surfaces.length).toBe(1);
     expect(host.entries.map(entry => entry.role)).toEqual(['user', 'agent']);
     expect(host.entries[1].text).toBe('Here is the sprint board.');
-    expect(surface!.dataModel.get(`${SUMMARY_PATH}/todoText`)).toBe('Todo: 2');
-    expect(surface!.dataModel.get(`${SUMMARY_PATH}/doneText`)).toBe('Done: 1');
-    expect(surface!.dataModel.get(`${SUMMARY_PATH}/wipText`)).toBe('Review 3/3');
-    expect(surface!.dataModel.get(`${SUMMARY_PATH}/selectionText`)).toBe('No card selected');
+    expect(resolveText(surface, 'todo_count')).toBe('Todo: 2');
+    expect(resolveText(surface, 'done_count')).toBe('Done: 1');
+    expect(resolveText(surface, 'wip_badge')).toBe('Review 3/3');
+    expect(resolveText(surface, 'selection_text')).toBe('No card selected');
     expect(changes).toBeGreaterThan(0);
   });
 
-  it('A: an agent dataModelUpdate replaces the bound board and the summary follows', async () => {
+  it('A: an agent dataModelUpdate replaces the bound board and the transformData badges follow', async () => {
     agent.reply({
       texts: ['Moved Write docs to Todo.'],
       a2uiMessages: [
@@ -212,20 +351,21 @@ describe('KanbanHost', () => {
       ],
     });
     await host.sendUserText('Move Write docs back to Todo');
-    const dataModel = host.boardSurface!.dataModel;
+    const surface = host.boardSurface!;
+    const dataModel = surface.dataModel;
     expect((dataModel.get(BOARD_PATH) as Board).columns[0].cards.map(card => card.id)).toEqual([
       't3',
       't4',
       't2',
     ]);
-    expect(dataModel.get(`${SUMMARY_PATH}/todoText`)).toBe('Todo: 3');
-    expect(dataModel.get(`${SUMMARY_PATH}/wipText`)).toBe('Review 2/3');
+    expect(resolveText(surface, 'todo_count')).toBe('Todo: 3');
+    expect(resolveText(surface, 'wip_badge')).toBe('Review 2/3');
     expect(host.entries.at(-1)).toEqual({role: 'agent', text: 'Moved Write docs to Todo.'});
   });
 
-  it('B: the next turn carries the model context and selection, but not the board', async () => {
-    const dataModel = host.boardSurface!.dataModel;
-    // What the McpApp bridge writes when the app sends ui/update-model-context.
+  it('B: the next turn carries the model context and selection, but not the board or quickAdd', async () => {
+    const surface = host.boardSurface!;
+    const dataModel = surface.dataModel;
     const modelContext = {
       selection: {
         taskId: 't3',
@@ -254,7 +394,8 @@ describe('KanbanHost', () => {
     expect(kanban['selection']).toEqual(modelContext.selection);
     expect(kanban).not.toHaveProperty('board');
     expect(kanban).not.toHaveProperty('toolResult');
-    expect(dataModel.get(`${SUMMARY_PATH}/selectionText`)).toBe(
+    expect(kanban).not.toHaveProperty('quickAdd');
+    expect(resolveText(surface, 'selection_text')).toBe(
       'Selected: Migrate DB in Todo (Ana, due 2026-10-17)',
     );
 
@@ -262,14 +403,13 @@ describe('KanbanHost', () => {
     expect(host.rendererDataModel()).toBeNull();
   });
 
-  it('C: a board written by the app re-renders the sibling counters without the agent', () => {
-    const dataModel = host.boardSurface!.dataModel;
+  it('C: a board written by the app re-evaluates the sibling transformData counters without the agent', () => {
+    const surface = host.boardSurface!;
+    const dataModel = surface.dataModel;
     const turnsBefore = agent.turns.length;
-    // What the McpApp bridge writes for the app's ui/notifications/data-model-change.
     dataModel.set(BOARD_PATH, moveCard(seedBoard(), 't1', 'review'));
-    expect(dataModel.get(`${SUMMARY_PATH}/wipText`)).toBe('Review 4/3 (over limit)');
-    expect(dataModel.get(`${SUMMARY_PATH}/todoText`)).toBe('Todo: 2');
-    expect(dataModel.get(SUMMARY_PATH)).toMatchObject({overLimit: true});
+    expect(resolveText(surface, 'wip_badge')).toBe('Review 4/3 (over limit)');
+    expect(resolveText(surface, 'todo_count')).toBe('Todo: 2');
     expect(agent.turns.length).toBe(turnsBefore);
   });
 
@@ -312,6 +452,45 @@ describe('KanbanHost', () => {
         role: 'agent',
         text: 'Review now has 4 cards, over its WIP limit of 3. Want me to move one back?',
       },
+    ]);
+  });
+
+  it('E: the quick-add button chains callMcpTool, transformData, and updateDataModel without an agent turn', async () => {
+    const surface = host.boardSurface!;
+    surface.dataModel.set(QUICK_ADD_TITLE_PATH, 'Write release notes');
+    surface.dataModel.set(QUICK_ADD_ASSIGNEE_PATH, 'Bo');
+    const turnsBefore = agent.turns.length;
+    const quickAddButton = surface.componentsModel.get('quick_add_button')!;
+    const context = new DataContext(surface, '/');
+
+    await context.resolveAction(quickAddButton.properties['action'] as never);
+
+    expect(agent.turns.length).toBe(turnsBefore);
+    expect(mcpCalls).toEqual([
+      {
+        name: 'create_task',
+        arguments: {title: 'Write release notes', assignee: 'Bo'},
+      },
+    ]);
+    expect(resolveText(surface, 'todo_count')).toBe('Todo: 3');
+    const updatedBoard = surface.dataModel.get<Board>(BOARD_PATH)!;
+    expect(updatedBoard.columns[0].cards.at(-1)).toEqual({
+      id: 't9',
+      title: 'Write release notes',
+      assignee: 'Bo',
+      due: '',
+      tags: [],
+    });
+    expect(surface.dataModel.get('/kanban/toolResult')).toEqual({
+      content: [{type: 'text', text: JSON.stringify(updatedBoard)}],
+      structuredContent: updatedBoard,
+    });
+    expect(host.lastWriter['board']).toBe('host');
+    expect(host.debugLog['mcp-server'].map(e => summarizeDebugPayload(e.payload))).toEqual([
+      'tools/call',
+      'tools/call result',
+      'tools/list',
+      'tools/list result',
     ]);
   });
 
@@ -380,7 +559,6 @@ describe('KanbanHost', () => {
     const a2ui = host.debugLog['a2ui'];
     expect(a2ui.filter(e => e.direction === 'agent-to-renderer')).toHaveLength(4);
     expect(summarizeDebugPayload(a2ui.at(-1)!.payload)).toBe('updateComponents');
-    // The outgoing turn carried the renderer data model as an A2UI part.
     expect(
       a2ui
         .filter(e => e.direction === 'renderer-to-agent')
@@ -432,7 +610,6 @@ describe('KanbanHost', () => {
     expect(host.lastWriter['board']).toBe('app');
     expect(summarizeDebugPayload(hostReply)).toBe('rpc response #1');
 
-    // Tool calls the host proxies to the MCP server for the app are recorded with their result.
     const fakeClient = {
       request: async () => ({content: [{type: 'text', text: 'moved'}]}),
       readResource: async () => ({contents: []}),
@@ -512,7 +689,6 @@ describe('KanbanHost', () => {
     expect(summarizeDebugPayload(request)).toBe('message/send');
     expect(summarizeDebugPayload(response)).toBe('rpc response #r1 (task)');
 
-    // A body-less GET (the agent card) is reported by method and URL; its JSON reply follows.
     await fetchWithRecording('http://agent/.well-known/agent-card.json');
     expect(host.debugLog['a2a'][2]).toEqual({
       direction: 'host-to-agent',

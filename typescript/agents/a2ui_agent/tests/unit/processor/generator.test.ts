@@ -73,7 +73,7 @@ describe('A2uiGenerator', () => {
     const processor = generator.createProcessor(mockCapabilities);
 
     expect(processor).toBeDefined();
-    expect(processor.activeCatalogs[0].id).toBe(basicCatalogV10.id);
+    expect(processor.catalogs[0].id).toBe(basicCatalogV10.id);
   });
 
   test('throws when an example uses a component not supported by the catalog', () => {
@@ -175,7 +175,7 @@ describe('A2uiGenerator', () => {
     const processor = generator.createProcessor({
       '1.0': {supportedCatalogIds: [basicCatalogV10.id]},
     });
-    expect(processor.activeCatalogs[0].id).toBe(basicCatalogV10.id);
+    expect(processor.catalogs[0].id).toBe(basicCatalogV10.id);
 
     expect(() =>
       generator.createProcessor({

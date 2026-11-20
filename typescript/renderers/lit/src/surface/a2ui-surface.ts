@@ -54,6 +54,13 @@ export class A2uiSurface extends LitElement {
   private unsubscribe?: () => void;
 
   /**
+   * Returns the currently resolved root component node for this surface, if any.
+   */
+  get rootNode(): ComponentNode<LitComponentApi> | undefined {
+    return this._rootNode;
+  }
+
+  /**
    * Renders into the element's direct children (Light DOM) instead of a ShadowRoot
    * so host stylesheets can target components inside the surface.
    */
@@ -127,16 +134,15 @@ export class A2uiSurface extends LitElement {
   /**
    * Renders the surface.
    *
-   * If `surface` is not set, returns `nothing`.
-   * If the root component is not yet available, renders a loading state.
+   * If `surface` is not set, or the root has not resolved (it has not arrived,
+   * has an unknown type, or is part of a cycle), returns `nothing`.
    * Otherwise, renders the root component using `renderA2uiNode`.
    */
   override render() {
     if (!this.surface) return nothing;
     const root = this._rootNode;
-    if (!root || root.isPlaceholder) {
-      return html`<div>Loading surface...</div>`;
-    }
+    // Nothing to show until the root resolves (pending, unknown type or cycle).
+    if (!root || root.isPlaceholder) return nothing;
 
     try {
       return renderA2uiNode(root);

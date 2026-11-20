@@ -471,7 +471,11 @@ def test_a_rollback_restores_the_data_model():
             ]:
                 state.apply({
                     "version": "v0.9",
-                    "updateDataModel": {"surfaceId": "s", "path": path, "value": value},
+                    "updateDataModel": {
+                        "surfaceId": "s",
+                        "path": path,
+                        "value": value,
+                    },
                 })
             state.apply(_update({"id": "x", "component": "Unknown"}))
 
@@ -545,7 +549,7 @@ def test_a_rollback_restores_each_components_own_catalog_on_a_deleted_surface():
                 "surfaceId": "s",
                 "components": [
                     {"id": "root", "component": "Column", "children": ["i"]},
-                    {"id": "i", "component": "Item", "catalogId": "items"},
+                    {"id": "i", "component": "Item", "@catalogId": "items"},
                 ],
             },
         },
@@ -603,7 +607,7 @@ _PARENTS_CATALOG = Catalog.from_json(
                 "type": "object",
                 "properties": {"child": {"$ref": "#/$defs/ComponentId"}},
             },
-            "Header": {"type": "object", "allowedParents": ["Box"]},
+            "Header": {"type": "object", "allowedParents": ["Box", "Card"]},
             "Leaf": {"type": "object"},
         },
     },
@@ -641,8 +645,8 @@ def test_a_rollback_keeps_the_position_of_a_component_replaced_by_another_type()
             raise RuntimeError("the response is rejected")
 
     assert _order(state) == ["card", "box", "h"]
-    # `allowedParents` takes the last parent in component order, so 'h' is
-    # still under 'box', and an unrelated update is accepted.
+    # 'h' is back under both 'card' and 'box', each of which its
+    # `allowedParents` admits, so an unrelated update is accepted.
     state.apply(_parents_update({"id": "x", "component": "Leaf"}))
 
 

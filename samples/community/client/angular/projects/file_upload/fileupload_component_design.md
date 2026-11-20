@@ -4,7 +4,7 @@ Upload delegation and file handling without context bloat
 
 ## 1. Executive summary
 
-As agents expand to handle multimodal tasks, the Agent-to-UI (A2UI) protocol must support file
+As agents expand to handle multimodal tasks, the A2UI protocol must support file
 uploads such as documents and images natively. In standard A2UI workflows, the user action event
 relay embeds client data directly into the JSON action payload. If we leverage this native relay for
 files without restrictions, raw binary data would be embedded directly into the payload. Because

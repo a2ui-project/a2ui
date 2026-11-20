@@ -27,7 +27,7 @@ export {Version};
  */
 export interface LoadExampleOptions {
   name: string;
-  version?: Version;
+  version?: Version | '0.8' | '0.9' | '1.0';
   useUniversalComponents?: boolean;
 }
 
@@ -36,7 +36,15 @@ export interface LoadExampleOptions {
  * Resolves after the example is selected and initial async rendering has time to complete.
  */
 export async function loadExample(options: LoadExampleOptions) {
-  const {name, version = Version.V0_9, useUniversalComponents = null} = options;
+  const {name, version: rawVersion = Version.V0_9, useUniversalComponents = null} = options;
+  const version =
+    rawVersion === '1.0'
+      ? Version.V1_0
+      : rawVersion === '0.9'
+        ? Version.V0_9
+        : rawVersion === '0.8'
+          ? Version.V0_8
+          : rawVersion;
 
   await TestBed.configureTestingModule({
     imports: [DemoComponent],
@@ -63,7 +71,9 @@ export async function loadExample(options: LoadExampleOptions) {
       : version === Version.V0_9
         ? EXAMPLES_V09
         : EXAMPLES_V08;
-  let example = examples.find(ex => ex.name === name);
+  let example = examples.find(
+    ex => ex.name === name || ex.filename === name || ex.filename === `${name}.json`,
+  );
 
   if (version === Version.V0_8 && !example) {
     example =

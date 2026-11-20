@@ -19,9 +19,9 @@ from a2ui.constants import DEFAULT_PROGRESSIVE_KEYS
 from .decompiler import DirectJsonDecompiler
 from .format import DirectJsonFormat
 from .format import DirectJsonFormatFactory
+from .json_reader import read_json
 from .parser import DirectJsonParser
 from .prompt_generator import DEFAULT_WORKFLOW_RULES
-from .prompt_generator import DirectJsonPromptGenerator
 from .response_stream import DirectJsonResponseStream
 from .schema_prompt import schema_to_prompt
 
@@ -32,7 +32,7 @@ __all__ = [
     "DirectJsonFormat",
     "DirectJsonFormatFactory",
     "DirectJsonParser",
-    "DirectJsonPromptGenerator",
     "DirectJsonResponseStream",
+    "read_json",
     "schema_to_prompt",
 ]

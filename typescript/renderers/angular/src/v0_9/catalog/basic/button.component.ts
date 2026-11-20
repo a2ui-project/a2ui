@@ -15,7 +15,7 @@
  */
 
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
-import {ComponentHostComponent} from '@a2ui/angular';
+import {AccessibilityTargetDirective, ComponentHostComponent} from '@a2ui/angular';
 import {DataContext} from '@a2ui/web_core/v0_9';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {ButtonApi} from '@a2ui/web_core/v0_9/basic_catalog';
@@ -38,9 +38,10 @@ import {ButtonApi} from '@a2ui/web_core/v0_9/basic_catalog';
 @Component({
   selector: 'a2ui-v09-button',
   standalone: true,
-  imports: [ComponentHostComponent],
+  imports: [ComponentHostComponent, AccessibilityTargetDirective],
   template: `
     <button
+      a2uiAccessibilityTarget
       [type]="variant() === 'primary' ? 'submit' : 'button'"
       [class]="'a2ui-button ' + variant()"
       (click)="handleClick()"

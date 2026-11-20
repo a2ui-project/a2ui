@@ -1,8 +1,0 @@
-# This directory holds audio/video assets for the demo.
-# See NOTEBOOKLM_GUIDE.md for instructions on generating these files.
-#
-# Expected files:
-#   - podcast.m4a  (Audio podcast generated from NotebookLM)
-#   - video.mp4    (Educational video)
-#
-# These files are gitignored due to their size.

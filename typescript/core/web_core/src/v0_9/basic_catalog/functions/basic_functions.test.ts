@@ -37,11 +37,8 @@ import {Catalog, ComponentApi} from '../../../catalog/types.js';
 const testCatalog = new Catalog<ComponentApi>('test', '0.9', [], BASIC_FUNCTIONS);
 
 describe('BASIC_FUNCTION_APIS Spec Parity', () => {
-  it('matches the exact function names defined in specification/v0_9/catalogs/basic/catalog.json', () => {
-    const catalogPath = path.resolve(
-      process.cwd(),
-      '../../../specification/v0_9/catalogs/basic/catalog.json',
-    );
+  it('matches the exact function names defined in catalogs/basic/v0_9/catalog.json', () => {
+    const catalogPath = path.resolve(process.cwd(), '../../../catalogs/basic/v0_9/catalog.json');
     if (fs.existsSync(catalogPath)) {
       const specCatalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
       const specFuncNames = Object.keys(specCatalog.functions || {}).sort();
@@ -237,7 +234,7 @@ describe('BASIC_FUNCTIONS', () => {
           val: '123e4567-e89b-12d3-a456-426614174000',
           expected: true,
         },
-        {pattern: '^[a-z]+(,[a-z]+)*$', val: 'apple,banana,orange', expected: true},
+        {pattern: '^[a-z]{1,20}(,[a-z]{1,20})*$', val: 'apple,banana,orange', expected: true},
         {pattern: '^(\\d{1,3}\\.){3}\\d{1,3}$', val: '192.168.1.1', expected: true},
       ];
 

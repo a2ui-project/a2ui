@@ -19,6 +19,7 @@ import {ComponentModel} from '../state/component-model.js';
 import type {SurfaceModel} from '../state/surface-model.js';
 import type {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import type {ComponentApi} from '../catalog/types.js';
+import type {A2uiMetadata} from '../common/metadata.js';
 import type {Action} from '../types/common-types.js';
 import {A2uiStateError} from '../errors.js';
 
@@ -66,18 +67,23 @@ export class ComponentContext {
     this.theme = surface.theme;
 
     this.dataContext = new DataContext(surface, dataModelBasePath, index, parentDataContext);
-    this._actionDispatcher = action => surface.dispatchAction(action, this.componentModel.id);
+    this._actionDispatcher = (action, metadata) =>
+      surface.dispatchAction(action, this.componentModel.id, metadata);
   }
 
-  private _actionDispatcher: (action: Action | Record<string, unknown>) => Promise<void>;
+  private _actionDispatcher: (
+    action: Action | Record<string, unknown>,
+    metadata?: A2uiMetadata,
+  ) => Promise<void>;
 
   /**
    * Dispatches an action from the component.
    *
    * @param action The action to dispatch.
+   * @param metadata Optional metadata envelope to attach to the outbound action.
    * @returns A promise that resolves when action dispatching completes.
    */
-  dispatchAction(action: Action | Record<string, unknown>): Promise<void> {
-    return this._actionDispatcher(action);
+  dispatchAction(action: Action | Record<string, unknown>, metadata?: A2uiMetadata): Promise<void> {
+    return this._actionDispatcher(action, metadata);
   }
 }

@@ -250,11 +250,20 @@ async def test_process_llm_request_writes_example_turns_in_the_format():
     assert "<a2ui-json>" not in text
 
 
+@pytest.mark.parametrize(
+    "format_factory",
+    [ExpressFormatFactory(), DirectJsonFormatFactory()],
+    ids=["express", "direct_json"],
+)
 @pytest.mark.asyncio
-async def test_process_llm_request_skips_a_prompt_snippet_already_in_the_instruction():
-    processor = _processor(examples=_turns())
+async def test_process_llm_request_skips_a_prompt_snippet_already_in_the_instruction(
+    format_factory,
+):
+    # Direct JSON lays the snippet out differently from its sections: its
+    # protocol and catalog schemas are one block in the snippet.
+    processor = _processor(examples=_turns(), format_factory=format_factory)
     tool = _Tool(processor)
-    llm_request = _llm_request(processor.prompt_snippet)
+    llm_request = _llm_request(f"Role.\n\n{processor.prompt_snippet}")
 
     await tool.process_llm_request(
         tool_context=_tool_context(), llm_request=llm_request

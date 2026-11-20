@@ -29,11 +29,8 @@ import 'package:test/test.dart';
 void main() {
   final CatalogApi basic = Catalog.fromJson(
     jsonDecode(
-          File(
-            '../../specification/v0_9/catalogs/basic/catalog.json',
-          ).readAsStringSync(),
-        )
-        as Map<String, Object?>,
+      File('../../catalogs/basic/v0_9/catalog.json').readAsStringSync(),
+    ) as Map<String, Object?>,
   );
   final CatalogApi custom = Catalog.fromJson({
     'catalogId': 'https://example.com/custom.json',
@@ -370,6 +367,56 @@ void main() {
       expect(written, contains('entête = Text("Bonjour")'));
       expect(written, contains('見出し_1 = Text("こんにちは")'));
     });
+
+    test('v1.0 surface and component metadata.extensions as extensions=', () {
+      final CatalogApi v1Basic = Catalog.fromJson(
+        jsonDecode(
+          File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
+        ) as Map<String, Object?>,
+        protocolVersion: A2uiProtocolVersion.v1_0,
+      );
+      final Parser v1Parser = const ExpressFormatFactory().createFormat([
+        v1Basic,
+      ]).createParser();
+      final List<AgentToRendererMessage> v1Messages =
+          AgentToRendererMessage.parseAll([
+            {
+              'version': '1.0',
+              'createSurface': {
+                'surfaceId': 's',
+                'catalogId': v1Basic.id,
+                'metadata': {
+                  'extensions': {
+                    'surf_ext': {'version': 1},
+                  },
+                },
+                'components': [
+                  {
+                    'id': 'root',
+                    'component': 'Text',
+                    'text': 'Hello',
+                    '@metadata': {
+                      'extensions': {'comp_ext': true},
+                    },
+                  },
+                ],
+              },
+            },
+          ], protocolVersion: A2uiProtocolVersion.v1_0).messages;
+      final String written = v1Parser.decompile(v1Messages);
+      expect(
+        written,
+        contains('surface("s", extensions={surf_ext: {version: 1}})'),
+      );
+      expect(
+        written,
+        contains('root = Text("Hello", extensions={comp_ext: true})'),
+      );
+      expect(
+        v1Parser.compile(written).map((m) => m.toJson()),
+        v1Messages.map((m) => m.toJson()),
+      );
+    });
   });
 
   group('rejects', () {
@@ -497,9 +544,8 @@ void main() {
     test('a non-UAX 31 component id in protocol v1.0', () {
       final CatalogApi v1Basic = Catalog.fromJson(
         jsonDecode(
-              File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
-            )
-            as Map<String, Object?>,
+          File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
+        ) as Map<String, Object?>,
         protocolVersion: A2uiProtocolVersion.v1_0,
       );
       final Parser v1Parser = const ExpressFormatFactory().createFormat([

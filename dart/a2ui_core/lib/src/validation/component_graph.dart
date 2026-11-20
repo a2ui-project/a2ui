@@ -55,26 +55,26 @@ typedef CompositionRule = ({
 /// Types declaring neither `allowedParents` nor `allowedChildren` are left
 /// out.
 Map<String, CompositionRule> extractCompositionRules(Catalog catalog) => {
-      for (final MapEntry<String, ComponentApi> entry
-          in catalog.components.entries)
-        if (entry.value.allowedParents != null ||
-            entry.value.allowedChildren != null)
-          entry.key: (
-            allowedParents: entry.value.allowedParents,
-            allowedChildren: entry.value.allowedChildren,
-          ),
-    };
+  for (final MapEntry<String, ComponentApi> entry in catalog.components.entries)
+    if (entry.value.allowedParents != null ||
+        entry.value.allowedChildren != null)
+      entry.key: (
+        allowedParents: entry.value.allowedParents,
+        allowedChildren: entry.value.allowedChildren,
+      ),
+};
 
 /// Converts a [ComponentReference.field], such as `children[2]` or
 /// `groups[0].children[0]`, into a JSON Pointer relative to the component,
 /// such as `/children/2`.
 String referencePointer(String field) => [
-      for (final String segment in field
+  for (final String segment
+      in field
           .replaceAllMapped(RegExp(r'\[(\d+)\]'), (m) => '.${m[1]}')
           .split('.'))
-        if (segment.isNotEmpty)
-          '/${segment.replaceAll('~', '~0').replaceAll('/', '~1')}',
-    ].join();
+    if (segment.isNotEmpty)
+      '/${segment.replaceAll('~', '~0').replaceAll('/', '~1')}',
+].join();
 
 /// Checks every parent-child edge among [components] and [existing] against
 /// [rules].
@@ -105,23 +105,30 @@ void checkCompositionConstraints(
   if (rules.isEmpty) return;
   final types = <String, String>{
     for (final component in components.followedBy(existing))
-      if ((component['id'], component['component'])
-          case (final String id, final String type))
+      if ((component['id'], component['component']) case (
+        final String id,
+        final String type,
+      ))
         id: type,
+  };
+  final batchPointers = <String, String>{
+    for (var i = 0; i < components.length; i++)
+      if (components[i]['id'] case final String id) id: '/components/$i',
   };
 
   // [pointer] locates [component] in the message, or is null when the
   // component was already stored.
   void check(Map<String, Object?> component, String? pointer) {
     if (_componentViolation(
-      component,
-      refFields,
-      rules,
-      (String id) => types[id],
-      rootId: rootId,
-      pointer: pointer,
-      surfaceId: surfaceId,
-    )
+          component,
+          refFields,
+          rules,
+          (String id) => types[id],
+          rootId: rootId,
+          pointer: pointer,
+          childPointerOf: (String id) => batchPointers[id],
+          surfaceId: surfaceId,
+        )
         case final A2uiValidationError error) {
       throw error;
     }
@@ -205,6 +212,7 @@ A2uiValidationError? _componentViolation(
   String? Function(String id) typeOf, {
   required String rootId,
   String? pointer,
+  String? Function(String id)? childPointerOf,
   String? surfaceId,
 }) {
   final Object? id = component['id'];
@@ -215,13 +223,24 @@ A2uiValidationError? _componentViolation(
   if (id == rootId &&
       rootParents != null &&
       !rootParents.contains(_surfaceParent)) {
+    final msg =
+        "Component '$id' ($type) cannot be placed under parent "
+        "'$_surfaceParent' ($_surfaceParent). Allowed parents: "
+        '${_typeList(rootParents)}.';
     return A2uiValidationError(
-      "Component '$id' ($type) cannot be placed under parent "
-      "'$_surfaceParent' ($_surfaceParent). Allowed parents: "
-      '${_typeList(rootParents)}.',
+      msg,
       code: 'UNALLOWED_PARENT',
       path: pointer,
       surfaceId: surfaceId,
+      errors: [
+        if (pointer != null)
+          A2uiErrorDetail(
+            path: pointer,
+            code: 'UNALLOWED_PARENT',
+            message: msg,
+            surfaceId: surfaceId,
+          ),
+      ],
     );
   }
 
@@ -231,17 +250,20 @@ A2uiValidationError? _componentViolation(
   )) {
     final String? childType = typeOf(reference.id);
     if (childType == null) continue;
+    final String? edgePath = pointer == null
+        ? null
+        : '$pointer${referencePointer(reference.field)}';
+    final String? childPath = childPointerOf?.call(reference.id);
     if (_edgeViolation(
-      id,
-      type,
-      reference.id,
-      childType,
-      rules,
-      path: pointer == null
-          ? null
-          : '$pointer${referencePointer(reference.field)}',
-      surfaceId: surfaceId,
-    )
+          id,
+          type,
+          reference.id,
+          childType,
+          rules,
+          path: edgePath,
+          childPath: childPath,
+          surfaceId: surfaceId,
+        )
         case final A2uiValidationError error) {
       return error;
     }
@@ -259,27 +281,52 @@ A2uiValidationError? _edgeViolation(
   String childType,
   Map<String, CompositionRule> rules, {
   String? path,
+  String? childPath,
   String? surfaceId,
 }) {
   final List<String>? allowedChildren = rules[parentType]?.allowedChildren;
   if (allowedChildren != null && !allowedChildren.contains(childType)) {
+    final msg =
+        "Container '$parent' ($parentType) cannot contain child "
+        "'$child' ($childType). Allowed children: "
+        '${_typeList(allowedChildren)}.';
     return A2uiValidationError(
-      "Container '$parent' ($parentType) cannot contain child '$child' "
-      '($childType). Allowed children: ${_typeList(allowedChildren)}.',
+      msg,
       code: 'UNALLOWED_CHILD',
       path: path,
       surfaceId: surfaceId,
+      errors: [
+        if (path != null)
+          A2uiErrorDetail(
+            path: path,
+            code: 'UNALLOWED_CHILD',
+            message: msg,
+            surfaceId: surfaceId,
+          ),
+      ],
     );
   }
   final List<String>? allowedParents = rules[childType]?.allowedParents;
   if (allowedParents != null && !allowedParents.contains(parentType)) {
+    final String? resolvedPath = childPath ?? path;
+    final msg =
+        "Component '$child' ($childType) cannot be placed under "
+        "parent '$parent' ($parentType). Allowed parents: "
+        '${_typeList(allowedParents)}.';
     return A2uiValidationError(
-      "Component '$child' ($childType) cannot be placed under "
-      "parent '$parent' ($parentType). Allowed parents: "
-      '${_typeList(allowedParents)}.',
+      msg,
       code: 'UNALLOWED_PARENT',
-      path: path,
+      path: resolvedPath,
       surfaceId: surfaceId,
+      errors: [
+        if (resolvedPath != null)
+          A2uiErrorDetail(
+            path: resolvedPath,
+            code: 'UNALLOWED_PARENT',
+            message: msg,
+            surfaceId: surfaceId,
+          ),
+      ],
     );
   }
   return null;
@@ -449,26 +496,24 @@ void checkComponentGraph(
   }
 }
 
-/// Whether [value] is a data-binding object in the v1.0 (`@path`) or legacy
-/// (`path` without a `componentId` sibling) shape.
+/// Whether [value] is a data-binding object in the v1.0 (`@path`) or
+/// unprefixed (`path` without a `componentId` sibling) shape.
 ///
 /// Mirrors `DataContext.isDataBinding`, which needs a context; this check
 /// runs on a raw message before any surface or context exists.
 bool _isDataBinding(
   Map<Object?, Object?> value, {
   required bool usesDirectives,
-}) =>
-    usesDirectives
-        ? value['@path'] is String
-        : value['path'] is String && !value.containsKey('componentId');
+}) => usesDirectives
+    ? value['@path'] is String
+    : value['path'] is String && !value.containsKey('componentId');
 
-/// Whether [value] is a function-call object in the v1.0 (`@call`) or legacy
-/// (`call`) shape. See [_isDataBinding].
+/// Whether [value] is a function-call object in the v1.0 (`@call`) or
+/// unprefixed (`call`) shape. See [_isDataBinding].
 bool _isFunctionCall(
   Map<Object?, Object?> value, {
   required bool usesDirectives,
-}) =>
-    usesDirectives ? value['@call'] is String : value['call'] is String;
+}) => usesDirectives ? value['@call'] is String : value['call'] is String;
 
 /// Checks data-model paths and nesting depth anywhere inside a message body.
 ///
@@ -540,8 +585,13 @@ void checkPathsAndRecursion(
     if (udm is Map && (object.length == 1 || object.containsKey('version'))) {
       final Object? udmPath = udm['path'];
       if (udmPath is String && !_pathPattern.hasMatch(udmPath)) {
+        final msg = "Invalid path syntax: '$udmPath'";
         throw A2uiValidationError(
-          "Invalid path syntax: '$udmPath'",
+          msg,
+          path: '/path',
+          errors: [
+            A2uiErrorDetail(path: '/path', code: 'invalid_value', message: msg),
+          ],
         );
       }
       final Object? udmBefore = entries?['updateDataModel'];
@@ -560,12 +610,10 @@ void checkPathsAndRecursion(
     final Object? path = _isDataBinding(object, usesDirectives: usesDirectives)
         ? object[usesDirectives ? '@path' : 'path']
         : (object['path'] is String && object['componentId'] is String
-            ? object['path']
-            : null);
+              ? object['path']
+              : null);
     if (path is String && !_pathPattern.hasMatch(path)) {
-      throw A2uiValidationError(
-        "Invalid path syntax: '$path'",
-      );
+      throw A2uiValidationError("Invalid path syntax: '$path'");
     }
 
     if (_isFunctionCall(object, usesDirectives: usesDirectives)) {
@@ -605,8 +653,13 @@ void checkPathsAndRecursion(
   if (data is UpdateDataModelMessage) {
     final String? udmPath = data.path;
     if (udmPath != null && !_pathPattern.hasMatch(udmPath)) {
+      final msg = "Invalid path syntax: '$udmPath'";
       throw A2uiValidationError(
-        "Invalid path syntax: '$udmPath'",
+        msg,
+        path: '/path',
+        errors: [
+          A2uiErrorDetail(path: '/path', code: 'invalid_value', message: msg),
+        ],
       );
     }
     traverse(
@@ -635,7 +688,7 @@ void checkPathsAndRecursion(
 
 bool _inferUsesDirectives(Object? data) {
   final Object? rawVersion = switch (data) {
-    AgentToRendererMessage(:final version) => version,
+    AgentToRendererMessage(:final String version) => version,
     Map() => data['version'],
     _ => null,
   };

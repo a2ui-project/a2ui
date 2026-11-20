@@ -32,20 +32,67 @@ void main() {
   group('conformance core/catalog.yaml', () {
     test('suite has cases', () => expect(cases, isNotEmpty));
 
-    for (final testCase in cases) {
-      final name = testCase['name']! as String;
-      test(
-        name,
-        () => _runCase(testCase),
-        skip: _knownDivergences[name] ??
-            (testCase['protocolVersion'] == 'v0.8' &&
-                    testCase['action'] != 'round_trip'
-                ? _noV08
-                : null),
-      );
-    }
+    runConformanceSuite(
+      cases,
+      _runCase,
+      suite: 'core/catalog.yaml',
+      unsupported: _knownDivergences,
+      skipReason: (testCase) =>
+          testCase['protocolVersion'] == 'v0.8' &&
+              testCase['action'] != 'round_trip'
+          ? _noV08
+          : null,
+    );
   });
 }
+
+const Map<String, Set<String>> _knownKeys = {
+  'case:derive': {
+    ...caseMetadataKeys,
+    'args',
+    'catalog',
+    'catalogId',
+    'catalogPath',
+    'expect',
+    'expectError',
+    'protocolVersion',
+  },
+  'case:from_json': {
+    ...caseMetadataKeys,
+    'catalog',
+    'catalogId',
+    'catalogPath',
+    'expect',
+    'expectError',
+    'protocolVersion',
+  },
+  'case:round_trip': {
+    ...caseMetadataKeys,
+    'catalog',
+    'catalogId',
+    'catalogPath',
+    'protocolVersion',
+  },
+  'case:to_json': {
+    ...caseMetadataKeys,
+    'builtinCatalog',
+    'catalog',
+    'catalogId',
+    'catalogPath',
+    'expectFile',
+    'protocolVersion',
+  },
+  'case:validation_schema': {
+    ...caseMetadataKeys,
+    'catalog',
+    'catalogId',
+    'catalogPath',
+    'expectError',
+    'expectFile',
+    'protocolVersion',
+  },
+  'args:derive': {'catalogId', 'components', 'functions', 'instructions'},
+};
 
 /// Why a case naming protocol version v0.8 is skipped, unless it is a
 /// `round_trip`, which reads and writes the document without a v0.8 basic
@@ -69,6 +116,10 @@ final Map<String, CatalogApi> _builtinCatalogs = {
 
 void _runCase(Map<String, Object?> testCase) {
   final action = testCase['action'] as String?;
+  final Set<String>? allowed = _knownKeys['case:$action'];
+  if (allowed != null) {
+    assertKnownKeys(testCase, allowed, 'case:$action');
+  }
   switch (action) {
     case 'from_json':
       _runFromJsonCase(testCase);
@@ -90,6 +141,7 @@ const Set<String> _fromJsonExpectKeys = {
   'catalogId',
   'protocolVersion',
   'components',
+  'componentMetadata',
   'functions',
   'theme',
   'matchesBuiltinCatalog',
@@ -111,6 +163,11 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
       _version(testCase) ?? A2uiProtocolVersion.v0_9;
 
   if (testCase['expectError'] case final Map<Object?, Object?> expectError) {
+    assertKnownKeys(
+      expectError.cast<String, Object?>(),
+      knownExpectErrorKeys,
+      'expectError',
+    );
     final String? message = _messageWordedDifferently.contains(name)
         ? null
         : expectError['message'] as String?;
@@ -139,12 +196,7 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
   );
   final Map<String, Object?> expected =
       (testCase['expect'] as Map?)?.cast<String, Object?>() ?? const {};
-  final Set<String> unknown = expected.keys.toSet().difference(
-        _fromJsonExpectKeys,
-      );
-  if (unknown.isNotEmpty) {
-    fail('$name: unsupported from_json expectations $unknown');
-  }
+  assertKnownKeys(expected, _fromJsonExpectKeys, 'expect:from_json');
 
   if (expected['catalogId'] case final String expectedId) {
     expect(catalog.id, expectedId, reason: '$name: catalogId');
@@ -170,6 +222,17 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
         jsonEncode(schemaValue),
         isNot(contains(r'"$ref":"#/$defs/')),
         reason: '$name: local \$defs inlined in resolved $compName',
+      );
+    }
+  }
+  if (expected['componentMetadata']
+      case final Map<Object?, Object?> expectedMeta) {
+    for (final MapEntry<Object?, Object?> entry in expectedMeta.entries) {
+      final compName = entry.key! as String;
+      expect(
+        catalog.components[compName]?.metadata,
+        equals(entry.value),
+        reason: '$name: componentMetadata.$compName',
       );
     }
   }
@@ -218,8 +281,9 @@ List<Object?> _list(Object? value) => value is List ? value : const <Object?>[];
 void _checkMatchesBuiltinCatalog(CatalogApi loaded, String name) {
   final CatalogApi? builtin = _builtinCatalogs[loaded.id];
   if (builtin == null) {
-    markTestSkipped('a2ui_core has no built-in catalog ${loaded.id}.');
-    return;
+    throw SkipConformanceCaseException(
+      'a2ui_core has no built-in catalog ${loaded.id}.',
+    );
   }
   expect(
     loaded.protocolVersion,
@@ -244,8 +308,8 @@ Map<String, Object?> _componentShapes(CatalogApi catalog) {
   const envelope = {'id', 'component'};
   final Map<String, Object?> components =
       (catalog.validationSchema['components'] as Map?)
-              ?.cast<String, Object?>() ??
-          const {};
+          ?.cast<String, Object?>() ??
+      const {};
   return {
     for (final MapEntry<String, Object?> entry in components.entries)
       entry.key: {
@@ -265,17 +329,17 @@ Map<String, Object?> _componentShapes(CatalogApi catalog) {
 
 /// The return type, callers and activation of each function.
 Map<String, Object?> _functionSignatures(CatalogApi catalog) => {
-      for (final FunctionApi function in catalog.functions.values)
-        function.name: {
-          'returnType': function.returnType.name,
-          'allowedCallers': function.allowedCallers.jsonValue,
-          'requiresUserActivation': function.requiresUserActivation,
-        },
-    };
+  for (final FunctionApi function in catalog.functions.values)
+    function.name: {
+      'returnType': function.returnType.name,
+      'allowedCallers': function.allowedCallers.jsonValue,
+      'requiresUserActivation': function.requiresUserActivation,
+    },
+};
 
 /// The protocol version a case names, or null when it names none.
 ///
-/// A case may spell it with or without the `v` prefix.
+/// A case may write it with or without the `v` prefix.
 A2uiProtocolVersion? _version(Map<String, Object?> testCase) =>
     switch (testCase['protocolVersion']) {
       final String version => A2uiProtocolVersion.tryParseSemVer(version),
@@ -294,7 +358,12 @@ void _runValidationSchemaCase(Map<String, Object?> testCase) {
   final Map<String, Object?> source = _document(
     testCase['catalog'] ?? testCase['catalogPath'],
   );
-  if (testCase['expectError'] != null) {
+  if (testCase['expectError'] case final Map<Object?, Object?> expectError) {
+    assertKnownKeys(
+      expectError.cast<String, Object?>(),
+      knownExpectErrorKeys,
+      'expectError',
+    );
     expect(
       () => _load(testCase, source).validationSchema,
       throwsA(isA<A2uiError>()),
@@ -438,7 +507,8 @@ void _runRoundTripCase(Map<String, Object?> testCase) {
   expect(
     _jsonEquivalent(out, source),
     isTrue,
-    reason: '$name: toJson differs from the source document.\n'
+    reason:
+        '$name: toJson differs from the source document.\n'
         'Source: ${jsonEncode(source)}\nOutput: ${jsonEncode(out)}',
   );
 
@@ -446,7 +516,8 @@ void _runRoundTripCase(Map<String, Object?> testCase) {
   expect(
     _jsonEquivalent(again, out),
     isTrue,
-    reason: '$name: toJson is not idempotent.\n'
+    reason:
+        '$name: toJson is not idempotent.\n'
         'First: ${jsonEncode(out)}\nSecond: ${jsonEncode(again)}',
   );
 }
@@ -466,11 +537,10 @@ void _runToJsonCase(Map<String, Object?> testCase) {
       _version(testCase),
     );
     if (implemented == null) {
-      markTestSkipped(
+      throw SkipConformanceCaseException(
         'a2ui_core has no built-in $builtin catalog for '
         '${testCase['protocolVersion']}.',
       );
-      return;
     }
     catalog = implemented;
   } else {
@@ -521,8 +591,9 @@ void _runDeriveCase(Map<String, Object?> testCase) {
     testCase,
     _document(testCase['catalog'] ?? testCase['catalogPath']),
   );
-  final Map<String, Object?> args =
-      (testCase['args']! as Map).cast<String, Object?>();
+  final Map<String, Object?> args = (testCase['args']! as Map)
+      .cast<String, Object?>();
+  assertKnownKeys(args, _knownKeys['args:derive']!, 'args:derive');
 
   /// The new entries of the kind [section] in [list], keyed by name.
   Map<String, Object?> added(String section, List<Object?>? list) {
@@ -543,22 +614,26 @@ void _runDeriveCase(Map<String, Object?> testCase) {
       ? null
       : [
           for (final item in list)
-            if (item is String) item
+            if (item is String) item,
         ];
 
   final components = args['components'] as List<Object?>?;
   final functions = args['functions'] as List<Object?>?;
   CatalogApi derive() => source.derive(
-        catalogId: args['catalogId']! as String,
-        components: kept(components),
-        addComponents:
-            added('components', components).values.cast<ComponentApi>(),
-        functions: kept(functions),
-        addFunctions: added('functions', functions).values.cast<FunctionApi>(),
-        instructions: args['instructions'] as String?,
-      );
+    catalogId: args['catalogId']! as String,
+    components: kept(components),
+    addComponents: added('components', components).values.cast<ComponentApi>(),
+    functions: kept(functions),
+    addFunctions: added('functions', functions).values.cast<FunctionApi>(),
+    instructions: args['instructions'] as String?,
+  );
 
   if (testCase['expectError'] case final Map<Object?, Object?> expectError) {
+    assertKnownKeys(
+      expectError.cast<String, Object?>(),
+      knownExpectErrorKeys,
+      'expectError',
+    );
     expect(
       derive,
       throwsA(
@@ -573,14 +648,9 @@ void _runDeriveCase(Map<String, Object?> testCase) {
     return;
   }
 
-  final Map<String, Object?> expected =
-      (testCase['expect']! as Map).cast<String, Object?>();
-  final Set<String> unknown = expected.keys.toSet().difference(
-        _deriveExpectKeys,
-      );
-  if (unknown.isNotEmpty) {
-    fail('$name: unsupported derive expectations $unknown');
-  }
+  final Map<String, Object?> expected = (testCase['expect']! as Map)
+      .cast<String, Object?>();
+  assertKnownKeys(expected, _deriveExpectKeys, 'expect:derive');
   final CatalogApi derived = derive();
   final Map<String, Object?> document = derived.toJson();
   if (expected['catalogId'] case final String id) {
@@ -612,8 +682,11 @@ void _runDeriveCase(Map<String, Object?> testCase) {
     }
   }
   if (expected['theme'] case final Object theme) {
-    expect(_differences(document['theme'], theme), isEmpty,
-        reason: '$name: theme');
+    expect(
+      _differences(document['theme'], theme),
+      isEmpty,
+      reason: '$name: theme',
+    );
   }
   if (expected.containsKey('instructions')) {
     expect(
@@ -641,26 +714,25 @@ CatalogApi? _builtinCatalog(String name, A2uiProtocolVersion? version) =>
 CatalogApi _load(
   Map<String, Object?> testCase,
   Map<String, Object?> document,
-) =>
-    Catalog.fromJson(
-      document,
-      protocolVersion: _version(testCase),
-      catalogId: testCase['catalogId'] as String?,
-    );
+) => Catalog.fromJson(
+  document,
+  protocolVersion: _version(testCase),
+  catalogId: testCase['catalogId'] as String?,
+);
 
 /// The names under a document's `components`, `functions` or `$defs`, in
 /// either form `functions` takes.
 List<String> _names(Object? section) => switch (section) {
-      final Map<Object?, Object?> map => [for (final key in map.keys) '$key'],
-      final List<Object?> list => [
-          for (final Object? item in list)
-            if (item is String)
-              item
-            else if (item is Map && item['name'] is String)
-              item['name']! as String,
-        ],
-      _ => const [],
-    };
+  final Map<Object?, Object?> map => [for (final key in map.keys) '$key'],
+  final List<Object?> list => [
+    for (final Object? item in list)
+      if (item is String)
+        item
+      else if (item is Map && item['name'] is String)
+        item['name']! as String,
+  ],
+  _ => const [],
+};
 
 /// JSON equality that ignores object key order and the order of `enum`
 /// values and `required` names.

@@ -17,6 +17,8 @@ from __future__ import annotations
 from collections.abc import Collection
 from collections.abc import Sequence
 import re
+from typing import Literal
+from typing import overload
 
 from a2ui.core import A2uiParseError
 from a2ui.core import CatalogApi
@@ -26,6 +28,8 @@ from a2ui.inference_formats._shared import to_message_models
 from a2ui.parser import Parser
 from a2ui.parser import RawA2uiPart
 from a2ui.parser import RawResponsePart
+from a2ui.parser import ResponsePart
+from a2ui.parser import StreamPart
 from a2ui.parser import TextPart
 from a2ui.utils import RendererState
 
@@ -58,9 +62,12 @@ class DirectJsonParser(Parser):
         self,
         catalogs: Sequence[CatalogApi],
         progressive_keys: Collection[str] = frozenset(),
+        *,
+        buffer_incomplete_components: bool = False,
     ):
         self._catalogs = check_catalogs(catalogs)
         self._progressive_keys = frozenset(progressive_keys)
+        self._buffer_incomplete_components = bool(buffer_incomplete_components)
         self._decompiler = DirectJsonDecompiler()
 
     @property
@@ -72,6 +79,11 @@ class DirectJsonParser(Parser):
     def progressive_keys(self) -> frozenset[str]:
         """The progressive string property keys healed while streaming."""
         return self._progressive_keys
+
+    @property
+    def buffer_incomplete_components(self) -> bool:
+        """Whether pre-v1.0 streams hold components until their JSON object closes."""
+        return self._buffer_incomplete_components
 
     @property
     def supports_streaming(self) -> bool:
@@ -235,11 +247,36 @@ class DirectJsonParser(Parser):
         """Encloses decompiled JSON blocks in sentinel tags."""
         return self._decompiler.wrap_decompiled_blocks(blocks)
 
+    @overload
     def open_stream(
-        self, *, wrapped: bool = True, state: RendererState | None = None
-    ) -> DirectJsonResponseStream:
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end"] = "end",
+    ) -> DirectJsonResponseStream[ResponsePart]:
+        ...
+
+    @overload
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end", "continue"],
+    ) -> DirectJsonResponseStream[StreamPart]:
+        ...
+
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end", "continue"] = "end",
+    ) -> DirectJsonResponseStream[StreamPart]:
         return DirectJsonResponseStream(
             self,
             wrapped=wrapped,
             state=state if state is not None else self._empty_state(),
+            after_rejected_block=after_rejected_block,
         )

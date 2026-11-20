@@ -25,14 +25,12 @@ import 'package:test/test.dart';
 void main() {
   const A2uiProtocolVersion v1_0 = A2uiProtocolVersion.v1_0;
 
-  final basicDocument =
-      jsonDecode(
-            File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
-          )
-          as Map<String, Object?>;
+  final basicDocument = jsonDecode(
+    File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
+  ) as Map<String, Object?>;
   final CatalogApi basic = InMemoryCatalogProvider(basicDocument).load();
   final CatalogApi v0_9Basic = const FileSystemCatalogProvider(
-    '../../specification/v0_9/catalogs/basic/catalog.json',
+    '../../catalogs/basic/v0_9/catalog.json',
     protocolVersion: A2uiProtocolVersion.v0_9,
   ).load();
 
@@ -396,7 +394,7 @@ void main() {
             {
               'id': 'root',
               'component': 'Text',
-              'catalogId': basic.id,
+              '@catalogId': basic.id,
               'text': 'Hello',
             },
           ]),
@@ -649,7 +647,7 @@ void main() {
           {
             'id': 'root',
             'component': 'Gauge',
-            'catalogId': custom.id,
+            '@catalogId': custom.id,
             'value': 1,
           },
         ]),
@@ -702,7 +700,7 @@ void main() {
             {
               'id': 'root',
               'component': 'Gauge',
-              'catalogId': 'https://example.com/elsewhere.json',
+              '@catalogId': 'https://example.com/elsewhere.json',
               'value': 1,
             },
           ]),
@@ -886,7 +884,7 @@ void main() {
         '@call': 'formatString',
         'args': {'value': 'Name'},
       });
-      expect(component['checks'], [
+      expect(component['@checks'], [
         {
           'condition': {
             '@call': 'required',
@@ -900,9 +898,8 @@ void main() {
     });
 
     test('compiles a standalone function call into a callRendererFunction', () {
-      final List<ResponsePart> parts = express(
-        catalogs: [callable],
-      ).parseResponse('<a2ui>\nformatString("Hello")\n</a2ui>');
+      final List<ResponsePart> parts = express(catalogs: [callable])
+          .parseResponse('<a2ui>\nformatString("Hello")\n</a2ui>');
       expect(
         (parts.single as A2uiPart).a2ui.single,
         isA<CallRendererFunctionMessage>(),
@@ -974,6 +971,18 @@ void main() {
           ],
         ).promptSnippet,
         contains('root = Text("Hello")'),
+      );
+    });
+
+    test('teaches Event userMessage= in rule 8', () {
+      final String snippet = express().promptSnippet;
+      expect(snippet, contains('`Event(name, context?, userMessage=...)`'));
+      expect(snippet, contains('Event("reply", userMessage="Replying now")'));
+      expect(
+        snippet,
+        contains(
+          r'Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)',
+        ),
       );
     });
 
@@ -1056,21 +1065,13 @@ void main() {
       expect(parser.compile(block), [isA<CallRendererFunctionMessage>()]);
     });
 
-    test('has no notation for a renderer call on a surface, a response to '
-        "the renderer's call, or surface metadata", () {
+    test('has no notation for a renderer call on a surface or a response to '
+        "the renderer's call", () {
       final decompiler = ExpressDecompiler([basic]);
       for (final Map<String, Object?> body in [
         callRendererFunction('formatString', {'value': 'Hi'}, surfaceId: 's'),
         {
           'agentFunctionResponse': {'functionCallId': 'call_1', 'value': 1},
-        },
-        {
-          'createSurface': {
-            ...helloSurface['createSurface']! as Map<String, Object?>,
-            'metadata': {
-              'extensions': {'theme': 'dark'},
-            },
-          },
         },
       ]) {
         expect(
@@ -1079,6 +1080,26 @@ void main() {
           reason: '$body',
         );
       }
+    });
+
+    test('round-trips surface metadata through extensions={...}', () {
+      final parser = ExpressParser([basic]);
+      final AgentToRendererMessage withMetadata = message({
+        'createSurface': {
+          ...helloSurface['createSurface']! as Map<String, Object?>,
+          'metadata': {
+            'extensions': {'theme': 'dark'},
+          },
+        },
+      });
+      final String block = parser.decompile([withMetadata]);
+      expect(
+        block,
+        'surface("s", extensions={theme: "dark"})\nroot = Text("Hello")',
+      );
+      expect(parser.compile(block).map((m) => m.toJson()).toList(), [
+        withMetadata.toJson(),
+      ]);
     });
 
     test('teaches the functions the agent may call on their own', () {
@@ -1134,20 +1155,19 @@ void main() {
         {
           'id': 'root',
           'component': 'Column',
-          'catalogId': basic.id,
+          '@catalogId': basic.id,
           'children': ['root_children_0'],
         },
         {
           'id': 'root_children_0',
           'component': 'Gauge',
-          'catalogId': custom.id,
+          '@catalogId': custom.id,
           'value': 50,
         },
       ]);
       expect(
-        (components(
-              'root = Text(formatString("Hi"), catalogId="${basic.id}")',
-            ).single
+        (components('root = Text(formatString("Hi"), catalogId="${basic.id}")')
+                .single
             as Map)['text'],
         {
           '@call': 'formatString',
@@ -1164,7 +1184,7 @@ void main() {
       );
       expect(
         (components('root = Text("Hi", catalogId="${custom.id}")').single
-            as Map)['catalogId'],
+            as Map)['@catalogId'],
         custom.id,
       );
     });
@@ -1181,7 +1201,7 @@ void main() {
                 '$field${basic.id}", [?required({catalogId: "${basic.id}"})])',
               ).single
               as Map;
-      expect(((component['checks']! as List).single as Map)['condition'], {
+      expect(((component['@checks']! as List).single as Map)['condition'], {
         '@call': 'required',
         'catalogId': basic.id,
         'args': {
@@ -1228,16 +1248,16 @@ void main() {
               {
                 'id': 'root',
                 'component': 'Column',
-                'catalogId': basic.id,
+                '@catalogId': basic.id,
                 'children': ['name', 'gauge'],
               },
               {
                 'id': 'name',
                 'component': 'TextField',
-                'catalogId': basic.id,
+                '@catalogId': basic.id,
                 'label': 'Name',
                 'value': {'@path': '/name'},
-                'checks': [
+                '@checks': [
                   {
                     'condition': {
                       '@call': 'required',
@@ -1253,7 +1273,7 @@ void main() {
               {
                 'id': 'gauge',
                 'component': 'Gauge',
-                'catalogId': custom.id,
+                '@catalogId': custom.id,
                 'value': 1,
               },
             ],
@@ -1294,7 +1314,7 @@ void main() {
               {
                 'id': 'root',
                 'component': 'Text',
-                'catalogId': basic.id,
+                '@catalogId': basic.id,
                 'text': {
                   '@call': 'percent',
                   'catalogId': custom.id,
@@ -1322,7 +1342,7 @@ void main() {
                 {
                   'id': 'root',
                   'component': 'Text',
-                  'catalogId': basic.id,
+                  '@catalogId': basic.id,
                   'text': {
                     '@call': 'formatString',
                     'args': {'value': 'Hi'},
@@ -1356,6 +1376,68 @@ void main() {
         ),
       );
     });
+
+    test('waits for a forward-referenced surface(extensions=...) variable and '
+        'rejects extensions on non-creating scopes when streaming', () {
+      final parser = ExpressParser([basic]);
+      final ResponseStream stream = parser.openStream();
+      expect(
+        stream.feed(
+          '<a2ui>\nsurface("s1", extensions=ext)\nroot = Text("Hello")\n',
+        ),
+        isEmpty,
+      );
+      final List<ResponsePart> parts = stream.feed(
+        'ext = {surfaceTheme: "dark"}\n</a2ui>',
+      );
+      expect(parts, hasLength(1));
+      final create =
+          (parts.single as A2uiPart).a2ui.single as CreateSurfaceMessage;
+      expect(create.metadata, {
+        'extensions': {'surfaceTheme': 'dark'},
+      });
+      expect(stream.close(), isEmpty);
+
+      final state = RendererState([basic]);
+      final ResponseStream seed = parser.openStream(state: state);
+      seed.feed('<a2ui>\nsurface("s1")\nroot = Text("Initial")\n</a2ui>');
+      expect(seed.close(), isEmpty);
+
+      final ResponseStream updateWithoutRoot = parser.openStream(state: state);
+      expect(
+        updateWithoutRoot.feed(
+          '<a2ui>\nsurface("s1", extensions={surfaceTheme: "dark"})\n'
+          'c1 = Text("Updated")\n',
+        ),
+        isEmpty,
+      );
+      expect(
+        () => updateWithoutRoot.feed('</a2ui>'),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('surface-creating scope'),
+          ),
+        ),
+      );
+
+      final ResponseStream explicitUpdate = parser.openStream(state: state);
+      expect(
+        () => explicitUpdate.feed(
+          '<a2ui>\n'
+          'surface("s1", update=true, extensions={surfaceTheme: "dark"})\n'
+          'c1 = Text("Updated")\n</a2ui>',
+        ),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('surface() with update=true does not accept extensions'),
+          ),
+        ),
+      );
+    });
   });
 
   group('A2uiRequestProcessor', () {
@@ -1382,7 +1464,7 @@ void main() {
           {
             'id': 'root',
             'component': 'Text',
-            'catalogId': 'https://example.com/elsewhere.json',
+            '@catalogId': 'https://example.com/elsewhere.json',
             'text': 'Hello',
           },
         ]),
@@ -1438,7 +1520,7 @@ void main() {
               'id': 'root',
               'component': 'Text',
               'text': 'Hello',
-              'metadata': {
+              '@metadata': {
                 'extensions': {
                   'tracking': {'@call': 'track', 'catalogId': 'vendor'},
                 },
@@ -1468,6 +1550,114 @@ void main() {
             'value': {'@path': '/name'},
           }, surfaceId: 's'),
         ]),
+      );
+    });
+
+    test('dual-reads legacy bare component envelope keys on v1.0 and preserves '
+        'custom properties with envelope names', () {
+      final CatalogApi customProps = Catalog.fromJson({
+        'catalogId': 'https://example.com/custom_props.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'Inspector': {
+            'type': 'object',
+            'allOf': [
+              {r'$ref': r'common_types.json#/$defs/Checkable'},
+              {
+                'type': 'object',
+                'properties': {
+                  'component': {'const': 'Inspector'},
+                  'metadata': {
+                    r'$ref': r'common_types.json#/$defs/DynamicString',
+                  },
+                  'catalogId': {'type': 'string'},
+                  'accessibility': {'type': 'string'},
+                  'checks': {'type': 'integer'},
+                  'value': {r'$ref': r'common_types.json#/$defs/DataBinding'},
+                },
+                'required': ['component', 'metadata'],
+              },
+            ],
+          },
+        },
+        'functions': {
+          'required': {
+            'type': 'object',
+            'returnType': 'validationResult',
+            'properties': {
+              '@call': {'const': 'required'},
+              'args': {
+                'type': 'object',
+                'properties': {'value': <String, Object?>{}},
+                'required': ['value'],
+                'unevaluatedProperties': false,
+              },
+            },
+            'required': ['@call', 'args'],
+          },
+        },
+      });
+
+      final parser = ExpressParser([basic, customProps]);
+      final List<AgentToRendererMessage> compiled = parser.compile(
+        r'root = Inspector("meta-val", "cat-prop", "a11y-prop", 3, $/name, '
+        'catalogId="${customProps.id}", extensions={trace: "t1"}, '
+        '[?required("Needed", {catalogId: "${customProps.id}"})])',
+      );
+      final comp =
+          compiled.single.toJson()['createSurface']! as Map<String, Object?>;
+      expect(comp['components'], [
+        {
+          'id': 'root',
+          'component': 'Inspector',
+          '@catalogId': customProps.id,
+          '@metadata': {
+            'extensions': {'trace': 't1'},
+          },
+          'metadata': 'meta-val',
+          'catalogId': 'cat-prop',
+          'accessibility': 'a11y-prop',
+          'checks': 3,
+          'value': {'@path': '/name'},
+          '@checks': [
+            {
+              'condition': {
+                '@call': 'required',
+                'catalogId': customProps.id,
+                'args': {
+                  'value': {'@path': '/name'},
+                },
+              },
+              'message': 'Needed',
+            },
+          ],
+        },
+      ]);
+      final String decompiled = parser.decompile(compiled);
+      expect(json(parser.compile(decompiled)), json(compiled));
+
+      // Nested function calls inside a custom `metadata` property are still
+      // validated by validatePayload.
+      expect(
+        () => validatePayload(
+          [callable, customProps],
+          [
+            message(
+              createSurface(catalogId: customProps.id, [
+                {
+                  'id': 'root',
+                  'component': 'Inspector',
+                  'metadata': {
+                    '@call': 'formatString',
+                    'catalogId': 'https://example.com/unknown.json',
+                    'args': {'value': 'Hi'},
+                  },
+                },
+              ]),
+            ),
+          ],
+        ),
+        throwsError<A2uiValidationError>(),
       );
     });
   });

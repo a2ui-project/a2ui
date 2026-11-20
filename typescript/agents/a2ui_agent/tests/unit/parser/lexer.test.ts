@@ -130,15 +130,34 @@ describe('BlockLexer', () => {
       {type: 'a2ui', a2uiRaw: 'surface("main")\nroot = Text("Hi")', isFinal: true},
     ]);
   });
-});
 
-it('accepts caller-supplied RegExp patterns and ensures sticky flag', () => {
-  const content = 'Preamble\n<foo bar="1">\ncode\n</foo>\nPostamble';
-  const lexer = new BlockLexer(/<foo\b[^>]*>/, /<\/foo\s*>/i);
-  const parts = lexer.tokenize(content);
+  it('accepts caller-supplied RegExp patterns and ensures sticky flag', () => {
+    const content = 'Preamble\n<foo bar="1">\ncode\n</foo>\nPostamble';
+    const lexer = new BlockLexer(/<foo\b[^>]*>/, /<\/foo\s*>/i);
+    const parts = lexer.tokenize(content);
 
-  expect(parts).toHaveLength(3);
-  expect(parts[0]).toEqual({type: 'text', text: 'Preamble', isFinal: true});
-  expect(parts[1]).toEqual({type: 'a2ui', a2uiRaw: 'code', isFinal: true});
-  expect(parts[2]).toEqual({type: 'text', text: 'Postamble', isFinal: true});
+    expect(parts).toHaveLength(3);
+    expect(parts[0]).toEqual({type: 'text', text: 'Preamble', isFinal: true});
+    expect(parts[1]).toEqual({type: 'a2ui', a2uiRaw: 'code', isFinal: true});
+    expect(parts[2]).toEqual({type: 'text', text: 'Postamble', isFinal: true});
+  });
+
+  it('rejects empty block comment markers', () => {
+    const lexerWith = (blockComments: Array<[string, string]>) =>
+      new BlockLexer(
+        '<a2ui>',
+        '</a2ui>',
+        new Set(['"']),
+        new Set(),
+        undefined,
+        false,
+        blockComments,
+      );
+    expect(() => lexerWith([['', '*/']])).toThrow(
+      'Block comment markers must be non-empty strings.',
+    );
+    expect(() => lexerWith([['/*', '']])).toThrow(
+      'Block comment markers must be non-empty strings.',
+    );
+  });
 });

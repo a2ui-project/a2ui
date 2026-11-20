@@ -16,6 +16,7 @@
 
 import {html, nothing, css, PropertyValues} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
+import {setContainerAccessibilityAttributes} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ColumnSupportedApis} from './supported_apis.js';
 import type {ResolvedChildList} from '../../index.js';
@@ -52,8 +53,12 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<ColumnSup
    * The styles of the column can be customized by redefining the following
    * CSS variables:
    *
-   * - `--a2ui-column-gap`: The gap between items in the column. Defaults to `--a2ui-spacing-m`.
-   * - `--a2ui-column-width`: The width of the column. Defaults to `100%`.
+   * - `--a2ui-column-gap`: Gap between items in the column. Defaults to `--a2ui-spacing-m`.
+   * - `--a2ui-column-width`: Width of the column. Defaults to `100%`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-spacing-m`: Fallback gap between items in the column.
    *
    * @nocollapse
    */
@@ -82,6 +87,7 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<ColumnSup
         this.style.removeProperty('align-items');
       }
     }
+    setContainerAccessibilityAttributes(this, props?.accessibility);
   }
 
   override render() {

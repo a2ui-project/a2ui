@@ -365,10 +365,14 @@ export class SurfaceComponentsModel {
    * Disposes the model, clearing all components and update event emitters.
    */
   dispose(): void {
+    const deletedIds = Array.from(this.components.keys());
     for (const component of this.components.values()) {
       component.dispose();
     }
     this.components.clear();
+    for (const id of deletedIds) {
+      this._onDeleted.emit(id);
+    }
     this._onCreated.dispose();
     this._onDeleted.dispose();
   }

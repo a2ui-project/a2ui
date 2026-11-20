@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from collections.abc import Sequence
 
 from a2ui.core import CatalogApi
@@ -25,6 +26,7 @@ from a2ui.inference_formats._shared import check_mixed_catalogs
 
 from .parser import ExpressParser
 from .prompt_generator import ExpressPromptGenerator
+from .response_stream import DEFAULT_EXPRESS_PROGRESSIVE_KEYS
 
 
 class ExpressFormat(InferenceFormat):
@@ -37,6 +39,7 @@ class ExpressFormat(InferenceFormat):
         allowed_messages: Sequence[str] | None = None,
         surface_id: str = "main",
         version: str | None = None,
+        progressive_keys: Collection[str] | None = DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
     ):
         self._catalogs = check_mixed_catalogs(catalogs)
         self._examples = (
@@ -47,6 +50,11 @@ class ExpressFormat(InferenceFormat):
         )
         self.surface_id = surface_id
         self._version = version
+        self._progressive_keys: frozenset[str] = (
+            frozenset(progressive_keys)
+            if progressive_keys is not None
+            else DEFAULT_EXPRESS_PROGRESSIVE_KEYS
+        )
         self._prompt_generator: ExpressPromptGenerator | None = None
 
     @property
@@ -72,6 +80,16 @@ class ExpressFormat(InferenceFormat):
         )
 
     @property
+    def progressive_keys(self) -> frozenset[str]:
+        """Property keys whose unclosed string literals are healed progressively."""
+        return self._progressive_keys
+
+    @property
+    def supports_streaming(self) -> bool:
+        """Whether this format's parser supports incremental streaming."""
+        return True
+
+    @property
     def prompt_generator(self) -> ExpressPromptGenerator:
         """The prompt generator instance configured for this Express format."""
         if self._prompt_generator is None:
@@ -85,7 +103,12 @@ class ExpressFormat(InferenceFormat):
 
     def create_parser(self) -> ExpressParser:
         """Creates a new parser instance configured for this Express format."""
-        return ExpressParser(self._catalogs, self.surface_id, version=self._version)
+        return ExpressParser(
+            self._catalogs,
+            self.surface_id,
+            version=self._version,
+            progressive_keys=self._progressive_keys,
+        )
 
 
 class ExpressFormatFactory(InferenceFormatFactory):
@@ -96,12 +119,18 @@ class ExpressFormatFactory(InferenceFormatFactory):
         allowed_messages: Sequence[str] | None = None,
         surface_id: str = "main",
         version: str | None = None,
+        progressive_keys: Collection[str] | None = DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
     ):
         self._allowed_messages = (
             list(allowed_messages) if allowed_messages is not None else None
         )
         self._surface_id = surface_id
         self._version = version
+        self._progressive_keys: frozenset[str] = (
+            frozenset(progressive_keys)
+            if progressive_keys is not None
+            else DEFAULT_EXPRESS_PROGRESSIVE_KEYS
+        )
 
     @property
     def allowed_messages(self) -> list[str] | None:
@@ -109,6 +138,11 @@ class ExpressFormatFactory(InferenceFormatFactory):
         return (
             list(self._allowed_messages) if self._allowed_messages is not None else None
         )
+
+    @property
+    def progressive_keys(self) -> frozenset[str]:
+        """Property keys whose unclosed string literals are healed progressively."""
+        return self._progressive_keys
 
     def create_format(
         self,
@@ -121,4 +155,5 @@ class ExpressFormatFactory(InferenceFormatFactory):
             allowed_messages=self._allowed_messages,
             surface_id=self._surface_id,
             version=self._version,
+            progressive_keys=self._progressive_keys,
         )

@@ -43,7 +43,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 import json
 import re
-from typing import Any, Literal
+from typing import Any, Literal, TypeGuard
 
 from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.common import is_at_least_version, to_protocol_version
@@ -56,6 +56,11 @@ from a2ui.inference_formats._shared import (
     normalize_prompt_example_messages,
     surface_catalog_id,
     to_message_models,
+)
+from a2ui.utils.component_envelope import (
+    AT_ENVELOPE_MIXIN_KEYS,
+    ENVELOPE_MIXIN_NAMES,
+    envelope_key,
 )
 
 from .sexpr import Form, Keyword, Symbol, is_keyword, is_symbol, parse_sexpr
@@ -367,8 +372,11 @@ class AtomCompiler:
             return False
         return any(name in h.components for h in self._helpers.values())
 
-    def _is_component_form(self, expr: Any) -> bool:
+    def _is_component_form(self, expr: Any) -> TypeGuard[list[Any]]:
         return self._is_component_name(_head(expr))
+
+    def _is_template_form(self, expr: Any) -> TypeGuard[list[Any]]:
+        return _head(expr) == "template"
 
     def _is_value_form(self, expr: Any) -> bool:
         """Whether a form is a value: `(@path ...)` or a catalog function call."""
@@ -864,8 +872,9 @@ class AtomCompiler:
     def _binding_path(self, val: Any) -> str | None:
         if isinstance(val, dict) and len(val) == 1:
             for key in ("@path", "path"):
-                if isinstance(val.get(key), str):
-                    return val[key]
+                candidate = val.get(key)
+                if isinstance(candidate, str):
+                    return candidate
         return None
 
     def _path_of(self, val: Any) -> str | None:
@@ -1343,7 +1352,16 @@ class AtomCompiler:
         comp_id = self._assign_id(block, explicit_id, is_root)
         comp: dict[str, Any] = {"id": comp_id, "component": comp_type}
         if emit_cat is not None:
-            comp["catalogId"] = emit_cat
+            comp[envelope_key("catalogId", self._at_least_v10)] = emit_cat
+        custom_envelope = comp_helper.get_custom_envelope_properties(comp_type)
+
+        def wire_key(key: str) -> str:
+            # Envelope mixin properties (`checks`, `metadata`, ...) take the
+            # `@`-prefixed wire key from v1.0 unless the component declares a
+            # property of that bare name itself.
+            if key in ENVELOPE_MIXIN_NAMES and key not in custom_envelope:
+                return envelope_key(key, self._at_least_v10)
+            return key
 
         prop_keys, child_list_prop, single_child_prop = child_props(
             comp_helper, comp_type
@@ -1392,7 +1410,7 @@ class AtomCompiler:
                 i += 2
                 if key in ("id", "catalogId"):
                     continue
-                if _head(val) == "template":
+                if self._is_template_form(val):
                     template = self._compile_template(val, block)
                     template_target = key if key in prop_keys else None
                 elif key in _COMPONENT_TEMPLATE_PATH_KEYS and key not in prop_keys:
@@ -1417,7 +1435,7 @@ class AtomCompiler:
                     )
                 ):
                     comp[key] = self._compile_object_list(val, block, item_schema)
-                elif key == "checks":
+                elif key == "checks" and key not in custom_envelope:
                     sibling_value = (
                         comp["value"]
                         if "value" in comp
@@ -1426,10 +1444,12 @@ class AtomCompiler:
                     resolved = self._resolve_checks(
                         val, has_value=sibling_value is not None
                     )
-                    comp[key] = self._normalize_checks(resolved, sibling_value)
+                    comp[wire_key(key)] = self._normalize_checks(
+                        resolved, sibling_value
+                    )
                 else:
                     resolved = self._resolve_val(val, is_action=is_action_prop(key))
-                    comp[key] = self._coerce_object_list(
+                    comp[wire_key(key)] = self._coerce_object_list(
                         comp_helper, comp_type, key, resolved
                     )
                 continue
@@ -1473,7 +1493,9 @@ class AtomCompiler:
                     and self._is_value_form(item)
                 ):
                     pkey = prop_keys[pos_arg_index]
-                    comp[pkey] = self._resolve_val(item, is_action=is_action_prop(pkey))
+                    comp[wire_key(pkey)] = self._resolve_val(
+                        item, is_action=is_action_prop(pkey)
+                    )
                     pos_arg_index += 1
                 elif isinstance(item, Form) and is_symbol(item[0]):
                     children.append(self._compile_component(item, block))
@@ -1491,7 +1513,9 @@ class AtomCompiler:
                         children.append(wrapped)
             elif pos_arg_index < len(prop_keys):
                 pkey = prop_keys[pos_arg_index]
-                comp[pkey] = self._resolve_val(item, is_action=is_action_prop(pkey))
+                comp[wire_key(pkey)] = self._resolve_val(
+                    item, is_action=is_action_prop(pkey)
+                )
                 pos_arg_index += 1
             i += 1
 
@@ -1526,7 +1550,7 @@ class AtomCompiler:
     ) -> None:
         """Applies schema coercions and checks required properties."""
         for key, value in list(comp.items()):
-            if key in ("id", "component", "catalogId"):
+            if key in ("id", "component", "catalogId") or key in AT_ENVELOPE_MIXIN_KEYS:
                 continue
             schema = helper.get_property_schema(comp_type, key) or {}
             kind = ref_kind(schema)
@@ -1702,10 +1726,12 @@ class AtomCompiler:
             if "message" not in rule and not self._at_least_v10:
                 # v0.9 CheckRule requires a message.
                 rule["message"] = "Invalid input"
-            cond = rule.get("condition")
-            if isinstance(cond, dict) and isinstance(cond.get(self._call_key), str):
-                if "value" in self._called_function_props(cond):
-                    args = cond.setdefault("args", {})
+            rule_cond = rule.get("condition")
+            if isinstance(rule_cond, dict) and isinstance(
+                rule_cond.get(self._call_key), str
+            ):
+                if "value" in self._called_function_props(rule_cond):
+                    args = rule_cond.setdefault("args", {})
                     if "value" not in args and sibling_value is not None:
                         args["value"] = sibling_value
             rules.append(rule)

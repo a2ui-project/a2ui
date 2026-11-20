@@ -15,7 +15,7 @@
 [project]
 name = "a2ui-v09-demo"
 version = "0.1.0"
-description = "Sample ADK-based agent that demonstrates A2UI (Agent-to-UI) v0.9, served over the A2A protocol."
+description = "Sample ADK-based agent that demonstrates A2UI v0.9, served over the A2A protocol."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [

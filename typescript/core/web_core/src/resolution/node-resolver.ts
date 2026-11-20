@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-import {SurfaceModel} from '../state/surface-model.js';
-import {ComponentModel} from '../state/component-model.js';
 import {Catalog, ComponentApi, FunctionImplementation} from '../catalog/types.js';
+import {Subscription} from '../common/events.js';
+import {isAtLeastVersion} from '../common/semver.js';
+import {A2uiStateError} from '../errors.js';
+import {computed, getValue, peekValue, setValue, Signal, signal} from '../reactivity/signals.js';
+import {ComponentModel} from '../state/component-model.js';
+import {SurfaceModel} from '../state/surface-model.js';
+import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
+import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
+import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {ComponentContext} from './component-context.js';
-import {DataContext} from './data-context.js';
-import {
-  BehaviorNode,
-  GenericBinder,
-  getSafeChildList,
-  scrapeSchemaBehavior,
-} from './generic-binder.js';
 import {
   ComponentNode,
   isComponentNode,
@@ -32,11 +32,15 @@ import {
   NodeProps,
   PLACEHOLDER_TYPE,
 } from './component-node.js';
+import {DataContext} from './data-context.js';
+import {
+  BehaviorNode,
+  GenericBinder,
+  getSafeChildList,
+  scrapeComponentBehavior,
+} from './generic-binder.js';
 import {extractRefFields, RefFields} from './ref-fields.js';
-import {ResolvedBinding, WritableBinding, sameBinding} from './resolved-binding.js';
-import {Signal, signal, setValue, peekValue} from '../reactivity/signals.js';
-import {Subscription} from '../common/events.js';
-import {A2uiStateError} from '../errors.js';
+import {ResolvedBinding, sameBinding, WritableBinding} from './resolved-binding.js';
 
 const ROOT_COMPONENT_ID = 'root';
 const ROOT_DATA_PATH = '/';
@@ -108,9 +112,10 @@ export class NodeResolver<
    */
   constructor(
     surface: SurfaceModel<C, F>,
-    catalog: Catalog<C, F> | undefined = surface.defaultCatalog,
+    catalog: Catalog<C, F> | undefined = surface.defaultCatalog ?? surface.catalog,
   ) {
-    if ((catalog as unknown) !== (surface.defaultCatalog as unknown)) {
+    const surfaceCatalog = surface.defaultCatalog ?? surface.catalog;
+    if ((catalog as unknown) !== (surfaceCatalog as unknown)) {
       throw new A2uiStateError(
         'NodeResolver requires the same catalog instance its surface was constructed with.',
       );
@@ -132,7 +137,7 @@ export class NodeResolver<
       );
     }
 
-    if (surface.componentsModel.get(this.rootId)) {
+    if (surface.componentsModel?.get(this.rootId)) {
       this.buildRoot();
     }
   }
@@ -158,7 +163,7 @@ export class NodeResolver<
       return;
     }
     codes.add(code);
-    this.surface.dispatchError({code, message});
+    this.surface.dispatchError?.({code, message});
   }
 
   private clearDispatched(componentId: string, dataPath: string): void {
@@ -323,13 +328,15 @@ export class NodeResolver<
     }
 
     const compCatalog = this.catalogFor(model);
-    const api = compCatalog.components.get(model.type);
+    const api = compCatalog?.components?.get(model.type);
     if (!api) {
       this.dispatchOnce(
         'UNKNOWN_COMPONENT_TYPE',
         componentId,
         dataPath,
-        `Component '${componentId}' has type '${model.type}', which is not in catalog '${compCatalog.id}'.`,
+        compCatalog
+          ? `Component '${componentId}' has type '${model.type}', which is not in catalog '${compCatalog.id}'.`
+          : `Component '${componentId}' has type '${model.type}', and neither the component nor surface '${this.surface.id}' defines a catalog.`,
       );
       return this.registerNode(
         new MutableComponentNode(
@@ -341,6 +348,7 @@ export class NodeResolver<
           undefined,
           undefined,
           'unknown-type',
+          computed(() => (model.metadataSignal ? getValue(model.metadataSignal) : model.metadata)),
         ),
         {edgeKey, parent, occurrence, refFields: EMPTY_REF_FIELDS, componentModel: model},
       ).node;
@@ -353,7 +361,12 @@ export class NodeResolver<
       dataPath,
       parent?.context?.dataContext,
     );
-    const binder = new GenericBinder<NodeProps>(context, api.schema);
+    const refOptions = isAtLeastVersion(compCatalog?.protocolVersion, '1.0')
+      ? V10_CHILD_REF_OPTIONS
+      : isAtLeastVersion(compCatalog?.protocolVersion, '0.9')
+        ? V09_CHILD_REF_OPTIONS
+        : V08_CHILD_REF_OPTIONS;
+    const binder = new GenericBinder<NodeProps>(context, api.schema, refOptions);
     const record = this.registerNode(
       new MutableComponentNode(
         instanceIdFor(componentId, dataPath, occurrence),
@@ -363,13 +376,15 @@ export class NodeResolver<
         {},
         api,
         context,
+        'resolved',
+        computed(() => (model.metadataSignal ? getValue(model.metadataSignal) : model.metadata)),
       ),
       {
         edgeKey,
         parent,
         occurrence,
-        refFields: extractRefFields(api.schema),
-        behavior: scrapeSchemaBehavior(api.schema),
+        refFields: extractRefFields(api.schema, refOptions),
+        behavior: scrapeComponentBehavior(api.schema, refOptions),
         componentModel: model,
         binder,
       },
@@ -387,14 +402,17 @@ export class NodeResolver<
   }
 
   /**
-   * Returns the catalog a component model resolves against: the catalog it
-   * was bound to, never the surface's default catalog directly.
+   * Returns the catalog a component model resolves against: the catalog bound
+   * on the model when set, falling back to the surface's default catalog when
+   * `model.catalog` is `undefined` (for example on components constructed with
+   * the pre-1.0 3-argument `ComponentModel` overload or partial test stand-ins).
    *
    * @param model Component model to resolve.
-   * @returns The component model's catalog.
+   * @returns The catalog to look up `model.type` in, or `undefined` when neither
+   *   the component nor the surface defines one.
    */
-  private catalogFor(model: ComponentModel): Catalog<C, F> {
-    return model.catalog as Catalog<C, F>;
+  private catalogFor(model: ComponentModel): Catalog<C, F> | undefined {
+    return model.catalog ?? this.surface.defaultCatalog ?? this.surface.catalog;
   }
 
   private registerNode(
@@ -480,7 +498,7 @@ export class NodeResolver<
     }
     if (existing && !existing.disposed) {
       const model = this.surface.componentsModel.get(componentId);
-      const api = model ? this.catalogFor(model).components.get(model.type) : undefined;
+      const api = model ? this.catalogFor(model)?.components?.get(model.type) : undefined;
       // A placeholder stays up to date only while its own state's
       // preconditions hold, so a pending node whose definition arrives with
       // an unknown type is replaced (once) by an unknown-type node, and
@@ -551,20 +569,13 @@ export class NodeResolver<
       return;
     }
     const raw = record.lastBinderProps ?? record.binder?.snapshot ?? {};
-    const next: NodeProps = {...raw};
-    const newEdges = new Map<string, MutableComponentNode>();
-
-    // The binder merges rebuilt props over previous ones and never drops a
-    // key the component's properties no longer contain. Ref props drive child
-    // lifecycles, so their presence must follow the component model exactly.
     const modelProps = record.componentModel?.properties;
-    if (modelProps) {
-      for (const key of record.refFields.keys()) {
-        if (key in next && !(key in modelProps)) {
-          delete next[key];
-        }
-      }
-    }
+    // Prune omitted keys here too in case materialize runs before the binder's
+    // onUpdated listener rebuilds lastBinderProps.
+    const next: NodeProps = modelProps
+      ? pruneOmittedProps(raw, modelProps, record.behavior)
+      : {...raw};
+    const newEdges = new Map<string, MutableComponentNode>();
 
     // Ordinal per (componentId, dataPath) within this rebuild, so repeated
     // references to one component get distinct instance ids.
@@ -573,7 +584,7 @@ export class NodeResolver<
       const occurrenceKey = `${escapeIdPart(componentId)}@${escapeIdPart(dataPath)}`;
       const occurrence = (occurrences.get(occurrenceKey) ?? 0) + 1;
       occurrences.set(occurrenceKey, occurrence);
-      const edgeKey = `${record.edgeKey}>${slot}>${occurrenceKey}`;
+      const edgeKey = `${record.edgeKey}>${slot}>${occurrenceKey}#${occurrence}`;
       const child = this.childNode(componentId, dataPath, edgeKey, record.node, occurrence);
       newEdges.set(edgeKey, child);
       return child;
@@ -594,23 +605,20 @@ export class NodeResolver<
             break;
           }
           const safeValue = getSafeChildList(value);
-          next[key] = safeValue.map((item, index) => {
+          const slotKey = escapeIdPart(key);
+          next[key] = safeValue.map(item => {
             if (typeof item === 'string' && item) {
-              return resolveChild(`${escapeIdPart(key)}[${index}]`, item, record.node.dataPath);
+              return resolveChild(slotKey, item, record.node.dataPath);
             }
             if (item && typeof item === 'object' && !Array.isArray(item)) {
               const entry = item as Record<string, unknown>;
               // The binder resolves a {componentId, path} template into
               // {id, basePath} pairs, one per array element.
               if (typeof entry.id === 'string' && typeof entry.basePath === 'string') {
-                return resolveChild(`${escapeIdPart(key)}[${index}]`, entry.id, entry.basePath);
+                return resolveChild(slotKey, entry.id, entry.basePath);
               }
               if (typeof entry.componentId === 'string' && entry.componentId) {
-                return resolveChild(
-                  `${escapeIdPart(key)}[${index}]`,
-                  entry.componentId,
-                  record.node.dataPath,
-                );
+                return resolveChild(slotKey, entry.componentId, record.node.dataPath);
               }
             }
             return item;
@@ -619,24 +627,70 @@ export class NodeResolver<
         }
         case 'nested': {
           const value = next[key];
+          const slotKey = escapeIdPart(key);
+          if (typeof value === 'string' && value) {
+            next[key] = resolveChild(slotKey, value, record.node.dataPath);
+            break;
+          }
           if (!Array.isArray(value)) {
             break;
           }
-          next[key] = value.map((item, index) => {
+          const rawProp = modelProps?.[key];
+          const fromTemplate = rawProp !== undefined && !Array.isArray(rawProp);
+          const safeValue = getSafeChildList(value);
+          next[key] = safeValue.map((item, index) => {
+            if (typeof item === 'string' && item) {
+              return resolveChild(slotKey, item, record.node.dataPath);
+            }
             if (!item || typeof item !== 'object' || Array.isArray(item)) {
               return item;
             }
-            const entry = {...(item as Record<string, unknown>)};
+            const rawEntry = item as Record<string, unknown>;
+            if (fromTemplate) {
+              if (typeof rawEntry.id === 'string' && typeof rawEntry.basePath === 'string') {
+                return resolveChild(slotKey, rawEntry.id, rawEntry.basePath);
+              }
+              return item;
+            }
+            const hasNestedKey = Array.from(ref.keys).some(subKey =>
+              Object.hasOwn(rawEntry, subKey),
+            );
+            if (!hasNestedKey) {
+              return item;
+            }
+            const entry = {...rawEntry};
             let resolvedAny = false;
             for (const subKey of ref.keys) {
-              const childId = entry[subKey];
-              if (typeof childId === 'string' && childId) {
-                entry[subKey] = resolveChild(
-                  `${escapeIdPart(key)}[${index}].${escapeIdPart(subKey)}`,
-                  childId,
-                  record.node.dataPath,
-                );
+              const subVal = entry[subKey];
+              const subSlotKey = `${slotKey}[${index}].${escapeIdPart(subKey)}`;
+              if (typeof subVal === 'string' && subVal) {
+                entry[subKey] = resolveChild(subSlotKey, subVal, record.node.dataPath);
                 resolvedAny = true;
+              } else if (Array.isArray(subVal)) {
+                const safeSubVal = getSafeChildList(subVal);
+                let resolvedSubList = false;
+                const mappedSubVal = safeSubVal.map(subItem => {
+                  if (typeof subItem === 'string' && subItem) {
+                    resolvedSubList = true;
+                    return resolveChild(subSlotKey, subItem, record.node.dataPath);
+                  }
+                  if (subItem && typeof subItem === 'object' && !Array.isArray(subItem)) {
+                    const subEntry = subItem as Record<string, unknown>;
+                    if (typeof subEntry.id === 'string' && typeof subEntry.basePath === 'string') {
+                      resolvedSubList = true;
+                      return resolveChild(subSlotKey, subEntry.id, subEntry.basePath);
+                    }
+                    if (typeof subEntry.componentId === 'string' && subEntry.componentId) {
+                      resolvedSubList = true;
+                      return resolveChild(subSlotKey, subEntry.componentId, record.node.dataPath);
+                    }
+                  }
+                  return subItem;
+                });
+                if (resolvedSubList) {
+                  entry[subKey] = mappedSubVal;
+                  resolvedAny = true;
+                }
               }
             }
             return resolvedAny ? entry : item;
@@ -681,6 +735,11 @@ export class NodeResolver<
     const previous = peekValue(record.node.props);
     for (const key of Object.keys(wrapped)) {
       wrapped[key] = stabilize(previous[key], wrapped[key]);
+    }
+    if (next['accessibility'] !== undefined && next['accessibility'] === next['@accessibility']) {
+      // The binder's `accessibility` mirror shares the wrapped `@accessibility`
+      // and its writable bindings, which the payload declares only there.
+      wrapped['accessibility'] = wrapped['@accessibility'];
     }
     record.node.setProps(wrapped);
   }
@@ -768,6 +827,9 @@ function wrapDynamicValues(
   raw: unknown,
   dataContext: DataContext,
 ): unknown {
+  if (isComponentNode(value)) {
+    return value;
+  }
   switch (behavior.type) {
     case 'DYNAMIC': {
       const bindingKey = dataContext.atLeastV10 ? '@path' : 'path';
@@ -797,34 +859,42 @@ function wrapDynamicValues(
       if (!value || typeof value !== 'object' || Array.isArray(value)) {
         return value;
       }
+      const rawRecord =
+        raw && typeof raw === 'object' && !Array.isArray(raw)
+          ? (raw as Record<string, unknown>)
+          : {};
       const setterNames = new Set<string>();
       for (const [key, childBehavior] of Object.entries(behavior.shape)) {
         if (childBehavior.type === 'DYNAMIC') {
           setterNames.add(`set${key.charAt(0).toUpperCase()}${key.slice(1)}`);
         }
       }
-      const rawRecord =
-        raw && typeof raw === 'object' && !Array.isArray(raw)
-          ? (raw as Record<string, unknown>)
-          : {};
+      if (behavior.catchall?.type === 'DYNAMIC') {
+        for (const key of Object.keys(rawRecord)) {
+          if (!Object.hasOwn(behavior.shape, key) && key.length > 0) {
+            const setterName = `set${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+            if (!Object.hasOwn(rawRecord, setterName)) {
+              setterNames.add(setterName);
+            }
+          }
+        }
+      }
       const out: Record<string, unknown> = {};
       for (const [key, item] of Object.entries(value)) {
         if (setterNames.has(key)) {
           continue;
         }
-        out[key] = wrapDynamicValues(
-          item,
-          behavior.shape[key] ?? {type: 'STATIC'},
-          rawRecord[key],
-          dataContext,
-        );
+        const childBehavior = Object.hasOwn(behavior.shape, key)
+          ? behavior.shape[key]
+          : (behavior.catchall ?? {type: 'STATIC'});
+        out[key] = wrapDynamicValues(item, childBehavior, rawRecord[key], dataContext);
       }
       // The binder guarantees every dynamic property a setter even when the
       // payload omits it. Represent an omitted one as a read-only binding of
       // undefined, at every nesting level, so consumers synthesizing setters
       // from bindings keep that guarantee.
       for (const [key, childBehavior] of Object.entries(behavior.shape)) {
-        if (childBehavior.type === 'DYNAMIC' && !(key in out)) {
+        if (childBehavior.type === 'DYNAMIC' && !Object.hasOwn(out, key)) {
           out[key] = new ResolvedBinding(undefined);
         }
       }
@@ -871,7 +941,7 @@ function stabilize(prev: unknown, next: unknown): unknown {
       for (const key of nextKeys) {
         const stabilized = stabilize(prev[key], next[key]);
         out[key] = stabilized;
-        if (!(key in prev) || !Object.is(stabilized, prev[key])) {
+        if (!Object.hasOwn(prev, key) || !Object.is(stabilized, prev[key])) {
           allSame = false;
         }
       }
@@ -890,4 +960,103 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   // non-literal object as always-changed instead.
   const proto = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
+}
+
+const VALIDATION_STATE_KEYS = new Set(['isValid', 'validationErrors', 'validationResults']);
+
+/**
+ * Returns a copy of `resolved` containing only properties still present on
+ * `rawProps`, plus binder-synthesized dynamic setters, validation state for
+ * active `CHECKABLE` fields at each object schema level, and the binder's
+ * `accessibility` mirror of a kept `@accessibility`.
+ */
+function pruneOmittedProps(
+  resolved: Record<string, unknown>,
+  rawProps: Record<string, unknown>,
+  behavior?: BehaviorNode,
+): Record<string, unknown> {
+  const shape = behavior?.type === 'OBJECT' ? behavior.shape : undefined;
+  const catchall = behavior?.type === 'OBJECT' ? behavior.catchall : undefined;
+  let hasActiveCheckable = false;
+  const dynamicSetterNames = new Set<string>();
+  if (shape) {
+    for (const [key, childBehavior] of Object.entries(shape)) {
+      if (childBehavior.type === 'DYNAMIC') {
+        dynamicSetterNames.add(`set${key.charAt(0).toUpperCase()}${key.slice(1)}`);
+      } else if (
+        childBehavior.type === 'CHECKABLE' &&
+        Object.hasOwn(rawProps, key) &&
+        rawProps[key] !== undefined &&
+        rawProps[key] !== null
+      ) {
+        hasActiveCheckable = true;
+      }
+    }
+  }
+  if (catchall) {
+    for (const key of Object.keys(rawProps)) {
+      if (shape && Object.hasOwn(shape, key)) {
+        continue;
+      }
+      if (catchall.type === 'DYNAMIC' && key.length > 0) {
+        dynamicSetterNames.add(`set${key.charAt(0).toUpperCase()}${key.slice(1)}`);
+      } else if (
+        catchall.type === 'CHECKABLE' &&
+        rawProps[key] !== undefined &&
+        rawProps[key] !== null
+      ) {
+        hasActiveCheckable = true;
+      }
+    }
+  }
+
+  const out: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(resolved)) {
+    if (!Object.hasOwn(rawProps, key)) {
+      if (dynamicSetterNames.has(key) || (hasActiveCheckable && VALIDATION_STATE_KEYS.has(key))) {
+        out[key] = val;
+      }
+      continue;
+    }
+    const childBehavior = shape && Object.hasOwn(shape, key) ? shape[key] : catchall;
+    out[key] = pruneOmittedValue(val, rawProps[key], childBehavior);
+  }
+  // `GenericBinder` mirrors `@accessibility` onto `accessibility` when the
+  // component declares no custom `accessibility`. The payload carries only
+  // `@accessibility`, so keep the mirror wherever its source is kept.
+  if (
+    Object.hasOwn(resolved, 'accessibility') &&
+    !Object.hasOwn(rawProps, 'accessibility') &&
+    Object.hasOwn(out, '@accessibility')
+  ) {
+    out['accessibility'] = out['@accessibility'];
+  }
+  return out;
+}
+
+function pruneOmittedValue(resolved: unknown, rawValue: unknown, behavior?: BehaviorNode): unknown {
+  if (rawValue === undefined || rawValue === null) {
+    return rawValue;
+  }
+  if (behavior?.type === 'STRUCTURAL' && Array.isArray(rawValue)) {
+    return [...rawValue];
+  }
+  if (
+    (!behavior || behavior.type === 'OBJECT' || behavior.type === 'STATIC') &&
+    isPlainObject(resolved) &&
+    isPlainObject(rawValue)
+  ) {
+    return pruneOmittedProps(resolved, rawValue, behavior);
+  }
+  if (
+    (!behavior || behavior.type === 'ARRAY' || behavior.type === 'STATIC') &&
+    Array.isArray(resolved) &&
+    Array.isArray(rawValue)
+  ) {
+    const elementBehavior = behavior?.type === 'ARRAY' ? behavior.element : undefined;
+    return resolved
+      .slice(0, rawValue.length)
+      .map((item, index) => pruneOmittedValue(item, rawValue[index], elementBehavior));
+  }
+  return resolved;
 }

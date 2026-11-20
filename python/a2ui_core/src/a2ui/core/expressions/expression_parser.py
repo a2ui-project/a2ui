@@ -35,6 +35,11 @@ _NUMBER_LITERAL: Final[re.Pattern[str]] = re.compile(
 # Compiled pattern matching exactly one XID_Continue character
 XID_CONTINUE_PATTERN = regex.compile(r"^\p{XID_Continue}$")
 
+# The characters of an `@`-prefixed system function name (`@index`): ASCII
+# only, like `scanPathOrIdentifier` in TypeScript and Dart.
+_SYSTEM_FUNCTION_START: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z_]$")
+_SYSTEM_FUNCTION_CONTINUE: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_]$")
+
 
 def _is_id_continue(char: str) -> bool:
     """Returns True if character belongs to Unicode UAX #31 XID_Continue."""
@@ -222,12 +227,27 @@ class ExpressionParser:
         if scanner.peek() == "(":
             return self.parse_function_call(token, scanner, depth)
         else:
+            if token.startswith("@"):
+                raise A2uiExpressionError(f"Expected '(' after function name '{token}'")
             if not token:
                 return ""
             return {"path": token}
 
     def scan_path_or_identifier(self, scanner: Scanner) -> str:
         start = scanner.pos
+        # A leading `@` starts a system function name such as `@index`, which
+        # every engine restricts to ASCII `[A-Za-z_][A-Za-z0-9_]*`.
+        if scanner.peek() == "@":
+            if not _SYSTEM_FUNCTION_START.match(scanner.peek(1)):
+                raise A2uiExpressionError(
+                    "Invalid identifier starting with '@' in expression"
+                )
+            scanner.advance()
+            while not scanner.is_at_end() and _SYSTEM_FUNCTION_CONTINUE.match(
+                scanner.peek()
+            ):
+                scanner.advance()
+            return scanner.input[start : scanner.pos]
         while not scanner.is_at_end():
             c = scanner.peek()
             if _is_id_continue(c) or c in ("/", ".", "-"):

@@ -96,3 +96,4 @@ After making any code changes in `swift/`, run this verification sequence from t
 - **Blueprint compliance**: When updating models or schemas, check compliance with [`a2ui-blueprint-compliance`](../../../../../blueprints/skills/a2ui-blueprint-compliance/SKILL.md).
 - **Test quality**: Verify assertion strength and boundary cases with [`a2ui-test-quality-check`](../../../a2ui-test-quality-check/SKILL.md).
 - **Documentation sync**: Ensure documentation reflects code changes using [`a2ui-doc-sync-check`](../../../a2ui-doc-sync-check/SKILL.md).
+- **Changelog updates**: When changing `public` APIs or consumer-observable behavior in published Swift library products, update `swift/CHANGELOG.md` using [`update-changelog`](../../../update-changelog/SKILL.md).

@@ -43,6 +43,37 @@ struct RPCHandlerTests {
     }
   }
 
+  private struct MockThrowingFunction: FunctionImplementation {
+    let api: FunctionAPI
+    let error: any Error
+
+    init(error: any Error) {
+      let schema = try! Schema(
+        rawSchema: .object(["type": .string("object")]),
+        context: Context(dialect: .draft2020_12)
+      )
+      self.api = FunctionAPI(
+        name: "fail",
+        returnType: .any,
+        schema: schema,
+        allowedCallers: .rendererOrAgent
+      )
+      self.error = error
+    }
+
+    func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+      throw error
+    }
+  }
+
+  private struct QuotaError: LocalizedError {
+    var errorDescription: String? { "Quota exceeded" }
+  }
+
+  private enum StorageError: Error {
+    case diskFull
+  }
+
   @Test func incomingCallSuccess() async {
     let handler = RPCHandler()
     let echoFn = MockEchoFunction()
@@ -72,6 +103,95 @@ struct RPCHandlerTests {
     #expect(response.functionCallID == "call_1")
     #expect(response.value == .string("Hello Agent"))
     #expect(response.error == nil)
+  }
+
+  private func respondToThrowingFunction(
+    _ error: any Error
+  ) async -> RendererFunctionResponseMessage {
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [MockThrowingFunction(error: error)]
+    ).eraseToAnyCatalog()
+    let callMessage = CallRendererFunctionMessage(
+      functionCallID: "call_fail",
+      callFunction: CallFunctionPayload(call: "fail", catalogID: "test", args: [:]),
+      version: .v10
+    )
+    return await RPCHandler().handleIncomingCall(callMessage, catalogs: [catalog.id: catalog])
+  }
+
+  @Test func incomingCallThrowingFunctionAnswersWithErrorMessage() async {
+    let response = await respondToThrowingFunction(A2UIValidationError("Disk is full"))
+
+    #expect(response.functionCallID == "call_fail")
+    #expect(response.value == nil)
+    #expect(
+      response.error
+        == FunctionErrorPayload(code: .executionError, message: "Disk is full")
+    )
+  }
+
+  @Test func incomingCallThrowingLocalizedErrorAnswersWithErrorDescription() async {
+    let response = await respondToThrowingFunction(QuotaError())
+
+    #expect(
+      response.error
+        == FunctionErrorPayload(code: .executionError, message: "Quota exceeded")
+    )
+  }
+
+  @Test func incomingCallThrowingPlainErrorAnswersWithItsDescription() async {
+    let response = await respondToThrowingFunction(StorageError.diskFull)
+
+    #expect(
+      response.error
+        == FunctionErrorPayload(code: .executionError, message: "diskFull")
+    )
+  }
+
+  @Test(arguments: ["", "  \n\t "])
+  func incomingCallThrowingFunctionWithoutMessageAnswersWithFallback(
+    emptyMessage: String
+  ) async {
+    let response = await respondToThrowingFunction(A2UIValidationError(emptyMessage))
+
+    #expect(
+      response.error
+        == FunctionErrorPayload(
+          code: .executionError,
+          message: "An error occurred during function execution."
+        )
+    )
+  }
+
+  @Test func incomingCallAfterDisposeAnswersDisposed() async {
+    let handler = RPCHandler()
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [MockEchoFunction()]
+    ).eraseToAnyCatalog()
+    handler.disposeAllPendingCalls()
+
+    let response = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "call_after_dispose",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "test",
+          args: ["message": .string("Hello Agent")]
+        ),
+        version: .v10
+      ),
+      catalogs: [catalog.id: catalog]
+    )
+
+    #expect(response.functionCallID == "call_after_dispose")
+    #expect(response.value == nil)
+    #expect(response.error?.code == "DISPOSED")
   }
 
   @Test func incomingCallUnknownFunction() async {
@@ -265,7 +385,11 @@ struct RPCHandlerTests {
       _ = try await task.value
       Issue.record("Expected error to be thrown")
     } catch let error as FunctionError {
-      #expect(error == .remoteError(code: "INVALID_USER", message: "User does not exist"))
+      #expect(
+        error
+          == .remoteError(code: "INVALID_USER", message: "User does not exist", callID: callID)
+      )
+      #expect(error.functionCallID == callID)
     }
   }
 
@@ -404,11 +528,141 @@ struct RPCHandlerTests {
     processor.dispose()
     do {
       _ = try await task2.value
+      Issue.record("Expected cancelled error")
+    } catch let error as FunctionError {
+      #expect(error == .cancelled(callID: "disp_call"))
+      #expect(error.rpcCode == "CANCELLED")
+    }
+
+    // A call made after dispose fails with DISPOSED, even though a listener is set.
+    do {
+      _ = try await processor.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "afterDisposeFn",
+        functionCallID: "after_dispose_call",
+        version: .v10
+      )
       Issue.record("Expected disposed error")
     } catch let error as FunctionError {
-      #expect(error == .disposed(callID: "disp_call"))
+      #expect(error == .disposed(callID: "after_dispose_call"))
       #expect(error.rpcCode == "DISPOSED")
     }
+  }
+
+  @Test func outgoingCallUsesDefaultTimeoutWhenOmitted() async throws {
+    #expect(RPCHandler.defaultTimeoutSeconds == 30)
+    let handler = RPCHandler()
+    let (stream, continuation) = AsyncStream<RendererToAgentMessage>.makeStream()
+
+    // Omit timeoutSeconds so the default 30.0s parameter is used.
+    let task = Task {
+      try await handler.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "defaultTimeoutFn",
+        functionCallID: "default_timeout_call",
+        version: .v10,
+        sendOutbound: { msg in
+          continuation.yield(msg)
+        }
+      )
+    }
+
+    var iterator = stream.makeAsyncIterator()
+    let outboundMsg = await iterator.next()
+    #expect(outboundMsg != nil)
+
+    // Call remains pending under the 30s default window (duplicate ID is rejected).
+    do {
+      _ = try await handler.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "defaultTimeoutFn",
+        functionCallID: "default_timeout_call",
+        version: .v10,
+        sendOutbound: { _ in }
+      )
+      Issue.record("Expected duplicate error while call is pending under default timeout")
+    } catch let error as FunctionError {
+      #expect(error == .duplicate(callID: "default_timeout_call"))
+    }
+
+    handler.handleAgentResponse(
+      AgentFunctionResponseMessage(
+        functionCallID: "default_timeout_call",
+        value: .string("settled"),
+        version: .v10
+      )
+    )
+
+    let result = try await task.value
+    #expect(result == .string("settled"))
+  }
+
+  @Test func outgoingCallTaskCancellationRemovesPendingEntry() async throws {
+    let handler = RPCHandler()
+    let (stream, continuation) = AsyncStream<Void>.makeStream()
+
+    let task = Task {
+      try await handler.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "cancellableFn",
+        functionCallID: "cancel_cleanup_call",
+        version: .v10,
+        sendOutbound: { _ in
+          continuation.yield()
+        }
+      )
+    }
+
+    var iterator = stream.makeAsyncIterator()
+    await iterator.next()
+
+    task.cancel()
+
+    do {
+      _ = try await task.value
+      Issue.record("Expected cancelled error after Task.cancel()")
+    } catch let error as FunctionError {
+      #expect(error == .cancelled(callID: "cancel_cleanup_call"))
+      #expect(error.rpcCode == "CANCELLED")
+    }
+
+    // Late response for the cancelled call ID is ignored.
+    handler.handleAgentResponse(
+      AgentFunctionResponseMessage(
+        functionCallID: "cancel_cleanup_call",
+        value: .string("late_ignored"),
+        version: .v10
+      )
+    )
+
+    let (retryStream, retryContinuation) = AsyncStream<Void>.makeStream()
+    // Because the pending entry was removed on cancellation, reusing the same
+    // functionCallID succeeds.
+    let retryTask = Task {
+      try await handler.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "cancellableFn",
+        functionCallID: "cancel_cleanup_call",
+        version: .v10,
+        sendOutbound: { _ in
+          retryContinuation.yield()
+        }
+      )
+    }
+
+    var retryIterator = retryStream.makeAsyncIterator()
+    await retryIterator.next()
+
+    handler.handleAgentResponse(
+      AgentFunctionResponseMessage(
+        functionCallID: "cancel_cleanup_call",
+        value: .string("reused_ok"),
+        version: .v10
+      )
+    )
+
+    let retryResult = try await retryTask.value
+    #expect(retryResult == .string("reused_ok"))
   }
 }
 

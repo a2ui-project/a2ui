@@ -31,6 +31,13 @@ The native Swift runtime processing engine and state model implementation for A2
   non-UI use cases (such as CLI tools or server integrations).
 - **Safe Evaluation**: Avoids force-unwrapping (`!`) and forced tries (`try!`), propagating
   errors or providing fallbacks.
+- **Derived catalogs**: `Catalog.derive` takes lists of `DerivedCatalogEntry`, an enum of a
+  name to keep (`.keep`, or a string literal) and a new entry (`.add`). A Swift catalog has no
+  `$id`, title, description or instructions, so `derive` takes no instructions and has nothing
+  else to drop.
+- **Renderer fallback routing**: Fallback routing to the agent is implemented as the module blueprint's RPC layer describes, with `MessageProcessor.agentFunctionTimeoutSeconds` as the routed call timeout. The surface's agent call cache keeps the default bound, `AgentCallCache.maximumEntryCount` fixed at `256` rather than configurable on `MessageProcessor`, and `RPCHandler.disposeAllPendingCalls()` takes no `reason` argument. `module_blueprint_commit` stays at its older pin because the codebase has not caught up with earlier module changes, such as the per-call `ExecutionContext` (`isUserActivated`) of `processMessages`.
+- **No agent**: The Swift SDK is a renderer only, so it does not implement the optional
+  `agent_renderer_app` feature.
 
 ## **Validation & Execution Recipes**
 

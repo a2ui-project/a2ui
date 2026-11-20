@@ -78,9 +78,8 @@ abstract class _DirectJsonStream<P extends StreamPart>
     this._parser, {
     required bool wrapped,
     required this.state,
-    required bool continues,
+    required this._continues,
   }) : _wrapped = wrapped,
-       _continues = continues,
        _inBlock = !wrapped;
 
   final DirectJsonParser _parser;
@@ -96,8 +95,7 @@ abstract class _DirectJsonStream<P extends StreamPart>
 
   // Text outside blocks.
   String _held = '';
-  bool _runStarted = false;
-  String _heldSpace = '';
+  final TextRun _text = TextRun();
   String _heldBackticks = '';
   bool _stripCloseBackticks = false;
 
@@ -188,10 +186,10 @@ abstract class _DirectJsonStream<P extends StreamPart>
       rethrow;
     }
     if (_heldBackticks.isNotEmpty) {
-      _emitText(parts, _heldBackticks);
+      _text.emit(parts, _heldBackticks);
       _heldBackticks = '';
     } else if (_held.isNotEmpty) {
-      _emitText(parts, _held);
+      _text.emit(parts, _held);
       _held = '';
     }
     return List<P>.from(parts);
@@ -285,9 +283,8 @@ abstract class _DirectJsonStream<P extends StreamPart>
         if (textBefore.endsWith('`')) {
           textBefore = textBefore.replaceAll(RegExp(r'`+$'), '');
         }
-        _emitText(parts, textBefore);
-        _runStarted = false;
-        _heldSpace = '';
+        _text.emit(parts, textBefore);
+        _text.reset();
         _heldBackticks = '';
         _inBlock = true;
         input = input.substring(open.end);
@@ -312,22 +309,8 @@ abstract class _DirectJsonStream<P extends StreamPart>
           );
         }
       }
-      _emitText(parts, textToEmit);
+      _text.emit(parts, textToEmit);
     }
-  }
-
-  /// Emits the text of a run, less leading whitespace at the start of the
-  /// run and trailing whitespace, which is held until more text arrives.
-  void _emitText(List<StreamPart> parts, String text) {
-    final String body = (_runStarted ? text : text.trimLeft()).trimRight();
-    if (body.isEmpty) {
-      if (_runStarted && body.isEmpty) _heldSpace += text;
-      return;
-    }
-    final int start = _runStarted ? 0 : text.indexOf(body);
-    parts.add(TextPart('$_heldSpace$body'));
-    _heldSpace = text.substring(start + body.length);
-    _runStarted = true;
   }
 
   /// Reads the open block up to [end], going on from the previous read.
@@ -541,12 +524,10 @@ abstract class _DirectJsonStream<P extends StreamPart>
       for (final Object? component in added)
         if (component is Map<String, Object?>) component,
     ], earlier: earlier);
-    final delta =
-        reader.read({
-              ...envelope,
-              growing.key: {...body, 'components': added},
-            })
-            as UpdateComponentsMessage;
+    final delta = reader.read({
+      ...envelope,
+      growing.key: {...body, 'components': added},
+    }) as UpdateComponentsMessage;
     _applyMessage(delta);
     final previous = growing.message as UpdateComponentsMessage;
     final message = UpdateComponentsMessage(

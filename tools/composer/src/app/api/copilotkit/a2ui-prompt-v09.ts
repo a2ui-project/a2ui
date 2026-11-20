@@ -24,12 +24,12 @@ import {join} from 'path';
 
 // Load the actual v0.9 catalog spec and rules
 const catalogSpec = readFileSync(
-  join(process.cwd(), '../../specification/v0_9/catalogs/basic/catalog.json'),
+  join(process.cwd(), '../../catalogs/basic/v0_9/catalog.json'),
   'utf-8',
 );
 
 const catalogRules = readFileSync(
-  join(process.cwd(), '../../specification/v0_9/catalogs/basic/rules.txt'),
+  join(process.cwd(), '../../catalogs/basic/v0_9/rules.txt'),
   'utf-8',
 );
 
