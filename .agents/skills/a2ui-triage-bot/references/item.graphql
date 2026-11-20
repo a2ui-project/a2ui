@@ -29,7 +29,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
         files(first: 100) { nodes { path } }
         closingIssuesReferences(first: 10) { nodes { number } }
         comments(last: 100) { nodes { databaseId url author { login } authorAssociation body createdAt updatedAt } }
-        reviews(last: 50) { nodes { author { login } authorAssociation body state submittedAt } }
+        reviews(last: 50) { nodes { url author { login } authorAssociation body state submittedAt } }
         timelineItems(last: 100, itemTypes: [LABELED_EVENT, UNLABELED_EVENT, ASSIGNED_EVENT, UNASSIGNED_EVENT, CLOSED_EVENT, REOPENED_EVENT, CROSS_REFERENCED_EVENT, PULL_REQUEST_COMMIT]) {
           nodes {
             __typename

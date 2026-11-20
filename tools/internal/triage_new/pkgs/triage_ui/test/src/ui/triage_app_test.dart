@@ -1257,6 +1257,35 @@ void main() {
     expect(controller.item(a2ui(20))!.title, 'Also renamed');
   });
 
+  testWidgets('marks an item that left its group on GitHub after Refresh '
+      'next to the tabs', (tester) async {
+    await pumpApp(tester);
+    github.change(10, (item) => item['labels'] = {'nodes': <Object?>[]});
+
+    await settle(tester, () async {
+      await tester.tap(find.byTooltip(RegExp('^Refresh the items')));
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    });
+
+    await tester.tap(find.byTooltip('Locate in the list'));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.byTooltip(RegExp('no longer belongs')), findsOneWidget);
+    expect(find.text('Needs triage (2/3)'), findsOneWidget);
+  });
+
+  testWidgets('X removes the selected item from the list', (tester) async {
+    await pumpApp(tester);
+    expect(find.text('Needs triage (3/3)'), findsOneWidget);
+
+    await tester.tap(find.byTooltip(RegExp('^Remove the item from the list')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Needs triage (2/2)'), findsOneWidget);
+    expect(controller.selected?.number, isNot(10));
+    expect(github.calls, isEmpty);
+  });
+
   testWidgets('Hide triaged takes the applied items out of the list', (
     tester,
   ) async {

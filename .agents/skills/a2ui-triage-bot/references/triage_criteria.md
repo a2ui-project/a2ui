@@ -60,6 +60,8 @@ Follow [Triage a PR](../../../../docs/contributing/triage/triage.md#triage-a-pr)
 
 If Dependabot opened the PR (author `dependabot`, or `dependabot[bot]` in the REST API) and the PR has merge conflicts with `main`, set `close_as` to `not_planned` and skip the rules below. Say in `suggestion` that the PR has conflicts, and list in `related_items` any open Dependabot PR with the same updates. Use this `reply`: "Closing because this PR has merge conflicts with `main`."
 
+If a team member other than the PR author submitted a review, in any state, that team member started reviewing the PR, and the team has decided to review it. Suggest assigning the reviewer, link to their review in `suggestion`, and skip the review criteria below. If several team members reviewed, suggest the one whose review came first. If the reviewer is already assigned, suggest no assignee. Bots, such as `gemini-code-assist`, are not team members, so their reviews do not count.
+
 Otherwise, suggest a review when all of the following are true, and say which ones you checked:
 
 1. The PR is a minor change, such as a docs fix or a small bug fix with a test, or it addresses an issue that is assigned to the PR author.

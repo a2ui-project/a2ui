@@ -459,6 +459,51 @@ void main() {
     expect(controller.changedOnGitHub(a2ui(21)), isFalse);
   });
 
+  test('refreshItems marks the items that left their group on GitHub as '
+      'handled, until a refresh', () async {
+    await controller.start();
+    expect(controller.remaining, 6);
+    github
+      ..change(10, (item) => item['labels'] = {'nodes': <Object?>[]})
+      ..change(11, (item) => item['title'] = 'Renamed');
+
+    await controller.refreshItems([
+      controller.item(a2ui(10))!,
+      controller.item(a2ui(11))!,
+    ]);
+
+    expect(controller.leftOnGitHub(a2ui(10)), isTrue);
+    expect(controller.leftOnGitHub(a2ui(11)), isFalse);
+    expect(controller.isHandled(a2ui(10)), isTrue);
+    expect(controller.session.isHandled(a2ui(10)), isFalse);
+    expect(controller.remaining, 5);
+    expect(controller.hasTriaged, isTrue);
+
+    await controller.refresh();
+
+    expect(controller.leftOnGitHub(a2ui(10)), isFalse);
+    expect(numbers(controller.newItems), isNot(contains(10)));
+  });
+
+  test('removeFromList takes the item out of the list until a refresh, and '
+      'selects the next one', () async {
+    await controller.start();
+    controller.select(a2ui(11));
+
+    controller.removeFromList(controller.item(a2ui(11))!);
+
+    expect(numbers(controller.newItems), [10, 20, 21]);
+    expect(controller.selected?.number, 10);
+    expect(controller.isHandled(a2ui(11)), isTrue);
+    expect(controller.remaining, 5);
+    expect(github.calls, isEmpty);
+
+    await controller.refresh();
+
+    expect(numbers(controller.newItems), [11, 10, 20, 21]);
+    expect(controller.isHandled(a2ui(11)), isFalse);
+  });
+
   test('refresh does not take the triager own changes for others', () async {
     await controller.start();
     controller.draftFor(

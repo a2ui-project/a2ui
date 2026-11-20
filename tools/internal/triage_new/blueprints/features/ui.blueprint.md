@@ -21,7 +21,7 @@ The triager can drag the divider between the items and the details to resize the
 1. The hamburger menu, with **Create report**.
 2. **Refresh**, which loads the items from GitHub again.
 3. **Hide triaged**, which takes the triaged items out of the list. See [Hide the triaged items](#hide-the-triaged-items).
-4. How many items of the queue the triager has not handled yet, out of all of them, as in "40/45". A handled item is one whose suggestion the triager applied, including the items sent to the team.
+4. How many items of the queue the triager has not handled yet, out of all of them, as in "40/45". A handled item is one whose suggestion the triager applied, including the items sent to the team, one that the triager [removed from the list](#details), and one that the **Refresh** of its tab found no longer belongs to its group.
 
 ### Items
 
@@ -44,7 +44,7 @@ An item's flags show:
 1. Whether its suggestion is [outdated](triage_bot/suggestion.blueprint.md#current-and-outdated-suggestions), or it has none. A suggestion comment that does not parse counts as no suggestion. Most items have a current suggestion, so a current one has no flag.
 2. Its linked PRs, for an issue, and its linked issues, for a PR.
 3. `status: needs-team-input`, except in the **Needs team input** group.
-4. Whether the triager has applied its suggestion in this session. An item whose applied suggestion adds `status: needs-team-input` shows a team icon instead, in both of its groups. While **Apply** is applying the item, a spinner shows in that place, and if some of its changes failed, an error icon.
+4. Whether the triager has applied its suggestion in this session. An item whose applied suggestion adds `status: needs-team-input` shows a team icon instead, in both of its groups. An item that the **Refresh** of its tab found no longer belongs to a group that lists it, such as an item that someone triaged on GitHub, shows the same check icon as an applied item. While **Apply** is applying the item, a spinner shows in that place, and if some of its changes failed, an error icon.
 
 A click on an item selects it alone. A click with Shift held adds the item to the selection, or takes it out if it is selected, so that the triager can [apply several suggestions at once](#apply-several-suggestions-at-once). Shift-click selects the item in the group it is clicked in, as a plain click does, and does not select text in the list.
 
@@ -61,9 +61,11 @@ Tabs at the top: one for the selected item, and one for each linked PR or issue,
 
 To the left of the tabs, **Locate in the list** expands the selected item's group and subgroup in the list, and scrolls to the item, as when the tool selects an item itself.
 
-To the right of the tabs, **Refresh** loads the items in the tabs from GitHub again, as the **Refresh** in the header does for all items, so the triager sees comments and changes made since the items loaded. If an item changed on GitHub, its suggestion resets, as after a refresh in the header. The items stay in their groups until the next **Refresh** in the header.
+To the right of the tabs, **Refresh** loads the items in the tabs from GitHub again, as the **Refresh** in the header does for all items, so the triager sees comments and changes made since the items loaded. If an item changed on GitHub, its suggestion resets, as after a refresh in the header. The items stay in their groups until the next **Refresh** in the header. A listed item that no longer belongs to a group that lists it, for example because someone triaged it on GitHub or closed it, shows the check icon in the list, as an applied item does, and counts as handled.
 
 To the right of **Refresh**, **Copy context** copies what the tool knows about the items in the tabs, the selected item first, as Markdown that the triager pastes at the start of a prompt to an agent. For each item, it has the item's URL, state, author, dates, labels, assignees, milestone and linked items, its description, its last 100 comments without the triage bot's suggestion comments, the triage bot's suggestion, and the changes that **Apply** would make, including the triager's edits.
+
+To the right of **Copy context**, **Remove from the list**, with an X icon, takes the selected item out of every group of the list, without changing it on GitHub, and selects the next item that the triager has not handled yet, as after **Apply**. The item counts as handled. It comes back at the next **Refresh** in the header if it is still in the queue.
 
 Each tab shows its item in two columns, on the page background, without a card frame:
 
@@ -177,7 +179,7 @@ While Ann works, a new issue arrives, and a team member triages another item on 
 
 ### Hide the triaged items
 
-Ann has applied suggestions to a dozen items, and the list is long. Ann clicks **Hide triaged** in the header. Each group drops the items that Ann applied a suggestion to and that no longer belong to it as they are now. An issue that Ann sent to the team leaves **Needs triage** and stays in **Needs team input**. An item whose apply failed stays, so that Ann can try again. The next refresh sets the groups again. **Hide triaged** is disabled when no item would leave the list.
+Ann has applied suggestions to a dozen items, and the list is long. Ann clicks **Hide triaged** in the header. Each group drops the items that Ann handled and that no longer belong to it as they are now. An issue that Ann sent to the team leaves **Needs triage** and stays in **Needs team input**. An item whose apply failed stays, so that Ann can try again. The next refresh sets the groups again. **Hide triaged** is disabled when no item would leave the list.
 
 ### Create a report
 

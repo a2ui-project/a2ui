@@ -81,8 +81,18 @@ class TriageController extends ChangeNotifier {
   /// Items opened by URL that are not in the queue.
   List<TriageItem> _opened = const [];
 
-  /// The items that [hideTriaged] took out of each group, until a refresh.
+  /// The items that [hideTriaged] and [removeFromList] took out of each
+  /// group, until a refresh.
   Set<(ItemGroup, ItemRef)> _hidden = const {};
+
+  /// The listed items that [refreshItems] found no longer belong to a group
+  /// that lists them, such as items that someone triaged on GitHub, until a
+  /// refresh.
+  Set<ItemRef> _leftOnGitHub = const {};
+
+  /// The items that the triager took out of the list with [removeFromList],
+  /// until a refresh.
+  Set<ItemRef> _removed = const {};
 
   /// The repositories whose items the UI triages.
   static const List<String> repositories = [a2uiRepository, genuiRepository];
@@ -170,7 +180,7 @@ class TriageController extends ChangeNotifier {
   /// group that they no longer belong to as they are now.
   List<(ItemGroup, TriageItem)> get _triaged => [
     for (final (ItemGroup g, TriageItem i) in _listed)
-      if (session.isHandled(i.ref) && !_belongsTo(g, i)) (g, i),
+      if (isHandled(i.ref) && !_belongsTo(g, i)) (g, i),
   ];
 
   /// Whether [hideTriaged] has items to hide.
@@ -214,8 +224,44 @@ class TriageController extends ChangeNotifier {
   /// **Needs team input** when they loaded.
   int get queueLength => _queue.length;
 
-  /// How many items in the queue the triager did not apply a suggestion to.
-  int get remaining => _queue.where((i) => !session.isHandled(i.ref)).length;
+  /// How many items in the queue are not [isHandled].
+  int get remaining => _queue.where((i) => !isHandled(i.ref)).length;
+
+  /// Whether the triager is done with [item]: applied a suggestion to it,
+  /// sent it to the team or removed it from the list, or a refresh of its
+  /// tab found that it [leftOnGitHub].
+  bool isHandled(ItemRef item) =>
+      session.isHandled(item) ||
+      _leftOnGitHub.contains(item) ||
+      _removed.contains(item);
+
+  /// Whether [refreshItems] found that [item] no longer belongs to a group
+  /// that lists it, such as when someone triaged it on GitHub.
+  bool leftOnGitHub(ItemRef item) => _leftOnGitHub.contains(item);
+
+  /// Takes [item] out of every group of the list, without changing it on
+  /// GitHub, until a refresh. If it is selected, selects the next item that
+  /// is not handled yet, as after an apply, or nothing if there is none.
+  void removeFromList(TriageItem item) {
+    final List<(ItemGroup, TriageItem)> order = _listed;
+    _removed = {..._removed, item.ref};
+    if (_selected == item.ref) {
+      _selectNextAfterGroup([item], selectedGroup, order);
+      if (_selected == item.ref) {
+        _selected = null;
+        _selectedGroup = null;
+      }
+    }
+    _hidden = {
+      ..._hidden,
+      for (final ItemGroup g in ItemGroup.values) (g, item.ref),
+    };
+    _setMultiSelection([
+      for (final e in _multiSelection)
+        if (e.$1 != item.ref) e,
+    ]);
+    notifyListeners();
+  }
 
   TriageItem? get selected => _selected == null ? null : item(_selected!);
 
@@ -457,7 +503,8 @@ class TriageController extends ChangeNotifier {
   /// for all the items.
   ///
   /// The items stay in their groups and places in the list until the next
-  /// [refresh].
+  /// [refresh]. A listed item that no longer belongs to a group that lists
+  /// it is [leftOnGitHub], and counts as handled.
   Future<void> refreshItems(List<TriageItem> items) => _load(() async {
     final TriageService service = _service!;
     final List<TriageItem?> fresh = await Future.wait([
@@ -469,6 +516,14 @@ class TriageController extends ChangeNotifier {
       _changedOnGitHub.remove(i.ref);
       _resetIfChanged(items[k], i);
       _replace(i);
+      final bool left = ItemGroup.values.any(
+        (g) => itemsIn(g).any((e) => e.ref == i.ref) && !_belongsTo(g, i),
+      );
+      _leftOnGitHub = {
+        for (final ItemRef r in _leftOnGitHub)
+          if (r != i.ref) r,
+        if (left) i.ref,
+      };
     }
   });
 
@@ -658,6 +713,8 @@ class TriageController extends ChangeNotifier {
     };
     _teamInput = _loadedTeamInput;
     _hidden = const {};
+    _leftOnGitHub = const {};
+    _removed = const {};
     _listedUpdatedAt = {for (final i in queue) i.ref: i.updatedAt};
   }
 
@@ -681,7 +738,7 @@ class TriageController extends ChangeNotifier {
       ...order.take(index),
     ];
     for (final (ItemGroup g, TriageItem i) in candidates) {
-      if (!session.isHandled(i.ref) && !isApplying(i.ref)) {
+      if (!isHandled(i.ref) && !isApplying(i.ref)) {
         _selected = i.ref;
         _selectedGroup = g;
         _revealCount++;

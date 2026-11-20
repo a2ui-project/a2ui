@@ -186,9 +186,7 @@ class _ItemListState extends State<ItemList> {
 /// How many of [items] the triager has not handled yet, out of all of
 /// them, as in "40/45".
 String _progress(TriageController controller, List<TriageItem> items) {
-  final int remaining = items
-      .where((i) => !controller.session.isHandled(i.ref))
-      .length;
+  final int remaining = items.where((i) => !controller.isHandled(i.ref)).length;
   return '$remaining/${items.length}';
 }
 
@@ -350,6 +348,15 @@ class _ItemTile extends StatelessWidget {
               Icons.groups,
               color: theme.colorScheme.primary,
               semanticLabel: 'Sent to the team',
+            )
+          : controller.leftOnGitHub(item.ref)
+          ? Tooltip(
+              message: 'The item no longer belongs to this group on GitHub.',
+              child: Icon(
+                Icons.check_circle,
+                color: theme.colorScheme.primary,
+                semanticLabel: 'Left the group on GitHub',
+              ),
             )
           : null,
       onTap: () {

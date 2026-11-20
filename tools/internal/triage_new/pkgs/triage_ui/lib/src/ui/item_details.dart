@@ -32,9 +32,10 @@ import 'triage_scope.dart';
 
 /// The selected item and the items linked to it, each in a tab of its own.
 /// To the left of the tabs, **Locate in the list** shows the selected item
-/// in the list, and to their right, **Refresh** loads the items from GitHub
-/// again, and **Copy context** copies what the tool knows about the items,
-/// for a prompt to an agent.
+/// in the list. To their right, **Refresh** loads the items from GitHub
+/// again, **Copy context** copies what the tool knows about the items, for a
+/// prompt to an agent, and **Remove from the list** takes the selected item
+/// out of the list.
 class ItemDetails extends StatefulWidget {
   const ItemDetails({super.key});
 
@@ -110,6 +111,13 @@ class _ItemDetailsState extends State<ItemDetails> {
                         children: [
                           _RefreshItemsButton(items),
                           _CopyContextButton(items),
+                          IconButton(
+                            tooltip:
+                                'Remove the item from the list, without '
+                                'changing it on GitHub',
+                            onPressed: () => controller.removeFromList(item),
+                            icon: const Icon(Icons.close),
+                          ),
                         ],
                       ),
                     ),
