@@ -42,8 +42,9 @@ export const greetingCatalog = new Catalog(
  * on the root element, and its `</script>` string checks that the inline script is escaped.
  */
 export const FIXTURE_RUNTIME_MODULE = `
-export function startEmbedApp({catalogs, root}) {
+export function startEmbedApp({catalogs, root, markdown}) {
   root.dataset.catalogs = catalogs.map(catalog => catalog.id).join(' ');
+  root.dataset.markdown = typeof markdown;
   root.dataset.marker = '</script><!-- end -->';
   root.dataset.started = 'true';
 }

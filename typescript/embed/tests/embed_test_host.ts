@@ -35,30 +35,39 @@ import type {CallToolRequest, CallToolResult} from '@modelcontextprotocol/sdk/ty
 export const DEFAULT_MCP_APPS_CSP =
   "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:";
 
-const APP_SCRIPT_URL = '/a2ui-fixtures/embed_app.js';
+/** The test apps, bundled from `tests/fixtures/<name>.ts`. */
+export type TestAppName = 'embed_app' | 'embed_app_plain';
 
-let appScript: Promise<string> | undefined;
+const appScripts = new Map<TestAppName, Promise<string>>();
 
-function loadAppScript(): Promise<string> {
-  appScript ??= fetch(APP_SCRIPT_URL).then(response => {
-    if (!response.ok) {
-      throw new Error(`The test app is not served at ${APP_SCRIPT_URL}; run build:test-fixtures.`);
-    }
-    return response.text();
-  });
-  return appScript;
+function loadAppScript(name: TestAppName): Promise<string> {
+  let script = appScripts.get(name);
+  if (!script) {
+    const url = `/a2ui-fixtures/${name}.js`;
+    script = fetch(url).then(response => {
+      if (!response.ok) {
+        throw new Error(`The test app is not served at ${url}; run build:test-fixtures.`);
+      }
+      return response.text();
+    });
+    appScripts.set(name, script);
+  }
+  return script;
 }
 
 /** Options of {@link EmbedTestHost.start}. */
 export interface EmbedTestHostOptions {
   capabilities?: McpUiHostCapabilities;
   hostContext?: McpUiHostContext;
+  /** The test app to load. Optional (default: `'embed_app'`, with the markdown renderer). */
+  app?: TestAppName;
 }
 
 export const DEFAULT_CAPABILITIES: McpUiHostCapabilities = {
   serverTools: {},
   message: {text: {}},
   updateModelContext: {text: {}},
+  openLinks: {},
 };
 
 /** A test host with one app iframe. */
@@ -67,6 +76,7 @@ export class EmbedTestHost {
   readonly messages: McpUiMessageRequest['params'][] = [];
   readonly sizes: McpUiSizeChangedNotification['params'][] = [];
   readonly modelContexts: McpUiUpdateModelContextRequest['params'][] = [];
+  readonly openedLinks: string[] = [];
   /** Answers the app's `tools/call` requests. Defaults to an error result. */
   onToolCall: (params: CallToolRequest['params']) => Promise<CallToolResult> = async () => ({
     content: [{type: 'text', text: 'No tool handler.'}],
@@ -80,7 +90,7 @@ export class EmbedTestHost {
 
   /** Loads the test app and waits for its handshake. */
   static async start(options: EmbedTestHostOptions = {}): Promise<EmbedTestHost> {
-    const script = await loadAppScript();
+    const script = await loadAppScript(options.app ?? 'embed_app');
     const iframe = document.createElement('iframe');
     iframe.style.width = '600px';
     iframe.srcdoc = [
@@ -118,6 +128,10 @@ export class EmbedTestHost {
     };
     bridge.onupdatemodelcontext = async params => {
       host.modelContexts.push(params);
+      return {};
+    };
+    bridge.onopenlink = async ({url}) => {
+      host.openedLinks.push(url);
       return {};
     };
     bridge.onsizechange = params => {

@@ -17,7 +17,13 @@
 import type {McpUiHostStyles, McpUiStyles} from '@modelcontextprotocol/ext-apps/app-bridge';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 import {ACTION_TOOL_NAME, CONTRACT_VERSION} from '../src/contract/index.js';
-import {deepQuery, deepText, EmbedTestHost, waitFor} from './embed_test_host.js';
+import {
+  deepQuery,
+  deepText,
+  EmbedTestHost,
+  waitFor,
+  type EmbedTestHostOptions,
+} from './embed_test_host.js';
 
 const CATALOG_ID = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
 const SURFACE_ID = 'report';
@@ -629,5 +635,130 @@ describe('startEmbedApp model context', () => {
 
     await waitFor(() => host.modelContexts.length === 2, 'the context without the deleted surface');
     expect(contextText(1)).toBe('A2UI surface "shipping" data model:\n{"name":"Ada"}');
+  });
+});
+
+describe('startEmbedApp markdown', () => {
+  let host: EmbedTestHost;
+
+  afterEach(async () => {
+    expect(host.cspViolations).withContext('CSP violations').toEqual([]);
+    await host.dispose();
+  });
+
+  /** Starts the app and spies on the warnings it logs. */
+  async function start(options: EmbedTestHostOptions = {}): Promise<jasmine.Spy> {
+    host = await EmbedTestHost.start(options);
+    return spyOn(
+      (host.iframe.contentWindow as Window & typeof globalThis).console,
+      'warn',
+    ).and.callThrough();
+  }
+
+  async function renderText(text: string) {
+    await host.sendPayload(
+      payload([
+        {version: '1.0', createSurface: {surfaceId: SURFACE_ID, catalogId: CATALOG_ID}},
+        {
+          version: '1.0',
+          updateComponents: {
+            surfaceId: SURFACE_ID,
+            components: [
+              {id: 'root', component: 'Column', children: ['body']},
+              {id: 'body', component: 'Text', text},
+            ],
+          },
+        },
+      ]),
+    );
+  }
+
+  /** The rendered body Text, once its content no longer is the plain placeholder. */
+  function renderedText(): Promise<HTMLElement> {
+    return waitFor(() => {
+      const text = deepQuery(host.document, '.a2ui-text-body');
+      return text && !text.querySelector('.no-markdown-renderer') ? text : null;
+    }, 'the rendered text');
+  }
+
+  function markdownWarnings(warn: jasmine.Spy): unknown[][] {
+    return warn.calls.allArgs().filter(args => String(args[0]).includes('MarkdownDirective'));
+  }
+
+  it('renders headings, lists, code and links without a warning', async () => {
+    const warn = await start();
+    await renderText(
+      '## Steps\n\n- Open the **issue**\n- Run `yarn test`\n\n[Docs](https://a2ui.org/docs)',
+    );
+
+    const text = await renderedText();
+
+    expect(text.querySelector('h2')?.textContent).toBe('Steps');
+    expect(Array.from(text.querySelectorAll('li'), item => item.textContent)).toEqual([
+      'Open the issue',
+      'Run yarn test',
+    ]);
+    expect(text.querySelector('strong')?.textContent).toBe('issue');
+    expect(text.querySelector('code')?.textContent).toBe('yarn test');
+    expect(text.querySelector('a')?.getAttribute('href')).toBe('https://a2ui.org/docs');
+    expect(markdownWarnings(warn)).toEqual([]);
+  });
+
+  it('escapes raw HTML and drops script links', async () => {
+    await start();
+    await renderText(
+      '<img src=x onerror="window.injected = true"><b>bold</b> [run](javascript:alert(1))',
+    );
+
+    const text = await renderedText();
+
+    expect(text.querySelector('img, b, script')).toBeNull();
+    expect(text.querySelector('a')).toBeNull();
+    expect(text.textContent).toContain('<b>bold</b>');
+    expect(text.textContent).toContain('[run](javascript:alert(1))');
+    expect((host.iframe.contentWindow as unknown as {injected?: boolean}).injected).toBeUndefined();
+  });
+
+  it('opens links through the host instead of navigating the app', async () => {
+    await start();
+    await renderText('See [the issue](https://github.com/a2ui-project/a2ui/issues/1).');
+    const link = await waitFor(
+      () => deepQuery(host.document, '.a2ui-text-body a') as HTMLAnchorElement | null,
+      'the link',
+    );
+
+    link.click();
+
+    await waitFor(() => host.openedLinks.length === 1, 'the open-link request');
+    expect(host.openedLinks).toEqual(['https://github.com/a2ui-project/a2ui/issues/1']);
+    expect(host.iframe.contentWindow!.location.href).toBe('about:srcdoc');
+    expect(host.document.querySelector('a2ui-surface')).not.toBeNull();
+  });
+
+  it('shows a notice when the host does not open links', async () => {
+    await start({capabilities: {serverTools: {}}});
+    await renderText('[Docs](https://a2ui.org/docs)');
+    const link = await waitFor(() => deepQuery(host.document, '.a2ui-text-body a'), 'the link');
+
+    link.click();
+
+    const notice = await waitFor(
+      () => host.document.querySelector('.a2ui-embed__notice'),
+      'the notice',
+    );
+    expect(notice.textContent).toContain('https://a2ui.org/docs');
+    expect(host.openedLinks).toEqual([]);
+    expect(host.iframe.contentWindow!.location.href).toBe('about:srcdoc');
+  });
+
+  it('shows the text as typed without a markdown renderer, and logs no warning', async () => {
+    const warn = await start({app: 'embed_app_plain'});
+    await renderText('## Steps <b>now</b>');
+
+    const text = await renderedText();
+
+    expect(text.textContent?.trim()).toBe('## Steps <b>now</b>');
+    expect(text.querySelector('h2, b')).toBeNull();
+    expect(markdownWarnings(warn)).toEqual([]);
   });
 });

@@ -20,11 +20,14 @@ import {App, type McpUiHostContext} from '@modelcontextprotocol/ext-apps';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 import type {LitComponentApi} from '@a2ui/lit';
 import type {ActionPayload, Catalog} from '@a2ui/web_core/v1_0';
+import type {MarkdownRenderer} from '@a2ui/web_core/catalogs/basic/v1';
 import {ACTION_TOOL_NAME, type ActionCall} from '../contract/action_call.js';
 import {readEmbedPayload} from '../contract/embed_payload.js';
 import {MAX_IN_FLIGHT_CALLS, TaskQueue} from './action_queue.js';
 import {keepDialogsVisible} from './dialog_height.js';
 import {EmbedView} from './embed_view.js';
+import {clickedLink, isOpenableUrl} from './links.js';
+import {plainTextRenderer, provideMarkdownRenderer} from './markdown.js';
 import {DEFAULT_MODEL_CONTEXT_MAX_BYTES, ModelContextSync} from './model_context.js';
 import {SurfaceSession} from './surface_session.js';
 import {applyHostContext, injectEmbedStyles} from './theme.js';
@@ -39,6 +42,11 @@ export interface StartEmbedAppOptions {
   root?: HTMLElement; // Optional (default: document.body)
   /** How the app shares the data models of `sendDataModel` surfaces with the model. */
   modelContext?: ModelContextOptions; // Optional (default: {maxBytes: 16384})
+  /**
+   * Renders the markdown of the basic catalog's body Text, such as `renderMarkdown` from
+   * `@a2ui/markdown-it`. The renderer must sanitize the HTML it returns.
+   */
+  markdown?: MarkdownRenderer; // Optional (default: none, the text shows as typed)
 }
 
 /** Options of the model context updates, see {@link StartEmbedAppOptions.modelContext}. */
@@ -69,18 +77,21 @@ const DEFAULT_APP_INFO = {name: 'a2ui-embed', version: '1.0.0'};
  * `structuredContent.a2ui` of each tool result with the given catalogs. A2UI actions call the
  * server's `a2ui_action` tool; its messages update the surfaces in place, and its follow-up text
  * is posted to the conversation when the host supports `ui/message`. Invalid payloads show an
- * error card instead of the surfaces; a text-only result shows nothing.
+ * error card instead of the surfaces; a text-only result shows nothing. Links open through the
+ * host's `ui/open-link`, never in the app's frame.
  */
 export function startEmbedApp({
   catalogs,
   appInfo = DEFAULT_APP_INFO,
   root = document.body,
   modelContext: {maxBytes = DEFAULT_MODEL_CONTEXT_MAX_BYTES} = {},
+  markdown = plainTextRenderer,
 }: StartEmbedAppOptions): EmbedAppHandle {
   void ZOD_JITLESS;
   injectEmbedStyles(root.ownerDocument);
   const view = new EmbedView(root);
   const stopKeepingDialogsVisible = keepDialogsVisible(root);
+  provideMarkdownRenderer(view.element, markdown);
   const app = new App(appInfo, {}, {autoResize: true});
   const actions = new TaskQueue(MAX_IN_FLIGHT_CALLS, busy => view.setBusy(busy));
   let session: SurfaceSession | undefined;
@@ -197,6 +208,27 @@ export function startEmbedApp({
       }
     }
   };
+
+  const openLink = async (url: string) => {
+    if (!app.getHostCapabilities()?.openLinks) {
+      view.setNotice(`The host does not open links. The link is ${url}`);
+      return;
+    }
+    try {
+      // The host may decline, for example when the user cancels; that needs no notice.
+      await app.openLink({url});
+    } catch (error) {
+      view.setNotice(`The link could not be opened: ${errorText(error)}`);
+    }
+  };
+
+  // Following a link would navigate the app's frame away; the host opens it instead.
+  view.element.addEventListener('click', event => {
+    const link = event.defaultPrevented ? undefined : clickedLink(event);
+    if (!link) return;
+    event.preventDefault();
+    if (isOpenableUrl(link.href)) void openLink(link.href);
+  });
 
   // Handlers go in before connect(), so no notification sent right after the handshake is lost.
   app.ontoolinput = () => {
