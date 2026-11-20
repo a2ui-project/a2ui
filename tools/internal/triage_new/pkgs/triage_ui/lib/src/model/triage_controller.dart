@@ -438,19 +438,7 @@ class TriageController extends ChangeNotifier {
     };
     _changedOnGitHub.clear();
     for (final i in [...queue, ...opened]) {
-      final TriageItem? before = old[i.ref];
-      if (before != null && before.updatedAt != i.updatedAt) {
-        _changedOnGitHub.add(i.ref);
-        _drafts.remove(i.ref)?.dispose();
-        _results.remove(i.ref);
-        _log(
-          i.ref,
-          LogEntry(
-            'A refresh found that the item changed on GitHub, and reset '
-            'its suggestion to the current state',
-          ),
-        );
-      }
+      if (old[i.ref] case final TriageItem before) _resetIfChanged(before, i);
     }
     _setQueue(queue);
     _opened = opened;
@@ -463,6 +451,43 @@ class TriageController extends ChangeNotifier {
     _linked.clear();
     _linkedFetches.clear();
   });
+
+  /// Loads [items] again, such as the items in the details' tabs, and
+  /// resets the drafts of the ones that changed on GitHub, as [refresh] does
+  /// for all the items.
+  ///
+  /// The items stay in their groups and places in the list until the next
+  /// [refresh].
+  Future<void> refreshItems(List<TriageItem> items) => _load(() async {
+    final TriageService service = _service!;
+    final List<TriageItem?> fresh = await Future.wait([
+      for (final i in items) service.fetchItem(i.ref),
+    ]);
+    for (var k = 0; k < items.length; k++) {
+      final TriageItem? i = fresh[k];
+      if (i == null) continue;
+      _changedOnGitHub.remove(i.ref);
+      _resetIfChanged(items[k], i);
+      _replace(i);
+    }
+  });
+
+  /// If [fresh] was updated on GitHub since [before] loaded, resets its
+  /// draft and last apply result, and logs that.
+  void _resetIfChanged(TriageItem before, TriageItem fresh) {
+    if (before.updatedAt == fresh.updatedAt) return;
+    final ItemRef n = fresh.ref;
+    _changedOnGitHub.add(n);
+    _drafts.remove(n)?.dispose();
+    _results.remove(n);
+    _log(
+      n,
+      LogEntry(
+        'A refresh found that the item changed on GitHub, and reset '
+        'its suggestion to the current state',
+      ),
+    );
+  }
 
   /// Selects [item], loading it first if it is not loaded.
   Future<void> open(GitHubItem item) async {

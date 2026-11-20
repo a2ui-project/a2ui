@@ -32,8 +32,9 @@ import 'triage_scope.dart';
 
 /// The selected item and the items linked to it, each in a tab of its own.
 /// To the left of the tabs, **Locate in the list** shows the selected item
-/// in the list, and to their right, **Copy context** copies what the tool
-/// knows about the items, for a prompt to an agent.
+/// in the list, and to their right, **Refresh** loads the items from GitHub
+/// again, and **Copy context** copies what the tool knows about the items,
+/// for a prompt to an agent.
 class ItemDetails extends StatefulWidget {
   const ItemDetails({super.key});
 
@@ -104,7 +105,13 @@ class _ItemDetailsState extends State<ItemDetails> {
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: _CopyContextButton(items),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _RefreshItemsButton(items),
+                          _CopyContextButton(items),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -128,6 +135,28 @@ class _ItemDetailsState extends State<ItemDetails> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Loads [items] from GitHub again. Disabled while the items load or one of
+/// [items] is being applied, so that the tool does not take the triager's
+/// own changes for someone else's.
+class _RefreshItemsButton extends StatelessWidget {
+  const _RefreshItemsButton(this.items);
+
+  /// The items in the tabs.
+  final List<TriageItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final TriageController controller = TriageScope.of(context);
+    final bool enabled =
+        !controller.loading && !items.any((i) => controller.isApplying(i.ref));
+    return IconButton(
+      tooltip: 'Refresh the items in the tabs from GitHub',
+      onPressed: enabled ? () => controller.refreshItems(items) : null,
+      icon: const Icon(Icons.refresh),
     );
   }
 }

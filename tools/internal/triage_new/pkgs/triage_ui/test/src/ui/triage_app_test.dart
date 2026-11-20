@@ -1239,6 +1239,24 @@ void main() {
     expect(find.text('Issue #10: Renamed'), findsOneWidget);
     expect(find.textContaining('The item changed on GitHub'), findsOneWidget);
   });
+  testWidgets('Refresh next to the tabs loads the items in the tabs again', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    github
+      ..change(10, (item) => item['title'] = 'Renamed')
+      ..change(20, (item) => item['title'] = 'Also renamed');
+
+    await settle(tester, () async {
+      await tester.tap(find.byTooltip(RegExp('^Refresh the items')));
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    });
+
+    expect(find.text('Issue #10: Renamed'), findsOneWidget);
+    expect(find.textContaining('The item changed on GitHub'), findsOneWidget);
+    expect(controller.item(a2ui(20))!.title, 'Also renamed');
+  });
+
   testWidgets('Hide triaged takes the applied items out of the list', (
     tester,
   ) async {

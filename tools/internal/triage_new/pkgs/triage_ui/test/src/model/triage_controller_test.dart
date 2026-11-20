@@ -423,6 +423,42 @@ void main() {
     );
   });
 
+  test('refreshItems loads the given items again, resets the drafts of the '
+      'changed ones, and keeps the list as it is', () async {
+    await controller.start();
+    final TriageItem item10 = controller.item(a2ui(10))!;
+    final TriageItem item11 = controller.item(a2ui(11))!;
+    controller
+      ..draftFor(item10, const TriageSuggestion(reply: 'A'))
+      ..draftFor(item11, const TriageSuggestion(reply: 'B'));
+    github
+      ..change(10, (item) => item['labels'] = {'nodes': <Object?>[]})
+      ..change(21, (item) => item['title'] = 'Renamed')
+      ..items[50] = itemNode(50, createdAt: day(4));
+
+    await controller.refreshItems([item10, item11]);
+
+    // Item 10 no longer needs triage, but stays in its place until a
+    // refresh, and the new item 50 shows only after one.
+    expect(numbers(controller.newItems), [11, 10, 20, 21]);
+    expect(controller.item(a2ui(10))!.needsTriage, isFalse);
+    expect(controller.changedOnGitHub(a2ui(10)), isTrue);
+    expect(controller.changedOnGitHub(a2ui(11)), isFalse);
+    expect(controller.logOf(a2ui(10)).single.title, contains('changed on'));
+    const empty = TriageSuggestion();
+    expect(
+      controller.draftFor(controller.item(a2ui(10))!, empty).reply.text,
+      '',
+    );
+    expect(
+      controller.draftFor(controller.item(a2ui(11))!, empty).reply.text,
+      'B',
+    );
+    // Not one of the given items.
+    expect(controller.item(a2ui(21))!.title, isNot('Renamed'));
+    expect(controller.changedOnGitHub(a2ui(21)), isFalse);
+  });
+
   test('refresh does not take the triager own changes for others', () async {
     await controller.start();
     controller.draftFor(
