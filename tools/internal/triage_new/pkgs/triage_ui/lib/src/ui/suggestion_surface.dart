@@ -40,6 +40,7 @@ final CatalogImplementation triageCatalogImplementation = CatalogImplementation(
 );
 
 const List<String> _properties = [
+  TriageSuggestionProps.tldr,
   TriageSuggestionProps.summary,
   TriageSuggestionProps.reason,
   TriageSuggestionProps.suggestion,

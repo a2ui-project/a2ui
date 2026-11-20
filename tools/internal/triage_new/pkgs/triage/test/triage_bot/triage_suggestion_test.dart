@@ -43,6 +43,7 @@ void main() {
     expect(
       () => validator.validateComponent(
         suggestion({
+          'tldr': 'Case: duplicate request.\nSuggestion: close as duplicate.',
           'reason': 'Priority is not set.',
           'reply': 'Thanks for the report. This duplicates #7.',
           'close_as': 'duplicate',
@@ -92,7 +93,7 @@ void main() {
     );
   });
 
-  for (final property in ['reason', 'reply']) {
+  for (final property in ['tldr', 'reason', 'reply']) {
     test('rejects an empty $property', () {
       expect(
         () => validator.validateComponent(suggestion({property: ''})),

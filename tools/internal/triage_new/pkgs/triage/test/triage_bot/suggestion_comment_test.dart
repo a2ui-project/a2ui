@@ -47,6 +47,8 @@ void main() {
     final payload = SuggestionPayload.parse(
       comment('''
 root = TriageSuggestion(
+  tldr="""Case: duplicate request.
+Suggestion: close as a duplicate.""",
   summary="""The Flutter renderer crashes on an empty `Row`.""",
   reason="Priority is not set.",
   suggestion="""Close as a duplicate of #1100.""",
@@ -63,6 +65,10 @@ root = TriageSuggestion(
     );
 
     final TriageSuggestion s = payload.suggestion;
+    expect(
+      s.tldr,
+      'Case: duplicate request.\nSuggestion: close as a duplicate.',
+    );
     expect(s.summary, 'The Flutter renderer crashes on an empty `Row`.');
     expect(s.reason, 'Priority is not set.');
     expect(s.suggestion, 'Close as a duplicate of #1100.');

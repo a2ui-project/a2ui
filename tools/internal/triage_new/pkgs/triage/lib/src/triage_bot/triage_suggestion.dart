@@ -31,6 +31,12 @@ final ComponentApi triageSuggestionApi = ComponentApi(
       'component': Schema.string(
         constValue: TriageSuggestionProps.componentName,
       ),
+      TriageSuggestionProps.tldr: Schema.string(
+        description:
+            'The case and the suggestion in a few words each, as two lines: '
+            '"Case: ..." and "Suggestion: ...".',
+        minLength: 1,
+      ),
       TriageSuggestionProps.summary: Schema.string(
         description: 'What the item is about, in plain English.',
         minLength: 1,
@@ -108,6 +114,7 @@ final Catalog<ComponentApi, FunctionApi> triageCatalog =
 abstract final class TriageSuggestionProps {
   static const String componentName = 'TriageSuggestion';
 
+  static const String tldr = 'tldr';
   static const String summary = 'summary';
   static const String reason = 'reason';
   static const String suggestion = 'suggestion';

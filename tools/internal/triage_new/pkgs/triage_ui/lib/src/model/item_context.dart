@@ -124,6 +124,7 @@ void _writeItem(StringBuffer out, TriageController controller, TriageItem i) {
     case SuggestionStatus.current || SuggestionStatus.outdated:
       out.writeln('- Comment: ${i.suggestionUrl}');
       for (final (String title, String? text) in [
+        ('TL;DR', draft.tldr),
         ('Summary', draft.summary),
         ('Why flagged for triage', draft.reason),
         ('Suggestion', draft.suggestion),

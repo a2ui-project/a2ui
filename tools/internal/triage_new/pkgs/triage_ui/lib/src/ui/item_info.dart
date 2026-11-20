@@ -24,8 +24,9 @@ import 'links.dart';
 import 'triage_scope.dart';
 
 /// What the triager should know about [item]: its title, age, author,
-/// labels and assignees, notices about its state, the triage bot's summary,
-/// reason and suggestion, the comment for the team, and the related items.
+/// labels and assignees, notices about its state, the triage bot's TL;DR,
+/// summary, reason and suggestion, the comment for the team, and the related
+/// items.
 ///
 /// The details show it in their left column, next to the editable
 /// suggestion.
@@ -103,6 +104,7 @@ class ItemInfo extends StatelessWidget {
             url: suggestionUrl,
             linkText: 'Open the comment',
           ),
+        if (draft.tldr case final String tldr) _Text('TL;DR', tldr),
         if (draft.summary case final String summary) _Text('Summary', summary),
         if (draft.reason case final String reason)
           _Text('Why flagged for triage', reason),
@@ -199,6 +201,8 @@ class _Text extends StatelessWidget {
         ),
         MarkdownBody(
           data: text,
+          // As GitHub shows a comment: a line break starts a new line.
+          softLineBreak: true,
           onTapLink: (String text, String? href, String title) {
             if (href != null) openUrl(href);
           },

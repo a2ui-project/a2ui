@@ -78,8 +78,8 @@ tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issu
 ```
 <a2ui>
 root = TriageSuggestion(
-  tldr_case="issue highlights a problem.",
-  tldr_suggestion="assign for triage to an expert.",
+  tldr="""Case: this issue highlights a problem.
+Suggestion: set P1 and assign for triage to an expert.""",
   summary="""The issue highlights the problem: Flutter renderer throws an exception when a `Row` has an empty `children` list. [Per blueprint](the_blueprint.md), it should not.""",
   reason="This issue has external input but no priority label yet.",
   suggestion="""Set P1 and assign for triage to `octocat`, who made [most of the recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.""",
@@ -98,7 +98,7 @@ The parts of the comment, in order:
 
 1. The triage bot prefix, and the line "Triage suggestion:".
 2. The **For humans** section, collapsed:
-   1. The `tldr_case` and the `tldr_suggestion`, as the lines **Case** and **Suggestion** under **TL;DR**. A line is left out when its property has no value, and **TL;DR** is left out when both have none.
+   1. The `tldr`, under **TL;DR**. The part is left out when there is no TL;DR.
    2. The `summary`, the `reason` and the `suggestion`, as paragraphs under **Summary**, **Why flagged for triage** and **Suggestion**. The **Why flagged for triage** paragraph is left out when there is no reason.
    3. The other properties that have values, as a numbered list: **Close as**, **Add labels**, **Remove labels**, **Assign**, **Unassign**, **Related issues** and **Related PRs**. An example of **Close as** is "Close as: duplicate of #1100".
    4. The `reply`, quoted, under **Reply**. The part is left out when there is no reply.
@@ -122,7 +122,7 @@ An item can have several suggestion comments. When the suggestion is outdated, t
 
 The component is defined in [triage_suggestion.dart](../../../pkgs/triage/lib/src/triage_bot/triage_suggestion.dart). Its properties:
 
-1. `tldr_case` and `tldr_suggestion`: what kind of case the item is, and what to do with it, in a few words each, such as "issue highlights a problem." and "assign for triage to an expert." They are the short form of the `summary` and the `suggestion`.
+1. `tldr`: the case and the suggestion in a few words each, as two lines: "Case: ..." and "Suggestion: ...", such as "Case: this issue highlights a problem." and "Suggestion: set P1 and assign for triage to an expert." It is the short form of the `summary` and the `suggestion`.
 2. `summary` (required): what the item is about, in plain English.
 3. `reason`: why the item is flagged for triage, in plain English, such as "This issue has external input but no priority label yet." It is the reason that the [flagger](../../../../triage/blueprints/flagging.blueprint.md) gives for the item, as [flag_reason.mts](../../../../../../.agents/skills/a2ui-triage-bot/scripts/flag_reason.mts) prints it, and is omitted when the flagger does not flag the item.
 4. `suggestion` (required): what the triager should do and why, in plain English.

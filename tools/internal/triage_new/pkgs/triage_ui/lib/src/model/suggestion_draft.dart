@@ -22,6 +22,7 @@ import 'milestone_change.dart';
 class SuggestionDraft extends ChangeNotifier {
   SuggestionDraft(TriageSuggestion suggestion)
     : _initial = suggestion,
+      tldr = suggestion.tldr,
       summary = suggestion.summary,
       reason = suggestion.reason,
       suggestion = suggestion.suggestion,
@@ -42,6 +43,9 @@ class SuggestionDraft extends ChangeNotifier {
 
   /// The suggestion that the draft started from.
   final TriageSuggestion _initial;
+
+  /// The triage bot's TL;DR, which the triager reads but does not apply.
+  final String? tldr;
 
   /// The triage bot's summary, which the triager reads but does not apply.
   final String? summary;
@@ -164,6 +168,7 @@ class SuggestionDraft extends ChangeNotifier {
   TriageSuggestion toSuggestion() {
     final String text = reply.text.trim();
     return TriageSuggestion(
+      tldr: tldr,
       summary: summary,
       reason: reason,
       suggestion: suggestion,

@@ -19,6 +19,7 @@ import 'triage_suggestion.dart';
 /// An empty list means none, as an omitted list does in the component.
 final class TriageSuggestion {
   const TriageSuggestion({
+    this.tldr,
     this.summary,
     this.reason,
     this.suggestion,
@@ -37,6 +38,7 @@ final class TriageSuggestion {
   /// [triageSuggestionApi].
   factory TriageSuggestion.fromProperties(Map<String, Object?> properties) =>
       TriageSuggestion(
+        tldr: properties[TriageSuggestionProps.tldr] as String?,
         summary: properties[TriageSuggestionProps.summary] as String?,
         reason: properties[TriageSuggestionProps.reason] as String?,
         suggestion: properties[TriageSuggestionProps.suggestion] as String?,
@@ -55,6 +57,11 @@ final class TriageSuggestion {
         relatedIssues: _ints(properties[TriageSuggestionProps.relatedIssues]),
         relatedPrs: _ints(properties[TriageSuggestionProps.relatedPrs]),
       );
+
+  /// The case and the suggestion in a few words each, as two lines:
+  /// "Case: ..." and "Suggestion: ...". Null when the triage bot did not
+  /// write it, or for a suggestion that the triager writes from scratch.
+  final String? tldr;
 
   /// What the item is about. Null for a suggestion that the triager writes
   /// from scratch.

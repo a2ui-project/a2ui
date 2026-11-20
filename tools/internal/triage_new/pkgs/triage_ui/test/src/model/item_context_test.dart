@@ -35,7 +35,8 @@ void main() {
         comments: [
           commentNode(
             suggestionComment(
-              'root = TriageSuggestion(summary="A crash.", '
+              'root = TriageSuggestion(tldr="Case: a crash.", '
+              'summary="A crash.", '
               'reason="Priority is not set.", suggestion="Set P1.", '
               'reply="Thanks.", added_labels=["P1"], related_issues=[5])',
             ),
@@ -98,6 +99,7 @@ It also crashes on a Column.
 ## Triage bot suggestion (outdated: the item changed after the triage bot commented)
 
 - Comment: https://github.com/a2ui-project/a2ui/issues/1#issuecomment-1
+- TL;DR: Case: a crash.
 - Summary: A crash.
 - Why flagged for triage: Priority is not set.
 - Suggestion: Set P1.

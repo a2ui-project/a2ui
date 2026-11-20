@@ -49,7 +49,8 @@ void main() {
         comments: [
           commentNode(
             suggestionComment(
-              'root = TriageSuggestion(summary="""A crash on an **empty** '
+              'root = TriageSuggestion(tldr="""Case: a crash.\n'
+              'Suggestion: set P1.""", summary="""A crash on an **empty** '
               'Row.""", reason="Priority is not set.", '
               'suggestion="""Set P1 and assign octocat.""", '
               'reply="""Thanks for the report.""", added_labels=["P1"], '
@@ -154,6 +155,9 @@ void main() {
     expect(inList('issue #10'), findsOneWidget);
 
     // The suggestion, rendered by the TriageSuggestion component.
+    // The TL;DR keeps its line break, as GitHub shows it.
+    expect(find.text('TL;DR'), findsOneWidget);
+    expect(find.text('Case: a crash.\nSuggestion: set P1.'), findsOneWidget);
     // The summary is rendered as Markdown: "empty" is bold.
     expect(find.text('A crash on an empty Row.'), findsOneWidget);
     final bold = <String>[];

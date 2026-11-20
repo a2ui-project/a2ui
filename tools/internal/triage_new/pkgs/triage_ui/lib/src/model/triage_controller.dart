@@ -518,6 +518,7 @@ class TriageController extends ChangeNotifier {
   static TriageSuggestion _removing(TriageSuggestion suggestion, String label) {
     if (suggestion.removedLabels.contains(label)) return suggestion;
     return TriageSuggestion(
+      tldr: suggestion.tldr,
       summary: suggestion.summary,
       reason: suggestion.reason,
       suggestion: suggestion.suggestion,

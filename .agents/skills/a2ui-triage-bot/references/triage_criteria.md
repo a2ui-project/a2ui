@@ -40,19 +40,19 @@ If another issue reports the same problem or asks for the same change, set `clos
 
 ### Feature requests
 
-1. Check the request against the [roadmap](../../../../docs/public/roadmap.md) and the design of the affected area.
+1. Check the request against the [roadmap](../../../../docs/site/src/content/docs/roadmap.mdx) and the design of the affected area.
 2. If it fits, add `type: feature/enhancement` and suggest `P2` or `P3`.
 3. If it does not fit, set `close_as` to `not_planned`, use the [Out of Scope](../../../../docs/contributing/triage/templates.md#out-of-scope--roadmap-conflict) template as the `reply`, and do not suggest a priority.
 
 ### Questions
 
-If the issue asks how to use or set up A2UI rather than reporting a defect, add `question`, draft an answer in `reply` that links to the relevant guide (such as [quickstart.md](../../../../docs/public/quickstart.md)), and set `close_as` to `completed`.
+If the issue asks how to use or set up A2UI rather than reporting a defect, add `question`, draft an answer in `reply` that links to the relevant guide (such as [quickstart.mdx](../../../../docs/site/src/content/docs/quickstart.mdx)), and set `close_as` to `completed`.
 
 ### Standard cases
 
 For the cases in [templates.md](../../../../docs/contributing/triage/templates.md), suggest what the template says, and use its text as the `reply`. These include an assigned issue without a priority (`P2`) and an AI-generated compliance report (close as not planned).
 
-Do not suggest a ping for a stale assigned issue. The [staleness pinger](../../../../tools/internal/triage_new/blueprints/features/staleness_ping.blueprint.md) does that.
+Do not suggest a ping for a stale assigned issue. The [staleness pinger](../../../../tools/internal/triage_new/blueprints/features/triage_bot/staleness_ping.blueprint.md) does that.
 
 ## Pull requests
 

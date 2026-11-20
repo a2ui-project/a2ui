@@ -16,7 +16,7 @@ The triage process is described in [triage.md](../../../../docs/contributing/tri
    2. Started by: a GitHub workflow.
    3. Needs to: listen to item changes, and add and remove labels.
 
-2. The [staleness pinger](features/staleness_ping.blueprint.md) asks the assignees of stale items to act, before the flagger flags those items.
+2. The [staleness pinger](features/triage_bot/staleness_ping.blueprint.md) asks the assignees of stale items to act, before the flagger flags those items.
 
    1. Runs: daily.
    2. Started by: a GitHub workflow.
