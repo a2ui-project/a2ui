@@ -20,16 +20,9 @@ import OrderedJSON
 import Testing
 
 /// Runs the `derive` cases of the shared `conformance/core/catalog.yaml` suite.
-///
-/// A Swift catalog has no `$id`, title, description or instructions, so the runner does not
-/// check `absentKeys`.
 struct CatalogDeriveConformanceTests {
-  /// Cases that check a catalog field the Swift catalog does not have.
-  static let skippedCases: [String: String] = [
-    // `derive` takes no instructions, since a Swift catalog has none.
-    "test_v10_catalog_derive_sets_instructions":
-      "Swift Catalog does not store agent instructions"
-  ]
+  /// Catalog document keys a Swift ``Catalog`` has no property for, so it never carries them.
+  private static let keysWithoutProperty: Set<String> = ["$id", "title", "description"]
 
   private static let knownCaseKeys: Set<String> = [
     "action",
@@ -69,8 +62,7 @@ struct CatalogDeriveConformanceTests {
 
   @Test(arguments: ConformanceTestHelper.cases("core/catalog.yaml", action: "derive"))
   func catalogDeriveConformance(_ conformanceCase: ConformanceCase) throws {
-    let skippedReason = Self.skippedCases[conformanceCase.name]
-    try ConformanceManifest.run(conformanceCase, skippedReason: skippedReason) {
+    try ConformanceManifest.run(conformanceCase) {
       try runDeriveCase(conformanceCase.json, name: conformanceCase.name)
     }
   }
@@ -100,6 +92,7 @@ struct CatalogDeriveConformanceTests {
     let functions = try args?["functions"]?.arrayValue.map { entries in
       try entries.map(functionEntry)
     }
+    let instructions = args?["instructions"]?.stringValue
 
     if let expectError = testCase["expectError"] {
       if let errObj = expectError.objectValue {
@@ -113,7 +106,12 @@ struct CatalogDeriveConformanceTests {
       #expect(expectError["category"]?.stringValue == "CatalogError", "\(name)")
       let message = expectError["message"]?.stringValue ?? ""
       do {
-        _ = try source.derive(id: catalogID, components: components, functions: functions)
+        _ = try source.derive(
+          id: catalogID,
+          components: components,
+          functions: functions,
+          instructions: instructions
+        )
         Issue.record("\(name): expected A2UICatalogError")
       } catch let error as A2UICatalogError {
         #expect(error.message.contains(message), "\(name): \(error.message)")
@@ -121,7 +119,12 @@ struct CatalogDeriveConformanceTests {
       return
     }
 
-    let derived = try source.derive(id: catalogID, components: components, functions: functions)
+    let derived = try source.derive(
+      id: catalogID,
+      components: components,
+      functions: functions,
+      instructions: instructions
+    )
     let expect = try #require(testCase["expect"], "\(name): no expect")
     if let expectObj = expect.objectValue {
       try ConformanceTestHelper.assertKnownKeys(
@@ -147,6 +150,28 @@ struct CatalogDeriveConformanceTests {
     }
     if let expectedTheme = expect["theme"] {
       #expect(derived.themeSchema == (try schema(expectedTheme)), "\(name)")
+    }
+    if let expectedInstructions = expect["instructions"] {
+      let instructions = try #require(expectedInstructions.stringValue, "\(name): bad instructions")
+      #expect(derived.instructions == instructions, "\(name)")
+    }
+    if let absentKeys = expect["absentKeys"] {
+      let keys = try #require(absentKeys.arrayValue, "\(name): bad absentKeys")
+      for key in keys {
+        try checkAbsent(try #require(key.stringValue, "\(name): bad absentKeys"), in: derived)
+      }
+    }
+  }
+
+  /// Checks that `catalog` does not carry the catalog document key `key`.
+  private func checkAbsent(_ key: String, in catalog: AnyCatalog) throws {
+    switch key {
+    case "instructions":
+      #expect(catalog.instructions == nil, "expected no instructions")
+    case _ where Self.keysWithoutProperty.contains(key):
+      break
+    default:
+      throw UnknownConformanceKeyError("catalog.yaml derive absentKeys has unknown key '\(key)'")
     }
   }
 
@@ -189,7 +214,8 @@ struct CatalogDeriveConformanceTests {
       protocolVersion: document["protocolVersion"]?.stringValue,
       components: components,
       functions: functions,
-      themeSchema: try document["theme"].map(schema)
+      themeSchema: try document["theme"].map(schema),
+      instructions: document["instructions"]?.stringValue
     )
   }
 

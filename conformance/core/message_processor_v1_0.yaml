@@ -3046,7 +3046,7 @@
   protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   steps:
     - messages:
         - version: "1.0"

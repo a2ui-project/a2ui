@@ -22,9 +22,9 @@ import {
   ComponentModel,
   NodeResolver,
   SurfaceModel,
-  basicCatalog,
   getValue,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
+import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Helper to construct instances of SurfaceModel, ComponentModel, and ComponentContext.
@@ -578,6 +578,50 @@ describe('ComponentBinder', () => {
       const bound = binder.bindNode(getValue(resolver.rootNode)!);
 
       expect(typeof bound['action'].value()).toBe('function');
+
+      resolver.dispose();
+    });
+
+    it('extracts ChildList template metadata only from plain path and ignores @path', () => {
+      const surface = new SurfaceModel('node-surface-tpl', basicCatalog);
+      surface.dataModel.set('/items', [{label: 'One'}]);
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          'valid-list',
+          'Column',
+          {children: {componentId: 'item-tpl', path: '/items'}},
+          basicCatalog,
+        ),
+      );
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          'invalid-list',
+          'Column',
+          {children: {componentId: 'item-tpl', '@path': '/items'}},
+          basicCatalog,
+        ),
+      );
+      surface.componentsModel.addComponent(
+        new ComponentModel('item-tpl', 'Text', {text: {path: 'label'}}, basicCatalog),
+      );
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          'root',
+          'Column',
+          {children: ['valid-list', 'invalid-list']},
+          basicCatalog,
+        ),
+      );
+
+      const resolver = new NodeResolver(surface, basicCatalog);
+      const rootNode = getValue(resolver.rootNode)!;
+      const [validNode, invalidNode] = getValue(rootNode.props)['children'] as any[];
+
+      const validBound = binder.bindNode(validNode);
+      const invalidBound = binder.bindNode(invalidNode);
+
+      expect(validBound['children'].template).toEqual({id: 'item-tpl', path: '/items'});
+      expect(invalidBound['children'].template).toBeUndefined();
 
       resolver.dispose();
     });

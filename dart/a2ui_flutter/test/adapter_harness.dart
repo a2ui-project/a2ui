@@ -457,15 +457,13 @@ CatalogImplementation _buildV09BasicCatalog({
                 'properties': <String, Object?>{
                   'component': <String, Object?>{'const': 'Button'},
                   'child': <String, Object?>{
-                    r'$ref':
-                        r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId',
+                    r'$ref': r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId',
                   },
                   'variant': <String, Object?>{'type': 'string'},
                   'action': <String, Object?>{
                     'oneOf': <Object?>[
                       <String, Object?>{
-                        r'$ref':
-                            r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action',
+                        r'$ref': r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action',
                       },
                       <String, Object?>{
                         'type': 'object',

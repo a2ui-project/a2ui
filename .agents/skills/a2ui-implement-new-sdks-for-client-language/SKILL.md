@@ -100,7 +100,7 @@ Build the **Gallery App** as a testing playground with:
 - Left Column: Sample navigation.
 - Center Column: Surface preview, JSON message stream, and step-by-step interactive message stepper.
 - Right Column: Live data model inspect pane and action logger.
-- Load the 5 foundational verification examples: `00_simple-text.json`, `00_row-layout.json`, `00_complex-layout.json`, `00_interactive-button.json`, and `00_simple-login-form.json`.
+- Load the 5 foundational verification examples: `scaffold-simple-text.json`, `scaffold-row-layout.json`, `scaffold-complex-layout.json`, `scaffold-interactive-button.json`, and `scaffold-simple-login-form.json`.
 - _STOP and obtain human reviewer approval of the UI and visual rendering performance._
 
 ### **Phase 6: Full Catalog Support**

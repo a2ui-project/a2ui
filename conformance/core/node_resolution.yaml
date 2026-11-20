@@ -1037,3 +1037,146 @@
         nodes:
           root: {props: {value: {value: false, writable: true}}}
         emissions: {root: 1}
+
+- name: direct_data_binding_and_function_call_schemas
+  description: >-
+    Given a component whose properties reference DataBinding and FunctionCall
+    directly rather than through a Dynamic* union, both properties resolve as
+    reactive bindings, the DataBinding property supports scoped writes, and the
+    FunctionCall property evaluates read-only.
+  action: resolve_nodes
+  fixture: test_data/node/direct_dynamic.yaml
+  expect:
+    nodes:
+      root:
+        component_id: root
+        type: Column
+        state: resolved
+        data_path: /
+        props:
+          children: [{node: root/children/0}, {node: root/children/1}]
+      root/children/0:
+        component_id: item
+        type: DirectDynamicProbe
+        state: resolved
+        data_path: /people/0
+        props:
+          binding: {value: Ada, writable: true}
+          count: {value: 1, writable: true}
+          flag: {value: false, writable: true}
+          computed: {value: 1, writable: false}
+      root/children/1:
+        component_id: item
+        type: DirectDynamicProbe
+        state: resolved
+        data_path: /people/1
+        props:
+          binding: {value: Lin, writable: true}
+          count: {value: 2, writable: true}
+          flag: {value: true, writable: true}
+          computed: {value: 2, writable: false}
+  steps:
+    - op: write
+      node: root/children/0
+      property: binding
+      value: Grace
+      expect:
+        nodes:
+          root: {}
+          root/children/0:
+            props:
+              binding: {value: Grace, writable: true}
+              count: {value: 1, writable: true}
+              flag: {value: false, writable: true}
+              computed: {value: 1, writable: false}
+          root/children/1:
+            props:
+              binding: {value: Lin, writable: true}
+              count: {value: 2, writable: true}
+              flag: {value: true, writable: true}
+              computed: {value: 2, writable: false}
+        data: {/people/0/name: Grace, /people/1/name: Lin}
+        emissions: {root/children/0: 1}
+        same_nodes: [root, root/children/0, root/children/1]
+    - op: write
+      node: root/children/0
+      property: count
+      value: 5
+      expect:
+        nodes:
+          root: {}
+          root/children/0:
+            props:
+              binding: {value: Grace, writable: true}
+              count: {value: 5, writable: true}
+              flag: {value: false, writable: true}
+              computed: {value: 1, writable: false}
+          root/children/1:
+            props:
+              binding: {value: Lin, writable: true}
+              count: {value: 2, writable: true}
+              flag: {value: true, writable: true}
+              computed: {value: 2, writable: false}
+        data: {/people/0/count: 5, /people/1/count: 2}
+        emissions: {root/children/0: 1}
+        same_nodes: [root, root/children/0, root/children/1]
+    - op: set_data
+      path: /people/0/validation
+      value: true
+      expect:
+        nodes:
+          root: {}
+          root/children/0:
+            props:
+              binding: {value: Grace, writable: true}
+              count: {value: 5, writable: true}
+              flag: {value: true, writable: true}
+              computed: {value: 1, writable: false}
+          root/children/1:
+            props:
+              binding: {value: Lin, writable: true}
+              count: {value: 2, writable: true}
+              flag: {value: true, writable: true}
+              computed: {value: 2, writable: false}
+        emissions: {root/children/0: 1}
+        same_nodes: [root, root/children/0, root/children/1]
+    - op: set_data
+      path: /people/1/name
+      value: Hopper
+      expect:
+        nodes:
+          root: {}
+          root/children/0:
+            props:
+              binding: {value: Grace, writable: true}
+              count: {value: 5, writable: true}
+              flag: {value: true, writable: true}
+              computed: {value: 1, writable: false}
+          root/children/1:
+            props:
+              binding: {value: Hopper, writable: true}
+              count: {value: 2, writable: true}
+              flag: {value: true, writable: true}
+              computed: {value: 2, writable: false}
+        emissions: {root/children/1: 1}
+        same_nodes: [root, root/children/0, root/children/1]
+    - op: set_data
+      path: /offset
+      value: 10
+      expect:
+        nodes:
+          root: {}
+          root/children/0:
+            props:
+              binding: {value: Grace, writable: true}
+              count: {value: 5, writable: true}
+              flag: {value: true, writable: true}
+              computed: {value: 10, writable: false}
+          root/children/1:
+            props:
+              binding: {value: Hopper, writable: true}
+              count: {value: 2, writable: true}
+              flag: {value: true, writable: true}
+              computed: {value: 11, writable: false}
+        emissions: {root/children/0: 1, root/children/1: 1}
+        same_nodes: [root, root/children/0, root/children/1]

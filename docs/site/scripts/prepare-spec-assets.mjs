@@ -41,10 +41,10 @@ fs.rmSync(path.join(siteRoot, '.astro'), {recursive: true, force: true});
 // 1. Ensure public/ exists
 fs.mkdirSync(publicDir, {recursive: true});
 
-// 2. Copy static assets from docs/public/assets and CNAME, and render llms.txt
-copyRecursive(path.join(repoRoot, 'docs/public/assets'), path.join(publicDir, 'assets'));
-if (fs.existsSync(path.join(repoRoot, 'docs/public/CNAME'))) {
-  fs.copyFileSync(path.join(repoRoot, 'docs/public/CNAME'), path.join(publicDir, 'CNAME'));
+// 2. Copy static assets from docs/assets and docs/site/CNAME, and render llms.txt
+copyRecursive(path.join(repoRoot, 'docs/assets'), path.join(publicDir, 'assets'));
+if (fs.existsSync(path.join(siteRoot, 'CNAME'))) {
+  fs.copyFileSync(path.join(siteRoot, 'CNAME'), path.join(publicDir, 'CNAME'));
 }
 // Render llms.txt from docs/site/llms.txt, filling version info from specification/versions.json
 // (the single source of truth for protocol version status).
@@ -107,6 +107,32 @@ if (fs.existsSync(vegaCatalogV1Src)) {
   const vegaCatalogV1Dest = path.join(specDest, 'v1_0/catalogs/vegachart');
   fs.mkdirSync(vegaCatalogV1Dest, {recursive: true});
   copyRecursive(vegaCatalogV1Src, path.join(vegaCatalogV1Dest, 'catalog.json'), {required: false});
+}
+
+// Copy v0.9 / v0.9.1 basic and minimal catalogs so $id URIs resolve cleanly
+for (const verDir of ['v0_9', 'v0_9_1']) {
+  const basicDest = path.join(specDest, `${verDir}/catalogs/basic`);
+  fs.mkdirSync(basicDest, {recursive: true});
+  copyRecursive(
+    path.join(repoRoot, `catalogs/basic/${verDir}/catalog.json`),
+    path.join(basicDest, 'catalog.json'),
+  );
+  copyRecursive(
+    path.join(repoRoot, `catalogs/basic/${verDir}/examples`),
+    path.join(basicDest, 'examples'),
+  );
+}
+{
+  const minimalDest = path.join(specDest, 'v0_9/catalogs/minimal');
+  fs.mkdirSync(minimalDest, {recursive: true});
+  copyRecursive(
+    path.join(repoRoot, 'catalogs/minimal/v0_9/catalog.json'),
+    path.join(minimalDest, 'catalog.json'),
+  );
+  copyRecursive(
+    path.join(repoRoot, 'catalogs/minimal/v0_9/examples'),
+    path.join(minimalDest, 'examples'),
+  );
 }
 
 // Copy v0.9 / v0.9.1 mcp and vegachart catalogs so $id URIs resolve cleanly

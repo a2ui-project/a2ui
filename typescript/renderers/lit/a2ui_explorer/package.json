@@ -26,7 +26,7 @@
       "command": "node scripts/generate-examples.mjs",
       "files": [
         "scripts/generate-examples.mjs",
-        "../../../../specification/v0_9/catalogs/basic/examples/*.json",
+        "../../../../catalogs/basic/v0_9/examples/*.json",
         "../../../../catalogs/basic/v1/examples/*.json",
         "../../../../catalogs/mcp/v1/examples/*.json"
       ],

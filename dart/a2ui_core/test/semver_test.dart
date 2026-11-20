@@ -81,15 +81,21 @@ void main() {
     group('an unversioned catalog', () {
       test('serves pre-v1.0 surfaces', () {
         for (final message in ['v0.8', 'v0.9', 'v0.9.1', '0.9']) {
-          expect(isCatalogVersionCompatible(null, message), isTrue,
-              reason: message);
+          expect(
+            isCatalogVersionCompatible(null, message),
+            isTrue,
+            reason: message,
+          );
         }
       });
 
       test('does not serve v1.0 or later surfaces', () {
         for (final message in ['v1.0', '1.0.0', 'v1.1', 'v2.0']) {
-          expect(isCatalogVersionCompatible(null, message), isFalse,
-              reason: message);
+          expect(
+            isCatalogVersionCompatible(null, message),
+            isFalse,
+            reason: message,
+          );
         }
       });
 
