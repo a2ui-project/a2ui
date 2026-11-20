@@ -19,10 +19,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 import json
 from typing import Any
-from unittest.mock import AsyncMock
 
 from a2a.server.agent_execution import RequestContext
-from a2a.types import DataPart, Message, MessageSendParams, Part, Role, TextPart
+from a2a.types import DataPart, Message, MessageSendParams, Part, Role
 import pytest
 
 from a2ui.inference_formats.experimental.decision import (
@@ -439,3 +438,49 @@ async def test_recording_decision_backend_captures_batch_and_answers() -> None:
     assert len(recorder.calls) == 1
     assert recorder.calls[0].batch is batch
     assert recorder.calls[0].answers == tuple(answers)
+
+
+@pytest.mark.asyncio
+async def test_gated_mode_keeps_and_prunes_regions_across_presets() -> None:
+    agent = _make_agent()
+
+    degraded = await agent.handle_text_turn(
+        "/gated incident_degraded", context_id="ctx-gated", include_trace=True
+    )
+    assert degraded.trace is not None
+    assert degraded.trace["activeMode"] == "gated"
+    degraded_ids = {
+        c["id"] for c in degraded.messages[1]["updateComponents"]["components"]
+    }
+    assert "rollback_alert" in degraded_ids
+    assert "postmortem_card" not in degraded_ids
+    assert "metrics_detailed" in degraded_ids
+    assert "metrics_compact" not in degraded_ids
+
+    healthy = await agent.handle_text_turn(
+        "/gated incident_healthy", context_id="ctx-gated", include_trace=True
+    )
+    healthy_ids = {
+        c["id"] for c in healthy.messages[1]["updateComponents"]["components"]
+    }
+    assert "rollback_alert" not in healthy_ids
+    assert "postmortem_card" in healthy_ids
+    assert "metrics_compact" in healthy_ids
+    assert "metrics_detailed" not in healthy_ids
+
+
+@pytest.mark.asyncio
+async def test_binder_macro_incident_tool_lowers_to_basic_catalog() -> None:
+    agent = _make_agent()
+    await agent.handle_text_turn("/mode binder", context_id="ctx-macro")
+    res = await agent.handle_text_turn(
+        "/tool incident", context_id="ctx-macro", include_trace=True
+    )
+    assert res.trace is not None
+    assert res.trace["activeMode"] == "binder"
+    comp_types = [
+        c["component"] for c in res.messages[1]["updateComponents"]["components"]
+    ]
+    assert "IncidentAlertCard" not in comp_types
+    assert "Card" in comp_types
+    assert "Button" in comp_types

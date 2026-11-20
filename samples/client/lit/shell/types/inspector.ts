@@ -186,6 +186,7 @@ export interface WireJsonStage {
 export type PlaygroundMode =
   | 'cascade'
   | 'binder'
+  | 'gated'
   | 'rpc'
   | 'express'
   | 'direct'

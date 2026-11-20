@@ -41,6 +41,9 @@ from a2ui.inference_formats.experimental.decision_cascade import (
     CascadeTier,
     DecisionCascadeRouter,
 )
+from a2ui.inference_formats.experimental.decision_gated_templates import (
+    GatedTemplateEvaluator,
+)
 from a2ui.inference_formats.express import ExpressCompiler, ExpressDecompiler
 from a2ui.parser import A2uiPart
 from a2ui.rpc import RendererToAgentMessageProcessor
@@ -56,6 +59,8 @@ from recording_backend import (
 )
 from surfaces import (
     EXPRESS_TEMPLATES,
+    GATED_TEMPLATES,
+    PLAYGROUND_MACROS,
     RPC_PREDICATE_CATALOG_ID,
     RPC_PREDICATE_SPECS,
     build_status_card_messages,
@@ -382,6 +387,7 @@ class PlaygroundRenderers:
             rec,
             transport_catalogs=[self._catalog],
             express_surfaces=EXPRESS_TEMPLATES,
+            macros=PLAYGROUND_MACROS,
         )
         try:
             result = await binder.bind_tool_output(
@@ -435,6 +441,90 @@ class PlaygroundRenderers:
                 stage="template_select",
                 confidence=result.confidence,
                 selected_template_id=result.target_id,
+                total_latency_ms=elapsed,
+                decompiled_express=_decompile_express([self._catalog], result.messages),
+            ),
+            rec.calls,
+        )
+
+    async def run_gated(
+        self,
+        *,
+        template_id: str | None,
+        intent: str,
+        payload: Any,
+        surface_id: str = "main",
+    ) -> tuple[RenderOutcome, list[RecordedBatchCall]]:
+        """Executes Idea 2 (`GatedTemplateEvaluator`) with 0 LLM calls."""
+        start = time.perf_counter()
+        rec = self._recorder()
+        evaluator = GatedTemplateEvaluator(
+            rec,
+            transport_catalogs=[self._catalog],
+            templates=GATED_TEMPLATES,
+        )
+        try:
+            if template_id is not None:
+                result = await evaluator.evaluate(
+                    template_id,
+                    intent,
+                    payload,
+                    surface_id=surface_id,
+                )
+            else:
+                result = await evaluator.select_and_evaluate(
+                    intent,
+                    payload,
+                    surface_id=surface_id,
+                )
+        except DecisionBackendError as exc:
+            elapsed = (time.perf_counter() - start) * 1000.0
+            msg = f"Decision backend error: {exc}"
+            return (
+                RenderOutcome(
+                    mode=RenderMode.GATED,
+                    surface_id=surface_id,
+                    messages=tuple(build_status_card_messages(surface_id, msg)),
+                    ok=False,
+                    error=msg,
+                    stage="abstain_fallback",
+                    fallback_reason="backend_error",
+                    total_latency_ms=elapsed,
+                ),
+                rec.calls,
+            )
+
+        elapsed = (time.perf_counter() - start) * 1000.0
+        if result.abstained or not result.messages:
+            summary = f"Gated template abstained: {result.reason}"
+            return (
+                RenderOutcome(
+                    mode=RenderMode.GATED,
+                    surface_id=surface_id,
+                    messages=tuple(build_status_card_messages(surface_id, summary)),
+                    text=summary,
+                    stage="abstain_fallback",
+                    fallback_source="abstain",
+                    fallback_reason=result.reason,
+                    total_latency_ms=elapsed,
+                ),
+                rec.calls,
+            )
+
+        dicts = tuple(to_message_dicts(result.messages))
+        avg_conf = (
+            sum(d.probability for d in result.decisions) / len(result.decisions)
+            if result.decisions
+            else 1.0
+        )
+        return (
+            RenderOutcome(
+                mode=RenderMode.GATED,
+                surface_id=surface_id,
+                messages=dicts,
+                stage="template_select",
+                confidence=avg_conf,
+                selected_template_id=result.template_id,
                 total_latency_ms=elapsed,
                 decompiled_express=_decompile_express([self._catalog], result.messages),
             ),

@@ -33,6 +33,8 @@ from commands import (
 from modes import COMPARE_MODES, PlaygroundSettings, RenderMode, RenderOutcome
 from renderers import PlaygroundRenderers
 from surfaces import (
+    GATED_PRESET_ALIASES,
+    GATED_PRESET_BY_ALIAS,
     RPC_FORM_ALIASES,
     RPC_FORM_BY_ALIAS,
     build_rpc_form_messages,
@@ -152,13 +154,15 @@ class PlaygroundAgent:
     ) -> AgentTurnResult:
         settings = self.get_settings(context_id)
         if cmd.kind == "mode":
-            return self._cmd_mode(cmd.arg, context_id, settings, include_trace)
+            return await self._cmd_mode(cmd.arg, context_id, settings, include_trace)
         if cmd.kind == "backend":
             return await self._cmd_backend(cmd.arg, context_id, settings, include_trace)
         if cmd.kind == "budget":
             return self._cmd_budget(cmd.arg, context_id, settings, include_trace)
         if cmd.kind == "tool":
             return await self._cmd_tool(cmd.arg, context_id, settings, include_trace)
+        if cmd.kind == "gated":
+            return await self._cmd_gated(cmd.arg, context_id, settings, include_trace)
         if cmd.kind == "form":
             return self._cmd_form(cmd.arg, context_id, settings, include_trace)
         if cmd.kind == "compare":
@@ -188,6 +192,7 @@ class PlaygroundAgent:
                 budget_ms=settings.budget_ms,
                 tool_aliases=TOOL_ALIASES,
                 form_aliases=RPC_FORM_ALIASES,
+                gated_aliases=GATED_PRESET_ALIASES,
             )
             return self._status_result(
                 help_md, settings=settings, query=cmd.raw, include_trace=include_trace
@@ -200,7 +205,7 @@ class PlaygroundAgent:
             ok=False,
         )
 
-    def _cmd_mode(
+    async def _cmd_mode(
         self,
         arg: str,
         context_id: str,
@@ -221,6 +226,10 @@ class PlaygroundAgent:
         self._set_settings(context_id, updated)
         if parsed is RenderMode.RPC:
             return self._cmd_form("bug", context_id, updated, include_trace)
+        if parsed is RenderMode.GATED:
+            return await self._cmd_gated(
+                "incident_degraded", context_id, updated, include_trace
+            )
         return self._status_result(
             f"Switched active mode to `{parsed.value}`.",
             settings=updated,
@@ -310,7 +319,9 @@ class PlaygroundAgent:
             )
         updated = settings.next_turn()
         active_mode = (
-            RenderMode.BINDER if updated.mode is RenderMode.RPC else updated.mode
+            RenderMode.BINDER
+            if updated.mode in (RenderMode.RPC, RenderMode.GATED)
+            else updated.mode
         )
         updated = replace(updated, mode=active_mode)
         self._set_settings(context_id, updated)
@@ -356,6 +367,55 @@ class PlaygroundAgent:
             stage1_source="direct_tool",
             tool_name=entry.fn.__name__,
             payload=payload,
+            candidates=[candidate],
+        )
+        self._last_trace[context_id] = trace
+        return AgentTurnResult(
+            messages=list(outcome.messages),
+            trace=trace if include_trace else None,
+        )
+
+    async def _cmd_gated(
+        self,
+        arg: str,
+        context_id: str,
+        settings: PlaygroundSettings,
+        include_trace: bool,
+    ) -> AgentTurnResult:
+        alias = arg.strip().lower() or "incident_degraded"
+        preset = GATED_PRESET_BY_ALIAS.get(alias)
+        if preset is None:
+            return self._status_result(
+                f"Unknown gated preset `{arg}`. Choose from:"
+                f" {', '.join(GATED_PRESET_ALIASES)}.",
+                settings=settings,
+                query=f"/gated {arg}",
+                include_trace=include_trace,
+                ok=False,
+            )
+        updated = replace(settings.next_turn(), mode=RenderMode.GATED)
+        self._set_settings(context_id, updated)
+        outcome, calls = await self._renderers.run_gated(
+            template_id=preset.template_id,
+            intent=preset.intent,
+            payload=preset.payload,
+            surface_id="main",
+        )
+        candidate = build_candidate_trace(
+            outcome,
+            calls,
+            backend_kind=self._renderers.backend_kind,
+            model_id=self._renderers.model_id,
+            endpoint_url=self._renderers.endpoint_url,
+        )
+        trace = build_turn_trace(
+            turn=updated.turn,
+            query=f"/gated {alias}",
+            active_mode=RenderMode.GATED,
+            compare=False,
+            stage1_source="direct_tool",
+            tool_name=preset.template_id,
+            payload=preset.payload,
             candidates=[candidate],
         )
         self._last_trace[context_id] = trace
@@ -435,7 +495,21 @@ class PlaygroundAgent:
                 include_trace=include_trace,
             )
 
-        if pasted_payload is not None or updated.mode is RenderMode.BINDER:
+        if updated.mode is RenderMode.GATED:
+            default_preset = GATED_PRESET_BY_ALIAS["incident_degraded"]
+            payload = (
+                pasted_payload if pasted_payload is not None else default_preset.payload
+            )
+            outcome, calls = await self._renderers.run_gated(
+                template_id=None
+                if pasted_payload is not None
+                else default_preset.template_id,
+                intent=text or default_preset.intent,
+                payload=payload,
+                surface_id="main",
+            )
+            source = "pasted_json" if pasted_payload is not None else "direct_tool"
+        elif pasted_payload is not None or updated.mode is RenderMode.BINDER:
             payload = (
                 pasted_payload
                 if pasted_payload is not None
