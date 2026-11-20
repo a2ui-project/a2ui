@@ -1,0 +1,18 @@
+$/artwork = "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=100&h=100&fit=crop"
+$/audioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
+$/date = "2024-12-15"
+$/description = "How AI is transforming the way we design and build products."
+$/duration = "45 min"
+$/episodeTitle = "The Future of AI in Product Design"
+$/showName = "Tech Talk Daily"
+root = Card(main_row)
+main_row = Row([artwork, content], _, "start")
+artwork = Image($/artwork, _, "cover")
+content = Column([show_name, episode_title, meta_row, description, audio_player])
+show_name = Text($/showName, "caption")
+episode_title = Text($/episodeTitle)
+meta_row = Row([duration, date])
+duration = Text($/duration, "caption")
+date = Text(formatDate($/date, "MMM d, yyyy"), "caption")
+description = Text($/description, "body")
+audio_player = AudioPlayer($/audioUrl, $/episodeTitle)
