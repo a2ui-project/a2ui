@@ -1,0 +1,75 @@
+{
+  "name": "@a2ui/e2e-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Playwright live-pair end-to-end tests: real Lit and React shells talking over A2A to the scripted test agents.",
+  "type": "module",
+  "scripts": {
+    "build": "wireit",
+    "test": "vitest run",
+    "test:e2e": "wireit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "clean": "rm -rf dist .wireit test-results playwright-report"
+  },
+  "wireit": {
+    "build": {
+      "command": "tsc -p tsconfig.json && vite build",
+      "dependencies": [
+        "../../typescript/renderers/lit:build",
+        "../../typescript/renderers/react:build",
+        "../agents/typescript:build"
+      ],
+      "files": [
+        "src/**/*",
+        "lit.html",
+        "react.html",
+        "tsconfig.json",
+        "vite.config.ts"
+      ],
+      "output": [
+        "dist/"
+      ]
+    },
+    "test:e2e": {
+      "command": "playwright test",
+      "dependencies": [
+        "build"
+      ],
+      "files": [
+        "tests/**/*",
+        "scenarios/**/*",
+        "playwright.config.ts"
+      ],
+      "output": []
+    }
+  },
+  "dependencies": {
+    "@a2a-js/sdk": "^0.3.13",
+    "@a2ui/lit": "workspace:*",
+    "@a2ui/react": "workspace:*",
+    "@a2ui/web_core": "workspace:*",
+    "lit": "^3.3.3",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.58.1",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.9.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "eslint": "^10.4.1",
+    "js-yaml": "^4.3.0",
+    "prettier": "^3.8.4",
+    "typescript": "5.9.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8",
+    "wireit": "^0.15.0-pre.2"
+  }
+}

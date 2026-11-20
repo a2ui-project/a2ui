@@ -27,7 +27,23 @@ import type {AudioPlayerSupportedApis} from './supported_apis.js';
 export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<AudioPlayerSupportedApis> {
   /** @nocollapse */
   static readonly tagName = 'a2ui-audioplayer';
-  /** @nocollapse */
+  /**
+   * The styles of the audio player can be customized by redefining the
+   * following CSS variables:
+   *
+   * - `--a2ui-audioplayer-background`: Background of the player container. Defaults to `transparent`.
+   * - `--a2ui-audioplayer-border-radius`: Border radius of the player container. Defaults to `0`.
+   * - `--a2ui-audioplayer-padding`: Padding of the player container. Defaults to `0`.
+   * - `--a2ui-audioplayer-description-color`: Text color of the description. Defaults to `--a2ui-text-caption-color`, then `light-dark(#666, #aaa)`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-spacing-xs`: Gap between the description and audio controls.
+   * - `--a2ui-font-size-s`: Font size of the description.
+   * - `--a2ui-text-caption-color`: Fallback text color for the description. Defaults to `light-dark(#666, #aaa)`.
+   *
+   * @nocollapse
+   */
   static override styles = css`
     .a2ui-audio-player {
       display: flex;
