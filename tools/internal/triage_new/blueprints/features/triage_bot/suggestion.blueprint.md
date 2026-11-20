@@ -31,7 +31,7 @@ A suggestion is **current** when nothing happened on the item after the latest s
 
 ## The suggestion comment
 
-The suggestion comment is a [triage bot](../../core.blueprint.md#contributors) comment with an `<a2ui>` block. It follows the template below: the triage bot prefix and the line "Triage suggestion:", then two collapsed sections: **For humans**, with the suggestion in plain English and the command that opens the item in the triage UI, and **For software**, with the suggestion as a component for the triage UI. Both sections say the same thing.
+The suggestion comment is a [triage bot](../../core.blueprint.md#contributors) comment with an `<a2ui>` block. It follows the template below: the line `**From triage bot, suggestion:**`, then two collapsed sections: **For humans**, with the suggestion in plain English and the command that opens the item in the triage UI, and **For software**, with the suggestion as a component for the triage UI. Both sections say the same thing.
 
 For example, the suggestion comment on an illustrative issue #1235:
 
@@ -102,7 +102,7 @@ Suggestion: set P1 and assign for triage to an expert.""",
 
 The parts of the comment, in order:
 
-1. The triage bot prefix, and the line "Triage suggestion:".
+1. The line `**From triage bot, suggestion:**`.
 2. The **For humans** section, collapsed:
    1. The `tldr`, under **TL;DR**. The part is left out when there is no TL;DR.
    2. The `summary`, the `targeting_prs`, the `targeted_issues`, the `reason` and the `suggestion`, as paragraphs under **Summary**, **Targeting PRs**, **Targeted issues**, **Why flagged for triage** and **Suggestion**. **Targeting PRs** and **Targeted issues** have the URL of each item on its own line. The **Targeting PRs**, **Targeted issues** and **Why flagged for triage** paragraphs are left out when their property has no value.

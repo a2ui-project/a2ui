@@ -30,10 +30,10 @@ An open issue or PR is **stale** when it matches one of these cases:
 
 ## The GitHub comment
 
-The pinger posts the comment from a team member's account, so that the comment is a triage bot comment. The comment mentions every assignee, says why the item is stale, and says what happens if nothing changes. It starts with the triage bot prefix and ends with a hidden marker that names the case:
+The pinger posts the comment from a team member's account, so that the comment is a triage bot comment. The comment mentions every assignee, says why the item is stale, and says what happens if nothing changes. It starts with `**From triage bot, ping:**` and ends with a hidden marker that names the case:
 
 ```markdown
-**From triage bot:** @{assignee} this `P1` issue has had no human activity for 30 days. Please post an update, or change the priority or assignee if the plan has changed. If nothing changes in 7 days, the issue gets `status: needs-triage` and goes back to the weekly triage.
+**From triage bot, ping:** @{assignee} this `P1` issue has had no human activity for 30 days. Please post an update, or change the priority or assignee if the plan has changed. If nothing changes in 7 days, the issue gets `status: needs-triage` and goes back to the weekly triage.
 <!-- a2ui-triage-ping: p1-inactive -->
 ```
 

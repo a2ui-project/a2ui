@@ -12,7 +12,7 @@ The triage bot answers only team members. It treats a request from an out-of-tea
 
 ## The response comment
 
-The response comment is a triage bot comment that answers the requests to the triage bot on an item with `status: needs-team-input`. It starts with the triage bot prefix and the line "Response to requests:", and has no template and no `<a2ui>` block: it is an answer for the team, not a suggestion, so the item's suggestion stays as it is.
+The response comment is a triage bot comment that answers the requests to the triage bot on an item with `status: needs-team-input`. It starts with the line `**From triage bot, response:**`, and has no template and no `<a2ui>` block: it is an answer for the team, not a suggestion, so the item's suggestion stays as it is.
 
 For each request, the comment links to the request, names who asked, and answers in plain English. When the request asks for an action, the comment says what to apply, and the team applies it in the triage UI. The comment ends with the command that opens the item in the triage UI. Links and logins follow the rules of the [suggestion comment](suggestion.blueprint.md#the-suggestion-comment).
 
