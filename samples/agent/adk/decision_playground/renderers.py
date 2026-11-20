@@ -1,0 +1,811 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Mode runners for cascade, binder, RPC predicates, and Express/Direct baselines."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+import asyncio
+import json
+import os
+import time
+from typing import Any
+
+from a2ui.core import Catalog, CatalogApi
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.inference_formats import (
+    DirectJsonFormat,
+    ExpressFormat,
+    to_message_dicts,
+)
+from a2ui.inference_formats.experimental.decision import (
+    DEFAULT_GEMINI_DECISION_MODEL,
+    DEFAULT_TYPESAFE_MODEL,
+    ActionSpec,
+    DecisionBackend,
+    DecisionBackendError,
+    create_decision_backend,
+)
+from a2ui.inference_formats.experimental.decision_binder import ToolPointerBinder
+from a2ui.inference_formats.experimental.decision_cascade import (
+    CascadeTier,
+    DecisionCascadeRouter,
+)
+from a2ui.inference_formats.experimental.decision_gated_templates import (
+    GatedTemplateEvaluator,
+)
+from a2ui.inference_formats.experimental.decision_prose_upgrade import (
+    DeterministicMockExtractor,
+    ExtractionThresholds,
+    FieldExtractionError,
+    FieldExtractor,
+    ProseSurfaceUpgrader,
+    StructuredOutputExtractor,
+)
+from a2ui.inference_formats.express import ExpressCompiler, ExpressDecompiler
+from a2ui.parser import A2uiPart
+from a2ui.rpc import RendererToAgentMessageProcessor
+from a2ui.rpc.experimental.decision import (
+    SessionRateLimiter,
+    build_predicate_agent_functions,
+)
+from modes import LlmCaller, RenderMode, RenderOutcome
+from recording_backend import (
+    PlaygroundMockBackend,
+    RecordedBatchCall,
+    RecordingDecisionBackend,
+)
+from surfaces import (
+    EXPRESS_TEMPLATES,
+    GATED_TEMPLATES,
+    PLAYGROUND_MACROS,
+    PROSE_TEMPLATES,
+    RPC_PREDICATE_CATALOG_ID,
+    RPC_PREDICATE_SPECS,
+    build_status_card_messages,
+)
+
+
+_GEMINI_DECISIONS_URL = "https://generativelanguage.googleapis.com/v1beta/decisions"
+_TYPESAFE_SYSTEMONE_URL = "https://api.typesafe.ai/v1/systemone"
+_VERCEL_SYSTEMONE_URL = "https://ai-gateway.vercel.sh/typesafe/v1/systemone"
+
+
+def _env_matches_backend(*names: str) -> bool:
+    """Returns whether `A2UI_DECISION_BACKEND` matches one of `names`."""
+    current = (os.environ.get("A2UI_DECISION_BACKEND") or "").strip().lower()
+    return current in names
+
+
+def _build_gemini_backend() -> DecisionBackend:
+    """Builds the Gemini Decisions backend without leaking other backend env vars."""
+    use_generic = _env_matches_backend("gemini")
+    generic_auth = (
+        os.environ.get("A2UI_DECISION_AUTH") or os.environ.get("A2UI_DECISION_TOKEN")
+        if use_generic
+        else None
+    )
+    key = (
+        os.environ.get("GEMINI_API_KEY")
+        or os.environ.get("GOOGLE_API_KEY")
+        or generic_auth
+    )
+    url = os.environ.get("GEMINI_DECISION_URL") or (
+        os.environ.get("A2UI_DECISION_URL") if use_generic else None
+    )
+    if not key and not url:
+        raise ValueError("GEMINI_API_KEY is not set in the environment or ~/.env.")
+    model = (
+        os.environ.get("GEMINI_DECISION_MODEL")
+        or (os.environ.get("A2UI_DECISION_MODEL") if use_generic else None)
+        or DEFAULT_GEMINI_DECISION_MODEL
+    )
+    return create_decision_backend(
+        "gemini",
+        endpoint_url=url or _GEMINI_DECISIONS_URL,
+        model=model,
+        auth=key,
+    )
+
+
+def _build_jev_backend() -> DecisionBackend:
+    """Builds the Jev / SystemOne backend without inheriting Gemini env vars."""
+    use_generic = _env_matches_backend("jev", "systemone")
+    generic_auth = (
+        os.environ.get("A2UI_DECISION_AUTH") or os.environ.get("A2UI_DECISION_TOKEN")
+        if use_generic
+        else None
+    )
+    key = (
+        os.environ.get("JEV_API_KEY")
+        or os.environ.get("TYPESAFE_API_KEY")
+        or generic_auth
+    )
+    url = os.environ.get("JEV_URL") or (
+        os.environ.get("A2UI_DECISION_URL") if use_generic else None
+    )
+    if not key and not url:
+        raise ValueError("JEV_API_KEY is not set in the environment or ~/.env.")
+    token = key.strip() if isinstance(key, str) else ""
+    default_url = (
+        _VERCEL_SYSTEMONE_URL if token.startswith("vcp_") else _TYPESAFE_SYSTEMONE_URL
+    )
+    default_model = "jev" if token.startswith("vcp_") else DEFAULT_TYPESAFE_MODEL
+    model = (
+        os.environ.get("JEV_MODEL")
+        or (os.environ.get("A2UI_DECISION_MODEL") if use_generic else None)
+        or default_model
+    )
+    return create_decision_backend(
+        "systemone",
+        endpoint_url=url or default_url,
+        model=model,
+        auth=key,
+    )
+
+
+def _build_step0_backend() -> DecisionBackend:
+    """Builds the Step-Zero logprob backend using its own URL/model env vars."""
+    use_generic = _env_matches_backend("step0")
+    url = os.environ.get("STEP0_URL") or (
+        os.environ.get("A2UI_DECISION_URL") if use_generic else None
+    )
+    if not url:
+        raise ValueError(
+            "Backend 'step0' requires STEP0_URL or A2UI_DECISION_URL (for example,"
+            " http://localhost:8000/v1/completions)."
+        )
+    model = os.environ.get("STEP0_MODEL") or (
+        os.environ.get("A2UI_DECISION_MODEL") if use_generic else None
+    )
+    auth = os.environ.get("STEP0_API_KEY") or (
+        os.environ.get("A2UI_DECISION_AUTH") if use_generic else None
+    )
+    return create_decision_backend(
+        "step0",
+        endpoint_url=url,
+        model=model,
+        auth=auth,
+    )
+
+
+def _create_playground_backend(kind: str) -> DecisionBackend:
+    """Creates a backend for `kind` without cross-backend env var leakage."""
+    normalized = kind.strip().lower()
+    if normalized == "mock":
+        return PlaygroundMockBackend()
+    if normalized == "gemini":
+        return _build_gemini_backend()
+    if normalized in ("jev", "systemone"):
+        return _build_jev_backend()
+    if normalized == "step0":
+        return _build_step0_backend()
+    raise ValueError(
+        f"Unknown decision backend '{kind}'. Choose mock, gemini, jev, or step0."
+    )
+
+
+def _decompile_express(catalogs: Sequence[CatalogApi], messages: Sequence[Any]) -> str:
+    """Best-effort Express decompilation for the inspector's Stage 4 toggle."""
+    try:
+        return ExpressDecompiler(list(catalogs)).decompile(list(messages))
+    except Exception:
+        return ""
+
+
+def _classify_rpc_reply(
+    dumped: Mapping[str, Any],
+) -> tuple[bool, str | None]:
+    """Returns `(passed, fallback_reason)` for one dumped RPC reply."""
+    body = dumped.get("agentFunctionResponse")
+    if not isinstance(body, Mapping):
+        return True, None
+    if "error" in body:
+        err = body["error"]
+        code = err.get("code") if isinstance(err, Mapping) else None
+        return False, str(code) if code else "rpc_error"
+    if body.get("value") is False:
+        return False, "predicate_false"
+    return True, None
+
+
+class PlaygroundRenderers:
+    """Owns the active `DecisionBackend`, rate limiter, and per-mode runners."""
+
+    def __init__(
+        self,
+        *,
+        backend: DecisionBackend | None = None,
+        backend_kind: str = "mock",
+        llm: LlmCaller | None = None,
+        rate_limiter: SessionRateLimiter | None = None,
+    ) -> None:
+        self._catalog = BasicCatalog("v1.0")
+        self._backend: DecisionBackend = (
+            backend if backend is not None else _create_playground_backend(backend_kind)
+        )
+        self._llm = llm
+        self._rate_limiter = (
+            rate_limiter
+            if rate_limiter is not None
+            else SessionRateLimiter(max_calls=20, window_seconds=60.0)
+        )
+
+    @property
+    def backend_kind(self) -> str:
+        return self._backend.backend_kind
+
+    @property
+    def model_id(self) -> str:
+        return self._backend.model_id
+
+    @property
+    def endpoint_url(self) -> str | None:
+        return getattr(self._backend, "endpoint_url", None)
+
+    async def set_backend(self, kind: str) -> None:
+        """Switches to `kind`, keeping the prior backend intact if creation fails."""
+        new_backend = _create_playground_backend(kind)
+        old_backend = self._backend
+        self._backend = new_backend
+        await old_backend.aclose()
+
+    async def aclose(self) -> None:
+        await self._backend.aclose()
+
+    def _recorder(self) -> RecordingDecisionBackend:
+        return RecordingDecisionBackend(self._backend)
+
+    async def run_cascade(
+        self,
+        prompt: str,
+        *,
+        surface_id: str,
+        budget_ms: float | None = None,
+        session_id: str | None = None,
+        data_payload: Mapping[str, Any] | None = None,
+    ) -> tuple[RenderOutcome, list[RecordedBatchCall]]:
+        """Executes Track 2A (`DecisionCascadeRouter`) plus downstream synthesis."""
+        start = time.perf_counter()
+        rec = self._recorder()
+        router = DecisionCascadeRouter(rec, templates=EXPRESS_TEMPLATES)
+        try:
+            decision = await router.route(
+                prompt, [self._catalog], latency_budget_ms=budget_ms
+            )
+        except DecisionBackendError as exc:
+            elapsed = (time.perf_counter() - start) * 1000.0
+            msg = f"Decision backend error: {exc}"
+            return (
+                RenderOutcome(
+                    mode=RenderMode.CASCADE,
+                    surface_id=surface_id,
+                    messages=tuple(build_status_card_messages(surface_id, msg)),
+                    ok=False,
+                    error=msg,
+                    stage="abstain_fallback",
+                    fallback_reason="backend_error",
+                    total_latency_ms=elapsed,
+                ),
+                rec.calls,
+            )
+
+        if decision.tier is CascadeTier.TEXT_ONLY:
+            reply_text = await self._text_only_reply(prompt, session_id=session_id)
+            elapsed = (time.perf_counter() - start) * 1000.0
+            return (
+                RenderOutcome(
+                    mode=RenderMode.CASCADE,
+                    surface_id=surface_id,
+                    messages=tuple(
+                        build_status_card_messages(
+                            surface_id,
+                            "**Text-only route**"
+                            f" (`needs_ui={decision.needs_ui_probability:.2f}`)\n\n{reply_text}",
+                        )
+                    ),
+                    text=reply_text,
+                    stage="abstain_fallback",
+                    confidence=decision.tier_confidence,
+                    fallback_source="text_only",
+                    fallback_reason=decision.reason,
+                    total_latency_ms=elapsed,
+                ),
+                rec.calls,
+            )
+
+        if decision.tier is CascadeTier.TEMPLATE and decision.template is not None:
+            compiler = ExpressCompiler([self._catalog])
+            compiled = list(
+                compiler.compile(decision.template.dsl, surface_id=surface_id)
+            )
+            msg_dicts = list(to_message_dicts(compiled))
+            if data_payload is not None:
+                safe_data = {
+                    k: v
+                    for k, v in data_payload.items()
+                    if not any(
+                        tok in k.lower()
+                        for tok in ("key", "secret", "token", "password")
+                    )
+                }
+                msg_dicts.append({
+                    "version": "1.0",
+                    "updateDataModel": {
+                        "surfaceId": surface_id,
+                        "path": "/",
+                        "value": safe_data,
+                    },
+                })
+            dicts = tuple(msg_dicts)
+            elapsed = (time.perf_counter() - start) * 1000.0
+            return (
+                RenderOutcome(
+                    mode=RenderMode.CASCADE,
+                    surface_id=surface_id,
+                    messages=dicts,
+                    stage="template_select",
+                    confidence=decision.template_confidence or decision.tier_confidence,
+                    selected_template_id=decision.template_id,
+                    total_latency_ms=elapsed,
+                    decompiled_express=decision.template.dsl,
+                ),
+                rec.calls,
+            )
+
+        catalogs = list(decision.catalogs) or [self._catalog]
+        kept_names = sorted(catalogs[0].components)
+        outcome = await self._run_format_llm(
+            prompt,
+            mode=RenderMode.CASCADE,
+            catalogs=catalogs,
+            surface_id=surface_id,
+            session_id=session_id,
+            stage="archetype",
+            confidence=decision.tier_confidence,
+            extra_summary=(
+                f"tier={decision.tier.value}, kept={len(kept_names)} components"
+            ),
+            start=start,
+        )
+        return outcome, rec.calls
+
+    async def run_binder_direct(
+        self,
+        *,
+        intent: str,
+        tool_name: str,
+        tool_output: Any,
+        actions: Sequence[ActionSpec] = (),
+        surface_id: str = "main",
+    ) -> tuple[RenderOutcome, list[RecordedBatchCall]]:
+        """Executes Track 2B (`ToolPointerBinder`) with 0 LLM calls."""
+        start = time.perf_counter()
+        rec = self._recorder()
+        binder = ToolPointerBinder(
+            rec,
+            transport_catalogs=[self._catalog],
+            express_surfaces=EXPRESS_TEMPLATES,
+            macros=PLAYGROUND_MACROS,
+        )
+        try:
+            result = await binder.bind_tool_output(
+                intent,
+                tool_name,
+                tool_output,
+                actions=actions,
+                surface_id=surface_id,
+            )
+        except DecisionBackendError as exc:
+            elapsed = (time.perf_counter() - start) * 1000.0
+            msg = f"Decision backend error: {exc}"
+            return (
+                RenderOutcome(
+                    mode=RenderMode.BINDER,
+                    surface_id=surface_id,
+                    messages=tuple(build_status_card_messages(surface_id, msg)),
+                    ok=False,
+                    error=msg,
+                    stage="abstain_fallback",
+                    fallback_reason="backend_error",
+                    total_latency_ms=elapsed,
+                ),
+                rec.calls,
+            )
+
+        elapsed = (time.perf_counter() - start) * 1000.0
+        if result.abstained or not result.messages:
+            summary = f"Tool `{tool_name}` abstained from UI binding: {result.reason}"
+            return (
+                RenderOutcome(
+                    mode=RenderMode.BINDER,
+                    surface_id=surface_id,
+                    messages=tuple(build_status_card_messages(surface_id, summary)),
+                    text=summary,
+                    stage="abstain_fallback",
+                    confidence=result.confidence,
+                    fallback_source="abstain",
+                    fallback_reason=result.reason,
+                    total_latency_ms=elapsed,
+                ),
+                rec.calls,
+            )
+
+        dicts = tuple(to_message_dicts(result.messages))
+        return (
+            RenderOutcome(
+                mode=RenderMode.BINDER,
+                surface_id=surface_id,
+                messages=dicts,
+                stage="template_select",
+                confidence=result.confidence,
+                selected_template_id=result.target_id,
+                total_latency_ms=elapsed,
+                decompiled_express=_decompile_express([self._catalog], result.messages),
+            ),
+            rec.calls,
+        )
+
+    async def run_gated(
+        self,
+        *,
+        template_id: str | None,
+        intent: str,
+        payload: Any,
+        surface_id: str = "main",
+    ) -> tuple[RenderOutcome, list[RecordedBatchCall]]:
+        """Executes Idea 2 (`GatedTemplateEvaluator`) with 0 LLM calls."""
+        start = time.perf_counter()
+        rec = self._recorder()
+        evaluator = GatedTemplateEvaluator(
+            rec,
+            transport_catalogs=[self._catalog],
+            templates=GATED_TEMPLATES,
+        )
+        try:
+            if template_id is not None:
+                result = await evaluator.evaluate(
+                    template_id,
+                    intent,
+                    payload,
+                    surface_id=surface_id,
+                )
+            else:
+                result = await evaluator.select_and_evaluate(
+                    intent,
+                    payload,
+                    surface_id=surface_id,
+                )
+        except DecisionBackendError as exc:
+            elapsed = (time.perf_counter() - start) * 1000.0
+            msg = f"Decision backend error: {exc}"
+            return (
+                RenderOutcome(
+                    mode=RenderMode.GATED,
+                    surface_id=surface_id,
+                    messages=tuple(build_status_card_messages(surface_id, msg)),
+                    ok=False,
+                    error=msg,
+                    stage="abstain_fallback",
+                    fallback_reason="backend_error",
+                    total_latency_ms=elapsed,
+                ),
+                rec.calls,
+            )
+
+        elapsed = (time.perf_counter() - start) * 1000.0
+        if result.abstained or not result.messages:
+            summary = f"Gated template abstained: {result.reason}"
+            return (
+                RenderOutcome(
+                    mode=RenderMode.GATED,
+                    surface_id=surface_id,
+                    messages=tuple(build_status_card_messages(surface_id, summary)),
+                    text=summary,
+                    stage="abstain_fallback",
+                    fallback_source="abstain",
+                    fallback_reason=result.reason,
+                    total_latency_ms=elapsed,
+                ),
+                rec.calls,
+            )
+
+        dicts = tuple(to_message_dicts(result.messages))
+        avg_conf = (
+            sum(d.probability for d in result.decisions) / len(result.decisions)
+            if result.decisions
+            else 1.0
+        )
+        return (
+            RenderOutcome(
+                mode=RenderMode.GATED,
+                surface_id=surface_id,
+                messages=dicts,
+                stage="template_select",
+                confidence=avg_conf,
+                selected_template_id=result.template_id,
+                total_latency_ms=elapsed,
+                decompiled_express=_decompile_express([self._catalog], result.messages),
+            ),
+            rec.calls,
+        )
+
+    def _build_prose_extractor(
+        self, mock_values: Mapping[str, Any] | None = None
+    ) -> tuple[FieldExtractor, bool]:
+        """Builds a live Gemini Flash-Lite extractor or offline mock extractor."""
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if self._backend.backend_kind == "mock" or not api_key:
+            return DeterministicMockExtractor(mock_values or {}), False
+
+        from google import genai
+        from google.genai import types as genai_types
+
+        client = genai.Client(api_key=api_key)
+        model_name = os.environ.get("PROSE_EXTRACTOR_MODEL", "gemini-2.5-flash-lite")
+
+        async def _call_flash(
+            prompt: str, schema: dict[str, Any], timeout: float | None
+        ) -> Mapping[str, Any]:
+            del timeout
+            resp = await asyncio.to_thread(
+                client.models.generate_content,
+                model=model_name,
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=schema,
+                    temperature=0.0,
+                    thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
+                ),
+            )
+            return dict(json.loads(resp.text or "{}"))
+
+        return StructuredOutputExtractor(_call_flash, model_id=model_name), True
+
+    async def run_prose(
+        self,
+        *,
+        prose: str,
+        mock_values: Mapping[str, Any] | None = None,
+        surface_id: str = "main",
+    ) -> tuple[RenderOutcome, list[RecordedBatchCall]]:
+        """Executes Idea 6 (`ProseSurfaceUpgrader`) over plain prose input."""
+        start = time.perf_counter()
+        rec = self._recorder()
+        extractor, require_grounded = self._build_prose_extractor(mock_values)
+        upgrader = ProseSurfaceUpgrader(
+            rec,
+            extractor,
+            transport_catalogs=[self._catalog],
+            templates=PROSE_TEMPLATES,
+            extraction_thresholds=ExtractionThresholds(
+                require_grounded_span=require_grounded
+            ),
+        )
+        try:
+            result = await upgrader.upgrade(prose, surface_id=surface_id)
+        except (DecisionBackendError, FieldExtractionError) as exc:
+            elapsed = (time.perf_counter() - start) * 1000.0
+            msg = f"Prose upgrade error: {exc}"
+            return (
+                RenderOutcome(
+                    mode=RenderMode.PROSE,
+                    surface_id=surface_id,
+                    messages=tuple(build_status_card_messages(surface_id, msg)),
+                    ok=False,
+                    error=msg,
+                    stage="abstain_fallback",
+                    fallback_reason="backend_error",
+                    total_latency_ms=elapsed,
+                ),
+                rec.calls,
+            )
+
+        elapsed = (time.perf_counter() - start) * 1000.0
+        if result.abstained or not result.messages:
+            summary = (
+                f"**Prose-only (abstained)**: {result.reason}\n\n> {prose.strip()}"
+            )
+            return (
+                RenderOutcome(
+                    mode=RenderMode.PROSE,
+                    surface_id=surface_id,
+                    messages=tuple(build_status_card_messages(surface_id, summary)),
+                    text=prose,
+                    stage="abstain_fallback",
+                    confidence=result.gate_probability,
+                    fallback_source="abstain",
+                    fallback_reason=result.reason,
+                    total_latency_ms=elapsed,
+                ),
+                rec.calls,
+            )
+
+        dicts = tuple(to_message_dicts(result.messages))
+        return (
+            RenderOutcome(
+                mode=RenderMode.PROSE,
+                surface_id=surface_id,
+                messages=dicts,
+                text=prose,
+                stage="template_select",
+                confidence=result.template_confidence,
+                selected_template_id=result.template_id,
+                total_latency_ms=elapsed,
+                decompiled_express=_decompile_express([self._catalog], result.messages),
+            ),
+            rec.calls,
+        )
+
+    async def run_rpc_call(
+        self,
+        rpc_messages: Sequence[Mapping[str, Any]],
+        *,
+        session_id: str,
+    ) -> tuple[RenderOutcome, list[RecordedBatchCall]]:
+        """Executes Track 2C (`a2ui.rpc.experimental.decision`) for `callAgentFunction`."""
+        start = time.perf_counter()
+        rec = self._recorder()
+        fns = build_predicate_agent_functions(
+            rec,
+            RPC_PREDICATE_SPECS,
+            session_id=session_id,
+            rate_limiter=self._rate_limiter,
+        )
+        catalog = Catalog(RPC_PREDICATE_CATALOG_ID, "1.0").copy_with(
+            agent_functions=fns
+        )
+        processor = RendererToAgentMessageProcessor([catalog])
+        responses: list[dict[str, Any]] = []
+        passed = True
+        fallback_reason: str | None = None
+        for msg in rpc_messages:
+            result = await processor.process_message(dict(msg))
+            for reply in result.replies:
+                dumped = reply.model_dump(by_alias=True, exclude_unset=True)
+                responses.append(dumped)
+                reply_ok, reason = _classify_rpc_reply(dumped)
+                if not reply_ok:
+                    passed = False
+                    fallback_reason = reason
+        elapsed = (time.perf_counter() - start) * 1000.0
+        return (
+            RenderOutcome(
+                mode=RenderMode.RPC,
+                surface_id="main",
+                messages=tuple(responses),
+                ok=True,
+                stage="archetype" if passed else "abstain_fallback",
+                confidence=1.0 if passed else 0.0,
+                fallback_reason=fallback_reason,
+                operation="agent_function_response",
+                total_latency_ms=elapsed,
+            ),
+            rec.calls,
+        )
+
+    async def run_baseline(
+        self,
+        prompt: str,
+        *,
+        mode: RenderMode,
+        surface_id: str,
+        session_id: str | None = None,
+    ) -> tuple[RenderOutcome, list[RecordedBatchCall]]:
+        """Runs a single-call Express or Direct JSON baseline render."""
+        start = time.perf_counter()
+        outcome = await self._run_format_llm(
+            prompt,
+            mode=mode,
+            catalogs=[self._catalog],
+            surface_id=surface_id,
+            session_id=session_id,
+            stage="archetype",
+            confidence=1.0,
+            extra_summary="",
+            start=start,
+        )
+        return outcome, []
+
+    async def _text_only_reply(self, prompt: str, *, session_id: str | None) -> str:
+        if self._llm is None:
+            return f"(Offline mock text-only reply for: {prompt})"
+        turn = await self._llm(
+            instruction_key="text_only",
+            instruction="Answer concisely in plain text without generating UI.",
+            user_text=prompt,
+            session_id=session_id,
+        )
+        return turn.text.strip() or "(empty reply)"
+
+    async def _run_format_llm(
+        self,
+        prompt: str,
+        *,
+        mode: RenderMode,
+        catalogs: Sequence[CatalogApi],
+        surface_id: str,
+        session_id: str | None,
+        stage: str,
+        confidence: float,
+        extra_summary: str,
+        start: float,
+    ) -> RenderOutcome:
+        if self._llm is None:
+            elapsed = (time.perf_counter() - start) * 1000.0
+            note = (
+                f"Mode `{mode.value}` selected `{extra_summary or 'LLM synthesis'}`."
+                " Set `GEMINI_API_KEY` to enable live LLM generation, or use"
+                " `/tool <name>` / `/form <name>` for 0-LLM turns."
+            )
+            return RenderOutcome(
+                mode=mode,
+                surface_id=surface_id,
+                messages=tuple(build_status_card_messages(surface_id, note)),
+                text=note,
+                stage=stage,
+                confidence=confidence,
+                total_latency_ms=elapsed,
+            )
+
+        fmt: Any = (
+            DirectJsonFormat(list(catalogs))
+            if mode is RenderMode.DIRECT
+            else ExpressFormat(list(catalogs))
+        )
+        instruction = fmt.prompt_generator.generate()
+        turn = await self._llm(
+            instruction_key=f"{mode.value}:{len(catalogs[0].components)}",
+            instruction=instruction,
+            user_text=f"Render surface '{surface_id}' for: {prompt}",
+            session_id=session_id,
+        )
+        elapsed = (time.perf_counter() - start) * 1000.0
+        try:
+            parts = fmt.create_parser().parse_response(turn.text)
+            parsed = [
+                msg for part in parts if isinstance(part, A2uiPart) for msg in part.a2ui
+            ]
+            if not parsed:
+                raise ValueError("LLM response contained no A2UI messages.")
+            dicts = tuple(to_message_dicts(parsed))
+        except Exception as exc:
+            err = f"{mode.value} parse error: {exc}"
+            return RenderOutcome(
+                mode=mode,
+                surface_id=surface_id,
+                messages=tuple(build_status_card_messages(surface_id, err)),
+                ok=False,
+                error=err,
+                stage="abstain_fallback",
+                fallback_reason="parse_error",
+                llm_calls=1,
+                prompt_tokens=turn.prompt_tokens,
+                output_tokens=turn.output_tokens,
+                total_latency_ms=elapsed,
+            )
+        return RenderOutcome(
+            mode=mode,
+            surface_id=surface_id,
+            messages=dicts,
+            stage=stage,
+            confidence=confidence,
+            llm_calls=1,
+            prompt_tokens=turn.prompt_tokens,
+            output_tokens=turn.output_tokens,
+            total_latency_ms=elapsed,
+            decompiled_express=_decompile_express(catalogs, parsed),
+        )
