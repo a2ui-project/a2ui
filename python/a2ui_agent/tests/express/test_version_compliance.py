@@ -29,10 +29,9 @@ class TestVersionCompliance(unittest.TestCase):
 
         catalog_path = os.path.join(
             find_repo_root() or "",
-            "specification",
-            "v0_9",
             "catalogs",
             "basic",
+            "v0_9",
             "catalog.json",
         )
         with open(catalog_path, "r", encoding="utf-8") as f:
@@ -40,7 +39,7 @@ class TestVersionCompliance(unittest.TestCase):
         cls.catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
 
     def test_compile_v1_0_unified(self):
-        compiler = ExpressCompiler([self.catalog], version="v1.0")
+        compiler = ExpressCompiler([self.catalog], version="1.0")
         dsl = """
         root = Column([txt])
         txt = Text("Hello World")
@@ -50,7 +49,7 @@ class TestVersionCompliance(unittest.TestCase):
         self.assertIsInstance(raw_res, list)
         self.assertEqual(len(raw_res), 1)
         envelope = to_message_dicts(raw_res)[0]
-        self.assertEqual(envelope["version"], "v1.0")
+        self.assertEqual(envelope["version"], "1.0")
         self.assertIn("createSurface", envelope)
         self.assertIn("components", envelope["createSurface"])
         self.assertIn("dataModel", envelope["createSurface"])

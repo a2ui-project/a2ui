@@ -81,8 +81,21 @@ check
     : CHECK ('(' (expression (',' expression)* ','?)? ')')?
     ;
 
+/**
+ * A function call. The name is a catalog function or, from v1.0 on, a system
+ * function defined by the protocol (e.g. '@index()').
+ */
 call
-    : identifier '(' (arg (',' arg)* ','?)? ')'
+    : function_name '(' (arg (',' arg)* ','?)? ')'
+    ;
+
+/**
+ * The name of a called function: a catalog function identifier or a system
+ * function identifier starting with '@'.
+ */
+function_name
+    : identifier
+    | SYSTEM_IDENTIFIER
     ;
 
 /**
@@ -119,7 +132,7 @@ literal
     ;
 
 /**
- * A plain alphanumeric identifier.
+ * A UAX 31 identifier.
  */
 identifier
     : IDENTIFIER
@@ -150,17 +163,25 @@ STANDARD_STRING   : '"' ( '\\' . | ~'\\' )*? '"' ;
 // Data path literal (e.g. '$/user/id')
 PATH : '$' [a-zA-Z0-9_/]* ;
 
-// Validation check identifier (e.g. '?required')
-CHECK : '?' [a-zA-Z_] [a-zA-Z0-9_]* ;
+// Validation check identifier (e.g. '?required'); a catalog function name, UAX 31.
+CHECK : '?' [\p{XID_Start}_] [\p{XID_Continue}]* ;
 
-// Numeric literal supporting negatives and decimals
-NUMBER : '-'? [0-9]+ ('.' [0-9]+)? ;
+// Numeric literal: a JSON number plus an optional leading '+'. Same grammar as
+// the core `${...}` expression parsers: sign, digits with an optional fraction
+// (`1.` and `.5` included) and an optional exponent.
+NUMBER : [+-]? ([0-9]+ ('.' [0-9]*)? | '.' [0-9]+) ([eE] [+-]? [0-9]+)? ;
 
 // Boolean literal
 BOOLEAN : 'true' | 'false' ;
 
-// Plain alphanumeric identifier
-IDENTIFIER : [a-zA-Z_] [a-zA-Z0-9_]* ;
+// UAX 31 identifier: XID_Start or '_', then XID_Continue*. Mirrors the v1.0
+// catalog entity naming rules and the SDKs' isValidUax31Identifier helpers.
+IDENTIFIER : [\p{XID_Start}_] [\p{XID_Continue}]* ;
+
+// System function identifier (e.g. '@index'): '@' followed by a UAX 31
+// identifier. The protocol reserves names starting with '@' for system
+// functions, so they never clash with catalog function names.
+SYSTEM_IDENTIFIER : '@' [\p{XID_Start}_] [\p{XID_Continue}]* ;
 
 // Ignored elements: skipped completely at the lexer level.
 COMMENT : ( '#' | '//' ) ~[\r\n]* -> skip ;

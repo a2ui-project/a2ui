@@ -29,8 +29,8 @@ const CLOSE_TAG_SOURCE = '<\\/a2ui-json\\s*>';
 // The start of a tag that runs to the end of the text, matched at `lastIndex`.
 const OPEN_TAG_START_RE = /<a2ui-json\s[^>]*$/iy;
 const CLOSE_TAG_START_RE = /<\/a2ui-json\s*$/iy;
-const LEADING_FENCE_RE = /^```[a-zA-Z-]*\s*/;
-const TRAILING_FENCE_RE = /\s*```[a-zA-Z-]*$/;
+const LEADING_FENCE_RE = /^```[a-zA-Z0-9_-]*\s*/i;
+const TRAILING_FENCE_RE = /\s*```[a-zA-Z0-9_-]*$/i;
 
 /** Where an open tag starts and ends. */
 export interface TagMatch {
@@ -144,7 +144,15 @@ export function addText(parts: RawResponsePart[], text: string): void {
 
 /** Strips whitespace and one Markdown code fence around a block body. */
 export function clean(text: string): string {
-  return text.trim().replace(LEADING_FENCE_RE, '').replace(TRAILING_FENCE_RE, '').trim();
+  const cleaned = text.trim().replace(LEADING_FENCE_RE, '').replace(TRAILING_FENCE_RE, '').trim();
+  return /^`*$/.test(cleaned) ? '' : cleaned;
+}
+
+/** Strips whitespace, fences, and inline-code edge backticks from a block body. */
+export function cleanRaw(text: string): string {
+  return clean(text)
+    .replace(/^`+|`+$/g, '')
+    .trim();
 }
 
 /**

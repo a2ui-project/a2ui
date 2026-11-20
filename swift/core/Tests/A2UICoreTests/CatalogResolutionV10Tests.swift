@@ -134,9 +134,10 @@ struct CatalogResolutionV10Tests {
     #expect(resolver.catalog.id == "b")
 
     // Before v1.0 a single catalog is the default.
-    let legacy = try makeCatalog(id: "a", protocolVersion: .v091)
+    let v091Catalog = try makeCatalog(id: "a", protocolVersion: .v091)
     #expect(
-      SurfaceViewModel(surfaceID: "s", catalogs: [legacy], protocolVersion: .v091).catalog.id == "a"
+      SurfaceViewModel(surfaceID: "s", catalogs: [v091Catalog], protocolVersion: .v091).catalog.id
+        == "a"
     )
   }
 
@@ -145,7 +146,7 @@ struct CatalogResolutionV10Tests {
     try processor.processMessages(
       try JSONValue.parse(
         """
-        { "version": "v1.0", "createSurface": { "surfaceId": "s" } }
+        { "version": "1.0", "createSurface": { "surfaceId": "s" } }
         """
       )
     )
@@ -158,7 +159,7 @@ struct CatalogResolutionV10Tests {
         try JSONValue.parse(
           """
           {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
               "surfaceId": "s",
               "components": [{ "id": "root", "component": "Text" }]
@@ -172,7 +173,7 @@ struct CatalogResolutionV10Tests {
       try JSONValue.parse(
         """
         {
-          "version": "v1.0",
+          "version": "1.0",
           "updateComponents": {
             "surfaceId": "s",
             "components": [{ "id": "root", "component": "Text", "catalogId": "a" }]
@@ -310,9 +311,9 @@ struct CatalogResolutionV10Tests {
       try JSONValue.parse(
         """
         [
-          { "version": "v1.0", "createSurface": { "surfaceId": "s", "catalogId": "a" } },
+          { "version": "1.0", "createSurface": { "surfaceId": "s", "catalogId": "a" } },
           {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
               "surfaceId": "s",
               "components": [{ "id": "root", "component": "Text", "catalogId": "a" }]
@@ -323,6 +324,61 @@ struct CatalogResolutionV10Tests {
       )
     )
     #expect(processor.surfaceGroupModel["s"]?.componentsModel.get("root")?.catalogID == "a")
+  }
+
+  @Test func processorRoutesLegacyCatalogIDPastTargetCatalogIDProperty() throws {
+    // `Label` in the default catalog declares no `catalogId`, so a bare `catalogId` routes the
+    // component. `Label` in the target catalog declares an integer `catalogId` of its own, which
+    // must not check the routing string.
+    let mainLabel = try Schema(
+      instance: #"{ "type": "object", "properties": { "text": { "type": "string" } } }"#
+    )
+    let otherLabel = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "text": { "type": "string" },
+            "catalogId": { "type": "integer" }
+          }
+        }
+        """
+    )
+    let processor = MessageProcessor(catalogs: [
+      Catalog(
+        id: "main",
+        protocolVersion: .v10,
+        components: [AnyComponentAPI(name: "Label", schema: mainLabel)]
+      ).eraseToAnyCatalog(),
+      Catalog(
+        id: "other",
+        protocolVersion: .v10,
+        components: [AnyComponentAPI(name: "Label", schema: otherLabel)]
+      ).eraseToAnyCatalog(),
+    ])
+    try processor.processMessages(
+      try JSONValue.parse(
+        """
+        [
+          { "version": "1.0", "createSurface": { "surfaceId": "s", "catalogId": "main" } },
+          {
+            "version": "1.0",
+            "updateComponents": {
+              "surfaceId": "s",
+              "components": [
+                { "id": "root", "component": "Label", "text": "Hi", "catalogId": "other" }
+              ]
+            }
+          }
+        ]
+        """
+      )
+    )
+    let root = try #require(processor.surfaceGroupModel["s"]?.componentsModel.get("root"))
+    #expect(root.catalogID == "other")
+    #expect(root.properties["text"] == .string("Hi"))
+    #expect(root.properties["catalogId"] == nil)
+    #expect(root.properties["@catalogId"] == nil)
   }
 
   @Test func rpcArgumentResolutionValidatesNestedCallCatalog() async throws {

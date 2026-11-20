@@ -100,7 +100,9 @@ describe('v1.0 Validation Functions (returnType: validationResult)', () => {
     const invalidRes = EmailV1Point0Implementation.execute({value: 'invalid-email'}, dummyContext);
     assert.deepStrictEqual(invalidRes, {
       valid: false,
-      message: 'Must be a valid email address.',
+      code: 'INVALID_EMAIL',
+      severity: 'error',
+      message: 'Please enter a valid email address (e.g. user@example.com).',
     });
   });
 });

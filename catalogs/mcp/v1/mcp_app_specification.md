@@ -1,13 +1,13 @@
 # A2UI MCP App Component Specification (v1.0)
 
-## A Specification for Sandboxed, Model Context Protocol Components in the Agent-to-UI Protocol
+## A Specification for Sandboxed, Model Context Protocol Components in the A2UI Protocol
 
 Jun 2, 2026  
 Status: In progress
 
 # Abstract
 
-This specification defines the A2UI MCP App Component (`McpApp`) for the secure, sandboxed rendering of Model Context Protocol (MCP) applications in the Agent-to-UI (A2UI) protocol. This document has two purposes:
+This specification defines the A2UI MCP App Component (`McpApp`) for the secure, sandboxed rendering of Model Context Protocol (MCP) applications in the A2UI protocol. This document has two purposes:
 
 1. **Platform implementation blueprint:** It provides client-side platform developers with instructions to implement compliant `McpApp` components in any native rendering framework (such as Lit or Angular) while maintaining security guarantees.
 2. **Interoperable application standard:** It defines the communication interface and message schemas between the A2UI host and the sandboxed MCP application. It uses the `@modelcontextprotocol/ext-apps/app-bridge` specification to support A2UI v1.0 capabilities, including local client-side function execution and two-way local data binding.

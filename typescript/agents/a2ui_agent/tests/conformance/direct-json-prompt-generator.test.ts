@@ -14,63 +14,81 @@
  * limitations under the License.
  */
 
-import * as fs from 'fs';
-import {describe, expect} from 'vitest';
+import {readFileSync} from 'fs';
+
+import {expect} from 'vitest';
 
 import {AgentToRendererMessage, DirectJsonPromptGenerator} from '../../src/index.js';
 import {loadCases} from './loader.js';
 import {
+  assertExpectedError,
+  assertKnownKeys,
+  CASE_METADATA_KEYS,
   CatalogRegistration,
   conformancePath,
-  errorClassFor,
+  describeSuite,
+  KNOWN_FAILURES,
   loadRegistrations,
-  registerCase,
 } from './suite-helpers.js';
 
-/** Cases that run but do not pass yet, with the reason for each. */
-const KNOWN_FAILURES = new Map<string, string>([]);
+const PROMPT_GENERATOR_CASE_KEYS = new Set([
+  ...CASE_METADATA_KEYS,
+  'args',
+  'expect_file',
+  'expect_contains',
+  'expect_absent',
+  'expect_deterministic',
+  'expect_error',
+]);
+const PROMPT_GENERATOR_ARGS_KEYS = new Set(['format', 'catalogs', 'examples', 'allowed_messages']);
 
-describe('Conformance: direct_json/prompt_generator.yaml', () => {
-  for (const testCase of loadCases([conformancePath('agent/direct_json/prompt_generator.yaml')])) {
-    registerCase(testCase, KNOWN_FAILURES, async () => {
-      const args = testCase.args as {
-        format: string;
-        catalogs: CatalogRegistration[];
-        examples?: string[];
-        allowed_messages?: string[];
-      };
-      if (args.format !== 'direct_json') {
-        throw new Error(`Unexpected format '${args.format}'`);
-      }
+describeSuite(
+  'Conformance: direct_json/prompt_generator.yaml',
+  loadCases([conformancePath('agent/direct_json/prompt_generator.yaml')]),
+  async testCase => {
+    assertKnownKeys(testCase, PROMPT_GENERATOR_CASE_KEYS, 'generate_prompt_snippet case');
+    const args = testCase.args as {
+      format: string;
+      catalogs: CatalogRegistration[];
+      examples?: string[];
+      allowed_messages?: string[];
+    };
+    assertKnownKeys(
+      args as Record<string, unknown>,
+      PROMPT_GENERATOR_ARGS_KEYS,
+      'generate_prompt_snippet args',
+    );
+    if (args.format !== 'direct_json') {
+      throw new Error(`Unexpected format '${args.format}'`);
+    }
 
-      const catalogs = loadRegistrations(args.catalogs).map(c => c.transformedCatalog);
-      const turns = (args.examples ?? []).map(
-        file =>
-          JSON.parse(fs.readFileSync(conformancePath(file), 'utf8')) as AgentToRendererMessage[],
-      );
-      const examples = turns.length > 0 ? turns : undefined;
-      const generate = () =>
-        new DirectJsonPromptGenerator(catalogs, examples, args.allowed_messages).generate();
+    const catalogs = loadRegistrations(args.catalogs).map(c => c.transformedCatalog);
+    const turns = (args.examples ?? []).map(
+      file => JSON.parse(readFileSync(conformancePath(file), 'utf8')) as AgentToRendererMessage[],
+    );
+    const examples = turns.length > 0 ? turns : undefined;
+    const generate = () =>
+      new DirectJsonPromptGenerator(catalogs, examples, args.allowed_messages).generate();
 
-      if (testCase.expect_error) {
-        expect(generate).toThrow(errorClassFor(testCase));
-        return;
-      }
+    if (testCase.expect_error) {
+      assertExpectedError(generate, testCase);
+      return;
+    }
 
-      const snippet = generate();
-      if (typeof testCase.expect_file === 'string') {
-        const expectedText = fs.readFileSync(conformancePath(testCase.expect_file), 'utf8');
-        expect(snippet).toBe(expectedText);
-      }
-      for (const needle of (testCase.expect_contains as string[] | undefined) ?? []) {
-        expect(snippet, `snippet should contain '${needle}'`).toContain(needle);
-      }
-      for (const needle of (testCase.expect_absent as string[] | undefined) ?? []) {
-        expect(snippet, `snippet should not contain '${needle}'`).not.toContain(needle);
-      }
-      if (testCase.expect_deterministic) {
-        expect(generate()).toBe(snippet);
-      }
-    });
-  }
-});
+    const snippet = generate();
+    if (typeof testCase.expect_file === 'string') {
+      const expectedText = readFileSync(conformancePath(testCase.expect_file), 'utf8');
+      expect(snippet).toBe(expectedText);
+    }
+    for (const needle of (testCase.expect_contains as string[] | undefined) ?? []) {
+      expect(snippet, `snippet should contain '${needle}'`).toContain(needle);
+    }
+    for (const needle of (testCase.expect_absent as string[] | undefined) ?? []) {
+      expect(snippet, `snippet should not contain '${needle}'`).not.toContain(needle);
+    }
+    if (testCase.expect_deterministic) {
+      expect(generate()).toBe(snippet);
+    }
+  },
+  {knownFailures: KNOWN_FAILURES},
+);

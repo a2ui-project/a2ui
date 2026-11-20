@@ -91,11 +91,20 @@ export function childList(options: RefSchemaOptions = {}): typeof ChildListSchem
   return ChildListSchema.describe(`REF:#/$defs/ChildList|\${options.description}`);
 }
 
-/** Zod schema validating any component payload in a v1.0 message (excluding Surface). */
+/**
+ * Zod schema validating any component payload in a v1.0 message (excluding Surface).
+ *
+ * Only the structural `id` and `component` are checked here. The envelope
+ * mixins (`@metadata`, `@catalogId`, `@accessibility`, `@checks`, and during
+ * the transition their legacy bare names) are checked by `PayloadValidator`
+ * against the component's schema, which may declare custom properties named
+ * `metadata`, `catalogId`, `accessibility`, or `checks`.
+ */
 export const AnyComponentSchema: z.ZodType<any> = z.lazy(() =>
-  ComponentCommonSchema.extend({
-    component: z.string(),
-  })
+  ComponentCommonSchema.pick({id: true})
+    .extend({
+      component: z.string(),
+    })
     .passthrough()
     .refine(comp => comp.component !== 'Surface', {
       message:

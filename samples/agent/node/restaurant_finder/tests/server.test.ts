@@ -113,7 +113,7 @@ describe.each(FORMATS)('stub agent over JSON-RPC (%s)', format => {
   it('message/stream with v1.0 capabilities streams v1.0 in working updates', async () => {
     const events = await stream(
       userMessage([query], {
-        a2uiRendererCapabilities: {'v1.0': {supportedCatalogIds: [V1_0_CATALOG]}},
+        a2uiRendererCapabilities: {'1.0': {supportedCatalogIds: [V1_0_CATALOG]}},
       }),
     );
 
@@ -123,7 +123,7 @@ describe.each(FORMATS)('stub agent over JSON-RPC (%s)', format => {
     );
     const messages = working.flatMap(event => a2uiMessages(event.status.message?.parts));
     expect(messages.length).toBeGreaterThan(0);
-    expect(messages.every(msg => msg.version === 'v1.0')).toBe(true);
+    expect(messages.every(msg => msg.version === '1.0')).toBe(true);
     expect(createdSurfaceIds(messages)).toEqual(expect.arrayContaining(['stub-notice', 'default']));
 
     const last = events.at(-1) as TaskStatusUpdateEvent;
@@ -135,7 +135,7 @@ describe.each(FORMATS)('stub agent over JSON-RPC (%s)', format => {
   describe('an unknown catalog id fails the task under its announced id', () => {
     const unknownCatalog = {
       a2uiRendererCapabilities: {
-        'v1.0': {supportedCatalogIds: ['https://example.com/unknown/catalog.json']},
+        '1.0': {supportedCatalogIds: ['https://example.com/unknown/catalog.json']},
       },
     };
 

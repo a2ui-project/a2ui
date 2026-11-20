@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:a2ui_flutter/basic_catalog.dart';
+import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -391,13 +391,59 @@ void main() {
       });
 
       testWidgets('is ignored when it does not compile', (tester) async {
-        await _pump(tester, [
+        final SurfaceHarness harness = await _pump(tester, [
           _field({'value': 'abc', 'validationRegexp': '[0-9'}),
         ]);
 
         expect(tester.takeException(), isNull);
         expect(_errorText(tester), isNull);
+        expect(harness.errorCodes, ['EXPRESSION_ERROR']);
+        expect(harness.errors.single.message, contains('UNSUPPORTED_SYNTAX'));
       });
+
+      testWidgets(
+        'rejects unsafe (a+)+\$ without hanging and reports EXPRESSION_ERROR '
+        'once while ^[a-z]+\$ validates',
+        (tester) async {
+          final SurfaceHarness harness = await _pump(tester, [
+            _field({
+              'value': 'aaaaaaaaaaaaaaaaaaaaaaaa!',
+              'validationRegexp': r'(a+)+$',
+            }),
+          ]);
+
+          expect(tester.takeException(), isNull);
+          expect(_errorText(tester), isNull);
+          expect(harness.errorCodes, ['EXPRESSION_ERROR']);
+          expect(harness.errors.single.message, contains('NESTED_QUANTIFIER'));
+
+          // Further edits do not re-emit the compilation error.
+          await tester.enterText(
+            find.byType(TextField),
+            'aaaaaaaaaaaaaaaaaaaaaaaaa!',
+          );
+          await tester.pump();
+          expect(_errorText(tester), isNull);
+          expect(harness.errors, hasLength(1));
+
+          // Updating to a safe pattern ^[a-z]+$ restores validation.
+          await harness.send([
+            updateComponents([
+              _field({'value': 'abc', 'validationRegexp': r'^[a-z]+$'}),
+            ]),
+          ]);
+          expect(_errorText(tester), isNull);
+
+          await tester.enterText(find.byType(TextField), 'abc123');
+          await tester.pump();
+          expect(_errorText(tester), 'Invalid format');
+
+          await tester.enterText(find.byType(TextField), 'hello');
+          await tester.pump();
+          expect(_errorText(tester), isNull);
+          expect(harness.errors, hasLength(1));
+        },
+      );
 
       testWidgets('follows a pattern the agent changes', (tester) async {
         final SurfaceHarness harness = await _pump(tester, [

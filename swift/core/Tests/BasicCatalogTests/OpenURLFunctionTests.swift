@@ -61,7 +61,7 @@ struct OpenURLFunctionTests {
     let v09 = BasicCatalog.makeCatalog(version: .v09)
     let v10 = BasicCatalog.makeCatalog(version: .v10)
 
-    // 1. Slider: v1.0 supports `steps` (integer >= 1) and `catalogId`/`metadata`
+    // 1. Slider: v1.0 supports `steps` (integer >= 1) and the `catalogId`/`metadata` mixins
     let v10Slider = try #require(v10.components["Slider"])
     let validSlider: OrderedJSON.JSONValue = [
       "id": "s1",
@@ -70,7 +70,7 @@ struct OpenURLFunctionTests {
       "min": 0,
       "max": 100,
       "steps": 10,
-      "catalogId": "custom",
+      "@catalogId": "custom",
     ]
     #expect(v10Slider.schema.validate(validSlider).isValid)
 
@@ -93,17 +93,19 @@ struct OpenURLFunctionTests {
       "id": "tf1",
       "component": "TextField",
       "label": "Name",
+      "value": ["@path": "/name"],
       "placeholder": "Jane Doe",
     ]
     #expect(v10TextField.schema.validate(validTextField).isValid)
 
-    let legacyRegexTextField: OrderedJSON.JSONValue = [
+    let v09RegexTextField: OrderedJSON.JSONValue = [
       "id": "tf1",
       "component": "TextField",
       "label": "Name",
+      "value": ["@path": "/name"],
       "validationRegexp": ".*",
     ]
-    #expect(!v10TextField.schema.validate(legacyRegexTextField).isValid)
+    #expect(!v10TextField.schema.validate(v09RegexTextField).isValid)
 
     // 3. Icon: v1.0 allows DynamicString (e.g. DataBinding) for `svgPath`, while v0.9 requires literal string
     let v09Icon = try #require(v09.components["Icon"])
@@ -175,6 +177,61 @@ struct OpenURLFunctionTests {
     #expect(throws: FunctionError.self) {
       try function.evaluate(arguments: [:], context: context)
     }
+  }
+
+  // MARK: - Catalog factories
+
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func makeCatalogPassesOpenURLHandlerToOpenURLFunction(version: A2UIProtocolVersion) throws {
+    let handler = MockOpenURLHandler()
+    let catalog = BasicCatalog.makeCatalog(
+      version: version, openURLHandler: handler)
+    let function = try #require(catalog.functions["openUrl"])
+
+    _ = try function.evaluate(arguments: ["url": .string("https://example.com")], context: context)
+
+    #expect(handler.openedURL?.absoluteString == "https://example.com")
+    #expect(function.api.requiresUserActivation == (version == .v10))
+  }
+
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func makeCatalogDoesNotPassDisallowedURLToOpenURLHandler(version: A2UIProtocolVersion) throws {
+    let handler = MockOpenURLHandler()
+    let catalog = BasicCatalog.makeCatalog(
+      version: version, openURLHandler: handler)
+    let function = try #require(catalog.functions["openUrl"])
+
+    #expect(throws: FunctionError.self) {
+      try function.evaluate(
+        arguments: ["url": .string("javascript:alert('xss')")], context: context)
+    }
+    #expect(handler.openedURL == nil)
+  }
+
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func makeCatalogHoldsOpenURLHandlerWeakly(version: A2UIProtocolVersion) throws {
+    weak var releasedHandler: MockOpenURLHandler?
+    let catalog: AnyCatalog
+    do {
+      let handler = MockOpenURLHandler()
+      releasedHandler = handler
+      catalog = BasicCatalog.makeCatalog(
+        version: version, openURLHandler: handler)
+    }
+    let function = try #require(catalog.functions["openUrl"] as? OpenURLFunction)
+
+    #expect(releasedHandler == nil)
+    #expect(function.handler == nil)
+  }
+
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func sharedCatalogOpenURLOnlyValidates(version: A2UIProtocolVersion) throws {
+    let function = try #require(BasicCatalog.makeCatalog(version: version).functions["openUrl"])
+
+    let result = try function.evaluate(
+      arguments: ["url": .string("https://example.com")], context: context)
+
+    #expect(result == .null)
   }
 
   // MARK: - Security Constraints

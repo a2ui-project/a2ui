@@ -21,13 +21,7 @@ from typing import Any, TYPE_CHECKING
 
 from pydantic import BaseModel, ValidationError
 
-from a2ui.core import (
-    A2uiCatalogError,
-    A2uiValidationError,
-    Catalog,
-    CatalogApi,
-    link_catalogs,
-)
+from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog, CatalogApi
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import (
     A2uiRendererCapabilities,
@@ -46,7 +40,7 @@ _CAPABILITIES_ENTRIES: dict[ProtocolVersion, tuple[str, type[BaseModel]]] = {
     ProtocolVersion.V0_8: ("v0.8", v0_8.V08Capabilities),
     ProtocolVersion.V0_9: ("v0.9", v0_9.V09Capabilities),
     ProtocolVersion.V0_9_1: ("v0.9", v0_9.V09Capabilities),
-    ProtocolVersion.V1_0: ("v1.0", v1_0.V10Capabilities),
+    ProtocolVersion.V1_0: ("1.0", v1_0.V10Capabilities),
 }
 _V0_8_KEY = _CAPABILITIES_ENTRIES[ProtocolVersion.V0_8][0]
 # The fields of a capabilities entry, as the specification names them.
@@ -97,10 +91,9 @@ def resolve_catalogs(
       A2uiValidationError: If the capabilities have no valid entry for the
         protocol version of the registered catalogs.
     """
-    pristine = [config.catalog for config in catalogs]
     registered = [config.transformed_catalog for config in catalogs]
     if renderer_capabilities is None:
-        return link_catalogs(registered, extra_peers=pristine)
+        return registered
     if not registered:
         raise A2uiCatalogError(
             "No catalogs are registered, so none of the renderer's catalogs can be"
@@ -144,11 +137,7 @@ def resolve_catalogs(
             "No client-supported catalog found on the agent side. Agent-supported"
             f" catalogs are: {list(registered_by_id)}"
         )
-    # Inactive registered catalogs stay resolvable as peers. Inline catalogs
-    # are peers only when active, so a refused one never affects the prompt or
-    # validation. Linking returns per-request copies and leaves the registered
-    # catalogs, which live as long as the agent, unchanged.
-    return link_catalogs(list(active.values()), extra_peers=[*pristine, *registered])
+    return list(active.values())
 
 
 def _capabilities_entry(

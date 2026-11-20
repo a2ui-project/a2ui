@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:a2ui_flutter/basic_catalog.dart';
+import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -62,9 +62,8 @@ void main() {
           {'id': v, 'component': 'Text', 'text': v, 'variant': v},
       ], catalog: _catalog);
 
-      final TextTheme theme = Theme.of(
-        tester.element(find.text('h1')),
-      ).textTheme;
+      final TextTheme theme = Theme.of(tester.element(find.text('h1')))
+          .textTheme;
       TextStyle? styleOf(String text) =>
           tester.widget<Text>(find.text(text)).style;
       for (final (variant, expected) in [

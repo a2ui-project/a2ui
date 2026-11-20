@@ -30,27 +30,24 @@ import 'support/renderer_catalog.dart';
 import 'support/timing.dart';
 
 /// A catalog whose `Column` holds only `Text` children.
-final Catalog<ComponentApi, FunctionImplementation> _catalog = rendererCatalog(
-  {
-    'catalogId': 'allowed_children',
-    'components': {
-      'Column': {
-        'type': 'object',
-        'allowedChildren': ['Text'],
-        'properties': {
-          'children': {r'$ref': '#/\$defs/ChildList'},
-        },
+final Catalog<ComponentApi, FunctionImplementation> _catalog = rendererCatalog({
+  'catalogId': 'allowed_children',
+  'components': {
+    'Column': {
+      'type': 'object',
+      'allowedChildren': ['Text'],
+      'properties': {
+        'children': {r'$ref': '#/\$defs/ChildList'},
       },
-      'Text': {
-        'type': 'object',
-        'properties': {
-          'text': {'type': 'string'},
-        },
+    },
+    'Text': {
+      'type': 'object',
+      'properties': {
+        'text': {'type': 'string'},
       },
     },
   },
-  protocolVersion: 'v1.0',
-);
+}, protocolVersion: '1.0');
 
 void main() {
   test('checks each child once when children arrive one per message', () {
@@ -60,15 +57,16 @@ void main() {
     // than its square.
     const Map<String, Object?> testCase = {
       'payload': [
-        '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", '
+        '[{"version": "1.0", "createSurface": {"surfaceId": "s1", '
             '"catalogId": "allowed_children"}}, '
-            '{"version": "v1.0", "updateComponents": {"surfaceId": "s1", '
+            '{"version": "1.0", "updateComponents": {"surfaceId": "s1", '
             '"components": [{"id": "root", "component": "Column", '
             '"children": [',
         {'repeat': '"item_{i}"', 'separator': ', '},
         ']}]}}, ',
         {
-          'repeat': '{"version": "v1.0", "updateComponents": '
+          'repeat':
+              '{"version": "1.0", "updateComponents": '
               '{"surfaceId": "s1", "components": [{"id": "item_{i}", '
               '"component": "Text", "text": "Item number {i}"}]}}',
           'separator': ', ',
@@ -81,9 +79,9 @@ void main() {
     void Function() process(int size) {
       final Object? messages = jsonDecode(writePayload(testCase, size));
       return () => MessageProcessor<ComponentApi>(
-            catalogs: [_catalog],
-            validationConfig: ValidationConfig.relaxed,
-          ).processMessages(messages);
+        catalogs: [_catalog],
+        validationConfig: ValidationConfig.relaxed,
+      ).processMessages(messages);
     }
 
     expectTimeRatio(

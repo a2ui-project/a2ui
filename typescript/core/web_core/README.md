@@ -14,6 +14,19 @@ The `@a2ui/web_core` package provides state management, protocol parsing, and sc
 
 Rendering is driven by a `SurfaceGroupModel` and its constituent `SurfaceModel` instances, with `DataModel` managing reactive state, `DataContext` providing expression evaluation, and `MessageProcessor` validating and applying incoming protocol messages.
 
+### Outbound Agent Messages
+
+Pass `outboundListener` with `unifiedOutbound: true` to route all renderer-to-agent wire messages (actions, processing errors, `callAgentFunction` requests, and `rendererFunctionResponse` replies) through a single callback:
+
+```ts
+import {MessageProcessor} from '@a2ui/web_core';
+
+const processor = new MessageProcessor(catalogs, undefined, {
+  outboundListener: send,
+  unifiedOutbound: true,
+});
+```
+
 ## Schema & Code Generation
 
 Protocol message schemas, common types, and catalog definitions are generated directly from the JSON schemas in the `specification/` directory.
@@ -75,6 +88,17 @@ const schema = catalog.validationSchema; // bundled JSON Schema
 ```
 
 The `Catalog` constructor takes a `CatalogOptions` object as its fifth argument, with the `themeSchema`, the document-level fields (`instructions`, `schemaUri`, `schemaId`, `title`, `description`, `declaredProtocolVersion`, `declaresCatalogId`, `declaresComponents`, `functionsLayout`, `unions`, `defs`, `extensionFields`) that `toJson` emits, and, for a catalog defined in code, `commonTypesUri`, `themeLocation` and `defModels`. `catalog.withEntries(components, functions)` returns a catalog with the same fields and other entries, as catalog transformers need.
+
+`catalog.derive(options)` returns a new catalog under its own id, built from entries of `catalog` and new ones. In `components` and `functions`, a name keeps the entry of that name and an object adds an entry. The new catalog does not keep the source's `$id`, title, description or instructions, since the instructions of the basic catalog, for example, name its id in their examples:
+
+```ts
+const chatCatalog = basicCatalog.derive({
+  catalogId: 'https://example.com/catalogs/chat.json',
+  components: ['Text', 'Image', 'Row', 'Column', 'Button', carousel],
+  functions: ['openUrl'],
+  instructions,
+});
+```
 
 ### Specification annotations
 

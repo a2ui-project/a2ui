@@ -20,14 +20,16 @@ import 'package:flutter/material.dart';
 
 import '../../component_implementation.dart';
 import '../../component_props.dart';
+import 'check_hint.dart';
 import 'unbounded_width.dart';
 import 'write_back.dart';
 
 /// Builds the basic `Slider` component: a [Slider] from `min` (default 0) to
 /// `max` (default 100 when absent) under its `label` and current `value`.
 ///
-/// A range that is a whole number from 2 to 1000 moves in steps of 1 from
-/// `min`. Any other range moves continuously. Each move is written to the
+/// With `steps`, the slider moves in that many equal steps from `min`.
+/// Without it, a range that is a whole number from 2 to 1000 moves in steps
+/// of 1, and any other range moves continuously. Each move is written to the
 /// bound `value` path, a whole value below 2^53 in magnitude as an int. A
 /// literal `value`, or a range too large for a double, renders the slider
 /// disabled.
@@ -41,14 +43,21 @@ Widget buildSlider(
   final double min = props.number('min') ?? 0;
   final double max = math.max(min, props.number('max') ?? 100);
   final double range = max - min;
+  final int? steps = switch (props.number('steps')) {
+    final double n when n.isFinite && n >= 1 && range > 0 && range.isFinite =>
+      n.floor(),
+    _ => null,
+  };
   final int? divisions =
-      range > 1 && range <= 1000 && (range - range.round()).abs() < 1e-9
-      ? range.round()
-      : null;
+      steps ??
+      (range > 1 && range <= 1000 && (range - range.round()).abs() < 1e-9
+          ? range.round()
+          : null);
   final double raw = props.number('value') ?? min;
   final double value = raw.isFinite ? raw.clamp(min, max) : min;
   final String valueText = ComponentProps.asString(value)!;
   final String? error = props.validationErrors.firstOrNull;
+  final String? hint = checkHint(props);
   final void Function(Object?)? write = writerFor(context, props, 'value');
   return limitUnboundedWidth(
     context,
@@ -76,9 +85,15 @@ Widget buildSlider(
           onChanged: write == null || !range.isFinite
               ? null
               : (moved) {
-                  final double snapped = divisions == null
-                      ? moved
-                      : math.min(max, min + (moved - min).round());
+                  final double stepped = steps != null
+                      ? min +
+                            range *
+                                ((moved - min) / range * steps).round() /
+                                steps
+                      : divisions != null
+                      ? min + (moved - min).round()
+                      : moved;
+                  final double snapped = stepped.clamp(min, max);
                   write(
                     snapped == snapped.roundToDouble() &&
                             snapped.abs() < _twoTo53
@@ -93,7 +108,9 @@ Widget buildSlider(
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.error,
             ),
-          ),
+          )
+        else if (hint != null)
+          Text(hint, style: theme.textTheme.bodySmall),
       ],
     ),
   );

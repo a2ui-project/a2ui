@@ -15,13 +15,35 @@
  */
 
 import {html, nothing, css} from 'lit';
+import {sanitizeMediaUrl} from '../../../common/sanitize_media_url.js';
+import {
+  getAccessibilityDescription,
+  getAccessibilityLabel,
+  hasAttributeValue,
+} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {AudioPlayerSupportedApis} from './supported_apis.js';
 
 export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<AudioPlayerSupportedApis> {
   /** @nocollapse */
   static readonly tagName = 'a2ui-audioplayer';
-  /** @nocollapse */
+  /**
+   * The styles of the audio player can be customized by redefining the
+   * following CSS variables:
+   *
+   * - `--a2ui-audioplayer-background`: Background of the player container. Defaults to `transparent`.
+   * - `--a2ui-audioplayer-border-radius`: Border radius of the player container. Defaults to `0`.
+   * - `--a2ui-audioplayer-padding`: Padding of the player container. Defaults to `0`.
+   * - `--a2ui-audioplayer-description-color`: Text color of the description. Defaults to `--a2ui-text-caption-color`, then `light-dark(#666, #aaa)`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-spacing-xs`: Gap between the description and audio controls.
+   * - `--a2ui-font-size-s`: Font size of the description.
+   * - `--a2ui-text-caption-color`: Fallback text color for the description. Defaults to `light-dark(#666, #aaa)`.
+   *
+   * @nocollapse
+   */
   static override styles = css`
     .a2ui-audio-player {
       display: flex;
@@ -48,12 +70,25 @@ export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<AudioPlay
     const props = this.controller.props;
     if (!props) return nothing;
 
+    const safeUrl = sanitizeMediaUrl(props.url);
+    const descId = `${this.domId}-desc`;
+    const hasVisibleDescription = hasAttributeValue(props.description);
+    const a11yLabel = getAccessibilityLabel(props.accessibility);
+    const a11yDescription = getAccessibilityDescription(props.accessibility);
+
     return html`
       <div class="a2ui-audio-player">
-        ${props.description
-          ? html`<div class="a2ui-audio-description">${props.description}</div>`
+        ${hasVisibleDescription
+          ? html`<div id=${descId} class="a2ui-audio-description">${props.description}</div>`
           : nothing}
-        <audio src=${props.url || nothing} controls class="a2ui-audio">
+        <audio
+          src=${safeUrl ?? nothing}
+          controls
+          class="a2ui-audio"
+          aria-label=${a11yLabel}
+          aria-labelledby=${a11yLabel === nothing && hasVisibleDescription ? descId : nothing}
+          aria-description=${a11yDescription}
+        >
           Your browser does not support the audio tag.
         </audio>
       </div>

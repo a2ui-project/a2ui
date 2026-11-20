@@ -61,7 +61,7 @@ public struct MessageStreamPane: View {
                 index == currentStepIndex
                   ? Color.blue.opacity(0.1) : Color(.secondarySystemBackground)
               )
-              .cornerRadius(6)
+              .clipShape(.rect(cornerRadius: 6))
               .overlay(
                 RoundedRectangle(cornerRadius: 6)
                   .stroke(index == currentStepIndex ? Color.blue : Color.clear, lineWidth: 1.5)
@@ -108,7 +108,7 @@ public struct DataModelPane: View {
           .frame(maxWidth: .infinity, alignment: .leading)
           .padding(12)
           .background(Color(.secondarySystemBackground))
-          .cornerRadius(8)
+          .clipShape(.rect(cornerRadius: 8))
           .padding(.horizontal, 16)
 
         Spacer()

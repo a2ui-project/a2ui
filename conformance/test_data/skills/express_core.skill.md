@@ -7,7 +7,7 @@ description: Core A2UI protocol instructions and syntax rules for UI generation.
 
 You must output the user interface using A2UI Express.
 
-IMPORTANT: You MUST always surround the entire A2UI Express block with the sentinel tags `<a2ui>` and `</a2ui>`.
+IMPORTANT: You MUST always surround the entire A2UI Express block with the literal sentinel tags `<a2ui>` and `</a2ui>` (always include both the opening and closing tags; do NOT wrap the tags in backticks or replace the opening tag with a markdown code fence such as ```a2ui).
 
 The host compiler will compile your A2UI Express output into the correct JSON envelopes automatically.
 
@@ -41,8 +41,11 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 
 7. Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").
 
-8. Action events: represent server-side actions using the Event helper:
+8. Action events: represent server-side actions using the Event helper, `Event(name, context?, userMessage=...)`:
    Event("save_deal", {rep: $/form/rep})
+   Event("reply", userMessage="Replying now")
+   Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)
+   The context map is optional. Pass `userMessage=` as a keyword argument (a string, `$path` binding, or function call) to set the message shown on the user's behalf when the event fires.
 
 9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
 
@@ -63,3 +66,10 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 15. Surface targeting: Output `surface(surfaceId)` to specify or target a user interface surface:
     surface("dashboard-surface-1")
     root = Card(...)
+
+## System Functions
+
+These functions are defined by the A2UI protocol, not by a catalog. Call them by their `@` name, like any function, and never add a `catalogId` to them:
+• @index(offset?)
+  - Description: Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.
+  - offset: Optional. An offset to add to the 0-based index (e.g., 1 for 1-based indexing). Defaults to 0.

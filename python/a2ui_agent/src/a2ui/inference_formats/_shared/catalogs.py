@@ -19,7 +19,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Literal
 
-from a2ui.core import A2uiCatalogError, CatalogApi, link_catalogs
+from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.common import is_at_least_version, to_protocol_version
 from a2ui.core.schema import ProtocolVersion
 
@@ -64,7 +64,7 @@ def check_catalogs(catalogs: Sequence[CatalogApi]) -> list[CatalogApi]:
             "The catalogs target incompatible protocol versions:"
             f" {sorted(v.value for v in versions)}."
         )
-    return link_catalogs(items)
+    return items
 
 
 def check_mixed_catalogs(catalogs: Sequence[CatalogApi]) -> list[CatalogApi]:
@@ -151,6 +151,7 @@ def catalogs_protocol_version(catalogs: Sequence[CatalogApi]) -> str:
 
 def build_catalog_helpers(
     catalogs: Sequence[CatalogApi],
+    protocol_version: str | ProtocolVersion | None = None,
 ) -> dict[str, CatalogSchemaHelper]:
     """Builds an insertion-ordered catalog ID to CatalogSchemaHelper mapping.
 
@@ -159,6 +160,8 @@ def build_catalog_helpers(
 
     Args:
         catalogs: The catalogs, primary catalog first.
+        protocol_version: The protocol version whose common types and system
+            functions the helpers read. Defaults to each catalog's own version.
 
     Returns:
         The helpers keyed by catalog ID.
@@ -167,4 +170,4 @@ def build_catalog_helpers(
         A2uiCatalogError: If two catalogs share a catalog ID.
     """
     _check_unique_ids(catalogs)
-    return {c.catalog_id: CatalogSchemaHelper(c) for c in link_catalogs(catalogs)}
+    return {c.catalog_id: CatalogSchemaHelper(c, protocol_version) for c in catalogs}

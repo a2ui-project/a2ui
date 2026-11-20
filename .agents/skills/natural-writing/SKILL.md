@@ -1,6 +1,8 @@
 ---
 name: natural-writing
 description: Contains well-defined rules for creating natural, accurate, and readable writing. Use this skill whenever authoring longer text, including reports, PR descriptions, READMEs, system designs, analysis documents, or general documentation.
+metadata:
+  internal: true
 ---
 
 # Rules for natural writing
@@ -135,7 +137,7 @@ Do not use inline-header lists (such as `* **Header:** Description...`). Instead
 
 Avoid excessive bolding of keywords, "key takeaways," or names in the body text, except for the first mention in the lead.
 
-Use numbered lists (`1.`, `2.`) instead of bullets, so readers can refer to an item by its number, as in "see point 3". Do not use emojis (🚀, 🧠) as list markers.
+Use numbered lists (`1.`, `2.`) instead of bullets, so readers can refer to an item by its number, as in "see point 3" (except in changelogs, which use `-` bullets; see [`update-changelog`](../update-changelog/SKILL.md)). Do not use emojis (🚀, 🧠) as list markers.
 
 Avoid creating tables for simple information that easily fits in a sentence.
 
@@ -146,6 +148,13 @@ Ensure markup is context-appropriate; do not use Markdown (like `##`) in formats
 Use straight quotes (`"`, `'`) and straight apostrophes (`'`). Do not use curly or smart quotes (`“`, `’`).
 
 Use em dashes sparingly, as language models often overuse them for emphasis. Prefer commas or parentheses instead.
+
+### 4.4. Label the problem
+
+When a text explains a change, such as a PR description, an issue, or a design document, start with the problem it solves and label it with the word "Problem", so the reader finds it at a glance. Use a `**Problem:**` lead-in for a short description, or a `## Problem` header when the text has sections.
+
+- Instead of: "The triage bot flags more items than the team can act on. This PR narrows the rules."
+- Write: "**Problem:** The triage bot flags more items than the team can act on."
 
 ## 5. Citations & integrity
 

@@ -78,6 +78,23 @@ class _TextParser extends Parser {
       throw UnimplementedError();
 }
 
+/// A transformer that counts its runs and otherwise wraps
+/// [ComponentPruningTransformer].
+class _CountingTransformer extends CatalogTransformer {
+  _CountingTransformer(this.keep);
+
+  final List<String> keep;
+  int runs = 0;
+
+  @override
+  Catalog<C, F> transform<C extends ComponentApi, F extends FunctionApi>(
+    Catalog<C, F> catalog,
+  ) {
+    runs++;
+    return ComponentPruningTransformer(keep).transform(catalog);
+  }
+}
+
 /// A catalog with an id and components named [components], each taking a
 /// required string `text`.
 CatalogApi _catalog(String id, [List<String> components = const []]) =>
@@ -223,6 +240,33 @@ void main() {
     });
   });
 
+  group('CatalogConfig.transformedCatalog', () {
+    test('runs the transformers once and reuses the result', () {
+      final first = _CountingTransformer(['Text', 'Card']);
+      final second = _CountingTransformer(['Card']);
+      final config = CatalogConfig(a, transformers: [first, second]);
+
+      final CatalogApi transformed = config.transformedCatalog;
+      expect(config.transformedCatalog, same(transformed));
+      expect(resolveCatalogs([config], null).single, same(transformed));
+      expect(resolveCatalogs([config], null).single, same(transformed));
+
+      expect(first.runs, 1);
+      expect(second.runs, 1);
+      expect(transformed.components.keys, ['Card']);
+    });
+
+    test('caches per config', () {
+      final counting = _CountingTransformer(['Card']);
+      final one = CatalogConfig(a, transformers: [counting]);
+      final other = CatalogConfig(a, transformers: [counting]);
+
+      expect(one.transformedCatalog, isNot(same(other.transformedCatalog)));
+      expect(one.transformedCatalog, same(one.transformedCatalog));
+      expect(counting.runs, 2);
+    });
+  });
+
   group('resolveCatalogs', () {
     final registered = [CatalogConfig(a)];
     final CatalogApi inline = _catalog('https://example.com/inline.json');
@@ -338,139 +382,6 @@ void main() {
         ),
         [inline],
       );
-    });
-  });
-
-  group('resolveCatalogs peer linking', () {
-    // Inherits Text from catalog `a`, so it is linked with its peers.
-    final CatalogApi referencing = Catalog.fromJson({
-      'catalogId': 'https://example.com/referencing.json',
-      'components': {
-        'Fancy': {
-          'type': 'object',
-          'allOf': [
-            {r'$ref': 'a.json#/components/Text'},
-          ],
-          'properties': {
-            'component': {'const': 'Fancy'},
-          },
-          'required': ['component'],
-        },
-      },
-    });
-
-    Set<String> properties(CatalogApi catalog) => {
-      ...(catalog.resolvedComponentSchema('Fancy')!.value['properties']!
-              as Map<String, Object?>)
-          .keys,
-    };
-
-    test('computes each transformed catalog once', () {
-      final config = CatalogConfig(
-        a,
-        transformers: [
-          ComponentPruningTransformer(['Card']),
-        ],
-      );
-      expect(config.transformedCatalog, same(config.transformedCatalog));
-      expect(config.transformedCatalog.components.keys, ['Card']);
-    });
-
-    test('links copies and leaves the registered catalogs unchanged', () {
-      final configs = <CatalogConfig>[
-        CatalogConfig(referencing),
-        CatalogConfig(
-          a,
-          transformers: [
-            ComponentPruningTransformer(['Card']),
-          ],
-        ),
-      ];
-      final CatalogApi pruned = configs[1].transformedCatalog;
-      final Map<String, Object?> schema = a.validationSchema;
-
-      for (final A2uiRendererCapabilities? capabilities in [
-        null,
-        A2uiRendererCapabilities.forCatalogIds([referencing.id, a.id]),
-        null,
-      ]) {
-        final List<CatalogApi> active = resolveCatalogs(configs, capabilities);
-        expect(active[0], isNot(same(referencing)));
-        expect(active[1], same(pruned));
-        // The pruned registration's source resolves the Text it dropped.
-        expect(active[0].peerCatalogs, [same(a), same(pruned)]);
-        expect(properties(active[0]), contains('text'));
-      }
-
-      expect(referencing.peerCatalogs, isEmpty);
-      expect(properties(referencing), isNot(contains('text')));
-      expect(a.peerCatalogs, isEmpty);
-      expect(a.validationSchema, same(schema));
-      expect(pruned.peerCatalogs, isEmpty);
-    });
-
-    test('never links a refused inline catalog', () {
-      final CatalogApi inline = _catalog('https://example.com/a.json', [
-        'Text',
-      ]);
-      final List<CatalogApi> active = resolveCatalogs(
-        [CatalogConfig(referencing)],
-        A2uiRendererCapabilities.forCatalogIds(
-          [referencing.id],
-          inlineCatalogs: [inline],
-        ),
-      );
-
-      expect(active.single.peerCatalogs, isEmpty);
-      expect(inline.peerCatalogs, isEmpty);
-    });
-
-    test('links an accepted inline catalog', () {
-      final CatalogApi inline = _catalog('https://example.com/a.json', [
-        'Text',
-      ]);
-      final List<CatalogApi> active = resolveCatalogs(
-        [CatalogConfig(referencing)],
-        A2uiRendererCapabilities.forCatalogIds(
-          [referencing.id],
-          inlineCatalogs: [inline],
-        ),
-        acceptsInlineCatalogs: true,
-      );
-
-      expect(active[0].peerCatalogs, [same(inline)]);
-      expect(active[1], same(inline));
-      expect(inline.peerCatalogs, isEmpty);
-    });
-
-    test('creates processors without accumulating peers', () {
-      final generator = A2uiGenerator(
-        catalogs: [
-          CatalogConfig(referencing),
-          CatalogConfig(
-            a,
-            transformers: [
-              ComponentPruningTransformer(['Card']),
-            ],
-          ),
-        ],
-        inferenceFormatFactory: const DirectJsonFormatFactory(),
-      );
-      final List<int> peerCounts = [
-        for (var i = 0; i < 3; i++)
-          generator
-              .createProcessor(
-                A2uiRendererCapabilities.forCatalogIds([referencing.id, a.id]),
-              )
-              .activeCatalogs
-              .first
-              .peerCatalogs
-              .length,
-      ];
-
-      expect(peerCounts, [2, 2, 2]);
-      expect(referencing.peerCatalogs, isEmpty);
-      expect(a.peerCatalogs, isEmpty);
     });
   });
 

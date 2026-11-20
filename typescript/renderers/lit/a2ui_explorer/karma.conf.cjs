@@ -21,7 +21,13 @@ module.exports = function (config) {
     basePath: '',
     frameworks: ['jasmine'],
     plugins: [require('karma-jasmine'), require('karma-chrome-launcher'), require('karma-esbuild')],
-    files: [{pattern: 'tests/**/*.test.ts', watched: true}],
+    files: [
+      {pattern: 'tests/**/*.test.ts', watched: true},
+      {pattern: 'public/a2ui-sandbox/**', included: false, served: true, watched: false},
+    ],
+    proxies: {
+      '/a2ui-sandbox/': '/base/public/a2ui-sandbox/',
+    },
     preprocessors: {
       'tests/**/*.test.ts': ['esbuild'],
     },

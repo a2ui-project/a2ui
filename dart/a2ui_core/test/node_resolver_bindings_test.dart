@@ -20,29 +20,29 @@ import 'package:json_schema_builder/json_schema_builder.dart'
 import 'package:test/test.dart';
 
 Schema _groupSchema() => Schema.object(
+  properties: {
+    'title': CommonSchemas.dynamicString,
+    'group': Schema.object(
       properties: {
-        'title': CommonSchemas.dynamicString,
-        'group': Schema.object(
-          properties: {
-            'value': CommonSchemas.dynamicString,
-            'label': Schema.string(),
-          },
-        ),
-        'items': Schema.list(
-          items: Schema.object(
-            properties: {
-              'value': CommonSchemas.dynamicString,
-              'details': Schema.object(
-                properties: {'value': CommonSchemas.dynamicString},
-              ),
-            },
-          ),
-        ),
-        'values': Schema.list(items: CommonSchemas.dynamicString),
+        'value': CommonSchemas.dynamicString,
         'label': Schema.string(),
-        'action': CommonSchemas.action,
       },
-    );
+    ),
+    'items': Schema.list(
+      items: Schema.object(
+        properties: {
+          'value': CommonSchemas.dynamicString,
+          'details': Schema.object(
+            properties: {'value': CommonSchemas.dynamicString},
+          ),
+        },
+      ),
+    ),
+    'values': Schema.list(items: CommonSchemas.dynamicString),
+    'label': Schema.string(),
+    'action': CommonSchemas.action,
+  },
+);
 
 typedef _Fixture = ({
   SurfaceModel<ComponentApi> surface,
@@ -81,8 +81,7 @@ void _expectReadOnlyNull(Object? value) {
 
 void main() {
   group('NodeResolver absent dynamic properties', () {
-    test(
-        'represents omitted dynamic properties as read-only bindings at '
+    test('represents omitted dynamic properties as read-only bindings at '
         'every level', () {
       final _Fixture fixture = _setup({
         'group': {'label': 'x'},
@@ -324,99 +323,87 @@ void main() {
       },
     );
 
-    test(
-      'detects checkable behavior from schema marker rather than property name',
-      () {
-        final unmarkedSchema = Schema.object(
-          properties: {
-            'checks': Schema.string(),
-            'checkList': Schema.list(items: Schema.string()),
-          },
-        );
-        final markedSchema = Schema.combined(
-          allOf: [
-            CommonSchemas.checkable,
-            Schema.object(
-              properties: {
-                'label': Schema.string(),
-              },
-            ),
-          ],
-        );
-        final catalog = Catalog<ComponentApi, FunctionImplementation>(
-          id: 'checkable-marker-catalog',
-          components: [
-            ComponentApi(name: 'Unmarked', schema: unmarkedSchema),
-            ComponentApi(name: 'Marked', schema: markedSchema),
-          ],
-          functions: [],
-        );
-        final surface = SurfaceModel<ComponentApi>(
-          'surf-chk',
-          defaultCatalog: catalog,
-        );
-        addTearDown(surface.dispose);
+    test('detects checkable behavior from schema marker rather than '
+        'property name', () {
+      final unmarkedSchema = Schema.object(
+        properties: {
+          'checks': Schema.string(),
+          'checkList': Schema.list(items: Schema.string()),
+        },
+      );
+      final markedSchema = Schema.combined(
+        allOf: [
+          CommonSchemas.checkable,
+          Schema.object(properties: {'label': Schema.string()}),
+        ],
+      );
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'checkable-marker-catalog',
+        components: [
+          ComponentApi(name: 'Unmarked', schema: unmarkedSchema),
+          ComponentApi(name: 'Marked', schema: markedSchema),
+        ],
+        functions: [],
+      );
+      final surface = SurfaceModel<ComponentApi>(
+        'surf-chk',
+        defaultCatalog: catalog,
+      );
+      addTearDown(surface.dispose);
 
-        final unmarkedModel = ComponentModel('u1', 'Unmarked', {
-          'checks': 'preflight-passed',
-          'checkList': ['a', 'b'],
-        });
-        surface.componentsModel.addComponent(unmarkedModel);
-        final unmarkedBinder = GenericBinder(
-          ComponentContext(surface, unmarkedModel),
-          unmarkedSchema,
-        );
-        addTearDown(unmarkedBinder.dispose);
+      final unmarkedModel = ComponentModel('u1', 'Unmarked', {
+        'checks': 'preflight-passed',
+        'checkList': ['a', 'b'],
+      });
+      surface.componentsModel.addComponent(unmarkedModel);
+      final unmarkedBinder = GenericBinder(
+        ComponentContext(surface, unmarkedModel),
+        unmarkedSchema,
+      );
+      addTearDown(unmarkedBinder.dispose);
 
-        // An unmarked property named 'checks' is preserved as a static value
-        // and does not synthesize isValid / validationErrors / validationResults.
-        expect(
-          unmarkedBinder.resolvedProps.value['checks'],
-          'preflight-passed',
-        );
-        expect(unmarkedBinder.resolvedProps.value['checkList'], ['a', 'b']);
-        expect(
-          unmarkedBinder.resolvedProps.value.containsKey('isValid'),
-          isFalse,
-        );
-        expect(
-          unmarkedBinder.resolvedProps.value.containsKey('validationErrors'),
-          isFalse,
-        );
-        expect(
-          unmarkedBinder.resolvedProps.value.containsKey('validationResults'),
-          isFalse,
-        );
+      // An unmarked property named 'checks' is preserved as a static value
+      // and does not synthesize isValid / validationErrors / validationResults.
+      expect(unmarkedBinder.resolvedProps.value['checks'], 'preflight-passed');
+      expect(unmarkedBinder.resolvedProps.value['checkList'], ['a', 'b']);
+      expect(
+        unmarkedBinder.resolvedProps.value.containsKey('isValid'),
+        isFalse,
+      );
+      expect(
+        unmarkedBinder.resolvedProps.value.containsKey('validationErrors'),
+        isFalse,
+      );
+      expect(
+        unmarkedBinder.resolvedProps.value.containsKey('validationResults'),
+        isFalse,
+      );
 
-        final markedModel = ComponentModel('m1', 'Marked', {
-          'label': 'Email',
-          'checks': [
-            {
-              'condition': false,
-              'message': 'Required field',
-            },
-          ],
-        });
-        surface.componentsModel.addComponent(markedModel);
-        final markedBinder = GenericBinder(
-          ComponentContext(surface, markedModel),
-          markedSchema,
-        );
-        addTearDown(markedBinder.dispose);
+      final markedModel = ComponentModel('m1', 'Marked', {
+        'label': 'Email',
+        'checks': [
+          {'condition': false, 'message': 'Required field'},
+        ],
+      });
+      surface.componentsModel.addComponent(markedModel);
+      final markedBinder = GenericBinder(
+        ComponentContext(surface, markedModel),
+        markedSchema,
+      );
+      addTearDown(markedBinder.dispose);
 
-        expect(markedBinder.resolvedProps.value['isValid'], isFalse);
-        expect(markedBinder.resolvedProps.value['validationErrors'], [
-          'Required field',
-        ]);
-        expect(markedBinder.resolvedProps.value['validationResults'], [
-          const ValidationResult(
-            valid: false,
-            message: 'Required field',
-            severity: 'error',
-          ),
-        ]);
-      },
-    );
+      expect(markedBinder.resolvedProps.value['isValid'], isFalse);
+      expect(markedBinder.resolvedProps.value['validationErrors'], [
+        'Required field',
+      ]);
+      expect(markedBinder.resolvedProps.value['validationResults'], [
+        const ValidationResult(
+          valid: false,
+          message: 'Required field',
+          severity: 'error',
+        ),
+      ]);
+    });
   });
 
   group('NodeResolver resolution context', () {
@@ -450,7 +437,7 @@ void main() {
       surface = SurfaceModel<ComponentApi>(
         'scope',
         defaultCatalog: catalog,
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
       );
       errors = [];
       surface.onError.subscribe(errors.add);
@@ -461,10 +448,9 @@ void main() {
       });
     });
 
-    void add(String id, String type, Map<String, Object?> properties) =>
-        surface.componentsModel.addComponent(
-          ComponentModel(id, type, properties),
-        );
+    void add(String id, String type, Map<String, Object?> properties) => surface
+        .componentsModel
+        .addComponent(ComponentModel(id, type, properties));
 
     List<ComponentNode> childrenOf(ComponentNode node) =>
         (node.props.peek()['children']! as List).cast<ComponentNode>();
@@ -496,7 +482,9 @@ void main() {
       final List<ComponentNode> rows = childrenOf(root);
       expect([for (final row in rows) row.context!.dataContext.index], [0, 1]);
       expect(
-          rows[1].context!.dataContext.parent, same(root.context!.dataContext));
+        rows[1].context!.dataContext.parent,
+        same(root.context!.dataContext),
+      );
       final List<List<ComponentNode>> cells = [
         for (final row in rows) childrenOf(row),
       ];
@@ -534,17 +522,15 @@ void main() {
           'args': {'offset': 1},
         },
       });
-      expect(
-        childrenOf(resolver.rootNode.value!).map(textOf),
-        [1, 2, 3],
-      );
+      expect(childrenOf(resolver.rootNode.value!).map(textOf), [1, 2, 3]);
     });
 
-    test('@index at the root is reported and resolves to null', () {
+    test('@index at the root is reported and resolves to null', () async {
       add('root', 'Text', {
         'text': {'@call': '@index', 'args': <String, Object?>{}},
       });
       expect(textOf(resolver.rootNode.value!), isNull);
+      await Future<void>.delayed(Duration.zero);
       expect(errors.single.code, 'EXPRESSION_ERROR');
       expect(
         errors.single.message,
@@ -573,8 +559,8 @@ void main() {
       add('root', 'List', {
         'children': ['missing'],
       });
-      final ComponentNode placeholder =
-          childrenOf(resolver.rootNode.value!).single;
+      final ComponentNode placeholder = childrenOf(resolver.rootNode.value!)
+          .single;
       expect(placeholder.isPlaceholder, isTrue);
       expect(placeholder.context, isNull);
     });
@@ -588,21 +574,42 @@ void main() {
           'live': 'polite',
         },
       });
-      final accessibility = resolver.rootNode.value!.props
-          .peek()['accessibility']! as Map<String, Object?>;
+      final accessibility =
+          resolver.rootNode.value!.props.peek()['accessibility']!
+              as Map<String, Object?>;
       expect(
         (accessibility['label']! as ResolvedBinding<Object?>).value,
         'Greeting',
       );
       expect(accessibility['live'], 'polite');
       _expectReadOnlyNull(accessibility['description']);
+      _expectReadOnlyNull(accessibility['hidden']);
       surface.dataModel.set('/label', 'Hi');
       expect(
         ((resolver.rootNode.value!.props.peek()['accessibility']!
-                as Map<String, Object?>)['label']! as ResolvedBinding<Object?>)
+                    as Map<String, Object?>)['label']!
+                as ResolvedBinding<Object?>)
             .value,
         'Hi',
       );
+    });
+
+    test('binds accessibility.hidden to its data path', () {
+      surface.dataModel.set('/hidden', true);
+      add('root', 'Text', {
+        'text': 'Hello',
+        'accessibility': {
+          'hidden': {'@path': '/hidden'},
+        },
+      });
+      Object? hidden() =>
+          ((resolver.rootNode.value!.props.peek()['accessibility']!
+                      as Map<String, Object?>)['hidden']!
+                  as ResolvedBinding<Object?>)
+              .value;
+      expect(hidden(), isTrue);
+      surface.dataModel.set('/hidden', false);
+      expect(hidden(), isFalse);
     });
 
     test('rejects a catalog other than the surface default catalog', () {

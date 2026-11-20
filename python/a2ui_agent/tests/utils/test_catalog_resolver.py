@@ -36,7 +36,10 @@ def _config(catalog_id: str, protocol_version: str, *components: str) -> Catalog
         {
             "catalogId": catalog_id,
             "components": {
-                name: {"type": "object", "properties": {"component": {"const": name}}}
+                name: {
+                    "type": "object",
+                    "properties": {"component": {"const": name}},
+                }
                 for name in components
             },
         },
@@ -109,7 +112,7 @@ def test_capabilities_models_and_field_names_are_accepted(capabilities):
         (
             "1.0",
             v1_0.A2uiRendererCapabilities.model_validate(
-                {"v1.0": {"supportedCatalogIds": ["a"]}}
+                {"1.0": {"supportedCatalogIds": ["a"]}}
             ),
         ),
     ],
@@ -171,7 +174,7 @@ def test_v0_8_unkeyed_capabilities_need_the_catalog_ids():
 def test_a_renderer_may_send_capabilities_for_several_versions():
     capabilities = {
         "v0.9": {"supportedCatalogIds": ["old"]},
-        "v1.0": {"supportedCatalogIds": ["a"]},
+        "1.0": {"supportedCatalogIds": ["a"]},
     }
 
     resolved = resolve_catalogs([_config("a", "1.0", "Text")], capabilities)
@@ -182,9 +185,9 @@ def test_a_renderer_may_send_capabilities_for_several_versions():
 @pytest.mark.parametrize(
     "capabilities",
     [
-        {"v1.0": {"supportedCatalogIds": ["a"]}},
+        {"1.0": {"supportedCatalogIds": ["a"]}},
         v1_0.A2uiRendererCapabilities.model_validate(
-            {"v1.0": {"supportedCatalogIds": ["a"]}}
+            {"1.0": {"supportedCatalogIds": ["a"]}}
         ),
         {"supportedCatalogIds": ["a"]},
     ],
@@ -219,7 +222,7 @@ def test_catalogs_that_read_different_capabilities_keys_are_rejected():
     catalogs = [_config("a", "0.9", "Text"), _config("b", "1.0", "Text")]
 
     with pytest.raises(A2uiCatalogError, match="different capabilities entries"):
-        resolve_catalogs(catalogs, {"v1.0": {"supportedCatalogIds": ["b"]}})
+        resolve_catalogs(catalogs, {"1.0": {"supportedCatalogIds": ["b"]}})
 
 
 def test_inline_catalogs_use_the_registered_catalogs_version():
@@ -243,14 +246,14 @@ def test_inline_catalogs_use_the_registered_catalogs_version():
 
 
 def test_a_v10_to_json_document_is_accepted_as_an_inline_catalog():
-    full = BasicCatalog(protocol_version="v1.0")
+    full = BasicCatalog(protocol_version="1.0")
     # The generated v1.0 `FunctionDefinition` model rejects `openUrl`, which
     # requires user activation and leaves `allowedCallers` at its default.
     basic = FunctionPruningTransformer(
         [name for name in full.functions if name != "openUrl"]
     ).transform(full)
     capabilities = {
-        "v1.0": {"supportedCatalogIds": [], "inlineCatalogs": [basic.to_json()]}
+        "1.0": {"supportedCatalogIds": [], "inlineCatalogs": [basic.to_json()]}
     }
 
     (resolved,) = resolve_catalogs(
@@ -328,7 +331,7 @@ def test_malformed_inline_catalogs_are_a_catalog_error(
     inline_catalogs, accepts_inline_catalogs
 ):
     capabilities = {
-        "v1.0": {
+        "1.0": {
             "supportedCatalogIds": ["a"],
             "inlineCatalogs": inline_catalogs,
         }
@@ -344,13 +347,15 @@ def test_malformed_inline_catalogs_are_a_catalog_error(
 
 def test_mixed_top_level_and_inline_catalog_errors_raise_validation_error():
     capabilities = {
-        "v1.0": {
+        "1.0": {
             "inlineCatalogs": [{"components": {"Marquee": {"type": "object"}}}],
         }
     }
 
     with pytest.raises(A2uiValidationError) as exc_info:
         resolve_catalogs(
-            [_config("a", "1.0", "Text")], capabilities, accepts_inline_catalogs=True
+            [_config("a", "1.0", "Text")],
+            capabilities,
+            accepts_inline_catalogs=True,
         )
     assert type(exc_info.value) is A2uiValidationError

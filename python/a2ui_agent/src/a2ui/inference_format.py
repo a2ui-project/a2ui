@@ -45,7 +45,7 @@ class InferenceFormat(ABC):
     def supports_streaming(self) -> bool:
         """Returns whether parsers created by this format support streaming.
 
-        False by default. A format whose parsers implement `parse_chunk`
+        False by default. A format whose parsers implement `open_stream`
         overrides it, so callers can ask without creating a parser.
         """
         return False

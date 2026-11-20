@@ -17,7 +17,11 @@
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {TextFieldApi} from '@a2ui/web_core/v0_9/basic_catalog';
-import {BoundProperty} from '@a2ui/angular';
+import {
+  AccessibilityTargetDirective,
+  ValidationErrorsDirective,
+  BoundProperty,
+} from '@a2ui/angular';
 
 /**
  * Angular implementation of the A2UI TextField component (v0.9).
@@ -39,21 +43,26 @@ import {BoundProperty} from '@a2ui/angular';
 @Component({
   selector: 'a2ui-v09-text-field',
   standalone: true,
-  imports: [],
+  imports: [AccessibilityTargetDirective, ValidationErrorsDirective],
   template: `
     <div class="a2ui-text-field-container">
       @if (label()) {
         <label>{{ label() }}</label>
       }
       <input
+        a2uiAccessibilityTarget
         [type]="inputType()"
         [value]="value()"
         [attr.placeholder]="placeholder()"
         (input)="handleInput($event)"
         [class.invalid]="props()['isValid']?.value() === false"
       />
-      @for (message of props()['validationErrors']?.value(); track message) {
-        <div class="a2ui-error-message">{{ message }}</div>
+      @if (props()['validationErrors']?.value()?.length) {
+        <div a2uiValidationErrors class="a2ui-validation-errors">
+          @for (message of props()['validationErrors']?.value(); track message) {
+            <div class="a2ui-error-message">{{ message }}</div>
+          }
+        </div>
       }
     </div>
   `,

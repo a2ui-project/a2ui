@@ -30,17 +30,22 @@ enum A2uiProtocolVersion implements Comparable<A2uiProtocolVersion> {
   v0_9_1('v0.9.1', 0, 9, 1),
 
   /// Version 1.0.
-  v1_0('v1.0', 1, 0, 0);
+  v1_0('1.0', 1, 0, 0);
 
   const A2uiProtocolVersion(
-      this.jsonValue, this.major, this.minor, this._patch);
+    this.jsonValue,
+    this.major,
+    this.minor,
+    this._patch,
+  );
 
   /// The value used for the `version` field on the wire.
   final String jsonValue;
 
   /// The bare semantic version, such as `'1.0'`: the spelling a catalog
   /// document uses for its `protocolVersion`.
-  String get semverValue => jsonValue.substring(1);
+  String get semverValue =>
+      jsonValue.startsWith('v') ? jsonValue.substring(1) : jsonValue;
 
   /// The major version number: 0 for v0.9 and v0.9.1, 1 for v1.0.
   final int major;
@@ -69,8 +74,8 @@ enum A2uiProtocolVersion implements Comparable<A2uiProtocolVersion> {
   static A2uiProtocolVersion fromJson(Object? value) {
     if (value == null) {
       throw A2uiValidationError(
-        "A2UI payloads must declare a 'version' field; this SDK supports "
-        'only $supportedVersions.',
+        'Missing required version field: A2UI payloads must declare a '
+        "'version' field; this SDK supports only $supportedVersions.",
       );
     }
     if (value is! String) {
@@ -82,7 +87,7 @@ enum A2uiProtocolVersion implements Comparable<A2uiProtocolVersion> {
     return parse(value);
   }
 
-  /// Parses a protocol version from its wire value, such as `'v1.0'`.
+  /// Parses a protocol version from its wire value, such as `'1.0'`.
   ///
   /// Throws [A2uiValidationError] if [value] names a version this SDK does
   /// not implement.
@@ -90,8 +95,8 @@ enum A2uiProtocolVersion implements Comparable<A2uiProtocolVersion> {
     final A2uiProtocolVersion? version = tryParse(value);
     if (version != null) return version;
     throw A2uiValidationError(
-      "Unsupported A2UI protocol version '$value'; this SDK supports only "
-      '$supportedVersions.',
+      'Unsupported A2UI protocol version (Unsupported protocol version '
+      "'$value'); this SDK supports only $supportedVersions.",
     );
   }
 
@@ -99,8 +104,8 @@ enum A2uiProtocolVersion implements Comparable<A2uiProtocolVersion> {
   /// [value] names one this SDK does not implement.
   ///
   /// Only the exact wire value matches: `'v0.9.1'` is [v0_9_1], and spellings
-  /// the envelope schemas reject, such as `'0.9'` or `'v1_0'`, are not
-  /// versions. For a version that must be present and supported, use
+  /// the envelope schemas reject, such as `'0.9'`, `'v1.0'` or `'v1_0'`, are
+  /// not versions. For a version that must be present and supported, use
   /// [fromJson] or [parse], which report why it was rejected.
   static A2uiProtocolVersion? tryParse(String value) {
     for (final A2uiProtocolVersion version in values) {

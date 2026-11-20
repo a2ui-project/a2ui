@@ -18,15 +18,11 @@ import {describe, it, expect, beforeEach} from 'vitest';
 import React, {createContext, useContext} from 'react';
 import {render, screen, act, fireEvent, within} from '@testing-library/react';
 import {z} from 'zod';
+import {Catalog, ComponentModel, NodeResolver, SurfaceModel, getValue} from '@a2ui/web_core';
 import {
-  Catalog,
-  CommonSchemas,
-  ComponentModel,
-  NodeResolver,
-  SurfaceModel,
   ChildListSchema,
+  CommonSchemas,
   ComponentIdSchema,
-  getValue,
   type A2uiClientAction,
 } from '@a2ui/web_core/v0_9';
 import {
@@ -194,13 +190,14 @@ const RawItemImpl: ReactComponentImplementation = {
 };
 
 /**
- * A child reference typed as a bare string, which is what a catalog gets when
- * it replaces `ComponentIdSchema`'s description instead of using `componentId()`.
- * The resolver cannot identify the property, so the id reaches `buildChild`.
+ * A custom child-referencing property typed as a bare string rather than
+ * `componentId()` (unlike canonical `child`/`children`, custom property names
+ * are not inferred automatically). The resolver cannot identify the property,
+ * so the id reaches `buildChild`.
  */
 const UnmarkedParentImpl = createComponentImplementation(
-  {name: 'UnmarkedParent', schema: z.object({child: z.string().optional()})},
-  ({props, buildChild}) => <div>{props.child ? buildChild(props.child as string) : null}</div>,
+  {name: 'UnmarkedParent', schema: z.object({content: z.string().optional()})},
+  ({props, buildChild}) => <div>{props.content ? buildChild(props.content as string) : null}</div>,
 );
 
 const Theme = createContext('no provider');
@@ -311,19 +308,62 @@ describe('A2uiSurface', () => {
     expect(rendersOf('Column:root')).toBe(columnBefore);
   });
 
-  it('shows a placeholder for a missing component and upgrades it in place', () => {
+  it('renders nothing for a missing component and upgrades it in place', () => {
     const surface = setup();
     add(surface, 'root', 'Column', {children: ['late']});
 
-    render(<A2uiSurface surface={surface} />);
-    expect(screen.getByText(/Loading late/)).toBeDefined();
+    const {container} = render(<A2uiSurface surface={surface} />);
+    expect(container.textContent).toBe('');
 
     act(() => {
       add(surface, 'late', 'Text', {text: 'Arrived'});
     });
 
-    expect(screen.queryByText(/Loading late/)).toBeNull();
     expect(screen.getByText('Arrived')).toBeDefined();
+  });
+
+  it('renders nothing until the root arrives', () => {
+    const surface = setup();
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+    expect(container).toBeEmptyDOMElement();
+
+    act(() => {
+      add(surface, 'root', 'Text', {text: 'Root'});
+    });
+
+    expect(screen.getByText('Root')).toBeDefined();
+  });
+
+  it('renders nothing for an unknown type and leaves the report to the resolver', () => {
+    const surface = setup();
+    const codes: string[] = [];
+    surface.onError.subscribe(e => {
+      codes.push((e as {code: string}).code);
+    });
+    add(surface, 'root', 'Column', {children: ['weird']});
+    add(surface, 'weird', 'Bogus', {});
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+
+    expect(container.textContent).toBe('');
+    expect(codes).toEqual(['UNKNOWN_COMPONENT_TYPE']);
+  });
+
+  it('renders nothing for a cyclic reference and leaves the report to the resolver', () => {
+    const surface = setup();
+    const codes: string[] = [];
+    surface.onError.subscribe(e => {
+      codes.push((e as {code: string}).code);
+    });
+    add(surface, 'root', 'Column', {children: ['a']});
+    add(surface, 'a', 'Column', {children: ['b']});
+    add(surface, 'b', 'Column', {children: ['a']});
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+
+    expect(container.textContent).toBe('');
+    expect(codes).toEqual(['CYCLIC_REFERENCE']);
   });
 
   it('renders template children and keeps existing items mounted on append', () => {
@@ -435,21 +475,21 @@ describe('A2uiSurface', () => {
     surface.onError.subscribe(e => {
       errors.push(e as Record<string, unknown>);
     });
-    add(surface, 'root', 'UnmarkedParent', {child: 'kid'});
+    add(surface, 'root', 'UnmarkedParent', {content: 'kid'});
     add(surface, 'kid', 'Text', {text: 'never reached'});
 
-    render(<A2uiSurface surface={surface} />);
+    const {container} = render(<A2uiSurface surface={surface} />);
 
-    expect(screen.getByText(/does not mark the referencing property/)).toBeDefined();
-    expect(screen.queryByText('never reached')).toBeNull();
+    expect(container.textContent).toBe('');
     const reported = errors.filter(e => e.code === 'UNRESOLVED_CHILD_REFERENCE');
     expect(reported).toHaveLength(1);
+    expect(String(reported[0]?.message)).toContain('does not mark the referencing property');
     expect(String(reported[0]?.message)).toContain('componentId()');
   });
 
   it('reports unresolved references after render, so error subscribers may set state', async () => {
     const surface = setup();
-    add(surface, 'root', 'UnmarkedParent', {child: 'lost'});
+    add(surface, 'root', 'UnmarkedParent', {content: 'lost'});
     add(surface, 'lost', 'Text', {text: 'x'});
 
     // A subscriber that sets state would trigger React's cannot-update
@@ -497,11 +537,17 @@ describe('A2uiSurface', () => {
     const surface = new SurfaceModel<ReactComponentImplementation>('surf-scoper', catalog);
     add(surface, 'root', 'Scoper', {child: 'kid'});
     add(surface, 'kid', 'Text', {text: 'scoped child'});
+    const messages: string[] = [];
+    surface.onError.subscribe(e => {
+      messages.push(String((e as {message: unknown}).message));
+    });
 
     render(<A2uiSurface surface={surface} />);
 
-    expect(screen.getByText(/instances exist at \//)).toBeDefined();
-    expect(screen.queryByText(/does not mark the referencing property/)).toBeNull();
+    expect(screen.queryByText('scoped child')).toBeNull();
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatch(/instances exist at \//);
+    expect(messages[0]).not.toMatch(/does not mark the referencing property/);
   });
 
   it('input components write scoped values through unwrapped bindings', () => {
@@ -552,13 +598,12 @@ describe('A2uiSurface', () => {
     const surface = setup();
     add(surface, 'root', 'FactoryItem', {child: 'late'});
 
-    render(<A2uiSurface surface={surface} />);
-    expect(screen.getByText(/Loading/)).toBeDefined();
+    const {container} = render(<A2uiSurface surface={surface} />);
+    expect(container.textContent).toBe('');
 
     await act(async () => {
       add(surface, 'late', 'Text', {text: 'arrived'});
     });
-    expect(screen.queryByText(/Loading/)).toBeNull();
     expect(screen.getByText('arrived')).toBeDefined();
 
     await act(async () => {
@@ -756,6 +801,31 @@ describe('A2uiSurface', () => {
     unmount();
     expect(() => surface.dataModel.set('/username', 'Bob')).not.toThrow();
   });
+
+  it('disposes the previous NodeResolver when swapping surface models', () => {
+    const first = setup();
+    add(first, 'root', 'Text', {text: 'First Surface'});
+    const second = new SurfaceModel<ReactComponentImplementation>('surf-2', first.defaultCatalog);
+    add(second, 'root', 'Text', {text: 'Second Surface'});
+
+    const preMountListeners = (
+      first.componentsModel.onCreated as unknown as {listeners: Set<unknown>}
+    ).listeners.size;
+
+    const {rerender} = render(<A2uiSurface surface={first} />);
+    expect(screen.getByText('First Surface')).toBeDefined();
+    expect(
+      (first.componentsModel.onCreated as unknown as {listeners: Set<unknown>}).listeners.size,
+    ).toBeGreaterThan(preMountListeners);
+
+    rerender(<A2uiSurface surface={second} />);
+
+    expect(
+      (first.componentsModel.onCreated as unknown as {listeners: Set<unknown>}).listeners.size,
+    ).toBe(preMountListeners);
+    expect(screen.queryByText('First Surface')).toBeNull();
+    expect(screen.getByText('Second Surface')).toBeDefined();
+  });
 });
 
 describe('host elements', () => {
@@ -880,15 +950,13 @@ describe('host elements', () => {
     expect(hosts.map(host => host.textContent)).toEqual(['Twice', 'Twice']);
   });
 
-  it('renders a placeholder, not a host, for a component that has not arrived', () => {
+  it('renders nothing, not a host, for a component that has not arrived', () => {
     const surface = setup();
     add(surface, 'root', 'Card', {child: 'late'});
 
     const {container} = render(<A2uiSurface surface={surface} />);
 
-    expect(container.querySelector(`${tagOf(CardImpl)} > div`)).toHaveTextContent(
-      '[Loading late...]',
-    );
+    expect(container.querySelector(tagOf(CardImpl))?.textContent).toBe('');
     expect(container.querySelector(tagOf(TextImpl))).toBeNull();
   });
 

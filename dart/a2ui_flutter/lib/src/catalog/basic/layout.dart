@@ -49,6 +49,10 @@ CrossAxisAlignment alignOf(String? align) => switch (align) {
 /// keep their own width, up to an equal share, and the other children share
 /// the rest, wrapping their content. With weighted children, each child
 /// without a weight is at most an equal share of the width wide.
+///
+/// Children that have not resolved (pending, unknown type or cyclic) take no
+/// part in the layout: they get no slot, no gap and no flex share, so the
+/// container looks as if they were absent until they resolve.
 Widget flexContainer(
   Axis direction,
   ComponentProps props,
@@ -104,11 +108,16 @@ class _FlexContainerState extends State<_FlexContainer> with SignalState {
   List<void Function()> _unsubscribes = const [];
   List<(int, bool)> _slots = const [];
 
+  /// The children that have resolved. Unresolved ones render nothing, so they
+  /// take no slot, gap or flex share.
+  List<ComponentNode<ComponentImplementation>> get _resolved =>
+      widget.children.where((child) => !child.isPlaceholder).toList();
+
   void _subscribe() {
     _unsubscribes = [
       for (final child in widget.children)
         listenAfterFirst(child.props, (_) {
-          if (!listEquals(widget.children.map(_slotOf).toList(), _slots)) {
+          if (!listEquals(_resolved.map(_slotOf).toList(), _slots)) {
             signalChanged();
           }
         }),
@@ -145,8 +154,7 @@ class _FlexContainerState extends State<_FlexContainer> with SignalState {
   @override
   Widget build(BuildContext context) {
     final horizontal = widget.direction == Axis.horizontal;
-    final List<ComponentNode<ComponentImplementation>> children =
-        widget.children;
+    final List<ComponentNode<ComponentImplementation>> children = _resolved;
     final List<(int, bool)> slots = _slots = children.map(_slotOf).toList();
     final bool weighted = slots.any((slot) => slot.$1 > 0);
     return LayoutBuilder(

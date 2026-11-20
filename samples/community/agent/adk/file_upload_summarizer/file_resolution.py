@@ -25,8 +25,7 @@ import traceback
 from typing import Any
 import httpx
 
-from a2ui.adk import GenAIFileResolver
-from a2ui.extensions.file_resolve import FileResolverSecurityError
+from file_resolver import FileResolverSecurityError, GenAIFileResolver
 
 logger = logging.getLogger(__name__)
 

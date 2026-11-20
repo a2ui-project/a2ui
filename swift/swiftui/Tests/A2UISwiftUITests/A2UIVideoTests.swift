@@ -65,7 +65,7 @@ struct A2UIVideoTests {
 
   @Test func videoSupportsPosterUrlAndV10Catalog() throws {
     let v10Catalog = BasicCatalogImplementation.makeCatalog(version: .v10)
-    #expect(v10Catalog.protocolVersion == "v1.0")
+    #expect(v10Catalog.protocolVersion == "1.0")
     #expect(v10Catalog.components.count == 18)
     #expect(
       BasicCatalogImplementation.allCatalogs.contains {

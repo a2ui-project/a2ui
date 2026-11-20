@@ -5,7 +5,7 @@
       "description": "rendererFunctionResponse: Valid message with value object",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-130",
           "value": {
@@ -19,7 +19,7 @@
       "description": "rendererFunctionResponse: Valid message with error payload",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-130e",
           "error": {
@@ -33,7 +33,7 @@
       "description": "rendererFunctionResponse: Invalid (missing functionCallId)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "rendererFunctionResponse": {
           "value": {
             "result": "success"
@@ -45,7 +45,7 @@
       "description": "rendererFunctionResponse: Valid (scalar string value)",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-131a",
           "value": "success"
@@ -56,7 +56,7 @@
       "description": "rendererFunctionResponse: Valid (scalar number value)",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-131b",
           "value": 42
@@ -67,7 +67,7 @@
       "description": "rendererFunctionResponse: Valid (scalar boolean value)",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-131c",
           "value": true
@@ -78,7 +78,7 @@
       "description": "rendererFunctionResponse: Valid (scalar null value)",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-131d",
           "value": null
@@ -89,7 +89,7 @@
       "description": "rendererFunctionResponse: Valid (array value)",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-131e",
           "value": ["one", 2, true, null]
@@ -100,7 +100,7 @@
       "description": "rendererFunctionResponse: Invalid (both value and error provided)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-135",
           "value": "success",
@@ -115,7 +115,7 @@
       "description": "rendererFunctionResponse: Invalid (neither value nor error provided)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-136"
         }

@@ -16,14 +16,17 @@ import 'package:flutter/widgets.dart';
 
 /// Builds the widget that renders [markdown] with [style] as its base text
 /// style.
-typedef A2uiMarkdownBuilder =
-    Widget Function(BuildContext context, String markdown, TextStyle style);
+typedef A2uiMarkdownBuilder = Widget Function(
+  BuildContext context,
+  String markdown,
+  TextStyle style,
+);
 
 /// Renders the markdown of the basic `Text` components below it.
 ///
-/// A Text with the `body` variant, or none, is built by [builder]. Headings
-/// and captions stay plain text. Without an [A2uiMarkdown] above it, a Text
-/// shows its text as written.
+/// A Text with the `body` variant, or none, is built by [builder]. Every
+/// other Text, and every Text without an [A2uiMarkdown] above it, shows its
+/// text without common Markdown markers.
 class A2uiMarkdown extends InheritedWidget {
   const A2uiMarkdown({super.key, required this.builder, required super.child});
 

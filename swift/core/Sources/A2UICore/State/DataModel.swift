@@ -27,6 +27,8 @@ import OrderedJSON
 public final class DataModel: ObservableObject {
 
   private let dataSubject: CurrentValueSubject<JSONValue, Never>
+  let pathChangeSubject = PassthroughSubject<String, Never>()
+  var onReadPath: ((String) -> Void)?
   private var listeners: [String: [(id: UUID, callback: (JSONValue?) -> Void)]] = [:]
 
   /// The current data tree.
@@ -53,6 +55,9 @@ public final class DataModel: ObservableObject {
   /// Resolves a JSON Pointer path to a value, throwing `A2UIDataError` if the path contains forbidden segments.
   public func getThrowing(_ path: String) throws -> JSONValue? {
     let components = try JSONValue.parsePathThrowing(path)
+    if let onReadPath {
+      onReadPath(Self.buildPointer(components))
+    }
     if components.isEmpty {
       return dataSubject.value
     }
@@ -103,6 +108,7 @@ public final class DataModel: ObservableObject {
     }
 
     objectWillChange.send()
+    pathChangeSubject.send(Self.buildPointer(components))
     dataSubject.send(current)
     notifyListeners(changedComponents: components, oldValues: oldValues)
   }

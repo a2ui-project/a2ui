@@ -18,40 +18,38 @@ import 'package:test/test.dart';
 
 class _SchemaFn extends FunctionImplementation {
   _SchemaFn(String name, Schema argumentSchema)
-      : super(name: name, argumentSchema: argumentSchema);
+    : super(name: name, argumentSchema: argumentSchema);
 
   @override
   Object? execute(
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      args;
+  ]) => args;
 }
 
 class _AgentOnlyFn extends FunctionImplementation {
   _AgentOnlyFn()
-      : super(
-          name: 'agentOnlyFn',
-          argumentSchema: Schema.object(),
-          allowedCallers: AllowedCallers.agentOnly,
-        );
+    : super(
+        name: 'agentOnlyFn',
+        argumentSchema: Schema.object(),
+        allowedCallers: AllowedCallers.agentOnly,
+      );
 
   @override
   Object? execute(
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      'ok';
+  ]) => 'ok';
 }
 
 Map<String, Object?> _document(Map<String, Object?> function) => {
-      'catalogId': 'cat',
-      'protocolVersion': 'v1.0',
-      'components': <String, Object?>{},
-      'functions': {'fn': function},
-    };
+  'catalogId': 'cat',
+  'protocolVersion': '1.0',
+  'components': <String, Object?>{},
+  'functions': {'fn': function},
+};
 
 void main() {
   group('AllowedCallers', () {
@@ -69,13 +67,15 @@ void main() {
 
   group('FunctionApi caller metadata', () {
     test('defaults to rendererOnly and no user activation', () {
-      final CatalogApi catalog = Catalog.fromJson(_document({
-        'type': 'object',
-        'returnType': 'string',
-        'properties': {
-          '@call': {'const': 'fn'},
-        },
-      }));
+      final CatalogApi catalog = Catalog.fromJson(
+        _document({
+          'type': 'object',
+          'returnType': 'string',
+          'properties': {
+            '@call': {'const': 'fn'},
+          },
+        }),
+      );
       final FunctionApi fn = catalog.functions['fn']!;
       expect(fn.allowedCallers, AllowedCallers.rendererOnly);
       expect(fn.requiresUserActivation, isFalse);
@@ -86,80 +86,163 @@ void main() {
     });
 
     test('parses both fields from a document and round-trips them', () {
-      final CatalogApi catalog = Catalog.fromJson(_document({
-        'type': 'object',
-        'returnType': 'void',
-        'allowedCallers': 'rendererOrAgent',
-        'requiresUserActivation': true,
-        'properties': {
-          '@call': {'const': 'fn'},
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'cat',
+        'protocolVersion': '1.0',
+        'components': <String, Object?>{},
+        'functions': {
+          'fn': {
+            'type': 'object',
+            'returnType': 'void',
+            'allowedCallers': 'rendererOrAgent',
+            'requiresUserActivation': false,
+            'properties': {
+              '@call': {'const': 'fn'},
+            },
+          },
+          'activated': {
+            'type': 'object',
+            'returnType': 'void',
+            'allowedCallers': 'rendererOnly',
+            'requiresUserActivation': true,
+            'properties': {
+              '@call': {'const': 'activated'},
+            },
+          },
         },
-      }));
+      });
       final FunctionApi fn = catalog.functions['fn']!;
       expect(fn.allowedCallers, AllowedCallers.rendererOrAgent);
-      expect(fn.requiresUserActivation, isTrue);
+      expect(fn.requiresUserActivation, isFalse);
+      final FunctionApi activated = catalog.functions['activated']!;
+      expect(activated.allowedCallers, AllowedCallers.rendererOnly);
+      expect(activated.requiresUserActivation, isTrue);
 
       final CatalogApi again = Catalog.fromJson(catalog.validationSchema);
-      expect(again.functions['fn']!.allowedCallers,
-          AllowedCallers.rendererOrAgent);
-      expect(again.functions['fn']!.requiresUserActivation, isTrue);
+      expect(
+        again.functions['fn']!.allowedCallers,
+        AllowedCallers.rendererOrAgent,
+      );
+      expect(again.functions['fn']!.requiresUserActivation, isFalse);
+      expect(
+        again.functions['activated']!.allowedCallers,
+        AllowedCallers.rendererOnly,
+      );
+      expect(again.functions['activated']!.requiresUserActivation, isTrue);
     });
 
     test('parses both fields from the inline list form', () {
       final CatalogApi catalog = Catalog.fromJson({
         'catalogId': 'cat',
-        'protocolVersion': 'v1.0',
+        'protocolVersion': '1.0',
         'components': <String, Object?>{},
         'functions': [
           {
             'name': 'fn',
             'returnType': 'any',
             'allowedCallers': 'agentOnly',
+            'requiresUserActivation': false,
+          },
+          {
+            'name': 'activated',
+            'returnType': 'void',
+            'allowedCallers': 'rendererOnly',
             'requiresUserActivation': true,
           },
         ],
       });
       expect(catalog.functions['fn']!.allowedCallers, AllowedCallers.agentOnly);
-      expect(catalog.functions['fn']!.requiresUserActivation, isTrue);
+      expect(catalog.functions['fn']!.requiresUserActivation, isFalse);
+      expect(
+        catalog.functions['activated']!.allowedCallers,
+        AllowedCallers.rendererOnly,
+      );
+      expect(catalog.functions['activated']!.requiresUserActivation, isTrue);
     });
 
     test('rejects wrong types', () {
       expect(
-        () => Catalog.fromJson(_document({
-          'type': 'object',
-          'returnType': 'any',
-          'allowedCallers': 3,
-        })),
+        () => Catalog.fromJson(
+          _document({
+            'type': 'object',
+            'returnType': 'any',
+            'allowedCallers': 3,
+          }),
+        ),
         throwsA(isA<A2uiCatalogError>()),
       );
       expect(
-        () => Catalog.fromJson(_document({
-          'type': 'object',
-          'returnType': 'any',
-          'requiresUserActivation': 'yes',
-        })),
+        () => Catalog.fromJson(
+          _document({
+            'type': 'object',
+            'returnType': 'any',
+            'requiresUserActivation': 'yes',
+          }),
+        ),
         throwsA(isA<A2uiCatalogError>()),
       );
       expect(
-        () => Catalog.fromJson(_document({
-          'type': 'object',
-          'returnType': 'any',
-          'allowedCallers': 'nobody',
-        })),
+        () => Catalog.fromJson(
+          _document({
+            'type': 'object',
+            'returnType': 'any',
+            'allowedCallers': 'nobody',
+          }),
+        ),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+      expect(
+        () => Catalog.fromJson(
+          _document({
+            'type': 'object',
+            'returnType': 'void',
+            'allowedCallers': 'agentOnly',
+            'requiresUserActivation': true,
+          }),
+        ),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+      expect(
+        () => Catalog.fromJson(
+          _document({
+            'type': 'object',
+            'returnType': 'void',
+            'allowedCallers': 'rendererOrAgent',
+            'requiresUserActivation': true,
+          }),
+        ),
         throwsA(isA<A2uiCatalogError>()),
       );
     });
 
     test('copyWith keeps the fields', () {
-      final CatalogApi catalog = Catalog.fromJson(_document({
-        'type': 'object',
-        'returnType': 'void',
-        'allowedCallers': 'agentOnly',
-        'requiresUserActivation': true,
-      }));
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'cat',
+        'protocolVersion': '1.0',
+        'components': <String, Object?>{},
+        'functions': {
+          'fn': {
+            'type': 'object',
+            'returnType': 'void',
+            'allowedCallers': 'agentOnly',
+            'requiresUserActivation': false,
+          },
+          'activated': {
+            'type': 'object',
+            'returnType': 'void',
+            'allowedCallers': 'rendererOnly',
+            'requiresUserActivation': true,
+          },
+        },
+      });
       final CatalogApi copy = catalog.copyWith();
       expect(copy.functions['fn']!.allowedCallers, AllowedCallers.agentOnly);
-      expect(copy.functions['fn']!.requiresUserActivation, isTrue);
+      expect(copy.functions['fn']!.requiresUserActivation, isFalse);
+      expect(
+        copy.functions['activated']!.allowedCallers,
+        AllowedCallers.rendererOnly,
+      );
+      expect(copy.functions['activated']!.requiresUserActivation, isTrue);
     });
   });
 
@@ -194,49 +277,45 @@ void main() {
       );
     });
 
-    test('Catalog.invoke resolves argument schema against commonTypesSchema',
-        () {
-      final fn = _SchemaFn(
-        'takeBinding',
-        Schema.object(
-          properties: {
-            'binding': Schema.fromMap(
-              {r'$ref': r'common_types.json#/$defs/DataBinding'},
-            ),
-          },
-          required: ['binding'],
-        ),
-      );
-      final catalog = Catalog<ComponentApi, FunctionImplementation>(
-        id: 'cat',
-        protocolVersion: A2uiProtocolVersion.v1_0,
-        components: const [],
-        functions: [fn],
-      );
-      final context = DataContext(
-        DataModel(),
-        catalog.invoke,
-        '/',
-        protocolVersion: A2uiProtocolVersion.v1_0,
-      );
-      expect(
-        () => catalog.invoke(
-            'takeBinding',
-            {
-              'binding': {'@path': '/user/name'},
+    test(
+      'Catalog.invoke resolves argument schema against commonTypesSchema',
+      () {
+        final fn = _SchemaFn(
+          'takeBinding',
+          Schema.object(
+            properties: {
+              'binding': Schema.fromMap({
+                r'$ref': r'common_types.json#/$defs/DataBinding',
+              }),
             },
-            context),
-        returnsNormally,
-      );
-      expect(
-        () => catalog.invoke(
-            'takeBinding',
-            {
-              'binding': {'path': '/user/name'},
-            },
-            context),
-        throwsA(isA<A2uiExpressionError>()),
-      );
-    });
+            required: ['binding'],
+          ),
+        );
+        final catalog = Catalog<ComponentApi, FunctionImplementation>(
+          id: 'cat',
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          components: const [],
+          functions: [fn],
+        );
+        final context = DataContext(
+          DataModel(),
+          catalog.invoke,
+          '/',
+          protocolVersion: A2uiProtocolVersion.v1_0,
+        );
+        expect(
+          () => catalog.invoke('takeBinding', {
+            'binding': {'@path': '/user/name'},
+          }, context),
+          returnsNormally,
+        );
+        expect(
+          () => catalog.invoke('takeBinding', {
+            'binding': {'path': '/user/name'},
+          }, context),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      },
+    );
   });
 }

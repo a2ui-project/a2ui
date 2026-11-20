@@ -31,7 +31,7 @@ PACKAGE_DIR = os.path.abspath(
 # Each basic catalog module and its published file.
 CASES = [
     (v0_8, "specification/v0_8/json/standard_catalog_definition.json"),
-    (v0_9, "specification/v0_9/catalogs/basic/catalog.json"),
+    (v0_9, "catalogs/basic/v0_9/catalog.json"),
     (v1_0, "catalogs/basic/v1/catalog.json"),
 ]
 
@@ -68,7 +68,9 @@ def test_rebuilt_document_round_trips(module: Any, published: str) -> None:
     out = catalog.to_json()
 
     again = Catalog.from_json(
-        out, catalog_id=catalog.catalog_id, protocol_version=catalog.protocol_version
+        out,
+        catalog_id=catalog.catalog_id,
+        protocol_version=catalog.protocol_version,
     ).to_json()
     assert again == out
 

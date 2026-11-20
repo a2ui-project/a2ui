@@ -136,6 +136,88 @@ describe('Image Component', () => {
     assert.strictEqual(img.style.objectFit, 'scale-down');
   });
 
+  it('should allow data: URLs for inline images', async () => {
+    const dataUrl =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'comp1',
+              component: 'Image',
+              url: dataUrl,
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-image') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'comp1');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const img = el.querySelector('img');
+    assert.notStrictEqual(img, null);
+    assert.strictEqual(img?.getAttribute('src'), dataUrl);
+  });
+
+  it('should omit src when url uses a disallowed scheme', async () => {
+    const disallowedUrls = [
+      'javascript:alert(1)',
+      'vbscript:msgbox(1)',
+      'file:///etc/passwd',
+      'blob:https://example.com/123',
+      '//evil.example.com/pixel.png',
+      '/\\evil.example.com/pixel.png',
+      '/\t/evil.example.com/pixel.png',
+      'http:evil.example.com/pixel.png',
+      'https:evil.example.com/pixel.png',
+    ];
+
+    const el = document.createElement('a2ui-image') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    for (const badUrl of disallowedUrls) {
+      processor.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'comp1',
+                component: 'Image',
+                url: badUrl,
+              },
+            ],
+          },
+        },
+      ]);
+
+      const context = new ComponentContext(surface, 'comp1');
+      await asyncUpdate(el, e => {
+        e.context = context;
+      });
+
+      const img = el.querySelector('img');
+      assert.notStrictEqual(img, null);
+      assert.strictEqual(
+        img?.getAttribute('src'),
+        null,
+        `Expected src to be omitted for ${badUrl}`,
+      );
+    }
+  });
+
   describe('ImageApi schema validation', () => {
     it('should parse valid image with description', () => {
       const validImage = {
@@ -162,5 +244,60 @@ describe('Image Component', () => {
       };
       assert.throws(() => ImageApi.schema.parse(invalidImage));
     });
+  });
+
+  it('resolves alt from accessibility.label with ?? so explicit empty string stays decorative', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'img_override',
+              component: 'Image',
+              url: 'https://example.com/photo.jpg',
+              description: 'Fallback description',
+              accessibility: {
+                label: 'Accessible photo title',
+                description: 'Detailed visual description',
+              },
+            },
+            {
+              id: 'img_decorative',
+              component: 'Image',
+              url: 'https://example.com/divider.jpg',
+              description: 'Fallback description',
+              accessibility: {
+                label: '',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-image') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'img_override');
+    });
+
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    let img = el.querySelector('img');
+    assert.strictEqual(img?.getAttribute('alt'), 'Accessible photo title');
+    assert.strictEqual(img?.hasAttribute('aria-label'), false);
+    assert.strictEqual(img?.getAttribute('aria-description'), 'Detailed visual description');
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'img_decorative');
+    });
+
+    img = el.querySelector('img');
+    assert.strictEqual(img?.getAttribute('alt'), '');
+    assert.strictEqual(img?.hasAttribute('aria-label'), false);
+    assert.strictEqual(img?.hasAttribute('aria-description'), false);
   });
 });

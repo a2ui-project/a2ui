@@ -51,6 +51,31 @@ export const MAX_ARRAY_INDEX = 10000;
  */
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
+function cloneValue<T>(val: T): T {
+  if (val === null || val === undefined || typeof val !== 'object') {
+    return val;
+  }
+  if (Array.isArray(val)) {
+    return val.map(item => cloneValue(item)) as unknown as T;
+  }
+  const proto = Object.getPrototypeOf(val);
+  if (proto === Object.prototype || proto === null) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+      // Define rather than assign, so a JSON-parsed `__proto__` key stays an
+      // inert own property instead of becoming the clone's prototype.
+      Object.defineProperty(out, k, {
+        value: cloneValue(v),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
+    return out as T;
+  }
+  return val;
+}
+
 /**
  * Observable data store representing the renderer-side state.
  *
@@ -67,7 +92,7 @@ export class DataModel {
    * @param initialData Initial data for the model. Defaults to an empty object.
    */
   constructor(initialData: Record<string, unknown> = {}) {
-    this.data = initialData;
+    this.data = cloneValue(initialData);
   }
 
   /**
@@ -101,26 +126,30 @@ export class DataModel {
    *
    * @param path The JSON pointer path to set value for.
    * @param value The value to set at the specified path.
+   * @param preserveNull Whether to store `null` as a value instead of treating
+   *     it like `undefined`. Pre-1.0 data models stored `null`; the v1.0
+   *     protocol removes the entry.
    * @returns This `DataModel` instance for chaining.
    * @throws {A2uiDataError} If path is null, undefined, invalid for
    *     arrays/primitives, exceeds max array bounds, or contains forbidden
    *     segments (`__proto__`, `constructor`, `prototype`).
    */
-  set(path: string, value: any): this {
+  set(path: string, value: any, preserveNull = false): this {
     if (path === null || path === undefined) {
       throw new A2uiDataError('Path cannot be null or undefined.');
     }
 
     const segments = this.parsePath(path);
     if (segments.length === 0) {
-      this.data = value === null || value === undefined ? {} : value;
+      this.data = value === null || value === undefined ? {} : cloneValue(value);
       this.notifyAllSignals();
       return this;
     }
 
     const lastSegment = segments.pop()!;
 
-    if ((value === undefined || value === null) && this.get(path) === undefined) {
+    const removes = value === undefined || (!preserveNull && value === null);
+    if (removes && this.get(path) === undefined) {
       return this;
     }
 
@@ -235,7 +264,7 @@ export class DataModel {
       }
     }
 
-    if (value === undefined || value === null) {
+    if (removes) {
       if (Array.isArray(current)) {
         const idx = parseInt(lastSegment, 10);
         // Deleting an index past the end of the array is a no-op. Assigning
@@ -247,7 +276,7 @@ export class DataModel {
         delete current[lastSegment];
       }
     } else {
-      current[lastSegment] = value;
+      current[lastSegment] = cloneValue(value);
     }
 
     this.notifySignals(path);

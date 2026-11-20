@@ -190,18 +190,20 @@ def test_additional_properties_handling_with_models():
 
     # 2. Rejects extra properties when extra is forbid
     with pytest.raises(
-        (ValidationError, ValueError), match="Additional properties are not allowed"
+        (ValidationError, ValueError),
+        match="Additional properties are not allowed",
     ):
         _val(cat).validate_components(
             [{"id": "b3", "component": "ForbidBox", "extraProp": 789}]
         )
 
 
-@pytest.mark.skip(
+@pytest.mark.xfail(
+    strict=True,
     reason=(
         "PayloadValidator checks model components with Pydantic model_validate,"
         " which ignores json_schema_extra={'unevaluatedProperties': False}."
-    )
+    ),
 )
 def test_unevaluated_properties_handling_with_models():
     class DefaultBox(BaseModel):
@@ -368,7 +370,7 @@ def _v10_nested_call_catalog() -> Catalog:
         onSearch: dict[str, Any]
 
     return Catalog(
-        protocol_version="v1.0",
+        protocol_version="1.0",
         catalog_id="https://a2ui.org/v10-nested-func-test",
         components=[ModelComponentApi(SearchButton)],
         functions=[FunctionApi("doSearch", schema=SearchArgs)],
@@ -414,13 +416,20 @@ def test_v10_nested_calls_fully_checked_by_default():
     # A call nested in another call's args is checked too.
     assert "unrecognized_function" in _v10_nested_call_errors(
         val,
-        {"@call": "doSearch", "args": {"query": {"@call": "noSuchFn", "args": {}}}},
+        {
+            "@call": "doSearch",
+            "args": {"query": {"@call": "noSuchFn", "args": {}}},
+        },
     )
     # A call naming another catalog runs there, so only its identifiers are
     # checked.
     assert not _v10_nested_call_errors(
         val,
-        {"@call": "anyFn", "catalogId": "https://other.example/c", "args": {"a": 1}},
+        {
+            "@call": "anyFn",
+            "catalogId": "https://other.example/c",
+            "args": {"a": 1},
+        },
     )
     assert "invalid_identifier" in _v10_nested_call_errors(
         val, {"@call": "any-fn", "catalogId": "https://other.example/c"}
@@ -455,7 +464,10 @@ def test_v10_nested_call_errors_are_located_in_the_component():
         "unrecognized_function",
     ) in _v10_nested_call_error_details(
         val,
-        {"@call": "doSearch", "args": {"query": {"@call": "noSuchFn", "args": {}}}},
+        {
+            "@call": "doSearch",
+            "args": {"query": {"@call": "noSuchFn", "args": {}}},
+        },
     )
     assert _v10_nested_call_error_details(
         val, {"@call": "any-fn", "catalogId": "https://other.example/c"}
@@ -701,9 +713,10 @@ def test_v10_component_naming_a_catalog_leaves_its_catalogless_calls_unjudged():
     )
     # A call nested in @index's args is judged the same way.
     assert not details({"@call": "@index", "args": {"offset": {"@call": "noSuchFn"}}})
-    assert details(
-        {"@call": "@index", "args": {"offset": {"@call": "f", "args": {"bad-arg": 1}}}}
-    ) == [("components.b1.onSearch.args.offset.args.bad-arg", "invalid_identifier")]
+    assert details({
+        "@call": "@index",
+        "args": {"offset": {"@call": "f", "args": {"bad-arg": 1}}},
+    }) == [("components.b1.onSearch.args.offset.args.bad-arg", "invalid_identifier")]
 
 
 def test_v10_generated_basic_json_catalog_judges_only_calls_it_runs():
@@ -730,9 +743,11 @@ def test_v10_generated_basic_json_catalog_judges_only_calls_it_runs():
     assert errors({"@call": "noSuchFn", "catalogId": catalog.catalog_id}) == [
         ("components.t1.text", "unrecognized_function")
     ]
-    assert errors(
-        {"@call": "shout", "catalogId": other, "args": {"v": {"@call": "noSuchFn"}}}
-    ) == [("components.t1.text.args.v", "unrecognized_function")]
+    assert errors({
+        "@call": "shout",
+        "catalogId": other,
+        "args": {"v": {"@call": "noSuchFn"}},
+    }) == [("components.t1.text.args.v", "unrecognized_function")]
     assert errors({"@call": "@index", "args": {"offset": 1}}) == []
     assert errors({"@call": "@index", "catalogId": catalog.catalog_id}) == [
         ("components.t1.text.catalogId", "extra_field")
@@ -844,7 +859,7 @@ def test_basic_catalog_initialization():
     # Test shared factory with different versions
     assert BasicCatalog("0.8").protocol_version == "v0.8"
     assert BasicCatalog("0.9").protocol_version == "v0.9"
-    assert BasicCatalog("1.0").protocol_version == "v1.0"
+    assert BasicCatalog("1.0").protocol_version == "1.0"
 
     with pytest.raises(TypeError):
         BasicCatalog()  # type: ignore[call-arg]
@@ -853,7 +868,7 @@ def test_basic_catalog_initialization():
 def test_catalog_v1_0_additions():
     cat = Catalog(
         catalog_id="https://a2ui.org/v10-spec",
-        protocol_version="v1.0",
+        protocol_version="1.0",
     )
     assert cat.id == "https://a2ui.org/v10-spec"
 
@@ -862,7 +877,7 @@ def test_basic_catalog_version_submodules():
     from a2ui.core.basic_catalog import v1_0, v0_9, v0_8
 
     cat_v10 = v1_0.BasicCatalog()
-    assert cat_v10.protocol_version == "v1.0"
+    assert cat_v10.protocol_version == "1.0"
 
     cat_v09 = v0_9.BasicCatalog()
     assert cat_v09.protocol_version == "v0.9"
@@ -890,7 +905,7 @@ def test_mixed_catalog_validation():
 
     cat_a = Catalog.from_json({
         "catalogId": "cat-a",
-        "protocolVersion": "v1.0",
+        "protocolVersion": "1.0",
         "components": {
             "CompA": {
                 "type": "object",
@@ -906,7 +921,7 @@ def test_mixed_catalog_validation():
 
     cat_b = Catalog.from_json({
         "catalogId": "cat-b",
-        "protocolVersion": "v1.0",
+        "protocolVersion": "1.0",
         "components": {
             "CompB": {
                 "type": "object",
@@ -1000,7 +1015,7 @@ def test_computed_catalog_schema():
 
     cat = Catalog(
         catalog_id="https://a2ui.org/computed-catalog",
-        protocol_version="v1.0",
+        protocol_version="1.0",
         components=[comp],
         functions=[fn],
         theme_schema={"primaryColor": "#000"},
@@ -1028,7 +1043,7 @@ def test_catalog_from_json_preserves_custom_defs():
     """Verifies that custom $defs in raw JSON catalog schema are preserved in Catalog and catalog_schema."""
     catalog_json = {
         "catalogId": "https://a2ui.org/catalogs/custom",
-        "protocolVersion": "v1.0",
+        "protocolVersion": "1.0",
         "$defs": {
             "CustomType": {
                 "type": "string",
@@ -1115,7 +1130,7 @@ def test_validate_function_rejects_non_dict_args():
 
     catalog = Catalog(
         catalog_id="test_cat",
-        protocol_version="v1.0",
+        protocol_version="1.0",
         components=[],
         functions=[
             FunctionImplementation(
@@ -1149,7 +1164,7 @@ def test_validate_function_non_string_arg_key_defensive():
 
     catalog = Catalog(
         catalog_id="test_cat",
-        protocol_version="v1.0",
+        protocol_version="1.0",
         components=[],
         functions=[
             FunctionImplementation(
@@ -1299,12 +1314,14 @@ def test_v1_0_catalogs_inline_component_metadata():
     basic_catalog = BasicCatalogV1_0().validation_schema
 
     assert (
-        json_catalog["components"]["Card"]["properties"]["metadata"] == _INLINE_METADATA
+        json_catalog["components"]["Card"]["properties"]["@metadata"]
+        == _INLINE_METADATA
     )
     assert "ComponentCommonMetadata" not in json_catalog["$defs"]
     assert "Extensions" in json_catalog["$defs"]
     # As in the specification, v1.0 basic catalog components leave
     # `ComponentCommon`, and so its metadata, to the message envelope.
+    assert "@metadata" not in basic_catalog["components"]["Text"]["properties"]
     assert "metadata" not in basic_catalog["components"]["Text"]["properties"]
     assert "ComponentCommonMetadata" not in basic_catalog["$defs"]
     # No internal schema-generation marker leaks into a published catalog.
@@ -1471,14 +1488,14 @@ def test_v10_catalog_rejects_at_prefixed_function_names():
     with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 function identifier"):
         Catalog(
             catalog_id="https://a2ui.org/v10-reserved-fn",
-            protocol_version="v1.0",
+            protocol_version="1.0",
             functions=[FunctionApi(name="@index", return_type="number")],
         )
 
     with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 function identifier"):
         Catalog.from_json({
             "catalogId": "https://a2ui.org/v10-reserved-fn",
-            "protocolVersion": "v1.0",
+            "protocolVersion": "1.0",
             "functions": {"@index": {"returnType": "number"}},
         })
 
@@ -1487,7 +1504,7 @@ def test_v10_catalog_accepts_ref_and_combiner_parameters():
     """Parameters defined with $ref or combiners are not treated as shorthand maps."""
     cat = Catalog.from_json({
         "catalogId": "https://a2ui.org/v10-ref-fn",
-        "protocolVersion": "v1.0",
+        "protocolVersion": "1.0",
         "functions": {
             "refFunc": {
                 "parameters": {"$ref": "#/$defs/MyArgs"},
@@ -1514,7 +1531,7 @@ def test_v10_catalog_accepts_ref_and_combiner_parameters():
     with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 argument identifier"):
         Catalog.from_json({
             "catalogId": "https://a2ui.org/v10-invalid-param",
-            "protocolVersion": "v1.0",
+            "protocolVersion": "1.0",
             "functions": {
                 "badFunc": {
                     "parameters": {
@@ -1524,3 +1541,189 @@ def test_v10_catalog_accepts_ref_and_combiner_parameters():
                 },
             },
         })
+
+
+def test_v10_validate_function_checks_nested_call_envelope_only():
+    """A nested call in a v1.0 Dynamic* argument may name another catalog.
+
+    It runs in the catalog it names, so the argument schema checks only its
+    envelope; the caller's nested-call walk checks it against that catalog.
+    """
+    cat = Catalog.from_json({
+        "catalogId": "https://example.com/describe.json",
+        "protocolVersion": "1.0",
+        "functions": {
+            "describe": {
+                "type": "object",
+                "returnType": "string",
+                "properties": {
+                    "@call": {"const": "describe"},
+                    "args": {
+                        "type": "object",
+                        "properties": {
+                            "text": {"$ref": "common_types.json#/$defs/DynamicString"}
+                        },
+                        "additionalProperties": False,
+                    },
+                },
+                "required": ["@call"],
+            },
+        },
+    })
+    validator = PayloadValidator(cat)
+    validator.validate_function(
+        "describe",
+        {
+            "text": {
+                "@call": "formatString",
+                "catalogId": (
+                    "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+                ),
+                "args": {"value": "hi"},
+            }
+        },
+    )
+    with pytest.raises(A2uiValidationError):
+        validator.validate_function(
+            "describe", {"text": {"@call": "formatString", "bogus": 1}}
+        )
+
+
+def _v10_single_component_catalog(comp_schema: dict[str, Any]) -> Catalog:
+    return Catalog.from_json(
+        {"catalogId": "envelope-test-cat", "components": {"Widget": comp_schema}},
+        protocol_version="1.0",
+    )
+
+
+@pytest.mark.parametrize(
+    "combiner",
+    ["allOf", "anyOf", "oneOf"],
+)
+def test_get_custom_envelope_properties_reads_combiner_branches(combiner: str):
+    from a2ui.core.catalog import get_custom_envelope_properties
+
+    # The v1.0 `ComponentDefinition` only allows `oneOf`/`anyOf` inside an
+    # `allOf` member.
+    cat = _v10_single_component_catalog({
+        "type": "object",
+        "properties": {"text": {"type": "string"}},
+        "allOf": [{
+            combiner: [
+                {"properties": {"metadata": {"type": "string"}}},
+                {"properties": {"catalogId": {"type": "integer"}}},
+            ],
+        }],
+    })
+    assert get_custom_envelope_properties(cat, "Widget") == frozenset(
+        {"metadata", "catalogId"}
+    )
+
+
+def test_get_custom_envelope_properties_reads_local_def_in_one_of_branch():
+    from a2ui.core.catalog import get_custom_envelope_properties
+
+    cat = Catalog.from_json(
+        {
+            "catalogId": "envelope-test-cat",
+            "$defs": {
+                "PagedMixin": {"properties": {"metadata": {"type": "string"}}},
+            },
+            "components": {
+                "Widget": {
+                    "type": "object",
+                    "allOf": [{"oneOf": [{"$ref": "#/$defs/PagedMixin"}]}],
+                },
+            },
+        },
+        protocol_version="1.0",
+    )
+    assert get_custom_envelope_properties(cat, "Widget") == frozenset({"metadata"})
+
+
+_EXTENSIONS_ONLY_METADATA = {
+    "type": "object",
+    "properties": {"extensions": {"type": "object"}},
+}
+
+
+@pytest.mark.parametrize(
+    ("props", "expected_custom"),
+    [
+        # An inlined ComponentCommon: `id` beside the standard shapes.
+        (
+            {
+                "id": {"type": "string"},
+                "catalogId": {"type": "string"},
+                "metadata": _EXTENSIONS_ONLY_METADATA,
+            },
+            frozenset(),
+        ),
+        # `id` beside other shapes: the component's own properties.
+        (
+            {
+                "id": {"type": "string"},
+                "catalogId": {"type": "integer"},
+                "metadata": {"type": "string"},
+            },
+            frozenset({"catalogId", "metadata"}),
+        ),
+        # The standard shapes without `id`: the component's own properties.
+        (
+            {
+                "catalogId": {"type": "string"},
+                "metadata": _EXTENSIONS_ONLY_METADATA,
+            },
+            frozenset({"catalogId", "metadata"}),
+        ),
+    ],
+)
+def test_get_custom_envelope_properties_inline_mixin_needs_inline_id(
+    props: dict[str, Any], expected_custom: frozenset[str]
+):
+    from a2ui.core.catalog import get_custom_envelope_properties
+
+    cat = _v10_single_component_catalog({"type": "object", "properties": props})
+    assert get_custom_envelope_properties(cat, "Widget") == expected_custom
+
+
+def test_get_custom_envelope_properties_ignores_spec_description_without_inline_id():
+    from a2ui.core.catalog import get_custom_envelope_properties
+
+    cat = _v10_single_component_catalog({
+        "type": "object",
+        "properties": {
+            "catalogId": {
+                "type": "string",
+                "description": (
+                    "The catalog ID for this component, overriding any"
+                    " surface-level default catalogId."
+                ),
+            },
+        },
+    })
+    assert get_custom_envelope_properties(cat, "Widget") == frozenset({"catalogId"})
+
+
+def test_payload_validator_keeps_custom_property_declared_in_one_of_beside_any_of():
+    # `metadata` is only declared in the `oneOf` that sits beside an `anyOf`.
+    cat = _v10_single_component_catalog({
+        "type": "object",
+        "properties": {"text": {"type": "string"}},
+        "allOf": [{
+            "oneOf": [{
+                "properties": {"metadata": {"type": "string"}},
+                "required": ["metadata"],
+            }],
+            "anyOf": [{"properties": {"catalogId": {"type": "string"}}}],
+        }],
+        "required": ["component"],
+    })
+    PayloadValidator(cat, config=ValidationConfig()).validate_component({
+        "id": "root",
+        "component": "Widget",
+        "text": "Hi",
+        "metadata": "page-2",
+        "catalogId": "page-catalog",
+        "@metadata": {"extensions": {"trace": "t1"}},
+    })

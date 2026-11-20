@@ -30,11 +30,15 @@ public protocol CatalogProtocol: Sendable {
   /// Unique catalog identifier (conventionally a URI string).
   var id: String { get }
 
-  /// Optional protocol version this catalog conforms to (e.g. "v1.0" or "v0.9.1").
+  /// Optional protocol version this catalog conforms to (e.g. "1.0" or "v0.9.1").
   var protocolVersion: String? { get }
 
   /// Optional theme schema for this catalog.
   var themeSchema: Schema? { get }
+
+  /// Optional Markdown design guidelines for this catalog, which agents add to the prompt
+  /// alongside its components and functions.
+  var instructions: String? { get }
 
   /// Map of function name → ``FunctionImplementation``.
   var functions: [String: any FunctionImplementation] { get }
@@ -63,6 +67,10 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
   /// Optional theme schema for this catalog.
   public var themeSchema: Schema?
 
+  /// Optional Markdown design guidelines for this catalog, which agents add to the prompt
+  /// alongside its components and functions.
+  public var instructions: String?
+
   /// Creates a catalog from arrays of components and functions.
   ///
   /// - Parameters:
@@ -71,15 +79,18 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
   ///   - components: Array of component definitions conforming to ``ComponentAPI``.
   ///   - functions: Array of function implementations (defaults to empty).
   ///   - themeSchema: Optional theme schema (defaults to nil).
+  ///   - instructions: Optional Markdown design guidelines for agents (defaults to nil).
   public init(
     id: String,
     protocolVersion: String? = nil,
     components: [Component],
     functions: [any FunctionImplementation] = [],
-    themeSchema: Schema? = nil
+    themeSchema: Schema? = nil,
+    instructions: String? = nil
   ) {
     self.id = id
     self.protocolVersion = protocolVersion
+    self.instructions = instructions
     self.components = Dictionary(
       components.map { ($0.name, $0) },
       uniquingKeysWith: { _, last in last }
@@ -93,6 +104,16 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
     if self.isAtLeastV10 && self.functions["@index"] == nil {
       functionMap["@index"] = IndexFunction()
       self.functions = functionMap
+    }
+  }
+
+  /// Validates that all functions in this catalog satisfy caller and user activation constraints.
+  ///
+  /// - Throws: ``A2UICatalogError`` if any function sets `requiresUserActivation` to `true`
+  ///   while `allowedCallers` is not `.rendererOnly`.
+  public func validateFunctionCallerConstraints() throws {
+    for function in functions.values {
+      try function.api.validateCallerConstraints()
     }
   }
 
@@ -111,7 +132,77 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
         )
       },
       functions: Array(functions.values),
-      themeSchema: themeSchema
+      themeSchema: themeSchema,
+      instructions: instructions
+    )
+  }
+
+  /// Creates a catalog with a new ID from entries of this one, plus new entries.
+  ///
+  /// Use it to keep part of a catalog, such as the basic catalog, under an ID of your own:
+  ///
+  /// ```swift
+  /// let chatCatalog = try basicCatalog.derive(
+  ///   id: "https://example.com/catalogs/chat.json",
+  ///   components: ["Text", "Image", "Row", "Column", "Button", .add(MyCarousel())],
+  ///   functions: ["openUrl"]
+  /// )
+  /// ```
+  ///
+  /// The derived catalog keeps this catalog's protocol version and theme schema. It does not
+  /// keep this catalog's ``instructions``, which describe this catalog: instructions often name
+  /// its ID and its components in their examples, so they would teach a model to write messages
+  /// for the wrong catalog. `instructions` are the derived catalog's own.
+  ///
+  /// - Parameters:
+  ///   - id: The derived catalog's ID.
+  ///   - components: The components of the derived catalog. A name keeps this catalog's
+  ///     component of that name, and a new entry is added. If `nil`, the derived catalog keeps
+  ///     every component of this one.
+  ///   - functions: The functions of the derived catalog, as for `components`. If `nil`, the
+  ///     derived catalog keeps every function of this one.
+  ///   - instructions: The derived catalog's Markdown design guidelines for agents. If `nil`,
+  ///     the derived catalog has none.
+  /// - Throws: ``A2UICatalogError`` if a name is not an entry of this catalog.
+  public func derive(
+    id: String,
+    components: [DerivedCatalogEntry<Component>]? = nil,
+    functions: [DerivedCatalogEntry<any FunctionImplementation>]? = nil,
+    instructions: String? = nil
+  ) throws -> Catalog<Component> {
+    let derivedComponents = try components.map { entries in
+      try entries.map { entry -> Component in
+        switch entry {
+        case .keep(let name):
+          guard let component = self.components[name] else {
+            throw A2UICatalogError("Catalog \"\(self.id)\" has no component \"\(name)\".")
+          }
+          return component
+        case .add(let component):
+          return component
+        }
+      }
+    }
+    let derivedFunctions = try functions.map { entries in
+      try entries.map { entry -> any FunctionImplementation in
+        switch entry {
+        case .keep(let name):
+          guard let function = self.functions[name] else {
+            throw A2UICatalogError("Catalog \"\(self.id)\" has no function \"\(name)\".")
+          }
+          return function
+        case .add(let function):
+          return function
+        }
+      }
+    }
+    return Catalog(
+      id: id,
+      protocolVersion: protocolVersion,
+      components: derivedComponents ?? Array(self.components.values),
+      functions: derivedFunctions ?? Array(self.functions.values),
+      themeSchema: themeSchema,
+      instructions: instructions
     )
   }
 
@@ -121,19 +212,24 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
     protocolVersion: A2UIProtocolVersion,
     components: [Component],
     functions: [any FunctionImplementation] = [],
-    themeSchema: Schema? = nil
+    themeSchema: Schema? = nil,
+    instructions: String? = nil
   ) {
     self.init(
       id: id,
       protocolVersion: protocolVersion.rawValue,
       components: components,
       functions: functions,
-      themeSchema: themeSchema
+      themeSchema: themeSchema,
+      instructions: instructions
     )
   }
 }
 
 extension CatalogProtocol {
+  /// No instructions, for a conforming type that does not declare its own.
+  public var instructions: String? { nil }
+
   /// The protocol version of this catalog as an `A2UIProtocolVersion` enum, if recognized.
   public var a2uiProtocolVersion: A2UIProtocolVersion? {
     guard let protocolVersion else { return nil }
@@ -149,6 +245,56 @@ extension CatalogProtocol {
     let cleanVersion =
       protocolVersion.hasPrefix("v") ? String(protocolVersion.dropFirst()) : protocolVersion
     return cleanVersion.compare("1.0", options: .numeric) != .orderedAscending
+  }
+}
+
+extension Dictionary where Key == String, Value: CatalogProtocol {
+  /// Filters catalogs to those compatible with `protocolVersion`.
+  public func filterCompatible(with protocolVersion: A2UIProtocolVersion?) -> [String: Value] {
+    guard let protocolVersion else { return self }
+    return filter { _, catalog in
+      guard let catalogVersion = catalog.a2uiProtocolVersion else { return true }
+      return catalogVersion.isAtLeastV10 == protocolVersion.isAtLeastV10
+    }
+  }
+
+  /// Resolves the default catalog ID when not explicitly provided.
+  public func resolveDefaultCatalogID(
+    explicitDefaultID: String?,
+    protocolVersion: A2UIProtocolVersion?
+  ) -> String? {
+    if let explicitDefaultID {
+      return explicitDefaultID
+    }
+    let allCatalogsAtLeastV10 = !isEmpty && values.allSatisfy(\.isAtLeastV10)
+    let isAtLeastV10 = protocolVersion?.isAtLeastV10 ?? allCatalogsAtLeastV10
+    if !isAtLeastV10, count == 1 {
+      return keys.first
+    }
+    return nil
+  }
+
+  /// Resolves the effective protocol version based on catalogs and default catalog ID.
+  public func resolveExplicitProtocolVersion(
+    requestedVersion: A2UIProtocolVersion?,
+    defaultCatalogID: String?
+  ) -> A2UIProtocolVersion? {
+    if let requestedVersion {
+      return requestedVersion
+    }
+    if let defaultCatalogID,
+      let defaultCatalog = self[defaultCatalogID],
+      let catalogVersion = defaultCatalog.a2uiProtocolVersion
+    {
+      return catalogVersion
+    }
+    if !isEmpty && values.allSatisfy(\.isAtLeastV10) {
+      return .v10
+    }
+    if count == 1, let onlyCatalogVersion = values.first?.a2uiProtocolVersion {
+      return onlyCatalogVersion
+    }
+    return nil
   }
 }
 

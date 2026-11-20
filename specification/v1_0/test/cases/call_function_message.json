@@ -6,7 +6,7 @@
       "description": "CallRendererFunctionMessage: Valid message",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
           "functionCallId": "unique-call-id-123",
           "callFunction": {
@@ -23,7 +23,7 @@
       "description": "CallRendererFunctionMessage: Valid with catalogId",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
           "functionCallId": "unique-call-id-123-cat",
           "callFunction": {
@@ -40,7 +40,7 @@
       "description": "CallRendererFunctionMessage: Valid with surfaceId",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
           "surfaceId": "surface_1",
           "functionCallId": "unique-call-id-123-surf",
@@ -58,7 +58,7 @@
       "description": "CallRendererFunctionMessage: Valid call without args",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
           "functionCallId": "unique-call-id-123a",
           "callFunction": {
@@ -72,7 +72,7 @@
       "description": "CallRendererFunctionMessage: Invalid (missing catalogId)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
           "functionCallId": "unique-call-id-123b",
           "callFunction": {
@@ -88,7 +88,7 @@
       "description": "CallRendererFunctionMessage: Invalid (missing functionCallId)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
           "callFunction": {
             "@call": "openUrl",
@@ -104,7 +104,7 @@
       "description": "CallRendererFunctionMessage: Invalid (missing callFunction)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
           "functionCallId": "unique-call-id-125"
         }
@@ -114,7 +114,7 @@
       "description": "CallRendererFunctionMessage: Invalid args (nested object in a single value)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
           "functionCallId": "unique-call-id-127",
           "callFunction": {

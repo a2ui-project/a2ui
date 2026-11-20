@@ -47,7 +47,7 @@ void main() {
 
     test('reads an inline catalog that states no version as the entry\'s', () {
       final caps = A2uiRendererCapabilities.fromJson({
-        'v1.0': {
+        '1.0': {
           'supportedCatalogIds': <String>[],
           'inlineCatalogs': [
             {
@@ -61,28 +61,28 @@ void main() {
       });
 
       expect(
-        caps.versions[A2uiProtocolVersion.v1_0]!.inlineCatalogs.single
+        caps
+            .versions[A2uiProtocolVersion.v1_0]!
+            .inlineCatalogs
+            .single
             .protocolVersion,
         A2uiProtocolVersion.v1_0,
       );
     });
 
     test('keeps the version an inline catalog states', () {
-      final caps = A2uiVersionCapabilities.fromJson(
-        {
-          'supportedCatalogIds': <String>[],
-          'inlineCatalogs': [
-            {
-              'catalogId': 'inline',
-              'protocolVersion': '0.9',
-              'components': {
-                'Gauge': {'type': 'object'},
-              },
+      final caps = A2uiVersionCapabilities.fromJson({
+        'supportedCatalogIds': <String>[],
+        'inlineCatalogs': [
+          {
+            'catalogId': 'inline',
+            'protocolVersion': '0.9',
+            'components': {
+              'Gauge': {'type': 'object'},
             },
-          ],
-        },
-        protocolVersion: A2uiProtocolVersion.v1_0,
-      );
+          },
+        ],
+      }, protocolVersion: A2uiProtocolVersion.v1_0);
 
       expect(
         caps.inlineCatalogs.single.protocolVersion,
@@ -224,7 +224,7 @@ void main() {
         'v0.9': {
           'supportedCatalogIds': ['basic'],
         },
-        'v1.0': {
+        '1.0': {
           'supportedCatalogIds': ['basic', 'extra'],
         },
         'v2.0': {
@@ -237,7 +237,7 @@ void main() {
         'v0.9': {
           'supportedCatalogIds': ['basic'],
         },
-        'v1.0': {
+        '1.0': {
           'supportedCatalogIds': ['basic', 'extra'],
         },
       });
@@ -251,7 +251,7 @@ void main() {
         'v0.9.1': {
           'supportedCatalogIds': ['basic'],
         },
-        'v1.0': {
+        '1.0': {
           'supportedCatalogIds': ['basic', 'extra'],
         },
       };
@@ -264,33 +264,31 @@ void main() {
           'supportedCatalogIds': ['basic'],
         },
       });
-      expect(
-        caps.forVersion(A2uiProtocolVersion.v0_9)!.supportedCatalogIds,
-        ['basic'],
-      );
+      expect(caps.forVersion(A2uiProtocolVersion.v0_9)!.supportedCatalogIds, [
+        'basic',
+      ]);
       expect(caps.forVersion(A2uiProtocolVersion.v1_0), isNull);
     });
   });
 
   group('MessageProcessor.getRendererCapabilities', () {
-    const legacyEnvelope = r'common_types.json#/$defs/ComponentCommon';
+    const v09Envelope = r'common_types.json#/$defs/ComponentCommon';
 
     MessageProcessor<ComponentApi> processorFor(
       List<ComponentApi> components, {
       List<FunctionImplementation> functions = const [],
       Schema? themeSchema,
-    }) =>
-        MessageProcessor<ComponentApi>(
-          catalogs: [
-            Catalog<ComponentApi, FunctionImplementation>(
-              id: 'cat',
-              components: components,
-              functions: functions,
-              themeSchema: themeSchema,
-            ),
-          ],
-          defaultVersion: A2uiProtocolVersion.v0_9,
-        );
+    }) => MessageProcessor<ComponentApi>(
+      catalogs: [
+        Catalog<ComponentApi, FunctionImplementation>(
+          id: 'cat',
+          components: components,
+          functions: functions,
+          themeSchema: themeSchema,
+        ),
+      ],
+      defaultVersion: A2uiProtocolVersion.v0_9,
+    );
 
     Map<String, Object?> inlineCatalog(
       MessageProcessor<ComponentApi> processor,
@@ -316,7 +314,7 @@ void main() {
         inlineCatalog(processor, version)['components']!
             as Map<String, Object?>;
 
-    Map<String, Object?> legacyBody(
+    Map<String, Object?> v09Body(
       Map<String, Object?> components,
       String name,
     ) =>
@@ -350,13 +348,13 @@ void main() {
         'v0.9': {
           'supportedCatalogIds': ['cat'],
         },
-        'v1.0': {
+        '1.0': {
           'supportedCatalogIds': ['cat'],
         },
       });
     });
 
-    test('flattens an allOf component schema in the legacy shape', () {
+    test('flattens an allOf component schema in the v0.9 shape', () {
       final MessageProcessor<ComponentApi> processor = processorFor([
         ComponentApi(
           name: 'Merged',
@@ -383,7 +381,7 @@ void main() {
       expect(inlineComponents(processor, A2uiProtocolVersion.v0_9), {
         'Merged': {
           'allOf': [
-            {r'$ref': legacyEnvelope},
+            {r'$ref': v09Envelope},
             {
               'properties': {
                 'component': {'const': 'Merged'},
@@ -397,16 +395,13 @@ void main() {
       });
     });
 
-    test('derives the legacy body from the catalog document', () {
+    test('derives the v0.9 body from the catalog document', () {
       final MessageProcessor<ComponentApi> processor = processorFor([
         ComponentApi(
           name: 'Button',
           schema: Schema.object(
             description: 'A button.',
-            properties: {
-              'label': Schema.string(),
-              'variant': Schema.string(),
-            },
+            properties: {'label': Schema.string(), 'variant': Schema.string()},
             required: ['label'],
             additionalProperties: false,
           ),
@@ -416,7 +411,7 @@ void main() {
           processor.catalogs.single.validationSchema;
       final serialized =
           (document['components']! as Map)['Button'] as Map<String, Object?>;
-      // The document form carries the v1.0 envelope keys the legacy body
+      // The document form carries the v1.0 envelope keys the v0.9 body
       // leaves to its ComponentCommon wrapper.
       expect(serialized['type'], 'object');
       expect((serialized['properties']! as Map).keys, [
@@ -426,7 +421,7 @@ void main() {
         'variant',
       ]);
 
-      final Map<String, Object?> body = legacyBody(
+      final Map<String, Object?> body = v09Body(
         inlineComponents(processor, A2uiProtocolVersion.v0_9_1),
         'Button',
       );
@@ -452,50 +447,49 @@ void main() {
       final Object? descBefore =
           CommonSchemas.dynamicString.value['description'];
 
-      final Map<String, Object?> legacy =
-          inlineComponents(processor, A2uiProtocolVersion.v0_9);
-      final Map<String, Object?> current =
-          inlineComponents(processor, A2uiProtocolVersion.v1_0);
+      final Map<String, Object?> v09Inline = inlineComponents(
+        processor,
+        A2uiProtocolVersion.v0_9,
+      );
+      final Map<String, Object?> current = inlineComponents(
+        processor,
+        A2uiProtocolVersion.v1_0,
+      );
 
-      final legacyText =
-          (legacyBody(legacy, 'Label')['properties'] as Map)['text'] as Map;
+      final v09Text =
+          (v09Body(v09Inline, 'Label')['properties'] as Map)['text'] as Map;
       final currentText =
           ((current['Label']! as Map)['properties'] as Map)['text'] as Map;
-      // Neither shape bundles the common types: the legacy shape has no
+      // Neither shape bundles the common types: the v0.9 shape has no
       // `$defs`, and the v1.0 catalog document is unbundled, so both name
       // the relative common_types.json ref.
-      expect(legacyText[r'$ref'], r'common_types.json#/$defs/DynamicString');
-      expect(legacyText['description'], descBefore);
+      expect(v09Text[r'$ref'], r'common_types.json#/$defs/DynamicString');
+      expect(v09Text['description'], descBefore);
       expect(currentText[r'$ref'], r'common_types.json#/$defs/DynamicString');
       expect(CommonSchemas.dynamicString.value['description'], descBefore);
     });
 
     test('inlines resolvable local refs and drops dangling ones', () {
-      final MessageProcessor<ComponentApi> processor = processorFor(
-        [
-          ComponentApi(
-            name: 'Themed',
-            schema: Schema.fromMap({
-              'type': 'object',
-              'properties': {
-                'palette': {
-                  r'$ref': r'#/$defs/theme',
-                  'description': 'The palette.',
-                },
-                'base': {
-                  r'$ref': r'#/$defs/Base',
-                  'description': 'Not in this catalog.',
-                },
+      final MessageProcessor<ComponentApi> processor = processorFor([
+        ComponentApi(
+          name: 'Themed',
+          schema: Schema.fromMap({
+            'type': 'object',
+            'properties': {
+              'palette': {
+                r'$ref': r'#/$defs/theme',
+                'description': 'The palette.',
               },
-            }),
-          ),
-        ],
-        themeSchema: Schema.object(
-          properties: {'primary': Schema.string()},
+              'base': {
+                r'$ref': r'#/$defs/Base',
+                'description': 'Not in this catalog.',
+              },
+            },
+          }),
         ),
-      );
+      ], themeSchema: Schema.object(properties: {'primary': Schema.string()}));
 
-      final Map<String, Object?> body = legacyBody(
+      final Map<String, Object?> body = v09Body(
         inlineComponents(processor, A2uiProtocolVersion.v0_9),
         'Themed',
       );
@@ -511,12 +505,10 @@ void main() {
       });
     });
 
-    test('emits legacy functions and theme from the catalog document', () {
+    test('emits v0.9 functions and theme from the catalog document', () {
       final MessageProcessor<ComponentApi> processor = processorFor(
         [],
-        functions: [
-          _AddFunction(),
-        ],
+        functions: [_AddFunction()],
         themeSchema: Schema.object(
           properties: {
             'primaryColor': Schema.string(description: 'The main color'),
@@ -524,9 +516,11 @@ void main() {
         ),
       );
 
-      final Map<String, Object?> legacy =
-          inlineCatalog(processor, A2uiProtocolVersion.v0_9);
-      expect(legacy['functions'], [
+      final Map<String, Object?> v09Inline = inlineCatalog(
+        processor,
+        A2uiProtocolVersion.v0_9,
+      );
+      expect(v09Inline['functions'], [
         {
           'name': 'add',
           'description': 'Adds two numbers.',
@@ -541,10 +535,10 @@ void main() {
           },
         },
       ]);
-      expect(legacy['theme'], {
+      expect(v09Inline['theme'], {
         'primaryColor': {'type': 'string', 'description': 'The main color'},
       });
-      expect(legacy.containsKey('components'), isFalse);
+      expect(v09Inline.containsKey('components'), isFalse);
     });
 
     test('emits the catalog document for v1.0', () {
@@ -569,24 +563,26 @@ void main() {
         includeInlineCatalogs: true,
       );
 
-      final Map<String, Object?> json =
-          processor.getRendererCapabilities(options).toJson();
+      final Map<String, Object?> json = processor
+          .getRendererCapabilities(options)
+          .toJson();
       expect(json, {
-        'v1.0': {
+        '1.0': {
           'supportedCatalogIds': ['cat'],
           'inlineCatalogs': [catalog.toJson()],
         },
       });
 
       // Mutating the result leaves the catalog, and a second call, intact.
-      final inline = ((json['v1.0']! as Map)['inlineCatalogs'] as List).single
-          as Map<String, Object?>;
+      final inline =
+          ((json['1.0']! as Map)['inlineCatalogs'] as List).single
+              as Map<String, Object?>;
       (inline['components']! as Map).remove('Label');
       expect((catalog.toJson()['components']! as Map).keys, ['Label']);
       expect(
         processor.getRendererCapabilities(options).toJson(),
         json
-          ..['v1.0'] = {
+          ..['1.0'] = {
             'supportedCatalogIds': ['cat'],
             'inlineCatalogs': [catalog.toJson()],
           },
@@ -604,7 +600,7 @@ void main() {
       inlineCatalogs: [catalog],
     );
 
-    test('emits the legacy inline catalog shape below v1.0', () {
+    test('emits the v0.9 inline catalog shape below v1.0', () {
       expect(caps.toJson(version: A2uiProtocolVersion.v0_9), {
         'supportedCatalogIds': ['cat'],
         'inlineCatalogs': [
@@ -658,34 +654,33 @@ void main() {
           version.jsonValue: caps.toJson(version: version),
       });
       // Pin the shapes independently of toJson: both v0.9 releases share the
-      // legacy shape, and v1.0 carries the catalog document.
+      // v0.9 shape, and v1.0 carries the catalog document.
       expect(emitted['v0.9.1'], emitted['v0.9']);
       expect(
         ((emitted['v0.9']! as Map)['inlineCatalogs'] as List).single,
         isNot(contains(r'$schema')),
       );
-      expect((emitted['v1.0']! as Map)['inlineCatalogs'], [catalog.toJson()]);
+      expect((emitted['1.0']! as Map)['inlineCatalogs'], [catalog.toJson()]);
     });
   });
 }
 
 class _AddFunction extends FunctionImplementation {
   _AddFunction()
-      : super(
-          name: 'add',
-          description: 'Adds two numbers.',
-          returnType: A2uiReturnType.number,
-          argumentSchema: Schema.object(
-            properties: {'a': Schema.number(), 'b': Schema.number()},
-            required: ['a', 'b'],
-          ),
-        );
+    : super(
+        name: 'add',
+        description: 'Adds two numbers.',
+        returnType: A2uiReturnType.number,
+        argumentSchema: Schema.object(
+          properties: {'a': Schema.number(), 'b': Schema.number()},
+          required: ['a', 'b'],
+        ),
+      );
 
   @override
   Object? execute(
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      (args['a']! as num) + (args['b']! as num);
+  ]) => (args['a']! as num) + (args['b']! as num);
 }

@@ -67,7 +67,7 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
   /**
    * Resolves the version adapter for the specified version string from this factory instance.
    *
-   * @param version The protocol version string (e.g. 'v1.0').
+   * @param version The protocol version string (e.g. '1.0').
    * @return The matching version adapter.
    * @throws A2uiValidationError if the version string is unsupported.
    */
@@ -76,7 +76,11 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
     const adapter = this.adapters.get(key);
     if (!adapter) {
       const supported = Array.from(
-        new Set(Array.from(this.adapters.keys()).map(k => (k.startsWith('v') ? k : `v${k}`))),
+        new Set(
+          Array.from(this.adapters.entries()).map(([k, a]) =>
+            k === '0.9.1' ? 'v0.9.1' : a.version,
+          ),
+        ),
       )
         .sort()
         .join(', ');

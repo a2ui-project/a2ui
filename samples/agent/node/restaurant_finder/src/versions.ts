@@ -21,7 +21,7 @@
 /** One A2UI protocol version this agent can answer in. */
 export interface VersionProfile {
   /** The version the agent writes in its messages, and the key in the capabilities object. */
-  version: 'v0.9' | 'v1.0';
+  version: 'v0.9' | '1.0';
   /** The message metadata key under which a renderer lists its capabilities. */
   capabilitiesKey: 'a2uiClientCapabilities' | 'a2uiRendererCapabilities';
   /** The id renderers use for the basic catalog of this version. */
@@ -39,12 +39,12 @@ export const V0_9: VersionProfile = {
   version: 'v0.9',
   capabilitiesKey: 'a2uiClientCapabilities',
   basicCatalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-  basicCatalogPath: 'specification/v0_9/catalogs/basic/catalog.json',
+  basicCatalogPath: 'catalogs/basic/v0_9/catalog.json',
 };
 
-/** The v1.0 candidate protocol. */
+/** The v1.0 protocol. */
 export const V1_0: VersionProfile = {
-  version: 'v1.0',
+  version: '1.0',
   capabilitiesKey: 'a2uiRendererCapabilities',
   basicCatalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
   basicCatalogPath: 'catalogs/basic/v1/catalog.json',

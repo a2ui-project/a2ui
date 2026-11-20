@@ -15,27 +15,20 @@
 import SwiftUI
 
 /// Posts an accessibility announcement whenever `text` changes to a non-nil value.
-///
-/// Uses the two-parameter `onChange` where available and falls back to the iOS 16 form, which
-/// the package still supports.
 struct AnnouncementTrigger: ViewModifier {
+  @Environment(\.a2uiAnnouncer) private var announcer
+
   let text: String?
   let assertive: Bool
 
   func body(content: Content) -> some View {
-    if #available(iOS 17.0, macOS 14.0, *) {
-      content.onChange(of: text) { _, newText in
-        announce(newText)
-      }
-    } else {
-      content.onChange(of: text) { newText in
-        announce(newText)
-      }
+    content.onChange(of: text) { _, newText in
+      announce(newText)
     }
   }
 
   private func announce(_ newText: String?) {
     guard let newText else { return }
-    A2UIAccessibilityModifier.announce(newText, assertive: assertive)
+    announcer.announce(newText, assertive)
   }
 }

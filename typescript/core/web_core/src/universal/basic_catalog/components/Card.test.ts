@@ -103,5 +103,45 @@ describe('Card Component', () => {
     const textEl = el.querySelector('a2ui-basic-text');
     assert.notStrictEqual(textEl, null);
     assert.strictEqual(el.textContent?.includes('hello'), true);
+    assert.strictEqual(cardDiv?.hasAttribute('role'), false);
+    assert.strictEqual(cardDiv?.hasAttribute('aria-label'), false);
+  });
+
+  it('sets role="region", aria-label, and aria-description on .a2ui-card when labeled', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'card_a11y',
+              component: 'Card',
+              child: 'txt1',
+              accessibility: {
+                label: 'Mott 32',
+                description: 'Featured restaurant card',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-card') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'card_a11y');
+    });
+
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    assert.strictEqual(el.hasAttribute('aria-description'), false);
+    const cardDiv = el.querySelector('.a2ui-card');
+    assert.notStrictEqual(cardDiv, null);
+    assert.strictEqual(cardDiv?.getAttribute('role'), 'region');
+    assert.strictEqual(cardDiv?.getAttribute('aria-label'), 'Mott 32');
+    assert.strictEqual(cardDiv?.getAttribute('aria-description'), 'Featured restaurant card');
   });
 });

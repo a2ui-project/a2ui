@@ -118,75 +118,81 @@ void main() {
       expect(ud.hasValue, isTrue);
     });
 
-    test('distinguishes omitted value from explicit null in updateDataModel',
-        () {
-      final omitted = AgentToRendererMessage.fromJson({
-        'version': 'v0.9',
-        'updateDataModel': {'surfaceId': 's1'},
-      }) as UpdateDataModelMessage;
+    test(
+      'distinguishes omitted value from explicit null in updateDataModel',
+      () {
+        final omitted = AgentToRendererMessage.fromJson({
+          'version': 'v0.9',
+          'updateDataModel': {'surfaceId': 's1'},
+        }) as UpdateDataModelMessage;
 
-      expect(omitted.path, isNull);
-      expect(omitted.value, isNull);
-      expect(omitted.hasValue, isFalse);
-      expect(omitted.toJson(), {
-        'version': 'v0.9',
-        'updateDataModel': {'surfaceId': 's1'},
-      });
+        expect(omitted.path, isNull);
+        expect(omitted.value, isNull);
+        expect(omitted.hasValue, isFalse);
+        expect(omitted.toJson(), {
+          'version': 'v0.9',
+          'updateDataModel': {'surfaceId': 's1'},
+        });
 
-      final explicitNull = AgentToRendererMessage.fromJson({
-        'version': 'v0.9',
-        'updateDataModel': {
-          'surfaceId': 's1',
-          'path': '/user/name',
-          'value': null,
-        },
-      }) as UpdateDataModelMessage;
+        final explicitNull = AgentToRendererMessage.fromJson({
+          'version': 'v0.9',
+          'updateDataModel': {
+            'surfaceId': 's1',
+            'path': '/user/name',
+            'value': null,
+          },
+        }) as UpdateDataModelMessage;
 
-      expect(explicitNull.path, '/user/name');
-      expect(explicitNull.value, isNull);
-      expect(explicitNull.hasValue, isTrue);
-      expect(explicitNull.toJson(), {
-        'version': 'v0.9',
-        'updateDataModel': {
-          'surfaceId': 's1',
-          'path': '/user/name',
-          'value': null,
-        },
-      });
-    });
+        expect(explicitNull.path, '/user/name');
+        expect(explicitNull.value, isNull);
+        expect(explicitNull.hasValue, isTrue);
+        expect(explicitNull.toJson(), {
+          'version': 'v0.9',
+          'updateDataModel': {
+            'surfaceId': 's1',
+            'path': '/user/name',
+            'value': null,
+          },
+        });
+      },
+    );
 
-    test('serializes UpdateDataModelMessage with null value as explicit null',
-        () {
-      final msg = UpdateDataModelMessage(
-        version: 'v0.9',
-        surfaceId: 's1',
-        path: '/user/name',
-        value: null,
-      );
-
-      expect(msg.hasValue, isTrue);
-      expect(msg.toJson(), {
-        'version': 'v0.9',
-        'updateDataModel': {
-          'surfaceId': 's1',
-          'path': '/user/name',
-          'value': null,
-        },
-      });
-    });
-
-    test('rejects non-null value on UpdateDataModelMessage when hasValue=false',
-        () {
-      expect(
-        () => UpdateDataModelMessage(
+    test(
+      'serializes UpdateDataModelMessage with null value as explicit null',
+      () {
+        final msg = UpdateDataModelMessage(
           version: 'v0.9',
           surfaceId: 's1',
-          value: 'Alice',
-          hasValue: false,
-        ),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
+          path: '/user/name',
+          value: null,
+        );
+
+        expect(msg.hasValue, isTrue);
+        expect(msg.toJson(), {
+          'version': 'v0.9',
+          'updateDataModel': {
+            'surfaceId': 's1',
+            'path': '/user/name',
+            'value': null,
+          },
+        });
+      },
+    );
+
+    test(
+      'rejects non-null value on UpdateDataModelMessage when hasValue=false',
+      () {
+        expect(
+          () => UpdateDataModelMessage(
+            version: 'v0.9',
+            surfaceId: 's1',
+            value: 'Alice',
+            hasValue: false,
+          ),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      },
+    );
 
     test('parses deleteSurface', () {
       final msg = AgentToRendererMessage.fromJson({
@@ -247,9 +253,9 @@ void main() {
 
   group('AgentToRendererMessagePayload', () {
     Map<String, Object?> createSurface(String surfaceId) => {
-          'version': 'v0.9',
-          'createSurface': {'surfaceId': surfaceId, 'catalogId': 'cat1'},
-        };
+      'version': 'v0.9',
+      'createSurface': {'surfaceId': surfaceId, 'catalogId': 'cat1'},
+    };
 
     AgentToRendererMessagePayload parse(Object? payload) =>
         AgentToRendererMessagePayload.fromJson(
@@ -340,7 +346,7 @@ void main() {
     test('rejects an envelope declaring another protocol version', () {
       expect(
         () => parse({
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {'surfaceId': 's1', 'catalogId': 'cat1'},
         }),
         throwsA(isA<A2uiValidationError>()),
@@ -364,8 +370,9 @@ void main() {
       messages.add(DeleteSurfaceMessage(version: 'v0.9', surfaceId: 's2'));
       expect(payload.messages, hasLength(1));
       expect(
-        () => payload.messages
-            .add(DeleteSurfaceMessage(version: 'v0.9', surfaceId: 's3')),
+        () => payload.messages.add(
+          DeleteSurfaceMessage(version: 'v0.9', surfaceId: 's3'),
+        ),
         throwsUnsupportedError,
       );
     });
@@ -387,7 +394,10 @@ void main() {
     test('roundtrips through toJson/fromJson', () {
       final original = AgentToRendererMessagePayload([
         CreateSurfaceMessage(
-            version: 'v0.9', surfaceId: 's1', catalogId: 'cat1'),
+          version: 'v0.9',
+          surfaceId: 's1',
+          catalogId: 'cat1',
+        ),
         DeleteSurfaceMessage(version: 'v0.9', surfaceId: 's1'),
       ]);
 
@@ -492,8 +502,8 @@ void main() {
       expect(error.details, isNull);
     });
 
-    test('rejects a validation failure that names no path or an empty path',
-        () {
+    test('rejects a validation failure that names no path or an empty '
+        'path', () {
       // The VALIDATION_FAILED variant requires a non-empty 'path', and no other
       // field says what failed, so a body without it is rejected rather than
       // parsed into an error an agent cannot act on.
@@ -522,26 +532,28 @@ void main() {
       );
     });
 
-    test('A2uiRendererError rejects VALIDATION_FAILED without non-empty path',
-        () {
-      expect(
-        () => A2uiRendererError(
-          code: 'VALIDATION_FAILED',
-          surfaceId: 's1',
-          message: 'no such component',
-        ),
-        throwsA(isA<A2uiValidationError>()),
-      );
-      expect(
-        () => A2uiRendererError(
-          code: 'VALIDATION_FAILED',
-          surfaceId: 's1',
-          message: 'no such component',
-          path: '',
-        ),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
+    test(
+      'A2uiRendererError rejects VALIDATION_FAILED without non-empty path',
+      () {
+        expect(
+          () => A2uiRendererError(
+            code: 'VALIDATION_FAILED',
+            surfaceId: 's1',
+            message: 'no such component',
+          ),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => A2uiRendererError(
+            code: 'VALIDATION_FAILED',
+            surfaceId: 's1',
+            message: 'no such component',
+            path: '',
+          ),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      },
+    );
 
     test('parses a generic error that names no path', () {
       // Only the VALIDATION_FAILED variant requires it.
@@ -697,9 +709,9 @@ void main() {
 
   group('RendererToAgentMessagePayload', () {
     Map<String, Object?> error(String code) => {
-          'version': 'v0.9',
-          'error': {'code': code, 'surfaceId': 's1', 'message': 'boom'},
-        };
+      'version': 'v0.9',
+      'error': {'code': code, 'surfaceId': 's1', 'message': 'boom'},
+    };
 
     RendererToAgentMessagePayload parse(Object? payload) =>
         RendererToAgentMessagePayload.fromJson(
@@ -726,7 +738,7 @@ void main() {
     test('rejects an envelope declaring another protocol version', () {
       expect(
         () => parse({
-          'version': 'v1.0',
+          'version': '1.0',
           'error': {'code': 'A', 'surfaceId': 's1', 'message': 'boom'},
         }),
         throwsA(isA<A2uiValidationError>()),
@@ -754,8 +766,11 @@ void main() {
         () => payload.messages.add(
           ErrorMessage(
             version: 'v0.9',
-            error:
-                A2uiRendererError(code: 'B', surfaceId: 's1', message: 'boom'),
+            error: A2uiRendererError(
+              code: 'B',
+              surfaceId: 's1',
+              message: 'boom',
+            ),
           ),
         ),
         throwsUnsupportedError,
@@ -763,296 +778,298 @@ void main() {
     });
   });
 
-  group('Common models (DataBinding, FunctionCall, Action, ChildListTemplate)',
-      () {
-    group('DataBinding', () {
-      test('parses and round-trips path and @path with reservedKeys', () {
-        final v09 = DataBinding.fromJson({'path': '/user/name'});
-        expect(v09.path, '/user/name');
-        expect(v09.reservedKeys, isFalse);
-        expect(v09.toJson(), {'path': '/user/name'});
-        expect(v09.toJson(reservedKeys: true), {'@path': '/user/name'});
+  group(
+    'Common models (DataBinding, FunctionCall, Action, ChildListTemplate)',
+    () {
+      group('DataBinding', () {
+        test('parses and round-trips path and @path with reservedKeys', () {
+          final v09 = DataBinding.fromJson({'path': '/user/name'});
+          expect(v09.path, '/user/name');
+          expect(v09.reservedKeys, isFalse);
+          expect(v09.toJson(), {'path': '/user/name'});
+          expect(v09.toJson(reservedKeys: true), {'@path': '/user/name'});
 
-        final v10 = DataBinding.fromJson({'@path': '/user/name'});
-        expect(v10.path, '/user/name');
-        expect(v10.reservedKeys, isTrue);
-        expect(v10.toJson(), {'@path': '/user/name'});
-        expect(v10.toJson(reservedKeys: false), {'path': '/user/name'});
-      });
+          final v10 = DataBinding.fromJson({'@path': '/user/name'});
+          expect(v10.path, '/user/name');
+          expect(v10.reservedKeys, isTrue);
+          expect(v10.toJson(), {'@path': '/user/name'});
+          expect(v10.toJson(reservedKeys: false), {'path': '/user/name'});
+        });
 
-      test('throws A2uiValidationError on missing, null, or non-string path',
+        test(
+          'throws A2uiValidationError on missing, null, or non-string path',
           () {
-        expect(
-          () => DataBinding.fromJson({}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => DataBinding.fromJson({'path': null}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => DataBinding.fromJson({'path': 123}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => DataBinding.fromJson({'@path': null}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => DataBinding.fromJson({'@path': 123}),
-          throwsA(isA<A2uiValidationError>()),
+            expect(
+              () => DataBinding.fromJson({}),
+              throwsA(isA<A2uiValidationError>()),
+            );
+            expect(
+              () => DataBinding.fromJson({'path': null}),
+              throwsA(isA<A2uiValidationError>()),
+            );
+            expect(
+              () => DataBinding.fromJson({'path': 123}),
+              throwsA(isA<A2uiValidationError>()),
+            );
+            expect(
+              () => DataBinding.fromJson({'@path': null}),
+              throwsA(isA<A2uiValidationError>()),
+            );
+            expect(
+              () => DataBinding.fromJson({'@path': 123}),
+              throwsA(isA<A2uiValidationError>()),
+            );
+          },
         );
       });
-    });
 
-    group('FunctionCall', () {
-      test(
-          'parses and round-trips call, @call, catalogId, and default '
-          'returnType any', () {
-        final v09 = FunctionCall.fromJson({
-          'call': 'formatDate',
-          'args': {'value': '2026-01-01'},
-        });
-        expect(v09.call, 'formatDate');
-        expect(v09.args, {'value': '2026-01-01'});
-        expect(v09.returnType, A2uiReturnType.any);
-        expect(v09.catalogId, isNull);
-        expect(v09.reservedKeys, isFalse);
-        expect(v09.toJson(), {
-          'call': 'formatDate',
-          'args': {'value': '2026-01-01'},
-          'returnType': 'any',
-        });
-        // The v1.0 FunctionCall schema has no returnType property.
-        expect(v09.toJson(reservedKeys: true), {
-          '@call': 'formatDate',
-          'args': {'value': '2026-01-01'},
-        });
-
-        final v10 = FunctionCall.fromJson({
-          '@call': 'customOp',
-          'args': {'x': 1},
-          'returnType': 'string',
-          'catalogId': 'https://example.com/catalog.json',
-        });
-        expect(v10.call, 'customOp');
-        expect(v10.args, {'x': 1});
-        expect(v10.returnType, A2uiReturnType.string);
-        expect(v10.catalogId, 'https://example.com/catalog.json');
-        expect(v10.reservedKeys, isTrue);
-        expect(v10.toJson(), {
-          '@call': 'customOp',
-          'args': {'x': 1},
-          'catalogId': 'https://example.com/catalog.json',
-        });
-        expect(v10.toJson(reservedKeys: false), {
-          'call': 'customOp',
-          'args': {'x': 1},
-          'returnType': 'string',
-        });
-      });
-
-      test('defaults args to empty map when omitted', () {
-        final fc = FunctionCall.fromJson({'call': 'noop'});
-        expect(fc.args, isEmpty);
-        expect(fc.returnType, A2uiReturnType.any);
-      });
-
-      test('throws A2uiValidationError on malformed fields', () {
-        expect(
-          () => FunctionCall.fromJson({}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => FunctionCall.fromJson({'call': null}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => FunctionCall.fromJson({'call': 123}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => FunctionCall.fromJson({'@call': null}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => FunctionCall.fromJson({'@call': 123}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => FunctionCall.fromJson({'call': 'fn', 'args': 'not_a_map'}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => FunctionCall.fromJson({'call': 'fn', 'args': null}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => FunctionCall.fromJson({
-            'call': 'fn',
-            'args': <Object?, Object?>{1: 'a'},
-          }),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => FunctionCall.fromJson({'call': 'fn', 'returnType': 123}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => FunctionCall.fromJson({'call': 'fn', 'catalogId': 123}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-      });
-    });
-
-    group('Action', () {
-      test('parses and round-trips event and functionCall actions', () {
-        final eventAction = Action.fromJson({
-          'event': {
-            'name': 'submit',
-            'context': {'id': 42},
-          },
-        });
-        expect(eventAction.event, {
-          'name': 'submit',
-          'context': {'id': 42},
-        });
-        expect(eventAction.functionCall, isNull);
-        expect(eventAction.toJson(), {
-          'event': {
-            'name': 'submit',
-            'context': {'id': 42},
-          },
-        });
-
-        final fnAction = Action.fromJson({
-          'functionCall': {
-            '@call': 'openUrl',
-            'args': {'url': 'https://example.com'},
-            'catalogId': 'cat1',
-          },
-        });
-        expect(fnAction.event, isNull);
-        expect(fnAction.functionCall, isNotNull);
-        expect(fnAction.functionCall!.call, 'openUrl');
-        expect(fnAction.functionCall!.catalogId, 'cat1');
-        expect(fnAction.functionCall!.reservedKeys, isTrue);
-        expect(fnAction.toJson(), {
-          'functionCall': {
-            '@call': 'openUrl',
-            'args': {'url': 'https://example.com'},
-            'catalogId': 'cat1',
-          },
-        });
-        expect(fnAction.toJson(reservedKeys: false), {
-          'functionCall': {
-            'call': 'openUrl',
-            'args': {'url': 'https://example.com'},
+      group('FunctionCall', () {
+        test('parses and round-trips call, @call, catalogId, and default '
+            'returnType any', () {
+          final v09 = FunctionCall.fromJson({
+            'call': 'formatDate',
+            'args': {'value': '2026-01-01'},
+          });
+          expect(v09.call, 'formatDate');
+          expect(v09.args, {'value': '2026-01-01'});
+          expect(v09.returnType, A2uiReturnType.any);
+          expect(v09.catalogId, isNull);
+          expect(v09.reservedKeys, isFalse);
+          expect(v09.toJson(), {
+            'call': 'formatDate',
+            'args': {'value': '2026-01-01'},
             'returnType': 'any',
-          },
+          });
+          // The v1.0 FunctionCall schema has no returnType property.
+          expect(v09.toJson(reservedKeys: true), {
+            '@call': 'formatDate',
+            'args': {'value': '2026-01-01'},
+          });
+
+          final v10 = FunctionCall.fromJson({
+            '@call': 'customOp',
+            'args': {'x': 1},
+            'returnType': 'string',
+            'catalogId': 'https://example.com/catalog.json',
+          });
+          expect(v10.call, 'customOp');
+          expect(v10.args, {'x': 1});
+          expect(v10.returnType, A2uiReturnType.string);
+          expect(v10.catalogId, 'https://example.com/catalog.json');
+          expect(v10.reservedKeys, isTrue);
+          expect(v10.toJson(), {
+            '@call': 'customOp',
+            'args': {'x': 1},
+            'catalogId': 'https://example.com/catalog.json',
+          });
+          expect(v10.toJson(reservedKeys: false), {
+            'call': 'customOp',
+            'args': {'x': 1},
+            'returnType': 'string',
+          });
+        });
+
+        test('defaults args to empty map when omitted', () {
+          final fc = FunctionCall.fromJson({'call': 'noop'});
+          expect(fc.args, isEmpty);
+          expect(fc.returnType, A2uiReturnType.any);
+        });
+
+        test('throws A2uiValidationError on malformed fields', () {
+          expect(
+            () => FunctionCall.fromJson({}),
+            throwsA(isA<A2uiValidationError>()),
+          );
+          expect(
+            () => FunctionCall.fromJson({'call': null}),
+            throwsA(isA<A2uiValidationError>()),
+          );
+          expect(
+            () => FunctionCall.fromJson({'call': 123}),
+            throwsA(isA<A2uiValidationError>()),
+          );
+          expect(
+            () => FunctionCall.fromJson({'@call': null}),
+            throwsA(isA<A2uiValidationError>()),
+          );
+          expect(
+            () => FunctionCall.fromJson({'@call': 123}),
+            throwsA(isA<A2uiValidationError>()),
+          );
+          expect(
+            () => FunctionCall.fromJson({'call': 'fn', 'args': 'not_a_map'}),
+            throwsA(isA<A2uiValidationError>()),
+          );
+          expect(
+            () => FunctionCall.fromJson({'call': 'fn', 'args': null}),
+            throwsA(isA<A2uiValidationError>()),
+          );
+          expect(
+            () => FunctionCall.fromJson({
+              'call': 'fn',
+              'args': <Object?, Object?>{1: 'a'},
+            }),
+            throwsA(isA<A2uiValidationError>()),
+          );
+          expect(
+            () => FunctionCall.fromJson({'call': 'fn', 'returnType': 123}),
+            throwsA(isA<A2uiValidationError>()),
+          );
+          expect(
+            () => FunctionCall.fromJson({'call': 'fn', 'catalogId': 123}),
+            throwsA(isA<A2uiValidationError>()),
+          );
         });
       });
 
-      test('throws A2uiValidationError on malformed Action payloads', () {
-        expect(
-          () => Action.fromJson({}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => Action.fromJson({
-            'event': {'name': 'a'},
-            'functionCall': {'call': 'b'},
-          }),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => Action.fromJson({'event': 'not_a_map'}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => Action.fromJson({'event': <String, dynamic>{}}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => Action.fromJson({
-            'event': {'name': 123},
-          }),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => Action.fromJson({
-            'event': {'name': 'ok', 'context': 'not_a_map'},
-          }),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => Action.fromJson({'functionCall': 'not_a_map'}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => Action.fromJson({
-            'functionCall': {'@call': null},
-          }),
-          throwsA(isA<A2uiValidationError>()),
-        );
-      });
-    });
+      group('Action', () {
+        test('parses and round-trips event and functionCall actions', () {
+          final eventAction = Action.fromJson({
+            'event': {
+              'name': 'submit',
+              'context': {'id': 42},
+            },
+          });
+          expect(eventAction.event, {
+            'name': 'submit',
+            'context': {'id': 42},
+          });
+          expect(eventAction.functionCall, isNull);
+          expect(eventAction.toJson(), {
+            'event': {
+              'name': 'submit',
+              'context': {'id': 42},
+            },
+          });
 
-    group('ChildListTemplate', () {
-      test('parses and round-trips valid template', () {
-        final tpl = ChildListTemplate.fromJson({
-          'componentId': 'rowItem',
-          'path': '/items',
+          final fnAction = Action.fromJson({
+            'functionCall': {
+              '@call': 'openUrl',
+              'args': {'url': 'https://example.com'},
+              'catalogId': 'cat1',
+            },
+          });
+          expect(fnAction.event, isNull);
+          expect(fnAction.functionCall, isNotNull);
+          expect(fnAction.functionCall!.call, 'openUrl');
+          expect(fnAction.functionCall!.catalogId, 'cat1');
+          expect(fnAction.functionCall!.reservedKeys, isTrue);
+          expect(fnAction.toJson(), {
+            'functionCall': {
+              '@call': 'openUrl',
+              'args': {'url': 'https://example.com'},
+              'catalogId': 'cat1',
+            },
+          });
+          expect(fnAction.toJson(reservedKeys: false), {
+            'functionCall': {
+              'call': 'openUrl',
+              'args': {'url': 'https://example.com'},
+              'returnType': 'any',
+            },
+          });
         });
-        expect(tpl.componentId, 'rowItem');
-        expect(tpl.path, '/items');
-        expect(tpl.toJson(), {
-          'componentId': 'rowItem',
-          'path': '/items',
+
+        test('throws A2uiValidationError on malformed Action payloads', () {
+          expect(
+            () => Action.fromJson({}),
+            throwsA(isA<A2uiValidationError>()),
+          );
+          expect(
+            () => Action.fromJson({
+              'event': {'name': 'a'},
+              'functionCall': {'call': 'b'},
+            }),
+            throwsA(isA<A2uiValidationError>()),
+          );
+          expect(
+            () => Action.fromJson({'event': 'not_a_map'}),
+            throwsA(isA<A2uiValidationError>()),
+          );
+          expect(
+            () => Action.fromJson({'event': <String, dynamic>{}}),
+            throwsA(isA<A2uiValidationError>()),
+          );
+          expect(
+            () => Action.fromJson({
+              'event': {'name': 123},
+            }),
+            throwsA(isA<A2uiValidationError>()),
+          );
+          expect(
+            () => Action.fromJson({
+              'event': {'name': 'ok', 'context': 'not_a_map'},
+            }),
+            throwsA(isA<A2uiValidationError>()),
+          );
+          expect(
+            () => Action.fromJson({'functionCall': 'not_a_map'}),
+            throwsA(isA<A2uiValidationError>()),
+          );
+          expect(
+            () => Action.fromJson({
+              'functionCall': {'@call': null},
+            }),
+            throwsA(isA<A2uiValidationError>()),
+          );
         });
       });
 
-      test('throws A2uiValidationError on missing, null, or non-string fields',
+      group('ChildListTemplate', () {
+        test('parses and round-trips valid template', () {
+          final tpl = ChildListTemplate.fromJson({
+            'componentId': 'rowItem',
+            'path': '/items',
+          });
+          expect(tpl.componentId, 'rowItem');
+          expect(tpl.path, '/items');
+          expect(tpl.toJson(), {'componentId': 'rowItem', 'path': '/items'});
+        });
+
+        test(
+          'throws A2uiValidationError on missing, null, or non-string fields',
           () {
-        expect(
-          () => ChildListTemplate.fromJson({'path': '/items'}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => ChildListTemplate.fromJson({
-            'componentId': null,
-            'path': '/items',
-          }),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => ChildListTemplate.fromJson({
-            'componentId': 123,
-            'path': '/items',
-          }),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => ChildListTemplate.fromJson({'componentId': 'rowItem'}),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => ChildListTemplate.fromJson({
-            'componentId': 'rowItem',
-            'path': null,
-          }),
-          throwsA(isA<A2uiValidationError>()),
-        );
-        expect(
-          () => ChildListTemplate.fromJson({
-            'componentId': 'rowItem',
-            'path': 456,
-          }),
-          throwsA(isA<A2uiValidationError>()),
+            expect(
+              () => ChildListTemplate.fromJson({'path': '/items'}),
+              throwsA(isA<A2uiValidationError>()),
+            );
+            expect(
+              () => ChildListTemplate.fromJson({
+                'componentId': null,
+                'path': '/items',
+              }),
+              throwsA(isA<A2uiValidationError>()),
+            );
+            expect(
+              () => ChildListTemplate.fromJson({
+                'componentId': 123,
+                'path': '/items',
+              }),
+              throwsA(isA<A2uiValidationError>()),
+            );
+            expect(
+              () => ChildListTemplate.fromJson({'componentId': 'rowItem'}),
+              throwsA(isA<A2uiValidationError>()),
+            );
+            expect(
+              () => ChildListTemplate.fromJson({
+                'componentId': 'rowItem',
+                'path': null,
+              }),
+              throwsA(isA<A2uiValidationError>()),
+            );
+            expect(
+              () => ChildListTemplate.fromJson({
+                'componentId': 'rowItem',
+                'path': 456,
+              }),
+              throwsA(isA<A2uiValidationError>()),
+            );
+          },
         );
       });
-    });
-  });
+    },
+  );
 
   group('v1.0 agent-to-renderer envelopes', () {
     Map<String, Object?> roundTrip(Map<String, Object?> json) =>
@@ -1061,7 +1078,7 @@ void main() {
     test('round-trips every v1.0 message', () {
       final envelopes = <Map<String, Object?>>[
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {
             'surfaceId': 's1',
             'catalogId': 'cat1',
@@ -1076,11 +1093,11 @@ void main() {
           },
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {'surfaceId': 's1', 'sendDataModel': false},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'updateComponents': {
             'surfaceId': 's1',
             'components': [
@@ -1089,19 +1106,19 @@ void main() {
           },
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'updateDataModel': {'surfaceId': 's1', 'path': '/a', 'value': 3},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'updateDataModel': {'surfaceId': 's1', 'path': '/a', 'value': null},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'deleteSurface': {'surfaceId': 's1'},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'callRendererFunction': {
             'functionCallId': 'call-1',
             'callFunction': {
@@ -1112,15 +1129,15 @@ void main() {
           },
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'agentFunctionResponse': {'functionCallId': 'call-2', 'value': 42},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'agentFunctionResponse': {'functionCallId': 'call-3', 'value': null},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'agentFunctionResponse': {
             'functionCallId': 'call-4',
             'error': {'code': 'FAILED', 'message': 'nope'},
@@ -1134,7 +1151,7 @@ void main() {
 
     test('parses v1.0 createSurface fields', () {
       final msg = AgentToRendererMessage.fromJson({
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {
           'surfaceId': 's1',
           'components': [
@@ -1154,7 +1171,7 @@ void main() {
 
     test('parses callRendererFunction and agentFunctionResponse', () {
       final call = AgentToRendererMessage.fromJson({
-        'version': 'v1.0',
+        'version': '1.0',
         'callRendererFunction': {
           'functionCallId': 'call-1',
           'callFunction': {'@call': 'playMedia', 'catalogId': 'media'},
@@ -1164,7 +1181,7 @@ void main() {
       expect(call.callFunction, {'@call': 'playMedia', 'catalogId': 'media'});
 
       final response = AgentToRendererMessage.fromJson({
-        'version': 'v1.0',
+        'version': '1.0',
         'agentFunctionResponse': {
           'functionCallId': 'call-1',
           'error': {'code': 'FAILED', 'message': 'nope'},
@@ -1177,7 +1194,7 @@ void main() {
 
     final invalid = <String, Map<String, Object?>>{
       'v1.0 createSurface with theme': {
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {
           'surfaceId': 's1',
           'catalogId': 'c',
@@ -1226,7 +1243,7 @@ void main() {
         'agentFunctionResponse': {'functionCallId': 'call-1', 'value': 1},
       },
       'unknown envelope key': {
-        'version': 'v1.0',
+        'version': '1.0',
         'deleteSurface': {'surfaceId': 's1'},
         'extra': true,
       },
@@ -1236,40 +1253,40 @@ void main() {
         'extra': true,
       },
       'unknown body key': {
-        'version': 'v1.0',
+        'version': '1.0',
         'deleteSurface': {'surfaceId': 's1', 'extra': true},
       },
       'v1.0 updateDataModel without value': {
-        'version': 'v1.0',
+        'version': '1.0',
         'updateDataModel': {'surfaceId': 's1', 'path': '/a'},
       },
       'empty components list': {
-        'version': 'v1.0',
+        'version': '1.0',
         'updateComponents': {'surfaceId': 's1', 'components': <Object?>[]},
       },
       'metadata with an unknown key': {
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {
           'surfaceId': 's1',
           'metadata': {'other': 1},
         },
       },
       'callRendererFunction without catalogId': {
-        'version': 'v1.0',
+        'version': '1.0',
         'callRendererFunction': {
           'functionCallId': 'call-1',
           'callFunction': {'@call': 'f'},
         },
       },
       'callRendererFunction with a non-string id': {
-        'version': 'v1.0',
+        'version': '1.0',
         'callRendererFunction': {
           'functionCallId': 7,
           'callFunction': {'@call': 'f', 'catalogId': 'c'},
         },
       },
       'function response with value and error': {
-        'version': 'v1.0',
+        'version': '1.0',
         'agentFunctionResponse': {
           'functionCallId': 'call-1',
           'value': 1,
@@ -1277,11 +1294,11 @@ void main() {
         },
       },
       'function response with neither value nor error': {
-        'version': 'v1.0',
+        'version': '1.0',
         'agentFunctionResponse': {'functionCallId': 'call-1'},
       },
       'function response error with an extra key': {
-        'version': 'v1.0',
+        'version': '1.0',
         'agentFunctionResponse': {
           'functionCallId': 'call-1',
           'error': {'code': 'X', 'message': 'y', 'details': 1},
@@ -1310,53 +1327,53 @@ void main() {
           isA<A2uiValidationError>().having(
             (e) => e.message,
             'message',
-            contains('v1.0'),
+            contains("'1.0'"),
           ),
         ),
       );
     });
 
     test('a v0.9 payload parser accepts v0.9.1 envelopes', () {
-      final payload = AgentToRendererMessagePayload.fromJson(
-        {
-          'version': 'v0.9.1',
-          'deleteSurface': {'surfaceId': 's1'},
-        },
-        protocolVersion: A2uiProtocolVersion.v0_9,
-      );
+      final payload = AgentToRendererMessagePayload.fromJson({
+        'version': 'v0.9.1',
+        'deleteSurface': {'surfaceId': 's1'},
+      }, protocolVersion: A2uiProtocolVersion.v0_9);
       expect(payload.messages.single.version, 'v0.9.1');
     });
 
     test('a v1.0 payload parser rejects v0.9 envelopes', () {
       expect(
-        () => AgentToRendererMessagePayload.fromJson(
-          {
-            'version': 'v0.9',
-            'deleteSurface': {'surfaceId': 's1'},
-          },
-          protocolVersion: A2uiProtocolVersion.v1_0,
-        ),
+        () => AgentToRendererMessagePayload.fromJson({
+          'version': 'v0.9',
+          'deleteSurface': {'surfaceId': 's1'},
+        }, protocolVersion: A2uiProtocolVersion.v1_0),
         throwsA(isA<A2uiValidationError>()),
       );
     });
   });
 
   group('v1.0 renderer-to-agent envelopes', () {
-    final String timestamp =
-        DateTime.utc(2026, 1, 2, 3, 4, 5).toIso8601String();
+    final String timestamp = DateTime.utc(
+      2026,
+      1,
+      2,
+      3,
+      4,
+      5,
+    ).toIso8601String();
     Map<String, Object?> action([Map<String, Object?> extra = const {}]) => {
-          'name': 'submit',
-          'surfaceId': 's1',
-          'sourceComponentId': 'btn',
-          'timestamp': timestamp,
-          'context': {'a': 1},
-          ...extra,
-        };
+      'name': 'submit',
+      'surfaceId': 's1',
+      'sourceComponentId': 'btn',
+      'timestamp': timestamp,
+      'context': {'a': 1},
+      ...extra,
+    };
 
     test('round-trips every v1.0 message', () {
       final envelopes = <Map<String, Object?>>[
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'action': action({
             'catalogId': 'cat1',
             'metadata': {
@@ -1365,22 +1382,22 @@ void main() {
           }),
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'callAgentFunction': {
             'surfaceId': 's1',
             'functionCallId': 'call-1',
             'callFunction': {
               '@call': 'lookup',
-              'args': {'q': 'x'}
+              'args': {'q': 'x'},
             },
           },
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'rendererFunctionResponse': {'functionCallId': 'call-1', 'value': 1},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'error': {
             'code': 'UNALLOWED_CHILD',
             'surfaceId': 's1',
@@ -1389,7 +1406,7 @@ void main() {
           },
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'error': {
             'code': 'EXECUTION_ERROR',
             'functionCallId': 'call-1',
@@ -1400,16 +1417,13 @@ void main() {
         },
       ];
       for (final envelope in envelopes) {
-        expect(
-          RendererToAgentMessage.fromJson(envelope).toJson(),
-          envelope,
-        );
+        expect(RendererToAgentMessage.fromJson(envelope).toJson(), envelope);
       }
     });
 
     test('an action carries catalogId and metadata', () {
       final msg = RendererToAgentMessage.fromJson({
-        'version': 'v1.0',
+        'version': '1.0',
         'action': action({
           'catalogId': 'cat1',
           'metadata': {'extensions': <String, Object?>{}},
@@ -1435,7 +1449,7 @@ void main() {
 
     test('a generic error keeps its additional properties', () {
       final msg = RendererToAgentMessage.fromJson({
-        'version': 'v1.0',
+        'version': '1.0',
         'error': {
           'code': 'EXECUTION_ERROR',
           'surfaceId': 's1',
@@ -1449,7 +1463,7 @@ void main() {
 
     test('parses callAgentFunction and rendererFunctionResponse', () {
       final call = RendererToAgentMessage.fromJson({
-        'version': 'v1.0',
+        'version': '1.0',
         'callAgentFunction': {
           'surfaceId': 's1',
           'functionCallId': 'call-1',
@@ -1461,7 +1475,7 @@ void main() {
       expect(call.callFunction, {'@call': 'lookup'});
 
       final response = RendererToAgentMessage.fromJson({
-        'version': 'v1.0',
+        'version': '1.0',
         'rendererFunctionResponse': {'functionCallId': 'call-1', 'value': 'x'},
       }) as RendererFunctionResponseMessage;
       expect(response.response.value, 'x');
@@ -1470,7 +1484,7 @@ void main() {
 
     final invalid = <String, Map<String, Object?>>{
       'v1.0 validation error with an extra property': {
-        'version': 'v1.0',
+        'version': '1.0',
         'error': {
           'code': 'VALIDATION_FAILED',
           'surfaceId': 's1',
@@ -1480,7 +1494,7 @@ void main() {
         },
       },
       'v1.0 unallowed-parent error without a path': {
-        'version': 'v1.0',
+        'version': '1.0',
         'error': {
           'code': 'UNALLOWED_PARENT',
           'surfaceId': 's1',
@@ -1488,7 +1502,7 @@ void main() {
         },
       },
       'v1.0 unallowed-child error without a surfaceId': {
-        'version': 'v1.0',
+        'version': '1.0',
         'error': {'code': 'UNALLOWED_CHILD', 'path': '/a', 'message': 'm'},
       },
       'v0.9 validation error with an extra property': {
@@ -1502,7 +1516,7 @@ void main() {
         },
       },
       'v1.0 generic error with both surfaceId and functionCallId': {
-        'version': 'v1.0',
+        'version': '1.0',
         'error': {
           'code': 'X',
           'surfaceId': 's1',
@@ -1511,7 +1525,7 @@ void main() {
         },
       },
       'v1.0 generic error with neither surfaceId nor functionCallId': {
-        'version': 'v1.0',
+        'version': '1.0',
         'error': {'code': 'X', 'message': 'm'},
       },
       'v0.9 generic error without a surfaceId': {
@@ -1531,7 +1545,7 @@ void main() {
         'rendererFunctionResponse': {'functionCallId': 'call-1', 'value': 1},
       },
       'callAgentFunction with an unknown key': {
-        'version': 'v1.0',
+        'version': '1.0',
         'callAgentFunction': {
           'surfaceId': 's1',
           'functionCallId': 'call-1',
@@ -1540,13 +1554,13 @@ void main() {
         },
       },
       'action metadata with an unknown key': {
-        'version': 'v1.0',
+        'version': '1.0',
         'action': action({
           'metadata': {'other': 1},
         }),
       },
       'unknown envelope key': {
-        'version': 'v1.0',
+        'version': '1.0',
         'action': action(),
         'extra': 1,
       },

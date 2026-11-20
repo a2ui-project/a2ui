@@ -17,14 +17,13 @@
 import {describe, it, expect} from 'vitest';
 import {resolveCatalogs} from '../../../src/utils/catalog-resolver.js';
 import {CatalogConfig} from '../../../src/processor/catalog-config.js';
-import {Catalog, CatalogApi, V10RendererCapabilities} from '../../../src/internal/web-core.js';
-import {ComponentPruningTransformer} from '../../../src/catalog-transformers/pruning.js';
+import {Catalog, V10RendererCapabilities} from '../../../src/internal/web-core.js';
 import {A2uiCatalogError, A2uiValidationError} from '../../../src/errors.js';
 
 describe('resolveCatalogs', () => {
-  const catBasic = new Catalog('id_basic', 'v1.0', [], []);
-  const catCustom1 = new Catalog('id_custom1', 'v1.0', [], []);
-  const catCustom2 = new Catalog('id_custom2', 'v1.0', [], []);
+  const catBasic = new Catalog('id_basic', '1.0', [], []);
+  const catCustom1 = new Catalog('id_custom1', '1.0', [], []);
+  const catCustom2 = new Catalog('id_custom2', '1.0', [], []);
 
   const configBasic = new CatalogConfig(catBasic);
   const configCustom1 = new CatalogConfig(catCustom1);
@@ -102,7 +101,7 @@ describe('resolveCatalogs', () => {
 
   it('resolves version-keyed capabilities for the registered catalogs protocol version', () => {
     const caps = {
-      'v1.0': {
+      '1.0': {
         supportedCatalogIds: ['id_custom1', 'id_basic'],
       },
     };
@@ -123,98 +122,7 @@ describe('resolveCatalogs', () => {
     const catV09 = new Catalog('id_v09', 'v0.9', [], []);
     const mixedConfigs = [configBasic, new CatalogConfig(catV09)];
     expect(() =>
-      resolveCatalogs(mixedConfigs, {'v1.0': {supportedCatalogIds: ['id_basic']}}),
+      resolveCatalogs(mixedConfigs, {'1.0': {supportedCatalogIds: ['id_basic']}}),
     ).toThrowError(A2uiCatalogError);
-  });
-});
-
-describe('resolveCatalogs with cross-catalog references', () => {
-  const peerDocument = {
-    $id: 'https://example.com/peer.json',
-    catalogId: 'id_peer',
-    protocolVersion: '1.0',
-    components: {
-      Base: {
-        type: 'object',
-        properties: {component: {const: 'Base'}, label: {type: 'string'}},
-        required: ['component', 'label'],
-      },
-      Unused: {
-        type: 'object',
-        properties: {component: {const: 'Unused'}},
-        required: ['component'],
-      },
-    },
-  };
-  const referencingDocument = {
-    $id: 'https://example.com/referencing.json',
-    catalogId: 'id_referencing',
-    protocolVersion: '1.0',
-    components: {
-      Derived: {
-        type: 'object',
-        allOf: [{$ref: 'peer.json#/components/Base'}],
-        properties: {component: {const: 'Derived'}},
-        required: ['component'],
-      },
-    },
-  };
-  const derivedAccepts = (catalog: CatalogApi, value: Record<string, unknown>) =>
-    catalog.components.get('Derived')!.schema.safeParse(value).success;
-
-  it('links per-request copies and leaves the registered catalogs unchanged', () => {
-    const peer = Catalog.fromJson(peerDocument);
-    const referencing = Catalog.fromJson(referencingDocument);
-    const configs = [new CatalogConfig(peer), new CatalogConfig(referencing)];
-    const caps: V10RendererCapabilities = {supportedCatalogIds: ['id_referencing', 'id_peer']};
-
-    const first = resolveCatalogs(configs, caps);
-    const second = resolveCatalogs(configs, caps);
-
-    expect(first[0]).not.toBe(referencing);
-    expect(first[0].peerCatalogs).toContain(peer);
-    expect(derivedAccepts(first[0], {label: 'a'})).toBe(true);
-    expect(derivedAccepts(first[0], {})).toBe(false);
-    expect(second[0].peerCatalogs).toEqual(first[0].peerCatalogs);
-    // The peer has no cross-catalog reference, so it is not copied.
-    expect(first[1]).toBe(peer);
-    expect(referencing.peerCatalogs).toEqual([]);
-    expect(peer.peerCatalogs).toEqual([]);
-    expect(configs[1].transformedCatalog).toBe(referencing);
-  });
-
-  it('resolves references into entries a transformer pruned from an active peer', () => {
-    const peer = Catalog.fromJson(peerDocument);
-    const configs = [
-      new CatalogConfig(peer, [new ComponentPruningTransformer(['Unused'])]),
-      new CatalogConfig(Catalog.fromJson(referencingDocument)),
-    ];
-    const resolved = resolveCatalogs(configs, {
-      supportedCatalogIds: ['id_referencing', 'id_peer'],
-    });
-    expect(resolved[1].components.has('Base')).toBe(false);
-    expect(derivedAccepts(resolved[0], {label: 'a'})).toBe(true);
-    expect(derivedAccepts(resolved[0], {})).toBe(false);
-  });
-
-  it('never links inline catalogs the agent refuses', () => {
-    const referencing = Catalog.fromJson(referencingDocument);
-    const configs = [new CatalogConfig(referencing)];
-    const caps: V10RendererCapabilities = {
-      supportedCatalogIds: ['id_referencing'],
-      inlineCatalogs: [peerDocument],
-    };
-
-    const refused = resolveCatalogs(configs, caps, false);
-    expect(refused.map(c => c.id)).toEqual(['id_referencing']);
-    expect(refused[0].peerCatalogs?.map(c => c.id) ?? []).not.toContain('id_peer');
-    // Without the refused peer, the reference cannot be resolved.
-    expect(() => derivedAccepts(refused[0], {label: 'a'})).toThrowError(A2uiCatalogError);
-    expect(referencing.peerCatalogs).toEqual([]);
-
-    const accepted = resolveCatalogs(configs, caps, true);
-    expect(accepted.map(c => c.id)).toEqual(['id_referencing', 'id_peer']);
-    expect(derivedAccepts(accepted[0], {label: 'a'})).toBe(true);
-    expect(referencing.peerCatalogs).toEqual([]);
   });
 });

@@ -136,6 +136,72 @@ class TestLaunchDashboard(unittest.TestCase):
             self.assertEqual(saved_data["decisions"][0]["priority"], "P1")
         self.assertTrue(launch_dashboard.shutdown_event.is_set())
 
+    @patch("apply_triage.apply_decisions")
+    def test_post_apply_batch_api(self, mock_apply_decisions):
+        mock_apply_decisions.return_value = (True, [], ["Success log"])
+        url = f"http://127.0.0.1:{self.port}/api/apply_batch"
+        mock_decisions = {
+            "decisions": [{
+                "id": 1,
+                "approved": True,
+                "priority": "P1",
+                "assignee": "gspencer",
+                "action": "investigate",
+                "labels": [],
+                "reply": "",
+            }]
+        }
+        req_data = json.dumps(mock_decisions).encode("utf-8")
+        req = urllib.request.Request(url, data=req_data, method="POST")
+
+        with urllib.request.urlopen(req) as response:
+            self.assertEqual(response.status, 200)
+            res_data = json.loads(response.read().decode("utf-8"))
+            self.assertEqual(res_data["status"], "success")
+            self.assertEqual(res_data["applied_count"], 1)
+
+        # Server should NOT be shut down after batch apply
+        self.assertFalse(launch_dashboard.shutdown_event.is_set())
+        mock_apply_decisions.assert_called_once()
+
+    @patch("apply_triage.apply_decisions")
+    def test_post_apply_batch_api_streaming(self, mock_apply_decisions):
+        def fake_apply(decisions, on_progress=None):
+            if on_progress:
+                on_progress(1, 1, 1, True, None)
+            return (True, [], ["Success log"])
+
+        mock_apply_decisions.side_effect = fake_apply
+        url = f"http://127.0.0.1:{self.port}/api/apply_batch"
+        mock_decisions = {
+            "decisions": [{
+                "id": 1,
+                "approved": True,
+                "priority": "P1",
+                "assignee": "gspencer",
+                "action": "investigate",
+                "labels": [],
+                "reply": "",
+            }]
+        }
+        req_data = json.dumps(mock_decisions).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=req_data,
+            headers={"Accept": "text/event-stream"},
+            method="POST",
+        )
+
+        with urllib.request.urlopen(req) as response:
+            self.assertEqual(response.status, 200)
+            self.assertIn("text/event-stream", response.getheader("Content-Type"))
+            body = response.read().decode("utf-8")
+            self.assertIn("data: ", body)
+            self.assertIn('"type": "progress"', body)
+            self.assertIn('"type": "done"', body)
+
+        self.assertFalse(launch_dashboard.shutdown_event.is_set())
+
     def test_post_save_invalid_json(self):
         url = f"http://127.0.0.1:{self.port}/api/save"
         req_data = b"invalid-raw-json-data"

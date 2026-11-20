@@ -26,7 +26,7 @@ import {
 
 export const ActionMessageSchema = z
   .object({
-    'version': z.literal('v1.0'),
+    'version': z.literal('1.0'),
     'action': z
       .object({
         'name': z
@@ -70,7 +70,7 @@ export type ActionMessage = z.infer<typeof ActionMessageSchema>;
 
 export const CallAgentFunctionMessageSchema = z
   .object({
-    'version': z.literal('v1.0'),
+    'version': z.literal('1.0'),
     'callAgentFunction': z
       .object({
         'surfaceId': z.string().describe('The surface ID where the call originated.'),
@@ -84,13 +84,13 @@ export const CallAgentFunctionMessageSchema = z
 export type CallAgentFunctionMessage = z.infer<typeof CallAgentFunctionMessageSchema>;
 
 export const RendererFunctionResponseMessageSchema = z
-  .object({'version': z.literal('v1.0'), 'rendererFunctionResponse': FunctionResponseSchema})
+  .object({'version': z.literal('1.0'), 'rendererFunctionResponse': FunctionResponseSchema})
   .strict();
 export type RendererFunctionResponseMessage = z.infer<typeof RendererFunctionResponseMessageSchema>;
 
 export const ErrorMessageSchema = z
   .object({
-    'version': z.literal('v1.0'),
+    'version': z.literal('1.0'),
     'error': z
       .union([
         z
@@ -136,18 +136,8 @@ export const ErrorMessageSchema = z
           .catchall(z.any())
           .and(
             z.union([
-              z
-                .any()
-                .refine(
-                  value => !z.any().safeParse(value).success,
-                  'Invalid input: Should NOT be valid against schema',
-                ),
-              z
-                .any()
-                .refine(
-                  value => !z.any().safeParse(value).success,
-                  'Invalid input: Should NOT be valid against schema',
-                ),
+              z.object({'surfaceId': z.string(), 'functionCallId': z.never().optional()}),
+              z.object({'functionCallId': CallIdSchema, 'surfaceId': z.never().optional()}),
             ]),
           ),
       ])

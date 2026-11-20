@@ -102,7 +102,7 @@ for (const f of files) {
   // or TS private field helpers `helper(this, varName, "f")` with `(varName = varName || new WeakMap())`
   // ensures storage is initialized on demand.
   let nextWeakMap = c.replace(
-    /(?<!\.)\b(?!(?:this|super)\b)([a-zA-Z0-9_$]+)\.(get|set|has)\(this\b/g,
+    /(?<!\.)\b(?!(?:this|super)\b)([a-zA-Z0-9_$]+)\.(get|set|has)\(this(?=[,)])/g,
     '($1 = $1 || new WeakMap()).$2(this',
   );
   nextWeakMap = nextWeakMap.replace(
@@ -115,6 +115,37 @@ for (const f of files) {
   );
   if (nextWeakMap !== c) {
     c = nextWeakMap;
+    changed = true;
+  }
+
+  // Convert CommonJS TypeScript re-export getters `Object.defineProperty(exports, "Prop", { enumerable: true, get: function() { return mod.Prop; } })`
+  // to `Object.defineProperties(exports, { Prop: { enumerable: true, get: function() { return mod.Prop; } } })` so Closure Compiler ADVANCED mode
+  // renames the unquoted descriptor key and its dotted callers consistently while preserving lazy getter semantics.
+  const nextCjsReexports = c.replace(
+    /Object\.defineProperty\(([a-zA-Z0-9_$]+),\s*"([a-zA-Z0-9_$]+)",\s*\{\s*enumerable:\s*true,\s*get:\s*function\(\)\s*\{\s*return\s+([^;]+);\s*\}\s*\}\)/g,
+    'Object.defineProperties($1, {$2: {enumerable: true, get: function() { return $3; }}})',
+  );
+  if (nextCjsReexports !== c) {
+    c = nextCjsReexports;
+    changed = true;
+  }
+
+  // Convert esbuild `__export(target, { prop: () => val, ... })` helper calls into native
+  // `Object.defineProperties(target, { prop: { enumerable: true, get: () => val }, ... })`
+  // so Closure Compiler ADVANCED mode recognizes each property as a getter on `target`
+  // rather than inlining the `() => val` wrapper as a 0-arg method returning `val` uncalled.
+  const nextEsbuildExport = c.replace(
+    /__export\(([a-zA-Z0-9_$]+),\s*\{([\s\S]*?)\}\);/g,
+    (m, target, body) => {
+      const descriptors = body.replace(
+        /([a-zA-Z0-9_$]+):\s*\(\)\s*=>\s*([^,\n}]+)/g,
+        '$1: { enumerable: true, get: () => $2 }',
+      );
+      return `Object.defineProperties(${target}, {${descriptors}});`;
+    },
+  );
+  if (nextEsbuildExport !== c) {
+    c = nextEsbuildExport;
     changed = true;
   }
 

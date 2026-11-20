@@ -15,7 +15,7 @@
  */
 
 import {InferenceFormat, InferenceFormatFactory} from '../../inference-format.js';
-import {CatalogApi, linkCatalogs} from '../../internal/web-core.js';
+import {CatalogApi} from '../../internal/web-core.js';
 import {checkParserCatalogs} from '../../utils/catalog-checks.js';
 import {DirectJsonParser} from './parser.js';
 import {DirectJsonExamples, DirectJsonPromptGenerator} from './prompt-generator.js';
@@ -31,6 +31,12 @@ export interface DirectJsonFormatOptions {
    * message only once its values have arrived whole.
    */
   progressiveKeys?: Iterable<string>;
+  /**
+   * Whether a pre-v1.0 stream holds back incomplete components until their JSON object
+   * closes rather than healing them as they arrive. Components of v1.0+ catalogs are always
+   * held back regardless of this setting.
+   */
+  bufferIncompleteComponents?: boolean;
 }
 
 /**
@@ -38,25 +44,26 @@ export interface DirectJsonFormatOptions {
  */
 export class DirectJsonFormat implements InferenceFormat {
   readonly promptGenerator: DirectJsonPromptGenerator;
-  readonly supportsStreaming = true;
 
-  /** The active catalogs, linked to each other so cross-catalog `$ref`s resolve. */
-  private readonly catalogs: CatalogApi[];
   private readonly progressiveKeys: readonly string[];
+  private readonly bufferIncompleteComponents: boolean;
 
   constructor(
-    catalogs: CatalogApi[],
+    private readonly catalogs: CatalogApi[],
     examples?: DirectJsonExamples,
     options: DirectJsonFormatOptions = {},
   ) {
     checkParserCatalogs(catalogs);
-    this.catalogs = linkCatalogs(catalogs);
     this.progressiveKeys = [...(options.progressiveKeys ?? DEFAULT_PROGRESSIVE_KEYS)];
-    this.promptGenerator = new DirectJsonPromptGenerator(this.catalogs, examples);
+    this.bufferIncompleteComponents = options.bufferIncompleteComponents ?? false;
+    this.promptGenerator = new DirectJsonPromptGenerator(catalogs, examples);
   }
 
   createParser(): DirectJsonParser {
-    return new DirectJsonParser(this.catalogs, {progressiveKeys: this.progressiveKeys});
+    return new DirectJsonParser(this.catalogs, {
+      progressiveKeys: this.progressiveKeys,
+      bufferIncompleteComponents: this.bufferIncompleteComponents,
+    });
   }
 }
 

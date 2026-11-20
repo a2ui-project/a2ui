@@ -36,7 +36,12 @@ _V09_MESSAGES = [
     "UpdateDataModelMessage",
     "DeleteSurfaceMessage",
 ]
-_V08_MESSAGES = {"beginRendering", "dataModelUpdate", "deleteSurface", "surfaceUpdate"}
+_V08_MESSAGES = {
+    "beginRendering",
+    "dataModelUpdate",
+    "deleteSurface",
+    "surfaceUpdate",
+}
 
 
 def _sections(block: str) -> dict[str, Any]:
@@ -138,8 +143,14 @@ def test_schema_to_prompt_keeps_only_the_allowed_messages():
     )
 
     a2r = sections[_A2R]
-    assert _message_refs(a2r) == ["CreateSurfaceMessage", "UpdateComponentsMessage"]
-    assert set(a2r["$defs"]) == {"CreateSurfaceMessage", "UpdateComponentsMessage"}
+    assert _message_refs(a2r) == [
+        "CreateSurfaceMessage",
+        "UpdateComponentsMessage",
+    ]
+    assert set(a2r["$defs"]) == {
+        "CreateSurfaceMessage",
+        "UpdateComponentsMessage",
+    }
 
 
 def test_schema_to_prompt_keeps_no_message_with_an_empty_allowlist():
@@ -159,7 +170,10 @@ def test_schema_to_prompt_keeps_only_the_allowed_v0_8_messages():
         )
     )
 
-    assert set(sections[_A2R]["properties"]) == {"beginRendering", "surfaceUpdate"}
+    assert set(sections[_A2R]["properties"]) == {
+        "beginRendering",
+        "surfaceUpdate",
+    }
 
 
 def test_schema_to_prompt_keeps_only_the_common_types_in_use():
@@ -181,7 +195,10 @@ def test_schema_to_prompt_omits_common_types_that_nothing_uses():
         catalog_schema={
             "catalogId": catalog_id,
             "components": {
-                "Label": {"type": "object", "properties": {"text": {"type": "string"}}}
+                "Label": {
+                    "type": "object",
+                    "properties": {"text": {"type": "string"}},
+                }
             },
         },
         protocol_version=ProtocolVersion.V0_9,
@@ -202,7 +219,12 @@ def test_schema_to_prompt_shows_the_protocol_schemas_once_for_several_catalogs()
     assert block.count(constants.A2UI_SCHEMA_BLOCK_START) == 1
     assert block.count(constants.A2UI_SCHEMA_BLOCK_END) == 1
     sections = _section_list(block)
-    assert [title for title, _ in sections] == [_A2R, _COMMON_TYPES, _CATALOG, _CATALOG]
+    assert [title for title, _ in sections] == [
+        _A2R,
+        _COMMON_TYPES,
+        _CATALOG,
+        _CATALOG,
+    ]
     assert sections[2][1] == basic.to_json()
     assert sections[3][1] == label.to_json()
 
@@ -213,7 +235,10 @@ def test_schema_to_prompt_keeps_the_common_types_that_any_catalog_uses():
         catalog_schema={
             "catalogId": catalog_id,
             "components": {
-                "Plain": {"type": "object", "properties": {"text": {"type": "string"}}}
+                "Plain": {
+                    "type": "object",
+                    "properties": {"text": {"type": "string"}},
+                }
             },
         },
         protocol_version=ProtocolVersion.V0_9,
@@ -230,6 +255,20 @@ def test_schema_to_prompt_keeps_the_common_types_that_any_catalog_uses():
 def test_schema_to_prompt_rejects_no_catalogs():
     with pytest.raises(A2uiCatalogError):
         schema_to_prompt([])
+
+
+def test_schema_to_prompt_reads_catalogs_from_a_generator():
+    basic = BasicCatalog(ProtocolVersion.V0_9)
+    label = _label_catalog()
+
+    block = schema_to_prompt(c for c in (basic, label))
+
+    assert block == schema_to_prompt([basic, label])
+
+
+def test_schema_to_prompt_rejects_an_empty_generator():
+    with pytest.raises(A2uiCatalogError):
+        schema_to_prompt(c for c in [])
 
 
 def test_schema_to_prompt_rejects_catalogs_of_different_versions():

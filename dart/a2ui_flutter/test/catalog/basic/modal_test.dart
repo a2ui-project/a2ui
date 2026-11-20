@@ -17,7 +17,7 @@ import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:a2ui_flutter/basic_catalog.dart';
+import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 import 'package:flutter/gestures.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
@@ -39,14 +39,12 @@ final CatalogImplementation _catalog = basicTestCatalog([
 
 /// The spec's Modal example: a Button that opens a Column with one Text.
 List<Map<String, Object?>> _example() {
-  final example =
-      jsonDecode(
-            File(
-              '../../specification/v0_9/catalogs/basic/examples/'
-              '36_modal.json',
-            ).readAsStringSync(),
-          )
-          as Map<String, Object?>;
+  final example = jsonDecode(
+    File(
+      '../../catalogs/basic/v0_9/examples/'
+      'modal.json',
+    ).readAsStringSync(),
+  ) as Map<String, Object?>;
   return (example['messages']! as List<Object?>).cast<Map<String, Object?>>();
 }
 

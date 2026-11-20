@@ -50,4 +50,19 @@ public struct FunctionAPI: Sendable, Equatable {
     self.allowedCallers = allowedCallers
     self.requiresUserActivation = requiresUserActivation
   }
+
+  /// Validates that a function requiring user activation is restricted to `rendererOnly`.
+  ///
+  /// - Throws: ``A2UICatalogError`` if `requiresUserActivation` is `true` and
+  ///   `allowedCallers` is not `.rendererOnly`.
+  public func validateCallerConstraints() throws {
+    if requiresUserActivation && allowedCallers != .rendererOnly {
+      throw A2UICatalogError(
+        """
+        Function '\(name)' cannot set requiresUserActivation to true when allowedCallers is \
+        '\(allowedCallers.rawValue)'; requiresUserActivation is only valid with rendererOnly.
+        """
+      )
+    }
+  }
 }

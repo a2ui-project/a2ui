@@ -16,8 +16,8 @@ name: restaurant_finder_e2e_test
 publish_to: "none"
 
 environment:
-  sdk: ">=3.10.0 <4.0.0"
-  flutter: ">=3.35.7 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.0"
 
 resolution: workspace
 
@@ -27,6 +27,7 @@ dependencies:
     sdk: flutter
   genui: ^0.8.0
   genui_a2a: ^0.8.0
+  googleai_dart: ^8.0.0
   logging: ^1.3.0
   restaurant_finder_client:
     path: ../app

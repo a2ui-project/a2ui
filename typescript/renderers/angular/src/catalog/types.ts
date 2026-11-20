@@ -14,15 +14,12 @@
  * limitations under the License.
  */
 
-import {Type} from '@angular/core';
-import {Catalog, ComponentApi, FunctionImplementation} from '@a2ui/web_core/v0_9';
-import {
-  WebComponentImplementation,
-  isWebComponentImplementation,
-} from '@a2ui/web_core/v0_9/universal';
+import {Injector, Type} from '@angular/core';
+import {Catalog, ComponentApi, ComponentContext, FunctionImplementation} from '@a2ui/web_core';
+import {WebComponentImplementation, isWebComponentImplementation} from '@a2ui/web_core/universal';
 import {z} from 'zod';
 import {CatalogComponentInstance} from '../core/catalog_component_instance';
-import {toWebComponent} from './to_web_component';
+import {componentApiFields, toWebComponent} from './to_web_component';
 import {UniversalOnlyComponent} from './universal_only.component';
 
 /**
@@ -45,6 +42,23 @@ export interface AngularComponentImplementation extends ComponentApi {
    * that accepts `props`, `surfaceId`, and `dataContextPath` as inputs.
    */
   readonly component: Type<CatalogComponentInstance>;
+
+  /**
+   * Called once when a universal Web Component rendering this entry first connects to the DOM,
+   * with the element, its context, and the injector of the enclosing `ComponentHostComponent`.
+   *
+   * Lets hosts decorate elements they do not own (for example, to add analytics attributes)
+   * without subclassing them. It runs for every universal element the renderers create, whatever
+   * its base class, and only universal elements trigger it, so it applies only when
+   * `RendererConfiguration.useUniversalComponents` is enabled. A custom container that is not an
+   * `A2uiLitElement` and creates child elements by hand reports each child by calling
+   * `dispatchA2uiElementConnected` from `@a2ui/web_core/universal` after inserting it.
+   */
+  readonly onElementConnected?: (
+    element: HTMLElement,
+    context: ComponentContext,
+    injector: Injector,
+  ) => void;
 }
 
 /**
@@ -64,19 +78,60 @@ export class AngularCatalog extends Catalog<AngularComponentImplementation> {
   constructor(
     id: string,
     protocolVersion: string,
-    components: ReadonlyArray<AngularComponentImplementation | WebComponentImplementation> = [],
+    components?: ReadonlyArray<AngularComponentImplementation | WebComponentImplementation>,
     functions?: FunctionImplementation[],
     themeSchema?: z.ZodTypeAny,
     instructions?: string,
+  );
+  /**
+   * Initializes a new v0.9 `AngularCatalog` with the pre-1.0 argument order.
+   *
+   * @deprecated Pass the protocol version as the second argument instead.
+   *   Kept so catalogs written against `@a2ui/angular` 0.9.x keep
+   *   constructing without a `protocolVersion`.
+   */
+  constructor(
+    id: string,
+    components?: ReadonlyArray<AngularComponentImplementation | WebComponentImplementation>,
+    functions?: FunctionImplementation[],
+    themeSchema?: z.ZodTypeAny,
+    instructions?: string,
+  );
+  constructor(
+    id: string,
+    protocolVersionOrComponents?:
+      | string
+      | ReadonlyArray<AngularComponentImplementation | WebComponentImplementation>,
+    componentsOrFunctions?:
+      | ReadonlyArray<AngularComponentImplementation | WebComponentImplementation>
+      | FunctionImplementation[],
+    functionsOrThemeSchema?: FunctionImplementation[] | z.ZodTypeAny,
+    themeSchemaOrInstructions?: z.ZodTypeAny | string,
+    instructions?: string,
   ) {
-    super(
-      id,
-      protocolVersion,
-      components.map(toAngularComponentImplementation),
-      functions,
-      themeSchema,
-      instructions,
-    );
+    if (typeof protocolVersionOrComponents !== 'string') {
+      // Pre-1.0 (v0.9) signature: `new AngularCatalog(id, components, functions, ...)`.
+      super(
+        id,
+        '0.9',
+        (protocolVersionOrComponents ?? []).map(toAngularComponentImplementation),
+        componentsOrFunctions as FunctionImplementation[] | undefined,
+        functionsOrThemeSchema as z.ZodTypeAny | undefined,
+        themeSchemaOrInstructions as string | undefined,
+      );
+    } else {
+      const components = (componentsOrFunctions ?? []) as ReadonlyArray<
+        AngularComponentImplementation | WebComponentImplementation
+      >;
+      super(
+        id,
+        protocolVersionOrComponents,
+        components.map(toAngularComponentImplementation),
+        functionsOrThemeSchema as FunctionImplementation[] | undefined,
+        themeSchemaOrInstructions as z.ZodTypeAny | undefined,
+        instructions,
+      );
+    }
   }
 }
 
@@ -88,6 +143,16 @@ function toAngularComponentImplementation(
     // then every catalog entry must carry an Angular component, so Web Component-only entries
     // get a placeholder that reports the missing flag instead of rendering.
     return {...entry, component: UniversalOnlyComponent};
+  }
+  if (!isWebComponentImplementation(entry)) {
+    // Attach a lazy Web Component wrapper to plain `{...api, component}` entries so universal
+    // container elements (`a2ui-basic-column`, `a2ui-card`, etc.) can resolve them by `tagName`
+    // via `renderA2uiNode` without requiring callers to wrap with `createComponentImplementation`.
+    // The fields are added to the entry itself so callers keep entry identity (for example
+    // `catalog.components.get('X') === X_IMPL`); only non-extensible entries are copied.
+    const webComponent = toWebComponent(entry);
+    const fields = {tagName: webComponent.tagName, element: webComponent.element};
+    return Object.isExtensible(entry) ? Object.assign(entry, fields) : {...entry, ...fields};
   }
   return entry;
 }
@@ -126,14 +191,13 @@ export function createComponentImplementation(
 ): AngularComponentImplementation {
   const webComponent = isWebComponentImplementation(componentApi)
     ? componentApi
-    : toWebComponent({name: componentApi.name, schema: componentApi.schema, component});
+    : toWebComponent({...componentApiFields(componentApi), component});
 
   // Annotated wider than the return type so the Custom Element fields pass the object literal
   // check; to consumers the entry is an AngularComponentImplementation that also satisfies
   // `isWebComponentImplementation`.
   const implementation: AngularComponentImplementation & WebComponentImplementation = {
-    name: componentApi.name,
-    schema: componentApi.schema,
+    ...componentApiFields(componentApi),
     tagName: webComponent.tagName,
     element: webComponent.element,
     component,

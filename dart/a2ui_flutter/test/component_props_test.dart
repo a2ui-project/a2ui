@@ -16,7 +16,8 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:json_schema_builder/json_schema_builder.dart';
+import 'package:json_schema_builder/json_schema_builder.dart'
+    hide ValidationResult;
 
 const _commonTypes = 'https://a2ui.org/specification/v0_9/common_types.json';
 
@@ -216,6 +217,7 @@ void main() {
 
       expect(props.isValid, isFalse);
       expect(props.validationErrors, ['Must be ok']);
+      expect(props.validationResults.single.message, 'Must be ok');
     });
 
     test('is valid without checks', () {
@@ -224,6 +226,7 @@ void main() {
       expect(props.containsKey('isValid'), isFalse);
       expect(props.isValid, isTrue);
       expect(props.validationErrors, isEmpty);
+      expect(props.validationResults, isEmpty);
     });
   });
 
@@ -237,6 +240,7 @@ void main() {
       'children': ['a', 'b'],
       'isValid': 'no',
       'validationErrors': ['First', 2, null],
+      'validationResults': ['First', ValidationResult(valid: false)],
     });
 
     test('never throws on a mismatched shape', () {
@@ -258,6 +262,10 @@ void main() {
       expect(const ComponentProps({'isValid': false}).isValid, isFalse);
     });
 
+    test('keeps only validation results among validationResults', () {
+      expect(props.validationResults, [const ValidationResult(valid: false)]);
+    });
+
     test('keeps only string validation errors', () {
       expect(props.validationErrors, ['First']);
     });
@@ -275,6 +283,18 @@ void main() {
       expect(ComponentProps.asString(1e21), '1e+21');
       expect(ComponentProps.asString(double.nan), 'NaN');
       expect(ComponentProps.asString(double.infinity), 'Infinity');
+    });
+
+    test('reads a validation result as a boolean by its validity', () {
+      expect(
+        ComponentProps.asBoolean(
+          const ResolvedBinding<Object?>(ValidationResult(valid: false)),
+        ),
+        isFalse,
+      );
+      expect(ComponentProps.asBoolean({'valid': true}), isTrue);
+      expect(ComponentProps.asBoolean({'other': true}), isNull);
+      expect(ComponentProps.asBoolean('true'), isNull);
     });
 
     test('converts booleans and leaves collections unconverted', () {

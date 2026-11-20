@@ -26,11 +26,11 @@ class _RecordingFunction extends FunctionImplementation {
   final List<Map<String, Object?>> calls = [];
 
   _RecordingFunction(FunctionApi api)
-      : super(
-          name: api.name,
-          argumentSchema: api.argumentSchema,
-          returnType: api.returnType,
-        );
+    : super(
+        name: api.name,
+        argumentSchema: api.argumentSchema,
+        returnType: api.returnType,
+      );
 
   @override
   Object? execute(
@@ -53,11 +53,8 @@ void main() {
     setUp(() {
       final CatalogApi parsed = Catalog.fromJson(
         jsonDecode(
-          File(
-            resolveConformancePath(
-              '../specification/v0_9_1/catalogs/basic/catalog.json',
-            ),
-          ).readAsStringSync(),
+          File(resolveConformancePath('../catalogs/basic/v0_9_1/catalog.json'))
+              .readAsStringSync(),
         ) as Map<String, Object?>,
       );
       openUrl = _RecordingFunction(parsed.functions['openUrl']!);
@@ -75,7 +72,10 @@ void main() {
       processor.processMessages(
         AgentToRendererMessagePayload.of(
           CreateSurfaceMessage(
-              version: 'v0.9', surfaceId: 's', catalogId: catalog.id),
+            version: 'v0.9',
+            surfaceId: 's',
+            catalogId: catalog.id,
+          ),
         ),
       );
       surface = processor.model.getSurface('s')!;
@@ -315,16 +315,49 @@ void main() {
     }
 
     test('renders a component with the catalog it names for itself', () {
-      process([
+      final v1Default = Catalog<ComponentApi, FunctionImplementation>(
+        id: TestCatalog().id,
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: TestCatalog().components.values.toList(),
+        functions: TestCatalog().functions.values.toList(),
+      );
+      final v1Second = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'second',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: [chartApi],
+        functions: [_ConstantFunction('capitalize', 'from second')],
+      );
+      final v1Processor = MessageProcessor<ComponentApi>(
+        catalogs: [v1Default, v1Second],
+        defaultVersion: A2uiProtocolVersion.v1_0,
+      );
+      addTearDown(v1Processor.model.dispose);
+      v1Processor.processMessages([
         {
-          'id': 'root',
-          'component': 'Chart',
-          'catalogId': 'second',
-          'title': 'Sales',
+          'version': '1.0',
+          'createSurface': {'surfaceId': 's10', 'catalogId': v1Default.id},
+        },
+        {
+          'version': '1.0',
+          'updateComponents': {
+            'surfaceId': 's10',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Chart',
+                '@catalogId': 'second',
+                'title': 'Sales',
+              },
+            ],
+          },
         },
       ]);
+      final v1Resolver = NodeResolver<ComponentApi>(
+        v1Processor.model.getSurface('s10')!,
+      );
+      addTearDown(v1Resolver.dispose);
 
-      final ComponentNode<ComponentApi> root = resolver.rootNode.peek()!;
+      final ComponentNode<ComponentApi> root = v1Resolver.rootNode.peek()!;
       expect(root.state, NodeState.resolved);
       expect(root.impl, same(chartApi));
     });
@@ -378,13 +411,12 @@ class _ConstantFunction extends FunctionImplementation {
   final Object? result;
 
   _ConstantFunction(String name, this.result)
-      : super(name: name, argumentSchema: Schema.object());
+    : super(name: name, argumentSchema: Schema.object());
 
   @override
   Object? execute(
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      result;
+  ]) => result;
 }

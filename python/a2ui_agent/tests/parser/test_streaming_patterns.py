@@ -42,15 +42,15 @@ def basic_catalog() -> CatalogApi:
 
 def _stream_create_surface(catalog: CatalogApi, extensions: dict[str, int]) -> None:
     message = {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "main",
             "catalogId": catalog.catalog_id,
             "metadata": {"extensions": extensions},
         },
     }
-    parser = DirectJsonParser(catalogs=[catalog])
-    parser.parse_chunk(f"{A2UI_OPEN_TAG}[{json.dumps(message)}]{A2UI_CLOSE_TAG}")
+    stream = DirectJsonParser(catalogs=[catalog]).open_stream()
+    stream.feed(f"{A2UI_OPEN_TAG}[{json.dumps(message)}]{A2UI_CLOSE_TAG}")
 
 
 def test_load_common_types_schema_comes_from_core() -> None:

@@ -13,13 +13,14 @@
 # limitations under the License.
 
 - name: test_index_function_in_collection_loop
+  features: [F-CORE-21]
   description: Verifies built-in @index function evaluation during collection template iteration.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: main
             catalogId: basic
@@ -64,13 +65,14 @@
             text: "Pay Bills"
 
 - name: test_index_function_with_offset
+  features: [F-CORE-21]
   description: Verifies built-in @index function with offset argument (@index(1) for 1-based indexing).
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: main
             catalogId: basic
@@ -98,13 +100,14 @@
             text: "2"
 
 - name: test_index_function_nested_path
+  features: [F-CORE-21]
   description: Verifies built-in @index function evaluation inside a deeply nested child property path of a template list.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: main
             catalogId: basic
@@ -141,13 +144,14 @@
             text: "2"
 
 - name: test_index_function_outside_loop_error
+  features: [F-CORE-21]
   description: Verifies error thrown when @index function is called outside a collection iteration scope.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "basic"

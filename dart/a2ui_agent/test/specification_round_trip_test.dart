@@ -32,13 +32,10 @@ void main() {
   group('v0.9 basic catalog', () {
     _roundTrips(
       basic: const FileSystemCatalogProvider(
-        '../../specification/v0_9/catalogs/basic/catalog.json',
+        '../../catalogs/basic/v0_9/catalog.json',
         protocolVersion: A2uiProtocolVersion.v0_9,
       ).load(),
-      examples: '../../specification/v0_9/catalogs/basic/examples',
-      expressCannotWrite: const {
-        '00_incremental.json': 'updates an item of a list in the data model',
-      },
+      examples: '../../catalogs/basic/v0_9/examples',
     );
   });
 
@@ -48,9 +45,6 @@ void main() {
         '../../catalogs/basic/v1/catalog.json',
       ).load(),
       examples: '../../catalogs/basic/v1/examples',
-      expressCannotWrite: const {
-        '00_incremental.json': 'updates an item of a list in the data model',
-      },
     );
   });
 }
@@ -133,7 +127,7 @@ void _roundTrips({
 /// Examples whose later updates replace a placeholder and leave it
 /// unreachable, which one payload may not do, since every surface it creates
 /// must be whole once it is applied.
-const Set<String> _incremental = {'31_incremental-dashboard.json'};
+const Set<String> _incremental = {'incremental-dashboard.json'};
 
 /// The payloads the example [name] arrives in: its [messages] as one, or for
 /// an [_incremental] example, the surface and its first components, then

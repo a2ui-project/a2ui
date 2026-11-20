@@ -34,7 +34,7 @@ describe('ResponsePart', () => {
 
   it('narrows correctly to A2uiPart', () => {
     const message = {
-      version: 'v1.0',
+      version: '1.0',
       createSurface: {surfaceId: 'test'},
     } as unknown as AgentToRendererMessage;
 

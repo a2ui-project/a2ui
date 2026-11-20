@@ -253,23 +253,6 @@ export class ExpressIdCollisionError extends ExpressValidationError {
 }
 
 /**
- * Thrown when attempting to decompile an ID or variable name that is not
- * a valid Express identifier (e.g. contains hyphens or is a reserved keyword).
- */
-export class ExpressInvalidIdentifierError extends ExpressValidationError {
-  readonly id: string;
-
-  constructor(id: string) {
-    super(
-      `Cannot decompile component id '${id}' because it is not a valid Express identifier.`,
-      'Express identifiers must start with a letter or underscore, contain only alphanumeric characters and underscores, and cannot be a reserved word (true, false, null or _).',
-    );
-    this.name = 'ExpressInvalidIdentifierError';
-    this.id = id;
-  }
-}
-
-/**
  * Raised when a `surface(...)` line names a catalog that is not one of the active
  * catalogs.
  */

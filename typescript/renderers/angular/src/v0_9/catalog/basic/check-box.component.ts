@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {AccessibilityTargetDirective} from '@a2ui/angular';
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {CheckBoxApi} from '@a2ui/web_core/v0_9/basic_catalog';
@@ -38,10 +39,11 @@ import {CheckBoxApi} from '@a2ui/web_core/v0_9/basic_catalog';
 @Component({
   selector: 'a2ui-v09-check-box',
   standalone: true,
-  imports: [],
+  imports: [AccessibilityTargetDirective],
   template: `
     <label class="a2ui-check-box-label">
       <input
+        a2uiAccessibilityTarget
         type="checkbox"
         [checked]="value()"
         (change)="handleChange($event)"

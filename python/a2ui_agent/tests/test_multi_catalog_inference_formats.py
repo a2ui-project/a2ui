@@ -34,10 +34,7 @@ def primary_catalog() -> Catalog:
             "components": {
                 "Column": {
                     "properties": {
-                        "children": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                        }
+                        "children": {"$ref": "common_types.json#/$defs/ChildList"}
                     }
                 },
                 "Text": {
@@ -51,7 +48,7 @@ def primary_catalog() -> Catalog:
                         {
                             "properties": {
                                 "primaryArg": {"type": "string"},
-                                "action": {"type": "object"},
+                                "action": {"$ref": "common_types.json#/$defs/Action"},
                             }
                         },
                     ]
@@ -72,6 +69,7 @@ def primary_catalog() -> Catalog:
                 },
                 "sharedFn": {
                     "returnType": "boolean",
+                    "allowedCallers": "rendererOrAgent",
                     "properties": {
                         "args": {
                             "type": "object",
@@ -85,7 +83,7 @@ def primary_catalog() -> Catalog:
                 },
             },
         },
-        protocol_version="v1.0",
+        protocol_version="1.0",
     )
 
 
@@ -107,7 +105,7 @@ def secondary_catalog() -> Catalog:
                         {
                             "properties": {
                                 "secondaryArg": {"type": "string"},
-                                "action": {"type": "object"},
+                                "action": {"$ref": "common_types.json#/$defs/Action"},
                             }
                         },
                     ]
@@ -128,6 +126,7 @@ def secondary_catalog() -> Catalog:
                 },
                 "sharedFn": {
                     "returnType": "boolean",
+                    "allowedCallers": "rendererOrAgent",
                     "properties": {
                         "args": {
                             "type": "object",
@@ -141,7 +140,7 @@ def secondary_catalog() -> Catalog:
                 },
             },
         },
-        protocol_version="v1.0",
+        protocol_version="1.0",
     )
 
 
@@ -151,7 +150,7 @@ def test_express_multi_catalog_per_component_and_function_override(
     fmt = ExpressFormat(
         catalogs=[primary_catalog, secondary_catalog],
         surface_id="main",
-        version="v1.0",
+        version="1.0",
     )
     dsl = """<a2ui>
 surface("main")
@@ -170,8 +169,8 @@ root = Column([w1, w2, c1])
     # w1 uses primary catalog positional mapping via explicit catalogId, while
     # primaryCheck and secondaryCheck resolve uniquely by name across catalogs.
     assert comps["w1"]["primaryArg"] == "from-primary"
-    assert comps["w1"]["catalogId"] == "https://a2ui.org/catalogs/primary"
-    assert comps["w1"]["checks"] == [
+    assert comps["w1"]["@catalogId"] == "https://a2ui.org/catalogs/primary"
+    assert comps["w1"]["@checks"] == [
         {
             "condition": {
                 "@call": "primaryCheck",
@@ -192,9 +191,9 @@ root = Column([w1, w2, c1])
 
     # w2 overrides catalogId to secondary_catalog, while sharedFn (defined in
     # both catalogs) uses explicit catalogId overrides for each call.
-    assert comps["w2"]["catalogId"] == "https://a2ui.org/catalogs/secondary"
+    assert comps["w2"]["@catalogId"] == "https://a2ui.org/catalogs/secondary"
     assert comps["w2"]["secondaryArg"] == "from-secondary"
-    assert comps["w2"]["checks"] == [
+    assert comps["w2"]["@checks"] == [
         {
             "condition": {
                 "@call": "sharedFn",
@@ -223,14 +222,14 @@ root = Column([w1, w2, c1])
     assert comps["c1"] == {
         "id": "c1",
         "component": "SecondaryCard",
-        "catalogId": "https://a2ui.org/catalogs/secondary",
+        "@catalogId": "https://a2ui.org/catalogs/secondary",
         "headline": "Title",
         "subtitle": "Sub",
     }
     assert comps["root"] == {
         "id": "root",
         "component": "Column",
-        "catalogId": "https://a2ui.org/catalogs/primary",
+        "@catalogId": "https://a2ui.org/catalogs/primary",
         "children": ["w1", "w2", "c1"],
     }
 
@@ -253,7 +252,7 @@ sharedFn("call-sec-1", "call-sec-2", catalogId="https://a2ui.org/catalogs/second
         fmt.create_parser().parse_response(call_dsl)[0].a2ui
     )
     assert call_messages == [{
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
             "functionCallId": "call_1",
             "callFunction": {
@@ -286,16 +285,16 @@ def test_elemental_multi_catalog_per_component_and_function_override(
         surface_id="main",
     )
     surface_envelope = {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "main",
             "components": [
                 {
                     "id": "w1",
                     "component": "SharedWidget",
-                    "catalogId": "https://a2ui.org/catalogs/primary",
+                    "@catalogId": "https://a2ui.org/catalogs/primary",
                     "primaryArg": "from-primary",
-                    "checks": [{
+                    "@checks": [{
                         "condition": {
                             "call": "sharedFn",
                             "catalogId": "https://a2ui.org/catalogs/secondary",
@@ -310,7 +309,7 @@ def test_elemental_multi_catalog_per_component_and_function_override(
                 {
                     "id": "w2",
                     "component": "SharedWidget",
-                    "catalogId": "https://a2ui.org/catalogs/secondary",
+                    "@catalogId": "https://a2ui.org/catalogs/secondary",
                     "secondaryArg": "from-secondary",
                     "action": {
                         "functionCall": {
@@ -326,7 +325,7 @@ def test_elemental_multi_catalog_per_component_and_function_override(
                 {
                     "id": "root",
                     "component": "Column",
-                    "catalogId": "https://a2ui.org/catalogs/primary",
+                    "@catalogId": "https://a2ui.org/catalogs/primary",
                     "children": ["w1", "w2"],
                 },
             ],
@@ -350,8 +349,8 @@ def test_elemental_multi_catalog_per_component_and_function_override(
     comps = {c["id"]: c for c in create_surf["components"]}
 
     assert comps["w1"]["primaryArg"] == "from-primary"
-    assert comps["w1"]["catalogId"] == "https://a2ui.org/catalogs/primary"
-    assert comps["w1"]["checks"] == [{
+    assert comps["w1"]["@catalogId"] == "https://a2ui.org/catalogs/primary"
+    assert comps["w1"]["@checks"] == [{
         "condition": {
             "@call": "sharedFn",
             "catalogId": "https://a2ui.org/catalogs/secondary",
@@ -363,7 +362,7 @@ def test_elemental_multi_catalog_per_component_and_function_override(
         "message": "Must match secondary",
     }]
 
-    assert comps["w2"]["catalogId"] == "https://a2ui.org/catalogs/secondary"
+    assert comps["w2"]["@catalogId"] == "https://a2ui.org/catalogs/secondary"
     assert comps["w2"]["secondaryArg"] == "from-secondary"
     assert comps["w2"]["action"] == {
         "functionCall": {
@@ -375,11 +374,11 @@ def test_elemental_multi_catalog_per_component_and_function_override(
             },
         }
     }
-    assert comps["root"]["catalogId"] == "https://a2ui.org/catalogs/primary"
+    assert comps["root"]["@catalogId"] == "https://a2ui.org/catalogs/primary"
 
     # Also test standalone callFunction with catalogId override in Elemental
     call_envelope = {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
             "functionCallId": "call_1",
             "callFunction": {
@@ -447,9 +446,9 @@ def test_atom_multi_catalog_per_component_and_function_override(
     assert comps["w1"] == {
         "id": "w1",
         "component": "SharedWidget",
-        "catalogId": "https://a2ui.org/catalogs/primary",
+        "@catalogId": "https://a2ui.org/catalogs/primary",
         "primaryArg": "from-primary",
-        "checks": [{
+        "@checks": [{
             "condition": {
                 "@call": "sharedFn",
                 "catalogId": "https://a2ui.org/catalogs/secondary",
@@ -465,9 +464,9 @@ def test_atom_multi_catalog_per_component_and_function_override(
     assert comps["w2"] == {
         "id": "w2",
         "component": "SharedWidget",
-        "catalogId": "https://a2ui.org/catalogs/secondary",
+        "@catalogId": "https://a2ui.org/catalogs/secondary",
         "secondaryArg": "from-secondary",
-        "checks": [
+        "@checks": [
             {
                 "condition": {
                     "@call": "sharedFn",
@@ -502,14 +501,14 @@ def test_atom_multi_catalog_per_component_and_function_override(
     assert comps["c1"] == {
         "id": "c1",
         "component": "SecondaryCard",
-        "catalogId": "https://a2ui.org/catalogs/secondary",
+        "@catalogId": "https://a2ui.org/catalogs/secondary",
         "headline": "Title",
         "subtitle": "Sub",
     }
     assert comps["root"] == {
         "id": "root",
         "component": "Column",
-        "catalogId": "https://a2ui.org/catalogs/primary",
+        "@catalogId": "https://a2ui.org/catalogs/primary",
         "children": ["w1", "w2", "c1"],
     }
 
@@ -533,7 +532,7 @@ def test_atom_multi_catalog_per_component_and_function_override(
         fmt.create_parser().parse_response(call_sexpr)[0].a2ui
     )[0]
     assert call_compiled == {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
             "functionCallId": "call_1",
             "callFunction": {
@@ -596,10 +595,10 @@ def test_atom_prescan_keyword_values_not_treated_as_keywords(
     assert "catalogId" not in create_msg
     comps = {c["id"]: c for c in create_msg["components"]}
     assert comps["t1"]["text"] == ":catalogId"
-    assert comps["t1"]["catalogId"] == "https://a2ui.org/catalogs/primary"
-    assert comps["w1"]["catalogId"] == "https://a2ui.org/catalogs/secondary"
+    assert comps["t1"]["@catalogId"] == "https://a2ui.org/catalogs/primary"
+    assert comps["w1"]["@catalogId"] == "https://a2ui.org/catalogs/secondary"
     assert comps["w1"]["secondaryArg"] == "from-secondary"
-    assert comps["w1"]["checks"] == [{
+    assert comps["w1"]["@checks"] == [{
         "condition": {
             "@call": "sharedFn",
             "args": {

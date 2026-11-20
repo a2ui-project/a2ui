@@ -33,20 +33,20 @@ struct AccessibilityModifierTests {
     let processor = MessageProcessor(catalogs: [V10BasicCatalog.catalog])
     var messages: [[String: Any]] = [
       [
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": [
           "surfaceId": "a11y",
           "catalogId": V10BasicCatalog.catalogURI,
         ],
       ],
       [
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": ["surfaceId": "a11y", "components": components],
       ],
     ]
     if let dataModel {
       messages.append([
-        "version": "v1.0",
+        "version": "1.0",
         "updateDataModel": ["surfaceId": "a11y", "value": dataModel],
       ])
     }
@@ -125,7 +125,7 @@ struct AccessibilityModifierTests {
     try process(
       [
         [
-          "version": "v1.0",
+          "version": "1.0",
           "updateDataModel": [
             "surfaceId": "a11y", "path": "/unreadLabel", "value": "Four unread messages",
           ],
@@ -164,9 +164,27 @@ struct AccessibilityModifierTests {
     #expect(!A2UIAccessibilityModifier(node: node).isHidden)
   }
 
+  #if canImport(AppKit)
+    @Test func hiddenChildStaysHiddenInsideVisibleContainer() async throws {
+      let (_, surface) = try await makeSurface(components: [
+        ["id": "root", "component": "Column", "children": ["shown", "secret"]],
+        ["id": "shown", "component": "Text", "text": "Shown text"],
+        [
+          "id": "secret", "component": "Text", "text": "Hidden text",
+          "accessibility": ["hidden": true],
+        ],
+      ])
+      let driver = HostedViewDriver(viewModel: surface)
+      defer { driver.tearDown() }
+
+      #expect(driver.exposesAccessibilityElement(withText: "Shown text"))
+      #expect(!driver.exposesAccessibilityElement(withText: "Hidden text"))
+    }
+  #endif
+
   // MARK: - Live regions
 
-  @Test func liveRegionWithoutLabelAnnouncesNothing() async throws {
+  @Test func liveRegionWithoutLabelReadsNoCatalogProperties() async throws {
     let (_, surface) = try await makeSurface(components: [
       [
         "id": "root", "component": "Text", "text": "Status: Active",
@@ -177,8 +195,10 @@ struct AccessibilityModifierTests {
     let modifier = A2UIAccessibilityModifier(node: try node("root", in: surface))
     #expect(modifier.isLiveRegion)
     #expect(!modifier.isAssertive)
-    // Announcing visible text without reading catalog properties is tracked in #3147.
+    // The visible text reaches the region from the rendered views, not from the `text` property.
+    // See `LiveRegionTextTests`.
     #expect(modifier.announcementText == nil)
+    #expect(modifier.announcementText(subtreeText: ["Status: Active"]) == "Status: Active")
   }
 
   @Test func assertiveLiveRegionAnnouncesItsLabel() async throws {
@@ -211,7 +231,7 @@ struct AccessibilityModifierTests {
     try process(
       [
         [
-          "version": "v1.0",
+          "version": "1.0",
           "updateDataModel": ["surfaceId": "a11y", "path": "/status", "value": "Connected"],
         ]
       ],

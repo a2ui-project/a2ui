@@ -16,7 +16,16 @@
 
 import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
-import {signal, computed, peekValue, getValue, setValue} from '../reactivity/signals.js';
+import {
+  signal,
+  computed,
+  peekValue,
+  getValue,
+  setValue,
+  effect,
+  setSignalImplementation,
+  _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
+} from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel} from '../state/data-model.js';
 import {SurfaceModel} from '../state/surface-model.js';
@@ -29,9 +38,20 @@ import {
   unescapeObjectKey,
   validateReservedDirectives,
 } from './data-context.js';
-import {Catalog} from '../catalog/types.js';
+import {withActiveCallCatalogId} from './data-context-internal.js';
+import {Catalog, createFunctionImplementation} from '../catalog/types.js';
+import {
+  FormatStringImplementation,
+  NotImplementation,
+  PluralizeImplementation,
+} from '../catalogs/basic/v1/functions/basic_functions.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
-import {A2uiCatalogError, A2uiExpressionError, A2uiValidationError} from '../errors.js';
+import {
+  A2uiCatalogError,
+  A2uiExpressionError,
+  A2uiRpcError,
+  A2uiValidationError,
+} from '../errors.js';
 
 const createTestDataContext = (
   model: DataModel,
@@ -80,6 +100,35 @@ describe('DataContext', () => {
   it('updates data via relative path', () => {
     context.set('name', 'Bob');
     assert.strictEqual(model.get('/user/name'), 'Bob');
+  });
+
+  it('stores null on a pre-1.0 surface and removes the entry from v1.0', () => {
+    const v09Surface = new SurfaceModel(
+      's09',
+      new Catalog('c09', '0.9', []),
+      null,
+      {},
+      false,
+      model,
+    );
+    new DataContext(v09Surface, '/user').set('name', null);
+    assert.strictEqual(model.get('/user/name'), null);
+    assert.ok('name' in model.get('/user'));
+
+    const v10Surface = new SurfaceModel(
+      's10',
+      new Catalog('c10', '1.0', []),
+      null,
+      {},
+      false,
+      model,
+    );
+    new DataContext(v10Surface, '/user').set('name', null);
+    assert.ok(!('name' in model.get('/user')));
+
+    model.set('/user/name', 'Alice');
+    new DataContext(model, '/user').set('name', null);
+    assert.ok(!('name' in model.get('/user')));
   });
 
   it('creates nested context', () => {
@@ -354,6 +403,76 @@ describe('DataContext', () => {
     assert.strictEqual(sub.value, 'Hello Bob');
 
     sub.unsubscribe();
+  });
+
+  it('does not expose a transient undefined for nested Signal-returning calls when effects are deferred', () => {
+    // Emulate a reactivity backend (e.g. Angular) where effects do not run
+    // synchronously on creation but are queued until the next flush, in
+    // creation order. Effects created during a flush are appended to the
+    // same queue, mirroring Angular's root effect scheduler.
+    const base = _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION;
+    const queue: Array<() => void> = [];
+    const flush = () => {
+      while (queue.length > 0) {
+        queue.shift()!();
+      }
+    };
+    setSignalImplementation({
+      ...base,
+      effect: fn => {
+        let dispose: (() => void) | undefined;
+        let cancelled = false;
+        queue.push(() => {
+          if (!cancelled) dispose = base.effect(fn);
+        });
+        return () => {
+          cancelled = true;
+          dispose?.();
+        };
+      },
+    });
+
+    try {
+      const errors: unknown[] = [];
+      const fnInvoker = (name: string, args: Record<string, unknown>) => {
+        // Mirrors `areComponentsValid(...)`: takes arguments and returns a Signal.
+        if (name === 'isAlice') return computed(() => args.name === 'Alice');
+        // Mirrors `not(...)`: rejects an undefined argument with a ZodError.
+        if (name === 'not') {
+          z.any()
+            .refine(v => v !== undefined, 'Required')
+            .parse(args.value);
+          return !args.value;
+        }
+        return null;
+      };
+      const ctx = createTestDataContext(model, '/user', fnInvoker, e => errors.push(e));
+
+      const observed: unknown[] = [];
+      const sub = ctx.subscribeDynamicValue(
+        {
+          call: 'not',
+          args: {value: {call: 'isAlice', args: {name: {path: 'name'}}, returnType: 'any'}},
+          returnType: 'any',
+        },
+        v => observed.push(v),
+      );
+      flush();
+
+      assert.deepStrictEqual(errors, [], 'no spurious EXPRESSION_ERROR expected');
+      assert.deepStrictEqual(observed, [false], 'parent must never observe undefined');
+      assert.strictEqual(sub.value, false);
+
+      // Reactivity is preserved: the forwarding effect still propagates updates.
+      ctx.set('name', 'Bob');
+      flush();
+      assert.strictEqual(sub.value, true);
+      assert.deepStrictEqual(errors, []);
+
+      sub.unsubscribe();
+    } finally {
+      setSignalImplementation(base);
+    }
   });
 
   describe('resolveAction', () => {
@@ -931,7 +1050,7 @@ describe('DataContext', () => {
         undefined,
         undefined,
         undefined,
-        'v1.0',
+        '1.0',
       );
       const errors: any[] = [];
       surface.onError.subscribe(err => {
@@ -959,7 +1078,7 @@ describe('DataContext', () => {
         undefined,
         undefined,
         undefined,
-        'v1.0',
+        '1.0',
       );
       const errors: any[] = [];
       surface.onError.subscribe(err => {
@@ -1037,7 +1156,7 @@ describe('DataContext', () => {
         undefined,
         undefined,
         undefined,
-        'v1.0',
+        '1.0',
       );
       const errors: any[] = [];
       surface.onError.subscribe(err => {
@@ -1348,5 +1467,557 @@ describe('DataContext', () => {
       const v09Ctx = new DataContext(v09Surface, '/');
       assert.doesNotThrow(() => v09Ctx.resolveDynamicValue({'@custom': 'allowed in 0.9'}));
     });
+  });
+});
+
+describe('DataContext asynchronous function arguments', () => {
+  /** Resolves on the next macrotask, after every pending microtask has run. */
+  const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+
+  const upper = createFunctionImplementation(
+    {
+      name: 'upper',
+      returnType: 'string',
+      schema: z.object({'value': z.string()}),
+    },
+    args => args.value.toUpperCase(),
+  );
+  const fetchText = createFunctionImplementation(
+    {
+      name: 'fetchText',
+      returnType: 'any',
+      schema: z.object({'text': z.string()}),
+    },
+    async args => {
+      await Promise.resolve();
+      return args.text;
+    },
+  );
+  const fail = createFunctionImplementation(
+    {name: 'fail', returnType: 'any', schema: z.object({})},
+    async () => {
+      await Promise.resolve();
+      throw new A2uiExpressionError('inner failure', 'fail');
+    },
+  );
+  const wrap = createFunctionImplementation(
+    {
+      name: 'wrap',
+      returnType: 'any',
+      schema: z.object({'items': z.array(z.string()), 'meta': z.object({'label': z.string()})}),
+    },
+    args => ({items: args.items, label: args.meta.label}),
+  );
+  const guarded = createFunctionImplementation(
+    {
+      name: 'guarded',
+      returnType: 'string',
+      schema: z.object({'value': z.string()}),
+      requiresUserActivation: true,
+    },
+    args => `guarded:${args.value}`,
+  );
+
+  let surface: SurfaceModel;
+  let ctx: DataContext;
+  let errors: Array<{code: string; message: string; expression?: string}>;
+
+  beforeEach(() => {
+    const catalog = new Catalog('cat', '1.0', [], [upper, fetchText, fail, wrap, guarded]);
+    surface = new SurfaceModel('s1', catalog);
+    surface.dataModel.set('/name', 'alice');
+    ctx = new DataContext(surface, '/');
+    errors = [];
+    surface.onError.subscribe(e => {
+      errors.push(e);
+    });
+  });
+
+  const call = (name: string, args: Record<string, unknown>) => ({'@call': name, args});
+
+  it('keeps a synchronous call synchronous', () => {
+    assert.strictEqual(
+      ctx.resolveDynamicValue(call('upper', {value: {'@path': '/name'}})),
+      'ALICE',
+    );
+    assert.strictEqual(errors.length, 0);
+  });
+
+  it('settles an asynchronous inner result before validating the outer call', async () => {
+    const result = ctx.resolveDynamicValue<Promise<string>>(
+      call('upper', {value: call('fetchText', {text: 'hello'})}),
+    );
+    assert.strictEqual(typeof result.then, 'function');
+    assert.strictEqual(await result, 'HELLO');
+    assert.strictEqual(errors.length, 0);
+  });
+
+  it('settles Promises nested in arrays and objects of the arguments', async () => {
+    const result = await ctx.resolveDynamicValue<Promise<unknown>>(
+      call('wrap', {
+        items: [call('fetchText', {text: 'a'}), 'b', call('fetchText', {text: 'c'})],
+        meta: {label: call('fetchText', {text: 'tag'})},
+      }),
+    );
+    assert.deepStrictEqual(result, {items: ['a', 'b', 'c'], label: 'tag'});
+    assert.strictEqual(errors.length, 0);
+  });
+
+  it('reports an inner rejection once, at the top level, and resolves to undefined', async () => {
+    const result = await ctx.resolveDynamicValue<Promise<unknown>>(
+      call('upper', {value: call('upper', {value: call('fail', {})})}),
+    );
+    assert.strictEqual(result, undefined);
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
+    assert.strictEqual(errors[0].message, 'inner failure');
+    assert.strictEqual(errors[0].expression, 'fail');
+  });
+
+  it('reports a validation failure of the outer call after its arguments settle', async () => {
+    const result = await ctx.resolveDynamicValue<Promise<unknown>>(
+      call('wrap', {items: call('fetchText', {text: 'not an array'}), meta: {label: 'x'}}),
+    );
+    assert.strictEqual(result, undefined);
+    assert.strictEqual(errors.length, 1);
+    assert.match(errors[0].message, /Validation failed for function 'wrap'/);
+  });
+
+  it('resolves an action whose function call has an asynchronous argument', async () => {
+    const result = await ctx.resolveAction({
+      functionCall: call('upper', {value: call('fetchText', {text: 'clicked'})}),
+    });
+    assert.strictEqual(result, 'CLICKED');
+  });
+
+  it('enforces user activation before awaiting an asynchronous argument', async () => {
+    const passive = ctx.resolveSignal(call('guarded', {value: call('fetchText', {text: 'x'})}));
+    assert.strictEqual(peekValue(passive), undefined);
+    assert.strictEqual(errors.length, 1);
+    assert.match(errors[0].message, /requires user activation/);
+    passive.unsubscribe?.();
+
+    errors.length = 0;
+    const activated = await ctx.resolveAction({
+      functionCall: call('guarded', {value: call('fetchText', {text: 'x'})}),
+    });
+    assert.strictEqual(activated, 'guarded:x');
+    assert.strictEqual(errors.length, 0);
+  });
+
+  it('exposes an asynchronous result through a signal once it settles', async () => {
+    const sig = ctx.resolveSignal<string>(call('fetchText', {text: {'@path': '/name'}}));
+    assert.strictEqual(peekValue(sig), undefined);
+    await flush();
+    assert.strictEqual(peekValue(sig), 'alice');
+
+    const seen: unknown[] = [];
+    const dispose = effect(() => {
+      seen.push(getValue(sig));
+    });
+    surface.dataModel.set('/name', 'bob');
+    await flush();
+    assert.deepStrictEqual(seen, ['alice', 'bob']);
+    dispose();
+    sig.unsubscribe?.();
+  });
+
+  it('ignores a stale completion that arrives after the subscription ended', async () => {
+    let release!: (value: string) => void;
+    const slow = createFunctionImplementation(
+      {name: 'slow', returnType: 'any', schema: z.object({'value': z.string()})},
+      () => new Promise<string>(resolve => (release = resolve)),
+    );
+    const catalog = new Catalog('cat', '1.0', [], [slow]);
+    const slowSurface = new SurfaceModel('s2', catalog);
+    slowSurface.dataModel.set('/v', 'first');
+    const slowCtx = new DataContext(slowSurface, '/');
+
+    const sub = slowCtx.subscribeDynamicValue<string>(
+      call('slow', {value: {'@path': '/v'}}),
+      () => {},
+    );
+    assert.strictEqual(sub.value, undefined);
+    sub.unsubscribe();
+    release('late');
+    await flush();
+    assert.strictEqual(sub.value, undefined);
+  });
+
+  it('ignores a stale completion when the arguments changed before it arrived', async () => {
+    const pending: Array<(value: string) => void> = [];
+    const slow = createFunctionImplementation(
+      {name: 'slow', returnType: 'any', schema: z.object({'value': z.string()})},
+      () => new Promise<string>(resolve => pending.push(resolve)),
+    );
+    const catalog = new Catalog('cat', '1.0', [], [slow]);
+    const slowSurface = new SurfaceModel('s2', catalog);
+    slowSurface.dataModel.set('/v', 'first');
+    const slowCtx = new DataContext(slowSurface, '/');
+
+    const sig = slowCtx.resolveSignal<string>(call('slow', {value: {'@path': '/v'}}));
+    slowSurface.dataModel.set('/v', 'second');
+    assert.strictEqual(pending.length, 2);
+    pending[1]('second');
+    await flush();
+    assert.strictEqual(peekValue(sig), 'second');
+    pending[0]('first');
+    await flush();
+    assert.strictEqual(peekValue(sig), 'second');
+    sig.unsubscribe?.();
+  });
+
+  it('reports a rejected signal evaluation as an EXPRESSION_ERROR', async () => {
+    const sig = ctx.resolveSignal(call('fail', {}));
+    assert.strictEqual(peekValue(sig), undefined);
+    assert.strictEqual(errors.length, 0);
+    await flush();
+    assert.strictEqual(peekValue(sig), null);
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
+    assert.strictEqual(errors[0].message, 'inner failure');
+    sig.unsubscribe?.();
+  });
+
+  it('resolves a failed agent binding to null and reports EXPRESSION_ERROR with functionCallId', async () => {
+    surface.agentFunctionCaller = () =>
+      Promise.reject(new A2uiRpcError('remote failure', 'EXECUTION_ERROR', 'call-99'));
+    const sig = ctx.resolveSignal(call('remoteFn', {}));
+    assert.strictEqual(peekValue(sig), undefined);
+    await flush();
+    assert.strictEqual(peekValue(sig), null);
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
+    assert.strictEqual((errors[0] as {functionCallId?: string}).functionCallId, 'call-99');
+    assert.strictEqual((errors[0] as {surfaceId?: string}).surfaceId, undefined);
+    sig.unsubscribe?.();
+  });
+
+  it('halts an action pipeline on an agent failure while keeping earlier effects', async () => {
+    const markStarted = createFunctionImplementation(
+      {name: 'markStarted', returnType: 'boolean', schema: z.object({})},
+      (_args, c) => {
+        c.set('/started', true);
+        return true;
+      },
+    );
+    const finish = createFunctionImplementation(
+      {name: 'finish', returnType: 'boolean', schema: z.object({'steps': z.array(z.any())})},
+      (_args, c) => {
+        c.set('/finished', true);
+        return true;
+      },
+    );
+    const cat = new Catalog('cat', '1.0', [], [markStarted, finish]);
+    const actionSurface = new SurfaceModel('s-act', cat);
+    actionSurface.agentFunctionCaller = () =>
+      Promise.reject(new A2uiRpcError('step failed', 'EXECUTION_ERROR', 'call-step-1'));
+    const actionErrors: Array<{code: string; functionCallId?: string}> = [];
+    actionSurface.onError.subscribe(e => {
+      actionErrors.push(e);
+    });
+    const actionCtx = new DataContext(actionSurface, '/');
+    const result = await actionCtx.resolveAction({
+      functionCall: call('finish', {
+        steps: [call('markStarted', {}), call('remoteStep', {})],
+      }),
+    });
+    assert.strictEqual(result, undefined);
+    assert.deepStrictEqual(actionSurface.dataModel.get('/'), {started: true});
+    assert.strictEqual(actionErrors.length, 1);
+    assert.strictEqual(actionErrors[0].code, 'EXPRESSION_ERROR');
+    assert.strictEqual(actionErrors[0].functionCallId, 'call-step-1');
+  });
+
+  it('leaves a thenable alone when resolving a value synchronously', () => {
+    const pendingValue = Promise.resolve('x');
+    assert.strictEqual(ctx.resolveDynamicValue(pendingValue), pendingValue);
+    assert.strictEqual(
+      ctx.resolveDynamicValue<{nested: unknown}>({nested: pendingValue}).nested,
+      pendingValue,
+    );
+  });
+
+  it('inherits formatString catalogId for v1.0 template calls while keeping @index catalogless', () => {
+    const basicId = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
+    const basicCat = new Catalog(
+      basicId,
+      '1.0',
+      [],
+      [FormatStringImplementation, NotImplementation, PluralizeImplementation],
+    );
+    const defaultlessSurface = new SurfaceModel(
+      's-no-default',
+      undefined,
+      new Map([[basicId, basicCat]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    const errors: unknown[] = [];
+    defaultlessSurface.onError.subscribe(e => {
+      errors.push(e);
+    });
+    const itemCtx = new DataContext(defaultlessSurface, '/items/2', 2);
+
+    const callExpr = {
+      '@call': 'formatString',
+      catalogId: basicId,
+      args: {
+        value:
+          "Row ${@index()}: ${pluralize(value: 2, one: 'drop', other: 'drops')} (${not(value: not(value: true))})",
+      },
+    };
+    assert.strictEqual(itemCtx.resolveDynamicValue(callExpr), 'Row 2: drops (true)');
+    assert.strictEqual(getValue(itemCtx.resolveSignal(callExpr)), 'Row 2: drops (true)');
+    assert.strictEqual(errors.length, 0);
+  });
+
+  it('scopes formatString template calls to formatString catalogId even when surface.defaultCatalog differs', () => {
+    const basicId = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
+    const basicCat = new Catalog(
+      basicId,
+      '1.0',
+      [],
+      [FormatStringImplementation, PluralizeImplementation],
+    );
+    const otherDefaultCat = new Catalog('https://example.com/other/catalog.json', '1.0', [], []);
+    const mixedSurface = new SurfaceModel(
+      's-mixed',
+      otherDefaultCat,
+      new Map([
+        [otherDefaultCat.id, otherDefaultCat],
+        [basicId, basicCat],
+      ]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    const errors: unknown[] = [];
+    mixedSurface.onError.subscribe(e => {
+      errors.push(e);
+    });
+    const itemCtx = new DataContext(mixedSurface, '/items/1', 1);
+
+    const callExpr = {
+      '@call': 'formatString',
+      catalogId: basicId,
+      args: {
+        value: "Item ${@index()}: ${pluralize(value: 1, one: 'drop', other: 'drops')}",
+      },
+    };
+    assert.strictEqual(itemCtx.resolveDynamicValue(callExpr), 'Item 1: drop');
+    assert.strictEqual(getValue(itemCtx.resolveSignal(callExpr)), 'Item 1: drop');
+    assert.strictEqual(errors.length, 0);
+  });
+
+  it('scopes formatString template calls when invoked directly via Catalog.invoker or over partial surface stand-ins', () => {
+    const basicId = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
+    const basicCat = new Catalog(
+      basicId,
+      '1.0',
+      [],
+      [FormatStringImplementation, PluralizeImplementation],
+    );
+    const extHelper = createFunctionImplementation(
+      {
+        name: 'extOnly',
+        returnType: 'string' as const,
+        schema: z.object({}),
+      },
+      () => 'from-ext',
+    );
+    const extCat = new Catalog(
+      'https://example.com/ext/catalog.json',
+      '1.0',
+      [],
+      [FormatStringImplementation, extHelper],
+    );
+
+    // 1. Direct `basicCat.invoker(...)` on a defaultless surface.
+    const defaultlessSurface = new SurfaceModel(
+      's-direct-defaultless',
+      undefined,
+      new Map([[basicId, basicCat]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    const defaultlessErrors: unknown[] = [];
+    defaultlessSurface.onError.subscribe(e => {
+      defaultlessErrors.push(e);
+    });
+    const defaultlessCtx = new DataContext(defaultlessSurface, '/');
+    const directRes = basicCat.invoker(
+      'formatString',
+      {value: "${pluralize(value: 2, one: 'drop', other: 'drops')}"},
+      defaultlessCtx,
+    );
+    assert.strictEqual(getValue(directRes as any), 'drops');
+    assert.strictEqual(defaultlessErrors.length, 0);
+
+    // 2. Direct `extCat.invoker(...)` when `surface.defaultCatalog !== extCat` and `extCat` is standalone.
+    const surfaceWithBasicDefault = new SurfaceModel(
+      's-direct-mixed',
+      basicCat,
+      new Map([[basicId, basicCat]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    const mixedErrors: unknown[] = [];
+    surfaceWithBasicDefault.onError.subscribe(e => {
+      mixedErrors.push(e);
+    });
+    const mixedCtx = new DataContext(surfaceWithBasicDefault, '/');
+    const extRes = extCat.invoker('formatString', {value: 'Got ${extOnly()}'}, mixedCtx);
+    assert.strictEqual(getValue(extRes as any), 'Got from-ext');
+    assert.strictEqual(mixedErrors.length, 0);
+
+    // 3. Partial surface stand-in with empty `availableCatalogs` and `defaultCatalog: basicCat`.
+    const standInErrors: unknown[] = [];
+    const standInSurface = {
+      id: 'stand-in',
+      dataModel: new DataModel(),
+      defaultCatalog: basicCat,
+      availableCatalogs: new Map(),
+      protocolVersion: '1.0',
+      dispatchError: (err: unknown) => {
+        standInErrors.push(err);
+      },
+    } as unknown as SurfaceModel<any>;
+    const standInCtx = new DataContext(standInSurface, '/');
+    assert.strictEqual(
+      standInCtx.resolveDynamicValue({
+        '@call': 'formatString',
+        args: {value: "${pluralize(value: 2, one: 'drop', other: 'drops')}"},
+      }),
+      'drops',
+    );
+    assert.strictEqual(standInErrors.length, 0);
+
+    // 4. Surface-less `new DataContext(new DataModel(), '/')` invoked via `basicCat.invoker(...)`.
+    const surfacelessCtx = new DataContext(new DataModel(), '/');
+    assert.strictEqual(surfacelessCtx.atLeastV10, false);
+    const surfacelessRes = basicCat.invoker(
+      'formatString',
+      {value: "Standalone: ${pluralize(value: 1, one: 'item', other: 'items')}"},
+      surfacelessCtx,
+    );
+    assert.strictEqual(getValue(surfacelessRes as any), 'Standalone: item');
+    assert.strictEqual(surfacelessCtx.atLeastV10, false);
+
+    // 5. Same-ID negotiated schema-only surface catalog + executable `basicCat.invoker(...)`
+    // (including when `ctx` was pre-scoped to `basicId` without `basicCat`).
+    const schemaOnlyBasic = Catalog.fromJson(
+      {
+        catalogId: basicId,
+        protocolVersion: '1.0',
+        components: {},
+        functions: {
+          formatString: {
+            returnType: 'string',
+            parameters: {type: 'object', properties: {value: {type: 'string'}}},
+          },
+          pluralize: {
+            returnType: 'string',
+            parameters: {
+              type: 'object',
+              properties: {
+                value: {type: 'number'},
+                one: {type: 'string'},
+                other: {type: 'string'},
+              },
+            },
+          },
+        },
+      },
+      '1.0',
+    );
+    const schemaOnlySurface = new SurfaceModel(
+      's-schema-only-invoker',
+      schemaOnlyBasic,
+      new Map([[basicId, schemaOnlyBasic]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    const schemaOnlyErrors: unknown[] = [];
+    schemaOnlySurface.onError.subscribe(e => {
+      schemaOnlyErrors.push(e);
+    });
+    const schemaOnlyCtx = new DataContext(schemaOnlySurface, '/');
+    const preScopedCtx = withActiveCallCatalogId(schemaOnlyCtx, basicId);
+    const schemaOnlyRes = basicCat.invoker(
+      'formatString',
+      {value: "Count: ${pluralize(value: 1, one: 'drop', other: 'drops')}"},
+      preScopedCtx,
+    );
+    assert.strictEqual(getValue(schemaOnlyRes as any), 'Count: drop');
+    assert.strictEqual(schemaOnlyErrors.length, 0);
+
+    // 6. Nested `DataContext` with an inner catalog scope does not leak an ancestor's standalone catalog.
+    const rpcScoped = withActiveCallCatalogId(mixedCtx, extCat.id, extCat);
+    const innerScoped = withActiveCallCatalogId(rpcScoped.nested('/items/0', 0), basicId, basicCat);
+    assert.strictEqual(
+      innerScoped.resolveDynamicValue({'@call': 'extOnly', catalogId: extCat.id, args: {}}),
+      undefined,
+    );
+    assert.strictEqual(mixedErrors.length, 1);
+    assert.strictEqual((mixedErrors[0] as {code?: string}).code, 'CATALOG_ERROR');
+  });
+
+  it('rejects __proto__ arguments in formatString template calls as own unknown arguments', () => {
+    const basicId = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
+    const basicCat = new Catalog(
+      basicId,
+      '1.0',
+      [],
+      [FormatStringImplementation, PluralizeImplementation],
+    );
+    const surfaceWithBasic = new SurfaceModel(
+      's-proto',
+      basicCat,
+      new Map([[basicId, basicCat]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    surfaceWithBasic.dataModel.set('/secret', {leaked: true});
+    const errors: Array<{code?: string; message?: string}> = [];
+    surfaceWithBasic.onError.subscribe(e => {
+      errors.push(e);
+    });
+    const protoCtx = new DataContext(surfaceWithBasic, '/');
+
+    const expr = {
+      '@call': 'formatString',
+      args: {
+        value: "Count: ${pluralize(__proto__: /secret, value: 2, one: 'drop', other: 'drops')}",
+      },
+    };
+    assert.strictEqual(protoCtx.resolveDynamicValue(expr), 'Count: ');
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
+    assert.match(errors[0].message ?? '', /Unknown argument '__proto__'/);
+    assert.strictEqual(({} as Record<string, unknown>)['leaked'], undefined);
   });
 });

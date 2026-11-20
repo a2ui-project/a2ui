@@ -194,7 +194,7 @@ def test_analyze_child_ref_schema_pydantic_model():
 def test_build_component_ref_map_and_catalog_integration():
     cat = Catalog(
         catalog_id="https://a2ui.org/custom-test-cat",
-        protocol_version="v1.0",
+        protocol_version="1.0",
         components=[
             ComponentApi(
                 name="SplitView",
@@ -394,7 +394,7 @@ def test_json_catalog_from_specification_v10():
     cat = Catalog.from_json(
         raw_catalog,
         catalog_id="https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-        protocol_version="v1.0",
+        protocol_version="1.0",
     )
     ref_map = cat.component_ref_map
 
@@ -422,7 +422,7 @@ def test_json_catalog_from_specification_v09():
     spec_path = os.path.abspath(
         os.path.join(
             os.path.dirname(__file__),
-            "../../../specification/v0_9/catalogs/basic/catalog.json",
+            "../../../catalogs/basic/v0_9/catalog.json",
         )
     )
     assert os.path.exists(spec_path), f"Specification catalog not found at {spec_path}"
@@ -457,7 +457,7 @@ def test_json_catalog_from_specification_v091():
     spec_path = os.path.abspath(
         os.path.join(
             os.path.dirname(__file__),
-            "../../../specification/v0_9_1/catalogs/basic/catalog.json",
+            "../../../catalogs/basic/v0_9_1/catalog.json",
         )
     )
     assert os.path.exists(spec_path), f"Specification catalog not found at {spec_path}"
@@ -502,7 +502,7 @@ def test_custom_catalog_pydantic_models():
 
     cat = Catalog(
         catalog_id="https://a2ui.org/custom-pydantic-cat",
-        protocol_version="v1.0",
+        protocol_version="1.0",
         components=[
             ModelComponentApi(Accordion, name="Accordion"),
             ModelComponentApi(HeroBanner, name="HeroBanner"),
@@ -523,7 +523,7 @@ def test_custom_catalog_pydantic_models():
 def test_custom_catalog_json_schemas():
     custom_json = {
         "catalogId": "https://a2ui.org/custom-json-cat",
-        "protocolVersion": "v1.0",
+        "protocolVersion": "1.0",
         "components": {
             "DashboardLayout": {
                 "type": "object",
@@ -558,7 +558,7 @@ def test_custom_catalog_json_schemas():
     cat = Catalog.from_json(
         custom_json,
         catalog_id="https://a2ui.org/custom-json-cat",
-        protocol_version="v1.0",
+        protocol_version="1.0",
     )
     ref_map = cat.component_ref_map
 

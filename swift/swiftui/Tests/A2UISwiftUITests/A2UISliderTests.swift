@@ -44,4 +44,51 @@ struct A2UISliderTests {
       #expect(A2UISlider(node: node).stepValue == nil)
     }
   }
+
+  @Test func formattedValueTextShowsWholeAndFractionalValues() {
+    #expect(A2UISlider(node: sliderNode(value: 42)).formattedValueText == "42")
+    #expect(A2UISlider(node: sliderNode(value: -7)).formattedValueText == "-7")
+    #expect(A2UISlider(node: sliderNode(value: 2.5)).formattedValueText == "2.5")
+  }
+
+  @Test func formattedValueTextDoesNotTrapOutsideIntRange() {
+    let cases: [(Double, String)] = [
+      (1e19, "1e+19"),
+      (-1e19, "-1e+19"),
+      (1e300, "1e+300"),
+      (9_223_372_036_854_775_808, "9.223372036854776e+18"),
+      (Double(Int.min), "-9223372036854775808"),
+      (Double(Int.min).nextDown, "-9.223372036854778e+18"),
+      (-0.0, "0"),
+      (.infinity, "inf"),
+      (-.infinity, "-inf"),
+      (.nan, "nan"),
+    ]
+    for (value, expected) in cases {
+      #expect(A2UISlider(node: sliderNode(value: value)).formattedValueText == expected)
+    }
+  }
+
+  @Test func bodyRendersValueOutsideIntRange() {
+    _ = A2UISlider(node: sliderNode(value: 1e19)).body
+    _ = A2UISlider(node: sliderNode(value: 1e19, steps: 10)).body
+    _ = A2UISlider(node: sliderNode(value: 1e19, label: nil)).body
+  }
+
+  private func sliderNode(
+    value: Double,
+    label: String? = "Volume",
+    steps: Int? = nil
+  ) -> Node {
+    var properties: [String: any Resolved] = [
+      "value": DataBinding<Double>(identity: .path("/value"), value: value, set: { _ in })
+    ]
+    if let label {
+      properties["label"] = label
+    }
+    if let steps {
+      properties["steps"] = steps
+    }
+    return Node(id: "slider", type: "Slider", properties: properties)
+  }
 }

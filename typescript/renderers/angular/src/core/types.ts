@@ -16,7 +16,7 @@
 
 import {Signal} from '@angular/core';
 import {z} from 'zod';
-import {ComponentApi, DataBindingSchema, FunctionCallSchema} from '@a2ui/web_core/v0_9';
+import {ComponentApi} from '@a2ui/web_core';
 import {Child} from './component-binder.service';
 
 /** Data structure that represents a template used to render a collection of children. */
@@ -63,8 +63,16 @@ export interface BoundProperty<T = unknown> {
   readonly onUpdate: (newValue: T) => void;
 }
 
-type DataBindingType = z.infer<typeof DataBindingSchema>;
-type FunctionCallType = z.infer<typeof FunctionCallSchema>;
+// `@a2ui/web_core` (the version-agnostic barrel) does not yet export `DataBindingSchema`,
+// `FunctionCallSchema`, or its internal `DynamicTypes` union from `generic-binder.ts`: v0.9
+// schemas only match `{path}` / `{call}` while v1.0 schemas match `{'@path'}` / `{'@call'}`
+// (and `v1_0.FunctionCallSchema` infers as `any`, which would collapse `Exclude<Input, ...>`
+// to `never`). Matching both protocol forms explicitly strips dynamic AST branches across v0.9
+// and v1.0 component schemas without importing versioned Zod schemas.
+// TODO: Export unversioned `DataBindingType` / `FunctionCallType` (or `DynamicTypes`) from
+// `@a2ui/web_core` and reuse them here and in other adapters.
+type DataBindingType = {path: string} | {'@path': string};
+type FunctionCallType = {call: string} | {'@call': string};
 type DynamicSchemaValueToRaw<Input> = Exclude<Input, DataBindingType | FunctionCallType>;
 
 type InferredInterfaceToProps<InferredSchema> = {
@@ -75,14 +83,32 @@ type InferredInterfaceToProps<InferredSchema> = {
       : BoundProperty<DynamicSchemaValueToRaw<InferredSchema[K]>>;
 };
 
+/** Structured validation result emitted by check rules. */
+export interface CheckValidationResult {
+  valid: boolean;
+  message: string;
+  code?: string;
+  severity: 'error' | 'warning' | 'info';
+}
+
 interface CheckProps {
   isValid: boolean;
   validationErrors: string[];
+  validationResults?: CheckValidationResult[];
 }
 
-/** The binder can add some properties to the Props object. This util adds them to the type. */
+/**
+ * The binder can add some properties to the Props object. This util adds them to the type.
+ *
+ * A component with check rules, `checks` below v1.0 or `@checks` from v1.0, gets the
+ * validation props.
+ */
 export type ExtendedProps<ComponentProps extends {[key: string]: unknown}> =
-  'checks' extends keyof ComponentProps ? ComponentProps & CheckProps : ComponentProps;
+  'checks' extends keyof ComponentProps
+    ? ComponentProps & CheckProps
+    : '@checks' extends keyof ComponentProps
+      ? ComponentProps & CheckProps
+      : ComponentProps;
 
 /**
  * Utility to convert a component Api Type to the props Type, where the

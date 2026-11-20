@@ -48,6 +48,109 @@ Options:
   -h, --help             Show this help message
 `;
 
+const EXAMPLE_ORDER = [
+  'scaffold-simple-text.json',
+  'scaffold-row-layout.json',
+  'scaffold-interactive-button.json',
+  'scaffold-simple-login-form.json',
+  'scaffold-complex-layout.json',
+  'scaffold-formatted-text.json',
+  'scaffold-incremental.json',
+  'flight-status.json',
+  'email-compose.json',
+  'calendar-day.json',
+  'weather-current.json',
+  'product-card.json',
+  'music-player.json',
+  'task-card.json',
+  'user-profile.json',
+  'login-form.json',
+  'notification-permission.json',
+  'purchase-complete.json',
+  'chat-message.json',
+  'coffee-order.json',
+  'sports-player.json',
+  'account-balance.json',
+  'workout-summary.json',
+  'event-detail.json',
+  'track-list.json',
+  'software-purchase.json',
+  'restaurant-card.json',
+  'shipping-status.json',
+  'credit-card.json',
+  'step-counter.json',
+  'recipe-card.json',
+  'contact-card.json',
+  'podcast-episode.json',
+  'stats-card.json',
+  'countdown-timer.json',
+  'movie-card.json',
+  'modal-sample.json',
+  'live-invitation-builder.json',
+  'incremental-dashboard.json',
+  'advanced-form-validator.json',
+  'financial-data-grid.json',
+  'child-list-template.json',
+  'markdown-text.json',
+  'modal.json',
+  'native-grid.json',
+  'mcp-app-3d-geometry.json',
+];
+
+const EXAMPLE_ORDER_INDEX = new Map(EXAMPLE_ORDER.map((name, index) => [name, index]));
+
+function compareExampleFilenames(a, b) {
+  const indexA = EXAMPLE_ORDER_INDEX.get(a);
+  const indexB = EXAMPLE_ORDER_INDEX.get(b);
+  if (indexA !== undefined && indexB !== undefined) {
+    return indexA - indexB;
+  }
+  if (indexA !== undefined) return -1;
+  if (indexB !== undefined) return 1;
+  return a.localeCompare(b);
+}
+
+const MCP_EXAMPLES = [
+  {
+    filePath: '../../../../catalogs/mcp/v1/examples/mcp-app-3d-geometry.json',
+    catalog: 'mcp',
+  },
+];
+
+function readExampleFile(filePath, catalog, version) {
+  const file = path.basename(filePath);
+  const content = fs.readFileSync(filePath, 'utf-8');
+  try {
+    const data = JSON.parse(content);
+    const nameFromFile = file
+      .replace('.json', '')
+      .replace(/^(?:scaffold-|[0-9]+_)/, '')
+      .replace(/[-_]/g, ' ')
+      .replace(/\b\w/g, l => l.toUpperCase());
+
+    if (Array.isArray(data)) {
+      return {
+        filename: file,
+        version: version,
+        name: version === '0.8' ? `${nameFromFile} (${catalog})` : nameFromFile,
+        description: `Example from ${catalog} catalog`,
+        messages: data,
+      };
+    }
+    return {
+      ...data,
+      filename: file,
+      version: version,
+      name:
+        version === '0.8' ? `${data.name || nameFromFile} (${catalog})` : data.name || nameFromFile,
+      description: data.description || `Example from ${catalog} catalog`,
+      messages: data.messages || [],
+    };
+  } catch (e) {
+    throw new Error(`Error parsing ${filePath}`, {cause: e});
+  }
+}
+
 /**
  * Reads examples for a given version and catalogs.
  */
@@ -55,11 +158,12 @@ function readExamples(specPath, catalogs, version) {
   const examples = [];
 
   for (const catalog of catalogs) {
+    const versionSubdir = version === '0.9' ? 'v0_9' : 'v1';
     const candidateDirs = [
       path.resolve(import.meta.dirname, specPath, catalog, 'examples'),
-      path.resolve(import.meta.dirname, specPath, catalog, 'v1', 'examples'),
+      path.resolve(import.meta.dirname, specPath, catalog, versionSubdir, 'examples'),
       path.join(specPath, catalog, 'examples'),
-      path.join(specPath, catalog, 'v1', 'examples'),
+      path.join(specPath, catalog, versionSubdir, 'examples'),
       path.resolve(import.meta.dirname, specPath),
       specPath,
     ];
@@ -71,43 +175,7 @@ function readExamples(specPath, catalogs, version) {
         .sort();
       for (const file of files) {
         const filePath = path.join(examplesDir, file);
-        const content = fs.readFileSync(filePath, 'utf-8');
-        try {
-          const data = JSON.parse(content);
-          let example;
-
-          const nameFromFile = file
-            .replace('.json', '')
-            .replace(/^[0-9]+_/, '')
-            .replace(/[-_]/g, ' ')
-            .replace(/\b\w/g, l => l.toUpperCase());
-
-          if (Array.isArray(data)) {
-            example = {
-              filename: file,
-              version: version,
-              name: version === '0.8' ? `${nameFromFile} (${catalog})` : nameFromFile,
-              description: `Example from ${catalog} catalog`,
-              messages: data,
-            };
-          } else {
-            example = {
-              ...data,
-              filename: file,
-              version: version,
-              name:
-                version === '0.8'
-                  ? `${data.name || nameFromFile} (${catalog})`
-                  : data.name || nameFromFile,
-              description: data.description || `Example from ${catalog} catalog`,
-              messages: data.messages || [],
-            };
-          }
-
-          examples.push(example);
-        } catch (e) {
-          throw new Error(`Error parsing ${filePath}`, {cause: e});
-        }
+        examples.push(readExampleFile(filePath, catalog, version));
       }
     }
   }
@@ -135,9 +203,19 @@ async function main() {
 
   const catalogs = values.catalog;
 
-  const examplesV08 = readExamples('../../../../specification/v0_8/json/catalogs', catalogs, '0.8');
-  const examplesV09 = readExamples('../../../../specification/v0_9/catalogs', catalogs, '0.9');
-  const examplesV10 = readExamples('../../../../../catalogs/basic/v1/examples', catalogs, '1.0');
+  const examplesV08 = readExamples(
+    '../../../../specification/v0_8/json/catalogs',
+    catalogs,
+    '0.8',
+  ).sort((a, b) => compareExampleFilenames(a.filename, b.filename));
+  const examplesV09 = [
+    ...readExamples('../../../../../catalogs', catalogs, '0.9'),
+    ...MCP_EXAMPLES.map(({filePath, catalog}) => readExampleFile(filePath, catalog, '0.9')),
+  ].sort((a, b) => compareExampleFilenames(a.filename, b.filename));
+  const examplesV10 = [
+    ...readExamples('../../../../../catalogs/basic/v1/examples', catalogs, '1.0'),
+    ...MCP_EXAMPLES.map(({filePath, catalog}) => readExampleFile(filePath, catalog, '1.0')),
+  ].sort((a, b) => compareExampleFilenames(a.filename, b.filename));
 
   // Generate the file now!
   const tsContent = `/**

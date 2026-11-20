@@ -130,7 +130,8 @@ def coalesce_surface_messages(
 
     for msg in to_message_dicts(messages):
         op = next(
-            (k for k in _SURFACE_OPERATIONS if isinstance(msg.get(k), Mapping)), None
+            (k for k in _SURFACE_OPERATIONS if isinstance(msg.get(k), Mapping)),
+            None,
         )
         if op is None:
             # A message that is not a surface operation keeps its place

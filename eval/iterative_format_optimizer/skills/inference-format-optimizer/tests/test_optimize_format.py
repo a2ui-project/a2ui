@@ -432,9 +432,10 @@ def test_main_cli_parse_flag() -> None:
 
 
 def test_main_cli_decompile_flag() -> None:
-    payload = json.dumps(
-        {"version": "v1.0", "createSurface": {"surfaceId": "main", "components": []}}
-    )
+    payload = json.dumps({
+        "version": "1.0",
+        "createSurface": {"surfaceId": "main", "components": []},
+    })
     with pytest.raises(SystemExit) as e:
         main(["--format", "atom", "--decompile", payload])
     assert e.value.code == 0
@@ -557,7 +558,10 @@ def test_regenerate_master_index_results_json_fallback(tmp_path: Any) -> None:
             "results": {"scores": []},
             "samples": [{
                 "id": "s1",
-                "metadata": {"name": "sample_1", "inference_duration_seconds": 1.5},
+                "metadata": {
+                    "name": "sample_1",
+                    "inference_duration_seconds": 1.5,
+                },
             }],
         }),
         encoding="utf-8",
@@ -606,7 +610,10 @@ def test_main_cli_archive(mock_archive: MagicMock) -> None:
 @patch("optimize_format.load_log_data")
 @patch("glob.glob")
 def test_main_cli_save_baseline(
-    mock_glob: MagicMock, mock_load: MagicMock, mock_run_eval: MagicMock, tmp_path: Any
+    mock_glob: MagicMock,
+    mock_load: MagicMock,
+    mock_run_eval: MagicMock,
+    tmp_path: Any,
 ) -> None:
     mock_glob.return_value = [str(tmp_path / "test.eval")]
     mock_load.return_value = {

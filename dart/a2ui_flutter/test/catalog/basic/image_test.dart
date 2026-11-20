@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:a2ui_flutter/basic_catalog.dart';
+import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -137,6 +137,36 @@ void main() {
       expect(_imageWidget(tester).semanticLabel, 'A wide test image');
       expect(_imageWidget(tester).excludeFromSemantics, isFalse);
       expect(find.bySemanticsLabel('A wide test image'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    _testImages('keeps the description when the load fails', (tester, _) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      await _pumpImages(tester, [
+        _image({'url': _missing, 'description': 'A missing test image'}),
+      ]);
+
+      expect(find.byIcon(Icons.broken_image), findsOneWidget);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('A missing test image')),
+        matchesSemantics(label: 'A missing test image', isImage: true),
+      );
+      semantics.dispose();
+    });
+
+    _testImages('keeps the description for a URL it does not load', (
+      tester,
+      _,
+    ) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      await _pumpImages(tester, [
+        _image({'url': 'assets/photo.png', 'description': 'A local photo'}),
+      ]);
+
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('A local photo')),
+        matchesSemantics(label: 'A local photo', isImage: true),
+      );
       semantics.dispose();
     });
 

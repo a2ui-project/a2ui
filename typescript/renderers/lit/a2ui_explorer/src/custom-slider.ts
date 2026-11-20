@@ -17,9 +17,10 @@
 import {html, css, nothing} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {z} from 'zod';
-import {A2uiLitElement} from '@a2ui/lit/v0_9';
-import {ComponentApi, DynamicStringSchema, DynamicNumberSchema} from '@a2ui/web_core/v0_9';
-import {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
+import {A2uiLitElement} from '@a2ui/lit';
+import {ComponentApi} from '@a2ui/web_core';
+import {WebComponentImplementation} from '@a2ui/web_core/universal';
+import {DynamicStringSchema, DynamicNumberSchema} from '@a2ui/web_core/v0_9';
 
 export const customSliderApi = {
   name: 'CustomSlider',
@@ -56,10 +57,6 @@ export class CustomSliderComponent extends A2uiLitElement<typeof customSliderApi
       cursor: pointer;
     }
   `;
-
-  override createRenderRoot() {
-    return this;
-  }
 
   protected override readonly api = customSliderApi;
 

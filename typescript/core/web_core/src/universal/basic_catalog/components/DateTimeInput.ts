@@ -15,6 +15,13 @@
  */
 
 import {html, nothing, css} from 'lit';
+import {
+  getAccessibilityDescription,
+  getAccessibilityLabel,
+  getValidationErrorId,
+  hasAttributeValue,
+  renderValidationErrors,
+} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {DateTimeInputSupportedApis} from './supported_apis.js';
 
@@ -71,13 +78,27 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
    * CSS variables:
    *
    * - `--a2ui-datetimeinput-width`: Width of the component. Defaults to `100%`.
-   * - `--a2ui-datetimeinput-background`: Controls the background of inputs.
-   * - `--a2ui-datetimeinput-color`: Controls the text color of inputs.
-   * - `--a2ui-datetimeinput-border`: Controls the border of inputs.
-   * - `--a2ui-datetimeinput-border-radius`: Controls the border radius of inputs.
-   * - `--a2ui-datetimeinput-padding`: Controls the padding of inputs.
-   * - `--a2ui-datetimeinput-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
-   * - `--a2ui-datetimeinput-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
+   * - `--a2ui-datetimeinput-background`: Background color of the input elements. Defaults to `--a2ui-color-input`.
+   * - `--a2ui-datetimeinput-color`: Text color of the input elements. Defaults to `--a2ui-color-on-input`.
+   * - `--a2ui-datetimeinput-border`: Border of the input elements. Defaults to `1px solid var(--a2ui-color-border)`.
+   * - `--a2ui-datetimeinput-border-radius`: Border radius of the input elements. Defaults to `4px`.
+   * - `--a2ui-datetimeinput-padding`: Padding of the input elements. Defaults to `8px`.
+   * - `--a2ui-datetimeinput-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size`, then `--a2ui-font-size-s`.
+   * - `--a2ui-datetimeinput-label-font-weight`: Font weight of the label. Defaults to `bold`.
+   * - `--a2ui-datetimeinput-color-error`: Text color of validation error messages. Defaults to `red`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-spacing-xs`: Gap between the label, input row, and validation errors.
+   * - `--a2ui-spacing-s`: Gap between combined date and time inputs.
+   * - `--a2ui-label-font-size`: Fallback font size of the label. Defaults to `--a2ui-font-size-s`.
+   * - `--a2ui-font-size-s`: Fallback label font size when `--a2ui-label-font-size` is unset.
+   * - `--a2ui-font-size-xs`: Font size of validation error messages.
+   * - `--a2ui-text-color-text`: Text color of the label. Defaults to `--a2ui-color-on-background`.
+   * - `--a2ui-color-on-background`: Fallback text color of the label.
+   * - `--a2ui-color-border`: Fallback border color of the input elements.
+   * - `--a2ui-color-input`: Fallback background color of the input elements.
+   * - `--a2ui-color-on-input`: Fallback text color of the input elements.
    *
    * @nocollapse
    */
@@ -170,16 +191,44 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
       }
     };
 
+    const isInvalid = props.isValid === false;
+    const isCombined = enableDate && enableTime;
+    const labelId = `${this.domId}-label`;
+    const dateInputId = `${this.domId}-date`;
+    const timeInputId = `${this.domId}-time`;
+    const primaryInputId = enableDate ? dateInputId : timeInputId;
+    const hasVisibleLabel = hasAttributeValue(props.label);
+    const a11yLabel = getAccessibilityLabel(props.accessibility);
+    const a11yDescription = getAccessibilityDescription(props.accessibility);
+    const errorId = getValidationErrorId(this.domId, props);
+
     return html`
       <div class="a2ui-date-time-container">
-        ${props.label ? html`<label class="a2ui-date-time-label">${props.label}</label>` : nothing}
-        <div class="a2ui-date-time-inputs">
+        ${hasVisibleLabel
+          ? html`<label id=${labelId} class="a2ui-date-time-label" for=${primaryInputId}
+              >${props.label}</label
+            >`
+          : nothing}
+        <div
+          class="a2ui-date-time-inputs"
+          role=${isCombined ? 'group' : nothing}
+          aria-label=${isCombined ? a11yLabel : nothing}
+          aria-labelledby=${isCombined && a11yLabel === nothing && hasVisibleLabel
+            ? labelId
+            : nothing}
+          aria-description=${isCombined ? a11yDescription : nothing}
+        >
           ${enableDate
             ? html`
                 <input
+                  id=${dateInputId}
                   type="date"
                   min=${minDate || nothing}
                   max=${maxDate || nothing}
+                  aria-label=${a11yLabel}
+                  aria-description=${!isCombined ? a11yDescription : nothing}
+                  aria-invalid=${isInvalid ? 'true' : nothing}
+                  aria-describedby=${errorId}
                   .value=${dateValue}
                   @change=${handleDateChange}
                   class="a2ui-date-time-input"
@@ -189,9 +238,17 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
           ${enableTime
             ? html`
                 <input
+                  id=${timeInputId}
                   type="time"
                   min=${minTime || nothing}
                   max=${maxTime || nothing}
+                  aria-label=${a11yLabel}
+                  aria-labelledby=${isCombined && a11yLabel === nothing && hasVisibleLabel
+                    ? labelId
+                    : nothing}
+                  aria-description=${!isCombined ? a11yDescription : nothing}
+                  aria-invalid=${isInvalid ? 'true' : nothing}
+                  aria-describedby=${errorId}
                   .value=${timeValue}
                   @change=${handleTimeChange}
                   class="a2ui-date-time-input"
@@ -199,7 +256,7 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
               `
             : nothing}
         </div>
-        ${this.renderValidationErrors(props)}
+        ${renderValidationErrors(this.domId, props)}
       </div>
     `;
   }

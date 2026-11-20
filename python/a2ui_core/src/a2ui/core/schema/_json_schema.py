@@ -25,15 +25,19 @@ This module is internal to a2ui-core and is not re-exported by any facade.
 
 from __future__ import annotations
 
-import copy
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+import copy
+import re
+import sys
 from typing import Annotated, Any, Final
 
 from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler, TypeAdapter
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import core_schema
+
+_URI_RE: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:\S*\Z")
 
 # Pydantic rejects `$ref`s it has not registered while it generates a schema,
 # so declared keywords reference other defs through these markers, which
@@ -55,8 +59,18 @@ SPEC_TITLE_KEY: Final[str] = "x-a2ui-title"
 # model as a `$defs` entry; `inline_marked_defs` puts the object back inline.
 INLINE_DEF_MARKER: Final[str] = "x-a2ui-inline"
 
+# Marks an inlined property schema that corresponds to a catalog-local `$defs`
+# entry (e.g. `#/$defs/Weight`). The property schema stays freestanding in
+# `model_json_schema()`, while `SpecShaper` hoists the marked definition into
+# the catalog's `$defs` and replaces the node with `{"$ref": "#/$defs/<name>"}`.
+CATALOG_DEF_MARKER: Final[str] = "x-a2ui-catalog-def"
+
 # Leading keyword order of an inlined def, as the specification writes them.
-_INLINED_KEYWORD_ORDER: Final[tuple[str, ...]] = ("type", "description", "properties")
+_INLINED_KEYWORD_ORDER: Final[tuple[str, ...]] = (
+    "type",
+    "description",
+    "properties",
+)
 
 # Whether JSON schemas are generated in the specification's shape.
 _SPEC_SCHEMA: ContextVar[bool] = ContextVar("_SPEC_SCHEMA", default=False)
@@ -241,6 +255,54 @@ class KeepAnyOf:
         return json_schema
 
 
+class CatalogDef:
+    """Annotation marking a type alias that corresponds to a catalog-local `$defs` entry."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self._canonical: dict[str, Any] | None = None
+        frame = sys._getframe(1)
+        self._locals: dict[str, Any] = frame.f_locals
+        self._globals: dict[str, Any] = frame.f_globals
+
+    def canonical_schema(
+        self, ref_template: str = "#/$defs/{model}"
+    ) -> dict[str, Any] | None:
+        if self._canonical is not None:
+            return copy.deepcopy(self._canonical)
+        pascal_name = "".join(
+            part[:1].upper() + part[1:]
+            for part in self.name.replace("-", "_").split("_")
+            if part
+        )
+        candidates = (
+            (self.name, pascal_name)
+            if pascal_name and pascal_name != self.name
+            else (self.name,)
+        )
+        alias_tp = None
+        for cand in candidates:
+            alias_tp = self._locals.get(cand)
+            if alias_tp is None:
+                alias_tp = self._globals.get(cand)
+            if alias_tp is not None:
+                break
+        if alias_tp is None:
+            return None
+        raw = TypeAdapter(alias_tp).json_schema(ref_template=ref_template)
+        self._canonical = {
+            k: v for k, v in raw.items() if k not in (CATALOG_DEF_MARKER, "$defs")
+        }
+        return copy.deepcopy(self._canonical)
+
+    def __get_pydantic_json_schema__(
+        self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(schema)
+        json_schema[CATALOG_DEF_MARKER] = self.name
+        return json_schema
+
+
 class _OmitAdditionalProperties:
     """Annotation that drops the implied `additionalProperties: true`."""
 
@@ -314,6 +376,21 @@ class SchemaKeywords:
             return None
         return [list(branch["required"]) for branch in branches]
 
+    def required_any_of(self) -> list[list[str]] | None:
+        """Returns the property groups of an `anyOf` of required properties.
+
+        For example `LengthArgs` and `NumericArgs` require at least one of
+        `min` and `max`. Returns None if the keywords have no such `anyOf`.
+        """
+        branches = self.keywords.get("anyOf")
+        if not (
+            isinstance(branches, list)
+            and branches
+            and all(isinstance(b, dict) and set(b) == {"required"} for b in branches)
+        ):
+            return None
+        return [list(branch["required"]) for branch in branches]
+
     def apply(self, schema: dict[str, Any]) -> None:
         """Applies the keywords to `schema` in place."""
         if self.spec_only and not is_spec_schema():
@@ -332,6 +409,20 @@ class SchemaKeywords:
     def __call__(self, schema: dict[str, Any], cls: type[Any]) -> None:
         if self.declared_by(cls):
             self.apply(schema)
+
+    def __get_pydantic_core_schema__(
+        self, source: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        inner = handler(source)
+        if self.keywords.get("format") != "uri":
+            return inner
+        return core_schema.no_info_after_validator_function(self._validate_uri, inner)
+
+    @staticmethod
+    def _validate_uri(value: Any) -> Any:
+        if isinstance(value, str) and _URI_RE.match(value) is None:
+            raise ValueError(f"Invalid URI '{value}'")
+        return value
 
     def __get_pydantic_json_schema__(
         self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler

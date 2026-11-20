@@ -1,0 +1,299 @@
+---
+title: 'Inference Formats'
+description: 'How A2UI decouples the wire protocol from model generation with Express, Direct JSON, and custom inference formats.'
+---
+
+import {Tabs, TabItem} from '@astrojs/starlight/components';
+import InferencePipeline from '@components/docs/InferencePipeline.astro';
+
+An inference format defines the structured notation that a language model reads in its system prompt and writes in its response before the server compiles that output into standard A2UI [wire messages](../messages/). Because compilation happens on the server, every client [renderer](../sdks/#renderer-sdk) receives the same A2UI JSON over the wire regardless of how the model produced it.
+
+In the diagram below, `A2uiRequestProcessor` coordinates three server-side stages. First, `PromptGenerator` turns the negotiated [catalog](../catalogs/) schemas, `instructions`, and few-shot `examples` into a format-specific prompt snippet. Next, the model writes UI blocks inside sentinel tags (`<a2ui>...</a2ui>` for Express or `<a2ui-json>...</a2ui-json>` for Direct JSON) alongside conversational prose. Finally, `Parser` or `ResponseStream` heals streaming chunks, compiles each block into wire JSON, and validates every message against `RendererState`.
+
+<InferencePipeline />
+
+## Wire protocol vs. generation formats
+
+Standard JSON is well suited as a wire protocol between an agent server and a client renderer: it is self-describing, language-independent, and validated directly by JSON Schema. Asking a language model to emit raw wire JSON token by token, however, carries avoidable costs:
+
+1. Repeated keys (`"id"`, `"component"`, `"@path"`) and hand-written component identifiers make raw wire JSON roughly three times longer than positional constructor calls.
+2. Embedding full JSON Schemas in the system prompt consumes roughly twice as many input tokens as compact component signatures.
+3. Deeply nested braces, quotes, and manual component IDs increase syntax and reference errors, especially on smaller, faster models.
+
+Inference formats separate what is best for the model to generate from what is best for the renderer to consume. The [Agent SDKs](../sdks/#agent-sdk) include two built-in formats and allow custom implementations:
+
+| Format      | Sentinel tags                | SDK support                        | How it represents UI                                                                                                    |
+| :---------- | :--------------------------- | :--------------------------------- | :---------------------------------------------------------------------------------------------------------------------- |
+| Express     | `<a2ui>...</a2ui>`           | TypeScript, Python, Dart (default) | Compact positional DSL with nested component calls and `$/path` data assignments, compiled to flat wire JSON.           |
+| Direct JSON | `<a2ui-json>...</a2ui-json>` | TypeScript, Python, Dart           | Standard A2UI wire JSON emitted directly by the model, with Markdown fence stripping and incremental string healing.    |
+| Custom      | Format-defined               | TypeScript, Python, Dart           | Any domain-specific grammar or model-tailored notation implemented against the SDK's `InferenceFormatFactory` contract. |
+
+Not every A2UI agent uses free-form model generation. Regulated or deterministic workflows can also construct wire messages directly in server code (driven by a classifier, state machine, or [macro](../../guides/macros/)) and send the resulting JSON to the renderer without an LLM compilation step.
+
+## Express vs. wire JSON
+
+In Express, the model calls component constructors with positional or keyword arguments, writes [data model](../data-binding/) values with `$/path = value`, and nests child components inline instead of inventing string IDs by hand.
+
+The example below uses `Card`, `Column`, `Text`, and `Button` from the Basic Catalog; Express derives signatures dynamically for any custom `catalog.json` you register (whitespace and indentation are optional):
+
+```text title="Express block (indented for readability)"
+<a2ui>
+$/flight/number = "NH 105"
+$/flight/gate = "B12"
+root = Card(
+  Column([
+    Text($/flight/number),
+    Text($/flight/gate, "caption"),
+    Button(Text("Board now"), action=Event("check_in", {flight: $/flight/number}))
+  ])
+)
+</a2ui>
+```
+
+When the compiler reads that `<a2ui>` block, it flattens the nested tree and assigns deterministic IDs (`root`, `root_child`, `root_child_children_0`, and so on). In v1.0, initial data assignments fold into `createSurface.dataModel`; in v0.9.1, the compiler emits `createSurface`, `updateComponents`, and `updateDataModel`:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0">
+
+```json
+[
+  {
+    "version": "1.0",
+    "createSurface": {
+      "surfaceId": "main",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "root_child"
+        },
+        {
+          "id": "root_child",
+          "component": "Column",
+          "children": ["root_child_children_0", "root_child_children_1", "root_child_children_2"]
+        },
+        {
+          "id": "root_child_children_0",
+          "component": "Text",
+          "text": {"@path": "/flight/number"}
+        },
+        {
+          "id": "root_child_children_1",
+          "component": "Text",
+          "text": {"@path": "/flight/gate"},
+          "variant": "caption"
+        },
+        {
+          "id": "root_child_children_2",
+          "component": "Button",
+          "child": "root_child_children_2_child",
+          "action": {
+            "event": {
+              "name": "check_in",
+              "context": {
+                "flight": {"@path": "/flight/number"}
+              }
+            }
+          }
+        },
+        {
+          "id": "root_child_children_2_child",
+          "component": "Text",
+          "text": "Board now"
+        }
+      ],
+      "dataModel": {
+        "flight": {
+          "number": "NH 105",
+          "gate": "B12"
+        }
+      }
+    }
+  }
+]
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1">
+
+```json
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "main",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "main",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "root_child"
+        },
+        {
+          "id": "root_child",
+          "component": "Column",
+          "children": ["root_child_children_0", "root_child_children_1", "root_child_children_2"]
+        },
+        {
+          "id": "root_child_children_0",
+          "component": "Text",
+          "text": {"path": "/flight/number"}
+        },
+        {
+          "id": "root_child_children_1",
+          "component": "Text",
+          "text": {"path": "/flight/gate"},
+          "variant": "caption"
+        },
+        {
+          "id": "root_child_children_2",
+          "component": "Button",
+          "child": "root_child_children_2_child",
+          "action": {
+            "event": {
+              "name": "check_in",
+              "context": {
+                "flight": {"path": "/flight/number"}
+              }
+            }
+          }
+        },
+        {
+          "id": "root_child_children_2_child",
+          "component": "Text",
+          "text": "Board now"
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "main",
+      "path": "/",
+      "value": {
+        "flight": {
+          "number": "NH 105",
+          "gate": "B12"
+        }
+      }
+    }
+  }
+]
+```
+
+  </TabItem>
+</Tabs>
+
+For the full grammar of Express, see the [A2UI Express specification proposal](https://github.com/a2ui-project/a2ui/blob/main/specification/proposals/express/a2ui_express.md). For the wire message schemas that all formats target, see [`createSurface`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage), [`updateComponents`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateComponentsMessage), and [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) in the Schema Explorer.
+
+## How inference formats stay swappable
+
+<span id="configuring-inference-formats-across-sdks"></span>
+
+Swapping an inference format requires no changes to catalogs, few-shot examples, or client renderers because every format in the [Agent SDK](../sdks/#agent-sdk) shares three design properties:
+
+1. Catalog-agnostic prompt synthesis: Rather than hardcoding component names, a format's `PromptGenerator` inspects the negotiated `Catalog` schemas at runtime to derive component signatures, function signatures, and dynamic binding rules.
+2. Bidirectional translation (`compile` and `decompile`): Alongside compiling model output into wire messages, each format's `Parser` can decompile wire messages back into the format's text notation. Structured few-shot `examples`, fenced `json` message blocks inside a catalog's `instructions`, and prior conversation turns can therefore be authored once as wire messages and rendered automatically in whichever format is active.
+3. Incremental stream compilation and validation: Both one-shot parsing (`parseResponse` / `parse_response`) and chunked streaming (`openStream` / `open_stream`) separate conversational text from UI sentinel blocks, heal in-progress string literals on configured `progressiveKeys` (such as `"text"`), emit incremental wire deltas as statements arrive, and validate every message against `RendererState` so malformed output can be returned to the model for self-correction.
+
+In the Agent SDKs (available for TypeScript, Python, and Dart; the Swift and Kotlin packages focus on client-side rendering), `A2uiGenerator` defaults to `ExpressFormatFactory` and accepts any `InferenceFormatFactory` globally or per request while keeping prompt generation and response parsing identical:
+
+<Tabs syncKey="sdk-lang">
+  <TabItem label="TypeScript">
+
+```typescript
+import {
+  A2uiGenerator,
+  CatalogConfig,
+  DirectJsonFormatFactory,
+  ExpressFormatFactory,
+} from '@a2ui/agent';
+
+// Uses ExpressFormatFactory by default; pass any InferenceFormatFactory to change it.
+const generator = new A2uiGenerator(
+  [new CatalogConfig(catalog)],
+  undefined,
+  new ExpressFormatFactory(),
+);
+
+// Prompt synthesis and parsing stay the same regardless of format,
+// and an individual request can override the format factory if needed.
+const processor = generator.createProcessor(rendererCapabilities, new DirectJsonFormatFactory());
+const systemPrompt = processor.promptSnippet;
+const parts = processor.parseResponse(llmOutput);
+```
+
+  </TabItem>
+  <TabItem label="Python">
+
+```python
+from a2ui.inference_formats import DirectJsonFormatFactory, ExpressFormatFactory
+from a2ui.processor import A2uiGenerator, CatalogConfig
+
+# Uses ExpressFormatFactory by default; pass any InferenceFormatFactory to change it.
+generator = A2uiGenerator(
+    catalogs=[CatalogConfig(catalog=catalog)],
+    inference_format_factory=ExpressFormatFactory(),
+)
+
+# Prompt synthesis and parsing stay the same regardless of format,
+# and an individual request can override the format factory if needed.
+processor = generator.create_processor(
+    renderer_capabilities,
+    inference_format_factory=DirectJsonFormatFactory(),
+)
+system_prompt = processor.prompt_snippet
+parts = processor.parse_response(llm_output)
+```
+
+  </TabItem>
+  <TabItem label="Dart">
+
+```dart
+import 'package:a2ui_agent/a2ui_agent.dart';
+
+void illustrateFormats(
+  Catalog catalog,
+  A2uiRendererCapabilities rendererCapabilities,
+  String llmOutput,
+) {
+  // Uses ExpressFormatFactory by default; pass any InferenceFormatFactory to change it.
+  final generator = A2uiGenerator(
+    catalogs: [CatalogConfig(catalog)],
+    inferenceFormatFactory: const ExpressFormatFactory(),
+  );
+
+  // Prompt synthesis and parsing stay the same regardless of format,
+  // and an individual request can override the format factory if needed.
+  final processor = generator.createProcessor(
+    rendererCapabilities,
+    inferenceFormatFactory: const DirectJsonFormatFactory(),
+  );
+  final systemPrompt = processor.promptSnippet;
+  final parts = processor.parseResponse(llmOutput);
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Express covers v0.9, v0.9.1, and v1.0 generation with lower token cost, while Direct JSON remains useful when serving legacy v0.8 payloads in Python, debugging raw wire payloads, or calling a model fine-tuned directly on A2UI JSON schemas. Teams experimenting with alternative grammars (such as HTML-inspired or S-expression notations; see [`python/a2ui_agent/src/a2ui/inference_formats/experimental/`](https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_agent/src/a2ui/inference_formats/experimental)) implement the same `InferenceFormatFactory`, `PromptGenerator`, and `Parser` interfaces.
+
+## Token and latency benchmarks
+
+The A2UI evaluation suite (`eval/`) benchmarks each format on the 54-sample `core_v1_0` suite using `gemini-3.8-flash` (`temperature=0.0`). For earlier benchmark background, see [Fast, reliable A2UI, with swappable inference formats](https://developers.googleblog.com/fast-reliable-a2ui/). Whether thinking is disabled (`thinking_budget=0`) or left unbounded (default), Express reduces both prompt tokens and generated code tokens while matching Direct JSON on accuracy:
+
+| Format and thinking mode           | Median input tokens | Median code tokens | Median thinking tokens | Median total output (`code + thinking`) | Pass@1 / Pass@2       | Judge quality |
+| :--------------------------------- | :------------------ | :----------------- | :--------------------- | :-------------------------------------- | :-------------------- | :------------ |
+| Direct JSON (`thinking_budget=0`)  | 10,980              | 807                | 0                      | 811                                     | 98.1% / 98.1% (53/54) | 97.2%         |
+| Express (`thinking_budget=0`)      | 6,000 (-45.4%)      | 297 (-63.2%, 2.7x) | 0                      | 299 (-63.1%)                            | 98.1% / 98.1% (53/54) | 97.2%         |
+| Direct JSON (`unbounded` thinking) | 10,980              | 794                | 1,413                  | 2,320                                   | 98.1% / 98.1% (53/54) | 98.1%         |
+| Express (`unbounded` thinking)     | 6,000 (-45.4%)      | 260 (-67.3%, 3.1x) | 1,447                  | 1,789 (-22.9%)                          | 98.1% / 98.1% (53/54) | 98.1%         |

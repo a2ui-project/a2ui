@@ -29,11 +29,8 @@ import 'package:test/test.dart';
 void main() {
   final CatalogApi basic = Catalog.fromJson(
     jsonDecode(
-          File(
-            '../../specification/v0_9/catalogs/basic/catalog.json',
-          ).readAsStringSync(),
-        )
-        as Map<String, Object?>,
+      File('../../catalogs/basic/v0_9/catalog.json').readAsStringSync(),
+    ) as Map<String, Object?>,
   );
   final CatalogApi custom = Catalog.fromJson({
     'catalogId': 'https://example.com/custom.json',
@@ -126,10 +123,12 @@ void main() {
     test('reads a raw line break inside a string', () {
       final List<Map<String, Object?>> messages = compile(
         '[{"version": "v0.9", "updateComponents": {"surfaceId": "s", '
-        '"components": [{"id": "root", "component": "Text", '
-        '"text": "Line 1\nLine 2"}]}}]',
+        '"components": [{"id": "root", "component": "Column", '
+        '"children\n": ["work\nText"]}, {"id": "\nworkText\n", '
+        '"component": "Text", "text": "Line 1\nLine 2"}]}}]',
       );
       expect(jsonEncode(messages), contains(r'Line 1\nLine 2'));
+      expect(jsonEncode(messages), contains('"workText"'));
     });
 
     test('removes a markdown fence around an unwrapped payload', () {
@@ -261,6 +260,16 @@ void main() {
       }
     });
 
+    test('rejects a number out of range with a parse error', () {
+      expect(
+        () => compile(
+          '[{"version": "v0.9", "updateDataModel": '
+          '{"surfaceId": "s", "path": "/x", "value": 1e400}}]',
+        ),
+        throwsError<A2uiParseError>(),
+      );
+    });
+
     test('rejects a payload without catalogs', () {
       expect(
         () => DirectJsonParser([]).compile('[${create('s')}]'),
@@ -384,6 +393,16 @@ void main() {
         ['One'],
         ['   two'],
         <Object?>[],
+      ]);
+    });
+
+    test('preserves lone backtick chunks in text', () {
+      expect(stream(['Use ', '`', 'Text', '`', ' for labels.']), [
+        ['Use'],
+        <Object?>[],
+        [' `Text'],
+        <Object?>[],
+        ['` for labels.'],
       ]);
     });
 
@@ -628,6 +647,20 @@ void main() {
       ]);
     });
 
+    test('emits nothing for a number out of range until the block closes '
+        'with a parse error', () {
+      final DirectJsonResponseStream reader = parser().openStream();
+      expect(
+        reader.feed(
+          '<a2ui-json>[${create('s')}, {"version": "v0.9", '
+          '"updateDataModel": {"surfaceId": "s", "path": "/x", "value": 1e400',
+        ),
+        [isA<A2uiPart>()],
+      );
+      expect(reader.feed('}}'), isEmpty);
+      expect(() => reader.feed(']</a2ui-json>'), throwsError<A2uiParseError>());
+    });
+
     test('rejects catalogs of different versions when it opens', () {
       final mixed = DirectJsonParser([basic, v1_0Catalog]);
       for (final wrapped in [true, false]) {
@@ -720,16 +753,16 @@ void main() {
       List<CatalogApi>? catalogs,
       List<String>? allowedMessages,
       List<List<AgentToRendererMessage>> examples = const [],
-    }) => DirectJsonFormatFactory(allowedMessages: allowedMessages)
-        .createFormat(catalogs ?? [basic], examples: examples)
-        .promptGenerator
-        .generate();
+    }) =>
+        DirectJsonFormatFactory(allowedMessages: allowedMessages)
+            .createFormat(catalogs ?? [basic], examples: examples)
+            .promptGenerator
+            .generate();
 
     test('embeds the published v0.9 message schema', () {
       final Object? published = jsonDecode(
-        File(
-          '../../specification/v0_9/json/server_to_client.json',
-        ).readAsStringSync(),
+        File('../../specification/v0_9/json/server_to_client.json')
+            .readAsStringSync(),
       );
       expect(
         snippet(),
@@ -780,11 +813,10 @@ void main() {
     test('rejects v1.0 helper definitions in the allowlist', () {
       final CatalogApi v10 = Catalog.fromJson(
         jsonDecode(
-              File(
-                '../../conformance/test_data/catalogs/simplified_catalog_v1_0.json',
-              ).readAsStringSync(),
-            )
-            as Map<String, Object?>,
+          File(
+            '../../conformance/test_data/catalogs/simplified_catalog_v1_0.json',
+          ).readAsStringSync(),
+        ) as Map<String, Object?>,
       );
       for (final helper in ['Component', 'ComponentsList', 'component']) {
         expect(

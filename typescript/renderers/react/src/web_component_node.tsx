@@ -15,17 +15,39 @@
  */
 
 import React, {useRef, useCallback, useEffect, memo} from 'react';
-import type {ComponentNode} from '@a2ui/web_core/v0_9';
+import type {ComponentNode} from '@a2ui/web_core';
 import {
   isWebComponentImplementation,
   registerUniversalElement,
   type A2uiWebComponentElement,
-} from '@a2ui/web_core/v0_9/universal';
+} from '@a2ui/web_core/universal';
 import {type HostOwner, markReactRendered} from './host_registry';
 
+interface ControllableElement extends Element {
+  _controller?: {dispose: () => void};
+  _controllerContext?: unknown;
+  _controllerNode?: unknown;
+  removeController?: (controller: unknown) => void;
+}
+
 function assign(element: A2uiWebComponentElement, node: ComponentNode): void {
-  element.context = node.context;
   element.node = node;
+}
+
+function disposeElementControllers(root: Element): void {
+  const disposeOne = (el: ControllableElement) => {
+    if (el._controller) {
+      el.removeController?.(el._controller);
+      el._controller.dispose();
+      el._controller = undefined;
+      el._controllerContext = undefined;
+      el._controllerNode = undefined;
+    }
+  };
+  disposeOne(root as ControllableElement);
+  for (const child of root.querySelectorAll('*')) {
+    disposeOne(child as ControllableElement);
+  }
 }
 
 /**
@@ -70,9 +92,15 @@ export const WebComponentNode = memo(
     );
 
     useEffect(() => {
-      if (elRef.current) {
-        assign(elRef.current, node);
+      const element = elRef.current;
+      if (element) {
+        assign(element, node);
       }
+      return () => {
+        if (element && !element.isConnected) {
+          disposeElementControllers(element);
+        }
+      };
     }, [node]);
 
     return React.createElement(implementation.tagName, {ref: setRef}, children);

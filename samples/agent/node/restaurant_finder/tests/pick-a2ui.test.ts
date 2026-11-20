@@ -37,7 +37,7 @@ function message(metadata?: Record<string, unknown>): Message {
 }
 
 const v0_9Capabilities = {'v0.9': {supportedCatalogIds: [V0_9_CATALOG]}};
-const v1_0Capabilities = {'v1.0': {supportedCatalogIds: [V1_0_CATALOG]}};
+const v1_0Capabilities = {'1.0': {supportedCatalogIds: [V1_0_CATALOG]}};
 
 describe('pickA2ui', () => {
   it('picks v1.0 and its catalogs from a2uiRendererCapabilities', () => {

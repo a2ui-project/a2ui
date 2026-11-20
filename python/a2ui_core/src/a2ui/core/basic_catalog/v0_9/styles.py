@@ -25,9 +25,9 @@ class Theme(BaseModel):
         default=None,
         alias="primaryColor",
         description=(
-            "The primary brand color used for highlights (e.g., primary buttons, active"
-            " borders). Renderers may generate variants of this color for different"
-            " contexts. Format: Hexadecimal code (e.g., '#00BFFF')."
+            "The primary brand color used for highlights (e.g., primary buttons,"
+            " active borders). Renderers may generate variants of this color for"
+            " different contexts. Format: Hexadecimal code (e.g., '#00BFFF')."
         ),
         pattern=r"^#[0-9a-fA-F]{6}$",
     )
@@ -35,8 +35,8 @@ class Theme(BaseModel):
         default=None,
         alias="iconUrl",
         description=(
-            "A URL for an image that identifies the agent or tool associated with the"
-            " surface."
+            "A URL for an image that identifies the agent or tool associated with"
+            " the surface."
         ),
         json_schema_extra={"format": "uri"},
     )
@@ -44,7 +44,7 @@ class Theme(BaseModel):
         default=None,
         alias="agentDisplayName",
         description=(
-            "Text to be displayed next to the surface to identify the agent or tool"
-            " that created it."
+            "Text to be displayed next to the surface to identify the agent or"
+            " tool that created it."
         ),
     )

@@ -71,16 +71,16 @@ describe('ComponentContextFrameHost', () => {
       actions.push(action);
     });
     processor.processMessages([
-      {version: 'v1.0', createSurface: {surfaceId: SURFACE_ID, catalogId: CATALOG_ID}},
+      {version: '1.0', createSurface: {surfaceId: SURFACE_ID, catalogId: CATALOG_ID}},
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: SURFACE_ID,
           value: {game: {score: 1, player: 'ann'}, items: [{name: 'first'}]},
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: SURFACE_ID,
           components: [{id: 'root', component: 'Text', text: 'hello'}],

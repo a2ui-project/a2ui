@@ -25,6 +25,7 @@ String capitalize(String s) {
 class CatalogAnalyzer {
   final Map<String, EnumType> _enums = {};
   final Map<String, AnalysedObjectModel> _objectModels = {};
+  bool _isV10 = false;
 
   /// Every type name the emitter will declare, in one namespace.
   ///
@@ -45,6 +46,7 @@ class CatalogAnalyzer {
   AnalysedCatalog analyzeCatalog(CodegenCatalog catalog) {
     _enums.clear();
     _objectModels.clear();
+    _isV10 = catalog.catalog.protocolVersion == A2uiProtocolVersion.v1_0;
     _reservedNames
       ..clear()
       ..addAll(catalog.components.keys);
@@ -85,7 +87,15 @@ class CatalogAnalyzer {
 
     for (final MapEntry<String, dynamic> entry in rawProps.entries) {
       final String propName = entry.key;
-      if (propName == 'checks' || propName == 'isValid') {
+      if (propName == '@accessibility' ||
+          propName == '@metadata' ||
+          propName == '@catalogId') {
+        continue;
+      }
+      if (propName == 'isValid' ||
+          ((propName == 'checks' || propName == '@checks') &&
+              entry.value is Map &&
+              (entry.value as Map)['type'] == 'array')) {
         isCheckable = true;
       }
 
@@ -198,7 +208,7 @@ class CatalogAnalyzer {
           isRequired: isRequired,
         );
       }
-      if (defName == 'ComponentId') {
+      if (defName == 'ComponentId' || (_isV10 && defName == 'Child')) {
         return PropertyDescriptor(
           name: propName,
           type: const ComponentRefType(),
@@ -429,7 +439,7 @@ class CatalogAnalyzer {
           '';
       final String itemDef = itemRef.isNotEmpty ? itemRef.split('/').last : '';
 
-      if (itemDef == 'ComponentId') {
+      if (itemDef == 'ComponentId' || (_isV10 && itemDef == 'Child')) {
         return PropertyDescriptor(
           name: propName,
           type: const ComponentListType(),
@@ -591,35 +601,49 @@ class CatalogAnalyzer {
     if (a.runtimeType != b.runtimeType) return false;
     return switch ((a, b)) {
       (
-        PrimitiveType(primitive: final pa),
-        PrimitiveType(primitive: final pb),
+        PrimitiveType(primitive: final PrimitiveKind pa),
+        PrimitiveType(primitive: final PrimitiveKind pb),
       ) =>
         pa == pb,
-      (EnumType(values: final va), EnumType(values: final vb)) =>
+      (
+        EnumType(values: final List<String> va),
+        EnumType(values: final List<String> vb),
+      ) =>
         va.length == vb.length && va.toSet().containsAll(vb),
       (
-        ComponentRefType(allowedComponents: final ca),
-        ComponentRefType(allowedComponents: final cb),
+        ComponentRefType(allowedComponents: final List<String> ca),
+        ComponentRefType(allowedComponents: final List<String> cb),
       ) =>
         ca.length == cb.length && ca.toSet().containsAll(cb),
       (
-        ComponentListType(allowedComponents: final ca),
-        ComponentListType(allowedComponents: final cb),
+        ComponentListType(allowedComponents: final List<String> ca),
+        ComponentListType(allowedComponents: final List<String> cb),
       ) =>
         ca.length == cb.length && ca.toSet().containsAll(cb),
-      (DynamicType(inner: final ia), DynamicType(inner: final ib)) => _sameType(
-        ia,
-        ib,
-      ),
-      (ObjectModelType(name: final na), ObjectModelType(name: final nb)) =>
+      (
+        DynamicType(inner: final TypeDescriptor ia),
+        DynamicType(inner: final TypeDescriptor ib),
+      ) =>
+        _sameType(ia, ib),
+      (
+        ObjectModelType(name: final String na),
+        ObjectModelType(name: final String nb),
+      ) =>
         na == nb,
-      (ListType(elementType: final ea), ListType(elementType: final eb)) =>
+      (
+        ListType(elementType: final TypeDescriptor ea),
+        ListType(elementType: final TypeDescriptor eb),
+      ) =>
         _sameType(ea, eb),
-      (MapType(valueType: final va), MapType(valueType: final vb)) => _sameType(
-        va,
-        vb,
-      ),
-      (UnionType(options: final oa), UnionType(options: final ob)) =>
+      (
+        MapType(valueType: final TypeDescriptor va),
+        MapType(valueType: final TypeDescriptor vb),
+      ) =>
+        _sameType(va, vb),
+      (
+        UnionType(options: final List<TypeDescriptor> oa),
+        UnionType(options: final List<TypeDescriptor> ob),
+      ) =>
         oa.length == ob.length &&
             oa.every((o) => ob.any((other) => _sameType(o, other))),
       _ => true,

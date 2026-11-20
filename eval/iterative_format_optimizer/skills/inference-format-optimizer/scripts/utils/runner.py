@@ -184,7 +184,11 @@ def get_git_diff(workspace_root: str) -> str:
     cmd = ["git", "diff", "HEAD", "--", "python/"]
     try:
         result = subprocess.run(
-            cmd, cwd=workspace_root, capture_output=True, text=True, encoding="utf-8"
+            cmd,
+            cwd=workspace_root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
         )
         return result.stdout.strip()
     except Exception:

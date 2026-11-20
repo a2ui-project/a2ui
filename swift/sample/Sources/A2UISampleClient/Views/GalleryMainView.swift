@@ -16,7 +16,7 @@ import SwiftUI
 
 /// Root navigation hierarchy for the A2UI Gallery client application.
 public struct GalleryMainView: View {
-  @ObservedObject var viewModel: GalleryViewModel
+  @Bindable var viewModel: GalleryViewModel
   @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
   public init(viewModel: GalleryViewModel) {
@@ -27,7 +27,7 @@ public struct GalleryMainView: View {
     NavigationSplitView(columnVisibility: $columnVisibility) {
       List(selection: $viewModel.selectedSample) {
         ForEach(SampleStream.Category.allCases, id: \.self) { category in
-          let streams = viewModel.sampleStreams.filter { $0.category == category }
+          let streams = viewModel.filteredStreams.filter { $0.category == category }
           if !streams.isEmpty {
             Section(header: Text(category.rawValue)) {
               ForEach(streams) { stream in
@@ -52,6 +52,20 @@ public struct GalleryMainView: View {
           }
         }
       }
+      .safeAreaInset(edge: .top, spacing: 0) {
+        VStack(spacing: 0) {
+          Picker("Protocol Version", selection: $viewModel.selectedVersion) {
+            ForEach(SampleStream.ProtocolVersion.allCases) { version in
+              Text(version.rawValue).tag(version)
+            }
+          }
+          .pickerStyle(.segmented)
+          .padding(.horizontal, 16)
+          .padding(.vertical, 8)
+          Divider()
+        }
+        .background(.bar)
+      }
       .navigationTitle("A2UI Gallery")
       .onAppear {
         if viewModel.sampleStreams.isEmpty {
@@ -62,20 +76,13 @@ public struct GalleryMainView: View {
       if let sample = viewModel.selectedSample {
         GalleryDetailView(viewModel: viewModel, sample: sample)
       } else {
-        VStack(spacing: 14) {
-          Image(systemName: "square.stack.3d.up")
-            .font(.system(size: 52))
-            .foregroundStyle(.secondary)
-          Text("Select an A2UI Sample")
-            .font(.title2.weight(.medium))
-          Text(
+        ContentUnavailableView(
+          "Select an A2UI Sample",
+          systemImage: "square.stack.3d.up",
+          description: Text(
             "Choose a JSON or JSONL specification stream from the sidebar to inspect progressive rendering and reactive message evaluation."
           )
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-          .multilineTextAlignment(.center)
-          .padding(.horizontal, 40)
-        }
+        )
       }
     }
   }

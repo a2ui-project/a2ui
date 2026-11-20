@@ -35,3 +35,14 @@ bool nestedCallRunsInCatalog(
   if (callCatalogId == null) return catalogIsDefault;
   return callCatalogId == catalogId;
 }
+
+/// Why the renderer may not call [name], a function whose `allowedCallers`
+/// is `agentOnly`: such a function runs only for an agent's
+/// `callRendererFunction`, so it can't be bound into a component or called
+/// from one nested in another call's arguments.
+///
+/// `Catalog.invoke` refuses such a call with the same message when it is
+/// evaluated.
+String rendererMayNotCall(String name) =>
+    "Function '$name' cannot be called by renderer (allowedCallers is "
+    'agentOnly).';

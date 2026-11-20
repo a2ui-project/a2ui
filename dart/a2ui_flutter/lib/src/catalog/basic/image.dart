@@ -22,7 +22,8 @@ import '../../component_props.dart';
 /// Builds the basic `Image` component: the image at an `http` or `https`
 /// `url`, sized by `variant`, resized by `fit` (`cover` for a header without
 /// one) and labelled for accessibility by `description`. Any other URL, and
-/// an image that fails to load, shows a broken-image icon.
+/// an image that fails to load, shows a broken-image icon labelled by the
+/// same `description`.
 Widget buildImage(
   BuildContext context,
   ComponentNode<ComponentImplementation> node,
@@ -33,7 +34,15 @@ Widget buildImage(
   if (url.isEmpty) return const SizedBox.shrink();
   final String description = props.string('description') ?? '';
   final String? variant = props.string('variant');
-  const Widget broken = Icon(Icons.broken_image);
+  // The description still says what the image was meant to show when it does
+  // not load, as an `alt` text does on the web, so the icon carries it.
+  final Widget broken = description.isEmpty
+      ? const Icon(Icons.broken_image)
+      : Semantics(
+          image: true,
+          label: description,
+          child: const Icon(Icons.broken_image),
+        );
   final Widget image = url.startsWith('http://') || url.startsWith('https://')
       ? Image.network(
           url,

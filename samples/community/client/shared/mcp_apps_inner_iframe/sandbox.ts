@@ -39,6 +39,18 @@ export const SENSITIVE_PERMISSIONS = [
   'clipboard-write',
 ] as const;
 
+export const DEFAULT_INNER_SANDBOX = 'allow-scripts allow-forms allow-modals';
+
+export function resolveInnerSandbox(sandbox?: string, isSrcdoc = false): string {
+  const resolved = typeof sandbox === 'string' ? sandbox : DEFAULT_INNER_SANDBOX;
+  if (isSrcdoc && /\ballow-same-origin\b/i.test(resolved)) {
+    console.warn(
+      '[Sandbox] Passing "allow-same-origin" on an inline srcdoc iframe allows the embedded script to inherit the sandbox proxy origin and escape inner-frame isolation.',
+    );
+  }
+  return resolved;
+}
+
 export const RESOURCE_READY_NOTIFICATION: McpUiSandboxResourceReadyNotification['method'] =
   'ui/notifications/sandbox-resource-ready';
 export const PROXY_READY_NOTIFICATION: McpUiSandboxProxyReadyNotification['method'] =
@@ -122,7 +134,7 @@ if (!isTestEnv && typeof window !== 'undefined' && typeof document !== 'undefine
   // allow-popups and allow-popups-to-escape-sandbox are omitted by default to prevent 1-click hyperlink exfiltration.
   const inner = document.createElement('iframe');
   inner.style.cssText = 'width:100%; height:100%; border:none;';
-  inner.setAttribute('sandbox', 'allow-scripts allow-forms allow-modals');
+  inner.setAttribute('sandbox', DEFAULT_INNER_SANDBOX);
   inner.setAttribute('allow', buildPermissionsPolicy());
   document.body.appendChild(inner);
 
@@ -146,9 +158,10 @@ if (!isTestEnv && typeof window !== 'undefined' && typeof document !== 'undefine
         const payload = isMcpResourceReady ? event.data.params : event.data;
         const {html, htmlContent, url, sandbox, permissions} = payload as any;
         const contentHtml = html ?? htmlContent;
-        if (typeof sandbox === 'string') {
-          inner.setAttribute('sandbox', sandbox);
-        }
+        inner.setAttribute(
+          'sandbox',
+          resolveInnerSandbox(sandbox, typeof contentHtml === 'string'),
+        );
         const allowAttribute = buildAllowAttribute(permissions);
         inner.setAttribute('allow', buildPermissionsPolicy(allowAttribute));
 

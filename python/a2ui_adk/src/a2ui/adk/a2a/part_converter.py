@@ -14,25 +14,26 @@
 
 """Module for the A2UI Part Converter.
 
-This module provides the `A2uiPartConverter` which acts as a catalog-aware GenAI to A2A
+This module provides the `A2uiPartConverter` which acts as a processor-aware GenAI to A2A
 part converter. It handles both tool-based A2UI (via the `send_a2ui_json_to_client` tool response)
-and text-based A2UI (extracted and healed via A2UI custom tags), validating the structures
-against the active A2UI catalog schema.
+and text-based A2UI (read with the processor's inference format), validating the structures
+against the processor's catalogs and the renderer state bound to it.
 
 Key Components:
-  * `A2uiPartConverter`: A catalog-aware GenAI to A2A part converter.
+  * `A2uiPartConverter`: A processor-aware GenAI to A2A part converter.
 
 Usage Example:
 
   Typically used internally by the A2uiEventConverter or manually configured for custom part conversions:
 
   ```python
-  converter = A2uiPartConverter(catalogs=[my_catalog])
+  converter = A2uiPartConverter(processor)
   a2a_parts = converter.convert(genai_part)
   ```
 """
 
-from collections.abc import Sequence
+from __future__ import annotations
+
 import logging
 
 from a2a import types as a2a_types
@@ -42,44 +43,41 @@ from google.genai import types as genai_types
 
 from a2ui import constants
 from a2ui.a2a import create_a2ui_part, parse_content_to_parts
-from a2ui.core import CatalogApi
-from a2ui.core.schema import ProtocolVersion
-from a2ui.inference_formats.direct_json import DirectJsonParser
-from a2ui.parser import Parser
+from a2ui.processor import A2uiRequestProcessor
 
 logger = logging.getLogger(__name__)
 
 
 @experimental
 class A2uiPartConverter:
-    """A catalog-aware GenAI to A2A part converter.
+    """A processor-aware GenAI to A2A part converter.
 
     This converter handles both tool-based A2UI (via `send_a2ui_json_to_client`)
-    and text-based A2UI (via A2UI delimiter tags). It uses the provided
-    catalogs to validate and fix JSON payloads.
+    and text-based A2UI (via the format's delimiter tags). The processor
+    supplies everything it needs: the parser for its inference format, the
+    catalogs that text-based A2UI is validated against, and the
+    `RendererState` bound to it, if any, which text-based A2UI is checked
+    against and applied to. Each part is labeled with its message's protocol
+    version.
 
     Args:
-        catalogs: The A2UI catalogs that text-based A2UI is validated against.
+        processor: The request processor for the client's catalogs.
         bypass_tool_check: If True, bypass tool validation.
         fallback_text: Optional text to fall back on if parsing fails.
-        version: The A2UI version to use: a `ProtocolVersion`, or a version
-            string with or without a leading "v". Defaults to v0.8.
-        parser: Optional parser for text-based A2UI. Defaults to a
-            `DirectJsonParser` holding the catalogs.
     """
 
     def __init__(
         self,
-        catalogs: Sequence[CatalogApi],
+        processor: A2uiRequestProcessor,
+        *,
         bypass_tool_check: bool = False,
         fallback_text: str | None = None,
-        version: ProtocolVersion | str = ProtocolVersion.V0_8,
-        parser: Parser | None = None,
     ):
+        self._processor = processor
         self._bypass_tool_check = bypass_tool_check
         self._fallback_text = fallback_text
-        self._version = version
-        self._parser = parser or DirectJsonParser(catalogs)
+        self._parser = processor.parser
+        self._state = processor.state
 
     def convert(self, part: genai_types.Part) -> list[a2a_types.Part]:
         """Converts a GenAI part to A2A parts, with A2UI validation.
@@ -100,9 +98,12 @@ class A2uiPartConverter:
                 response_dict = function_response.response or {}
 
                 if constants.A2UI_TOOL_ERROR_KEY in response_dict:
-                    logger.warning(
-                        "A2UI tool call failed:"
-                        f" {response_dict[constants.A2UI_TOOL_ERROR_KEY]}"
+                    # The error may quote the payload, so it is only logged at
+                    # debug level.
+                    logger.warning("A2UI tool call failed.")
+                    logger.debug(
+                        "A2UI tool error: %s",
+                        response_dict[constants.A2UI_TOOL_ERROR_KEY],
                     )
                     return []
 
@@ -112,10 +113,7 @@ class A2uiPartConverter:
                 ):
                     json_data = response_dict.get(constants.A2UI_VALIDATED_JSON_KEY)
                     if json_data:
-                        return [
-                            create_a2ui_part(message, version=self._version)
-                            for message in json_data
-                        ]
+                        return [create_a2ui_part(message) for message in json_data]
 
                 if is_send_a2ui_json_to_client_response:
                     logger.info("No result in A2UI tool response")
@@ -128,7 +126,7 @@ class A2uiPartConverter:
                         result,
                         parser=self._parser,
                         fallback_text=self._fallback_text,
-                        version=self._version,
+                        state=self._state,
                     )
 
         # 2. Handle Tool Calls (FunctionCall) - Skip sending to client
@@ -138,13 +136,13 @@ class A2uiPartConverter:
             return []
 
         # 3. Handle Text-based A2UI (TextPart)
-        if text := part.text:
+        if (text := part.text) and not part.thought:
             if self._parser.has_format_content(text):
                 return parse_content_to_parts(
                     text,
                     parser=self._parser,
                     fallback_text=self._fallback_text,
-                    version=self._version,
+                    state=self._state,
                 )
 
         # 4. Default conversion for other parts

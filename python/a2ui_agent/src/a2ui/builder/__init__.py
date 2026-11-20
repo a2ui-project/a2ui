@@ -18,8 +18,10 @@ To prevent breaking changes across protocol versions, builder models are explici
 Import from the specific protocol version package:
 
     from a2ui.builder.v0_9 import Action, Button, Card, Column, ComponentRef, Row, Text
+    from a2ui.builder.v1_0 import Action, Button, Card, Column, ComponentRef, Row, Text
 """
 
 from . import v0_9 as v0_9
+from . import v1_0 as v1_0
 
-__all__ = ["v0_9"]
+__all__ = ["v0_9", "v1_0"]

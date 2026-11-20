@@ -1,0 +1,64 @@
+{
+  "protocolVersion": "1.0",
+  "catalogId": "https://a2ui.org/catalogs/v10/allowed_callers",
+  "components": {
+    "Spacer": {
+      "type": "object",
+      "allowedParents": [
+        "Surface",
+        "Spacer"
+      ],
+      "allowedChildren": [
+        "Spacer"
+      ],
+      "properties": {
+        "component": {
+          "const": "Spacer"
+        }
+      },
+      "required": [
+        "component"
+      ]
+    }
+  },
+  "functions": {
+    "readSessionToken": {
+      "type": "object",
+      "description": "Returns the renderer's session token to the agent.",
+      "returnType": "string",
+      "allowedCallers": "agentOnly",
+      "properties": {
+        "@call": {
+          "const": "readSessionToken"
+        },
+        "args": {
+          "type": "object",
+          "properties": {},
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call"
+      ]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/Spacer"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    },
+    "anyFunction": {
+      "oneOf": [
+        {
+          "$ref": "#/functions/readSessionToken"
+        }
+      ]
+    }
+  }
+}

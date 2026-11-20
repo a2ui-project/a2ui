@@ -29,58 +29,7 @@ extension BasicCatalogImplementation {
   }
 }
 
-// MARK: - Layout
-
-/// A custom SwiftUI layout arranging child views in wrapping horizontal rows.
-struct FlowLayout: Layout {
-  var spacing: CGFloat = 8
-  var lineSpacing: CGFloat = 8
-
-  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-    guard !subviews.isEmpty else { return .zero }
-    let maxWidth = proposal.width ?? .infinity
-    var currentX: CGFloat = 0
-    var currentY: CGFloat = 0
-    var lineHeight: CGFloat = 0
-    var maxLineWidth: CGFloat = 0
-
-    for subview in subviews {
-      let size = subview.sizeThatFits(.unspecified)
-      if currentX + size.width > maxWidth && currentX > 0 {
-        maxLineWidth = max(maxLineWidth, currentX - spacing)
-        currentX = 0
-        currentY += lineHeight + lineSpacing
-        lineHeight = 0
-      }
-      currentX += size.width + spacing
-      lineHeight = max(lineHeight, size.height)
-    }
-    maxLineWidth = max(maxLineWidth, currentX > 0 ? currentX - spacing : 0)
-
-    return CGSize(width: maxLineWidth, height: currentY + lineHeight)
-  }
-
-  func placeSubviews(
-    in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
-  ) {
-    guard !subviews.isEmpty else { return }
-    var currentX: CGFloat = bounds.minX
-    var currentY: CGFloat = bounds.minY
-    var lineHeight: CGFloat = 0
-
-    for subview in subviews {
-      let size = subview.sizeThatFits(.unspecified)
-      if currentX + size.width > bounds.maxX && currentX > bounds.minX {
-        currentX = bounds.minX
-        currentY += lineHeight + lineSpacing
-        lineHeight = 0
-      }
-      subview.place(at: CGPoint(x: currentX, y: currentY), proposal: ProposedViewSize(size))
-      currentX += size.width + spacing
-      lineHeight = max(lineHeight, size.height)
-    }
-  }
-}
+// MARK: - View
 
 /// SwiftUI component view for the A2UI Basic Catalog `ChoicePicker` selection component.
 public struct A2UIChoicePicker: View {
@@ -88,6 +37,7 @@ public struct A2UIChoicePicker: View {
 
   @State private var filterText = ""
   @State private var fallbackSelections: [String] = []
+  @ScaledMetric(relativeTo: .body) private var glyphSize: CGFloat = 18
 
   public init(node: Node) {
     self.node = node
@@ -130,20 +80,6 @@ public struct A2UIChoicePicker: View {
             (dict["value"] as? String)
             ?? (dict["value"] as? DataBinding<String>)?.value
             ?? "\(index)"
-          return OptionItem(id: value, label: label, value: value)
-        }
-        return nil
-      }
-    }
-
-    if let rawArray = node.properties["options"] as? [Any] {
-      return rawArray.enumerated().compactMap { index, element in
-        if let str = element as? String {
-          return OptionItem(id: str, label: str, value: str)
-        }
-        if let dict = element as? [String: Any] {
-          let label = (dict["label"] as? String) ?? "Option \(index + 1)"
-          let value = (dict["value"] as? String) ?? "\(index)"
           return OptionItem(id: value, label: label, value: value)
         }
         return nil
@@ -195,6 +131,19 @@ public struct A2UIChoicePicker: View {
     !validationErrors.isEmpty
   }
 
+  /// Whether the option with the given value is selected. Setting it selects or deselects the
+  /// option the same way tapping it does; deselecting a `mutuallyExclusive` option has no effect.
+  public func selectionBinding(forOptionValue value: String) -> Binding<Bool> {
+    Binding(
+      get: { selectedValues.contains(value) },
+      set: { isOn in
+        guard isOn != selectedValues.contains(value) else { return }
+        guard isOn || variant != "mutuallyExclusive" else { return }
+        toggleSelection(value)
+      }
+    )
+  }
+
   private func toggleSelection(_ optionVal: String) {
     var current = selectedValues
     if variant == "mutuallyExclusive" {
@@ -233,7 +182,7 @@ public struct A2UIChoicePicker: View {
         }
         .padding(8)
         .background(Color.gray.opacity(0.12))
-        .cornerRadius(8)
+        .clipShape(.rect(cornerRadius: 8))
         .accessibilityIdentifier("A2UIChoicePicker_Search_\(node.id)")
       }
 
@@ -243,14 +192,8 @@ public struct A2UIChoicePicker: View {
         checkboxListView
       }
 
-      if let firstError = validationErrors.first {
-        Text(firstError)
-          .font(.caption)
-          .foregroundStyle(Color.red)
-          .accessibilityIdentifier("A2UIChoicePicker_Error_\(node.id)")
-      }
+      A2UICheckMessage(node: node, identifierPrefix: "A2UIChoicePicker")
     }
-    .accessibilityIdentifier("A2UIChoicePicker_\(node.id)")
     .a2uiAccessibilityElement(for: node, children: .contain)
   }
 
@@ -273,6 +216,11 @@ public struct A2UIChoicePicker: View {
             )
         }
         .buttonStyle(.plain)
+        .a2uiOptionAccessibility(
+          label: option.label,
+          isSelected: selectionBinding(forOptionValue: option.value),
+          isMultipleSelection: variant != "mutuallyExclusive"
+        )
         .accessibilityIdentifier("A2UIChoiceOption_\(option.value)")
       }
     }
@@ -290,8 +238,9 @@ public struct A2UIChoicePicker: View {
                 ? (isSelected ? "largecircle.fill.circle" : "circle")
                 : (isSelected ? "checkmark.square.fill" : "square")
             )
-            .font(.system(size: 18))
+            .font(.system(size: glyphSize))
             .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+            .accessibilityHidden(true)
 
             Text(option.label)
               .font(.body)
@@ -300,10 +249,38 @@ public struct A2UIChoicePicker: View {
             Spacer()
           }
           .padding(.vertical, 4)
+          .frame(minHeight: 44)
+          .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .a2uiOptionAccessibility(
+          label: option.label,
+          isSelected: selectionBinding(forOptionValue: option.value),
+          isMultipleSelection: variant != "mutuallyExclusive"
+        )
         .accessibilityIdentifier("A2UIChoiceOption_\(option.value)")
       }
+    }
+  }
+}
+
+extension View {
+  /// Exposes the state of a `ChoicePicker` option to assistive technologies. A
+  /// `multipleSelection` option is represented as a standard toggle; a `mutuallyExclusive` option
+  /// keeps its button role and carries the selected trait while selected, like the segments of a
+  /// native segmented picker.
+  @ViewBuilder
+  fileprivate func a2uiOptionAccessibility(
+    label: String,
+    isSelected: Binding<Bool>,
+    isMultipleSelection: Bool
+  ) -> some View {
+    if isMultipleSelection {
+      accessibilityRepresentation {
+        Toggle(label, isOn: isSelected)
+      }
+    } else {
+      accessibilityAddTraits(isSelected.wrappedValue ? .isSelected : [])
     }
   }
 }

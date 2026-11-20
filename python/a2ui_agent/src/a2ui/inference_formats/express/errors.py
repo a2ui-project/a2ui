@@ -83,12 +83,12 @@ class ExpressDuplicatePropertyError(ExpressValidationError):
             prop_name: The name of the property provided multiple times.
         """
         msg = (
-            f"Property '{prop_name}' of component '{comp_name}' was provided multiple"
-            " times."
+            f"Property '{prop_name}' of component '{comp_name}' was provided"
+            " multiple times."
         )
         help_msg = (
-            f"Remove duplicate specification of property '{prop_name}' for component"
-            f" '{comp_name}'."
+            f"Remove duplicate specification of property '{prop_name}' for"
+            f" component '{comp_name}'."
         )
         super().__init__(msg, help_message=help_msg)
         self.comp_name = comp_name
@@ -136,8 +136,8 @@ class ExpressDuplicateParamError(ExpressValidationError):
             " times."
         )
         help_msg = (
-            f"Remove duplicate specification of parameter '{param_name}' for function"
-            f" '{fn_name}'."
+            f"Remove duplicate specification of parameter '{param_name}' for"
+            f" function '{fn_name}'."
         )
         super().__init__(msg, help_message=help_msg)
         self.fn_name = fn_name
@@ -159,8 +159,8 @@ class ExpressForbiddenDatabindingError(ExpressValidationError):
             " dynamic data bindings (paths)."
         )
         help_msg = (
-            f"Property '{prop_name}' on '{comp_name}' must be a static literal value,"
-            " not a dynamic databinding ($path)."
+            f"Property '{prop_name}' on '{comp_name}' must be a static literal"
+            " value, not a dynamic databinding ($path)."
         )
         super().__init__(msg, help_message=help_msg)
         self.comp_name = comp_name

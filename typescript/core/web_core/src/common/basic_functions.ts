@@ -24,10 +24,12 @@
 import {ExpressionParser} from '../expressions/expression_parser.js';
 import {computed, isSignal, getValue, Signal} from '../reactivity/signals.js';
 import {createFunctionImplementation, FunctionImplementation} from '../catalog/types.js';
+import {coerceDynamicBoolean} from '../catalog/validation_result_coercion.js';
 import {A2uiExpressionError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
+import {activeCallCatalogId, withoutAgentRouting} from '../resolution/data-context-internal.js';
 import {isAtLeastVersion} from './semver.js';
-import {isSafeRegex} from '../v0_9/basic_catalog/functions/safe_regex.js';
+import {MAX_REGEX_VALUE_CODE_POINTS, analyzeRegex, countCodePoints} from './regex_subset.js';
 
 export {isSafeRegex, type SafeRegexOptions} from '../v0_9/basic_catalog/functions/safe_regex.js';
 
@@ -69,6 +71,10 @@ export interface ValidationResult {
   valid: boolean;
   /** Explanatory message when validation failed. */
   message?: string;
+  /** Optional machine-readable validation code. */
+  code?: string;
+  /** Optional severity level. */
+  severity?: 'error' | 'warning' | 'info';
 }
 
 /**
@@ -109,23 +115,58 @@ export function validateRequired(val: unknown): ValidationResult {
   };
 }
 
-/** Validates that a string value matches a regular expression pattern. */
-export function validateRegex(val: unknown, pattern: string): ValidationResult {
-  if (!isSafeRegex(pattern)) {
+const MAX_REGEX_CACHE_ENTRIES = 256;
+const compiledRegexCache = new Map<string, RegExp>();
+
+function getCompiledRegex(pattern: string): RegExp {
+  const cached = compiledRegexCache.get(pattern);
+  if (cached !== undefined) {
+    compiledRegexCache.delete(pattern);
+    compiledRegexCache.set(pattern, cached);
+    return cached;
+  }
+  const analysis = analyzeRegex(pattern);
+  if (!analysis.ok) {
     throw new A2uiExpressionError(
-      `Unsafe regex pattern (catastrophic backtracking risk): ${pattern}`,
+      `Invalid or unsafe regex pattern (${analysis.reason}): ${pattern}`,
       'regex',
     );
   }
+  let compiled: RegExp;
   try {
-    const isValid = new RegExp(pattern).test(String(val ?? ''));
-    return {
-      valid: isValid,
-      ...(isValid ? {} : {message: 'Value does not match required pattern.'}),
-    };
+    compiled = new RegExp(pattern, 'u');
   } catch (e) {
-    throw new A2uiExpressionError(`Invalid regex pattern: ${pattern}`, 'regex', e);
+    throw new A2uiExpressionError(
+      `Invalid regex pattern (UNSUPPORTED_SYNTAX): ${pattern}`,
+      'regex',
+      e,
+    );
   }
+  if (compiledRegexCache.size >= MAX_REGEX_CACHE_ENTRIES) {
+    const oldestKey = compiledRegexCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      compiledRegexCache.delete(oldestKey);
+    }
+  }
+  compiledRegexCache.set(pattern, compiled);
+  return compiled;
+}
+
+/** Validates that a string value matches a regular expression pattern. */
+export function validateRegex(val: unknown, pattern: string): ValidationResult {
+  const compiled = getCompiledRegex(pattern);
+  const strVal = String(val ?? '');
+  if (countCodePoints(strVal) > MAX_REGEX_VALUE_CODE_POINTS) {
+    return {
+      valid: false,
+      message: 'Value exceeds the maximum length for pattern matching.',
+    };
+  }
+  const isValid = compiled.test(strVal);
+  return {
+    valid: isValid,
+    ...(isValid ? {} : {message: 'Value does not match required pattern.'}),
+  };
 }
 
 /** Validates that string or array length falls within an optional range. */
@@ -181,7 +222,13 @@ export function validateEmail(val: unknown): ValidationResult {
   const isValid = typeof val === 'string' && EMAIL_REGEX.test(val);
   return {
     valid: isValid,
-    ...(isValid ? {} : {message: 'Must be a valid email address.'}),
+    ...(isValid
+      ? {}
+      : {
+          code: 'INVALID_EMAIL',
+          severity: 'error',
+          message: 'Please enter a valid email address (e.g. user@example.com).',
+        }),
   };
 }
 
@@ -375,23 +422,12 @@ export type TruthyFn = (value: unknown) => boolean;
 export const isTruthy: TruthyFn = value => !!value;
 
 /**
- * Truthiness that reads a ValidationResult by its validity.
- *
- * In v1.0 the validators return a ValidationResult object rather than a
- * boolean, so a nested `and(required(...), or(...))` receives objects. An
- * object with a boolean `valid` member is truthy when `valid` is true; any
- * other value follows JavaScript truthiness.
+ * Truthiness that coerces any value according to the `DynamicBoolean` rules.
  */
-export const isTruthyOrValid: TruthyFn = value => {
-  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-    const valid = (value as {valid?: unknown}).valid;
-    if (typeof valid === 'boolean') return valid;
-  }
-  return !!value;
-};
+export const isTruthyOrValid: TruthyFn = coerceDynamicBoolean;
 
 /** Evaluates logical AND across an array of values. */
-export function executeAnd(values: unknown[], truthy: TruthyFn = isTruthy): boolean {
+export function executeAnd(values: unknown[], truthy: TruthyFn = coerceDynamicBoolean): boolean {
   if (!Array.isArray(values) || values.length < 2) {
     throw new A2uiExpressionError('and requires at least 2 values', 'and');
   }
@@ -399,7 +435,7 @@ export function executeAnd(values: unknown[], truthy: TruthyFn = isTruthy): bool
 }
 
 /** Evaluates logical OR across an array of values. */
-export function executeOr(values: unknown[], truthy: TruthyFn = isTruthy): boolean {
+export function executeOr(values: unknown[], truthy: TruthyFn = coerceDynamicBoolean): boolean {
   if (!Array.isArray(values) || values.length < 2) {
     throw new A2uiExpressionError('or requires at least 2 values', 'or');
   }
@@ -407,27 +443,54 @@ export function executeOr(values: unknown[], truthy: TruthyFn = isTruthy): boole
 }
 
 /** Evaluates logical NOT on a single value. */
-export function executeNot(value: unknown, truthy: TruthyFn = isTruthy): boolean {
+export function executeNot(value: unknown, truthy: TruthyFn = coerceDynamicBoolean): boolean {
   return !truthy(value);
 }
 
-function adaptAstPartForV10(part: any): any {
-  if (typeof part !== 'object' || part === null || Array.isArray(part)) {
+function defineOwn(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, {value, enumerable: true, writable: true, configurable: true});
+}
+
+function adaptAstPartForV10(part: any, catalogId?: string): any {
+  if (Array.isArray(part)) {
+    return part.map(item => adaptAstPartForV10(item, catalogId));
+  }
+  if (typeof part !== 'object' || part === null) {
     return part;
   }
-  if ('path' in part && typeof part.path === 'string' && !('@path' in part)) {
+  if (
+    typeof part.path === 'string' &&
+    part.componentId === undefined &&
+    part['@path'] === undefined
+  ) {
     return {'@path': part.path};
   }
-  if ('call' in part && typeof part.call === 'string' && !('@call' in part)) {
+  const hasCall = typeof part.call === 'string';
+  const hasAtCall = typeof part['@call'] === 'string';
+  const callName: string | undefined =
+    hasCall && !hasAtCall ? part.call : hasAtCall ? part['@call'] : undefined;
+  if (callName !== undefined) {
     const args: Record<string, unknown> = {};
-    if (part.args && typeof part.args === 'object') {
+    if (part.args && typeof part.args === 'object' && !Array.isArray(part.args)) {
       for (const [k, v] of Object.entries(part.args)) {
-        args[k] = adaptAstPartForV10(v);
+        defineOwn(args, k, adaptAstPartForV10(v, catalogId));
       }
     }
-    return {'@call': part.call, args, returnType: part.returnType};
+    const resolvedCatalogId: unknown =
+      part.catalogId !== undefined && part.catalogId !== null
+        ? part.catalogId
+        : catalogId !== undefined && !callName.startsWith('@')
+          ? catalogId
+          : undefined;
+    return resolvedCatalogId !== undefined
+      ? {'@call': callName, args, catalogId: resolvedCatalogId}
+      : {'@call': callName, args};
   }
-  return part;
+  const adaptedObj: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(part)) {
+    defineOwn(adaptedObj, k, adaptAstPartForV10(v, catalogId));
+  }
+  return adaptedObj;
 }
 
 /** Formats a template string by resolving embedded expressions. */
@@ -440,16 +503,24 @@ export function executeFormatString(
 
   if (parts.length === 0) return '';
 
-  const atLeastV10 = isAtLeastVersion(
-    context.surface?.protocolVersion ?? context.surface?.defaultCatalog?.protocolVersion,
-    '1.0',
-  );
+  const atLeastV10 =
+    typeof context.atLeastV10 === 'boolean'
+      ? context.atLeastV10
+      : isAtLeastVersion(
+          context.surface?.protocolVersion ?? context.surface?.defaultCatalog?.protocolVersion,
+          '1.0',
+        );
+  const catalogId = atLeastV10 ? activeCallCatalogId(context) : undefined;
+  // A template part never waits for the agent: from v1.0, a part that calls
+  // a function the renderer does not implement fails with an
+  // `EXPRESSION_ERROR` naming it, sends nothing, and renders empty.
+  const partContext = atLeastV10 ? withoutAgentRouting(context) : context;
   const dynamicParts = parts.map(part => {
     if (typeof part !== 'object' || part === null || Array.isArray(part)) {
       return part;
     }
-    const adapted = atLeastV10 ? adaptAstPartForV10(part) : part;
-    return context.resolveSignal(adapted);
+    const adapted = atLeastV10 ? adaptAstPartForV10(part, catalogId) : part;
+    return partContext.resolveSignal(adapted);
   });
 
   return computed(() => {
@@ -608,30 +679,28 @@ export function executeOpenUrl(urlInput: unknown): void {
 /** Options for the logical function implementations. */
 export interface LogicalFunctionOptions {
   /**
-   * The truthiness rule for operands. Defaults to JavaScript truthiness; the
-   * v1.0 catalog passes `isTruthyOrValid` so ValidationResult operands count
-   * by their validity.
+   * The truthiness rule for operands. Defaults to `coerceDynamicBoolean`.
    */
   truthy?: TruthyFn;
 }
 
 export function createAndImplementation(
   api: any,
-  {truthy = isTruthy}: LogicalFunctionOptions = {},
+  {truthy = coerceDynamicBoolean}: LogicalFunctionOptions = {},
 ): FunctionImplementation {
   return createFunctionImplementation(api, args => executeAnd(args.values, truthy));
 }
 
 export function createOrImplementation(
   api: any,
-  {truthy = isTruthy}: LogicalFunctionOptions = {},
+  {truthy = coerceDynamicBoolean}: LogicalFunctionOptions = {},
 ): FunctionImplementation {
   return createFunctionImplementation(api, args => executeOr(args.values, truthy));
 }
 
 export function createNotImplementation(
   api: any,
-  {truthy = isTruthy}: LogicalFunctionOptions = {},
+  {truthy = coerceDynamicBoolean}: LogicalFunctionOptions = {},
 ): FunctionImplementation {
   return createFunctionImplementation(api, args => executeNot(args.value, truthy));
 }

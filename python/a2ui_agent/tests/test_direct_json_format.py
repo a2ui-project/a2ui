@@ -69,11 +69,12 @@ def test_direct_json_parser_methods():
     assert parser.has_format_content("<a2ui-json>", complete=True) is False
     assert parser.has_format_content("<a2ui-json>{}</a2ui-json>", complete=True) is True
 
-    # 2. parse_chunk incremental streaming
-    parts1 = parser.parse_chunk("<a2ui-json>")
+    # 2. incremental streaming
+    stream = parser.open_stream()
+    parts1 = stream.feed("<a2ui-json>")
     assert parts1 == []  # Buffering open tag
 
-    parts2 = parser.parse_chunk(
+    parts2 = stream.feed(
         '[{"beginRendering": {"surfaceId": "main", "root": "c1"}}]</a2ui-json>'
     )
     assert len(parts2) == 1

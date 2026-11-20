@@ -15,6 +15,7 @@
  */
 
 import {html, nothing, css} from 'lit';
+import {getAccessibilityDescription, getAccessibilityLabel} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {IconSupportedApis} from './supported_apis.js';
 
@@ -36,10 +37,15 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<IconSupportedApi
   /**
    * The icon component can be customized with the following CSS variables:
    *
-   * - `--a2ui-icon-size`: Dimensions of the icon.
-   * - `--a2ui-icon-color`: Color tint applied to the icon.
-   * - `--a2ui-icon-font-family`: Override the font family for icons. Defaults to 'Material Icons', 'Material Symbols Outlined'.
-   * - `--a2ui-icon-font-variation-settings`: Complete override for font-variation-settings.
+   * - `--a2ui-icon-size`: Width, height, and font size of the icon. Defaults to `24px`.
+   * - `--a2ui-icon-color`: Color tint applied to the icon. Defaults to `--a2ui-text-color-text`, then `--a2ui-color-on-background`.
+   * - `--a2ui-icon-font-family`: Font family for ligature icons. Defaults to `'Material Icons', 'Material Symbols Outlined'`.
+   * - `--a2ui-icon-font-variation-settings`: Font variation settings for variable icon fonts. Defaults to `'FILL' 1`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-text-color-text`: Fallback color of the icon. Defaults to `--a2ui-color-on-background`.
+   * - `--a2ui-color-on-background`: Fallback color of the icon when `--a2ui-text-color-text` is unset.
    *
    * @nocollapse
    */
@@ -80,17 +86,35 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<IconSupportedApi
 
     const name = props.name;
     const isSvgPath = typeof name === 'object' && name !== null && 'svgPath' in name;
+    const a11yLabel = getAccessibilityLabel(props.accessibility);
+    const a11yDescription = getAccessibilityDescription(props.accessibility);
+    const hasLabel = a11yLabel !== nothing;
+    const isDecorative = !hasLabel && a11yDescription === nothing;
 
     if (isSvgPath) {
       const svgPath = (name as {svgPath: string}).svgPath;
       return html`
-        <svg class="a2ui-icon a2ui-icon-svg" viewBox="0 0 24 24">
+        <svg
+          class="a2ui-icon a2ui-icon-svg"
+          viewBox="0 0 24 24"
+          role=${hasLabel ? 'img' : nothing}
+          aria-label=${a11yLabel}
+          aria-description=${a11yDescription}
+          aria-hidden=${isDecorative ? 'true' : nothing}
+        >
           <path d=${svgPath}></path>
         </svg>
       `;
     }
 
     const iconName = typeof name === 'string' ? toMaterialIconName(name) : '';
-    return html`<i class="material-icons a2ui-icon">${iconName}</i>`;
+    return html`<i
+      class="material-icons a2ui-icon"
+      role=${hasLabel ? 'img' : nothing}
+      aria-label=${a11yLabel}
+      aria-description=${a11yDescription}
+      aria-hidden=${isDecorative ? 'true' : nothing}
+      >${iconName}</i
+    >`;
   }
 }

@@ -1,6 +1,8 @@
 ---
 name: a2ui-doc-sync-check
 description: Auditing codebase implementations for synchronization drift with the user documentation, readmes, and code comments.
+metadata:
+  internal: true
 ---
 
 # A2UI Code and Documentation Synchronization Check Skill
@@ -21,7 +23,7 @@ This skill guides the process of auditing concrete codebase implementations to v
    - If any command listed in the readme is invalid, deprecated, or has wrong arguments, list it as a discrepancy.
 
 3. **Audit Code-vs-Docs Public API and Settings**:
-   - Make sure the glossary is respected. Verify that terms used in code, documentation and blueprints are consistent with [the glossary](../../../docs/public/concepts/glossary.md). If you find deviations, suggest fixes. If you see an important term is used in documentation and/or API, but is missing from the glossary, suggest an update for the glossary.
+   - Make sure the glossary is respected. Verify that terms used in code, documentation and blueprints are consistent with [the glossary](../../../docs/site/src/content/docs/concepts/glossary.mdx). If you find deviations, suggest fixes. If you see an important term is used in documentation and/or API, but is missing from the glossary, suggest an update for the glossary.
    - Inspect the codebase's public API entrypoints (classes, interfaces, types, methods).
    - Compare them against any descriptions, structural maps, or code snippets in the `docs/` folder.
    - Look for renamed classes, changed signatures, or removed options that are still described in the docs.

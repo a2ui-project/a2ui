@@ -35,10 +35,14 @@ from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.adk.a2a import A2uiPartConverter
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
-from a2ui.processor import CatalogConfig
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+from a2ui.processor import A2uiRequestProcessor, CatalogConfig
 
 my_catalog = CatalogConfig(BasicCatalog(ProtocolVersion.V0_9)).transformed_catalog
-a2ui_converter = A2uiPartConverter(catalogs=[my_catalog], version=ProtocolVersion.V0_9)
+# The instruction shows the agent Direct JSON, so the converter reads that format.
+a2ui_converter = A2uiPartConverter(
+    A2uiRequestProcessor([my_catalog], format_factory=DirectJsonFormatFactory())
+)
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)

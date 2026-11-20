@@ -5,7 +5,7 @@
   "description": "A schema for the a2uiRendererCapabilities object, which is sent from the renderer to the agent as part of the A2A metadata to describe the renderer's UI rendering capabilities.",
   "type": "object",
   "properties": {
-    "v1.0": {
+    "1.0": {
       "type": "object",
       "description": "The capabilities structure for version 1.0 of the A2UI protocol.",
       "properties": {
@@ -25,5 +25,5 @@
       "required": ["supportedCatalogIds"]
     }
   },
-  "required": ["v1.0"]
+  "required": ["1.0"]
 }

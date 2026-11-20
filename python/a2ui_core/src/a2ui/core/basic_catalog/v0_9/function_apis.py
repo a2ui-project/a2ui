@@ -135,14 +135,15 @@ class FormatStringApi(FunctionApi):
     schema = FormatStringArgs
     return_type = "string"
     description = (
-        "Performs string interpolation of data model values and other functions in the"
-        " catalog functions list and returns the resulting string. The value string can"
-        " contain interpolated expressions in the `${expression}` format. Supported"
-        " expression types include: JSON Pointer paths to the data model (e.g.,"
-        " `${/absolute/path}` or `${relative/path}`), and client-side function calls"
-        " (e.g., `${now()}`). Function arguments must be named (e.g.,"
-        " `${formatDate(value:${/currentDate}, format:'MM-dd')}`). To include a literal"
-        " `${` sequence, escape it as `\\${`."
+        "Performs string interpolation of data model values and other functions"
+        " in the catalog functions list and returns the resulting string. The"
+        " value string can contain interpolated expressions in the"
+        " `${expression}` format. Supported expression types include: JSON"
+        " Pointer paths to the data model (e.g., `${/absolute/path}` or"
+        " `${relative/path}`), and client-side function calls (e.g., `${now()}`)."
+        " Function arguments must be named (e.g.,"
+        " `${formatDate(value:${/currentDate}, format:'MM-dd')}`). To include a"
+        " literal `${` sequence, escape it as `\\${`."
     )
 
 
@@ -165,7 +166,8 @@ class FormatNumberArgs(StrictBaseModel):
         default=None,
         description=(
             "Optional. If true, uses locale-specific grouping separators (e.g."
-            " '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
+            " '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to"
+            " true."
         ),
     )
 
@@ -199,7 +201,8 @@ class FormatCurrencyArgs(StrictBaseModel):
         default=None,
         description=(
             "Optional. If true, uses locale-specific grouping separators (e.g."
-            " '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
+            " '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to"
+            " true."
         ),
     )
 
@@ -222,14 +225,15 @@ class FormatDateArgs(StrictBaseModel):
     format: DynamicString = Field(
         ...,
         description=(
-            "A Unicode TR35 date pattern string.\n\nToken Reference:\n- Year: 'yy'"
-            " (26), 'yyyy' (2026)\n- Month: 'M' (1), 'MM' (01), 'MMM' (Jan), 'MMMM'"
-            " (January)\n- Day: 'd' (1), 'dd' (01), 'E' (Tue), 'EEEE' (Tuesday)\n- Hour"
-            " (12h): 'h' (1-12), 'hh' (01-12) - requires 'a' for AM/PM\n- Hour (24h):"
-            " 'H' (0-23), 'HH' (00-23) - Military Time\n- Minute: 'mm' (00-59)\n-"
-            " Second: 'ss' (00-59)\n- Period: 'a' (AM/PM)\n\nExamples:\n- 'MMM dd,"
-            " yyyy' -> 'Jan 16, 2026'\n- 'HH:mm' -> '14:30' (Military)\n- 'h:mm a' ->"
-            " '2:30 PM'\n- 'EEEE, d MMMM' -> 'Friday, 16 January'"
+            "A Unicode TR35 date pattern string.\n\nToken Reference:\n- Year:"
+            " 'yy' (26), 'yyyy' (2026)\n- Month: 'M' (1), 'MM' (01), 'MMM' (Jan),"
+            " 'MMMM' (January)\n- Day: 'd' (1), 'dd' (01), 'E' (Tue), 'EEEE'"
+            " (Tuesday)\n- Hour (12h): 'h' (1-12), 'hh' (01-12) - requires 'a'"
+            " for AM/PM\n- Hour (24h): 'H' (0-23), 'HH' (00-23) - Military"
+            " Time\n- Minute: 'mm' (00-59)\n- Second: 'ss' (00-59)\n- Period: 'a'"
+            " (AM/PM)\n\nExamples:\n- 'MMM dd, yyyy' -> 'Jan 16, 2026'\n- 'HH:mm'"
+            " -> '14:30' (Military)\n- 'h:mm a' -> '2:30 PM'\n- 'EEEE, d MMMM' ->"
+            " 'Friday, 16 January'"
         ),
     )
 
@@ -249,10 +253,12 @@ class PluralizeArgs(StrictBaseModel):
         ),
     )
     value: DynamicNumber = Field(
-        ..., description="The numeric value used to determine the plural category."
+        ...,
+        description="The numeric value used to determine the plural category.",
     )
     zero: DynamicString | None = Field(
-        default=None, description="String for the 'zero' category (e.g., 0 items)."
+        default=None,
+        description="String for the 'zero' category (e.g., 0 items).",
     )
     one: DynamicString | None = Field(
         default=None, description="String for the 'one' category (e.g., 1 item)."
@@ -274,7 +280,8 @@ class PluralizeArgs(StrictBaseModel):
         ),
     )
     other: DynamicString = Field(
-        ..., description="The default/fallback string (used for general plural cases)."
+        ...,
+        description="The default/fallback string (used for general plural cases).",
     )
 
 
@@ -283,9 +290,9 @@ class PluralizeApi(FunctionApi):
     schema = PluralizeArgs
     return_type = "string"
     description = (
-        "Returns a localized string based on the Common Locale Data Repository (CLDR)"
-        " plural category of the count (zero, one, two, few, many, other). Requires an"
-        " 'other' fallback. For English, just use 'one' and 'other'."
+        "Returns a localized string based on the Common Locale Data Repository"
+        " (CLDR) plural category of the count (zero, one, two, few, many, other)."
+        " Requires an 'other' fallback. For English, just use 'one' and 'other'."
     )
 
 
@@ -301,8 +308,8 @@ class OpenUrlApi(FunctionApi):
     schema = OpenUrlArgs
     return_type = "void"
     description = (
-        "Opens the specified URL in a browser or handler. This function has no return"
-        " value."
+        "Opens the specified URL in a browser or handler. This function has no"
+        " return value."
     )
 
 

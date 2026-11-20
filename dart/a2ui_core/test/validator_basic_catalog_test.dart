@@ -35,7 +35,7 @@ Map<String, Object?> _readJson(String relativePath) =>
         as Map<String, Object?>;
 
 Map<String, Object?> basicCatalogDocument() =>
-    _readJson('../specification/v0_9_1/catalogs/basic/catalog.json');
+    _readJson('../catalogs/basic/v0_9_1/catalog.json');
 
 void main() {
   group('the basic catalog', () {
@@ -64,7 +64,7 @@ void main() {
   group('BasicCatalog child references', () {
     for (final (String label, _RendererCatalog catalog) in [
       ('v0.9', BasicCatalog.v0_9()),
-      ('v1.0', BasicCatalog.v1_0()),
+      ('1.0', BasicCatalog.v1_0()),
     ]) {
       test('$label declares the child references of its layout components', () {
         final Map<String, ComponentRefFields> refs = extractComponentRefFields(
@@ -86,15 +86,82 @@ void main() {
     }
   });
 
+  // `min` and `max` accept a date, a time or a date-time, told apart only by
+  // their `format` inside a `oneOf`. Without format checking every string
+  // matches all three branches, so `oneOf` rejects even a valid bound.
+  final Map<String, PayloadValidator<ComponentApi, FunctionApi> Function()>
+  dateTimeValidators = {
+    'v0.9.1': () => PayloadValidator<ComponentApi, FunctionApi>(
+      catalog: Catalog.fromJson(basicCatalogDocument()),
+      protocolVersion: A2uiProtocolVersion.v0_9,
+    ),
+    'v1': () => PayloadValidator<ComponentApi, FunctionApi>(
+      catalog: Catalog.fromJson(_readJson('../catalogs/basic/v1/catalog.json')),
+      protocolVersion: A2uiProtocolVersion.v1_0,
+      commonTypesSchema: _readJson(
+        '../specification/v1_0/json/common_types.json',
+      ),
+    ),
+  };
+
+  Map<String, Object?> dateTimeInput(Map<String, Object?> bounds) => {
+    'id': 'when',
+    'component': 'DateTimeInput',
+    'value': '',
+    ...bounds,
+  };
+
+  for (final MapEntry(key: catalogName, value: newValidator)
+      in dateTimeValidators.entries) {
+    group('DateTimeInput bounds in the $catalogName basic catalog', () {
+      // Built on first use and shared by the group's tests, so the catalog is
+      // read and resolved once.
+      late final PayloadValidator<ComponentApi, FunctionApi> validator =
+          newValidator();
+
+      for (final bound in ['2026-01-01', '09:00:00', '2026-01-01T09:00:00Z']) {
+        test('accept the literal $bound', () {
+          expect(
+            () => validator.validateComponent(
+              dateTimeInput({'min': bound, 'max': bound}),
+            ),
+            returnsNormally,
+          );
+        });
+      }
+
+      test('accept a data binding', () {
+        expect(
+          () => validator.validateComponent(
+            dateTimeInput({
+              // v1.0 renamed the binding key to `@path`.
+              'min': {catalogName == 'v1' ? '@path' : 'path': '/earliest'},
+            }),
+          ),
+          returnsNormally,
+        );
+      });
+
+      for (final bound in ['tomorrow', '2026/01/01', '']) {
+        test('reject the literal "$bound"', () {
+          expect(
+            () => validator.validateComponent(dateTimeInput({'max': bound})),
+            throwsA(isA<A2uiValidationError>()),
+          );
+        });
+      }
+    });
+  }
+
   _registerExamples(
     'the v0.9.1 basic catalog examples against the v0.9.1 document',
-    '../specification/v0_9_1/catalogs/basic/examples',
+    '../catalogs/basic/v0_9_1/examples',
     () => rendererCatalog(basicCatalogDocument()),
     A2uiProtocolVersion.v0_9,
   );
   _registerExamples(
     'the v0.9 basic catalog examples against BasicCatalog.v0_9()',
-    '../specification/v0_9/catalogs/basic/examples',
+    '../catalogs/basic/v0_9/examples',
     BasicCatalog.v0_9,
     A2uiProtocolVersion.v0_9,
   );
@@ -120,8 +187,7 @@ void _registerExamples(
     final examples = Directory(resolveConformancePath(directory));
     final List<File> files = examples.listSync().whereType<File>().where((f) {
       return f.path.endsWith('.json');
-    }).toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
+    }).toList()..sort((a, b) => a.path.compareTo(b.path));
 
     test('the examples are present', () {
       expect(files, isNotEmpty, reason: examples.path);
@@ -131,8 +197,9 @@ void _registerExamples(
       final String name = file.uri.pathSegments.last;
       test(name, skip: skips[name], () async {
         final Object? document = jsonDecode(file.readAsStringSync());
-        final Object? messages =
-            document is Map ? document['messages'] : document;
+        final Object? messages = document is Map
+            ? document['messages']
+            : document;
         expect(
           messages,
           isA<List<Object?>>(),
@@ -143,7 +210,7 @@ void _registerExamples(
             (message! as Map).cast<String, Object?>(),
         ];
 
-        // `31_incremental-dashboard` streams components across messages where
+        // `incremental-dashboard` streams components across messages where
         // placeholders become orphaned when their parents are updated.
         final processor = MessageProcessor<ComponentApi>(
           catalogs: [catalog()],

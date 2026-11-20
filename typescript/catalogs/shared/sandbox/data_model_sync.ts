@@ -120,7 +120,9 @@ export class DataModelSync {
   /** Writes a change requested by the frame; see {@link DataModelChangeResult}. */
   applyChange(change: DataModelChange): DataModelChangeResult {
     const {host, paths} = this.options;
-    const path = paths[change.key];
+    // Own keys only: `paths` is a plain object, so an inherited name such as `toString` would
+    // otherwise resolve to a function instead of a bound path.
+    const path = Object.hasOwn(paths, change.key) ? paths[change.key] : undefined;
     if (!path) {
       return 'unbound';
     }

@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import annotations
-
 from collections import deque
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 import copy
 from dataclasses import dataclass
 import re
@@ -29,6 +27,7 @@ else:
     from typing_extensions import TypeVar
 from pydantic import BaseModel
 
+from ..common.metadata import clone_metadata, validate_metadata
 from ..common.semver import (
     is_at_least_version,
     parse_semver,
@@ -43,7 +42,9 @@ from ..exceptions import A2uiCatalogError
 from ..schema import ProtocolVersion
 from ..schema._dynamic_types import clean_schema_node
 from ..schema._json_schema import (
+    CATALOG_DEF_MARKER,
     INLINE_DEF_MARKER,
+    KEEP_ANY_OF_MARKER,
     SPEC_TITLE_KEY,
     inline_marked_defs,
 )
@@ -56,6 +57,7 @@ from ..schema.common_types_schema import (
 from ._spec_shape import SpecSchema, SpecShaper, v08_document_schema
 from .components import ComponentApi, ComponentImplementation, ModelComponentApi
 from .functions import (
+    AgentFunction,
     AllowedCallers,
     FunctionApi,
     FunctionImplementation,
@@ -153,11 +155,14 @@ def _query_json_pointer(doc: Mapping[str, Any], pointer: str) -> Any:
     curr: Any = doc
     for p in parts:
         p = re.sub(r"~([01])", lambda m: "/" if m.group(1) == "1" else "~", p)
-        if isinstance(curr, (dict, Mapping)):
-            if p in curr:
-                curr = curr[p]
-            else:
+        if isinstance(curr, Mapping):
+            if p not in curr:
                 return None
+            curr = curr[p]
+        elif isinstance(curr, list) and re.fullmatch(r"0|[1-9][0-9]*", p):
+            if int(p) >= len(curr):
+                return None
+            curr = curr[int(p)]
         else:
             return None
     return curr
@@ -166,32 +171,23 @@ def _query_json_pointer(doc: Mapping[str, Any], pointer: str) -> Any:
 # Schema documents whose `$defs` are addressable as local definitions once a
 # catalog has been loaded. `common_types.json` definitions are supplied from the
 # Pydantic models in `a2ui.core.schema`, and `catalog.json` definitions live in
-# the catalog document itself. `common_types.json` is also the document every
-# unbundled common types reference points into, unless a catalog names another
-# (`Catalog.common_types_uri`).
-_COMMON_TYPES_DOCUMENT: Final[str] = "common_types.json"
-_CATALOG_DOCUMENT: Final[str] = "catalog.json"
+# the catalog document itself.
+_LOCALIZABLE_REF_DOCUMENTS: Final[tuple[str, ...]] = (
+    "common_types.json",
+    "catalog.json",
+)
 
 
-def _names_document(document: str, name: str) -> bool:
-    """Whether a `$ref` document part is the file `name` or a path ending in it."""
-    return document == name or document.endswith(f"/{name}")
-
-
-def _localize_ref(ref: str, peers: Sequence[CatalogApi] = ()) -> str:
+def _localize_ref(ref: str) -> str:
     """Rewrites a cross-document `$defs` reference as a local pointer.
 
     The published specification cross-references shared types between documents,
     for example ``common_types.json#/$defs/ChildList``. Those pointers cannot be
     resolved without the specification files on disk, so they are rewritten to
     ``#/$defs/ChildList`` and satisfied from the in-memory definitions instead.
-    A pointer into a document named ``catalog.json`` is rewritten the same way,
-    since it addresses the catalog's own definitions, unless the document is a
-    path that names one of `peers` exactly or by suffix.
 
     Args:
         ref: Raw ``$ref`` string from a schema node.
-        peers: Peer catalogs that a ``.../catalog.json`` path may name.
 
     Returns:
         A local ``#/$defs/...`` pointer when the reference targets a known
@@ -200,179 +196,55 @@ def _localize_ref(ref: str, peers: Sequence[CatalogApi] = ()) -> str:
     if "#/$defs/" not in ref or ref.startswith("#/"):
         return ref
     document, _, fragment = ref.partition("#")
-    if _names_document(document, _COMMON_TYPES_DOCUMENT) or (
-        document == _CATALOG_DOCUMENT
-    ):
-        return f"#{fragment}"
-    if _names_document(document, _CATALOG_DOCUMENT) and (
-        _match_peer_by_id(document, peers) is None
-    ):
-        return f"#{fragment}"
-    return ref
+    if not any(document.endswith(name) for name in _LOCALIZABLE_REF_DOCUMENTS):
+        return ref
+    return f"#{fragment}"
 
 
-def _normalize_external_schema_refs(node: Any, peers: Sequence[CatalogApi] = ()) -> Any:
+def _normalize_external_schema_refs(node: Any) -> Any:
     """Recursively rewrites cross-document `$refs` into local `$defs` pointers.
 
     Args:
         node: Schema fragment to normalize.
-        peers: Peer catalogs whose references are left for peer resolution.
 
     Returns:
-        An equivalent fragment whose references are all catalog-local, apart
-        from references into peer catalogs.
+        An equivalent fragment whose references are all catalog-local.
     """
     if isinstance(node, dict):
         normalized: dict[str, Any] = {}
         for key, value in node.items():
             if key == "$ref" and isinstance(value, str):
-                normalized[key] = _localize_ref(value, peers)
+                normalized[key] = _localize_ref(value)
             else:
-                normalized[key] = _normalize_external_schema_refs(value, peers)
+                normalized[key] = _normalize_external_schema_refs(value)
         return normalized
     if isinstance(node, list):
-        return [_normalize_external_schema_refs(item, peers) for item in node]
+        return [_normalize_external_schema_refs(item) for item in node]
     return node
-
-
-def _match_peer_by_id(document: str, peers: Sequence[CatalogApi]) -> CatalogApi | None:
-    """Returns the first peer whose `catalogId` or `$id` is `document` or a path suffix of it."""
-    for peer in peers:
-        for candidate in (peer.catalog_id, peer.schema_id):
-            if candidate and (
-                document == candidate
-                or candidate.endswith(f"/{document}")
-                or document.endswith(f"/{candidate}")
-            ):
-                return peer
-    return None
-
-
-def _find_peer_catalog(document: str, peers: Sequence[CatalogApi]) -> CatalogApi | None:
-    """Returns the peer catalog that the document part of a `$ref` names.
-
-    The lookup has two passes. The first matches `document` exactly or by
-    path suffix against each peer's `catalogId` and `$id`. The second matches
-    its file name against the file name of each peer's `$id` and `catalogId`.
-    The first matching peer in `peers` order wins. A reference into
-    `common_types.json` never names a peer, and neither does one into a
-    document named `catalog.json`, except a path that the first pass matches:
-    otherwise such a document is the referencing catalog itself.
-
-    Args:
-        document: The part of a `$ref` before `#`.
-        peers: The peer catalogs to search.
-
-    Returns:
-        The matching peer, or None.
-    """
-    if (
-        not document
-        or not peers
-        or _names_document(document, _COMMON_TYPES_DOCUMENT)
-        or document == _CATALOG_DOCUMENT
-    ):
-        return None
-    peer = _match_peer_by_id(document, peers)
-    if peer is not None or _names_document(document, _CATALOG_DOCUMENT):
-        return peer
-    base = document.rsplit("/", 1)[-1]
-    for peer in peers:
-        for candidate in (peer.schema_id, peer.catalog_id):
-            if candidate and candidate.rsplit("/", 1)[-1] == base:
-                return peer
-    return None
-
-
-def _is_cross_document_ref(ref: str) -> bool:
-    """Whether a `$ref` may point into a peer catalog."""
-    if "#" not in ref:
-        return False
-    document = ref.partition("#")[0]
-    return bool(document) and not (
-        _names_document(document, _COMMON_TYPES_DOCUMENT)
-        or document == _CATALOG_DOCUMENT
-    )
-
-
-def _has_cross_document_refs(node: Any) -> bool:
-    """Whether any `$ref` in `node` may point into a peer catalog."""
-    if isinstance(node, dict):
-        ref = node.get("$ref")
-        if isinstance(ref, str) and _is_cross_document_ref(ref):
-            return True
-        return any(_has_cross_document_refs(v) for v in node.values())
-    if isinstance(node, list):
-        return any(_has_cross_document_refs(item) for item in node)
-    return False
-
-
-def _strip_envelope_from_subschema(sub: dict[str, Any]) -> dict[str, Any]:
-    """Recursively strips component envelope keys and orders own properties before mixins."""
-    cleaned = {
-        k: v
-        for k, v in sub.items()
-        if k not in ("unevaluatedProperties", "additionalProperties", "title")
-    }
-    props = cleaned.get("properties")
-    if isinstance(props, Mapping):
-        cleaned["properties"] = {
-            k: v for k, v in props.items() if k not in _COMPONENT_ENVELOPE_KEYS
-        }
-    req = cleaned.get("required")
-    if isinstance(req, list):
-        cleaned["required"] = [r for r in req if r not in _COMPONENT_ENVELOPE_KEYS]
-    all_of = cleaned.get("allOf")
-    if isinstance(all_of, list):
-        specific: list[Any] = []
-        inherited: list[Any] = []
-        for item in all_of:
-            if isinstance(item, dict):
-                item_props = item.get("properties")
-                has_comp = isinstance(item_props, Mapping) and "component" in item_props
-                stripped_item = _strip_envelope_from_subschema(item)
-                if has_comp:
-                    specific.append(stripped_item)
-                else:
-                    inherited.append(stripped_item)
-            else:
-                inherited.append(item)
-        cleaned["allOf"] = [*specific, *inherited]
-    return cleaned
-
-
-def _strip_referenced_component_envelope(node: Any, pointer: str) -> Any:
-    """Strips component envelope and closure keywords when inlining `#/components/<Name>`."""
-    if not isinstance(node, dict) or not pointer.startswith("#/components/"):
-        return node
-    parts = pointer[2:].split("/")
-    if len(parts) != 2:
-        return node
-    return _strip_envelope_from_subschema(node)
 
 
 def inline_local_refs(
     node: Any,
     root_catalog: Mapping[str, Any],
     visited: set[str] | None = None,
-    peers: Sequence[CatalogApi] = (),
+    *,
+    inline_local_defs: bool = True,
 ) -> Any:
-    """Returns a schema node with its local and peer catalog references written inline.
+    """Returns a schema node with its local references written inline.
 
     Each `$ref` that starts with `#/` is replaced by what it points to in
-    `root_catalog`, with the keys beside the `$ref` merged over it. External
-    references (`<doc>#/...`) that match a catalog in `peers` are resolved
-    against that peer catalog's document. References to common types named in
-    `PRESERVED_TYPE_REFS` stay, and so does a reference that a definition
-    makes to itself.
+    `root_catalog`, with the keys beside the `$ref` merged over it. References
+    to common types named in `PRESERVED_TYPE_REFS` stay, and so does a
+    reference that a definition makes to itself.
 
     Args:
         node: The schema node to inline.
         root_catalog: The document that the references point into, usually the
             catalog schema that holds `node`.
         visited: The references being inlined, which callers leave out.
-        peers: Optional peer catalogs for resolving cross-catalog `$ref`
-            pointers.
+        inline_local_defs: Whether to inline `#/$defs/` references in
+            `root_catalog`. When `False`, `#/components/` references are still
+            inlined, while local `#/$defs/` references are kept.
 
     Returns:
         A new node, whose leaf values are shared with `node` and
@@ -382,86 +254,78 @@ def inline_local_refs(
         visited = set()
 
     if isinstance(node, dict):
-        if "$ref" in node and isinstance(node["$ref"], str):
-            raw_ref = node["$ref"]
-            target_catalog: Mapping[str, Any] | None = None
-            ref_path: str | None = None
-            visit_key: str = raw_ref
+        if (
+            "$ref" in node
+            and isinstance(node["$ref"], str)
+            and node["$ref"].startswith("#/")
+        ):
+            ref_path = node["$ref"]
+            ref_name = ref_path.split("/")[-1]
+            if ref_path.startswith("#/$defs/") and (
+                ref_name in PRESERVED_TYPE_REFS or not inline_local_defs
+            ):
+                return node
 
-            doc_part, _, fragment = raw_ref.partition("#")
-            local_ref: str | None = None
-            if raw_ref.startswith("#/"):
-                local_ref = raw_ref
-            elif "#" in raw_ref and fragment.startswith("/"):
-                if _names_document(doc_part, _COMMON_TYPES_DOCUMENT):
-                    localized = _localize_ref(raw_ref)
-                    if localized.startswith("#/"):
-                        local_ref = localized
-                else:
-                    peer = _find_peer_catalog(doc_part, peers)
-                    if peer is not None:
-                        target_catalog = peer.to_json()
-                        ref_path = f"#{fragment}"
-                        visit_key = f"{id(target_catalog)}:#{fragment}"
-                    elif _names_document(doc_part, _CATALOG_DOCUMENT):
-                        local_ref = f"#{fragment}"
-            if local_ref is not None:
-                ref_name = local_ref.split("/")[-1]
-                if local_ref.startswith("#/$defs/") and ref_name in PRESERVED_TYPE_REFS:
-                    return node
-                target_catalog = root_catalog
-                ref_path = local_ref
-                visit_key = f"{id(root_catalog)}:{local_ref}"
+            if ref_path in visited:
+                return node  # Prevent stack overflow on circular references
 
-            if target_catalog is not None and ref_path is not None:
-                if visit_key in visited:
-                    return node  # Prevent stack overflow on circular references
+            new_visited = set(visited)
+            new_visited.add(ref_path)
 
-                new_visited = set(visited)
-                new_visited.add(visit_key)
-
-                resolved_node = _query_json_pointer(target_catalog, ref_path)
-                if resolved_node is not None:
-                    resolved_node = inline_local_refs(
-                        resolved_node, target_catalog, new_visited, peers=peers
+            resolved_node = _query_json_pointer(root_catalog, ref_path)
+            if resolved_node is not None:
+                resolved_node = inline_local_refs(
+                    resolved_node,
+                    root_catalog,
+                    new_visited,
+                    inline_local_defs=inline_local_defs,
+                )
+                merged = {
+                    k: inline_local_refs(
+                        v,
+                        root_catalog,
+                        visited,
+                        inline_local_defs=inline_local_defs,
                     )
-                    resolved_node = _strip_referenced_component_envelope(
-                        resolved_node, ref_path
-                    )
-                    merged = {
-                        k: inline_local_refs(v, root_catalog, visited, peers=peers)
-                        for k, v in node.items()
-                        if k != "$ref"
-                    }
-                    if isinstance(resolved_node, dict):
-                        res = dict(resolved_node)
-                        for k, v in merged.items():
-                            if (
-                                k in res
-                                and isinstance(res[k], dict)
-                                and isinstance(v, dict)
-                            ):
-                                res[k] = {**res[k], **v}
-                            elif (
-                                k in res
-                                and isinstance(res[k], list)
-                                and isinstance(v, list)
-                            ):
-                                res[k] = res[k] + [x for x in v if x not in res[k]]
-                            else:
-                                res[k] = v
-                        return res
-                    return resolved_node
+                    for k, v in node.items()
+                    if k != "$ref"
+                }
+                if isinstance(resolved_node, dict):
+                    res = dict(resolved_node)
+                    for k, v in merged.items():
+                        if (
+                            k in res
+                            and isinstance(res[k], dict)
+                            and isinstance(v, dict)
+                        ):
+                            res[k] = {**res[k], **v}
+                        elif (
+                            k in res
+                            and isinstance(res[k], list)
+                            and isinstance(v, list)
+                        ):
+                            res[k] = res[k] + [x for x in v if x not in res[k]]
+                        else:
+                            res[k] = v
+                    return res
+                return resolved_node
 
         return {
-            k: inline_local_refs(v, root_catalog, visited, peers=peers)
+            k: inline_local_refs(
+                v, root_catalog, visited, inline_local_defs=inline_local_defs
+            )
             for k, v in node.items()
         }
 
     elif isinstance(node, list):
         return [
-            inline_local_refs(item, root_catalog, visited, peers=peers) for item in node
+            inline_local_refs(
+                item, root_catalog, visited, inline_local_defs=inline_local_defs
+            )
+            for item in node
         ]
+
+    return node
 
     return node
 
@@ -476,6 +340,9 @@ def _collect_defs_refs(node: Any, refs: set[str]) -> None:
         ):
             target_def = node["$ref"][len("#/$defs/") :].split("/")[0]
             refs.add(target_def)
+        marker = node.get(CATALOG_DEF_MARKER)
+        if isinstance(marker, str) and marker:
+            refs.add(marker)
         for v in node.values():
             _collect_defs_refs(v, refs)
     elif isinstance(node, list):
@@ -500,6 +367,10 @@ _DEFAULT_PROTOCOL_VERSION: Final[str] = "0.9"
 # The `v` that a declared protocol version may start with, which the bare
 # semantic version form of `catalog_definition.json` omits.
 _BARE_VERSION_PREFIX: Final[re.Pattern[str]] = re.compile(r"^[vV](?=\d)")
+
+# The document every unbundled common types reference points into, unless a
+# catalog names another (`Catalog.common_types_uri`).
+_COMMON_TYPES_DOCUMENT: Final[str] = "common_types.json"
 
 # The `$defs` that a catalog derives from its components and functions.
 _UNION_DEFS: Final[tuple[str, str]] = ("anyComponent", "anyFunction")
@@ -603,7 +474,7 @@ def _local_def_name(ref: Any) -> str | None:
     pointer: str = ref
     if not pointer.startswith("#"):
         document = pointer.partition("#")[0]
-        if not _names_document(document, _CATALOG_DOCUMENT):
+        if not document.endswith("catalog.json"):
             return None
         pointer = str(_localize_ref(pointer))
     if not pointer.startswith("#/$defs/"):
@@ -618,12 +489,147 @@ def _local_def_refs(node: Any) -> set[str]:
         name = _local_def_name(node.get("$ref"))
         if name is not None:
             refs.add(name)
+        marker = node.get(CATALOG_DEF_MARKER)
+        if isinstance(marker, str) and marker:
+            refs.add(marker)
         for value in node.values():
             refs |= _local_def_refs(value)
     elif isinstance(node, list):
         for item in node:
             refs |= _local_def_refs(item)
     return refs
+
+
+def _inline_leaf_catalog_defs(
+    node: Any,
+    defs: Mapping[str, Any],
+    visited: set[str] | None = None,
+    *,
+    is_properties_map: bool = False,
+    under_property: bool = False,
+) -> Any:
+    """Inlines leaf `#/$defs/<name>` property references with `CATALOG_DEF_MARKER`."""
+    if isinstance(node, list):
+        return [
+            _inline_leaf_catalog_defs(
+                item,
+                defs,
+                visited,
+                under_property=under_property,
+            )
+            for item in node
+        ]
+    if not isinstance(node, dict):
+        return node
+    if not is_properties_map and under_property:
+        raw_ref = node.get("$ref")
+        if (
+            isinstance(raw_ref, str)
+            and raw_ref.startswith("#/$defs/")
+            and set(node.keys()) <= {"$ref", "description", "default"}
+        ):
+            tail = raw_ref[len("#/$defs/") :]
+            if "/" not in tail:
+                def_name = tail.replace("~1", "/").replace("~0", "~")
+                if (
+                    def_name in defs
+                    and def_name not in _UNION_DEFS
+                    and def_name != "theme"
+                    and def_name not in PRESERVED_TYPE_REFS
+                    and (visited is None or def_name not in visited)
+                ):
+                    target = defs.get(def_name)
+                    if isinstance(target, Mapping) and CATALOG_DEF_MARKER not in target:
+                        next_visited = {*(visited or ()), def_name}
+                        resolved_target = _inline_leaf_catalog_defs(
+                            dict(target),
+                            defs,
+                            next_visited,
+                            under_property=True,
+                        )
+                        if (
+                            isinstance(resolved_target, dict)
+                            and "$ref" not in resolved_target
+                        ):
+                            inlined = copy.deepcopy(resolved_target)
+                            for key, val in node.items():
+                                if key != "$ref":
+                                    inlined[key] = copy.deepcopy(val)
+                            inlined[CATALOG_DEF_MARKER] = def_name
+                            return inlined
+    return {
+        k: _inline_leaf_catalog_defs(
+            v,
+            defs,
+            visited,
+            is_properties_map=(not is_properties_map and k == "properties"),
+            under_property=(under_property or is_properties_map),
+        )
+        for k, v in node.items()
+    }
+
+
+def _restore_catalog_def_refs(
+    node: Any,
+    defs: Mapping[str, Any],
+    *,
+    is_properties_map: bool = False,
+) -> Any:
+    """Restores inlined `CATALOG_DEF_MARKER` nodes back to `#/$defs/<name>` refs."""
+    if isinstance(node, list):
+        return [_restore_catalog_def_refs(item, defs) for item in node]
+    if not isinstance(node, dict):
+        return node
+    if not is_properties_map:
+        def_name = node.get(CATALOG_DEF_MARKER)
+        if isinstance(def_name, str) and def_name:
+            target = defs.get(def_name)
+            if isinstance(target, Mapping):
+                resolved_target = _inline_leaf_catalog_defs(
+                    dict(target),
+                    defs,
+                    {def_name},
+                    under_property=True,
+                )
+                target_map: Mapping[str, Any] = (
+                    resolved_target if isinstance(resolved_target, Mapping) else target
+                )
+            else:
+                target_map = {}
+            escaped_name = def_name.replace("~", "~0").replace("/", "~1")
+            ref_node: dict[str, Any] = {"$ref": f"#/$defs/{escaped_name}"}
+            for key in ("description", "default"):
+                if key in node and node[key] != target_map.get(key):
+                    ref_node[key] = copy.deepcopy(node[key])
+            return ref_node
+    return {
+        k: _restore_catalog_def_refs(
+            v,
+            defs,
+            is_properties_map=(not is_properties_map and k == "properties"),
+        )
+        for k, v in node.items()
+    }
+
+
+def _strip_catalog_def_markers(
+    node: Any,
+    *,
+    is_properties_map: bool = False,
+) -> Any:
+    """Removes internal `CATALOG_DEF_MARKER` keys from a resolved schema."""
+    if isinstance(node, list):
+        return [_strip_catalog_def_markers(item) for item in node]
+    if not isinstance(node, dict):
+        return node
+    return {
+        k: _strip_catalog_def_markers(
+            v,
+            is_properties_map=(not is_properties_map and k == "properties"),
+        )
+        for k, v in node.items()
+        if is_properties_map or k != CATALOG_DEF_MARKER
+    }
 
 
 def _reachable_defs(roots: Sequence[Any], defs: Mapping[str, Any]) -> set[str]:
@@ -636,6 +642,83 @@ def _reachable_defs(roots: Sequence[Any], defs: Mapping[str, Any]) -> set[str]:
             reachable.add(name)
             queue.extend(_local_def_refs(defs[name]))
     return reachable
+
+
+def _agent_function_name_taken(catalog_id: str, name: str) -> A2uiCatalogError:
+    """The error for an agent function whose name a declared function has."""
+    return A2uiCatalogError(
+        f"Catalog '{catalog_id}' already declares a function named '{name}',"
+        " so an agent function can't use that name: a renderer that implements"
+        " the declared function would run it instead of calling the agent."
+        " Give the agent function its own name, or build it with"
+        " `AgentFunction.from_api` from the catalog's entry to replace that"
+        " entry."
+    )
+
+
+def _duplicate_agent_function(catalog_id: str, name: str) -> A2uiCatalogError:
+    """The error for two agent functions with one name."""
+    return A2uiCatalogError(
+        f"Catalog '{catalog_id}' was given more than one agent function named"
+        f" '{name}'. Each agent function needs a name of its own."
+    )
+
+
+def _with_agent_functions(
+    catalog_id: str,
+    functions: Sequence[Any],
+    agent_functions: Sequence[AgentFunction] | None,
+) -> list[Any]:
+    """Adds agent functions to a catalog's functions.
+
+    An agent function built with `AgentFunction.from_api` replaces the entry
+    it was built from, in place; any other is appended.
+
+    Raises:
+        A2uiCatalogError: If an entry is not an `AgentFunction`, two entries
+            share a name, an entry's name is already taken by a declared
+            function, or an entry built with `AgentFunction.from_api` has no
+            entry of `functions` to replace.
+    """
+    merged = list(functions)
+    if not agent_functions:
+        return merged
+    positions = {fn.name: i for i, fn in enumerate(merged)}
+    seen: set[str] = set()
+    for agent_function in agent_functions:
+        if not isinstance(agent_function, AgentFunction):
+            raise A2uiCatalogError(
+                f"Catalog '{catalog_id}' was given {agent_function!r} as an"
+                " agent function, which is not an `AgentFunction`."
+            )
+        name = agent_function.name
+        if name in seen:
+            raise _duplicate_agent_function(catalog_id, name)
+        seen.add(name)
+        position = positions.get(name)
+        if position is None:
+            if agent_function.declaration is not None:
+                raise A2uiCatalogError(
+                    f"Catalog '{catalog_id}' has no function named '{name}'"
+                    " for the agent function built with"
+                    " `AgentFunction.from_api` to replace. Build it from this"
+                    " catalog's entry, or build an `AgentFunction` directly."
+                )
+            positions[name] = len(merged)
+            merged.append(agent_function)
+        elif agent_function.declaration is merged[position]:
+            merged[position] = agent_function
+        elif agent_function.declaration is not None:
+            raise A2uiCatalogError(
+                f"Agent function '{name}' was built with"
+                " `AgentFunction.from_api` from a different declaration than"
+                f" the one in catalog '{catalog_id}' (for example, from a"
+                " reloaded or copied catalog); build it from this catalog's"
+                " entry."
+            )
+        else:
+            raise _agent_function_name_taken(catalog_id, name)
+    return merged
 
 
 def _externalize_refs(
@@ -680,15 +763,17 @@ _DATA_KEYWORDS: Final[frozenset[str]] = frozenset(
 
 
 def _mark_authored_titles(node: Any, in_properties: bool = False) -> Any:
-    """Marks the `title` keywords of an authored schema to survive cleaning.
+    """Marks the `title` and `anyOf` keywords of an authored schema to survive cleaning.
 
-    `clean_schema_node` drops `title`, which Pydantic generates for every
-    model and field, but keeps the marked titles of the specification. A
-    title a catalog document wrote is an annotation to keep, so it is marked
-    the same way. A property named `title` is not a keyword and stays as is.
+    `clean_schema_node` drops `title` and rewrites `anyOf` to `oneOf`, which
+    Pydantic generates for every model, field, and `Union`. A `title` or
+    `anyOf` a catalog document wrote is kept as authored, so it is marked
+    here. A property named `title` or `anyOf` is not a keyword and stays as is.
     """
     if isinstance(node, dict):
         result: dict[str, Any] = {}
+        if not in_properties and "anyOf" in node:
+            result[KEEP_ANY_OF_MARKER] = True
         for key, value in node.items():
             if not in_properties and key in _DATA_KEYWORDS:
                 result[key] = value
@@ -746,6 +831,10 @@ def _function_document(
             else document
         )
         args = dict(args) if isinstance(args, Mapping) else {}
+        if not args:
+            # An empty schema takes any args. A catalog document closes `args`
+            # unless it says otherwise, so the document says so.
+            args["additionalProperties"] = True
         args.setdefault("type", "object")
         document = {"type": "object"}
         if v1:
@@ -854,8 +943,65 @@ def _close_function_call(entry: Any, return_type: str) -> None:
             required.append("args")
 
 
-_COMPONENT_ENVELOPE_KEYS = frozenset({"id", "component", "catalogId"})
+_COMPONENT_ENVELOPE_KEYS = frozenset({"id", "component", "catalogId", "@catalogId"})
+_BASE_COMPONENT_ENVELOPE_KEYS = frozenset({"id", "component"})
+_ENVELOPE_MIXIN_CANDIDATE_KEYS: Final[frozenset[str]] = frozenset(
+    {"metadata", "catalogId", "accessibility", "checks"}
+)
+_COMPONENT_AT_MIXIN_KEYS: Final[frozenset[str]] = frozenset(
+    {"@metadata", "@catalogId", "@accessibility", "@checks"}
+)
 _STANDARD_MIXIN_DEFS = frozenset({"ComponentCommon", "Checkable"})
+
+
+def _is_standard_mixin_property_schema(
+    prop_name: str, prop_schema: Any, *, has_inline_id: bool = False
+) -> bool:
+    """Returns whether `prop_schema` is the standard ComponentCommon/Checkable mixin schema for `prop_name`.
+
+    A `$ref` to `AccessibilityAttributes`, `Checkable`, `CheckRule`, or
+    `ComponentCommonMetadata` is always the standard mixin. A bare `catalogId`
+    or `metadata` declared inline is the standard mixin only where
+    `ComponentCommon` was inlined: when the same `properties` block also
+    declares `id` (`has_inline_id`), and the property has the standard shape
+    (a string `catalogId`, or an object `metadata` whose only property is
+    `extensions`). Otherwise it is a property the component declares itself.
+
+    Args:
+        prop_name: The property's key.
+        prop_schema: The property's schema.
+        has_inline_id: Whether the `properties` block that declares the
+            property also declares `id`.
+    """
+    if not isinstance(prop_schema, Mapping):
+        return False
+    ref = prop_schema.get("$ref")
+    if prop_name in ("accessibility", "@accessibility"):
+        return isinstance(ref, str) and ref.endswith("/AccessibilityAttributes")
+    if prop_name in ("checks", "@checks"):
+        if isinstance(ref, str) and ref.endswith("/Checkable"):
+            return True
+        items = prop_schema.get("items")
+        return (
+            isinstance(items, Mapping)
+            and isinstance(items.get("$ref"), str)
+            and items["$ref"].endswith("/CheckRule")
+        )
+    if prop_name in ("metadata", "@metadata"):
+        if isinstance(ref, str) and ref.endswith("/ComponentCommonMetadata"):
+            return True
+        props = prop_schema.get("properties")
+        return (
+            (has_inline_id or prop_name == "@metadata")
+            and prop_schema.get("type") == "object"
+            and isinstance(props, Mapping)
+            and set(props.keys()) == {"extensions"}
+        )
+    if prop_name in ("catalogId", "@catalogId"):
+        return (has_inline_id or prop_name == "@catalogId") and prop_schema.get(
+            "type"
+        ) == "string"
+    return False
 
 
 def _normalize_function_args_closure(entry: Any) -> None:
@@ -1035,6 +1181,250 @@ def _collect_component_sub_schemas(
     return mixins, local, common_inline, specific_inline
 
 
+def get_custom_envelope_properties(
+    catalog: Any, comp_type: str | None
+) -> frozenset[str]:
+    """Returns which of `{'metadata', 'catalogId', 'accessibility', 'checks'}`
+    are declared as custom component properties by `comp_type` in `catalog`
+    (rather than inherited from `ComponentCommon` or `Checkable`).
+
+    A property declared in any `allOf`, `anyOf`, or `oneOf` branch counts. On a
+    v1.0 surface, a bare key that isn't custom is read as the legacy form of
+    its `@`-prefixed envelope mixin.
+
+    TODO(#4082): remove the legacy bare v1.0 mixin fallback. It only exists so
+    agents still sending bare v1.0 keys keep working during the transition.
+    """
+    if catalog is None or not comp_type or not isinstance(comp_type, str):
+        return frozenset()
+    comp_entry = (
+        catalog.get_component(comp_type)
+        if hasattr(catalog, "get_component")
+        else getattr(catalog, "components", {}).get(comp_type)
+        if isinstance(getattr(catalog, "components", None), Mapping)
+        else None
+    )
+    model_cls = (
+        getattr(comp_entry, "schema", None)
+        if isinstance(getattr(comp_entry, "schema", None), type)
+        and issubclass(getattr(comp_entry, "schema"), BaseModel)
+        else getattr(comp_entry, "model_class", None)
+    )
+    if isinstance(model_cls, type) and issubclass(model_cls, BaseModel):
+        custom: set[str] = set()
+        for name, field in model_cls.model_fields.items():
+            wire_key = field.alias or name
+            if wire_key not in _ENVELOPE_MIXIN_CANDIDATE_KEYS:
+                continue
+            inherited = False
+            for base in model_cls.__mro__[1:]:
+                if base.__name__ in (
+                    "ComponentCommon",
+                    "CatalogComponentCommon",
+                    "Checkable",
+                ):
+                    base_fields = getattr(base, "model_fields", {})
+                    if (
+                        name in base_fields
+                        and base_fields[name].annotation == field.annotation
+                    ):
+                        inherited = True
+                        break
+            if not inherited:
+                custom.add(wire_key)
+        return frozenset(custom)
+
+    entry_schema = getattr(comp_entry, "schema", None)
+    raw_schema = (
+        entry_schema
+        if isinstance(entry_schema, Mapping)
+        else comp_entry
+        if isinstance(comp_entry, Mapping)
+        else None
+    )
+    if raw_schema is None:
+        val_schema = getattr(catalog, "validation_schema", None)
+        if isinstance(val_schema, Mapping):
+            comps = val_schema.get("components")
+            if isinstance(comps, Mapping) and isinstance(comps.get(comp_type), Mapping):
+                raw_schema = comps[comp_type]
+    if not isinstance(raw_schema, Mapping):
+        return frozenset()
+
+    local_defs = (
+        catalog.defs if isinstance(getattr(catalog, "defs", None), Mapping) else {}
+    )
+    custom_props: set[str] = set()
+    for piece_props in _declared_property_blocks(raw_schema, local_defs, set()):
+        for key in _ENVELOPE_MIXIN_CANDIDATE_KEYS:
+            if key in piece_props and not _is_standard_mixin_property_schema(
+                key, piece_props[key], has_inline_id="id" in piece_props
+            ):
+                custom_props.add(key)
+    return frozenset(custom_props)
+
+
+def _declared_property_blocks(
+    schema: Any, local_defs: Mapping[str, Any], visited: set[str]
+) -> Iterator[Mapping[str, Any]]:
+    """Yields every `properties` block a component schema declares.
+
+    Follows local `$ref`s (other than the standard `ComponentCommon` and
+    `Checkable` mixins) and `allOf`, `anyOf`, and `oneOf` branches, so a
+    property declared in any branch of a combiner is found.
+    """
+    if not isinstance(schema, Mapping):
+        return
+    props = schema.get("properties")
+    if isinstance(props, Mapping):
+        yield props
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        def_name = _local_def_name(ref)
+        if def_name is None and "#/$defs/" in ref:
+            def_name = ref.split("#/$defs/")[-1].split("/")[0]
+        if (
+            def_name is not None
+            and def_name not in _STANDARD_MIXIN_DEFS
+            and def_name in local_defs
+            and def_name not in visited
+        ):
+            visited.add(def_name)
+            yield from _declared_property_blocks(
+                local_defs[def_name], local_defs, visited
+            )
+    for combiner in ("allOf", "anyOf", "oneOf"):
+        branches = schema.get(combiner)
+        if isinstance(branches, list):
+            for branch in branches:
+                yield from _declared_property_blocks(branch, local_defs, visited)
+
+
+def _schema_references_checkable(
+    schema: Any, local_defs: Mapping[str, Any], visited: set[str]
+) -> bool:
+    if not isinstance(schema, Mapping):
+        return False
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        if ref.endswith("/Checkable") or ref == "common_types.json#/$defs/Checkable":
+            return True
+        def_name = _local_def_name(ref)
+        if def_name and def_name in local_defs and def_name not in visited:
+            visited.add(def_name)
+            if _schema_references_checkable(local_defs[def_name], local_defs, visited):
+                return True
+    props = schema.get("properties")
+    if isinstance(props, Mapping):
+        if "@checks" in props:
+            return True
+        if "checks" in props and _is_standard_mixin_property_schema(
+            "checks", props["checks"]
+        ):
+            return True
+    all_of = schema.get("allOf")
+    if isinstance(all_of, list):
+        return any(
+            _schema_references_checkable(sub, local_defs, visited) for sub in all_of
+        )
+    return False
+
+
+def is_component_checkable(catalog: Any, comp_type: str | None) -> bool:
+    """Returns whether `comp_type` in `catalog` supports the `Checkable` mixin."""
+    if catalog is None or not comp_type or not isinstance(comp_type, str):
+        return False
+    comp_entry = (
+        catalog.get_component(comp_type)
+        if hasattr(catalog, "get_component")
+        else getattr(catalog, "components", {}).get(comp_type)
+        if isinstance(getattr(catalog, "components", None), Mapping)
+        else None
+    )
+    model_cls = (
+        getattr(comp_entry, "schema", None)
+        if isinstance(getattr(comp_entry, "schema", None), type)
+        and issubclass(getattr(comp_entry, "schema"), BaseModel)
+        else getattr(comp_entry, "model_class", None)
+    )
+    if isinstance(model_cls, type) and issubclass(model_cls, BaseModel):
+        return any(base.__name__ == "Checkable" for base in model_cls.__mro__)
+
+    entry_schema = getattr(comp_entry, "schema", None)
+    raw_schema = (
+        entry_schema
+        if isinstance(entry_schema, Mapping)
+        else comp_entry
+        if isinstance(comp_entry, Mapping)
+        else None
+    )
+    if raw_schema is None:
+        val_schema = getattr(catalog, "validation_schema", None)
+        if isinstance(val_schema, Mapping):
+            comps = val_schema.get("components")
+            if isinstance(comps, Mapping) and isinstance(comps.get(comp_type), Mapping):
+                raw_schema = comps[comp_type]
+    if not isinstance(raw_schema, Mapping):
+        return False
+
+    local_defs = (
+        catalog.defs if isinstance(getattr(catalog, "defs", None), Mapping) else {}
+    )
+    return _schema_references_checkable(raw_schema, local_defs, set())
+
+
+def get_declared_component_properties(
+    catalog: Any, comp_type: str | None
+) -> frozenset[str]:
+    """Returns all property names declared on `comp_type` in `catalog`."""
+    if catalog is None or not comp_type or not isinstance(comp_type, str):
+        return frozenset()
+    comp_entry = (
+        catalog.get_component(comp_type)
+        if hasattr(catalog, "get_component")
+        else getattr(catalog, "components", {}).get(comp_type)
+        if isinstance(getattr(catalog, "components", None), Mapping)
+        else None
+    )
+    model_cls = (
+        getattr(comp_entry, "schema", None)
+        if isinstance(getattr(comp_entry, "schema", None), type)
+        and issubclass(getattr(comp_entry, "schema"), BaseModel)
+        else getattr(comp_entry, "model_class", None)
+    )
+    if isinstance(model_cls, type) and issubclass(model_cls, BaseModel):
+        declared: set[str] = set()
+        for field_name, field in model_cls.model_fields.items():
+            declared.add(field_name)
+            if field.alias:
+                declared.add(field.alias)
+            if isinstance(field.validation_alias, str):
+                declared.add(field.validation_alias)
+        return frozenset(declared)
+
+    declared_props: set[str] = set()
+    val_schema = getattr(catalog, "validation_schema", None)
+    if isinstance(val_schema, Mapping):
+        comps = val_schema.get("components")
+        if isinstance(comps, Mapping) and isinstance(comps.get(comp_type), Mapping):
+            props = comps[comp_type].get("properties")
+            if isinstance(props, Mapping):
+                declared_props.update(props.keys())
+    entry_schema = getattr(comp_entry, "schema", None)
+    raw_schema = (
+        entry_schema
+        if isinstance(entry_schema, Mapping)
+        else comp_entry
+        if isinstance(comp_entry, Mapping)
+        else None
+    )
+    if isinstance(raw_schema, Mapping):
+        props = raw_schema.get("properties")
+        if isinstance(props, Mapping):
+            declared_props.update(props.keys())
+    return frozenset(declared_props)
+
+
 TComponent = TypeVar("TComponent", bound=ComponentApi, default=Any, covariant=True)
 TFunction = TypeVar("TFunction", bound=FunctionApi, default=Any, covariant=True)
 
@@ -1062,25 +1452,139 @@ class _ResolvedSchemas:
     theme: dict[str, Any]
 
 
-def _parameter_names(schema: Any) -> list[str]:
-    """Extracts declared parameter names from a function argument schema."""
+def _agent_function_args_schema(fn: AgentFunction) -> Any:
+    """The JSON Schema of an agent function's `args`, as far as it has one."""
+    schema = fn.schema
+    if isinstance(schema, type) and issubclass(schema, BaseModel):
+        return schema.model_json_schema()
+    if not isinstance(schema, dict):
+        return None
+    props = schema.get("properties")
+    if isinstance(props, dict) and isinstance(props.get("args"), dict):
+        return props["args"]
+    for key in ("args", "parameters"):
+        if isinstance(schema.get(key), dict):
+            return schema[key]
+    if isinstance(props, dict) and ("@call" in props or "call" in props):
+        return None
+    return schema
+
+
+def _agent_function_local_defs(fn: AgentFunction) -> dict[str, Any]:
+    """The `$defs` an agent function declares in its own schema.
+
+    These are the function definition's `$defs` and those of its `args`
+    schema. `#/$defs/X` in the function resolves against these merged with the
+    catalog's root `$defs`, and the catalog document hoists them to its root.
+    """
+    local_defs: dict[str, Any] = {}
+    sources: list[Any] = []
+    if isinstance(fn.schema, dict):
+        sources.append(fn.schema)
+    args_schema = _agent_function_args_schema(fn)
+    if isinstance(args_schema, dict) and args_schema is not fn.schema:
+        sources.append(args_schema)
+    for source in sources:
+        defs = source.get("$defs")
+        if isinstance(defs, Mapping):
+            local_defs.update(defs)
+    return local_defs
+
+
+def _check_agent_function_local_defs(
+    fn: AgentFunction,
+    catalog_defs: Mapping[str, Any],
+    seen: dict[str, tuple[str, Any]],
+) -> None:
+    """Rejects a local `$defs` name that another definition gives differently.
+
+    The catalog document keeps one definition per name in its root `$defs`, so
+    a local definition that differs from the catalog's, or from another agent
+    function's, would make the agent and the renderer validate one call
+    against different schemas. Identical definitions are accepted.
+
+    Args:
+        fn: The agent function to check.
+        catalog_defs: The catalog's root `$defs`.
+        seen: The local `$defs` of the agent functions checked so far, by
+            name, with the function that declares each. Updated with `fn`'s.
+
+    Raises:
+        A2uiCatalogError: If a local `$defs` name of `fn` is defined
+            differently in `catalog_defs` or in `seen`.
+    """
+    for def_name, def_schema in _agent_function_local_defs(fn).items():
+        if def_name in catalog_defs and catalog_defs[def_name] != def_schema:
+            raise A2uiCatalogError(
+                f"Agent function '{fn.name}' defines $defs '{def_name}'"
+                " differently from the catalog."
+            )
+        previous = seen.get(def_name)
+        if previous is not None and previous[1] != def_schema:
+            raise A2uiCatalogError(
+                f"Agent function '{fn.name}' defines $defs '{def_name}'"
+                f" differently from agent function '{previous[0]}'."
+            )
+        seen.setdefault(def_name, (fn.name, def_schema))
+
+
+def _follow_defs_pointer(defs: Mapping[str, Any], ref: str) -> Any:
+    """The node a local `#/$defs/...` reference names, followed as a JSON Pointer."""
+    node: Any = defs
+    for token in ref[len("#/$defs/") :].split("/"):
+        key = token.replace("~1", "/").replace("~0", "~")
+        if isinstance(node, Mapping):
+            node = node.get(key)
+        elif isinstance(node, list) and key.isdigit() and int(key) < len(node):
+            node = node[int(key)]
+        else:
+            return None
+    return node
+
+
+def _parameter_names(
+    schema: Any,
+    catalog_defs: Mapping[str, Any] | None = None,
+    outer_defs: Mapping[str, Any] | None = None,
+) -> list[str]:
+    """Extracts declared parameter names from a function argument schema.
+
+    A local `#/$defs/...` reference is followed as a JSON Pointer into the
+    schema's own `$defs`, then `outer_defs` (those of the whole function
+    definition), then the catalog's `catalog_defs`.
+    """
     if not isinstance(schema, dict):
         return []
     names: list[str] = []
+    local_defs = schema.get("$defs")
+    defs: dict[str, Any] = {}
+    for source in (catalog_defs, outer_defs, local_defs):
+        if isinstance(source, Mapping):
+            defs.update(source)
+    visited: set[str] = set()
 
     def _extract_properties(node: Any) -> None:
         if not isinstance(node, dict):
             return
+        ref = node.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/$defs/") and ref not in visited:
+            visited.add(ref)
+            target = _follow_defs_pointer(defs, ref)
+            if isinstance(target, dict):
+                _extract_properties(target)
         props = node.get("properties")
         if isinstance(props, dict):
             names.extend(str(k) for k in props.keys())
-        all_of = node.get("allOf")
-        if isinstance(all_of, list):
-            for member in all_of:
-                _extract_properties(member)
+        for keyword in ("allOf", "anyOf", "oneOf"):
+            members = node.get(keyword)
+            if isinstance(members, list):
+                for member in members:
+                    _extract_properties(member)
 
-    if isinstance(schema.get("properties"), dict) or isinstance(
-        schema.get("allOf"), list
+    if (
+        isinstance(schema.get("properties"), dict)
+        or isinstance(schema.get("$ref"), str)
+        or any(isinstance(schema.get(k), list) for k in ("allOf", "anyOf", "oneOf"))
     ):
         _extract_properties(schema)
         return names
@@ -1124,7 +1628,7 @@ class Catalog(Generic[TComponent, TFunction]):
     def __init__(
         self,
         catalog_id: str,
-        protocol_version: str,
+        protocol_version: ProtocolVersion | str,
         components: list[TComponent] | None = None,
         functions: list[TFunction] | None = None,
         theme_schema: dict[str, Any] | None = None,
@@ -1145,8 +1649,7 @@ class Catalog(Generic[TComponent, TFunction]):
         functions_form: FunctionsForm | None = None,
         union_defs: Mapping[str, Any | None] | None = None,
         extras: Mapping[str, Any] | None = None,
-        _layout: _DocumentLayout | None = None,
-        _peer_catalogs: Sequence[CatalogApi] = (),
+        _layout: "_DocumentLayout | None" = None,
     ):
         """Initializes the catalog.
 
@@ -1154,7 +1657,9 @@ class Catalog(Generic[TComponent, TFunction]):
             catalog_id: The catalog's ID.
             protocol_version: The A2UI protocol version the catalog targets.
             components: The catalog's components.
-            functions: The catalog's functions.
+            functions: The catalog's functions. `AgentFunction` entries run
+                on the agent (v1.0 and later); to add them to a loaded
+                catalog, use `copy_with(agent_functions=...)`.
             theme_schema: The JSON schema of the catalog's theme. Defaults to
                 the schema of `theme_model`.
             instructions: Instructions for agents that use the catalog.
@@ -1198,7 +1703,11 @@ class Catalog(Generic[TComponent, TFunction]):
 
         Raises:
             A2uiCatalogError: If `protocol_version` is missing, an identifier
-                is invalid or `theme_location` is unknown.
+                is invalid, `theme_location` is unknown, an agent function's
+                name is already taken, an agent function's local `$defs`
+                gives a name a different definition than the catalog's root
+                `$defs` or another agent function, or the catalog has agent
+                functions before v1.0.
         """
         if not protocol_version:
             raise A2uiCatalogError("protocol_version must be provided.")
@@ -1258,6 +1767,11 @@ class Catalog(Generic[TComponent, TFunction]):
                 raise A2uiCatalogError(
                     f"Invalid UAX #31 component identifier: '{c.name}'"
                 )
+            if validate_identifiers and getattr(c, "metadata", None) is not None:
+                validate_metadata(
+                    c.metadata,
+                    context=f"component '{c.name}' metadata",
+                )
             self.components[c.name] = c
 
         system_impls = (
@@ -1266,6 +1780,7 @@ class Catalog(Generic[TComponent, TFunction]):
             else ()
         )
         self.functions: dict[str, TFunction] = {}
+        agent_local_defs: dict[str, tuple[str, Any]] = {}
         for fn in functions or []:
             if (
                 validate_identifiers
@@ -1275,7 +1790,36 @@ class Catalog(Generic[TComponent, TFunction]):
                 raise A2uiCatalogError(
                     f"Invalid UAX #31 function identifier: '{fn.name}'"
                 )
+            if validate_identifiers and isinstance(fn, AgentFunction):
+                outer_defs = (
+                    fn.schema.get("$defs") if isinstance(fn.schema, dict) else None
+                )
+                for arg_name in _parameter_names(
+                    _agent_function_args_schema(fn), self.defs, outer_defs
+                ):
+                    if not is_valid_uax31_identifier(arg_name):
+                        raise A2uiCatalogError(
+                            f"Invalid UAX #31 argument identifier: '{arg_name}'"
+                            f" in agent function '{fn.name}'"
+                        )
+            existing = self.functions.get(fn.name)
+            if isinstance(fn, AgentFunction) and isinstance(existing, AgentFunction):
+                raise _duplicate_agent_function(catalog_id, fn.name)
+            if existing is not None and (
+                isinstance(fn, AgentFunction) or isinstance(existing, AgentFunction)
+            ):
+                raise _agent_function_name_taken(catalog_id, fn.name)
+            if isinstance(fn, AgentFunction):
+                _check_agent_function_local_defs(fn, self.defs, agent_local_defs)
             self.functions[fn.name] = fn
+        if not is_at_least_version(protocol_version, ProtocolVersion.V1_0) and any(
+            isinstance(fn, AgentFunction) for fn in self.functions.values()
+        ):
+            raise A2uiCatalogError(
+                f"Catalog '{catalog_id}' targets protocol version"
+                f" {protocol_version}, but agent functions need v1.0 or later,"
+                " where renderers send calls to the agent."
+            )
 
         self.theme_model = theme_model
         if theme_schema is None and theme_model is not None:
@@ -1295,13 +1839,8 @@ class Catalog(Generic[TComponent, TFunction]):
         self._cached_catalog_schema: dict[str, Any] | None = None
         self._cached_document: dict[str, Any] | None = None
         self._resolved: _ResolvedSchemas | None = None
+        self._resolved_keep_defs: _ResolvedSchemas | None = None
         self._component_ref_map: dict[str, ComponentRefSpec] | None = None
-        self._peer_catalogs: tuple[CatalogApi, ...] = tuple(
-            p for p in _peer_catalogs if p is not self
-        )
-        self._source_catalog: CatalogApi | None = None
-        self._linked_from: CatalogApi | None = None
-        self._cross_document_refs: bool | None = None
 
     @property
     def id(self) -> str:
@@ -1309,61 +1848,30 @@ class Catalog(Generic[TComponent, TFunction]):
         return self.catalog_id
 
     @property
-    def peer_catalogs(self) -> tuple[CatalogApi, ...]:
-        """Peer catalogs available for resolving cross-catalog `$ref` pointers."""
-        return getattr(self, "_peer_catalogs", ())
+    def agent_functions(self) -> dict[str, AgentFunction]:
+        """The catalog's functions that run on the agent, by name.
 
-    def with_peer_catalogs(
-        self, peers: Sequence[CatalogApi]
-    ) -> Catalog[TComponent, TFunction]:
-        """Returns a copy of this catalog that resolves `$ref`s into `peers`.
-
-        The copy keeps this catalog's peers and adds `peers` after them, in
-        order, without duplicates. For a peer derived from another catalog by
-        `copy_with`, such as a pruned catalog, the catalog it was derived from
-        is added first, so references to entries that were pruned from the
-        peer still resolve. This catalog is not changed, so a catalog shared
-        between sessions, such as the basic catalog, can be linked freely.
-
-        Args:
-            peers: Peer catalogs to resolve cross-catalog references against.
-
-        Returns:
-            A new catalog with the combined peers, or this catalog when `peers`
-            adds none.
+        Each is also in `functions`. A copy: changing it leaves the catalog
+        as it is.
         """
-        origin = _link_origin(self)
-        existing = list(self.peer_catalogs)
-        seen_ids = {id(origin), *(id(p) for p in existing)}
-        changed = False
-        for peer in peers:
-            if not isinstance(peer, Catalog):
-                continue
-            source = getattr(peer, "_source_catalog", None)
-            for candidate in (source, _link_origin(peer)):
-                if isinstance(candidate, Catalog) and id(candidate) not in seen_ids:
-                    existing.append(candidate)
-                    seen_ids.add(id(candidate))
-                    changed = True
-        if not changed:
-            return self
-        linked = copy.copy(self)
-        linked.components = dict(self.components)
-        linked.functions = dict(self.functions)
-        linked._peer_catalogs = tuple(existing)
-        linked._linked_from = origin
-        linked._cached_catalog_schema = None
-        linked._resolved = None
-        linked._component_ref_map = None
-        return linked
+        return {
+            name: fn
+            for name, fn in self.functions.items()
+            if isinstance(fn, AgentFunction)
+        }
 
-    def _has_cross_document_refs(self) -> bool:
-        """Whether the catalog document has a `$ref` that may name a peer catalog."""
-        cached = getattr(self, "_cross_document_refs", None)
-        if cached is None:
-            cached = _has_cross_document_refs(self.to_json())
-            self._cross_document_refs = cached
-        return cached
+    @property
+    def renderer_functions(self) -> dict[str, TFunction]:
+        """The catalog's functions that are not agent functions, by name.
+
+        Each is also in `functions`. A copy: changing it leaves the catalog
+        as it is.
+        """
+        return {
+            name: fn
+            for name, fn in self.functions.items()
+            if not isinstance(fn, AgentFunction)
+        }
 
     def copy_with(
         self,
@@ -1371,7 +1879,8 @@ class Catalog(Generic[TComponent, TFunction]):
         components: Sequence[ComponentApi] | None = None,
         functions: Sequence[FunctionApi] | None = None,
         defs: Mapping[str, Any] | None = None,
-    ) -> CatalogApi:
+        agent_functions: Sequence[AgentFunction] | None = None,
+    ) -> "CatalogApi":
         """Returns a catalog derived from this one, for catalog transformers.
 
         The copy keeps this catalog's id, protocol version, theme,
@@ -1382,20 +1891,139 @@ class Catalog(Generic[TComponent, TFunction]):
 
         Args:
             components: The copy's components. None keeps this catalog's.
-            functions: The copy's functions. None keeps this catalog's.
+            functions: The copy's functions. None keeps this catalog's. Agent
+                functions among them stay agent functions, even with
+                `agent_functions`.
             defs: The copy's own `$defs`. None keeps this catalog's, except
                 those that only the dropped entries referenced. Defs given
                 here are treated as defined in code.
+            agent_functions: Agent functions to add. With `functions` omitted,
+                they replace this catalog's agent functions: an agent function
+                built with `AgentFunction.from_api` goes back to the entry it
+                was built from, and any other is dropped. With `functions`
+                given, they are added to those functions. None adds none.
 
         Returns:
             A schema-only catalog.
+
+        Raises:
+            A2uiCatalogError: If an agent function's name is already taken,
+                two agent functions share a name, or an agent function built
+                with `AgentFunction.from_api` has no entry to replace.
         """
-        new_components: list[ComponentApi] = list(
-            self.components.values() if components is None else components
+        new_functions: list[Any]
+        if functions is not None:
+            new_functions = list(functions)
+        elif agent_functions is not None:
+            new_functions = [
+                (
+                    cast(FunctionApi, fn.declaration)
+                    if isinstance(fn, AgentFunction)
+                    else fn
+                )
+                for fn in self.functions.values()
+                if not isinstance(fn, AgentFunction) or fn.declaration is not None
+            ]
+        else:
+            new_functions = list(self.functions.values())
+        if agent_functions is not None:
+            new_functions = _with_agent_functions(
+                self.catalog_id, new_functions, agent_functions
+            )
+        return cast(
+            "CatalogApi",
+            self._rebuild(
+                list(self.components.values() if components is None else components),
+                new_functions,
+                defs,
+                catalog_id=self.catalog_id,
+                schema_id=self.schema_id,
+                title=self.title,
+                description=self.description,
+                instructions=self.instructions,
+            ),
         )
-        new_functions: list[FunctionApi] = list(
-            self.functions.values() if functions is None else functions
+
+    def derive(
+        self,
+        *,
+        catalog_id: str,
+        components: Sequence[str | TComponent] | None = None,
+        functions: Sequence[str | TFunction] | None = None,
+        instructions: str | None = None,
+    ) -> "Catalog[TComponent, TFunction]":
+        """Returns a new catalog, under its own ID, built from entries of this one and new entries.
+
+        In `components` and `functions`, a name keeps this catalog's entry of
+        that name, and an entry adds it, or replaces this catalog's entry of
+        the same name. Leaving either out keeps all of this catalog's entries
+        of that kind. The new catalog keeps this catalog's protocol version,
+        theme and document layout, and drops the `$defs` that only entries
+        left out referenced, as `copy_with` does.
+
+        It does not keep this catalog's `$id`, title, description or
+        instructions, which describe this catalog: instructions often name its
+        ID and its components in their examples, so they would teach a model
+        to write messages for the wrong catalog.
+
+        Args:
+            catalog_id: The ID of the new catalog.
+            components: The new catalog's components, by name or as entries.
+            functions: The new catalog's functions, by name or as entries.
+            instructions: Instructions for agents that use the new catalog.
+
+        Returns:
+            A new catalog.
+
+        Raises:
+            A2uiCatalogError: If a name is not an entry of this catalog.
+        """
+
+        def pick(
+            kind: str, own: Mapping[str, Any], wanted: Sequence[Any] | None
+        ) -> list[Any]:
+            if wanted is None:
+                return list(own.values())
+            # Keyed by name, so a later item replaces an earlier one of the
+            # same name and the replaced entry's schema leaves the catalog.
+            picked: dict[str, Any] = {}
+            for item in wanted:
+                if not isinstance(item, str):
+                    picked[item.name] = item
+                    continue
+                if item not in own:
+                    raise A2uiCatalogError(
+                        f"Catalog '{self.catalog_id}' has no {kind} '{item}' to"
+                        f" derive catalog '{catalog_id}' from."
+                    )
+                picked[item] = own[item]
+            return list(picked.values())
+
+        return self._rebuild(
+            pick("component", self.components, components),
+            pick("function", self.functions, functions),
+            None,
+            catalog_id=catalog_id,
+            schema_id=None,
+            title=None,
+            description=None,
+            instructions=instructions,
         )
+
+    def _rebuild(
+        self,
+        new_components: list[Any],
+        new_functions: list[Any],
+        defs: Mapping[str, Any] | None,
+        *,
+        catalog_id: str,
+        schema_id: str | None,
+        title: str | None,
+        description: str | None,
+        instructions: str | None,
+    ) -> "Catalog[Any, Any]":
+        """Builds a catalog with this catalog's version, theme and layout, the
+        given entries, and the given fields that describe the catalog."""
         union_defs = self.union_defs
         null_unions = set(self._layout.null_unions)
         if union_defs is not None:
@@ -1449,19 +2077,19 @@ class Catalog(Generic[TComponent, TFunction]):
         else:
             new_defs = dict(defs)
 
-        copied = CatalogApi(
-            catalog_id=self.catalog_id,
+        return Catalog(
+            catalog_id=catalog_id,
             protocol_version=self.protocol_version,
             components=new_components,
             functions=new_functions,
             theme_schema=copy.deepcopy(self.theme_schema),
-            instructions=self.instructions,
+            instructions=instructions,
             defs=new_defs,
             common_types_defs=self.common_types_defs,
             schema_dialect=self.schema_dialect,
-            schema_id=self.schema_id,
-            title=self.title,
-            description=self.description,
+            schema_id=schema_id,
+            title=title,
+            description=description,
             declared_protocol_version=self.declared_protocol_version,
             declares_catalog_id=self.declares_catalog_id,
             declares_components=self.declares_components,
@@ -1477,12 +2105,7 @@ class Catalog(Generic[TComponent, TFunction]):
                 theme_from_document=self._layout.theme_from_document,
                 defs_from_document=self._layout.defs_from_document and defs is None,
             ),
-            _peer_catalogs=self.peer_catalogs,
         )
-        copied._source_catalog = getattr(self, "_source_catalog", None) or _link_origin(
-            self
-        )
-        return copied
 
     def _document_roots(self) -> list[Any]:
         """The parts of the catalog document that reference its `$defs`."""
@@ -1502,12 +2125,13 @@ class Catalog(Generic[TComponent, TFunction]):
     # Resolved schemas
     # ==========================================================================
 
-    def _resolved_schemas(self) -> _ResolvedSchemas:
+    def _resolved_schemas(self, *, inline_local_defs: bool = True) -> _ResolvedSchemas:
         """Returns the catalog's authored schemas with references resolved.
 
         Computed once per catalog.
         """
-        cached: _ResolvedSchemas | None = getattr(self, "_resolved", None)
+        cache_attr = "_resolved" if inline_local_defs else "_resolved_keep_defs"
+        cached: _ResolvedSchemas | None = getattr(self, cache_attr, None)
         if cached is not None:
             return cached
         own_defs = {
@@ -1519,7 +2143,11 @@ class Catalog(Generic[TComponent, TFunction]):
         if authored_theme and self.theme_location == "$defs":
             own_defs["theme"] = self.theme_schema
         authored_components = {
-            name: comp.schema
+            name: (
+                comp.schema
+                if inline_local_defs
+                else _restore_catalog_def_refs(comp.schema, own_defs)
+            )
             for name, comp in self.components.items()
             if _is_authored_component(comp)
         }
@@ -1528,47 +2156,70 @@ class Catalog(Generic[TComponent, TFunction]):
             for name, fn in self.functions.items()
             if isinstance(fn.schema, dict)
         }
-        peers = self.peer_catalogs
-        root: dict[str, Any] = _normalize_external_schema_refs(
-            {
-                "$defs": own_defs,
-                "components": authored_components,
-                "functions": authored_functions,
-            },
-            peers,
-        )
+        root: dict[str, Any] = _normalize_external_schema_refs({
+            "$defs": own_defs,
+            "components": authored_components,
+            "functions": authored_functions,
+        })
 
         def resolve(node: Any) -> Any:
-            return copy.deepcopy(
-                _normalize_external_schema_refs(
-                    inline_local_refs(
-                        _normalize_external_schema_refs(node, peers), root, peers=peers
-                    ),
-                    peers,
+            normalized_node = _normalize_external_schema_refs(node)
+            effective_root = root
+            if isinstance(normalized_node, Mapping) and isinstance(
+                normalized_node.get("$defs"), Mapping
+            ):
+                effective_root = {
+                    **root,
+                    "$defs": {
+                        **root.get("$defs", {}),
+                        **normalized_node["$defs"],
+                    },
+                }
+            resolved_node = copy.deepcopy(
+                inline_local_refs(
+                    normalized_node,
+                    effective_root,
+                    inline_local_defs=inline_local_defs,
                 )
+            )
+            return (
+                _strip_catalog_def_markers(resolved_node)
+                if inline_local_defs
+                else resolved_node
             )
 
         components: dict[str, Any] = {}
         for name, comp in self.components.items():
-            components[name] = (
-                resolve(comp.schema) if name in authored_components else comp.schema
-            )
+            if name in authored_components:
+                components[name] = resolve(authored_components[name])
+            else:
+                components[name] = (
+                    _strip_catalog_def_markers(copy.deepcopy(comp.schema))
+                    if inline_local_defs
+                    else comp.schema
+                )
         functions: dict[str, Any] = {}
         for name, fn in self.functions.items():
-            functions[name] = (
-                resolve(fn.schema) if name in authored_functions else fn.schema
-            )
+            if name in authored_functions:
+                functions[name] = resolve(fn.schema)
+            else:
+                # A function without an argument schema takes any args.
+                functions[name] = {} if fn.schema is None else fn.schema
         resolved = _ResolvedSchemas(
             components=components,
             functions=functions,
             defs={
-                name: resolve(schema)
+                name: (
+                    resolve(schema)
+                    if inline_local_defs
+                    else resolve(_restore_catalog_def_refs(schema, own_defs))
+                )
                 for name, schema in self.defs.items()
                 if name not in _UNION_DEFS
             },
             theme=resolve(self.theme_schema) if authored_theme else self.theme_schema,
         )
-        self._resolved = resolved
+        setattr(self, cache_attr, resolved)
         return resolved
 
     def resolved_component_schema(self, name: str) -> Any:
@@ -1598,7 +2249,8 @@ class Catalog(Generic[TComponent, TFunction]):
             name: The function's name.
 
         Returns:
-            The schema, or None if the catalog has no such function.
+            The schema, `{}` for a function without an argument schema, or
+            None if the catalog has no such function.
         """
         return self._resolved_schemas().functions.get(name)
 
@@ -1729,29 +2381,44 @@ class Catalog(Generic[TComponent, TFunction]):
             req_set: set[str] = set()
             comp_const = name
 
-            for piece in pieces:
-                piece_desc = piece.get("description")
-                if isinstance(piece_desc, str) and piece_desc:
-                    description = piece_desc
-                piece_props = piece.get("properties")
-                if isinstance(piece_props, Mapping):
-                    comp_prop = piece_props.get("component")
-                    if isinstance(comp_prop, Mapping) and isinstance(
-                        comp_prop.get("const"), str
-                    ):
-                        comp_const = comp_prop["const"]
-                    for prop_name, prop_schema in piece_props.items():
-                        if prop_name in _COMPONENT_ENVELOPE_KEYS:
-                            continue
-                        raw_props[prop_name] = copy.deepcopy(prop_schema)
-                piece_req = piece.get("required")
-                if isinstance(piece_req, list):
-                    for req_name in piece_req:
-                        if (
-                            isinstance(req_name, str)
-                            and req_name not in _COMPONENT_ENVELOPE_KEYS
+            for is_mixin, group in (
+                (True, mixins),
+                (False, local),
+                (False, common_inline),
+                (False, specific_inline),
+            ):
+                skip_keys = (
+                    _COMPONENT_ENVELOPE_KEYS
+                    if is_mixin
+                    else _BASE_COMPONENT_ENVELOPE_KEYS
+                )
+                for piece in group:
+                    piece_desc = piece.get("description")
+                    if isinstance(piece_desc, str) and piece_desc:
+                        description = piece_desc
+                    piece_props = piece.get("properties")
+                    if isinstance(piece_props, Mapping):
+                        comp_prop = piece_props.get("component")
+                        if isinstance(comp_prop, Mapping) and isinstance(
+                            comp_prop.get("const"), str
                         ):
-                            req_set.add(req_name)
+                            comp_const = comp_prop["const"]
+                        for prop_name, prop_schema in piece_props.items():
+                            if prop_name in skip_keys or (
+                                prop_name in ("catalogId", "@catalogId")
+                                and _is_standard_mixin_property_schema(
+                                    prop_name,
+                                    prop_schema,
+                                    has_inline_id="id" in piece_props,
+                                )
+                            ):
+                                continue
+                            raw_props[prop_name] = copy.deepcopy(prop_schema)
+                    piece_req = piece.get("required")
+                    if isinstance(piece_req, list):
+                        for req_name in piece_req:
+                            if isinstance(req_name, str) and req_name not in skip_keys:
+                                req_set.add(req_name)
 
             ordered_props: dict[str, Any] = {}
             for group in (specific_inline, local, common_inline, mixins):
@@ -1891,7 +2558,7 @@ class Catalog(Generic[TComponent, TFunction]):
             A2uiCatalogError: If the catalog's protocol version is unknown.
         """
         protocol_version = self._protocol_version_enum()
-        resolved = self._resolved_schemas()
+        resolved = self._resolved_schemas(inline_local_defs=False)
         schema: dict[str, Any] = {
             "$schema": _JSON_SCHEMA_DIALECT,
             "catalogId": self.catalog_id,
@@ -1900,9 +2567,17 @@ class Catalog(Generic[TComponent, TFunction]):
         if self.instructions:
             schema["instructions"] = self.instructions
 
-        defs: dict[str, Any] = copy.deepcopy(resolved.defs)
+        defs: dict[str, Any] = (
+            _mark_authored_titles(copy.deepcopy(resolved.defs))
+            if self._layout.defs_from_document
+            else copy.deepcopy(resolved.defs)
+        )
         if resolved.theme:
-            theme = copy.deepcopy(resolved.theme)
+            theme = (
+                _mark_authored_titles(copy.deepcopy(resolved.theme))
+                if self._layout.theme_from_document
+                else copy.deepcopy(resolved.theme)
+            )
             # From v0.9, a theme that does not close itself states that it is
             # open, so renderers may add their own theme properties.
             if (
@@ -2060,7 +2735,12 @@ class Catalog(Generic[TComponent, TFunction]):
             ),
         )
 
-        return cleaned_schema, referenced_dynamics, bool(spec_shaped), protocol_version
+        return (
+            cleaned_schema,
+            referenced_dynamics,
+            bool(spec_shaped),
+            protocol_version,
+        )
 
     def _bundle_common_types(
         self,
@@ -2305,7 +2985,8 @@ class Catalog(Generic[TComponent, TFunction]):
         self, component: ComponentApi, common_names: set[str]
     ) -> dict[str, Any]:
         """Returns the document entry of a component whose schema is authored."""
-        schema = component.schema if isinstance(component.schema, dict) else {}
+        raw_schema = component.schema if isinstance(component.schema, dict) else {}
+        schema = _restore_catalog_def_refs(raw_schema, self.defs)
         entry = (
             copy.deepcopy(schema)
             if getattr(component, "from_document", False)
@@ -2314,6 +2995,7 @@ class Catalog(Generic[TComponent, TFunction]):
         for key, value in (
             ("allowedParents", component.allowed_parents),
             ("allowedChildren", component.allowed_children),
+            ("metadata", getattr(component, "metadata", None)),
         ):
             if value is not None:
                 entry[key] = copy.deepcopy(value)
@@ -2453,6 +3135,8 @@ class Catalog(Generic[TComponent, TFunction]):
                 schema.setdefault("allowedParents", list(comp.allowed_parents))
             if comp.allowed_children is not None:
                 schema.setdefault("allowedChildren", list(comp.allowed_children))
+            if getattr(comp, "metadata", None) is not None:
+                schema.setdefault("metadata", copy.deepcopy(comp.metadata))
             components[name] = schema
 
         v1 = is_at_least_version(protocol_version, ProtocolVersion.V1_0)
@@ -2518,7 +3202,7 @@ class Catalog(Generic[TComponent, TFunction]):
     def from_json(
         cls,
         catalog_schema: Mapping[str, Any],
-        protocol_version: str | None = None,
+        protocol_version: ProtocolVersion | str | None = None,
         catalog_id: str | None = None,
     ) -> "CatalogApi":
         """Constructs a schema-only Catalog from a catalog document.
@@ -2543,7 +3227,8 @@ class Catalog(Generic[TComponent, TFunction]):
 
         Raises:
             A2uiCatalogError: If the document has no catalog id or is
-                malformed.
+                malformed, or if a v1.0 document has a `$ref` to a document
+                other than itself or `common_types.json`.
         """
         catalog_id = catalog_id or catalog_schema.get("catalogId")
         if not catalog_id:
@@ -2555,6 +3240,12 @@ class Catalog(Generic[TComponent, TFunction]):
         raw_version = document.get("protocolVersion")
         declared_version = raw_version if isinstance(raw_version, str) else None
         p_ver = protocol_version or declared_version or _DEFAULT_PROTOCOL_VERSION
+
+        validate_identifiers = is_at_least_version(p_ver, ProtocolVersion.V1_0)
+        if validate_identifiers:
+            # Before anything resolves a reference: a v1.0 catalog may not
+            # reference another catalog, and such a target is never fetched.
+            _check_v10_external_refs(document)
 
         components_map = document.get("components", {})
         if not isinstance(components_map, Mapping):
@@ -2572,8 +3263,6 @@ class Catalog(Generic[TComponent, TFunction]):
             defs_map.get("anyFunction"), "#/functions/"
         )
 
-        validate_identifiers = is_at_least_version(p_ver, ProtocolVersion.V1_0)
-
         components = []
         for name, schema in components_map.items():
             if not isinstance(schema, Mapping):
@@ -2587,20 +3276,36 @@ class Catalog(Generic[TComponent, TFunction]):
                 )
             if validate_identifiers and isinstance(schema.get("properties"), Mapping):
                 for prop_name in schema["properties"]:
-                    if not is_valid_uax31_identifier(prop_name):
+                    if (
+                        prop_name not in _COMPONENT_AT_MIXIN_KEYS
+                        and not is_valid_uax31_identifier(prop_name)
+                    ):
                         raise A2uiCatalogError(
                             f"Invalid UAX #31 property identifier: '{prop_name}' in"
                             f" component '{name}'"
                         )
 
+            comp_metadata = schema.get("metadata")
+            if validate_identifiers and comp_metadata is not None:
+                validate_metadata(
+                    comp_metadata,
+                    context=f"component '{name}' metadata",
+                )
+
             if not permitted_names or name in permitted_names:
+                inlined_schema = _inline_leaf_catalog_defs(dict(schema), defs_map)
                 components.append(
                     ComponentApi(
                         name,
-                        dict(schema),
+                        inlined_schema,
                         allowed_parents=schema.get("allowedParents"),
                         allowed_children=schema.get("allowedChildren"),
                         from_document=True,
+                        metadata=(
+                            clone_metadata(comp_metadata)
+                            if isinstance(comp_metadata, Mapping)
+                            else None
+                        ),
                     )
                 )
 
@@ -2642,6 +3347,21 @@ class Catalog(Generic[TComponent, TFunction]):
                             f" function '{name}'"
                         )
 
+            allowed_callers = spec.get("allowedCallers")
+            requires_user_activation = spec.get("requiresUserActivation")
+            # The rule exists only in the v1.0 catalog_definition.json.
+            if (
+                validate_identifiers
+                and requires_user_activation is True
+                and allowed_callers is not None
+                and allowed_callers != "rendererOnly"
+            ):
+                raise A2uiCatalogError(
+                    f"Function '{name}' declares requiresUserActivation=true with"
+                    f" allowedCallers='{allowed_callers}'; requiresUserActivation=true"
+                    " requires allowedCallers='rendererOnly'."
+                )
+
             if not permitted_func_names or name in permitted_func_names:
                 fn_description = spec.get("description")
                 functions.append(
@@ -2649,8 +3369,8 @@ class Catalog(Generic[TComponent, TFunction]):
                         name=name,
                         return_type=_declared_return_type(spec),
                         schema=spec,
-                        allowed_callers=spec.get("allowedCallers"),
-                        requires_user_activation=spec.get("requiresUserActivation"),
+                        allowed_callers=allowed_callers,
+                        requires_user_activation=requires_user_activation,
                         description=(
                             fn_description if isinstance(fn_description, str) else None
                         ),
@@ -2775,6 +3495,52 @@ def _is_object_schema(node: Mapping[str, Any]) -> bool:
     return "properties" in node or "allOf" in node or node.get("type") == "object"
 
 
+def _is_supported_v10_ref(ref: str) -> bool:
+    """Whether a v1.0 catalog may use `ref` as a `$ref` target.
+
+    A v1.0 catalog may reference its own definitions (`#...`), the shared
+    `common_types.json` (by relative or absolute URI), and `catalog.json`, the
+    envelope placeholder for the catalog itself.
+    """
+    document = ref.split("#", 1)[0]
+    if not document or document == "catalog.json":
+        return True
+    return document.rsplit("/", 1)[-1] == "common_types.json"
+
+
+def _escape_pointer_token(token: str) -> str:
+    """Escapes a JSON Pointer reference token (RFC 6901)."""
+    return token.replace("~", "~0").replace("/", "~1")
+
+
+def _check_v10_external_refs(node: Any, pointer: str = "") -> None:
+    """Rejects every `$ref` in a v1.0 catalog document it cannot resolve.
+
+    Walks the document as authored, without resolving or fetching any
+    reference.
+
+    Raises:
+        A2uiCatalogError: If a `$ref` targets a document other than the
+            catalog itself or `common_types.json`.
+    """
+    stack: list[tuple[Any, str]] = [(node, pointer)]
+    while stack:
+        current, path = stack.pop()
+        if isinstance(current, Mapping):
+            ref = current.get("$ref")
+            if isinstance(ref, str) and not _is_supported_v10_ref(ref):
+                raise A2uiCatalogError(
+                    f"Unsupported external $ref '{ref}' at {path}/$ref: a v1.0"
+                    " catalog may only reference its own components and"
+                    " functions (#/...) or common_types.json."
+                )
+            for key, value in reversed(list(current.items())):
+                stack.append((value, f"{path}/{_escape_pointer_token(str(key))}"))
+        elif isinstance(current, list):
+            for index in reversed(range(len(current))):
+                stack.append((current[index], f"{path}/{index}"))
+
+
 def _union_member_names(union: Any, prefix: str) -> set[str]:
     """The entry names that a `oneOf` union lists as `<prefix><name>` refs."""
     names: set[str] = set()
@@ -2854,41 +3620,3 @@ validate against signatures but never evaluate a function. A renderer that
 evaluates functions needs a catalog of ``FunctionImplementation`` instances
 instead.
 """
-
-
-def _link_origin(catalog: CatalogApi) -> CatalogApi:
-    """Returns the catalog that `with_peer_catalogs` made `catalog` from."""
-    return getattr(catalog, "_linked_from", None) or catalog
-
-
-def link_catalogs(
-    catalogs: Sequence[CatalogApi],
-    extra_peers: Sequence[CatalogApi] = (),
-) -> list[CatalogApi]:
-    """Returns the catalogs linked to one another for cross-catalog `$ref`s.
-
-    Each catalog that has a `$ref` into another document, other than
-    `common_types.json` or its own `catalog.json`, is replaced by a copy from
-    `with_peer_catalogs` whose peers are `extra_peers` followed by the other
-    catalogs. Catalogs without such references are returned unchanged. The
-    catalogs passed in are never modified.
-
-    Args:
-        catalogs: Catalogs to link with one another.
-        extra_peers: Further peer catalogs, such as the unpruned catalogs that
-            pruned catalogs were derived from, searched before `catalogs`.
-
-    Returns:
-        The catalogs, linked, in their original order.
-    """
-    items = list(catalogs)
-    if len(items) + len(extra_peers) < 2:
-        return items
-    linked: list[CatalogApi] = []
-    for cat in items:
-        if isinstance(cat, Catalog) and cat._has_cross_document_refs():
-            peers = [*extra_peers, *(p for p in items if p is not cat)]
-            linked.append(cat.with_peer_catalogs(peers))
-        else:
-            linked.append(cat)
-    return linked

@@ -2,14 +2,222 @@
 
 ## Unreleased
 
-- Requires the next release of `a2ui_core`, which adds
-  `SurfaceComponentsModel.insertComponent`, `insertComponents`,
-  `saveReferenceFields` and `restoreReferenceFields` and
-  `SurfaceGroupModel.detachSurface`, and exports
-  `checkPathsAndRecursion` and `checkDuplicateComponentIds`. The release that
-  publishes this version raises the `a2ui_core` constraint to `^0.3.1` along
-  with that `a2ui_core` release; until then the workspace resolves
-  `a2ui_core` from this repository.
+- **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.10.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
+
+## 0.4.0
+
+- **Breaking:** Requires `a2ui_core` `^0.8.0`, whose types this library
+  re-exports.
+
+- **Breaking:** (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`, and
+  `@checks` on v1.0 components in `ExpressCompiler`, `DirectJsonResponseStream`,
+  `MessageReader`, and `RendererState`, while keeping v0.9 component output
+  bare. `ExpressDecompiler` reads both `@`-prefixed and legacy bare component
+  envelope keys on v1.0 payloads when the component schema does not declare a
+  custom property with the same bare name
+  ([#1376](https://github.com/a2ui-project/a2ui/issues/1376),
+  [#3403](https://github.com/a2ui-project/a2ui/issues/3403),
+  [#3466](https://github.com/a2ui-project/a2ui/issues/3466),
+  [#4012](https://github.com/a2ui-project/a2ui/issues/4012),
+  [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+- Add explicit type annotations to internal local and pattern variables to satisfy the `specify_nonobvious_local_variable_types` analyzer lint on Dart 3.15+ ([#4233](https://github.com/a2ui-project/a2ui/pull/4233)).
+
+## 0.3.0
+
+- **Breaking:** Requires `a2ui_core` `^0.7.0`, whose types this library
+  re-exports.
+
+- Add `readRendererCapabilities(metadata, version)`, `a2uiClientCapabilitiesKey`,
+  and `a2uiRendererCapabilitiesKey` to extract and validate
+  `A2uiRendererCapabilities` from transport metadata.
+  [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
+- (v1_0) Express compiles, decompiles and prompts the protocol's system
+  functions, which no catalog defines: `@index()` and `@index(offset=1)`
+  compile to `{"@call": "@index", ...}` without a `catalogId`, the decompiler
+  writes such calls back as `@index(...)`, and the v1.0 Express prompt lists
+  `@index(offset?)`. Before v1.0, `@index()` is a validation error
+  ([#3725](https://github.com/a2ui-project/a2ui/issues/3725), [#4025](https://github.com/a2ui-project/a2ui/pull/4025)).
+
+## 0.2.0
+
+- **Breaking:** Requires `a2ui_core` `^0.6.0`, whose types this library
+  re-exports.
+
+- (v1_0) `validatePayload` accepts a `callRendererFunction` on a surface the
+  payload never named, as it does an update to one, since an earlier payload
+  may have created it. A surface the payload deleted earlier, or creates only
+  later, is still rejected. With `a2ui_core`'s checks, `validatePayload`,
+  `RendererState.apply` and the parsers also reject an `agentOnly` function
+  bound into a component, and one nested in the arguments of a
+  `callRendererFunction`, a nested `@index` call there, and a data binding
+  there that holds a non-string `@path` or a field other than `@path`. A call
+  nested there that names no `catalogId` is checked against the default
+  catalog of the surface the message names; on a surface the payload only
+  assumes, whose default catalog is unknown, it passes if some active catalog
+  declares the function and the renderer may
+  make the call
+  ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
+  [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
+- Export `agentCallableFunctions` from `package:a2ui_agent/a2ui_agent.dart` to return the names of functions across active catalogs that the agent may invoke via `callRendererFunction` ([#3864](https://github.com/a2ui-project/a2ui/pull/3864), [#3880](https://github.com/a2ui-project/a2ui/pull/3880)).
+- `DirectJsonPromptGenerator.generate()` follows the prompt layout
+  the other SDKs use: the rules without the `## Workflow Description:` heading,
+  then a schema block with the protocol schemas, then one schema block per
+  catalog, then the examples under `### Examples:` followed by a blank line.
+  Add your own heading around the snippet if you want one.
+  [#3567](https://github.com/a2ui-project/a2ui/pull/3567)
+- (v1_0) Added `RendererToAgentMessageProcessor`, whose `processMessage` takes
+  one v1.0 message a renderer sent and returns a `ProcessResult` (`handled`,
+  `replies`). It answers `callAgentFunction` with the catalogs' agent
+  functions, and passes `action`, `error` and `rendererFunctionResponse` to the
+  `onAction`, `onError` and `onRendererFunctionResponse` callbacks, which may
+  return `false` to decline a message. The library re-exports the agent
+  function and renderer-to-agent message types from `a2ui_core`
+  ([#3536](https://github.com/a2ui-project/a2ui/issues/3536), [#3861](https://github.com/a2ui-project/a2ui/pull/3861)).
+- (v1_0) Added `RendererFunctionCalls`, which calls renderer functions from
+  the agent: `call` builds the `callRendererFunction` message with a `Future`
+  for the result, and `resolve`, passed to `RendererToAgentMessageProcessor`
+  as `onRendererFunctionResponse`, settles the call and declines responses to
+  calls it doesn't track. The library also re-exports
+  `CallRendererFunctionMessage`
+  ([#3535](https://github.com/a2ui-project/a2ui/issues/3535)).
+  Given the renderer's `catalogs`, `call` refuses a call to a function that
+  isn't one of their renderer functions (`UNKNOWN_FUNCTION`), or to one that is
+  `rendererOnly` or requires a user activation (`INVALID_FUNCTION_CALL`).
+  `call` checks its arguments in the same order as the Python and TypeScript
+  SDKs; `args` must have identifier keys and JSON values, and nested function
+  calls in it are left for the renderer to check.
+  `resolve` holds a response to the v1.0 `FunctionResponse` schema: version
+  `'1.0'` and exactly one of `value` (`null` for a function that returns
+  nothing) and `error`. A response that breaks it fails its pending call with
+  `UNKNOWN_ERROR`.
+
+## 0.1.0
+
+- Remove `(Agent to UI)` from the embedded v0.9 `server_to_client.json` and v1.0
+  `agent_to_renderer.json` schema descriptions in `DirectJsonPromptGenerator`
+  ([#1605](https://github.com/a2ui-project/a2ui/pull/1605)).
+- Add incremental streaming support for the Express inference format via
+  `ExpressResponseStream` (`ExpressFormat.supportsStreaming` and
+  `ExpressParser.supportsStreaming` now return `true`). `ExpressFormatFactory`,
+  `ExpressFormat`, and `ExpressParser` accept `progressiveKeys` (defaulting to
+  `defaultExpressProgressiveKeys = {'text'}`) to heal unclosed string literals
+  in matching component properties and data path assignments as chunks arrive,
+  while gating initial `createSurface` emission on `root = ...` for new
+  surfaces, emitting delta `updateComponents` and per-path `updateDataModel`
+  messages on subsequent chunks, and holding statements with unresolved value
+  variables until defined ([#2896](https://github.com/a2ui-project/a2ui/issues/2896)).
+  `surface(...)` also accepts `update=` and `sendDataModel=` keyword arguments
+  to update an existing surface without emitting `createSurface` or to request
+  client data model echoing on surface creation.
+- Breaking: Use `'1.0'` (without a `'v'` prefix) as the `version` field on
+  v1.0 protocol messages and capabilities in `ExpressCompiler`,
+  `ExpressDecompiler`, `DirectJsonParser`, `RendererState`, `resolveCatalogs`,
+  and prompt examples ([#3097](https://github.com/a2ui-project/a2ui/issues/3097),
+  [#3726](https://github.com/a2ui-project/a2ui/pull/3726)).
+- Support the reserved `extensions=` keyword argument on `surface(...)` and component calls in v1.0 A2UI Express (`ExpressCompiler` and `ExpressDecompiler`), compiling to and decompiling from `metadata.extensions` with UAX 31 extension key validation ([#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)).
+
+- Requires `a2ui_core` `^0.5.0`.
+
+- Breaking: In `ExpressCompiler`, data path assignments (`$/... = ...`) in
+  scopes that update a surface (scopes without a `root` assignment) now emit one
+  targeted `updateDataModel` message per assigned path at its JSON Pointer
+  `path` instead of folding all assignments into a single root `updateDataModel`
+  with `path: "/"` (which replaced the entire surface data model on the
+  renderer). Surface-creating scopes continue to fold data path assignments into
+  a single root data model and now support list element traversal, canonical
+  numeric-segment list auto-vivification, and full root replacement via
+  `$/ = {...}`. `ExpressDecompiler` now writes standalone `updateDataModel`
+  messages as `{path} = {value}` (`$/ = {...}` at root) so map replacements
+  round-trip without merging into sibling keys, accepts numeric path segments in
+  `updateDataModel` (such as `/items/0`), and sorts map keys when flattening
+  surface-creation data models into leaf assignments.
+- Breaking: when `ResponseStream.feed` or `close` throws an `A2uiError`, the
+  error's `partialResults` holds the parts the call made ready before the
+  failure, and they stay applied to the stream's `RendererState`. Before, a
+  chunk that finished a block and then failed in the next one threw without
+  those parts and rolled them back. Show `error.partialResults` before ending
+  the stream ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- An `A2uiError` that `Parser.parseResponse` throws carries `partialResults`
+  too: the parts before the failing block, or only the text when a tree
+  check fails, since that check spans every block. None of them is applied
+  to the state ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Breaking: `ResponseStream` is now `ResponseReader<ResponsePart>`, and a
+  class that implements it adds `isInBlock`. `ResponsePart` extends the new
+  sealed `StreamPart`. Code that names `ResponseStream` or
+  `DirectJsonResponseStream` compiles unchanged ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `Parser.openContinuingStream` and
+  `A2uiRequestProcessor.openContinuingStream`, which open a
+  `ContinuingResponseStream` (`ResponseReader<StreamPart>`;
+  `DirectJsonContinuingResponseStream` for direct JSON and
+  `ExpressContinuingResponseStream` for Express) that reads past a
+  rejected block. It returns an `ErrorPart` in place of the block, skips the
+  rest of it, and reads the text and blocks after it; the messages the block
+  emitted before it was rejected stay in the state. A block still open when
+  the response ends is returned as an `ErrorPart` too ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `ResponseReader.isInBlock`, which tells whether the response read so
+  far ends inside a block, so a client that joins the chunks of a paused and
+  resumed response can tell whether a space between them could break a block
+  ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `RendererState.of`, a state that checks messages by its own rules and
+  applies them to the `MessageProcessor` an app renders from, for an app that
+  is both agent and renderer. A rollback takes a message back out of the
+  processor's model, a `callRendererFunction` reaches the processor only once
+  the outermost `apply` or transaction it was applied in succeeds, and
+  `dispose` leaves the processor's surfaces to its owner ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `StreamedAnswer`, which reads one streamed answer into a renderer's
+  `MessageProcessor` through `RendererState.of`, reading past rejected blocks,
+  and keeps its `parts` in the order the model wrote them: text
+  (`AnswerTextPart`), one part per surface it creates (`AnswerSurfacePart`),
+  and an `AnswerErrorPart` per rejected block ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Breaking: `Event(...)` in Express no longer accepts the event name as a
+  `name=` keyword argument; pass it positionally, as the TypeScript and Python
+  compilers require. A keyword `Event` does not define now throws
+  `A2uiValidationError`.
+- `ExpressCompiler` accepts `userMessage=` and `context=` keyword arguments on
+  `Event(...)`, compiling `userMessage` to the v1.0 `event.userMessage` field,
+  and throws `A2uiValidationError` for `userMessage` before v1.0 and for any
+  keyword `Event` does not define, where it used to drop them. A function call
+  in an action slot nested inside a list item or object property (such as
+  `items: [{label, action: openUrl(...)}]`) is now compiled as a
+  `functionCall` action. `ExpressDecompiler` writes `userMessage=` back, and
+  `ExpressPromptGenerator` teaches `Event(name, context?, userMessage=...)` in
+  rule 8 for v1.0+ catalogs
+  ([#3598](https://github.com/a2ui-project/a2ui/issues/3598),
+  [#3690](https://github.com/a2ui-project/a2ui/issues/3690),
+  [#3867](https://github.com/a2ui-project/a2ui/pull/3867)).
+- `DirectJsonParser.unwrap`, `DirectJsonResponseStream`, and
+  `ExpressParser.unwrap` remove the backticks left at the edges of a block when
+  a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` `` or
+  `` `<a2ui-json>` ... `</a2ui-json>` ``) and drop text made of nothing but
+  backticks. In one-shot unwrapping (`unwrap` and `parseResponse`), they also
+  recover at most one block closed with a closing tag when the model opened the
+  block with a Markdown code fence or omitted the opening tag;
+  `DirectJsonParser.hasFormatContent` and `ExpressParser.hasFormatContent`
+  delegate to `unwrap` and count recovered blocks as complete format blocks.
+- The Direct JSON and Express compilers strip stray unescaped line breaks inside
+  JSON object keys and identifier/reference properties (`id`, `component`,
+  `child`, `children` items, `surfaceId`, `catalogId`, and `componentId`,
+  leaving user data under `updateDataModel` values and `createSurface.dataModel` untouched), at the edges of
+  single-line Express strings, and inside Express data paths and line-wrapped
+  identifiers (outside strings and comments, when the joined name resolves to
+  a declared variable), accept SQL/Lua-style `--` comments in Express, and map
+  a trailing numeric positional argument across optional enum properties when a
+  component schema declares a single later numeric property.
+- Express `IDENTIFIER` and `CHECK` tokens now follow UAX 31
+  (`[\p{XID_Start}_] [\p{XID_Continue}]*`) rather than ASCII-only letters,
+  digits, and underscores. In `ExpressDecompiler`, non-identifier component ids
+  before protocol v1.0 (such as `title-heading`) and reserved-word component
+  ids in any version (`true`, `false`, `null`, `_`) are written with a derived
+  variable name and `id="..."` so they round-trip through `ExpressCompiler`;
+  from v1.0 onward, component ids that are not valid UAX 31 identifiers throw
+  `A2uiValidationError`.
+- Express number literals follow the grammar of the core `${...}` expression
+  parsers: an optional sign, digits with an optional fraction (`.5`, `1.`) and
+  an optional exponent (`1e6`, `2.5E-7`). A literal outside the double range
+  (`1e999`) throws `A2uiParseError`. `ExpressDecompiler` now writes doubles
+  that need exponent notation (`1e-7`, `1e+21`) instead of throwing, and
+  throws `A2uiValidationError` only for non-finite values
+  ([#3019](https://github.com/a2ui-project/a2ui/issues/3019)).
 - Breaking: `A2uiGenerator.inferenceFormatFactory` and
   `A2uiRequestProcessor.formatFactory` default to `ExpressFormatFactory`
   instead of `DirectJsonFormatFactory`.
@@ -93,6 +301,10 @@
   longer checks components, function calls, themes or catalog ids against the
   catalogs; `parseResponse(block, wrapped: false)` compiles and checks one
   block. A `Parser` subclass implements the new `catalogs` getter.
+- The v1.0 schema in the direct JSON prompt no longer says that `createSurface`
+  needs later messages for its components and data. They can be sent inline in
+  `createSurface` or in later `updateComponents` and `updateDataModel` messages.
+  [#3678](https://github.com/a2ui-project/a2ui/pull/3678)
 - `A2uiRequestProcessor` reuses one parser, which its `parser` getter
   returns. `createState` creates an empty `RendererState` for the active
   catalogs. A processor can be bound to a state, through its `state`
@@ -103,18 +315,9 @@
   processor's catalogs, so an agent that keeps a state per conversation can
   tell when to make a new one.
   `A2uiRequestProcessor.parseResponse` also takes `wrapped`.
-- Support cross-catalog `$ref` references across peer catalogs in
-  `resolveCatalogs`, payload checks, `DirectJsonPromptGenerator` (preserving
-  unbundled external `$ref`s in `Catalog.toJson()` while retaining transitive
-  `common_types.json` definitions), and the Express format (`ExpressPromptGenerator`,
-  `ExpressCompiler`, and `ExpressDecompiler`). Each links copies of the
-  catalogs with `linkCatalogs` and never changes the catalogs it is given:
-  `resolveCatalogs` returns linked copies, linked with every registered
-  catalog as declared and as transformed, and `ExpressCompiler.catalogs` and
-  `ExpressDecompiler.catalogs` hold linked copies. An inline catalog the agent
-  does not accept is linked with nothing.
 - `CatalogConfig.transformedCatalog` is computed on first access and then
-  reused, so every request sees the same transformed catalog.
+  reused, so every request sees the same transformed catalog
+  ([#3575](https://github.com/a2ui-project/a2ui/pull/3575)).
 - Implemented protocol v1.0. The SDK reads and writes the protocol version
   that the active catalogs target, rather than always v0.9:
   - `FileSystemCatalogProvider` and `InMemoryCatalogProvider` load documents
@@ -176,7 +379,6 @@
   string with backslashes as a raw triple-quoted string, and an
   `updateDataModel` below the root as assignments at its path.
 - A check's default message has no trailing period, as in the other SDKs.
-- Bump `a2ui_core` dependency to `^0.3.0`.
 - The Direct JSON prompt lists `description` after `type` in the
   agent-to-renderer and `common_types` schemas it embeds, following the
   reordered specification files.
@@ -220,6 +422,9 @@
   emitted only once its JSON object closes, as v1.0 requires, and progressive
   keys heal only values outside components. It is false by default, which keeps
   the v0.9 behavior of healing a component while it streams.
+- `DirectJsonParser` rejects a number out of the range of a double, such as
+  `1e400`, with `A2uiParseError`. A streamed response used to throw a
+  `JsonUnsupportedObjectError` for it.
 - The Direct JSON message reader and the Express decompiler continue to
   reject a `createSurface` message without a `catalogId` with
   `A2uiValidationError`. The check moved into the agent SDK now that
@@ -242,13 +447,13 @@
   as part of a string or comment.
 - An Express integer too large for `int` compiles to a double instead of
   throwing `FormatException`.
-
-## 0.0.1-wip005
-
+- The Direct JSON prompt rule says the JSON part is a JSON array of A2UI
+  messages, each following the schema, instead of "a single, raw JSON object
+  (usually a list of A2UI messages)" that "MUST validate" against it
+  ([#3721](https://github.com/a2ui-project/a2ui/pull/3721)).
 - Catalogs are typed `CatalogApi`, the new name of `a2ui_core`'s
   `SchemaCatalog`.
 - `ComponentPruningTransformer` and `FunctionPruningTransformer` now accept an optional or null allowlist, treating it as empty.
-
 - Implemented the rest of the agent SDK blueprint API for protocol v0.9:
   - `CatalogProvider`, `FileSystemCatalogProvider`, `InMemoryCatalogProvider`
     and `CatalogConfig.fromPath`. A document's id and version are settled with

@@ -29,13 +29,22 @@ public final class FormatNumberFunction: FunctionImplementation, Sendable {
             "decimals": { "type": "number" },
             "grouping": { "type": "boolean" }
           },
-          "required": ["value"]
+          "required": ["value"],
+          "additionalProperties": false
         }
         """
     )
   )
 
-  public init() {}
+  private let locale: Locale
+
+  /// Initializes the function with the locale it formats numbers in.
+  ///
+  /// - Parameter locale: The formatting locale. Defaults to `BasicFunctions.defaultLocale`
+  ///   (`en_US`), so output doesn't depend on the device locale.
+  public init(locale: Locale = BasicFunctions.defaultLocale) {
+    self.locale = locale
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     let numberValue: Double
@@ -48,7 +57,7 @@ public final class FormatNumberFunction: FunctionImplementation, Sendable {
     }
 
     let formatter = NumberFormatter()
-    formatter.locale = Locale.current
+    formatter.locale = locale
     formatter.numberStyle = .decimal
 
     // Enable grouping unless explicitly set to false
