@@ -21,11 +21,13 @@ import '../model/triage_item.dart';
 import 'group_actions.dart';
 import 'item_list.dart';
 import 'label_colors.dart';
+import 'links.dart';
 import 'triage_scope.dart';
 
 /// The details when the triager selected several [items] with Shift-click:
-/// the changes that **Apply** makes to all of them, then each item's other
-/// changes, not editable, and **Apply** below them. See "Several selected
+/// links to the items, the changes that **Apply** makes to all of them, then
+/// the other changes of each item that has some, not editable, and **Apply**
+/// below them. See "Several selected
 /// items" in `ui.blueprint.md`.
 class MultiSelectionView extends StatelessWidget {
   const MultiSelectionView({super.key, required this.items});
@@ -52,12 +54,26 @@ class MultiSelectionView extends StatelessWidget {
                   draftChanges(items[k], drafts[k]),
               ];
               final List<DraftChange> shared = sharedChanges(changes);
+              final List<(TriageItem, List<DraftChange>)> individual = [
+                for (var k = 0; k < items.length; k++)
+                  if (changes[k].where((c) => !shared.contains(c)).toList()
+                      case final List<DraftChange> own when own.isNotEmpty)
+                    (items[k], own),
+              ];
               return ListView(
                 padding: const EdgeInsets.all(24),
                 children: [
                   Text(
                     '${items.length} items selected',
                     style: text.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 4,
+                    children: [
+                      for (final i in items) LinkText(i.shortName, url: i.url),
+                    ],
                   ),
                   const SizedBox(height: 24),
                   Text('Shared changes', style: text.titleMedium),
@@ -68,19 +84,15 @@ class MultiSelectionView extends StatelessWidget {
                     _ChangeList(shared, item: items.first),
                   const SizedBox(height: 24),
                   Text('Individual changes', style: text.titleMedium),
-                  for (var k = 0; k < items.length; k++) ...[
-                    const SizedBox(height: 16),
-                    _ItemHeading(items[k]),
+                  if (individual.isEmpty) ...[
                     const SizedBox(height: 8),
-                    if (changes[k].isEmpty)
-                      const Text('No changes. Apply skips this item.')
-                    else if (changes[k].every(shared.contains))
-                      const Text('No other changes.')
-                    else
-                      _ChangeList([
-                        for (final c in changes[k])
-                          if (!shared.contains(c)) c,
-                      ], item: items[k]),
+                    const Text('No items with individual changes.'),
+                  ],
+                  for (final (item, own) in individual) ...[
+                    const SizedBox(height: 16),
+                    _ItemHeading(item),
+                    const SizedBox(height: 8),
+                    _ChangeList(own, item: item),
                   ],
                 ],
               );
@@ -94,7 +106,8 @@ class MultiSelectionView extends StatelessWidget {
   }
 }
 
-/// An item's icon, short name and title, above its changes.
+/// An item's icon, and its short name and title as a link to it, above its
+/// changes.
 class _ItemHeading extends StatelessWidget {
   const _ItemHeading(this.item);
 
@@ -110,9 +123,10 @@ class _ItemHeading extends StatelessWidget {
       spacing: 8,
       children: [
         Icon(icon, size: 18, color: color, semanticLabel: kind),
-        Expanded(
-          child: Text(
+        Flexible(
+          child: LinkText(
             '${item.shortName} ${item.title}',
+            url: item.url,
             style: Theme.of(context).textTheme.titleSmall,
           ),
         ),
