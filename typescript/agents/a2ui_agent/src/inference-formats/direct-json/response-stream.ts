@@ -96,6 +96,9 @@ type Growing =
       readonly rest: string;
       /** The value last emitted. */
       value: unknown;
+      /** The surface whose root was replaced before `path` arrived, and its prior root value. */
+      readonly surfaceId?: string;
+      readonly priorRoot?: unknown;
     }
   | {
       readonly kind: 'other';
@@ -396,7 +399,7 @@ export class DirectJsonResponseStream<
         }
         this.committed += 1;
       }
-      if (!this.stalled && isObject(open) && GROWING_KEYS.some(key => key in open)) {
+      if (!this.stalled && mayGrow(open)) {
         try {
           ready.push(...this.applyMessage(this.committed, open, false));
         } catch (e) {
@@ -495,8 +498,40 @@ export class DirectJsonResponseStream<
     } else if (growing?.kind === 'other' && !closed && stableStringify(envelope) === growing.json) {
       emit = false;
     } else {
-      this.applyWhole(envelope);
-      this.growing = closed ? undefined : growingOf(index, envelope);
+      let priorSurfaceId: string | undefined;
+      let priorRoot: unknown;
+      if (growing?.kind === 'dataModel' && growing.surfaceId !== undefined) {
+        const surface = this.state.getSurface(growing.surfaceId);
+        if (surface) {
+          priorSurfaceId = growing.surfaceId;
+          priorRoot = growing.priorRoot;
+          surface.dataModel.set('/', structuredClone(priorRoot));
+        }
+      } else if (!closed && isObject(envelope) && isObject(envelope.updateDataModel)) {
+        const body = envelope.updateDataModel;
+        if (!('path' in body) && typeof body.surfaceId === 'string') {
+          const surface = this.state.getSurface(body.surfaceId);
+          if (surface) {
+            priorSurfaceId = body.surfaceId;
+            priorRoot = structuredClone(surface.dataModel.get('/'));
+          }
+        }
+      }
+      try {
+        this.applyWhole(envelope);
+      } catch (e) {
+        if (
+          growing?.kind === 'dataModel' &&
+          growing.surfaceId !== undefined &&
+          isObject(growing.value)
+        ) {
+          this.state
+            .getSurface(growing.surfaceId)
+            ?.dataModel.set('/', structuredClone(growing.value));
+        }
+        throw e;
+      }
+      this.growing = closed ? undefined : growingOf(index, envelope, priorSurfaceId, priorRoot);
       return [envelope as AgentToRendererMessage];
     }
     if (closed) this.growing = undefined;
@@ -584,8 +619,36 @@ function isResponsePart(part: StreamPart): part is ResponsePart {
   return part.type !== 'error';
 }
 
+/**
+ * Whether a message still arriving may be applied and emitted already: one a renderer
+ * applies again as it grows, holding the field it grows by, with at least one component for
+ * `updateComponents`, or a non-empty object when an `updateDataModel` has no `path` yet.
+ */
+function mayGrow(envelope: unknown): envelope is Record<string, unknown> {
+  if (!isObject(envelope)) return false;
+  if (!GROWING_KEYS.some(key => key in envelope)) return false;
+  if (isObject(envelope.updateComponents)) {
+    const components = envelope.updateComponents.components;
+    return Array.isArray(components) && components.length > 0;
+  }
+  if (isObject(envelope.updateDataModel)) {
+    const body = envelope.updateDataModel;
+    if (!('value' in body)) return false;
+    if (!('path' in body)) {
+      return isObject(body.value) && Object.keys(body.value).length > 0;
+    }
+    return true;
+  }
+  return false;
+}
+
 /** What the stream keeps of a message it applied whole while it grows. */
-function growingOf(index: number, envelope: unknown): Growing {
+function growingOf(
+  index: number,
+  envelope: unknown,
+  surfaceId?: string,
+  priorRoot?: unknown,
+): Growing {
   if (isObject(envelope)) {
     const components = isObject(envelope.updateComponents)
       ? envelope.updateComponents.components
@@ -609,6 +672,8 @@ function growingOf(index: number, envelope: unknown): Growing {
         index,
         rest: restOf(envelope, 'updateDataModel', 'value')!,
         value: dataModel.value,
+        surfaceId: 'path' in dataModel ? undefined : surfaceId,
+        priorRoot: 'path' in dataModel ? undefined : priorRoot,
       };
     }
   }
