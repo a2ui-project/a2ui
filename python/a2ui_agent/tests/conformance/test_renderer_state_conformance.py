@@ -49,6 +49,7 @@ CASES = load_conformance_yaml(SUITE)
 
 _RENDERER_STATE_CASE_KEYS = _CASE_METADATA_KEYS | {
     "action",
+    "assumeUnknownSurfaces",
     "catalogs",
     "turns",
 }
@@ -115,7 +116,10 @@ def test_renderer_state_conformance(
         raw_catalogs = [lower_catalog_entry(c) for c in raw_catalogs]
 
     catalogs = _catalogs_for({"catalogs": raw_catalogs})
-    state = RendererState(catalogs)
+    state = RendererState(
+        catalogs,
+        assume_unknown_surfaces=test_case.get("assumeUnknownSurfaces", False),
+    )
 
     for turn in test_case["turns"]:
         assert_known_keys(turn, _RENDERER_STATE_TURN_KEYS, "renderer_state_turns turn")

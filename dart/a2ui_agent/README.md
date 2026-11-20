@@ -189,6 +189,11 @@ How long the state lives depends on how the agent shows UI:
    it to `parseResponse` or `openStream` on every turn, or bind it with
    `generator.createProcessor(capabilities, state: state)`.
 
+A sub-agent that updates a surface another agent created can make its state
+with `RendererState(catalogs, assumeUnknownSurfaces: true)`. That state
+accepts updates to surfaces it never saw created, and still checks their
+components.
+
 A response parsed whole is applied to the state all or nothing, and the
 trees of the surfaces it touches are checked once every block is applied. A
 streamed response applies each message as it is emitted, so the state matches

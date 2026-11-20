@@ -75,6 +75,20 @@ const INDEX = /^(0|[1-9][0-9]*)$/;
 /** The processor that `RendererState.of` hands to the constructor it calls. */
 let sharedProcessor: MessageProcessor | undefined;
 
+/** Options for a `RendererState`. */
+export interface RendererStateOptions {
+  /**
+   * Whether to accept an update to a surface the state never saw created, such as one a
+   * sub-agent sends to a surface another agent created. The state then makes an empty
+   * placeholder for the surface, on the first catalog that defines the components of the
+   * payload's updates to it and accepts all of them. Those components are still checked, but
+   * the surface's tree is not: references to components the state never saw and a missing
+   * root are accepted there. A surface that an earlier message of the payload deleted is not
+   * assumed again, nor is one that a later message creates. Defaults to false.
+   */
+  assumeUnknownSurfaces?: boolean;
+}
+
 /**
  * The agent's mirror of the surfaces a renderer holds.
  *
@@ -106,7 +120,7 @@ let sharedProcessor: MessageProcessor | undefined;
  * The state holds the surfaces as they now stand, not the messages that built them.
  *
  * An update to a surface the state never saw created is rejected, as the renderer would
- * reject it.
+ * reject it, unless the state is made with `assumeUnknownSurfaces`.
  *
  * The state is authoritative for surfaces and their components. The data model values it
  * holds can drift from the renderer's, since the user edits bound inputs there, but no
@@ -157,17 +171,20 @@ export class RendererState {
    * made by `RendererState.of` does, since its processor is the renderer's own.
    */
   private readonly runsCalls: boolean;
+  /** Whether the state was made with `assumeUnknownSurfaces`. */
+  private readonly assumesUnknown: boolean;
 
   /**
    * Creates the empty state of a renderer that holds the catalogs.
    *
    * @param catalogs The active catalogs, which must target compatible protocol versions.
    *     Each surface is checked against the catalog its `catalogId` names.
+   * @param options The state's options. See `RendererStateOptions`.
    * @throws {A2uiCatalogError} If no catalogs are given, if two share an id, if their
    *     messages state different versions, for example v0.9 and v1.0 catalogs, or if they
    *     target a protocol version the state does not support, such as v0.8.
    */
-  constructor(catalogs: CatalogApi[]) {
+  constructor(catalogs: CatalogApi[], options: RendererStateOptions = {}) {
     if (!catalogs || catalogs.length === 0) {
       throw new A2uiCatalogError('A renderer state requires at least one catalog.');
     }
@@ -183,6 +200,7 @@ export class RendererState {
       );
     }
     this._catalogs = [...catalogs];
+    this.assumesUnknown = options.assumeUnknownSurfaces ?? false;
     this.runsCalls = sharedProcessor !== undefined;
     this.processor = sharedProcessor ?? new MessageProcessor(this._catalogs as never);
   }
@@ -294,11 +312,10 @@ export class RendererState {
 
   /**
    * Whether an update to a surface the state never saw created makes an empty placeholder
-   * for it instead of being rejected. Only a state that checks one payload on its own, with
-   * no record of earlier ones, says yes.
+   * for it instead of being rejected. Defaults to the `assumeUnknownSurfaces` option.
    */
   protected get assumesUnknownSurfaces(): boolean {
-    return false;
+    return this.assumesUnknown;
   }
 
   /**

@@ -23,7 +23,7 @@ import dataclasses
 import logging
 import re
 import sys
-from typing import Any, ClassVar, TypeAlias, cast
+from typing import Any, TypeAlias, cast
 
 from pydantic import BaseModel
 
@@ -156,7 +156,8 @@ class RendererState:
     built them.
 
     An update to a surface the state never saw created is rejected, as the
-    renderer would reject it. A v0.8 renderer buffers the updates that arrive
+    renderer would reject it, unless the state is made with
+    `assume_unknown_surfaces`. A v0.8 renderer buffers the updates that arrive
     before `beginRendering`, so v0.8 updates are accepted and checked again
     once the surface begins rendering. A v0.8 renderer also accepts a second
     `beginRendering` for a surface it holds, but the state rejects it, so a
@@ -167,14 +168,11 @@ class RendererState:
     bound inputs there, but no check depends on them.
     """
 
-    # Whether an update to a surface the state never saw created makes an
-    # empty placeholder for it instead of being rejected. Only a state that
-    # checks one payload on its own, with no record of earlier ones, sets it.
-    _assumes_unknown_surfaces: ClassVar[bool] = False
-
     def __init__(
         self,
         catalogs: Sequence[CatalogApi],
+        *,
+        assume_unknown_surfaces: bool = False,
     ) -> None:
         """Creates the empty state of a renderer that holds the catalogs.
 
@@ -183,6 +181,16 @@ class RendererState:
             versions. Each surface is checked against the catalog its
             `catalogId` names. A v0.8 surface that names none uses the first
             catalog.
+          assume_unknown_surfaces: Whether to accept an update to a surface the
+            state never saw created, such as one a sub-agent sends to a surface
+            another agent created. The state then makes an empty placeholder
+            for the surface, on the first catalog that defines the components
+            of the payload's updates to it and accepts all of them. Those
+            components are still checked, but the surface's tree is not:
+            references to components the state never saw and a missing root
+            are accepted there. A surface that an earlier message of the
+            payload deleted is not assumed again, nor is one that a later
+            message creates.
 
         Raises:
           A2uiCatalogError: If no catalogs are given, or if their messages
@@ -201,6 +209,10 @@ class RendererState:
                 )
         self._catalogs = list(catalogs)
         self._protocol_version = protocol_version
+        self._assumes_unknown_surfaces = assume_unknown_surfaces
+        # The catalog ids that `validate_payload` was told earlier payloads
+        # created surfaces with, keyed by surface id.
+        self._surface_catalog_ids: dict[str, str] = {}
         self._processor = MessageProcessor(
             self._catalogs,
             options=MessageProcessorOptions(validation_config=_IN_PROGRESS_VALIDATION),
@@ -808,8 +820,9 @@ class RendererState:
         rejected; see `_check_function_call`. Each refusal has the code
         `INVALID_FUNCTION_CALL`, as an invalid envelope of the message has.
 
-        A payload state assumes a surface the payload never named before, as
-        it does for an update, since an earlier payload may have created it.
+        A state that assumes unknown surfaces assumes a surface the payload
+        never named before, as it does for an update, since an earlier payload
+        may have created it.
 
         Raises:
           A2uiValidationError: If the renderer would refuse the call.
@@ -865,10 +878,21 @@ class RendererState:
     def _assumed_surface_home(self, surface_id: str) -> _NestedCallHome:
         """Where nested calls run on a surface that is only assumed to exist.
 
-        Its catalog isn't known, so a nested call that names no catalog is
-        accepted if some active catalog lets the renderer make it.
+        On a surface whose catalog `validate_payload` was told, they run in that
+        catalog. On any other, the catalog isn't known, so a nested call that
+        names no catalog is accepted if some active catalog lets the renderer
+        make it.
         """
-        return _NestedCallHome(None)
+        catalog_id = self._surface_catalog_ids.get(surface_id)
+        if catalog_id is None:
+            return _NestedCallHome(None)
+        for catalog in self._catalogs:
+            if catalog.catalog_id == catalog_id:
+                return _NestedCallHome(catalog, surface_id)
+        raise A2uiValidationError(
+            f"Surface '{surface_id}' uses catalog '{catalog_id}', which"
+            " isn't one of the active catalogs."
+        )
 
     def _assumes(
         self, surface_id: str, payload: list[dict[str, Any]], index: int
@@ -876,11 +900,12 @@ class RendererState:
         """Whether an update to a surface the state lacks assumes the surface.
 
         A v0.8 renderer buffers updates to a surface until its
-        `beginRendering`, even after the surface is deleted. A payload state
-        assumes a surface the payload never named before, but not one that an
-        earlier message of the payload deleted, nor one that a later message
-        creates before any message deletes it: a renderer rejects updates to
-        either, since the surface does not exist yet when they arrive.
+        `beginRendering`, even after the surface is deleted. A state that
+        assumes unknown surfaces assumes a surface the payload never named
+        before, but not one that an earlier message of the payload deleted,
+        nor one that a later message creates before any message deletes it:
+        a renderer rejects updates to either, since the surface does not
+        exist yet when they arrive.
         """
         if self._protocol_version is ProtocolVersion.V0_8:
             return True
@@ -937,10 +962,22 @@ class RendererState:
     ) -> list[CatalogApi]:
         """The catalogs to try a placeholder for an unknown surface on, in order.
 
+        A surface whose catalog `validate_payload` was told is made on that
+        catalog only.
+
         Args:
           surface_id: The surface.
           updates: The updates to the surface that the placeholder must accept.
         """
+        catalog_id = self._surface_catalog_ids.get(surface_id)
+        if catalog_id is not None:
+            candidates = [c for c in self._catalogs if c.catalog_id == catalog_id]
+            if not candidates:
+                raise A2uiValidationError(
+                    f"Surface '{surface_id}' uses catalog '{catalog_id}', which"
+                    " isn't one of the active catalogs."
+                )
+            return candidates
         component_types = _component_types(updates)
         return [
             catalog
@@ -967,57 +1004,6 @@ class RendererState:
                 "catalogId": catalog.catalog_id,
             },
         }
-
-
-class _PayloadState(RendererState):
-    """The state of a renderer that `validate_payload` knows nothing about.
-
-    A surface the payload updates without creating is assumed to exist,
-    holding components the check never saw. The state creates an empty
-    placeholder for it, on the first catalog that defines the components of
-    the payload's updates to it and accepts all of them. A surface that an
-    earlier message of the payload deleted is not assumed again. Each
-    component is still checked against that catalog, but the surface's tree
-    is not: references to components outside the payload, a missing root and
-    unreachable components are accepted there.
-    A surface whose catalog the caller knows is created on that catalog only.
-    """
-
-    _assumes_unknown_surfaces = True
-
-    def __init__(
-        self,
-        catalogs: Sequence[CatalogApi],
-        surface_catalog_ids: Mapping[str, str] | None = None,
-    ) -> None:
-        super().__init__(catalogs)
-        self._surface_catalog_ids = dict(surface_catalog_ids or {})
-
-    def _placeholder_catalogs(
-        self, surface_id: str, updates: list[dict[str, Any]]
-    ) -> list[CatalogApi]:
-        catalog_id = self._surface_catalog_ids.get(surface_id)
-        if catalog_id is None:
-            return super()._placeholder_catalogs(surface_id, updates)
-        candidates = [c for c in self.catalogs if c.catalog_id == catalog_id]
-        if not candidates:
-            raise A2uiValidationError(
-                f"Surface '{surface_id}' uses catalog '{catalog_id}', which"
-                " isn't one of the active catalogs."
-            )
-        return candidates
-
-    def _assumed_surface_home(self, surface_id: str) -> _NestedCallHome:
-        catalog_id = self._surface_catalog_ids.get(surface_id)
-        if catalog_id is None:
-            return super()._assumed_surface_home(surface_id)
-        for catalog in self.catalogs:
-            if catalog.catalog_id == catalog_id:
-                return _NestedCallHome(catalog, surface_id)
-        raise A2uiValidationError(
-            f"Surface '{surface_id}' uses catalog '{catalog_id}', which"
-            " isn't one of the active catalogs."
-        )
 
 
 def validate_payload(
@@ -1079,7 +1065,8 @@ def validate_payload(
       A2uiCatalogError: If no catalogs are given, or if their messages state
         different versions, for example v0.9 and v1.0 catalogs.
     """
-    state = _PayloadState(catalogs, surface_catalog_ids)
+    state = RendererState(catalogs, assume_unknown_surfaces=True)
+    state._surface_catalog_ids = dict(surface_catalog_ids or {})
     state.check_topology(state.apply(payload))
 
 
