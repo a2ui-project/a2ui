@@ -77,6 +77,8 @@ If the PR meets the other criteria but overlaps with open PRs or work in progres
 
 Do not promise a review in `reply` or anywhere else: write nothing like "we will review it". The team has not decided yet, and the expert may close the PR. Say only who the PR is assigned to and why, such as "Assigning this PR to `xyz`, who maintains `web_core`, to decide on it."
 
+Until a team member has started reviewing the PR, do not ask its author to resolve merge conflicts or rebase. If the expert declines the PR, that work would waste the contributor's time. Mention the conflicts in `suggestion`, for the expert, and leave them out of `reply`.
+
 Otherwise, set `close_as` to `not_planned` and use the reply from [Triage a PR](../../../../docs/contributing/triage/triage.md#triage-a-pr) as the `reply`.
 
 If the PR is waiting for its author after a review, suggest `status: waiting-for-author-response` instead of a decision.
