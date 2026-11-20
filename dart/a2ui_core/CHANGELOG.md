@@ -4,6 +4,14 @@
 
 - **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.5.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
 - Regenerate the v0.9 basic catalog bindings and update documentation paths after moving the pre-1.0 catalogs to `catalogs/` ([#4150](https://github.com/a2ui-project/a2ui/pull/4150)).
+- Added `MessageProcessor.addCatalog`, which adds a catalog to a processor
+  after it is built. `createSurface` messages, renderer function calls and
+  `getRendererCapabilities` see the catalog from then on; surfaces created
+  before the call keep the catalogs they were created with. A catalog whose id
+  the processor already holds is rejected with `A2uiCatalogError`.
+  `MessageProcessor.catalogs` lists the added catalog too, and still cannot
+  be modified ([#3303](https://github.com/a2ui-project/a2ui/issues/3303),
+  [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
 
 ## 0.8.0
 
@@ -226,7 +234,7 @@
   ([#2724](https://github.com/a2ui-project/a2ui/pull/2724)).
 - **Breaking:** `MessageProcessor.catalogs` cannot be modified: it is a copy
   of the list the processor was created with, and adding to it throws
-  `UnsupportedError`. Pass every catalog when creating the processor
+  `UnsupportedError`. Add a catalog with `addCatalog`
   ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
 - Added `MessageErrorMapper`, `SurfaceGroupModel.onError`, and
   `MessageProcessor.processMessagesWithErrors` for mapping `A2uiError`
