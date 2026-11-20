@@ -1,5 +1,13 @@
 ## Unreleased
 
+- Add `make_adk_after_tool_callback` (lazily exported from `a2ui.adk` and
+  implemented in `a2ui.adk.decision_callbacks`) to wire
+  `ToolPointerBinder` into ADK `after_tool_callback` pipelines without eagerly
+  importing experimental decision modules.
+- Add `allowed_a2ui_tool_names` allowlist parameter to `A2uiPartConverter` and
+  `A2uiEventConverter` so callback-verified domain tools can emit `A2uiPart`
+  items from `A2UI_VALIDATED_JSON_KEY`.
+
 ## 0.3.0 (2026-11-10)
 
 - `a2ui_rpc_callback` takes `renderer_calls`, a provider of the session's

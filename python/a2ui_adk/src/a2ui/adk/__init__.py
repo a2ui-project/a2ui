@@ -54,7 +54,17 @@ if TYPE_CHECKING:
         a2ui_rpc_interceptor,
         exclude_a2ui_rpc_from_prompt,
     )
+    from .decision_callbacks import make_adk_after_tool_callback
     from .orchestration import A2uiSubagentMap, SurfaceIdAlreadyExistsError
+
+# Public names loaded lazily without requiring the `a2a` extra (e.g. to avoid
+# eagerly importing experimental modules on plain `import a2ui.adk`).
+_LAZY_EXPORTS: dict[str, tuple[str, str | None]] = {
+    "make_adk_after_tool_callback": (
+        ".decision_callbacks",
+        "make_adk_after_tool_callback",
+    ),
+}
 
 # Public names that need the `a2a` extra, mapped to the submodule they live in
 # (relative to this package) and the attribute to read from it (None for the
@@ -95,6 +105,13 @@ def _is_missing_a2a_extra(error: ImportError) -> bool:
 
 
 def __getattr__(name: str) -> Any:
+    lazy_target = _LAZY_EXPORTS.get(name)
+    if lazy_target is not None:
+        module_name, attr = lazy_target
+        module = importlib.import_module(module_name, __name__)
+        value = module if attr is None else getattr(module, attr)
+        globals()[name] = value
+        return value
     target = _A2A_EXPORTS.get(name)
     if target is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
@@ -131,5 +148,6 @@ __all__ = [
     "a2ui_rpc_callback",
     "a2ui_rpc_interceptor",
     "exclude_a2ui_rpc_from_prompt",
+    "make_adk_after_tool_callback",
     "orchestration",
 ]
