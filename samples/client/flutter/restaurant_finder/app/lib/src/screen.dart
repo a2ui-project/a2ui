@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
-import 'package:flutter/material.dart';
-import 'package:genui/genui.dart';
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'primitives.dart';
 import 'session.dart';
@@ -162,11 +162,12 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
                   controller: _scrollController,
                   padding: const EdgeInsets.all(12),
                   itemCount: surfaceIds.length,
-                  itemBuilder: (context, i) => Surface(
-                    surfaceContext: _session.surfaceHost.contextFor(
-                      surfaceIds[i],
-                    ),
-                  ),
+                  itemBuilder: (context, i) {
+                    final SurfaceModel<ComponentImplementation>? surface =
+                        _session.surfaceFor(surfaceIds[i]);
+                    if (surface == null) return const SizedBox.shrink();
+                    return A2uiSurface(surface: surface);
+                  },
                 ),
         ),
       ],

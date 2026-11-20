@@ -14,41 +14,42 @@
 
 import 'dart:async';
 
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
+import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 import 'package:flutter/foundation.dart';
-import 'package:genui/genui.dart';
-import 'package:genui_a2a/genui_a2a.dart';
 import 'package:logging/logging.dart';
 
+import 'a2a/a2a_connector.dart';
 import 'primitives.dart';
 
 const String defaultServerUrl = 'http://localhost:10002';
 
-// https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
-// https://a2ui.org/specification/v0_9/standard_catalog.json
-
 class RestaurantSession extends ChangeNotifier {
   RestaurantSession({String serverUrl = defaultServerUrl}) {
-    final List<Catalog> catalogs = [
-      BasicCatalogItems.asCatalog().copyWith(catalogId: _agentCatalogId),
-    ];
+    final CatalogImplementation catalog = basicCatalog();
     _connector = A2uiAgentConnector(url: Uri.parse(serverUrl));
-    _surfaceController = SurfaceController(catalogs: catalogs);
-    _init();
+    _processor = MessageProcessor<ComponentImplementation>(
+      catalogs: [catalog],
+      defaultVersion: A2uiProtocolVersion.v0_9,
+    );
+    _capabilities = _processor
+        .getRendererCapabilities(
+          const CapabilitiesOptions(versions: [A2uiProtocolVersion.v0_9]),
+        )
+        .toJson();
+    _actionSub = _processor.model.onAction.subscribe(_handleActionFromSurface);
+    _createdSub = _processor.model.onSurfaceCreated.subscribe(
+      (_) => notifyListeners(),
+    );
+    _deletedSub = _processor.model.onSurfaceDeleted.subscribe(
+      (_) => notifyListeners(),
+    );
   }
 
-  // The agent advertises its catalog under this id (see the Python
-  // BasicCatalog provider). The Dart `BasicCatalogItems.asCatalog()` defaults
-  // to `.../standard_catalog.json`, so we override the id to match.
-  //
-  // Catalog id is already fixed in genui at main branch, so, as soon
-  // as this fix gets released, the override will no longer be needed.
-  static const String _agentCatalogId =
-      'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
-
   late final A2uiAgentConnector _connector;
-  late final SurfaceController _surfaceController;
-
-  SurfaceHost get surfaceHost => _surfaceController;
+  late final MessageProcessor<ComponentImplementation> _processor;
+  late final Map<String, Object?> _capabilities;
 
   bool _isRequesting = false;
   bool get isRequesting => _isRequesting;
@@ -64,45 +65,30 @@ class RestaurantSession extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
-  Iterable<String> get activeSurfaceIds => _surfaceController.activeSurfaceIds;
+  Iterable<String> get activeSurfaceIds =>
+      _processor.model.allSurfaces.map((s) => s.id);
 
-  final _logger = Logger('RestaurantSession');
+  SurfaceModel<ComponentImplementation>? surfaceFor(String surfaceId) =>
+      _processor.model.getSurface(surfaceId);
+
+  final Logger _logger = Logger('RestaurantSession');
   Timer? _loadingTimer;
 
-  late final StreamSubscription<A2uiMessage> _a2uiSub;
-  late final StreamSubscription<String> _textSub;
-  late final StreamSubscription<ChatMessage> _submitSub;
-  late final StreamSubscription<Object> _errorSub;
-  late final StreamSubscription<SurfaceUpdate> _surfaceSub;
+  StreamIterator<AgentToRendererMessage>? _activeIterator;
+  late final Subscription _actionSub;
+  late final Subscription _createdSub;
+  late final Subscription _deletedSub;
 
-  void _init() {
-    _a2uiSub = _connector.stream.listen(_handleUiFromAgent);
-    _textSub = _connector.textStream.listen(_handleTextFromAgent);
-    _submitSub = _surfaceController.onSubmit.listen(_handleSubmitFromSurface);
-    _errorSub = _connector.errorStream.listen(_handleError);
-    _surfaceSub = _surfaceController.surfaceUpdates.listen(_onSurfaceChanged);
-  }
-
-  void _handleSubmitFromSurface(ChatMessage message) {
-    _sendMessageToAgent(message);
-  }
-
-  void _handleUiFromAgent(A2uiMessage message) {
-    _surfaceController.handleMessage(message);
-  }
-
-  void _handleTextFromAgent(String text) {
-    _logger.info('Text from agent: $text');
-  }
-
-  void _handleError(Object err) {
-    _error = err.toString();
-    _logger.severe('Error from agent', err, StackTrace.current);
-    notifyListeners();
-  }
-
-  void _onSurfaceChanged(SurfaceUpdate _) {
-    notifyListeners();
+  void _handleActionFromSurface(A2uiRendererAction action) {
+    final Map<String, Object?> payload = ActionMessage(
+      version: A2uiProtocolVersion.v0_9.jsonValue,
+      action: action,
+    ).toJson();
+    unawaited(
+      _sendToAgent(
+        () => _connector.sendData(payload, clientCapabilities: _capabilities),
+      ),
+    );
   }
 
   void _startLoadingAnimation() {
@@ -120,31 +106,51 @@ class RestaurantSession extends ChangeNotifier {
 
   Future<void> sendMessage(String text) async {
     if (text.isEmpty) return;
-    await _sendMessageToAgent(ChatMessage.user(text));
+    await _sendToAgent(
+      () => _connector.sendText(text, clientCapabilities: _capabilities),
+      clearSurfaces: true,
+    );
   }
 
-  Future<void> _sendMessageToAgent(ChatMessage message) async {
-    if (_isRequesting) return;
+  Future<void> _sendToAgent(
+    Stream<AgentToRendererMessage> Function() send, {
+    bool clearSurfaces = false,
+  }) async {
+    if (_isDisposed || _isRequesting) return;
     _isRequesting = true;
     _hasSentMessage = true;
     _error = null;
     _startLoadingAnimation();
 
-    // Clear existing surfaces on each new request.
-    for (final String id in [..._surfaceController.activeSurfaceIds]) {
-      _surfaceController.handleMessage(DeleteSurface(surfaceId: id));
+    // Clear existing surfaces on each new text request.
+    if (clearSurfaces && activeSurfaceIds.isNotEmpty) {
+      _processor.processMessages([
+        for (final String id in [...activeSurfaceIds])
+          DeleteSurfaceMessage(
+            version: A2uiProtocolVersion.v0_9.jsonValue,
+            surfaceId: id,
+          ),
+      ]);
     }
 
     notifyListeners();
+    final StreamIterator<AgentToRendererMessage> iterator = StreamIterator(
+      send(),
+    );
+    _activeIterator = iterator;
     try {
-      await _connector.connectAndSend(
-        message,
-        clientCapabilities: _surfaceController.clientCapabilities,
-      );
+      while (await iterator.moveNext()) {
+        if (_isDisposed) break;
+        _processor.processMessages(
+          AgentToRendererMessagePayload.of(iterator.current),
+        );
+      }
     } catch (e, st) {
       _error = e.toString();
       _logger.severe('Error sending message', e, st);
     } finally {
+      _activeIterator = null;
+      unawaited(iterator.cancel());
       _isRequesting = false;
       _stopLoadingAnimation();
       notifyListeners();
@@ -154,14 +160,12 @@ class RestaurantSession extends ChangeNotifier {
   @override
   void dispose() {
     _isDisposed = true;
-    _a2uiSub.cancel();
-    _textSub.cancel();
-    _submitSub.cancel();
-    _errorSub.cancel();
-    _surfaceSub.cancel();
+    unawaited(_activeIterator?.cancel());
+    _actionSub.unsubscribe();
+    _createdSub.unsubscribe();
+    _deletedSub.unsubscribe();
     _loadingTimer?.cancel();
-    _surfaceController.dispose();
-    _connector.dispose();
+    _processor.dispose();
     super.dispose();
   }
 
