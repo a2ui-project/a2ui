@@ -150,8 +150,10 @@ export const isBot = (user: User | null | undefined): boolean =>
 
 // Opens a comment that the triage tooling posts from a maintainer's account,
 // such as a triage suggestion: `**From triage bot:**`, in either Markdown bold
-// form or plain, with or without the colon.
-const TRIAGE_BOT_PREFIX = /^\s*(\*\*|__)?From triage bot\b/;
+// form or plain, with or without the colon. The closing bold marker is matched
+// explicitly because `_` is a word character, so `\b` finds no boundary in
+// `bot__`.
+const TRIAGE_BOT_PREFIX = /^\s*(\*\*|__)?From triage bot\1?(?!\w)/;
 
 /**
  * True for a comment a maintainer posted on behalf of the triage tooling. Such

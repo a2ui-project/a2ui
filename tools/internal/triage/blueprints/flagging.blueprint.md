@@ -20,7 +20,7 @@ The script uses the following rules to decide if a PR or issue should get **the 
      - **NO LABEL** otherwise.
    - If no: continue processing.
 
-3. Was the item opened by a team member, with no unanswered comment from an out-of-team contributor? A comment is unanswered while it is the latest human contribution, so a reply from a team member answers it.
+3. Was the item opened by a team member, with no unanswered contribution from an out-of-team contributor? A contribution (a comment, a PR review or a review comment) is unanswered while it is the latest human contribution, so a reply or review from a team member answers it.
 
    - If yes: **NO LABEL**.
    - If no: continue processing.
@@ -39,7 +39,7 @@ The script uses the following rules to decide if a PR or issue should get **the 
          - It is `P0`.
          - It is `P1` without milestone.
          - It has no priority label (`P0`–`P3`).
-         - The latest comment is from an out-of-team contributor.
+         - The latest human comment is from an out-of-team contributor.
        - **NO LABEL** otherwise.
    - If no: continue processing.
 
@@ -57,6 +57,6 @@ Staleness is calculated from the last human contribution (a comment, a PR review
 
 The bot prints to the console which items it flags or unflags and why. You can use this to track triage progress.
 
-The workflow runs daily on a schedule (15:00 UTC / 07:00 PST), on manual dispatch, and automatically on issue events (opened, edited, labeled, unlabeled, assigned, unassigned, reopened), new issue comments, and submitted PR reviews or review comments.
+The workflow runs daily on a schedule (15:00 UTC / 07:00 PST), on manual dispatch, and automatically on issue events (opened, edited, labeled, unlabeled, assigned, unassigned, milestoned, demilestoned, reopened), new issue comments, and submitted PR reviews or review comments.
 
 Every run uses the script from `main`, whatever event triggers it. Without this, a PR review event runs the script from the PR's merge commit, which can contain an older version of the rules. Two versions then disagree on some items, and each run adds or removes the label that the previous run removed or added. To test a change to the rules, run the tests in [triage.test.mts](../flagging/triage.test.mts) with `node --test tools/internal/triage/flagging/triage.test.mts`. Running the workflow from a branch still applies the rules from `main`.

@@ -153,8 +153,10 @@ describe('isTriageBotComment', () => {
 
   it('detects the prefix without a colon', () => {
     assert.equal(isTriageBotComment(comment({body: '**From triage bot**\n\nText'})), true);
+    assert.equal(isTriageBotComment(comment({body: '__From triage bot__\n\nText'})), true);
     assert.equal(isTriageBotComment(comment({body: 'From triage bot. Text'})), true);
     assert.equal(isTriageBotComment(comment({body: 'From triage bots we learned'})), false);
+    assert.equal(isTriageBotComment(comment({body: '__From triage bot__extra'})), false);
   });
 
   it('ignores the prefix on an external comment', () => {
@@ -275,9 +277,8 @@ describe('flagReason — issues', () => {
     assert.equal(flagReason(item, [], NOW), null);
   });
 
-  // Only P0 has a staleness threshold, only P1 needs a milestone, and a
-  // priority settles the missing-priority check, so nothing else can flag an
-  // assigned P2 or P3.
+  // Only P0 and P1 have a staleness threshold, and a priority settles the
+  // missing-priority check, so nothing else can flag an assigned P2 or P3.
   it('does not flag an assigned issue below P1, whatever else is wrong with it', () => {
     for (const priority of ['P2', 'P3']) {
       const item = externalIssue({
