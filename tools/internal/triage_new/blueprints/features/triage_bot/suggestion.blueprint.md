@@ -43,16 +43,20 @@ Triage suggestion:
 <details>
 <summary>For humans</summary>
 
+**TL;DR**
+Case: issue highlights a problem.
+Suggestion: assign for triage to an expert.
+
 **Summary:**
-The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.
+The issue highlights the problem: Flutter renderer throws an exception when a `Row` has an empty `children` list. [Per blueprint](the_blueprint.md), it should not.
 
 **Why flagged for triage:**
 This issue has external input but no priority label yet.
 
 **Suggestion:**
-Set P1 and assign `octocat`, who made [most of the recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.
+Set P1 and assign for triage to `octocat`, who made [most of the recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.
 
-1. Add labels: `type: bug`, `P1`, `component: flutter adapter`, `status: first-line-handled`
+1. Add labels: `status: assigned-for-triage` ,`type: bug`, `P1`, `component: flutter adapter`, `status: first-line-handled`
 2. Assign: `octocat`
 3. Related issues: #1234
 
