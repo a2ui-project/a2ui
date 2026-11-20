@@ -23,12 +23,9 @@ The triage bot only comments. It never changes labels, assignees or the state of
 
 ## Requests to the triage bot
 
-A team member can ask the triage bot for something in a comment on the item that addresses it, usually in a comment that starts with `**Requires team input. Note for the discussion:**`. For example, on #3061 the triager [asked](https://github.com/a2ui-project/a2ui/issues/3061#issuecomment-6809478783): "Triage bot, can you suggest an expert?"
+A team member can ask the triage bot for something in a comment on the item that addresses it, usually in a comment that starts with `Triage bot, `. For example, on #3061 the triager [asked](https://github.com/a2ui-project/a2ui/issues/3061#issuecomment-6809478783): "Triage bot, can you suggest an expert?"
 
-A request is answered when a triage bot comment, a suggestion or a response, was posted after it. At its next run, the triage bot researches each request that is not answered yet, and answers it depending on the item's labels:
-
-1. If the item has `status: needs-team-input`, the triage bot posts a [response comment](#the-response-comment). It comments on such an item only to answer requests.
-2. Otherwise, the request is a comment, so it makes the item's suggestion [outdated](#current-and-outdated-suggestions), and the triage bot posts a new suggestion. The `suggestion` starts with the answer, which links to the request and names who asked.
+A request is answered when a triage bot comment, a suggestion or a response, was posted after it. At its next run, the triage bot researches each request that is not answered yet, and answers it by posting a [response comment](#the-response-comment). 
 
 When the request asks for an action, such as assigning someone, the triage bot suggests it and does not do it.
 
