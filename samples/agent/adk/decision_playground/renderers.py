@@ -224,7 +224,7 @@ class PlaygroundRenderers:
         self._rate_limiter = (
             rate_limiter
             if rate_limiter is not None
-            else SessionRateLimiter(max_calls=10, window_seconds=60.0)
+            else SessionRateLimiter(max_calls=20, window_seconds=60.0)
         )
 
     @property
