@@ -86,8 +86,12 @@ const NEEDS_TEAM_INPUT = 'status: needs-team-input';
 const ASSIGNED_FOR_TRIAGE = 'status: assigned-for-triage';
 const PRIORITIES = ['P0', 'P1', 'P2', 'P3'];
 
-/** The prefix of triage bot comments, which the person posts as the bot. */
-const TRIAGE_BOT_HEADING = /^\*\*From triage bot:\*\*/;
+/**
+ * The prefix of triage bot comments, which the person posts as the bot, as in
+ * `**From triage bot, suggestion:**`. Earlier comments start with
+ * `**From triage bot:**`.
+ */
+const TRIAGE_BOT_HEADING = /^\*\*From triage bot[,:]/;
 
 /** A timeline event, as `ITEM_FRAGMENT` returns it. */
 export interface RawEvent {

@@ -147,16 +147,19 @@ describe('isTriageBotComment', () => {
     assert.equal(isTriageBotComment(comment({body: '**From triage bot:**\n\nText'})), true);
     assert.equal(isTriageBotComment(comment({body: '__From triage bot:__\n\nText'})), true);
     assert.equal(isTriageBotComment(comment({body: 'From triage bot: text'})), true);
+    assert.equal(isTriageBotComment(comment({body: '**From triage bot, suggestion:**\n\nText'})), true);
+    assert.equal(isTriageBotComment(comment({body: 'From triage bot, ping: text'})), true);
   });
 
   it('ignores the prefix on an external comment', () => {
     // Otherwise anyone could hide their comment from triage.
-    const body = '**From triage bot:** text';
+    const body = '**From triage bot, response:** text';
     assert.equal(isTriageBotComment(comment({body, author_association: 'NONE'})), false);
   });
 
   it('ignores comments that do not start with the prefix', () => {
     assert.equal(isTriageBotComment(comment({body: 'See the From triage bot: comment'})), false);
+    assert.equal(isTriageBotComment(comment({body: 'From triage bots, hi'})), false);
     assert.equal(isTriageBotComment(comment({body: null})), false);
     assert.equal(isTriageBotComment(comment()), false);
   });
@@ -796,7 +799,7 @@ describe('issueTriage reconciliation', () => {
   describe('triage bot comments', () => {
     const triageBotComment = comment({
       created_at: realDaysAgo(0),
-      body: '**From triage bot:**\n\nTriage suggestion: ...',
+      body: '**From triage bot, suggestion:**\n\n...',
     });
 
     // Regression: https://github.com/a2ui-project/a2ui/issues/1888 lost its

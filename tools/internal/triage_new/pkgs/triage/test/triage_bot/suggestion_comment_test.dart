@@ -19,9 +19,7 @@ import 'package:triage/triage.dart';
 /// A suggestion comment like the one in triage_bot/suggestion.blueprint.md.
 String comment(String component) =>
     '''
-**From triage bot:**
-
-Triage suggestion:
+**From triage bot, suggestion:**
 
 <details>
 <summary>For humans</summary>
@@ -107,7 +105,7 @@ Suggestion: close as a duplicate.""",
 
   test('rejects a comment without an <a2ui> block', () {
     expect(
-      () => SuggestionPayload.parse('**From triage bot:**\n\nHi.'),
+      () => SuggestionPayload.parse('**From triage bot, response:**\n\nHi.'),
       rejected,
     );
   });
@@ -152,6 +150,9 @@ Suggestion: close as a duplicate.""",
     );
     expect(hasTriageBotPrefix(body), isTrue);
     expect(hasTriageBotPrefix('Thanks!\n$body'), isFalse);
+    expect(hasTriageBotPrefix('**From triage bot, response:**\n'), isTrue);
+    expect(hasTriageBotPrefix('**From triage bot, ping:** @a'), isTrue);
+    // Earlier triage bot comments.
     expect(
       hasTriageBotPrefix('**From triage bot:**\n\nResponse to requests:'),
       isTrue,
@@ -159,6 +160,6 @@ Suggestion: close as a duplicate.""",
     // The flagger does not recognize other headings, so neither does the UI.
     expect(hasTriageBotPrefix('**Suggestion from triage bot:**\n'), isFalse);
     expect(hasA2uiBlock(body), isTrue);
-    expect(hasA2uiBlock('**From triage bot:**\n\nPing.'), isFalse);
+    expect(hasA2uiBlock('**From triage bot, ping:** @a'), isFalse);
   });
 }

@@ -171,8 +171,13 @@ describe('itemActions', () => {
       itemActions(rawItem({comments: {nodes: comments}, timelineItems: {nodes: [labeled('P2')]}}), LOGIN, PERIOD);
     assert.equal(triaged([comment('Thanks for the report.')])?.commented, true);
     assert.equal(triaged([comment('Thanks.', BEFORE)])?.commented, false);
-    for (const kind of ['Triage suggestion:', 'Response to requests:', 'Ping.']) {
-      assert.equal(triaged([comment(`**From triage bot:**\n\n${kind}`)])?.commented, false, kind);
+    for (const heading of [
+      '**From triage bot, suggestion:**',
+      '**From triage bot, response:**',
+      '**From triage bot, ping:** @someone',
+      '**From triage bot:**\n\nTriage suggestion:',
+    ]) {
+      assert.equal(triaged([comment(heading)])?.commented, false, heading);
     }
   });
 
@@ -182,7 +187,7 @@ describe('itemActions', () => {
   });
 
   it('does not count an item with triage bot comments only', () => {
-    const body = '**From triage bot:**\n\nTriage suggestion:';
+    const body = '**From triage bot, suggestion:**';
     const item = rawItem({comments: {nodes: [{author: {login: LOGIN}, body, createdAt: IN}]}});
     assert.equal(itemActions(item, LOGIN, PERIOD), null);
   });
