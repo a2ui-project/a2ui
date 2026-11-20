@@ -55,9 +55,49 @@ interface ConsultantEntry {
   repoUrl: string;
   catalogUrl?: string;
   figmaUrl?: string;
+  blogUrl?: string;
 }
 
 const consultants: ConsultantEntry[] = [
+  {
+    slug: 'angular-architects',
+    agency: 'Angular Architects',
+    agencyUrl: 'https://www.angulararchitects.io/en/',
+    domain: 'AI Engineering',
+    logoLight:
+      'https://github.com/manfredsteyer/a2ui/releases/download/docs-assets/get-help--angular-architects--logo-light.42e0e276.webp',
+    logoDark:
+      'https://github.com/manfredsteyer/a2ui/releases/download/docs-assets/get-help--angular-architects--logo-dark.ea294514.svg',
+    logoHeight: 36,
+    appName: 'A2UI Macros Dashboard',
+    appTagline: 'Generative UI optimized for small models',
+    summary:
+      'Gemma 4 or Gemini Flash Lite composes dashboards using high-level macros in A2UI Express. The server expands the macros into A2UI 1.0 components, loads their data, and streams the result over AG-UI to an Angular client with CopilotKit.',
+    stack: 'Angular · A2UI 1.0 · A2UI Express · CopilotKit · AG-UI · Mastra',
+    catalog: 'A2UI Basic Catalog + TicketWidget · 11 server macros',
+    videoSrc:
+      'https://github.com/manfredsteyer/a2ui/releases/download/docs-assets/get-help--angular-architects--walkthrough.b6faae47.mp4',
+    videoLabel: 'Walkthrough',
+    videoCaption: 'Angular Architects · A2UI Macros Dashboard walkthrough',
+    primaryImg:
+      'https://github.com/manfredsteyer/a2ui/releases/download/docs-assets/get-help--angular-architects--primary.69b1c3a5.webp',
+    primaryAlt:
+      'Flight analytics dashboard with flight tables and delay charts alongside its A2UI Express macros and expanded A2UI 1.0 JSON.',
+    primaryCaption:
+      'Flight analytics composed from macros, with the compact Express source and expanded A2UI visible side by side.',
+    catalogImg:
+      'https://github.com/manfredsteyer/a2ui/releases/download/docs-assets/get-help--angular-architects--catalog.94317fa7.webp',
+    catalogAlt:
+      'Angular source showing the TicketWidget schema and its registration alongside the A2UI Basic Catalog.',
+    catalogCaption:
+      'The dashboard extends the A2UI Basic Catalog with a custom Angular boarding-pass component.',
+    demoUrl: 'https://a2ui-macros-dashboard-mt26y.ondigitalocean.app/',
+    catalogUrl:
+      'https://github.com/manfredsteyer/dashboard-demo/blob/main/src/app/a2ui/dashboard-catalog.ts',
+    repoUrl: 'https://github.com/manfredsteyer/dashboard-demo',
+    blogUrl:
+      'https://www.angulararchitects.io/en/blog/fewer-tokens-faster-uis-a2ui-macros-for-local-and-cloud-models/',
+  },
   {
     slug: 'copilotkit',
     agency: 'CopilotKit',
@@ -652,6 +692,16 @@ const sortedConsultants = [...consultants].sort((a, b) => a.agency.localeCompare
                           class="c-text-link"
                         >
                           Figma <span aria-hidden="true">↗</span>
+                        </a>
+                      )}
+                      {item.blogUrl && (
+                        <a
+                          href={item.blogUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="c-text-link"
+                        >
+                          Blog <span aria-hidden="true">↗</span>
                         </a>
                       )}
                       <a
