@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {test, expect} from 'vitest';
+import {describe, it, test, expect, beforeEach, afterEach} from 'vitest';
+import {basicCatalog} from '@a2ui/lit/v0_9';
+import type {A2UILayoutEditor} from '../app.js';
+import {localConfig, playgroundConfig, restaurantConfig} from '../configs/configs.js';
+import {playgroundThemeSheet} from '../theme/playground-theme.js';
+import {restaurantThemeSheet} from '../theme/restaurant-theme.js';
 
 /**
  * Smoke test to ensure that the Vite dev server compilation pipeline correctly
@@ -36,3 +41,403 @@ test(
   },
   VITE_COMPILE_TIMEOUT,
 );
+
+describe('a2ui-shell layout and inspector integration', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('renders <playground-inspector> when ?app=playground is active and toggles/resets cleanly', async () => {
+    await import('../app.js');
+    window.history.replaceState({}, '', '/?app=playground');
+    const el = document.createElement('a2ui-shell') as A2UILayoutEditor;
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    expect(el.hasAttribute('inspector-layout')).toBe(true);
+    const inspector = el.shadowRoot?.querySelector('playground-inspector') as
+      | (HTMLElement & {trace: unknown})
+      | null;
+    expect(inspector).not.toBeNull();
+    // Floating drawer toggle is hidden while the inspector panel is open
+    expect(el.shadowRoot?.querySelector('.inspector-drawer-toggle')).toBeNull();
+
+    // Click the "x" close button inside the inspector panel header
+    const closeBtn = inspector!.shadowRoot?.querySelector<HTMLButtonElement>(
+      '[data-testid="toggle-inspector"]',
+    );
+    expect(closeBtn).not.toBeNull();
+    expect(closeBtn!.textContent).toContain('close');
+    closeBtn!.click();
+    await el.updateComplete;
+    expect(el.hasAttribute('inspector-collapsed')).toBe(true);
+    expect(el.shadowRoot?.querySelector('playground-inspector')).toBeNull();
+
+    // Re-open via the floating Show Inspector button that appears when collapsed
+    const toggleBtn = el.shadowRoot?.querySelector('.inspector-drawer-toggle') as HTMLButtonElement;
+    expect(toggleBtn).not.toBeNull();
+    expect(toggleBtn.textContent).toContain('Show Inspector');
+    toggleBtn.click();
+    await el.updateComplete;
+    expect(el.hasAttribute('inspector-collapsed')).toBe(false);
+    expect(el.shadowRoot?.querySelector('.inspector-drawer-toggle')).toBeNull();
+    const reopened = el.shadowRoot?.querySelector('playground-inspector') as
+      | (HTMLElement & {trace: unknown})
+      | null;
+    expect(reopened).not.toBeNull();
+
+    // Dispatch reset-session event
+    reopened!.dispatchEvent(new CustomEvent('reset-session', {bubbles: true, composed: true}));
+    await el.updateComplete;
+    expect(reopened!.trace).toBeNull();
+  });
+
+  it('omits <playground-inspector> for ?app=restaurant', async () => {
+    await import('../app.js');
+    window.history.replaceState({}, '', '/?app=restaurant');
+    const el = document.createElement('a2ui-shell') as A2UILayoutEditor;
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    expect(el.hasAttribute('inspector-layout')).toBe(false);
+    expect(el.shadowRoot?.querySelector('playground-inspector')).toBeNull();
+  });
+
+  it('prunes main surface when switching to turn-* render surfaces but preserves main on status cards', async () => {
+    await import('../app.js');
+    window.history.replaceState({}, '', '/?app=playground');
+    const el = document.createElement('a2ui-shell') as A2UILayoutEditor;
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const internal = el as unknown as {
+      _processor: {
+        processMessages: (msgs: unknown[]) => void;
+        getRendererCapabilities: (opts: {versions: string[]}) => {supportedCatalogIds: string[]};
+        model: {surfacesMap: Map<string, unknown>};
+      };
+      _a2uiClient: {
+        sendTurn: (msg: unknown) => Promise<{messages: unknown[]; trace: null; contextId: string}>;
+      };
+    };
+
+    const catalogId = basicCatalog.id;
+    const turns: unknown[][] = [
+      [{version: 'v0.9', createSurface: {surfaceId: 'main', catalogId}}],
+      [{version: 'v0.9', createSurface: {surfaceId: 'turn-1-status', catalogId}}],
+      [{version: 'v0.9', createSurface: {surfaceId: 'turn-2-decision', catalogId}}],
+    ];
+    internal._a2uiClient.sendTurn = async () => ({
+      messages: turns.shift() ?? [],
+      trace: null,
+      contextId: 'ctx-1',
+    });
+
+    const quickActionBtn = el.shadowRoot?.querySelector<HTMLButtonElement>('.quick-action-btn');
+    expect(quickActionBtn).not.toBeNull();
+    if (!quickActionBtn) {
+      throw new Error('Expected .quick-action-btn in shadowRoot');
+    }
+
+    // Turn 1 creates 'main'
+    quickActionBtn.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await el.updateComplete;
+    expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual(['main']);
+
+    // Turn 2 creates 'turn-1-status' (slash command card) and preserves 'main'
+    quickActionBtn.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await el.updateComplete;
+    expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual([
+      'main',
+      'turn-1-status',
+    ]);
+
+    // Turn 3 creates 'turn-2-decision' (compare/express render surface) and prunes both 'main' and 'turn-1-status' (M3)
+    quickActionBtn.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await el.updateComplete;
+    expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual(['turn-2-decision']);
+  });
+
+  it('preserves active turn-* render surfaces on slash-command status and empty batches', async () => {
+    await import('../app.js');
+    window.history.replaceState({}, '', '/?app=playground');
+    const el = document.createElement('a2ui-shell') as A2UILayoutEditor;
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const internal = el as unknown as {
+      _processor: {
+        model: {surfacesMap: Map<string, unknown>};
+      };
+      _a2uiClient: {
+        sendTurn: (msg: unknown) => Promise<{messages: unknown[]; trace: null; contextId: string}>;
+      };
+    };
+
+    const catalogId = basicCatalog.id;
+    const turns: unknown[][] = [
+      [{version: 'v0.9', createSurface: {surfaceId: 'turn-1-decision', catalogId}}],
+      [{version: 'v0.9', createSurface: {surfaceId: 'turn-2-status', catalogId}}],
+      [],
+      [{version: 'v0.9', createSurface: {surfaceId: 'main', catalogId}}],
+    ];
+    internal._a2uiClient.sendTurn = async () => ({
+      messages: turns.shift() ?? [],
+      trace: null,
+      contextId: 'ctx-1',
+    });
+
+    const quickActionBtn = el.shadowRoot?.querySelector<HTMLButtonElement>('.quick-action-btn');
+    if (!quickActionBtn) {
+      throw new Error('Expected .quick-action-btn in shadowRoot');
+    }
+
+    // Turn 1 creates a non-status turn-* render surface.
+    quickActionBtn.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await el.updateComplete;
+    expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual(['turn-1-decision']);
+
+    // Turn 2 creates a slash-command status card; turn-1-decision must remain intact.
+    quickActionBtn.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await el.updateComplete;
+    expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual([
+      'turn-1-decision',
+      'turn-2-status',
+    ]);
+
+    // Turn 3 returns an empty batch; both existing surfaces must be preserved.
+    quickActionBtn.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await el.updateComplete;
+    expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual([
+      'turn-1-decision',
+      'turn-2-status',
+    ]);
+
+    // Turn 4 targets 'main'; both turn-* surfaces are pruned.
+    quickActionBtn.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await el.updateComplete;
+    expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual(['main']);
+  });
+
+  it('removes playgroundThemeSheet from adoptedStyleSheets on unmount and config switch', async () => {
+    await import('../app.js');
+    window.history.replaceState({}, '', '/?app=playground');
+    const el = document.createElement('a2ui-shell') as A2UILayoutEditor;
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    expect(document.adoptedStyleSheets).toContain(playgroundThemeSheet);
+    if (el.shadowRoot && Array.isArray(el.shadowRoot.adoptedStyleSheets)) {
+      expect(el.shadowRoot.adoptedStyleSheets).toContain(playgroundThemeSheet);
+    }
+
+    // Switching config to restaurant removes playgroundThemeSheet and adopts restaurantThemeSheet.
+    el.config = restaurantConfig;
+    await el.updateComplete;
+    expect(document.adoptedStyleSheets).not.toContain(playgroundThemeSheet);
+    expect(document.adoptedStyleSheets).toContain(restaurantThemeSheet);
+
+    // Switching to localConfig removes restaurantThemeSheet without adding another.
+    el.config = localConfig;
+    await el.updateComplete;
+    expect(document.adoptedStyleSheets).not.toContain(restaurantThemeSheet);
+
+    // Switch back to playgroundConfig, then unmount; playgroundThemeSheet must be cleaned up.
+    el.config = playgroundConfig;
+    await el.updateComplete;
+    expect(document.adoptedStyleSheets).toContain(playgroundThemeSheet);
+    if (el.shadowRoot && Array.isArray(el.shadowRoot.adoptedStyleSheets)) {
+      expect(el.shadowRoot.adoptedStyleSheets).toContain(playgroundThemeSheet);
+    }
+
+    el.remove();
+    expect(document.adoptedStyleSheets).not.toContain(playgroundThemeSheet);
+    expect(document.adoptedStyleSheets).not.toContain(restaurantThemeSheet);
+    if (el.shadowRoot && Array.isArray(el.shadowRoot.adoptedStyleSheets)) {
+      expect(el.shadowRoot.adoptedStyleSheets).not.toContain(playgroundThemeSheet);
+    }
+  });
+
+  it('renders header mode/backend pills and syncs active state from trace', async () => {
+    await import('../app.js');
+    window.history.replaceState({}, '', '/?app=playground');
+    const el = document.createElement('a2ui-shell') as A2UILayoutEditor;
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const sentPayloads: unknown[] = [];
+    const internal = el as unknown as {
+      _a2uiClient: {
+        sendTurn: (
+          message: unknown,
+        ) => Promise<{messages: unknown[]; trace?: unknown}>;
+      };
+    };
+    internal._a2uiClient.sendTurn = async (message: unknown) => {
+      sentPayloads.push(message);
+      return {
+        messages: [],
+        trace: {
+          schemaVersion: 1,
+          turn: 1,
+          query: '/mode binder',
+          activeMode: 'binder',
+          compare: false,
+          stage1: {
+            source: 'direct_tool',
+            model: 'playground',
+            latencyMs: 1,
+            promptTokens: 0,
+            outputTokens: 0,
+          },
+          candidates: [
+            {
+              mode: 'binder',
+              ok: true,
+              metrics: {
+                backend: 'gemini',
+                modelId: 'gemini-decision-1',
+                llmCalls: 0,
+                decisionMs: 0,
+                totalMs: 1,
+                promptTokens: 0,
+                outputTokens: 0,
+              },
+              decisionInput: {
+                backendKind: 'gemini',
+                modelId: 'gemini-decision-1',
+                wireFormat: 'gemini',
+                cacheHit: false,
+                questions: [],
+              },
+            },
+          ],
+        },
+      };
+    };
+
+    const binderBtn = el.shadowRoot?.querySelector<HTMLButtonElement>(
+      '[data-mode="binder"]',
+    );
+    expect(binderBtn).not.toBeNull();
+    binderBtn!.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await el.updateComplete;
+
+    expect(sentPayloads).toEqual(['/mode binder']);
+    expect(binderBtn!.classList.contains('active')).toBe(true);
+
+    const geminiBtn = el.shadowRoot?.querySelector<HTMLButtonElement>(
+      '[data-backend="gemini"]',
+    );
+    expect(geminiBtn).not.toBeNull();
+    expect(geminiBtn!.classList.contains('active')).toBe(true);
+  });
+
+  it('forwards outbound callAgentFunction via sendTurn without pruning surfaces', async () => {
+    await import('../app.js');
+    window.history.replaceState({}, '', '/?app=playground');
+    const el = document.createElement('a2ui-shell') as A2UILayoutEditor;
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const sentPayloads: unknown[] = [];
+    const internal = el as unknown as {
+      _processor: {
+        processMessages: (msgs: unknown[]) => void;
+        model: {surfacesMap: Map<string, unknown>};
+      };
+      _a2uiClient: {
+        sendTurn: (
+          message: unknown,
+        ) => Promise<{messages: unknown[]; trace?: unknown}>;
+      };
+    };
+
+    internal._processor.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {surfaceId: 'main', catalogId: basicCatalog.id},
+      },
+    ]);
+    expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual(['main']);
+
+    internal._a2uiClient.sendTurn = async (message: unknown) => {
+      sentPayloads.push(message);
+      return {
+        messages: [
+          {
+            version: '1.0',
+            agentFunctionResponse: {
+              functionCallId: 'call-1',
+              value: true,
+            },
+          },
+        ],
+        trace: {
+          schemaVersion: 1,
+          turn: 2,
+          query: 'callAgentFunction',
+          activeMode: 'rpc',
+          compare: false,
+          stage1: {
+            source: 'pasted_json',
+            model: 'playground',
+            latencyMs: 1,
+            promptTokens: 0,
+            outputTokens: 0,
+          },
+          candidates: [
+            {
+              mode: 'rpc',
+              ok: true,
+              metrics: {
+                backend: 'mock',
+                modelId: 'playground-mock',
+                llmCalls: 0,
+                decisionMs: 1,
+                totalMs: 1,
+                promptTokens: 0,
+                outputTokens: 0,
+              },
+            },
+          ],
+        },
+      };
+    };
+
+    const callEnvelope = {
+      version: 'v1.0',
+      callAgentFunction: {
+        id: 'call-1',
+        surfaceId: 'main',
+        name: 'is_bug_report_complete',
+        args: {title: 'Crash'},
+      },
+    };
+    const outboundListener = (
+      internal._processor as unknown as {
+        outboundListener?: (msg: unknown) => void;
+      }
+    ).outboundListener;
+    if (outboundListener) {
+      outboundListener(callEnvelope);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      await el.updateComplete;
+      expect(sentPayloads).toEqual([callEnvelope]);
+      expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual(['main']);
+    }
+  });
+});
