@@ -157,19 +157,19 @@ Rules for the lists:
 3. Never add or remove `status: needs-triage`. The [flagger](../../../tools/internal/triage/blueprints/flagging.blueprint.md) manages it and would undo the change.
 4. Assign only logins that pass the assignee check in step 4, and that are not assigned yet.
 5. List an item in `related_items` only if the suggestion says how it relates. Do not list the item itself, the item in `duplicate_of`, or an item in `targeting_prs` or `targeted_issues`.
-6. For each PR in `targeting_prs`, say whether it closes the issue. A PR closes it only when it is linked to close it, with `Fixes #<number>` or in the sidebar. A PR that works on the issue without that link still targets it, so write that it does not close the issue, such as "#4092 works on this issue but does not close it". A PR that only mentions the issue goes in `related_items`.
+6. For each PR in `targeting_prs`, say whether it closes the issue. A PR closes it only when it is linked to close it, with `Fixes #<number>` or in the sidebar. A PR that works on the issue without that link still targets it, so write that it does not close the issue, such as "[#4092](https://github.com/a2ui-project/a2ui/pull/4092) works on this issue but does not close it". A PR that only mentions the issue goes in `related_items`.
 7. Do not repeat an entry in a list.
 
 Write `tldr`, `summary` and `suggestion` for the triager, and `reply` for the people on the item, following the natural-writing rules. In `suggestion`, state the action first, then why. Do not use filler such as "I hope this helps".
 
 If the item has [requests to the triage bot](#requests-to-the-triage-bot) to answer, start the `suggestion` with the answers, before the action. Link each answer to its request and name who asked, such as "In reply to the [question](https://github.com/a2ui-project/a2ui/issues/3061#issuecomment-6809478783) from `polina-c`: ...". Put the answers in `suggestion`, not in `reply`: they are for the team, and the triage UI posts `reply` on the item.
 
-Rules for links in `summary`, `suggestion` and `reply`:
+Rules for links in `tldr`, `summary`, `suggestion` and `reply`:
 
-1. Link every artifact you mention, so that the triager can check it in one click: files, folders, lines of code, commits, workflow runs, docs pages and specifications.
+1. Link every artifact you mention, so that the triager can check it in one click: files, folders, lines of code, issues, PRs, commits, workflow runs, docs pages and specifications.
 2. Put the link on the words that name the artifact. In "The `genui` package README links to `./DESIGN.md`", link "README" to the README file, not to its repository.
-3. When you say what someone said, asked, decided or did, link the words to where they did it: the comment, review, commit or PR. In "`jacobsimionato` declined the Go SDK in #1279 and asked `nan-yu` to confirm", link "declined" and "asked" to the comment, as in "`jacobsimionato` [declined](https://github.com/a2ui-project/a2ui/pull/1279#issuecomment-4332390778) the Go SDK in #1279 and [asked](https://github.com/a2ui-project/a2ui/pull/1279#issuecomment-4332390778) `nan-yu` to confirm". Get the link of a comment from its `url` in the output of [item.graphql](references/item.graphql), or from `html_url` in the GitHub API. Before you write "the last", "the only" or "never", check every candidate: such a claim is wrong if one item is missed.
-4. Write an issue or a PR as `#123` in `a2ui-project/a2ui`, and as `owner/repo#123` in another repository. GitHub turns both into links.
+3. When you say what someone said, asked, decided or did, link the words to where they did it: the comment, review, commit or PR. In "`jacobsimionato` declined the Go SDK in #1279 and asked `nan-yu` to confirm", link "declined" and "asked" to the comment, as in "`jacobsimionato` [declined](https://github.com/a2ui-project/a2ui/pull/1279#issuecomment-4332390778) the Go SDK in [#1279](https://github.com/a2ui-project/a2ui/pull/1279) and [asked](https://github.com/a2ui-project/a2ui/pull/1279#issuecomment-4332390778) `nan-yu` to confirm". Get the link of a comment from its `url` in the output of [item.graphql](references/item.graphql), or from `html_url` in the GitHub API. Before you write "the last", "the only" or "never", check every candidate: such a claim is wrong if one item is missed.
+4. Write an issue or a PR as a Markdown link with the number as its text: `[#123](https://github.com/a2ui-project/a2ui/issues/123)` for an issue and `[#123](https://github.com/a2ui-project/a2ui/pull/123)` for a PR in `a2ui-project/a2ui`, and `[owner/repo#123](https://github.com/owner/repo/issues/123)` in another repository. GitHub turns a bare `#123` into a link, but the triage UI does not.
 5. Link files to a commit SHA, not to a branch, so that the link keeps showing what you read after the branch moves: `https://github.com/<owner>/<repo>/blob/<sha>/<path>`. Get the SHA of `main` with `gh api repos/<owner>/<repo>/commits/main -q .sha`.
 6. When the text is about specific lines, such as a broken link, a line of a stack trace, or the code that causes a bug, link to those lines with a permalink, not to the whole file: the commit SHA and a line anchor, `https://github.com/<owner>/<repo>/blob/<sha>/<path>#L10` for one line or `#L10-L20` for a range. For a Markdown file, add `?plain=1` before the anchor, as in `.../README.md?plain=1#L81`, or GitHub shows the rendered file and ignores the anchor.
 7. When you name someone as an owner or an expert from the commit history in step 4, link the history: `https://github.com/a2ui-project/a2ui/commits/main/<path>`.
@@ -283,7 +283,7 @@ The Flutter renderer throws an exception when a `Row` has an empty `children` li
 This issue has external input but no priority label yet.
 
 **Suggestion:**
-Set P1 and assign `flutter-owner`, who wrote [most recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.
+Set P1 and assign `flutter-owner`, who wrote [most recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column` and probably has the same cause.
 
 1. Add labels: `type: bug`, `P1`, `component: flutter adapter`, `status: first-line-handled`
 2. Assign: `flutter-owner`
@@ -307,7 +307,7 @@ root = TriageSuggestion(
 Suggestion: set P1 and assign `flutter-owner`.""",
   summary="""The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.""",
   reason="This issue has external input but no priority label yet.",
-  suggestion="""Set P1 and assign `flutter-owner`, who wrote [most recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.""",
+  suggestion="""Set P1 and assign `flutter-owner`, who wrote [most recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column` and probably has the same cause.""",
   added_labels=["type: bug", "P1", "component: flutter adapter", "status: first-line-handled"],
   new_assignees=["flutter-owner"],
   related_items=[1234]
@@ -329,7 +329,7 @@ Triage suggestion:
 <summary>For humans</summary>
 
 **TL;DR**
-Case: this issue duplicates #1100.
+Case: this issue duplicates [#1100](https://github.com/a2ui-project/a2ui/issues/1100).
 Suggestion: close as a duplicate.
 
 **Summary:**
@@ -339,14 +339,14 @@ The issue asks for a `Slider` component in the basic catalog.
 This issue has external input but no priority label yet.
 
 **Suggestion:**
-Close as a duplicate of #1100, which asks for the same component and already has P2. The issue adds no new use case.
+Close as a duplicate of [#1100](https://github.com/a2ui-project/a2ui/issues/1100), which asks for the same component and already has P2. The issue adds no new use case.
 
 1. Close as: duplicate of #1100
 2. Add labels: `status: first-line-handled`
 
 Reply:
 
-> Thanks for the request. #1100 tracks the same component, so we are closing this issue as a duplicate. Add your use case there if it is not covered yet.
+> Thanks for the request. [#1100](https://github.com/a2ui-project/a2ui/issues/1100) tracks the same component, so we are closing this issue as a duplicate. Add your use case there if it is not covered yet.
 
 To adjust and apply this suggestion, run in your a2ui checkout:
 
@@ -362,12 +362,12 @@ tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issu
 ```
 <a2ui>
 root = TriageSuggestion(
-  tldr="""Case: this issue duplicates #1100.
+  tldr="""Case: this issue duplicates [#1100](https://github.com/a2ui-project/a2ui/issues/1100).
 Suggestion: close as a duplicate.""",
   summary="The issue asks for a `Slider` component in the basic catalog.",
   reason="This issue has external input but no priority label yet.",
-  suggestion="Close as a duplicate of #1100, which asks for the same component and already has P2. The issue adds no new use case.",
-  reply="""Thanks for the request. #1100 tracks the same component, so we are closing this issue as a duplicate. Add your use case there if it is not covered yet.""",
+  suggestion="Close as a duplicate of [#1100](https://github.com/a2ui-project/a2ui/issues/1100), which asks for the same component and already has P2. The issue adds no new use case.",
+  reply="""Thanks for the request. [#1100](https://github.com/a2ui-project/a2ui/issues/1100) tracks the same component, so we are closing this issue as a duplicate. Add your use case there if it is not covered yet.""",
   close_as="duplicate",
   duplicate_of=1100,
   added_labels=["status: first-line-handled"]
@@ -394,7 +394,7 @@ Example, on #3061:
 
 Response to requests:
 
-In reply to the [question](https://github.com/a2ui-project/a2ui/issues/3061#issuecomment-6809478783) from `polina-c`: `gspencergoog` is the best expert to verify the fix. They wrote [10 of the last 20 commits](https://github.com/a2ui-project/a2ui/commits/main/typescript/core/web_core/src/processing/message-processor.ts) to `message-processor.ts` in web_core and approved #3382, which fixed Swift and Python. `nan-yu` is the next choice, with [10 of the last 20 commits](https://github.com/a2ui-project/a2ui/commits/main/python/a2ui_core/src/a2ui/core/processing/message_processor.py) to the Python `message_processor.py`.
+In reply to the [question](https://github.com/a2ui-project/a2ui/issues/3061#issuecomment-6809478783) from `polina-c`: `gspencergoog` is the best expert to verify the fix. They wrote [10 of the last 20 commits](https://github.com/a2ui-project/a2ui/commits/main/typescript/core/web_core/src/processing/message-processor.ts) to `message-processor.ts` in web_core and approved [#3382](https://github.com/a2ui-project/a2ui/pull/3382), which fixed Swift and Python. `nan-yu` is the next choice, with [10 of the last 20 commits](https://github.com/a2ui-project/a2ui/commits/main/python/a2ui_core/src/a2ui/core/processing/message_processor.py) to the Python `message_processor.py`.
 
 To hand the item over, assign `gspencergoog`, add `status: assigned-for-triage` and remove `status: needs-team-input`.
 

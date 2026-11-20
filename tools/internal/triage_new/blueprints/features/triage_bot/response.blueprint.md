@@ -23,7 +23,7 @@ For example, the response to the [request](https://github.com/a2ui-project/a2ui/
 
 Response to requests:
 
-In reply to the [question](https://github.com/a2ui-project/a2ui/issues/3061#issuecomment-6809478783) from `polina-c`: `gspencergoog` is the best expert to verify the fix. They wrote [10 of the last 20 commits](https://github.com/a2ui-project/a2ui/commits/main/typescript/core/web_core/src/processing/message-processor.ts) to `message-processor.ts` in web_core and approved #3382, which fixed Swift and Python. `nan-yu` is the next choice, with [10 of the last 20 commits](https://github.com/a2ui-project/a2ui/commits/main/python/a2ui_core/src/a2ui/core/processing/message_processor.py) to the Python `message_processor.py`.
+In reply to the [question](https://github.com/a2ui-project/a2ui/issues/3061#issuecomment-6809478783) from `polina-c`: `gspencergoog` is the best expert to verify the fix. They wrote [10 of the last 20 commits](https://github.com/a2ui-project/a2ui/commits/main/typescript/core/web_core/src/processing/message-processor.ts) to `message-processor.ts` in web_core and approved [#3382](https://github.com/a2ui-project/a2ui/pull/3382), which fixed Swift and Python. `nan-yu` is the next choice, with [10 of the last 20 commits](https://github.com/a2ui-project/a2ui/commits/main/python/a2ui_core/src/a2ui/core/processing/message_processor.py) to the Python `message_processor.py`.
 
 To hand the item over, assign `gspencergoog`, add `status: assigned-for-triage` and remove `status: needs-team-input`.
 

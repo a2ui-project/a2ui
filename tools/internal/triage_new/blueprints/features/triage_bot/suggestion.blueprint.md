@@ -60,7 +60,7 @@ https://github.com/a2ui-project/a2ui/issues/3002
 This issue has external input but no priority label yet.
 
 **Suggestion:**
-Set P1 and assign for triage to `octocat`, who made [most of the recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.
+Set P1 and assign for triage to `octocat`, who made [most of the recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column` and probably has the same cause.
 
 1. Add labels: `status: assigned-for-triage`, `type: bug`, `P1`, `component: flutter adapter`, `status: first-line-handled`
 2. Assign: `octocat`
@@ -68,7 +68,7 @@ Set P1 and assign for triage to `octocat`, who made [most of the recent changes]
 
 Reply:
 
-> Thanks for the report and the payload that reproduces it. We confirmed the crash and plan to fix it soon. #1234 reports the same crash for `Column`.
+> Thanks for the report and the payload that reproduces it. We confirmed the crash and plan to fix it soon. [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column`.
 
 To adjust and apply this suggestion, run in your a2ui checkout:
 
@@ -88,8 +88,8 @@ root = TriageSuggestion(
 Suggestion: set P1 and assign for triage to an expert.""",
   summary="""The issue highlights the problem: Flutter renderer throws an exception when a `Row` has an empty `children` list. [Per blueprint](the_blueprint.md), it should not.""",
   reason="This issue has external input but no priority label yet.",
-  suggestion="""Set P1 and assign for triage to `octocat`, who made [most of the recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.""",
-  reply="""Thanks for the report and the payload that reproduces it. We confirmed the crash and plan to fix it soon. #1234 reports the same crash for `Column`.""",
+  suggestion="""Set P1 and assign for triage to `octocat`, who made [most of the recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column` and probably has the same cause.""",
+  reply="""Thanks for the report and the payload that reproduces it. We confirmed the crash and plan to fix it soon. [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column`.""",
   added_labels=["status: assigned-for-triage", "type: bug", "P1", "component: flutter adapter", "status: first-line-handled"],
   new_assignees=["octocat"],
   targeting_prs=[3001],
@@ -120,7 +120,7 @@ The [triage_ui.sh](../../../triage_ui.sh) command takes the item's URL, for exam
 1. Sends the URL to the triage UI if the app is running. The app listens on `127.0.0.1:47123`, accepts `POST /open` with the URL in the `item` form field, and accepts only URLs of issues and PRs in `a2ui-project/a2ui` and `flutter/genui`.
 2. Otherwise starts the app on macOS with `flutter run`, passing the URL as the app's argument.
 
-The `summary`, the `suggestion` and the `reply` link every artifact they mention, so that the triager can check it in one click: files, folders, lines of code, issues, PRs, commits, workflow runs, docs pages and specifications. The link is on the words that name the artifact: in "The `genui` package README links to `./DESIGN.md`", "README" links to the README file, not to its repository. When the text says what someone said, asked, decided or did, the words link to where they did it, such as the comment: in "`jacobsimionato` declined the Go SDK in #1279 and asked `nan-yu` to confirm", "declined" and "asked" link to `jacobsimionato`'s comment. Links to files point to a commit SHA, not to a branch, so that they keep showing what the triage bot read. When the text is about specific lines, such as a broken link or the code that causes a bug, it links to those lines with a permalink, the commit SHA and a line anchor such as `#L10-L20`, not to the whole file. Issues and PRs are written as `#123`, or `owner/repo#123` in another repository, which GitHub turns into links.
+The `tldr`, the `summary`, the `suggestion` and the `reply` link every artifact they mention, so that the triager can check it in one click: files, folders, lines of code, issues, PRs, commits, workflow runs, docs pages and specifications. The link is on the words that name the artifact: in "The `genui` package README links to `./DESIGN.md`", "README" links to the README file, not to its repository. When the text says what someone said, asked, decided or did, the words link to where they did it, such as the comment: in "`jacobsimionato` declined the Go SDK in #1279 and asked `nan-yu` to confirm", "declined" and "asked" link to `jacobsimionato`'s comment. Links to files point to a commit SHA, not to a branch, so that they keep showing what the triage bot read. When the text is about specific lines, such as a broken link or the code that causes a bug, it links to those lines with a permalink, the commit SHA and a line anchor such as `#L10-L20`, not to the whole file. Issues and PRs are Markdown links with the number as their text, such as `[#123](https://github.com/a2ui-project/a2ui/pull/123)`, or `[owner/repo#123](https://github.com/owner/repo/issues/123)` in another repository: GitHub turns a bare `#123` into a link, but the triage UI does not.
 
 The comment names people by their GitHub login in backticks, without `@`. A suggestion is not a decision yet, so it does not notify the people it names.
 
