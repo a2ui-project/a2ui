@@ -60,10 +60,10 @@ class ComponentReference {
 /// A list recognized only by an unmarked `componentId`-and-path object shape
 /// ([ListRef.inferred]) is left out: the resolver mounts it, but validation
 /// does not reject a batch over a schema that only resembles a template.
-Map<String, ComponentRefFields>
-    extractComponentRefFields<C extends ComponentApi, F extends FunctionApi>(
-  Catalog<C, F> catalog,
-) {
+Map<String, ComponentRefFields> extractComponentRefFields<
+  C extends ComponentApi,
+  F extends FunctionApi
+>(Catalog<C, F> catalog) {
   final ComponentRefMap refMap = catalog.refMap;
   return _validationFields[refMap] ??= _validationFieldsOf(refMap);
 }
@@ -104,11 +104,10 @@ Map<String, ComponentRefFields> _validationFieldsOf(ComponentRefMap refMap) {
 
 /// Whether graph validation checks a property of [kind].
 bool _checked(RefKind kind) => switch (kind) {
-      ListRef(:final bool inferred) => !inferred,
-      NestedRef(:final Map<String, RefKind> fields) =>
-        fields.values.any(_checked),
-      SingleRef() => true,
-    };
+  ListRef(:final bool inferred) => !inferred,
+  NestedRef(:final Map<String, RefKind> fields) => fields.values.any(_checked),
+  SingleRef() => true,
+};
 
 /// Lists every component [component] references, in declaration order.
 ///

@@ -450,9 +450,8 @@ void main() {
         ],
       );
       expect(
-        _reply(
-          await processor.processMessage(_callMsg('echo', null, null)),
-        ).value,
+        _reply(await processor.processMessage(_callMsg('echo', null, null)))
+            .value,
         _catId,
       );
       expect(
@@ -475,9 +474,8 @@ void main() {
       );
       // Naming the catalog picks it.
       expect(
-        _reply(
-          await processor.processMessage(_callMsg('echo', null, _cat2Id)),
-        ).value,
+        _reply(await processor.processMessage(_callMsg('echo', null, _cat2Id)))
+            .value,
         2,
       );
     });

@@ -3084,16 +3084,15 @@ function getCatalogsForTestCase(testCase) {
       if (!json) continue;
       const cId = json.catalogId || json.id || 'test-catalog';
       // The published basic catalogs are represented by the built-in fixtures
-      // rather than being re-parsed from the specification tree. They live at
-      // `specification/<version>/catalogs/basic/catalog.json` (v0.9) and
-      // `catalogs/basic/v<major>/catalog.json` (v1.0 onward).
+      // rather than being re-parsed from disk. They live under
+      // `catalogs/basic/<version>/catalog.json`.
       if (
         p.includes('basic/catalog.json') ||
-        /(^|\/)catalogs\/basic\/v\d+\/catalog\.json$/.test(p)
+        /(^|\/)catalogs\/basic\/v\d+(_\d+)*\/catalog\.json$/.test(p)
       ) {
         const pathVersion = /(^|\/)specification\/v0_8\//.test(p)
           ? '0.8'
-          : /(^|\/)specification\/v0_9(_\d+)?\//.test(p)
+          : /(^|\/)catalogs\/basic\/v0_9(_\d+)?\//.test(p)
             ? '0.9'
             : /(^|\/)catalogs\/basic\/v1\//.test(p)
               ? '1.0'

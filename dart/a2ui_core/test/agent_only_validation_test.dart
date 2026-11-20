@@ -35,8 +35,8 @@ void main() {
   CatalogApi declaring(Map<String, String> callers, {String? id}) =>
       Catalog.fromJson({
         ...basicDocument,
-        if (id != null) 'catalogId': id,
-        if (id != null) r'$id': id,
+        'catalogId': ?id,
+        r'$id': ?id,
         'functions': {
           ...functions,
           for (final MapEntry<String, String> entry in callers.entries)
@@ -61,10 +61,10 @@ void main() {
       'is agentOnly).';
 
   Matcher refused(String path, [String text = message]) => throwsA(
-        isA<A2uiValidationError>()
-            .having((e) => e.message, 'message', contains(text))
-            .having((e) => e.path, 'path', path),
-      );
+    isA<A2uiValidationError>()
+        .having((e) => e.message, 'message', contains(text))
+        .having((e) => e.path, 'path', path),
+  );
 
   final Map<String, Object?> formatHello = {
     '@call': 'formatString',
@@ -162,8 +162,7 @@ void main() {
       }
     });
 
-    test(
-        'leaves a nested call that names no catalog to the caller when the '
+    test('leaves a nested call that names no catalog to the caller when the '
         'catalog is not the default', () {
       final Map<String, Object?> args = {
         'value': {'@call': 'greet'},
@@ -172,25 +171,20 @@ void main() {
         () => validator(shared).validateFunction('formatString', args),
         throwsA(isA<A2uiValidationError>()),
       );
-      validator(shared).validateFunction(
-        'formatString',
-        args,
-        catalogIsDefault: false,
-      );
+      validator(shared)
+          .validateFunction('formatString', args, catalogIsDefault: false);
     });
 
     test('lets validateFunction check the arguments of an agentOnly call', () {
       expect(
-        () => validator(agentOnly).validateFunction(
-          'formatString',
-          {'value': 'Hello'},
-        ),
+        () =>
+            validator(agentOnly)
+                .validateFunction('formatString', {'value': 'Hello'}),
         returnsNormally,
       );
     });
 
-    test(
-        'rejects an agentOnly call in validateFunctionArgs only for a '
+    test('rejects an agentOnly call in validateFunctionArgs only for a '
         'component', () {
       expect(
         () => validator(agentOnly).validateFunctionArgs(
@@ -202,10 +196,9 @@ void main() {
         refused('/text'),
       );
       expect(
-        () => validator(agentOnly).validateFunctionArgs(
-          'formatString',
-          {'value': 'Hello'},
-        ),
+        () =>
+            validator(agentOnly)
+                .validateFunctionArgs('formatString', {'value': 'Hello'}),
         returnsNormally,
       );
     });
@@ -247,12 +240,12 @@ void main() {
         },
       };
       PayloadValidator<ComponentApi, FunctionApi>(
-        catalog: v09,
-        protocolVersion: A2uiProtocolVersion.v0_9,
-        commonTypesSchema: readConformanceJson(
-          'specification/v0_9/json/common_types.json',
-        ),
-      )
+          catalog: v09,
+          protocolVersion: A2uiProtocolVersion.v0_9,
+          commonTypesSchema: readConformanceJson(
+            'specification/v0_9/json/common_types.json',
+          ),
+        )
         ..validateComponent(label)
         ..validateFunctionArgs(
           'getMoonPhase',
@@ -276,15 +269,14 @@ void main() {
     Map<String, Object?> surfaceWith(
       CatalogApi catalog,
       Map<String, Object?> component,
-    ) =>
-        {
-          'version': '1.0',
-          'createSurface': {
-            'surfaceId': 's',
-            'catalogId': catalog.id,
-            'components': [component],
-          },
-        };
+    ) => {
+      'version': '1.0',
+      'createSurface': {
+        'surfaceId': 's',
+        'catalogId': catalog.id,
+        'components': [component],
+      },
+    };
 
     test('rejects an agentOnly function bound into a component', () {
       expect(
@@ -296,8 +288,11 @@ void main() {
           }),
         ]),
         throwsA(
-          isA<A2uiValidationError>()
-              .having((e) => e.message, 'message', contains(message)),
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains(message),
+          ),
         ),
       );
     });
@@ -313,14 +308,12 @@ void main() {
     });
 
     group('with a call into another catalog', () {
-      final CatalogApi other = declaring(
-        {'formatString': 'agentOnly'},
-        id: 'https://example.com/other.json',
-      );
-      final CatalogApi otherShared = declaring(
-        {'formatString': 'rendererOrAgent'},
-        id: 'https://example.com/other.json',
-      );
+      final CatalogApi other = declaring({
+        'formatString': 'agentOnly',
+      }, id: 'https://example.com/other.json');
+      final CatalogApi otherShared = declaring({
+        'formatString': 'rendererOrAgent',
+      }, id: 'https://example.com/other.json');
       final CatalogApi plain = declaring({});
 
       Map<String, Object?> callingOther(Map<String, Object?> extra) =>
@@ -329,19 +322,13 @@ void main() {
             'component': 'Button',
             'child': 'root',
             'action': {
-              'functionCall': {
-                ...formatHello,
-                'catalogId': other.id,
-                ...extra,
-              },
+              'functionCall': {...formatHello, 'catalogId': other.id, ...extra},
             },
           });
 
       test('rejects one to an agentOnly function', () {
         expect(
-          () => processor([plain, other]).processMessages([
-            callingOther({}),
-          ]),
+          () => processor([plain, other]).processMessages([callingOther({})]),
           throwsA(
             isA<A2uiValidationError>()
                 .having(
@@ -377,18 +364,17 @@ void main() {
       Map<String, Object?> call(
         CatalogApi catalog,
         Map<String, Object?> args,
-      ) =>
-          {
-            'version': '1.0',
-            'callRendererFunction': {
-              'functionCallId': 'f1',
-              'callFunction': {
-                'catalogId': catalog.id,
-                '@call': 'formatString',
-                'args': args,
-              },
-            },
-          };
+      ) => {
+        'version': '1.0',
+        'callRendererFunction': {
+          'functionCallId': 'f1',
+          'callFunction': {
+            'catalogId': catalog.id,
+            '@call': 'formatString',
+            'args': args,
+          },
+        },
+      };
 
       test('accepts a call to an agentOnly function', () {
         processor([agentOnly]).processMessages([
@@ -406,8 +392,10 @@ void main() {
               (e) => e.message,
               'message',
               allOf(
-                contains("Function call 'formatString' in function call "
-                    "'f1'"),
+                contains(
+                  "Function call 'formatString' in function call "
+                  "'f1'",
+                ),
                 contains(message),
               ),
             ),
@@ -415,13 +403,11 @@ void main() {
         );
       });
 
-      test(
-          'rejects an agentOnly function of another catalog nested in its '
+      test('rejects an agentOnly function of another catalog nested in its '
           'arguments', () {
-        final CatalogApi other = declaring(
-          {'formatString': 'agentOnly'},
-          id: 'https://example.com/other.json',
-        );
+        final CatalogApi other = declaring({
+          'formatString': 'agentOnly',
+        }, id: 'https://example.com/other.json');
         expect(
           () => processor([shared, other]).processMessages([
             call(shared, {
@@ -429,8 +415,11 @@ void main() {
             }),
           ]),
           throwsA(
-            isA<A2uiValidationError>()
-                .having((e) => e.message, 'message', contains(message)),
+            isA<A2uiValidationError>().having(
+              (e) => e.message,
+              'message',
+              contains(message),
+            ),
           ),
         );
       });
@@ -446,8 +435,7 @@ void main() {
         'args': {'url': 'https://example.com'},
       };
 
-      test(
-          'rejects a function that requires a user activation nested in '
+      test('rejects a function that requires a user activation nested in '
           'its arguments', () {
         expect(
           () => processor([shared]).processMessages([
@@ -465,15 +453,11 @@ void main() {
         );
       });
 
-      test(
-          'accepts one that requires a user activation when the call has '
+      test('accepts one that requires a user activation when the call has '
           'one', () {
-        processor([shared]).processMessages(
-          [
-            call(shared, {'value': openUrl}),
-          ],
-          isUserActivated: true,
-        );
+        processor([shared]).processMessages([
+          call(shared, {'value': openUrl}),
+        ], isUserActivated: true);
       });
 
       // `echo` takes any arguments, so only the checks of nested values
@@ -496,25 +480,24 @@ void main() {
         },
       });
       Map<String, Object?> echo(Map<String, Object?> args) => {
-            'version': '1.0',
-            'callRendererFunction': {
-              'functionCallId': 'f1',
-              'callFunction': {
-                'catalogId': loose.id,
-                '@call': 'echo',
-                'args': args,
-              },
-            },
-          };
+        'version': '1.0',
+        'callRendererFunction': {
+          'functionCallId': 'f1',
+          'callFunction': {
+            'catalogId': loose.id,
+            '@call': 'echo',
+            'args': args,
+          },
+        },
+      };
 
       Matcher refusedWith(String text, String path) => throwsA(
-            isA<A2uiValidationError>()
-                .having((e) => e.message, 'message', contains(text))
-                .having((e) => e.path, 'path', path),
-          );
+        isA<A2uiValidationError>()
+            .having((e) => e.message, 'message', contains(text))
+            .having((e) => e.path, 'path', path),
+      );
 
-      test(
-          'rejects an @index call nested in its arguments, which are '
+      test('rejects an @index call nested in its arguments, which are '
           'resolved outside any list template', () {
         for (final Map<String, Object?> args in [
           {
@@ -654,12 +637,9 @@ void main() {
         });
 
         Map<String, Object?> createSurface([String? catalogId]) => {
-              'version': '1.0',
-              'createSurface': {
-                'surfaceId': 's',
-                if (catalogId != null) 'catalogId': catalogId,
-              },
-            };
+          'version': '1.0',
+          'createSurface': {'surfaceId': 's', 'catalogId': ?catalogId},
+        };
 
         CallRendererFunctionMessage onSurface(String surfaceId) =>
             CallRendererFunctionMessage(
@@ -673,13 +653,11 @@ void main() {
               },
             );
 
-        test(
-            "runs a nested call that names no catalog in the surface's "
+        test("runs a nested call that names no catalog in the surface's "
             'default catalog', () {
-          processor([shared, extra]).processMessages([
-            createSurface(extra.id),
-            onSurface('s').toJson(),
-          ]);
+          processor(
+            [shared, extra],
+          ).processMessages([createSurface(extra.id), onSurface('s').toJson()]);
         });
 
         test('rejects one when the surface has no default catalog', () {

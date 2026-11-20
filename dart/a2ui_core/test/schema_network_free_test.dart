@@ -40,15 +40,13 @@ T _runWithoutNetworkOrDiskIo<T>(T Function() body) {
         Object? sourceAddress,
         int sourcePort = 0,
         Duration? timeout,
-      }) =>
-          throw StateError('Unexpected socketConnect to $host:$port'),
+      }) => throw StateError('Unexpected socketConnect to $host:$port'),
       socketStartConnect: (
         Object? host,
         int port, {
         Object? sourceAddress,
         int sourcePort = 0,
-      }) =>
-          throw StateError('Unexpected socketStartConnect to $host:$port'),
+      }) => throw StateError('Unexpected socketStartConnect to $host:$port'),
     ),
     createHttpClient: _ForbiddenHttpOverrides().createHttpClient,
   );
@@ -56,9 +54,7 @@ T _runWithoutNetworkOrDiskIo<T>(T Function() body) {
 
 void main() {
   group('Network-free and disk-free catalog \$ref resolution', () {
-    test(
-        'loads and validates v1.0 catalog \$refs to common_types.json with zero I/O',
-        () {
+    test('loads and validates v1.0 catalog \$refs to common_types.json with zero I/O', () {
       _runWithoutNetworkOrDiskIo(() {
         final CatalogApi catalog = Catalog.fromJson({
           'catalogId': 'https://example.com/catalogs/network_free_v1_0.json',
@@ -79,7 +75,8 @@ void main() {
                 'component': {'const': 'FormInput'},
                 'label': {r'$ref': r'common_types.json#/$defs/DynamicString'},
                 'count': {
-                  r'$ref': 'https://a2ui.org/specification/v1_0/'
+                  r'$ref':
+                      'https://a2ui.org/specification/v1_0/'
                       r'common_types.json#/$defs/DynamicNumber',
                 },
                 'child': {r'$ref': r'common_types.json#/$defs/Child'},
@@ -120,9 +117,7 @@ void main() {
       });
     });
 
-    test(
-        'loads and validates v0.9 catalog \$refs to common_types.json with zero I/O',
-        () {
+    test('loads and validates v0.9 catalog \$refs to common_types.json with zero I/O', () {
       _runWithoutNetworkOrDiskIo(() {
         final CatalogApi catalog = Catalog.fromJson({
           'catalogId': 'https://example.com/catalogs/network_free_v0_9.json',
@@ -131,14 +126,16 @@ void main() {
               'type': 'object',
               'allOf': [
                 {
-                  r'$ref': 'https://a2ui.org/specification/v0_9/'
+                  r'$ref':
+                      'https://a2ui.org/specification/v0_9/'
                       r'common_types.json#/$defs/ComponentCommon',
                 },
               ],
               'properties': {
                 'component': {'const': 'CustomCard'},
                 'title': {
-                  r'$ref': 'https://a2ui.org/specification/v0_9/'
+                  r'$ref':
+                      'https://a2ui.org/specification/v0_9/'
                       r'common_types.json#/$defs/DynamicString',
                 },
               },

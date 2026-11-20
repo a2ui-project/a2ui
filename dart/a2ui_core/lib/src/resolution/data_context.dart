@@ -124,16 +124,16 @@ class DataContext {
   /// [FunctionApi.requiresUserActivation] is set runs only when this is true.
   final bool isUserActivated;
 
-  /// With [onError], failed invocations are reported and resolve to null.
+  /// With [_onError], failed invocations are reported and resolve to null.
   /// Without it, the original exception is rethrown.
   ///
   /// A function call naming no `catalogId` runs through [invoke]. From v1.0
-  /// one that names a catalog runs through the invoker [invokerForCatalog]
-  /// returns for it; without [invokerForCatalog], such a call fails with
+  /// one that names a catalog runs through the invoker [_invokerForCatalog]
+  /// returns for it; without [_invokerForCatalog], such a call fails with
   /// [A2uiCatalogError]. Before v1.0 a call carries no `catalogId`, so every
   /// call runs through [invoke].
   ///
-  /// On a v1.0 context with [callAgentFunction], a call whose catalog
+  /// On a v1.0 context with [_callAgentFunction], a call whose catalog
   /// resolves but has no function of that name is sent to the agent instead,
   /// naming the catalog it resolved to, wherever its result can wait: in a
   /// [resolveSignal] binding, a check, or an action; see
@@ -152,24 +152,21 @@ class DataContext {
     this.dataModel,
     FunctionInvoker invoke,
     this.path, {
-    ExpressionErrorReporter? onError,
+    this._onError,
     this.protocolVersion,
-    CatalogInvokerResolver? invokerForCatalog,
+    this._invokerForCatalog,
     this.parent,
     int? index,
     MissingDataReporter? onMissingData,
     this.isUserActivated = false,
-    AgentFunctionCaller? callAgentFunction,
-  })  : _invoke = invoke,
-        _onError = onError,
-        _invokerForCatalog = invokerForCatalog,
-        _explicitIndex = index,
-        _callCatalogId = parent?._callCatalogId,
-        _callCatalogInvoker = parent?._callCatalogInvoker,
-        _onMissingData = onMissingData ?? parent?._onMissingData,
-        _warnedPaths = parent?._warnedPaths ?? <String>{},
-        _callAgentFunction = callAgentFunction,
-        _agentCalls = parent?._agentCalls ?? _AgentCallCache();
+    this._callAgentFunction,
+  }) : _invoke = invoke,
+       _explicitIndex = index,
+       _callCatalogId = parent?._callCatalogId,
+       _callCatalogInvoker = parent?._callCatalogInvoker,
+       _onMissingData = onMissingData ?? parent?._onMissingData,
+       _warnedPaths = parent?._warnedPaths ?? <String>{},
+       _agentCalls = parent?._agentCalls ?? _AgentCallCache();
 
   static const String _inheritCallCatalog = '\x00inherit';
 
@@ -177,31 +174,27 @@ class DataContext {
     this.dataModel,
     this._invoke,
     this.path, {
-    required ExpressionErrorReporter? onError,
+    required this._onError,
     required this.protocolVersion,
-    required CatalogInvokerResolver? invokerForCatalog,
+    required this._invokerForCatalog,
     required this.isUserActivated,
-    required AgentFunctionCaller? callAgentFunction,
-    required _AgentCallCache agentCalls,
+    required this._callAgentFunction,
+    required this._agentCalls,
     this.parent,
     int? index,
     String? callCatalogId = _inheritCallCatalog,
     FunctionInvoker? callCatalogInvoker,
     MissingDataReporter? onMissingData,
     Set<String>? warnedPaths,
-  })  : _onError = onError,
-        _invokerForCatalog = invokerForCatalog,
-        _callAgentFunction = callAgentFunction,
-        _agentCalls = agentCalls,
-        _explicitIndex = index,
-        _callCatalogId = identical(callCatalogId, _inheritCallCatalog)
-            ? parent?._callCatalogId
-            : callCatalogId,
-        _callCatalogInvoker = identical(callCatalogId, _inheritCallCatalog)
-            ? (callCatalogInvoker ?? parent?._callCatalogInvoker)
-            : callCatalogInvoker,
-        _onMissingData = onMissingData ?? parent?._onMissingData,
-        _warnedPaths = warnedPaths ?? parent?._warnedPaths ?? <String>{};
+  }) : _explicitIndex = index,
+       _callCatalogId = identical(callCatalogId, _inheritCallCatalog)
+           ? parent?._callCatalogId
+           : callCatalogId,
+       _callCatalogInvoker = identical(callCatalogId, _inheritCallCatalog)
+           ? (callCatalogInvoker ?? parent?._callCatalogInvoker)
+           : callCatalogInvoker,
+       _onMissingData = onMissingData ?? parent?._onMissingData,
+       _warnedPaths = warnedPaths ?? parent?._warnedPaths ?? <String>{};
 
   String? get _activeCallCatalogId => _callCatalogId;
 
@@ -217,10 +210,9 @@ class DataContext {
     for (DataContext? ctx = this; ctx != null; ctx = ctx.parent) {
       final int? explicit = ctx._explicitIndex;
       if (explicit != null) return explicit;
-      final String last = ctx.path.split('/').lastWhere(
-            (segment) => segment.isNotEmpty,
-            orElse: () => '',
-          );
+      final String last = ctx.path
+          .split('/')
+          .lastWhere((segment) => segment.isNotEmpty, orElse: () => '');
       // tryParse: a digit run too long for an int is not an index.
       final int? parsed = _digits.hasMatch(last) ? int.tryParse(last) : null;
       if (parsed != null) return parsed;
@@ -308,14 +300,15 @@ class DataContext {
       final callName = part['call'] as String;
       final Object? rawArgs = part['args'];
       final Object? existingCatalogId = part['catalogId'];
-      final String? catalogId =
-          !callName.startsWith('@') ? _activeCallCatalogId : null;
+      final String? catalogId = !callName.startsWith('@')
+          ? _activeCallCatalogId
+          : null;
       return <String, Object?>{
         '@call': callName,
         if (existingCatalogId != null)
           'catalogId': existingCatalogId
-        else if (catalogId != null)
-          'catalogId': catalogId,
+        else
+          'catalogId': ?catalogId,
         'args': <String, Object?>{
           if (rawArgs is Map)
             for (final MapEntry<Object?, Object?> entry in rawArgs.entries)
@@ -440,8 +433,9 @@ class DataContext {
         final result = <String, dynamic>{};
         for (final MapEntry<String, dynamic> entry in stringMap.entries) {
           final String keyStr = entry.key;
-          final String unescapedKey =
-              keyStr.startsWith('@@') ? keyStr.substring(1) : keyStr;
+          final String unescapedKey = keyStr.startsWith('@@')
+              ? keyStr.substring(1)
+              : keyStr;
           result[unescapedKey] = _resolveDynamicValue(
             entry.value,
             depth + 1,
@@ -544,11 +538,7 @@ class DataContext {
         final call = FunctionCall.fromJson(_asStringKeyedMap(value));
         final Map<String, ReadonlySignal<Object?>> argSignals = {
           for (final MapEntry<String, dynamic> entry in call.args.entries)
-            entry.key: _resolveSignal(
-              entry.value,
-              depth + 1,
-              keepFailed: true,
-            ),
+            entry.key: _resolveSignal(entry.value, depth + 1, keepFailed: true),
         };
         String? lastAgentKey;
         _AgentCall? lastAgentCall;
@@ -591,9 +581,9 @@ class DataContext {
             (e.key.startsWith('@@') ? e.key.substring(1) : e.key):
                 _resolveSignal(e.value, depth + 1, keepFailed: keepFailed),
         };
-        return computed(() => {
-              for (final e in entries.entries) e.key: e.value.value,
-            });
+        return computed(
+          () => {for (final e in entries.entries) e.key: e.value.value},
+        );
       }
     } else {
       if (isDataBinding(value)) {
@@ -732,7 +722,8 @@ class DataContext {
         // or failed, even after the shared cache evicts it, so a failing
         // agent is not asked again in a loop. A cancelled call is not kept:
         // it is sent again the next time the binding evaluates.
-        final _AgentCall? own = lastAgentKey == key &&
+        final _AgentCall? own =
+            lastAgentKey == key &&
                 lastAgentCall != null &&
                 !lastAgentCall.cancelled
             ? lastAgentCall
@@ -857,7 +848,7 @@ class DataContext {
     if (catalogId == null) {
       final DataContext callContext = atLeastV10 && _callCatalogId != null
           ? (_withCallCatalog(null)
-            .._marksExecutionFailures = _marksExecutionFailures)
+              .._marksExecutionFailures = _marksExecutionFailures)
           : this;
       if (!identical(callContext, this)) _marksExecutionFailures = false;
       return _invoke(name, args, callContext);
@@ -872,9 +863,10 @@ class DataContext {
     final CatalogInvokerResolver? invokerForCatalog = _invokerForCatalog;
     if (invokerForCatalog != null) {
       final FunctionInvoker resolvedInvoker = invokerForCatalog(catalogId);
-      final DataContext callContext =
-          _withCallCatalog(catalogId, resolvedInvoker)
-            .._marksExecutionFailures = _marksExecutionFailures;
+      final DataContext callContext = _withCallCatalog(
+        catalogId,
+        resolvedInvoker,
+      ).._marksExecutionFailures = _marksExecutionFailures;
       _marksExecutionFailures = false;
       return resolvedInvoker(name, args, callContext);
     }
@@ -908,37 +900,34 @@ class DataContext {
   void _report(Object error, String name) {
     final ExpressionErrorReporter? onError = _onError;
     if (onError == null) return;
-    onError(
-      switch (error) {
-        _ExecutionFailure(error: final Object cause) => A2uiExpressionError(
-            "Function '$name' failed: "
-            '${cause is A2uiError ? cause.message : cause}',
-            expression: name,
-            code: 'EXECUTION_ERROR',
-            cause: cause,
-          ),
-        A2uiExpressionError() => error,
-        A2uiCatalogError() => A2uiExpressionError(
-            error.message,
-            expression: name,
-            code: error is A2uiCatalogResolutionError &&
-                    error.functionName != null
-                ? 'EXPRESSION_ERROR'
-                : 'CATALOG_ERROR',
-            cause: error,
-          ),
-        A2uiError() => A2uiExpressionError(
-            error.message,
-            expression: name,
-            cause: error,
-          ),
-        _ => A2uiExpressionError(
-            error.toString(),
-            expression: name,
-            cause: error,
-          ),
-      },
-    );
+    onError(switch (error) {
+      _ExecutionFailure(error: final Object cause) => A2uiExpressionError(
+        "Function '$name' failed: "
+        '${cause is A2uiError ? cause.message : cause}',
+        expression: name,
+        code: 'EXECUTION_ERROR',
+        cause: cause,
+      ),
+      A2uiExpressionError() => error,
+      A2uiCatalogError() => A2uiExpressionError(
+        error.message,
+        expression: name,
+        code: error is A2uiCatalogResolutionError && error.functionName != null
+            ? 'EXPRESSION_ERROR'
+            : 'CATALOG_ERROR',
+        cause: error,
+      ),
+      A2uiError() => A2uiExpressionError(
+        error.message,
+        expression: name,
+        cause: error,
+      ),
+      _ => A2uiExpressionError(
+        error.toString(),
+        expression: name,
+        cause: error,
+      ),
+    });
   }
 
   /// The agent call for [call] with [args], started now if no call with the
@@ -1053,12 +1042,11 @@ class DataContext {
     String name,
     String? catalogId,
     Map<String, dynamic> args,
-  ) =>
-      jsonEncode(<String, Object?>{
-        'name': name,
-        'catalogId': catalogId,
-        'args': _canonicalize(args),
-      });
+  ) => jsonEncode(<String, Object?>{
+    'name': name,
+    'catalogId': catalogId,
+    'args': _canonicalize(args),
+  });
 
   /// Throws an [A2uiExpressionError] when [args] of a call to [name] that is
   /// about to go to the agent hold a value with no faithful JSON form, such
@@ -1090,16 +1078,15 @@ class DataContext {
 
   /// [value] with every map and list in it, at any depth, made unmodifiable.
   static Object? _frozen(Object? value) => switch (value) {
-        final List<Object?> list =>
-          List<Object?>.unmodifiable(list.map(_frozen)),
-        final Map<String, Object?> map => Map<String, Object?>.unmodifiable(
-            map.map((key, item) => MapEntry(key, _frozen(item))),
-          ),
-        final Map<Object?, Object?> map => Map<Object?, Object?>.unmodifiable(
-            map.map((key, item) => MapEntry(key, _frozen(item))),
-          ),
-        _ => value,
-      };
+    final List<Object?> list => List<Object?>.unmodifiable(list.map(_frozen)),
+    final Map<String, Object?> map => Map<String, Object?>.unmodifiable(
+      map.map((key, item) => MapEntry(key, _frozen(item))),
+    ),
+    final Map<Object?, Object?> map => Map<Object?, Object?>.unmodifiable(
+      map.map((key, item) => MapEntry(key, _frozen(item))),
+    ),
+    _ => value,
+  };
 
   /// Whether evaluating [value] now would read an agent call that is still
   /// awaiting its response.
@@ -1117,8 +1104,11 @@ class DataContext {
       final call = FunctionCall.fromJson(_asStringKeyedMap(value));
       if (call.args.values.any(isPendingAgentCall)) return true;
       if (!_agentCalls.hasPendingFor(call.call)) return false;
-      final _AgentCall? entry =
-          _agentCalls.lookup(call, null, _peekArguments(call));
+      final _AgentCall? entry = _agentCalls.lookup(
+        call,
+        null,
+        _peekArguments(call),
+      );
       return entry != null && entry.pending;
     }
     return value.values.any(isPendingAgentCall);
@@ -1152,17 +1142,18 @@ class DataContext {
   /// [resolveSignal], paired with whether the value is a placeholder for
   /// a pending agent call. The signal updates when the value changes and
   /// when a pending call it reads settles, even if its value stays null.
-  ReadonlySignal<DynamicValueState> resolveSignalWithPending(
-    Object? value,
-  ) {
-    final ReadonlySignal<Object?> resolved =
-        _resolveSignal(value, 0, keepFailed: true);
+  ReadonlySignal<DynamicValueState> resolveSignalWithPending(Object? value) {
+    final ReadonlySignal<Object?> resolved = _resolveSignal(
+      value,
+      0,
+      keepFailed: true,
+    );
     return computed(() {
       final Object? current = resolved.value;
       final bool pending = _containsPendingArg(current);
       return (
         value: pending ? null : _withoutMarkers(current),
-        pending: pending
+        pending: pending,
       );
     });
   }
@@ -1184,9 +1175,7 @@ class DataContext {
   /// with null without running. A nested agent call
   /// that is cancelled (an [A2uiRpcError] with [RpcErrorCode.cancelled]), as
   /// when its surface is deleted, does the same without a report.
-  Future<Object?> evaluateFunctionCall(
-    Map<String, Object?> functionCall,
-  ) =>
+  Future<Object?> evaluateFunctionCall(Map<String, Object?> functionCall) =>
       _evaluateActionCall(functionCall, 0, reportTopLevelAgentError: false);
 
   Future<Object?> _evaluateActionCall(
@@ -1206,8 +1195,8 @@ class DataContext {
       return failed;
     }
     final call = FunctionCall.fromJson(_asStringKeyedMap(functionCall));
-    final List<MapEntry<String, dynamic>> argEntries =
-        call.args.entries.toList();
+    final List<MapEntry<String, dynamic>> argEntries = call.args.entries
+        .toList();
     final List<Object?> argValues;
     try {
       final FutureOr<List<Object?>> pendingArgs = _resolveActionValuesTogether(
@@ -1404,11 +1393,12 @@ class DataContext {
   }) {
     final List<String> keys = map.keys.toList();
     Map<String, dynamic> build(List<Object?> values) => <String, dynamic>{
-          for (var i = 0; i < values.length; i++)
-            unescapeKeys && keys[i].startsWith('@@')
+      for (var i = 0; i < values.length; i++)
+        unescapeKeys && keys[i].startsWith('@@')
                 ? keys[i].substring(1)
-                : keys[i]: values[i],
-        };
+                : keys[i]:
+            values[i],
+    };
     final FutureOr<List<Object?>> values = _resolveActionValuesTogether(
       map.values.toList(),
       depth + 1,
@@ -1559,49 +1549,48 @@ class DataContext {
   /// the user. Shares the data model, reporter, parent chain, missing-data
   /// reporter and pending agent calls.
   DataContext withUserActivation() => DataContext._derived(
-        dataModel,
-        _invoke,
-        path,
-        onError: _onError,
-        protocolVersion: protocolVersion,
-        invokerForCatalog: _invokerForCatalog,
-        isUserActivated: true,
-        callAgentFunction: _callAgentFunction,
-        agentCalls: _agentCalls,
-        parent: parent,
-        index: _explicitIndex,
-        callCatalogId: _callCatalogId,
-        callCatalogInvoker: _callCatalogInvoker,
-        onMissingData: _onMissingData,
-        warnedPaths: _warnedPaths,
-      );
+    dataModel,
+    _invoke,
+    path,
+    onError: _onError,
+    protocolVersion: protocolVersion,
+    invokerForCatalog: _invokerForCatalog,
+    isUserActivated: true,
+    callAgentFunction: _callAgentFunction,
+    agentCalls: _agentCalls,
+    parent: parent,
+    index: _explicitIndex,
+    callCatalogId: _callCatalogId,
+    callCatalogInvoker: _callCatalogInvoker,
+    onMissingData: _onMissingData,
+    warnedPaths: _warnedPaths,
+  );
 
   DataContext _withCallCatalog(
     String? catalogId, [
     FunctionInvoker? catalogInvoker,
-  ]) =>
-      DataContext._derived(
-        dataModel,
-        _invoke,
-        path,
-        onError: _onError,
-        protocolVersion: protocolVersion,
-        invokerForCatalog: _invokerForCatalog,
-        isUserActivated: isUserActivated,
-        callAgentFunction: _callAgentFunction,
-        agentCalls: _agentCalls,
-        parent: parent,
-        index: _explicitIndex,
-        callCatalogId: catalogId,
-        callCatalogInvoker: catalogId == null
-            ? null
-            : (catalogInvoker ??
-                (catalogId == _activeCallCatalogId
-                    ? _activeInvokerFor(catalogId)
-                    : null)),
-        onMissingData: _onMissingData,
-        warnedPaths: _warnedPaths,
-      );
+  ]) => DataContext._derived(
+    dataModel,
+    _invoke,
+    path,
+    onError: _onError,
+    protocolVersion: protocolVersion,
+    invokerForCatalog: _invokerForCatalog,
+    isUserActivated: isUserActivated,
+    callAgentFunction: _callAgentFunction,
+    agentCalls: _agentCalls,
+    parent: parent,
+    index: _explicitIndex,
+    callCatalogId: catalogId,
+    callCatalogInvoker: catalogId == null
+        ? null
+        : (catalogInvoker ??
+              (catalogId == _activeCallCatalogId
+                  ? _activeInvokerFor(catalogId)
+                  : null)),
+    onMissingData: _onMissingData,
+    warnedPaths: _warnedPaths,
+  );
 
   /// Returns a context scoped to [relativePath] whose [parent] is this
   /// context. Pass [index] when the new context scopes a collection template
@@ -1656,7 +1645,7 @@ class DataContext {
     if (action is String) {
       if (action.isEmpty) return null;
       return {
-        'event': {'name': action, 'context': <String, Object?>{}}
+        'event': {'name': action, 'context': <String, Object?>{}},
       };
     }
     if (action is! Map) return null;
@@ -1738,7 +1727,7 @@ class DataContext {
     if (action is String) {
       if (action.isEmpty) return null;
       return {
-        'event': {'name': action, 'context': <String, Object?>{}}
+        'event': {'name': action, 'context': <String, Object?>{}},
       };
     }
     if (action is! Map) return null;
@@ -1993,8 +1982,7 @@ DataContext dataContextWithCallCatalog(
   DataContext context,
   String catalogId,
   FunctionInvoker catalogInvoker,
-) =>
-    context._withCallCatalog(catalogId, catalogInvoker);
+) => context._withCallCatalog(catalogId, catalogInvoker);
 
 /// Shared [_AgentCallCache] per [SurfaceModel] so all component contexts on a
 /// surface deduplicate in-flight agent calls.
@@ -2010,45 +1998,45 @@ DataContext createSurfaceDataContext(
   int? index,
   MissingDataReporter? onMissingData,
   required ExpressionErrorReporter defaultErrorReporter,
-}) =>
-    DataContext._derived(
-      surface.dataModel,
-      (name, args, context) =>
-          surface.resolveCatalog(null).invoke(name, args, context),
-      basePath ?? '/',
-      onError: onError ?? parentDataContext?._onError ?? defaultErrorReporter,
-      protocolVersion: surface.protocolVersion == null
-          ? null
-          : A2uiProtocolVersion.tryParseSemVer(surface.protocolVersion!),
-      invokerForCatalog: (catalogId) =>
-          surface.resolveCatalog(catalogId).invoke,
-      isUserActivated: false,
-      callAgentFunction: surface.callAgentFunction,
-      agentCalls: _surfaceAgentCalls[surface] ??= _AgentCallCache(
-        defaultCatalogId: surface.defaultCatalog?.id,
-        maxEntries: surface.maxAgentCallCacheEntries,
-      ),
-      parent: parentDataContext,
-      index: index,
-      onMissingData: onMissingData ??
-          (parentDataContext == null
-              ? (path) {
-                  surface.dispatchWarning(missingDataBindingWarning(path));
-                }
-              : null),
-    );
+}) => DataContext._derived(
+  surface.dataModel,
+  (name, args, context) =>
+      surface.resolveCatalog(null).invoke(name, args, context),
+  basePath ?? '/',
+  onError: onError ?? parentDataContext?._onError ?? defaultErrorReporter,
+  protocolVersion: surface.protocolVersion == null
+      ? null
+      : A2uiProtocolVersion.tryParseSemVer(surface.protocolVersion!),
+  invokerForCatalog: (catalogId) => surface.resolveCatalog(catalogId).invoke,
+  isUserActivated: false,
+  callAgentFunction: surface.callAgentFunction,
+  agentCalls: _surfaceAgentCalls[surface] ??= _AgentCallCache(
+    defaultCatalogId: surface.defaultCatalog?.id,
+    maxEntries: surface.maxAgentCallCacheEntries,
+  ),
+  parent: parentDataContext,
+  index: index,
+  onMissingData:
+      onMissingData ??
+      (parentDataContext == null
+          ? (path) {
+              surface.dispatchWarning(missingDataBindingWarning(path));
+            }
+          : null),
+);
 
 /// The `MISSING_DATA_BINDING` warning for a binding to the absent [path].
 A2uiWarning missingDataBindingWarning(String path) => A2uiWarning(
-      code: 'MISSING_DATA_BINDING',
-      path: path,
-      message: "Data binding path '$path' does not exist in the data model; "
-          'it resolves to null.',
-    );
+  code: 'MISSING_DATA_BINDING',
+  path: path,
+  message:
+      "Data binding path '$path' does not exist in the data model; "
+      'it resolves to null.',
+);
 
 /// Resolved function argument schemas, per catalog and then per function.
 final Expando<Map<FunctionImplementation, Map<String, Object?>>>
-    _resolvedArgumentSchemas = Expando();
+_resolvedArgumentSchemas = Expando();
 
 extension CatalogInvokerExtension
     on Catalog<ComponentApi, FunctionImplementation> {
@@ -2154,11 +2142,10 @@ extension CatalogInvokerExtension
   List<ValidationError> argumentErrors(
     FunctionImplementation fn,
     Map<String, dynamic> args,
-  ) =>
-      _errorsOf(fn, {
-        for (final MapEntry<String, dynamic> entry in args.entries)
-          entry.key: _asJson(entry.value),
-      });
+  ) => _errorsOf(fn, {
+    for (final MapEntry<String, dynamic> entry in args.entries)
+      entry.key: _asJson(entry.value),
+  });
 
   /// The ways [args] fail [fn]'s argument schema, leaving null arguments
   /// unchecked.
@@ -2189,45 +2176,46 @@ extension CatalogInvokerExtension
   /// [value] with each [ValidationResult] in it, at any depth, replaced by its
   /// JSON object.
   static Object? _asJson(Object? value) => switch (value) {
-        final ValidationResult result => result.toJson(),
-        final List<Object?> list => [
-            for (final Object? item in list) _asJson(item),
-          ],
-        final Map<String, Object?> map => <String, Object?>{
-            for (final MapEntry<String, Object?> entry in map.entries)
-              entry.key: _asJson(entry.value),
-          },
-        _ => value,
-      };
+    final ValidationResult result => result.toJson(),
+    final List<Object?> list => [
+      for (final Object? item in list) _asJson(item),
+    ],
+    final Map<String, Object?> map => <String, Object?>{
+      for (final MapEntry<String, Object?> entry in map.entries)
+        entry.key: _asJson(entry.value),
+    },
+    _ => value,
+  };
 
   /// [schema] with each boolean position in it, at any depth, also accepting
   /// an object with a boolean `valid`, unless it is a branch of a `oneOf`
   /// that already accepts any `object` (such as `DynamicValue`).
   static Object? _withValidityInBooleans(Object? schema) => switch (schema) {
-        {'type': 'boolean'} => {
-            'anyOf': [schema, _validityObject],
-          },
-        final Map<String, Object?> map => <String, Object?>{
-            for (final MapEntry<String, Object?> entry in map.entries)
-              entry.key: entry.key == 'oneOf' &&
-                      entry.value is List<Object?> &&
-                      _acceptsAnyObject(entry.value! as List<Object?>)
-                  ? entry.value
-                  : _withValidityInBooleans(entry.value),
-          },
-        final List<Object?> list => [
-            for (final Object? item in list) _withValidityInBooleans(item),
-          ],
-        _ => schema,
-      };
+    {'type': 'boolean'} => {
+      'anyOf': [schema, _validityObject],
+    },
+    final Map<String, Object?> map => <String, Object?>{
+      for (final MapEntry<String, Object?> entry in map.entries)
+        entry.key:
+            entry.key == 'oneOf' &&
+                entry.value is List<Object?> &&
+                _acceptsAnyObject(entry.value! as List<Object?>)
+            ? entry.value
+            : _withValidityInBooleans(entry.value),
+    },
+    final List<Object?> list => [
+      for (final Object? item in list) _withValidityInBooleans(item),
+    ],
+    _ => schema,
+  };
 
   static bool _acceptsAnyObject(List<Object?> branches) => branches.any(
-        (Object? branch) =>
-            branch is Map &&
-            branch['type'] == 'object' &&
-            !branch.containsKey('properties') &&
-            !branch.containsKey('required'),
-      );
+    (Object? branch) =>
+        branch is Map &&
+        branch['type'] == 'object' &&
+        !branch.containsKey('properties') &&
+        !branch.containsKey('required'),
+  );
 }
 
 /// The schema of an object with a boolean `valid`, which a DynamicBoolean
