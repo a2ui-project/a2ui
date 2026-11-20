@@ -15,6 +15,7 @@
  */
 
 import {
+  A2uiExpressionError,
   DynamicStringSchema,
   DynamicValueSchema,
   createFunctionImplementation,
@@ -42,12 +43,21 @@ export const RegexCaptureApi = {
  * Matches a string, or each element of an array of strings, against a pattern and returns the
  * capture groups of the first match, or `null` when there is none.
  *
- * @throws A2uiExpressionError if `pattern` is not a valid, safe and portable regular expression.
+ * @throws A2uiExpressionError if `pattern` is not a string, or not a valid, safe and portable
+ *     regular expression.
  */
 export const RegexCaptureImplementation: FunctionImplementation = createFunctionImplementation(
   RegexCaptureApi,
   args => {
-    const compiled = compileSafeRegex(String(args['pattern']), 'regexCapture');
+    const pattern: unknown = args['pattern'];
+    // A binding to data that is not there yet reaches the function as undefined.
+    if (typeof pattern !== 'string') {
+      throw new A2uiExpressionError(
+        `regexCapture expects a pattern string, got ${typeof pattern}.`,
+        'regexCapture',
+      );
+    }
+    const compiled = compileSafeRegex(pattern, 'regexCapture');
     return mapTextValue(args['value'], item => {
       const match = compiled.exec(item);
       return match ? match.slice(1).map(group => group ?? '') : null;

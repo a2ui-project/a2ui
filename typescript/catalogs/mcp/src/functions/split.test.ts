@@ -57,6 +57,19 @@ describe('split', () => {
     );
   });
 
+  it('rejects an unresolved separator rather than splitting on its text', () => {
+    // A binding to data that is not there yet reaches the function as undefined.
+    assert.throws(
+      () => call({value: 'aundefinedb', separator: undefined}),
+      (error: unknown) => {
+        assert.ok(error instanceof A2uiExpressionError);
+        assert.strictEqual(error.expression, 'split');
+        assert.strictEqual(error.message, 'split expects a separator string, got undefined.');
+        return true;
+      },
+    );
+  });
+
   it('keeps surrogate pairs whole when splitting into characters', () => {
     assert.deepStrictEqual(call({value: 'a😀b', separator: ''}), ['a', '😀', 'b']);
     assert.deepStrictEqual(call({value: '😀', separator: ''}), ['😀']);

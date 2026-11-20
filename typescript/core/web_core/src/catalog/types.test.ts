@@ -23,6 +23,7 @@ import {
   createFunctionImplementation,
 } from './types.js';
 import {A2uiExpressionError} from '../errors.js';
+import type {DataContext} from '../resolution/data-context.js';
 import {z} from 'zod';
 
 describe('Catalog Types', () => {
@@ -256,6 +257,75 @@ describe('Catalog Types', () => {
         (err: any) =>
           err instanceof A2uiExpressionError && err.message.includes('requires user activation'),
       );
+    });
+  });
+
+  describe('invoker with unresolved arguments', () => {
+    // A binding to data the data model does not hold settles to `undefined`.
+    const describeValue = createFunctionImplementation(
+      {
+        name: 'describeValue',
+        returnType: 'string',
+        schema: z.object({'value': z.string(), 'label': z.string().default('value')}),
+      },
+      args => `${args.label}: ${args.value ?? 'unresolved'}`,
+    );
+    const catalog = new Catalog('test-cat', '1.0', [], [describeValue]);
+    const ctx = {} as DataContext;
+    const isValidationFailure = (err: unknown) =>
+      err instanceof A2uiExpressionError && err.message.includes('Validation failed');
+
+    it('leaves an argument that settled to undefined to the function', () => {
+      assert.strictEqual(
+        catalog.invoker('describeValue', {value: undefined}, ctx),
+        'value: unresolved',
+      );
+    });
+
+    it('leaves a pending argument that settles to undefined to the function', async () => {
+      const result = catalog.invoker('describeValue', {value: Promise.resolve(undefined)}, ctx);
+      assert.strictEqual(await result, 'value: unresolved');
+    });
+
+    it('still validates the arguments that resolved', () => {
+      assert.throws(
+        () => catalog.invoker('describeValue', {value: undefined, label: 42}, ctx),
+        isValidationFailure,
+      );
+    });
+
+    it('still refuses a call that leaves out a required argument', () => {
+      assert.throws(() => catalog.invoker('describeValue', {}, ctx), isValidationFailure);
+    });
+
+    describe('with a refined schema', () => {
+      // Like `length` and `numeric`, which need `min` or `max`.
+      const describeBound = createFunctionImplementation(
+        {
+          name: 'describeBound',
+          returnType: 'string',
+          schema: z
+            .object({'value': z.string(), 'min': z.number().optional()})
+            .strict()
+            .refine(args => args['min'] !== undefined, {message: "'min' must be provided."}),
+        },
+        args => `${args.value ?? 'unresolved'} >= ${args.min}`,
+      );
+      const refinedCatalog = new Catalog('test-cat', '1.0', [], [describeBound]);
+
+      it('leaves an argument that settled to undefined to the function', () => {
+        assert.strictEqual(
+          refinedCatalog.invoker('describeBound', {value: undefined, min: 1}, ctx),
+          'unresolved >= 1',
+        );
+      });
+
+      it('still applies the refinement', () => {
+        assert.throws(
+          () => refinedCatalog.invoker('describeBound', {value: undefined}, ctx),
+          isValidationFailure,
+        );
+      });
     });
   });
 });

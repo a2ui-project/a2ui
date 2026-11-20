@@ -15,6 +15,7 @@
  */
 
 import {
+  A2uiExpressionError,
   DynamicStringSchema,
   DynamicValueSchema,
   createFunctionImplementation,
@@ -47,7 +48,14 @@ export const SplitApi = {
 export const SplitImplementation: FunctionImplementation = createFunctionImplementation(
   SplitApi,
   args => {
-    const separator = String(args['separator']);
+    const separator: unknown = args['separator'];
+    // A binding to data that is not there yet reaches the function as undefined.
+    if (typeof separator !== 'string') {
+      throw new A2uiExpressionError(
+        `split expects a separator string, got ${typeof separator}.`,
+        'split',
+      );
+    }
     return mapTextValue(args['value'], item =>
       separator === '' ? Array.from(item) : item.split(separator),
     );
