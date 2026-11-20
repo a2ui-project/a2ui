@@ -358,6 +358,39 @@ class RpcHandler {
         RpcErrorCode.invalidFunctionCall,
       );
     }
+    _checkExecutionPermissions(fn, name, execution);
+    _checkNestedArgumentPermissions(call.args, surface, catalog, execution);
+    final DataContext dataContext = dataContextWithCallCatalog(
+      dataContextForAgentCall(
+        _dataContextFor(surface, catalog, message.version, execution),
+      ),
+      catalog.id,
+      catalog.invoke,
+    );
+    final Map<String, dynamic> resolvedArgs = _resolveCallArguments(
+      call.args,
+      dataContext,
+    );
+    final List<ValidationError> errors = catalog.argumentErrors(
+      fn,
+      resolvedArgs,
+    );
+    if (errors.isNotEmpty) {
+      throw A2uiRpcError(
+        "Invalid function arguments for '$name': "
+        '${errors.map((e) => e.toErrorString()).join('; ')}',
+        RpcErrorCode.invalidFunctionCall,
+      );
+    }
+
+    return _invokeTargetFunction(functionCallId, fn, resolvedArgs, dataContext);
+  }
+
+  void _checkExecutionPermissions(
+    FunctionImplementation fn,
+    String name,
+    ExecutionContext execution,
+  ) {
     if (fn.allowedCallers == AllowedCallers.rendererOnly) {
       throw A2uiRpcError(
         "Function '$name' cannot be called by agent (allowedCallers is "
@@ -371,56 +404,121 @@ class RpcHandler {
         RpcErrorCode.invalidFunctionCall,
       );
     }
-    final DataContext dataContext = dataContextWithCallCatalog(
-      _dataContextFor(surface, catalog, message.version, execution),
-      catalog.id,
-      catalog.invoke,
-    );
-    final Map<String, dynamic> resolvedArgs;
+  }
+
+  void _checkNestedArgumentPermissions(
+    Object? value,
+    SurfaceModel<ComponentApi>? surface,
+    Catalog<ComponentApi, FunctionImplementation> activeCatalog,
+    ExecutionContext execution, [
+    int depth = 0,
+  ]) {
+    if (depth > maxDynamicValueDepth) return;
+    if (value is List) {
+      for (final Object? item in value) {
+        _checkNestedArgumentPermissions(
+          item,
+          surface,
+          activeCatalog,
+          execution,
+          depth + 1,
+        );
+      }
+      return;
+    }
+    if (value is! Map) return;
+    final Object? callName = value['@call'];
+    if (callName is String && !callName.startsWith('@')) {
+      final Catalog<ComponentApi, FunctionImplementation>? nestedCatalog =
+          _resolveNestedCatalog(value, surface, activeCatalog);
+      final FunctionImplementation? nestedFn =
+          nestedCatalog?.functions[callName];
+      if (nestedFn != null) {
+        _checkExecutionPermissions(nestedFn, callName, execution);
+      }
+    }
+    for (final Object? child in value.values) {
+      _checkNestedArgumentPermissions(
+        child,
+        surface,
+        activeCatalog,
+        execution,
+        depth + 1,
+      );
+    }
+  }
+
+  Catalog<ComponentApi, FunctionImplementation>? _resolveNestedCatalog(
+    Map<Object?, Object?> callMap,
+    SurfaceModel<ComponentApi>? surface,
+    Catalog<ComponentApi, FunctionImplementation> activeCatalog,
+  ) {
+    final Object? rawCatalogId = callMap['catalogId'];
+    if (callMap.containsKey('catalogId') &&
+        rawCatalogId != null &&
+        rawCatalogId is! String) {
+      return null;
+    }
+    if (rawCatalogId is String) {
+      if (activeCatalog.id == rawCatalogId) return activeCatalog;
+      return surface?.availableCatalogs[rawCatalogId] ??
+          (surface?.defaultCatalog?.id == rawCatalogId
+              ? surface?.defaultCatalog
+              : null);
+    }
+    return surface != null ? surface.defaultCatalog : activeCatalog;
+  }
+
+  Map<String, dynamic> _resolveCallArguments(
+    Map<String, dynamic> rawArgs,
+    DataContext dataContext,
+  ) {
     try {
-      resolvedArgs = {
-        for (final MapEntry<String, dynamic> entry in call.args.entries)
+      return {
+        for (final MapEntry<String, dynamic> entry in rawArgs.entries)
           entry.key: dataContext.resolveDynamicValue(entry.value),
       };
     } catch (error) {
-      final String errorMessage = error is A2uiError
-          ? error.message
-          : error.toString();
+      final Object unwrapped = unwrapSignalError(error);
+      final String errorMessage = unwrapped is A2uiError
+          ? unwrapped.message
+          : unwrapped.toString();
       throw A2uiRpcError(
         errorMessage.isEmpty
             ? 'An argument of the function call could not be resolved.'
             : errorMessage,
-        RpcErrorCode.executionError,
-        cause: error,
+        isInvalidFunctionCallError(unwrapped)
+            ? RpcErrorCode.invalidFunctionCall
+            : RpcErrorCode.executionError,
+        cause: unwrapped,
       );
     }
-    final List<ValidationError> errors = catalog.argumentErrors(
-      fn,
-      resolvedArgs,
-    );
-    if (errors.isNotEmpty) {
-      throw A2uiRpcError(
-        "Invalid function arguments for '$name': "
-        '${errors.map((e) => e.toErrorString()).join('; ')}',
-        RpcErrorCode.invalidFunctionCall,
-      );
-    }
+  }
 
+  Future<A2uiFunctionResponse> _invokeTargetFunction(
+    String functionCallId,
+    FunctionImplementation fn,
+    Map<String, dynamic> resolvedArgs,
+    DataContext dataContext,
+  ) async {
     try {
       Object? result = fn.execute(resolvedArgs, dataContext);
       if (result is Future) result = await result;
       if (result is ReadonlySignal) result = result.value;
       return A2uiFunctionResponse.value(functionCallId, result);
     } catch (error) {
-      final String errorMessage = error is A2uiError
-          ? error.message
-          : error.toString();
+      final Object unwrapped = unwrapSignalError(error);
+      final String errorMessage = unwrapped is A2uiError
+          ? unwrapped.message
+          : unwrapped.toString();
       throw A2uiRpcError(
         errorMessage.isEmpty
             ? 'An error occurred during function execution.'
             : errorMessage,
-        RpcErrorCode.executionError,
-        cause: error,
+        isInvalidFunctionCallError(unwrapped)
+            ? RpcErrorCode.invalidFunctionCall
+            : RpcErrorCode.executionError,
+        cause: unwrapped,
       );
     }
   }

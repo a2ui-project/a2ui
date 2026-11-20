@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
-import {Catalog, FunctionImplementation} from '../catalog/types.js';
-import {DataContext} from '../resolution/data-context.js';
+import {Catalog, type FunctionApi, FunctionImplementation} from '../catalog/types.js';
+import {DataContext, MAX_DYNAMIC_VALUE_DEPTH} from '../resolution/data-context.js';
 import {
+  isInvalidFunctionCallError,
   resolveArgumentValue,
   withActiveCallCatalogId,
+  withAgentCaller,
 } from '../resolution/data-context-internal.js';
 import {isSignal, getValue} from '../reactivity/signals.js';
 import {SurfaceModel} from '../state/surface-model.js';
@@ -210,16 +212,35 @@ export class RpcHandler {
       return errorResponse;
     }
 
-    const effectiveContext = this.ensureDataContext(context, resolved.catalog, functionCallId);
-    const scopedContext =
-      effectiveContext && resolved.catalog.id
-        ? withActiveCallCatalogId(effectiveContext, resolved.catalog.id, resolved.catalog)
-        : effectiveContext;
+    const effectiveContext = withAgentCaller(
+      this.ensureDataContext(context, resolved.catalog, functionCallId),
+      isUserActivated,
+    );
+    const scopedContext = resolved.catalog.id
+      ? withActiveCallCatalogId(effectiveContext, resolved.catalog.id, resolved.catalog)
+      : effectiveContext;
+    const nestedAccessError = this.checkNestedArgumentPermissions(
+      args,
+      scopedContext,
+      resolved.catalog,
+      isUserActivated,
+    );
+    if (nestedAccessError) {
+      const errorResponse = this.createResponseError(
+        functionCallId,
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        nestedAccessError,
+        version,
+      );
+      await this.emitOutboundResponse(errorResponse);
+      return errorResponse;
+    }
+
     const resolvedArgsResult = this.resolveDynamicArguments(args, scopedContext, isUserActivated);
     if ('error' in resolvedArgsResult) {
       const errorResponse = this.createResponseError(
         functionCallId,
-        RpcErrorCode.EXECUTION_ERROR,
+        resolvedArgsResult.code,
         resolvedArgsResult.error,
         version,
       );
@@ -227,30 +248,12 @@ export class RpcHandler {
       return errorResponse;
     }
 
-    // A nested asynchronous call leaves a pending Promise in the resolved
-    // arguments; wait for it before validating them.
-    let settledArgs: Record<string, unknown> | undefined;
-    try {
-      settledArgs = (await settleDeep(resolvedArgsResult.args)) as
-        | Record<string, unknown>
-        | undefined;
-    } catch (err: unknown) {
+    const settledResult = await this.settleResolvedArguments(resolvedArgsResult.args);
+    if ('error' in settledResult) {
       const errorResponse = this.createResponseError(
         functionCallId,
-        RpcErrorCode.EXECUTION_ERROR,
-        this.extractErrorMessage(err) || 'An error occurred during function execution.',
-        version,
-      );
-      await this.emitOutboundResponse(errorResponse);
-      return errorResponse;
-    }
-    const failedArg = findFailedArgument(settledArgs);
-    if (failedArg) {
-      const errorResponse = this.createResponseError(
-        functionCallId,
-        RpcErrorCode.EXECUTION_ERROR,
-        (failedArg.error === undefined ? '' : this.extractErrorMessage(failedArg.error)) ||
-          'An argument of the function call could not be resolved.',
+        settledResult.code,
+        settledResult.error,
         version,
       );
       await this.emitOutboundResponse(errorResponse);
@@ -260,7 +263,7 @@ export class RpcHandler {
     const parsedArgsResult = this.parseArguments(
       resolved.catalog,
       resolved.funcImpl,
-      settledArgs,
+      settledResult.args,
       call,
     );
     if ('error' in parsedArgsResult) {
@@ -566,12 +569,13 @@ export class RpcHandler {
     args: Record<string, unknown> | undefined,
     context: DataContext,
     isUserActivated: boolean,
-  ): {args: Record<string, unknown> | undefined} | {error: string} {
+  ): {args: Record<string, unknown> | undefined} | {error: string; code: RpcErrorCode} {
     if (args === undefined || typeof args !== 'object' || args === null || Array.isArray(args)) {
       return {args};
     }
     const resolvedArgs: Record<string, unknown> = {};
     let expressionError: string | undefined;
+    let errorCode: RpcErrorCode = RpcErrorCode.EXECUTION_ERROR;
     const errorSub = context.surface?.onError.subscribe(err => {
       if (!expressionError && err?.code === 'EXPRESSION_ERROR') {
         expressionError = err.message || 'An error occurred during function execution.';
@@ -592,27 +596,127 @@ export class RpcHandler {
         });
       }
     } catch (err: unknown) {
+      if (isInvalidFunctionCallError(err)) {
+        errorCode = RpcErrorCode.INVALID_FUNCTION_CALL;
+      }
       expressionError =
         this.extractErrorMessage(err) || 'An error occurred during function execution.';
     } finally {
       errorSub?.unsubscribe();
     }
     if (expressionError) {
-      return {error: expressionError};
+      return {error: expressionError, code: errorCode};
     }
     return {args: resolvedArgs};
+  }
+
+  private async settleResolvedArguments(
+    rawArgs: Record<string, unknown> | undefined,
+  ): Promise<{args: Record<string, unknown> | undefined} | {error: string; code: RpcErrorCode}> {
+    let settledArgs: Record<string, unknown> | undefined;
+    try {
+      settledArgs = (await settleDeep(rawArgs)) as Record<string, unknown> | undefined;
+    } catch (err: unknown) {
+      return {
+        error: this.extractErrorMessage(err) || 'An error occurred during function execution.',
+        code: isInvalidFunctionCallError(err)
+          ? RpcErrorCode.INVALID_FUNCTION_CALL
+          : RpcErrorCode.EXECUTION_ERROR,
+      };
+    }
+    const failedArg = findFailedArgument(settledArgs);
+    if (failedArg) {
+      return {
+        error:
+          (failedArg.error === undefined ? '' : this.extractErrorMessage(failedArg.error)) ||
+          'An argument of the function call could not be resolved.',
+        code: isInvalidFunctionCallError(failedArg.error)
+          ? RpcErrorCode.INVALID_FUNCTION_CALL
+          : RpcErrorCode.EXECUTION_ERROR,
+      };
+    }
+    return {args: settledArgs};
+  }
+
+  private checkNestedArgumentPermissions(
+    value: unknown,
+    context: DataContext,
+    activeCatalog: Catalog<any>,
+    isUserActivated: boolean,
+    depth = 0,
+  ): string | null {
+    if (depth > MAX_DYNAMIC_VALUE_DEPTH || !value || typeof value !== 'object') {
+      return null;
+    }
+    const children = Array.isArray(value)
+      ? value
+      : (() => {
+          const rec = value as Record<string, unknown>;
+          const selfErr = this.checkNestedCallRecord(rec, context, activeCatalog, isUserActivated);
+          return selfErr ? selfErr : Object.values(rec);
+        })();
+    if (typeof children === 'string') return children;
+    for (const child of children) {
+      const err = this.checkNestedArgumentPermissions(
+        child,
+        context,
+        activeCatalog,
+        isUserActivated,
+        depth + 1,
+      );
+      if (err) return err;
+    }
+    return null;
+  }
+
+  private checkNestedCallRecord(
+    rec: Record<string, unknown>,
+    context: DataContext,
+    activeCatalog: Catalog<any>,
+    isUserActivated: boolean,
+  ): string | null {
+    const callName = rec['@call'];
+    if (typeof callName !== 'string' || callName.startsWith('@')) {
+      return null;
+    }
+    const cat = this.resolveNestedCallCatalog(rec, context, activeCatalog);
+    const fn = cat?.functions?.get(callName);
+    if (!fn) return null;
+    return this.checkExecutionPermissions(fn, callName, isUserActivated);
+  }
+
+  private resolveNestedCallCatalog(
+    callObj: Record<string, unknown>,
+    context: DataContext,
+    activeCatalog: Catalog<any>,
+  ): Catalog<any> | undefined {
+    const rawCatalogId = callObj['catalogId'];
+    if ('catalogId' in callObj && rawCatalogId !== undefined && typeof rawCatalogId !== 'string') {
+      return undefined;
+    }
+    if (typeof rawCatalogId === 'string') {
+      if (activeCatalog.id === rawCatalogId) {
+        return activeCatalog;
+      }
+      const surface = context.surface;
+      return (
+        surface?.availableCatalogs?.get(rawCatalogId) ??
+        (surface?.defaultCatalog?.id === rawCatalogId ? surface.defaultCatalog : undefined)
+      );
+    }
+    return context.surface?.defaultCatalog;
   }
 
   /**
    * Verifies caller boundary permissions and user activation requirements for a function.
    *
-   * @param funcImpl Function implementation to inspect.
+   * @param funcImpl Function declaration or implementation to inspect.
    * @param call Function name being invoked.
    * @param isUserActivated Whether execution occurs within an active user gesture context.
    * @returns An error message if permissions are not satisfied; otherwise `null`.
    */
   private checkExecutionPermissions(
-    funcImpl: FunctionImplementation,
+    funcImpl: Pick<FunctionApi, 'allowedCallers' | 'requiresUserActivation'>,
     call: string,
     isUserActivated: boolean,
   ): string | null {
@@ -687,12 +791,15 @@ export class RpcHandler {
       };
     } catch (err: unknown) {
       const errMsg = this.extractErrorMessage(err);
+      const code = isInvalidFunctionCallError(err)
+        ? RpcErrorCode.INVALID_FUNCTION_CALL
+        : RpcErrorCode.EXECUTION_ERROR;
       return {
         version: respVersion,
         rendererFunctionResponse: {
           functionCallId,
           error: {
-            code: RpcErrorCode.EXECUTION_ERROR,
+            code,
             message: errMsg || 'An error occurred during function execution.',
           },
         },

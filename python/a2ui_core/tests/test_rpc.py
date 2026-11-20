@@ -836,6 +836,7 @@ async def test_call_renderer_function_prefers_executable_rpc_catalog_over_schema
             "functions": {
                 "renderTemplate": {
                     "returnType": "string",
+                    "allowedCallers": "rendererOrAgent",
                     "parameters": {
                         "type": "object",
                         "properties": {"value": {"type": "string"}},
@@ -843,6 +844,7 @@ async def test_call_renderer_function_prefers_executable_rpc_catalog_over_schema
                 },
                 "rpcHelper": {
                     "returnType": "string",
+                    "allowedCallers": "rendererOrAgent",
                     "parameters": {"type": "object", "properties": {}},
                 },
             },
@@ -893,3 +895,137 @@ async def test_call_renderer_function_prefers_executable_rpc_catalog_over_schema
 
     assert resp["rendererFunctionResponse"]["value"] == "Hello from-executable-rpc"
     assert ctx.active_catalog_id is None
+
+
+def test_call_renderer_function_nested_caller_boundary_and_sibling_atomicity() -> None:
+    basic_format_string = v1_0.BasicCatalog().get_function("formatString")
+    assert basic_format_string is not None
+
+    side_effects: list[str] = []
+    cat_id = "https://example.com/catalogs/nested-boundary/v1/catalog.json"
+    cat = Catalog(
+        cat_id,
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="mutatingAllowed",
+                execute=lambda args, context=None, *_: (
+                    side_effects.append("mutated") or "ok"
+                ),
+                allowed_callers="rendererOrAgent",
+            ),
+            FunctionImplementation(
+                name="secretRendererOnly",
+                execute=lambda args, context=None, *_: (
+                    side_effects.append("leaked") or "SECRET"
+                ),
+                allowed_callers="rendererOnly",
+            ),
+            FunctionImplementation(
+                name="agentOnlyFn",
+                execute=lambda args, context=None, *_: "AGENT_SECRET",
+                allowed_callers="agentOnly",
+            ),
+            FunctionImplementation(
+                name="echoAll",
+                execute=lambda args, context=None, *_: dict(args),
+                allowed_callers="rendererOrAgent",
+            ),
+            FunctionImplementation(
+                name="renderTpl",
+                execute=lambda args, context=None, *_: basic_format_string.execute(
+                    args, context
+                ),
+                allowed_callers="rendererOrAgent",
+            ),
+        ],
+    )
+    surface = SurfaceModel(
+        "s-nested-boundary",
+        default_catalog=cat,
+        available_catalogs={cat_id: cat},
+        protocol_version="1.0",
+    )
+    surface.data_model.set("/tpl", "Leak: ${secretRendererOnly()}")
+    ctx = DataContext(surface=surface, path="/")
+    handler = RpcHandler([cat])
+
+    # 1. Pre-check rejects nested rendererOnly before sibling mutatingAllowed executes.
+    sibling_resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="nested-sibling-atomic",
+                surface_id="s-nested-boundary",
+                call_function=FunctionCall(
+                    call="echoAll",
+                    catalog_id=cat_id,
+                    args={
+                        "first": {
+                            "@call": "mutatingAllowed",
+                            "catalogId": cat_id,
+                            "args": {},
+                        },
+                        "second": [{
+                            "@call": {
+                                "@call": "secretRendererOnly",
+                                "catalogId": cat_id,
+                                "args": {},
+                            }
+                        }],
+                    },
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+    assert (
+        sibling_resp["rendererFunctionResponse"]["error"]["code"]
+        == "INVALID_FUNCTION_CALL"
+    )
+    assert side_effects == []
+
+    # 2. Dynamic ${secretRendererOnly()} stored in DataModel and read via @path is rejected.
+    tpl_resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="nested-datamodel-tpl",
+                surface_id="s-nested-boundary",
+                call_function=FunctionCall(
+                    call="renderTpl",
+                    catalog_id=cat_id,
+                    args={"value": {"@path": "/tpl"}},
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+    assert (
+        tpl_resp["rendererFunctionResponse"]["error"]["code"] == "INVALID_FUNCTION_CALL"
+    )
+    assert side_effects == []
+
+    # 3. Nested agentOnly call succeeds under callRendererFunction.
+    agent_resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="nested-agent-only",
+                surface_id="s-nested-boundary",
+                call_function=FunctionCall(
+                    call="echoAll",
+                    catalog_id=cat_id,
+                    args={
+                        "token": {
+                            "@call": "agentOnlyFn",
+                            "catalogId": cat_id,
+                            "args": {},
+                        }
+                    },
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+    assert agent_resp["rendererFunctionResponse"]["value"] == {"token": "AGENT_SECRET"}

@@ -664,6 +664,141 @@ struct RPCHandlerTests {
     let retryResult = try await retryTask.value
     #expect(retryResult == .string("reused_ok"))
   }
+
+  private final class SpyNestedFunction: FunctionImplementation, @unchecked Sendable {
+    let api: FunctionAPI
+    let returnValue: JSONValue
+    var invocations = 0
+
+    init(name: String, allowedCallers: AllowedCallers, returnValue: JSONValue) throws {
+      self.api = FunctionAPI(
+        name: name,
+        returnType: .string,
+        schema: try Schema(instance: #"{"type": "object"}"#),
+        allowedCallers: allowedCallers
+      )
+      self.returnValue = returnValue
+    }
+
+    func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+      invocations += 1
+      return returnValue
+    }
+  }
+
+  @Test func incomingCallRejectsNestedRendererOnlyBeforeSiblingRunsAndAllowsAgentOnly()
+    async throws
+  {
+    let mutatingFn = try SpyNestedFunction(
+      name: "mutatingAllowed",
+      allowedCallers: .rendererOrAgent,
+      returnValue: .string("ok")
+    )
+    let secretFn = try SpyNestedFunction(
+      name: "secretRendererOnly",
+      allowedCallers: .rendererOnly,
+      returnValue: .string("SECRET")
+    )
+    let agentOnlyFn = try SpyNestedFunction(
+      name: "agentOnlyFn",
+      allowedCallers: .agentOnly,
+      returnValue: .string("AGENT_SECRET")
+    )
+    let schemaOnlyRendererFn = SchemaOnlyFunction(
+      api: FunctionAPI(
+        name: "schemaOnlyRendererFn",
+        returnType: .string,
+        schema: try Schema(instance: #"{"type": "object"}"#),
+        allowedCallers: .rendererOnly
+      )
+    )
+    let catalog = Catalog(
+      id: "nested-cat",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [MockEchoFunction(), mutatingFn, secretFn, agentOnlyFn, schemaOnlyRendererFn]
+    ).eraseToAnyCatalog()
+    let handler = RPCHandler()
+
+    let blockedResponse = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "nested-blocked",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "nested-cat",
+          args: [
+            "first": .object([
+              "@call": .string("mutatingAllowed"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ]),
+            "message": .array([
+              .object([
+                "@call": .object([
+                  "@call": .string("secretRendererOnly"),
+                  "catalogId": .string("nested-cat"),
+                  "args": .object([:]),
+                ])
+              ])
+            ]),
+          ]
+        ),
+        version: .v10
+      ),
+      catalogs: [catalog.id: catalog]
+    )
+    #expect(blockedResponse.error?.code == "INVALID_FUNCTION_CALL")
+    #expect(mutatingFn.invocations == 0)
+    #expect(secretFn.invocations == 0)
+
+    let schemaOnlyBlockedResponse = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "nested-schema-only-blocked",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "nested-cat",
+          args: [
+            "first": .object([
+              "@call": .string("mutatingAllowed"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ]),
+            "message": .object([
+              "@call": .string("schemaOnlyRendererFn"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ]),
+          ]
+        ),
+        version: .v10
+      ),
+      catalogs: [catalog.id: catalog]
+    )
+    #expect(schemaOnlyBlockedResponse.error?.code == "INVALID_FUNCTION_CALL")
+    #expect(mutatingFn.invocations == 0)
+
+    let agentAllowedResponse = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "nested-agent-allowed",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "nested-cat",
+          args: [
+            "message": .object([
+              "@call": .string("agentOnlyFn"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ])
+          ]
+        ),
+        version: .v10
+      ),
+      catalogs: [catalog.id: catalog]
+    )
+    #expect(agentAllowedResponse.error == nil)
+    #expect(agentAllowedResponse.value == .string("AGENT_SECRET"))
+    #expect(agentOnlyFn.invocations == 1)
+  }
 }
 
 private final class RPCBox<T>: @unchecked Sendable {

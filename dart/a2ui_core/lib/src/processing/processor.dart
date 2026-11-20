@@ -866,7 +866,7 @@ class MessageProcessor<T extends ComponentApi> {
   /// unless the surface is one the agent only assumes exists. With
   /// [assumesSurface], or when [model] lacks the surface, its default
   /// catalog is unknown, so such a call passes if some catalog this
-  /// processor holds declares the function and the renderer may make the
+  /// processor holds declares the function and the agent may make the
   /// call in it.
   ///
   /// Throws [A2uiValidationError] wherever a renderer holding [catalogs]
@@ -928,11 +928,11 @@ class MessageProcessor<T extends ComponentApi> {
   /// names, and is rejected if that surface has none. When the message names
   /// a surface but [surface] is null, the surface is one the caller assumes
   /// exists, whose default catalog is unknown, so such a call passes if some
-  /// catalog this processor holds declares the function and the renderer
-  /// may make the call in it. The renderer makes each nested call itself, so
-  /// it may not call an `agentOnly` function, nor, unless [isUserActivated],
-  /// one that requires a user activation. Each call may hold only the fields
-  /// `FunctionCall` allows.
+  /// catalog this processor holds declares the function and the agent
+  /// may make the call in it. Each nested call runs under the agent's caller
+  /// boundary, so it may not call a `rendererOnly` function, nor, unless
+  /// [isUserActivated], one that requires a user activation. Each call may
+  /// hold only the fields `FunctionCall` allows.
   ///
   /// Throws [A2uiValidationError] wherever a renderer would answer the call
   /// with an `INVALID_FUNCTION_CALL` error, which includes a catalog this
@@ -1026,6 +1026,7 @@ class MessageProcessor<T extends ComponentApi> {
       version: operation.version,
       where: where,
       checkFields: true,
+      callerIsAgent: true,
       disallowUserActivation: !isUserActivated,
       resolvedAtRoot: true,
     );
@@ -1839,11 +1840,14 @@ class MessageProcessor<T extends ComponentApi> {
   /// [where] places each call in an error message, such as "in component
   /// 'x'", and [componentId] names the component that holds the calls.
   ///
-  /// Every nested call, in a component or in a call's arguments, is made by
-  /// the renderer, so none may call a function the resolved catalog declares
-  /// [AllowedCallers.agentOnly]. With [disallowUserActivation], for the
-  /// arguments of an agent's call, which come with no user activation, none
-  /// may call a function that requires one either.
+  /// Every nested call in a component is made by the renderer, so none may
+  /// call a function the resolved catalog declares [AllowedCallers.agentOnly].
+  /// With [callerIsAgent], for the arguments of an agent's
+  /// `callRendererFunction`, every nested call runs under the agent's caller
+  /// boundary, so none may call a function the resolved catalog declares
+  /// [AllowedCallers.rendererOnly]; with [disallowUserActivation], when the
+  /// agent's call comes with no user activation, none may call a function that
+  /// requires one either.
   ///
   /// With [resolvedAtRoot], for the arguments of an agent's call, which the
   /// renderer resolves at the root of the data model, outside any list
@@ -1853,7 +1857,7 @@ class MessageProcessor<T extends ComponentApi> {
   ///
   /// Throws what [resolve] throws for a catalog a call cannot resolve to,
   /// and [A2uiValidationError] when the resolved catalog declares no such
-  /// function, the renderer may not make the call, a call does not match
+  /// function, the caller may not make the call, a call does not match
   /// its schema, or, with [resolvedAtRoot], a call is to `@index` or a data
   /// binding is malformed.
   void _validateNestedFunctionCalls(
@@ -1870,6 +1874,7 @@ class MessageProcessor<T extends ComponentApi> {
     required String where,
     Object? componentId,
     bool checkFields = false,
+    bool callerIsAgent = false,
     bool disallowUserActivation = false,
     bool resolvedAtRoot = false,
     String path = '',
@@ -1884,6 +1889,7 @@ class MessageProcessor<T extends ComponentApi> {
       where: where,
       componentId: componentId,
       checkFields: checkFields,
+      callerIsAgent: callerIsAgent,
       disallowUserActivation: disallowUserActivation,
       resolvedAtRoot: resolvedAtRoot,
       path: childPath,
@@ -1913,6 +1919,7 @@ class MessageProcessor<T extends ComponentApi> {
         where: where,
         componentId: componentId,
         checkFields: checkFields,
+        callerIsAgent: callerIsAgent,
         disallowUserActivation: disallowUserActivation,
         resolvedAtRoot: resolvedAtRoot,
       );
@@ -1926,6 +1933,25 @@ class MessageProcessor<T extends ComponentApi> {
       );
     }
   }
+
+  String? _nestedCallRefusal(
+    FunctionImplementation? function,
+    String name, {
+    required bool callerIsAgent,
+    required bool disallowUserActivation,
+  }) => switch (function) {
+    FunctionImplementation(allowedCallers: AllowedCallers.rendererOnly)
+        when callerIsAgent =>
+      agentMayNotCall(name),
+    FunctionImplementation(allowedCallers: AllowedCallers.agentOnly)
+        when !callerIsAgent =>
+      rendererMayNotCall(name),
+    FunctionImplementation(requiresUserActivation: true)
+        when disallowUserActivation =>
+      "Function '$name' requires a user activation, and a call from the "
+          'agent has none.',
+    _ => null,
+  };
 
   void _checkNestedCallNode(
     Map<Object?, Object?> node,
@@ -1943,6 +1969,7 @@ class MessageProcessor<T extends ComponentApi> {
     required String where,
     Object? componentId,
     required bool checkFields,
+    required bool callerIsAgent,
     required bool disallowUserActivation,
     required bool resolvedAtRoot,
   }) {
@@ -1987,18 +2014,15 @@ class MessageProcessor<T extends ComponentApi> {
       return;
     }
     void checkIn(Catalog<T, FunctionImplementation> catalog) {
-      final FunctionImplementation? function = catalog.functions[name];
-      final String? refusal = switch (function) {
-        FunctionImplementation(allowedCallers: AllowedCallers.agentOnly) =>
-          rendererMayNotCall(name),
-        FunctionImplementation(requiresUserActivation: true)
-            when disallowUserActivation =>
-          "Function '$name' requires a user activation, and a call from the "
-              'agent has none.',
-        _ => null,
-      };
+      final String? refusal = _nestedCallRefusal(
+        catalog.functions[name],
+        name,
+        callerIsAgent: callerIsAgent,
+        disallowUserActivation: disallowUserActivation,
+      );
       if (refusal != null) {
-        final msg = "$subject is a call the renderer can't make: $refusal";
+        final who = callerIsAgent ? 'agent' : 'renderer';
+        final msg = "$subject is a call the $who can't make: $refusal";
         throw A2uiValidationError(
           msg,
           path: path,

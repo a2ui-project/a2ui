@@ -170,6 +170,18 @@ public final class RPCHandler {
       fallback: fallbackHandler,
       standaloneCatalog: catalog
     )
+    if let nestedError = Self.checkNestedArgumentPermissions(
+      in: .object(OrderedDictionary(uniqueKeysWithValues: rawArgs)),
+      handler: argHandler,
+      userActivationPresent: userActivationPresent
+    ) {
+      return RendererFunctionResponseMessage(
+        functionCallID: message.functionCallID,
+        error: FunctionErrorPayload(code: .invalidFunctionCall, message: nestedError),
+        version: message.version
+      )
+    }
+
     let argResolutionContext = DataContext(
       dataModel: dataContext?.dataModel ?? DataModel(),
       path: dataContext?.path ?? "",
@@ -179,6 +191,7 @@ public final class RPCHandler {
       isUserActivated: userActivationPresent
     )
     argResolutionContext.activeFunctionCatalogID = catalog.id
+    argResolutionContext.isAgentCall = true
     // `RPCArgumentFunctionHandler` intentionally omits `agentFunctionCatalogID` and
     // `agentFunctionValue`: an agent-initiated `callRendererFunction` cannot wait on another
     // outbound call back to the agent, so any unimplemented nested call fails locally.
@@ -196,15 +209,18 @@ public final class RPCHandler {
       isUserActivated: userActivationPresent
     )
     effectiveContext.activeFunctionCatalogID = catalog.id
+    effectiveContext.isAgentCall = true
 
     var resolvedArgs: [String: JSONValue] = [:]
     for (key, val) in rawArgs {
       resolvedArgs[key] = argResolutionContext.resolveDynamicValue(val)
     }
 
-    if let capturedError = argHandler.capturedError {
+    if let capturedError = argHandler.capturedInvalidFunctionCallError ?? argHandler.capturedError {
+      let code: FunctionErrorPayload.Code =
+        argHandler.capturedInvalidFunctionCallError != nil ? .invalidFunctionCall : .executionError
       let errorPayload = FunctionErrorPayload(
-        code: .executionError,
+        code: code,
         message: Self.errorMessage(
           capturedError,
           fallback: "An argument of the function call could not be resolved."
@@ -234,16 +250,33 @@ public final class RPCHandler {
 
     do {
       let result = try function.evaluate(arguments: resolvedArgs, context: effectiveContext)
+      if let capturedError = executionHandler.capturedInvalidFunctionCallError {
+        let errorPayload = FunctionErrorPayload(
+          code: .invalidFunctionCall,
+          message: Self.errorMessage(
+            capturedError,
+            fallback: "An error occurred during function execution."
+          )
+        )
+        return RendererFunctionResponseMessage(
+          functionCallID: message.functionCallID,
+          error: errorPayload,
+          version: message.version
+        )
+      }
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
         value: result,
         version: message.version
       )
     } catch {
+      let effectiveError = executionHandler.capturedInvalidFunctionCallError ?? error
+      let code: FunctionErrorPayload.Code =
+        Self.isInvalidFunctionCallError(effectiveError) ? .invalidFunctionCall : .executionError
       let errorPayload = FunctionErrorPayload(
-        code: .executionError,
+        code: code,
         message: Self.errorMessage(
-          error,
+          effectiveError,
           fallback: "An error occurred during function execution."
         )
       )
@@ -253,6 +286,78 @@ public final class RPCHandler {
         version: message.version
       )
     }
+  }
+
+  fileprivate static func isInvalidFunctionCallError(_ error: any Error) -> Bool {
+    guard let fnError = error as? FunctionError else { return false }
+    switch fnError {
+    case .callerDisallowed, .userActivationRequired:
+      return true
+    default:
+      return false
+    }
+  }
+
+  private static func checkNestedArgumentPermissions(
+    in value: JSONValue,
+    handler: RPCArgumentFunctionHandler,
+    userActivationPresent: Bool,
+    depth: Int = 0
+  ) -> String? {
+    guard depth <= 1000 else { return nil }
+    let children: [JSONValue]
+    switch value {
+    case .array(let items):
+      children = items
+    case .object(let dict):
+      if let err = checkNestedCallRecord(
+        dict,
+        handler: handler,
+        userActivationPresent: userActivationPresent
+      ) {
+        return err
+      }
+      children = Array(dict.values)
+    default:
+      return nil
+    }
+    for child in children {
+      if let err = checkNestedArgumentPermissions(
+        in: child,
+        handler: handler,
+        userActivationPresent: userActivationPresent,
+        depth: depth + 1
+      ) {
+        return err
+      }
+    }
+    return nil
+  }
+
+  private static func checkNestedCallRecord(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    handler: RPCArgumentFunctionHandler,
+    userActivationPresent: Bool
+  ) -> String? {
+    guard let callName = dict["@call"]?.stringValue, !callName.hasPrefix("@") else {
+      return nil
+    }
+    let rawCatalogID = dict["catalogId"]
+    guard rawCatalogID == nil || rawCatalogID?.stringValue != nil else { return nil }
+    let catalogID = rawCatalogID?.stringValue
+    guard (try? handler.validateFunctionCatalog(id: catalogID, functionName: callName)) != nil,
+      let fn = handler.function(named: callName, catalogID: catalogID)
+    else {
+      return nil
+    }
+    if fn.api.allowedCallers == .rendererOnly {
+      return
+        "Function '\(callName)' cannot be called by agent (allowedCallers is rendererOnly)."
+    }
+    if fn.api.requiresUserActivation && !userActivationPresent {
+      return "Function '\(callName)' requires user activation context to execute."
+    }
+    return nil
   }
 
   /// The message of an error thrown while answering an agent-initiated call, or `fallback` when
@@ -412,6 +517,7 @@ private final class RPCArgumentFunctionHandler: FunctionHandler {
   private let fallback: DummyContextFunctionHandler
   private let standaloneCatalog: AnyCatalog?
   private(set) var capturedError: Error?
+  private(set) var capturedInvalidFunctionCallError: Error?
 
   init(
     delegate: FunctionHandler?,
@@ -440,6 +546,9 @@ private final class RPCArgumentFunctionHandler: FunctionHandler {
   func handleFunctionError(_ error: Error, functionName: String) {
     if capturedError == nil {
       capturedError = error
+    }
+    if capturedInvalidFunctionCallError == nil, RPCHandler.isInvalidFunctionCallError(error) {
+      capturedInvalidFunctionCallError = error
     }
     delegate?.handleFunctionError(error, functionName: functionName)
   }

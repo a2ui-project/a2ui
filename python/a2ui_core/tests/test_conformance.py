@@ -2539,7 +2539,7 @@ _UI_ACTION_FALLBACK_SCENARIO_KEYS: frozenset[str] = frozenset({
 
 
 def _make_mock_rpc_executor(name: str) -> Callable[..., Any]:
-    def execute(fn_args: dict[str, Any], *_args: Any, **_kwargs: Any) -> Any:
+    def execute(fn_args: dict[str, Any], *extra_args: Any, **_kwargs: Any) -> Any:
         if name == "playMedia":
             return {"playing": True, "timestamp": 0}
         if name == "openExternalUrl":
@@ -2553,20 +2553,31 @@ def _make_mock_rpc_executor(name: str) -> Callable[..., Any]:
             return amount * 0.1
         if name == "echoArgs":
             return dict(fn_args or {})
+        if name == "renderTemplate":
+            return v10_catalog.functions["formatString"].execute(fn_args, *extra_args)
+        if name == "tagValue":
+            return f"tagged:{fn_args['value']}"
+        if name == "secretRendererOnly":
+            return "SECRET"
+        if name == "agentSecret":
+            return "AGENT_OK"
         return None
 
     return execute
 
 
-def _build_rpc_mock_functions(fn_metadata: dict[str, Any]) -> list[Any]:
+def _build_rpc_mock_functions(
+    fn_metadata: dict[str, Any], default_cat_id: str
+) -> dict[str, list[Any]]:
     from a2ui.core.catalog import FunctionImplementation
 
-    funcs: list[FunctionImplementation] = []
+    funcs_by_cat: dict[str, list[FunctionImplementation]] = {}
     for fn_name, meta in fn_metadata.items():
         allowed = meta.get("allowedCallers", "rendererOrAgent")
         requires_activation = meta.get("requiresUserActivation", False)
         fn_schema = meta.get("schema") or meta.get("parameters") or {"type": "object"}
-        funcs.append(
+        target_cat_id = meta.get("catalogId") or default_cat_id
+        funcs_by_cat.setdefault(target_cat_id, []).append(
             FunctionImplementation(
                 name=fn_name,
                 return_type=meta.get("returnType", "any"),
@@ -2576,7 +2587,7 @@ def _build_rpc_mock_functions(fn_metadata: dict[str, Any]) -> list[Any]:
                 requires_user_activation=requires_activation,
             )
         )
-    return funcs
+    return funcs_by_cat
 
 
 def _start_rpc_outbound_call(processor: MessageProcessor, spec: dict[str, Any]) -> Any:
@@ -3060,9 +3071,9 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
     fn_metadata = args.get("functionMetadata", {})
     user_activation = bool(args.get("userActivationPresent", False))
 
-    funcs = _build_rpc_mock_functions(fn_metadata)
     cat_id, cat_version = _resolve_rpc_catalog_info(args, message, outbound_call, case)
-    catalogs = _build_rpc_catalogs(cat_id, cat_version, funcs)
+    funcs_by_cat = _build_rpc_mock_functions(fn_metadata, cat_id)
+    catalogs = _build_rpc_catalogs(cat_id, cat_version, funcs_by_cat)
     outbound_messages: list[dict[str, Any]] = []
     captured_renderer_errors: list[dict[str, Any]] = []
     has_listener = args.get("outboundListener", True) is not False
@@ -3395,30 +3406,48 @@ def _resolve_rpc_catalog_info(
 
 
 def _build_rpc_catalogs(
-    cat_id: str, cat_version: str, funcs: list[Any]
+    cat_id: str, cat_version: str, funcs_by_cat: dict[str, list[Any]]
 ) -> list[Catalog]:
-    fn_names = {f.name for f in funcs}
+    primary_funcs = list(funcs_by_cat.get(cat_id, []))
+    fn_names = {f.name for f in primary_funcs}
     if cat_id == "basic":
         for bf in v10_catalog.functions.values():
             if bf.name not in fn_names:
-                funcs.append(bf)
+                primary_funcs.append(bf)
     cat = Catalog(
         catalog_id=cat_id,
         protocol_version=cat_version,
         components=[],
-        functions=funcs,
+        functions=primary_funcs,
     )
-    if cat_id == "basic":
-        return [cat]
-    return [
-        cat,
-        Catalog(
-            catalog_id="basic",
-            protocol_version=cat_version,
-            components=[],
-            functions=list(v10_catalog.functions.values()),
-        ),
-    ]
+    catalogs: list[Catalog] = [cat]
+    for extra_cat_id, extra_funcs in funcs_by_cat.items():
+        if extra_cat_id == cat_id:
+            continue
+        merged_extra = list(extra_funcs)
+        if extra_cat_id == "basic":
+            extra_names = {f.name for f in merged_extra}
+            for bf in v10_catalog.functions.values():
+                if bf.name not in extra_names:
+                    merged_extra.append(bf)
+        catalogs.append(
+            Catalog(
+                catalog_id=extra_cat_id,
+                protocol_version=cat_version,
+                components=[],
+                functions=merged_extra,
+            )
+        )
+    if not any(c.catalog_id == "basic" for c in catalogs):
+        catalogs.append(
+            Catalog(
+                catalog_id="basic",
+                protocol_version=cat_version,
+                components=[],
+                functions=list(v10_catalog.functions.values()),
+            )
+        )
+    return catalogs
 
 
 def _setup_rpc_surface_if_needed(
