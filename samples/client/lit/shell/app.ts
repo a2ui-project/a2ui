@@ -194,6 +194,38 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
 
       .canvas-column {
         min-width: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .mode-explainer {
+        margin-top: 20px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        background: light-dark(rgba(0, 0, 0, 0.03), rgba(255, 255, 255, 0.05));
+        border: 1px solid light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.1));
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .mode-explainer-heading {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        opacity: 0.65;
+        margin-bottom: 4px;
+      }
+
+      .mode-explainer-title {
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      .mode-explainer-body {
+        margin: 0;
+        opacity: 0.88;
       }
 
       .mode-controls {
@@ -977,7 +1009,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
           <div class="canvas-column">
             ${this.#maybeRenderModeControls()} ${this.#maybeRenderForm()}
             ${this.#maybeRenderQuickActions()} ${this.#maybeRenderData()}
-            ${this.#maybeRenderError()}
+            ${this.#maybeRenderError()} ${this.#maybeRenderModeExplainer()}
           </div>
           ${this._inspectorOpen
             ? html`<aside class="inspector-column" aria-label="Pipeline Inspector">
@@ -1213,6 +1245,22 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
         </div>
       </div>
     `;
+  }
+
+  #maybeRenderModeExplainer() {
+    const explainers = this.config.modeControls?.modeExplainers;
+    if (!explainers || this._isLocalMode) return nothing;
+    const info = explainers[this._activeMode];
+    if (!info) return nothing;
+    return html`<aside
+      class="mode-explainer"
+      data-testid="mode-explainer"
+      aria-label="Mode Explainer"
+    >
+      <div class="mode-explainer-heading">Explainer</div>
+      <div class="mode-explainer-title">${info.title}</div>
+      <p class="mode-explainer-body">${info.body}</p>
+    </aside>`;
   }
 
   #maybeRenderModeControls() {
