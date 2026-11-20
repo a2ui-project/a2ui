@@ -214,6 +214,7 @@ async def test_binder_tool_resort_binds_without_llm() -> None:
 async def test_backend_step0_without_url_rolls_back_cleanly(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.delenv("STEP0_URL", raising=False)
     monkeypatch.delenv("A2UI_DECISION_URL", raising=False)
     agent = _make_agent()
     res = await agent.handle_text_turn(
@@ -223,6 +224,31 @@ async def test_backend_step0_without_url_rolls_back_cleanly(
     assert res.trace is not None
     assert res.trace["candidates"][0]["ok"] is False
     assert "A2UI_DECISION_URL" in (res.trace["candidates"][0]["error"] or "")
+
+
+@pytest.mark.asyncio
+async def test_backend_jev_does_not_inherit_gemini_env_vars(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("A2UI_DECISION_BACKEND", "gemini")
+    monkeypatch.setenv(
+        "A2UI_DECISION_URL",
+        "https://generativelanguage.googleapis.com/v1beta/decisions",
+    )
+    monkeypatch.setenv("A2UI_DECISION_MODEL", "gemini-decision-1")
+    monkeypatch.setenv("A2UI_DECISION_AUTH", "gemini-key")
+    monkeypatch.setenv("JEV_API_KEY", "jev-test-key")
+    monkeypatch.delenv("JEV_URL", raising=False)
+    monkeypatch.delenv("JEV_MODEL", raising=False)
+
+    agent = _make_agent()
+    res = await agent.handle_text_turn(
+        "/backend jev", context_id="ctx-jev", include_trace=True
+    )
+    assert res.trace is not None
+    assert res.trace["candidates"][0]["ok"] is True
+    assert agent._renderers.model_id != "gemini-decision-1"
+    assert "generativelanguage" not in (agent._renderers.endpoint_url or "")
 
 
 @pytest.mark.asyncio

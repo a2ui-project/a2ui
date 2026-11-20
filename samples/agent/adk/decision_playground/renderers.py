@@ -29,6 +29,8 @@ from a2ui.inference_formats import (
     to_message_dicts,
 )
 from a2ui.inference_formats.experimental.decision import (
+    DEFAULT_GEMINI_DECISION_MODEL,
+    DEFAULT_TYPESAFE_MODEL,
     ActionSpec,
     DecisionBackend,
     DecisionBackendError,
@@ -60,17 +62,123 @@ from surfaces import (
 )
 
 
+_GEMINI_DECISIONS_URL = "https://generativelanguage.googleapis.com/v1beta/decisions"
+_TYPESAFE_SYSTEMONE_URL = "https://api.typesafe.ai/v1/systemone"
+_VERCEL_SYSTEMONE_URL = "https://ai-gateway.vercel.sh/typesafe/v1/systemone"
+
+
+def _env_matches_backend(*names: str) -> bool:
+    """Returns whether `A2UI_DECISION_BACKEND` matches one of `names`."""
+    current = (os.environ.get("A2UI_DECISION_BACKEND") or "").strip().lower()
+    return current in names
+
+
+def _build_gemini_backend() -> DecisionBackend:
+    """Builds the Gemini Decisions backend without leaking other backend env vars."""
+    use_generic = _env_matches_backend("gemini")
+    generic_auth = (
+        os.environ.get("A2UI_DECISION_AUTH") or os.environ.get("A2UI_DECISION_TOKEN")
+        if use_generic
+        else None
+    )
+    key = (
+        os.environ.get("GEMINI_API_KEY")
+        or os.environ.get("GOOGLE_API_KEY")
+        or generic_auth
+    )
+    url = os.environ.get("GEMINI_DECISION_URL") or (
+        os.environ.get("A2UI_DECISION_URL") if use_generic else None
+    )
+    if not key and not url:
+        raise ValueError("GEMINI_API_KEY is not set in the environment or ~/.env.")
+    model = (
+        os.environ.get("GEMINI_DECISION_MODEL")
+        or (os.environ.get("A2UI_DECISION_MODEL") if use_generic else None)
+        or DEFAULT_GEMINI_DECISION_MODEL
+    )
+    return create_decision_backend(
+        "gemini",
+        endpoint_url=url or _GEMINI_DECISIONS_URL,
+        model=model,
+        auth=key,
+    )
+
+
+def _build_jev_backend() -> DecisionBackend:
+    """Builds the Jev / SystemOne backend without inheriting Gemini env vars."""
+    use_generic = _env_matches_backend("jev", "systemone")
+    generic_auth = (
+        os.environ.get("A2UI_DECISION_AUTH") or os.environ.get("A2UI_DECISION_TOKEN")
+        if use_generic
+        else None
+    )
+    key = (
+        os.environ.get("JEV_API_KEY")
+        or os.environ.get("TYPESAFE_API_KEY")
+        or generic_auth
+    )
+    url = os.environ.get("JEV_URL") or (
+        os.environ.get("A2UI_DECISION_URL") if use_generic else None
+    )
+    if not key and not url:
+        raise ValueError("JEV_API_KEY is not set in the environment or ~/.env.")
+    token = key.strip() if isinstance(key, str) else ""
+    default_url = (
+        _VERCEL_SYSTEMONE_URL if token.startswith("vcp_") else _TYPESAFE_SYSTEMONE_URL
+    )
+    default_model = "jev" if token.startswith("vcp_") else DEFAULT_TYPESAFE_MODEL
+    model = (
+        os.environ.get("JEV_MODEL")
+        or (os.environ.get("A2UI_DECISION_MODEL") if use_generic else None)
+        or default_model
+    )
+    return create_decision_backend(
+        "systemone",
+        endpoint_url=url or default_url,
+        model=model,
+        auth=key,
+    )
+
+
+def _build_step0_backend() -> DecisionBackend:
+    """Builds the Step-Zero logprob backend using its own URL/model env vars."""
+    use_generic = _env_matches_backend("step0")
+    url = os.environ.get("STEP0_URL") or (
+        os.environ.get("A2UI_DECISION_URL") if use_generic else None
+    )
+    if not url:
+        raise ValueError(
+            "Backend 'step0' requires STEP0_URL or A2UI_DECISION_URL (for example,"
+            " http://localhost:8000/v1/completions)."
+        )
+    model = os.environ.get("STEP0_MODEL") or (
+        os.environ.get("A2UI_DECISION_MODEL") if use_generic else None
+    )
+    auth = os.environ.get("STEP0_API_KEY") or (
+        os.environ.get("A2UI_DECISION_AUTH") if use_generic else None
+    )
+    return create_decision_backend(
+        "step0",
+        endpoint_url=url,
+        model=model,
+        auth=auth,
+    )
+
+
 def _create_playground_backend(kind: str) -> DecisionBackend:
-    """Creates a backend for `kind`, using `PlaygroundMockBackend` for `'mock'`."""
+    """Creates a backend for `kind` without cross-backend env var leakage."""
     normalized = kind.strip().lower()
     if normalized == "mock":
         return PlaygroundMockBackend()
-    if normalized == "step0" and not os.environ.get("A2UI_DECISION_URL"):
-        raise ValueError(
-            "Backend 'step0' requires A2UI_DECISION_URL (for example,"
-            " http://localhost:8000/v1/completions)."
-        )
-    return create_decision_backend(normalized)
+    if normalized == "gemini":
+        return _build_gemini_backend()
+    if normalized in ("jev", "systemone"):
+        return _build_jev_backend()
+    if normalized == "step0":
+        return _build_step0_backend()
+    raise ValueError(
+        f"Unknown decision backend '{kind}'. Choose mock, gemini, jev, or step0."
+    )
 
 
 def _decompile_express(catalogs: Sequence[CatalogApi], messages: Sequence[Any]) -> str:
