@@ -1,5 +1,15 @@
 ## Unreleased
 
+- Add `allowed_parents` and `allowed_children` parameters to the `@macro`
+  decorator (`a2ui.transformers.macros`), emitting `allowedParents` and
+  `allowedChildren` metadata on generated macro component schemas.
+- Add the shared experimental decision-model kernel in
+  `a2ui.inference_formats.experimental.decision` (gated behind the optional
+  `a2ui-agent-sdk[decision]` `httpx` extra and isolated from public barrels):
+  `DecisionBackend`, `JevHttpBackend`, `StepZeroLogprobBackend`,
+  `DeterministicMockBackend`, `CatalogDecisionGraph`, payload pointer
+  inspection, `ExpressSurfaceSpec`, and stateless `lower_for_transport`.
+
 - **BREAKING CHANGE**: (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`,
   and `@checks` on v1.0 components across `ExpressCompiler`,
   `AtomCompiler`, `ElementalCompiler`, `MacroExpander`, `RendererState`, and the
