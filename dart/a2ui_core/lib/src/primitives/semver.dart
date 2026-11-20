@@ -50,7 +50,12 @@ final RegExp _numericIdentifier = RegExp(r'^\d+$');
 /// kept only in [build], since it does not affect precedence.
 final class _SemVer {
   const _SemVer(
-      this.major, this.minor, this.patch, this.prerelease, this.build);
+    this.major,
+    this.minor,
+    this.patch,
+    this.prerelease,
+    this.build,
+  );
 
   final int major;
   final int minor;
@@ -93,8 +98,9 @@ String? _canonical(String version) {
   if (parsed.patch == 0 && parsed.prerelease.isEmpty && parsed.build.isEmpty) {
     return '${parsed.major}.${parsed.minor}';
   }
-  final pre =
-      parsed.prerelease.isEmpty ? '' : '-${parsed.prerelease.join('.')}';
+  final pre = parsed.prerelease.isEmpty
+      ? ''
+      : '-${parsed.prerelease.join('.')}';
   final build = parsed.build.isEmpty ? '' : '+${parsed.build.join('.')}';
   return '${parsed.major}.${parsed.minor}.${parsed.patch}$pre$build';
 }

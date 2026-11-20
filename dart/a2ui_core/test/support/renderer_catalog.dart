@@ -44,23 +44,22 @@ Catalog<ComponentApi, FunctionImplementation> rendererCatalog(
 /// A catalog function carrying its signature and no behaviour.
 class _UncallableFunction extends FunctionImplementation {
   _UncallableFunction(FunctionApi api)
-      : super(
-          name: api.name,
-          argumentSchema: api.argumentSchema,
-          returnType: api.returnType,
-          description: api.description,
-          allowedCallers: api.declaredAllowedCallers,
-          requiresUserActivation: api.declaredRequiresUserActivation,
-          definition: api.definition,
-        );
+    : super(
+        name: api.name,
+        argumentSchema: api.argumentSchema,
+        returnType: api.returnType,
+        description: api.description,
+        allowedCallers: api.declaredAllowedCallers,
+        requiresUserActivation: api.declaredRequiresUserActivation,
+        definition: api.definition,
+      );
 
   @override
   Object? execute(
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      throw UnsupportedError(
-        "Function '$name' carries a signature only and cannot be invoked.",
-      );
+  ]) => throw UnsupportedError(
+    "Function '$name' carries a signature only and cannot be invoked.",
+  );
 }

@@ -157,9 +157,8 @@ Widget _markdown(BuildContext context, String markdown, TextStyle style) =>
     MarkdownBody(
       data: markdown,
       onTapLink: _openLink,
-      styleSheet: MarkdownStyleSheet.fromTheme(
-        Theme.of(context),
-      ).copyWith(p: style),
+      styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context))
+          .copyWith(p: style),
     );
 
 /// Opens [href] with `url_launcher`.

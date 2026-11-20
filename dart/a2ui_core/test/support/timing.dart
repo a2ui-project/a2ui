@@ -17,15 +17,15 @@ import 'package:test/test.dart';
 /// The payload of a timing case written at [size]; see `PayloadTemplate` in
 /// `conformance_schema.json`.
 String writePayload(Map<String, Object?> testCase, int size) => [
-      for (final Object? segment in testCase['payload']! as List<Object?>)
-        switch (segment) {
-          final String text => text,
-          {'repeat': final String text} => [
-              for (var i = 0; i < size; i++) text.replaceAll('{i}', '$i'),
-            ].join((segment as Map)['separator'] as String? ?? ''),
-          _ => throw ArgumentError.value(segment, 'segment'),
-        },
-    ].join();
+  for (final Object? segment in testCase['payload']! as List<Object?>)
+    switch (segment) {
+      final String text => text,
+      {'repeat': final String text} => [
+        for (var i = 0; i < size; i++) text.replaceAll('{i}', '$i'),
+      ].join((segment as Map)['separator'] as String? ?? ''),
+      _ => throw ArgumentError.value(segment, 'segment'),
+    },
+].join();
 
 /// How many times each call is timed.
 const int _runs = 5;
@@ -54,7 +54,8 @@ void expectTimeRatio(
   expect(
     measuredMedian / baselineMedian,
     lessThanOrEqualTo(maxRatio),
-    reason: 'Median time of $what: $measuredMedian µs against '
+    reason:
+        'Median time of $what: $measuredMedian µs against '
         '$baselineMedian µs.',
   );
 }

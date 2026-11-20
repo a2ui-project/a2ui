@@ -22,11 +22,46 @@ from utils import (
     extract_exported_symbols,
     find_common_refs,
     get_base_common_symbols,
+    get_schema_dependencies,
     to_pascal_case,
     to_snake_case,
     topological_sort_defs,
     version_to_underscore,
 )
+
+
+def _style_owned_theme_def(catalog_data: dict[str, Any]) -> str | None:
+    """Returns the `$defs` key (`'theme'` or `'Theme'`) owned by `styles.py`, if any.
+
+    A theme def that an entry or another `$defs` entry references stays in
+    `components.py`.
+
+    Raises:
+        ValueError: If an entry or another `$defs` entry references lowercase
+            `$defs.theme`, which `Catalog.from_json` always reads as the
+            catalog theme.
+    """
+    styles_spec = catalog_data.get("styles")
+    if isinstance(styles_spec, dict) and styles_spec:
+        return None
+    defs = catalog_data.get("$defs", {})
+    for key in ("theme", "Theme"):
+        if not isinstance(defs.get(key), dict):
+            continue
+        users = [
+            catalog_data.get("components"),
+            catalog_data.get("functions"),
+            *(v for k, v in defs.items() if k != key),
+        ]
+        if key not in get_schema_dependencies(users):
+            return key
+        if key == "theme":
+            raise ValueError(
+                "An entry or another $defs entry references $defs.theme, which"
+                " Catalog reserves for the catalog theme, so the generator"
+                " cannot model it as a def."
+            )
+    return None
 
 
 def generate_basic_catalog_components(
@@ -76,15 +111,32 @@ def generate_basic_catalog_components(
 
     names = []
     defs = catalog_data.get("$defs", {})
+    style_theme_def = _style_owned_theme_def(catalog_data)
     custom_leaf_defs = {
         k: v
         for k, v in defs.items()
         if k not in ("anyComponent", "anyFunction", "CatalogComponentCommon")
+        and k != style_theme_def
         and k not in common_def_names
         and isinstance(v, dict)
     }
-    for def_name in custom_leaf_defs:
-        codegen.local_def_symbols[def_name] = to_pascal_case(def_name)
+    reserved_symbols: set[str] = set(common_imports_set) | {
+        "CatalogComponentCommon",
+        "AnyComponent",
+        "BASIC_COMPONENTS",
+    }
+    styles_spec = catalog_data.get("styles")
+    if isinstance(styles_spec, dict) and styles_spec:
+        reserved_symbols.update({"Styles", "Theme"})
+    elif style_theme_def is not None:
+        reserved_symbols.add("Theme")
+    sorted_leaf_defs = topological_sort_defs(custom_leaf_defs)
+    for def_name in sorted_leaf_defs:
+        sym = to_pascal_case(def_name)
+        while sym in reserved_symbols:
+            sym = f"{sym}Def"
+        reserved_symbols.add(sym)
+        codegen.local_def_symbols[def_name] = sym
     if custom_leaf_defs:
         codegen.used_helpers.add("CatalogDef")
 
@@ -99,7 +151,7 @@ def generate_basic_catalog_components(
     ]
 
     leaf_def_blocks = []
-    for def_name in topological_sort_defs(custom_leaf_defs):
+    for def_name in sorted_leaf_defs:
         def_spec = custom_leaf_defs[def_name]
         py_sym = codegen.local_def_symbols[def_name]
         base_py_type = codegen.map_json_type_to_python(def_name, def_spec)
@@ -473,7 +525,7 @@ def generate_basic_catalog_styles(
     catalog_data: dict[str, Any],
     spec_fidelity: bool = False,
 ) -> str | None:
-    """Generates styles.py content if the catalog defines styles or theme.
+    """Generates styles.py content when the catalog owns a styles or theme schema.
 
     Args:
         version: The protocol version.
@@ -483,8 +535,9 @@ def generate_basic_catalog_styles(
     """
     defs = catalog_data.get("$defs", {})
     styles_spec = catalog_data.get("styles")
+    style_theme_def = _style_owned_theme_def(catalog_data)
 
-    if not styles_spec and "theme" not in defs and "Theme" not in defs:
+    if not styles_spec and style_theme_def is None:
         return None
 
     codegen = PydanticCodegen(version)
@@ -516,10 +569,8 @@ def generate_basic_catalog_styles(
             )
         )
         style_blocks.append("Theme = Styles")
-    elif "theme" in defs:
-        style_blocks.append(codegen.compile_object_def("Theme", defs["theme"]))
-    elif "Theme" in defs:
-        style_blocks.append(codegen.compile_object_def("Theme", defs["Theme"]))
+    elif style_theme_def is not None:
+        style_blocks.append(codegen.compile_object_def("Theme", defs[style_theme_def]))
 
     return "\n\n\n".join(b.strip() for b in style_blocks if b.strip()) + "\n"
 

@@ -18,9 +18,18 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The nightly run and manual dispatches run every job regardless of the
+  # path filters below, so a filter that has drifted from what a job reads
+  # shows up within a day instead of on the next pull request that happens
+  # to touch a listed path.
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  # The event name keeps a scheduled run on `main` from cancelling, or being
+  # cancelled by, a push run on `main`.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref_name || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -35,23 +44,32 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      renderers: ${{ steps.filter.outputs.renderers }}
-      tools: ${{ steps.filter.outputs.tools }}
-      samples: ${{ steps.filter.outputs.samples }}
-      scripts: ${{ steps.filter.outputs.scripts }}
-      other: ${{ steps.filter.outputs.other }}
+      # `steps.all` only runs for scheduled and manual runs; when it is
+      # skipped its output is empty and the filter result is used.
+      renderers: ${{ steps.all.outputs.yes || steps.filter.outputs.renderers }}
+      tools: ${{ steps.all.outputs.yes || steps.filter.outputs.tools }}
+      samples: ${{ steps.all.outputs.yes || steps.filter.outputs.samples }}
+      other: ${{ steps.all.outputs.yes || steps.filter.outputs.other }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Run everything on scheduled and manual runs
+        id: all
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: echo "yes=true" >> "$GITHUB_OUTPUT"
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: filter
+        # Scheduled and manual runs have no base to diff against (the action
+        # would fall back to the last commit alone), so they skip the filter
+        # and run every job instead.
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
         with:
           # An empty token makes the action diff `pull_request.base.sha..HEAD`
           # with git instead of reading the pull request's files from the
           # GitHub API, which fails the job when the API has a transient
           # error. It fetches the base commit itself, so the shallow checkout
-          # above is enough. Push and scheduled runs always used git.
+          # above is enough. Push runs always used git.
           token: ""
           filters: |
             # Keep the `renderers` filter and `ci-renderers` job names for
@@ -76,12 +94,6 @@ jobs:
               - 'samples/vegachart/**'
               - 'package.json'
               - 'yarn.lock'
-              - '.github/workflows/web_ci.yml'
-              - '.github/actions/setup-node/**'
-            scripts:
-              - 'scripts/**'
-              - 'tools/internal/triage/**'
-              - '.github/workflows/triage.yml'
               - '.github/workflows/web_ci.yml'
               - '.github/actions/setup-node/**'
             other:
@@ -248,8 +260,10 @@ jobs:
   # matches the runtime of actions/github-script, which runs the bot and strips
   # its types on import.
   ci-scripts:
-    needs: changes
-    if: ${{ needs.changes.outputs.scripts == 'true' }}
+    # Runs on every event: the tests under `scripts/` read files outside
+    # `scripts/` (for example `typescript/renderers/*/eslint.boundary.mjs`),
+    # so a path filter here would miss the changes they guard, and the job
+    # takes about a minute.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
