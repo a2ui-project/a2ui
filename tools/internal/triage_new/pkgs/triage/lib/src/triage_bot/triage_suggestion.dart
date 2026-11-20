@@ -20,7 +20,7 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 ///
 /// The triage bot posts it on the item, and the triage UI shows it to the
 /// triager, who finalizes it and applies it to the item. See
-/// `blueprints/features/triage_bot.blueprint.md`.
+/// `blueprints/features/triage_bot/suggestion.blueprint.md`.
 final ComponentApi triageSuggestionApi = ComponentApi(
   name: TriageSuggestionProps.componentName,
   schema: Schema.object(

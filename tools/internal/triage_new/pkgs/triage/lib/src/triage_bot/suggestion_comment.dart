@@ -45,7 +45,7 @@ final PayloadValidator<ComponentApi, FunctionApi> _validator =
 
 /// The suggestion in a suggestion comment, as A2UI messages and as values.
 ///
-/// See `blueprints/features/triage_bot.blueprint.md`.
+/// See `blueprints/features/triage_bot/suggestion.blueprint.md`.
 final class SuggestionPayload {
   SuggestionPayload._(this.messages, this.suggestion);
 

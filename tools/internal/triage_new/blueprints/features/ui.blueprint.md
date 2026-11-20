@@ -29,7 +29,7 @@ The list of items holds the issues and PRs of [`a2ui-project/a2ui`](https://gith
 
 1. **Needs triage**: open items with `status: needs-triage` and without `status: needs-team-input`.
 2. **Needs team input**: open items with `status: needs-team-input`.
-3. **Not in the queue**: items that the triager opened from a [suggestion comment](triage_bot.blueprint.md#the-suggestion-comment) or by URL, and that are in neither group above.
+3. **Not in the queue**: items that the triager opened from a [suggestion comment](triage_bot/suggestion.blueprint.md#the-suggestion-comment) or by URL, and that are in neither group above.
 
 The groups are set when the items load. An item that the triager adds `status: needs-team-input` to in this session stays in its group, and also shows in **Needs team input**, so it is listed twice until a refresh or **Hide triaged**. The triager selects such an item in one of its groups, and only that copy shows as selected. The next item after **Apply** is the next one in that group that the triager has not handled yet, and after the end of the group, the next one in the groups below.
 
@@ -41,7 +41,7 @@ Each group and subgroup shows how many of its items the triager has not handled 
 
 An item's flags show:
 
-1. Whether its suggestion is [outdated](triage_bot.blueprint.md#current-and-outdated-suggestions), or it has none. A suggestion comment that does not parse counts as no suggestion. Most items have a current suggestion, so a current one has no flag.
+1. Whether its suggestion is [outdated](triage_bot/suggestion.blueprint.md#current-and-outdated-suggestions), or it has none. A suggestion comment that does not parse counts as no suggestion. Most items have a current suggestion, so a current one has no flag.
 2. Its linked PRs, for an issue, and its linked issues, for a PR.
 3. `status: needs-team-input`, except in the **Needs team input** group.
 4. Whether the triager has applied its suggestion in this session. An item whose applied suggestion adds `status: needs-team-input` shows a team icon instead, in both of its groups. While **Apply** is applying the item, a spinner shows in that place, and if some of its changes failed, an error icon.
@@ -74,7 +74,7 @@ Nothing is selected when the tool starts, unless it starts with an item from a s
 
 ### Editable suggestion
 
-The editable suggestion is the triage UI's implementation of the [`TriageSuggestion`](triage_bot.blueprint.md#the-triagesuggestion-component) A2UI component. It renders the component from the item's latest suggestion comment, or an empty one when the item has no suggestion.
+The editable suggestion is the triage UI's implementation of the [`TriageSuggestion`](triage_bot/suggestion.blueprint.md#the-triagesuggestion-component) A2UI component. It renders the component from the item's latest suggestion comment, or an empty one when the item has no suggestion.
 
 The `summary`, the `reason` and the `suggestion` are shown in the left column as GitHub-flavored Markdown. Their links and bare URLs open in the browser. Below them is the latest comment for the team, if the item has one: a comment by a team member that starts with `**Requires team input. Note for the discussion:**`, as [triage.md](../../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager) asks the triager to write when they add `status: needs-team-input`. It is shown the same way, without the heading, under "From @login for team discussion", so the team reads the triager's question together with the triage bot's suggestion. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager also sets the item's priority, and its milestone, which the triage bot does not suggest.
 
@@ -110,7 +110,7 @@ The suggestion for an issue says P1, but Ann thinks the issue is P2.
 ### Open an item from its suggestion comment
 
 1. Ann reads an issue on GitHub and wants to triage it now.
-2. Ann copies the command from the [suggestion comment](triage_bot.blueprint.md#the-suggestion-comment) and runs it in a terminal in the a2ui checkout.
+2. Ann copies the command from the [suggestion comment](triage_bot/suggestion.blueprint.md#the-suggestion-comment) and runs it in a terminal in the a2ui checkout.
 3. If the tool is running, it shows the issue. Otherwise the command starts the tool with the issue.
 
 The tool shows the item even if the item no longer has `status: needs-triage`.
@@ -121,7 +121,7 @@ The triage bot has not commented on a new issue yet, or its comment does not par
 
 ### Check an outdated suggestion
 
-Someone commented on the item after the triage bot did, so the suggestion is [outdated](triage_bot.blueprint.md#current-and-outdated-suggestions). In the details, the "Suggestion" heading has a yellow "Outdated" label, as GitHub marks an outdated review comment. Ann opens the item from its title, reads the new comment on GitHub, adjusts the suggestion, and clicks **Apply**.
+Someone commented on the item after the triage bot did, so the suggestion is [outdated](triage_bot/suggestion.blueprint.md#current-and-outdated-suggestions). In the details, the "Suggestion" heading has a yellow "Outdated" label, as GitHub marks an outdated review comment. Ann opens the item from its title, reads the new comment on GitHub, adjusts the suggestion, and clicks **Apply**.
 
 ### Ask the team
 
@@ -132,7 +132,7 @@ Ann cannot triage an item in a couple of minutes, or the suggestion says that th
 Ann goes through the **Needs team input** group with other team members. For each item, the details show Ann's comment for the team below the triage bot's suggestion. Then:
 
 1. If they can triage it in a couple of minutes, Ann adjusts the suggestion and clicks **Apply**.
-2. Otherwise, they pick an expert in the area. The triage bot suggests one from the commit history of the affected area (see [Suggested assignees](triage_bot.blueprint.md#suggested-assignees)). Ann adds `status: assigned-for-triage` to the labels, adds the expert to the assignees, and clicks **Apply**.
+2. Otherwise, they pick an expert in the area. The triage bot suggests one from the commit history of the affected area (see [Triage suggestions](triage_bot/suggestion.blueprint.md)). Ann adds `status: assigned-for-triage` to the labels, adds the expert to the assignees, and clicks **Apply**.
 
 In both cases, Ann also checks `status: needs-team-input` in the labels to remove.
 
@@ -161,5 +161,5 @@ Ann has applied suggestions to a dozen items, and the list is long. Ann clicks *
 At the end of the triage week, Ann wants to report the week's triage to the team.
 
 1. Ann clicks **Create report** in the hamburger menu.
-2. A dialog shows a prompt that asks an agent for the [triage report](triage_bot.blueprint.md#triage-report) of the session: from the day the tool started to today, with the dates written out, as in "Create the triage report for 2026-11-06 to 2026-11-12". The prompt tells the agent to use the [a2ui-triage-bot](../../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill from the `main` branch. The dialog also says that after creating the report, the agent asks Ann whether to [unsubscribe Ann from the items in it, post it to the go/a2ui-core-working-group chat space, and add it to go/a2ui-triage-log](triage_bot.blueprint.md#after-the-report).
+2. A dialog shows a prompt that asks an agent for the [triage report](triage_bot/report.blueprint.md) of the session: from the day the tool started to today, with the dates written out, as in "Create the triage report for 2026-11-06 to 2026-11-12". The prompt tells the agent to use the [a2ui-triage-bot](../../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill from the `main` branch. The dialog also says that after creating the report, the agent asks Ann whether to [unsubscribe Ann from the items in it, post it to the go/a2ui-core-working-group chat space, and add it to go/a2ui-triage-log](triage_bot/report.blueprint.md#after-the-report).
 3. Ann clicks **Copy and close**, and pastes the prompt to an agent in the a2ui checkout. **Close** closes the dialog without copying.

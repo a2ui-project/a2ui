@@ -22,19 +22,19 @@ The triage process is described in [triage.md](../../../../docs/contributing/tri
    2. Started by: a GitHub workflow.
    3. Needs to: comment on items, and send messages to team members.
 
-3. The **triage advisor** posts a [triage suggestion](features/triage_bot.blueprint.md#triage-suggestions) on each item with `status: needs-triage` and without `status: needs-team-input`.
+3. The **triage advisor** posts a [triage suggestion](features/triage_bot/suggestion.blueprint.md) on each item with `status: needs-triage` and without `status: needs-team-input`.
 
    1. Runs: hourly.
    2. Started by: a scheduled agent that runs the [a2ui-triage-bot](../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill.
    3. Needs to: query an AI agent, and comment on items.
 
-4. The **triage assistant** answers [requests to the triage bot](features/triage_bot.blueprint.md#requests-to-the-triage-bot) from team members.
+4. The **triage assistant** answers [requests to the triage bot](features/triage_bot/response.blueprint.md) from team members.
 
    1. Runs: hourly.
    2. Started by: a scheduled agent that runs the [a2ui-triage-bot](../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill.
    3. Needs to: query an AI agent, and comment on items.
 
-5. The **triage reporter** writes the [triage report](features/triage_bot.blueprint.md#triage-report) of a period for the triager, to post to the team's chat space and the triage log.
+5. The **triage reporter** writes the [triage report](features/triage_bot/report.blueprint.md) of a period for the triager, to post to the team's chat space and the triage log.
 
    1. Runs: when the triager asks for the triage report, usually at the end of their triage week.
    2. Started by: the triager, with the [a2ui-triage-bot](../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill.

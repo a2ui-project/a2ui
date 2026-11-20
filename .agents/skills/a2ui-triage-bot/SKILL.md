@@ -19,7 +19,7 @@ The triage bot runs three triage jobs (see [Triage jobs](../../../tools/internal
 2. The triage assistant answers [requests to the triage bot](#requests-to-the-triage-bot). An item with `status: needs-team-input` is waiting for the team: the triage bot posts no suggestion on it, and comments only to answer requests, in a response comment.
 3. The triage reporter writes the [triage report](#triage-report).
 
-The workflow is described in [triage_bot.blueprint.md](../../../tools/internal/triage_new/blueprints/features/triage_bot.blueprint.md).
+The jobs are described in the blueprints in [`features/triage_bot/`](../../../tools/internal/triage_new/blueprints/features/triage_bot/).
 
 The triage bot only comments. It never adds or removes labels, assigns people, closes items, or changes milestones: those are the triager's decisions.
 
@@ -89,7 +89,7 @@ What to post depends on the item's labels:
 1. If the item has `status: needs-team-input`, post a [response comment](#response-comment) when the item has [requests to the triage bot](#requests-to-the-triage-bot) that are not answered yet. Otherwise skip the item.
 2. Otherwise, post a suggestion comment, unless the item's suggestion is current.
 
-[Current and outdated suggestions](../../../tools/internal/triage_new/blueprints/features/triage_bot.blueprint.md#current-and-outdated-suggestions) defines when a suggestion is current. In the fields that [item.graphql](references/item.graphql) returns, the suggestion is current when the `updatedAt` of the latest suggestion comment is later than all of the following:
+[Current and outdated suggestions](../../../tools/internal/triage_new/blueprints/features/triage_bot/suggestion.blueprint.md#current-and-outdated-suggestions) defines when a suggestion is current. In the fields that [item.graphql](references/item.graphql) returns, the suggestion is current when the `updatedAt` of the latest suggestion comment is later than all of the following:
 
 1. The `createdAt` of every other comment, excluding other triage bot comments.
 2. The `submittedAt` of every PR review.
@@ -393,7 +393,7 @@ List every item with its outcome and a link: suggestion posted, response posted,
 
 ## Triage report
 
-The triage report says what a team member triaged in a period, so that the team can read it in the go/a2ui-core-working-group chat space and in the go/a2ui-triage-log doc. The triager usually asks for it at the end of their triage week, as in "Create the triage report for last week". The report is described in [Triage report](../../../tools/internal/triage_new/blueprints/features/triage_bot.blueprint.md#triage-report).
+The triage report says what a team member triaged in a period, so that the team can read it in the go/a2ui-core-working-group chat space and in the go/a2ui-triage-log doc. The triager usually asks for it at the end of their triage week, as in "Create the triage report for last week". The report is described in [Triage report](../../../tools/internal/triage_new/blueprints/features/triage_bot/report.blueprint.md).
 
 [triage_report.mts](scripts/triage_report.mts) collects the activity from GitHub and writes the report. Do not collect the activity or write the report yourself: GitHub returns stale or incomplete timelines for some queries, and the script works around them and is tested.
 
