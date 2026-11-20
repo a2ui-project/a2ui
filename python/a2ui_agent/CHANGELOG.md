@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Add submit-time named-predicate agent functions (`NamedPredicateSpec`,
+  `SessionRateLimiter`, `build_predicate_agent_functions`) in
+  `a2ui.rpc.experimental.decision`.
+
 - Add `ToolPointerBinder` in
   `a2ui.inference_formats.experimental.decision_binder` for binding tool-result
   JSON Pointers directly into Express templates, `@macro` components, and
