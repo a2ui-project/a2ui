@@ -4,6 +4,8 @@
   "packageManager": "yarn@4.13.0",
   "workspaces": [
     "catalogs/*",
+    "e2e/agents/typescript",
+    "e2e/web",
     "typescript/*",
     "typescript/agents/*",
     "typescript/catalogs/*",
