@@ -20,6 +20,12 @@
   character, for example `(?:ab?){3}` instead of `(?:a?b?){3}`.
   [#4236](https://github.com/a2ui-project/a2ui/issues/4236),
   [#4310](https://github.com/a2ui-project/a2ui/pull/4310)
+- Add optional `instructions` (Markdown design guidelines for agents) to `CatalogProtocol` and
+  `Catalog`, with an `instructions:` parameter on `Catalog.init` and `Catalog.derive`. `derive`
+  does not keep the source catalog's instructions, and `MessageProcessor.getRendererCapabilities`
+  writes them into v1.0 inline catalogs when set.
+  [#3842](https://github.com/a2ui-project/a2ui/issues/3842),
+  [#4312](https://github.com/a2ui-project/a2ui/pull/4312)
 - Add an `isUserActivated` parameter (default `false`) to `MessageProcessor.processMessages(_:)`,
   `process(payload:)`, `process(message:)`, and `process(messages:)`. Pass `true` when the payload
   is handled within a user gesture so a v1.0 `callRendererFunction` may run functions that set

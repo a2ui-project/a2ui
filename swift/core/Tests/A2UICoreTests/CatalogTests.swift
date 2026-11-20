@@ -245,7 +245,8 @@ struct CatalogTests {
       protocolVersion: .v10,
       components: ["Text", "Image", "Button"].map { AnyComponentAPI(name: $0, schema: schema) },
       functions: [ConcatFunction(), IsEmptyFunction()],
-      themeSchema: schema
+      themeSchema: schema,
+      instructions: "Write components of source."
     )
   }
 
@@ -294,6 +295,37 @@ struct CatalogTests {
     #expect(derived.protocolVersion == source.protocolVersion)
     #expect(derived.themeSchema == source.themeSchema)
     #expect(Set(derived.components.keys) == Set(source.components.keys))
+  }
+
+  @Test func deriveDropsTheSourceInstructions() throws {
+    let source = try deriveSource()
+    let derived = try source.derive(id: "derived")
+
+    #expect(source.instructions == "Write components of source.")
+    #expect(derived.instructions == nil)
+  }
+
+  @Test func deriveSetsTheGivenInstructions() throws {
+    let derived = try deriveSource().derive(
+      id: "derived",
+      components: ["Text"],
+      instructions: "Write components of derived."
+    )
+
+    #expect(derived.instructions == "Write components of derived.")
+  }
+
+  @Test func eraseToAnyCatalogKeepsInstructions() throws {
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      instructions: "Use Text for prose."
+    )
+
+    #expect(catalog.instructions == "Use Text for prose.")
+    #expect(catalog.eraseToAnyCatalog().instructions == "Use Text for prose.")
+    #expect(AnyCatalog(id: "bare", components: []).instructions == nil)
   }
 
   @Test func deriveThrowsForAnUnknownComponent() throws {
