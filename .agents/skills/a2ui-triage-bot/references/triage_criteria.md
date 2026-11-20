@@ -59,10 +59,10 @@ Do not suggest a ping for a stale assigned issue. The [staleness pinger](../../.
 Follow [Triage a PR](../../../../docs/contributing/triage/triage.md#triage-a-pr). Suggest a review when all of the following are true, and say which ones you checked:
 
 1. The PR is a minor change, such as a docs fix or a small bug fix with a test, or it addresses an issue that is assigned to the PR author.
-2. It does not overlap with open PRs or work in progress. List overlapping PRs in `related_prs`.
+2. It does not overlap with open PRs or work in progress. List overlapping PRs in `related_items`.
 3. The team can maintain the change long term.
 
-If you suggest a review, suggest assigning an owner of the changed files, and list the issues the PR closes in `related_issues`.
+If you suggest a review, suggest assigning an owner of the changed files, and list the issues the PR targets in `targeted_issues`.
 
 Otherwise, set `close_as` to `not_planned` and use the reply from [Triage a PR](../../../../docs/contributing/triage/triage.md#triage-a-pr) as the `reply`.
 

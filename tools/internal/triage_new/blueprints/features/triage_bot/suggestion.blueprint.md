@@ -50,6 +50,12 @@ Suggestion: set P1 and assign for triage to an expert.
 **Summary:**
 The issue highlights the problem: Flutter renderer throws an exception when a `Row` has an empty `children` list. [Per blueprint](response.blueprint.md), it should not.
 
+**Targeting PRs:**
+https://github.com/a2ui-project/a2ui/pull/3001
+
+**Targeted issues:**
+https://github.com/a2ui-project/a2ui/issues/3002
+
 **Why flagged for triage:**
 This issue has external input but no priority label yet.
 
@@ -58,7 +64,7 @@ Set P1 and assign for triage to `octocat`, who made [most of the recent changes]
 
 1. Add labels: `status: assigned-for-triage`, `type: bug`, `P1`, `component: flutter adapter`, `status: first-line-handled`
 2. Assign: `octocat`
-3. Related issues: #1234
+3. Related items: #1234
 
 Reply:
 
@@ -86,7 +92,9 @@ Suggestion: set P1 and assign for triage to an expert.""",
   reply="""Thanks for the report and the payload that reproduces it. We confirmed the crash and plan to fix it soon. #1234 reports the same crash for `Column`.""",
   added_labels=["status: assigned-for-triage", "type: bug", "P1", "component: flutter adapter", "status: first-line-handled"],
   new_assignees=["octocat"],
-  related_issues=[1234]
+  targeting_prs=[3001],
+  targeted_issues=[3002],
+  related_items=[1234]
 )
 </a2ui>
 ```
@@ -99,8 +107,8 @@ The parts of the comment, in order:
 1. The triage bot prefix, and the line "Triage suggestion:".
 2. The **For humans** section, collapsed:
    1. The `tldr`, under **TL;DR**. The part is left out when there is no TL;DR.
-   2. The `summary`, the `reason` and the `suggestion`, as paragraphs under **Summary**, **Why flagged for triage** and **Suggestion**. The **Why flagged for triage** paragraph is left out when there is no reason.
-   3. The other properties that have values, as a numbered list: **Close as**, **Add labels**, **Remove labels**, **Assign**, **Unassign**, **Related issues** and **Related PRs**. An example of **Close as** is "Close as: duplicate of #1100".
+   2. The `summary`, the `targeting_prs`, the `targeted_issues`, the `reason` and the `suggestion`, as paragraphs under **Summary**, **Targeting PRs**, **Targeted issues**, **Why flagged for triage** and **Suggestion**. **Targeting PRs** and **Targeted issues** have the URL of each item on its own line. The **Targeting PRs**, **Targeted issues** and **Why flagged for triage** paragraphs are left out when their property has no value.
+   3. The other properties that have values, as a numbered list: **Close as**, **Add labels**, **Remove labels**, **Assign**, **Unassign**, **Related items**. An example of **Close as** is "Close as: duplicate of #1100".
    4. The `reply`, quoted, under **Reply**. The part is left out when there is no reply.
    5. The command that opens the item in the triage UI.
 3. The **For software** section, collapsed: the component.
@@ -131,6 +139,10 @@ The component is defined in [triage_suggestion.dart](../../../pkgs/triage/lib/sr
 7. `duplicate_of`: the number of the item that this item duplicates. It is set only with `close_as: duplicate`.
 8. `added_labels` and `removed_labels`: labels to add and remove.
 9. `new_assignees` and `removed_assignees`: GitHub logins to assign and unassign.
-10. `related_issues` and `related_prs`: numbers of related issues and PRs, which the triager may want to read. The triage UI does not change them. For an open PR related to an issue, the `suggestion` says whether the PR closes the issue. The triage UI counts a PR as an open PR of the issue only when the PR is linked to close it, so a PR that only mentions the issue is not one, and the suggestion says so.
+10. `targeting_prs`: numbers of open PRs that target the item, such as PRs that fix it. A PR can target an issue without being linked to close it, so the `suggestion` says whether each PR closes the issue. The triage UI counts a PR as an open PR of the issue only when the PR is linked to close it.
+11. `targeted_issues`: numbers of issues that the item targets, such as the issues that a PR fixes.
+12. `related_items`: numbers of other issues and PRs that relate to the item, which the triager may want to read.
+
+The triage UI shows `targeting_prs`, `targeted_issues` and `related_items` as links, and does not change them.
 
 Item numbers refer to the item's own repository. An omitted list means none.

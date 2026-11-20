@@ -30,8 +30,9 @@ final class TriageSuggestion {
     this.removedLabels = const [],
     this.newAssignees = const [],
     this.removedAssignees = const [],
-    this.relatedIssues = const [],
-    this.relatedPrs = const [],
+    this.targetingPrs = const [],
+    this.targetedIssues = const [],
+    this.relatedItems = const [],
   });
 
   /// Reads the properties of a component that is valid against
@@ -54,8 +55,9 @@ final class TriageSuggestion {
         removedAssignees: _strings(
           properties[TriageSuggestionProps.removedAssignees],
         ),
-        relatedIssues: _ints(properties[TriageSuggestionProps.relatedIssues]),
-        relatedPrs: _ints(properties[TriageSuggestionProps.relatedPrs]),
+        targetingPrs: _ints(properties[TriageSuggestionProps.targetingPrs]),
+        targetedIssues: _ints(properties[TriageSuggestionProps.targetedIssues]),
+        relatedItems: _ints(properties[TriageSuggestionProps.relatedItems]),
       );
 
   /// The case and the suggestion in a few words each, as two lines:
@@ -87,8 +89,15 @@ final class TriageSuggestion {
   final List<String> removedLabels;
   final List<String> newAssignees;
   final List<String> removedAssignees;
-  final List<int> relatedIssues;
-  final List<int> relatedPrs;
+
+  /// Open pull requests that target the item, such as ones that fix it.
+  final List<int> targetingPrs;
+
+  /// Issues that the item targets, such as ones that a pull request fixes.
+  final List<int> targetedIssues;
+
+  /// Other issues and pull requests that relate to the item.
+  final List<int> relatedItems;
 
   static List<String> _strings(Object? value) =>
       value == null ? const [] : List.unmodifiable(value as List<Object?>);

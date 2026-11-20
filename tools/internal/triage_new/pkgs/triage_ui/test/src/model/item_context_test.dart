@@ -38,7 +38,8 @@ void main() {
               'root = TriageSuggestion(tldr="Case: a crash.", '
               'summary="A crash.", '
               'reason="Priority is not set.", suggestion="Set P1.", '
-              'reply="Thanks.", added_labels=["P1"], related_issues=[5])',
+              'reply="Thanks.", added_labels=["P1"], targeting_prs=[6], '
+              'related_items=[5])',
             ),
             at: day(2),
           ),
@@ -103,7 +104,8 @@ It also crashes on a Column.
 - Summary: A crash.
 - Why flagged for triage: Priority is not set.
 - Suggestion: Set P1.
-- Related issues: #5
+- Targeting PRs: #6
+- Related items: #5
 
 ## Changes that Apply would make, as I edited them
 

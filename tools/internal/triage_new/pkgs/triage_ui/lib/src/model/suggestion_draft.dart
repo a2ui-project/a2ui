@@ -35,8 +35,9 @@ class SuggestionDraft extends ChangeNotifier {
       _removedLabels = suggestion.removedLabels,
       _newAssignees = suggestion.newAssignees,
       _removedAssignees = suggestion.removedAssignees,
-      relatedIssues = suggestion.relatedIssues,
-      relatedPrs = suggestion.relatedPrs {
+      targetingPrs = suggestion.targetingPrs,
+      targetedIssues = suggestion.targetedIssues,
+      relatedItems = suggestion.relatedItems {
     reply.addListener(notifyListeners);
     duplicateOf.addListener(notifyListeners);
   }
@@ -62,8 +63,9 @@ class SuggestionDraft extends ChangeNotifier {
   /// The number of the duplicated item, as the triager types it.
   final TextEditingController duplicateOf;
 
-  final List<int> relatedIssues;
-  final List<int> relatedPrs;
+  final List<int> targetingPrs;
+  final List<int> targetedIssues;
+  final List<int> relatedItems;
 
   String? _closeAs;
   List<String> _addedLabels;
@@ -181,8 +183,9 @@ class SuggestionDraft extends ChangeNotifier {
       removedLabels: _removedLabels,
       newAssignees: _newAssignees,
       removedAssignees: _removedAssignees,
-      relatedIssues: relatedIssues,
-      relatedPrs: relatedPrs,
+      targetingPrs: targetingPrs,
+      targetedIssues: targetedIssues,
+      relatedItems: relatedItems,
     );
   }
 

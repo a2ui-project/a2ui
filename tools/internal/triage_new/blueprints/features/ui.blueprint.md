@@ -82,7 +82,7 @@ The `tldr`, the `summary`, the `reason` and the `suggestion` are shown in the le
 2. The triager checks the labels, people and milestone to add in a dropdown: the repository's labels, the people who can be assigned, and its open milestones. An item has at most one milestone, so checking one in its dropdown unchecks the other. The dropdown lists the checked options first. In the labels to add, `status: needs-team-input` comes next, before the other labels. A dropdown with more than 7 options has a search field at the top.
 3. The fields that remove things list what the item has, its labels, assignees and milestone, each with a checkbox. A checked one is grayed out. A field is not shown when the item has nothing of its kind. `status: needs-triage` starts checked, since a triaged item no longer needs it, and **Revert** checks it again. On a2ui, the [triage bot](../../../triage/blueprints/flagging.blueprint.md) adds the label back if the item still matches its rules. Nothing manages the label on genui, so the tool has to remove it there.
 
-Labels have their colors from the repository, as on GitHub. The related issues and PRs are links, and the link to a closed item says "(closed)", or "(merged)" for a merged PR. Every link outside that text, and every button that opens a link, has a small **Copy link** button on its right.
+Labels have their colors from the repository, as on GitHub. The related items are links: the PRs or issues that GitHub links to the item, the duplicated issue, and the suggestion's `targeting_prs`, `targeted_issues` and `related_items`. A PR or issue that GitHub links is not repeated from `targeting_prs` or `targeted_issues`. The link to a closed item says "(closed)", or "(merged)" for a merged PR. Every link outside that text, and every button that opens a link, has a small **Copy link** button on its right.
 
 **Apply**, in the right column of every tab, applies the suggestion of each item in the tabs to it on GitHub, skipping the suggestions that change nothing. When more than one item has changes, the button says how many, as in "Apply to 2 items", since **Revert** acts on one tab and **Apply** on all of them. `status: needs-team-input` is an ordinary label: the triager adds or removes it with the other labels, and **Apply** applies that.
 
@@ -138,7 +138,7 @@ In both cases, Ann also checks `status: needs-team-input` in the labels to remov
 
 ### Close a duplicate
 
-The suggestion is to close the issue as a duplicate of #1100. Ann opens #1100 from the related issues, confirms that it reports the same problem, and clicks **Apply**. The tool posts the reply and closes the issue as a duplicate of #1100.
+The suggestion is to close the issue as a duplicate of #1100. Ann opens #1100 from the related items, confirms that it reports the same problem, and clicks **Apply**. The tool posts the reply and closes the issue as a duplicate of #1100.
 
 ### Triage an issue and its PR
 

@@ -52,8 +52,9 @@ void main() {
           'removed_labels': ['status: needs-team-input'],
           'new_assignees': ['octocat'],
           'removed_assignees': ['hubot'],
-          'related_issues': [12, 34],
-          'related_prs': [56],
+          'targeting_prs': [56],
+          'targeted_issues': [78],
+          'related_items': [12, 34],
         }),
       ),
       returnsNormally,
@@ -148,11 +149,11 @@ void main() {
       expect(
         () => validator.validateComponent(
           suggestion({
-            'related_issues': [reference],
+            'related_items': [reference],
           }),
         ),
         rejected,
-        reason: 'related_issues: [$reference]',
+        reason: 'related_items: [$reference]',
       );
     }
   });

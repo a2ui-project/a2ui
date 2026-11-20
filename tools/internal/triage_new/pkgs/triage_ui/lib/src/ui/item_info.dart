@@ -273,10 +273,15 @@ class _RelatedItems extends StatelessWidget {
           'Duplicate of #$duplicateOf${closed(duplicateOf)}',
           issue(duplicateOf),
         ),
-      for (final int n in draft.relatedIssues)
-        ('Issue #$n${closed(n)}', issue(n)),
-      for (final int n in draft.relatedPrs)
-        ('PR #$n${closed(n)}', pullRequest(n)),
+      // The PRs and issues that GitHub links already have a link above.
+      for (final int n in draft.targetingPrs)
+        if (!item.linkedItems.contains(n))
+          ('Targeted by PR #$n${closed(n)}', pullRequest(n)),
+      for (final int n in draft.targetedIssues)
+        if (!item.linkedItems.contains(n))
+          ('Targets issue #$n${closed(n)}', issue(n)),
+      // GitHub redirects the issue URL of a PR to the PR.
+      for (final int n in draft.relatedItems) ('#$n${closed(n)}', issue(n)),
     ];
     if (links.isEmpty) return const SizedBox.shrink();
     return Column(

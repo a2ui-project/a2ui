@@ -51,8 +51,9 @@ const List<String> _properties = [
   TriageSuggestionProps.removedLabels,
   TriageSuggestionProps.newAssignees,
   TriageSuggestionProps.removedAssignees,
-  TriageSuggestionProps.relatedIssues,
-  TriageSuggestionProps.relatedPrs,
+  TriageSuggestionProps.targetingPrs,
+  TriageSuggestionProps.targetedIssues,
+  TriageSuggestionProps.relatedItems,
 ];
 
 /// Renders the suggestion comment of [item] as an A2UI surface, with

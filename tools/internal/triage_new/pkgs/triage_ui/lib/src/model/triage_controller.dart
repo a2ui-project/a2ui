@@ -529,8 +529,9 @@ class TriageController extends ChangeNotifier {
       removedLabels: [...suggestion.removedLabels, label],
       newAssignees: suggestion.newAssignees,
       removedAssignees: suggestion.removedAssignees,
-      relatedIssues: suggestion.relatedIssues,
-      relatedPrs: suggestion.relatedPrs,
+      targetingPrs: suggestion.targetingPrs,
+      targetedIssues: suggestion.targetedIssues,
+      relatedItems: suggestion.relatedItems,
     );
   }
 

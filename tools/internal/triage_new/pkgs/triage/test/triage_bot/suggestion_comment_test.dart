@@ -59,8 +59,9 @@ Suggestion: close as a duplicate.""",
   removed_labels=["status: needs-team-input"],
   new_assignees=["octocat"],
   removed_assignees=["hubot"],
-  related_issues=[1234],
-  related_prs=[1300, 1301]
+  targeting_prs=[1300],
+  targeted_issues=[1200],
+  related_items=[1234, 1301]
 )'''),
     );
 
@@ -79,8 +80,9 @@ Suggestion: close as a duplicate.""",
     expect(s.removedLabels, ['status: needs-team-input']);
     expect(s.newAssignees, ['octocat']);
     expect(s.removedAssignees, ['hubot']);
-    expect(s.relatedIssues, [1234]);
-    expect(s.relatedPrs, [1300, 1301]);
+    expect(s.targetingPrs, [1300]);
+    expect(s.targetedIssues, [1200]);
+    expect(s.relatedItems, [1234, 1301]);
 
     final create = payload.messages.single as CreateSurfaceMessage;
     expect(create.catalogId, triageCatalogId);
@@ -96,7 +98,9 @@ Suggestion: close as a duplicate.""",
     expect(s.closeAs, isNull);
     expect(s.duplicateOf, isNull);
     expect(s.addedLabels, isEmpty);
-    expect(s.relatedPrs, isEmpty);
+    expect(s.targetingPrs, isEmpty);
+    expect(s.targetedIssues, isEmpty);
+    expect(s.relatedItems, isEmpty);
   });
 
   final Matcher rejected = throwsA(isA<FormatException>());

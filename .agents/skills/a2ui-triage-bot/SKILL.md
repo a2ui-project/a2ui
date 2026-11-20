@@ -146,8 +146,9 @@ The [`TriageSuggestion`](../../../tools/internal/triage_new/pkgs/triage/lib/src/
 9. `removed_labels`: labels to remove.
 10. `new_assignees`: GitHub logins to assign.
 11. `removed_assignees`: GitHub logins to unassign.
-12. `related_issues`: numbers of related issues in `a2ui-project/a2ui`.
-13. `related_prs`: numbers of related PRs in `a2ui-project/a2ui`.
+12. `targeting_prs`: numbers of open PRs in `a2ui-project/a2ui` that target the item, such as PRs that fix it.
+13. `targeted_issues`: numbers of issues in `a2ui-project/a2ui` that the item targets, such as the issues that a PR fixes.
+14. `related_items`: numbers of other issues and PRs in `a2ui-project/a2ui` that relate to the item.
 
 Rules for the lists:
 
@@ -155,8 +156,8 @@ Rules for the lists:
 2. Use only labels that exist in the repository (`gh label list -R a2ui-project/a2ui --limit 200`). Add only labels the item does not have, and remove only labels it has.
 3. Never add or remove `status: needs-triage`. The [flagger](../../../tools/internal/triage/blueprints/flagging.blueprint.md) manages it and would undo the change.
 4. Assign only logins that pass the assignee check in step 4, and that are not assigned yet.
-5. List a related item only if the suggestion says how it relates. Do not list the item itself, or the item in `duplicate_of`.
-6. For an open PR related to an issue, say whether it closes the issue. A PR closes it only when it is linked to close it, with `Fixes #<number>` or in the sidebar. A PR that only mentions the issue does not, so write that it is related but does not close the issue, such as "#4092 is related but does not close this issue".
+5. List an item in `related_items` only if the suggestion says how it relates. Do not list the item itself, the item in `duplicate_of`, or an item in `targeting_prs` or `targeted_issues`.
+6. For each PR in `targeting_prs`, say whether it closes the issue. A PR closes it only when it is linked to close it, with `Fixes #<number>` or in the sidebar. A PR that works on the issue without that link still targets it, so write that it does not close the issue, such as "#4092 works on this issue but does not close it". A PR that only mentions the issue goes in `related_items`.
 7. Do not repeat an entry in a list.
 
 Write `tldr`, `summary` and `suggestion` for the triager, and `reply` for the people on the item, following the natural-writing rules. In `suggestion`, state the action first, then why. Do not use filler such as "I hope this helps".
@@ -194,6 +195,12 @@ Suggestion: <short suggestion>
 **Summary:**
 <summary>
 
+**Targeting PRs:**
+https://github.com/a2ui-project/a2ui/pull/<number>
+
+**Targeted issues:**
+https://github.com/a2ui-project/a2ui/issues/<number>
+
 **Why flagged for triage:**
 <reason>
 
@@ -205,8 +212,7 @@ Suggestion: <short suggestion>
 3. Remove labels: `<label>`
 4. Assign: `<login>`
 5. Unassign: `<login>`
-6. Related issues: #<number>, #<number>
-7. Related PRs: #<number>
+6. Related items: #<number>, #<number>
 
 Reply:
 
@@ -236,7 +242,9 @@ Suggestion: <short suggestion>""",
   duplicate_of=<number>,
   added_labels=["<label>", "<label>"],
   new_assignees=["<login>"],
-  related_issues=[<number>, <number>]
+  targeting_prs=[<number>],
+  targeted_issues=[<number>],
+  related_items=[<number>, <number>]
 )
 </a2ui>
 ```
@@ -246,7 +254,7 @@ Suggestion: <short suggestion>""",
 
 Formatting rules:
 
-1. Leave out the **Why flagged for triage** paragraph when there is no reason. In the numbered list, keep only the lines for properties that have values, and number them from 1. Leave out the **Reply** part when there is no reply. Quote every line of the reply with `>`.
+1. Leave out the **Targeting PRs**, **Targeted issues** and **Why flagged for triage** paragraphs when their property has no value. Under **Targeting PRs** and **Targeted issues**, put the URL of each item on its own line. In the numbered list, keep only the lines for properties that have values, and number them from 1. Leave out the **Reply** part when there is no reply. Quote every line of the reply with `>`.
 2. Write logins in backticks without `@`, in every property. A suggestion is not a decision yet, so it must not notify the people it names.
 3. In the command, use the item's URL, such as `https://github.com/a2ui-project/a2ui/issues/123` or `https://github.com/a2ui-project/a2ui/pull/123`.
 4. Keep a blank line after each `<summary>` line and before each `</details>`, so that GitHub renders the Markdown inside the section.
@@ -278,7 +286,7 @@ Set P1 and assign `flutter-owner`, who wrote [most recent changes](https://githu
 
 1. Add labels: `type: bug`, `P1`, `component: flutter adapter`, `status: first-line-handled`
 2. Assign: `flutter-owner`
-3. Related issues: #1234
+3. Related items: #1234
 
 To adjust and apply this suggestion, run in your a2ui checkout:
 
@@ -301,7 +309,7 @@ Suggestion: set P1 and assign `flutter-owner`.""",
   suggestion="""Set P1 and assign `flutter-owner`, who wrote [most recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.""",
   added_labels=["type: bug", "P1", "component: flutter adapter", "status: first-line-handled"],
   new_assignees=["flutter-owner"],
-  related_issues=[1234]
+  related_items=[1234]
 )
 </a2ui>
 ```

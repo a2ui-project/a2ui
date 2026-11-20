@@ -131,11 +131,12 @@ void _writeItem(StringBuffer out, TriageController controller, TriageItem i) {
       ]) {
         if (text != null) out.writeln('- $title: $text');
       }
-      if (draft.relatedIssues.isNotEmpty) {
-        out.writeln('- Related issues: ${numbers(draft.relatedIssues)}');
-      }
-      if (draft.relatedPrs.isNotEmpty) {
-        out.writeln('- Related PRs: ${numbers(draft.relatedPrs)}');
+      for (final (String title, List<int> items) in [
+        ('Targeting PRs', draft.targetingPrs),
+        ('Targeted issues', draft.targetedIssues),
+        ('Related items', draft.relatedItems),
+      ]) {
+        if (items.isNotEmpty) out.writeln('- $title: ${numbers(items)}');
       }
   }
 

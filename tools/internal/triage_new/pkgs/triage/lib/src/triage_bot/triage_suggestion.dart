@@ -81,12 +81,17 @@ final ComponentApi triageSuggestionApi = ComponentApi(
       TriageSuggestionProps.removedAssignees: _names(
         'GitHub logins to unassign from the item.',
       ),
-      TriageSuggestionProps.relatedIssues: _itemNumbers(
-        'Numbers of issues in the same repository that relate to the item.',
+      TriageSuggestionProps.targetingPrs: _itemNumbers(
+        'Numbers of open pull requests in the same repository that target '
+        'the item, such as pull requests that fix it.',
       ),
-      TriageSuggestionProps.relatedPrs: _itemNumbers(
-        'Numbers of pull requests in the same repository that relate to the '
-        'item.',
+      TriageSuggestionProps.targetedIssues: _itemNumbers(
+        'Numbers of issues in the same repository that the item targets, '
+        'such as issues that a pull request fixes.',
+      ),
+      TriageSuggestionProps.relatedItems: _itemNumbers(
+        'Numbers of other issues and pull requests in the same repository '
+        'that relate to the item.',
       ),
     },
     required: [
@@ -125,8 +130,9 @@ abstract final class TriageSuggestionProps {
   static const String removedLabels = 'removed_labels';
   static const String newAssignees = 'new_assignees';
   static const String removedAssignees = 'removed_assignees';
-  static const String relatedIssues = 'related_issues';
-  static const String relatedPrs = 'related_prs';
+  static const String targetingPrs = 'targeting_prs';
+  static const String targetedIssues = 'targeted_issues';
+  static const String relatedItems = 'related_items';
 }
 
 /// The values of the `close_as` property of [triageSuggestionApi], which

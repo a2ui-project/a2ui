@@ -54,7 +54,8 @@ void main() {
               'Row.""", reason="Priority is not set.", '
               'suggestion="""Set P1 and assign octocat.""", '
               'reply="""Thanks for the report.""", added_labels=["P1"], '
-              'new_assignees=["octocat"], related_issues=[1234])',
+              'new_assignees=["octocat"], targeting_prs=[20, 21], '
+              'related_items=[1234])',
             ),
             at: day(2),
           ),
@@ -190,7 +191,13 @@ void main() {
     expect(find.text('Remove labels'), findsNothing);
     expect(find.text('Unassign'), findsNothing);
     expect(find.text('Remove milestone'), findsNothing);
-    expect(find.widgetWithText(ActionChip, 'Issue #1234'), findsOneWidget);
+    expect(find.widgetWithText(ActionChip, '#1234'), findsOneWidget);
+    // PR #20 is linked to close the issue, so it has only the GitHub link.
+    expect(
+      find.widgetWithText(ActionChip, 'Targeted by PR #21'),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(ActionChip, 'Targeted by PR #20'), findsNothing);
     expect(find.widgetWithText(ActionChip, 'Fixed by PR #20'), findsOneWidget);
 
     // The item's age and author, on rows of their own.
@@ -737,10 +744,7 @@ void main() {
       () => Future<void>.delayed(const Duration(milliseconds: 10)),
     );
 
-    expect(
-      find.widgetWithText(ActionChip, 'Issue #1234 (closed)'),
-      findsOneWidget,
-    );
+    expect(find.widgetWithText(ActionChip, '#1234 (closed)'), findsOneWidget);
     expect(
       find.widgetWithText(ActionChip, 'Fixed by PR #20 (merged)'),
       findsOneWidget,
