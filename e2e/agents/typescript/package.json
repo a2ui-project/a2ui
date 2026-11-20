@@ -1,0 +1,77 @@
+{
+  "name": "@a2ui/e2e-agent-ts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scripted A2UI test agent that replays conformance/e2e scenarios over A2A, for the live-pair end-to-end tests.",
+  "main": "dist/src/main.js",
+  "type": "module",
+  "scripts": {
+    "build": "wireit",
+    "build:tsc": "wireit",
+    "start": "wireit",
+    "test": "wireit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "clean": "rm -rf dist .tsbuildinfo .wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:tsc"
+      ]
+    },
+    "build:tsc": {
+      "command": "tsc -b --pretty",
+      "dependencies": [
+        "../../../typescript/agents/a2ui_agent:build"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "tsconfig.json"
+      ],
+      "output": [
+        "dist/"
+      ],
+      "clean": "if-file-deleted"
+    },
+    "start": {
+      "command": "node dist/src/main.js",
+      "service": true,
+      "dependencies": [
+        "build"
+      ]
+    },
+    "test": {
+      "command": "vitest run",
+      "dependencies": [
+        "build"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "tests/**/*.ts",
+        "vitest.config.ts",
+        "tsconfig.json"
+      ],
+      "output": []
+    }
+  },
+  "dependencies": {
+    "@a2a-js/sdk": "^0.3.13",
+    "@a2ui/agent": "workspace:*",
+    "@a2ui/web_core": "workspace:*",
+    "express": "^5.2.1",
+    "js-yaml": "^4.3.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
+    "prettier": "^3.8.4",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.8",
+    "wireit": "^0.15.0-pre.2"
+  }
+}
