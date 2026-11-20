@@ -90,7 +90,7 @@
     "generate-examples": {
       "command": "node scripts/generate-examples.mjs",
       "files": [
-        "../../../../specification/v0_9/catalogs/basic/examples/*.json",
+        "../../../../catalogs/basic/v0_9/examples/*.json",
         "../../../../catalogs/basic/v1/examples/*.json",
         "../../../../catalogs/mcp/v1/examples/*.json",
         "scripts/generate-examples.mjs"
@@ -122,7 +122,7 @@
     "karma-chrome-launcher": "^3.2.0",
     "karma-esbuild": "^2.3.0",
     "karma-jasmine": "^5.1.0",
-    "typescript": "5.9.3",
+    "typescript": "6.0.3",
     "vite": "^8.0.16",
     "wireit": "^0.15.0-pre.2"
   },

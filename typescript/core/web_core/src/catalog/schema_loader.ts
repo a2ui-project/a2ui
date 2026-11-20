@@ -508,6 +508,15 @@ function convertPropertyToZod(
           // ignore regex compilation failure
         }
       }
+      if (propSchema.format === 'uri') {
+        return finalizePropertyZod(
+          s.refine(v => v.trim().length > 0 && !/\s/.test(v.trim()), 'Invalid URI'),
+          propSchema,
+          rootDoc,
+          visitedPointers,
+          defCache,
+        );
+      }
       return finalizePropertyZod(s, propSchema, rootDoc, visitedPointers, defCache);
     }
     case 'integer':
@@ -1047,13 +1056,15 @@ function collectArgSubSchemas(
     }
   }
 
-  if (Array.isArray(schema.anyOf) || Array.isArray(schema.oneOf)) {
+  const requiredDisjunction = extractRequiredDisjunction(schema.anyOf);
+  if ((Array.isArray(schema.anyOf) && !requiredDisjunction) || Array.isArray(schema.oneOf)) {
     result.hasUnresolvable = true;
   }
 
   if (
     schema.properties ||
     schema.required ||
+    requiredDisjunction ||
     schema.patternProperties ||
     schema.additionalProperties !== undefined ||
     schema.unevaluatedProperties !== undefined
@@ -1062,6 +1073,27 @@ function collectArgSubSchemas(
   }
 
   return result;
+}
+
+/**
+ * If `branches` is a non-empty array of pure `{required: string[]}` objects
+ * (such as `anyOf: [{required: ['min']}, {required: ['max']}]`), returns the
+ * list of required-key groups. Otherwise returns `undefined`.
+ */
+function extractRequiredDisjunction(branches: unknown): string[][] | undefined {
+  if (!Array.isArray(branches) || branches.length === 0) return undefined;
+  const groups: string[][] = [];
+  for (const branch of branches) {
+    if (!isPlainObject(branch)) return undefined;
+    const keys = Object.keys(branch);
+    if (keys.length !== 1 || keys[0] !== 'required' || !Array.isArray(branch.required)) {
+      return undefined;
+    }
+    const req = branch.required.filter((r): r is string => typeof r === 'string');
+    if (req.length === 0 || req.length !== branch.required.length) return undefined;
+    groups.push(req);
+  }
+  return groups;
 }
 
 /**
@@ -1114,14 +1146,27 @@ export function convertFunctionArgsJsonSchemaToZod(
     collected.hasUnresolvable ||
     collected.schemas.some(isExplicitlyOpen) ||
     isExplicitlyOpen(rawSchema);
-  return closeObjectSchema(
+  const allSchemas = [rawSchema, ...collected.schemas.filter(s => s !== rawSchema)];
+  let closed: z.ZodTypeAny = closeObjectSchema(
     obj,
-    [rawSchema, ...collected.schemas.filter(s => s !== rawSchema)],
+    allSchemas,
     !allowExtra,
     rootDoc,
     undefined,
     defCache,
   );
+  for (const s of allSchemas) {
+    const groups = extractRequiredDisjunction(s.anyOf);
+    if (groups) {
+      const label = groups.map(g => g.map(k => `'${k}'`).join('+')).join(', ');
+      closed = closed.refine(
+        (args: unknown) =>
+          isPlainObject(args) && groups.some(group => group.every(key => args[key] !== undefined)),
+        {message: `At least one of ${label} must be provided.`},
+      );
+    }
+  }
+  return closed;
 }
 
 /**

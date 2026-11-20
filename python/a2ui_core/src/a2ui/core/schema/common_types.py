@@ -15,13 +15,14 @@
 from __future__ import annotations
 import functools
 import sys
+import types
 import typing
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, GetCoreSchemaHandler, ValidationInfo, field_validator, model_validator, StrictBool, StrictFloat, StrictInt, StrictStr
 from pydantic_core import CoreSchema, PydanticUndefined
 from typing_extensions import Self, TypeAliasType
 
-from ._json_schema import SchemaKeywords
+from ._json_schema import _URI_RE, SchemaKeywords
 
 
 class ComponentReference:
@@ -47,8 +48,101 @@ class ListReference(ComponentReference):
     """Marker class indicating a field holds a list of component references."""
 
 
+def _unwrap_leaf_types(annotation: Any) -> list[Any]:
+    """Unwraps Union, UnionType, Annotated, and TypeAliasType into leaf types."""
+    if isinstance(annotation, TypeAliasType):
+        return _unwrap_leaf_types(annotation.__value__)
+    origin = typing.get_origin(annotation)
+    if origin is typing.Annotated:
+        args = typing.get_args(annotation)
+        return _unwrap_leaf_types(args[0]) if args else []
+    if origin is Union or origin is types.UnionType:
+        leaves: list[Any] = []
+        for arg in typing.get_args(annotation):
+            leaves.extend(_unwrap_leaf_types(arg))
+        return leaves
+    return [annotation]
+
+
+def _is_strict_numeric_field(annotation: Any) -> bool:
+    """Returns whether non-None leaf annotations are strictly int or float."""
+    non_none = [t for t in _unwrap_leaf_types(annotation) if t is not type(None)]
+    return bool(non_none) and all(t is int or t is float for t in non_none)
+
+
+def _has_uri_format(extra: Any) -> bool:
+    """Returns whether `json_schema_extra` declares `format: "uri"`."""
+    if isinstance(extra, dict):
+        return extra.get("format") == "uri"
+    if isinstance(extra, SchemaKeywords):
+        return extra.keywords.get("format") == "uri"
+    return False
+
+
+@functools.cache
+def _strict_field_checks(
+    cls: type[BaseModel],
+) -> tuple[frozenset[str], frozenset[str]]:
+    """Returns `(numeric_keys, uri_keys)` for `cls` (including aliases)."""
+    numeric_keys: set[str] = set()
+    uri_keys: set[str] = set()
+    for name, field in cls.model_fields.items():
+        keys = {name, field.alias or name}
+        if isinstance(field.validation_alias, str):
+            keys.add(field.validation_alias)
+        if _is_strict_numeric_field(field.annotation):
+            numeric_keys.update(keys)
+        if _has_uri_format(field.json_schema_extra):
+            uri_keys.update(keys)
+    return frozenset(numeric_keys), frozenset(uri_keys)
+
+
 class StrictBaseModel(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_strict_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        numeric_keys, uri_keys = _strict_field_checks(cls)
+        for key in numeric_keys.intersection(data):
+            if isinstance(data[key], (str, bool)):
+                raise ValueError(
+                    f"Field '{key}' expected a numeric value, got"
+                    f" {type(data[key]).__name__}"
+                )
+        for key in uri_keys.intersection(data):
+            val = data[key]
+            if isinstance(val, str) and _URI_RE.match(val) is None:
+                raise ValueError(f"Field '{key}' must be a valid URI, got '{val}'")
+        return data
+
+    @model_validator(mode="after")
+    def _check_required_any_of(self) -> Self:
+        keywords = type(self).model_config.get("json_schema_extra")
+        branches = (
+            keywords.required_any_of() if isinstance(keywords, SchemaKeywords) else None
+        )
+        if not branches:
+            return self
+        names = {
+            field.alias or name: name for name, field in type(self).model_fields.items()
+        }
+        matched = any(
+            all(
+                names.get(prop, prop) in self.model_fields_set
+                and getattr(self, names.get(prop, prop), None) is not None
+                for prop in branch
+            )
+            for branch in branches
+        )
+        if not matched:
+            choices = " | ".join(", ".join(branch) for branch in branches)
+            raise ValueError(
+                f"{type(self).__name__} must set at least one of: {choices}"
+            )
+        return self
 
     @field_validator("version", mode="after", check_fields=False)
     @classmethod

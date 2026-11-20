@@ -5,7 +5,7 @@
   "projectTitle": "A2UI (Agent-to-User Interface)",
   "description": "Open protocol and renderers for agent-generated UI: agents stream layout data, apps render it with native React, Angular, Lit, Flutter, SwiftUI and Jetpack Compose components.",
   "folders": [
-    "docs/public",
+    "docs/site/src/content/docs",
     "specification/v0_9_1/docs",
     "specification/v1_0/docs",
     "specification/v1_0/extensions",

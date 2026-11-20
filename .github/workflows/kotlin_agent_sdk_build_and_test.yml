@@ -22,12 +22,14 @@ on:
       - "kotlin/agent_sdk_legacy/**"
       - "specification/**/json/**"
       - "specification/inference_formats/**"
+      - "catalogs/**"
       - "conformance/**"
   pull_request:
     paths:
       - "kotlin/agent_sdk_legacy/**"
       - "specification/**/json/**"
       - "specification/inference_formats/**"
+      - "catalogs/**"
       - "conformance/**"
 
 concurrency:
