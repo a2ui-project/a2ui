@@ -1,5 +1,10 @@
 ## Unreleased
 
+- Add `ToolPointerBinder` in
+  `a2ui.inference_formats.experimental.decision_binder` for binding tool-result
+  JSON Pointers directly into Express templates, `@macro` components, and
+  Client-Side Templates without an extra LLM synthesis call.
+
 - Add `DecisionCascadeRouter` in
   `a2ui.inference_formats.experimental.decision_cascade` for single-batch UI
   gating, template selection, and `ComponentPruningTransformer` catalog pruning.
