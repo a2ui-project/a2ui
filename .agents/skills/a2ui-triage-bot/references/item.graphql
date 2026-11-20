@@ -22,7 +22,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
         }
       }
       ... on PullRequest {
-        number title body url state createdAt lastEditedAt isDraft
+        number title body url state createdAt lastEditedAt isDraft mergeable
         author { login } authorAssociation
         labels(first: 50) { nodes { name } }
         assignees(first: 20) { nodes { login } }

@@ -56,7 +56,11 @@ Do not suggest a ping for a stale assigned issue. The [staleness pinger](../../.
 
 ## Pull requests
 
-Follow [Triage a PR](../../../../docs/contributing/triage/triage.md#triage-a-pr). Suggest a review when all of the following are true, and say which ones you checked:
+Follow [Triage a PR](../../../../docs/contributing/triage/triage.md#triage-a-pr).
+
+If Dependabot opened the PR (author `dependabot`, or `dependabot[bot]` in the REST API) and the PR has merge conflicts with `main`, set `close_as` to `not_planned` and skip the rules below. Say in `suggestion` that the PR has conflicts, and list in `related_items` any open Dependabot PR with the same updates. Use this `reply`: "Closing because this PR has merge conflicts with `main`."
+
+Otherwise, suggest a review when all of the following are true, and say which ones you checked:
 
 1. The PR is a minor change, such as a docs fix or a small bug fix with a test, or it addresses an issue that is assigned to the PR author.
 2. It does not overlap with open PRs or work in progress. List overlapping PRs in `related_items`.

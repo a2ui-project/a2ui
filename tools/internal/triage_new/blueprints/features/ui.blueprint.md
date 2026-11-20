@@ -46,6 +46,8 @@ An item's flags show:
 3. `status: needs-team-input`, except in the **Needs team input** group.
 4. Whether the triager has applied its suggestion in this session. An item whose applied suggestion adds `status: needs-team-input` shows a team icon instead, in both of its groups. While **Apply** is applying the item, a spinner shows in that place, and if some of its changes failed, an error icon.
 
+A click on an item selects it alone. A click with Shift held adds the item to the selection, or takes it out if it is selected, so that the triager can [apply several suggestions at once](#apply-several-suggestions-at-once). Shift-click selects the item in the group it is clicked in, as a plain click does, and does not select text in the list.
+
 Issues are green and PRs are orange, in every group. Each type of item has its own icon:
 
 - Issues with open PRs
@@ -59,7 +61,9 @@ Tabs at the top: one for the selected item, and one for each linked PR or issue,
 
 To the left of the tabs, **Locate in the list** expands the selected item's group and subgroup in the list, and scrolls to the item, as when the tool selects an item itself.
 
-To the right of the tabs, **Copy context** copies what the tool knows about the items in the tabs, the selected item first, as Markdown that the triager pastes at the start of a prompt to an agent. For each item, it has the item's URL, state, author, dates, labels, assignees, milestone and linked items, its description, its last 100 comments without the triage bot's suggestion comments, the triage bot's suggestion, and the changes that **Apply** would make, including the triager's edits.
+To the right of the tabs, **Refresh** loads the items in the tabs from GitHub again, as the **Refresh** in the header does for all items, so the triager sees comments and changes made since the items loaded. If an item changed on GitHub, its suggestion resets, as after a refresh in the header. The items stay in their groups until the next **Refresh** in the header.
+
+To the right of **Refresh**, **Copy context** copies what the tool knows about the items in the tabs, the selected item first, as Markdown that the triager pastes at the start of a prompt to an agent. For each item, it has the item's URL, state, author, dates, labels, assignees, milestone and linked items, its description, its last 100 comments without the triage bot's suggestion comments, the triage bot's suggestion, and the changes that **Apply** would make, including the triager's edits.
 
 Each tab shows its item in two columns, on the page background, without a card frame:
 
@@ -71,6 +75,17 @@ Each tab shows its item in two columns, on the page background, without a card f
 The triager can drag the divider between the columns to resize them. Every tab and item keeps the new widths.
 
 Nothing is selected when the tool starts, unless it starts with an item from a suggestion comment. Clicking the selected item again deselects it.
+
+### Several selected items
+
+When the triager selects more than one item with Shift, the details show what **Apply** would change on each of them, instead of the tabs:
+
+1. **Shared changes**: the changes that every selected item has, such as adding the same label or closing as not planned. The same reply counts as a shared change only if its text is the same.
+2. **Individual changes**: each selected item, with its icon, number and title, and its other changes. An item without changes says so, and **Apply** skips it.
+
+The changes are those of each item's [editable suggestion](#editable-suggestion), with the triager's edits: closing, the labels to add and remove, the assignees to add and remove, the milestone, and the reply. They are not editable here. To change an item's suggestion, the triager selects the item alone. The linked items of the selected items are not included.
+
+**Apply**, below the changes, applies the suggestion of each selected item, skipping the ones that change nothing, and says how many, as in "Apply to 3 items". It is disabled while a suggestion cannot be applied, and says why, as for one item. Right after **Apply**, the tool selects the next item that the triager has not handled yet after the first selected item in the list, as after the **Apply** of one item.
 
 ### Editable suggestion
 
@@ -143,6 +158,14 @@ The suggestion is to close the issue as a duplicate of #1100. Ann opens #1100 fr
 ### Triage an issue and its PR
 
 An issue has a PR that fixes it, and both need triage. When Ann selects the issue, the details show a tab for each. Ann adjusts both suggestions and clicks **Apply** once, which applies both.
+
+### Apply several suggestions at once
+
+Four Dependabot PRs have the same suggestion: close as not planned, since a later PR supersedes them.
+
+1. Ann clicks the first PR, and Shift-clicks the other three.
+2. The details show "Close" and the removal of `status: needs-triage` under **Shared changes**. A PR is closed without a reason, so the change reads "Close", where an issue's reads "Close as not planned". Under **Individual changes**, each PR has its own reply, which names the PR that supersedes it.
+3. Ann clicks **Apply to 4 items**. The tool applies the four suggestions and selects the next item that Ann has not handled yet.
 
 ### Recover from a failed apply
 

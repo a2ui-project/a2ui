@@ -68,11 +68,21 @@ String closeReason(TriageItem item, TriageSuggestion suggestion) {
   };
 }
 
-/// Applies [suggestion] to [item] on GitHub: posts the reply, changes the
-/// labels, assignees and, with [milestone], the milestone, and closes the
-/// item, in this order. If [suggestion] adds [needsTeamInputLabel], the reply
-/// is a note for the team, posted under [teamNoteHeading]. [milestones]
-/// gives the numbers of the open milestones by title.
+/// The reply that applying [suggestion] posts, or null if it has none. If
+/// [suggestion] adds [needsTeamInputLabel], the reply is a note for the team,
+/// posted under [teamNoteHeading].
+String? replyToPost(TriageSuggestion suggestion) {
+  final String? reply = suggestion.reply;
+  if (reply == null) return null;
+  return suggestion.addedLabels.contains(needsTeamInputLabel)
+      ? '$teamNoteHeading$reply'
+      : reply;
+}
+
+/// Applies [suggestion] to [item] on GitHub: posts the [replyToPost],
+/// changes the labels, assignees and, with [milestone], the milestone, and
+/// closes the item, in this order. [milestones] gives the numbers of the
+/// open milestones by title.
 ///
 /// Stops at the first step that fails. Skips the reply if [replyPosted],
 /// so that retrying after a failure does not post it twice, and calls
@@ -87,11 +97,7 @@ Future<ApplyResult> applySuggestion(
   Map<String, int> milestones = const {},
 }) async {
   final ItemRef n = item.ref;
-  final String? reply =
-      suggestion.reply != null &&
-          suggestion.addedLabels.contains(needsTeamInputLabel)
-      ? '$teamNoteHeading${suggestion.reply}'
-      : suggestion.reply;
+  final String? reply = replyToPost(suggestion);
   final String? closeAs = suggestion.closeAs;
   final String? newMilestone = milestone.set;
   final String? removedMilestone = milestone.remove;

@@ -30,6 +30,7 @@ import 'package:triage_ui/src/ui/chip_list_field.dart';
 import 'package:triage_ui/src/ui/item_info.dart';
 import 'package:triage_ui/src/ui/item_list.dart';
 import 'package:triage_ui/src/ui/label_colors.dart';
+import 'package:triage_ui/src/ui/multi_selection_view.dart';
 import 'package:triage_ui/src/ui/triage_app.dart';
 
 import '../../support/fake_github.dart';
@@ -795,6 +796,99 @@ void main() {
     await tester.pumpAndSettle();
     expect(controller.selected, isNull);
     expect(find.text('Select an item.'), findsOneWidget);
+  });
+
+  testWidgets('Shift-click selects several items, shows their shared and '
+      'individual changes, and applies them all', (tester) async {
+    await pumpApp(tester, selectFirst: false);
+    await expand(tester, 'Needs triage (3/3)');
+    await expand(tester, 'Issues with open PRs (1/1)');
+    await expand(tester, 'Issues without open PRs (1/1)');
+
+    Future<void> shiftTap(String text) async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.tap(inList(text));
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pumpAndSettle();
+    }
+
+    await tester.tap(inList('#10 Flutter renderer crashes on an empty Row'));
+    await tester.pumpAndSettle();
+    await shiftTap('#11 Docs are unclear');
+
+    expect([for (final i in controller.multiSelection) i.number], [10, 11]);
+    expect(find.text('2 items selected'), findsOneWidget);
+    // Both tiles have the border of a selected item.
+    bool hasBorder(String text) =>
+        (tester
+                    .widget<ListTile>(
+                      find.ancestor(
+                        of: inList(text),
+                        matching: find.byType(ListTile),
+                      ),
+                    )
+                    .shape!
+                as RoundedRectangleBorder)
+            .side !=
+        BorderSide.none;
+    expect(hasBorder('#10 Flutter renderer crashes on an empty Row'), isTrue);
+    expect(hasBorder('#11 Docs are unclear'), isTrue);
+    final Finder view = find.byType(MultiSelectionView);
+    Finder inView(Finder finder) => find.descendant(of: view, matching: finder);
+    // Not editable.
+    expect(inView(find.byType(TextField)), findsNothing);
+    expect(inView(find.byType(SegmentedButton<String>)), findsNothing);
+
+    // Both drafts remove `status: needs-triage`.
+    final Rect shared = tester.getRect(inView(find.text('Shared changes')));
+    final Rect individual = tester.getRect(
+      inView(find.text('Individual changes')),
+    );
+    final Rect needsTriage = tester.getRect(
+      inView(find.text(needsTriageLabel)),
+    );
+    expect(needsTriage.top, inExclusiveRange(shared.top, individual.top));
+    // Only #10 has the rest of the suggestion.
+    expect(inView(find.text('Thanks for the report.')), findsOneWidget);
+    expect(inView(find.text('P1')), findsOneWidget);
+    expect(inView(find.text('Assign: octocat')), findsOneWidget);
+    expect(inView(find.text('No other changes.')), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Apply to 2 items'));
+    await tester.pump();
+    for (
+      var i = 0;
+      i < 100 &&
+          (controller.isApplying(a2ui(10)) || controller.isApplying(a2ui(11)));
+      i++
+    ) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    await tester.pumpAndSettle();
+
+    expect(github.calls, [
+      'POST issues/10/comments {"body":"Thanks for the report."}',
+      'DELETE issues/10/labels/status%3A%20needs-triage',
+      'POST issues/10/labels {"labels":["P1"]}',
+      'POST issues/10/assignees {"assignees":["octocat"]}',
+      'DELETE issues/11/labels/status%3A%20needs-triage',
+    ]);
+    // The next item after #10, the first selected item in the list.
+    expect(controller.multiSelection, isEmpty);
+    expect(controller.selected!.number, 20);
+    expect(find.byType(MultiSelectionView), findsNothing);
+
+    // Shift-click takes an item out of the selection.
+    await shiftTap('#11 Docs are unclear');
+    await shiftTap('#10 Flutter renderer crashes on an empty Row');
+    expect([for (final i in controller.multiSelection) i.number], [20, 11, 10]);
+    await shiftTap('#11 Docs are unclear');
+    expect([for (final i in controller.multiSelection) i.number], [20, 10]);
+    // A plain click selects one item.
+    await tester.tap(inList('#10 Flutter renderer crashes on an empty Row'));
+    await tester.pumpAndSettle();
+    expect(controller.multiSelection, isEmpty);
+    expect(controller.selected!.number, 10);
   });
 
   testWidgets('shows an item opened by URL in its group', (tester) async {

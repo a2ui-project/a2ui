@@ -112,6 +112,11 @@ class TriageController extends ChangeNotifier {
   /// first group that has it.
   ItemGroup? _selectedGroup;
 
+  /// The items that the triager selected together with Shift-click, in the
+  /// order they were selected, with the group each was selected in. Empty
+  /// unless more than one item is selected, and then [_selected] is null.
+  List<(ItemRef, ItemGroup)> _multiSelection = const [];
+
   GitHubItem? _pendingOpen;
 
   final Set<ItemRef> _changedOnGitHub = {};
@@ -184,6 +189,10 @@ class TriageController extends ChangeNotifier {
       _selected = null;
       _selectedGroup = null;
     }
+    _setMultiSelection([
+      for (final (ItemRef r, ItemGroup g) in _multiSelection)
+        if (!_hidden.contains((g, r))) (r, g),
+    ]);
     notifyListeners();
   }
 
@@ -219,6 +228,52 @@ class TriageController extends ChangeNotifier {
     bool has(ItemGroup g) => itemsIn(g).any((i) => i.ref == ref);
     if (_selectedGroup case final ItemGroup g when has(g)) return g;
     return ItemGroup.values.where(has).firstOrNull;
+  }
+
+  /// The items that the triager selected with Shift-click, in the order they
+  /// were selected, when more than one item is selected. Empty otherwise.
+  List<TriageItem> get multiSelection => [
+    for (final (ItemRef r, _) in _multiSelection) ?item(r),
+  ];
+
+  /// Whether [item] is one of the [multiSelection], selected in [group].
+  bool isInMultiSelection(ItemRef item, ItemGroup group) =>
+      _multiSelection.contains((item, group));
+
+  /// Adds [item], in [group], to the selection, or takes it out if it is
+  /// selected, as a Shift-click on it does. A selection of one item is
+  /// [selected]; a selection of more is [multiSelection].
+  void toggleInSelection(ItemRef item, ItemGroup group) {
+    final List<(ItemRef, ItemGroup)> current = [
+      ..._multiSelection,
+      if (_selected case final ItemRef r) (r, selectedGroup ?? group),
+    ];
+    final bool had = current.any((e) => e.$1 == item);
+    _selected = null;
+    _selectedGroup = null;
+    _setMultiSelection([
+      for (final e in current)
+        if (e.$1 != item) e,
+      if (!had) (item, group),
+    ]);
+    notifyListeners();
+  }
+
+  /// Sets the [multiSelection] to [selection] if it has more than one item.
+  /// A [selection] of one item becomes [selected] instead. An empty one
+  /// leaves [selected] as it is.
+  void _setMultiSelection(List<(ItemRef, ItemGroup)> selection) {
+    if (selection.length > 1) {
+      _multiSelection = selection;
+      _selected = null;
+      _selectedGroup = null;
+      return;
+    }
+    _multiSelection = const [];
+    if (selection case [(final ItemRef item, final ItemGroup group)]) {
+      _selected = item;
+      _selectedGroup = group;
+    }
   }
 
   var _revealCount = 0;
@@ -399,6 +454,11 @@ class TriageController extends ChangeNotifier {
     }
     _setQueue(queue);
     _opened = opened;
+    // Keeps the selected items that are still listed in their groups.
+    _setMultiSelection([
+      for (final (ItemRef r, ItemGroup g) in _multiSelection)
+        if (itemsIn(g).any((i) => i.ref == r)) (r, g),
+    ]);
     // Loaded again when the triager selects an item linked to them.
     _linked.clear();
     _linkedFetches.clear();
@@ -434,6 +494,7 @@ class TriageController extends ChangeNotifier {
   void select(ItemRef item, {ItemGroup? group}) {
     _selected = item;
     _selectedGroup = group;
+    _multiSelection = const [];
     notifyListeners();
   }
 
@@ -441,6 +502,7 @@ class TriageController extends ChangeNotifier {
   void deselect() {
     _selected = null;
     _selectedGroup = null;
+    _multiSelection = const [];
     notifyListeners();
   }
 
@@ -455,9 +517,10 @@ class TriageController extends ChangeNotifier {
   /// that change nothing. An item whose apply fails does not stop the
   /// others.
   ///
-  /// If one of [items] is selected, selects the next item that is not
-  /// handled yet right away, so that the triager can go on while the
-  /// applies run. A failed item shows it in the list.
+  /// If one of [items] is selected, or [items] are the [multiSelection],
+  /// selects the next item that is not handled yet right away, so that the
+  /// triager can go on while the applies run. A failed item shows it in the
+  /// list.
   Future<void> applyAll(List<TriageItem> items) async {
     final List<TriageItem> changed = [
       for (final i in items)
@@ -465,7 +528,12 @@ class TriageController extends ChangeNotifier {
     ];
     // Mark them all first, so that the next item is none of them.
     _applying.addAll(changed.map((i) => i.ref));
-    _selectNextAfterGroup(items, selectedGroup, _listed);
+    final List<(ItemGroup, TriageItem)> order = _listed;
+    if (_multiSelection.isNotEmpty) {
+      _selectNextAfterMultiSelection(items, order);
+    } else {
+      _selectNextAfterGroup(items, selectedGroup, order);
+    }
     notifyListeners();
     for (final i in changed) {
       await _applyOne(i);
@@ -594,6 +662,30 @@ class TriageController extends ChangeNotifier {
         _revealCount++;
         return;
       }
+    }
+  }
+
+  /// If [items] are the [multiSelection], selects the next item that is not
+  /// handled or being applied after the first selected item in [order], as
+  /// [_selectNextAfterGroup] does after one item. Selects nothing if there
+  /// is no such item.
+  void _selectNextAfterMultiSelection(
+    List<TriageItem> items,
+    List<(ItemGroup, TriageItem)> order,
+  ) {
+    final Set<ItemRef> refs = {for (final i in items) i.ref};
+    if (!_multiSelection.every((e) => refs.contains(e.$1))) return;
+    final (ItemGroup, TriageItem)? first = order
+        .where((e) => _multiSelection.contains((e.$2.ref, e.$1)))
+        .firstOrNull;
+    _multiSelection = const [];
+    _selected = first?.$2.ref;
+    _selectedGroup = first?.$1;
+    _selectNextAfterGroup(items, _selectedGroup, order);
+    // No item is left to select.
+    if (_selected == first?.$2.ref) {
+      _selected = null;
+      _selectedGroup = null;
     }
   }
 

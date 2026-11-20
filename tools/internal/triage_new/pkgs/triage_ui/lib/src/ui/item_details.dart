@@ -25,6 +25,7 @@ import 'group_actions.dart';
 import 'item_info.dart';
 import 'item_list.dart';
 import 'item_log.dart';
+import 'multi_selection_view.dart';
 import 'suggestion_editor.dart';
 import 'suggestion_surface.dart';
 import 'triage_scope.dart';
@@ -49,6 +50,10 @@ class _ItemDetailsState extends State<ItemDetails> {
   @override
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
+    final List<TriageItem> multiSelection = controller.multiSelection;
+    if (multiSelection.isNotEmpty) {
+      return MultiSelectionView(items: multiSelection);
+    }
     final TriageItem? item = controller.selected;
     if (item == null) {
       return const Center(child: Text('Select an item.'));

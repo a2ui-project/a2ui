@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../model/triage_controller.dart';
@@ -264,7 +265,8 @@ class _ItemTile extends StatelessWidget {
     );
     final bool selected =
         controller.selected?.ref == item.ref &&
-        controller.selectedGroup == group;
+            controller.selectedGroup == group ||
+        controller.isInMultiSelection(item.ref, group);
     final flags = <Widget>[
       // Most items have a current suggestion, so only the others
       // are flagged.
@@ -350,12 +352,31 @@ class _ItemTile extends StatelessWidget {
               semanticLabel: 'Sent to the team',
             )
           : null,
-      // A second click on the selected item deselects it.
-      onTap: () => selected
-          ? controller.deselect()
-          : controller.select(item.ref, group: group),
+      onTap: () {
+        if (HardwareKeyboard.instance.isShiftPressed) {
+          controller.toggleInSelection(item.ref, group);
+          _clearTextSelection(context);
+        } else if (selected && controller.multiSelection.isEmpty) {
+          // A second click on the selected item deselects it.
+          controller.deselect();
+        } else {
+          controller.select(item.ref, group: group);
+        }
+      },
     );
     return Semantics(selected: selected, child: tile);
+  }
+
+  /// Clears the text that a Shift-click selected in the list's
+  /// [SelectionArea], which extends the text selection to the click.
+  static void _clearTextSelection(BuildContext context) {
+    final SelectionAreaState? area = context
+        .findAncestorStateOfType<SelectionAreaState>();
+    // After the frame, since the selection area can handle the same click
+    // after this callback.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (area != null && area.mounted) area.selectableRegion.clearSelection();
+    });
   }
 }
 

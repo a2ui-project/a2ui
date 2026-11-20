@@ -256,6 +256,95 @@ void main() {
     expect(controller.selected!.number, 20);
   });
 
+  test('Shift-click adds items to the selection and takes them out', () async {
+    await controller.start();
+    controller.select(a2ui(10), group: ItemGroup.newItems);
+
+    controller.toggleInSelection(a2ui(20), ItemGroup.newItems);
+    expect(controller.selected, isNull);
+    expect(numbers(controller.multiSelection), [10, 20]);
+    expect(controller.isInMultiSelection(a2ui(20), ItemGroup.newItems), isTrue);
+    expect(
+      controller.isInMultiSelection(a2ui(20), ItemGroup.teamInput),
+      isFalse,
+    );
+
+    controller
+      ..toggleInSelection(a2ui(11), ItemGroup.newItems)
+      ..toggleInSelection(a2ui(20), ItemGroup.newItems);
+    expect(numbers(controller.multiSelection), [10, 11]);
+
+    // A selection of one item is the selected item.
+    controller.toggleInSelection(a2ui(10), ItemGroup.newItems);
+    expect(controller.multiSelection, isEmpty);
+    expect(controller.selected!.number, 11);
+    expect(controller.selectedGroup, ItemGroup.newItems);
+
+    controller.toggleInSelection(a2ui(11), ItemGroup.newItems);
+    expect(controller.selected, isNull);
+    expect(controller.multiSelection, isEmpty);
+
+    // A plain click selects one item again.
+    controller
+      ..toggleInSelection(a2ui(10), ItemGroup.newItems)
+      ..toggleInSelection(a2ui(21), ItemGroup.newItems)
+      ..select(a2ui(20), group: ItemGroup.newItems);
+    expect(controller.multiSelection, isEmpty);
+    expect(controller.selected!.number, 20);
+  });
+
+  test('applies the drafts of several selected items, then selects the next '
+      'item after the first one', () async {
+    await controller.start();
+    controller
+      ..select(a2ui(20), group: ItemGroup.newItems)
+      ..toggleInSelection(a2ui(10), ItemGroup.newItems)
+      ..toggleInSelection(a2ui(11), ItemGroup.newItems);
+    final List<TriageItem> items = controller.multiSelection;
+    controller
+      ..draftFor(items[0], const TriageSuggestion(addedLabels: ['P3']))
+      ..draftFor(items[1], const TriageSuggestion(addedLabels: ['P2']));
+
+    await controller.applyAll(items);
+
+    expect(controller.session.isApplied(a2ui(20)), isTrue);
+    expect(controller.session.isApplied(a2ui(10)), isTrue);
+    expect(controller.session.isApplied(a2ui(11)), isTrue);
+    expect(github.calls, contains('POST issues/20/labels {"labels":["P3"]}'));
+    expect(github.calls, contains('POST issues/10/labels {"labels":["P2"]}'));
+    // #11 is the first of them in the list, and #21 the next one that is
+    // not applied.
+    expect(controller.multiSelection, isEmpty);
+    expect(controller.selected!.number, 21);
+  });
+
+  test('refresh and Hide triaged keep the selected items that are still '
+      'listed', () async {
+    await controller.start();
+    controller
+      ..select(a2ui(10), group: ItemGroup.newItems)
+      ..toggleInSelection(a2ui(11), ItemGroup.newItems)
+      ..toggleInSelection(a2ui(21), ItemGroup.newItems);
+    // #21 no longer needs triage.
+    github.items[21] = itemNode(21, pr: true, labels: const []);
+
+    await controller.refresh();
+    expect(numbers(controller.multiSelection), [10, 11]);
+
+    controller.draftFor(
+      controller.item(a2ui(10))!,
+      const TriageSuggestion(addedLabels: ['P2']),
+    );
+    await controller.apply(controller.item(a2ui(10))!);
+    controller
+      ..select(a2ui(10), group: ItemGroup.newItems)
+      ..toggleInSelection(a2ui(11), ItemGroup.newItems)
+      ..hideTriaged();
+    // #10 left Needs triage, so #11 is the only one selected.
+    expect(controller.multiSelection, isEmpty);
+    expect(controller.selected!.number, 11);
+  });
+
   test('moves on from a failed item, and posts its reply once', () async {
     github.unassignable.add('stranger');
     await controller.start();
