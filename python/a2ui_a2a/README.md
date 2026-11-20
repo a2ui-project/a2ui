@@ -26,7 +26,11 @@ This installs `a2ui-agent-sdk` and `a2a-sdk` as dependencies.
   each `DataPart`'s `metadata`, or legacy `data["metadata"]`) into a
   version-keyed dictionary accepted by `resolve_catalogs`.
 - Part helpers: `create_a2ui_part`, `is_a2ui_part` and `get_a2ui_datapart`
-  wrap and unwrap A2UI messages in A2A `DataPart`s. `to_a2a_parts` converts
+  wrap and unwrap A2UI messages in A2A `DataPart`s. `_compat.py` adapts those
+  helpers to a2a-sdk 0.3 (`Part.root`) and 1.x (protobuf `Part`). Prefer
+  `create_a2ui_part`, `is_a2ui_part`, `get_a2ui_data`, `extract_user_action`,
+  and `try_activate_a2ui_extension` over `Part.root` or
+  `RequestContext.add_activated_extension`. `to_a2a_parts` converts
   the parts that `A2uiRequestProcessor.parse_response()` returns, and
   `stream_response_to_parts` reads a streamed response through a
   `ResponseStream`, such as one from `A2uiRequestProcessor.open_stream()`.

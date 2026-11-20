@@ -32,6 +32,8 @@ Usage Example:
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 from a2a.server.agent_execution.context import RequestContext
 from a2a.types import TaskState, TaskStatusUpdateEvent
 from google.adk.a2a.executor.config import ExecuteInterceptor
@@ -44,6 +46,37 @@ from ._rpc import is_renderer_rpc_only
 # `after_agent`. A request that fails in between never reaches
 # `after_agent`, so the oldest entries are dropped past this size.
 _MAX_TRACKED_TASKS = 1024
+
+
+def _task_state(name: str) -> TaskState:
+    """Returns a TaskState by its 0.3 name.
+
+    a2a-sdk 1.x spells the same members ``TASK_STATE_WORKING`` and so on.
+    ``TaskState`` is typed as the installed generation, so the lookup goes
+    through ``Any``.
+    """
+    states: Any = TaskState
+    if hasattr(states, name):
+        return cast(TaskState, getattr(states, name))
+    return cast(TaskState, getattr(states, "TASK_STATE_" + name.upper()))
+
+
+def _with_state(
+    event: TaskStatusUpdateEvent, state: TaskState
+) -> TaskStatusUpdateEvent:
+    """Returns the event with its status state replaced."""
+    if hasattr(event, "model_copy"):
+        copied: Any = event.model_copy(
+            update={"status": event.status.model_copy(update={"state": state})}
+        )
+        return cast(TaskStatusUpdateEvent, copied)
+    # a2a-sdk 1.x events are protobuf messages. The 0.3 type has no CopyFrom,
+    # so the constructor call goes through Any.
+    constructor: Any = type(event)
+    updated: Any = constructor()
+    updated.CopyFrom(event)
+    updated.status.state = state
+    return cast(TaskStatusUpdateEvent, updated)
 
 
 class _RpcTaskTracker:
@@ -73,13 +106,10 @@ class _RpcTaskTracker:
             return final_event
         del self._rpc_task_ids[final_event.task_id]
         status = final_event.status
-        if status.state != TaskState.working or (
-            status.message is not None and status.message.parts
-        ):
+        has_parts = status.message is not None and len(status.message.parts) > 0
+        if status.state != _task_state("working") or has_parts:
             return final_event
-        return final_event.model_copy(
-            update={"status": status.model_copy(update={"state": TaskState.completed})}
-        )
+        return _with_state(final_event, _task_state("completed"))
 
 
 @experimental

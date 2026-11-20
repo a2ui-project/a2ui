@@ -1,5 +1,8 @@
 ## Unreleased
 
+- `a2ui_rpc_interceptor` completes an RPC-only task on a2a-sdk 0.3 and 1.x.
+  1.x names task states `TASK_STATE_*` and status events are protobuf messages.
+
 ## 0.3.0 (2026-11-10)
 
 - `a2ui_rpc_callback` takes `renderer_calls`, a provider of the session's

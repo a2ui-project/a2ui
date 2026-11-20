@@ -1,6 +1,9 @@
 ## Unreleased
 
-## 0.4.0 (2026-11-17)
+- Add a2a-sdk 0.3 / 1.x dual-compat Part and AgentExtension helpers so the A2A
+  extension can use either generation. Widen `a2a-sdk` to `>=0.3.0,<2`.
+  `get_a2ui_data`, `part_data_as_dict` and `extract_user_action` read parts
+  without reaching into `Part.root`.
 
 - Add `renderer_capabilities_from_message(message, version)` to read and
   validate A2UI renderer capabilities from an inbound A2A `Message` across
