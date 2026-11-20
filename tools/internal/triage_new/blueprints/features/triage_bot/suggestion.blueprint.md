@@ -36,9 +36,7 @@ The suggestion comment is a [triage bot](../../core.blueprint.md#contributors) c
 For example, the suggestion comment on an illustrative issue #1235:
 
 ````markdown
-**From triage bot:**
-
-Triage suggestion:
+**From triage bot, suggestion:**
 
 <details>
 <summary>For humans</summary>
