@@ -435,6 +435,11 @@ if state is None or not processor.accepts_state(state):
     state = states[session_id] = processor.create_state()
 ```
 
+A sub-agent that updates a surface another agent created can make its state
+with `RendererState(catalogs, assume_unknown_surfaces=True)`. That state
+accepts updates to surfaces it never saw created, and still checks their
+components.
+
 ## Use Cases
 
 ### 1. Simple Agents with Static Schemas

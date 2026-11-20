@@ -1,5 +1,11 @@
 ## Unreleased
 
+- `RendererState(catalogs, assume_unknown_surfaces=True)` accepts an update to
+  a surface it never saw created, such as one a sub-agent sends to a surface
+  another agent created
+  ([#3318](https://github.com/a2ui-project/a2ui/issues/3318),
+  [#4331](https://github.com/a2ui-project/a2ui/pull/4331)).
+
 ## 0.12.0 (2026-11-17)
 
 - **BREAKING CHANGE**: (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`,

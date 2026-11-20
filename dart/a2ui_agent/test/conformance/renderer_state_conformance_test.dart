@@ -22,7 +22,12 @@ const String _defaultCatalogPath =
     'test_data/catalogs/simplified_catalog_v1_0.json';
 
 const Map<String, Set<String>> _knownKeys = {
-  'case:renderer_state_turns': {...caseMetadataKeys, 'catalogs', 'turns'},
+  'case:renderer_state_turns': {
+    ...caseMetadataKeys,
+    'assumeUnknownSurfaces',
+    'catalogs',
+    'turns',
+  },
   'turn:renderer_state_turns': {
     'format',
     'payload',
@@ -75,7 +80,10 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
   final String? injectedId = version == SuiteVersion.v0_9
       ? catalogs.first.id
       : null;
-  final state = RendererState(catalogs);
+  final state = RendererState(
+    catalogs,
+    assumeUnknownSurfaces: testCase['assumeUnknownSurfaces'] == true,
+  );
 
   final turns = testCase['turns']! as List<Object?>;
   for (final rawTurn in turns) {

@@ -59,6 +59,8 @@ canvas.parseResponse(thirdReply);
 
 A response parsed whole is applied to the state all or nothing. To check one payload with no record of earlier ones, such as the argument of a tool call, use `validatePayload(catalogs, messages)`.
 
+A sub-agent that updates a surface another agent created can make its state with `new RendererState(catalogs, {assumeUnknownSurfaces: true})`. That state accepts updates to surfaces it never saw created, and still checks their components.
+
 ## Streaming
 
 Both Express and Direct JSON responses can be read as they arrive. `openStream` returns a `ResponseStream` for one response: pass each chunk to `feed` and call `close` after the last one. Each message the stream emits has been checked and applied to the state, so a canvas state matches what the client received even when a response fails part way.

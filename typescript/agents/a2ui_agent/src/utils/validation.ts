@@ -22,21 +22,6 @@ import {CatalogApi} from '../internal/web-core.js';
 import {RendererState} from './renderer-state.js';
 
 /**
- * The state of a renderer that `validatePayload` knows nothing about.
- *
- * A surface the payload updates without creating is assumed to exist, holding components
- * the check never saw. The state creates an empty placeholder for it, on the first catalog
- * that defines the update's components and accepts it. Each component is still checked
- * against that catalog, but the surface's tree is not: references to components outside
- * the payload, a missing root and unreachable components are accepted there.
- */
-class PayloadState extends RendererState {
-  protected override get assumesUnknownSurfaces(): boolean {
-    return true;
-  }
-}
-
-/**
  * Checks a payload the way a renderer holding the catalogs would.
  *
  * The check is stateless: it sees one payload, with no record of what earlier payloads
@@ -75,6 +60,6 @@ class PayloadState extends RendererState {
  *     versions, for example v0.9 and v1.0 catalogs.
  */
 export function validatePayload(catalogs: CatalogApi[], payload: unknown): void {
-  const state = new PayloadState(catalogs);
+  const state = new RendererState(catalogs, {assumeUnknownSurfaces: true});
   state.checkTopology(state.apply(payload));
 }
