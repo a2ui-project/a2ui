@@ -17,7 +17,7 @@
 import pytest
 
 from a2ui.core.common.semver import SemVer
-from a2ui.core.exceptions import A2uiValidationError
+from a2ui.core.exceptions import A2uiRecursionError, A2uiValidationError
 from a2ui.core.processing.operations import (
     InternalCreateSurfaceOp,
     InternalDeleteSurfaceOp,
@@ -589,3 +589,44 @@ def test_version_normalization_without_leading_v():
         })
         assert len(ops) == 1
         assert isinstance(ops[0], InternalCreateSurfaceOp)
+
+
+def _nested_format_string_message(version: str, call_key: str, calls: int) -> dict:
+    value: object = "leaf"
+    for _ in range(calls):
+        value = {call_key: "formatString", "args": {"value": value}}
+    return {
+        "version": version,
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [{"id": "root", "component": "Text", "text": value}],
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("version", "call_key"),
+    [("v0.9", "call"), ("1.0", "@call")],
+)
+def test_extract_operations_unwraps_containers_before_per_message_depth_check(
+    version: str,
+    call_key: str,
+):
+    """Verifies each message starts at depth 0 whether standalone, in a list, or in `{"messages": [...]}`."""
+    adapter = VersionAdapterFactory.get_adapter(version)
+    at_limit = _nested_format_string_message(version, call_key, 23)
+    past_limit = _nested_format_string_message(version, call_key, 24)
+
+    for container in (at_limit, [at_limit], {"messages": [at_limit]}):
+        ops = adapter.extract_operations(container)
+        assert len(ops) == 1
+
+    for container in (past_limit, [past_limit], {"messages": [past_limit]}):
+        with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
+            adapter.extract_operations(container)
+
+    deeply_wrapped: object = at_limit
+    for _ in range(51):
+        deeply_wrapped = {"messages": [deeply_wrapped]}
+    with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
+        adapter.extract_operations(deeply_wrapped)

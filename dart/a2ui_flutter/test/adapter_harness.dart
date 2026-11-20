@@ -549,7 +549,10 @@ class _IncrementCounterFunction extends FunctionImplementation {
   _IncrementCounterFunction()
     : super(
         name: 'incrementCounter',
-        argumentSchema: Schema.fromMap({'type': 'object'}),
+        argumentSchema: Schema.fromMap(const {
+          'type': 'object',
+          'additionalProperties': true,
+        }),
       );
 
   @override

@@ -32,7 +32,12 @@ import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_c
 import {BasicCatalogThemeSchema} from '../universal/basic_catalog/theme.js';
 import {BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components.js';
 import {BASIC_FUNCTIONS} from '../catalogs/basic/v1/functions/basic_functions.js';
-import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
+import {
+  A2uiCatalogError,
+  A2uiIntegrityError,
+  A2uiRecursionError,
+  A2uiValidationError,
+} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
 import {NodeResolver} from '../resolution/node-resolver.js';
 import {ResolvedBinding} from '../resolution/resolved-binding.js';
@@ -3307,6 +3312,70 @@ describe('MessageProcessor component envelope mixins', () => {
       assert.strictEqual(label instanceof ResolvedBinding ? label.value : label, 'Email address');
       resolver?.dispose();
       proc.dispose();
+    });
+
+    it('starts per-message recursion depth at 0 across standalone, array, and {messages} envelopes', () => {
+      const catId = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
+      const cat = new Catalog(catId, '1.0', BASIC_COMPONENTS, BASIC_FUNCTIONS);
+      const buildUpdate = (calls: number) => {
+        let value: unknown = 'leaf';
+        for (let i = 0; i < calls; i++) {
+          value = {'@call': 'formatString', 'args': {value}};
+        }
+        return {
+          version: '1.0',
+          updateComponents: {
+            surfaceId: 's',
+            components: [{id: 'root', component: 'Text', text: value}],
+          },
+        };
+      };
+
+      const createMsg = {version: '1.0', createSurface: {surfaceId: 's', catalogId: catId}};
+      const atLimit = buildUpdate(23);
+      const pastLimit = buildUpdate(24);
+      const relaxedConfig = STRICT_VALIDATION;
+
+      // Standalone message, array batch, and `{messages: [...]}` wrapper all accept exact depth 50 (23 calls).
+      for (const makeBatch of [
+        () => [createMsg, atLimit],
+        () => ({messages: [createMsg, atLimit]}),
+      ]) {
+        const proc = new MessageProcessor<ComponentApi>([cat], undefined, {
+          validationConfig: relaxedConfig,
+        });
+        assert.doesNotThrow(() => proc.processMessages(makeBatch() as never));
+        proc.dispose();
+      }
+
+      const standaloneProc = new MessageProcessor<ComponentApi>([cat], undefined, {
+        validationConfig: relaxedConfig,
+      });
+      standaloneProc.processMessages(createMsg as never);
+      assert.doesNotThrow(() => standaloneProc.processMessages(atLimit as never));
+
+      // 24 nested calls exceed depth 50 in every envelope shape.
+      for (const failing of [pastLimit, [pastLimit], {messages: [pastLimit]}]) {
+        assert.throws(
+          () => standaloneProc.processMessages(failing as never),
+          (err: unknown) =>
+            err instanceof A2uiRecursionError &&
+            err.message.includes('Global recursion limit exceeded'),
+        );
+      }
+
+      // Deeply nested outer wrappers past MAX_GLOBAL_DEPTH also raise A2uiRecursionError.
+      let deeplyWrapped: unknown = atLimit;
+      for (let i = 0; i < 51; i++) {
+        deeplyWrapped = {messages: [deeplyWrapped]};
+      }
+      assert.throws(
+        () => standaloneProc.processMessages(deeplyWrapped as never),
+        (err: unknown) =>
+          err instanceof A2uiRecursionError &&
+          err.message.includes('Global recursion limit exceeded'),
+      );
+      standaloneProc.dispose();
     });
   });
 });

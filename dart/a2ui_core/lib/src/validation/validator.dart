@@ -1203,8 +1203,27 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
 
   Map<String, Schema> get _resolvedFunctionSchemas => _resolvedFunctions ??= {
     for (final MapEntry<String, F> entry in catalog.functions.entries)
-      entry.key: _resolve(entry.value.argumentSchema.value),
+      entry.key: _resolve(
+        _v1 || entry.value.definition != null
+            ? entry.value.argumentSchema.value
+            : _closePreV1ArgumentSchema(entry.value.argumentSchema.value),
+      ),
   };
+
+  /// Mirrors `Catalog._serializeFunction`'s `unevaluatedProperties` closure on
+  /// pre-v1.0 object argument schemas so code-defined v0.9 functions reject
+  /// undeclared arguments unless `additionalProperties` or
+  /// `unevaluatedProperties` explicitly permits them.
+  static Map<String, Object?> _closePreV1ArgumentSchema(
+    Map<String, Object?> schema,
+  ) {
+    if (schema['type'] != 'object') return schema;
+    final copy = <String, Object?>{...schema};
+    final Object? additional = copy.remove('additionalProperties');
+    copy['unevaluatedProperties'] =
+        copy['unevaluatedProperties'] ?? additional ?? false;
+    return copy;
+  }
 
   Map<String, Schema> get _resolvedEnvelopeSchemas => _resolvedEnvelope ??= {
     for (final MapEntry<String, Map<String, Object?>> entry
@@ -1264,18 +1283,31 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       ...union.cast<String, Object?>(),
       'oneOf': [
         for (final Object? branch in branches)
-          _withoutArgumentSchema(_localReferenceTarget(branch, document)) ??
+          _withoutArgumentSchema(
+                _localReferenceTarget(branch, document) ?? branch,
+              ) ??
               branch,
       ],
     };
   }
 
   /// The function [definition] with any object allowed for `args`, or null if
-  /// it is not an object schema that declares `args`.
+  /// it is not an object schema whose `args` has subschema constraints.
   static Map<String, Object?>? _withoutArgumentSchema(Object? definition) {
     if (definition is! Map) return null;
     final Object? properties = definition['properties'];
     if (properties is! Map || !properties.containsKey('args')) return null;
+    final Object? args = properties['args'];
+    if (args is Map &&
+        !args.containsKey('properties') &&
+        !args.containsKey(r'$ref') &&
+        !args.containsKey('additionalProperties') &&
+        !args.containsKey('patternProperties') &&
+        !args.containsKey('allOf') &&
+        !args.containsKey('anyOf') &&
+        !args.containsKey('oneOf')) {
+      return null;
+    }
     return {
       ...definition.cast<String, Object?>(),
       'properties': {
@@ -1294,12 +1326,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     if (schema is! Map || schema.length != 1) return null;
     final Object? ref = schema[r'$ref'];
     if (ref is! String || !ref.startsWith('#/')) return null;
-    Object? target = document;
-    for (final String segment in ref.substring(2).split('/')) {
-      if (target is! Map) return null;
-      target = target[segment.replaceAll('~1', '/').replaceAll('~0', '~')];
-    }
-    return target;
+    return followJsonPointer(document, ref.substring(1));
   }
 
   Schema _resolve(Map<String, Object?> schema) => Schema.fromMap(

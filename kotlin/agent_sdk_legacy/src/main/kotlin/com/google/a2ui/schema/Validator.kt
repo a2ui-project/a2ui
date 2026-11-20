@@ -53,14 +53,20 @@ constructor(
   private val schemaMappings: Map<String, String> = emptyMap(),
 ) {
   private val jsonFmt = Json { prettyPrint = false }
+  private val resolvedCatalogFunctionSchemas: Map<String, JsonObject> by lazy {
+    collectCatalogFunctionSchemas(catalog.catalogSchema)
+  }
   private val validationCatalogSchema: JsonObject by lazy {
     buildValidationCatalogSchema(catalog.catalogSchema)
   }
   private val validationCatalogSchemaString: String by lazy {
     jsonFmt.encodeToString(JsonElement.serializer(), validationCatalogSchema)
   }
+  private val rawCommonTypesSchema: JsonObject? by lazy { loadRawCommonTypesSchema() }
   private val validationCommonTypesSchemaString: String? by lazy {
-    loadValidationCommonTypesSchemaString()
+    rawCommonTypesSchema?.let {
+      jsonFmt.encodeToString(JsonElement.serializer(), buildValidationCommonTypesSchema(it))
+    }
   }
   private val shared0_9Registry: SchemaRegistry by lazy {
     SchemaRegistry.withDialect(Dialects.getDraft202012()) { builder ->
@@ -195,39 +201,80 @@ constructor(
   private fun buildValidationCatalogSchema(catalogSchema: JsonObject): JsonObject {
     if (catalogSchema.isEmpty()) return catalogSchema
     val defs = (catalogSchema[KEY_DOLLAR_DEFS] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
-    val functionsObj = catalogSchema[A2uiConstants.CATALOG_FUNCTIONS_KEY] as? JsonObject
-    val anyFunction = defs[DEF_ANY_FUNCTION] as? JsonObject
-    val branches = anyFunction?.get("oneOf") as? JsonArray
-
-    val rewrittenAnyFunction =
-      when {
-        branches != null ->
-          JsonObject(
-            anyFunction.toMutableMap().apply {
-              put(
-                "oneOf",
-                JsonArray(
-                  branches.map { branch ->
-                    withoutArgumentSchema(resolveLocalRef(branch, catalogSchema)) ?: branch
-                  }
-                ),
-              )
-            }
-          )
-        !functionsObj.isNullOrEmpty() ->
-          JsonObject(
-            mapOf(
-              "oneOf" to
-                JsonArray(
-                  functionsObj.values.map { fnDef -> withoutArgumentSchema(fnDef) ?: fnDef }
-                )
-            )
-          )
-        else -> JsonObject(mapOf("not" to JsonObject(emptyMap())))
-      }
-
-    defs[DEF_ANY_FUNCTION] = rewrittenAnyFunction
+    defs[DEF_ANY_FUNCTION] = buildRewrittenAnyFunction(catalogSchema, defs[DEF_ANY_FUNCTION])
     return JsonObject(catalogSchema.toMutableMap().apply { put(KEY_DOLLAR_DEFS, JsonObject(defs)) })
+  }
+
+  private fun buildRewrittenAnyFunction(
+    catalogSchema: JsonObject,
+    rawAnyFunction: JsonElement?,
+  ): JsonObject {
+    val anyFunction = rawAnyFunction as? JsonObject
+    val functionsObj = catalogSchema[A2uiConstants.CATALOG_FUNCTIONS_KEY] as? JsonObject
+    val branches = anyFunction?.get("oneOf") as? JsonArray
+    val anyOfBranches = anyFunction?.get("anyOf") as? JsonArray
+    return when {
+      branches != null -> rewriteUnionBranches(anyFunction, "oneOf", branches, catalogSchema)
+      anyOfBranches != null ->
+        rewriteUnionBranches(anyFunction, "anyOf", anyOfBranches, catalogSchema)
+      anyFunction != null -> withoutArgumentSchema(anyFunction) ?: anyFunction
+      !functionsObj.isNullOrEmpty() ->
+        JsonObject(
+          mapOf(
+            "oneOf" to
+              JsonArray(functionsObj.values.map { fnDef -> withoutArgumentSchema(fnDef) ?: fnDef })
+          )
+        )
+      else -> JsonObject(mapOf("not" to JsonObject(emptyMap())))
+    }
+  }
+
+  private fun rewriteUnionBranches(
+    anyFunction: JsonObject,
+    keyword: String,
+    branches: JsonArray,
+    catalogSchema: JsonObject,
+  ): JsonObject {
+    val rewritten =
+      branches.map { branch ->
+        withoutArgumentSchema(resolveLocalRef(branch, catalogSchema) ?: branch) ?: branch
+      }
+    return JsonObject(anyFunction.toMutableMap().apply { put(keyword, JsonArray(rewritten)) })
+  }
+
+  private fun collectCatalogFunctionSchemas(catalogSchema: JsonObject): Map<String, JsonObject> {
+    val result = mutableMapOf<String, JsonObject>()
+    val functionsObj = catalogSchema[A2uiConstants.CATALOG_FUNCTIONS_KEY] as? JsonObject
+    functionsObj?.forEach { (name, schema) -> if (schema is JsonObject) result[name] = schema }
+    val anyFn =
+      (catalogSchema[KEY_DOLLAR_DEFS] as? JsonObject)?.get(DEF_ANY_FUNCTION) as? JsonObject
+    collectInlineAnyFunctionSchemas(anyFn, catalogSchema, result)
+    return result
+  }
+
+  private fun collectInlineAnyFunctionSchemas(
+    anyFunction: JsonObject?,
+    catalogSchema: JsonObject,
+    out: MutableMap<String, JsonObject>,
+  ) {
+    if (anyFunction == null) return
+    val candidates =
+      (anyFunction["oneOf"] as? JsonArray)
+        ?: (anyFunction["anyOf"] as? JsonArray)
+        ?: JsonArray(listOf(anyFunction))
+    for (candidate in candidates) {
+      val resolved = (resolveLocalRef(candidate, catalogSchema) ?: candidate) as? JsonObject
+      val constName = extractConstCallName(resolved)
+      if (constName != null && resolved != null && constName !in out) {
+        out[constName] = resolved
+      }
+    }
+  }
+
+  private fun extractConstCallName(fnSchema: JsonObject?): String? {
+    val props = fnSchema?.get(PROP_PROPERTIES) as? JsonObject ?: return null
+    val callProp = props[PROP_CALL] as? JsonObject ?: return null
+    return (callProp["const"] as? JsonPrimitive)?.takeIf { it.isString }?.content
   }
 
   private fun withoutArgumentSchema(definition: JsonElement?): JsonObject? {
@@ -282,35 +329,29 @@ constructor(
     return JsonObject(commonTypes.toMutableMap().apply { put(KEY_DOLLAR_DEFS, newDefs) })
   }
 
-  private fun loadValidationCommonTypesSchemaString(): String? {
+  private fun loadRawCommonTypesSchema(): JsonObject? {
     val inMemoryDefs = catalog.commonTypesSchema[KEY_DOLLAR_DEFS] as? JsonObject
-    val rawCommonTypes: JsonObject? =
-      if (!inMemoryDefs.isNullOrEmpty()) {
-        catalog.commonTypesSchema
-      } else {
-        val mappedUri =
-          schemaMappings[FILE_COMMON_TYPES]
-            ?: schemaMappings.entries.firstOrNull { it.key.endsWith("/$FILE_COMMON_TYPES") }?.value
-        val fromMapped =
-          mappedUri?.let { uri ->
-            runCatching {
-                IriResourceLoader.getInstance()
-                  .getResource(AbsoluteIri.of(uri))
-                  ?.inputStream
-                  ?.bufferedReader(Charsets.UTF_8)
-                  ?.use { Json.parseToJsonElement(it.readText()) as? JsonObject }
-              }
-              .getOrNull()
-          }
-        fromMapped
-          ?: runCatching {
-              SchemaResourceLoader.loadFromBundledResource(catalog.version.value, FILE_COMMON_TYPES)
-            }
-            .getOrNull()
+    if (!inMemoryDefs.isNullOrEmpty()) return catalog.commonTypesSchema
+    return loadMappedCommonTypesSchema()
+      ?: runCatching {
+          SchemaResourceLoader.loadFromBundledResource(catalog.version.value, FILE_COMMON_TYPES)
+        }
+        .getOrNull()
+  }
+
+  private fun loadMappedCommonTypesSchema(): JsonObject? {
+    val mappedUri =
+      schemaMappings[FILE_COMMON_TYPES]
+        ?: schemaMappings.entries.firstOrNull { it.key.endsWith("/$FILE_COMMON_TYPES") }?.value
+        ?: return null
+    return runCatching {
+        IriResourceLoader.getInstance()
+          .getResource(AbsoluteIri.of(mappedUri))
+          ?.inputStream
+          ?.bufferedReader(Charsets.UTF_8)
+          ?.use { Json.parseToJsonElement(it.readText()) as? JsonObject }
       }
-    return rawCommonTypes?.let {
-      jsonFmt.encodeToString(JsonElement.serializer(), buildValidationCommonTypesSchema(it))
-    }
+      .getOrNull()
   }
 
   private fun resolve0_9SchemaResource(iri: AbsoluteIri): String? {
@@ -438,12 +479,7 @@ constructor(
         "createSurface" in messageElem -> {
           val valSchema = getSubValidator("CreateSurfaceMessage")
           allErrors.addAll(getFormattedErrors(valSchema, messageElem, basePath))
-          val themeObj = (messageElem["createSurface"] as? JsonObject)?.get("theme") as? JsonObject
-          if (themeObj != null) {
-            allErrors.addAll(
-              getNestedFunctionCallErrors(themeObj, "$basePath.createSurface.theme", emptySet())
-            )
-          }
+          allErrors.addAll(getThemeFunctionCallErrors(messageElem, basePath))
         }
         "updateComponents" in messageElem -> {
           allErrors.addAll(getUpdateComponentsErrors(messageElem, basePath))
@@ -665,91 +701,253 @@ constructor(
       }
 
     val errors = getFormattedErrors(validator, comp, path).toMutableList()
-    errors.addAll(getNestedFunctionCallErrors(comp, path))
+    if (compSchema is JsonObject) {
+      errors.addAll(getNestedFunctionCallErrors(comp, compSchema, path))
+    }
     return errors
   }
 
-  private fun getFunctionSubValidator(fnName: String): Schema {
+  private fun getThemeFunctionCallErrors(
+    messageElem: JsonObject,
+    basePath: String,
+  ): List<A2uiErrorDetail> {
+    val themeObj = (messageElem["createSurface"] as? JsonObject)?.get("theme") as? JsonObject
+    val themeSchema =
+      (catalog.catalogSchema[KEY_DOLLAR_DEFS] as? JsonObject)?.get("theme") as? JsonObject
+    if (themeObj == null || themeSchema == null || !schemaReferencesFunctionCall(themeSchema)) {
+      return emptyList()
+    }
+    return getNestedFunctionCallErrors(themeObj, themeSchema, "$basePath.createSurface.theme")
+  }
+
+  private fun schemaReferencesFunctionCall(rootSchema: JsonObject): Boolean {
+    val queue = ArrayDeque<JsonElement>()
+    queue.addLast(rootSchema)
+    while (queue.isNotEmpty()) {
+      val current = queue.removeFirst()
+      if (isDirectFunctionRefNode(current, queue)) return true
+    }
+    return false
+  }
+
+  private fun isDirectFunctionRefNode(node: JsonElement, queue: ArrayDeque<JsonElement>): Boolean {
+    if (node is JsonArray) {
+      node.forEach { queue.addLast(it) }
+      return false
+    }
+    if (node !is JsonObject) return false
+    val ref = (node[KEY_DOLLAR_REF] as? JsonPrimitive)?.takeIf { it.isString }?.content
+    if (ref != null && isFunctionBearingRef(ref)) return true
+    if (ref != null && ref.startsWith("#/")) {
+      resolveLocalRef(node, catalog.catalogSchema)?.let { queue.addLast(it) }
+    }
+    node.values.forEach { queue.addLast(it) }
+    return false
+  }
+
+  private fun isFunctionBearingRef(ref: String): Boolean =
+    FUNCTION_SLOT_REF_SUFFIXES.any { ref.endsWith(it) } ||
+      COMPOSITE_FUNCTION_REF_SUFFIXES.any { ref.endsWith(it) } ||
+      ref.contains("/${A2uiConstants.CATALOG_FUNCTIONS_KEY}/")
+
+  private fun getFunctionSubValidator(fnName: String, fnSchema: JsonObject): Schema {
     return subValidators.getOrPut("func_$fnName") {
-      val escapedFnName = fnName.replace("~", "~0").replace("/", "~1")
+      val functionsObj = catalog.catalogSchema[A2uiConstants.CATALOG_FUNCTIONS_KEY] as? JsonObject
       val tempSchema =
-        JsonObject(
-          validationCatalogSchema.toMutableMap() +
-            mapOf(
-              KEY_DOLLAR_SCHEMA to JsonPrimitive(SCHEMA_DRAFT_2020_12),
-              KEY_DOLLAR_REF to
-                JsonPrimitive("#/${A2uiConstants.CATALOG_FUNCTIONS_KEY}/$escapedFnName"),
-            )
-        )
+        if (functionsObj != null && fnName in functionsObj) {
+          val escapedFnName = fnName.replace("~", "~0").replace("/", "~1")
+          JsonObject(
+            validationCatalogSchema.toMutableMap() +
+              mapOf(
+                KEY_DOLLAR_SCHEMA to JsonPrimitive(SCHEMA_DRAFT_2020_12),
+                KEY_DOLLAR_REF to
+                  JsonPrimitive("#/${A2uiConstants.CATALOG_FUNCTIONS_KEY}/$escapedFnName"),
+              )
+          )
+        } else {
+          buildInlineFunctionSubSchema(fnSchema)
+        }
       val schemaString = jsonFmt.encodeToString(JsonElement.serializer(), tempSchema)
       shared0_9Registry.getSchema(schemaString, InputFormat.JSON)
     }
   }
 
+  private fun buildInlineFunctionSubSchema(fnSchema: JsonObject): JsonObject {
+    val map = fnSchema.toMutableMap()
+    map[KEY_DOLLAR_SCHEMA] = JsonPrimitive(SCHEMA_DRAFT_2020_12)
+    validationCatalogSchema[KEY_DOLLAR_ID]?.let { map.putIfAbsent(KEY_DOLLAR_ID, it) }
+    validationCatalogSchema[KEY_DOLLAR_DEFS]?.let { map.putIfAbsent(KEY_DOLLAR_DEFS, it) }
+    return JsonObject(map)
+  }
+
+  private data class SchemaWalkItem(
+    val elem: JsonElement,
+    val schema: JsonObject,
+    val doc: JsonObject,
+    val path: String,
+    val refDepth: Int = 0,
+  )
+
   /**
-   * Walks [rootObj] once in a single linear pass, validating every function call against its full
-   * schema in `catalogSchema["functions"]` (whose nested `anyFunction` references are stubbed to
-   * non-recursive envelopes).
+   * Walks [rootObj] alongside [rootSchema] in a single linear pass, validating only objects at
+   * schema positions that admit `FunctionCall` so literal maps carrying a `"call"` key in themes,
+   * untyped parameters, or custom object properties are never mistaken for function calls.
    */
   private fun getNestedFunctionCallErrors(
     rootObj: JsonObject,
+    rootSchema: JsonObject,
     basePath: String,
-    skipRootKeys: Set<String> = setOf("id", "component"),
   ): List<A2uiErrorDetail> {
     val errors = mutableListOf<A2uiErrorDetail>()
-    val functionsObj = catalog.catalogSchema[A2uiConstants.CATALOG_FUNCTIONS_KEY] as? JsonObject
-    val stack = ArrayDeque<Pair<JsonElement, String>>()
-
-    for ((propKey, propVal) in rootObj.entries.toList().asReversed()) {
-      if (propKey !in skipRootKeys) {
-        stack.addLast(propVal to "$basePath.$propKey")
-      }
-    }
+    val validatedPaths = mutableSetOf<String>()
+    val stack = ArrayDeque<SchemaWalkItem>()
+    stack.addLast(SchemaWalkItem(rootObj, rootSchema, catalog.catalogSchema, basePath))
 
     while (stack.isNotEmpty()) {
-      val (elem, currentPath) = stack.removeLast()
-      when (elem) {
-        is JsonArray -> {
-          for (idx in elem.indices.reversed()) {
-            stack.addLast(elem[idx] to "$currentPath.$idx")
-          }
-        }
-        is JsonObject -> {
-          val callName =
-            (elem[PROP_CALL] as? JsonPrimitive)
-              ?.takeIf { it.isString }
-              ?.content
-              ?.takeIf { it.isNotEmpty() }
-          if (callName != null) {
-            if (functionsObj == null || callName !in functionsObj) {
-              errors.add(
-                A2uiErrorDetail(
-                  path = currentPath,
-                  code = "invalid_value",
-                  message = "Unknown function: $callName",
-                )
-              )
-            } else {
-              val funcValidator = getFunctionSubValidator(callName)
-              errors.addAll(getFormattedErrors(funcValidator, elem, currentPath))
-            }
-            val argsObj = elem[PROP_ARGS] as? JsonObject
-            if (argsObj != null) {
-              for ((argKey, argVal) in argsObj.entries.toList().asReversed()) {
-                stack.addLast(argVal to "$currentPath.$PROP_ARGS.$argKey")
-              }
-            }
-          } else {
-            for ((k, v) in elem.entries.toList().asReversed()) {
-              stack.addLast(v to "$currentPath.$k")
-            }
-          }
-        }
-        else -> {}
+      processSchemaWalkItem(stack.removeLast(), stack, validatedPaths, errors)
+    }
+    return errors
+  }
+
+  private fun processSchemaWalkItem(
+    item: SchemaWalkItem,
+    stack: ArrayDeque<SchemaWalkItem>,
+    validatedPaths: MutableSet<String>,
+    errors: MutableList<A2uiErrorDetail>,
+  ) {
+    if (isFunctionCallSlotSchema(item.schema)) {
+      if (item.elem is JsonObject) {
+        validateCallAtSlot(item.elem, item.path, stack, validatedPaths, errors)
       }
+      return
+    }
+    if (enqueueDereferencedSchema(item, stack)) return
+    enqueueSchemaCombinators(item, stack)
+    if (item.elem is JsonObject) enqueueSchemaObjectChildren(item.elem, item, stack)
+    if (item.elem is JsonArray) enqueueSchemaArrayChildren(item.elem, item, stack)
+  }
+
+  private fun isFunctionCallSlotSchema(schema: JsonObject): Boolean {
+    val ref = (schema[KEY_DOLLAR_REF] as? JsonPrimitive)?.takeIf { it.isString }?.content
+    if (ref != null) {
+      return FUNCTION_SLOT_REF_SUFFIXES.any { ref.endsWith(it) } ||
+        ref.contains("/${A2uiConstants.CATALOG_FUNCTIONS_KEY}/")
+    }
+    val oneOf = schema["oneOf"] as? JsonArray ?: return false
+    return oneOf.any { branch ->
+      val branchRef =
+        ((branch as? JsonObject)?.get(KEY_DOLLAR_REF) as? JsonPrimitive)
+          ?.takeIf { it.isString }
+          ?.content
+      branchRef != null && branchRef.endsWith("/$DEF_ANY_FUNCTION")
+    }
+  }
+
+  private fun validateCallAtSlot(
+    obj: JsonObject,
+    path: String,
+    stack: ArrayDeque<SchemaWalkItem>,
+    validatedPaths: MutableSet<String>,
+    errors: MutableList<A2uiErrorDetail>,
+  ) {
+    val callName = nonEmptyCallName(obj) ?: return
+    if (!validatedPaths.add(path)) return
+    val fnSchema = resolvedCatalogFunctionSchemas[callName] ?: return
+    errors.addAll(getFormattedErrors(getFunctionSubValidator(callName, fnSchema), obj, path))
+    val argsObj = obj[PROP_ARGS] as? JsonObject ?: return
+    val argsSchema = (fnSchema[PROP_PROPERTIES] as? JsonObject)?.get(PROP_ARGS) as? JsonObject
+    if (argsSchema != null) {
+      stack.addLast(SchemaWalkItem(argsObj, argsSchema, catalog.catalogSchema, "$path.$PROP_ARGS"))
+    }
+  }
+
+  private fun nonEmptyCallName(obj: JsonObject): String? {
+    val primitive = obj[PROP_CALL] as? JsonPrimitive ?: return null
+    if (!primitive.isString || primitive.content.isEmpty()) return null
+    return primitive.content
+  }
+
+  private fun enqueueDereferencedSchema(
+    item: SchemaWalkItem,
+    stack: ArrayDeque<SchemaWalkItem>,
+  ): Boolean {
+    val ref =
+      (item.schema[KEY_DOLLAR_REF] as? JsonPrimitive)?.takeIf { it.isString }?.content
+        ?: return false
+    if (item.refDepth >= MAX_SCHEMA_REF_HOPS) return true
+    val resolved = dereferenceSchemaRef(ref, item.doc) ?: return true
+    stack.addLast(
+      SchemaWalkItem(item.elem, resolved.first, resolved.second, item.path, item.refDepth + 1)
+    )
+    return true
+  }
+
+  private fun dereferenceSchemaRef(
+    ref: String,
+    currentDoc: JsonObject,
+  ): Pair<JsonObject, JsonObject>? {
+    if (ref.startsWith("#/")) {
+      val target = resolvePointerInDoc(ref.substring(2), currentDoc) as? JsonObject ?: return null
+      return target to currentDoc
+    }
+    val hashIdx = ref.indexOf("#/")
+    if (hashIdx < 0) return null
+    val docPart = ref.substring(0, hashIdx)
+    val pointer = ref.substring(hashIdx + 2)
+    val targetDoc = selectReferencedDoc(docPart) ?: return null
+    val target = resolvePointerInDoc(pointer, targetDoc) as? JsonObject ?: return null
+    return target to targetDoc
+  }
+
+  private fun selectReferencedDoc(docPart: String): JsonObject? =
+    when {
+      docPart == FILE_COMMON_TYPES || docPart.endsWith("/$FILE_COMMON_TYPES") ->
+        rawCommonTypesSchema
+      docPart == FILE_CATALOG || docPart.endsWith("/$FILE_CATALOG") -> catalog.catalogSchema
+      else -> null
     }
 
-    return errors
+  private fun resolvePointerInDoc(pointer: String, document: JsonObject): JsonElement? {
+    var target: JsonElement = document
+    for (segment in pointer.split("/")) {
+      val map = target as? JsonObject ?: return null
+      target = map[segment.replace("~1", "/").replace("~0", "~")] ?: return null
+    }
+    return target
+  }
+
+  private fun enqueueSchemaCombinators(item: SchemaWalkItem, stack: ArrayDeque<SchemaWalkItem>) {
+    for (keyword in COMBINATOR_KEYWORDS) {
+      val branches = item.schema[keyword] as? JsonArray ?: continue
+      for (idx in branches.indices.reversed()) {
+        val branchObj = branches[idx] as? JsonObject ?: continue
+        stack.addLast(SchemaWalkItem(item.elem, branchObj, item.doc, item.path))
+      }
+    }
+  }
+
+  private fun enqueueSchemaObjectChildren(
+    obj: JsonObject,
+    item: SchemaWalkItem,
+    stack: ArrayDeque<SchemaWalkItem>,
+  ) {
+    val props = item.schema[PROP_PROPERTIES] as? JsonObject
+    val additionalSchema = item.schema[PROP_ADDITIONAL_PROPERTIES] as? JsonObject
+    for ((key, value) in obj.entries.toList().asReversed()) {
+      val childSchema = (props?.get(key) as? JsonObject) ?: additionalSchema ?: continue
+      stack.addLast(SchemaWalkItem(value, childSchema, item.doc, "${item.path}.$key"))
+    }
+  }
+
+  private fun enqueueSchemaArrayChildren(
+    arr: JsonArray,
+    item: SchemaWalkItem,
+    stack: ArrayDeque<SchemaWalkItem>,
+  ) {
+    val itemsSchema = item.schema["items"] as? JsonObject ?: return
+    for (idx in arr.indices.reversed()) {
+      stack.addLast(SchemaWalkItem(arr[idx], itemsSchema, item.doc, "${item.path}.$idx"))
+    }
   }
 
   private fun calculateSurfaceRootIds(messages: JsonArray): Map<String, String> {
@@ -962,6 +1160,21 @@ constructor(
     private const val PROP_ARGS = "args"
     private const val DEF_ANY_FUNCTION = "anyFunction"
     private const val DEF_FUNCTION_CALL = "FunctionCall"
+
+    private const val MAX_SCHEMA_REF_HOPS = 16
+    private val COMBINATOR_KEYWORDS = listOf("allOf", "anyOf", "oneOf")
+    private val FUNCTION_SLOT_REF_SUFFIXES =
+      listOf(
+        "/FunctionCall",
+        "/DynamicString",
+        "/DynamicNumber",
+        "/DynamicBoolean",
+        "/DynamicStringList",
+        "/DynamicValue",
+        "/anyFunction",
+      )
+    private val COMPOSITE_FUNCTION_REF_SUFFIXES =
+      listOf("/Action", "/Checkable", "/CheckRule", "/AccessibilityAttributes", "/ComponentCommon")
 
     // Types & Drafts
     private const val SCHEMA_DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"

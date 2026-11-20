@@ -530,4 +530,365 @@ class ValidatorTest {
       }
     }
   }
+
+  @Test
+  fun ignoresLiteralCallKeysInThemeAndUntypedObjectPositions() {
+    for (literalCall in
+      listOf(
+        JsonObject(mapOf("call" to JsonPrimitive("unknownLiteral"))),
+        // Matches a real basic-catalog function (`required`) while omitting `args`.
+        JsonObject(mapOf("call" to JsonPrimitive("required"))),
+      )) {
+      // 1. `createSurface.theme` allows `additionalProperties: true` and has no `FunctionCall`
+      // refs,
+      //    and `required.args.value` is untyped (`{"description": "The value to check."}`).
+      val basicPayload =
+        JsonArray(
+          listOf(
+            JsonObject(
+              mapOf(
+                "version" to JsonPrimitive("v0.9"),
+                "createSurface" to
+                  JsonObject(
+                    mapOf(
+                      "surfaceId" to JsonPrimitive("s1"),
+                      "catalogId" to
+                        JsonPrimitive(
+                          BasicCatalog.BASIC_CATALOG_IDS.getValue(A2uiVersion.VERSION_0_9)
+                        ),
+                      "theme" to
+                        JsonObject(
+                          mapOf(
+                            "primaryColor" to JsonPrimitive("#00BFFF"),
+                            "customMeta" to literalCall,
+                          )
+                        ),
+                    )
+                  ),
+              )
+            ),
+            JsonObject(
+              mapOf(
+                "version" to JsonPrimitive("v0.9"),
+                "updateComponents" to
+                  JsonObject(
+                    mapOf(
+                      "surfaceId" to JsonPrimitive("s1"),
+                      "components" to
+                        JsonArray(
+                          listOf(
+                            JsonObject(
+                              mapOf(
+                                "id" to JsonPrimitive("root"),
+                                "component" to JsonPrimitive("TextField"),
+                                "label" to JsonPrimitive("Name"),
+                                "value" to JsonObject(mapOf("path" to JsonPrimitive("/name"))),
+                                "checks" to
+                                  JsonArray(
+                                    listOf(
+                                      JsonObject(
+                                        mapOf(
+                                          "condition" to
+                                            JsonObject(
+                                              mapOf(
+                                                "call" to JsonPrimitive("required"),
+                                                "args" to JsonObject(mapOf("value" to literalCall)),
+                                              )
+                                            ),
+                                          "message" to JsonPrimitive("Required"),
+                                        )
+                                      )
+                                    )
+                                  ),
+                              )
+                            )
+                          )
+                        ),
+                    )
+                  ),
+              )
+            ),
+          )
+        )
+      v09BasicValidator.validate(basicPayload, strictIntegrity = true)
+
+      // 2. Custom component literal `object` property and custom function literal `object` arg.
+      val s2c = SchemaResourceLoader.loadFromBundledResource("0.9", "server_to_client.json")!!
+      val commonTypes = SchemaResourceLoader.loadFromBundledResource("0.9", "common_types.json")!!
+      val customCatalogSchema =
+        Json.parseToJsonElement(
+            """
+            {
+              "${"\$schema"}": "https://json-schema.org/draft/2020-12/schema",
+              "catalogId": "custom-literal-test",
+              "components": {
+                "Panel": {
+                  "type": "object",
+                  "properties": {
+                    "id": {"type": "string"},
+                    "component": {"const": "Panel"},
+                    "config": {"type": "object"},
+                    "title": {"${"\$ref"}": "https://a2ui.org/specification/v0_9/common_types.json#/${"\$defs"}/DynamicString"}
+                  },
+                  "required": ["id", "component", "title"],
+                  "additionalProperties": false
+                }
+              },
+              "functions": {
+                "configure": {
+                  "type": "object",
+                  "properties": {
+                    "call": {"const": "configure"},
+                    "args": {
+                      "type": "object",
+                      "properties": {
+                        "options": {"type": "object"},
+                        "label": {"${"\$ref"}": "https://a2ui.org/specification/v0_9/common_types.json#/${"\$defs"}/DynamicString"}
+                      },
+                      "required": ["options", "label"],
+                      "additionalProperties": false
+                    },
+                    "returnType": {"const": "string"}
+                  },
+                  "required": ["call", "args"],
+                  "unevaluatedProperties": false
+                },
+                "required": {
+                  "type": "object",
+                  "properties": {
+                    "call": {"const": "required"},
+                    "args": {
+                      "type": "object",
+                      "properties": {"value": {}},
+                      "required": ["value"],
+                      "additionalProperties": false
+                    },
+                    "returnType": {"const": "boolean"}
+                  },
+                  "required": ["call", "args"],
+                  "unevaluatedProperties": false
+                }
+              }
+            }
+            """
+          )
+          .jsonObject
+
+      val customValidator =
+        A2uiValidator(
+          A2uiCatalog(
+            version = A2uiVersion.VERSION_0_9,
+            name = "custom",
+            serverToClientSchema = s2c,
+            commonTypesSchema = commonTypes,
+            catalogSchema = customCatalogSchema,
+          )
+        )
+
+      val validCustomPayload =
+        JsonObject(
+          mapOf(
+            "version" to JsonPrimitive("v0.9"),
+            "updateComponents" to
+              JsonObject(
+                mapOf(
+                  "surfaceId" to JsonPrimitive("s1"),
+                  "components" to
+                    JsonArray(
+                      listOf(
+                        JsonObject(
+                          mapOf(
+                            "id" to JsonPrimitive("root"),
+                            "component" to JsonPrimitive("Panel"),
+                            "config" to literalCall,
+                            "title" to
+                              JsonObject(
+                                mapOf(
+                                  "call" to JsonPrimitive("configure"),
+                                  "args" to
+                                    JsonObject(
+                                      mapOf(
+                                        "options" to literalCall,
+                                        "label" to JsonPrimitive("ok"),
+                                      )
+                                    ),
+                                )
+                              ),
+                          )
+                        )
+                      )
+                    ),
+                )
+              ),
+          )
+        )
+      customValidator.validate(validCustomPayload, strictIntegrity = true)
+
+      // Real `DynamicString` slots on the same component/function still reject invalid/unknown
+      // calls.
+      val invalidNestedSlotPayload =
+        JsonObject(
+          mapOf(
+            "version" to JsonPrimitive("v0.9"),
+            "updateComponents" to
+              JsonObject(
+                mapOf(
+                  "surfaceId" to JsonPrimitive("s1"),
+                  "components" to
+                    JsonArray(
+                      listOf(
+                        JsonObject(
+                          mapOf(
+                            "id" to JsonPrimitive("root"),
+                            "component" to JsonPrimitive("Panel"),
+                            "title" to
+                              JsonObject(
+                                mapOf(
+                                  "call" to JsonPrimitive("configure"),
+                                  "args" to
+                                    JsonObject(
+                                      mapOf("options" to literalCall, "label" to literalCall)
+                                    ),
+                                )
+                              ),
+                          )
+                        )
+                      )
+                    ),
+                )
+              ),
+          )
+        )
+      assertFailsWith<A2uiValidationException> {
+        customValidator.validate(invalidNestedSlotPayload, strictIntegrity = true)
+      }
+    }
+  }
+
+  @Test
+  fun supportsCustomCatalogInlineAndSingleObjectAnyFunctionDefinitions() {
+    val s2c = SchemaResourceLoader.loadFromBundledResource("0.9", "server_to_client.json")!!
+    val commonTypes = SchemaResourceLoader.loadFromBundledResource("0.9", "common_types.json")!!
+
+    for (anyFunctionJson in
+      listOf(
+        // Inline `oneOf` branch inside `$defs.anyFunction`
+        """
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "call": {"const": "wrapText"},
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "value": {"${"\$ref"}": "https://a2ui.org/specification/v0_9/common_types.json#/${"\$defs"}/DynamicString"}
+                  },
+                  "required": ["value"],
+                  "additionalProperties": false
+                },
+                "returnType": {"const": "string"}
+              },
+              "required": ["call", "args"],
+              "unevaluatedProperties": false
+            }
+          ]
+        }
+        """,
+        // Single-object `$defs.anyFunction` without `oneOf`
+        """
+        {
+          "type": "object",
+          "properties": {
+            "call": {"const": "wrapText"},
+            "args": {
+              "type": "object",
+              "properties": {
+                "value": {"${"\$ref"}": "https://a2ui.org/specification/v0_9/common_types.json#/${"\$defs"}/DynamicString"}
+              },
+              "required": ["value"],
+              "additionalProperties": false
+            },
+            "returnType": {"const": "string"}
+          },
+          "required": ["call", "args"],
+          "unevaluatedProperties": false
+        }
+        """,
+      )) {
+      val catalogSchema =
+        Json.parseToJsonElement(
+            """
+            {
+              "${"\$schema"}": "https://json-schema.org/draft/2020-12/schema",
+              "catalogId": "inline-any-fn",
+              "components": {
+                "Text": {
+                  "type": "object",
+                  "properties": {
+                    "id": {"type": "string"},
+                    "component": {"const": "Text"},
+                    "text": {"${"\$ref"}": "https://a2ui.org/specification/v0_9/common_types.json#/${"\$defs"}/DynamicString"}
+                  },
+                  "required": ["id", "component", "text"],
+                  "additionalProperties": false
+                }
+              },
+              "${"\$defs"}": {
+                "anyFunction": $anyFunctionJson
+              }
+            }
+            """
+          )
+          .jsonObject
+
+      val validator =
+        A2uiValidator(
+          A2uiCatalog(
+            version = A2uiVersion.VERSION_0_9,
+            name = "inline",
+            serverToClientSchema = s2c,
+            commonTypesSchema = commonTypes,
+            catalogSchema = catalogSchema,
+          )
+        )
+
+      fun nestWrapText(depth: Int, leaf: JsonElement = JsonPrimitive("ok")): JsonObject {
+        var cur: JsonElement = leaf
+        repeat(depth) {
+          cur =
+            JsonObject(
+              mapOf(
+                "call" to JsonPrimitive("wrapText"),
+                "args" to JsonObject(mapOf("value" to cur)),
+              )
+            )
+        }
+        return cur as JsonObject
+      }
+
+      validator.validate(textMessage(nestWrapText(15)), strictIntegrity = true)
+
+      assertFailsWith<A2uiValidationException> {
+        validator.validate(
+          textMessage(nestWrapText(10, JsonPrimitive(999))),
+          strictIntegrity = true,
+        )
+      }
+      assertFailsWith<A2uiValidationException> {
+        validator.validate(
+          textMessage(
+            JsonObject(
+              mapOf(
+                "call" to JsonPrimitive("otherFn"),
+                "args" to JsonObject(mapOf("value" to JsonPrimitive("ok"))),
+              )
+            )
+          ),
+          strictIntegrity = true,
+        )
+      }
+    }
+  }
 }

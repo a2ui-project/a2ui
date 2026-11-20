@@ -1041,9 +1041,100 @@
                                       args:
                                         value: "Six calls deep"
 
+- name: test_v09_nested_function_calls_at_global_depth_limit
+  features: [F-CORE-38]
+  description: Tests that 23 nested function calls pass validation at the exact per-message global depth limit (50) in v0.9 strict mode. Each call adds two JSON levels (the call and its args), placing the innermost leaf value at JSON nesting depth 50 from the message.
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - catalogs/basic/v0_9/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text:
+                  call: formatString
+                  args:
+                    value:
+                      call: formatString
+                      args:
+                        value:
+                          call: formatString
+                          args:
+                            value:
+                              call: formatString
+                              args:
+                                value:
+                                  call: formatString
+                                  args:
+                                    value:
+                                      call: formatString
+                                      args:
+                                        value:
+                                          call: formatString
+                                          args:
+                                            value:
+                                              call: formatString
+                                              args:
+                                                value:
+                                                  call: formatString
+                                                  args:
+                                                    value:
+                                                      call: formatString
+                                                      args:
+                                                        value:
+                                                          call: formatString
+                                                          args:
+                                                            value:
+                                                              call: formatString
+                                                              args:
+                                                                value:
+                                                                  call: formatString
+                                                                  args:
+                                                                    value:
+                                                                      call: formatString
+                                                                      args:
+                                                                        value:
+                                                                          call: formatString
+                                                                          args:
+                                                                            value:
+                                                                              call: formatString
+                                                                              args:
+                                                                                value:
+                                                                                  call: formatString
+                                                                                  args:
+                                                                                    value:
+                                                                                      call: formatString
+                                                                                      args:
+                                                                                        value:
+                                                                                          call: formatString
+                                                                                          args:
+                                                                                            value:
+                                                                                              call: formatString
+                                                                                              args:
+                                                                                                value:
+                                                                                                  call: formatString
+                                                                                                  args:
+                                                                                                    value:
+                                                                                                      call: formatString
+                                                                                                      args:
+                                                                                                        value:
+                                                                                                          call: formatString
+                                                                                                          args:
+                                                                                                            value: "Twenty-three calls deep"
+
 - name: test_v09_nested_function_calls_past_global_depth_error
   features: [F-CORE-38]
-  description: Tests that 25 nested function calls fail validation with RecursionError in v0.9 strict mode. Each call adds two JSON levels (the call and its args), so the innermost call is at JSON nesting depth 52 from the message, past the global depth limit (50).
+  description: Tests that 24 nested function calls fail validation with RecursionError in v0.9 strict mode. Each call adds two JSON levels (the call and its args), placing the innermost args at depth 51 and leaf value at depth 52 from the message, past the global depth limit (50).
   action: validate
   protocolVersion: v0.9
   catalogPaths:
@@ -1133,10 +1224,7 @@
                                                                                                             value:
                                                                                                               call: formatString
                                                                                                               args:
-                                                                                                                value:
-                                                                                                                  call: formatString
-                                                                                                                  args:
-                                                                                                                    value: "Twenty-five calls deep"
+                                                                                                                value: "Twenty-four calls deep"
       expectError:
         category: RecursionError
         message: Global recursion limit exceeded

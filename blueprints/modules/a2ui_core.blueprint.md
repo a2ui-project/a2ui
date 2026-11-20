@@ -1005,6 +1005,9 @@ The matrix below details the specific validation checks, their responsible compo
 | **Depth & Syntax**       | Per-message JSON nesting depth limit (>50, depth 0 per message), which also bounds call nesting      | `MessageProcessor.processMessages()` (`validateRecursionAndPaths()`)      | `A2uiRecursionError`                       |
 | **Depth & Syntax**       | JSON Pointer path syntax validation                                                                  | `MessageProcessor.processMessages()`                                      | `A2uiValidationError`                      |
 
+> [!NOTE]
+> **Per-Message Depth & `ValidationConfig` Gating**: Batch arrays (`[...]`) and `{"messages": [...]}` envelopes are unwrapped before `validateRecursionAndPaths()` runs, so each message begins traversal at depth 0 regardless of how messages are batched. In TypeScript and Dart, `validateRecursionAndPaths()` is gated on an active `ValidationConfig` on `MessageProcessor`; in Python and Swift, version adapters enforce `validateRecursionAndPaths()` unconditionally during envelope extraction.
+
 ---
 
 ### D. Bidirectional Remote Procedure Call (RPC) Layer (`a2ui.core.rpc`)

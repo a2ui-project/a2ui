@@ -453,7 +453,13 @@ void _registerExamples(
 
 class _OpenObjectFunction extends FunctionImplementation {
   _OpenObjectFunction(String name)
-    : super(name: name, argumentSchema: Schema.fromMap({'type': 'object'}));
+    : super(
+        name: name,
+        argumentSchema: Schema.fromMap(const {
+          'type': 'object',
+          'additionalProperties': true,
+        }),
+      );
 
   @override
   Object? execute(

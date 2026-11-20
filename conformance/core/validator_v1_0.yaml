@@ -2129,8 +2129,98 @@
                                       args:
                                         value: "Six calls deep"
 
+- name: test_v10_nested_function_calls_at_global_depth_limit
+  description: Tests that 23 nested function calls pass validation at the exact per-message global depth limit (50) in v1.0 strict mode. Each call adds two JSON levels (the call and its args), placing the innermost leaf value at JSON nesting depth 50 from the message.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text:
+                  "@call": formatString
+                  args:
+                    value:
+                      "@call": formatString
+                      args:
+                        value:
+                          "@call": formatString
+                          args:
+                            value:
+                              "@call": formatString
+                              args:
+                                value:
+                                  "@call": formatString
+                                  args:
+                                    value:
+                                      "@call": formatString
+                                      args:
+                                        value:
+                                          "@call": formatString
+                                          args:
+                                            value:
+                                              "@call": formatString
+                                              args:
+                                                value:
+                                                  "@call": formatString
+                                                  args:
+                                                    value:
+                                                      "@call": formatString
+                                                      args:
+                                                        value:
+                                                          "@call": formatString
+                                                          args:
+                                                            value:
+                                                              "@call": formatString
+                                                              args:
+                                                                value:
+                                                                  "@call": formatString
+                                                                  args:
+                                                                    value:
+                                                                      "@call": formatString
+                                                                      args:
+                                                                        value:
+                                                                          "@call": formatString
+                                                                          args:
+                                                                            value:
+                                                                              "@call": formatString
+                                                                              args:
+                                                                                value:
+                                                                                  "@call": formatString
+                                                                                  args:
+                                                                                    value:
+                                                                                      "@call": formatString
+                                                                                      args:
+                                                                                        value:
+                                                                                          "@call": formatString
+                                                                                          args:
+                                                                                            value:
+                                                                                              "@call": formatString
+                                                                                              args:
+                                                                                                value:
+                                                                                                  "@call": formatString
+                                                                                                  args:
+                                                                                                    value:
+                                                                                                      "@call": formatString
+                                                                                                      args:
+                                                                                                        value:
+                                                                                                          "@call": formatString
+                                                                                                          args:
+                                                                                                            value: "Twenty-three calls deep"
+
 - name: test_v10_nested_function_calls_past_global_depth_error
-  description: Tests that 25 nested function calls fail validation with RecursionError in v1.0 strict mode. Each call adds two JSON levels (the call and its args), so the innermost call is at JSON nesting depth 52 from the message, past the global depth limit (50).
+  description: Tests that 24 nested function calls fail validation with RecursionError in v1.0 strict mode. Each call adds two JSON levels (the call and its args), placing the innermost args at depth 51 and leaf value at depth 52 from the message, past the global depth limit (50).
   action: validate
   protocolVersion: "1.0"
   catalogPaths:
@@ -2220,10 +2310,7 @@
                                                                                                             value:
                                                                                                               "@call": formatString
                                                                                                               args:
-                                                                                                                value:
-                                                                                                                  "@call": formatString
-                                                                                                                  args:
-                                                                                                                    value: "Twenty-five calls deep"
+                                                                                                                value: "Twenty-four calls deep"
       expectError:
         category: RecursionError
         message: Global recursion limit exceeded

@@ -1254,6 +1254,95 @@ void v1RulesTests() {
       );
     });
 
+    test('code-defined v0.9 function closes object argumentSchema against '
+        'undeclared arguments unless additionalProperties is true', () {
+      final CatalogApi catalog = CatalogApi(
+        id: 'code-v09',
+        protocolVersion: A2uiProtocolVersion.v0_9,
+        components: [
+          ComponentApi(
+            name: 'Box',
+            schema: Schema.fromMap({
+              'type': 'object',
+              'properties': {
+                'value': {
+                  r'$ref': r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString',
+                },
+              },
+            }),
+          ),
+        ],
+        functions: [
+          FunctionApi(
+            name: 'greet',
+            returnType: A2uiReturnType.string,
+            argumentSchema: Schema.object(
+              properties: {'name': Schema.string()},
+              required: ['name'],
+            ),
+          ),
+          FunctionApi(
+            name: 'ping',
+            returnType: A2uiReturnType.string,
+            argumentSchema: Schema.object(),
+          ),
+          FunctionApi(
+            name: 'openEcho',
+            returnType: A2uiReturnType.string,
+            argumentSchema: Schema.fromMap(const {
+              'type': 'object',
+              'additionalProperties': true,
+            }),
+          ),
+        ],
+      );
+      final PayloadValidator<ComponentApi, FunctionApi> validator =
+          PayloadValidator(catalog: catalog);
+
+      expect(
+        () => validator.validateComponent(
+          _box({
+            'call': 'greet',
+            'args': {'name': 'Ada'},
+          }),
+        ),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateComponent(
+          _box({
+            'call': 'greet',
+            'args': {'name': 'Ada', 'undeclared': 1},
+          }),
+        ),
+        throwsA(_validationError(message: contains("Call to 'greet'"))),
+      );
+      expect(
+        () => validator.validateComponent(
+          _box({'call': 'ping', 'args': <String, Object?>{}}),
+        ),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateComponent(
+          _box({
+            'call': 'ping',
+            'args': {'undeclared': 1},
+          }),
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => validator.validateComponent(
+          _box({
+            'call': 'openEcho',
+            'args': {'anyKey': 123},
+          }),
+        ),
+        returnsNormally,
+      );
+    });
+
     test('rejects an unknown nested function in a v0.9 catalog', () {
       expect(
         () => _versionedValidator('v0.9').validateComponent(

@@ -40,6 +40,7 @@ import {
   A2uiDataError,
   A2uiError,
   A2uiIntegrityError,
+  A2uiRecursionError,
   A2uiValidationError,
 } from '../errors.js';
 import {
@@ -93,6 +94,7 @@ import {
 import {toOutboundActionMessage} from './outbound-envelope.js';
 import {DataContext} from '../resolution/data-context.js';
 import {
+  MAX_GLOBAL_DEPTH,
   RELAXED_PATH_PATTERN,
   RELAXED_VALIDATION,
   STRICT_VALIDATION,
@@ -864,7 +866,21 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private prepareSingleItem(
     item: ProcessableMessagePayload,
     onItemContext?: (ctx: ErrorEnvelopeContext) => void,
+    wrapperDepth = 0,
   ): InternalOperation[] {
+    if (this.validationConfig && wrapperDepth > MAX_GLOBAL_DEPTH) {
+      throw new A2uiRecursionError(`Global recursion limit exceeded: Depth > ${MAX_GLOBAL_DEPTH}`);
+    }
+
+    if (Array.isArray(item)) {
+      return this.prepareOperations(item, onItemContext, wrapperDepth + 1);
+    }
+
+    const wrappedMessages = this.unwrapMessagesEnvelope(item);
+    if (wrappedMessages !== undefined) {
+      return this.prepareOperations(wrappedMessages, onItemContext, wrapperDepth + 1);
+    }
+
     onItemContext?.(extractEnvelopeErrorContext(item, this.defaultVersion));
 
     if (this.validationConfig) {
@@ -882,19 +898,47 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     return this.extractSingleMessageOperations(item);
   }
 
+  private unwrapMessagesEnvelope(
+    item: ProcessableMessagePayload,
+  ): ProcessableMessagePayload | undefined {
+    if (typeof item !== 'object' || item === null || isInternalOperation(item)) {
+      return undefined;
+    }
+    const candidate = (item as {messages?: unknown}).messages;
+    if (!Array.isArray(candidate)) return undefined;
+    if (this.validationConfig) {
+      this.validateWrapperSiblingKeys(item as Record<string, unknown>);
+    }
+    return candidate as ProcessableMessagePayload;
+  }
+
+  private validateWrapperSiblingKeys(wrapperObj: Record<string, unknown>): void {
+    if (Object.keys(wrapperObj).length <= 1) return;
+    const rest: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(wrapperObj)) {
+      if (k !== 'messages') rest[k] = v;
+    }
+    validateRecursionAndPaths(rest);
+  }
+
   private prepareOperations(
     messages: ProcessableMessagePayload,
     onItemContext?: (ctx: ErrorEnvelopeContext) => void,
+    wrapperDepth = 0,
   ): InternalOperation[] {
     if (!messages || (Array.isArray(messages) && messages.length === 0)) return [];
 
+    if (this.validationConfig && wrapperDepth > MAX_GLOBAL_DEPTH) {
+      throw new A2uiRecursionError(`Global recursion limit exceeded: Depth > ${MAX_GLOBAL_DEPTH}`);
+    }
+
     if (Array.isArray(messages)) {
       return messages.flatMap(item =>
-        this.prepareSingleItem(item as ProcessableMessagePayload, onItemContext),
+        this.prepareSingleItem(item as ProcessableMessagePayload, onItemContext, wrapperDepth + 1),
       );
     }
 
-    return this.prepareSingleItem(messages, onItemContext);
+    return this.prepareSingleItem(messages, onItemContext, wrapperDepth);
   }
 
   /**
