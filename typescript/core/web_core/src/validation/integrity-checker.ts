@@ -253,9 +253,11 @@ function traverseRecursionAndPaths(item: unknown, globalDepth: number): void {
  * Traverses a JSON data payload to validate path syntax and recursion limits.
  *
  * @param data Data payload or component hierarchy to evaluate.
+ * @param startDepth Depth that `data` itself sits at, for a value held by a
+ *   container whose depth has already been counted.
  * @throws {A2uiRecursionError} If global structure depth exceeds the limit.
  * @throws {A2uiValidationError} If an invalid JSON Pointer path format is encountered.
  */
-export function validateRecursionAndPaths(data: unknown): void {
-  traverseRecursionAndPaths(data, 0);
+export function validateRecursionAndPaths(data: unknown, startDepth = 0): void {
+  traverseRecursionAndPaths(data, startDepth);
 }

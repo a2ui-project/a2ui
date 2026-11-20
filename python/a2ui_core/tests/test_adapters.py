@@ -625,18 +625,35 @@ def test_extract_operations_unwraps_containers_before_per_message_depth_check(
         with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
             adapter.extract_operations(container)
 
-    with pytest.raises(
-        A2uiValidationError,
-        match="Message wrapper has unexpected properties: extra",
+    # Keys beside "messages" on a wrapper carry no operations: its messages apply.
+    for wrapper in (
+        {"version": version, "messages": [at_limit]},
+        {"messages": [at_limit], "updateComponents": {"surfaceId": "other"}},
     ):
-        adapter.extract_operations({"messages": [at_limit], "extra": 1})
+        ops = adapter.extract_operations(wrapper)
+        assert [op.surface_id for op in ops] == ["s1"]
 
-    with pytest.raises(
-        A2uiValidationError,
-        match="Message wrapper has unexpected properties: updateComponents",
-    ):
+    # A value beside "messages" counts its depth from the wrapper that holds it.
+    # Ten lists put the wrapper at depth 10, so 40 lists nested beside "messages"
+    # end at depth 50, and 41 at depth 51.
+    def nested_lists(count: int) -> object:
+        value: object = []
+        for _ in range(count - 1):
+            value = [value]
+        return value
+
+    def wrapper_at_depth_10(extra: object) -> object:
+        payload: object = {"messages": [at_limit], "extra": extra}
+        for _ in range(10):
+            payload = [payload]
+        return payload
+
+    assert len(adapter.extract_operations(wrapper_at_depth_10(nested_lists(40)))) == 1
+    with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
+        adapter.extract_operations(wrapper_at_depth_10(nested_lists(41)))
+    with pytest.raises(A2uiValidationError, match="Invalid path syntax"):
         adapter.extract_operations(
-            {"messages": [at_limit], "updateComponents": {"surfaceId": "s1"}}
+            {"messages": [at_limit], "meta": {"path": "/invalid/escape/~2"}}
         )
 
     nested_arrays_50: object = at_limit

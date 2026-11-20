@@ -3364,29 +3364,60 @@ describe('MessageProcessor component envelope mixins', () => {
         );
       }
 
-      // Unexpected sibling keys on `{messages: [...]}` wrappers fail with and without validationConfig.
+      // Keys beside `messages` on a wrapper carry no operations: its messages apply.
+      for (const validationConfig of [strictConfig, undefined]) {
+        const proc = new MessageProcessor<ComponentApi>([cat], undefined, {validationConfig});
+        proc.processMessages({version: '1.0', messages: [createMsg, atLimit]} as never);
+        assert.ok(proc.model.getSurface('s')?.componentsModel.get('root'));
+        assert.doesNotThrow(() =>
+          proc.processMessages({
+            messages: [atLimit],
+            updateComponents: {surfaceId: 'other', components: []},
+          } as never),
+        );
+        assert.strictEqual(proc.model.getSurface('other'), undefined);
+        proc.dispose();
+      }
+
+      // A value beside `messages` counts its depth from the wrapper that holds it. Ten arrays put
+      // the wrapper at depth 10, so 40 arrays nested beside `messages` end at depth 50, and 41 at 51.
+      const nestedArrays = (count: number) => {
+        let value: unknown = [];
+        for (let i = 1; i < count; i++) {
+          value = [value];
+        }
+        return value;
+      };
+      const wrapperAtDepth10 = (extra: unknown) => {
+        let payload: unknown = {messages: [atLimit], extra};
+        for (let i = 0; i < 10; i++) {
+          payload = [payload];
+        }
+        return payload;
+      };
+      const badPath = {messages: [atLimit], meta: {path: '/invalid/escape/~2'}};
       const defaultProc = new MessageProcessor<ComponentApi>([cat]);
       defaultProc.processMessages(createMsg as never);
-      for (const proc of [standaloneProc, defaultProc]) {
-        assert.throws(
-          () => proc.processMessages({messages: [atLimit], extra: 1} as never),
-          (err: unknown) =>
-            err instanceof A2uiValidationError &&
-            err.message.includes('Message wrapper must not contain additional properties: extra'),
-        );
-        assert.throws(
-          () =>
-            proc.processMessages({
-              messages: [atLimit],
-              updateComponents: {surfaceId: 's', components: []},
-            } as never),
-          (err: unknown) =>
-            err instanceof A2uiValidationError &&
-            err.message.includes(
-              'Message wrapper must not contain additional properties: updateComponents',
-            ),
-        );
-      }
+
+      assert.doesNotThrow(() =>
+        standaloneProc.processMessages(wrapperAtDepth10(nestedArrays(40)) as never),
+      );
+      assert.throws(
+        () => standaloneProc.processMessages(wrapperAtDepth10(nestedArrays(41)) as never),
+        (err: unknown) =>
+          err instanceof A2uiRecursionError &&
+          err.message.includes('Global recursion limit exceeded'),
+      );
+      assert.throws(
+        () => standaloneProc.processMessages(badPath as never),
+        (err: unknown) =>
+          err instanceof A2uiValidationError && err.message.includes('Invalid path syntax'),
+      );
+      // Without a validationConfig the keys are ignored unchecked, as messages are.
+      assert.doesNotThrow(() =>
+        defaultProc.processMessages(wrapperAtDepth10(nestedArrays(41)) as never),
+      );
+      assert.doesNotThrow(() => defaultProc.processMessages(badPath as never));
 
       // Exact wrapper depth boundaries apply both with strictConfig and without validationConfig:
       // 50 nested arrays pass, 51 fail; 25 `{messages}` wrappers pass, 26 fail (including empty `[]` leaves).

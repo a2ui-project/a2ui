@@ -79,8 +79,14 @@ def validate_component_integrity(
                 )
 
 
-def validate_recursion_and_paths(data: Any) -> None:
-    """Traverses message payload structures verifying recursion depth and data pointer path syntax."""
+def validate_recursion_and_paths(data: Any, start_depth: int = 0) -> None:
+    """Traverses message payload structures verifying recursion depth and data pointer path syntax.
+
+    Args:
+      data: The payload or component hierarchy to check.
+      start_depth: The depth that `data` itself sits at, for a value held by a
+        container whose depth has already been counted.
+    """
 
     def traverse(item: Any, global_depth: int) -> None:
         if global_depth > MAX_GLOBAL_DEPTH:
@@ -115,7 +121,7 @@ def validate_recursion_and_paths(data: Any) -> None:
             for v in item.values():
                 traverse(v, global_depth + 1)
 
-    traverse(data, 0)
+    traverse(data, start_depth)
 
 
 def analyze_topology(

@@ -882,7 +882,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       return this.prepareOperations(item, onItemContext, wrapperDepth);
     }
 
-    const wrappedMessages = this.unwrapMessagesEnvelope(item);
+    const wrappedMessages = this.unwrapMessagesEnvelope(item, wrapperDepth);
     if (wrappedMessages !== undefined) {
       return this.prepareOperations(wrappedMessages, onItemContext, wrapperDepth + 1);
     }
@@ -906,22 +906,35 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
   private unwrapMessagesEnvelope(
     item: ProcessableMessagePayload,
+    wrapperDepth: number,
   ): ProcessableMessagePayload | undefined {
     if (typeof item !== 'object' || item === null || isInternalOperation(item)) {
       return undefined;
     }
     const candidate = (item as {messages?: unknown}).messages;
     if (!Array.isArray(candidate)) return undefined;
-    this.validateWrapperSiblingKeys(item as Record<string, unknown>);
+    if (this.validationConfig) {
+      this.validateWrapperSiblingKeys(item as Record<string, unknown>, wrapperDepth);
+    }
     return candidate as ProcessableMessagePayload;
   }
 
-  private validateWrapperSiblingKeys(wrapperObj: Record<string, unknown>): void {
-    const extraKeys = Object.keys(wrapperObj).filter(k => k !== 'messages');
-    if (extraKeys.length === 0) return;
-    throw new A2uiValidationError(
-      `Message wrapper must not contain additional properties: ${extraKeys.join(', ')}.`,
-    );
+  /**
+   * Checks the keys beside `messages` on a wrapper for depth and path syntax.
+   *
+   * Those keys carry no operations and are otherwise ignored. Their depth
+   * counts from the wrapper that holds them, so that a value beside
+   * `messages` nests no deeper than a message inside it may.
+   */
+  private validateWrapperSiblingKeys(
+    wrapperObj: Record<string, unknown>,
+    wrapperDepth: number,
+  ): void {
+    const siblings: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(wrapperObj)) {
+      if (key !== 'messages') siblings[key] = value;
+    }
+    validateRecursionAndPaths(siblings, wrapperDepth);
   }
 
   private prepareOperations(
