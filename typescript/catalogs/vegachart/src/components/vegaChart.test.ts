@@ -33,6 +33,7 @@ import {
   FALLBACK_WIDTH_PX,
   transformSpec,
   type VegaEmbedFn,
+  type VegaEmbedOptions,
 } from './vegaChart.js';
 
 registerUniversalElement(A2uiVegaChart);
@@ -295,6 +296,19 @@ describe('A2uiVegaChartElement', () => {
     mockRect(el, 0, 0, false);
     await settle();
     assert.strictEqual(rendered.length, 0);
+  });
+
+  it('asks the embed function to interpret expressions instead of compiling them', async () => {
+    const options: Array<VegaEmbedOptions | undefined> = [];
+    const {container} = await mount({mark: 'bar'}, async (_el, _spec, embedOptions) => {
+      options.push(embedOptions);
+      return {};
+    });
+    mockRect(container, 500, 290);
+    latestResizeObserver()?.trigger(500, 290);
+    await settle();
+
+    assert.deepStrictEqual(options, [{actions: false, renderer: 'svg', ast: true}]);
   });
 
   it('removes the chart and finalizes the view when spec is cleared', async () => {
