@@ -567,7 +567,12 @@ class PlaygroundAgent:
                 template_id=None
                 if pasted_payload is not None
                 else default_preset.template_id,
-                intent=text or default_preset.intent,
+                intent=text
+                or (
+                    "Render payload"
+                    if pasted_payload is not None
+                    else default_preset.intent
+                ),
                 payload=payload,
                 surface_id="main",
             )
