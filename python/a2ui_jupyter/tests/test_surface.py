@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import json
 import subprocess
@@ -83,7 +84,7 @@ RENDERER_MESSAGES = [
             "Signed in as ada@example.com",
         ),
         (
-            "manual_smoke_test.ipynb",
+            "smoke_test.ipynb",
             "manual-smoke-test",
             "submit",
             {"name": "Ada"},
@@ -104,7 +105,17 @@ def test_interactive_examples_handle_actions_without_waiting(
     monkeypatch.setattr(anywidget.AnyWidget, "send", lambda *args, **kwargs: None)
     cells = json.loads((examples / notebook).read_text())["cells"]
     namespace: dict[str, Any] = {}
-    exec(compile("".join(cells[1]["source"]), notebook, "exec"), namespace)
+    # The setup cell uses top-level await on Pyodide, so run it as a coroutine when needed.
+    for cell in cells[1:3]:
+        code = compile(
+            "".join(cell["source"]),
+            notebook,
+            "exec",
+            flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT,
+        )
+        result = eval(code, namespace)
+        if asyncio.iscoroutine(result):
+            asyncio.run(result)
 
     action = {
         "version": "1.0",

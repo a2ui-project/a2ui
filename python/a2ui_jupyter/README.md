@@ -92,11 +92,11 @@ JupyterLite. Keep these examples with the renderer so that changes to its API
 can be tested alongside them. The separate
 [JupyterLite demo](https://github.com/MRYingLEE/jupyterlite-demo) contains
 deployment configuration and kernel-specific smoke tests.
-[renderer_setup.py](./examples/renderer_setup.py) is a shared helper. It checks
-that the widget bundle is built and creates a surface that uses the basic
-catalog. Notebooks import it with `from renderer_setup import new_surface`, so
-open them from the `examples` folder or keep the working directory there. The
-package must already be installed in the selected Python kernel.
+Each notebook starts with the same setup cell (`renderer-init`). It sets
+`KERNEL` to `cpython`, `pyodide`, or `xpython` and defines `new_surface`, which
+creates a surface that uses the basic catalog. Copy the cell unchanged when you
+add a notebook. The package must already be installed in the selected Python
+kernel, or the Pyodide setup cell installs it.
 
 - `01_text_and_layout.ipynb`: text, rows, columns, cards, and dividers.
 - `02_button_action.ipynb`: a button that sends an action to a callback.
@@ -183,7 +183,7 @@ receives an action still decides what happens next by sending more messages.
 Common choices:
 
 1. Replace the form with a confirmation by sending `updateComponents` with new
-   children for the root component. The [example notebook](./examples/manual_smoke_test.ipynb)
+   children for the root component. The [example notebook](./examples/smoke_test.ipynb)
    does this.
 2. Keep the form and show the result by sending `updateDataModel` followed by
    `updateComponents` to make the surface visible again.
@@ -226,8 +226,8 @@ uv run --package a2ui-jupyter python -m jupyterlab
 JupyterLab needs a Python kernel to run notebooks. Install one into the same
 environment. `a2ui-jupyter` does not depend on a specific kernel package.
 
-In JupyterLab, open [`examples/manual_smoke_test.ipynb`](./examples/manual_smoke_test.ipynb)
-and select a Python kernel. Run the form cell, enter a name, and click
+In JupyterLab, open [`examples/smoke_test.ipynb`](./examples/smoke_test.ipynb)
+and select a Python kernel. Run the setup cell and the surface cell, enter a name, and click
 **Submit**. The callback replaces the form with a confirmation. The next cell
 shows the `action` message containing the name.
 After rebuilding the bundle, restart the notebook kernel and refresh JupyterLab
