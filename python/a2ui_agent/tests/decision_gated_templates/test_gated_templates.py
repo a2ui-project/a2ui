@@ -629,3 +629,71 @@ def test_gated_template_evaluator_emits_experimental_warning(
         "[EXPERIMENTAL]" in str(w.message) and "GatedTemplateEvaluator" in str(w.message)
         for w in caught
     )
+
+
+@pytest.mark.asyncio
+async def test_excluded_paths_are_redacted_from_decision_batch_state() -> None:
+    basic = _basic()
+    spec = GatedTemplateSpec(
+        id="incident",
+        description="Incident dashboard",
+        components=tuple(_incident_components()),
+        catalog_id=basic.catalog_id,
+    )
+    backend = _ScriptedBackend({
+        "gate:rollback_card": 0.9,
+        "variant:metrics_layout": ("compact", 0.9),
+    })
+    evaluator = GatedTemplateEvaluator(
+        backend, transport_catalogs=[basic], templates=[spec]
+    )
+    await evaluator.evaluate(
+        "incident",
+        "Show status",
+        {
+            "service": "checkout-api",
+            "cpu": "40%",
+            "errorRate": "0.1%",
+            "internal_secret_note": "TOP_SECRET_MARKER",
+        },
+        exclude=("/internal_secret_note",),
+    )
+    assert backend.batches
+    assert "TOP_SECRET_MARKER" not in (backend.batches[0].state or "")
+
+
+def test_conflicting_variant_prompts_raise_catalog_error() -> None:
+    with pytest.raises(A2uiCatalogError, match="conflicting 'prompt'"):
+        extract_gates_and_variants([
+            {"id": "root", "component": "Column", "children": ["a", "b"]},
+            {
+                "id": "a",
+                "component": "Text",
+                "text": "x",
+                "@metadata": {
+                    "extensions": {
+                        VARIANT_EXTENSION_KEY: {
+                            "group": "g",
+                            "name": "a",
+                            "description": "Option A",
+                            "prompt": "Prompt one",
+                        }
+                    }
+                },
+            },
+            {
+                "id": "b",
+                "component": "Text",
+                "text": "y",
+                "@metadata": {
+                    "extensions": {
+                        VARIANT_EXTENSION_KEY: {
+                            "group": "g",
+                            "name": "b",
+                            "description": "Option B",
+                            "prompt": "Prompt two",
+                        }
+                    }
+                },
+            },
+        ])

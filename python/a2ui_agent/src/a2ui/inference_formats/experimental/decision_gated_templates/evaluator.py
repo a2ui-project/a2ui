@@ -131,6 +131,9 @@ def _format_state_text(
     intent: str,
     pointers: Sequence[PointerSummary],
     data_model: Mapping[str, Any],
+    *,
+    exclude: Collection[str] = (),
+    mutable_paths: Collection[str] = (),
 ) -> str:
     """Formats explicit `DecisionBatch.state` text for gate and variant scoring."""
     lines = [f"Intent: {intent.strip()}", "Payload:"]
@@ -141,7 +144,9 @@ def _format_state_text(
             f" label={ptr.label}{extra})"
         )
     # Include redacted scalar values so boolean gates can reason about payload content.
-    redacted = _redact_data_model(data_model)
+    redacted = _redact_data_model(
+        data_model, exclude=exclude, mutable_paths=mutable_paths
+    )
     if redacted:
         lines.append(f"Values: {redacted}")
     return "\n".join(lines)
@@ -248,7 +253,13 @@ class GatedTemplateEvaluator:
         answer_map: dict[str, DecisionAnswer] = {}
         calls = 0
         if questions:
-            state_text = _format_state_text(intent, pointers, data_model)
+            state_text = _format_state_text(
+                intent,
+                pointers,
+                data_model,
+                exclude=exclude,
+                mutable_paths=mutable_paths,
+            )
             answers = await self._backend.answer(
                 DecisionBatch(state=state_text, questions=tuple(questions)),
                 timeout_seconds=timeout_seconds,
@@ -330,7 +341,13 @@ class GatedTemplateEvaluator:
         total_pairs = len(select_q.candidates()) + sum(
             len(q.candidates()) for q in all_gate_questions
         )
-        state_text = _format_state_text(intent, pointers, data_model)
+        state_text = _format_state_text(
+            intent,
+            pointers,
+            data_model,
+            exclude=exclude,
+            mutable_paths=mutable_paths,
+        )
 
         if total_pairs <= self._max_pairs:
             answers = await self._backend.answer(
