@@ -139,11 +139,11 @@ For a suggestion, decide what the triager should do, following [triage_criteria.
 
 The [`TriageSuggestion`](../../../tools/internal/triage_new/pkgs/triage/lib/src/triage_bot/triage_suggestion.dart) component has these properties:
 
-1. `tldr`: the case and the suggestion in a few words each, as two lines: `Case: ...`, what kind of item this is, such as "this issue highlights a problem", and `Suggestion: ...`, the action, such as "set P1 and assign for triage to an expert". Write it after `summary` and `suggestion`, as their short form, so that the triager can decide at a glance.
+1. `tldr`: the case and the suggestion in a few words each, as two lines: `Case: ...`, what kind of item this is, such as "this issue highlights a problem", and `Suggestion: ...`, the action, such as "set P1 and assign for triage to an expert". For a PR that a team member already started reviewing, the `Case:` line says so, with their login (see [Pull requests](references/triage_criteria.md#pull-requests)). Write it after `summary` and `suggestion`, as their short form, so that the triager can decide at a glance.
 2. `summary` (required): what the item is about, in one or two sentences, for a triager who has not read it.
 3. `reason`: why the item is flagged for triage. Copy it unchanged from the output of `flag_reason.mts` in step 2, and omit it when the output has `null`. Do not work out the reason yourself: the script uses the same code as the flagger, so the two always agree.
 4. `suggestion` (required): what the triager should do and why. Name the evidence, with links (see the rules for links below).
-5. `reply`: a comment for the item's author or other participants, which the triage UI posts when the triager applies the suggestion. Always write one. At least, it says in a sentence or two what the triager does and why, such as "Assigning this PR to `xyz`, because they already started reviewing it." Copy it from [templates.md](../../../docs/contributing/triage/templates.md) when a template fits. When the author needs to act, an out-of-team contributor's question is unanswered, or the item is closed, the reply also says what the author should do, answers the question, or explains why the item is closed.
+5. `reply`: a comment for the item's author or other participants, which the triage UI posts when the triager applies the suggestion. Always write one. Start it with the line `**From triage:**` and a blank line, so that readers know the comment comes from triage. Unlike `**From triage bot`, this prefix does not make the flagger ignore the comment, so the posted reply counts as a team answer. After the prefix, at least, it says in a sentence or two what the triager does and why, such as "Assigning this PR to `xyz`, because they already started reviewing it." Copy it from [templates.md](../../../docs/contributing/triage/templates.md) when a template fits. Never ask anyone in `reply` to adjust or change the priority, or any other label: out-of-team contributors cannot change labels, and the triager sets them. When the author needs to act, an out-of-team contributor's question is unanswered, or the item is closed, the reply also says what the author should do, answers the question, or explains why the item is closed.
 6. `close_as`: `completed`, `not_planned` or `duplicate`, when the triager should close the item. Omit it to keep the item open.
 7. `duplicate_of`: with `close_as` set to `duplicate`, the number of the item this one duplicates.
 8. `added_labels`: labels to add.
@@ -219,7 +219,9 @@ https://github.com/a2ui-project/a2ui/issues/<number>
 
 Reply:
 
-> <reply>
+> **From triage:**
+>
+> <reply-text>
 
 To adjust and apply this suggestion, run in your a2ui checkout:
 
@@ -240,7 +242,9 @@ Suggestion: <short suggestion>""",
   summary="<summary>",
   reason="<reason>",
   suggestion="""<suggestion>""",
-  reply="""<reply>""",
+  reply="""**From triage:**
+
+<reply-text>""",
   close_as="duplicate",
   duplicate_of=<number>,
   added_labels=["<label>", "<label>"],
@@ -291,6 +295,8 @@ Set P1 and assign `flutter-owner`, who wrote [most recent changes](https://githu
 
 Reply:
 
+> **From triage:**
+>
 > Thanks for the report and the payload that reproduces it. Setting P1 and assigning `flutter-owner`, who maintains the Flutter renderer. [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column`.
 
 To adjust and apply this suggestion, run in your a2ui checkout:
@@ -312,7 +318,9 @@ Suggestion: set P1 and assign `flutter-owner`.""",
   summary="""The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.""",
   reason="This issue has no priority label.",
   suggestion="""Set P1 and assign `flutter-owner`, who wrote [most recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column` and probably has the same cause.""",
-  reply="""Thanks for the report and the payload that reproduces it. Setting P1 and assigning `flutter-owner`, who maintains the Flutter renderer. [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column`.""",
+  reply="""**From triage:**
+
+Thanks for the report and the payload that reproduces it. Setting P1 and assigning `flutter-owner`, who maintains the Flutter renderer. [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column`.""",
   added_labels=["type: bug", "P1", "component: flutter adapter", "status: first-line-handled"],
   new_assignees=["flutter-owner"],
   related_items=[1234]
@@ -349,6 +357,8 @@ Close as a duplicate of [#1100](https://github.com/a2ui-project/a2ui/issues/1100
 
 Reply:
 
+> **From triage:**
+>
 > Thanks for the request. [#1100](https://github.com/a2ui-project/a2ui/issues/1100) tracks the same component, so we are closing this issue as a duplicate. Add your use case there if it is not covered yet.
 
 To adjust and apply this suggestion, run in your a2ui checkout:
@@ -370,7 +380,9 @@ Suggestion: close as a duplicate.""",
   summary="The issue asks for a `Slider` component in the basic catalog.",
   reason="This issue has no priority label.",
   suggestion="Close as a duplicate of [#1100](https://github.com/a2ui-project/a2ui/issues/1100), which asks for the same component and already has P2. The issue adds no new use case.",
-  reply="""Thanks for the request. [#1100](https://github.com/a2ui-project/a2ui/issues/1100) tracks the same component, so we are closing this issue as a duplicate. Add your use case there if it is not covered yet.""",
+  reply="""**From triage:**
+
+Thanks for the request. [#1100](https://github.com/a2ui-project/a2ui/issues/1100) tracks the same component, so we are closing this issue as a duplicate. Add your use case there if it is not covered yet.""",
   close_as="duplicate",
   duplicate_of=1100,
   added_labels=["status: first-line-handled"]

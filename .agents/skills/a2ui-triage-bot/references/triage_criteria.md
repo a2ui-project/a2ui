@@ -55,15 +55,19 @@ If the issue asks how to use or set up A2UI rather than reporting a defect, add 
 
 For the cases in [templates.md](../../../../docs/contributing/triage/templates.md), suggest what the template says, and use its text as the `reply`. These include an assigned issue without a priority (`P2`) and an AI-generated compliance report (close as not planned).
 
+For an assigned issue without a priority, leave out the template's request to adjust the priority, and use only "I assigned a P2 priority to move this out of the triage queue." as the `reply`.
+
 Do not suggest a ping for a stale assigned issue. The [staleness pinger](../../../../tools/internal/triage_new/blueprints/features/triage_bot/staleness_ping.blueprint.md) does that.
 
 ## Pull requests
 
-Follow [Triage a PR](../../../../docs/contributing/triage/triage.md#triage-a-pr).
+Follow [Triage a PR](../../../../docs/contributing/triage/triage.md#triage-a-pr), with one change: where it says to review the PR, the triage bot suggests an expert who decides, as the rules below say. Never suggest "review it", and never promise a review.
+
+Until a team member has started reviewing an out-of-team contributor's PR, do not ask its author to resolve merge conflicts, merge `main` or rebase, and do not add `status: waiting-for-author-response` because of conflicts. If the team declines the PR, that work would waste the contributor's time. Mention the conflicts in `suggestion`, for the triager and the expert, and leave them out of `reply`. Once a team member has started reviewing, the reviewer decides when to ask for it.
 
 If Dependabot opened the PR (author `dependabot`, or `dependabot[bot]` in the REST API) and the PR has merge conflicts with `main`, set `close_as` to `not_planned` and skip the rules below. Say in `suggestion` that the PR has conflicts, and list in `related_items` any open Dependabot PR with the same updates. Use this `reply`: "Closing because this PR has merge conflicts with `main`."
 
-If a team member other than the PR author submitted a review, in any state, that team member started reviewing the PR, and the team has decided to review it. Suggest assigning the reviewer, link to their review in `suggestion`, say it in `reply`, such as "Assigning this PR to `xyz`, because they already started reviewing it.", and skip the review criteria below. If several team members reviewed, suggest the one whose review came first. If the reviewer is already assigned, suggest no assignee. Bots, such as `gemini-code-assist`, are not team members, so their reviews do not count.
+If a team member other than the PR author submitted a review, in any state, that team member started reviewing the PR, and the team has decided to review it. Suggest assigning the reviewer, say in the `Case:` line of `tldr` that they started reviewing it, such as "Case: `xyz` already started reviewing this external PR.", link to their review in `suggestion`, say it in `reply`, such as "Assigning this PR to `xyz`, because they already started reviewing it.", and skip the review criteria below. If several team members reviewed, suggest the one whose review came first. If the reviewer is already assigned, suggest no assignee. Bots, such as `gemini-code-assist`, are not team members, so their reviews do not count.
 
 Otherwise, the PR is a good candidate for review when all of the following are true. Say which ones you checked:
 
@@ -71,16 +75,14 @@ Otherwise, the PR is a good candidate for review when all of the following are t
 2. It does not overlap with open PRs or work in progress. List overlapping PRs in `related_items`.
 3. The team can maintain the change long term.
 
-If the PR is a good candidate, suggest assigning it to an expert in the changed files (see step 4 of the [skill](../SKILL.md#step-4-research-the-item)) and adding `status: assigned-for-triage`. The expert decides whether the team reviews the PR. Name the expert in `suggestion` with the evidence, such as "wrote 9 of the 15 commits to `generic-binder.ts`", and list the issues the PR targets in `targeted_issues`.
+If the PR is a good candidate, suggest assigning it to an expert in the changed files (see step 4 of the [skill](../SKILL.md#step-4-research-the-item)) and adding `status: assigned-for-triage`. The expert decides whether the team reviews the PR. If the expert is already assigned but has not reviewed the PR, suggest only the label. Name the expert in `suggestion` with the evidence, such as "wrote 9 of the 15 commits to `generic-binder.ts`", and list the issues the PR targets in `targeted_issues`.
 
 If the PR meets the other criteria but overlaps with open PRs or work in progress, do the same: suggest assigning an expert and adding `status: assigned-for-triage`. List the overlapping PRs in `related_items`, and say in `suggestion` what the expert needs to decide, such as which of the PRs to take. Do not suggest `status: needs-team-input` for it.
 
 Do not promise a review in `reply` or anywhere else: write nothing like "we will review it". The team has not decided yet, and the expert may close the PR. Say only who the PR is assigned to and why, such as "Assigning this PR to `xyz`, who maintains `web_core`, to decide on it."
 
-Until a team member has started reviewing the PR, do not ask its author to resolve merge conflicts or rebase. If the expert declines the PR, that work would waste the contributor's time. Mention the conflicts in `suggestion`, for the expert, and leave them out of `reply`.
-
 Otherwise, set `close_as` to `not_planned` and use the reply from [Triage a PR](../../../../docs/contributing/triage/triage.md#triage-a-pr) as the `reply`.
 
 If the PR is waiting for its author after a review, suggest `status: waiting-for-author-response` instead of a decision.
 
-If the PR is unfinished and waits for its author, suggest converting it to a draft. Every triage tool ignores draft PRs, so the PR leaves the triage queue until its author marks it ready for review. A PR is unfinished when its title or description says it is a draft or work in progress, such as "first draft" or "WIP", or when it has had no commits for 30 days and has merge conflicts with `main`. For example, [#2320](https://github.com/a2ui-project/a2ui/pull/2320), titled "first draft", had no commits for three months and had merge conflicts. `TriageSuggestion` has no property for it, so start `suggestion` with it and give the command that does it: `gh pr ready <number> --undo -R a2ui-project/a2ui`. Say it in `reply` too, such as "Converting this PR to a draft, because it has had no commits since August and has merge conflicts with `main`. Mark it ready for review when it is."
+If the PR is unfinished and waits for its author, suggest converting it to a draft. Every triage tool ignores draft PRs, so the PR leaves the triage queue until its author marks it ready for review. A PR is unfinished when its title or description says it is a draft or work in progress, such as "first draft" or "WIP", or when it has had no commits for 30 days and has merge conflicts with `main`. Merge conflicts make an out-of-team contributor's PR unfinished only after a team member has started reviewing it, as said above. For example, [#2320](https://github.com/a2ui-project/a2ui/pull/2320), titled "first draft", had no commits for three months and had merge conflicts. `TriageSuggestion` has no property for it, so start `suggestion` with it and give the command that does it: `gh pr ready <number> --undo -R a2ui-project/a2ui`. Say it in `reply` too, such as "Converting this PR to a draft, because it has had no commits since August and has merge conflicts with `main`. Mark it ready for review when it is."
