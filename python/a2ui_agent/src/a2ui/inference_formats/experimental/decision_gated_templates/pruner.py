@@ -202,6 +202,14 @@ def extract_gates_and_variants(
                 raise A2uiCatalogError(
                     f"Variant group '{group}' has conflicting 'minConfidence' settings."
                 )
+            if (
+                prev_prompt is not None
+                and prompt is not None
+                and prev_prompt != prompt
+            ):
+                raise A2uiCatalogError(
+                    f"Variant group '{group}' has conflicting 'prompt' settings."
+                )
             if prev_prompt is None and prompt is not None:
                 variant_meta_by_group[group] = (prompt, prev_allow_none, prev_min_conf)
         existing_options.append(
@@ -286,7 +294,7 @@ def _clean_parent_references(
         comp["children"] = [
             cid for cid in children if not (isinstance(cid, str) and cid in pruned)
         ]
-    elif isinstance(children, dict):
+    elif isinstance(children, Mapping):
         tmpl_id = children.get("componentId")
         if isinstance(tmpl_id, str) and tmpl_id in pruned:
             return True
