@@ -71,6 +71,23 @@ export function setupTestDom() {
   if (!dom.window.document.adoptedStyleSheets) {
     dom.window.document.adoptedStyleSheets = [];
   }
+  if (dom.window.ShadowRoot && !('adoptedStyleSheets' in dom.window.ShadowRoot.prototype)) {
+    const shadowSheets = new WeakMap<object, CSSStyleSheet[]>();
+    Object.defineProperty(dom.window.ShadowRoot.prototype, 'adoptedStyleSheets', {
+      get() {
+        let sheets = shadowSheets.get(this);
+        if (!sheets) {
+          sheets = [];
+          shadowSheets.set(this, sheets);
+        }
+        return sheets;
+      },
+      set(val) {
+        shadowSheets.set(this, val);
+      },
+      configurable: true,
+    });
+  }
 
   if (dom.window.CSSStyleSheet && !dom.window.CSSStyleSheet.prototype.replaceSync) {
     dom.window.CSSStyleSheet.prototype.replaceSync = function (text: string) {
