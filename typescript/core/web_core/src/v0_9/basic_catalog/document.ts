@@ -24,7 +24,7 @@ export const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/ba
 
 /**
  * The published v0.9 basic catalog document
- * (`specification/v0_9/catalogs/basic/catalog.json`).
+ * (`catalogs/basic/v0_9/catalog.json`).
  */
 export const BASIC_CATALOG_DOCUMENT: Readonly<Record<string, unknown>> = V09BasicCatalogDocument;
 

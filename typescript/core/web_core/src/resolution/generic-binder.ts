@@ -173,6 +173,9 @@ function resolveChildRefOptions(
   return V08_CHILD_REF_OPTIONS;
 }
 
+/** An open schema, for a component whose schema is not known. */
+const EMPTY_CURSOR: SchemaCursor = {node: {}, doc: {root: {}, defs: {}}};
+
 /** The common `AccessibilityAttributes` definition every component accepts. */
 const ACCESSIBILITY_ATTRIBUTES: SchemaCursor = {
   node: {$ref: 'common_types.json#/$defs/AccessibilityAttributes'},
@@ -233,10 +236,14 @@ const AT_CHECKS = '@checks';
  * @returns Root BehaviorNode describing schema properties.
  */
 export function scrapeSchemaBehavior(
-  node: JsonSchema,
-  doc: SchemaDoc,
+  node: JsonSchema | undefined,
+  doc: SchemaDoc | undefined,
   options?: ChildRefAnalysisOptions,
 ): BehaviorNode {
+  // A partial stand-in (such as a test mock) may have no schema at all.
+  if (node === undefined || doc === undefined) {
+    return {type: 'STATIC'};
+  }
   const cache = nodeBehaviorCache(behaviorCache, node, doc, options);
   const cached = cache?.get(node as object);
   if (cached) {
@@ -265,10 +272,13 @@ export function scrapeSchemaBehavior(
  * @param options Optional child-reference analysis options.
  */
 export function scrapeComponentBehavior(
-  node: JsonSchema,
-  doc: SchemaDoc,
+  node: JsonSchema | undefined,
+  doc: SchemaDoc | undefined,
   options?: ChildRefAnalysisOptions,
 ): BehaviorNode {
+  if (node === undefined || doc === undefined) {
+    return makeObjectBehavior(augmentRootObjectShape(EMPTY_CURSOR, {}, options));
+  }
   const cache = nodeBehaviorCache(componentBehaviorCache, node, doc, options);
   const cached = cache?.get(node as object);
   if (cached) {
@@ -758,7 +768,13 @@ function getFieldBehavior(
     return {type: 'STRUCTURAL'};
   }
 
-  if (isDynamicDefName(defName) && kind !== 'object' && kind !== 'array') {
+  // A property declared as `DataBinding` or `FunctionCall` itself is a binding;
+  // a custom `Dynamic*` object or array definition is a container.
+  if (
+    defName === 'DataBinding' ||
+    defName === 'FunctionCall' ||
+    (isDynamicDefName(defName) && kind !== 'object' && kind !== 'array')
+  ) {
     return namesDef(field, 'DynamicBoolean')
       ? {type: 'DYNAMIC', isBoolean: true}
       : {type: 'DYNAMIC'};
@@ -855,20 +871,67 @@ type ActionLike =
  */
 type HasStringIndex<T> = string extends keyof T ? true : false;
 
-/** Evaluates to true if type T can contain a dynamic binding. */
-type IsDynamic<T> = ({path: string} extends NonNullable<T> ? true : false) extends true
-  ? true
-  : ({'@path': string} extends NonNullable<T> ? true : false) extends true
+/** The declared (non-index-signature) members of `T`. */
+type DeclaredMembers<T> = {
+  [K in keyof T as string extends K ? never : number extends K ? never : K]: T[K];
+};
+
+/**
+ * Evaluates to true for a string-indexed object that declares a binding or
+ * call key, such as an open (`passthrough`) `{call: string}` call schema: it is
+ * a binding, not a data object.
+ */
+type IsOpenBindingShape<T> =
+  DeclaredMembers<T> extends {path: string} | {'@path': string} | {call: string} | {'@call': string}
     ? true
-    : ({call: string} extends NonNullable<T> ? true : false) extends true
+    : false;
+
+/**
+ * Strips `DynamicTypes` branches from `T` while keeping `any` and string-indexed
+ * data objects such as `Record<string, unknown>` intact. A string-indexed
+ * object that declares a binding or call key (an open binding or call schema)
+ * is stripped too.
+ */
+type StripDynamic<T> = 0 extends 1 & T
+  ? T
+  : T extends unknown
+    ? HasStringIndex<T> extends true
+      ? IsOpenBindingShape<T> extends true
+        ? never
+        : T
+      : T extends DynamicTypes
+        ? never
+        : T
+    : never;
+
+/**
+ * Removes string-indexed object members such as `Record<string, unknown>` from
+ * a union before checking whether any remaining branch is a dynamic binding.
+ */
+type StripStringIndex<T> = T extends unknown ? (HasStringIndex<T> extends true ? never : T) : never;
+
+type IsDynamicShape<T> = [T] extends [never]
+  ? false
+  : ({path: string} extends T ? true : false) extends true
+    ? true
+    : ({'@path': string} extends T ? true : false) extends true
       ? true
-      : ({'@call': string} extends NonNullable<T> ? true : false) extends true
+      : ({call: string} extends T ? true : false) extends true
         ? true
-        : DataBinding extends NonNullable<T>
+        : ({'@call': string} extends T ? true : false) extends true
           ? true
-          : FunctionCall extends NonNullable<T>
+          : DataBinding extends T
             ? true
-            : false;
+            : FunctionCall extends T
+              ? true
+              : false;
+
+/** Evaluates to true if type T can contain a dynamic binding. */
+type IsDynamic<T> = 0 extends 1 & T
+  ? true
+  : unknown extends T
+    ? false
+    : IsDynamicShape<StripStringIndex<NonNullable<T>>>;
 
 /**
  * Evaluates to true if type T is a child list, which can be a template as well as a list of
@@ -898,17 +961,21 @@ export interface ResolvedChildRef {
  * binder walks lists and objects, so an action, binding or child list inside them resolves
  * too, as at the top level.
  */
-export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
-  ? HasStringIndex<NonNullable<T>> extends true
-    ? Exclude<T, DynamicTypes>
-    : ((options?: ActionDispatchOptions) => Promise<void>) | Extract<T, undefined>
-  : IsChildList<T> extends true
-    ? (string | ResolvedChildRef)[] | Extract<T, undefined>
-    : Exclude<T, DynamicTypes> extends never
-      ? unknown
-      : IsDynamic<T> extends true
-        ? Exclude<T, DynamicTypes>
-        : ResolveNested<T>;
+export type ResolveA2uiProp<T> = 0 extends 1 & T
+  ? T
+  : unknown extends T
+    ? unknown
+    : [NonNullable<T>] extends [ActionLike]
+      ? HasStringIndex<NonNullable<T>> extends true
+        ? StripDynamic<T>
+        : ((options?: ActionDispatchOptions) => Promise<void>) | Extract<T, undefined>
+      : IsChildList<T> extends true
+        ? (string | ResolvedChildRef)[] | Extract<T, undefined>
+        : IsDynamic<T> extends true
+          ? [StripDynamic<NonNullable<T>>] extends [never]
+            ? unknown
+            : StripDynamic<T>
+          : ResolveNested<T>;
 
 /**
  * Resolves the items of a list and the properties of an object, as the binder does.
@@ -938,9 +1005,9 @@ type ResolveNested<T> = T extends CheckRule | V1CheckRule | readonly (CheckRule 
  */
 export type GenerateSetters<T> = {
   [K in keyof T as IsDynamic<T[K]> extends true ? `set${Capitalize<string & K>}` : never]-?: (
-    value: [Exclude<NonNullable<T[K]>, DynamicTypes>] extends [never]
+    value: [StripDynamic<NonNullable<T[K]>>] extends [never]
       ? unknown
-      : Exclude<NonNullable<T[K]>, DynamicTypes>,
+      : StripDynamic<NonNullable<T[K]>>,
   ) => void;
 };
 
@@ -1063,7 +1130,11 @@ export class GenericBinder<T> {
    * @param schema JSON Schema of the component's properties and its document.
    * @param options Optional child-reference analysis options overriding protocol-version defaults.
    */
-  constructor(context: ComponentContext, schema: SchemaCursor, options?: ChildRefAnalysisOptions) {
+  constructor(
+    context: ComponentContext,
+    schema: SchemaCursor = EMPTY_CURSOR,
+    options?: ChildRefAnalysisOptions,
+  ) {
     this.context = context;
     const protocolVersion =
       context.componentModel?.catalog?.protocolVersion ??
@@ -1084,10 +1155,10 @@ export class GenericBinder<T> {
   private connect() {
     if (this.isConnected) return;
     this.isConnected = true;
-    const sub = this.context.componentModel.onUpdated.subscribe(() => {
+    const sub = this.context.componentModel.onUpdated?.subscribe(() => {
       this.rebuildAllBindings();
     });
-    this.compUnsub = () => sub.unsubscribe();
+    this.compUnsub = sub ? () => sub.unsubscribe() : undefined;
     this.rebuildAllBindings();
   }
 
@@ -1225,12 +1296,7 @@ export class GenericBinder<T> {
     }
 
     const templateObj = value as Record<string, unknown>;
-    const templatePath =
-      typeof templateObj.path === 'string'
-        ? templateObj.path
-        : typeof templateObj['@path'] === 'string'
-          ? templateObj['@path']
-          : undefined;
+    const templatePath = typeof templateObj.path === 'string' ? templateObj.path : undefined;
     const templateComponentId =
       typeof templateObj.componentId === 'string' ? templateObj.componentId : undefined;
 
@@ -1238,11 +1304,7 @@ export class GenericBinder<T> {
       return value;
     }
 
-    const atLeastV10 = isAtLeastVersion(
-      this.context.dataContext.surface?.protocolVersion ??
-        this.context.dataContext.surface?.defaultCatalog?.protocolVersion,
-      '1.0',
-    );
+    const atLeastV10 = this.context.dataContext.atLeastV10;
     const binding = atLeastV10 ? {'@path': templatePath} : {path: templatePath};
     const bound = this.context.dataContext.subscribeDynamicValue(binding, newVal => {
       const resolvedChildren = this.mapTemplateChildren(newVal, templateComponentId, templatePath);

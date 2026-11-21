@@ -4,6 +4,9 @@
   - (v0_9) The module-level `basicCatalog` is removed. Call `createBasicCatalog(validator)` from `@a2ui/lit/v0_9` (type `LitBasicCatalog`), which returns the same catalog for the same validator. It has web_core's v0.9 basic components, and the legacy 0.9.x functions (`add`, `equals`, ...) before the spec functions, as `basicCatalog` had.
   - (v0_8) `Data.createSignalA2uiMessageProcessor()` takes `{validator}` (`SignalA2uiMessageProcessorOptions`), and `Data.A2uiMessageProcessor` takes `opts.validator`. Without a validator they throw `A2uiConfigurationError`.
   - Pass the validator to `MessageProcessor` too, for example `new MessageProcessor(catalogs, onAction, {validator: createAjvValidator()})` with `@a2ui/validator-ajv`. Custom component schemas are `CatalogSchema`s, such as `fromJsonSchema(json, validator)` from `@a2ui/web_core`.
+
+## 0.16.0
+
 - (v0_9) Import `Catalog` and `ComponentApi` from `@a2ui/web_core` instead of `@a2ui/web_core/v0_9` in the v0.9 basic catalog barrel. [#4182](https://github.com/a2ui-project/a2ui/pull/4182)
 
 ## 0.15.0

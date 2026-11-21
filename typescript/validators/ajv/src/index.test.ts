@@ -190,10 +190,20 @@ describe('formats', () => {
   const uri: JsonSchema = {type: 'string', format: 'uri'};
 
   it('treats format as an annotation by default, as JSON Schema 2020-12 does', () => {
-    const validate = createAjvValidator().compile(uri);
-    assert.ok(validate('relative/path').success);
-    assert.ok(validate('https://example.com/').success);
+    const validate = createAjvValidator().compile({type: 'string', format: 'date'});
+    assert.ok(validate('not a date').success);
     assert.strictEqual(validate(42).success, false, 'other keywords still apply');
+  });
+
+  it('checks uri by default: non-empty, without whitespace', () => {
+    const validate = createAjvValidator().compile(uri);
+    assert.ok(validate('https://example.com/').success);
+    assert.ok(validate('mailto:someone@example.com').success);
+    assert.strictEqual(validate('not a uri').success, false);
+    assert.ok(validate('relative/path').success, 'a relative reference passes');
+    assert.ok(validate(' /padded ').success, 'surrounding whitespace is allowed');
+    assert.strictEqual(validate('').success, false);
+    assert.strictEqual(validate('https://example.com/a b').success, false);
   });
 
   it('asserts formats when asked to', () => {

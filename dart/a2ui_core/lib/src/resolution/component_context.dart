@@ -44,14 +44,14 @@ class ComponentContext {
     int? index,
     MissingDataReporter? onMissingData,
   }) : dataContext = createSurfaceDataContext(
-          surface,
-          basePath: basePath,
-          onError: onError,
-          parentDataContext: parentDataContext,
-          index: index,
-          onMissingData: onMissingData,
-          defaultErrorReporter: _surfaceReporter(surface),
-        );
+         surface,
+         basePath: basePath,
+         onError: onError,
+         parentDataContext: parentDataContext,
+         index: index,
+         onMissingData: onMissingData,
+         defaultErrorReporter: _surfaceReporter(surface),
+       );
 
   static ExpressionErrorReporter _surfaceReporter(SurfaceModel surface) =>
       (error) => surface.dispatchError(clientErrorFor(surface, error));

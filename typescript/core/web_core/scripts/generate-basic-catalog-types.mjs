@@ -69,7 +69,7 @@ export const CATALOGS = [
     dest: 'src/v0_8/basic_catalog/generated-types.ts',
   },
   {
-    source: 'specification/v0_9/catalogs/basic/catalog.json',
+    source: 'catalogs/basic/v0_9/catalog.json',
     dest: 'src/v0_9/basic_catalog/generated-types.ts',
     commonTypes: 'src/v0_9/generated-common-types.ts',
   },

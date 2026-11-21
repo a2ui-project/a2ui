@@ -150,10 +150,7 @@ class NodeResolver<T extends ComponentApi> {
   /// When given, [catalog] must be the surface's
   /// [SurfaceModel.defaultCatalog]; each component still resolves against the
   /// catalog it names. Throws [A2uiStateError] for any other catalog.
-  NodeResolver(
-    this._surface, {
-    Catalog<T, FunctionImplementation>? catalog,
-  }) {
+  NodeResolver(this._surface, {Catalog<T, FunctionImplementation>? catalog}) {
     if (catalog != null && !identical(catalog, _surface.defaultCatalog)) {
       throw A2uiStateError(
         'NodeResolver requires the default catalog of surface '
@@ -590,19 +587,20 @@ class NodeResolver<T extends ComponentApi> {
       // either kind resolves when the type gains a catalog entry. Resolved
       // and unknown-type nodes must still refer to the current model. A node
       // whose sibling ordinal changed is rebuilt to keep ids distinct.
-      final bool upToDate = existing.componentId == componentId &&
+      final bool upToDate =
+          existing.componentId == componentId &&
           existing.dataPath == dataPath &&
           _records[existing]?.occurrence == occurrence &&
           (existing.isPlaceholder || _records[existing]?.index == index) &&
           (existing.isPlaceholder
               ? (model == null && existing.state == NodeState.pending) ||
-                  (model != null &&
-                      api == null &&
-                      existing.state == NodeState.unknownType &&
-                      identical(_records[existing]?.componentModel, model))
+                    (model != null &&
+                        api == null &&
+                        existing.state == NodeState.unknownType &&
+                        identical(_records[existing]?.componentModel, model))
               : model != null &&
-                  existing.type == model.type &&
-                  identical(_records[existing]?.componentModel, model));
+                    existing.type == model.type &&
+                    identical(_records[existing]?.componentModel, model));
       if (upToDate) {
         if (existing.state == NodeState.pending) {
           // Another creation listener may have removed the component before
@@ -629,9 +627,11 @@ class NodeResolver<T extends ComponentApi> {
     String dataPath,
     MutableComponentNode<T> parent,
   ) {
-    for (MutableComponentNode<T>? node = parent;
-        node != null;
-        node = _records[node]?.parent) {
+    for (
+      MutableComponentNode<T>? node = parent;
+      node != null;
+      node = _records[node]?.parent
+    ) {
       if (node.componentId == componentId && node.dataPath == dataPath) {
         return true;
       }
@@ -893,7 +893,8 @@ class NodeResolver<T extends ComponentApi> {
       // live cyclic stand-in for the same (componentId, dataPath) still
       // represents the old condition; retiring a cyclic node must not erase
       // the shared key while another cyclic node for that scope remains.
-      final bool stillCyclic = byId != null &&
+      final bool stillCyclic =
+          byId != null &&
           byId.any(
             (n) => n.state == NodeState.cyclic && n.dataPath == node.dataPath,
           );
@@ -926,9 +927,9 @@ const _idPartEscapes = {
 /// Escapes id parts in one pass so literal suffixes and scopes cannot collide
 /// with composed ids.
 String _escapeIdPart(String part) => part.replaceAllMapped(
-      RegExp(r'[~#\[\]>@]'),
-      (match) => _idPartEscapes[match[0]]!,
-    );
+  RegExp(r'[~#\[\]>@]'),
+  (match) => _idPartEscapes[match[0]]!,
+);
 
 String _instanceIdFor(String componentId, String dataPath, int occurrence) {
   String trimmed = dataPath.replaceAll(RegExp(r'/+$'), '');

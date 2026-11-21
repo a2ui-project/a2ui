@@ -43,9 +43,10 @@ export function isValidCssColor(color: unknown): boolean {
 }
 
 /**
- * The theme of the basic catalog, as `catalog.json#/$defs/theme` of the v0.9
- * basic catalog describes it. Themes are open, so other keys are kept. The
- * catalogs validate themes against their documents.
+ * The theme of the basic catalog, as
+ * `catalogs/basic/v0_9/catalog.json#/$defs/theme` describes it. Themes are
+ * open, so other keys are kept. The catalogs validate themes against their
+ * documents.
  */
 export interface BasicCatalogTheme {
   /**

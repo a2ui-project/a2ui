@@ -112,7 +112,7 @@ describe('Catalog.fromJson', () => {
 
   describe('validates with the catalog document', () => {
     it("validates a component's properties without its envelope fields", () => {
-      const catalog = load(readJson('specification/v0_9_1/catalogs/basic/catalog.json'), '0.9');
+      const catalog = load(readJson('catalogs/basic/v0_9_1/catalog.json'), '0.9');
       const text = catalog.components.get('Text')!.schema;
       assert.ok(accepts(text, {text: 'Hello'}));
       assert.ok(accepts(text, {text: {path: '/user/name'}}));
@@ -128,7 +128,7 @@ describe('Catalog.fromJson', () => {
     });
 
     it('validates the Checkable mixin of the common types', () => {
-      const catalog = load(readJson('specification/v0_9_1/catalogs/basic/catalog.json'));
+      const catalog = load(readJson('catalogs/basic/v0_9_1/catalog.json'));
       const button = catalog.components.get('Button')!.schema;
       const action = {event: {name: 'submit'}};
       assert.ok(
@@ -426,7 +426,7 @@ describe('Catalog.fromJson', () => {
     });
 
     it('resolves the common types under their absolute URI, and the catalog beside them', () => {
-      const catalog = load(readJson('specification/v0_9_1/catalogs/basic/catalog.json'), '0.9');
+      const catalog = load(readJson('catalogs/basic/v0_9_1/catalog.json'), '0.9');
       const text = catalog.components.get('Text')!.schema;
       // DynamicString -> FunctionCall -> catalog.json#/$defs/anyFunction, from the
       // common types the catalog names as https://a2ui.org/specification/v0_9/common_types.json.

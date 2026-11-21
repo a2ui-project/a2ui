@@ -23,7 +23,7 @@ import {
   createBasicComponents,
   provideA2UI,
   SurfaceComponent,
-} from './public-api';
+} from './index';
 import { createBasicCatalog as createWebCoreBasicCatalog } from '@a2ui/web_core/catalogs/basic/v1';
 import { isWebComponentImplementation } from '@a2ui/web_core/v1_0';
 import { provideTestValidator, validator } from './test_validator';

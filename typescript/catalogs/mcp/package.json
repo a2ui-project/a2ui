@@ -1,6 +1,6 @@
 {
   "name": "@a2ui/catalog-mcp",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "description": "A2UI MCP catalog: calls MCP tools and applies the A2UI messages found in their results and UI resources.",
   "homepage": "https://a2ui.org/",
   "repository": {
@@ -225,7 +225,7 @@
     "lit": "^3.3.3",
     "prettier": "^3.8.4",
     "tsx": "^4.22.4",
-    "typescript": "5.9.3",
+    "typescript": "6.0.3",
     "wireit": "^0.15.0-pre.2"
   }
 }

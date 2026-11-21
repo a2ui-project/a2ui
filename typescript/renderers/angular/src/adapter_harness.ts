@@ -41,7 +41,7 @@ import {
   SurfaceComponent,
   createComponentImplementation,
   provideA2UI,
-} from './public-api';
+} from './index';
 import {
   commonType,
   objectSchema,

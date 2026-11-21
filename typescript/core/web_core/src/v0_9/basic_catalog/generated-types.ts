@@ -15,7 +15,7 @@
  */
 
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
-// Generated from specification/v0_9/catalogs/basic/catalog.json via scripts/generate-basic-catalog-types.mjs
+// Generated from catalogs/basic/v0_9/catalog.json via scripts/generate-basic-catalog-types.mjs
 
 import type {
   Action,

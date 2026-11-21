@@ -21,9 +21,9 @@ import {MessageProcessor} from '@a2ui/web_core';
 import {createBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiSurface} from '@a2ui/react/v0_9';
 
-import exMarkdown from '../../../../../specification/v0_9/catalogs/basic/examples/markdown-text.json';
-import exTaskCard from '../../../../../specification/v0_9/catalogs/basic/examples/task-card.json';
-import exLoginForm from '../../../../../specification/v0_9/catalogs/basic/examples/login-form.json';
+import exMarkdown from '../../../../../catalogs/basic/v0_9/examples/markdown-text.json';
+import exTaskCard from '../../../../../catalogs/basic/v0_9/examples/task-card.json';
+import exLoginForm from '../../../../../catalogs/basic/v0_9/examples/login-form.json';
 import {validator} from '../validator';
 
 const basicCatalog = createBasicCatalog(validator);

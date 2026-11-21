@@ -77,6 +77,23 @@ function resolveKey(key: string, root: JsonSchema): string {
   }
 }
 
+/**
+ * The `uri` check web_core applied before it used JSON Schema, formats asserted
+ * or not: a non-empty value with no whitespace inside it (surrounding
+ * whitespace is allowed). A relative reference passes.
+ */
+const URI_FORMAT = /^\s*\S+\s*$/;
+
+/** Ajv's logger, without the warning for a `format` it leaves as an annotation. */
+const ANNOTATION_FORMAT_LOGGER = {
+  log: console.log,
+  warn(...args: unknown[]) {
+    if (typeof args[0] === 'string' && args[0].startsWith('unknown format')) return;
+    console.warn(...args);
+  },
+  error: console.error,
+};
+
 /** Creates an Ajv instance with the referenced schemas registered relative to `base`. */
 function createAjv(
   formats: boolean,
@@ -84,8 +101,16 @@ function createAjv(
   base: JsonSchema,
 ): Ajv2020 {
   // Without `formats`, `format` is an annotation, as JSON Schema 2020-12's
-  // default vocabulary has it: Ajv records it but does not check it.
-  const ajv = new Ajv2020({strict: false, allErrors: true, validateFormats: formats});
+  // default vocabulary has it, except `uri`, which the A2UI SDKs check: Ajv
+  // knows no other format, so it ignores them.
+  const ajv = formats
+    ? new Ajv2020({strict: false, allErrors: true})
+    : new Ajv2020({
+        strict: false,
+        allErrors: true,
+        formats: {uri: URI_FORMAT},
+        logger: ANNOTATION_FORMAT_LOGGER,
+      });
   if (formats) addFormats(ajv);
   const added = new Set<string>();
   for (const [key, def] of Object.entries(defs ?? {})) {
@@ -104,9 +129,10 @@ function createAjv(
  * Creates a {@link JsonSchemaValidator} backed by Ajv (draft 2020-12).
  *
  * By default `format` is an annotation and is not asserted, as in JSON Schema
- * 2020-12's default vocabulary and the Python SDK, so a `uri` property
- * accepts a relative URL. Pass `{formats: true}` to assert formats with
- * `ajv-formats`.
+ * 2020-12's default vocabulary, except `uri`, which the A2UI SDKs check: a
+ * `uri` string must be non-empty and hold no whitespace (a relative reference
+ * such as `/path` passes). Pass `{formats: true}` to assert every format with
+ * `ajv-formats`, whose `uri` needs a scheme.
  *
  * Roots without an `$id` that are compiled with the same `defs` object share
  * one Ajv instance, so the referenced schemas are added and compiled once

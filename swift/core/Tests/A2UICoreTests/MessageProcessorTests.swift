@@ -371,6 +371,105 @@ struct MessageProcessorTests {
     #expect(handler.capturedErrors.count == 1)
   }
 
+  // MARK: - addCatalog
+
+  @Test func addCatalogResolvesLaterCreateSurfaceNamingIt() throws {
+    let (processor, handler) = try makeProcessor()
+    let createSurface = try parse(
+      """
+      {
+        "version": "v0.9.1",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "late"
+        }
+      }
+      """)
+    processor.process(message: createSurface)
+    #expect(processor.surfaceGroupModel["s1"] == nil)
+    #expect(handler.capturedErrors.count == 1)
+
+    try processor.addCatalog(AnyCatalog(id: "late", components: []))
+    processor.process(message: createSurface)
+
+    #expect(processor.surfaceGroupModel["s1"]?.defaultCatalogID == "late")
+    #expect(handler.capturedErrors.count == 1)
+  }
+
+  @Test func addCatalogRejectsHeldCatalogID() throws {
+    let (processor, _) = try makeProcessor()
+    #expect(throws: A2UICatalogError.self) {
+      try processor.addCatalog(AnyCatalog(id: "default", components: []))
+    }
+  }
+
+  @Test func addCatalogListsItInRendererCapabilities() throws {
+    let (processor, _) = try makeProcessor()
+    try processor.addCatalog(AnyCatalog(id: "late", components: []))
+
+    let caps = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(protocolVersion: .v091)
+    )
+
+    let ids = caps["v0.9.1"]?["supportedCatalogIds"]?.arrayValue?.compactMap(\.stringValue)
+    #expect(ids == ["default", "late"])
+  }
+
+  @Test func addCatalogResolvesCallRendererFunction() async throws {
+    let processor = MessageProcessor(
+      catalogs: [AnyCatalog(id: "basic", protocolVersion: .v10, components: [])]
+    )
+    var capturedOutbound: [RendererToAgentMessage] = []
+    processor.outboundListener = { msg in
+      MainActor.assumeIsolated {
+        capturedOutbound.append(msg)
+      }
+    }
+    let echoSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "text": { "type": "string" }
+          }
+        }
+        """
+    )
+    try processor.addCatalog(
+      AnyCatalog(
+        id: "late",
+        protocolVersion: .v10,
+        components: [],
+        functions: [TestEchoFunction(schema: echoSchema)]
+      )
+    )
+
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "1.0",
+          "callRendererFunction": {
+            "functionCallId": "rpc-1",
+            "callFunction": {
+              "@call": "echo",
+              "catalogId": "late",
+              "args": { "text": "Hi Alice" }
+            }
+          }
+        }
+        """))
+
+    try await Task.sleep(nanoseconds: 20_000_000)
+    #expect(capturedOutbound.count == 1)
+    if case .rendererFunctionResponse(let resp) = capturedOutbound.first {
+      #expect(resp.functionCallID == "rpc-1")
+      #expect(resp.value == .string("Hi Alice"))
+    } else {
+      Issue.record("Expected .rendererFunctionResponse")
+    }
+  }
+
   // MARK: - getRendererCapabilities
 
   @Test func getRendererCapabilitiesReturnsSupportedCatalogIDs() throws {
@@ -628,6 +727,53 @@ struct MessageProcessorTests {
     ])
     #expect(emptyCatalog["components"] == nil)
     #expect(emptyCatalog["$defs"] == expectedEmptyDefs)
+  }
+
+  @Test func getRendererCapabilitiesWritesInstructionsForV10Only() throws {
+    let schema = try Schema(instance: "{\"type\": \"object\"}")
+    let components = [AnyComponentAPI(name: "Button", schema: schema)]
+    let withInstructionsV10 = Catalog(
+      id: "cat-instructions-v10",
+      protocolVersion: .v10,
+      components: components,
+      instructions: "Prefer Button for actions."
+    )
+    let withoutInstructionsV10 = Catalog(
+      id: "cat-plain-v10",
+      protocolVersion: .v10,
+      components: components
+    )
+    let withInstructionsV091 = Catalog(
+      id: "cat-instructions-v091",
+      protocolVersion: .v091,
+      components: components,
+      instructions: "Prefer Button for actions."
+    )
+    let processor = MessageProcessor(
+      catalogs: [withInstructionsV10, withoutInstructionsV10, withInstructionsV091]
+    )
+    let capabilities = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(
+        versions: [.v091, .v10],
+        includeInlineCatalogs: true
+      )
+    )
+
+    let inlineV10 = try #require(capabilities["1.0"]?["inlineCatalogs"]?.arrayValue)
+    let instructionsV10 = try #require(
+      inlineV10.first { $0["catalogId"]?.stringValue == "cat-instructions-v10" }
+    )
+    #expect(instructionsV10["instructions"]?.stringValue == "Prefer Button for actions.")
+    let plainV10 = try #require(
+      inlineV10.first { $0["catalogId"]?.stringValue == "cat-plain-v10" }
+    )
+    #expect(plainV10["instructions"] == nil)
+
+    let inlineV091 = try #require(capabilities["v0.9.1"]?["inlineCatalogs"]?.arrayValue)
+    let instructionsV091 = try #require(
+      inlineV091.first { $0["catalogId"]?.stringValue == "cat-instructions-v091" }
+    )
+    #expect(instructionsV091["instructions"] == nil)
   }
 
   @Test func getRendererCapabilitiesEscapesUnionReferencesForV10() throws {
@@ -1116,6 +1262,57 @@ struct MessageProcessorTests {
     #expect(processor.surfaceGroupModel["s2"] != nil)
     processor.dispose()
     #expect(processor.surfaceGroupModel["s2"] == nil)
+  }
+
+  @Test func rejectedBindingWriteSendsOneDataErrorToOutboundListener() throws {
+    let (processor, handler) = try makeProcessor()
+    var capturedOutbound: [RendererToAgentMessage] = []
+    processor.outboundListener = { message in
+      MainActor.assumeIsolated {
+        capturedOutbound.append(message)
+      }
+    }
+    try processor.processMessages(
+      JSONValue.parse(
+        """
+        [
+          {
+            "version": "v0.9.1",
+            "createSurface": { "surfaceId": "s1", "catalogId": "default" }
+          },
+          {
+            "version": "v0.9.1",
+            "updateDataModel": { "surfaceId": "s1", "path": "/name", "value": "Ada" }
+          },
+          {
+            "version": "v0.9.1",
+            "updateComponents": {
+              "surfaceId": "s1",
+              "components": [
+                { "id": "root", "component": "text", "text": { "path": "/name/first" } }
+              ]
+            }
+          }
+        ]
+        """
+      )
+    )
+    let surface = try #require(processor.surfaceGroupModel["s1"])
+    let binding = try #require(surface.rootNode?.properties["text"] as? DataBinding<String>)
+    #expect(capturedOutbound.isEmpty)
+
+    binding.set("Grace")
+
+    #expect(surface.dataModel.get("/") == .object(["name": .string("Ada")]))
+    #expect(handler.capturedErrors.count == 1)
+    #expect(capturedOutbound.count == 1)
+    guard case .error(.generic(let error)) = capturedOutbound.first else {
+      Issue.record("Expected a generic error forwarded to outboundListener")
+      return
+    }
+    #expect(error.code == "DATA_ERROR")
+    #expect(error.surfaceID == "s1")
+    #expect(error.message.contains("/name/first"))
   }
 
   @Test func createSurfaceStoresMetadataAndEscapesDataModelKeys() throws {

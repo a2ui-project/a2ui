@@ -28,7 +28,8 @@ public final class FormatDateFunction: FunctionImplementation, Sendable {
             "value": {},
             "format": { "type": "string" }
           },
-          "required": ["format", "value"]
+          "required": ["format", "value"],
+          "additionalProperties": false
         }
         """
     )

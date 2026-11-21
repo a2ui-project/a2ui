@@ -68,7 +68,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### The Node sample answers in v0.9, not v0.9.1
 
-- **What it is:** The Node sample loads the v0.9 basic catalog and sends v0.9 messages with the v0.9.1 MIME type (`application/a2ui+json`), which v0.9.1 renderers accept. The repository has a v0.9.1 basic catalog (`specification/v0_9_1/catalogs/basic/catalog.json`), but the sample does not use it, and the conformance harness runs only v0.9 and v1.0.
+- **What it is:** The Node sample loads the v0.9 basic catalog and sends v0.9 messages with the v0.9.1 MIME type (`application/a2ui+json`), which v0.9.1 renderers accept. The repository has a v0.9.1 basic catalog (`catalogs/basic/v0_9_1/catalog.json`), but the sample does not use it, and the conformance harness runs only v0.9 and v1.0.
 - **Why it exists:** The sample clients render v0.9. Moving to `"version": "v0.9.1"` would also break the Flutter sample client: genui 0.8.0 accepts only `"v0.9"` (`lib/src/model/a2ui_message.dart`).
 - **What it risks:** An agent built from the sample cannot answer fully in v0.9.1.
 - **Done looks like:** `@a2ui/agent` runs the v0.9.1 conformance cases, and the Node sample's `V0_9` profile moves to v0.9.1 and its catalog once the sample clients accept it.

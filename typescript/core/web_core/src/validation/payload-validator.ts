@@ -573,6 +573,7 @@ export class PayloadValidator {
       // `allowedCallers` arrived in v1.0, so below it a binding may call any
       // function the catalog declares.
       this.validateFunction(rawName, argsDict);
+      this.assertPreV10ReturnType(record, rawName);
       return;
     }
     if (rawName.startsWith('@')) {
@@ -640,6 +641,33 @@ export class PayloadValidator {
     for (const [k, v] of Object.entries(record)) {
       this.validateNestedFunctions(v, componentCatalogId, `${currentPath}/${k}`);
     }
+  }
+
+  /**
+   * Checks a pre-1.0 call's explicit `returnType` against the `returnType` its
+   * catalog declares for the function, as the Python and Dart SDKs do.
+   *
+   * A typed `Dynamic*` slot (such as a `DynamicString` property) already
+   * constrains `returnType` in the common types, so the component's schema
+   * checks the call against its slot; this check covers the slots that take
+   * any call, such as an action's `functionCall`.
+   *
+   * @throws {A2uiValidationError} If the call names a `returnType` other than
+   *   the function's own (a function returning `any` accepts any).
+   */
+  private assertPreV10ReturnType(record: Record<string, unknown>, rawName: string): void {
+    const declared = record['returnType'];
+    const fn = this.catalog.functions.get(rawName);
+    if (declared === undefined || !fn || fn.returnType === 'any' || declared === fn.returnType) {
+      return;
+    }
+    const msg = `Validation failed for function '${rawName}': Expected returnType '${fn.returnType}', received '${String(declared)}'`;
+    throw new A2uiValidationError(
+      msg,
+      [{path: '/returnType', code: 'invalid_value', message: msg}],
+      'VALIDATION_ERROR',
+      {path: '/returnType'},
+    );
   }
 
   /**

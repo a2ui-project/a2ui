@@ -225,9 +225,9 @@ const PUBLISHED_CATALOGS = [
   'catalogs/mcp/catalog.json',
   'catalogs/vegachart/v0_9/catalog.json',
   'catalogs/vegachart/v1/catalog.json',
-  'specification/v0_9/catalogs/basic/catalog.json',
-  'specification/v0_9/catalogs/minimal/catalog.json',
-  'specification/v0_9_1/catalogs/basic/catalog.json',
+  'catalogs/basic/v0_9/catalog.json',
+  'catalogs/minimal/v0_9/catalog.json',
+  'catalogs/basic/v0_9_1/catalog.json',
 ];
 
 describe('Catalog.toJson', () => {
@@ -279,7 +279,7 @@ describe('Catalog.toJson', () => {
   });
 
   it('keeps the document-level fields in a catalog derived with withEntries', () => {
-    const document = readRepoJson('specification/v0_9/catalogs/basic/catalog.json');
+    const document = readRepoJson('catalogs/basic/v0_9/catalog.json');
     const loaded = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
     const derived = loaded.withEntries([...loaded.components.values()], []);
     const out = derived.toJson();
@@ -305,7 +305,7 @@ describe('Catalog.toJson', () => {
   });
 
   it('returns a v0.9 document without components unchanged', () => {
-    const document = readRepoJson('specification/v0_9/catalogs/basic/catalog.json');
+    const document = readRepoJson('catalogs/basic/v0_9/catalog.json');
     delete document.components;
     delete document.$defs.anyComponent;
     delete document.$defs.CatalogComponentCommon;
@@ -386,7 +386,7 @@ describe('Catalog.toJson', () => {
 
   for (const [label, builtin, catalogPath] of [
     ['v0.8', v08BasicCatalog, 'specification/v0_8/json/standard_catalog_definition.json'],
-    ['v0.9', v09BasicCatalog, 'specification/v0_9/catalogs/basic/catalog.json'],
+    ['v0.9', v09BasicCatalog, 'catalogs/basic/v0_9/catalog.json'],
     ['1.0', v10BasicCatalog, 'catalogs/basic/v1/catalog.json'],
   ] as const) {
     it(`returns the published document for the built-in ${label} basic catalog`, () => {
@@ -581,7 +581,7 @@ describe('Catalog.toJson', () => {
   });
 
   it('drops authored $defs that only removed entries referenced', () => {
-    const document = readRepoJson('specification/v0_9/catalogs/basic/catalog.json');
+    const document = readRepoJson('catalogs/basic/v0_9/catalog.json');
     const loaded = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
     const derived = loaded.withEntries([], []);
     const defs = derived.toJson().$defs as Record<string, unknown>;
@@ -811,7 +811,7 @@ describe('Catalog.fromJson', () => {
   });
 
   it('keeps the named $defs and other top-level keys as model fields', () => {
-    const document = readRepoJson('specification/v0_9/catalogs/basic/catalog.json');
+    const document = readRepoJson('catalogs/basic/v0_9/catalog.json');
     const catalog = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
     assert.deepStrictEqual(Object.keys(catalog.defs!), ['CatalogComponentCommon', 'theme']);
     assert.strictEqual(catalog.declaredProtocolVersion, null);
@@ -851,7 +851,7 @@ describe('Catalog.fromJson', () => {
 
   it('sets declaredProtocolVersion to null when the document omits it', () => {
     const catalog = Catalog.fromJson(
-      readRepoJson('specification/v0_9/catalogs/basic/catalog.json'),
+      readRepoJson('catalogs/basic/v0_9/catalog.json'),
       undefined,
       undefined,
       {validator: testValidator},
@@ -894,7 +894,7 @@ describe('Catalog.fromJson', () => {
 
   it('leaves the definitions unchanged when building validationSchema', () => {
     const catalog = Catalog.fromJson(
-      readRepoJson('specification/v0_9/catalogs/basic/catalog.json'),
+      readRepoJson('catalogs/basic/v0_9/catalog.json'),
       undefined,
       undefined,
       {validator: testValidator},
@@ -1271,7 +1271,7 @@ describe('composite catalogs', () => {
 describe('entry definitions', () => {
   it('keeps the definition its document declares on each built-in entry', () => {
     for (const [builtin, catalogPath] of [
-      [v09BasicCatalog, 'specification/v0_9/catalogs/basic/catalog.json'],
+      [v09BasicCatalog, 'catalogs/basic/v0_9/catalog.json'],
       [v10BasicCatalog, 'catalogs/basic/v1/catalog.json'],
     ] as const) {
       const entry = builtin.components.get('Text')!;
@@ -1489,7 +1489,7 @@ describe('Catalog.derive', () => {
 
   it('drops authored $defs that only left-out entries referenced', () => {
     const loaded = Catalog.fromJson(
-      readRepoJson('specification/v0_9/catalogs/basic/catalog.json'),
+      readRepoJson('catalogs/basic/v0_9/catalog.json'),
       undefined,
       undefined,
       {validator: testValidator},

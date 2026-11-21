@@ -363,8 +363,7 @@ function isTemplateRefField(field: UnwrappedField): boolean {
   if (kindOf(field.node) !== 'object') return false;
   const keys = ownPropertyKeys(field.node);
   return (
-    (keys.has('componentId') &&
-      (keys.has('path') || keys.has('@path') || keys.has('dataBinding'))) ||
+    (keys.has('componentId') && (keys.has('path') || keys.has('dataBinding'))) ||
     keys.has('explicitList') ||
     keys.has('template')
   );

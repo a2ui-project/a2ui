@@ -88,9 +88,7 @@ function* extractPointers(
     const isTemplate =
       Object.hasOwn(obj, 'componentId') &&
       typeof obj['componentId'] === 'string' &&
-      (Object.hasOwn(obj, 'path') ||
-        Object.hasOwn(obj, '@path') ||
-        Object.hasOwn(obj, 'dataBinding'));
+      (Object.hasOwn(obj, 'path') || Object.hasOwn(obj, 'dataBinding'));
     const isV08ListWrapper =
       !inArray &&
       (Array.isArray(obj['explicitList']) ||

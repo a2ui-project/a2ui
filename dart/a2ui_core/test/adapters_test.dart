@@ -16,12 +16,12 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 Matcher _validationError(Pattern message) => throwsA(
-      isA<A2uiValidationError>().having(
-        (e) => e.message,
-        'message',
-        contains(message),
-      ),
-    );
+  isA<A2uiValidationError>().having(
+    (e) => e.message,
+    'message',
+    contains(message),
+  ),
+);
 
 void main() {
   group('V0_9Adapter', () {
@@ -58,31 +58,41 @@ void main() {
     });
 
     test('maps updateComponents, updateDataModel and deleteSurface', () {
-      final updateComponents = adapter.toOperations({
-        'version': 'v0.9',
-        'updateComponents': {
-          'surfaceId': 's1',
-          'components': [
-            {'id': 'root', 'component': 'Text', 'text': 'Hi'},
-          ],
-        },
-      }).single as UpdateComponentsOp;
+      final updateComponents =
+          adapter.toOperations({
+                'version': 'v0.9',
+                'updateComponents': {
+                  'surfaceId': 's1',
+                  'components': [
+                    {'id': 'root', 'component': 'Text', 'text': 'Hi'},
+                  ],
+                },
+              }).single
+              as UpdateComponentsOp;
       expect(updateComponents.surfaceId, 's1');
       expect(updateComponents.components, [
         {'id': 'root', 'component': 'Text', 'text': 'Hi'},
       ]);
 
-      final updateDataModel = adapter.toOperations({
-        'version': 'v0.9',
-        'updateDataModel': {'surfaceId': 's1', 'path': '/a', 'value': 1},
-      }).single as UpdateDataModelOp;
+      final updateDataModel =
+          adapter.toOperations({
+                'version': 'v0.9',
+                'updateDataModel': {
+                  'surfaceId': 's1',
+                  'path': '/a',
+                  'value': 1,
+                },
+              }).single
+              as UpdateDataModelOp;
       expect(updateDataModel.path, '/a');
       expect(updateDataModel.value, 1);
 
-      final deleteSurface = adapter.toOperations({
-        'version': 'v0.9',
-        'deleteSurface': {'surfaceId': 's1'},
-      }).single as DeleteSurfaceOp;
+      final deleteSurface =
+          adapter.toOperations({
+                'version': 'v0.9',
+                'deleteSurface': {'surfaceId': 's1'},
+              }).single
+              as DeleteSurfaceOp;
       expect(deleteSurface.surfaceId, 's1');
     });
 
@@ -176,20 +186,22 @@ void main() {
     const adapter = V1_0Adapter();
 
     test('maps an inline createSurface', () {
-      final op = adapter.toOperations({
-        'version': '1.0',
-        'createSurface': {
-          'surfaceId': 's1',
-          'sendDataModel': true,
-          'components': [
-            {'id': 'root', 'component': 'Column'},
-          ],
-          'dataModel': {'key': 'value'},
-          'metadata': {
-            'extensions': {'tracking': true},
-          },
-        },
-      }).single as CreateSurfaceOp;
+      final op =
+          adapter.toOperations({
+                'version': '1.0',
+                'createSurface': {
+                  'surfaceId': 's1',
+                  'sendDataModel': true,
+                  'components': [
+                    {'id': 'root', 'component': 'Column'},
+                  ],
+                  'dataModel': {'key': 'value'},
+                  'metadata': {
+                    'extensions': {'tracking': true},
+                  },
+                },
+              }).single
+              as CreateSurfaceOp;
       expect(op.version, A2uiProtocolVersion.v1_0);
       expect(op.catalogId, isNull);
       expect(op.theme, isNull);
@@ -216,10 +228,16 @@ void main() {
         }).single,
         isA<UpdateComponentsOp>().having((o) => o.surfaceId, 'surfaceId', 's1'),
       );
-      final deletion = adapter.toOperations({
-        'version': '1.0',
-        'updateDataModel': {'surfaceId': 's1', 'path': '/a', 'value': null},
-      }).single as UpdateDataModelOp;
+      final deletion =
+          adapter.toOperations({
+                'version': '1.0',
+                'updateDataModel': {
+                  'surfaceId': 's1',
+                  'path': '/a',
+                  'value': null,
+                },
+              }).single
+              as UpdateDataModelOp;
       expect(deletion.path, '/a');
       expect(deletion.value, isNull);
       expect(
@@ -232,20 +250,24 @@ void main() {
     });
 
     test('maps the function-call messages', () {
-      final call = adapter.toOperations({
-        'version': '1.0',
-        'callRendererFunction': {
-          'functionCallId': 'f1',
-          'callFunction': {'@call': 'now', 'catalogId': 'cat'},
-        },
-      }).single as CallRendererFunctionOp;
+      final call =
+          adapter.toOperations({
+                'version': '1.0',
+                'callRendererFunction': {
+                  'functionCallId': 'f1',
+                  'callFunction': {'@call': 'now', 'catalogId': 'cat'},
+                },
+              }).single
+              as CallRendererFunctionOp;
       expect(call.functionCallId, 'f1');
       expect(call.callFunction, {'@call': 'now', 'catalogId': 'cat'});
 
-      final response = adapter.toOperations({
-        'version': '1.0',
-        'agentFunctionResponse': {'functionCallId': 'f1', 'value': 42},
-      }).single as AgentFunctionResponseOp;
+      final response =
+          adapter.toOperations({
+                'version': '1.0',
+                'agentFunctionResponse': {'functionCallId': 'f1', 'value': 42},
+              }).single
+              as AgentFunctionResponseOp;
       expect(response.response.functionCallId, 'f1');
       expect(response.response.value, 42);
     });
@@ -297,14 +319,8 @@ void main() {
   group('VersionAdapterRegistry', () {
     test('standard routes each version to its adapter', () {
       final registry = VersionAdapterRegistry.standard();
-      expect(
-        registry.resolve({'version': 'v0.9'}),
-        isA<V0_9Adapter>(),
-      );
-      expect(
-        registry.resolve({'version': 'v0.9.1'}),
-        isA<V0_9Adapter>(),
-      );
+      expect(registry.resolve({'version': 'v0.9'}), isA<V0_9Adapter>());
+      expect(registry.resolve({'version': 'v0.9.1'}), isA<V0_9Adapter>());
       expect(registry.resolve({'version': '1.0'}), isA<V1_0Adapter>());
       expect(
         registry.supportedVersions,

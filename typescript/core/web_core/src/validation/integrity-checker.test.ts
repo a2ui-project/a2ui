@@ -30,6 +30,7 @@ import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {getComponentReferences} from './integrity-checker.js';
 import {jsonFixture} from '../test/schema.js';
+import {testValidator} from '../test/validator.js';
 
 describe('Integrity Verification', () => {
   describe('getComponentReferences', () => {
@@ -259,7 +260,7 @@ describe('Integrity Verification', () => {
       }
     });
 
-    it('extracts only componentId from {componentId, "@path"} templates and passes strict validateTopology alongside empty open containers', () => {
+    it('extracts only componentId from {componentId, path} templates and ignores non-spec {componentId, "@path"} objects', () => {
       const catalog = new Catalog('v10-tmpl-cat', '1.0', [
         {
           name: 'Repeater',
@@ -268,13 +269,11 @@ describe('Integrity Verification', () => {
             'properties': {
               'children': {
                 'type': 'object',
-                'properties': {'componentId': {'type': 'string'}, '@path': {'type': 'string'}},
-                'required': ['componentId', '@path'],
-                'additionalProperties': false,
+                'properties': {'componentId': {'type': 'string'}, 'path': {'type': 'string'}},
+                'required': ['componentId', 'path'],
               },
             },
             'required': ['children'],
-            'additionalProperties': false,
           }),
         },
         {
@@ -298,7 +297,7 @@ describe('Integrity Verification', () => {
           {
             id: 'root',
             component: 'Repeater',
-            children: {componentId: 'wrapper', '@path': '/items'},
+            children: {componentId: 'wrapper', path: '/items'},
           },
           catalog,
         ),
@@ -310,7 +309,7 @@ describe('Integrity Verification', () => {
         new ComponentModel(
           'root',
           'Repeater',
-          {children: {componentId: 'wrapper', '@path': '/items'}},
+          {children: {componentId: 'wrapper', path: '/items'}},
           catalog,
         ),
       );
@@ -324,6 +323,64 @@ describe('Integrity Verification', () => {
           allowOrphanComponents: false,
         }),
       );
+
+      assert.deepEqual(
+        Array.from(
+          getComponentReferences(
+            {
+              id: 'root',
+              component: 'Repeater',
+              children: {componentId: 'wrapper', '@path': '/items'},
+            },
+            catalog,
+          ),
+        ),
+        [],
+      );
+
+      const nonSpecFixtureCatalog = new Catalog('v10-non-spec-fixture', '1.0', [
+        {
+          name: 'NotARepeater',
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {
+              'items': {
+                'type': 'object',
+                'properties': {'componentId': {'type': 'string'}, '@path': {'type': 'string'}},
+                'required': ['componentId', '@path'],
+              },
+            },
+          }),
+        },
+      ]);
+      assert.strictEqual(nonSpecFixtureCatalog.componentRefMap.NotARepeater.listRefs.size, 0);
+
+      const nonSpecJsonCatalog = Catalog.fromJson(
+        {
+          catalogId: 'v10-non-spec-json',
+          protocolVersion: '1.0',
+          components: {
+            NotARepeater: {
+              type: 'object',
+              properties: {
+                component: {const: 'NotARepeater'},
+                items: {
+                  type: 'object',
+                  properties: {
+                    componentId: {type: 'string'},
+                    '@path': {type: 'string'},
+                  },
+                },
+              },
+              required: ['component'],
+            },
+          },
+        },
+        undefined,
+        undefined,
+        {validator: testValidator},
+      );
+      assert.strictEqual(nonSpecJsonCatalog.componentRefMap.NotARepeater.listRefs.size, 0);
     });
 
     it('extracts template componentId when a property has nestedRefs from a [list, nested] union regardless of branch order', () => {

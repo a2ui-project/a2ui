@@ -149,10 +149,18 @@ function paramsFor(keyword: string, error: string): Record<string, unknown> | un
 const DATA_KEYWORDS = new Set(['const', 'enum', 'default', 'examples']);
 
 /**
+ * The `uri` check web_core applied before it used JSON Schema, formats asserted
+ * or not: a non-empty value with no whitespace inside it (surrounding
+ * whitespace is allowed). A relative reference passes.
+ */
+const URI_FORMAT_PATTERN = '^\\s*\\S+\\s*$';
+
+/**
  * Removes `format` keywords from a schema copy in place, so cfworker, which always
- * asserts formats, treats them as annotations. A `format` keyword is told from a
- * property named `format` by its string value; instance data (`const`, `enum`, ...)
- * is left untouched.
+ * asserts formats, treats them as annotations. A `format: 'uri'` becomes the
+ * {@link URI_FORMAT_PATTERN} `pattern` (unless the node has a `pattern`). A
+ * `format` keyword is told from a property named `format` by its string value;
+ * instance data (`const`, `enum`, ...) is left untouched.
  */
 function stripFormats(node: unknown): void {
   if (Array.isArray(node)) {
@@ -161,7 +169,10 @@ function stripFormats(node: unknown): void {
   }
   if (typeof node !== 'object' || node === null) return;
   const obj = node as Json;
-  if (typeof obj.format === 'string') delete obj.format;
+  if (typeof obj.format === 'string') {
+    if (obj.format === 'uri' && obj.pattern === undefined) obj.pattern = URI_FORMAT_PATTERN;
+    delete obj.format;
+  }
   for (const [k, v] of Object.entries(obj)) if (!DATA_KEYWORDS.has(k)) stripFormats(v);
 }
 
@@ -169,8 +180,10 @@ function stripFormats(node: unknown): void {
  * Creates a {@link JsonSchemaValidator} backed by `@cfworker/json-schema` (draft 2020-12).
  *
  * By default `format` is an annotation and is not asserted, as in JSON Schema
- * 2020-12's default vocabulary and the Ajv adapter, so a `uri` property accepts a
- * relative URL. Pass `{formats: true}` to assert formats with cfworker's checks.
+ * 2020-12's default vocabulary and the Ajv adapter, except `uri`, which the A2UI
+ * SDKs check: a `uri` string must be non-empty and hold no whitespace (a relative
+ * reference such as `/path` passes). Pass `{formats: true}` to assert every format
+ * with cfworker's checks, whose `uri` needs a scheme.
  */
 export function createCfWorkerValidator(options: {formats?: boolean} = {}): JsonSchemaValidator {
   const formats = options.formats === true;

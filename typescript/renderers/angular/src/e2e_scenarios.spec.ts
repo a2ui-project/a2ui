@@ -34,7 +34,8 @@ import {
   type HarnessState,
   type ManifestRecord,
 } from './adapter_harness';
-import {type AngularCatalog, SurfaceComponent} from './public-api';
+import {type AngularCatalog} from './catalog/types';
+import {SurfaceComponent} from './core/surface.component';
 import {BasicCatalogBase as V09BasicCatalogBase} from './v0_9';
 import {outboundIssues, validator} from './test_validator';
 

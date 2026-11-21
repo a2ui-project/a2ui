@@ -175,18 +175,39 @@ describe('formats', () => {
   const uri: JsonSchema = {type: 'string', format: 'uri'};
 
   it('treats format as an annotation by default, as JSON Schema 2020-12 does', () => {
-    const validate = createCfWorkerValidator().compile(uri);
-    assert.ok(validate('relative/path').success);
-    assert.ok(validate('https://example.com/').success);
+    const validate = createCfWorkerValidator().compile({type: 'string', format: 'date'});
+    assert.ok(validate('not a date').success);
     assert.strictEqual(validate(42).success, false, 'other keywords still apply');
+  });
+
+  it('checks uri by default: non-empty, without whitespace', () => {
+    const validate = createCfWorkerValidator().compile(uri);
+    assert.ok(validate('https://example.com/').success);
+    assert.ok(validate('mailto:someone@example.com').success);
+    assert.strictEqual(validate('not a uri').success, false);
+    assert.ok(validate('relative/path').success, 'a relative reference passes');
+    assert.ok(validate(' /padded ').success, 'surrounding whitespace is allowed');
+    assert.strictEqual(validate('').success, false);
+    assert.strictEqual(validate('https://example.com/a b').success, false);
+    assert.ok(
+      createCfWorkerValidator().compile({type: 'string', format: 'uri', pattern: '^a b$'})('a b')
+        .success,
+      "a node's own pattern replaces the uri check",
+    );
   });
 
   it('treats format in referenced defs as an annotation by default', () => {
     const validate = createCfWorkerValidator().compile(
       {$ref: 'defs.json#/$defs/Url'},
-      {defs: {'defs.json': {$defs: {Url: uri}}}},
+      {defs: {'defs.json': {$defs: {Url: uri, Day: {type: 'string', format: 'date'}}}}},
     );
-    assert.ok(validate('relative/path').success);
+    assert.strictEqual(validate('not a uri').success, false, 'uri is still checked');
+    assert.ok(
+      createCfWorkerValidator().compile(
+        {$ref: 'defs.json#/$defs/Day'},
+        {defs: {'defs.json': {$defs: {Day: {type: 'string', format: 'date'}}}}},
+      )('not a date').success,
+    );
   });
 
   it('keeps properties and values named format', () => {

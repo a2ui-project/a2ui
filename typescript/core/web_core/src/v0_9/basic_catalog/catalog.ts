@@ -32,7 +32,7 @@ export type BasicCatalog = Catalog<WebComponentImplementation, FunctionImplement
  * Components (Custom Elements).
  *
  * The catalog is the published v0.9 basic catalog document
- * (`specification/v0_9/catalogs/basic/catalog.json`) loaded with
+ * (`catalogs/basic/v0_9/catalog.json`) loaded with
  * `Catalog.fromJson`: its components and functions validate against the
  * document with `validator`, and `toJson` returns the document. Each
  * component is paired with its element and each function with its
