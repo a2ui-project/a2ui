@@ -524,3 +524,25 @@ async def test_mock_backend_single_candidate_choice_sums_to_one() -> None:
     )
     answers = await backend.answer(batch)
     assert answers[0].distribution.probabilities == {"sole_option": 1.0}
+
+
+@pytest.mark.asyncio
+async def test_gated_mode_pasted_json_uses_neutral_intent() -> None:
+    agent = _make_agent()
+    await agent.handle_text_turn("/mode gated", context_id="ctx-gated-paste")
+    res = await agent.handle_text_turn(
+        "",
+        context_id="ctx-gated-paste",
+        pasted_payload={
+            "service": "checkout-api",
+            "status": "healthy",
+            "cpu": "20%",
+            "errorRate": "0.01%",
+            "postmortemNote": "",
+        },
+        include_trace=True,
+    )
+    assert res.trace is not None
+    context_json = res.trace["candidates"][0]["decisionInput"]["contextJson"]
+    assert "Intent: Render payload" in context_json
+    assert "requiring detailed metrics and rollback" not in context_json
