@@ -149,6 +149,13 @@ Use straight quotes (`"`, `'`) and straight apostrophes (`'`). Do not use curly 
 
 Use em dashes sparingly, as language models often overuse them for emphasis. Prefer commas or parentheses instead.
 
+### 4.4. Label the problem
+
+When a text explains a change, such as a PR description, an issue, or a design document, start with the problem it solves and label it with the word "Problem", so the reader finds it at a glance. Use a `**Problem:**` lead-in for a short description, or a `## Problem` header when the text has sections.
+
+- Instead of: "The triage bot flags more items than the team can act on. This PR narrows the rules."
+- Write: "**Problem:** The triage bot flags more items than the team can act on."
+
 ## 5. Citations & integrity
 
 ### 5.1. No hallucinations
