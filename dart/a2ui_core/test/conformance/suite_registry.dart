@@ -16,6 +16,9 @@
 /// file in `test/conformance/` that executes it.
 const Map<String, Map<String, String>> coreSuiteActions = {
   'core/actions.yaml': {'dispatch_action': 'actions_conformance_test.dart'},
+  'core/add_catalog.yaml': {
+    'process_messages': 'message_processor_conformance_test.dart',
+  },
   'core/agent_function_routing.yaml': {
     'route_agent_function': 'agent_function_routing_conformance_test.dart',
   },
