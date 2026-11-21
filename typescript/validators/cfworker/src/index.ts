@@ -111,7 +111,8 @@ function parseJson(text: string): unknown {
  * Recovers Ajv-style keyword parameters (`missingProperty`, `type`,
  * `allowedValue`, `allowedValues`, `additionalProperty`, `unevaluatedProperty`)
  * from cfworker's error text, so web_core words issues the same for both
- * engines. Relies on @cfworker/json-schema 4.1.x message text.
+ * engines. Relies on the message text of @cfworker/json-schema 4.1.6, the
+ * pinned version; the canary test in index.test.ts fails if a bump rewords it.
  */
 function paramsFor(keyword: string, error: string): Record<string, unknown> | undefined {
   let m: RegExpExecArray | null;

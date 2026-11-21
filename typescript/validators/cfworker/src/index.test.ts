@@ -18,6 +18,7 @@ import assert from 'node:assert';
 import {readFileSync} from 'node:fs';
 import {describe, it} from 'node:test';
 import {fileURLToPath} from 'node:url';
+import {Validator} from '@cfworker/json-schema';
 import type {A2uiIssue, JsonSchema} from '@a2ui/web_core/schema-engine';
 import {createCfWorkerValidator} from './index.js';
 
@@ -206,5 +207,66 @@ describe('formats', () => {
     const result = validate('relative/path');
     assert.strictEqual(result.success, false);
     if (!result.success) assert.strictEqual(result.issues[0].keyword, 'format');
+  });
+});
+
+describe('@cfworker/json-schema message canary', () => {
+  // The adapter recovers issue params from cfworker's error text. These are the
+  // shapes it parses: a dependency bump that rewords them must fail here, and
+  // the parser in index.ts be updated with it.
+  it('words the errors the adapter parses as it did when pinned', () => {
+    const validator = new Validator(
+      {
+        type: 'object',
+        required: ['r'],
+        properties: {
+          t: {type: ['string', 'null']},
+          s: {type: 'string'},
+          c: {const: '1.0'},
+          e: {enum: ['a', 1]},
+          ad: {type: 'object', additionalProperties: false},
+          u: {type: 'object', unevaluatedProperties: false},
+        },
+      },
+      '2020-12',
+      false,
+    );
+    const errors = validator
+      .validate({t: 1, s: 2, c: 'x', e: 'z', ad: {extra: 1}, u: {other: 2}})
+      .errors.filter(e => e.keyword !== 'properties' && e.keyword !== 'false')
+      .map(e => [e.keyword, e.instanceLocation, e.error]);
+    assert.deepStrictEqual(errors, [
+      ['required', '#', 'Instance does not have required property "r".'],
+      ['type', '#/t', 'Instance type "number" is invalid. Expected "string", "null".'],
+      ['type', '#/s', 'Instance type "number" is invalid. Expected "string".'],
+      ['const', '#/c', 'Instance does not match "1.0".'],
+      ['enum', '#/e', 'Instance does not match any of ["a",1].'],
+      [
+        'additionalProperties',
+        '#/ad',
+        'Property "extra" does not match additional properties schema.',
+      ],
+      [
+        'unevaluatedProperties',
+        '#/u',
+        'Property "other" does not match unevaluated properties schema.',
+      ],
+    ]);
+  });
+
+  it('recovers every param from those messages', () => {
+    const r = createCfWorkerValidator().compile({
+      type: 'object',
+      required: ['r'],
+      properties: {s: {type: 'string'}},
+    })({s: 2});
+    assert.ok(!r.success);
+    assert.deepStrictEqual(
+      r.issues.filter((i: A2uiIssue) => i.params).map((i: A2uiIssue) => [i.path, i.params]),
+      [
+        [['r'], {missingProperty: 'r'}],
+        [['s'], {type: ['string']}],
+      ],
+    );
   });
 });

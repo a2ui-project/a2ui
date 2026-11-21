@@ -96,7 +96,7 @@
     "@a2ui/web_core": "workspace:*"
   },
   "dependencies": {
-    "@cfworker/json-schema": "^4.1.1"
+    "@cfworker/json-schema": "4.1.6"
   },
   "devDependencies": {
     "@a2ui/web_core": "workspace:*",
