@@ -2407,6 +2407,52 @@ describe('MessageProcessor', () => {
         processRoot(newProc(), widget('base', {'@call': '@index', args: {offset: 1}}));
       });
 
+      it('validates an @index call nested in call args or an action context at ingest', () => {
+        // Evaluation does not validate a system function's arguments again,
+        // so a malformed nested @index must be rejected when it arrives.
+        const wrapFn = createFunctionImplementation(
+          {
+            name: 'wrap',
+            returnType: 'string' as const,
+            schema: jsonFixture({
+              'type': 'object',
+              'properties': {'value': {}},
+              'required': ['value'],
+            }),
+          },
+          args => String(args.value),
+        );
+        const buttonApi: ComponentApi = {
+          name: 'Button',
+          schema: jsonFixture({'type': 'object', 'properties': {'action': {}}}),
+        };
+        const newProc = () =>
+          new MessageProcessor<ComponentApi>(
+            [new Catalog<ComponentApi>('base', '1.0', [textApi, buttonApi], [wrapFn])],
+            undefined,
+            {validator: testValidator, validationConfig: STRICT_FUNCTIONS_ONLY},
+          );
+        const index = (offset: unknown) => ({'@call': '@index', args: {offset}});
+        const inArgs = (offset: unknown) => ({
+          id: 'root',
+          component: 'Text',
+          text: {'@call': 'wrap', args: {value: index(offset)}},
+        });
+        const inAction = (offset: unknown) => ({
+          id: 'root',
+          component: 'Button',
+          action: {event: {name: 'go', context: {position: index(offset)}}},
+        });
+        for (const root of [inArgs, inAction]) {
+          assert.throws(
+            () => processRoot(newProc(), root('one')),
+            /Validation failed for function '@index'/,
+            root.name,
+          );
+          processRoot(newProc(), root(1));
+        }
+      });
+
       it('rejects a non-string catalogId on a call', () => {
         const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
         for (const component of ['Text', 'Widget']) {

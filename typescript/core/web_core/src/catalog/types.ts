@@ -47,7 +47,7 @@ import {
 } from './reference-map.js';
 import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
-import {IndexImplementation} from '../v1_0/functions/system_functions.js';
+import {IndexImplementation, SYSTEM_FUNCTIONS} from '../v1_0/functions/system_functions.js';
 import {createFunctionImplementation} from './function_implementation.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {coerceDynamicBooleans} from './validation_result_coercion.js';
@@ -1267,6 +1267,14 @@ function createCatalogInvoker<F extends FunctionApi>(
  *
  * @throws {A2uiExpressionError} If the arguments fail validation.
  */
+/**
+ * Whether `name` is one of the spec's system functions (`SYSTEM_FUNCTIONS`),
+ * read at call time because that module and this one import each other.
+ */
+function isSystemFunctionName(name: string): boolean {
+  return SYSTEM_FUNCTIONS.some(fn => fn.name === name);
+}
+
 function validateFunctionCallArgs(
   name: string,
   fn: FunctionApi,
@@ -1274,11 +1282,12 @@ function validateFunctionCallArgs(
   protocolVersion: string | undefined,
   catalog: CatalogInterface<any, any> | undefined,
 ): unknown {
-  // A reserved `@` system function's arguments were validated against the
-  // protocol's schema (`INDEX_ARGS`) when the payload was ingested, with the
+  // A system function's arguments were validated against the protocol's
+  // schema (`INDEX_ARGS`) when the payload was ingested, with the
   // application's validator; its implementation does not depend on them
-  // being validated again.
-  if (name.startsWith('@') && isAtLeastVersion(protocolVersion ?? '', SpecVersion.V1_0)) {
+  // being validated again. Only the spec's system functions are skipped, not
+  // any `@`-prefixed name.
+  if (isSystemFunctionName(name) && isAtLeastVersion(protocolVersion ?? '', SpecVersion.V1_0)) {
     return args;
   }
   const prepared = entrySchema(fn, 'function', {
