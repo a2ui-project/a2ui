@@ -21,36 +21,41 @@ export {
   provideA2Ui,
   type RendererConfiguration,
 } from './core/a2ui-renderer.service';
-export {ComponentHostComponent, type ComponentKey} from './core/component-host.component';
-export {AccessibilityTargetDirective, ValidationErrorsDirective} from './core/accessibility';
-export {SurfaceComponent} from './core/surface.component';
-export {SurfaceNodeResolver} from './core/surface-node-resolver.service';
-export {CatalogComponent} from './core/catalog_component';
-export {type CatalogComponentInstance} from './core/catalog_component_instance';
-export {ComponentBinder, type Child} from './core/component-binder.service';
+export { ComponentHostComponent, type ComponentKey } from './core/component-host.component';
+export { AccessibilityTargetDirective, ValidationErrorsDirective } from './core/accessibility';
+export { SurfaceComponent } from './core/surface.component';
+export { SurfaceNodeResolver } from './core/surface-node-resolver.service';
+export { CatalogComponent } from './core/catalog_component';
+export { type CatalogComponentInstance } from './core/catalog_component_instance';
+export { ComponentBinder, type Child } from './core/component-binder.service';
 export {
   type BoundProperty,
   type ComponentApiToProps,
   type ComponentTemplate,
   type ExtendedProps,
 } from './core/types';
-export {getNormalizedPath} from './core/utils';
+export { getNormalizedPath } from './core/utils';
 export {
   A2UI_JSON_SCHEMA_VALIDATOR,
   injectA2uiValidator,
   provideA2uiValidator,
 } from './core/validator';
-export {DefaultMarkdownRenderer, MarkdownRenderer, provideMarkdownRenderer} from './core/markdown';
+export {
+  DefaultMarkdownRenderer,
+  MarkdownRenderer,
+  provideMarkdownRenderer,
+} from './core/markdown';
 
 // Catalog Types and Web Component utilities
 export {
   AngularCatalog,
   type AngularComponentImplementation,
   type AnyDuringSchemaAlignment,
+  catalogDocumentOptionsOf,
   createComponentImplementation,
 } from './catalog/types';
-export {toWebComponent} from './catalog/to_web_component';
-export {UniversalOnlyComponent} from './catalog/universal_only.component';
+export { toWebComponent } from './catalog/to_web_component';
+export { UniversalOnlyComponent } from './catalog/universal_only.component';
 
 // Providers and v1.0 BasicCatalog
 export {

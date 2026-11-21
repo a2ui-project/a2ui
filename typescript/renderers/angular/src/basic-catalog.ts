@@ -22,21 +22,22 @@ import {
   makeEnvironmentProviders,
   Optional,
 } from '@angular/core';
-import {A2UI_RENDERER_CONFIG, type RendererConfiguration} from './core/a2ui-renderer.service';
+import { A2UI_RENDERER_CONFIG, type RendererConfiguration } from './core/a2ui-renderer.service';
 import {
   AngularCatalog,
   type AngularComponentImplementation,
+  catalogDocumentOptionsOf,
   createComponentImplementation,
 } from './catalog/types';
-import {UniversalOnlyComponent} from './catalog/universal_only.component';
-import {injectA2uiValidator} from './core/validator';
+import { UniversalOnlyComponent } from './catalog/universal_only.component';
+import { injectA2uiValidator } from './core/validator';
 import {
   createBasicCatalog,
   createBasicCatalogFunctions,
   type BasicCatalog as WebCoreBasicCatalog,
   type BasicCatalogTheme,
 } from '@a2ui/web_core/catalogs/basic/v1';
-import type {CatalogSchema, FunctionImplementation, JsonSchemaValidator} from '@a2ui/web_core';
+import type { CatalogSchema, FunctionImplementation, JsonSchemaValidator } from '@a2ui/web_core';
 
 /**
  * The name of each component in the v1.0 basic catalog, which the renderer implements as universal
@@ -157,7 +158,7 @@ export function createBasicComponents(
 /**
  * Returns the client-side functions of the v1.0 basic catalog.
  */
-export {createBasicCatalogFunctions};
+export { createBasicCatalogFunctions };
 
 /**
  * A base class for v1.0 basic catalogs, providing extensibility for non-DI use cases.
@@ -172,14 +173,14 @@ export class BasicCatalogBase extends AngularCatalog {
     const base: WebCoreBasicCatalog = createBasicCatalog(validator);
     const id = options.id ?? base.id;
     const functions =
-      options.functions ?? createBasicCatalogFunctions(validator, {locale: options.locale});
+      options.functions ?? createBasicCatalogFunctions(validator, { locale: options.locale });
 
     const defaults = defaultComponentImplementations(validator);
     const overrides = options.components ?? {};
     const components: AngularComponentImplementation[] = [
       ...Object.entries(defaults).map(([key, defaultValue]) => {
         const impl = (overrides as any)[key] ?? defaultValue;
-        const result: Record<string, any> = {name: impl.name || defaultValue.name || key};
+        const result: Record<string, any> = { name: impl.name || defaultValue.name || key };
         for (const prop of Object.keys(impl)) {
           if (prop !== 'name') {
             result[prop] = (impl as any)[prop];
@@ -193,21 +194,7 @@ export class BasicCatalogBase extends AngularCatalog {
     super(id, '1.0', components, functions, {
       themeSchema: options.themeSchema ?? base.themeSchema,
       validator,
-      schemaUri: base.schemaUri,
-      declaredProtocolVersion: base.declaredProtocolVersion,
-      declaresCatalogId: base.declaresCatalogId,
-      declaresComponents: base.declaresComponents,
-      functionsLayout: base.functionsLayout,
-      unions: base.unions,
-      defs: base.defs,
-      extensionFields: base.extensionFields,
-      commonTypesUri: base.commonTypesUri,
-      themeLocation: base.themeLocation,
-      // The `$id`, title and description describe the published catalog, so they are kept only
-      // under its ID.
-      ...(id === base.id
-        ? {schemaId: base.schemaId, title: base.title, description: base.description}
-        : {}),
+      ...catalogDocumentOptionsOf(base, id),
     });
   }
 }
@@ -227,7 +214,7 @@ export const BASIC_CATALOG_OPTIONS = new InjectionToken<BasicCatalogOptions>(
 })
 export class BasicCatalog extends BasicCatalogBase {
   constructor(@Optional() @Inject(BASIC_CATALOG_OPTIONS) options?: BasicCatalogOptions) {
-    super({...options, validator: options?.validator ?? injectA2uiValidator()});
+    super({ ...options, validator: options?.validator ?? injectA2uiValidator() });
   }
 }
 
@@ -247,11 +234,11 @@ export function provideA2UI(
         ? {
             useFactory: () => {
               const cfg = configOrFactory();
-              return {useUniversalComponents: true, ...cfg};
+              return { useUniversalComponents: true, ...cfg };
             },
           }
         : {
-            useValue: {useUniversalComponents: true, ...configOrFactory},
+            useValue: { useUniversalComponents: true, ...configOrFactory },
           }),
     },
   ]);

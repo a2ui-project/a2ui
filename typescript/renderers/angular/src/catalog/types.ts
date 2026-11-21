@@ -14,20 +14,21 @@
  * limitations under the License.
  */
 
-import {Injector, Type} from '@angular/core';
+import { Injector, Type } from '@angular/core';
 import {
   Catalog,
+  type CatalogDocumentOptions,
   CatalogOptions,
   CatalogSchema,
   ComponentApi,
   ComponentContext,
   FunctionImplementation,
 } from '@a2ui/web_core';
-import {copyLoadedDefinition} from '@a2ui/web_core/catalog';
-import {WebComponentImplementation, isWebComponentImplementation} from '@a2ui/web_core/universal';
-import {CatalogComponentInstance} from '../core/catalog_component_instance';
-import {componentApiFields, toWebComponent} from './to_web_component';
-import {UniversalOnlyComponent} from './universal_only.component';
+import { copyLoadedDefinition } from '@a2ui/web_core/catalog';
+import { WebComponentImplementation, isWebComponentImplementation } from '@a2ui/web_core/universal';
+import { CatalogComponentInstance } from '../core/catalog_component_instance';
+import { componentApiFields, toWebComponent } from './to_web_component';
+import { UniversalOnlyComponent } from './universal_only.component';
 
 /**
  * Temporary type used during basic catalog schema alignment to bypass strict type checking.
@@ -37,6 +38,42 @@ import {UniversalOnlyComponent} from './universal_only.component';
  * @see https://github.com/a2ui-project/a2ui/issues/1303
  */
 export type AnyDuringSchemaAlignment = any;
+
+/**
+ * The document options of a catalog built on `base` under `id`: everything
+ * `base`'s document declares, so `toJson` writes the same document. The `$id`,
+ * title, description and instructions describe the published catalog, so they
+ * are kept only when `id` is `base`'s ID.
+ *
+ * @param base The catalog whose document is kept, such as a web_core basic catalog.
+ * @param id The ID of the catalog being built.
+ * @returns The options to pass to the `Catalog` constructor.
+ */
+export function catalogDocumentOptionsOf(
+  base: Catalog<any, any>,
+  id: string,
+): CatalogDocumentOptions {
+  return {
+    schemaUri: base.schemaUri,
+    declaredProtocolVersion: base.declaredProtocolVersion,
+    declaresCatalogId: base.declaresCatalogId,
+    declaresComponents: base.declaresComponents,
+    functionsLayout: base.functionsLayout,
+    unions: base.unions,
+    defs: base.defs,
+    extensionFields: base.extensionFields,
+    commonTypesUri: base.commonTypesUri,
+    themeLocation: base.themeLocation,
+    ...(id === base.id
+      ? {
+          schemaId: base.schemaId,
+          title: base.title,
+          description: base.description,
+          instructions: base.instructions,
+        }
+      : {}),
+  };
+}
 
 /** The theme schema of a catalog, or its `CatalogOptions`. */
 type ThemeSchemaOrOptions = CatalogSchema<unknown> | CatalogOptions;
@@ -152,7 +189,7 @@ function toAngularComponentImplementation(
     // Workaround, needed only while 1P apps migrate to `useUniversalComponents: true`: until
     // then every catalog entry must carry an Angular component, so Web Component-only entries
     // get a placeholder that reports the missing flag instead of rendering.
-    return withDefinitionOf(entry, {...entry, component: UniversalOnlyComponent});
+    return withDefinitionOf(entry, { ...entry, component: UniversalOnlyComponent });
   }
   if (!isWebComponentImplementation(entry)) {
     // Attach a lazy Web Component wrapper to plain `{...api, component}` entries so universal
@@ -161,10 +198,10 @@ function toAngularComponentImplementation(
     // The fields are added to the entry itself so callers keep entry identity (for example
     // `catalog.components.get('X') === X_IMPL`); only non-extensible entries are copied.
     const webComponent = toWebComponent(entry);
-    const fields = {tagName: webComponent.tagName, element: webComponent.element};
+    const fields = { tagName: webComponent.tagName, element: webComponent.element };
     return Object.isExtensible(entry)
       ? Object.assign(entry, fields)
-      : withDefinitionOf(entry, {...entry, ...fields});
+      : withDefinitionOf(entry, { ...entry, ...fields });
   }
   return entry;
 }
@@ -179,7 +216,7 @@ function isAngularComponentImplementation(api: unknown): api is AngularComponent
     typeof api === 'object' &&
     api !== null &&
     'component' in api &&
-    typeof (api as {component?: unknown}).component === 'function'
+    typeof (api as { component?: unknown }).component === 'function'
   );
 }
 
@@ -203,7 +240,7 @@ export function createComponentImplementation(
 ): AngularComponentImplementation {
   const webComponent = isWebComponentImplementation(componentApi)
     ? componentApi
-    : toWebComponent({...componentApiFields(componentApi), component});
+    : toWebComponent({ ...componentApiFields(componentApi), component });
 
   // Annotated wider than the return type so the Custom Element fields pass the object literal
   // check; to consumers the entry is an AngularComponentImplementation that also satisfies

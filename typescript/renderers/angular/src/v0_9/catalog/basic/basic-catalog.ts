@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-import {Inject, Injectable, InjectionToken, Optional, Type} from '@angular/core';
+import { Inject, Injectable, InjectionToken, Optional, Type } from '@angular/core';
 import {
   AngularCatalog,
   AngularComponentImplementation,
   type CatalogComponentInstance,
+  catalogDocumentOptionsOf,
   createComponentImplementation,
   injectA2uiValidator,
 } from '@a2ui/angular';
@@ -28,28 +29,28 @@ import {
   type BasicCatalog as WebCoreBasicCatalog,
   type BasicCatalogTheme,
 } from '@a2ui/web_core/v0_9/basic_catalog';
-import type {CatalogSchema, JsonSchemaValidator} from '@a2ui/web_core';
-import {copyLoadedDefinition} from '@a2ui/web_core/catalog';
-import {FunctionImplementation} from '@a2ui/web_core/v0_9';
+import type { CatalogSchema, JsonSchemaValidator } from '@a2ui/web_core';
+import { copyLoadedDefinition } from '@a2ui/web_core/catalog';
+import { FunctionImplementation } from '@a2ui/web_core/v0_9';
 
-import {TextComponent} from './text.component';
-import {RowComponent} from './row.component';
-import {ColumnComponent} from './column.component';
-import {ButtonComponent} from './button.component';
-import {TextFieldComponent} from './text-field.component';
-import {ImageComponent} from './image.component';
-import {IconComponent} from './icon.component';
-import {VideoComponent} from './video.component';
-import {AudioPlayerComponent} from './audio-player.component';
-import {ListComponent} from './list.component';
-import {CardComponent} from './card.component';
-import {TabsComponent} from './tabs.component';
-import {ModalComponent} from './modal.component';
-import {DividerComponent} from './divider.component';
-import {CheckBoxComponent} from './check-box.component';
-import {ChoicePickerComponent} from './choice-picker.component';
-import {SliderComponent} from './slider.component';
-import {DateTimeInputComponent} from './date-time-input.component';
+import { TextComponent } from './text.component';
+import { RowComponent } from './row.component';
+import { ColumnComponent } from './column.component';
+import { ButtonComponent } from './button.component';
+import { TextFieldComponent } from './text-field.component';
+import { ImageComponent } from './image.component';
+import { IconComponent } from './icon.component';
+import { VideoComponent } from './video.component';
+import { AudioPlayerComponent } from './audio-player.component';
+import { ListComponent } from './list.component';
+import { CardComponent } from './card.component';
+import { TabsComponent } from './tabs.component';
+import { ModalComponent } from './modal.component';
+import { DividerComponent } from './divider.component';
+import { CheckBoxComponent } from './check-box.component';
+import { ChoicePickerComponent } from './choice-picker.component';
+import { SliderComponent } from './slider.component';
+import { DateTimeInputComponent } from './date-time-input.component';
 /**
  * The Angular component of each component in the basic catalog, with the name of its component.
  * Using string literals as keys, to survive property renaming, as these names need to match the JSON payload.
@@ -172,7 +173,7 @@ export function createBasicComponents(
  * Returns the client-side functions of the basic catalog: the v0.9 specification's functions and
  * the legacy functions of `@a2ui/web_core` 0.9.x.
  */
-export {createBasicCatalogFunctions};
+export { createBasicCatalogFunctions };
 
 /**
  * A base class for basic catalogs, providing extensibility for non-DI use cases.
@@ -188,14 +189,14 @@ export class BasicCatalogBase extends AngularCatalog {
     const base: WebCoreBasicCatalog = createBasicCatalog(validator);
     const id = options.id ?? base.id;
     const functions =
-      options.functions ?? createBasicCatalogFunctions(validator, {locale: options.locale});
+      options.functions ?? createBasicCatalogFunctions(validator, { locale: options.locale });
 
     const defaults = defaultComponentImplementations(validator);
     const overrides = options.components ?? {};
     const components: AngularComponentImplementation[] = [
       ...Object.entries(defaults).map(([key, defaultValue]) => {
         const impl = (overrides as any)[key] ?? defaultValue;
-        const entry = {...impl, name: impl.name || key};
+        const entry = { ...impl, name: impl.name || key };
         copyLoadedDefinition(impl, entry);
         return entry;
       }),
@@ -205,21 +206,7 @@ export class BasicCatalogBase extends AngularCatalog {
     super(id, '0.9', components, functions, {
       themeSchema: options.themeSchema ?? base.themeSchema,
       validator,
-      schemaUri: base.schemaUri,
-      declaredProtocolVersion: base.declaredProtocolVersion,
-      declaresCatalogId: base.declaresCatalogId,
-      declaresComponents: base.declaresComponents,
-      functionsLayout: base.functionsLayout,
-      unions: base.unions,
-      defs: base.defs,
-      extensionFields: base.extensionFields,
-      commonTypesUri: base.commonTypesUri,
-      themeLocation: base.themeLocation,
-      // The `$id`, title and description describe the published catalog, so they are kept only
-      // under its ID.
-      ...(id === base.id
-        ? {schemaId: base.schemaId, title: base.title, description: base.description}
-        : {}),
+      ...catalogDocumentOptionsOf(base, id),
     });
   }
 }
@@ -241,6 +228,6 @@ export const BASIC_CATALOG_OPTIONS = new InjectionToken<BasicCatalogOptions>(
 })
 export class BasicCatalog extends BasicCatalogBase {
   constructor(@Optional() @Inject(BASIC_CATALOG_OPTIONS) options?: BasicCatalogOptions) {
-    super({...options, validator: options?.validator ?? injectA2uiValidator()});
+    super({ ...options, validator: options?.validator ?? injectA2uiValidator() });
   }
 }

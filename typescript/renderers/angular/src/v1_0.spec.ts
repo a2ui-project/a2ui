@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {TestBed} from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import {
   A2uiRendererService,
   BasicCatalog,
@@ -24,19 +24,20 @@ import {
   provideA2UI,
   SurfaceComponent,
 } from './public-api';
-import {isWebComponentImplementation} from '@a2ui/web_core/v1_0';
-import {provideTestValidator, validator} from './test_validator';
+import { createBasicCatalog as createWebCoreBasicCatalog } from '@a2ui/web_core/catalogs/basic/v1';
+import { isWebComponentImplementation } from '@a2ui/web_core/v1_0';
+import { provideTestValidator, validator } from './test_validator';
 
 describe('@a2ui/angular v1.0 & BasicCatalog', () => {
   describe('BasicCatalog', () => {
     it('should have v1.0 catalog ID and protocolVersion', () => {
-      const catalog = new BasicCatalog({validator});
+      const catalog = new BasicCatalog({ validator });
       expect(catalog.id).toBe('https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json');
       expect(catalog.protocolVersion).toBe('1.0');
     });
 
     it('should register all 18 v1.0 basic catalog components with WebComponentImplementations', () => {
-      const catalog = new BasicCatalog({validator});
+      const catalog = new BasicCatalog({ validator });
       expect(catalog.components.size).toBe(18);
       expect(createBasicComponents(validator).length).toBe(18);
       expect(createBasicCatalogFunctions(validator).length).toBeGreaterThan(0);
@@ -77,6 +78,17 @@ describe('@a2ui/angular v1.0 & BasicCatalog', () => {
       expect(custom.id).toBe('https://example.com/custom-v1.json');
       expect(custom.protocolVersion).toBe('1.0');
     });
+
+    it('keeps the basic catalog instructions under its own ID only', () => {
+      const base = createWebCoreBasicCatalog(validator);
+      expect(base.instructions).toBeTruthy();
+      const basic = new BasicCatalogBase({ validator });
+      expect(basic.instructions).toBe(base.instructions);
+      expect(basic.title).toBe(base.title);
+      expect(basic.toJson()['instructions']).toBe(base.instructions);
+      const custom = new BasicCatalogBase({ id: 'https://example.com/custom-v1.json', validator });
+      expect(custom.instructions).toBeUndefined();
+    });
   });
 
   describe('provideA2UI and v1.0 rendering', () => {
@@ -85,7 +97,7 @@ describe('@a2ui/angular v1.0 & BasicCatalog', () => {
         imports: [SurfaceComponent],
         providers: [
           provideTestValidator(),
-          provideA2UI({catalogs: [new BasicCatalog({validator})]}),
+          provideA2UI({ catalogs: [new BasicCatalog({ validator })] }),
         ],
       });
     });
@@ -144,10 +156,10 @@ describe('@a2ui/angular v1.0 & BasicCatalog', () => {
                   component: 'TextField',
                   label: 'Full Name',
                   placeholder: 'Jane Doe',
-                  value: {'@path': '/user/name'},
+                  value: { '@path': '/user/name' },
                   checks: [
                     {
-                      condition: {'@path': '/user/nameCheck'},
+                      condition: { '@path': '/user/nameCheck' },
                       message: 'Fallback name error',
                     },
                   ],
