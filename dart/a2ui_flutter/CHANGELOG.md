@@ -29,6 +29,10 @@
 - **Breaking:** Requires `a2ui_core` `^0.8.0`, whose types this library
   re-exports.
 
+- `Image` renders a `data:` URL of an `image/*` type, such as an inline
+  base64 PNG, as the web renderers do since
+  [#3108](https://github.com/a2ui-project/a2ui/pull/3108). A `data:` URL of
+  another type, or one that does not decode, shows the broken-image icon.
 - `NodeView` reads `@accessibility` with a fallback to `accessibility` so v1.0 surfaces resolve `@`-prefixed accessibility attributes alongside custom `accessibility` component properties ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#4037](https://github.com/a2ui-project/a2ui/pull/4037)).
 - Add explicit type annotation in `example/lib/chat_session.dart` to satisfy the `specify_nonobvious_local_variable_types` analyzer lint on Dart 3.15+ ([#4233](https://github.com/a2ui-project/a2ui/pull/4233)).
 
