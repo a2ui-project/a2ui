@@ -14,7 +14,7 @@ Label and assignee changes are net: adding a label and removing it in the period
 
 The report starts with the period and the numbers: how many items the person triaged, how many of them were issues and PRs, how many items they sent to the team by adding `status: needs-team-input`, and, as "Remaining", how many open items still need triage.
 
-The **Assigned for triage:** section follows: every open item with `status: assigned-for-triage`, except draft PRs, grouped by assignee, so that the team sees who still has triage to finish. The groups are in the order of the logins, and the items in each group in the order of their numbers. An item with several assignees is in the group of each, and items with no assignee are last, under **Nobody**. Each item has its URL and title. When no open item is assigned for triage, the section is the line "Assigned for triage: none".
+The **Assigned for triage:** section follows: every open item with `status: assigned-for-triage`, except draft PRs, grouped by assignee, so that the team sees who still has triage to finish. Each group starts with the assignee's login after `@`, as in **@octocat**. The groups are in the order of the logins, and the items in each group in the order of their numbers. An item with several assignees is in the group of each, and items with no assignee are last, under **Nobody**. Each item has its URL and title. When no open item is assigned for triage, the section is the line "Assigned for triage: none".
 
 Then the groups of what the person triaged follow, by what the person did: **Closed**, **Assigned P0** to **Assigned P3**, **Needs team input**, **Updated** for other changes, including assigning an item for triage, and **Commented** for the items the person only commented on. An item is in the first group that fits. Each group lists its items, with each item's URL, title and what the person did. The last line is "Created by triage bot skill", where "triage bot" links to the [a2ui-triage-bot](../../../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill.
 
@@ -29,11 +29,11 @@ Remaining: 4.
 
 Assigned for triage:
 
-another-expert: 1 PR
+@another-expert: 1 PR
   - https://github.com/a2ui-project/a2ui/pull/4060
     Add a DatePicker to the Angular renderer
 
-octocat: 2 issues
+@octocat: 2 issues
   - https://github.com/a2ui-project/a2ui/issues/4050
     Support dialogs in the Flutter renderer
   - https://github.com/a2ui-project/a2ui/issues/4071

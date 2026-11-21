@@ -328,7 +328,8 @@ export const NOBODY = 'Nobody';
 
 /**
  * Groups the items assigned for triage by assignee, in the order of the
- * logins, with the items assigned to nobody last. An item with several
+ * logins, with the items assigned to nobody last. Each heading names the
+ * assignee as `@login`. An item with several
  * assignees is in the group of each.
  */
 export function byAssignee(items: AssignedItem[]): {heading: string; items: AssignedItem[]}[] {
@@ -343,7 +344,10 @@ export function byAssignee(items: AssignedItem[]): {heading: string; items: Assi
     .filter(login => login !== NOBODY)
     .sort((a, b) => a.localeCompare(b, 'en', {sensitivity: 'base'}));
   if (groups.has(NOBODY)) logins.push(NOBODY);
-  return logins.map(login => ({heading: `${login}: ${kinds(groups.get(login)!)}`, items: groups.get(login)!}));
+  return logins.map(login => ({
+    heading: `${login === NOBODY ? login : `@${login}`}: ${kinds(groups.get(login)!)}`,
+    items: groups.get(login)!,
+  }));
 }
 
 /** The heading of the section with the items assigned for triage. */

@@ -251,8 +251,8 @@ describe('byAssignee', () => {
     assert.deepEqual(
       groups.map(group => [group.heading, group.items.map(item => item.number)]),
       [
-        ['Alice: 1 issue', [20]],
-        ['bob: 1 issue and 1 PR', [10, 20]],
+        ['@Alice: 1 issue', [20]],
+        ['@bob: 1 issue and 1 PR', [10, 20]],
         ['Nobody: 1 issue', [30]],
       ],
     );
@@ -316,11 +316,11 @@ Remaining: 4.
 
 Assigned for triage:
 
-another-expert: 1 PR
+@another-expert: 1 PR
   - https://github.com/a2ui-project/a2ui/pull/4060
     Item 4060
 
-expert: 2 issues
+@expert: 2 issues
   - https://github.com/a2ui-project/a2ui/issues/4050
     Item 4050
   - https://github.com/a2ui-project/a2ui/issues/4071
@@ -377,7 +377,7 @@ describe('renderHtml', () => {
     const html = renderHtml(REPORT);
     assert.ok(
       html.includes(
-        '<p>Assigned for triage:</p>\n<p>another-expert: 1 PR</p>\n<ul><li><a href="https://github.com/a2ui-project/a2ui/pull/4060">https://github.com/a2ui-project/a2ui/pull/4060</a><br>Item 4060</li></ul>',
+        '<p>Assigned for triage:</p>\n<p>@another-expert: 1 PR</p>\n<ul><li><a href="https://github.com/a2ui-project/a2ui/pull/4060">https://github.com/a2ui-project/a2ui/pull/4060</a><br>Item 4060</li></ul>',
       ),
     );
     assert.match(html, /Support &lt;dialog&gt; in Flutter/);
