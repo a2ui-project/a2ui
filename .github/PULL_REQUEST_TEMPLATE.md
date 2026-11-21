@@ -1,8 +1,10 @@
-# Description
+## Problem
 
-_Replace this paragraph with a description of what this PR is changing or adding, and why. Consider including before/after screenshots._
+_Replace this paragraph with a description of the problem this PR solves. List which issues are fixed by this PR. For larger changes, raising an issue first helps reduce redundant work._
 
-_List which issues are fixed by this PR. For larger changes, raising an issue first helps reduce redundant work._
+## Changes
+
+_Replace this paragraph with a description of what this PR is changing or adding. Consider including before/after screenshots._
 
 ## Pre-launch Checklist
 

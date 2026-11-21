@@ -157,6 +157,65 @@ void main() {
     });
   });
 
+  group('MessageProcessor.addCatalog', () {
+    Catalog<ComponentApi, FunctionImplementation> catalogNamed(String id) =>
+        Catalog<ComponentApi, FunctionImplementation>(
+          id: id,
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          components: const [],
+        );
+
+    late MessageProcessor<ComponentApi> processor;
+
+    setUp(() {
+      processor = MessageProcessor<ComponentApi>(
+        catalogs: [catalogNamed('cat1')],
+      );
+      addTearDown(processor.dispose);
+    });
+
+    void createSurface(String catalogId) => processor.processMessages(
+      AgentToRendererMessagePayload([
+        CreateSurfaceMessage(
+          version: '1.0',
+          surfaceId: 's1',
+          catalogId: catalogId,
+        ),
+      ]),
+    );
+
+    test('resolves a later createSurface naming the added catalog', () {
+      expect(() => createSurface('late'), throwsA(isA<A2uiCatalogError>()));
+
+      processor.addCatalog(catalogNamed('late'));
+      createSurface('late');
+
+      expect(processor.model.getSurface('s1')!.defaultCatalog!.id, 'late');
+    });
+
+    test('rejects a catalog whose id the processor already holds', () {
+      expect(
+        () => processor.addCatalog(catalogNamed('cat1')),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('lists the added catalog in the renderer capabilities', () {
+      processor.addCatalog(catalogNamed('late'));
+
+      final Map<String, Object?> json = processor
+          .getRendererCapabilities(
+            const CapabilitiesOptions(versions: [A2uiProtocolVersion.v1_0]),
+          )
+          .toJson();
+
+      expect((json['1.0']! as Map<String, Object?>)['supportedCatalogIds'], [
+        'cat1',
+        'late',
+      ]);
+    });
+  });
+
   group('MessageProcessor', () {
     late TestCatalog catalog;
     late MessageProcessor processor;
@@ -1318,6 +1377,136 @@ void main() {
         'catalogId': 'custom-source-2',
         'metadata': {'pageNumber': 2},
       });
+    });
+  });
+
+  group('MessageProcessor envelope error paths', () {
+    final Catalog<ComponentApi, FunctionImplementation> catalog =
+        BasicCatalog.v1_0();
+    late MessageProcessor<ComponentApi> processor;
+    late Map<String, Object?> body;
+
+    setUp(() {
+      processor = MessageProcessor<ComponentApi>(catalogs: [catalog]);
+      body = {'surfaceId': 's', 'catalogId': catalog.id};
+      addTearDown(processor.dispose);
+    });
+
+    test('reports an unknown envelope key at the key', () {
+      final List<ErrorMessage> errors = processor.processMessagesWithErrors([
+        {'version': '1.0', 'createSurface': body, 'extra': 1},
+      ]);
+
+      expect(errors, hasLength(1));
+      expect(errors.single.error.code, 'VALIDATION_FAILED');
+      expect(errors.single.error.path, '/extra');
+    });
+
+    test('reports a misspelled message type at the key', () {
+      final List<ErrorMessage> errors = processor.processMessagesWithErrors([
+        {'version': '1.0', 'createSurfac': body},
+      ]);
+
+      expect(errors, hasLength(1));
+      expect(errors.single.error.code, 'VALIDATION_FAILED');
+      expect(errors.single.error.path, '/createSurfac');
+    });
+
+    test('escapes an unknown key as a JSON Pointer segment', () {
+      final List<ErrorMessage> errors = processor.processMessagesWithErrors([
+        {'version': '1.0', 'createSurface': body, 'a/b~c': 1},
+      ]);
+
+      expect(errors.single.error.path, '/a~1b~0c');
+    });
+
+    test('does not infer version from an unknown key containing version', () {
+      final List<ErrorMessage> errors = processor.processMessagesWithErrors([
+        {'version': '1.0', 'createSurface': body, 'versionExtra': 1},
+      ]);
+
+      expect(errors.single.error.path, '/versionExtra');
+    });
+
+    test('keeps dot paths and the message index in error details', () {
+      expect(
+        () => processor.processMessages([
+          {'version': '1.0', 'createSurface': body},
+          {'version': '1.0', 'createSurface': body, 'extra': 1},
+        ]),
+        throwsA(
+          isA<A2uiValidationError>()
+              .having((e) => e.path, 'path', '/extra')
+              .having(
+                (e) => e.errors.single.path,
+                'detail path',
+                'messages.1.extra',
+              )
+              .having(
+                (e) => e.errors.single.code,
+                'detail code',
+                'invalid_value',
+              )
+              .having((e) => e.errors.single.surfaceId, 'surfaceId', 's'),
+        ),
+      );
+    });
+
+    test('preserves body-relative paths and existing component details', () {
+      processor.processMessages([
+        {'version': '1.0', 'createSurface': body},
+      ]);
+      final Map<String, Object?> update = {
+        'version': '1.0',
+        'updateComponents': {
+          'surfaceId': 's',
+          'components': [
+            {'component': 'Text', 'text': 'Missing id'},
+          ],
+        },
+      };
+
+      expect(
+        () => processor.processMessages([update]),
+        throwsA(
+          isA<A2uiValidationError>()
+              .having((e) => e.path, 'path', '/components/0/id')
+              .having((e) => e.errors, 'details', [
+            const A2uiErrorDetail(
+              path: '/id',
+              code: 'invalid_value',
+              message: "Component missing an 'id'.",
+              surfaceId: 's',
+            ),
+          ]),
+        ),
+      );
+
+      final List<ErrorMessage> errors =
+          processor.processMessagesWithErrors([update]);
+      expect(errors, hasLength(1));
+      expect(errors.single.error.code, 'VALIDATION_FAILED');
+      expect(errors.single.error.path, '/components/0/id');
+    });
+
+    test('keeps an unsupported version error at version', () {
+      final List<ErrorMessage> errors = processor.processMessagesWithErrors([
+        {'version': 'v7', 'createSurface': body},
+      ]);
+
+      expect(errors, hasLength(1));
+      expect(errors.single.error.code, 'VALIDATION_FAILED');
+      expect(errors.single.error.path, '/version');
+    });
+
+    test('accepts a valid envelope without errors', () {
+      expect(
+        processor.processMessagesWithErrors([
+          {'version': '1.0', 'createSurface': body},
+        ]),
+        isEmpty,
+      );
+      expect(processor.model.getSurface('s'), isNotNull);
     });
   });
 
