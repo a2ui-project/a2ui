@@ -301,7 +301,7 @@ function wildcard(expected: Record<string, unknown>): string | undefined {
  * `{$match: iso8601}` any ISO 8601 timestamp. Everything else must be equal, and objects must
  * have the same keys.
  *
- * @returns The first difference found, as a path and a reason, or `null` when they match.
+ * @return The first difference found, as a path and a reason, or `null` when they match.
  */
 export function matchOutbound(actual: unknown, expected: unknown, at = '$'): string | null {
   if (isRecord(expected)) {

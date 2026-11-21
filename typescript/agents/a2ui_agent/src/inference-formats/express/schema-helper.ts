@@ -1047,7 +1047,7 @@ export class CatalogSchemaHelper {
    * `description`) win.
    *
    * @param schema The schema object to dereference.
-   * @returns The dereferenced schema object, or undefined if `schema` is not an object.
+   * @return The dereferenced schema object, or undefined if `schema` is not an object.
    */
   dereferenceLocalSchema(schema: unknown): Record<string, unknown> | undefined {
     if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
