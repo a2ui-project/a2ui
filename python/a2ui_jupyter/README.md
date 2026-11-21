@@ -81,9 +81,48 @@ function responses, and errors. Replies to `callAgentFunction` messages can be
 sent through `surface.send`.
 
 The awaited methods require top-level `await` in a supported IPython kernel.
-The JupyterLite Pyodide kernel does not deliver renderer messages while a cell
-is waiting in `next_action()` or `next_message()`. Use `on_action` or
-`on_message` callbacks in Pyodide so the cell can finish before interaction.
+They do not work in JupyterLite; use `on_action` or `on_message` callbacks
+there. See [Why a form does not block the notebook](#why-a-form-does-not-block-the-notebook).
+
+## Why a form does not block the notebook
+
+A2UI surfaces in Jupyter are not modal dialogs. Displaying a form does not stop
+you from running other cells until the form is submitted, and there is no
+call that waits synchronously for the user. A cancel button has no special
+meaning either: it sends an ordinary action, like any other button.
+
+The reason is how the click reaches Python. The browser sends each click as a
+widget (comm) message to the kernel, and the kernel that runs your cells is
+the same kernel that must handle that message. So a cell can wait for a click
+only if the kernel handles widget messages while the cell is still running:
+
+1. A synchronous wait, such as a loop that sleeps until a value is set, never
+   ends in any kernel. The loop holds the kernel's only Python thread, so the
+   message with the click is never handled. `A2UISurface` therefore has no
+   blocking wait method.
+2. In JupyterLab with ipykernel 7.4 or newer, `await surface.next_action()`
+   works because the kernel handles widget messages while the cell awaits.
+   The same mechanism lets you run other cells during the wait, so the form
+   does not block them.
+3. In JupyterLab with ipykernel 6.9.2 to 7.0, the kernel handles requests one
+   at a time. `a2ui-jupyter` uses `jupyter-ui-poll` to handle widget messages
+   during the wait and defers other cells until the wait ends. This is the
+   only setup where the notebook waits for the form, and it comes from the
+   polling workaround, not from a design choice.
+4. In JupyterLite, the browser-side kernel manager passes every message for a
+   kernel, cell executions and widget messages alike, through one lock. The
+   widget message with the click waits for the running cell to finish, and the
+   cell waits for the click, so the cell would stay busy forever. This applies
+   to every JupyterLite kernel, including Pyodide and xeus-python, and no
+   Python code in the kernel can change it. `next_action()` and
+   `next_message()` therefore raise `RuntimeError` in JupyterLite instead of
+   hanging.
+
+To write a notebook that works in every kernel, register a callback with
+`on_action` or `on_message` and let the cell finish. The callback runs when the
+user acts, and it decides what happens to the form. See
+[After the user submits](#after-the-user-submits) and the
+[examples](./examples).
 
 ## Examples
 
@@ -129,12 +168,12 @@ minimum is 6.29.0, because 6.9.2 imports `imp`, which Python 3.12 removed. The
 6.9.2 row was tested on Python 3.11 with jupyter-client 7.x. The browser UI was not
 tested with 6.9.2.
 
-The table applies only to IPython kernels. JupyterLite's Pyodide and xeus-python
-kernels are not covered by it. In Pyodide, use callbacks instead of awaiting
-renderer messages. With xeus-python, `A2UISurface` imports and displays
-surfaces, but the awaited methods (`next_action`, `next_message`) were not tested.
-The examples use callbacks for both kernels; run the demo smoke test to verify
-interaction in your own JupyterLite build.
+The table applies only to IPython kernels. JupyterLite kernels, including
+Pyodide and xeus-python, cannot deliver renderer messages to a waiting cell
+(see [Why a form does not block the notebook](#why-a-form-does-not-block-the-notebook)),
+so `next_action` and `next_message` raise `RuntimeError` there. Use callbacks
+instead, as the examples do. Run the demo smoke test to verify interaction in
+your own JupyterLite build.
 
 Installing this package does not upgrade a kernel that is already running.
 Restart the kernel after changing the kernel version.

@@ -288,6 +288,38 @@ def test_action_reaches_both_action_interfaces() -> None:
     remove_action_handler()
 
 
+def test_failing_message_handler_does_not_drop_the_action() -> None:
+    surface = A2UISurface()
+
+    def fail(_message: Any) -> None:
+        raise RuntimeError("handler failed")
+
+    surface.on_message(fail)
+
+    with pytest.raises(RuntimeError, match="handler failed"):
+        surface._handle_frontend_message(
+            surface, {"type": "a2ui", "message": ACTION}, []
+        )
+
+    action = asyncio.run(asyncio.wait_for(surface.next_action(), timeout=0.1))
+    assert action.model_dump(by_alias=True, exclude_unset=True) == ACTION
+
+
+def test_waiting_in_jupyterlite_raises_instead_of_hanging(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(surface_module.sys, "platform", "emscripten")
+    surface = A2UISurface()
+
+    with pytest.raises(RuntimeError, match="on_action or on_message"):
+        asyncio.run(asyncio.wait_for(surface.next_action(), timeout=0.1))
+
+    # Messages that already arrived are still returned without waiting.
+    surface._handle_frontend_message(surface, {"type": "a2ui", "message": ACTION}, [])
+    action = asyncio.run(asyncio.wait_for(surface.next_action(), timeout=0.1))
+    assert action.model_dump(by_alias=True, exclude_unset=True) == ACTION
+
+
 def test_invalid_or_unrelated_frontend_messages_are_rejected() -> None:
     surface = A2UISurface()
 

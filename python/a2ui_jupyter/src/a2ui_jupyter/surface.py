@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from collections.abc import Callable, Iterable, Mapping
 from importlib.metadata import version
 from pathlib import Path
@@ -59,6 +60,17 @@ def _is_ipykernel_kernel(kernel: object) -> bool:
     return any(
         cls.__module__.partition(".")[0] == "ipykernel" for cls in type(kernel).__mro__
     )
+
+
+def _ensure_kernel_can_wait() -> None:
+    # JupyterLite handles one kernel message at a time per kernel, so the widget
+    # message carrying a click is never handled while a cell is still running.
+    if sys.platform == "emscripten":
+        raise RuntimeError(
+            "JupyterLite kernels cannot deliver renderer messages while a cell is"
+            " waiting, so this wait would never finish. Register on_action or"
+            " on_message callbacks instead and let the cell finish."
+        )
 
 
 def _kernel_needs_comm_polling() -> bool:
@@ -156,11 +168,18 @@ class A2UISurface(anywidget.AnyWidget):
         return unsubscribe
 
     async def next_message(self) -> RendererToAgentMessage:
-        """Wait for the next validated renderer-to-agent message."""
+        """Wait for the next validated renderer-to-agent message.
+
+        Raises RuntimeError instead of waiting forever in kernels that cannot
+        deliver renderer messages to a running cell, such as JupyterLite.
+        """
         return await self._next_from(self._messages)
 
     async def next_action(self) -> A2uiRendererActionMessage:
-        """Wait for the next validated action message."""
+        """Wait for the next validated action message.
+
+        Raises RuntimeError in the same kernels as `next_message`.
+        """
         return await self._next_from(self._actions)
 
     def _repr_mimebundle_(self, **kwargs: Any) -> Any:
@@ -168,8 +187,10 @@ class A2UISurface(anywidget.AnyWidget):
         return super()._repr_mimebundle_(**kwargs)
 
     async def _next_from(self, queue: asyncio.Queue[_T]) -> _T:
-        if queue.empty() and _kernel_needs_comm_polling():
-            await _poll_kernel_until_ready(queue)
+        if queue.empty():
+            _ensure_kernel_can_wait()
+            if _kernel_needs_comm_polling():
+                await _poll_kernel_until_ready(queue)
         return await queue.get()
 
     def _schedule_log_sync(self) -> None:
@@ -197,10 +218,13 @@ class A2UISurface(anywidget.AnyWidget):
         if not isinstance(content, Mapping) or content.get("type") != "a2ui":
             raise ValueError("Unsupported custom message; expected type 'a2ui'.")
         message = _RENDERER_MESSAGE_ADAPTER.validate_python(content.get("message"))
+        action = message if isinstance(message, A2uiRendererActionMessage) else None
+        # Queue before running callbacks, so a failing callback cannot drop it.
         self._messages.put_nowait(message)
+        if action is not None:
+            self._actions.put_nowait(action)
         for handler in tuple(self._message_handlers):
             handler(message)
-        if isinstance(message, A2uiRendererActionMessage):
-            self._actions.put_nowait(message)
+        if action is not None:
             for action_handler in tuple(self._action_handlers):
-                action_handler(message)
+                action_handler(action)
