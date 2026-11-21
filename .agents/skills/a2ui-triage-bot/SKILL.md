@@ -137,7 +137,7 @@ For a suggestion, decide what the triager should do, following [triage_criteria.
 
 ## Step 6: Fill in the suggestion
 
-The [`TriageSuggestion`](../../../tools/internal/triage_new/pkgs/triage/lib/src/triage_bot/triage_suggestion.dart) component has these properties:
+The [`TriageSuggestion`](../../../tools/internal/triage_new/pkgs/shared/lib/src/triage_bot/triage_suggestion.dart) component has these properties:
 
 1. `tldr`: the case and the suggestion in a few words each, as two lines: `Case: ...`, what kind of item this is, such as "this issue highlights a problem", and `Suggestion: ...`, the action, such as "set P1 and assign for triage to an expert". For a PR that a team member already started reviewing, the `Case:` line says so, with their login (see [Pull requests](references/triage_criteria.md#pull-requests)). Write it after `summary` and `suggestion`, as their short form, so that the triager can decide at a glance.
 2. `summary` (required): what the item is about, in one or two sentences, for a triager who has not read it.

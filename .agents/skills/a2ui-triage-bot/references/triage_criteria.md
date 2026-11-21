@@ -1,6 +1,6 @@
 # Triage criteria for the triage bot
 
-This document says how to turn an issue or a PR into a [`TriageSuggestion`](../../../../tools/internal/triage_new/pkgs/triage/lib/src/triage_bot/triage_suggestion.dart), and what a [response comment](../SKILL.md#response-comment) suggests. It adds triage bot rules to the canonical sources; where they disagree, the canonical sources win:
+This document says how to turn an issue or a PR into a [`TriageSuggestion`](../../../../tools/internal/triage_new/pkgs/shared/lib/src/triage_bot/triage_suggestion.dart), and what a [response comment](../SKILL.md#response-comment) suggests. It adds triage bot rules to the canonical sources; where they disagree, the canonical sources win:
 
 1. [triage.md](../../../../docs/contributing/triage/triage.md): goals of triage, priority definitions (`P0` to `P3`), and how to triage a PR.
 2. [labels.md](../../../../docs/contributing/triage/labels.md): triage labels and who manages each one.
