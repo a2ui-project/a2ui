@@ -3,7 +3,7 @@ title: 'Data Model and Data Binding'
 description: 'Learn how A2UI separates surface UI structure from reactive JSON state, enabling dynamic display bindings, two-way input bindings, dynamic list templates, and state synchronization back to the agent.'
 ---
 
-import {Tabs, TabItem} from '@astrojs/starlight/components';
+import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
 import DataBindingAnatomy from '@components/docs/DataBindingAnatomy.astro';
 import CollectionScopeDiagram from '@components/docs/CollectionScopeDiagram.astro';
 
@@ -60,7 +60,7 @@ Because `updateDataModel` is separate from component layout messages ([`updateCo
 
 ## Binding to the data model
 
-UI components can be bound to paths in the surface data model so they can display and update data. Component properties typed as dynamic values (such as [`DynamicString`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicString), [`DynamicNumber`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicNumber), [`DynamicBoolean`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicBoolean), [`DynamicStringList`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicStringList), or [`DynamicValue`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicValue)) accept either a static literal value or a [`DataBinding`](/specification/v1.0/schemas/#common_types.json/$defs/DataBinding) object (`{"@path": "/path"}` in v1.0, or `{"path": "/path"}` in v0.9.1). Dynamic properties can also evaluate functions, which are covered in [Actions and Functions](/concepts/actions-and-functions/).
+UI components can be bound to paths in the surface data model so they can display and update data. Component properties typed as dynamic values (such as [`DynamicString`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicString), [`DynamicNumber`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicNumber), [`DynamicBoolean`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicBoolean), [`DynamicStringList`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicStringList), or [`DynamicValue`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicValue)) accept a static literal value, a [`DataBinding`](/specification/v1.0/schemas/#common_types.json/$defs/DataBinding) object (`{"@path": "/path"}` in v1.0, or `{"path": "/path"}` in v0.9.1), or a [`FunctionCall`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) object (`{"@call": "name", "args": {...}}` in v1.0, or `{"call": "name", "args": {...}}` in v0.9.1), described in [Computing values with function calls](#computing-values-with-function-calls).
 
 ### Reading data as dynamic values
 
@@ -122,6 +122,95 @@ Interactive input components (such as `TextField`, `CheckBox`, or `Slider`) bind
   </TabItem>
 </Tabs>
 
+### Computing values with function calls
+
+A dynamic property can also hold a function call instead of a path. The renderer evaluates the function from the surface's [catalog](../catalogs/) and displays the result. Function arguments can contain data bindings, so the renderer evaluates the function again whenever a bound path changes. In v1.0 the function name goes in `@call`; in v0.9.1 it goes in `call`.
+
+The [`formatString`](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/functions/formatString) function from the Basic Catalog mixes static text with data model values. Its `value` argument is a template string in which each `${...}` expression is replaced by its result:
+
+- `${/reservation/destination}` reads an absolute data model path.
+- `${name}` reads a path relative to the current list item inside a list template (see [Displaying dynamic lists of data](#displaying-dynamic-lists-of-data)).
+- `${formatDate(value:${/reservation/checkIn}, format:'MMM d')}` calls another catalog function. Arguments are named, and can be literals or nested `${...}` expressions.
+- `\${` produces a literal `${`.
+
+Numbers and booleans are converted to their standard string form, `null` becomes an empty string, and objects and arrays are converted to JSON. The following `Text` component shows a summary line that updates when either bound path changes:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0">
+
+```json
+{
+  "id": "summaryText",
+  "component": "Text",
+  "text": {
+    "@call": "formatString",
+    "args": {
+      "value": "Trip to ${/reservation/destination} for ${/reservation/guestCount} guests"
+    }
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1">
+
+```json
+{
+  "id": "summaryText",
+  "component": "Text",
+  "text": {
+    "call": "formatString",
+    "args": {
+      "value": "Trip to ${/reservation/destination} for ${/reservation/guestCount} guests"
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Other functions take data bindings as regular arguments. For example, `formatCurrency` formats a price stored in the data model:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0">
+
+```json
+{
+  "id": "totalText",
+  "component": "Text",
+  "text": {
+    "@call": "formatCurrency",
+    "args": {
+      "value": {"@path": "/reservation/total"},
+      "currency": "JPY"
+    }
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1">
+
+```json
+{
+  "id": "totalText",
+  "component": "Text",
+  "text": {
+    "call": "formatCurrency",
+    "args": {
+      "value": {"path": "/reservation/total"},
+      "currency": "JPY"
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+The full expression syntax is defined in the [`formatString` section of the v1.0 specification](../../specification/v1.0-a2ui/#the-formatstring-function). Functions used in validation checks and button actions are covered in [Actions and Functions](../actions-and-functions/).
+
 ### Referencing the data model in events
 
 Component events ([`action.event`](/specification/v1.0/schemas/#common_types.json/$defs/Action)) can include data model references inside their `context` object. When the user triggers the event (for example, by clicking a button to submit a form), the renderer resolves each path against the local data model and sends the current values in the outbound [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message:
@@ -175,7 +264,7 @@ When a container binds to a list path (such as `"/guests"`), the renderer repeat
 
 1. A **local data model path** omits the leading slash (such as `{"@path": "name"}` in v1.0, or `{"path": "name"}` in v0.9.1) and resolves relative to the current list item. For the first item in `"/guests"`, `"name"` resolves to `"/guests/0/name"`, and for the second item, it resolves to `"/guests/1/name"`.
 2. A **root data model path** starts with a leading slash (such as `{"@path": "/reservation/destination"}`) and always resolves from the root of the surface data model, even inside a list template.
-3. In v1.0, the **`@index` system function** (`{"@call": "@index"}`, with an optional `"args": {"offset": 1}`) returns the current item's 0-based index inside a list template.
+3. In v1.0, the **`@index` system function** (`{"@call": "@index"}`, with an optional `"args": {"offset": 1}`) returns the current item's 0-based index inside a list template. See [Numbering list items with `@index`](#numbering-list-items-with-index).
 
 The following example populates a `/guests` list in the data model and renders each guest's `name` using a `Column` template:
 
@@ -259,6 +348,38 @@ The following example populates a `/guests` list in the data model and renders e
 The following diagram shows how the `/guests` array and the `guestRow` template expand into a rendered list UI. On the left, the `/guests` array holds two objects and `guestRow` binds its text to the local path `"name"`. On the right, an application window renders two list items resolved from `/guests/0/name` and `/guests/1/name`.
 
 <CollectionScopeDiagram />
+
+### Numbering list items with `@index`
+
+<Aside type="note" title="New in v1.0">
+  The `@index` system function was added in v1.0. v0.9.1 has no way to read the current item's
+  position inside a list template.
+</Aside>
+
+`@index` returns a number, so it can be used directly in any [`DynamicNumber`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicNumber) property as `{"@call": "@index"}`. To show the position as text, call it inside a `formatString` expression as `${@index()}`, or `${@index(offset: 1)}` for 1-based numbering. The following message updates the `guestRow` template from the earlier example so that it shows each guest as "1. Alex Rivera" and "2. Sam Taylor":
+
+```json
+{
+  "version": "1.0",
+  "updateComponents": {
+    "surfaceId": "booking",
+    "components": [
+      {
+        "id": "guestRow",
+        "component": "Text",
+        "text": {
+          "@call": "formatString",
+          "args": {
+            "value": "${@index(offset: 1)}. ${name}"
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+`@index` belongs to no catalog, and catalogs cannot define functions whose names start with `@`. Inside nested list templates it returns the index of the innermost template. Calling it outside a list template is an error. See [the `@index` function](../../specification/v1.0-a2ui/#the-index-function) in the v1.0 specification.
 
 ---
 
