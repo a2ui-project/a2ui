@@ -1,8 +1,9 @@
-# A2UI JupyterLab renderer
+# A2UI Jupyter renderer
 
-`a2ui-jupyter` displays A2UI v1.0 surfaces as notebook output and forwards
-renderer messages to Python. It uses `anywidget` and the A2UI React renderer.
-It requires Python 3.11 or newer.
+`a2ui-jupyter` displays A2UI v1.0 surfaces as notebook output in JupyterLab
+and JupyterLite, and forwards renderer messages to the kernel. It uses
+`anywidget` and the A2UI React renderer. The Python package requires Python
+3.11 or newer.
 
 ## Installation
 
@@ -14,10 +15,10 @@ pip install a2ui-jupyter
 
 The package has no kernel dependency. Install it into the environment of the
 Jupyter kernel that runs your notebook. The awaited methods need a kernel of a
-suitable version (see [Kernel compatibility](#kernel-compatibility)). In
+suitable version (see [Kernel support](#kernel-support)). In
 JupyterLite, see [JupyterLite](#jupyterlite).
 
-## Build the widget bundle
+## Build
 
 The Python package includes a JavaScript bundle built from the repository's
 TypeScript workspace. From the repository root, run:
@@ -108,7 +109,9 @@ The interactive examples use callbacks rather than waiting for clicks in a
 running cell. The same notebook can therefore be selected with an IPython,
 Pyodide, or xeus-python kernel; kernel installation differs.
 
-## Kernel compatibility
+## Kernel support
+
+### IPython kernel compatibility
 
 A cell that awaits `next_action` or `next_message` can only finish if the kernel
 delivers frontend messages while that cell is still running. How this works
@@ -208,10 +211,10 @@ Each widget loads a JavaScript bundle of about 900 KB. When widget state is
 saved, the bundle and the message log of every surface are stored in the
 notebook file.
 
-## Manual JupyterLab test
+## Manual test
 
-Build the bundle, install the Python workspace, and install JupyterLab into the
-same environment:
+To test the Python package in JupyterLab, build the bundle, install the Python
+workspace, and install JupyterLab into the same environment:
 
 ```bash
 corepack yarn workspace @a2ui/jupyter build
@@ -230,7 +233,7 @@ shows the `action` message containing the name.
 After rebuilding the bundle, restart the notebook kernel and refresh JupyterLab
 so the widget loads the new JavaScript.
 
-### Saved widget output
+## Saved widget output
 
 JupyterLab saves a widget output as a model ID. If that model is no longer
 available in the kernel and its state was not saved with the notebook, reopening

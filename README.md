@@ -117,13 +117,13 @@ yet" can be used from source.
 
 ### Python
 
-| Package                              | Description                                                                                        | Version                                                                                               |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| [a2ui-core](python/a2ui_core/)       | Protocol messages, data model, data binding, expression evaluation, and catalog validation.        | [![PyPI](https://img.shields.io/pypi/v/a2ui-core.svg)](https://pypi.org/project/a2ui-core/)           |
-| [a2ui-agent-sdk](python/a2ui_agent/) | Agent SDK: negotiates catalogs, generates prompts and skills, and compiles model output into A2UI. | [![PyPI](https://img.shields.io/pypi/v/a2ui-agent-sdk.svg)](https://pypi.org/project/a2ui-agent-sdk/) |
-| [a2ui-a2a](python/a2ui_a2a/)         | Connects the agent SDK to the [Agent-to-Agent (A2A) protocol](https://a2a-protocol.org).           | [![PyPI](https://img.shields.io/pypi/v/a2ui-a2a.svg)](https://pypi.org/project/a2ui-a2a/)             |
-| [a2ui-adk](python/a2ui_adk/)         | Connects the agent SDK to the [Agent Development Kit (ADK)](https://github.com/google/adk-python). | [![PyPI](https://img.shields.io/pypi/v/a2ui-adk.svg)](https://pypi.org/project/a2ui-adk/)             |
-| [a2ui-jupyter](python/a2ui_jupyter/) | JupyterLab renderer for displaying A2UI surfaces and receiving user actions.                       | Not published yet                                                                                      |
+| Package                              | Description                                                                                             | Version                                                                                               |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| [a2ui-core](python/a2ui_core/)       | Protocol messages, data model, data binding, expression evaluation, and catalog validation.             | [![PyPI](https://img.shields.io/pypi/v/a2ui-core.svg)](https://pypi.org/project/a2ui-core/)           |
+| [a2ui-agent-sdk](python/a2ui_agent/) | Agent SDK: negotiates catalogs, generates prompts and skills, and compiles model output into A2UI.      | [![PyPI](https://img.shields.io/pypi/v/a2ui-agent-sdk.svg)](https://pypi.org/project/a2ui-agent-sdk/) |
+| [a2ui-a2a](python/a2ui_a2a/)         | Connects the agent SDK to the [Agent-to-Agent (A2A) protocol](https://a2a-protocol.org).                | [![PyPI](https://img.shields.io/pypi/v/a2ui-a2a.svg)](https://pypi.org/project/a2ui-a2a/)             |
+| [a2ui-adk](python/a2ui_adk/)         | Connects the agent SDK to the [Agent Development Kit (ADK)](https://github.com/google/adk-python).      | [![PyPI](https://img.shields.io/pypi/v/a2ui-adk.svg)](https://pypi.org/project/a2ui-adk/)             |
+| [a2ui-jupyter](python/a2ui_jupyter/) | Jupyter renderer for displaying A2UI surfaces and receiving user actions in JupyterLab and JupyterLite. | Not published yet                                                                                     |
 
 ### TypeScript
 

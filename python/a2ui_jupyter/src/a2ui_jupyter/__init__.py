@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""JupyterLab renderer for A2UI."""
+"""Jupyter renderer for A2UI."""
 
 from .surface import A2UISurface
 

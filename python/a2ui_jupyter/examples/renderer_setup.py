@@ -1,4 +1,4 @@
-"""Shared setup for the A2UI JupyterLab example notebooks.
+"""Shared setup for the A2UI Jupyter example notebooks.
 
 Import this module from a notebook or script to check that the renderer
 bundle is built and to create surfaces that use the v1.0 basic catalog::
