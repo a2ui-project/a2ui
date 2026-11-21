@@ -505,3 +505,22 @@ async def test_prose_mode_upgrades_structured_prose_and_abstains_on_unstructured
     assert abstained.trace is not None
     assert abstained.trace["activeMode"] == "prose"
     assert abstained.trace["candidates"][0]["decisionOutput"]["stage"] == "abstain_fallback"
+
+
+@pytest.mark.asyncio
+async def test_mock_backend_single_candidate_choice_sums_to_one() -> None:
+    backend = PlaygroundMockBackend()
+    batch = DecisionBatch(
+        state="Only one option",
+        questions=(
+            DecisionQuestion(
+                id="select:only",
+                kind=QuestionKind.CHOICE,
+                prompt="Pick one",
+                options=("sole_option",),
+                allow_none=False,
+            ),
+        ),
+    )
+    answers = await backend.answer(batch)
+    assert answers[0].distribution.probabilities == {"sole_option": 1.0}
