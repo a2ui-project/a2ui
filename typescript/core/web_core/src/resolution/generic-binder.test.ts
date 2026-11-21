@@ -29,6 +29,7 @@ import {
 } from './generic-binder.js';
 import {ComponentContext} from './component-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
+import type {ActionClosure} from '../common/metadata.js';
 import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {ComponentModel} from '../state/component-model.js';
 import {
@@ -282,13 +283,12 @@ describe('GenericBinder Checkable Trait', () => {
       new ComponentModel('c5', 'Button', {onTap: action}, catalog),
     );
 
-    const binder = new GenericBinder<{onTap?: () => void}>(
+    const binder = new GenericBinder<{onTap?: ActionClosure}>(
       new ComponentContext(surface, 'c5'),
       z.object({onTap: CommonSchemas.Action}),
     );
 
-    const onTap = binder.snapshot.onTap as unknown as {rawAction: unknown};
-    assert.deepStrictEqual(onTap.rawAction, action);
+    assert.deepStrictEqual(binder.snapshot.onTap?.rawAction, action);
   });
 
   it('should return action dispatch promise settling after onAction listeners complete', async () => {

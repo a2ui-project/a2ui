@@ -42,6 +42,22 @@ export interface ActionDispatchOptions {
   readonly metadata?: A2uiMetadata;
 }
 
+/**
+ * The closure a component receives for an action property. Call it to
+ * dispatch the action.
+ */
+export interface ActionClosure {
+  (options?: ActionDispatchOptions): Promise<void>;
+  /**
+   * The action as the component declared it, before any bindings in it are
+   * resolved. Lets a host tell an event action from a function call action
+   * before invoking the closure. `GenericBinder` always sets it. It is
+   * optional in the type so a plain function, such as a test double, is still
+   * assignable to an action property.
+   */
+  readonly rawAction?: unknown;
+}
+
 /** Checks whether a value is a non-null, non-array plain object. */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
