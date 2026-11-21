@@ -28,9 +28,9 @@ This reference defines the required structure, writing guidelines, and standard 
 When creating the PR description file (e.g. `pr_description.md`), follow this exact structure, replacing `${ISSUE_NUMBER}` and `${RECOMMENDATION_INDEX}` with the target issue number and recommendation index:
 
 ````markdown
-## Summary
+## Problem
 
-[Provide a 1-2 sentence overview of the remediation fix, referencing the original compliance report issue and recommendation index, e.g., "Addresses recommendation 3 from compliance report issue #2178 by creating `swift/core/README.md`."]
+[Describe in 1-2 sentences the problem the fix solves, referencing the original compliance report issue and recommendation index, e.g., "Recommendation 3 from compliance report issue #2178: `swift/core` has no top-level README."]
 
 ## Changes
 
