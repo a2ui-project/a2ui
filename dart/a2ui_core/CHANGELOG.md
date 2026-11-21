@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `formatDate` copies text in single quotes through as a literal and renders
+  `''` as an apostrophe, so `"MMM d 'at' h:mm a"` gives `Feb 2 at 3:17 PM`
+  instead of `Feb 2 'PMt' 3:17 PM`, and reads `EEE` and `EE` as the
+  abbreviated weekday instead of repeating it
+  ([#2937](https://github.com/a2ui-project/a2ui/issues/2937), [#3787](https://github.com/a2ui-project/a2ui/pull/3787)).
 - **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.5.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
 - Regenerate the v0.9 basic catalog bindings and update documentation paths after moving the pre-1.0 catalogs to `catalogs/` ([#4150](https://github.com/a2ui-project/a2ui/pull/4150)).
 - Added `MessageProcessor.addCatalog`, which adds a catalog to a processor

@@ -1,5 +1,10 @@
 ## Unreleased
 
+- `formatDate` (v0.9 and v1.0) copies text in single quotes through as a
+  literal and renders `''` as an apostrophe, so `"MMM d 'at' h:mm a"` gives
+  `Feb 2 at 3:17 PM` instead of `Feb 2 'PMt' 3:17 PM`, and reads `EEE` and
+  `EE` as the abbreviated weekday instead of repeating it.
+  [#2937](https://github.com/a2ui-project/a2ui/issues/2937), [#3787](https://github.com/a2ui-project/a2ui/pull/3787)
 - Add `MessageProcessor.add_catalog(catalog)`, which adds a catalog to a
   processor after it is built. `createSurface` messages, renderer function
   calls and `get_renderer_capabilities` see the catalog from then on; surfaces
