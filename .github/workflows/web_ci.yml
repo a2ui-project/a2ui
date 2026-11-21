@@ -186,7 +186,7 @@ jobs:
       - name: Test React 18 Compatibility
         run: yarn workspace @a2ui/react run test:react18
       - name: Verify NPM Publish Script
-        run: node --test typescript/scripts/publish_npm.test.mjs typescript/scripts/upload_manifest.test.mjs
+        run: yarn --cwd typescript/scripts test
 
   # The timing cases of the conformance suites (`measure_growth` and
   # `measure_overhead`) time an operation on payloads of two sizes and compare
