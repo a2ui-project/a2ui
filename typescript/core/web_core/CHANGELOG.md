@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) `UpdateDataModelMessageSchema`, and with it `AgentToRendererMessageSchema` and `MessageProcessor`, reject an `updateDataModel` without `value`, as the v1.0 schema requires. The Zod schema generator compiled the required `value`, which has no type, to `z.any()`, which Zod lets a missing key pass, so `MessageProcessor` applied such a message as a removal of the data at its `path`. The generator now compiles any required property that accepts every value to reject a missing key. Recommended migration: send `value: null` to remove a key ([#3929](https://github.com/a2ui-project/a2ui/issues/3929), [#3930](https://github.com/a2ui-project/a2ui/pull/3930)).
 - Add `MessageProcessor.addCatalog(catalog)`, which adds a catalog to a processor after it is built. `createSurface` messages, renderer function calls and `getRendererCapabilities` see the catalog from then on; surfaces created before the call keep the catalogs they were created with. A catalog whose id the processor already holds is rejected with `A2uiCatalogError`. The processor keeps its own copy of the array passed to its constructor, which `addCatalog` adds to, and `MessageProcessor.catalogs` lists the added catalog too ([#3303](https://github.com/a2ui-project/a2ui/issues/3303), [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
 
 ## 0.16.0
