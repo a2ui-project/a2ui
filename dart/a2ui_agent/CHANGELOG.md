@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.10.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
+- (v0_9_1) `DirectJsonPromptGenerator` gives the v0.9.1 agent-to-renderer schema the `$id` `https://a2ui.org/specification/v0_9_1/server_to_client.json`, which `specification/v0_9_1/json/server_to_client.json` declares. It gave it v0.9's `$id` ([#3974](https://github.com/a2ui-project/a2ui/issues/3974), [#3975](https://github.com/a2ui-project/a2ui/pull/3975)).
 
 ## 0.4.0
 

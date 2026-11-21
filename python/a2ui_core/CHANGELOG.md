@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v0_9_1) `get_agent_to_renderer_schema_map` and
+  `get_agent_to_renderer_schema_json` give the v0.9.1 schema the `$id`
+  `https://a2ui.org/specification/v0_9_1/server_to_client.json`, which
+  `specification/v0_9_1/json/server_to_client.json` now declares. They gave it
+  v0.9's `$id`, which names v0.9's schema, a different document that accepts
+  only `"v0.9"` messages. Recommended migration: register the active catalog
+  under `https://a2ui.org/specification/v0_9_1/catalog.json` alongside
+  `https://a2ui.org/specification/v0_9/catalog.json` when validating v0.9.1
+  messages with a JSON Schema registry
+  ([#3974](https://github.com/a2ui-project/a2ui/issues/3974),
+  [#3975](https://github.com/a2ui-project/a2ui/pull/3975)).
 - Add `MessageProcessor.add_catalog(catalog)`, which adds a catalog to a
   processor after it is built. `createSurface` messages, renderer function
   calls and `get_renderer_capabilities` see the catalog from then on; surfaces

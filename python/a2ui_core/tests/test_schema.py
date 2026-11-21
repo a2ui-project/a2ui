@@ -173,7 +173,7 @@ def test_common_types_schema_rejects_unsupported_versions() -> None:
         ),
         (
             ProtocolVersion.V0_9_1,
-            "https://a2ui.org/specification/v0_9/server_to_client.json",
+            "https://a2ui.org/specification/v0_9_1/server_to_client.json",
         ),
         (
             ProtocolVersion.V1_0,
@@ -181,7 +181,7 @@ def test_common_types_schema_rejects_unsupported_versions() -> None:
         ),
     ],
 )
-def test_agent_to_renderer_schema_follows_release_line(
+def test_agent_to_renderer_schema_declares_its_version_id(
     version: ProtocolVersion, expected_id: str | None
 ) -> None:
     schema = get_agent_to_renderer_schema_map(version)
