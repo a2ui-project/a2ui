@@ -54,14 +54,19 @@ describe('the JSON Schema validator', () => {
       () => new RendererToAgentMessageProcessor({catalogs: [], validator: none}),
     ],
     [
-      'resolveCatalogs with an inline catalog',
+      'resolveCatalogs with an accepted inline catalog',
       () =>
-        resolveCatalogs([new CatalogConfig(BASIC)], none, {
-          '1.0': {
-            supportedCatalogIds: [],
-            inlineCatalogs: [{catalogId: 'c', protocolVersion: '1.0', components: {}}],
+        resolveCatalogs(
+          [new CatalogConfig(BASIC)],
+          none,
+          {
+            '1.0': {
+              supportedCatalogIds: [],
+              inlineCatalogs: [{catalogId: 'c', protocolVersion: '1.0', components: {}}],
+            },
           },
-        }),
+          true,
+        ),
     ],
     [
       'readRendererCapabilities with an inline catalog',

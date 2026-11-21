@@ -20,7 +20,7 @@ import {
   RendererCapabilities,
   toCanonicalVersion,
 } from '../internal/web-core.js';
-import {catalogFromDocument} from '../processor/catalog-providers.js';
+import {inlineCatalogFromDocument} from '../processor/catalog-providers.js';
 import {ProtocolVersion} from '../types.js';
 
 /** Transport metadata key for v0.9 and v0.9.1 client capabilities. */
@@ -96,8 +96,10 @@ function validateInlineCatalogs(
         `Each inline catalog in '${entryKey}' renderer capabilities under '${metadataKey}' must declare a valid string 'protocolVersion'.`,
       );
     }
-    catalogFromDocument(cat, 'inlineCatalogs', validator, wireVersion);
-    inlineCatalogs.push({...cat});
+    const copy = {...cat};
+    // Built to check it, and kept for `resolveCatalogs` to reuse.
+    inlineCatalogFromDocument(copy, 'inlineCatalogs', validator, wireVersion);
+    inlineCatalogs.push(copy);
   }
   return inlineCatalogs;
 }

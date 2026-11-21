@@ -17,7 +17,7 @@
 import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 import {CatalogApi, type JsonSchemaValidator, RendererCapabilities} from '../internal/web-core.js';
 import {CatalogConfig} from '../processor/catalog-config.js';
-import {catalogFromDocument} from '../processor/catalog-providers.js';
+import {inlineCatalogFromDocument} from '../processor/catalog-providers.js';
 import {toWireProtocolVersion} from './protocol-version.js';
 
 const ENTRY_FIELDS = ['supportedCatalogIds', 'inlineCatalogs'] as const;
@@ -82,8 +82,10 @@ function extractCapabilitiesEntry(
  * does not hold is ignored. Each inline catalog the renderer declares becomes an active
  * catalog of its own when the agent accepts inline catalogs, and is dropped otherwise.
  * Inline catalogs are not transformed, since transformers belong to a registration.
- * Every inline catalog is built, so a malformed one is an error even when the agent does
- * not accept inline catalogs.
+ * An inline catalog is built only when the agent accepts inline catalogs, and an inline
+ * catalog `readRendererCapabilities` already built is reused rather than built again. An
+ * inline catalog with no `catalogId` is an error even when the agent does not accept
+ * inline catalogs.
  *
  * @param catalogs Registered catalog configurations supported by the agent.
  * @param validator The JSON Schema validator inline catalogs compile their schemas with, such
@@ -97,7 +99,8 @@ function extractCapabilitiesEntry(
  * @returns Array of active CatalogApi instances.
  * @throws {A2uiCatalogError} If capabilities are given and the agent has no catalogs, if
  *     registered catalogs read different capabilities keys, if `inlineCatalogs` is not an
- *     array of valid catalogs, or if negotiation leaves no active catalog.
+ *     array of objects with a `catalogId`, if an accepted inline catalog is not valid, or if negotiation leaves
+ *     no active catalog.
  * @throws {A2uiValidationError} If the capabilities have no valid entry for the protocol
  *     version of the registered catalogs.
  */
@@ -132,17 +135,29 @@ export function resolveCatalogs(
   if (!Array.isArray(inlineDocuments)) {
     throw new A2uiCatalogError('inlineCatalogs in the renderer capabilities must be an array');
   }
-  const inlineCatalogs = inlineDocuments.map(document => {
+  for (const document of inlineDocuments) {
     if (typeof document !== 'object' || document === null || Array.isArray(document)) {
       throw new A2uiCatalogError('Each entry in inlineCatalogs must be a catalog object');
     }
-    return catalogFromDocument(
-      document as Record<string, unknown>,
-      'inline catalog',
-      validator,
-      key === 'v0.9' ? 'v0.9' : undefined,
-    );
-  });
+    const catalogId = (document as Record<string, unknown>).catalogId;
+    if (typeof catalogId !== 'string' || catalogId.trim() === '') {
+      throw new A2uiCatalogError(
+        "Each entry in inlineCatalogs must have a non-empty string 'catalogId'",
+      );
+    }
+  }
+  // Inline catalogs the agent does not accept are not built: compiling a
+  // document from the client costs work the agent would throw away.
+  const inlineCatalogs = acceptsInlineCatalogs
+    ? inlineDocuments.map(document =>
+        inlineCatalogFromDocument(
+          document as Record<string, unknown>,
+          'inline catalog',
+          validator,
+          key === 'v0.9' ? 'v0.9' : undefined,
+        ),
+      )
+    : [];
 
   const active: CatalogApi[] = [];
   for (const id of (entry.supportedCatalogIds as string[] | undefined) ?? []) {
@@ -152,9 +167,7 @@ export function resolveCatalogs(
     }
   }
 
-  if (acceptsInlineCatalogs) {
-    active.push(...inlineCatalogs);
-  }
+  active.push(...inlineCatalogs);
 
   if (active.length === 0) {
     throw new A2uiCatalogError(

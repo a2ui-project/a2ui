@@ -43,6 +43,8 @@ for (const part of processor.parseResponse(llmResponse)) {
 
 `parseResponse` throws an `A2uiError` when a block cannot be read or a renderer would reject a message. The error's `partialResults` holds the parts before the failing block, or only the text when the tree check across every block fails. None of them is applied to the state.
 
+Renderer capabilities can carry inline catalogs, which `readRendererCapabilities` compiles with your validator and `resolveCatalogs` activates only when it is passed `acceptsInlineCatalogs`; a server that accepts untrusted inline catalogs should cap the size of the documents it reads and may prefer an interpreting engine such as `@a2ui/validator-cfworker`, which generates no code from a schema.
+
 ## Chat and canvas
 
 Every response is checked against a `RendererState`, the agent's record of the surfaces one renderer holds. How long the state lives decides what a response may refer to:

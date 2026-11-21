@@ -19,7 +19,23 @@ import {resolveCatalogs} from '../../../src/utils/catalog-resolver.js';
 import {CatalogConfig} from '../../../src/processor/catalog-config.js';
 import {Catalog, V10RendererCapabilities} from '../../../src/internal/web-core.js';
 import {A2uiCatalogError, A2uiValidationError} from '../../../src/errors.js';
+import {readRendererCapabilities} from '../../../src/utils/renderer-capabilities.js';
+import type {JsonSchemaValidator} from '../../../src/internal/web-core.js';
 import {validator} from '../../helpers/validator.js';
+
+/** A validator that counts the schemas it compiles. */
+function countingValidator(): {validator: JsonSchemaValidator; compiles: () => number} {
+  let count = 0;
+  return {
+    validator: {
+      compile: (schema, opts) => {
+        count++;
+        return validator.compile(schema, opts);
+      },
+    },
+    compiles: () => count,
+  };
+}
 
 describe('resolveCatalogs', () => {
   const catBasic = new Catalog('id_basic', '1.0', [], []);
@@ -85,6 +101,57 @@ describe('resolveCatalogs', () => {
     };
     const resolved = resolveCatalogs([configBasic], validator, caps, false);
     expect(resolved.map(c => c.id)).toEqual(['id_basic']);
+  });
+
+  // An inline catalog with a component, so building it compiles at least one schema.
+  const inlineWithText = (catalogId: string) => ({
+    catalogId,
+    protocolVersion: '1.0',
+    components: {
+      Label: {type: 'object', properties: {text: {type: 'string'}}},
+    },
+  });
+
+  it('compiles nothing for inline catalogs the agent does not accept', () => {
+    const counting = countingValidator();
+    const caps: V10RendererCapabilities = {
+      supportedCatalogIds: ['id_basic'],
+      inlineCatalogs: [inlineWithText('id_inline1'), inlineWithText('id_inline2')],
+    };
+    const resolved = resolveCatalogs([configBasic], counting.validator, caps, false);
+    expect(resolved.map(c => c.id)).toEqual(['id_basic']);
+    expect(counting.compiles()).toBe(0);
+  });
+
+  it('builds each accepted inline catalog once, reusing what readRendererCapabilities built', () => {
+    // What building one inline catalog compiles.
+    const single = countingValidator();
+    resolveCatalogs(
+      [configBasic],
+      single.validator,
+      {supportedCatalogIds: [], inlineCatalogs: [inlineWithText('id_once')]},
+      true,
+    );
+    const perCatalog = single.compiles();
+    expect(perCatalog).toBeGreaterThan(0);
+
+    const counting = countingValidator();
+    const caps = readRendererCapabilities(
+      {
+        a2uiRendererCapabilities: {
+          '1.0': {
+            supportedCatalogIds: [],
+            inlineCatalogs: [inlineWithText('id_inline1'), inlineWithText('id_inline2')],
+          },
+        },
+      },
+      counting.validator,
+      '1.0',
+    );
+    expect(counting.compiles()).toBe(2 * perCatalog);
+    const resolved = resolveCatalogs([configBasic], counting.validator, caps, true);
+    expect(resolved.map(c => c.id)).toEqual(['id_inline1', 'id_inline2']);
+    expect(counting.compiles()).toBe(2 * perCatalog);
   });
 
   it('throws when an accepted inline catalog states no protocol version', () => {

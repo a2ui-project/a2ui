@@ -110,6 +110,41 @@ export function catalogFromDocument(
   return catalog;
 }
 
+/** The catalogs built from inline catalog documents, by document. */
+const inlineCatalogs = new WeakMap<
+  object,
+  {validator: JsonSchemaValidator; protocolVersion?: ProtocolVersion; catalog: CatalogApi}
+>();
+
+/**
+ * {@link catalogFromDocument} for an inline catalog document from a renderer, built once:
+ * a document built before with the same validator gets the same catalog back, when the
+ * fallback version is the same or the document states a version the fallback agrees with. The document must not change once built.
+ * Not part of the public API.
+ */
+export function inlineCatalogFromDocument(
+  document: Record<string, unknown>,
+  source: string,
+  validator: JsonSchemaValidator,
+  protocolVersion?: ProtocolVersion,
+): CatalogApi {
+  const built = inlineCatalogs.get(document);
+  const stated = typeof document.protocolVersion === 'string' ? document.protocolVersion : '';
+  if (
+    built &&
+    built.validator === validator &&
+    (built.protocolVersion === protocolVersion ||
+      (stated !== '' &&
+        (protocolVersion === undefined ||
+          toReleaseLine(protocolVersion) === toReleaseLine(stated))))
+  ) {
+    return built.catalog;
+  }
+  const catalog = catalogFromDocument(document, source, validator, protocolVersion);
+  inlineCatalogs.set(document, {validator, protocolVersion, catalog});
+  return catalog;
+}
+
 /**
  * Loads a catalog definition.
  */
