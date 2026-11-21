@@ -139,10 +139,10 @@ describe('@a2ui/angular v1.0 & BasicCatalog', () => {
                   component: 'TextField',
                   label: 'Full Name',
                   placeholder: 'Jane Doe',
-                  value: {path: '/user/name'},
+                  value: {'@path': '/user/name'},
                   checks: [
                     {
-                      condition: {path: '/user/nameCheck'},
+                      condition: {'@path': '/user/nameCheck'},
                       message: 'Fallback name error',
                     },
                   ],

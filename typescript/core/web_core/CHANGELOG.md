@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) The v1.0 `DataBinding`, `FunctionCommon` and `IndexSystemFunction` schemas are generated from the v1.0 common types as written, so they take only `@path` and `@call`, and a `DataBinding` takes no other key. `PayloadValidator` and `MessageProcessor` reject a v0.9 `{"path": ...}` or `{"call": ...}` in a v1.0 dynamic value or `callRendererFunction.callFunction`, which `DataContext` read as a literal object. A plain object with `path` or `call` keys is a literal `DynamicValue`, as the v1.0 common types define it. Recommended migration: write `@path` and `@call` in v1.0 payloads ([#4346](https://github.com/a2ui-project/a2ui/issues/4346)).
 - Add `MessageProcessor.addCatalog(catalog)`, which adds a catalog to a processor after it is built. `createSurface` messages, renderer function calls and `getRendererCapabilities` see the catalog from then on; surfaces created before the call keep the catalogs they were created with. A catalog whose id the processor already holds is rejected with `A2uiCatalogError`. The processor keeps its own copy of the array passed to its constructor, which `addCatalog` adds to, and `MessageProcessor.catalogs` lists the added catalog too ([#3303](https://github.com/a2ui-project/a2ui/issues/3303), [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
 
 ## 0.16.0
