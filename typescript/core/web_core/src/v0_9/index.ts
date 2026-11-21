@@ -61,6 +61,7 @@ export {
   metadataEquals,
   type A2uiMetadata,
   type Extensions,
+  type ActionClosure,
   type ActionDispatchOptions,
 } from '../common/metadata.js';
 export {

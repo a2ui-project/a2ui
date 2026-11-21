@@ -29,6 +29,7 @@ import {
 } from './generic-binder.js';
 import {ComponentContext} from './component-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
+import type {ActionClosure} from '../common/metadata.js';
 import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {ComponentModel} from '../state/component-model.js';
 import {
@@ -272,6 +273,22 @@ describe('GenericBinder Checkable Trait', () => {
     assert.deepStrictEqual((dispatchedAction as {context?: Record<string, unknown>})?.context, {
       user: 'Alice',
     });
+  });
+
+  it('exposes the unresolved action on the ACTION closure as rawAction', () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/user/name', 'Alice');
+    const action = {event: {name: 'submit', context: {user: {path: '/user/name'}}}};
+    surface.componentsModel.addComponent(
+      new ComponentModel('c5', 'Button', {onTap: action}, catalog),
+    );
+
+    const binder = new GenericBinder<{onTap?: ActionClosure}>(
+      new ComponentContext(surface, 'c5'),
+      z.object({onTap: CommonSchemas.Action}),
+    );
+
+    assert.deepStrictEqual(binder.snapshot.onTap?.rawAction, action);
   });
 
   it('should return action dispatch promise settling after onAction listeners complete', async () => {

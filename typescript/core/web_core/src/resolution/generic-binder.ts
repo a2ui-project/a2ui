@@ -21,7 +21,7 @@ import {
   coerceDynamicBoolean,
   isDynamicBooleanSchema,
 } from '../catalog/validation_result_coercion.js';
-import {ActionDispatchOptions} from '../common/metadata.js';
+import {ActionClosure, ActionDispatchOptions} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
 import {effect, getValue, peekValue} from '../reactivity/signals.js';
@@ -1142,7 +1142,7 @@ export type ResolveA2uiProp<T> = 0 extends 1 & T
     : [NonNullable<T>] extends [ActionLike]
       ? HasStringIndex<NonNullable<T>> extends true
         ? StripDynamic<T>
-        : ((options?: ActionDispatchOptions) => Promise<void>) | Extract<T, undefined>
+        : ActionClosure | Extract<T, undefined>
       : IsChildList<T> extends true
         ? (string | ResolvedChildRef)[] | Extract<T, undefined>
         : IsDynamic<T> extends true
@@ -1288,14 +1288,8 @@ export class GenericBinder<T> {
   // Actions resolve to closures, which downstream value comparison cannot
   // inspect; reusing the closure while the raw payload is unchanged keeps
   // unchanged action props reference-identical across rebuilds.
-  private actionClosures = new Map<
-    string,
-    {raw: unknown; closure: (options?: ActionDispatchOptions) => Promise<void>}
-  >();
-  private prevActionClosures?: Map<
-    string,
-    {raw: unknown; closure: (options?: ActionDispatchOptions) => Promise<void>}
-  >;
+  private actionClosures = new Map<string, {raw: unknown; closure: ActionClosure}>();
+  private prevActionClosures?: Map<string, {raw: unknown; closure: ActionClosure}>;
 
   /**
    * Creates a new binder for the given component context and schema.
@@ -1401,10 +1395,7 @@ export class GenericBinder<T> {
     return res;
   }
 
-  private bindAction(
-    value: unknown,
-    path: string[],
-  ): (options?: ActionDispatchOptions) => Promise<void> {
+  private bindAction(value: unknown, path: string[]): ActionClosure {
     const cacheKey = path.join('/');
     const cached = this.actionClosures.get(cacheKey) ?? this.prevActionClosures?.get(cacheKey);
     if (cached && jsonEquals(cached.raw, value)) {
@@ -1441,8 +1432,11 @@ export class GenericBinder<T> {
       }
       await this.context.dispatchAction(resolved as Action, options?.metadata);
     };
-    this.actionClosures.set(cacheKey, {raw: value, closure});
-    return closure;
+    // Lets hosts inspect the unresolved action (event or function call)
+    // before invoking it, for example to show a spinner only for server events.
+    const bound: ActionClosure = Object.assign(closure, {rawAction: value});
+    this.actionClosures.set(cacheKey, {raw: value, closure: bound});
+    return bound;
   }
 
   private mapTemplateChildren(
