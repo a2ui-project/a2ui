@@ -15,7 +15,7 @@
  */
 
 import assert from 'node:assert/strict';
-import {existsSync, readdirSync, readFileSync} from 'node:fs';
+import {readdirSync, readFileSync} from 'node:fs';
 import {dirname, relative, resolve, sep} from 'node:path';
 import {describe, it} from 'node:test';
 import {fileURLToPath} from 'node:url';
@@ -40,11 +40,6 @@ const IGNORED_DIRS = new Set([
 ]);
 
 const LEGACY_SEGMENTS = new Set(['v0_8', '0.8']);
-
-const GENERATED_SCHEMA_INDEX_ALLOWLIST = new Set([
-  'typescript/core/web_core/src/v0_9/schema/index.ts',
-  'typescript/core/web_core/src/v1_0/schema/index.ts',
-]);
 
 const TS_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts'];
 
@@ -446,32 +441,13 @@ describe('findWildcardExports', () => {
 });
 
 describe('repository wildcard barrel export ban', () => {
-  it('keeps GENERATED_SCHEMA_INDEX_ALLOWLIST entries valid and auto-generated', () => {
-    for (const relPath of GENERATED_SCHEMA_INDEX_ALLOWLIST) {
-      const fullPath = resolve(REPO_ROOT, relPath);
-      assert.ok(existsSync(fullPath), `Allowlisted generated file does not exist: ${relPath}`);
-      const content = readFileSync(fullPath, 'utf8');
-      assert.ok(
-        content.includes('// AUTO-GENERATED FILE'),
-        `Allowlisted file is missing AUTO-GENERATED header: ${relPath}`,
-      );
-      assert.ok(
-        findWildcardExports(content).length > 0,
-        `Allowlisted file no longer contains export *: ${relPath}`,
-      );
-    }
-  });
-
-  it('contains no `export *` barrel re-exports outside deprecated v0_8 / 0.8 and generated schema index files', () => {
+  it('contains no `export *` barrel re-exports outside deprecated v0_8 / 0.8', () => {
     const files = collectTypeScriptFiles(REPO_ROOT).sort();
     assert.ok(files.length > 0, 'Expected to discover TypeScript source files');
 
     const violations = [];
     for (const filePath of files) {
       const relPath = relative(REPO_ROOT, filePath).split(sep).join('/');
-      if (GENERATED_SCHEMA_INDEX_ALLOWLIST.has(relPath)) {
-        continue;
-      }
       const hits = findWildcardExports(readFileSync(filePath, 'utf8'));
       for (const hit of hits) {
         violations.push(`${relPath}:${hit.line}: ${hit.snippet}`);
