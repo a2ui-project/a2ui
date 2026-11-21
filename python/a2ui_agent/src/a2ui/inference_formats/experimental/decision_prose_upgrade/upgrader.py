@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection, Mapping, Sequence
-from typing import Any
+from typing import Any, Literal
 
 from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
@@ -110,6 +110,19 @@ def _is_excluded(path: str, exclude: Collection[str]) -> bool:
     return any(path == ex or path.startswith(f"{ex}/") for ex in exclude)
 
 
+def _infer_pointer_type_and_cardinality(
+    value: Any,
+) -> tuple[Literal["string", "number", "boolean", "array", "object"], int]:
+    """Returns `(value_type, cardinality)` matching `PointerSummary` conventions."""
+    if isinstance(value, bool):
+        return "boolean", 1
+    if isinstance(value, (int, float)):
+        return "number", 1
+    if isinstance(value, list):
+        return "array", len(value)
+    return "string", 1
+
+
 def _redact_flat_data(
     data: Mapping[str, Any],
     *,
@@ -122,7 +135,10 @@ def _redact_flat_data(
         path = f"/{escaped}"
         if _is_excluded(path, exclude):
             continue
-        probe = PointerSummary(path=path, value_type="string", cardinality=1, key=key)
+        value_type, cardinality = _infer_pointer_type_and_cardinality(value)
+        probe = PointerSummary(
+            path=path, value_type=value_type, cardinality=cardinality, key=key
+        )
         if is_secret_pointer(probe):
             continue
         cleaned[key] = value
