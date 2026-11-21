@@ -21,6 +21,7 @@ import {isAtLeastVersion} from '../common/semver.js';
 import {assertUax31Identifier} from '../common/uax31.js';
 import {A2uiCatalogError} from '../errors.js';
 import {CommonSchemas, ComponentCommonSchema} from '../types/common-types.js';
+import * as V10CommonTypes from '../v1_0/schema/common-types.js';
 import {markStandardMixinSchema} from './component_envelope.js';
 import {exclusiveUnion} from './exclusive_union.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
@@ -84,16 +85,26 @@ function resolveJsonPointer(
 }
 
 /**
+ * The common types that the protocol references of a v1.0 catalog document
+ * resolve in, keyed by the document `parseCatalogSchema` parses. The
+ * references of any other document resolve in the runtime superset of v0.9
+ * and v1.0, `CommonSchemas` from `types/common-types.ts`.
+ */
+const commonSchemasByDocument = new WeakMap<object, Record<string, z.ZodTypeAny>>();
+
+/**
  * Resolves a standard protocol `$ref` to its corresponding common type schema.
  *
  * @param ref JSON Schema reference string.
+ * @param rootDoc Root schema document containing the reference. A v1.0
+ *     catalog's references resolve in the v1.0 common types.
  * @returns The matching Zod schema, or undefined if not a known protocol definition.
  */
-function resolveProtocolRef(ref: string): z.ZodTypeAny | undefined {
+function resolveProtocolRef(ref: string, rootDoc?: object): z.ZodTypeAny | undefined {
+  const schemas: Record<string, z.ZodTypeAny> =
+    (rootDoc && commonSchemasByDocument.get(rootDoc)) ?? CommonSchemas;
   const defName = ref.split(/#\/(?:\$defs|definitions)\//)[1];
-  return defName && Object.hasOwn(CommonSchemas, defName)
-    ? (CommonSchemas as Record<string, z.ZodTypeAny>)[defName]
-    : undefined;
+  return defName && Object.hasOwn(schemas, defName) ? schemas[defName] : undefined;
 }
 
 /**
@@ -211,7 +222,7 @@ function convertRefToZod(
   visitedPointers: Set<string>,
   defCache: Map<string, z.ZodTypeAny>,
 ): z.ZodTypeAny | undefined {
-  const resolvedProtocol = resolveProtocolRef(ref);
+  const resolvedProtocol = resolveProtocolRef(ref, rootDoc);
   if (resolvedProtocol) {
     const defName = ref.split(/#\/(?:\$defs|definitions)\//)[1];
     const desc =
@@ -798,14 +809,17 @@ type ComponentSubSchema =
  * mixin properties.
  *
  * The component's `id` and catalog are envelope fields rather than
- * properties, and below v1.0 `metadata` is not part of the protocol.
+ * properties, and below v1.0 `metadata` is not part of the protocol. The
+ * components of a v1.0 catalog inherit the v1.0 `ComponentCommon`, and those
+ * of any other catalog the runtime superset's.
  *
  * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
  * @returns The inherited property schemas, keyed by their wire names.
  */
 function componentCommonMixinProperties(isAtLeastV10: boolean): Record<string, z.ZodTypeAny> {
   const properties: Record<string, z.ZodTypeAny> = {};
-  for (const [key, schema] of Object.entries(ComponentCommonSchema.shape)) {
+  const common = isAtLeastV10 ? V10CommonTypes.ComponentCommonSchema : ComponentCommonSchema;
+  for (const [key, schema] of Object.entries(common.shape)) {
     if (!isAtLeastV10 && key.startsWith('@')) continue;
     const bareKey = key.replace(/^@/, '');
     if (bareKey === 'id' || bareKey === 'catalogId') continue;
@@ -872,7 +886,7 @@ function collectComponentSubSchemas(
           // The referenced document is not loaded here, so fall back to the zod mirror of
           // the canonical type. Without this the mixin is dropped with no error, which is
           // how `checks` used to disappear from every Checkable component.
-          const mirror = resolveProtocolRef(ref);
+          const mirror = resolveProtocolRef(ref, rootDoc);
           if (mirror instanceof z.ZodObject) {
             const properties: Record<string, z.ZodTypeAny> = {};
             for (const [key, prop] of Object.entries(mirror.shape as z.ZodRawShape)) {
@@ -1676,6 +1690,7 @@ export function parseCatalogSchema(
     // Before anything reads the entries, so no unsupported reference is ever
     // followed.
     assertSupportedV10Refs(catalogSchema, '');
+    commonSchemasByDocument.set(catalogSchema, V10CommonTypes.CommonSchemas);
   }
 
   const componentsMap = (catalogSchema.components as Record<string, unknown>) ?? {};

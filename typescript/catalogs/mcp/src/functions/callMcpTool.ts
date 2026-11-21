@@ -124,10 +124,9 @@
  * A failed call writes nothing to `targetDataPath`.
  */
 
-// The argument schemas come from the v1.0 entry point: its `DynamicValue` accepts both the v1.0
-// `@path`/`@call` directives and the v0.9 `path`/`call` ones, so a v1.0 payload binding a tool
-// argument validates when the surface is processed. The message types stay the v0.9 ones, which
-// describe every payload a tool result may carry.
+// The argument schemas come from the v1.0 entry point, so a v1.0 payload binding a tool argument
+// with `@path` or `@call` validates when the surface is processed. The message types stay the v0.9
+// ones, which describe every payload a tool result may carry.
 import type {A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
 import {
   A2uiExpressionError,

@@ -173,9 +173,15 @@ function createFakeClient(options: FakeClientOptions = {}): FakeClient {
   return client;
 }
 
-const createTestDataContext = (model: DataModel, catalog: Catalog<any>, path = '/') => {
+const createTestDataContext = (
+  model: DataModel,
+  catalog: Catalog<any>,
+  path = '/',
+  protocolVersion?: string,
+) => {
   const mockSurface = {
     dataModel: model,
+    protocolVersion,
     defaultCatalog: {invoker: catalog.invoker},
     availableCatalogs: new Map(),
     dispatchError: () => {},
@@ -245,12 +251,12 @@ describe('callMcpTool', () => {
 
     it('parses dynamic data bindings in name and arguments', () => {
       const parsed = CallMcpToolApi.schema.parse({
-        name: {path: '/selectedTool'},
-        arguments: {city: {path: '/user/city'}, count: 10},
+        name: {'@path': '/selectedTool'},
+        arguments: {city: {'@path': '/user/city'}, count: 10},
       });
       assert.deepStrictEqual(parsed, {
-        name: {path: '/selectedTool'},
-        arguments: {city: {path: '/user/city'}, count: 10},
+        name: {'@path': '/selectedTool'},
+        arguments: {city: {'@path': '/user/city'}, count: 10},
       });
     });
 
@@ -985,16 +991,19 @@ describe('callMcpTool', () => {
         location: 'Paris',
         options: {days: 3},
       });
-      const context = createTestDataContext(dataModel, catalog);
+      const context = createTestDataContext(dataModel, catalog, '/', '1.0');
 
-      await catalog.invoker(
-        'callMcpTool',
-        {
-          name: {path: '/toolName'},
-          arguments: {city: {path: '/location'}, days: {path: '/options/days'}, unit: 'metric'},
+      await context.resolveDynamicValue({
+        '@call': 'callMcpTool',
+        'args': {
+          name: {'@path': '/toolName'},
+          arguments: {
+            city: {'@path': '/location'},
+            days: {'@path': '/options/days'},
+            unit: 'metric',
+          },
         },
-        context,
-      );
+      });
 
       assert.strictEqual(client.calls[0].toolName, 'get_forecast');
       assert.deepStrictEqual(client.calls[0].args, {city: 'Paris', days: 3, unit: 'metric'});

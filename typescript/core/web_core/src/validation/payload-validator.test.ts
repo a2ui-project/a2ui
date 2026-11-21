@@ -1000,7 +1000,7 @@ describe('PayloadValidator', () => {
             'component': 'Checked',
             '@metadata': {extensions: {com_example_trace: 't1'}},
             '@accessibility': {label: 'Name'},
-            '@checks': [{condition: true, message: 'Required'}],
+            '@checks': [{condition: {'@path': '/form/valid'}, message: 'Required'}],
           }),
         );
         assert.doesNotThrow(() =>
@@ -1009,7 +1009,7 @@ describe('PayloadValidator', () => {
             component: 'Checked',
             metadata: {extensions: {com_example_trace: 't1'}},
             accessibility: {label: 'Name'},
-            checks: [{condition: true, message: 'Required'}],
+            checks: [{condition: {'@path': '/form/valid'}, message: 'Required'}],
           }),
         );
       });
@@ -1095,7 +1095,7 @@ describe('PayloadValidator', () => {
             validator.validateComponent({
               'id': 'root',
               'component': 'Plain',
-              '@checks': [{condition: true, message: 'x'}],
+              '@checks': [{condition: {'@path': '/form/valid'}, message: 'x'}],
             }),
           /is not checkable/,
         );
@@ -1104,7 +1104,7 @@ describe('PayloadValidator', () => {
             validator.validateComponent({
               id: 'root',
               component: 'Plain',
-              checks: [{condition: true, message: 'x'}],
+              checks: [{condition: {'@path': '/form/valid'}, message: 'x'}],
             }),
           A2uiValidationError,
         );
