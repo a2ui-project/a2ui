@@ -25,7 +25,7 @@ import {CatalogApi, isAtLeastVersion} from '../internal/web-core.js';
  * `'agentOnly'` or `'rendererOrAgent'`.
  *
  * @param catalogs Active catalogs in priority order.
- * @returns Function names eligible for standalone agent calls.
+ * @return Function names eligible for standalone agent calls.
  */
 export function agentCallableFunctions(catalogs: readonly CatalogApi[]): string[] {
   const seen = new Set<string>();

@@ -366,7 +366,7 @@ export abstract class A2uiLitElement<
    * `findCatalogApi`). Subclasses can override this method if custom
    * controller initialization is required.
    *
-   * @returns A new instance of `A2uiController` matching the component API.
+   * @return A new instance of `A2uiController` matching the component API.
    */
   protected createController(): A2uiController<Api, Props> {
     const activeApi = this.api ?? this.findCatalogApi();
@@ -407,7 +407,7 @@ export abstract class A2uiLitElement<
    *                   this overrides any path defined in the `childRef` object. If omitted,
    *                   falls back to the `childRef`'s `basePath`, or the current component's path.
    *
-   * @returns A Lit template result containing the rendered child component, or `nothing` if the reference is empty.
+   * @return A Lit template result containing the rendered child component, or `nothing` if the reference is empty.
    */
   protected renderNode(childRef?: ComponentNode | A2uiChildRef, customPath?: string) {
     const child = this.resolveChild(childRef, customPath);

@@ -77,7 +77,7 @@ const catalogRules = new WeakMap<Catalog<ComponentApi>, boolean>();
  * @param validationConfig Active validation configuration, if any.
  * @param resolveCatalog Callback resolving each component's catalog on the surface.
  * @param graphBounds Map holding the last recorded bound per surface components model.
- * @returns The bound of the surface with the batch applied, to record once
+ * @return The bound of the surface with the batch applied, to record once
  *     it is applied, or undefined when there is none to record.
  */
 export function validateComponentGraph<T extends ComponentApi>(
@@ -170,7 +170,7 @@ export function defersGraphChecks(validationConfig: ValidationConfig | undefined
  * Reads a batch of components as `validateCandidateTopology` reads it into
  * its candidate model: each component's type, catalog and child references.
  *
- * @returns The batch, or undefined when a component in it has no type or a
+ * @return The batch, or undefined when a component in it has no type or a
  *     catalog that declares no components, whose references the topology
  *     and composition checks read differently; such a batch is checked
  *     against the whole surface.
@@ -571,7 +571,7 @@ export function validateCompositionConstraints<T extends ComponentApi>(
  * @param resolveCatalog Callback resolving each component's catalog on the surface.
  * @param validationConfig Active validation configuration, if any.
  * @param collectGraph Whether to return the references of that surface.
- * @returns When `collectGraph` is set, each component of that surface with
+ * @return When `collectGraph` is set, each component of that surface with
  *     the ids it references; otherwise, or without a config, undefined.
  */
 export function validateCandidateTopology<T extends ComponentApi>(

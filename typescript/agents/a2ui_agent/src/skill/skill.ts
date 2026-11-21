@@ -338,7 +338,7 @@ export class SkillSet implements Iterable<[string, Skill]> {
    * anything is removed, so nothing here can reach outside `outputDir`.
    *
    * @param outputDir Root directory where skill packages should be written.
-   * @returns A dictionary mapping skill filenames to generated markdown content.
+   * @return A dictionary mapping skill filenames to generated markdown content.
    * @throws {A2uiValidationError} If a skill directory's parent is a symlink that
    *     resolves outside `outputDir`. Nothing is removed or written in that case.
    */

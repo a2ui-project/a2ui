@@ -113,7 +113,7 @@ export interface FunctionImplementation extends FunctionApi {
    * @param args Validated input arguments for the function.
    * @param context Data context for expression and state resolution.
    * @param abortSignal Optional abort signal to cancel async execution.
-   * @returns The resolved function output value or reactive Signal.
+   * @return The resolved function output value or reactive Signal.
    */
   execute(
     args: Record<string, unknown>,
@@ -141,7 +141,7 @@ export type ResolvedFunctionArgs<Schema extends z.ZodTypeAny> = z.infer<Schema>;
  *
  * @param api The function API definition containing name, schema, and metadata.
  * @param execute The execution handler callback.
- * @returns A complete FunctionImplementation object.
+ * @return A complete FunctionImplementation object.
  */
 export function createFunctionImplementation<
   Schema extends z.ZodTypeAny = z.ZodTypeAny,
@@ -615,7 +615,7 @@ export class Catalog<
    * filters out on load), and for a built-in basic catalog, the published
    * document.
    *
-   * @returns A fresh document that the caller may modify.
+   * @return A fresh document that the caller may modify.
    */
   toJson(): Record<string, unknown> {
     if (!this.cachedDocument) {
@@ -634,7 +634,7 @@ export class Catalog<
    *
    * @param components The components of the new catalog.
    * @param functions The functions of the new catalog.
-   * @returns A new catalog.
+   * @return A new catalog.
    */
   withEntries<U extends ComponentApi = T, G extends FunctionApi = F>(
     components: U[],
@@ -659,7 +659,7 @@ export class Catalog<
    * the new `agentFunctions` are merged in.
    *
    * @param options Fields and entries to override on the copied catalog.
-   * @returns A new `Catalog` instance.
+   * @return A new `Catalog` instance.
    * @throws {A2uiCatalogError} If an agent function's JSON Schema has a local
    *   `$defs` entry that the catalog's `$defs`, or another agent function's,
    *   defines differently.
@@ -717,7 +717,7 @@ export class Catalog<
    * ID and its components in their examples, so they would teach a model to
    * write messages for the wrong catalog.
    *
-   * @returns A new catalog.
+   * @return A new catalog.
    * @throws {A2uiCatalogError} If a name is not an entry of this catalog.
    */
   derive<U extends ComponentApi = T, G extends FunctionApi = F>(
@@ -1011,7 +1011,7 @@ export class Catalog<
    *   catalog. It becomes the catalog's `id`, and replaces the document's own
    *   `catalogId` in `toJson`; a document that declares none still has none
    *   in `toJson`.
-   * @returns A new Catalog populated with component and function schemas.
+   * @return A new Catalog populated with component and function schemas.
    * @throws {Error} If the catalog ID is missing or not a string.
    * @throws {A2uiCatalogError} If a v1.0 catalog has a `$ref` to a document
    *   other than itself or `common_types.json`, such as another catalog. Such
@@ -1039,7 +1039,7 @@ export class Catalog<
    * @param catalogSchema Raw catalog schema or client capabilities payload object.
    * @param protocolVersion Protocol version of the catalog, which takes
    *   precedence over the one the schema declares, as in `fromJson`.
-   * @returns A new Catalog populated with component and function schemas.
+   * @return A new Catalog populated with component and function schemas.
    * @throws {Error} If the catalog ID is missing or not a string.
    */
   static fromSchema(catalogSchema: Record<string, any>, protocolVersion?: string): CatalogApi {
@@ -1252,7 +1252,7 @@ function createCatalogInvoker<F extends FunctionApi>(
  * @param rawArgs The resolved arguments, which may hold pending values.
  * @param abortSignal Signal that marks the evaluation as stale.
  * @param run Validates and runs the call with the settled arguments.
- * @returns The result of `run`, a Promise of it, or the failed argument.
+ * @return The result of `run`, a Promise of it, or the failed argument.
  */
 function whenArgumentsSettle(
   rawArgs: unknown,

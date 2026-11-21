@@ -193,7 +193,7 @@ function primitivePrediction(propSchema) {
  * @param {GenContext} ctx Generation context.
  * @param {boolean} [isRequired] Whether the node is a required property, which
  *     a schema that accepts anything must refine to reject `undefined`.
- * @returns {{code: string, prediction: object}}
+ * @return {{code: string, prediction: object}}
  */
 function generateNode(schema, ctx, isRequired = true) {
   const {commonDefs, usedImports} = ctx;

@@ -26,7 +26,7 @@ export interface CatalogTransformer {
    * Must return a new catalog instance rather than mutating the input.
    *
    * @param catalog The catalog to transform.
-   * @returns A new, transformed catalog instance.
+   * @return A new, transformed catalog instance.
    */
   transform(catalog: CatalogApi): CatalogApi;
 }

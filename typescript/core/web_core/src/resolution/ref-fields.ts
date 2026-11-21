@@ -34,7 +34,7 @@ export interface ChildRefAnalysisOptions {
  * Extracts the target definition name from a JSON Schema `$ref` pointer or URI.
  *
  * @param ref The JSON Schema reference string or URI.
- * @returns Target definition name.
+ * @return Target definition name.
  */
 export function extractRefDefName(ref: string): string {
   if (!ref) return '';
@@ -302,7 +302,7 @@ export function canSchemaHoldObjectOrArray(schema: z.ZodTypeAny): boolean {
  *
  * @param schema Component Zod schema to inspect.
  * @param options Optional custom child reference analysis options.
- * @returns Map of child-referencing property names to their reference kinds.
+ * @return Map of child-referencing property names to their reference kinds.
  */
 export function extractRefFields(
   schema: z.ZodTypeAny | undefined,

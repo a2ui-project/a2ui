@@ -23,7 +23,7 @@ import {jsonSchemaToZod} from 'json-schema-to-zod';
  *
  * @param {string} version Specification version string (e.g. 'v0.9', 'v1.0').
  * @param {string} [generatorSource] Generator script name.
- * @returns {string} File header comment block.
+ * @return {string} File header comment block.
  */
 export function getHeader(version, generatorSource = 'scripts/generate-zod-schemas.mjs') {
   return `/*
@@ -51,7 +51,7 @@ export function getHeader(version, generatorSource = 'scripts/generate-zod-schem
  * Cleans generic syntax emitted by json-schema-to-zod.
  *
  * @param {string} code Raw JS string.
- * @returns {string} Cleaned code.
+ * @return {string} Cleaned code.
  */
 export function transformZodSyntax(code) {
   let clean = code;
@@ -71,7 +71,7 @@ export function transformZodSyntax(code) {
  *
  * @param {object} node Schema node.
  * @param {Set<string>} deps Set of accumulated dependencies.
- * @returns {Set<string>} The dependency set.
+ * @return {Set<string>} The dependency set.
  */
 export function getDependencies(node, deps = new Set(), parentDefName) {
   if (!node || typeof node !== 'object') return deps;
@@ -96,7 +96,7 @@ export function getDependencies(node, deps = new Set(), parentDefName) {
  * and produces a valid topological ordering along with the set of cyclic/lazy edges.
  *
  * @param {Record<string, object>} defs Map of definition names to JSON Schema objects.
- * @returns {{topologicalOrder: string[], lazyEdges: Set<string>}}
+ * @return {{topologicalOrder: string[], lazyEdges: Set<string>}}
  */
 export function analyzeDependencies(defs) {
   const graph = new Map();
@@ -140,7 +140,7 @@ export function analyzeDependencies(defs) {
  * @param {string} parentDefName The enclosing definition name.
  * @param {Set<string>} [lazyEdges] Set of detected cycle edges.
  * @param {string[]} [topologicalOrder] Topologically sorted definition names.
- * @returns {object|null} Modified JSON Schema node or null.
+ * @return {object|null} Modified JSON Schema node or null.
  */
 export function resolveRefTarget(refString, parentDefName, lazyEdges, topologicalOrder) {
   if (refString.startsWith('https://') || refString.startsWith('http://')) {
@@ -180,7 +180,7 @@ export function resolveRefTarget(refString, parentDefName, lazyEdges, topologica
  * `{required: ['a'], not: {required: ['b']}}`.
  *
  * @param {unknown} branch Schema node.
- * @returns {boolean} True for a key-presence-only schema.
+ * @return {boolean} True for a key-presence-only schema.
  */
 function isKeyPresenceSchema(branch) {
   if (!branch || typeof branch !== 'object' || Array.isArray(branch)) return false;
@@ -210,7 +210,7 @@ function isKeyPresenceSchema(branch) {
  * enclosing object does not declare is left as it is.
  *
  * @param {object} node Schema node.
- * @returns {object} The node with rewritten branches.
+ * @return {object} The node with rewritten branches.
  */
 function expandKeyPresenceBranches(node) {
   if (!node.properties) return node;
@@ -242,7 +242,7 @@ function expandKeyPresenceBranches(node) {
  * @param {string} parentDefName Enclosing definition name.
  * @param {Set<string>} [lazyEdges] Set of detected cycle edges.
  * @param {string[]} [topologicalOrder] Topologically sorted definition names.
- * @returns {object} Prepared schema node.
+ * @return {object} Prepared schema node.
  */
 export function prepareRef(node, parentDefName, lazyEdges, topologicalOrder) {
   if (!node || typeof node !== 'object') return node;
@@ -305,7 +305,7 @@ export function prepareRef(node, parentDefName, lazyEdges, topologicalOrder) {
  * @param {Set<string>} [options.lazyEdges] Detected cyclic edges.
  * @param {string[]} [options.topologicalOrder] Topologically sorted definition names.
  * @param {function} [options.transformCode] Custom code transform callback.
- * @returns {string} Generated TypeScript code string.
+ * @return {string} Generated TypeScript code string.
  */
 export function compileDefToZod(rawDef, name, options = {}) {
   const prep = prepareRef(rawDef, name, options.lazyEdges, options.topologicalOrder);

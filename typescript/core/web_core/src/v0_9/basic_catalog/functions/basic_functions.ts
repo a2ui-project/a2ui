@@ -279,7 +279,7 @@ export const OpenUrlImplementation = createOpenUrlImplementation(OpenUrlApi);
  * catalog document.
  *
  * @param options Configuration options containing optional locale.
- * @returns Array of function implementations.
+ * @return Array of function implementations.
  */
 export function createV09SpecFunctions(options?: {locale?: string}): FunctionImplementation[] {
   const locale = options?.locale;
@@ -316,7 +316,7 @@ export const V09_SPEC_FUNCTIONS: FunctionImplementation[] = createV09SpecFunctio
  * that should match the published document uses {@link createV09SpecFunctions}.
  *
  * @param options Configuration options containing optional locale.
- * @returns Array of function implementations.
+ * @return Array of function implementations.
  */
 export function createBasicCatalogFunctions(options?: {locale?: string}): FunctionImplementation[] {
   return [...LEGACY_V09_FUNCTIONS, ...createV09SpecFunctions(options)];

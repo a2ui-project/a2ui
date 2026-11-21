@@ -62,7 +62,7 @@ export function componentApiFields(api: ComponentApi): ComponentApi {
  * Calling this twice with the same component class returns the same implementation.
  *
  * @param componentImpl The AngularComponentImplementation combining the ComponentApi schema and component class.
- * @returns The WebComponentImplementation representation.
+ * @return The WebComponentImplementation representation.
  */
 export function toWebComponent(
   componentImpl: AngularComponentImplementation,

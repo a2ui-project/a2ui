@@ -408,7 +408,7 @@ export class NodeResolver<
    * the pre-1.0 3-argument `ComponentModel` overload or partial test stand-ins).
    *
    * @param model Component model to resolve.
-   * @returns The catalog to look up `model.type` in, or `undefined` when neither
+   * @return The catalog to look up `model.type` in, or `undefined` when neither
    *   the component nor the surface defines one.
    */
   private catalogFor(model: ComponentModel): Catalog<C, F> | undefined {

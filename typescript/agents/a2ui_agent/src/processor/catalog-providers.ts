@@ -42,7 +42,7 @@ import {toReleaseLine, toWireProtocolVersion} from '../utils/protocol-version.js
  * @param source Describes where the document came from, for error messages.
  * @param protocolVersion Version to use when the document states none.
  * @param catalogId Id to use when the document states none.
- * @returns The catalog, with its protocol version in the `v`-prefixed wire form.
+ * @return The catalog, with its protocol version in the `v`-prefixed wire form.
  * @throws {A2uiCatalogError} If a value conflicts with the document, if nothing states an
  *     id or a version, or if the document is not a valid catalog.
  */
@@ -101,7 +101,7 @@ export interface CatalogProvider {
   /**
    * Loads and returns a catalog.
    *
-   * @returns The catalog instance.
+   * @return The catalog instance.
    */
   load(): CatalogApi;
 }
@@ -128,7 +128,7 @@ export class FileSystemCatalogProvider implements CatalogProvider {
   /**
    * Reads the catalog JSON file and returns a Catalog instance.
    *
-   * @returns The catalog instance.
+   * @return The catalog instance.
    * @throws {A2uiCatalogError} If the file cannot be read or parsed, if the id or version
    *     conflicts with the document, or if nothing states an id or a version.
    */
@@ -177,7 +177,7 @@ export class InMemoryCatalogProvider implements CatalogProvider {
   /**
    * Constructs and returns a Catalog instance from the raw schema dictionary.
    *
-   * @returns The catalog instance.
+   * @return The catalog instance.
    * @throws {A2uiCatalogError} If the schema is invalid, if the id or version conflicts
    *     with it, or if nothing states an id or a version.
    */

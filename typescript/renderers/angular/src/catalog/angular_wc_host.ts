@@ -86,6 +86,7 @@ export function clearDefaultUniversalInjector(injector: Injector): void {
  * Associates a DOM host node (such as `ComponentHostComponent`'s host element) with its Angular
  * `Injector` so descendant universal elements can discover their enclosing component-tree injector.
  *
+ * @param host The DOM host node.
  * @param injector The host's injector, or `undefined` to drop the association.
  */
 export function registerUniversalHostInjector(host: Node, injector: Injector | undefined): void {
@@ -100,6 +101,7 @@ export function registerUniversalHostInjector(host: Node, injector: Injector | u
  * Associates an `A2uiRendererService`'s `SurfaceGroupModel` with its Angular `Injector` so
  * universal elements can resolve the owning renderer's injector even when detached from a host.
  *
+ * @param group The surface group model.
  * @param injector The renderer's injector, or `undefined` to drop the association.
  */
 export function registerSurfaceGroupInjector(

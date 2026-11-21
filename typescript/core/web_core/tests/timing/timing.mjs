@@ -56,7 +56,7 @@ export const DEFAULT_RUNS = 5;
  *
  * @param {string} suite Path of the suite relative to `conformance/`, such as
  *     `core/message_processor_scaling.yaml`.
- * @returns {Array<Record<string, any>>} The suite's cases.
+ * @return {Array<Record<string, any>>} The suite's cases.
  */
 export function loadConformanceSuite(suite) {
   const cases = yaml.load(fs.readFileSync(path.join(CONFORMANCE_DIR, suite), 'utf8'));
@@ -71,7 +71,7 @@ export function loadConformanceSuite(suite) {
  * such as an entry of `catalogPaths`.
  *
  * @param {string} relativePath Path relative to the repository root.
- * @returns {any} The decoded JSON.
+ * @return {any} The decoded JSON.
  */
 export function readRepositoryJson(relativePath) {
   return JSON.parse(fs.readFileSync(path.join(REPO_ROOT, relativePath), 'utf8'));
@@ -87,7 +87,7 @@ export function readRepositoryJson(relativePath) {
  * @param {Array<string | {repeat: string, separator?: string}>} template The
  *     case's `payload`.
  * @param {number} size The number of copies of each `repeat` segment.
- * @returns {string} The payload text.
+ * @return {string} The payload text.
  */
 export function writePayload(template, size) {
   return template
@@ -132,7 +132,7 @@ function collectGarbage(options) {
  *
  * @param {() => void} body The code to time.
  * @param {() => number} now The clock, in milliseconds.
- * @returns {number} The elapsed time.
+ * @return {number} The elapsed time.
  */
 function time(body, now) {
   collectGarbage({type: 'minor'});
@@ -145,7 +145,7 @@ function time(body, now) {
  * The median of `times`.
  *
  * @param {number[]} times At least one time.
- * @returns {number} The middle time, or the upper of the two middle times.
+ * @return {number} The middle time, or the upper of the two middle times.
  */
 export function median(times) {
   const sorted = [...times].sort((a, b) => a - b);
@@ -163,7 +163,7 @@ export function median(times) {
  * @param {() => void} baseline The operation whose time is the denominator.
  * @param {TimingOptions} [options] How many timed runs each gets, and the
  *     clock.
- * @returns {{measuredMs: number, baselineMs: number, ratio: number}} The
+ * @return {{measuredMs: number, baselineMs: number, ratio: number}} The
  *     median times in milliseconds and their ratio.
  */
 export function compareMedianTimes(
@@ -196,7 +196,7 @@ export function compareMedianTimes(
  *     `prepare`, such as decoding the payload, is not timed.
  * @param {TimingOptions} [options] How many timed runs each size gets, and
  *     the clock.
- * @returns {{sizes: number[], medianMs: number[], ratio: number}} The sizes,
+ * @return {{sizes: number[], medianMs: number[], ratio: number}} The sizes,
  *     the median time at each, and the ratio of the two.
  */
 export function measureGrowth(testCase, prepare, options) {
@@ -227,7 +227,7 @@ export function measureGrowth(testCase, prepare, options) {
  *     `baseline` to time on the payload.
  * @param {TimingOptions} [options] How many timed runs each gets, and the
  *     clock.
- * @returns {{medianMs: number[], ratio: number}} The median times of the
+ * @return {{medianMs: number[], ratio: number}} The median times of the
  *     baseline and the operation, and their ratio.
  */
 export function measureOverhead(testCase, prepareOperation, prepareBaseline, options) {

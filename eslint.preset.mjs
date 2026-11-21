@@ -15,12 +15,33 @@
  */
 
 import gts from 'gts';
+import jsdoc from 'eslint-plugin-jsdoc';
 
 /**
  * Shared ESLint preset across all A2UI monorepo packages.
  */
 export default [
   ...gts,
+  {
+    plugins: {jsdoc},
+    settings: {
+      jsdoc: {
+        // Align with Google TypeScript Style Guide (https://google.github.io/styleguide/tsguide.html#jsdoc)
+        tagNamePreference: {
+          returns: 'return',
+          fileoverview: 'fileoverview',
+        },
+      },
+    },
+    rules: {
+      'jsdoc/check-tag-names': [
+        'error',
+        {definedTags: ['nocollapse', 'element', 'externs', 'record', 'struct']},
+      ],
+      'jsdoc/check-alignment': 'error',
+      'jsdoc/check-param-names': ['error', {checkDestructured: false}],
+    },
+  },
   {
     rules: {
       // Decouple formatting from linting (rely strictly on Prettier for formatting)

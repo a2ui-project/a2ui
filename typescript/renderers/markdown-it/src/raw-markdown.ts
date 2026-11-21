@@ -74,6 +74,7 @@ export class MarkdownItRenderer {
   /**
    * Renders the markdown string to HTML using the internal MarkdownIt instance.
    *
+   * @param value The markdown string to render.
    * @param tagClassMap A map of tag names to classes to apply when rendering a tag.
    *
    * This method does not perform any sanitization of the outgoing HTML.

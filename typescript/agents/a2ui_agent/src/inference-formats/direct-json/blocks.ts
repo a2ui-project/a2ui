@@ -82,7 +82,7 @@ function matchesAt(re: RegExp, text: string, idx: number): boolean {
  *
  * A tag written inside a JSON string does not count.
  *
- * @returns The close tag's offset, or undefined if the block is still open, and the length
+ * @return The close tag's offset, or undefined if the block is still open, and the length
  *     of the body that can be read: up to the close tag, or up to a tail that could start
  *     one.
  */

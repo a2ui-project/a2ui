@@ -2929,7 +2929,7 @@ function jsonSchemaToZod(schemaDef) {
  * interpret the same YAML the same way.
  *
  * @param {object} testCase Conformance test case.
- * @returns {string} Declared protocol version, or `'v0.9'` when undeclared.
+ * @return {string} Declared protocol version, or `'v0.9'` when undeclared.
  */
 function resolveProtocolVersion(testCase) {
   if (testCase.protocolVersion) return testCase.protocolVersion;
@@ -2957,7 +2957,7 @@ function resolveProtocolVersion(testCase) {
  *
  * @param {object} testCase Conformance test case the step belongs to.
  * @param {object} step Step listing `addCatalogPaths`.
- * @returns {Catalog[]} The catalogs, loaded with `fromJson`.
+ * @return {Catalog[]} The catalogs, loaded with `fromJson`.
  */
 function loadStepCatalogs(testCase, step) {
   const rawVersion = resolveProtocolVersion(testCase);
@@ -3202,7 +3202,7 @@ function getCatalogsForTestCase(testCase) {
  * addressed by its instance id.
  *
  * @param surface Surface whose components should be resolved.
- * @returns Map of component id and instance id to the resolved node.
+ * @return Map of component id and instance id to the resolved node.
  */
 function collectResolvedNodes(surface) {
   const byId = new Map();
@@ -3330,7 +3330,7 @@ function forceResolution(processor, reported) {
  * harness, which subscribes on both sides of `process_messages`.
  *
  * @param processor Processor whose current surfaces should be watched.
- * @returns The collector array and a function that unsubscribes.
+ * @return The collector array and a function that unsubscribes.
  */
 function watchSurfaceErrors(processor) {
   const reported = [];
@@ -3358,7 +3358,7 @@ function watchSurfaceErrors(processor) {
  *
  * @param actual Resolved property value.
  * @param expected Value the suite declared.
- * @returns True when the two agree.
+ * @return True when the two agree.
  */
 function propertyValuesMatch(actual, expected) {
   const isStructured = v => v !== null && typeof v === 'object';
@@ -3376,7 +3376,7 @@ function propertyValuesMatch(actual, expected) {
  * directly. Mirrors the normalization the Python harness applies.
  *
  * @param val Raw property value read from the component model.
- * @returns The value with any component reference replaced by its id.
+ * @return The value with any component reference replaced by its id.
  */
 function normalizeComponentRefs(val) {
   // A resolved dynamic property arrives wrapped in its snapshot.
@@ -4100,7 +4100,7 @@ async function validateDispatchActionTestCase(testCase) {
  *
  * @param testCase Conformance case with `surface`, `protocolVersion` and
  *   `catalogPaths`, and optionally a call-level `catalogId`.
- * @returns The resolved value.
+ * @return The resolved value.
  * @throws The first error the surface reported while evaluating the call.
  */
 function evaluateFunctionOnSurface(testCase) {
@@ -4140,7 +4140,7 @@ function evaluateFunctionOnSurface(testCase) {
  *
  * @param err Thrown error.
  * @param errorSpec Expected `category` and `message`, both optional.
- * @returns `true` when the error matches, for use with `assert.throws`.
+ * @return `true` when the error matches, for use with `assert.throws`.
  */
 function matchesEvaluateFunctionError(err, errorSpec) {
   if (!matchesErrorCategory(err, errorSpec.category)) {

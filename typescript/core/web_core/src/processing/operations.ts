@@ -169,7 +169,7 @@ export type InternalOperationType = (typeof INTERNAL_OPERATION_TYPES)[number];
  * Determines whether a given value is a valid {@link InternalOperation}.
  *
  * @param payload The candidate value to inspect.
- * @returns `true` if the payload conforms to an internal operation structure; otherwise `false`.
+ * @return `true` if the payload conforms to an internal operation structure; otherwise `false`.
  */
 export function isInternalOperation(payload: unknown): payload is InternalOperation {
   return (

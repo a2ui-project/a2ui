@@ -37,7 +37,7 @@ export class ComponentPruningTransformer implements CatalogTransformer {
    * Returns a new Catalog filtered to only include components in allowedComponents.
    *
    * @param catalog The catalog to prune.
-   * @returns A new, pruned catalog instance.
+   * @return A new, pruned catalog instance.
    */
   transform(catalog: CatalogApi): CatalogApi {
     const prunedComponents = Array.from(catalog.components.values()).filter(c =>
@@ -74,7 +74,7 @@ export class FunctionPruningTransformer implements CatalogTransformer {
    * Returns a new Catalog filtered to only include functions in allowedFunctions.
    *
    * @param catalog The catalog to prune.
-   * @returns A new, pruned catalog instance.
+   * @return A new, pruned catalog instance.
    */
   transform(catalog: CatalogApi): CatalogApi {
     const components = Array.from(catalog.components.values());

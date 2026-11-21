@@ -54,7 +54,7 @@ export interface AgentFunctionContext {
  *
  * @param args Validated input arguments (with schema defaults applied).
  * @param context Call metadata including `catalogId`, `surfaceId`, and `functionCallId`.
- * @returns A JSON-compatible result value or a Promise resolving to one.
+ * @return A JSON-compatible result value or a Promise resolving to one.
  */
 export type AgentFunctionHandler<TArgs = Record<string, unknown>, TReturn = unknown> = (
   args: TArgs,
@@ -227,7 +227,7 @@ export class AgentFunction<
    *
    * @param api Existing schema-only function declaration.
    * @param handler Agent-side execution callback.
-   * @returns A new `AgentFunction` wrapping `api`.
+   * @return A new `AgentFunction` wrapping `api`.
    * @throws {TypeError} If `api` is already an `AgentFunction` or `handler` is not callable.
    * @throws {A2uiCatalogError} If `api` is `agentOnly`, which a renderer
    *   never calls, or requires user activation without being `rendererOnly`.
@@ -275,7 +275,7 @@ export class AgentFunction<
    * declaration in its catalog.
    *
    * @param handler The new agent-side execution callback.
-   * @returns A new `AgentFunction`.
+   * @return A new `AgentFunction`.
    * @throws {TypeError} If `handler` is not callable.
    */
   withHandler<TArgs = Record<string, unknown>, TReturn = unknown>(

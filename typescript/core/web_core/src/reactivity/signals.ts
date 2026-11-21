@@ -122,7 +122,7 @@ export function setSignalImplementation(impl: SignalImplementations): void {
  * Creates a reactive state signal initialized to the specified value.
  *
  * @param initialValue Initial value of the signal.
- * @returns A reactive state signal.
+ * @return A reactive state signal.
  */
 export function signal<T>(initialValue: T): Signal<T> {
   return signalImpl(initialValue);
@@ -132,7 +132,7 @@ export function signal<T>(initialValue: T): Signal<T> {
  * Creates a derived reactive signal that recomputes when dependencies change.
  *
  * @param computeFn Calculation callback producing the derived value.
- * @returns A reactive read-only computed signal.
+ * @return A reactive read-only computed signal.
  */
 export function computed<T>(computeFn: () => T): Signal<T> {
   return computedImpl(computeFn);
@@ -142,7 +142,7 @@ export function computed<T>(computeFn: () => T): Signal<T> {
  * Runs a side-effect callback reactively when accessed signals change.
  *
  * @param effectFn Callback to execute, optionally returning a cleanup function.
- * @returns A disposal function that cancels the effect subscription.
+ * @return A disposal function that cancels the effect subscription.
  */
 export function effect(effectFn: () => void | (() => void)): () => void {
   return effectImpl(effectFn);
@@ -161,7 +161,7 @@ export function batchWrite(batchFn: () => void): void {
  * Checks whether a given value is a reactive Signal.
  *
  * @param val Value to test.
- * @returns Whether the value is a Signal.
+ * @return Whether the value is a Signal.
  */
 export function isSignal(val: unknown): val is Signal<unknown> {
   return isSignalImpl(val);
@@ -171,7 +171,7 @@ export function isSignal(val: unknown): val is Signal<unknown> {
  * Reads the current value of a signal, subscribing the active reactive context.
  *
  * @param signal Target signal to read.
- * @returns The current value of the signal.
+ * @return The current value of the signal.
  */
 export function getValue<T>(signal: Signal<T>): T {
   return getValueImpl(signal);
@@ -191,7 +191,7 @@ export function setValue<T>(signal: Signal<T>, value: T): void {
  * Reads the current value of a signal without creating a reactive subscription.
  *
  * @param signal Target signal to read.
- * @returns The current value of the signal.
+ * @return The current value of the signal.
  */
 export function peekValue<T>(signal: Signal<T>): T {
   return peekValueImpl(signal);
