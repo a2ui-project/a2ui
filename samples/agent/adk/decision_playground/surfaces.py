@@ -739,7 +739,12 @@ PROSE_TEMPLATES: tuple[ProseTemplateSpec, ...] = (
                 "Estimated delivery date or window",
                 required=False,
             ),
-            TypedFieldSpec("/totalUsd", FieldType.TEXT, "Total order amount", required=False),
+            TypedFieldSpec(
+                "/totalUsd",
+                FieldType.TEXT,
+                "Total order amount including currency symbol (e.g. $148.50)",
+                required=False,
+            ),
         ),
     ),
     ProseTemplateSpec(
