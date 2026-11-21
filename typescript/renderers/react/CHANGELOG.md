@@ -1,5 +1,7 @@
 ## Unreleased
 
+- The `UNRESOLVED_CHILD_REFERENCE` report sets `componentId` to the referenced id, and `componentType` when a component with that id exists. The `message` text is unchanged ([#4018](https://github.com/a2ui-project/a2ui/issues/4018), [#4019](https://github.com/a2ui-project/a2ui/pull/4019)).
+
 ## 0.16.0
 
 - **BREAKING CHANGE**: Stop assigning `element.context` in `WebComponentNode`, and deprecate `ReactComponentImplementation.render`, `ReactRenderProps`, `ReactRenderProps.context`, `ReactA2uiComponentProps.context`, and `ReactWcHost.context`. Recommended migration: accept `node` on custom `A2uiWebComponentElement` classes, implement `view({node, buildChild})` (or read resolved `props` and `metadata` in `createComponentImplementation`), and obtain the `SurfaceModel` via `useA2uiSurface()`. [#3841](https://github.com/a2ui-project/a2ui/pull/3841)

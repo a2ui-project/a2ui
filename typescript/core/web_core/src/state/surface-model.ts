@@ -81,6 +81,10 @@ export interface A2uiErrorPayload {
   message: string;
   /** Identifier of the surface where the error occurred, if applicable. */
   surfaceId?: string;
+  /** Identifier of the component that failed to render or evaluate, if applicable. */
+  componentId?: string;
+  /** Catalog type name of the component that failed, if applicable. */
+  componentType?: string;
   /** Identifier of the failed RPC function invocation, if applicable. */
   functionCallId?: string;
   /** Expression string or function name that caused the error, if applicable. */

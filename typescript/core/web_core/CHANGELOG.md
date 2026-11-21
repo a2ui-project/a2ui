@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Add `MessageProcessor.addCatalog(catalog)`, which adds a catalog to a processor after it is built. `createSurface` messages, renderer function calls and `getRendererCapabilities` see the catalog from then on; surfaces created before the call keep the catalogs they were created with. A catalog whose id the processor already holds is rejected with `A2uiCatalogError`. The processor keeps its own copy of the array passed to its constructor, which `addCatalog` adds to, and `MessageProcessor.catalogs` lists the added catalog too ([#3303](https://github.com/a2ui-project/a2ui/issues/3303), [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
+- `A2uiErrorPayload` gains optional `componentId` and `componentType`, and `NodeResolver` sets them on `UNKNOWN_COMPONENT_TYPE` and `CYCLIC_REFERENCE`, so a host can tell which component a report concerns without parsing `message`. The `message` text is unchanged ([#4018](https://github.com/a2ui-project/a2ui/issues/4018), [#4019](https://github.com/a2ui-project/a2ui/pull/4019)).
 
 ## 0.16.0
 
