@@ -93,7 +93,9 @@ export async function buildApp({
   const catalogSchemaPath = htmlPath.replace(/\.html$/, '.catalog.json');
 
   const catalogSchemaFile = createCatalogSchemaFile(embedConfig.catalogs);
-  const {script, style} = await bundleApp(configPath, configApiPath, runtimeModule);
+  const {script, style} = await bundleApp(configPath, configApiPath, runtimeModule, {
+    markdown: embedConfig.markdown ?? true,
+  });
   const html = renderAppHtml({title: embedConfig.title ?? DEFAULT_TITLE, script, style});
 
   const externalReferences = findExternalReferences(html);
@@ -124,12 +126,15 @@ async function bundleApp(
   configPath: string,
   configApiPath: string,
   runtimeModule: string,
+  {markdown}: {markdown: boolean},
 ): Promise<{script: string; style: string}> {
   const entry = [
     `import config from ${JSON.stringify(configPath)};`,
     `import {startEmbedApp} from ${JSON.stringify(runtimeModule)};`,
+    ...(markdown ? [`import {renderMarkdown} from ${JSON.stringify(markdownModule())};`] : []),
     'startEmbedApp({',
     '  catalogs: config.catalogs,',
+    ...(markdown ? ['  markdown: renderMarkdown,'] : []),
     `  root: document.getElementById(${JSON.stringify(ROOT_ELEMENT_ID)}),`,
     '});',
   ].join('\n');
@@ -156,6 +161,14 @@ async function bundleApp(
   const output = (extension: string) =>
     result.outputFiles.find(file => file.path.endsWith(extension))?.text ?? '';
   return {script: output('.js'), style: output('.css')};
+}
+
+/**
+ * The path of `@a2ui/markdown-it`, resolved from this package: it is a dependency of
+ * `@a2ui/embed`, so projects that build an app need not install it.
+ */
+function markdownModule(): string {
+  return fileURLToPath(import.meta.resolve('@a2ui/markdown-it'));
 }
 
 /** Resolves a module next to this one, in TypeScript when the tests run the sources. */

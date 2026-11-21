@@ -269,7 +269,9 @@ __metadata:
   resolution: "@a2ui/embed@workspace:typescript/embed"
   dependencies:
     "@a2ui/lit": "workspace:*"
+    "@a2ui/markdown-it": "workspace:*"
     "@a2ui/web_core": "workspace:*"
+    "@lit/context": "npm:^1.1.6"
     "@modelcontextprotocol/ext-apps": "npm:^1.7.4"
     "@modelcontextprotocol/sdk": "npm:^1.29.0"
     "@types/jasmine": "npm:^6.0.0"
