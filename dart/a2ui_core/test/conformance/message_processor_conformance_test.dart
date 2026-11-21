@@ -134,11 +134,7 @@ void main() {
 }
 
 /// Cases in `core/message_processor_v1_0.yaml` this SDK fails, with why.
-const Map<String, String> _messageProcessorV10ExpectedFailures = {
-  'test_v10_custom_envelope_properties_declared_in_combiner_branches':
-      'Catalog.fromJson does not load oneOf/anyOf nested in a component\'s '
-      'allOf, so the properties those branches declare are unknown.',
-};
+const Map<String, String> _messageProcessorV10ExpectedFailures = {};
 
 void _registerSuite(
   String suite, {
