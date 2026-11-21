@@ -16,15 +16,15 @@ import 'dart:io';
 
 import 'github_client.dart';
 
-/// Where the `gh` command may be, when it is not on the app's `PATH`, as
-/// when VS Code was started from the Dock.
+/// Where the `gh` command may be, when it is not on the `PATH`, as when VS
+/// Code was started from the Dock.
 const List<String> _ghCommands = [
   'gh',
   '/opt/homebrew/bin/gh',
   '/usr/local/bin/gh',
 ];
 
-/// Finds the triager's GitHub token: `GITHUB_TOKEN` or `GH_TOKEN` from the
+/// Finds the person's GitHub token: `GITHUB_TOKEN` or `GH_TOKEN` from the
 /// environment, or else the token that `gh auth token` prints.
 ///
 /// Throws a [GitHubException] that says what to do if there is none.
@@ -52,6 +52,6 @@ Future<String> findGitHubToken({
 
   throw const GitHubException(
     'Cannot find a GitHub token. Run "gh auth login" in a terminal, or set '
-    'GITHUB_TOKEN, and restart the triage UI.',
+    'GITHUB_TOKEN, and start again.',
   );
 }

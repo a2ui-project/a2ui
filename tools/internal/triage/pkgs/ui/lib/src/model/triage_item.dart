@@ -16,9 +16,6 @@ import 'package:shared/shared.dart';
 
 import '../github/json.dart';
 
-/// The repository whose issues and pull requests the triage UI triages.
-const String a2uiRepository = 'a2ui-project/a2ui';
-
 /// The repository whose pull requests the triage UI triages together with
 /// the items of [a2uiRepository]. See `ui.blueprint.md`.
 const String genuiRepository = 'flutter/genui';
@@ -26,13 +23,6 @@ const String genuiRepository = 'flutter/genui';
 /// An issue or a pull request: its repository, such as
 /// `a2ui-project/a2ui`, and its number there.
 typedef ItemRef = ({String repository, int number});
-
-/// The label that the flagger adds to the items that need triage.
-const String needsTriageLabel = 'status: needs-triage';
-
-/// The label that the triager adds to the items that the team should
-/// discuss. See `docs/contributing/triage/triage.md`.
-const String needsTeamInputLabel = 'status: needs-team-input';
 
 /// The prefix of the comment that the triager posts for the team when they
 /// add [needsTeamInputLabel], as the triage UI shows it above the reply.
@@ -298,20 +288,16 @@ final class TriageItem {
   String get _repositoryPrefix =>
       repository == a2uiRepository ? '' : '${repository.split('/').last} ';
 
-  /// A comment is a triage bot comment if it starts with the triage bot
-  /// prefix and a team member or a bot posted it. See `core.blueprint.md`.
+  /// Whether a `Comments` node is a triage bot comment. See
+  /// `core.blueprint.md`.
   static bool _isTriageBotComment(Map<String, Object?> comment) {
-    if (!hasTriageBotPrefix(comment['body']! as String)) return false;
     final Object? author = comment['author'];
-    return _isTeamMember(comment) ||
-        (author != null && asMap(author)['__typename'] == 'Bot');
+    return isTriageBotComment(
+      body: comment['body']! as String,
+      association: comment['authorAssociation'] as String?,
+      byBot: author != null && asMap(author)['__typename'] == 'Bot',
+    );
   }
-
-  static bool _isTeamMember(Map<String, Object?> comment) => const {
-    'OWNER',
-    'MEMBER',
-    'COLLABORATOR',
-  }.contains(comment['authorAssociation']);
 
   /// The times of the things that happened on the item, as
   /// `triage_bot/suggestion.blueprint.md` lists them.
@@ -353,7 +339,7 @@ final class TeamNote {
   static TeamNote? _tryParse(Map<String, Object?> comment) {
     final String body = (comment['body']! as String).replaceAll('\r\n', '\n');
     if (!body.startsWith(teamNoteHeading) ||
-        !TriageItem._isTeamMember(comment)) {
+        !isTeamMember(comment['authorAssociation'] as String?)) {
       return null;
     }
     return TeamNote(

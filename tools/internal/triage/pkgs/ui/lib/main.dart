@@ -17,9 +17,8 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:shared/shared.dart';
 
-import 'src/github/github_client.dart';
-import 'src/github/github_token.dart';
 import 'src/github/triage_service.dart';
 import 'src/github_item.dart';
 import 'src/item_server.dart';
@@ -59,9 +58,8 @@ Future<void> main(List<String> args) async {
 /// that triage_ui.sh sent. The channel is in `macos/Runner/`.
 Future<void> _activateWindow() async {
   try {
-    await const MethodChannel(
-      'triage_ui/window',
-    ).invokeMethod<void>('activate');
+    await const MethodChannel('triage_ui/window')
+        .invokeMethod<void>('activate');
   } on MissingPluginException {
     // Not on macOS.
   }

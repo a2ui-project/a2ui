@@ -145,9 +145,9 @@ class _ChangeList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final Map<String, String> colors = TriageScope.of(
-      context,
-    ).repositoryInfo(item.repository).labelColors;
+    final Map<String, String> colors = TriageScope.of(context)
+        .repositoryInfo(item.repository)
+        .labelColors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 6,

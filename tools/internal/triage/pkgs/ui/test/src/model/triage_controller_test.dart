@@ -16,7 +16,6 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared/shared.dart';
-import 'package:ui/src/github/github_client.dart';
 import 'package:ui/src/github_item.dart';
 import 'package:ui/src/model/applier.dart';
 import 'package:ui/src/model/log_entry.dart';

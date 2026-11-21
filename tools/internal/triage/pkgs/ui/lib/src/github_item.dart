@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:shared/shared.dart';
+
 import 'model/triage_item.dart';
 
 /// An issue or a pull request in [a2uiRepository] or [genuiRepository].

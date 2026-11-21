@@ -18,21 +18,6 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'suggestion.dart';
 import 'triage_suggestion.dart';
 
-/// The start of every triage bot comment, followed by the kind of comment,
-/// as in `**From triage bot, suggestion:**`, or by a colon in earlier
-/// comments, as in `**From triage bot:**`. See `blueprints/core.blueprint.md`.
-///
-/// The flagger recognizes triage bot comments by this prefix too, so that
-/// they do not count as a team reply.
-final RegExp _triageBotPrefix = RegExp(r'^\*\*From triage bot[,:]');
-
-/// Whether [body] starts the way a triage bot comment does.
-///
-/// A comment is a triage bot comment only if a team member or a bot posted
-/// it as well, which the caller checks.
-bool hasTriageBotPrefix(String body) =>
-    _triageBotPrefix.hasMatch(body.trimLeft());
-
 /// Whether [body] has an `<a2ui>` block, as a suggestion comment does.
 bool hasA2uiBlock(String body) => _parser.hasFormatContent(body);
 

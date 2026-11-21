@@ -15,6 +15,11 @@
 /// Triage of GitHub items in the A2UI repository.
 library;
 
+export 'src/shared/github_client.dart';
+export 'src/shared/github_token.dart';
+export 'src/shared/labels.dart';
+export 'src/shared/repository.dart';
+export 'src/shared/triage_bot_comment.dart';
 export 'src/triage_bot/suggestion.dart';
 export 'src/triage_bot/suggestion_comment.dart';
 export 'src/triage_bot/triage_suggestion.dart';

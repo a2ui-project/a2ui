@@ -14,9 +14,8 @@
 
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:ui/src/github/github_client.dart';
-import 'package:ui/src/github/github_token.dart';
+import 'package:shared/shared.dart';
+import 'package:test/test.dart';
 
 void main() {
   test('prefers GITHUB_TOKEN', () async {

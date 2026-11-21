@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared/shared.dart';
 import 'package:ui/src/model/triage_item.dart';
 
 import '../../support/fake_github.dart';

@@ -17,7 +17,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared/shared.dart';
 
-import '../github/github_client.dart';
 import '../github/triage_service.dart';
 import '../github_item.dart';
 import 'applier.dart';

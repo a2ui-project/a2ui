@@ -14,6 +14,7 @@
 
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:shared/shared.dart';
 
 import '../model/suggestion_draft.dart';
 import '../model/triage_controller.dart';
@@ -233,9 +234,8 @@ class _OutdatedLabel extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
           child: Text(
             'Outdated',
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(color: yellow),
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(color: yellow),
           ),
         ),
       ),

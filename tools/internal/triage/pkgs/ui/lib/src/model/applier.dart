@@ -14,7 +14,6 @@
 
 import 'package:shared/shared.dart';
 
-import '../github/github_client.dart';
 import '../github/triage_service.dart';
 import 'milestone_change.dart';
 import 'triage_item.dart';

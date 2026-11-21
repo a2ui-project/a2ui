@@ -144,21 +144,10 @@ Suggestion: close as a duplicate.""",
     expect(() => SuggestionPayload.parse('$one\n$one'), rejected);
   });
 
-  test('recognizes the triage bot prefix and the <a2ui> block', () {
+  test('recognizes the <a2ui> block', () {
     final String body = comment(
       'root = TriageSuggestion(summary="A", suggestion="B")',
     );
-    expect(hasTriageBotPrefix(body), isTrue);
-    expect(hasTriageBotPrefix('Thanks!\n$body'), isFalse);
-    expect(hasTriageBotPrefix('**From triage bot, response:**\n'), isTrue);
-    expect(hasTriageBotPrefix('**From triage bot, ping:** @a'), isTrue);
-    // Earlier triage bot comments.
-    expect(
-      hasTriageBotPrefix('**From triage bot:**\n\nResponse to requests:'),
-      isTrue,
-    );
-    // The flagger does not recognize other headings, so neither does the UI.
-    expect(hasTriageBotPrefix('**Suggestion from triage bot:**\n'), isFalse);
     expect(hasA2uiBlock(body), isTrue);
     expect(hasA2uiBlock('**From triage bot, ping:** @a'), isFalse);
   });

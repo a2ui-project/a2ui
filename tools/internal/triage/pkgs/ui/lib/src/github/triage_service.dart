@@ -15,7 +15,6 @@
 import 'package:shared/shared.dart';
 
 import '../model/triage_item.dart';
-import 'github_client.dart';
 import 'json.dart';
 import 'queries.dart';
 

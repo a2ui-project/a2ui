@@ -360,9 +360,8 @@ class _FailedApply extends StatelessWidget {
       Text(
         'Some changes failed. Fix the problem and click Apply again. '
         'A reply that was posted is not posted again.',
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-          color: Theme.of(context).colorScheme.error,
-        ),
+        style: Theme.of(context).textTheme.titleSmall
+            ?.copyWith(color: Theme.of(context).colorScheme.error),
       ),
       StepList(result.steps),
     ],

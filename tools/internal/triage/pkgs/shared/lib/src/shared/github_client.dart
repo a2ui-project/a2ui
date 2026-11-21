@@ -48,7 +48,7 @@ class GitHubClient {
     Map<String, Object?> variables = const {},
   ]) async {
     final response =
-        await _send('POST', 'graphql', {'query': query, 'variables': variables})
+        await rest('POST', 'graphql', {'query': query, 'variables': variables})
             as Map<String, Object?>;
     if (response['errors'] case final List<Object?> errors
         when errors.isNotEmpty) {
@@ -66,11 +66,41 @@ class GitHubClient {
   ///
   /// [path] is relative to `https://api.github.com/`, with its parts already
   /// encoded. Throws a [GitHubException] if the request fails.
-  Future<Object?> rest(String method, String path, [Object? body]) =>
-      _send(method, path, body);
+  Future<Object?> rest(String method, String path, [Object? body]) async =>
+      (await _send(method, _api.resolve(path), body)).json;
 
-  Future<Object?> _send(String method, String path, Object? body) async {
-    final request = http.Request(method, _api.resolve(path))
+  /// Sends a GET request for [path], and for each page after it that the
+  /// `Link` header of the response names, and returns the decoded JSON of
+  /// every page, in order.
+  ///
+  /// [path] is relative to `https://api.github.com/`, with its parts already
+  /// encoded. Throws a [GitHubException] if a request fails.
+  Future<List<Object?>> restPages(String path) async {
+    final pages = <Object?>[];
+    Uri? next = _api.resolve(path);
+    while (next != null) {
+      final ({Object? json, String? link}) page = await _send('GET', next);
+      pages.add(page.json);
+      next = _nextPage(page.link);
+    }
+    return pages;
+  }
+
+  /// The URL of the next page in a `Link` header, or null if it has none.
+  static Uri? _nextPage(String? link) {
+    if (link == null) return null;
+    final RegExpMatch? match = RegExp(
+      r'<([^>]+)>;\s*rel="next"',
+    ).firstMatch(link);
+    return match == null ? null : Uri.parse(match[1]!);
+  }
+
+  Future<({Object? json, String? link})> _send(
+    String method,
+    Uri url, [
+    Object? body,
+  ]) async {
+    final request = http.Request(method, url)
       ..headers.addAll({
         'Accept': 'application/vnd.github+json',
         'Authorization': 'Bearer $_token',
@@ -102,7 +132,7 @@ class GitHubClient {
         statusCode: response.statusCode,
       );
     }
-    return json;
+    return (json: json, link: response.headers['link']);
   }
 
   void close() => _http.close();

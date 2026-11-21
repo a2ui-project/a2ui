@@ -17,7 +17,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:ui/src/github/github_client.dart';
+import 'package:shared/shared.dart';
 import 'package:ui/src/github/triage_service.dart';
 import 'package:ui/src/model/triage_item.dart';
 
@@ -247,9 +247,8 @@ class FakeGitHub {
       return _json({}, status: 200);
     }
 
-    final RegExpMatch match = RegExp(
-      r'^issues/(\d+)/(\w+)(?:/(.*))?$',
-    ).firstMatch(issuePath)!;
+    final RegExpMatch match = RegExp(r'^issues/(\d+)/(\w+)(?:/(.*))?$')
+        .firstMatch(issuePath)!;
     final Map<String, Object?> item = items[int.parse(match.group(1)!)]!;
     _touch(item);
     switch ((request.method, match.group(2))) {
@@ -299,9 +298,9 @@ class FakeGitHub {
         : '${variables['owner']}/${variables['name']}';
     if (query.contains('search(')) {
       final searchQuery = variables['query']! as String;
-      final String label = RegExp(
-        r'label:"([^"]+)"',
-      ).firstMatch(searchQuery)!.group(1)!;
+      final String label = RegExp(r'label:"([^"]+)"')
+          .firstMatch(searchQuery)!
+          .group(1)!;
       final bool genui = searchQuery.contains('repo:$genuiRepository ');
       return _json({
         'data': {
