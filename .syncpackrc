@@ -17,7 +17,7 @@
       "label": "Unified TypeScript version",
       "packages": ["**"],
       "dependencies": ["typescript"],
-      "pinVersion": "5.9.3"
+      "pinVersion": "6.0.3"
     },
     {
       "label": "Unified Zod version",

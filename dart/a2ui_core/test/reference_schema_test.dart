@@ -38,16 +38,15 @@ const Map<String, Object?> _template = {
 
 Catalog<ComponentApi, FunctionImplementation> _catalog(
   Map<String, Object?> schema,
-) =>
-    Catalog<ComponentApi, FunctionImplementation>(
-      id: 'references',
-      // `Child` is a v1.0 common type.
-      protocolVersion: A2uiProtocolVersion.v1_0,
-      components: [
-        ComponentApi(name: 'Parent', schema: Schema.fromMap(schema)),
-        ComponentApi(name: 'Leaf', schema: Schema.object()),
-      ],
-    );
+) => Catalog<ComponentApi, FunctionImplementation>(
+  id: 'references',
+  // `Child` is a v1.0 common type.
+  protocolVersion: A2uiProtocolVersion.v1_0,
+  components: [
+    ComponentApi(name: 'Parent', schema: Schema.fromMap(schema)),
+    ComponentApi(name: 'Leaf', schema: Schema.object()),
+  ],
+);
 
 Catalog<ComponentApi, FunctionImplementation> _wireCatalog(
   Map<String, Object?> schema, {
@@ -83,8 +82,7 @@ void _add(
   String id,
   String type,
   Map<String, Object?> properties,
-) =>
-    surface.componentsModel.addComponent(ComponentModel(id, type, properties));
+) => surface.componentsModel.addComponent(ComponentModel(id, type, properties));
 
 _Fixture _fixture(Catalog<ComponentApi, FunctionImplementation> catalog) {
   final surface = SurfaceModel<ComponentApi>('s', defaultCatalog: catalog);
@@ -144,40 +142,40 @@ void main() {
   group('shared reference schemas', () {
     for (final (label, single, list)
         in <(String, Map<String, Object?>, Map<String, Object?>)>[
-      ('wire pointers', _single, _list),
-      (
-        'local common-type pointers',
-        {r'$ref': r'#/$defs/ComponentId'},
-        {r'$ref': r'#/$defs/ChildList'},
-      ),
-      (
-        'absolute wire pointers',
-        {r'$ref': r'https://example.test/types#/$defs/ComponentId'},
-        {r'$ref': r'https://example.test/types#/$defs/ChildList'},
-      ),
-      (
-        'commonTypesRef metadata markers',
-        {
-          'commonTypesRef': r'common_types.json#/$defs/ComponentId',
-          'description': 'Child'
-        },
-        {
-          'commonTypesRef': r'common_types.json#/$defs/ChildList',
-          'description': 'Children'
-        },
-      ),
-      ('v1.0 Child wire pointers', _child, _list),
-      (
-        'v1.0 local Child pointers',
-        {r'$ref': r'#/$defs/Child'},
-        {r'$ref': r'#/$defs/ChildList'},
-      ),
-      (
-        'v1.0 Child description markers',
-        {'description': r'REF:common_types.json#/$defs/Child|Child'},
-        {'description': r'REF:common_types.json#/$defs/ChildList|Children'},
-      ),
-    ]) {
+          ('wire pointers', _single, _list),
+          (
+            'local common-type pointers',
+            {r'$ref': r'#/$defs/ComponentId'},
+            {r'$ref': r'#/$defs/ChildList'},
+          ),
+          (
+            'absolute wire pointers',
+            {r'$ref': r'https://example.test/types#/$defs/ComponentId'},
+            {r'$ref': r'https://example.test/types#/$defs/ChildList'},
+          ),
+          (
+            'commonTypesRef metadata markers',
+            {
+              'commonTypesRef': r'common_types.json#/$defs/ComponentId',
+              'description': 'Child',
+            },
+            {
+              'commonTypesRef': r'common_types.json#/$defs/ChildList',
+              'description': 'Children',
+            },
+          ),
+          ('v1.0 Child wire pointers', _child, _list),
+          (
+            'v1.0 local Child pointers',
+            {r'$ref': r'#/$defs/Child'},
+            {r'$ref': r'#/$defs/ChildList'},
+          ),
+          (
+            'v1.0 Child description markers',
+            {'description': r'REF:common_types.json#/$defs/Child|Child'},
+            {'description': r'REF:common_types.json#/$defs/ChildList|Children'},
+          ),
+        ]) {
       test('validation and resolution agree on $label', () {
         _expectFields(
           {
@@ -304,8 +302,7 @@ void main() {
       });
     }
 
-    test(
-        'graph validation does not infer references from an unmarked '
+    test('graph validation does not infer references from an unmarked '
         'componentId-and-path object', () {
       // Validation rejects a whole batch, so it keeps to what the catalog
       // marks rather than what a schema resembles.
@@ -451,8 +448,7 @@ void main() {
               'children': {'componentId': 'template', 'path': '/data'},
             },
           ],
-        }, fields)
-            .toList();
+        }, fields).toList();
         expect(refs.map((r) => r.id), ['a', 'b', 'template']);
         expect(refs.map((r) => r.field), [
           'groups[0].children[0]',
@@ -510,17 +506,16 @@ void main() {
       }
 
       test('defaults to the embedded v0.9 document', () {
-        final Map<String, Object?> rule =
-            checkRuleVia(ReferenceSchemaReader(<String, Object?>{}));
-        expect(rule['required'], ['condition', 'message']);
-        expect(
-          (rule['properties']! as Map)['condition'],
-          <String, Object?>{r'$ref': r'#/$defs/DynamicBoolean'},
+        final Map<String, Object?> rule = checkRuleVia(
+          ReferenceSchemaReader(<String, Object?>{}),
         );
+        expect(rule['required'], ['condition', 'message']);
+        expect((rule['properties']! as Map)['condition'], <String, Object?>{
+          r'$ref': r'#/$defs/DynamicBoolean',
+        });
       });
 
-      test(
-          'resolves external and fallback pointers against an injected '
+      test('resolves external and fallback pointers against an injected '
           'document', () {
         final reader = ReferenceSchemaReader(
           <String, Object?>{},
@@ -534,8 +529,7 @@ void main() {
         );
       });
 
-      test(
-          'a local definition in the catalog document wins over the '
+      test('a local definition in the catalog document wins over the '
           'injected document', () {
         final reader = ReferenceSchemaReader(
           <String, Object?>{},
@@ -581,11 +575,16 @@ void main() {
         };
 
         expect(
-          ComponentRefMap(componentSchemas, commonTypes: slotDocument)
-              .fieldsFor('Panel'),
+          ComponentRefMap(
+            componentSchemas,
+            commonTypes: slotDocument,
+          ).fieldsFor('Panel'),
           {
-            'body': isA<ListRef>()
-                .having((ref) => ref.inferred, 'inferred', isTrue),
+            'body': isA<ListRef>().having(
+              (ref) => ref.inferred,
+              'inferred',
+              isTrue,
+            ),
           },
         );
         expect(ComponentRefMap(componentSchemas).fieldsFor('Panel'), isEmpty);
@@ -613,25 +612,24 @@ void main() {
     AgentToRendererMessagePayload createAndUpdate(
       String catalogId,
       List<Map<String, Object?>> components,
-    ) =>
-        AgentToRendererMessage.parseAll([
-          {
-            'version': '1.0',
-            'createSurface': {'surfaceId': 's', 'catalogId': catalogId},
-          },
-          {
-            'version': '1.0',
-            'updateComponents': {'surfaceId': 's', 'components': components},
-          },
-        ], protocolVersion: A2uiProtocolVersion.v1_0);
+    ) => AgentToRendererMessage.parseAll([
+      {
+        'version': '1.0',
+        'createSurface': {'surfaceId': 's', 'catalogId': catalogId},
+      },
+      {
+        'version': '1.0',
+        'updateComponents': {'surfaceId': 's', 'components': components},
+      },
+    ], protocolVersion: A2uiProtocolVersion.v1_0);
 
     Matcher danglingAt(String id, String field) => throwsA(
-          isA<A2uiValidationError>().having(
-            (e) => e.message,
-            'message',
-            contains("'$id' in field '$field'"),
-          ),
-        );
+      isA<A2uiValidationError>().having(
+        (e) => e.message,
+        'message',
+        contains("'$id' in field '$field'"),
+      ),
+    );
 
     Map<String, Object?> renderedRootProps(
       Catalog<ComponentApi, FunctionImplementation> catalog,
@@ -649,8 +647,8 @@ void main() {
     test('a v1.0 Child slot is checked for dangling ids and mounted', () {
       final Catalog<ComponentApi, FunctionImplementation> catalog =
           _wireCatalog({
-        'properties': {'child': _child},
-      });
+            'properties': {'child': _child},
+          });
       expect(
         () => processorFor(catalog).processMessages(
           createAndUpdate(catalog.id, [
@@ -706,8 +704,8 @@ void main() {
       expect((props['child']! as ComponentNode).componentId, 'a');
       expect(
         (props['children']! as List).cast<ComponentNode>().map(
-              (n) => n.componentId,
-            ),
+          (n) => n.componentId,
+        ),
         ['b'],
       );
     });
@@ -721,15 +719,14 @@ void main() {
       expect(
         componentReferences({
           'children': ['a', 'b', 'missing'],
-        }, fields)
-            .map((r) => r.field),
+        }, fields).map((r) => r.field),
         ['children[0]', 'children[1]', 'children[2]'],
       );
 
       final Catalog<ComponentApi, FunctionImplementation> catalog =
           _wireCatalog({
-        'properties': {'children': _list},
-      });
+            'properties': {'children': _list},
+          });
       expect(
         () => processorFor(catalog).processMessages(
           createAndUpdate(catalog.id, [
@@ -753,11 +750,11 @@ void main() {
         }),
       )['Parent']!;
       List<String> ids(Object? children) => [
-            for (final ComponentReference reference in componentReferences({
-              'children': children,
-            }, fields))
-              reference.id,
-          ];
+        for (final ComponentReference reference in componentReferences({
+          'children': children,
+        }, fields))
+          reference.id,
+      ];
 
       expect(ids({'componentId': 'row'}), isEmpty);
       expect(ids({'componentId': 'row', 'path': 3}), isEmpty);
@@ -772,8 +769,9 @@ void main() {
       expect(catalog.refMap.fieldsFor('Parent').keys, {'child', 'children'});
       expect(catalog.refMap.fieldsFor('Leaf'), isEmpty);
       expect(catalog.refMap.fieldsFor('Unknown'), isEmpty);
-      final ComponentRefFields validation =
-          extractComponentRefFields(catalog)['Parent']!;
+      final ComponentRefFields validation = extractComponentRefFields(
+        catalog,
+      )['Parent']!;
       expect(validation.single, {'child'});
       expect(validation.list, {'children'});
     });
@@ -786,28 +784,28 @@ void main() {
         () {
           final Catalog<ComponentApi, FunctionImplementation> catalog =
               _catalog({
-            keyword: [
-              {
-                'properties': {
-                  'items': {'type': 'array', 'items': _single},
-                },
-              },
-              {
-                'properties': {
-                  'items': {
-                    'type': 'array',
-                    'items': {
-                      'type': 'object',
-                      'properties': {
-                        'child': _single,
-                        'label': {'type': 'string'},
+                keyword: [
+                  {
+                    'properties': {
+                      'items': {'type': 'array', 'items': _single},
+                    },
+                  },
+                  {
+                    'properties': {
+                      'items': {
+                        'type': 'array',
+                        'items': {
+                          'type': 'object',
+                          'properties': {
+                            'child': _single,
+                            'label': {'type': 'string'},
+                          },
+                        },
                       },
                     },
                   },
-                },
-              },
-            ],
-          });
+                ],
+              });
           final processor = MessageProcessor<ComponentApi>(
             catalogs: [catalog],
             defaultVersion: A2uiProtocolVersion.v1_0,
@@ -815,11 +813,15 @@ void main() {
           processor.processMessages(
             AgentToRendererMessagePayload.of(
               CreateSurfaceMessage(
-                  version: '1.0', surfaceId: 's', catalogId: catalog.id),
+                version: '1.0',
+                surfaceId: 's',
+                catalogId: catalog.id,
+              ),
             ),
           );
-          final SurfaceModel<ComponentApi> surface =
-              processor.model.getSurface('s')!;
+          final SurfaceModel<ComponentApi> surface = processor.model.getSurface(
+            's',
+          )!;
           final resolver = NodeResolver<ComponentApi>(surface);
           addTearDown(() {
             resolver.dispose();
@@ -873,8 +875,8 @@ void main() {
     test('validates and mounts processed wire singles and templates', () {
       final Catalog<ComponentApi, FunctionImplementation> catalog =
           _wireCatalog({
-        'properties': {'child': _single, 'children': _list},
-      });
+            'properties': {'child': _single, 'children': _list},
+          });
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
         defaultVersion: A2uiProtocolVersion.v1_0,
@@ -883,11 +885,15 @@ void main() {
       processor.processMessages(
         AgentToRendererMessagePayload.of(
           CreateSurfaceMessage(
-              version: '1.0', surfaceId: 's', catalogId: catalog.id),
+            version: '1.0',
+            surfaceId: 's',
+            catalogId: catalog.id,
+          ),
         ),
       );
-      final SurfaceModel<ComponentApi> surface =
-          processor.model.getSurface('s')!;
+      final SurfaceModel<ComponentApi> surface = processor.model.getSurface(
+        's',
+      )!;
       final resolver = NodeResolver<ComponentApi>(surface);
       addTearDown(() {
         resolver.dispose();
@@ -935,8 +941,8 @@ void main() {
       expect((props['child']! as ComponentNode).componentId, 'leaf');
       expect(
         (props['children']! as List).cast<ComponentNode>().map(
-              (n) => n.dataPath,
-            ),
+          (n) => n.dataPath,
+        ),
         ['/items/0', '/items/1'],
       );
       expect(resolver.activeNodeCount, 4);
@@ -954,8 +960,9 @@ void main() {
         ),
       );
       _add(fixture.surface, 'root', 'Parent', {'child': 'leaf'});
-      final child = fixture.resolver.rootNode.value!.props.peek()['child']!
-          as ComponentNode;
+      final child =
+          fixture.resolver.rootNode.value!.props.peek()['child']!
+              as ComponentNode;
       expect(child.componentId, 'leaf');
       expect(child.state, NodeState.resolved);
       expect(fixture.resolver.activeNodeCount, 2);
@@ -1041,8 +1048,8 @@ void main() {
           {'child': 'leaf', 'label': 'not-an-id'},
         ],
       });
-      final Map<String, Object?> props =
-          fixture.resolver.rootNode.value!.props.peek();
+      final Map<String, Object?> props = fixture.resolver.rootNode.value!.props
+          .peek();
       expect((props['ids']! as List).single, isA<ComponentNode>());
       final tab = (props['tabs']! as List).single as Map;
       expect(tab['child'], isA<ComponentNode>());
@@ -1085,9 +1092,10 @@ void main() {
       });
       final group =
           (fixture.resolver.rootNode.value!.props.peek()['groups']! as List)
-              .single as Map;
-      final List<ChildNode> children =
-          (group['children']! as List).cast<ChildNode>();
+                  .single
+              as Map;
+      final List<ChildNode> children = (group['children']! as List)
+          .cast<ChildNode>();
       expect(children.map((n) => n.basePath), ['/items/0', '/items/1']);
       expect(fixture.resolver.activeNodeCount, 1);
     });
@@ -1143,8 +1151,12 @@ void main() {
             'next': {'value': 'literal'},
           },
         });
-        final Map<String, Object?> props =
-            fixture.resolver.rootNode.value!.props.peek();
+        final Map<String, Object?> props = fixture
+            .resolver
+            .rootNode
+            .value!
+            .props
+            .peek();
         expect(
           ((props['children']! as List).single as ComponentNode).dataPath,
           '/items/0',

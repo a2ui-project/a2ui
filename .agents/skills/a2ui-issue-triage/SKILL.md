@@ -34,7 +34,7 @@ Process the raw issues and generate recommended triage fields based on the proje
 
 1. Read the triage criteria reference document: [triage_criteria.md](references/triage_criteria.md) and repository canonical templates: [templates.md](../../../docs/contributing/triage/templates.md).
 2. For each issue in `raw_issues.json`, evaluate its description and comments to determine:
-   - **Priority**: `P0` (Urgent), `P1` (High), `P2` (Medium), `P3` (Low), or `None`. `P0` and `P1` require assignees.
+   - **Priority**: `P0` (Urgent), `P1` (High), `P2` (Medium), `P3` (Low), or `None`. `P0` requires an assignee, and `P1` requires an assignee or a milestone.
    - **Assignee**: Recommended owner based on the affected component or area.
    - **Action**: `investigate`, `assign_and_fix`, `needs_info`, `backlog`, `close_duplicate`, `close_invalid`, or `close_resolved`.
    - **Labels**: Applicable repository labels (e.g. `type: bug`, `component: lit renderer`, `status: first-line-handled`, `status: waiting-for-author-response`).

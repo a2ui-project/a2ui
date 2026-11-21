@@ -32,8 +32,7 @@ void main() {
       expect(received, [30, 300]);
     });
 
-    test(
-        'isolates throwing listener, logs severe error, and notifies '
+    test('isolates throwing listener, logs severe error, and notifies '
         'remaining listeners', () {
       final notifier = EventNotifier<String>();
       final received = <String>[];
@@ -41,8 +40,9 @@ void main() {
 
       final Level previousLevel = Logger.root.level;
       Logger.root.level = Level.ALL;
-      final StreamSubscription<LogRecord> sub =
-          Logger.root.onRecord.listen(records.add);
+      final StreamSubscription<LogRecord> sub = Logger.root.onRecord.listen(
+        records.add,
+      );
       addTearDown(() async {
         await sub.cancel();
         Logger.root.level = previousLevel;
@@ -63,8 +63,7 @@ void main() {
       expect(notifierRecords.single.stackTrace, isNotNull);
     });
 
-    test(
-        'allows listeners to be added or removed during emit without '
+    test('allows listeners to be added or removed during emit without '
         'concurrent modification error', () {
       final notifier = EventNotifier<int>();
       final received = <String>[];
@@ -85,8 +84,7 @@ void main() {
       expect(received, ['second:2', 'addedDuringEmit:2']);
     });
 
-    test(
-        'skips a subsequent listener that was unsubscribed by an earlier '
+    test('skips a subsequent listener that was unsubscribed by an earlier '
         'listener during emit', () {
       final notifier = EventNotifier<int>();
       final received = <String>[];
@@ -121,43 +119,47 @@ void main() {
       expect(received, [1]);
     });
 
-    test('supports duplicate subscriptions of the same function independently',
-        () {
-      final notifier = EventNotifier<int>();
-      final received = <int>[];
-      void handler(int value) => received.add(value);
+    test(
+      'supports duplicate subscriptions of the same function independently',
+      () {
+        final notifier = EventNotifier<int>();
+        final received = <int>[];
+        void handler(int value) => received.add(value);
 
-      final Subscription sub1 = notifier.subscribe(handler);
-      final Subscription sub2 = notifier.subscribe(handler);
+        final Subscription sub1 = notifier.subscribe(handler);
+        final Subscription sub2 = notifier.subscribe(handler);
 
-      notifier.emit(1);
-      expect(received, [1, 1]);
+        notifier.emit(1);
+        expect(received, [1, 1]);
 
-      sub1.unsubscribe();
-      received.clear();
+        sub1.unsubscribe();
+        received.clear();
 
-      notifier.emit(2);
-      expect(received, [2]);
+        notifier.emit(2);
+        expect(received, [2]);
 
-      sub2.unsubscribe();
-      received.clear();
+        sub2.unsubscribe();
+        received.clear();
 
-      notifier.emit(3);
-      expect(received, isEmpty);
-    });
+        notifier.emit(3);
+        expect(received, isEmpty);
+      },
+    );
 
-    test('dispose clears all listeners and makes subsequent subscribe a no-op',
-        () {
-      final notifier = EventNotifier<int>();
-      var count = 0;
-      notifier.subscribe((_) => count++);
+    test(
+      'dispose clears all listeners and makes subsequent subscribe a no-op',
+      () {
+        final notifier = EventNotifier<int>();
+        var count = 0;
+        notifier.subscribe((_) => count++);
 
-      notifier.dispose();
-      final Subscription postDispose = notifier.subscribe((_) => count++);
-      postDispose.unsubscribe();
-      notifier.emit(1);
+        notifier.dispose();
+        final Subscription postDispose = notifier.subscribe((_) => count++);
+        postDispose.unsubscribe();
+        notifier.emit(1);
 
-      expect(count, 0);
-    });
+        expect(count, 0);
+      },
+    );
   });
 }

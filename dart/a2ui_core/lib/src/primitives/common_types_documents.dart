@@ -29,10 +29,8 @@ import 'protocol_version.dart';
 /// Each call returns a fresh document, so a caller may edit the result.
 Map<String, Object?> commonTypesForProtocolVersion(
   A2uiProtocolVersion? protocolVersion,
-) =>
-    jsonDecode(
-      protocolVersion != null &&
-              protocolVersion.isAtLeast(A2uiProtocolVersion.v1_0)
-          ? commonTypesV1_0Json
-          : commonTypesV0_9Json,
-    ) as Map<String, Object?>;
+) => jsonDecode(
+  protocolVersion != null && protocolVersion.isAtLeast(A2uiProtocolVersion.v1_0)
+      ? commonTypesV1_0Json
+      : commonTypesV0_9Json,
+) as Map<String, Object?>;
