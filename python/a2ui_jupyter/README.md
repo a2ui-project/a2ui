@@ -90,8 +90,8 @@ is waiting in `next_action()` or `next_message()`. Use `on_action` or
 The [examples](./examples) folder contains Python notebooks for JupyterLab and
 JupyterLite. Keep these examples with the renderer so that changes to its API
 can be tested alongside them. The separate
-[JupyterLite demo](https://github.com/MRYingLEE/jupyterlite-demo) contains
-deployment configuration and kernel-specific smoke tests.
+[JupyterLite demo](https://github.com/MRYingLEE/a2ui-jupyterlite-demo.git)
+contains deployment configuration and kernel-specific smoke tests.
 Each notebook starts with the same setup cell (`renderer-init`). It sets
 `KERNEL` to `cpython`, `pyodide`, or `xpython` and defines `new_surface`, which
 creates a surface that uses the basic catalog. Copy the cell unchanged when you
