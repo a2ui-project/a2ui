@@ -34,7 +34,7 @@ import {
 import {A2uiStateError, A2uiValidationError} from '../errors.js';
 import {noValidatorError} from '../../errors.js';
 import type {JsonSchemaValidator} from '../../schema-engine/types.js';
-import {formatIssue, issueToDetail, pickIssue} from '../../schema-engine/issues.js';
+import {formatIssue, issuesToDetails, pickIssue} from '../../schema-engine/issues.js';
 import {
   V0_8_MESSAGE_SPEC,
   validateProtocolMessage,
@@ -142,9 +142,10 @@ export class A2uiMessageProcessor implements MessageProcessor {
     for (const rawMessage of messages) {
       const issues = validateProtocolMessage(this.validator, V0_8_MESSAGE_SPEC, rawMessage);
       if (issues.length > 0) {
+        const issue = pickIssue(issues);
         throw new A2uiValidationError(
-          `Invalid v0.8 message: ${formatIssue(pickIssue(issues))}`,
-          issues.map(issue => issueToDetail(issue)),
+          `Invalid v0.8 message: ${formatIssue(issue)}`,
+          issuesToDetails(issue, issues),
         );
       }
       const message = rawMessage;

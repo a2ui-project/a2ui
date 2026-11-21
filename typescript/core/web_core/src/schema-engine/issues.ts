@@ -25,8 +25,13 @@ function keywordRank(issue: A2uiIssue): number {
   return i === -1 ? KEYWORD_ORDER.length : i;
 }
 
-/** Picks the most informative issue: deepest path first, then keyword priority. */
+/**
+ * Picks the most informative issue: deepest path first, then keyword priority.
+ * With no issues (a schema that failed without saying why) it returns a
+ * root-level `invalid value` issue.
+ */
 export function pickIssue(issues: A2uiIssue[]): A2uiIssue {
+  if (issues.length === 0) return {path: [], message: 'invalid value'};
   let best = issues[0];
   for (const issue of issues) {
     if (
@@ -105,7 +110,8 @@ export function formatIssue(issue: A2uiIssue): string {
  * The error detail of an issue: its path as a JSON Pointer under `prefix`, a
  * code from its keyword (`missing_field` for `required`, `invalid_type` for
  * `type`, `invalid_value` for `const`, `enum` or no keyword, otherwise the
- * keyword itself) and its message.
+ * keyword itself) and its message in web_core's words
+ * ({@link messageForIssue}), so the detail does not depend on the engine.
  *
  * @param issue The issue.
  * @param prefix JSON Pointer of the validated value.
@@ -122,7 +128,71 @@ export function issueToDetail(issue: A2uiIssue, prefix = ''): A2uiErrorDetail {
         : issue.keyword === undefined || issue.keyword === 'const' || issue.keyword === 'enum'
           ? 'invalid_value'
           : issue.keyword;
-  return {path: `${prefix}${pointer}` || '/', code, message: issue.message};
+  return {path: `${prefix}${pointer}` || '/', code, message: messageForIssue(issue)};
+}
+
+/**
+ * Keywords that only say a subschema failed: `$ref`, applicators and
+ * combinators, and cfworker's `false` (a `false` subschema). Engines report
+ * these differently (cfworker reports each, Ajv few), so {@link issuesToDetails}
+ * drops one when a more specific issue is at or below its path.
+ */
+const UMBRELLA_KEYWORDS = new Set([
+  '$ref',
+  '$dynamicRef',
+  'properties',
+  'patternProperties',
+  'allOf',
+  'items',
+  'prefixItems',
+  'additionalItems',
+  'oneOf',
+  'anyOf',
+  'if',
+  'then',
+  'else',
+  'false',
+  'false schema',
+]);
+
+const isUmbrella = (issue: A2uiIssue) =>
+  issue.keyword !== undefined && UMBRELLA_KEYWORDS.has(issue.keyword);
+
+const isAtOrBelow = (path: (string | number)[], base: (string | number)[]) =>
+  path.length >= base.length && base.every((seg, i) => String(path[i]) === String(seg));
+
+/**
+ * The error details of a failed validation, the same whichever engine
+ * reported the issues: `picked` (the issue the error message names) first,
+ * then the other issues, without umbrella issues ({@link UMBRELLA_KEYWORDS})
+ * that a more specific issue at or below their path explains, without
+ * duplicates, and sorted by path, code and message.
+ *
+ * @param picked The issue the error message names, from {@link pickIssue}.
+ * @param issues All the issues.
+ * @param prefix JSON Pointer of the validated value.
+ */
+export function issuesToDetails(
+  picked: A2uiIssue,
+  issues: readonly A2uiIssue[],
+  prefix = '',
+): A2uiErrorDetail[] {
+  const specific = issues.filter(i => !isUmbrella(i));
+  const kept = issues.filter(
+    i => !isUmbrella(i) || !specific.some(s => isAtOrBelow(s.path, i.path)),
+  );
+  const first = issueToDetail(picked, prefix);
+  const key = (d: A2uiErrorDetail) => `${d.path}\u0000${d.code}\u0000${d.message}`;
+  const seen = new Set([key(first)]);
+  const rest: A2uiErrorDetail[] = [];
+  for (const detail of kept.map(i => issueToDetail(i, prefix))) {
+    const k = key(detail);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    rest.push(detail);
+  }
+  rest.sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+  return [first, ...rest];
 }
 
 /** The keyword and parameters an issue from a JSON-backed schema carries. */

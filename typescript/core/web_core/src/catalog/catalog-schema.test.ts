@@ -132,6 +132,17 @@ describe('CatalogSchema catalogs', () => {
     proc.dispose();
   });
 
+  it('rejects a component whose schema fails without issues as an invalid value', () => {
+    const Silent = handRolled({type: 'object'}, () => ({issues: []}));
+    const proc = processorFor(new Catalog(CATALOG_ID, '1.0', [{name: 'Quiet', schema: Silent}]));
+    assert.throws(
+      () => update(proc, [{id: 'root', component: 'Quiet'}]),
+      (err: unknown) =>
+        err instanceof A2uiValidationError && /root: invalid value/.test(err.message),
+    );
+    proc.dispose();
+  });
+
   it('gives a component the defaults its schema applies', () => {
     // Review focus 1: a library `.default()`, here hand-rolled.
     const Defaulted = handRolled(

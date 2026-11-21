@@ -17,13 +17,26 @@
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 import {A2uiConfigurationError} from '../errors.js';
-import {assertSync, formatIssue, messageForIssue, pickIssue, toA2uiIssues} from './issues.js';
+import {
+  assertSync,
+  formatIssue,
+  issueToDetail,
+  issuesToDetails,
+  messageForIssue,
+  pickIssue,
+  toA2uiIssues,
+} from './issues.js';
 
 describe('pickIssue', () => {
   it('returns the deepest-path issue', () => {
     const deep = {path: ['a', 'b', 'c'], message: 'deep'};
     const issue = pickIssue([{path: ['a'], message: 'shallow', keyword: 'required'}, deep]);
     assert.strictEqual(issue, deep);
+  });
+
+  it('falls back to a root invalid-value issue when there are none', () => {
+    assert.deepStrictEqual(pickIssue([]), {path: [], message: 'invalid value'});
+    assert.strictEqual(formatIssue(pickIssue([])), 'root: invalid value');
   });
 
   it('breaks ties by keyword order', () => {
@@ -91,6 +104,38 @@ describe('messageForIssue', () => {
       formatIssue({path: ['x'], message: 'ignored', keyword: 'type', params: {type: 'number'}}),
       'x: must be number',
     );
+  });
+});
+
+describe('issueToDetail', () => {
+  it('words the message from the keyword, not the engine text', () => {
+    const detail = issueToDetail({
+      path: ['a', 'b'],
+      message: 'Instance type "number" is invalid. Expected "string".',
+      keyword: 'type',
+      params: {type: ['string']},
+    });
+    assert.deepStrictEqual(detail, {path: '/a/b', code: 'invalid_type', message: 'must be string'});
+  });
+});
+
+describe('issuesToDetails', () => {
+  it('puts the picked issue first and drops umbrella issues a specific one explains', () => {
+    const picked = {path: ['a', 'b'], message: 'x', keyword: 'type', params: {type: 'string'}};
+    const details = issuesToDetails(picked, [
+      {path: [], message: 'A subschema had errors.', keyword: '$ref'},
+      {path: [], message: 'no branch', keyword: 'oneOf'},
+      {path: ['a'], message: 'Property "b" does not match schema.', keyword: 'properties'},
+      {path: ['z'], message: 'nothing below', keyword: 'anyOf'},
+      {path: ['c'], message: 'y', keyword: 'required', params: {missingProperty: 'c'}},
+      picked,
+      {path: ['c'], message: 'y again', keyword: 'required', params: {missingProperty: 'c'}},
+    ]);
+    assert.deepStrictEqual(details, [
+      {path: '/a/b', code: 'invalid_type', message: 'must be string'},
+      {path: '/c', code: 'missing_field', message: "missing required property 'c'"},
+      {path: '/z', code: 'anyOf', message: 'must match at least one of the allowed schemas'},
+    ]);
   });
 });
 
