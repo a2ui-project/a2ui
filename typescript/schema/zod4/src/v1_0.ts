@@ -26,7 +26,7 @@
  * @module
  */
 
-import {z} from 'zod';
+import * as z from 'zod';
 import {commonType} from './core.js';
 
 export {a2uiJsonSchema, catalogSchema, component, type A2uiJsonSchemaOptions} from './core.js';

@@ -15,7 +15,7 @@
  */
 
 import type {CatalogSchema} from '@a2ui/web_core/schema-engine';
-import {z} from 'zod';
+import * as z from 'zod';
 
 /** The common types, by the name of their definition in `common_types.json`. */
 const commonTypes = z.registry<{a2uiCommonType: string}>();

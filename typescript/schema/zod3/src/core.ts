@@ -15,7 +15,7 @@
  */
 
 import type {CatalogSchema} from '@a2ui/web_core/schema-engine';
-import {z} from 'zod';
+import * as z from 'zod';
 import {ignoreOverride, zodToJsonSchema} from 'zod-to-json-schema';
 
 /**
