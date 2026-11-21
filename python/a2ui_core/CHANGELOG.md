@@ -5,6 +5,15 @@
   `Feb 2 at 3:17 PM` instead of `Feb 2 'PMt' 3:17 PM`, and reads `EEE` and
   `EE` as the abbreviated weekday instead of repeating it.
   [#2937](https://github.com/a2ui-project/a2ui/issues/2937), [#3787](https://github.com/a2ui-project/a2ui/pull/3787)
+- Add `MessageProcessor.add_catalog(catalog)`, which adds a catalog to a
+  processor after it is built. `createSurface` messages, renderer function
+  calls and `get_renderer_capabilities` see the catalog from then on; surfaces
+  created before the call keep the catalogs they were created with. A catalog
+  whose ID the processor already holds is rejected with `A2uiCatalogError`.
+  `MessageProcessor.catalogs` is the processor's own list, which `add_catalog`
+  appends to; the sequence passed to the constructor is not changed
+  ([#3303](https://github.com/a2ui-project/a2ui/issues/3303),
+  [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
 
 ## 0.7.0 (2026-11-17)
 
