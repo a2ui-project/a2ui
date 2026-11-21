@@ -3196,7 +3196,7 @@ describe('MessageProcessor component envelope mixins', () => {
           '@catalogId': 'other',
           '@metadata': {extensions: {com_example_trace: 't1'}},
           '@accessibility': {label: 'Email address'},
-          '@checks': [{condition: true, message: 'Required'}],
+          '@checks': [{condition: {'@path': '/form/valid'}, message: 'Required'}],
         },
       ]);
       const root = proc.getSurface('s')!.componentsModel.get('root')!;
@@ -3205,7 +3205,7 @@ describe('MessageProcessor component envelope mixins', () => {
       assert.deepStrictEqual(root.properties, {
         'label': 'Email',
         '@accessibility': {label: 'Email address'},
-        '@checks': [{condition: true, message: 'Required'}],
+        '@checks': [{condition: {'@path': '/form/valid'}, message: 'Required'}],
       });
       proc.dispose();
     });
@@ -3220,7 +3220,7 @@ describe('MessageProcessor component envelope mixins', () => {
           catalogId: 'other',
           metadata: {extensions: {com_example_trace: 't1'}},
           accessibility: {label: 'Email address'},
-          checks: [{condition: true, message: 'Required'}],
+          checks: [{condition: {'@path': '/form/valid'}, message: 'Required'}],
         },
       ]);
       const root = proc.getSurface('s')!.componentsModel.get('root')!;
@@ -3229,7 +3229,7 @@ describe('MessageProcessor component envelope mixins', () => {
       assert.deepStrictEqual(root.properties, {
         'label': 'Email',
         '@accessibility': {label: 'Email address'},
-        '@checks': [{condition: true, message: 'Required'}],
+        '@checks': [{condition: {'@path': '/form/valid'}, message: 'Required'}],
       });
       proc.dispose();
     });
@@ -3369,6 +3369,7 @@ describe('MessageProcessor component envelope mixins', () => {
       });
       proc.processMessages([
         {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'main'}},
+        {version: '1.0', updateDataModel: {surfaceId: 's', path: '/', value: {valid: false}}},
         {
           version: '1.0',
           updateComponents: {
@@ -3378,7 +3379,7 @@ describe('MessageProcessor component envelope mixins', () => {
                 'id': 'root',
                 'component': 'Field',
                 '@accessibility': {label: 'Email address'},
-                '@checks': [{condition: false, message: 'Required'}],
+                '@checks': [{condition: {'@path': '/valid'}, message: 'Required'}],
               },
             ],
           },

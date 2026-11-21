@@ -57,6 +57,10 @@ export type FunctionCommon = z.infer<typeof FunctionCommonSchema>;
 export const FunctionCallSchema = z
   .record(z.string(), z.any())
   .and(z.intersection(FunctionCommonSchema, z.any()))
+  .superRefine((obj, ctx) => {
+    const keys = Object.keys(obj).filter(key => !['@call', 'catalogId', 'args'].includes(key));
+    if (keys.length > 0) ctx.addIssue({code: z.ZodIssueCode.unrecognized_keys, keys});
+  })
   .describe(
     'REF:#/$defs/FunctionCall|Invokes a named function, combining common function properties with the catalog function definition.',
   );

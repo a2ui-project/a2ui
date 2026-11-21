@@ -34,6 +34,15 @@ const VERSION_TAG = 'v1.0';
 const SCRIPT_SOURCE = 'src/v1_0/scripts/generate-schemas.mjs';
 
 /**
+ * Returns the properties a catalog function may declare for its call,
+ * from `FunctionCallValidationSchema` in catalog_definition.json.
+ */
+function catalogFunctionProperties() {
+  const catalogDefJson = JSON.parse(readFileSync(join(specDir, 'catalog_definition.json'), 'utf8'));
+  return catalogDefJson.$defs.FunctionCallValidationSchema.properties.properties.properties;
+}
+
+/**
  * Generates v1.0 common-types.ts.
  */
 function generateCommonTypes() {
@@ -110,6 +119,26 @@ function generateCommonTypes() {
       code = code.replace(
         'z.record(z.string(), z.any())',
         "z.record(z.string(), z.unknown()).refine((obj) => !obj || (!('@path' in obj) && !('@call' in obj)))",
+      );
+    }
+
+    if (name === 'FunctionCall') {
+      // The def closes `allOf: [FunctionCommon, <catalog function>]` with
+      // `unevaluatedProperties: false`, which jsonSchemaToZod drops. A call
+      // holds only the keys those declare: FunctionCommon's, and the `@call`
+      // and `args` that a catalog function's properties are limited to.
+      const callKeys = [
+        ...new Set([
+          ...Object.keys(commonJson.$defs.FunctionCommon.properties),
+          ...Object.keys(catalogFunctionProperties()),
+        ]),
+      ];
+      code = code.replace(
+        '.and(z.intersection(FunctionCommonSchema, z.any()))',
+        `.and(z.intersection(FunctionCommonSchema, z.any())).superRefine((obj, ctx) => {
+          const keys = Object.keys(obj).filter(key => !${JSON.stringify(callKeys)}.includes(key));
+          if (keys.length > 0) ctx.addIssue({code: z.ZodIssueCode.unrecognized_keys, keys});
+        })`,
       );
     }
 

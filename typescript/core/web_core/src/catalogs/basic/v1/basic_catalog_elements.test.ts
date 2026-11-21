@@ -147,6 +147,22 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     assert.ok(DynamicValueSchema.safeParse({path: '/var/log/system.log', call: 'audit'}).success);
   });
 
+  it('PayloadValidator rejects a v1.0 function call holding a key no function declares', () => {
+    const validator = new PayloadValidator(basicCatalog);
+    const button = (functionCall: Record<string, unknown>) => ({
+      id: 'btn1',
+      component: 'Button',
+      child: 'txt1',
+      action: {functionCall},
+    });
+    const call = {'@call': 'openUrl', 'args': {url: 'https://example.com'}};
+    assert.throws(
+      () => validator.validateComponent(button({...call, bogus: 1})),
+      /Unrecognized key\(s\) in object: 'bogus'/,
+    );
+    assert.doesNotThrow(() => validator.validateComponent(button(call)));
+  });
+
   it('applies accessibility attributes across BasicCatalogA2uiLitElement host and inner semantic element', async () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([

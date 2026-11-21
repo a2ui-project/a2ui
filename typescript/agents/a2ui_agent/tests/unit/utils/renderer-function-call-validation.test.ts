@@ -454,7 +454,7 @@ describe('callRendererFunction validation', () => {
     [
       'extra field',
       {'@call': 'scrollTo', catalogId: CUSTOM_ID, args: {id: 'x'}, bogus: 1},
-      /has unrecognized field 'bogus' on callFunction/,
+      /Unrecognized key\(s\) in object: 'bogus' at 'callRendererFunction\.callFunction'/,
     ],
     [
       'null args',
