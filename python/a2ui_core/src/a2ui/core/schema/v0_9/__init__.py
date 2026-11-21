@@ -97,7 +97,6 @@ from .client_to_server import (
     A2uiClientMessageListWrapper,
 )
 
-
 __all__ = [
     "AccessibilityAttributes",
     "Action",

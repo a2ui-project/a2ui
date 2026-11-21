@@ -81,8 +81,21 @@ check
     : CHECK ('(' (expression (',' expression)* ','?)? ')')?
     ;
 
+/**
+ * A function call. The name is a catalog function or, from v1.0 on, a system
+ * function defined by the protocol (e.g. '@index()').
+ */
 call
-    : identifier '(' (arg (',' arg)* ','?)? ')'
+    : function_name '(' (arg (',' arg)* ','?)? ')'
+    ;
+
+/**
+ * The name of a called function: a catalog function identifier or a system
+ * function identifier starting with '@'.
+ */
+function_name
+    : identifier
+    | SYSTEM_IDENTIFIER
     ;
 
 /**
@@ -164,6 +177,11 @@ BOOLEAN : 'true' | 'false' ;
 // UAX 31 identifier: XID_Start or '_', then XID_Continue*. Mirrors the v1.0
 // catalog entity naming rules and the SDKs' isValidUax31Identifier helpers.
 IDENTIFIER : [\p{XID_Start}_] [\p{XID_Continue}]* ;
+
+// System function identifier (e.g. '@index'): '@' followed by a UAX 31
+// identifier. The protocol reserves names starting with '@' for system
+// functions, so they never clash with catalog function names.
+SYSTEM_IDENTIFIER : '@' [\p{XID_Start}_] [\p{XID_Continue}]* ;
 
 // Ignored elements: skipped completely at the lexer level.
 COMMENT : ( '#' | '//' ) ~[\r\n]* -> skip ;

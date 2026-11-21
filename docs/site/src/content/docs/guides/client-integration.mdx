@@ -6,9 +6,9 @@ description: 'Step-by-step guide to integrating A2UI client renderers into Flutt
 import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
 import SchemaChips from '../../../components/docs/common/SchemaChips.astro';
 
-Integrate an A2UI [renderer](../../concepts/glossary/#renderer) into a Flutter, React, Lit, Angular, SwiftUI, or Jetpack Compose application using the [Renderer SDKs](/concepts/sdks/#renderer-sdk) to display interactive UIs from an AI agent and send user actions back.
+Integrate an A2UI [renderer](../../concepts/glossary/#renderer) into a Flutter, React, Lit, Angular, SwiftUI, or Jetpack Compose application using the [Renderer SDKs](../../concepts/sdks/#renderer-sdk) to display interactive UIs from an AI agent and send user actions back.
 
-If you are building the backend agent instead, see [How to Integrate with My Agent Server](../../guides/agent-integration/). To register custom widgets beyond the built-in Basic catalog, see [How to Define a Catalog](../../guides/defining-a-catalog/) and [Authoring Universal Web Components](../../guides/authoring-universal-components/).
+For the agent side, see [How to Integrate A2UI into an Agent](../../guides/agent-integration/). If your agent and renderer live in the same binary or codebase, combine both guides, skip the transport step, and pass messages directly from agent output into the rendering pipeline (the Agent and Renderer SDKs share the same [Core SDK](../../concepts/sdks/#core-sdk) data structures). To register custom widgets beyond the built-in Basic catalog, see [How to Define a Catalog](../../guides/defining-a-catalog/) and [Authoring Universal Web Components](../../guides/authoring-universal-components/).
 
 ---
 

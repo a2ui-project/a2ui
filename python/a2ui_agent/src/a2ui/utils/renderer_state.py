@@ -41,7 +41,11 @@ from a2ui.core import (
     SurfaceModel,
     ValidationConfig,
 )
-from a2ui.core.catalog import INDEX_FUNCTION_NAME, is_system_function_name
+from a2ui.core.catalog import (
+    INDEX_FUNCTION_NAME,
+    get_custom_envelope_properties,
+    is_system_function_name,
+)
 from a2ui.core.common import is_at_least_version, to_protocol_version
 from a2ui.core.processing import (
     InternalCallRendererFunctionOp,
@@ -63,6 +67,7 @@ from a2ui.core.validation import (
     validate_component_integrity,
     validate_system_function,
 )
+from a2ui.utils.component_envelope import get_envelope_value
 
 __all__ = [
     "RendererState",
@@ -1408,11 +1413,24 @@ def _may_replace(
     new_type = update.get("component")
     if new_type and new_type != existing.type:
         return True
-    catalog_id = update.get("catalogId")
+    version = surface.protocol_version
+    at_least_v10 = bool(version) and is_at_least_version(version, ProtocolVersion.V1_0)
+    # From v1.0 the override is `@catalogId`. A bare `catalogId` is the legacy
+    # override unless the surface's default catalog declares it as a property.
+    custom_envelope: frozenset[str] = frozenset()
+    if at_least_v10 and "@catalogId" not in update and "catalogId" in update:
+        custom_envelope = get_custom_envelope_properties(
+            surface.default_catalog, new_type or existing.type
+        )
+    catalog_id = get_envelope_value(
+        update,
+        "catalogId",
+        at_least_v10=at_least_v10,
+        custom_properties=custom_envelope,
+    )
     if catalog_id is not None:
         return bool(catalog_id != existing.catalog.catalog_id)
-    version = surface.protocol_version
-    if not version or not is_at_least_version(version, ProtocolVersion.V1_0):
+    if not at_least_v10:
         # Before v1.0, an update that names no catalog keeps the component's.
         return False
     # From v1.0, it resolves to the surface's default catalog.
@@ -1645,7 +1663,11 @@ def _component_types(messages: list[dict[str, Any]]) -> set[str]:
     for message in messages:
         for _, components in _component_lists(message):
             for component in components:
-                if not isinstance(component, Mapping) or "catalogId" in component:
+                if (
+                    not isinstance(component, Mapping)
+                    or "@catalogId" in component
+                    or "catalogId" in component
+                ):
                     continue
                 component_type = component.get("component")
                 if isinstance(component_type, str):

@@ -40,6 +40,39 @@ const basicCatalogJson = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, '../../../catalogs/basic/v1/catalog.json'), 'utf8'),
 );
 
+function loadE2eScenarios() {
+  const conformanceRoot = path.resolve(__dirname, '../../../conformance');
+  const e2eDir = path.join(conformanceRoot, 'e2e');
+  if (!fs.existsSync(e2eDir)) {
+    return [];
+  }
+  const files = [];
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else if (entry.isFile() && entry.name.endsWith('.yaml')) {
+        const suiteRelPath = path.relative(conformanceRoot, fullPath).split(path.sep).join('/');
+        files.push({suiteRelPath, fullPath});
+      }
+    }
+  }
+  walk(e2eDir);
+  files.sort((a, b) => a.suiteRelPath.localeCompare(b.suiteRelPath));
+  const items = [];
+  for (const {suiteRelPath, fullPath} of files) {
+    const parsed = yaml.parse(fs.readFileSync(fullPath, 'utf8'));
+    const list = Array.isArray(parsed) ? parsed : [parsed];
+    for (const scenario of list) {
+      items.push({suite: suiteRelPath, scenario});
+    }
+  }
+  return items;
+}
+
+const e2eScenarios = loadE2eScenarios();
+
 function ConformanceManifestReporter(baseReporterDecorator) {
   baseReporterDecorator(this);
   const manifestDir = process.env.A2UI_CONFORMANCE_MANIFEST_DIR;
@@ -85,6 +118,7 @@ const conformanceSuites = Buffer.from(
     adapterConformance,
     adapterConformanceV09,
     basicCatalogJson,
+    e2eScenarios,
   }),
   'utf8',
 ).toString('base64');

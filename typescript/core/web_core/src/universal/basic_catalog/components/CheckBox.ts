@@ -32,13 +32,25 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<CheckBoxSupp
    * The styles of the checkbox can be customized by redefining the following
    * CSS variables:
    *
-   * - `--a2ui-checkbox-size`: Size of the box. Defaults to `1rem`.
-   * - `--a2ui-checkbox-border-radius`: Default corner rounding of the box.
-   * - `--a2ui-checkbox-gap`: Spacing between the checkbox and its label. Defaults to `8px`.
    * - `--a2ui-checkbox-margin`: Outer margin of the component. Defaults to `--a2ui-spacing-m`.
-   * - `--a2ui-checkbox-color-error`: Color for invalid state. Defaults to `red`.
-   * - `--a2ui-checkbox-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
-   * - `--a2ui-checkbox-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
+   * - `--a2ui-checkbox-gap`: Spacing between the checkbox input and its label. Defaults to `--a2ui-spacing-s`.
+   * - `--a2ui-checkbox-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size`, then `--a2ui-font-size-s`.
+   * - `--a2ui-checkbox-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight`, then `bold`.
+   * - `--a2ui-checkbox-size`: Width and height of the checkbox input. Defaults to `1rem`.
+   * - `--a2ui-checkbox-background`: Background of the checkbox input. Defaults to `inherit`.
+   * - `--a2ui-checkbox-border`: Border of the checkbox input. Defaults to `--a2ui-border`.
+   * - `--a2ui-checkbox-border-radius`: Border radius of the checkbox input. Defaults to `4px`.
+   * - `--a2ui-checkbox-color-error`: Label, outline, and error message color in the invalid state. Defaults to `red`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-spacing-m`: Fallback outer margin of the component.
+   * - `--a2ui-spacing-s`: Fallback spacing between the checkbox input and its label.
+   * - `--a2ui-label-font-size`: Fallback font size of the label. Defaults to `--a2ui-font-size-s`.
+   * - `--a2ui-label-font-weight`: Fallback font weight of the label. Defaults to `bold`.
+   * - `--a2ui-font-size-s`: Fallback label font size when `--a2ui-label-font-size` is unset.
+   * - `--a2ui-font-size-xs`: Font size of validation error messages.
+   * - `--a2ui-border`: Fallback border of the checkbox input.
    *
    * @nocollapse
    */

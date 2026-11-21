@@ -32,11 +32,11 @@
               "name": "submit_form"
             }
           },
-          "accessibility": {
+          "@accessibility": {
             "label": "Submit form button",
             "description": "Submits the current form"
           },
-          "metadata": {
+          "@metadata": {
             "extensions": {
               "telemetry": {
                 "traceId": "t1"
@@ -60,7 +60,7 @@
               "name": "cancel_form"
             }
           },
-          "accessibility": {
+          "@accessibility": {
             "label": "Cancel form button"
           }
         }

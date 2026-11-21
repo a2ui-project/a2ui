@@ -48,23 +48,49 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
   }
 
   open func extractOperations(from payload: JSONValue) throws -> [InternalOperation] {
+    try extractOperations(from: payload, allowUnknownElements: false)
+  }
+
+  /// Validates the payload as ``extractOperations(from:)`` does, passing `allowUnknownElements`
+  /// to ``preparePayloadForValidation(_:action:allowUnknownElements:)`` for each message.
+  open func extractOperations(
+    from payload: JSONValue,
+    allowUnknownElements: Bool
+  ) throws -> [InternalOperation] {
     switch payload {
     case .null:
       return []
     case .array(let items):
-      return try extractOperationsFromArray(items)
-    case .object(let dict):
-      if let messages = dict["messages"]?.arrayValue {
-        return try extractOperationsFromArray(messages)
+      return try extractOperationsFromArray(items, allowUnknownElements: allowUnknownElements)
+    case .object(let messageObject):
+      if let messages = messageObject["messages"]?.arrayValue {
+        return try extractOperationsFromArray(
+          messages,
+          allowUnknownElements: allowUnknownElements
+        )
       }
-      return try extractOperationsFromSingleMessageObject(dict)
+      return try extractOperationsFromSingleMessageObject(
+        messageObject,
+        allowUnknownElements: allowUnknownElements
+      )
     default:
       return []
     }
   }
 
+  /// Lets subclasses normalize a single message before validation, such as dropping properties
+  /// that relaxed renderers ignore. The default returns `message` unchanged.
+  open func preparePayloadForValidation(
+    _ message: OrderedDictionary<String, JSONValue>,
+    action: String,
+    allowUnknownElements: Bool
+  ) -> OrderedDictionary<String, JSONValue> {
+    message
+  }
+
   private func extractOperationsFromArray(
-    _ items: [JSONValue]
+    _ items: [JSONValue],
+    allowUnknownElements: Bool
   ) throws -> [InternalOperation] {
     guard !items.isEmpty else { return [] }
     for (index, item) in items.enumerated() {
@@ -88,7 +114,7 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
     }
     return try items.enumerated().flatMap { index, item -> [InternalOperation] in
       do {
-        return try extractOperations(from: item)
+        return try extractOperations(from: item, allowUnknownElements: allowUnknownElements)
       } catch let error as A2UIValidationError {
         throw rewriteMessageIndex(in: error, to: index)
       }
@@ -96,9 +122,15 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
   }
 
   private func extractOperationsFromSingleMessageObject(
-    _ dict: OrderedDictionary<String, JSONValue>
+    _ rawMessage: OrderedDictionary<String, JSONValue>,
+    allowUnknownElements: Bool
   ) throws -> [InternalOperation] {
-    let action = try extractSingleAction(from: dict)
+    let action = try extractSingleAction(from: rawMessage)
+    let dict = preparePayloadForValidation(
+      rawMessage,
+      action: action,
+      allowUnknownElements: allowUnknownElements
+    )
     guard let actionObj = dict[action]?.objectValue else {
       throw A2UIValidationError(
         "Payload for action '\(action)' must be an object",
@@ -118,11 +150,18 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
   }
 
   open func adaptMessage(_ message: AgentToRendererMessage) throws -> [InternalOperation] {
+    try adaptMessage(message, allowUnknownElements: false)
+  }
+
+  open func adaptMessage(
+    _ message: AgentToRendererMessage,
+    allowUnknownElements: Bool
+  ) throws -> [InternalOperation] {
     let encoder = JSONEncoder()
     encoder.userInfo[.a2uiProtocolVersion] = message.version
     let data = try encoder.encode(message)
     let jsonValue = try JSONValue.parse(data)
-    let ops = try extractOperations(from: jsonValue)
+    let ops = try extractOperations(from: jsonValue, allowUnknownElements: allowUnknownElements)
     if case .updateDataModel(let msg) = message, msg.value == nil {
       return ops.map { op in
         if case .updateDataModel(let updateOp) = op {

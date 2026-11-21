@@ -512,7 +512,7 @@ enum A2UISchemaGenerator {
 
   private static func generateBasicCatalogComponents(repoRoot: URL) throws -> String {
     let v091CatalogURL = repoRoot.appendingPathComponent(
-      "specification/v0_9_1/catalogs/basic/catalog.json"
+      "catalogs/basic/v0_9_1/catalog.json"
     )
     let v10CatalogURL = repoRoot.appendingPathComponent(
       "catalogs/basic/v1/catalog.json"
@@ -664,9 +664,9 @@ enum A2UISchemaGenerator {
       (rewriteRefs(compDef, isV10: true, localDefs: localDefs) as? [String: Any]) ?? compDef
     let commonProps: [String: Any] = [
       "id": ["$ref": "\(v10BaseURI)#/$defs/ComponentId"],
-      "catalogId": ["type": "string"],
-      "accessibility": ["$ref": "\(v10BaseURI)#/$defs/AccessibilityAttributes"],
-      "metadata": [
+      "@catalogId": ["type": "string"],
+      "@accessibility": ["$ref": "\(v10BaseURI)#/$defs/AccessibilityAttributes"],
+      "@metadata": [
         "type": "object",
         "properties": [
           "extensions": ["$ref": "\(v10BaseURI)#/$defs/Extensions"]

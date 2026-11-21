@@ -507,6 +507,105 @@ struct SurfaceViewModelTests {
     #expect(updatedBinding.value == 100.0)
   }
 
+  @Test func rejectedBindingWritesReportDataErrorAndLeaveDataModelUnchanged() throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/name", value: "Ada")
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/flag", value: true)
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/score", value: 1)
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": ["path": "/name/first"],
+          "enabled": ["path": "/flag/on"],
+          "count": ["path": "/score/value"],
+          "details": ["path": "/name/meta"],
+          "tags": ["path": "/name/tags"],
+          "checks": [
+            ["condition": ["path": "/flag/valid"], "message": "Invalid"]
+          ],
+        ]
+      ]
+    )
+    let before = surface.dataModel.get("/")
+    let node = try #require(surface.rootNode)
+    let label = try #require(node.properties["label"] as? DataBinding<String>)
+    let enabled = try #require(node.properties["enabled"] as? DataBinding<Bool>)
+    let count = try #require(node.properties["count"] as? DataBinding<Double>)
+    let details = try #require(node.properties["details"] as? DataBinding<JSONValue>)
+    let tags = try #require(node.properties["tags"] as? DataBinding<[String]>)
+    let checks = try #require(node.properties["checks"] as? [ResolvedCheck])
+    let checkCondition = try #require(checks.first?.condition)
+    #expect(handler.capturedErrors.isEmpty)
+
+    label.set("Grace")
+    enabled.set(false)
+    count.set(2)
+    details.set(.object(["role": .string("admin")]))
+    tags.set(["swift"])
+    checkCondition.set(true)
+
+    #expect(surface.dataModel.get("/") == before)
+    let errors = handler.capturedErrors.compactMap { error -> GenericError? in
+      guard case .generic(let generic) = error else { return nil }
+      return generic
+    }
+    let expectedPaths = [
+      "/name/first", "/flag/on", "/score/value", "/name/meta", "/name/tags", "/flag/valid",
+    ]
+    try #require(errors.count == expectedPaths.count)
+    #expect(errors.allSatisfy { $0.code == "DATA_ERROR" && $0.surfaceID == surface.surfaceID })
+    for (error, expectedPath) in zip(errors, expectedPaths) {
+      #expect(error.message.contains(expectedPath))
+    }
+  }
+
+  @Test func bindingWriteAfterSurfaceDisposeIsNoOp() throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/name", value: "Ada")
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": ["path": "/name/first"],
+          "count": ["path": "/score"],
+        ]
+      ]
+    )
+    let node = try #require(surface.rootNode)
+    let rejected = try #require(node.properties["label"] as? DataBinding<String>)
+    let accepted = try #require(node.properties["count"] as? DataBinding<Double>)
+    let before = surface.dataModel.get("/")
+
+    surface.dispose()
+    rejected.set("Grace")
+    accepted.set(2)
+
+    #expect(surface.dataModel.get("/") == before)
+    #expect(handler.capturedErrors.isEmpty)
+  }
+
+  @Test func acceptedBindingWriteReportsNoError() throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/name/first", value: "Ada")
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        ["id": "root", "component": "button", "label": ["path": "/name/first"]]
+      ]
+    )
+    let label = try #require(surface.rootNode?.properties["label"] as? DataBinding<String>)
+
+    label.set("Grace")
+
+    #expect(surface.dataModel.get("/name/first")?.stringValue == "Grace")
+    #expect(handler.capturedErrors.isEmpty)
+  }
+
   @Test func sliderNumberPropertiesResolution() async throws {
     let (processor, surface, _) = try makeProcessor()
     processor.updateDataModel(surfaceID: surface.surfaceID, path: "/progress", value: 0.45)
@@ -578,6 +677,121 @@ struct SurfaceViewModelTests {
     await Task.yield()
     let binding = try #require(surface.rootNode?.properties["icon"] as? DataBinding<String>)
     #expect(binding.value == "check")
+  }
+
+  @Test func directNonStringDataBindingAndInlineBooleanUnionResolveCorrectTypes() async throws {
+    let schema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "type": "string" },
+            "count": {
+              "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DataBinding"
+            },
+            "flag": {
+              "oneOf": [
+                { "type": "boolean" },
+                { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DataBinding" },
+                { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/FunctionCall" }
+              ]
+            }
+          },
+          "required": ["id", "component"]
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let catalog = Catalog(
+      id: "direct-union-catalog",
+      components: [AnyComponentAPI(name: "probe", schema: schema)]
+    )
+    let handler = TestActionHandler()
+    let processor = MessageProcessor(catalogs: [catalog], actionHandler: handler)
+    let surface = SurfaceViewModel(surfaceID: "s1", catalog: catalog, actionHandler: handler)
+    processor.surfaceGroupModel.addSurface(surface)
+    processor.updateDataModel(surfaceID: "s1", path: "/count", value: .integer(42))
+    processor.updateDataModel(
+      surfaceID: "s1",
+      path: "/validation",
+      value: .object(["valid": .boolean(false), "message": .string("No")])
+    )
+    processor.updateComponents(
+      surfaceID: "s1",
+      components: [
+        [
+          "id": "root",
+          "component": "probe",
+          "count": ["path": "/count"],
+          "flag": ["path": "/validation"],
+        ]
+      ]
+    )
+    await Task.yield()
+    let root = try #require(surface.rootNode)
+    let countBinding = try #require(root.properties["count"] as? DataBinding<JSONValue>)
+    #expect(countBinding.value == .integer(42))
+    countBinding.set(.integer(99))
+    await Task.yield()
+    #expect(surface.rootNode?.int(for: "count") == 99)
+
+    let flagBinding = try #require(surface.rootNode?.properties["flag"] as? DataBinding<Bool>)
+    #expect(flagBinding.value == false)
+  }
+
+  @Test func functionCallResolvesOnRootNode() async throws {
+    let schema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "type": "string" },
+            "computed": {
+              "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/FunctionCall"
+            }
+          },
+          "required": ["id", "component"]
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let catalog = Catalog(
+      id: "direct-fn-catalog",
+      components: [AnyComponentAPI(name: "probe", schema: schema)],
+      functions: [TestConcatFunction()]
+    )
+    let handler = TestActionHandler()
+    let processor = MessageProcessor(catalogs: [catalog], actionHandler: handler)
+    let surface = SurfaceViewModel(surfaceID: "s1", catalog: catalog, actionHandler: handler)
+    processor.surfaceGroupModel.addSurface(surface)
+    processor.updateDataModel(surfaceID: "s1", path: "/name", value: "Ada")
+    processor.updateComponents(
+      surfaceID: "s1",
+      components: [
+        [
+          "id": "root",
+          "component": "probe",
+          "computed": [
+            "call": "concat",
+            "args": ["a": "Hi ", "b": ["path": "/name"]],
+          ],
+        ]
+      ]
+    )
+    await Task.yield()
+    let binding = try #require(
+      surface.rootNode?.properties["computed"] as? DataBinding<JSONValue>
+    )
+    #expect(binding.value?.stringValue == "Hi Ada")
+
+    processor.updateDataModel(surfaceID: "s1", path: "/name", value: "Grace")
+    await Task.yield()
+    let updatedBinding = try #require(
+      surface.rootNode?.properties["computed"] as? DataBinding<JSONValue>
+    )
+    #expect(updatedBinding.value?.stringValue == "Hi Grace")
   }
 
   @Test func dynamicStringListResolvesArrayPathOnRootNode() async throws {
@@ -757,6 +971,7 @@ struct SurfaceViewModelTests {
     let action = try #require(archiveButton.action(for: "onClick"))
     action()
     let dispatched = try #require(handler.capturedActions.first)
+    #expect(dispatched.sourceComponentID == "delete")
     guard case .event(_, let context, _) = dispatched.identity else {
       Issue.record("Expected an event action")
       return

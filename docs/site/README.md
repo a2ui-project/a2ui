@@ -61,6 +61,7 @@ To include every specification version on `a2ui.org` **without duplicating Markd
     - Converts images to optimized `.webp` and assigns immutable, content-addressed filenames (`<namespace--name>.<sha256_8>.webp`).
     - Uploads assets to the `docs-assets` GitHub Release tag without `--clobber`, and records entries (dimensions, SHA-256, URL) in `docs/site/assets-manifest.json`.
     - Run `node scripts/upload-doc-asset.mjs --verify` (enforced during `npm run build` prebuild) to guarantee that all assets are tracked and no binary raster files are committed in `src/assets/`.
+    - The build serves its own copies: `node scripts/fetch-doc-assets.mjs` (run in `prebuild` and `predev`) downloads every manifest asset into `public/docs-assets/` and checks it against its SHA-256, retrying failed downloads. Pages still write the release URL from the manifest; `src/plugins/rehype-local-doc-assets.mjs` points Markdown and MDX images at `/docs-assets/<filename>`, and Astro pages build the same path from the manifest `filename`.
 3. **GitHub Pages Deployment & Legacy Redirects (`.github/workflows/docs.yml` & `astro.config.mjs`)**:
     - Builds `docs/site/dist/` (including `CNAME` for `a2ui.org`, `.nojekyll`, and Astro `redirects` for renamed legacy MkDocs paths) and deploys to the `gh-pages` branch on `a2ui-project/a2ui`.
 4. **Pull Request Previews (`.github/workflows/docs_site_preview.yml` & `.github/workflows/docs_site_preview_deploy.yml`)**:
@@ -84,3 +85,25 @@ To include every specification version on `a2ui.org` **without duplicating Markd
     - Migrate the remaining Markdown pages from `docs/public/` once the pilot pages are signed off.
 5. **Phase 5 — Cutover `.github/workflows/docs.yml` & Retire MkDocs**
     - Point `.github/workflows/docs.yml` to build and deploy `docs/site/dist/`.
+
+---
+
+## 6. Local Development
+
+`docs/site` is currently a standalone `npm` package (outside the root Yarn workspaces, with its own `package-lock.json`), so use `npm` rather than `yarn` (tracked for possible Yarn Berry migration in [#4220](https://github.com/a2ui-project/a2ui/issues/4220)). Because the root `package.json` declares `yarn` as `packageManager`, set `COREPACK_ENABLE_STRICT=0` when running `npm` inside the repository.
+
+```bash
+# Install dependencies
+COREPACK_ENABLE_STRICT=0 npm --prefix docs/site ci
+
+# Start local Astro dev server (stages assets, CNAME, llms.txt, and schemas first)
+COREPACK_ENABLE_STRICT=0 npm --prefix docs/site run dev
+
+# Run unit tests and asset/spec checks
+COREPACK_ENABLE_STRICT=0 npm --prefix docs/site test
+COREPACK_ENABLE_STRICT=0 npm --prefix docs/site run check
+
+# Build production bundle (includes link/anchor/CNAME checks) and preview locally
+COREPACK_ENABLE_STRICT=0 npm --prefix docs/site run build
+COREPACK_ENABLE_STRICT=0 npm --prefix docs/site run preview
+```

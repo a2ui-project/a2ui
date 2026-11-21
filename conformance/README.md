@@ -18,6 +18,7 @@ Test suites are organized by functional domain:
 - `core/validator_v0_8.yaml`, `core/validator_v0_9.yaml`, `core/validator_v1_0.yaml`: Contain test cases for schema and structural validation, one suite per protocol version. They cover envelope and component schema checks, duplicate IDs, missing roots, dangling references, cycles, reachability (including list templates and custom v0.8 roots), nesting depth limits, invalid paths, multiple surfaces, and incremental updates. Every case uses `action: validate` in strict mode. The messages in a step are processed in order, so a later message is checked against the components that earlier messages in the same step created. These three suites replace the former `core/validator.yaml`.
 - `core/data_model.yaml`: Contains test cases for the reactive data model, verifying JSON Pointer reads and writes, container creation, deletion, and observer notification.
 - `core/message_processor_v0_8.yaml`, `core/message_processor_v0_9.yaml`, `core/message_processor_v1_0.yaml`: Contain test cases for the message processor's state machine, one suite per protocol version. A step of a `process_messages` case may set `validationConfig`, the validation rules for that call only (`ExecutionContext.validationConfig`), in place of the rules the processor was created with. A rule the step leaves out is strict. These steps belong to the optional `agent_renderer_app` feature (`blueprints/features/agent_renderer_app.blueprint.md`), and an SDK that does not implement it skips their cases.
+- `core/add_catalog.yaml`: Contains test cases for `MessageProcessor.addCatalog`, which adds a catalog to a processor after it is built. A `process_messages` step may list `addCatalogPaths`: the harness loads each catalog with `fromJson` and adds it with `addCatalog` before it processes the step's messages. The cases cover a `createSurface` that names the added catalog, a surface created before the call that keeps its catalogs, and an id the processor already holds.
 - `core/node_resolution.yaml`: Covers 16 reactive `NodeResolver` and `ComponentNode` cases (`action: resolve_nodes`) executed across TypeScript (`@a2ui/web_core`), Python (`a2ui_core`), Dart (`a2ui_core`), and Swift (`A2UICore`). Scenarios check node tree materialization, scoped template bindings, incremental message streams (`op: process_messages`), cycle and orphan recovery, rule evaluation, action dispatch, and disposal. See [the case format](core/node_resolution.md).
 - `core/expressions.yaml`: Contains test cases for the client-side expression parser behind `formatString`, covering literals, data bindings, function calls, nested interpolation, escaped markers and parse errors.
 - `core/functions.yaml`: Contains test cases for the basic catalog functions, for the catalog a function call runs in on a surface, and for a call on a surface to a function whose `allowedCallers` is `agentOnly`, which the renderer refuses. See [Writing cases for `evaluate_function`](#writing-cases-for-evaluate_function).
@@ -33,6 +34,7 @@ The suites that do not depend on an inference format sit directly under `agent/`
 - `agent/catalog_transformer.yaml`: Applying component and function pruning rules to a catalog before it reaches a prompt or a validator.
 - `agent/catalog_provider.yaml`: Loading catalog documents from the filesystem, including the identity and protocol version checks a provider performs.
 - `agent/catalog_resolution.yaml`: Negotiating renderer capabilities against the catalogs an agent registered, including inline catalogs.
+- `agent/renderer_capabilities.yaml`: Reading and validating renderer capabilities from transport metadata (`a2uiRendererCapabilities` in v1.0 and `a2uiClientCapabilities` in v0.8, v0.9, and v0.9.1) before passing them to catalog resolution.
 - `agent/request_processor.yaml`: Building an inference format from its factory, and taking registered catalogs and renderer capabilities through to a request processor.
 - `agent/skill.yaml`: Generating skill documents and skill sets from a format and its catalogs, and checking that a monolithic skill's body equals the prompt snippet for the same catalogs (`monolithic_skill_equals_prompt_snippet`).
 - `agent/multi_catalog_formats.yaml`: Resolving components and function calls across active catalogs (omitting `createSurface.catalogId` when multiple catalogs are active, resolving un-annotated components and function calls by name when unique across active catalogs, and requiring an explicit `catalogId` override when ambiguous), across `direct_json` (and later `express`): compiling, decompiling (including omitting `catalogId` when name lookup is unambiguous), parsing a response, rendering a prompt snippet, and building a format. Component order inside a message carries no meaning, so a harness may compare the `components` of a compiled message by `id`.
@@ -76,6 +78,32 @@ It is the one suite under `agent/` that does not use the case vocabulary below. 
 - `extensions/a2a/a2a_integration.yaml`: Contains test cases for A2A protocol event and part conversions.
 - `extensions/adk/adk_extensions.yaml`: Contains test cases for ADK extensions and RPC handling.
 
+### End-to-end (`e2e/`)
+
+End-to-end conformance scenarios in `e2e/` capture complete multi-turn conversational transcripts and user interactions. Each scenario validates:
+
+- **Agent half**: Inbound chunks for each declared format (`direct_json`, `express`) are streamed and single-shot parsed by the agent SDK's response parser, verifying that they yield the exact expected wire messages (`expectWire`) with adjacent text parts merged.
+- **Renderer half**: The `a2ui` messages from each turn are dispatched into framework adapter harnesses (or `MessageProcessor`), which verify the resulting resolved view trees (`expectViewTree`), execute simulated user interactions (`uiOps`), and assert outbound event envelopes (`expectOutbound`) and data model states (`expectDataModel`).
+
+Harnesses running the agent half:
+
+- Python Agent: `python/a2ui_agent`
+- TypeScript Agent: `typescript/agents/a2ui_agent`
+- Dart Agent: `dart/a2ui_agent`
+
+Harnesses running the renderer half:
+
+- Web Renderers: `@a2ui/lit`, `@a2ui/react`, `@a2ui/angular`
+- Flutter Renderer: `dart/a2ui_flutter`
+- SwiftUI Renderer: `swift/swiftui`
+
+#### Adding an e2e scenario
+
+1. Author a new scenario YAML file in `conformance/e2e/<scenario_name>.yaml`.
+2. Specify `action: e2e_scenario`, `protocolVersion` (e.g. `"1.0"`), `catalogPaths`, `formats` (e.g. `[direct_json, express]`), and multi-turn exchanges with `modelChunks`, `expectWire`, `expectViewTree`, and optional `uiOps`, `expectDataModel`, and `expectOutbound`.
+3. Verify the scenario using `pytest conformance/tests/test_e2e_scenarios.py`.
+4. Regenerate the v0.9.1 copies under `conformance/e2e/v0_9_1/` with `uv run --package a2ui-agent-sdk python conformance/scripts/lower_e2e_scenarios.py`.
+
 All static test data and simplified schemas are located in the `test_data/` directory.
 
 `conformance_schema.json` at the root is the JSON schema that validates the structure of YAML test files across all domains.
@@ -107,6 +135,8 @@ Every conformance test runner must declare two top-level configuration variables
 2. **`SKIP_TEST_NAMES`**: A transition skip list containing test case names to temporarily skip during active feature transitions. At the start of a feature migration, test names for unimplemented features are added to this set and progressively removed as feature implementations complete. Skipped tests are logged as `[SKIPPED]` without marking test runs as failures.
 
 When `A2UI_CONFORMANCE_MANIFEST_DIR` is set in CI, each harness writes one JSON Lines record per executed or skipped case to that directory, validated against [`executed_case_manifest.schema.json`](executed_case_manifest.schema.json), and [`scripts/check_executed_cases.py`](scripts/check_executed_cases.py) compares the recorded cases against the suite globs in [`manifest_corpora.json`](manifest_corpora.json). See [Executed-case manifest](conformance_harness_implementation_guide.md#5-executed-case-manifest) in the harness implementation guide for the record format, strict dispatch rules, and comparer flags.
+
+`features.yaml` (validated by [`features.schema.json`](features.schema.json)) maps each protocol, blueprint, and SDK audit feature ID (`F-CORE-*`, `F-AGT-*`, `F-RND-*`, `F-BP-*`) to its specification and blueprint anchors and the harnesses claiming support. Test cases list the feature IDs they exercise under `features`, and [`scripts/check_feature_coverage.py`](scripts/check_feature_coverage.py) checks both static registry integrity (`--static`) and per-harness execution against the manifest directory (`--manifest-dir` and `--harness`).
 
 Client-side implementations run these suites too:
 
@@ -204,7 +234,7 @@ Each function takes any object as its arguments (schema `{type: object}`) and re
 
 Before the catalog checks, `call` checks its own arguments, in this order: an empty given `functionCallId`, then (after the duplicate and pending-limit checks) an empty `name`, an empty `catalogId`, a `name` that isn't a UAX #31 identifier or starts with `@`, and `args` that aren't an object with identifier keys and JSON values. Each is `INVALID_FUNCTION_CALL`. Two cases pin the order with `expect_error.message`: an empty name and catalogId must give a message containing `function name`, and a bad argument key sent to a `rendererOnly` function must give a message containing the key. An SDK's message for a bad argument key names the key. A statically typed SDK whose `call` can't take a non-object `args` (Dart) meets `test_call_renderer_function_with_args_that_are_not_an_object` by showing that such a value can't be passed (a type error), with nothing sent or pending, instead of raising `INVALID_FUNCTION_CALL`.
 
-Only the Python agent harness runs this suite so far: the TypeScript and Dart agent harnesses (`typescript/agents/a2ui_agent` and `dart/a2ui_agent`) don't load it yet.
+The Python, TypeScript and Dart agent harnesses run this suite.
 
 ### Writing cases for the agent SDK suites
 

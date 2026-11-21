@@ -17,14 +17,22 @@ yarn add @a2ui/lit @a2ui/web_core
 
 ## Protocol Versioning
 
-A2UI supports multiple protocol versions. For new projects, it is recommended to
-use the **v0.9** protocol.
-
-To use the v0.9 implementation, import from the versioned path:
+A2UI supports multiple protocol versions. For new projects, use the **v1.0**
+protocol: import the renderer from the package root (`@a2ui/lit`), the
+`MessageProcessor` from `@a2ui/web_core`, and the basic catalog for your
+target protocol version:
 
 ```typescript
-import {A2uiSurface, basicCatalog} from '@a2ui/lit/v0_9';
+import {A2uiSurface} from '@a2ui/lit';
+import {MessageProcessor} from '@a2ui/web_core';
+
+// Basic catalog for v1.0:
+import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+// ...or for v0.9 and v0.9.1:
+// import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 ```
+
+The `@a2ui/lit/v0_9` entry point remains available for backward compatibility.
 
 ## Quick Start
 
@@ -33,8 +41,9 @@ The Lit renderer works alongside the `MessageProcessor` from `@a2ui/web_core`.
 ```typescript
 import {LitElement, html} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
-import {A2uiSurface, basicCatalog} from '@a2ui/lit/v0_9';
+import {MessageProcessor} from '@a2ui/web_core';
+import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {A2uiSurface} from '@a2ui/lit';
 
 @customElement('my-app')
 export class MyApp extends LitElement {
@@ -56,7 +65,7 @@ export class MyApp extends LitElement {
     // The message objects should come from your agent
     this.processor.processMessages([
       {
-        version: 'v0.9',
+        version: '1.0',
         createSurface: {
           surfaceId: 'main-chat',
           catalogId: basicCatalog.id,
@@ -79,7 +88,7 @@ export class MyApp extends LitElement {
 
 ## Defining Custom Components
 
-A2UI v0.9 separates a component's API (Schema) from its implementation.
+A2UI separates a component's API (Schema) from its implementation.
 
 ### 1. Define the Component API
 
@@ -87,7 +96,7 @@ Use Zod to define the properties.
 
 ```typescript
 import {z} from 'zod';
-import {CommonSchemas} from '@a2ui/web_core/v0_9';
+import {CommonSchemas} from '@a2ui/web_core/v1_0';
 
 export const MyProfileApi = {
   name: 'Profile',
@@ -101,10 +110,10 @@ export const MyProfileApi = {
 
 ### 2. Create the Lit Implementation
 
-Extend `A2uiLitElement` and implement `createController` and `render`.
+Extend `A2uiLitElement` and implement `render`.
 
 ```typescript
-import {A2uiLitElement} from '@a2ui/lit/v0_9';
+import {A2uiLitElement} from '@a2ui/lit';
 import {customElement} from 'lit/decorators.js';
 import {html, nothing} from 'lit';
 import {MyProfileApi} from './my-profile-api';
@@ -131,18 +140,19 @@ export class MyProfileElement extends A2uiLitElement<typeof MyProfileApi> {
 export const MyProfile = {
   ...MyProfileApi,
   tagName: 'my-profile',
+  element: MyProfileElement,
 };
 ```
 
 ### 3. Define the Catalog
 
-Group your custom components into a `Catalog` from `@a2ui/web_core/v0_9`.
+Group your custom components into a `Catalog` from `@a2ui/web_core`.
 
 ```typescript
-import {Catalog} from '@a2ui/web_core/v0_9';
+import {Catalog} from '@a2ui/web_core';
 import {MyProfile} from './my-profile';
 
-export const myCatalog = new Catalog('https://example.com/catalogs/my-catalog.json', 'v0.9', [
+export const myCatalog = new Catalog('https://example.com/catalogs/my-catalog.json', '1.0', [
   MyProfile,
 ]);
 ```
@@ -153,8 +163,8 @@ Pass your custom catalog to the `MessageProcessor` alongside the basic catalog
 in your app setup (as seen in the Quick Start).
 
 ```typescript
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
-import {basicCatalog} from '@a2ui/lit/v0_9';
+import {MessageProcessor} from '@a2ui/web_core';
+import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 import {myCatalog} from './my-catalog';
 
 // Initialize the MessageProcessor with both catalogs
@@ -163,14 +173,14 @@ const processor = new MessageProcessor([basicCatalog, myCatalog]);
 
 ## Basic Catalog Components
 
-The `@a2ui/lit/v0_9` package includes a `basicCatalog` with standard components.
-You can find the full specification of the basic catalog in the [GitHub repository](../../../specification/v0_9/catalogs/basic/catalog.json).
+`@a2ui/web_core/catalogs/basic/v1` (v1.0) and `@a2ui/web_core/v0_9/basic_catalog` (v0.9 and v0.9.1) each provide a `basicCatalog` with standard components.
+You can find the full specification of the basic catalog in the [GitHub repository](../../../catalogs/basic/v1/catalog.json).
 
 - **Layout**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`
-- **Content**: `Text`, `Image`, `Icon`, `Video`
+- **Content**: `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`
 - **Input**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`
 
-The standard basic catalog components are implemented as framework-agnostic universal Custom Elements in `@a2ui/web_core` ([source code on GitHub](../../core/web_core/src/v0_9/basic_catalog/components)) and re-exported from `@a2ui/lit/v0_9` for backwards compatibility.
+The standard basic catalog components are implemented as framework-agnostic universal Custom Elements in `@a2ui/web_core` ([source code on GitHub](../../core/web_core/src/universal/basic_catalog/components)).
 
 ## Migration from v0.8
 

@@ -59,7 +59,7 @@ All cross-page links must target these exact Starlight routes (with `docs/site/s
 | **Concepts**      | Accessibility (A11y)                           | **P2**   | `content/docs/concepts/accessibility.mdx`                                 | `/concepts/accessibility/`                                 |
 | **Concepts**      | Glossary                                       | **P2**   | `content/docs/concepts/glossary.mdx`                                      | `/concepts/glossary/`                                      |
 | **Guides**        | How to Integrate A2UI into a Client            | **P1**   | `content/docs/guides/client-integration.mdx`                              | `/guides/client-integration/`                              |
-| **Guides**        | How to Integrate with My Agent Server          | **P1**   | `content/docs/guides/agent-integration.mdx`                               | `/guides/agent-integration/`                               |
+| **Guides**        | How to Integrate A2UI into an Agent            | **P1**   | `content/docs/guides/agent-integration.mdx`                               | `/guides/agent-integration/`                               |
 | **Guides**        | How to Define a Catalog                        | **P1**   | `content/docs/guides/defining-a-catalog.mdx`                              | `/guides/defining-a-catalog/`                              |
 | **Guides**        | Using Macros                                   | **P2**   | `content/docs/guides/macros.mdx`                                          | `/guides/macros/`                                          |
 | **Guides**        | Architecting an A2UI Integration               | **P2**   | `content/docs/guides/architecting-an-integration.mdx`                     | `/guides/architecting-an-integration/`                     |
@@ -179,7 +179,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### Data Model and Data Binding (`/concepts/data-binding/`) [P0]
 
-- **Sources**: [`specification/v1_0/json/common_types.json`](../../specification/v1_0/json/common_types.json), [`specification/v0_9_1/json/common_types.json`](../../specification/v0_9_1/json/common_types.json), [`catalogs/basic/v1/examples/`](../../catalogs/basic/v1/examples/), and [`specification/v0_9_1/catalogs/basic/examples/`](../../specification/v0_9_1/catalogs/basic/examples/).
+- **Sources**: [`specification/v1_0/json/common_types.json`](../../specification/v1_0/json/common_types.json), [`specification/v0_9_1/json/common_types.json`](../../specification/v0_9_1/json/common_types.json), [`catalogs/basic/v1/examples/`](../../catalogs/basic/v1/examples/), and [`catalogs/basic/v0_9_1/examples/`](../../catalogs/basic/v0_9_1/examples/).
 - **Content Outline**:
     1. **What is the Data Model?**: Per-surface reactive JSON state scoped to `surfaceId`, updated independently of the UI tree via `updateDataModel` JSON Pointers.
     2. **Populating the Data Model**: Contrast deterministic backend/tool data injection with LLM-generated initial `dataModel` or `updateDataModel` messages.
@@ -267,7 +267,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### Glossary (`/concepts/glossary/`) [P2]
 
-- Port [`docs/public/concepts/glossary.md`](../public/concepts/glossary.md), updated with `v1.0` terminology (`agent_to_renderer`, `renderer_to_agent`, `@path`, `@call`, `callAgentFunction`, `callRendererFunction`).
+- Cover `v1.0` terminology (`agent_to_renderer`, `renderer_to_agent`, `@path`, `@call`, `callAgentFunction`, `callRendererFunction`).
 
 ### Guides
 
@@ -277,7 +277,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 - **Sources**: Link to [SDKs](#sdks) (`/concepts/sdks/#renderer-sdk`) for package coordinates; verify APIs against `dart/a2ui_flutter/`, `typescript/renderers/`, `swift/swiftui/`, `samples/client/`, and [https://developer.android.com/develop/ui/compose/agentic](https://developer.android.com/develop/ui/compose/agentic).
 - **Content Outline** (tabbed across `Flutter` | `React` | `Lit` | `Angular` | `SwiftUI` | `Jetpack Compose`):
-    1. **Overview**: Direct purpose statement linking to `/concepts/sdks/#renderer-sdk` and cross-linking to `/guides/agent-integration/` and `/guides/defining-a-catalog/`.
+    1. **Overview**: Direct purpose statement linking to `/concepts/sdks/#renderer-sdk`, noting single-binary co-location via shared Core SDK data structures, and cross-linking to `/guides/agent-integration/` and `/guides/defining-a-catalog/`.
     2. **Step 1: Install Dependencies**: Tabbed install commands matching `/concepts/sdks/#renderer-sdk` (including `@a2ui/markdown-it` on Web).
     3. **Step 2: Initialize `MessageProcessor`**: Registering the built-in Basic Catalog (plus custom catalog pointer), configuring styles and sanitized Markdown on Web, and wiring `onAction` / `actionHandler` directly to transport.
     4. **Step 3: Mount Surface Views**: Verified surface widget/component mounting snippets per framework.
@@ -285,25 +285,26 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
     6. **Step 5: Wire Everything at the App Entry Point**: Bootstrapping the shared session controller/service and mounted surface view at application startup.
     7. **Additional Steps**: Customizing Web Basic Catalog CSS custom properties (`--a2ui-*`), advertising renderer capabilities (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1), and synchronizing client data models (`sendDataModel: true` via `a2uiRendererDataModel` / `a2uiClientDataModel`) alongside bidirectional function RPCs (`outboundListener`) and validation error reporting (`errorHandler`).
 
-<a id="how-to-integrate-with-my-agent-server"></a>
+<a id="how-to-integrate-a2ui-into-an-agent"></a>
 
-#### How to Integrate with My Agent Server (`/guides/agent-integration/`) [P1]
+#### How to Integrate A2UI into an Agent (`/guides/agent-integration/`) [P1]
 
-- **Sources**: Link to [SDKs](#sdks) (`/concepts/sdks/#agent-sdk`) for package coordinates; verify APIs against `python/a2ui_agent/`, `python/a2ui_adk/`, `python/a2ui_a2a/`, `typescript/agents/a2ui_agent/`, `dart/a2ui_agent/`, and [`docs/public/guides/a2ui-with-any-agent-framework.md`](../public/guides/a2ui-with-any-agent-framework.md).
+- **Sources**: Link to [SDKs](#sdks) (`/concepts/sdks/#agent-sdk`) for package coordinates; verify APIs against `python/a2ui_agent/`, `python/a2ui_adk/`, `python/a2ui_a2a/`, `typescript/agents/a2ui_agent/`, and `dart/a2ui_agent/`.
 - **Content Outline** (tabbed across `TypeScript` | `Python` | `Dart`):
-    1. **Overview**: Link to `/concepts/sdks/#agent-sdk` and summarize the 6 server steps.
+    1. **Overview**: Direct purpose statement linking to `/concepts/sdks/#agent-sdk`, noting single-binary co-location via shared Core SDK data structures, and cross-linking to `/guides/client-integration/`, `/guides/defining-a-catalog/`, and `/concepts/inference-formats/`.
     2. **Step 1: Install Dependencies**: Tabbed install commands matching `/concepts/sdks/#agent-sdk`.
-    3. **Step 2: Configure `A2uiGenerator`, Catalogs & Inference Format**: Initializing `CatalogConfig` and the inference format factory (`inferenceFormatFactory` in TS/Dart, `inference_format_factory` in Python; include a 1-sentence link to `/guides/macros/` for Python `MacroExpander`).
-    4. **Step 3: Negotiate Capabilities & Inject System Prompt**: Creating a request processor from client capabilities (`a2uiRendererCapabilities` / `a2uiClientCapabilities`) and appending `promptSnippet` / `prompt_snippet` to LLM system instructions.
-    5. **Step 4: Parse Output, Validate & Self-Correct**: Using `parseResponse` / `parse_response` (or `openStream` / `open_stream`), validating against `RendererState`, and feeding `VALIDATION_FAILED` errors back to the LLM for retry.
-    6. **Step 5: Multi-Turn Actions & RPCs**: Feeding inbound `action` events (and accompanying `a2uiRendererDataModel` / `a2uiClientDataModel` transport metadata when `sendDataModel: true`) into conversation state and answering `callAgentFunction` with `agentFunctionResponse`.
-    7. **Step 6: Agent Framework & Transport Wiring**: Consolidate ADK (`a2ui-adk` toolset/store + `a2ui-adk[a2a]` `A2uiEventConverter`), A2A (`a2ui-a2a` part helpers), and AG-UI (via CopilotKit) or custom SSE/WebSocket harnesses.
+    3. **Step 2: Initialize the A2UI Generator**: Registering the built-in Basic Catalog inside `CatalogConfig` (plus custom catalog pointer), injecting a model-streaming callback, and maintaining per-session `RendererState` with default `ExpressFormatFactory`.
+    4. **Step 3: Build the System Prompt and Stream A2UI Messages**: Creating a per-turn `A2uiRequestProcessor` bound to `RendererState`, appending its generated prompt snippet to agent instructions, and streaming validated Core SDK `AgentToRendererMessage` structures, plus collapsed `v1.0` and `v0.9.1` wire-format examples.
+    5. **Step 4: Process Messages from the Renderer**: Separating plain text prompts from A2UI `renderer_to_agent` envelopes and routing A2UI messages through `RendererToAgentMessageProcessor`, registering an action handler to prompt the model while deterministic logic handles `callAgentFunction` RPCs and client `error`s, plus collapsed `v1.0` and `v0.9.1` wire-format examples.
+    6. **Step 5: Connect to a Transport**: Transport-agnostic guidance (SSE, WebSockets, AG-UI, A2A, MCP, or in-process Core SDK passing) plus a concrete HTTP SSE server example backed by a streaming LLM client.
+    7. **Additional Steps**: Separate focused sections for negotiating client capabilities (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1), registering agent-hosted functions (`AgentFunction`), calling renderer-side functions (`RendererFunctionCalls`), reading synchronized client data models (`sendDataModel: true` via `a2uiRendererDataModel` / `a2uiClientDataModel`), validating whole responses with `A2uiError` retry, and customizing catalogs and inference formats (`ComponentPruningTransformer`, `DirectJsonFormatFactory`, and Python `@macro` linking to `/guides/macros/`).
+    8. **Connect to Agent Frameworks and Transports**: Consolidate Google ADK (`a2ui-adk` `A2uiProcessorStore`, `A2uiInstruction`, `SendA2uiToClientToolset`, and `a2ui-adk[a2a]` `a2ui_rpc_callback` / `A2uiEventConverter`), A2A (`a2ui-a2a` extension, part, and RPC helpers), and AG-UI (via CopilotKit) plus MCP cross-links.
 
 <a id="how-to-define-a-catalog"></a>
 
 #### How to Define a Catalog (`/guides/defining-a-catalog/`) [P1]
 
-- **Sources**: [`docs/public/guides/defining-your-own-catalog.md`](../public/guides/defining-your-own-catalog.md), [`docs/public/guides/authoring-components.md`](../public/guides/authoring-components.md), `/specification/v1.0/schemas/#catalog_definition.json`, [`catalogs/basic/v1/catalog.json`](../../catalogs/basic/v1/catalog.json), and [`specification/v0_9_1/catalogs/basic/catalog.json`](../../specification/v0_9_1/catalogs/basic/catalog.json).
+- **Sources**: `/specification/v1.0/schemas/#catalog_definition.json`, [`catalogs/basic/v1/catalog.json`](../../catalogs/basic/v1/catalog.json), and [`catalogs/basic/v0_9_1/catalog.json`](../../catalogs/basic/v0_9_1/catalog.json).
 - **Content Outline**:
     1. **When You Need a Standalone `catalog.json`**: Sharing a language-agnostic contract across separate agent and client runtimes.
     2. **Catalog Schema Anatomy (`v1.0` vs. `v0.9.1` Tabs)**: Envelope metadata (`$schema`, `$id`, `catalogId` URI, `title`, `description`, plus v1.0-only `protocolVersion`, `metadata`, and `instructions`), top-level `components` and `functions` maps (direct component properties + `allowedParents`/`allowedChildren` + `Checkable` `checks` support and function `returnType`/`allowedCallers`/`requiresUserActivation` in v1.0 vs. `allOf` `ComponentCommon` wrappers in v0.9.1), and `$defs` (`anyComponent`, `anyFunction`).
@@ -329,7 +330,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 - **Content Outline**:
     1. **Catalog Strategy (Basic vs. Custom vs. Hybrid & Macros)**: Compare off-the-shelf Basic Catalog, custom design-system catalogs, and hybrid composition, plus a 1-sentence trade-off linking to [`/guides/macros/`](#macros) (agile web client components vs. server macros avoiding mobile app-store release cycles).
-    2. **Transport Selection**: Compare standardized agent protocols (**AG-UI** and **A2A**, linking to [`/guides/agent-integration/`](#how-to-integrate-with-my-agent-server)) and **MCP** (`ui://` resources, linking to [`/guides/a2ui-over-mcp/`](#a2ui-over-mcp)) alongside custom transport patterns (**SSE + HTTP POST**, noting HTTP/1.1 connection limits vs. HTTP/2, and **WebSockets** for full-duplex RPCs).
+    2. **Transport Selection**: Compare standardized agent protocols (**AG-UI** and **A2A**, linking to [`/guides/agent-integration/`](#how-to-integrate-a2ui-into-an-agent)) and **MCP** (`ui://` resources, linking to [`/guides/a2ui-over-mcp/`](#a2ui-over-mcp)) alongside custom transport patterns (**SSE + HTTP POST**, noting HTTP/1.1 connection limits vs. HTTP/2, and **WebSockets** for full-duplex RPCs).
     3. **Content Persistence & Session Replay**: Explain the **Wire-Only Replay Trap** (local two-way input bindings mutate `dataModel` without emitting wire messages, so replaying `agent_to_renderer` messages alone loses user form edits) and the recommended pattern (persisting per-surface `renderer_data_model.json` snapshots alongside messages, filtering transient `callRendererFunction` RPCs, and rendering historical turns read-only when appropriate) vs. static rendered snapshots.
     4. **Surface Scoping & Lifecycle**: Compare Conversation Scoping (single `MessageProcessor` per conversation enabling retroactive in-place updates) vs. Turn Scoping (isolated `MessageProcessor` per turn, requiring turn-prefixed unique `surfaceId`s like `turn_2_main` rather than reusing `"main"`).
 
@@ -359,7 +360,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### A2UI over MCP (`/guides/a2ui-over-mcp/`) [P1]
 
-- Port [`docs/public/guides/a2ui_over_mcp.md`](../public/guides/a2ui_over_mcp.md), referencing [`samples/community/mcp/a2ui-over-mcp-recipe/`](../../samples/community/mcp/a2ui-over-mcp-recipe/).
+- Reference [`samples/community/mcp/a2ui-over-mcp-recipe/`](../../samples/community/mcp/a2ui-over-mcp-recipe/).
 
 <a id="mcp-apps-in-a2ui-surfaces"></a>
 
@@ -371,13 +372,13 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### A2UI Dynamic Rendering within MCP Applications (`/guides/a2ui-in-mcp-apps/`) [P1]
 
-- Port [`docs/public/guides/a2ui-in-mcp-apps.md`](../public/guides/a2ui-in-mcp-apps.md), referencing [`samples/community/mcp/a2ui-in-mcpapps/`](../../samples/community/mcp/a2ui-in-mcpapps/).
+- Reference [`samples/community/mcp/a2ui-in-mcpapps/`](../../samples/community/mcp/a2ui-in-mcpapps/).
 
 <a id="authoring-universal-web-components"></a>
 
 #### Authoring Universal Web Components (`/guides/authoring-universal-components/`) [P1]
 
-- Port [`docs/public/guides/authoring-universal-components.md`](../public/guides/authoring-universal-components.md) (`A2uiLitElement` from `@a2ui/web_core/v0_9/universal` or `@a2ui/lit/v0_9`, consumed across React, Angular, and Lit via `WebComponentImplementation`).
+- Document `A2uiLitElement` from `@a2ui/web_core/v0_9/universal` or `@a2ui/lit/v0_9`, consumed across React, Angular, and Lit via `WebComponentImplementation`.
 
 <a id="sdk-development"></a>
 
@@ -406,7 +407,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 ### Community Projects (`/ecosystem/renderers/`) [P1]
 
-- Port and clean up [`docs/public/ecosystem/renderers.md`](../public/ecosystem/renderers.md):
+- **Content Outline**:
     1. **Introduction & Disclaimer**: Clarify community maintenance and link to [`/concepts/sdks/`](#sdks) for official first-party SDKs.
     2. **Unified Community Renderers Table**: Project/package name, target platform/framework, supported protocol versions (`v0.8`, `v0.9.1`, `v1.0`), maintenance status, and repo/registry links.
     3. **Agent-Side Libraries & Ecosystem Utilities**: Community server libraries, transports, and developer tools.
@@ -435,7 +436,7 @@ Single-source specification markdown files directly from `specification/` and `c
     - `v0.9.1 JSON Schemas Explorer`: `/specification/v0.9.1/schemas/`
     - `v0.9.1 A2A Extension`: [`specification/v0_9_1/docs/a2ui_extension_specification.md`](../../specification/v0_9_1/docs/a2ui_extension_specification.md)
     - `v0.9.1 Evolution Guide`: [`specification/v0_9_1/docs/evolution_guide.md`](../../specification/v0_9_1/docs/evolution_guide.md)
-    - `v0.9.1 Basic Catalog Guide`: [`specification/v0_9_1/docs/basic_catalog_implementation_guide.md`](../../specification/v0_9_1/docs/basic_catalog_implementation_guide.md)
+    - `v0.9.1 Basic Catalog Guide`: [`catalogs/basic/v0_9_1/basic_catalog_implementation_guide.md`](../../catalogs/basic/v0_9_1/basic_catalog_implementation_guide.md)
 
 ---
 
@@ -460,7 +461,7 @@ Each version's **JSON Schemas Explorer** (`/specification/<ver>/schemas/`, imple
         - _Data Model_: `client_data_model.json`
         - _Capabilities_: `server_capabilities.json`, `client_capabilities.json`
         - _Batching & Wrappers_: `server_to_client_list.json`, `client_to_server_list.json`, `server_to_client_list_wrapper.json`, `client_to_server_list_wrapper.json`
-        - _Basic Catalog Schema_: Rendered at the end of the [`v0.9.1` Basic Catalog Guide](src/content/docs/specification/v0.9.1-basic-catalog-implementation-guide.mdx) (`/specification/v0.9.1-basic-catalog-implementation-guide/#basic_catalog.json`, sourced from [`specification/v0_9_1/catalogs/basic/catalog.json`](../../specification/v0_9_1/catalogs/basic/catalog.json)).
+        - _Basic Catalog Schema_: Rendered at the end of the [`v0.9.1` Basic Catalog Guide](src/content/docs/specification/v0.9.1-basic-catalog-implementation-guide.mdx) (`/specification/v0.9.1-basic-catalog-implementation-guide/#basic_catalog.json`, sourced from [`catalogs/basic/v0_9_1/catalog.json`](../../catalogs/basic/v0_9_1/catalog.json)).
 2. **Utility Bar per Schema**:
     - Displays the canonical `$id` URI with a 1-click **Copy `$id`** button when `$id` is present (omitted on schemas without `$id`, such as v0.9.1 `client_to_server.json`), a **Raw JSON** link pointing to the exact versioned static file staged in `public/specification/<version_dir>/` by [`prepare-spec-assets.mjs`](scripts/prepare-spec-assets.mjs), and a **Jump to Definition / Copy Permalink** dropdown.
 3. **Permalink Contract Implementation**:

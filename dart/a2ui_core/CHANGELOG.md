@@ -2,6 +2,63 @@
 
 ## Unreleased
 
+- **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.5.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
+- Regenerate the v0.9 basic catalog bindings and update documentation paths after moving the pre-1.0 catalogs to `catalogs/` ([#4150](https://github.com/a2ui-project/a2ui/pull/4150)).
+- Added `MessageProcessor.addCatalog`, which adds a catalog to a processor
+  after it is built. `createSurface` messages, renderer function calls and
+  `getRendererCapabilities` see the catalog from then on; surfaces created
+  before the call keep the catalogs they were created with. A catalog whose id
+  the processor already holds is rejected with `A2uiCatalogError`.
+  `MessageProcessor.catalogs` lists the added catalog too, and still cannot
+  be modified ([#3303](https://github.com/a2ui-project/a2ui/issues/3303),
+  [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
+
+## 0.8.0
+
+- **Breaking:** `PayloadValidator` enforces RFC 3986 scheme-prefixed URI syntax (`^[A-Za-z][A-Za-z0-9+.-]*:\S*$`) on string subschemas with `"format": "uri"` (such as `openUrl.args.url`) without mutating `Catalog.toJson()`, rejecting strings lacking a scheme or containing whitespace ([#4173](https://github.com/a2ui-project/a2ui/issues/4173), [#4187](https://github.com/a2ui-project/a2ui/pull/4187)).
+- **Breaking:** (v1_0) Update `ComponentCommon` and `Checkable` schemas, `Catalog.toJson()`, `Catalog.validationSchema`, and `ComponentModel.toJson()` to emit `@catalogId`, `@metadata`, `@accessibility`, and `@checks` on v1.0 surfaces, while `PayloadValidator` and `MessageProcessor` gate component `metadata` and `catalogId` envelope handling to v1.0+ surfaces (so pre-1.0 surfaces treat them as ordinary component properties), dual-read legacy bare `catalogId`, `metadata`, `accessibility`, and `checks` when undeclared as custom properties by the component schema, validate `@metadata.extensions` keys as UAX #31 identifiers, reject `null` `@catalogId` / legacy `catalogId`, and reject components specifying both `@`-prefixed and bare forms of the same mixin ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#3466](https://github.com/a2ui-project/a2ui/issues/3466), [#3511](https://github.com/a2ui-project/a2ui/issues/3511), [#4012](https://github.com/a2ui-project/a2ui/issues/4012), [#4037](https://github.com/a2ui-project/a2ui/pull/4037), [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+- Resolve component properties that reference `FunctionCall` directly in `GenericBinder`, and (v1_0) coerce inline `oneOf` unions of `boolean`, `DataBinding`, and `FunctionCall` to a boolean as `DynamicBoolean` properties are ([#3809](https://github.com/a2ui-project/a2ui/issues/3809)).
+- Add explicit type annotations to internal local and pattern variables to satisfy the `specify_nonobvious_local_variable_types` analyzer lint on Dart 3.15+ ([#4233](https://github.com/a2ui-project/a2ui/pull/4233)).
+
+- `MessageProcessor` reports unknown envelope keys, including misspelled message
+  types, at the key's JSON Pointer instead of `/version`. Validation error
+  details keep dot paths and the message index
+  ([#4194](https://github.com/a2ui-project/a2ui/issues/4194)).
+
+## 0.7.0
+
+- **Breaking:** (v0_9) `MessageProcessor` treats a component's `metadata` key
+  as an ordinary property on v0.9 surfaces, since v0.9 defines no component
+  metadata: it stays in `ComponentModel.properties`, is checked against the
+  component's schema only, and `ComponentModel.metadata` stays null. Before,
+  it was checked against the v1.0 metadata rules and moved out of the
+  properties. To migrate, read `metadata` from `properties` on v0.9
+  surfaces, or move to v1.0 for component metadata
+  ([#4137](https://github.com/a2ui-project/a2ui/issues/4137),
+  [#4140](https://github.com/a2ui-project/a2ui/pull/4140)).
+- `MessageProcessor` takes `unifiedOutbound` (`false` by default). When `true`,
+  `outboundListener` also receives an `ActionMessage` for each action emitted
+  on `model.onAction`, carrying the surface's protocol version; `onAction` and
+  `model.onAction` still fire. Setting `unifiedOutbound: true` without an
+  `outboundListener` throws `ArgumentError`
+  ([#4015](https://github.com/a2ui-project/a2ui/issues/4015),
+  [#4079](https://github.com/a2ui-project/a2ui/pull/4079)).
+- (v1_0) Function calls inside `${...}` template expressions of `formatString`
+  now inherit the `catalogId` that the enclosing `formatString` call resolved
+  to (preserving reserved `@`-prefixed system calls such as `${@index()}` as
+  catalogless), so nested template calls resolve against `formatString`'s
+  catalog on defaultless surfaces and when the surface defines a different
+  default `catalogId`
+  ([#3727](https://github.com/a2ui-project/a2ui/issues/3727),
+  [#4029](https://github.com/a2ui-project/a2ui/pull/4029)).
+- (v1_0) Ignore `$`-prefixed JSON Schema keywords (such as `$comment` and `$defs`) when checking shorthand function parameter map keys against Unicode UAX 31 in `Catalog.fromJson` ([#3831](https://github.com/a2ui-project/a2ui/pull/3831)).
+- (v1_0) The common types `IndexSystemFunction` schema declares `"returnType": "number"`, like catalog functions do ([#3725](https://github.com/a2ui-project/a2ui/issues/3725), [#4025](https://github.com/a2ui-project/a2ui/pull/4025)).
+
+## 0.6.0
+
+- Rename `Catalog.toLegacyInlineCatalog()` to `Catalog.toV09InlineCatalog()`.
+  `toLegacyInlineCatalog()` remains as a deprecated alias
+  ([#4006](https://github.com/a2ui-project/a2ui/pull/4006)).
 - **Breaking:** (v1_0) `PayloadValidator.validateComponent`, and
   `MessageProcessor` for calls into another catalog, reject a call to a
   function whose `allowedCallers` is `agentOnly` in a property binding, a
@@ -48,6 +105,13 @@
   `a2ui_agent`'s `RendererFunctionCalls` reports when an agent has too many
   calls to renderer functions pending
   ([#3535](https://github.com/a2ui-project/a2ui/issues/3535)).
+- `GenericBinder` treats an object schema without an `Action` reference as an
+  inline action only when its only property is `event` or `functionCall`, as
+  in the specification's `Action`, and never treats a component's own schema
+  as one. A component that declares an `event` property, or a list whose items
+  declare one, now gets those values as written instead of action closures
+  ([#4086](https://github.com/a2ui-project/a2ui/issues/4086),
+  [#4087](https://github.com/a2ui-project/a2ui/pull/4087)).
 
 ## 0.5.0
 
@@ -175,7 +239,7 @@
   ([#2724](https://github.com/a2ui-project/a2ui/pull/2724)).
 - **Breaking:** `MessageProcessor.catalogs` cannot be modified: it is a copy
   of the list the processor was created with, and adding to it throws
-  `UnsupportedError`. Pass every catalog when creating the processor
+  `UnsupportedError`. Add a catalog with `addCatalog`
   ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
 - Added `MessageErrorMapper`, `SurfaceGroupModel.onError`, and
   `MessageProcessor.processMessagesWithErrors` for mapping `A2uiError`

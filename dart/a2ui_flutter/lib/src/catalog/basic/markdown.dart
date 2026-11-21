@@ -16,8 +16,11 @@ import 'package:flutter/widgets.dart';
 
 /// Builds the widget that renders [markdown] with [style] as its base text
 /// style.
-typedef A2uiMarkdownBuilder =
-    Widget Function(BuildContext context, String markdown, TextStyle style);
+typedef A2uiMarkdownBuilder = Widget Function(
+  BuildContext context,
+  String markdown,
+  TextStyle style,
+);
 
 /// Renders the markdown of the basic `Text` components below it.
 ///

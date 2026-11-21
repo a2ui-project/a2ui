@@ -35,6 +35,8 @@ const NEWLINE_STRIPPED_KEYS = new Set([
   'child',
   'surfaceId',
   'catalogId',
+  // The v1.0 component-level catalog override.
+  '@catalogId',
   'componentId',
 ]);
 
@@ -551,7 +553,9 @@ class Reader {
     if (this.atEnd && this.partial) this.end();
     const literal = this.text.slice(start, this.i);
     if (!NUMBER_RE.test(literal)) this.fail(`invalid number '${literal}'`);
-    return Number(literal);
+    const value = Number(literal);
+    if (!Number.isFinite(value)) this.fail(`number '${literal}' is out of range`);
+    return value;
   }
 
   private skipSpace(): void {

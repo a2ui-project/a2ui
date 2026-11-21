@@ -381,7 +381,7 @@ CallNode _call(String source, CallContext call) {
     }
     kwargs[name] = _expression(source, named.expression()!);
   }
-  return CallNode(call.identifier()!.text, args, kwargs);
+  return CallNode(call.function_name()!.text, args, kwargs);
 }
 
 /// The path of a `$` data path, without the `$`.

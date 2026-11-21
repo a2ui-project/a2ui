@@ -844,7 +844,8 @@ struct AgentFunctionRoutingTests {
     )
     await waitUntil { outbound.agentCalls.count == 1 }
     #expect(outbound.agentCalls.first?.callFunction.call == "isAvailable")
-    let checks = { surface.rootNode?.properties["checks"] as? [ResolvedCheck] }
+    // A v1.0 component keeps its checks under `@checks`.
+    let checks = { surface.rootNode?.properties["@checks"] as? [ResolvedCheck] }
     #expect(checks()?.first?.isPending == true)
     #expect(checks()?.first?.passed == false, "a pending check does not pass")
     #expect(checks()?.first?.isValid == true, "a pending check does not fail either")

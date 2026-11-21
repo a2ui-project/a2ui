@@ -54,10 +54,7 @@ const Set<String> _validateCommonTypeCaseKeys = {
   'steps',
 };
 
-const Set<String> _validateCommonTypeStepKeys = {
-  'expectError',
-  'value',
-};
+const Set<String> _validateCommonTypeStepKeys = {'expectError', 'value'};
 
 const Map<String, Object?> _v0_9CatalogStub = {
   r'$defs': {
@@ -122,8 +119,8 @@ void _runCase(ConformanceTestCase testCase) {
     version,
   );
   if (isV1) {
-    final Map<String, Object?>? defs =
-        (commonTypes[r'$defs'] as Map?)?.cast<String, Object?>();
+    final Map<String, Object?>? defs = (commonTypes[r'$defs'] as Map?)
+        ?.cast<String, Object?>();
     if (defs != null && defs.containsKey('Extensions')) {
       defs['Extensions'] = <String, Object?>{'type': 'object'};
     }
@@ -138,16 +135,16 @@ void _runCase(ConformanceTestCase testCase) {
   final steps = testCase['steps']! as List<Object?>;
 
   for (var i = 0; i < steps.length; i++) {
-    final Map<String, Object?> step =
-        (steps[i]! as Map).cast<String, Object?>();
+    final Map<String, Object?> step = (steps[i]! as Map)
+        .cast<String, Object?>();
     assertKnownKeys(
       step,
       _validateCommonTypeStepKeys,
       'step:validate_common_type[$i]',
     );
     final Object? value = step['value'];
-    final Map<String, Object?>? expectError =
-        (step['expectError'] as Map?)?.cast<String, Object?>();
+    final Map<String, Object?>? expectError = (step['expectError'] as Map?)
+        ?.cast<String, Object?>();
     if (expectError != null) {
       assertKnownKeys(
         expectError,
@@ -166,14 +163,16 @@ void _runCase(ConformanceTestCase testCase) {
       expect(
         valid,
         isFalse,
-        reason: '$name step $i: expected $definition to reject '
+        reason:
+            '$name step $i: expected $definition to reject '
             '${jsonEncode(value)}',
       );
     } else {
       expect(
         valid,
         isTrue,
-        reason: '$name step $i: expected $definition to accept '
+        reason:
+            '$name step $i: expected $definition to accept '
             '${jsonEncode(value)}',
       );
     }
@@ -200,8 +199,8 @@ bool _isValidCommonType({
   }
   if (definition == 'ComponentCommon' &&
       value is Map &&
-      value['metadata'] is Map) {
-    final Object? extensions = (value['metadata']! as Map)['extensions'];
+      value['@metadata'] is Map) {
+    final Object? extensions = (value['@metadata']! as Map)['extensions'];
     if (extensions is Map) {
       return extensions.keys.every(
         (Object? key) => key is String && isValidUax31Identifier(key),

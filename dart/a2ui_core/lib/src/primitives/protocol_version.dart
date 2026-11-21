@@ -33,7 +33,11 @@ enum A2uiProtocolVersion implements Comparable<A2uiProtocolVersion> {
   v1_0('1.0', 1, 0, 0);
 
   const A2uiProtocolVersion(
-      this.jsonValue, this.major, this.minor, this._patch);
+    this.jsonValue,
+    this.major,
+    this.minor,
+    this._patch,
+  );
 
   /// The value used for the `version` field on the wire.
   final String jsonValue;

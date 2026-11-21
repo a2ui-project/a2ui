@@ -17,11 +17,12 @@
 # ==============================================================================
 
 - name: "test_error_response_create_surface_invalid_theme_property"
+  features: [F-CORE-26, F-CORE-42]
   description: "Emits VALIDATION_FAILED with /theme/primaryColor when createSurface theme property has wrong type."
   action: "validate"
   protocolVersion: "v0.9"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   payload:
     - version: "v0.9"
       createSurface:
@@ -42,6 +43,7 @@
         message: "primaryColor"
 
 - name: "test_error_response_create_surface_unknown_catalog_id"
+  features: [F-CORE-26, F-CORE-42]
   description: "Emits CATALOG_NOT_FOUND when createSurface references an unregistered catalogId."
   action: "validate"
   protocolVersion: "1.0"
@@ -67,7 +69,7 @@
   action: "validate"
   protocolVersion: "1.0"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   payload:
     - version: "1.0"
       createSurface:
@@ -109,6 +111,7 @@
         message: "already exists"
 
 - name: "test_error_response_update_components_unknown_surface"
+  features: [F-CORE-26, F-CORE-42]
   description: "Emits INTEGRITY_ERROR when updateComponents targets a non-existent surfaceId."
   action: "validate"
   protocolVersion: "1.0"
@@ -133,6 +136,7 @@
         message: "missing_surface"
 
 - name: "test_error_response_update_components_duplicate_id_in_batch"
+  features: [F-CORE-26, F-CORE-42]
   description: "Emits INTEGRITY_ERROR when updateComponents contains duplicate component IDs in the same batch."
   action: "validate"
   protocolVersion: "1.0"
@@ -164,6 +168,7 @@
         message: "root"
 
 - name: "test_error_response_update_components_unknown_type_strict"
+  features: [F-CORE-26, F-CORE-42]
   description: "Emits VALIDATION_FAILED with /components/0/component when component type is unknown in strict mode."
   action: "validate"
   protocolVersion: "1.0"
@@ -194,6 +199,7 @@
         message: "NonExistentWidget"
 
 - name: "test_error_response_update_components_invalid_property_type"
+  features: [F-CORE-26, F-CORE-42]
   description: "Emits VALIDATION_FAILED with /components/0/text when a component property has the wrong type."
   action: "validate"
   protocolVersion: "1.0"
@@ -651,6 +657,7 @@
         message: "surfaceId"
 
 - name: "test_error_response_call_renderer_function_missing_call_function"
+  features: [F-CORE-05, F-CORE-26]
   description: "Emits INVALID_FUNCTION_CALL correlated by functionCallId without surfaceId when callFunction is missing."
   action: "validate"
   protocolVersion: "1.0"

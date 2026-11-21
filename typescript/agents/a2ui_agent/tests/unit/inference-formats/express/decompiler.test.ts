@@ -1199,7 +1199,7 @@ describe('ExpressDecompiler', () => {
                 component: 'TextField',
                 label: 'Name',
                 value: {'@path': '/name'},
-                checks: [
+                '@checks': [
                   {
                     condition: {'@call': 'required', args: {value: {'@path': '/name'}}},
                     message: 'Required check failed',
@@ -1267,7 +1267,7 @@ describe('ExpressDecompiler', () => {
               id: 'root',
               component: 'Text',
               text: 'Hello',
-              metadata: {extensions: {annot: {rank: 1}}},
+              '@metadata': {extensions: {annot: {rank: 1}}},
             },
           ],
         },
@@ -1278,6 +1278,73 @@ describe('ExpressDecompiler', () => {
         'surface("s1", extensions={agui: {mode: "live"}})\nroot = Text("Hello", extensions={annot: {rank: 1}})',
       );
       expect(parser.compile(dsl)).toEqual([msg]);
+    });
+
+    it('decompiles custom metadata and catalogId properties beside @metadata and @catalogId in positional and keyword modes', () => {
+      const catA = catalogFromTestDocument({
+        catalogId: 'test/cat_a',
+        protocolVersion: '1.0',
+        components: {
+          Badge: {
+            type: 'object',
+            properties: {
+              component: {const: 'Badge'},
+              label: {$ref: 'common_types.json#/$defs/DynamicString'},
+            },
+            required: ['component', 'label'],
+          },
+        },
+      });
+      const catB = catalogFromTestDocument({
+        catalogId: 'test/cat_b',
+        protocolVersion: '1.0',
+        components: {
+          Badge: {
+            type: 'object',
+            properties: {
+              component: {const: 'Badge'},
+              count: {$ref: 'common_types.json#/$defs/DynamicNumber'},
+              metadata: {type: 'string'},
+              catalogId: {type: 'string'},
+              tone: {type: 'string'},
+            },
+            required: ['component', 'count'],
+          },
+        },
+      });
+
+      const decompiler = new ExpressDecompiler([catA, catB], '1.0');
+      const parser = new ExpressParser([catA, catB], 's1', '1.0');
+      const msg: AgentToRendererMessage = {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's1',
+          components: [
+            {
+              id: 'root',
+              component: 'Badge',
+              '@catalogId': 'test/cat_b',
+              count: 42,
+              metadata: 'custom-meta',
+              catalogId: 'custom-cat',
+              tone: 'loud',
+              '@metadata': {extensions: {source: 'agent'}},
+            },
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+
+      const posDsl = decompiler.decompile([msg], false);
+      expect(posDsl).toBe(
+        'surface("s1")\nroot = Badge(42, "custom-meta", "custom-cat", "loud", catalogId="test/cat_b", extensions={source: "agent"})',
+      );
+      expect(parser.compile(posDsl)).toEqual([msg]);
+
+      const kwDsl = decompiler.decompile([msg], true);
+      expect(kwDsl).toBe(
+        'surface("s1")\nroot = Badge(42, "custom-meta", "custom-cat", tone="loud", catalogId="test/cat_b", extensions={source: "agent"})',
+      );
+      expect(parser.compile(kwDsl)).toEqual([msg]);
     });
   });
 });

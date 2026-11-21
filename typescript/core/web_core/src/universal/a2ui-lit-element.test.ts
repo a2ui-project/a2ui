@@ -31,6 +31,7 @@ import {ComponentContext} from '../resolution/component-context.js';
 import {NodeResolver} from '../resolution/node-resolver.js';
 import {CheckableSchema} from '../v0_9/schema/common-types.js';
 import {A2uiLitElement} from './a2ui-lit-element.js';
+import {A2UI_ELEMENT_CONNECTED_EVENT} from './element_connected_event.js';
 
 const MockTextApi = {
   name: 'Text',
@@ -157,9 +158,32 @@ describe('A2uiLitElement', () => {
 
     assert.strictEqual(el.renderRoot, el);
     assert.strictEqual(el.shadowRoot, null);
-    assert.ok((TestLightStyledElement as any)._processedCss?.includes('test-light-styled-element'));
-    assert.ok((TestLightStyledElement as any)._adoptedRoots?.has(document));
     assert.strictEqual(document.adoptedStyleSheets.length, 1);
+
+    // A second element of the same class reuses the adopted sheet.
+    document.body.appendChild(document.createElement('test-light-styled-element'));
+    assert.strictEqual(document.adoptedStyleSheets.length, 1);
+  });
+
+  it('adopts a separate scoped sheet for a subclass registered under another tag', () => {
+    class TestBaseStyledElement extends A2uiLitElement<any> {
+      static override styles = css`
+        .title {
+          color: green;
+        }
+      `;
+      override createController() {
+        return {dispose: () => {}} as any;
+      }
+    }
+    class TestDerivedStyledElement extends TestBaseStyledElement {}
+    customElements.define('test-base-styled-element', TestBaseStyledElement);
+    customElements.define('test-derived-styled-element', TestDerivedStyledElement);
+
+    document.body.appendChild(document.createElement('test-base-styled-element'));
+    document.body.appendChild(document.createElement('test-derived-styled-element'));
+
+    assert.strictEqual(document.adoptedStyleSheets.length, 2);
   });
 
   it('does not adopt its styles into the document when it renders into a ShadowRoot', () => {
@@ -184,7 +208,36 @@ describe('A2uiLitElement', () => {
 
     assert.ok(el.renderRoot instanceof (globalThis as any).ShadowRoot);
     assert.deepStrictEqual(document.adoptedStyleSheets, sheetsBefore);
-    assert.strictEqual((TestShadowStyledElement as any)._processedCss, undefined);
+  });
+
+  it('dispatches a bubbling, composed connected event once, on the first connect with a context', async () => {
+    const events: Event[] = [];
+    const listener = (event: Event) => events.push(event);
+    document.body.addEventListener(A2UI_ELEMENT_CONNECTED_EVENT, listener);
+
+    const withoutContext = document.createElement('test-a2ui-element') as any;
+    document.body.appendChild(withoutContext);
+    assert.strictEqual(events.length, 0);
+
+    withoutContext.context = new ComponentContext(surface, 'root');
+    await withoutContext.updateComplete;
+    assert.strictEqual(events.length, 1);
+    assert.strictEqual(events[0].target, withoutContext);
+
+    const el = document.createElement('test-a2ui-element') as any;
+    el.context = new ComponentContext(surface, 'root');
+    document.body.appendChild(el);
+    document.body.removeChild(el);
+    document.body.appendChild(el);
+
+    document.body.removeEventListener(A2UI_ELEMENT_CONNECTED_EVENT, listener);
+    assert.strictEqual(events.length, 2);
+    assert.strictEqual(events[1].target, el);
+    assert.ok(events[1].bubbles);
+    assert.ok(events[1].composed);
+
+    withoutContext.remove();
+    el.remove();
   });
 
   it('should create controller when context is set', async () => {

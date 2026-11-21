@@ -18,7 +18,8 @@ import React from 'react';
 import {describe, it, expect} from 'vitest';
 import {render, act, waitFor} from '@testing-library/react';
 import {z} from 'zod';
-import {Catalog, ChildListSchema, CommonSchemas, MessageProcessor} from '@a2ui/web_core/v0_9';
+import {Catalog, MessageProcessor} from '@a2ui/web_core';
+import {ChildListSchema, CommonSchemas} from '@a2ui/web_core/v1_0';
 import {A2uiSurface, useA2uiSurface} from '../src/A2uiSurface';
 import {
   createBinderlessComponentImplementation,
@@ -64,7 +65,7 @@ describe('useNodeView & useA2uiSurface metadata reactivity', () => {
       view: ({node, buildChild}) => {
         metaViewRenders++;
         const {viewProps, metadata} = useNodeView(node, buildChild);
-        const surface = useA2uiSurface();
+        const surface = useA2uiSurface()!;
         const surfaceMeta = useSignalValue(surface.metadataSignal);
         const instBadge = (metadata?.extensions?.badge as string | undefined) ?? 'none';
         const surfBadge = (surfaceMeta?.extensions?.theme_mode as string | undefined) ?? 'none';

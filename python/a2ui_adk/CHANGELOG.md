@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.3.0 (2026-11-10)
+
 - `a2ui_rpc_callback` takes `renderer_calls`, a provider of the session's
   `RendererFunctionCalls` such as `A2uiRendererCallsStore.get`, and `catalogs`
   becomes optional (pass one or both). The callback processes each message
@@ -40,6 +42,11 @@
   `before_model_callback` that does the same for agents without the toolset.
   It needs the `a2a` extra.
   [#3795](https://github.com/a2ui-project/a2ui/pull/3795)
+- Package dependencies updated to require `a2ui-agent-sdk>0.10.0` and
+  `a2ui-a2a>0.2.0` (for the `a2a` extra).
+
+## 0.2.0 (2026-11-02)
+
 - **BREAKING CHANGE**: `GenAIFileResolver` is removed, along with the
   `FileResolver` it extended in `a2ui-agent-sdk`.
   [#3731](https://github.com/a2ui-project/a2ui/pull/3731)

@@ -11,13 +11,13 @@
       "height": 832,
       "bytes": 58648
     },
-    "build-with-a2ui/gemini-notebook-cards": {
-      "filename": "build-with-a2ui--gemini-notebook-cards.498faab5.webp",
-      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/build-with-a2ui--gemini-notebook-cards.498faab5.webp",
-      "sha256": "498faab57d06b335f105ff36e4e0b7e4f533c0ed1b7c0df73c03b8e366d7cf00",
+    "build-with-a2ui/gemini-notebook-slides": {
+      "filename": "build-with-a2ui--gemini-notebook-slides.135b616d.webp",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/build-with-a2ui--gemini-notebook-slides.135b616d.webp",
+      "sha256": "135b616dd296b34b2f4bcb1edbe689cb52321a54362aef565fad4e2953897f69",
       "width": 1920,
-      "height": 944,
-      "bytes": 67578
+      "height": 771,
+      "bytes": 69642
     },
     "build-with-a2ui/jira-follow-up": {
       "filename": "build-with-a2ui--jira-follow-up.1451f432.webp",
@@ -34,6 +34,92 @@
       "width": 1920,
       "height": 1104,
       "bytes": 62296
+    },
+    "get-help/copilotkit/catalog": {
+      "filename": "get-help--copilotkit--catalog.7d1aa06c.webp",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/get-help--copilotkit--catalog.7d1aa06c.webp",
+      "sha256": "7d1aa06ce6b0265f38a1edbe9a67600cc6ccbc19e1b115964bca2ae12810bc85",
+      "width": 1280,
+      "height": 800,
+      "bytes": 73180
+    },
+    "get-help/copilotkit/logo-dark": {
+      "filename": "get-help--copilotkit--logo-dark.e22d4877.svg",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/get-help--copilotkit--logo-dark.e22d4877.svg",
+      "sha256": "e22d4877ba5685e5ba233e1459743eb6bbb1f008b8491accf38d99ec90c1b52f",
+      "ext": "svg",
+      "width": 120,
+      "height": 28,
+      "bytes": 11020
+    },
+    "get-help/copilotkit/logo-light": {
+      "filename": "get-help--copilotkit--logo-light.ba2578c9.svg",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/get-help--copilotkit--logo-light.ba2578c9.svg",
+      "sha256": "ba2578c96a770b9ba1bb19e71703cc237b88f3c5583b3f21c3587374d24902e1",
+      "ext": "svg",
+      "width": 120,
+      "height": 28,
+      "bytes": 11020
+    },
+    "get-help/copilotkit/primary": {
+      "filename": "get-help--copilotkit--primary.f178c3cd.webp",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/get-help--copilotkit--primary.f178c3cd.webp",
+      "sha256": "f178c3cd987daae8928ee502f32e546fcf6b35e0ebeebe9409d1bffc7b756d82",
+      "width": 1280,
+      "height": 800,
+      "bytes": 109996
+    },
+    "get-help/copilotkit/walkthrough": {
+      "filename": "get-help--copilotkit--walkthrough.0838805c.mp4",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/get-help--copilotkit--walkthrough.0838805c.mp4",
+      "sha256": "0838805c2f39517f9643c1cf2d037b0c366cf1c18ced71cf7bce32715eb97f03",
+      "ext": "mp4",
+      "width": 1280,
+      "height": 800,
+      "bytes": 781334
+    },
+    "get-help/soverius/catalog": {
+      "filename": "get-help--soverius--catalog.b1aab1c2.webp",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/get-help--soverius--catalog.b1aab1c2.webp",
+      "sha256": "b1aab1c23919bc81390cc127e9f5085c56d793d73595e27d2aa815a645f571d7",
+      "width": 1280,
+      "height": 800,
+      "bytes": 99130
+    },
+    "get-help/soverius/logo-dark": {
+      "filename": "get-help--soverius--logo-dark.efd2903f.svg",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/get-help--soverius--logo-dark.efd2903f.svg",
+      "sha256": "efd2903fe75d896ad22931dd1f6c128ee2ecf02da8df3e2024c63bb032c607f8",
+      "ext": "svg",
+      "width": 3111,
+      "height": 894,
+      "bytes": 8804
+    },
+    "get-help/soverius/logo-light": {
+      "filename": "get-help--soverius--logo-light.e2251ce9.svg",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/get-help--soverius--logo-light.e2251ce9.svg",
+      "sha256": "e2251ce98de1742c6d77fbdca6302edb68736813c5992c24b37c24e315396299",
+      "ext": "svg",
+      "width": 3111,
+      "height": 894,
+      "bytes": 9074
+    },
+    "get-help/soverius/primary": {
+      "filename": "get-help--soverius--primary.ada865d9.webp",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/get-help--soverius--primary.ada865d9.webp",
+      "sha256": "ada865d922716d8789b4b52a36d5cf9f16d7722dace98c1e278d96827f45f45c",
+      "width": 1280,
+      "height": 800,
+      "bytes": 52134
+    },
+    "get-help/soverius/walkthrough": {
+      "filename": "get-help--soverius--walkthrough.4ddf6612.mp4",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/get-help--soverius--walkthrough.4ddf6612.mp4",
+      "sha256": "4ddf6612fd05bcf9d9f3faf9b523468302a40391249e09509788ffe7cbcb6d8a",
+      "ext": "mp4",
+      "width": 1280,
+      "height": 584,
+      "bytes": 451313
     },
     "quickstart/travel-a2ui/a2ui-vs-app": {
       "filename": "quickstart--travel-a2ui--a2ui-vs-app.6cf941df.webp",

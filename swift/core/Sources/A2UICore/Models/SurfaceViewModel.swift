@@ -507,6 +507,10 @@ extension SurfaceViewModel: FunctionHandler {
     try nodeResolver.validateFunctionCatalog(id: catalogID, functionName: functionName)
   }
 
+  public func resolvedFunctionCatalogID(forCallCatalogID catalogID: String?) -> String? {
+    nodeResolver.resolvedFunctionCatalogID(forCallCatalogID: catalogID)
+  }
+
   public func agentFunctionCatalogID(forCallCatalogID catalogID: String?) -> String? {
     nodeResolver.agentFunctionCatalogID(forCallCatalogID: catalogID)
   }

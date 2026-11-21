@@ -60,13 +60,13 @@ describe('Catalog Types', () => {
     );
     const themeSchema = z.object({primaryColor: z.string()});
 
-    const legacy = new Catalog('legacy-cat', [mockComponent], [mockFunc], themeSchema, 'Use it');
+    const v09 = new Catalog('v09-cat', [mockComponent], [mockFunc], themeSchema, 'Use it');
 
-    assert.strictEqual(legacy.protocolVersion, '0.9');
-    assert.strictEqual(legacy.components.get('MockComp'), mockComponent);
-    assert.strictEqual(legacy.functions.get('mockFunc'), mockFunc);
-    assert.strictEqual(legacy.themeSchema, themeSchema);
-    assert.strictEqual(legacy.instructions, 'Use it');
+    assert.strictEqual(v09.protocolVersion, '0.9');
+    assert.strictEqual(v09.components.get('MockComp'), mockComponent);
+    assert.strictEqual(v09.functions.get('mockFunc'), mockFunc);
+    assert.strictEqual(v09.themeSchema, themeSchema);
+    assert.strictEqual(v09.instructions, 'Use it');
 
     const bare = new Catalog('bare-cat');
     assert.strictEqual(bare.protocolVersion, '0.9');

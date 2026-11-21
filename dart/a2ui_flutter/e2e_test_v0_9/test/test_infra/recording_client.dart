@@ -14,6 +14,9 @@
 
 // ignore_for_file: avoid_print
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:a2ui_flutter_example_v0_9/llm_client.dart';
 
 /// Passes each request to another [LlmClient], and prints and keeps the
@@ -28,6 +31,36 @@ class RecordingClient implements LlmClient {
 
   /// The chunks of each reply, in order.
   final List<List<String>> replies = [];
+
+  /// Writes the first request, all [requests] and [replies], with the
+  /// [format] the replies are written in, the [protocolVersion] of the
+  /// session and the [model] that answered, to `<dir>/<scenarioName>.json`.
+  ///
+  /// That is the shape of the example's recorded fixtures, with the metadata
+  /// the conformance import needs to turn it into a hub scenario. The file
+  /// is written synchronously, as a widget test's tear-down may run where a
+  /// file future would not complete.
+  Future<void> writeTo(
+    String dir,
+    String scenarioName, {
+    required String format,
+    required String protocolVersion,
+    required String model,
+  }) async {
+    final file = File('$dir/$scenarioName.json');
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync(
+      const JsonEncoder.withIndent('  ').convert({
+        'request': requests.firstOrNull,
+        'requests': requests,
+        'replies': replies,
+        'format': format,
+        'protocolVersion': protocolVersion,
+        'model': model,
+      }),
+    );
+    print('=== Recording written to ${file.path}');
+  }
 
   /// Reads the whole reply before yielding its chunks, so that a reply the
   /// API breaks off, which it does under load (HTTP 503), is requested again,

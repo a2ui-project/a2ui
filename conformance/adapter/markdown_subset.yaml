@@ -13,6 +13,7 @@
 # limitations under the License.
 
 - name: emphasis_and_strong
+  features: [F-RND-16]
   description: Verifies rendering of italic and bold text.
   action: render_markdown
   markdown: "This is *italic* and **bold** text."
@@ -26,6 +27,7 @@
     - link
 
 - name: headings
+  features: [F-RND-16]
   description: Verifies rendering of headings.
   action: render_markdown
   markdown: "# Header 1\n## Header 2"
@@ -38,6 +40,7 @@
     - link
 
 - name: lists
+  features: [F-RND-16]
   description: Verifies rendering of lists.
   action: render_markdown
   markdown: "- Item 1\n- Item 2\n- Item 3"
@@ -50,6 +53,7 @@
     - link
 
 - name: inline_code
+  features: [F-RND-16]
   description: Verifies rendering of inline code spans.
   action: render_markdown
   markdown: "Use the `a2ui` command to start."
@@ -62,6 +66,7 @@
     - link
 
 - name: raw_html_shown_as_text
+  features: [F-RND-16]
   description: Verifies that raw HTML is rendered as plain text rather than active HTML elements.
   action: render_markdown
   markdown: "Hello <span>world</span>"
@@ -73,6 +78,7 @@
     - link
 
 - name: image_syntax_not_rendered_as_image
+  features: [F-RND-16]
   description: Verifies that image markdown syntax does not render an image element.
   action: render_markdown
   markdown: "Look at ![photo](https://example.com/pic.png)"
@@ -84,6 +90,7 @@
     - link
 
 - name: link_rendered_as_text_without_target
+  features: [F-RND-16]
   description: Verifies that link syntax renders as its text without a link target.
   action: render_markdown
   markdown: "Visit [Documentation](https://example.com) for details."
