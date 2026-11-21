@@ -46,7 +46,7 @@ The marker and the first sentence for each case:
 
 ## The Google Chat message
 
-The pinger sends the message through an incoming webhook. It has the item's title and link, the text of the comment, and a mention of each assignee.
+The pinger sends the message through an incoming webhook. The message starts with `From triage bot, ping:` in bold, written `*From triage bot, ping:*` in the Google Chat format, so that readers can tell it from messages that people write. After that, it has the item's title and link, the text of the comment without its prefix and marker, and a mention of each assignee.
 
 The pinger reads two repository secrets:
 

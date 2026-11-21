@@ -82,7 +82,7 @@ A triage bot comment is posted by a team member or a bot, and starts with `**Fro
 
 1. `**From triage bot, suggestion:**`: a suggestion comment, with an `<a2ui>` block.
 2. `**From triage bot, response:**`: a response comment, which answers requests to the triage bot.
-3. Anything else: other triage bot comments, such as the staleness pinger's `**From triage bot, ping:**`.
+3. Anything else: other triage bot comments, such as the staleness pinger's `**From triage bot, ping:**`. The pinger also starts its Google Chat message with this prefix, in bold, written `*From triage bot, ping:*` in the Google Chat format.
 
 Earlier triage bot comments start with `**From triage bot:**`, and the line after it names the kind: "Triage suggestion:" or "Response to requests:".
 
