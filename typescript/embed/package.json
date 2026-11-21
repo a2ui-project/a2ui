@@ -26,6 +26,10 @@
     "./contract": {
       "types": "./dist/contract/index.d.ts",
       "default": "./dist/contract/index.js"
+    },
+    "./mcp/server": {
+      "types": "./dist/mcp/server/index.d.ts",
+      "default": "./dist/mcp/server/index.js"
     }
   },
   "files": [
@@ -33,25 +37,38 @@
   ],
   "scripts": {
     "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
+    "copy-spec": "wireit",
     "build": "wireit",
     "test:types": "wireit",
     "test:node": "wireit",
     "test": "wireit",
     "lint": "wireit",
-    "lint:fix": "eslint . --fix",
+    "lint:fix": "yarn copy-spec && eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "clean": "wireit",
     "publish:package": "yarn build && node ../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public"
   },
   "wireit": {
+    "copy-spec": {
+      "command": "mkdir -p src/mcp/server/spec && cp ../../specification/v1_0/json/agent_to_renderer.json ../../specification/v1_0/json/common_types.json src/mcp/server/spec/",
+      "files": [
+        "../../specification/v1_0/json/agent_to_renderer.json",
+        "../../specification/v1_0/json/common_types.json"
+      ],
+      "output": [
+        "src/mcp/server/spec/*.json"
+      ]
+    },
     "build": {
       "command": "tsc -b --pretty",
       "dependencies": [
-        "../core/web_core:build"
+        "../core/web_core:build",
+        "copy-spec"
       ],
       "files": [
         "src/**/*.ts",
+        "src/**/*.json",
         "tsconfig.json"
       ],
       "output": [
@@ -63,10 +80,12 @@
     "test:types": {
       "command": "tsc -p tsconfig.test.json --pretty",
       "dependencies": [
-        "build"
+        "build",
+        "copy-spec"
       ],
       "files": [
         "src/**/*.ts",
+        "src/**/*.json",
         "tsconfig.json",
         "tsconfig.test.json"
       ],
@@ -75,10 +94,12 @@
     "test:node": {
       "command": "node --import tsx --test \"src/**/*.test.ts\"",
       "dependencies": [
-        "../core/web_core:build"
+        "../core/web_core:build",
+        "copy-spec"
       ],
       "files": [
-        "src/**/*.ts"
+        "src/**/*.ts",
+        "src/**/*.json"
       ],
       "output": []
     },
@@ -91,10 +112,12 @@
     "lint": {
       "command": "eslint .",
       "dependencies": [
-        "../core/web_core:build"
+        "../core/web_core:build",
+        "copy-spec"
       ],
       "files": [
         "src/**/*.ts",
+        "src/**/*.json",
         "*.mjs",
         "tsconfig.json",
         "tsconfig.test.json",
@@ -103,18 +126,22 @@
       "output": []
     },
     "clean": {
-      "command": "rm -rf dist .wireit .tsbuildinfo"
+      "command": "rm -rf dist src/mcp/server/spec .wireit .tsbuildinfo"
     }
   },
   "author": "Google",
   "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
+    "ajv": "^8.17.1",
     "zod": "^3.25.76"
   },
   "peerDependencies": {
-    "@a2ui/web_core": "workspace:*"
+    "@a2ui/web_core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "devDependencies": {
     "@a2ui/web_core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/node": "^25.9.3",
     "eslint": "^10.4.1",
     "gts": "^7.0.0",
