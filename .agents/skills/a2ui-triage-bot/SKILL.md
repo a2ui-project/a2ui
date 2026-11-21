@@ -23,7 +23,7 @@ The jobs are described in the blueprints in [`features/triage_bot/`](../../../to
 
 The triage bot only comments. It never adds or removes labels, assigns people, closes items, or changes milestones: those are the triager's decisions.
 
-The triage bot also writes the [triage report](#triage-report): what a team member triaged in a period, for the team chat space and the triage log.
+The triage bot also writes the [triage report](#triage-report): what a team member triaged in a period, and who still has items assigned for triage, for the team chat space and the triage log.
 
 Before you start, read:
 
@@ -434,7 +434,7 @@ List every item with its outcome and a link: suggestion posted, response posted,
 
 ## Triage report
 
-The triage report says what a team member triaged in a period, so that the team can read it in the go/a2ui-core-working-group chat space and in the go/a2ui-triage-log doc. The triager usually asks for it at the end of their triage week, as in "Create the triage report for last week". The report is described in [Triage report](../../../tools/internal/triage_new/blueprints/features/triage_bot/report.blueprint.md).
+The triage report says what a team member triaged in a period, and lists the open items assigned for triage, grouped by assignee, so that the team can read it in the go/a2ui-core-working-group chat space and in the go/a2ui-triage-log doc. The triager usually asks for it at the end of their triage week, as in "Create the triage report for last week". The report is described in [Triage report](../../../tools/internal/triage_new/blueprints/features/triage_bot/report.blueprint.md). The **Assigned for triage:** section is the only place that lists items assigned for triage: the groups of what the triager did have no group for them, and an item they assigned for triage in the period is under **Updated**, with what they did.
 
 [triage_report.mts](scripts/triage_report.mts) collects the activity from GitHub and writes the report. Do not collect the activity or write the report yourself: GitHub returns stale or incomplete timelines for some queries, and the script works around them and is tested.
 

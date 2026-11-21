@@ -15,8 +15,8 @@
  */
 
 // Writes the triage report: what a person triaged in a2ui-project/a2ui in a
-// period, collected from GitHub, for the team chat space and the triage log.
-// The triage bot runs it.
+// period, and the open items assigned for triage, by assignee, collected from
+// GitHub, for the team chat space and the triage log. The triage bot runs it.
 //
 // Usage, from the repository root:
 //
@@ -139,6 +139,15 @@ export interface ItemActions {
   commented: boolean;
 }
 
+/** An open item with `status: assigned-for-triage`. */
+export interface AssignedItem {
+  number: number;
+  url: string;
+  title: string;
+  isPullRequest: boolean;
+  assignees: string[];
+}
+
 /** The report, before it is rendered. */
 export interface Report {
   login: string;
@@ -146,6 +155,8 @@ export interface Report {
   items: ItemActions[];
   /** How many open items have `status: needs-triage` now, except draft PRs. */
   stillNeedTriage: number;
+  /** The open items with `status: assigned-for-triage` now, except draft PRs. */
+  assignedForTriage: AssignedItem[];
 }
 
 /**
@@ -253,18 +264,20 @@ export function itemActions(item: RawItem, login: string, period: Period): ItemA
 export const GROUPS = [
   'Closed',
   ...PRIORITIES.map(priority => `Assigned ${priority}`),
-  'Assigned for triage',
   'Needs team input',
   'Updated',
   'Commented',
 ];
 
-/** Returns the group of `GROUPS` that the item belongs to. */
+/**
+ * Returns the group of `GROUPS` that the item belongs to. An item that the
+ * person only assigned for triage is in **Updated**: the report lists every
+ * item assigned for triage in its own section.
+ */
 export function groupOf(item: ItemActions): string {
   if (item.closed) return 'Closed';
   const priority = PRIORITIES.find(p => item.addedLabels.includes(p));
   if (priority) return `Assigned ${priority}`;
-  if (item.addedLabels.includes(ASSIGNED_FOR_TRIAGE)) return 'Assigned for triage';
   if (item.addedLabels.includes(NEEDS_TEAM_INPUT)) return 'Needs team input';
   const changed =
     item.reopened ||
@@ -296,7 +309,7 @@ export function describe(item: ItemActions): string {
 const count = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
 /** Counts the items by kind, as in "2 issues and 1 PR". */
-function kinds(items: ItemActions[]): string {
+function kinds(items: {isPullRequest: boolean}[]): string {
   const prs = items.filter(item => item.isPullRequest).length;
   const issues = items.length - prs;
   return [issues && count(issues, 'issue'), prs && count(prs, 'PR')]
@@ -310,10 +323,37 @@ const formatDate = (date: Date): string =>
     .map(part => String(part).padStart(2, '0'))
     .join('-');
 
+/** The heading of the items assigned for triage to nobody. */
+export const NOBODY = 'Nobody';
+
+/**
+ * Groups the items assigned for triage by assignee, in the order of the
+ * logins, with the items assigned to nobody last. An item with several
+ * assignees is in the group of each.
+ */
+export function byAssignee(items: AssignedItem[]): {heading: string; items: AssignedItem[]}[] {
+  const groups = new Map<string, AssignedItem[]>();
+  const sorted = [...items].sort((a, b) => a.number - b.number);
+  for (const item of sorted) {
+    for (const login of item.assignees.length ? item.assignees : [NOBODY]) {
+      groups.set(login, [...(groups.get(login) ?? []), item]);
+    }
+  }
+  const logins = [...groups.keys()]
+    .filter(login => login !== NOBODY)
+    .sort((a, b) => a.localeCompare(b, 'en', {sensitivity: 'base'}));
+  if (groups.has(NOBODY)) logins.push(NOBODY);
+  return logins.map(login => ({heading: `${login}: ${kinds(groups.get(login)!)}`, items: groups.get(login)!}));
+}
+
+/** The heading of the section with the items assigned for triage. */
+const ASSIGNED_HEADING = 'Assigned for triage:';
+
 /** The parts of the report that the text and the HTML share. */
 function sections(report: Report): {
   title: string;
   summary: string[];
+  assigned: {heading: string; items: AssignedItem[]}[];
   groups: {heading: string; items: ItemActions[]}[];
 } {
   const {items, period} = report;
@@ -330,9 +370,7 @@ function sections(report: Report): {
   }
   const sent = items.filter(item => item.addedLabels.includes(NEEDS_TEAM_INPUT));
   if (sent.length) summary.push(`Sent ${kinds(sent)} to the team.`);
-  summary.push(
-    `${count(report.stillNeedTriage, 'item')} still ${report.stillNeedTriage === 1 ? 'needs' : 'need'} triage.`,
-  );
+  summary.push(`Remaining: ${report.stillNeedTriage}.`);
   const groups = GROUPS.map(group => {
     const inGroup = items.filter(item => groupOf(item) === group);
     return {heading: `${group}: ${kinds(inGroup)}`, items: inGroup};
@@ -340,14 +378,24 @@ function sections(report: Report): {
   return {
     title: `Triage report for ${report.login}, ${formatDate(period.since)} to ${formatDate(period.until)}`,
     summary,
+    assigned: byAssignee(report.assignedForTriage),
     groups,
   };
 }
 
 /** Renders the report as plain text, with `footer` as the last line. */
 function renderLines(report: Report, footer: string): string {
-  const {title, summary, groups} = sections(report);
-  const lines = [title, '', ...summary];
+  const {title, summary, assigned, groups} = sections(report);
+  const lines = [title, '', ...summary, ''];
+  if (assigned.length === 0) {
+    lines.push(`${ASSIGNED_HEADING} none`);
+  } else {
+    lines.push(ASSIGNED_HEADING);
+    for (const group of assigned) {
+      lines.push('', group.heading);
+      for (const item of group.items) lines.push(`  - ${item.url}`, `    ${item.title}`);
+    }
+  }
   for (const group of groups) {
     lines.push('', group.heading);
     for (const item of group.items) {
@@ -381,8 +429,17 @@ const link = (url: string, text: string): string =>
 
 /** Renders the report as HTML, for apps that paste rich text. */
 export function renderHtml(report: Report): string {
-  const {title, summary, groups} = sections(report);
+  const {title, summary, assigned, groups} = sections(report);
   const parts = [`<p>${escapeHtml(title)}</p>`, `<p>${summary.map(escapeHtml).join('<br>')}</p>`];
+  if (assigned.length === 0) {
+    parts.push(`<p>${escapeHtml(`${ASSIGNED_HEADING} none`)}</p>`);
+  } else {
+    parts.push(`<p>${escapeHtml(ASSIGNED_HEADING)}</p>`);
+    for (const group of assigned) {
+      const items = group.items.map(item => `<li>${link(item.url, item.url)}<br>${escapeHtml(item.title)}</li>`);
+      parts.push(`<p>${escapeHtml(group.heading)}</p>`, `<ul>${items.join('')}</ul>`);
+    }
+  }
   for (const group of groups) {
     const items = group.items.map(
       item => `<li>${link(item.url, item.url)}<br>${escapeHtml(`${item.title}: ${describe(item)}`)}</li>`,
@@ -517,9 +574,38 @@ async function readItems(numbers: number[]): Promise<RawItem[]> {
   return results.flat();
 }
 
+/** An item, as GitHub search returns it. */
+interface SearchItem {
+  number: number;
+  html_url: string;
+  title: string;
+  pull_request?: unknown;
+  assignees: {login: string}[] | null;
+}
+
+/** Returns the open items with `status: assigned-for-triage`, except draft PRs. */
+async function assignedForTriage(): Promise<AssignedItem[]> {
+  const pages = JSON.parse(
+    await gh([
+      'api', '-X', 'GET', 'search/issues',
+      '-f', `q=repo:${OWNER}/${REPO} is:open label:"${ASSIGNED_FOR_TRIAGE}" -draft:true`,
+      '-f', 'per_page=100', '--paginate', '--slurp',
+    ]),
+  ) as {items: SearchItem[]}[];
+  return pages
+    .flatMap(page => page.items)
+    .map(item => ({
+      number: item.number,
+      url: item.html_url,
+      title: item.title,
+      isPullRequest: item.pull_request !== undefined,
+      assignees: (item.assignees ?? []).map(assignee => assignee.login),
+    }));
+}
+
 /** Collects what `login` triaged in `period`. */
 async function collect(login: string, period: Period): Promise<Report> {
-  const [numbers, stillNeedTriage] = await Promise.all([
+  const [numbers, stillNeedTriage, assigned] = await Promise.all([
     updatedItems(period),
     gh([
       'api', '-X', 'GET', 'search/issues',
@@ -527,12 +613,13 @@ async function collect(login: string, period: Period): Promise<Report> {
       '-f', `q=repo:${OWNER}/${REPO} is:open label:"${NEEDS_TRIAGE}" -draft:true`,
       '-f', 'per_page=1', '-q', '.total_count',
     ]).then(Number),
+    assignedForTriage(),
   ]);
   const items = (await readItems(numbers))
     .map(item => itemActions(item, login, period))
     .filter((item): item is ItemActions => item !== null)
     .sort((a, b) => a.number - b.number);
-  return {login, period, items, stillNeedTriage};
+  return {login, period, items, stillNeedTriage, assignedForTriage: assigned};
 }
 
 /** JavaScript for Automation that puts an HTML file and a text file on the clipboard. */

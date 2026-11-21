@@ -21,6 +21,7 @@ import assert from 'node:assert/strict';
 import {describe, it} from 'node:test';
 
 import {
+  byAssignee,
   describe as describeActions,
   groupOf,
   itemActions,
@@ -32,6 +33,7 @@ import {
   renderText,
   searchTime,
   SKILL_URL,
+  type AssignedItem,
   type ItemActions,
   type Period,
   type RawEvent,
@@ -197,7 +199,7 @@ describe('groupOf', () => {
   it('puts closed items first, then by the label added', () => {
     assert.equal(groupOf(actions({closed: {reason: null, duplicateOf: null}, addedLabels: ['P1']})), 'Closed');
     assert.equal(groupOf(actions({addedLabels: ['status: assigned-for-triage', 'P3']})), 'Assigned P3');
-    assert.equal(groupOf(actions({addedLabels: ['status: assigned-for-triage']})), 'Assigned for triage');
+    assert.equal(groupOf(actions({addedLabels: ['status: assigned-for-triage'], assigned: ['expert']})), 'Updated');
     assert.equal(groupOf(actions({addedLabels: ['status: needs-team-input']})), 'Needs team input');
     assert.equal(groupOf(actions({unassigned: ['octocat']})), 'Updated');
     assert.equal(groupOf(actions({reopened: true})), 'Updated');
@@ -231,10 +233,45 @@ describe('describe', () => {
   });
 });
 
+const assignedItem = (number: number, assignees: string[], isPullRequest = false): AssignedItem => ({
+  number,
+  url: `https://github.com/a2ui-project/a2ui/${isPullRequest ? 'pull' : 'issues'}/${number}`,
+  title: `Item ${number}`,
+  isPullRequest,
+  assignees,
+});
+
+describe('byAssignee', () => {
+  it('groups by login, sorts the items by number, and puts unassigned items last', () => {
+    const groups = byAssignee([
+      assignedItem(30, []),
+      assignedItem(20, ['bob', 'Alice']),
+      assignedItem(10, ['bob'], true),
+    ]);
+    assert.deepEqual(
+      groups.map(group => [group.heading, group.items.map(item => item.number)]),
+      [
+        ['Alice: 1 issue', [20]],
+        ['bob: 1 issue and 1 PR', [10, 20]],
+        ['Nobody: 1 issue', [30]],
+      ],
+    );
+  });
+
+  it('returns no groups for no items', () => {
+    assert.deepEqual(byAssignee([]), []);
+  });
+});
+
 const REPORT: Report = {
   login: LOGIN,
   period: {since: new Date(2026, 10, 4), until: new Date(2026, 10, 10, 23, 59, 59)},
   stillNeedTriage: 4,
+  assignedForTriage: [
+    {...assignedItem(4071, ['expert']), title: 'Support <dialog> in Flutter'},
+    assignedItem(4060, ['another-expert'], true),
+    assignedItem(4050, ['expert']),
+  ],
   items: [
     actions({
       id: 'PR_65',
@@ -275,7 +312,19 @@ describe('renderText', () => {
 
 Triaged 4 items: 3 issues and 1 PR.
 Sent 1 issue to the team.
-4 items still need triage.
+Remaining: 4.
+
+Assigned for triage:
+
+another-expert: 1 PR
+  - https://github.com/a2ui-project/a2ui/pull/4060
+    Item 4060
+
+expert: 2 issues
+  - https://github.com/a2ui-project/a2ui/issues/4050
+    Item 4050
+  - https://github.com/a2ui-project/a2ui/issues/4071
+    Support <dialog> in Flutter
 
 Closed: 1 PR
   - https://github.com/a2ui-project/a2ui/pull/4065
@@ -300,11 +349,13 @@ Created by triage bot skill (${SKILL_URL})
 
   it('renders a period without triage', () => {
     assert.equal(
-      renderText({...REPORT, items: [], stillNeedTriage: 1}),
+      renderText({...REPORT, items: [], stillNeedTriage: 1, assignedForTriage: []}),
       `Triage report for triager, 2026-11-04 to 2026-11-10
 
 Triaged no items.
-1 item still needs triage.
+Remaining: 1.
+
+Assigned for triage: none
 
 Created by triage bot skill (${SKILL_URL})
 `,
@@ -320,6 +371,18 @@ describe('renderHtml', () => {
       /<a href="https:\/\/github.com\/a2ui-project\/a2ui\/issues\/4082">https:\/\/github.com\/a2ui-project\/a2ui\/issues\/4082<\/a><br>Stream &lt;partial&gt; updates/,
     );
     assert.ok(html.includes(`<p>Created by <a href="${SKILL_URL}">triage bot</a> skill</p>`));
+  });
+
+  it('lists the items assigned for triage by assignee, after the summary', () => {
+    const html = renderHtml(REPORT);
+    assert.ok(
+      html.includes(
+        '<p>Assigned for triage:</p>\n<p>another-expert: 1 PR</p>\n<ul><li><a href="https://github.com/a2ui-project/a2ui/pull/4060">https://github.com/a2ui-project/a2ui/pull/4060</a><br>Item 4060</li></ul>',
+      ),
+    );
+    assert.match(html, /Support &lt;dialog&gt; in Flutter/);
+    assert.ok(html.indexOf('Remaining: 4.') < html.indexOf('Assigned for triage:'));
+    assert.ok(html.indexOf('Assigned for triage:') < html.indexOf('Closed: 1 PR'));
   });
 });
 
