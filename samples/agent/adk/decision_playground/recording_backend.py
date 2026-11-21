@@ -179,6 +179,8 @@ def _score_choice_offline(
     candidates = question.candidates()
     if not candidates:
         return {}
+    if len(candidates) == 1:
+        return {candidates[0]: 1.0}
     best, best_hits = _best_keyword_candidate(state_low, candidates)
     if question.id == "route:tier":
         chosen = "template" if best_hits > 0 else "pruned_express"

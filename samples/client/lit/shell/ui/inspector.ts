@@ -807,11 +807,11 @@ export class PlaygroundInspector extends LitElement {
       <span class="pill">${Math.round(stage1.latencyMs)}ms</span>
       <span class="pill">${stage1.promptTokens} in / ${stage1.outputTokens} out</span>
     `;
-    const copyPayload = JSON.stringify(
-      stage1.block ?? stage1.toolArgs ?? stage1.rawText ?? '',
-      null,
-      2,
-    );
+    const structuredStage1 = stage1.block ?? stage1.toolArgs;
+    const copyPayload =
+      structuredStage1 !== null && structuredStage1 !== undefined
+        ? JSON.stringify(structuredStage1, null, 2)
+        : (stage1.rawText ?? '');
     const body = html`
       <div class="stage-toolbar">
         <div class="badge-row">
