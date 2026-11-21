@@ -2957,7 +2957,7 @@ function resolveProtocolVersion(testCase) {
  *
  * @param {object} testCase Conformance test case the step belongs to.
  * @param {object} step Step listing `addCatalogPaths`.
- * @returns {Catalog[]} The catalogs, loaded with `fromJson`.
+ * @return {Catalog[]} The catalogs, loaded with `fromJson`.
  */
 function loadStepCatalogs(testCase, step) {
   const rawVersion = resolveProtocolVersion(testCase);
