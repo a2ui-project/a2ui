@@ -17,7 +17,7 @@ import 'dart:io';
 
 import 'github_item.dart';
 
-/// Receives the items that `tools/internal/triage_new/triage_ui.sh` sends to the
+/// Receives the items that `tools/internal/triage/triage_ui.sh` sends to the
 /// running app.
 ///
 /// Listens on 127.0.0.1 and accepts `POST /open` with the URL of an item in

@@ -2,12 +2,12 @@
 
 The terms are defined in [core.blueprint.md](../../core.blueprint.md). The [triage reporter](../../core.blueprint.md#triage-jobs) writes the report.
 
-The triage report says what a team member triaged in a period, so that the team can read it in the go/a2ui-core-working-group chat space and in the go/a2ui-triage-log doc. The triager asks the triage bot for it, usually at the end of their triage week, as in "Create the triage report for last week". **Create report** in the [triage UI](../ui.blueprint.md#create-a-report) gives the triager such a prompt for the period of the triage UI session. The triage bot runs [triage_report.mts](../../../../../../.agents/skills/a2ui-triage-bot/scripts/triage_report.mts), which collects the activity from GitHub and writes the report.
+The triage report says what a team member triaged in a period, so that the team can read it in the go/a2ui-core-working-group chat space and in the go/a2ui-triage-log doc. The triager asks the triage bot for it, usually at the end of their triage week, as in "Create the triage report for last week". **Create report** in the [triage UI](../ui.blueprint.md#create-a-report) gives the triager such a prompt for the period of the triage UI session. The triage bot runs [triage_report.dart](../../../pkgs/shared/bin/triage_report.dart), which collects the activity from GitHub and writes the report.
 
 An item is in the report when the person changed its labels, assignees or state in the period, or commented on it. These do not count:
 
 1. Triage bot comments, which the triage bot posts from the person's account.
-2. Adding or removing `status: needs-triage`, which the [flagger](../../../../triage/blueprints/flagging.blueprint.md) manages.
+2. Adding or removing `status: needs-triage`, which the [flagger](../flagger.blueprint.md) manages.
 3. Closes by a commit or a merged PR, and the close that merges a PR.
 
 Label and assignee changes are net: adding a label and removing it in the period cancel out.
@@ -66,4 +66,4 @@ After the report, the triage bot asks the triager which of these to do. The tria
 2. **Post the report to the go/a2ui-core-working-group chat space**, as a new message from the triager's account.
 3. **Add the report to go/a2ui-triage-log.** The triage log is a Google Doc. It starts with a header that ends with a horizontal line. The reports follow, newest first, each followed by a horizontal line. The triage bot inserts the new report right after the header's horizontal line, followed by its own horizontal line, and does not change the header or the earlier reports.
 
-The triage bot posts with its Google Chat and Google Docs tools. When it has no such tool, [triage_report.mts](../../../../../../.agents/skills/a2ui-triage-bot/scripts/triage_report.mts) puts the report on the clipboard as rich text, in the form for the destination, and opens the destination in the browser, for the triager to paste it.
+The triage bot posts with its Google Chat and Google Docs tools. When it has no such tool, [triage_report.dart](../../../pkgs/shared/bin/triage_report.dart) puts the report on the clipboard as rich text, in the form for the destination, and opens the destination in the browser, for the triager to paste it.

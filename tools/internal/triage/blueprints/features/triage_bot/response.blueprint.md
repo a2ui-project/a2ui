@@ -28,6 +28,6 @@ To hand the item over, assign `gspencergoog`, add `status: assigned-for-triage` 
 To apply this, run in your a2ui checkout:
 
 ```bash
-tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/3061
+tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/3061
 ```
 ````

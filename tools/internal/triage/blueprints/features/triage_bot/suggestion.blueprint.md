@@ -71,7 +71,7 @@ Reply:
 To adjust and apply this suggestion, run in your a2ui checkout:
 
 ```bash
-tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1235
+tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1235
 ```
 
 </details>
@@ -130,7 +130,7 @@ The component is defined in [triage_suggestion.dart](../../../pkgs/shared/lib/sr
 
 1. `tldr`: the case and the suggestion in a few words each, as two lines: "Case: ..." and "Suggestion: ...", such as "Case: this issue highlights a problem." and "Suggestion: set P1 and assign for triage to an expert." It is the short form of the `summary` and the `suggestion`.
 2. `summary` (required): what the item is about, in plain English.
-3. `reason`: why the item is flagged for triage, in plain English, such as "This issue has external input but no priority label yet." It is the reason that the [flagger](../../../../triage/blueprints/flagging.blueprint.md) gives for the item, as [flag_reason.mts](../../../../../../.agents/skills/a2ui-triage-bot/scripts/flag_reason.mts) prints it, and is omitted when the flagger does not flag the item.
+3. `reason`: why the item is flagged for triage, in plain English, such as "This issue has external input but no priority label yet." It is the reason that the [flagger](../flagger.blueprint.md) gives for the item, as [flag_reason.dart](../../../pkgs/flagger/bin/flag_reason.dart) prints it, and is omitted when the flagger does not flag the item.
 4. `suggestion` (required): what the triager should do and why, in plain English.
 5. `reply`: a short comment for the item's author or other participants, such as "Assigning this PR to `xyz`, because they already started reviewing it." The triage bot always writes one: it says at least what the triager does and why. When the suggestion is applied, the triage UI posts it from the triager's account.
 6. `close_as`: how to close the item: `completed`, `not_planned` or `duplicate`. When it is omitted, the item stays open. A PR has no close reason, so any value closes it.

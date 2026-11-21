@@ -5,9 +5,13 @@ Dart code for triaging GitHub items in the A2UI repository. The blueprints in
 
 ## Features
 
-- `triage_item`: the `TriageSuggestion` A2UI component, which the triage bot
+- `shared`: what the other triage packages and the triage bot have in
+  common: the labels, the repository, the check for triage bot comments,
+  and the GitHub client with the lookup of the person's token.
+- `triage_bot`: the `TriageSuggestion` A2UI component, which the triage bot
   posts on a GitHub item and the triage UI shows to the triager, and
-  `SuggestionPayload`, which reads it from a suggestion comment.
+  `SuggestionPayload`, which reads it from a suggestion comment, and the
+  triage report that `bin/triage_report.dart` writes for the triage bot.
 
 ## Testing
 

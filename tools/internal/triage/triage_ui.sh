@@ -20,8 +20,8 @@
 # macOS with the item. See
 # blueprints/features/triage_bot/suggestion.blueprint.md.
 #
-# Usage: tools/internal/triage_new/triage_ui.sh <item URL>
-# Example: tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/123
+# Usage: tools/internal/triage/triage_ui.sh <item URL>
+# Example: tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/123
 
 set -euo pipefail
 

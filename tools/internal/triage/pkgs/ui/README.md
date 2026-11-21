@@ -1,8 +1,8 @@
 # ui
 
-The triage UI, a macOS Flutter app that helps the triager go through the
-GitHub items in the A2UI repository that need triage, and apply the triage bot's
-triage suggestions. [ui.blueprint.md](../../blueprints/features/ui.blueprint.md)
+The triage UI, a Flutter app for macOS and the web that helps the triager go
+through the GitHub items in the A2UI repository that need triage, and apply the
+triage bot's triage suggestions. [ui.blueprint.md](../../blueprints/features/ui.blueprint.md)
 describes what it does.
 
 ## GitHub access
@@ -14,17 +14,37 @@ labels and assignees, is done from your account.
 
 The app runs outside the macOS app sandbox, so that it can run `gh`.
 
+On the web, the app can neither read the environment nor run `gh`, so pass
+the token with `--dart-define=GITHUB_TOKEN=<token>`. The token is then in the
+compiled app, so run it only on your own computer, with `flutter run`, and do
+not deploy a build of it.
+
 ## Running
 
 From VS Code, run the `triage_ui` launch configuration. From a terminal, in
 the repository root:
 
 ```bash
-tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/123
+tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/123
 ```
 
 The script opens the item in the running app, or starts the app with it. While
 it runs, the app listens on `127.0.0.1:47123` for the items the script sends.
+
+### On the web
+
+From VS Code, run the `triage_ui, web` launch configuration, which passes
+`GITHUB_TOKEN` from the environment VS Code runs in. From a terminal, in this
+folder:
+
+```bash
+flutter run -d chrome --dart-define=GITHUB_TOKEN="$(gh auth token)"
+```
+
+To open an item when the app starts, add it to the page's URL, as in
+`http://localhost:<port>/?item=https://github.com/a2ui-project/a2ui/issues/123`.
+On the web, the app does not listen for items, so `triage_ui.sh` cannot send
+items to it.
 
 ## Code
 

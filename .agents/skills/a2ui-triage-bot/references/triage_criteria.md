@@ -1,6 +1,6 @@
 # Triage criteria for the triage bot
 
-This document says how to turn an issue or a PR into a [`TriageSuggestion`](../../../../tools/internal/triage_new/pkgs/shared/lib/src/triage_bot/triage_suggestion.dart), and what a [response comment](../SKILL.md#response-comment) suggests. It adds triage bot rules to the canonical sources; where they disagree, the canonical sources win:
+This document says how to turn an issue or a PR into a [`TriageSuggestion`](../../../../tools/internal/triage/pkgs/shared/lib/src/triage_bot/triage_suggestion.dart), and what a [response comment](../SKILL.md#response-comment) suggests. It adds triage bot rules to the canonical sources; where they disagree, the canonical sources win:
 
 1. [triage.md](../../../../docs/contributing/triage/triage.md): goals of triage, priority definitions (`P0` to `P3`), and how to triage a PR.
 2. [labels.md](../../../../docs/contributing/triage/labels.md): triage labels and who manages each one.
@@ -16,7 +16,7 @@ Triage of an issue is done when the issue has a priority and no comment from an 
 4. Add `status: first-line-handled` to an issue that does not have it.
 5. Suggest a `component: ...` label and a `type: ...` label when the item has none and the area is clear.
 6. Suggest removing labels that no longer apply, such as `status: needs-team-input` after the team answered, or `status: assigned-for-triage` once the item has a priority.
-7. Never add or remove `status: needs-triage`. The [flagger](../../../../tools/internal/triage/blueprints/flagging.blueprint.md) manages it.
+7. Never add or remove `status: needs-triage`. The [flagger](../../../../tools/internal/triage/blueprints/features/flagger.blueprint.md) manages it.
 8. If a team member agreed in a comment that a contributor works on the issue, but did not assign them, suggest assigning them in `new_assignees`.
 9. If the item cannot be triaged without more expertise, find an expert in the affected area from the commit history (see step 4 of the [skill](../SKILL.md#step-4-research-the-item)), and name them in `suggestion` with the evidence, such as "wrote 6 of the last 20 commits to `renderers/lit`". Then follow the [second-line triage](../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager) steps:
    1. If the item does not have `status: needs-team-input`, suggest adding it, and say which question the team needs to answer.
@@ -57,7 +57,7 @@ For the cases in [templates.md](../../../../docs/contributing/triage/templates.m
 
 For an assigned issue without a priority, leave out the template's request to adjust the priority, and use only "I assigned a P2 priority to move this out of the triage queue." as the `reply`.
 
-Do not suggest a ping for a stale assigned issue. The [staleness pinger](../../../../tools/internal/triage_new/blueprints/features/triage_bot/staleness_ping.blueprint.md) does that.
+Do not suggest a ping for a stale assigned issue. The [staleness pinger](../../../../tools/internal/triage/blueprints/features/triage_bot/staleness_ping.blueprint.md) does that.
 
 ## Pull requests
 

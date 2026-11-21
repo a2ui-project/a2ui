@@ -33,7 +33,7 @@ void main() {
   // removed.
   test('the workflow runs the flagger from main, whatever the event', () {
     final String workflow = File(
-      '../../../../.github/workflows/triage.yml',
+      '../../../../../.github/workflows/triage.yml',
     ).readAsStringSync();
     final RegExpMatch? checkout = RegExp(
       r'uses: actions/checkout@.*\n\s+with:\n((?:\s+\w[\w-]*:.*\n)+)',

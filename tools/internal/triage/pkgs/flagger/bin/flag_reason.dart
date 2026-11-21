@@ -18,7 +18,7 @@
 //
 // Usage, from the repository root:
 //
-//   dart run tools/internal/triage/flagger/bin/flag_reason.dart <item>...
+//   dart run tools/internal/triage/pkgs/flagger/bin/flag_reason.dart <item>...
 //
 // An item is a number in a2ui-project/a2ui, or the URL of an issue or pull
 // request. The output is a JSON array with one `{"url": ..., "reason": ...}`
@@ -33,7 +33,7 @@ import 'package:flagger/flagger.dart';
 import 'package:shared/shared.dart';
 
 const String _usage =
-    'Usage: dart run tools/internal/triage/flagger/bin/flag_reason.dart '
+    'Usage: dart run tools/internal/triage/pkgs/flagger/bin/flag_reason.dart '
     '<item>...';
 
 Future<void> main(List<String> args) async {

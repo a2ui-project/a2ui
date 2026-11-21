@@ -234,8 +234,9 @@ class _OutdatedLabel extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
           child: Text(
             'Outdated',
-            style: Theme.of(context).textTheme.labelSmall
-                ?.copyWith(color: yellow),
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: yellow),
           ),
         ),
       ),

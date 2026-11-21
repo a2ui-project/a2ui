@@ -1,12 +1,12 @@
 # How the automated triage bot works
 
-The [triage.mts](../flagging/triage.mts) script runs via the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It checks every open issue and PR, adds `status: needs-triage` to the ones that match the conditions below, and removes the label from the rest.
+The [flagger](../../pkgs/flagger/) runs in the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It checks every open issue and PR, adds `status: needs-triage` to the ones that match the conditions below, and removes the label from the rest.
 
 An **out-of-team contributor** is anyone without the `OWNER`, `MEMBER` or `COLLABORATOR` association on the repository. Bots are out-of-team contributors too, so an issue filed by a workflow or a PR opened by dependabot needs triage like any other. A bot comment does not count as a reply, though: it does not change the latest human contribution, and it does not clear `status: waiting-for-author-response`.
 
-A team member's comment that starts with `From triage bot` (in bold or not) is output from the triage tooling posted from that person's account. The bot ignores it completely, so a triage suggestion does not reset the staleness clock or answer an out-of-team comment.
+A [triage bot](../core.blueprint.md#contributors) comment, which starts with `**From triage bot,` or `**From triage bot:` and is posted from a team member's or a bot's account, is output from the triage tooling. The flagger ignores it completely, so a triage suggestion does not reset the staleness clock or answer an out-of-team comment.
 
-The script uses the following rules to decide if a PR or issue should get **the label `status: needs-triage`**:
+The flagger uses the following rules to decide if a PR or issue should get **the label `status: needs-triage`**:
 
 0. Is the item **a draft PR**?
 
@@ -60,8 +60,8 @@ The opening post does not count as a comment.
 
 Staleness is calculated from the last human contribution (a comment, a PR review or review comment, or the item's creation) rather than `updated_at` to avoid bot edits resetting the timer. Pushing commits to a PR does not count as a contribution.
 
-The bot prints to the console which items it flags or unflags and why. You can use this to track triage progress. To see why specific items are flagged, without changing their labels, run [flag_reason.mts](../../../../.agents/skills/a2ui-triage-bot/scripts/flag_reason.mts) from the repository root, with item numbers or URLs: `node .agents/skills/a2ui-triage-bot/scripts/flag_reason.mts 123 456`. It reads GitHub with the `gh` CLI, and the [triage bot](../../../../.agents/skills/a2ui-triage-bot/SKILL.md) uses it for the `reason` of its suggestions.
+The flagger prints to the console which items it flags or unflags and why. You can use this to track triage progress. To see why specific items are flagged, without changing their labels, run [flag_reason.dart](../../pkgs/flagger/bin/flag_reason.dart) from the repository root, with item numbers or URLs: `dart run tools/internal/triage/pkgs/flagger/bin/flag_reason.dart 123 456`. It reads GitHub with `GITHUB_TOKEN`, or else with the token of the account that the `gh` CLI is logged in to. The [triage bot](../../../../../.agents/skills/a2ui-triage-bot/SKILL.md) uses it for the `reason` of its suggestions.
 
 The workflow runs daily on a schedule (15:00 UTC / 07:00 PST), on manual dispatch, and automatically on issue events (opened, edited, labeled, unlabeled, assigned, unassigned, milestoned, demilestoned, reopened), new issue comments, and submitted PR reviews or review comments.
 
-Every run uses the script from `main`, whatever event triggers it. Without this, a PR review event runs the script from the PR's merge commit, which can contain an older version of the rules. Two versions then disagree on some items, and each run adds or removes the label that the previous run removed or added. To test a change to the rules, run the tests in [triage.test.mts](../flagging/triage.test.mts) with `node --test tools/internal/triage/flagging/triage.test.mts`. Running the workflow from a branch still applies the rules from `main`.
+Every run uses the flagger from `main`, whatever event triggers it. Without this, a PR review event runs the flagger from the PR's merge commit, which can contain an older version of the rules. Two versions then disagree on some items, and each run adds or removes the label that the previous run removed or added. To test a change to the rules, run the tests in [`test/flagger/`](../../pkgs/flagger/test/flagger/) with `dart test` in [`tools/internal/triage/pkgs/flagger`](../../pkgs/flagger/). Running the workflow from a branch still applies the rules from `main`.

@@ -13,13 +13,13 @@ description: >-
 
 # A2UI triage bot
 
-The triage bot runs three triage jobs (see [Triage jobs](../../../tools/internal/triage_new/blueprints/core.blueprint.md#triage-jobs)):
+The triage bot runs three triage jobs (see [Triage jobs](../../../tools/internal/triage/blueprints/core.blueprint.md#triage-jobs)):
 
 1. The triage advisor writes triage suggestions. For each item, it posts one suggestion comment that says in plain English what the triager should do, and carries the same suggestion as a `TriageSuggestion` A2UI component. The triage UI parses that component, the triager finalizes it, and the UI applies it.
 2. The triage assistant answers [requests to the triage bot](#requests-to-the-triage-bot). An item with `status: needs-team-input` is waiting for the team: the triage bot posts no suggestion on it, and comments only to answer requests, in a response comment.
 3. The triage reporter writes the [triage report](#triage-report).
 
-The jobs are described in the blueprints in [`features/triage_bot/`](../../../tools/internal/triage_new/blueprints/features/triage_bot/).
+The jobs are described in the blueprints in [`features/triage_bot/`](../../../tools/internal/triage/blueprints/features/triage_bot/).
 
 The triage bot only comments. It never adds or removes labels, assigns people, closes items, or changes milestones: those are the triager's decisions.
 
@@ -38,7 +38,7 @@ Before you start, read:
 1. Items named in the prompt, as numbers or URLs. Advise on them whatever their labels.
 2. If the prompt names no items, every open issue and PR in `a2ui-project/a2ui` with the label `status: needs-triage` or `status: needs-team-input`, except draft PRs.
 
-Ignore draft PRs, also when the prompt names them: a draft PR is still in its author's hands, so it is not triage work until the author marks it ready for review. Every triage tool ignores them (see [Draft PRs](../../../tools/internal/triage_new/blueprints/core.blueprint.md#draft-prs)).
+Ignore draft PRs, also when the prompt names them: a draft PR is still in its author's hands, so it is not triage work until the author marks it ready for review. Every triage tool ignores them (see [Draft PRs](../../../tools/internal/triage/blueprints/core.blueprint.md#draft-prs)).
 3. If the prompt asks for a dry run, or not to post, do every step except posting, and print each comment instead.
 4. If the prompt asks for a triage report, follow [Triage report](#triage-report) instead of the steps below.
 
@@ -70,15 +70,15 @@ gh api graphql -F owner=a2ui-project -F repo=a2ui -F number=<number> \
 
 Skip locked items: a comment cannot be posted on them. Skip draft PRs too, where `isDraft` is true: an item named in the prompt can be one.
 
-Then get why the flagger flags each item. [flag_reason.mts](scripts/flag_reason.mts) applies the [flagger](../../../tools/internal/triage/blueprints/flagging.blueprint.md)'s rules to the items you pass, as numbers or URLs, and prints a JSON array with one `{"url", "reason"}` entry per item. The `reason` is `null` for an item that the flagger does not flag. Pass all the items in one call:
+Then get why the flagger flags each item. [flag_reason.dart](../../../tools/internal/triage/pkgs/flagger/bin/flag_reason.dart) applies the [flagger](../../../tools/internal/triage/blueprints/features/flagger.blueprint.md)'s rules to the items you pass, as numbers or URLs, and prints a JSON array with one `{"url", "reason"}` entry per item. The `reason` is `null` for an item that the flagger does not flag. Pass all the items in one call:
 
 ```bash
-node .agents/skills/a2ui-triage-bot/scripts/flag_reason.mts <number> <number>
+dart run tools/internal/triage/pkgs/flagger/bin/flag_reason.dart <number> <number>
 ```
 
 ## Step 3: Decide what to post
 
-A triage bot comment is posted by a team member or a bot, and starts with `**From triage bot`. The [flagger](../../../tools/internal/triage/blueprints/flagging.blueprint.md) recognizes triage bot comments by this prefix and ignores them, so that they do not count as a team reply. Never start a triage bot comment any other way. The first line names the kind of comment:
+A triage bot comment is posted by a team member or a bot, and starts with `**From triage bot`. The [flagger](../../../tools/internal/triage/blueprints/features/flagger.blueprint.md) recognizes triage bot comments by this prefix and ignores them, so that they do not count as a team reply. Never start a triage bot comment any other way. The first line names the kind of comment:
 
 1. `**From triage bot, suggestion:**`: a suggestion comment, with an `<a2ui>` block.
 2. `**From triage bot, response:**`: a response comment, which answers requests to the triage bot.
@@ -93,7 +93,7 @@ What to post depends on the item's labels:
 1. If the item has `status: needs-team-input`, post a [response comment](#response-comment) when the item has [requests to the triage bot](#requests-to-the-triage-bot) that are not answered yet. Otherwise skip the item.
 2. Otherwise, post a suggestion comment, unless the item's suggestion is current.
 
-[Current and outdated suggestions](../../../tools/internal/triage_new/blueprints/features/triage_bot/suggestion.blueprint.md#current-and-outdated-suggestions) defines when a suggestion is current. In the fields that [item.graphql](references/item.graphql) returns, the suggestion is current when the `updatedAt` of the latest suggestion comment is later than all of the following:
+[Current and outdated suggestions](../../../tools/internal/triage/blueprints/features/triage_bot/suggestion.blueprint.md#current-and-outdated-suggestions) defines when a suggestion is current. In the fields that [item.graphql](references/item.graphql) returns, the suggestion is current when the `updatedAt` of the latest suggestion comment is later than all of the following:
 
 1. The `createdAt` of every other comment, excluding other triage bot comments.
 2. The `submittedAt` of every PR review.
@@ -105,7 +105,7 @@ Otherwise the suggestion is outdated. A request to the triage bot is a comment, 
 
 ## Step 4: Research the item
 
-1. Read the title, body, every comment and every review. Note questions from out-of-team contributors that no team member has answered (see [Contributors](../../../tools/internal/triage_new/blueprints/core.blueprint.md#contributors) for who is in the team), and [requests to the triage bot](#requests-to-the-triage-bot) from team members.
+1. Read the title, body, every comment and every review. Note questions from out-of-team contributors that no team member has answered (see [Contributors](../../../tools/internal/triage/blueprints/core.blueprint.md#contributors) for who is in the team), and [requests to the triage bot](#requests-to-the-triage-bot) from team members.
 2. For a bug, diagnose it from the logs, stack traces, specification (`specification/`) and code. Reproduce it only when the steps are short and clear. Do it in a temporary clone or worktree in your scratch directory, and delete it when you finish.
 3. For a PR, read the changed files and the issues it closes. Note which team members reviewed it: a review by a team member decides the assignee (see [Pull requests](references/triage_criteria.md#pull-requests)). Check whether a closed issue is assigned to the PR author, and whether open PRs touch the same files. Note whether the PR has merge conflicts: `mergeable` is `CONFLICTING`. GitHub computes `mergeable` when it is asked, so if it is `UNKNOWN`, run the query again a few seconds later.
 4. Look for related items. Start with the cross-referenced items in the timeline, then run at most three searches, such as `gh search issues --repo a2ui-project/a2ui "<keywords>"` and `gh search prs --repo a2ui-project/a2ui "<keywords>"`. Open each candidate before you call it related or a duplicate.
@@ -137,11 +137,11 @@ For a suggestion, decide what the triager should do, following [triage_criteria.
 
 ## Step 6: Fill in the suggestion
 
-The [`TriageSuggestion`](../../../tools/internal/triage_new/pkgs/shared/lib/src/triage_bot/triage_suggestion.dart) component has these properties:
+The [`TriageSuggestion`](../../../tools/internal/triage/pkgs/shared/lib/src/triage_bot/triage_suggestion.dart) component has these properties:
 
 1. `tldr`: the case and the suggestion in a few words each, as two lines: `Case: ...`, what kind of item this is, such as "this issue highlights a problem", and `Suggestion: ...`, the action, such as "set P1 and assign for triage to an expert". For a PR that a team member already started reviewing, the `Case:` line says so, with their login (see [Pull requests](references/triage_criteria.md#pull-requests)). Write it after `summary` and `suggestion`, as their short form, so that the triager can decide at a glance.
 2. `summary` (required): what the item is about, in one or two sentences, for a triager who has not read it.
-3. `reason`: why the item is flagged for triage. Copy it unchanged from the output of `flag_reason.mts` in step 2, and omit it when the output has `null`. Do not work out the reason yourself: the script uses the same code as the flagger, so the two always agree.
+3. `reason`: why the item is flagged for triage. Copy it unchanged from the output of `flag_reason.dart` in step 2, and omit it when the output has `null`. Do not work out the reason yourself: the script uses the same code as the flagger, so the two always agree.
 4. `suggestion` (required): what the triager should do and why. Name the evidence, with links (see the rules for links below).
 5. `reply`: a comment for the item's author or other participants, which the triage UI posts when the triager applies the suggestion. Always write one. Start it with the line `**From triage:**` and a blank line, so that readers know the comment comes from triage. Unlike `**From triage bot`, this prefix does not make the flagger ignore the comment, so the posted reply counts as a team answer. After the prefix, at least, it says in a sentence or two what the triager does and why, such as "Assigning this PR to `xyz`, because they already started reviewing it." Copy it from [templates.md](../../../docs/contributing/triage/templates.md) when a template fits. Never ask anyone in `reply` to adjust or change the priority, or any other label: out-of-team contributors cannot change labels, and the triager sets them. When the author needs to act, an out-of-team contributor's question is unanswered, or the item is closed, the reply also says what the author should do, answers the question, or explains why the item is closed.
 6. `close_as`: `completed`, `not_planned` or `duplicate`, when the triager should close the item. Omit it to keep the item open.
@@ -158,7 +158,7 @@ Rules for the lists:
 
 1. Omit a list that is empty.
 2. Use only labels that exist in the repository (`gh label list -R a2ui-project/a2ui --limit 200`). Add only labels the item does not have, and remove only labels it has.
-3. Never add or remove `status: needs-triage`. The [flagger](../../../tools/internal/triage/blueprints/flagging.blueprint.md) manages it and would undo the change.
+3. Never add or remove `status: needs-triage`. The [flagger](../../../tools/internal/triage/blueprints/features/flagger.blueprint.md) manages it and would undo the change.
 4. Assign only logins that pass the assignee check in step 4, and that are not assigned yet. Assign a PR only to a team member who started reviewing it, or to an expert together with `status: assigned-for-triage` (see [Pull requests](references/triage_criteria.md#pull-requests)).
 5. List an item in `related_items` only if the suggestion says how it relates. Do not list the item itself, the item in `duplicate_of`, or an item in `targeting_prs` or `targeted_issues`.
 6. For each PR in `targeting_prs`, say whether it closes the issue. A PR closes it only when it is linked to close it, with `Fixes #<number>` or in the sidebar. A PR that works on the issue without that link still targets it, so write that it does not close the issue, such as "[#4092](https://github.com/a2ui-project/a2ui/pull/4092) works on this issue but does not close it". A PR that only mentions the issue goes in `related_items`.
@@ -226,7 +226,7 @@ Reply:
 To adjust and apply this suggestion, run in your a2ui checkout:
 
 ```bash
-tools/internal/triage_new/triage_ui.sh <item URL>
+tools/internal/triage/triage_ui.sh <item URL>
 ```
 
 </details>
@@ -302,7 +302,7 @@ Reply:
 To adjust and apply this suggestion, run in your a2ui checkout:
 
 ```bash
-tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1235
+tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1235
 ```
 
 </details>
@@ -364,7 +364,7 @@ Reply:
 To adjust and apply this suggestion, run in your a2ui checkout:
 
 ```bash
-tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1236
+tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1236
 ```
 
 </details>
@@ -414,7 +414,7 @@ To hand the item over, assign `gspencergoog`, add `status: assigned-for-triage` 
 To apply this, run in your a2ui checkout:
 
 ```bash
-tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/3061
+tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/3061
 ```
 ````
 
@@ -434,16 +434,16 @@ List every item with its outcome and a link: suggestion posted, response posted,
 
 ## Triage report
 
-The triage report says what a team member triaged in a period, and lists the open items assigned for triage, grouped by assignee, with each assignee as `@login`, so that the team can read it in the go/a2ui-core-working-group chat space and in the go/a2ui-triage-log doc. The triager usually asks for it at the end of their triage week, as in "Create the triage report for last week". The report is described in [Triage report](../../../tools/internal/triage_new/blueprints/features/triage_bot/report.blueprint.md). The **Assigned for triage:** section is the only place that lists items assigned for triage: the groups of what the triager did have no group for them, and an item they assigned for triage in the period is under **Updated**, with what they did.
+The triage report says what a team member triaged in a period, and lists the open items assigned for triage, grouped by assignee, with each assignee as `@login`, so that the team can read it in the go/a2ui-core-working-group chat space and in the go/a2ui-triage-log doc. The triager usually asks for it at the end of their triage week, as in "Create the triage report for last week". The report is described in [Triage report](../../../tools/internal/triage/blueprints/features/triage_bot/report.blueprint.md). The **Assigned for triage:** section is the only place that lists items assigned for triage: the groups of what the triager did have no group for them, and an item they assigned for triage in the period is under **Updated**, with what they did.
 
-[triage_report.mts](scripts/triage_report.mts) collects the activity from GitHub and writes the report. Do not collect the activity or write the report yourself: GitHub returns stale or incomplete timelines for some queries, and the script works around them and is tested.
+[triage_report.dart](../../../tools/internal/triage/pkgs/shared/bin/triage_report.dart) collects the activity from GitHub and writes the report. Do not collect the activity or write the report yourself: GitHub returns stale or incomplete timelines for some queries, and the script works around them and is tested.
 
 1. Work out the period from the prompt, as dates in the local time zone. For example, on 2026-11-11, "last week" is `--since 2026-11-05 --until 2026-11-11`, the last 7 days including today. If the prompt names no period, use the last 7 days. The period includes the whole `--until` day, which defaults to today.
-2. If the prompt names whose triage to report, pass the login with `--login`. Otherwise omit it: the script reports on the account `gh` is logged in to.
+2. If the prompt names whose triage to report, pass the login with `--login`. Otherwise omit it: the script reports on the account of its GitHub token, from `GITHUB_TOKEN` or `GH_TOKEN`, or else the account `gh` is logged in to.
 3. Run the script, with an output folder in your scratch directory:
 
    ```bash
-   node .agents/skills/a2ui-triage-bot/scripts/triage_report.mts report \
+   dart run tools/internal/triage/pkgs/shared/bin/triage_report.dart report \
      --since <date> --until <date> --out <scratch>/triage_report --copy
    ```
 
@@ -464,7 +464,7 @@ The triage report says what a team member triaged in a period, and lists the ope
    3. Add the report to go/a2ui-triage-log?
    ```
 
-   Leave out the first option, and number the rest from 1, when the report has no items or `--login` names someone else, since the script would unsubscribe the `gh` account, not them.
+   Leave out the first option, and number the rest from 1, when the report has no items or `--login` names someone else, since the script would unsubscribe the account of its GitHub token, not them.
 
 6. Do what the triager agrees to, in the order of the options. They may agree to any of them, as in "1 and 3" or "all". Their answer is the approval to post: do not ask again before each step. When you finish, report the outcome of each step.
 
@@ -473,7 +473,7 @@ The triage report says what a team member triaged in a period, and lists the ope
 Run:
 
 ```bash
-node .agents/skills/a2ui-triage-bot/scripts/triage_report.mts unsubscribe <scratch>/triage_report/items.json
+dart run tools/internal/triage/pkgs/shared/bin/triage_report.dart unsubscribe <scratch>/triage_report/items.json
 ```
 
 It works like the **Unsubscribe** button on each item: GitHub stops sending notifications about the item, unless someone mentions the person. Report how many items the script unsubscribed from, and the items it failed for, with the errors.
@@ -485,7 +485,7 @@ If you have a Google Chat tool, post the contents of `report.chat.txt` as a new 
 If you have no Google Chat tool, or it fails, let the triager paste the report:
 
 ```bash
-node .agents/skills/a2ui-triage-bot/scripts/triage_report.mts paste <scratch>/triage_report --to chat
+dart run tools/internal/triage/pkgs/shared/bin/triage_report.dart paste <scratch>/triage_report --to chat
 ```
 
 It puts the report on the clipboard as rich text, opens the space in the browser, and prints what to do there. Pass that on to the triager. If you also add the report to the triage log by pasting, ask the triager to tell you when they have sent the message, and run the next `paste` only then, since it replaces the clipboard.
@@ -499,7 +499,7 @@ If you have a Google Docs tool that can insert formatted text and a horizontal l
 If you have no such tool, or it fails, let the triager paste the report:
 
 ```bash
-node .agents/skills/a2ui-triage-bot/scripts/triage_report.mts paste <scratch>/triage_report --to log
+dart run tools/internal/triage/pkgs/shared/bin/triage_report.dart paste <scratch>/triage_report --to log
 ```
 
 It puts the report and its horizontal line on the clipboard as rich text, opens the doc in the browser, and prints where to paste. Pass that on to the triager.
