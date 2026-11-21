@@ -1,5 +1,15 @@
 ## Unreleased
 
+- Add `MessageProcessor.add_catalog(catalog)`, which adds a catalog to a
+  processor after it is built. `createSurface` messages, renderer function
+  calls and `get_renderer_capabilities` see the catalog from then on; surfaces
+  created before the call keep the catalogs they were created with. A catalog
+  whose ID the processor already holds is rejected with `A2uiCatalogError`.
+  `MessageProcessor.catalogs` is the processor's own list, which `add_catalog`
+  appends to; the sequence passed to the constructor is not changed
+  ([#3303](https://github.com/a2ui-project/a2ui/issues/3303),
+  [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
+
 ## 0.7.0 (2026-11-17)
 
 - **BREAKING CHANGE**: Enforce basic catalog function argument and return-type validation across `StrictBaseModel`, `SchemaValidator`, and `PayloadValidator`: reject `str` and `bool` values on pure `int`/`float` fields (such as `length.min`, `length.max`, `numeric.min`, and `numeric.max`), enforce `anyOf` required-branch constraints (`SchemaKeywords.required_any_of`), enforce RFC 3986 scheme-prefixed URI syntax (`^[A-Za-z][A-Za-z0-9+.-]*:\S*$`) on `"format": "uri"` fields (such as `openUrl.args.url`), and validate declared `returnType` values on nested function calls against the catalog function definition on pre-1.0 surfaces. Recommended migration: pass numeric values to `min` and `max`, supply at least one bound on `length` and `numeric`, pass a scheme-prefixed URI to `openUrl.url`, and match or omit `returnType` on nested function calls ([#4173](https://github.com/a2ui-project/a2ui/issues/4173), [#4187](https://github.com/a2ui-project/a2ui/pull/4187)).

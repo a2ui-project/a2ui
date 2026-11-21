@@ -1035,10 +1035,13 @@ def validate_payload(payload: list[dict[str, Any]], case: Case) -> None:
         ):
             seeded_cid = case.surface_catalogs[case.surface_id]
             default_cat = resolve_catalog(seeded_cid, version) if seeded_cid else None
+        # A surface holds the catalogs its processor had when it was created,
+        # as `createSurface` gives it.
         processor.model.add_surface(
             SurfaceModel(
                 surface_id=case.surface_id,
                 default_catalog=default_cat,
+                available_catalogs={c.catalog_id: c for c in catalogs},
             )
         )
     processor.process_messages(payload)
