@@ -484,6 +484,31 @@ void main() {
       expect(harness.data('/volume'), 0.3);
     });
 
+    testWidgets('Slider reads values on its steps', (tester) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      await _pump(
+        tester,
+        [
+          {
+            'id': 'root',
+            'component': 'Slider',
+            'label': 'Volume',
+            'value': _bind('/volume'),
+            'min': 0,
+            'max': 1,
+            'steps': 10,
+          },
+        ],
+        dataModel: {'volume': 0.7},
+      );
+
+      expect(
+        tester.getSemantics(find.byType(Slider)),
+        isSemantics(value: '0.7', increasedValue: '0.8', decreasedValue: '0.6'),
+      );
+      semantics.dispose();
+    });
+
     testWidgets('Slider snaps to more than 1000 steps', (tester) async {
       final SurfaceHarness harness = await _pump(
         tester,
