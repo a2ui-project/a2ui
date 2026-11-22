@@ -1,4 +1,4 @@
-# How the automated triage bot works
+# Flagger
 
 The [flagger](../../pkgs/flagger/) runs in the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It checks every open issue and PR, adds `status: needs-triage` to the ones that match the conditions below, and removes the label from the rest.
 
@@ -13,21 +13,21 @@ The flagger uses the following rules to decide if a PR or issue should get **the
    - If yes: **NO LABEL**. A draft PR is still in its author's hands, so it is not triage work until the author marks it ready for review.
    - If no: continue processing.
 
-1. Does the item have `status: waiting-for-author-response` (the bot removes this label once an out-of-team contributor responds)?
+1. Does the item have `status: waiting-for-author-response` (the flagger removes this label once an out-of-team contributor responds)?
 
    - If yes: **NO LABEL**.
    - If no: continue processing.
 
 2. Is the item [stale](triage_bot/staleness_ping.blueprint.md#stale-items), with an [expired staleness ping](triage_bot/staleness_ping.blueprint.md#staleness-pings)? The staleness pinger asked its assignees to act, and the grace period passed.
 
-   - If yes: **LABEL**, whoever opened the item, since the ping said that the item goes back to triage.
+   - If yes: **LABEL**, whoever opened the item, since the ping said that the item goes back to triage. Stale items get pings only while someone runs the [triage bot](../../../../../.agents/skills/a2ui-triage-bot/SKILL.md), so until then they stay unflagged.
    - If no: continue processing.
 
 3. Does the item have `status: assigned-for-triage`?
 
    - If yes:
      - **LABEL** when it has no assignee.
-     - **NO LABEL** otherwise. An assignment that runs late is flagged by step 2.
+     - **NO LABEL** otherwise. An assignment that stays open too long is flagged by step 2.
    - If no: continue processing.
 
 4. Was the item opened by a team member, with no unanswered contribution from an out-of-team contributor? A contribution (a comment, a PR review or a review comment) is unanswered while it is the latest human contribution, so a reply or review from a team member answers it.

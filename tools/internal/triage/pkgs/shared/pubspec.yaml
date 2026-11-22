@@ -16,7 +16,6 @@ name: shared
 description: >-
   Dart code for triaging GitHub items in the A2UI repository.
 publish_to: none
-
 resolution: workspace
 
 environment:

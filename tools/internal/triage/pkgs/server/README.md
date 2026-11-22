@@ -26,12 +26,12 @@ container image
 
 The **Server** listens on port 8080 and routes by path:
 
-| Path | What the Server does |
-|---|---|
-| `/`, `/main.dart.js`, `/assets/…` | Returns the file from `/app/web/` (the **App**) |
-| `/auth/…` | Sign-in with GitHub, a pasted token, sign-out, status |
-| `/github/…` | Adds the triager's token and forwards the call to `api.github.com` |
-| `/healthz` | Answers `ok` |
+| Path                              | What the Server does                                               |
+| --------------------------------- | ------------------------------------------------------------------ |
+| `/`, `/main.dart.js`, `/assets/…` | Returns the file from `/app/web/` (the **App**)                    |
+| `/auth/…`                         | Sign-in with GitHub, a pasted token, sign-out, status              |
+| `/github/…`                       | Adds the triager's token and forwards the call to `api.github.com` |
+| `/healthz`                        | Answers `ok`                                                       |
 
 Once the **Browser** has the App's files, the **App** runs in the **Browser**,
 not in the container. After that, the container only answers `/auth/…` and
@@ -50,16 +50,16 @@ nobody uses it.
 
 ## Actors
 
-| Actor | What it is | Where it runs |
-|---|---|---|
-| **Triager** | The Googler who uses the tool | — |
-| **Browser** | The triager's browser | Triager's computer |
-| **UberProxy** | Google's corp gateway, which only lets signed-in Googlers through | Google |
-| **App** | The Flutter web app ([`pkgs/ui`](../ui/)), compiled to JavaScript | In the **Browser** |
-| **Server** | This package: serves the **App**'s files, signs the triager in, and passes GitHub calls through | Cloud Run, or the triager's computer when run locally |
-| **GitHub sign-in** | GitHub's OAuth pages and token endpoint | `github.com` |
-| **GitHub API** | GitHub's REST and GraphQL API | `api.github.com` |
-| **OAuth App** | The app's registration on GitHub: a client ID and a client secret. Only the **Server** knows the secret | Registered on GitHub; the secret is in the **Server**'s settings |
+| Actor              | What it is                                                                                              | Where it runs                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| **Triager**        | The Googler who uses the tool                                                                           | —                                                                |
+| **Browser**        | The triager's browser                                                                                   | Triager's computer                                               |
+| **UberProxy**      | Google's corp gateway, which only lets signed-in Googlers through                                       | Google                                                           |
+| **App**            | The Flutter web app ([`pkgs/ui`](../ui/)), compiled to JavaScript                                       | In the **Browser**                                               |
+| **Server**         | This package: serves the **App**'s files, signs the triager in, and passes GitHub calls through         | Cloud Run, or the triager's computer when run locally            |
+| **GitHub sign-in** | GitHub's OAuth pages and token endpoint                                                                 | `github.com`                                                     |
+| **GitHub API**     | GitHub's REST and GraphQL API                                                                           | `api.github.com`                                                 |
+| **OAuth App**      | The app's registration on GitHub: a client ID and a client secret. Only the **Server** knows the secret | Registered on GitHub; the secret is in the **Server**'s settings |
 
 ## Signing in
 
@@ -116,8 +116,7 @@ Ending the session:
 19. **Triager** clicks **Sign out** in the menu. **Server** revokes the
     token with **GitHub API** (`DELETE /applications/<client ID>/token`), so
     that a copy of the cookie stops working too, and deletes the cookie. The
-    **OAuth App** stays authorized on GitHub, so the next sign-in skips step
-    8.
+    **OAuth App** stays authorized on GitHub, so the next sign-in skips step 8.
 20. If the token stops working, for example because the **Triager** revoked
     it on GitHub, **GitHub API** answers 401. **Server** passes the answer on
     and deletes the cookie, and after a reload the **App** shows the sign-in
@@ -153,8 +152,9 @@ and there is no **Server**:
 3. **App** calls **GitHub API** directly with the token.
 
 The macOS app has no **Browser**, **UberProxy** or **Server**. It uses the
-token in `GITHUB_TOKEN` or `GH_TOKEN`, or else shows only **Use a token** and
-keeps the pasted token until the **Triager** quits it. It calls **GitHub API**
+token in `GITHUB_TOKEN` or `GH_TOKEN`, or else the one that `gh auth token`
+prints. Without one, it shows only **Use a token** and keeps the pasted token
+until the **Triager** quits it. It calls **GitHub API**
 directly.
 
 ### D. Locally, with the Server
@@ -168,13 +168,13 @@ follows A and B, without **UberProxy**.
 
 The Server reads its settings from environment variables:
 
-| Variable | Meaning | Default |
-|---|---|---|
-| `PORT` | The port to listen on | `8080` |
-| `PUBLIC_URL` | The URL the **Browser** opens. GitHub sends the triager back to `<PUBLIC_URL>/auth/callback` | `http://localhost:<PORT>` |
-| `WEB_DIR` | The folder with the output of `flutter build web` | `../ui/build/web` (`/app/web` in the image) |
-| `SESSION_SECRET` | The secret that the cookie encryption key is made from. Changing it signs everyone out | Random, so a restart signs everyone out |
-| `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` | The **OAuth App**. Without them, **Sign in with GitHub** is off and only **Use a token** works | Not set |
+| Variable                                               | Meaning                                                                                        | Default                                     |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `PORT`                                                 | The port to listen on                                                                          | `8080`                                      |
+| `PUBLIC_URL`                                           | The URL the **Browser** opens. GitHub sends the triager back to `<PUBLIC_URL>/auth/callback`   | `http://localhost:<PORT>`                   |
+| `WEB_DIR`                                              | The folder with the output of `flutter build web`                                              | `../ui/build/web` (`/app/web` in the image) |
+| `SESSION_SECRET`                                       | The secret that the cookie encryption key is made from. Changing it signs everyone out         | Random, so a restart signs everyone out     |
+| `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` | The **OAuth App**. Without them, **Sign in with GitHub** is off and only **Use a token** works | Not set                                     |
 
 The Server listens on all network interfaces on Cloud Run, which sets
 `K_SERVICE`, and only on localhost elsewhere. Cookies are `Secure` when

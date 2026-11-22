@@ -1,18 +1,13 @@
 # pinger
 
-The staleness pinger asks the assignees of stale issues and PRs to act, before the [flagger](../flagger/) flags the items for triage. The [triage bot](../../../../../.agents/skills/a2ui-triage-bot/SKILL.md) runs it hourly.
+The staleness pinger asks the assignees of stale issues and PRs to act, before the [flagger](../flagger/) flags the items for triage. The [triage bot](../../../../../.agents/skills/a2ui-triage-bot/SKILL.md) runs it every hour. [staleness_ping.blueprint.md](../../blueprints/features/triage_bot/staleness_ping.blueprint.md) describes what it does.
 
-1. [staleness_ping.blueprint.md](../../blueprints/features/triage_bot/staleness_ping.blueprint.md): what the pinger does.
-2. [`lib/src/`](lib/src/): the code. `staleness_ping.dart` finds the stale items and pings them, and `commenter.dart` posts the comments.
-3. [`bin/staleness_ping.dart`](bin/staleness_ping.dart): the command that the triage bot runs from the repository root:
+1. [`lib/src/staleness_ping.dart`](lib/src/staleness_ping.dart) finds the stale items and pings them. [`github.dart`](lib/src/github.dart) posts the comments, and [`team_chat.dart`](lib/src/team_chat.dart) sends the Google Chat messages.
+2. [`bin/staleness_ping.dart`](bin/staleness_ping.dart) is the command. To see what it would post, run from the repository root:
 
    ```sh
    dart run tools/internal/triage/pkgs/pinger/bin/staleness_ping.dart --dry-run
    ```
-
-   With `--dry-run`, it prints the comments instead of posting them. It reads the repository from `GITHUB_REPOSITORY`, which defaults to `a2ui-project/a2ui`, and the token from `GITHUB_TOKEN`, `GH_TOKEN` or `gh auth token`. The token must belong to a team member. For the Google Chat messages, it reads `TRIAGE_CHAT_WEBHOOK_URL` and `TRIAGE_CHAT_USERS`.
-
-The definitions of stale items and pings, and reading items from GitHub, are in the [`shared`](../shared/) package, since the flagger uses them too.
 
 ## Testing
 

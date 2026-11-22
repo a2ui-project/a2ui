@@ -17,7 +17,6 @@ description: >-
   The triage UI: helps the triager go through the GitHub items in the A2UI
   repository that need triage.
 publish_to: none
-
 environment:
   sdk: ">=3.10.0 <4.0.0"
   flutter: ">=3.38.0"

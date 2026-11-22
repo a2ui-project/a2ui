@@ -17,7 +17,6 @@ description: >-
   The flagger: adds `status: needs-triage` to the issues and pull requests in
   the A2UI repository that need triage, and removes it from the rest.
 publish_to: none
-
 resolution: workspace
 
 environment:

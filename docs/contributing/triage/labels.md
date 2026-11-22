@@ -4,16 +4,16 @@ Added and removed by the [flagger](../../../tools/internal/triage/blueprints/fea
 
 - [status: needs-triage][needs-triage-label]: the item needs triage. The [needs triage queue][needs-triage-all] lists all of them.
 
-Added manually, removed by the bot:
+Added manually, removed by the flagger:
 
-- [status: waiting-for-author-response][waiting-for-author-response]: the team is waiting for a reply from the author or another contributor. The bot removes the label once anyone outside the team replies, not only the author: an author sometimes opens an issue and goes quiet while others continue the discussion, and their replies need the team's attention too.
+- [status: waiting-for-author-response][waiting-for-author-response]: the team is waiting for a reply from the author or another contributor. The flagger removes the label once anyone outside the team replies, not only the author: an author sometimes opens an issue and goes quiet while others continue the discussion, and their replies need the team's attention too.
 
 Added and removed manually:
 
 - Priority labels [P0][p0], [P1][p1], [P2][p2], [P3][p3]: see [Triage an issue](triage.md#triage-an-issue).
 - [status: first-line-handled][first-line-handled]: the issue went through first line triage.
 - [status: needs-team-input][needs-team-input]: the triager needs input from the team to triage the item.
-- [status: assigned-for-triage][assigned-for-triage]: an expert in the area is assigned to finish the triage. The flagger adds `status: needs-triage` to the item again if nobody is assigned. When the label stays for more than 14 days, the triage bot asks the assignee to act, and if nothing changes in 7 more days, the flagger adds `status: needs-triage`.
+- [status: assigned-for-triage][assigned-for-triage]: an expert in the area is assigned to finish the triage. The flagger adds `status: needs-triage` to the item again if nobody is assigned. When the label stays for more than 14 days, the triage bot asks the assignees to finish the triage, and if the label is still there 7 days later, the flagger adds `status: needs-triage`.
 - [size: small][size-small]: the issue is small.
 
 See [all GitHub labels](https://github.com/a2ui-project/a2ui/labels).

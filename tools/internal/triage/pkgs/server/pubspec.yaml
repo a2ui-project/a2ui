@@ -18,7 +18,6 @@ description: >-
   to GitHub, and passes the app's GitHub calls through with the triager's
   token.
 publish_to: none
-
 resolution: workspace
 
 environment:

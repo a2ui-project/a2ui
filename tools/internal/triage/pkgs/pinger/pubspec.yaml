@@ -12,13 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 name: pinger
 description: >-
   The staleness pinger: asks the assignees of stale issues and pull requests
   in the A2UI repository to act, before the flagger flags them for triage.
 publish_to: none
-
 resolution: workspace
 
 environment:

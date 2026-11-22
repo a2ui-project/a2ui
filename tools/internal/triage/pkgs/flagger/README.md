@@ -11,7 +11,7 @@ The flagger adds `status: needs-triage` to the open issues and PRs that need att
    dart run tools/internal/triage/pkgs/flagger/bin/flag_reason.dart 123 https://github.com/a2ui-project/a2ui/pull/456
    ```
 
-The labels, the GitHub client, reading items from GitHub, the check for triage bot comments and the definitions of stale items are in the [`shared`](../shared/) package, which the [staleness pinger](../pinger/) and the triage UI use too.
+The code that the flagger shares with the [staleness pinger](../pinger/) and the triage UI, such as the labels, the GitHub client and reading items, is in the [`shared`](../shared/) package.
 
 ## Testing
 

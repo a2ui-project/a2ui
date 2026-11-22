@@ -14,7 +14,7 @@ The packages are in the Dart workspace of the repository root.
 
 ### Run the triage UI
 
-Open go/a2ui-triage-ui, or on macOS, from the repository root (link to item to select is optional):
+Open go/a2ui-triage-ui. On macOS, you can also run this from the repository root, with an optional item to open:
 
 ```bash
 tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/123
@@ -30,6 +30,6 @@ Ask an AI agent:
 Start triage bot https://github.com/a2ui-project/a2ui/tree/main/.agents/skills/a2ui-triage-bot
 ```
 
-It will run skill every hour: the triage advisor, the staleness pinger and the triage assistant. 
+Every hour, it runs the triage advisor, the staleness pinger and the triage assistant.
 
 Ask "stop triage bot" to stop it.

@@ -30,11 +30,11 @@ Then [update](#updating) it when the code changes.
 
 ## 1. Get a Corp Run project
 
-The triage UI needs a Corp Run *environment*: a GCP project with Corp Run's
+The triage UI needs a Corp Run _environment_: a GCP project with Corp Run's
 standard infrastructure, which is:
 
 - the VPC network `cr-infra-vpc-network` and subnet `cr-infra-subnetwork`;
-- the load balancer with *dynamic URLs*, so that each service is at
+- the load balancer with _dynamic URLs_, so that each service is at
   `https://<service>-<project number>.cr.gclb.goog`;
 - `roles/run.invoker` granted only to the UberProxy service accounts, so that
   only Googlers reach the services;
@@ -127,7 +127,7 @@ tools/internal/triage/pkgs/server/deploy.sh --project <project ID>
    one.
 4. Deploys the image as the Cloud Run service `a2ui-triage`, reachable only
    through UberProxy (`--ingress=internal-and-cloud-load-balancing
-   --no-allow-unauthenticated`), with 1 CPU, 512 MiB, and 0 to 3 instances.
+--no-allow-unauthenticated`), with 1 CPU, 512 MiB, and 0 to 3 instances.
    It passes the secrets in a temporary file that only you can read, which
    it deletes afterwards, because Corp Run admins cannot grant access to
    Secret Manager.
@@ -188,8 +188,7 @@ A new `SESSION_SECRET` signs everyone out. A new client secret doesn't.
   OAuth App's callback URL must be exactly `<PUBLIC_URL>/auth/callback`.
   `deploy.sh` prints the URL it uses.
 - **Reading works, but applying fails with 403 or "Resource not accessible".**
-  The organization of the repository hasn't approved the OAuth App. See step
-  2. A triager can still paste a token with **Use a token**.
+  The organization of the repository hasn't approved the OAuth App. See step 2. A triager can still paste a token with **Use a token**.
 - **The logs.** `gcloud run services logs read a2ui-triage --project=<project
-  ID> --region=us-west1`. The Server logs the method, path and status of each
+ID> --region=us-west1`. The Server logs the method, path and status of each
   request, but no query strings, tokens or cookies.

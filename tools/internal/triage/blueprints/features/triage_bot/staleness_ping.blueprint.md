@@ -28,7 +28,7 @@ The **clock** of a case starts at the latest `status: assigned-for-triage` label
 
 A **staleness ping** is a triage bot comment that the staleness pinger posts on a stale item, marked with the item's case.
 
-A ping is **current** when it was posted for the item's current case after that case's clock started. A team member's update restarts the clock, so a ping posted before it is no longer current.
+A ping is **current** when it was posted for the item's current case after that case's clock started. A ping posted before the clock restarted, by a new `status: assigned-for-triage` labeling or a team member's contribution, is no longer current.
 
 A current ping is **expired** when it is older than the grace period of its case and the item is still stale. The [flagger](../flagger.blueprint.md) then flags the item, in its step 2.
 
@@ -38,6 +38,7 @@ The pinger posts the comment from a team member's account, so that the comment i
 
 ```markdown
 **From triage bot, ping:** @{assignee} this `P1` issue has had no update from the team for 30 days. Please post an update, or change the priority or assignee if the plan has changed. If nothing changes in 7 days, the issue gets `status: needs-triage` and goes back to the weekly triage.
+
 <!-- a2ui-triage-ping: p1-inactive -->
 ```
 
@@ -59,8 +60,9 @@ The pinger reads two environment variables:
 
 ## Failures
 
-1. If a GitHub comment fails, the pinger logs the error and goes on with the next item. The next run tries again, since the item still has no current ping.
-2. If a Chat message fails, the pinger logs the error and does not retry.
-3. If the first comment turns out to come from an account outside the team, the pinger deletes it and stops. Such a comment is not a triage bot comment, so the next run would not see it and would ping again.
+1. If an item's comments, reviews or history fail to load, the pinger skips the item: without them, it could ping an item that is not stale, or ping it twice.
+2. If a GitHub comment fails, the pinger logs the error and goes on with the next item. The next run tries again, since the item still has no current ping.
+3. If a Chat message fails, the pinger logs the error and does not retry.
+4. If the first comment turns out to come from an account outside the team, the pinger deletes it and stops. Such a comment is not a triage bot comment, so the next run would not see it and would ping again.
 
 The pinger exits with an error when anything fails, and the triage bot reports the errors. It prints each item it pings, the case, and the assignees it mentioned.

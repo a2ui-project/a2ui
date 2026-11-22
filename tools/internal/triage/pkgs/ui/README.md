@@ -10,9 +10,9 @@ describes what it does.
 The app reads and changes items with your GitHub token. Everything the app
 applies, such as replies, labels and assignees, is done from your account.
 
-On macOS, the app uses `GITHUB_TOKEN` or `GH_TOKEN` if one is set. Otherwise
-it shows **Sign in to GitHub**, where you paste the token that
-`gh auth token` prints. The app keeps it until you quit.
+On macOS, the app uses `GITHUB_TOKEN` or `GH_TOKEN`, or else the token that
+`gh auth token` prints. Without one, it shows **Sign in to GitHub**, where you
+paste a token. The app keeps it until you quit.
 
 On the web, the app cannot read the environment, so you sign in on the page:
 
@@ -41,8 +41,8 @@ it runs, the app listens on `127.0.0.1:47123` for the items the script sends.
 ### On the web
 
 From VS Code, select **Chrome** as the device and run the `triage_ui`
-launch configuration, which passes `GITHUB_TOKEN` from the environment VS Code
-runs in. From a terminal, in this folder:
+launch configuration, which passes your token (`GITHUB_TOKEN`, `GH_TOKEN` or
+`gh auth token`) to the app. From a terminal, in this folder:
 
 ```bash
 flutter run -d chrome --dart-define=GITHUB_TOKEN="$(gh auth token)"
