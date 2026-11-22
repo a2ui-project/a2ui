@@ -127,4 +127,5 @@ void main() {
         'GET /repos/a2ui-project/a2ui/issues/7/events',
       ]);
     });
+  });
 }

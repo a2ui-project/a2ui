@@ -13,7 +13,7 @@
 // limitations under the License.
 
 /// What the flagger and the staleness pinger know about an issue or a pull
-/// request. [RestItemReader] reads it from the GitHub REST API.
+/// request. `RestItemReader` reads it from the GitHub REST API.
 library;
 
 /// A GitHub account, or null for a deleted one.
