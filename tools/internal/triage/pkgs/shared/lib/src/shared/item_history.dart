@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:shared/shared.dart';
-
-import 'github.dart';
 import 'item.dart';
+import 'item_reader.dart';
+import 'labels.dart';
+import 'rest_json.dart';
 import 'staleness.dart';
+import 'triage_bot_comment.dart';
 
-/// What the flagger reads about an item, besides the item itself.
+/// What the flagger and the staleness pinger read about an item, besides
+/// the item itself.
 final class ItemHistory {
   const ItemHistory({
     this.contributions = const [],
@@ -49,7 +51,7 @@ final class ItemHistory {
 /// matters, so that the other items cost no extra call. Errors go to
 /// [errorLog], and the other messages to [log].
 Future<ItemHistory> fetchHistory(
-  FlaggerGitHub github,
+  ItemReader github,
   Item item, {
   required StringSink log,
   required StringSink errorLog,
@@ -86,7 +88,7 @@ Future<ItemHistory> fetchHistory(
 /// A source that fails to load counts as empty, so that one failure does
 /// not stop the whole run.
 Future<({List<Contribution> contributions, List<Ping> pings})> _contributions(
-  FlaggerGitHub github,
+  ItemReader github,
   Item item,
   StringSink errorLog,
 ) async {
@@ -147,7 +149,7 @@ Future<({List<Contribution> contributions, List<Ping> pings})> _contributions(
 /// round must not answer the second. Likewise, adding
 /// [assignedForTriageLabel] again starts a new triage assignment.
 Future<Map<String, DateTime>> _labelsAddedAt(
-  FlaggerGitHub github,
+  ItemReader github,
   Item item,
   List<String> names,
   StringSink log,

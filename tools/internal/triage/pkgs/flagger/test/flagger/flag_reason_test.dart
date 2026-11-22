@@ -103,18 +103,26 @@ void main() {
       );
     });
 
-    test('reads when the timed labels were added', () async {
+    test('reads when the timed labels were added, and the pings', () async {
       final ItemReason result = await reasonOf(
         FakeGitHub(
           [
-            externalIssue(labels: [assignedForTriageLabel], assignees: 1),
+            externalIssue(
+              labels: [assignedForTriageLabel],
+              assignees: 1,
+              comments: 1,
+            ),
           ],
+          itemComments: {
+            1: [pingComment(StaleCase.assignedForTriage, 8)],
+          },
           itemEvents: {
-            1: [labeling(assignedForTriageLabel, 15)],
+            1: [labeling(assignedForTriageLabel, 22)],
           },
         ),
       );
       expect(result.reason, contains('was added more than 14 days ago'));
+      expect(result.reason, contains('did not act on the staleness ping'));
     });
 
     test(

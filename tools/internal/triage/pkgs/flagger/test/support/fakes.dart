@@ -41,15 +41,17 @@ Item issue({
   bool pullRequest = false,
   bool draft = false,
   String? htmlUrl,
+  String title = 'Title',
 }) => Item(
   number: number,
   state: state,
   htmlUrl: htmlUrl ?? 'https://github.com/a2ui-project/a2ui/issues/$number',
+  title: title,
   createdAt: createdAt ?? daysAgo(0),
   authorAssociation: association,
   user: user,
   labels: labels,
-  assigneeCount: assignees,
+  assignees: [for (var i = 1; i <= assignees; i++) 'assignee$i'],
   hasMilestone: milestone,
   isPullRequest: pullRequest,
   isDraft: draft,
@@ -126,6 +128,12 @@ Contribution botComment(num days) => contribution(
   createdAt: daysAgo(days),
   association: 'NONE',
   user: const User(login: 'ci[bot]', type: 'Bot'),
+);
+
+/// A staleness ping for [staleCase], posted by a team member [days] days ago.
+Contribution pingComment(StaleCase staleCase, num days) => contribution(
+  createdAt: daysAgo(days),
+  body: '**From triage bot, ping:** @assignee1 ...\n${pingMarker(staleCase)}',
 );
 
 /// The event of [label] being added, [days] days ago.

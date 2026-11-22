@@ -18,10 +18,6 @@ library;
 
 import 'package:shared/shared.dart';
 
-import 'history.dart';
-import 'item.dart';
-import 'staleness.dart';
-
 /// Priorities urgent enough that an unassigned issue is flagged at once
 /// (step 5). Every entry is one of [priorityLabels].
 const Set<String> assigneeRequiredPriorities = {'P0'};
@@ -137,10 +133,8 @@ String? flagReason(
         contributions,
         assignedForTriageSince: assignedForTriageSince,
       )
-      case final Staleness staleness when staleness.hasExpiredPing(
-        pings,
-        now,
-      )) {
+      case final Staleness staleness
+      when staleness.hasExpiredPing(pings, now)) {
     final StaleCase staleCase = staleness.staleCase;
     return '${staleCase.reason}, and the assignees did not act on the '
         'staleness ping within ${daysText(staleCase.graceDays)}.';

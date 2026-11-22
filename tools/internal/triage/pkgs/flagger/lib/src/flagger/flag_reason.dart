@@ -15,8 +15,6 @@
 import 'package:shared/shared.dart';
 
 import 'github.dart';
-import 'history.dart';
-import 'item.dart';
 import 'rules.dart';
 
 /// An issue or a pull request: its repository, such as

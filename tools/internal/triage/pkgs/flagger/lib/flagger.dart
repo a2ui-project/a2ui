@@ -16,10 +16,7 @@
 /// that need triage, and removes it from the rest.
 library;
 
-export 'src/flagger/batches.dart';
 export 'src/flagger/flag_reason.dart';
 export 'src/flagger/github.dart';
-export 'src/flagger/history.dart';
-export 'src/flagger/item.dart';
 export 'src/flagger/reconcile.dart';
 export 'src/flagger/rules.dart';

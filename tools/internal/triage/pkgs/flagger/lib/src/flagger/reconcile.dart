@@ -14,12 +14,8 @@
 
 import 'package:shared/shared.dart';
 
-import 'batches.dart';
 import 'github.dart';
-import 'history.dart';
-import 'item.dart';
 import 'rules.dart';
-import 'staleness.dart';
 
 /// An item whose labels the snapshot says to change.
 typedef _Update = ({

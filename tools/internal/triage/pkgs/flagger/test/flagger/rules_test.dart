@@ -21,22 +21,15 @@ import '../support/fakes.dart';
 /// Matches a reason that flags the item, and that has [pattern] in it.
 Matcher flaggedFor(Pattern pattern) => allOf(isNotNull, contains(pattern));
 
+/// The priorities of the issues that go stale.
+final Set<String> stalePriorities = {
+  for (final StaleCase staleCase in StaleCase.values) ?staleCase.priority,
+};
+
+/// A ping for [staleCase], [days] days ago.
+Ping ping(StaleCase staleCase, num days) => Ping(staleCase, daysAgo(days));
+
 void main() {
-  group('isBot', () {
-    test('detects bots by account type and login suffix', () {
-      expect(isBot(const User(type: 'Bot', login: 'whatever')), isTrue);
-      expect(
-        isBot(const User(type: 'User', login: 'github-actions[bot]')),
-        isTrue,
-      );
-    });
-
-    test('treats real users and deleted accounts as human', () {
-      expect(isBot(const User(type: 'User', login: 'alice')), isFalse);
-      expect(isBot(null), isFalse);
-    });
-  });
-
   group('lastHumanContribution', () {
     test('falls back to the opening post when there are no comments', () {
       final Item item = issue(createdAt: daysAgo(5), association: 'NONE');
@@ -150,7 +143,7 @@ void main() {
       expect(flagReason(item, [], now), isNull);
     });
 
-    // Only P0 and P1 have a staleness threshold, and a priority settles the
+    // Only P0 and P1 issues go stale, and a priority settles the
     // missing-priority check, so nothing else can flag an assigned P2 or P3.
     test('does not flag an assigned issue below P1, whatever else is wrong '
         'with it', () {
@@ -196,7 +189,7 @@ void main() {
           );
         });
 
-        // On a team member's issue, though, the reply settles step 3.
+        // On a team member's issue, though, the reply settles step 4.
         test("does not flag a team member's issue once the external comment "
             'is answered', () {
           final Item item = issue(assignees: assignees, comments: 2);
@@ -251,37 +244,124 @@ void main() {
       }
     });
 
-    for (final MapEntry(key: String priority, value: int threshold)
-        in staleDays.entries) {
-      test('does not flag a fresh assigned $priority (within $threshold '
-          'day(s))', () {
+    for (final StaleCase staleCase in StaleCase.values) {
+      final String? priority = staleCase.priority;
+      if (priority == null) continue;
+      final int threshold = staleCase.days;
+      final int grace = staleCase.graceDays;
+
+      // Staleness alone does not flag: the pinger asks the assignees first.
+      test('does not flag an assigned $priority that went stale without a '
+          'ping', () {
         final Item item = externalIssue(
           labels: [priority],
           assignees: 1,
-          createdAt: daysAgo(threshold),
+          createdAt: daysAgo(9999),
         );
         expect(flagReason(item, [], now), isNull);
       });
 
-      // Regression: assigned issues used to be skipped before any threshold
-      // was consulted, so a stale P0 or P1 was never flagged.
-      test('flags an assigned $priority stale beyond $threshold day(s)', () {
+      test('does not flag an assigned $priority within the grace period of '
+          'its ping', () {
         final Item item = externalIssue(
           labels: [priority],
           assignees: 1,
-          createdAt: daysAgo(threshold + 1),
+          createdAt: daysAgo(threshold + grace),
         );
-        expect(flagReason(item, [], now), flaggedFor('no human activity'));
+        expect(
+          flagReason(item, [], now, pings: [ping(staleCase, grace)]),
+          isNull,
+        );
       });
 
-      test('measures an assigned $priority from its latest human comment', () {
+      test('flags an assigned $priority once its ping expires', () {
+        final Item item = externalIssue(
+          labels: [priority],
+          assignees: 1,
+          createdAt: daysAgo(threshold + grace + 1),
+        );
+        final String? reason = flagReason(
+          item,
+          [],
+          now,
+          pings: [ping(staleCase, grace + 0.5)],
+        );
+        expect(reason, flaggedFor('no update from the team'));
+        expect(reason, flaggedFor('did not act on the staleness ping'));
+      });
+
+      // The flag also applies to a team member's issue: the ping promised
+      // it.
+      test("flags a team member's assigned $priority once its ping "
+          'expires', () {
+        final Item item = issue(
+          labels: [priority],
+          assignees: 1,
+          createdAt: daysAgo(threshold + grace + 1),
+        );
+        expect(
+          flagReason(item, [], now, pings: [ping(staleCase, grace + 0.5)]),
+          flaggedFor('did not act on the staleness ping'),
+        );
+      });
+
+      // A team update after the ping starts a new clock, so the old ping is
+      // no longer current.
+      test('does not flag an assigned $priority updated by the team since '
+          'its ping', () {
         final Item item = externalIssue(
           labels: [priority],
           assignees: 1,
           comments: 1,
-          createdAt: daysAgo(threshold + 10),
+          createdAt: daysAgo(threshold + grace + 10),
         );
-        expect(flagReason(item, [memberComment(threshold)], now), isNull);
+        expect(
+          flagReason(
+            item,
+            [memberComment(grace)],
+            now,
+            pings: [ping(staleCase, grace + 1)],
+          ),
+          isNull,
+        );
+      });
+
+      // The assignee answers out-of-team comments, so they do not stop the
+      // clock.
+      test('flags an assigned $priority with only out-of-team comments since '
+          'its ping', () {
+        final Item item = externalIssue(
+          labels: [priority],
+          assignees: 1,
+          comments: 1,
+          createdAt: daysAgo(threshold + grace + 10),
+        );
+        expect(
+          flagReason(
+            item,
+            [externalComment(0)],
+            now,
+            pings: [ping(staleCase, grace + 1)],
+          ),
+          flaggedFor('did not act on the staleness ping'),
+        );
+      });
+
+      test('ignores a ping for another case on an assigned $priority', () {
+        final Item item = externalIssue(
+          labels: [priority],
+          assignees: 1,
+          createdAt: daysAgo(9999),
+        );
+        expect(
+          flagReason(
+            item,
+            [],
+            now,
+            pings: [ping(StaleCase.assignedForTriage, 9000)],
+          ),
+          isNull,
+        );
       });
 
       // An unassigned issue is reported for the missing assignee instead.
@@ -327,11 +407,11 @@ void main() {
       });
     }
 
-    // Staleness is only checked on assigned issues, so every priority with a
-    // threshold must flag an unassigned issue that nobody has planned.
-    test('requires an assignee or milestone for every priority with a '
-        'staleness threshold', () {
-      for (final String priority in staleDays.keys) {
+    // Only assigned issues go stale, so every priority that goes stale must
+    // flag an unassigned issue that nobody has planned.
+    test('requires an assignee or milestone for every priority that goes '
+        'stale', () {
+      for (final String priority in stalePriorities) {
         expect(
           assigneeRequiredPriorities.contains(priority) ||
               assigneeOrMilestonePriorities.contains(priority),
@@ -344,7 +424,7 @@ void main() {
     // The staleness rules cover P0 and P1 only; P2 used to be flagged after
     // 90 days and deliberately no longer is.
     test('watches staleness for P0 and P1 only', () {
-      expect(staleDays.keys, ['P0', 'P1']);
+      expect(stalePriorities, ['P0', 'P1']);
     });
 
     test(
@@ -372,10 +452,14 @@ void main() {
   });
 
   group('flagReason, assigned for triage', () {
-    final DateTime overdue = daysAgo(triageAssignmentDays + 1);
+    const StaleCase assignment = StaleCase.assignedForTriage;
+    final DateTime overdue = daysAgo(
+      assignment.days + assignment.graceDays + 1,
+    );
+    final List<Ping> expired = [ping(assignment, assignment.graceDays + 0.5)];
 
     // An external P3 issue matches no other rule, so any flag comes from
-    // step 2.
+    // steps 2 and 3.
     Item handedOut({
       List<String> labels = const ['P3', assignedForTriageLabel],
       int assignees = 1,
@@ -389,27 +473,68 @@ void main() {
       createdAt: createdAt,
     );
 
-    test('does not flag an assignment within its deadline', () {
+    test('does not flag an overdue assignment without a ping', () {
       expect(
-        flagReason(handedOut(), [], now, daysAgo(triageAssignmentDays)),
+        flagReason(handedOut(), [], now, assignedForTriageSince: overdue),
         isNull,
       );
     });
 
-    test('flags an assignment past its deadline', () {
-      final String? reason = flagReason(handedOut(), [], now, overdue);
+    test('does not flag an assignment within the grace period of its '
+        'ping', () {
+      expect(
+        flagReason(
+          handedOut(),
+          [],
+          now,
+          assignedForTriageSince: overdue,
+          pings: [ping(assignment, assignment.graceDays)],
+        ),
+        isNull,
+      );
+    });
+
+    test('flags an assignment once its ping expires', () {
+      final String? reason = flagReason(
+        handedOut(),
+        [],
+        now,
+        assignedForTriageSince: overdue,
+        pings: expired,
+      );
       expect(reason, flaggedFor('assigned-for-triage'));
-      expect(reason, flaggedFor('more than $triageAssignmentDays days'));
+      expect(reason, flaggedFor('more than ${assignment.days} days'));
+      expect(reason, flaggedFor('did not act on the staleness ping'));
+    });
+
+    // Adding the label again starts a new assignment, so a ping on the
+    // previous one is not current.
+    test('ignores a ping from before the latest labeling', () {
+      expect(
+        flagReason(
+          handedOut(),
+          [],
+          now,
+          assignedForTriageSince: daysAgo(assignment.days + 1),
+          pings: [ping(assignment, assignment.days + 2)],
+        ),
+        isNull,
+      );
     });
 
     test('flags the label when nobody is assigned, however fresh', () {
       expect(
-        flagReason(handedOut(assignees: 0), [], now, daysAgo(0)),
+        flagReason(
+          handedOut(assignees: 0),
+          [],
+          now,
+          assignedForTriageSince: daysAgo(0),
+        ),
         flaggedFor('nobody is assigned'),
       );
     });
 
-    // Step 2 decides alone: a fresh assignment holds back every later step.
+    // Step 3 decides alone: a fresh assignment holds back every later step.
     // The item below would be flagged without the label.
     test(
       'does not flag a fresh assignment, whatever else is wrong with it',
@@ -418,58 +543,102 @@ void main() {
           labels: ['P0', assignedForTriageLabel],
           createdAt: daysAgo(9999),
         );
-        expect(flagReason(staleP0, [], now, daysAgo(1)), isNull);
+        expect(
+          flagReason(staleP0, [], now, assignedForTriageSince: daysAgo(1)),
+          isNull,
+        );
       },
     );
 
-    // Step 1 outranks step 2: a parked item waits on the author, not the
+    // Step 1 outranks the others: a parked item waits on the author, not the
     // assignee.
-    test('does not flag a parked item, even with an overdue assignment', () {
+    test('does not flag a parked item, even with an expired ping', () {
       const List<String> labels = [
         'P3',
         assignedForTriageLabel,
         waitingForAuthorResponseLabel,
       ];
-      expect(flagReason(handedOut(labels: labels), [], now, overdue), isNull);
       expect(
-        flagReason(handedOut(labels: labels, assignees: 0), [], now, overdue),
+        flagReason(
+          handedOut(labels: labels),
+          [],
+          now,
+          assignedForTriageSince: overdue,
+          pings: expired,
+        ),
+        isNull,
+      );
+      expect(
+        flagReason(
+          handedOut(labels: labels, assignees: 0),
+          [],
+          now,
+          assignedForTriageSince: overdue,
+        ),
         isNull,
       );
     });
 
-    test('flags an overdue assignment on an external PR', () {
+    test('flags an expired assignment on an external PR', () {
       final Item item = pr(labels: [assignedForTriageLabel], assignees: 1);
       expect(
-        flagReason(item, [], now, overdue),
+        flagReason(
+          item,
+          [],
+          now,
+          assignedForTriageSince: overdue,
+          pings: expired,
+        ),
         flaggedFor('assigned-for-triage'),
       );
     });
 
-    // Step 2 runs before step 3, so an assignment is checked whoever opened
-    // the item, even with no out-of-team input.
+    // Steps 2 and 3 run before step 4, so an assignment is checked whoever
+    // opened the item, even with no out-of-team input.
     test('checks an assignment on a team item with no out-of-team input', () {
       final Item item = handedOut(association: 'MEMBER');
-      expect(flagReason(item, [], now, overdue), flaggedFor('more than'));
+      expect(
+        flagReason(
+          item,
+          [],
+          now,
+          assignedForTriageSince: overdue,
+          pings: expired,
+        ),
+        flaggedFor('more than'),
+      );
       expect(
         flagReason(
           handedOut(association: 'MEMBER', assignees: 0),
           [],
           now,
-          daysAgo(0),
+          assignedForTriageSince: daysAgo(0),
         ),
         flaggedFor('nobody is assigned'),
       );
-      expect(flagReason(item, [], now, daysAgo(1)), isNull);
+      expect(
+        flagReason(item, [], now, assignedForTriageSince: daysAgo(1)),
+        isNull,
+      );
     });
 
     test('does not flag when the labeling time is unknown', () {
-      expect(flagReason(handedOut(), [], now), isNull);
+      expect(flagReason(handedOut(), [], now, pings: expired), isNull);
     });
 
     // The labeling time comes from the snapshot; if the label has since been
     // removed, the time must not count.
     test('ignores the labeling time once the label is gone', () {
-      expect(flagReason(handedOut(labels: ['P3']), [], now, overdue), isNull);
+      expect(
+        flagReason(
+          handedOut(labels: ['P3']),
+          [],
+          now,
+          assignedForTriageSince: overdue,
+          pings: expired,
+        ),
+        isNull,
+      );
     });
   });
 
@@ -498,10 +667,10 @@ void main() {
       );
     });
 
-    test('never flags a priority that has no staleness threshold', () {
+    test('never flags a priority that does not go stale', () {
       final List<String> unthresholded = [
         for (final String priority in priorityLabels)
-          if (!staleDays.containsKey(priority) &&
+          if (!stalePriorities.contains(priority) &&
               !assigneeRequiredPriorities.contains(priority) &&
               !assigneeOrMilestonePriorities.contains(priority))
             priority,
@@ -517,7 +686,7 @@ void main() {
     });
 
     test('keeps the rules consistent with priorityLabels', () {
-      expect(priorityLabels, containsAll(staleDays.keys));
+      expect(priorityLabels, containsAll(stalePriorities));
       expect(priorityLabels, containsAll(assigneeRequiredPriorities));
       expect(priorityLabels, containsAll(assigneeOrMilestonePriorities));
     });
@@ -566,12 +735,39 @@ void main() {
       expect(flagReason(item, [memberComment(0)], now), isNull);
     });
 
-    test('flags an assigned external PR stale beyond $prStaleDays days', () {
-      final Item item = pr(createdAt: daysAgo(prStaleDays + 1), assignees: 1);
-      expect(flagReason(item, [], now), flaggedFor('no human activity'));
+    test('does not flag a stale assigned external PR without a ping', () {
+      final Item item = pr(createdAt: daysAgo(9999), assignees: 1);
+      expect(flagReason(item, [], now), isNull);
     });
 
-    // Step 3 keeps a team member's PR off the queue until someone outside
+    test('flags an assigned external PR once its ping expires', () {
+      const StaleCase staleCase = StaleCase.externalPrInactive;
+      final Item item = pr(
+        createdAt: daysAgo(staleCase.days + staleCase.graceDays + 1),
+        assignees: 1,
+      );
+      expect(
+        flagReason(
+          item,
+          [],
+          now,
+          pings: [ping(staleCase, staleCase.graceDays + 0.5)],
+        ),
+        flaggedFor('no response from the team'),
+      );
+      // The author's own comments do not stop the clock.
+      expect(
+        flagReason(
+          item,
+          [prComment(0)],
+          now,
+          pings: [ping(staleCase, staleCase.graceDays + 0.5)],
+        ),
+        flaggedFor('did not act on the staleness ping'),
+      );
+    });
+
+    // Step 4 keeps a team member's PR off the queue until someone outside
     // the team is left waiting on it.
     test("flags a team member's assigned PR only while an out-of-team "
         'comment is unanswered', () {
@@ -590,24 +786,31 @@ void main() {
     });
 
     // Reviews and review comments arrive as contributions too.
-    test('measures an assigned PR from its latest human contribution', () {
+    test("measures a team member's assigned PR from its latest human "
+        'contribution', () {
       final Item item = pr(
         createdAt: daysAgo(prStaleDays + 10),
         assignees: 1,
+        association: 'MEMBER',
         comments: 1,
       );
-      expect(flagReason(item, [memberComment(prStaleDays)], now), isNull);
       expect(flagReason(item, [prComment(prStaleDays)], now), isNull);
+      expect(
+        flagReason(item, [prComment(prStaleDays + 1)], now),
+        flaggedFor('no human activity'),
+      );
     });
 
-    test('does not let a bot comment reset the clock on an assigned PR', () {
+    test("does not let a bot comment reset the clock on a team member's "
+        'assigned PR', () {
       final Item item = pr(
-        createdAt: daysAgo(prStaleDays + 1),
+        createdAt: daysAgo(prStaleDays + 10),
         assignees: 1,
-        comments: 1,
+        association: 'MEMBER',
+        comments: 2,
       );
       expect(
-        flagReason(item, [botComment(0)], now),
+        flagReason(item, [prComment(prStaleDays + 1), botComment(0)], now),
         flaggedFor('no human activity'),
       );
     });
@@ -678,7 +881,7 @@ void main() {
     });
   });
 
-  // Step 3: a team member's item is triage work only while a comment from
+  // Step 4: a team member's item is triage work only while a comment from
   // outside the team is unanswered.
   group('flagReason, team items', () {
     test('does not flag a team issue with no out-of-team input, whatever '
@@ -796,7 +999,7 @@ void main() {
       }
     });
 
-    // Step 3 only looks at who opened the item and who spoke last.
+    // Step 4 only looks at who opened the item and who spoke last.
     test('judges an item opened outside the team whoever spoke last', () {
       expect(
         flagReason(externalIssue(comments: 1), [memberComment(0)], now),

@@ -19,9 +19,9 @@
 /// flags the item once the ping expires, so both read staleness from here.
 library;
 
-import 'package:shared/shared.dart';
-
 import 'item.dart';
+import 'labels.dart';
+import 'triage_bot_comment.dart';
 
 /// A way for an item to go stale.
 enum StaleCase {

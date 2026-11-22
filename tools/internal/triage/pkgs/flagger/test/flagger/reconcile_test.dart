@@ -198,12 +198,13 @@ void main() {
             labels: ['P0', needsTriageLabel],
             assignees: 1,
             createdAt: daysAgo(60),
-            comments: 2,
+            comments: 3,
           ),
         ],
         itemComments: {
           40: [
             contribution(createdAt: daysAgo(40), body: 'Looking into it.'),
+            pingComment(StaleCase.p0Inactive, 30),
             suggestion,
           ],
         },
@@ -213,7 +214,7 @@ void main() {
       expect(github.removedLabels, isEmpty);
     });
 
-    // Were it an answer, step 3 would take this team issue off the queue.
+    // Were it an answer, step 4 would take this team issue off the queue.
     test('do not answer an out-of-team comment', () async {
       final github = FakeGitHub(
         [
@@ -485,16 +486,33 @@ void main() {
   });
 
   group('assigned-for-triage', () {
+    const StaleCase assignment = StaleCase.assignedForTriage;
+    final int overdue = assignment.days + assignment.graceDays + 1;
+
     /// An external P3 issue handed out for triage [labeledDaysAgo] days ago,
-    /// or with no record of the labeling. It matches no other rule, so any
-    /// flag comes from step 2.
+    /// or with no record of the labeling, and pinged [pingedDaysAgo] days
+    /// ago, or never. It matches no other rule, so any flag comes from steps
+    /// 2 and 3.
     FakeGitHub handedOut(
       int number, {
       num? labeledDaysAgo,
+      num? pingedDaysAgo,
       List<String> labels = const ['P3', assignedForTriageLabel],
       Item? fresh,
     }) => FakeGitHub(
-      [externalIssue(number: number, labels: labels, assignees: 1)],
+      [
+        externalIssue(
+          number: number,
+          labels: labels,
+          assignees: 1,
+          comments: pingedDaysAgo == null ? 0 : 1,
+        ),
+      ],
+      itemComments: {
+        number: [
+          if (pingedDaysAgo != null) pingComment(assignment, pingedDaysAgo),
+        ],
+      },
       itemEvents: {
         number: [
           if (labeledDaysAgo != null)
@@ -504,10 +522,11 @@ void main() {
       fresh: {number: ?fresh},
     );
 
-    test('flags an assignment past its deadline', () async {
+    test('flags an assignment once its ping expires', () async {
       final FakeGitHub github = handedOut(
         30,
-        labeledDaysAgo: triageAssignmentDays + 1,
+        labeledDaysAgo: overdue,
+        pingedDaysAgo: assignment.graceDays + 0.5,
       );
       await run(github);
 
@@ -515,22 +534,35 @@ void main() {
       expect(github.addedFlags, [30]);
     });
 
-    test('leaves an assignment within its deadline alone', () async {
-      final FakeGitHub github = handedOut(
-        31,
-        labeledDaysAgo: triageAssignmentDays - 1,
-      );
+    test('leaves an overdue assignment alone until it is pinged', () async {
+      final FakeGitHub github = handedOut(31, labeledDaysAgo: overdue);
       await run(github);
 
       expect(github.eventCalls, [31]);
       expect(github.addedFlags, isEmpty);
     });
 
+    test('leaves an assignment alone within the grace period of its '
+        'ping', () async {
+      final FakeGitHub github = handedOut(
+        37,
+        labeledDaysAgo: overdue,
+        pingedDaysAgo: assignment.graceDays - 1,
+      );
+      await run(github);
+
+      expect(github.addedFlags, isEmpty);
+    });
+
     test('measures from the latest labeling, not the first', () async {
-      // Adding the label again starts a new assignment.
-      final FakeGitHub github = handedOut(32);
+      // Adding the label again starts a new assignment, which the old ping
+      // was not for.
+      final FakeGitHub github = handedOut(
+        32,
+        pingedDaysAgo: assignment.graceDays + 2,
+      );
       github.itemEvents[32]!.addAll([
-        labeling(assignedForTriageLabel, triageAssignmentDays + 10),
+        labeling(assignedForTriageLabel, overdue + 10),
         labeling(assignedForTriageLabel, 1),
       ]);
       await run(github);
@@ -540,7 +572,7 @@ void main() {
 
     test('does not flag when the history does not record the label being '
         'added', () async {
-      final FakeGitHub github = handedOut(33);
+      final FakeGitHub github = handedOut(33, pingedDaysAgo: overdue);
       await run(github);
 
       expect(github.addedFlags, isEmpty);
@@ -548,11 +580,12 @@ void main() {
 
     test('does not flag an item whose label was removed since the '
         'listing', () async {
-      // The listing has an overdue assignment, but the label is gone, so
-      // the time of the labeling no longer applies.
+      // The listing has an expired ping, but the label is gone, so the
+      // assignment no longer applies.
       final FakeGitHub github = handedOut(
         34,
-        labeledDaysAgo: triageAssignmentDays + 1,
+        labeledDaysAgo: overdue,
+        pingedDaysAgo: assignment.graceDays + 0.5,
         fresh: externalIssue(number: 34, labels: ['P3'], assignees: 1),
       );
       await run(github);
@@ -565,9 +598,10 @@ void main() {
       final FakeGitHub github = handedOut(
         36,
         labels: ['P3', assignedForTriageLabel, waitingForAuthorResponseLabel],
+        pingedDaysAgo: assignment.graceDays + 0.5,
       );
       github.itemEvents[36]!.addAll([
-        labeling(assignedForTriageLabel, triageAssignmentDays + 1),
+        labeling(assignedForTriageLabel, overdue),
         labeling(waitingForAuthorResponseLabel, 1),
       ]);
       await run(github);
