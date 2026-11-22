@@ -25,7 +25,10 @@ FROM ${FLUTTER_IMAGE} AS build
 WORKDIR /src
 COPY . .
 RUN flutter pub get
-RUN cd tools/internal/triage/pkgs/ui && flutter build web --release
+# TRIAGE_SERVER tells the app that the server serves it, so that it never
+# keeps a token in the page's local storage.
+RUN cd tools/internal/triage/pkgs/ui \
+    && flutter build web --release --dart-define=TRIAGE_SERVER=true
 RUN mkdir /out && dart compile exe \
     tools/internal/triage/pkgs/server/bin/server.dart -o /out/server
 

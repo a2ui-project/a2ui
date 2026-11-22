@@ -19,13 +19,21 @@ import 'sealer.dart';
 
 /// The triager's GitHub sign-in, as the session cookie holds it.
 final class Session {
-  const Session({required this.token, required this.login});
+  const Session({
+    required this.token,
+    required this.login,
+    this.fromOAuth = false,
+  });
 
   /// The triager's GitHub token.
   final String token;
 
   /// The triager's GitHub login.
   final String login;
+
+  /// Whether the token comes from "Sign in with GitHub", rather than being
+  /// pasted, so that signing out revokes it.
+  final bool fromOAuth;
 }
 
 /// The header that every request to `/auth/` (except the redirects) and to
@@ -64,10 +72,9 @@ final class Cookies {
     final String? sealed = _read(request, _sessionName);
     if (sealed == null) return null;
     return switch (await _sealer.open(_sessionPurpose, sealed)) {
-      {'token': final String token, 'login': final String login} => Session(
-        token: token,
-        login: login,
-      ),
+      {'token': final String token, 'login': final String login} &&
+          final Map<String, Object?> value =>
+        Session(token: token, login: login, fromOAuth: value['oauth'] == true),
       _ => null,
     };
   }
@@ -78,6 +85,7 @@ final class Cookies {
     await _sealer.seal(_sessionPurpose, {
       'token': session.token,
       'login': session.login,
+      'oauth': session.fromOAuth,
     }, maxAge: sessionMaxAge),
     path: '/',
     maxAge: sessionMaxAge,
@@ -130,7 +138,11 @@ final class Cookies {
       final int equals = part.indexOf('=');
       if (equals < 0) continue;
       if (part.substring(0, equals).trim() == name) {
-        final String value = part.substring(equals + 1).trim();
+        String value = part.substring(equals + 1).trim();
+        // RFC 6265 allows a cookie value in double quotes.
+        if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+          value = value.substring(1, value.length - 1);
+        }
         return value.isEmpty ? null : value;
       }
     }

@@ -65,6 +65,25 @@ class _SignInGateState extends State<SignInGate> {
       body: Center(child: CircularProgressIndicator()),
     ),
     SignInState.signedOut => SignInPage(access: widget.access),
+    SignInState.serverUnavailable => Scaffold(
+      appBar: AppBar(title: const Text('A2UI triage')),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 16,
+          children: [
+            SelectionArea(child: Text(widget.access.error ?? '')),
+            Tooltip(
+              message: 'Ask the server again whether you are signed in',
+              child: FilledButton(
+                onPressed: () => unawaited(widget.access.check()),
+                child: const Text('Try again'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
     SignInState.signedIn => widget.child,
   };
 }

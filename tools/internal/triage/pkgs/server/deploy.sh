@@ -136,7 +136,7 @@ if [[ "${skip_build}" -eq 0 ]]; then
   for role in roles/storage.admin roles/logging.logWriter roles/artifactregistry.writer; do
     run "${gcloud_bin}" projects add-iam-policy-binding "${project}" \
       --member="serviceAccount:${compute_sa}" --role="${role}" \
-      --condition=None >/dev/null
+      --condition=None --format=none
   done
 
   echo "--> Building the image with Cloud Build"
@@ -187,4 +187,6 @@ run "${gcloud_bin}" run deploy "${service}" \
   --env-vars-file="${env_yaml}"
 
 echo
-echo "Deployed. Open ${public_url}"
+if [[ "${dry_run}" -eq 0 ]]; then
+  echo "Deployed. Open ${public_url}"
+fi

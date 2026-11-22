@@ -113,9 +113,11 @@ Working after the sign-in:
 
 Ending the session:
 
-19. **Triager** clicks **Sign out** in the menu. **Server** deletes the
-    cookie. The **OAuth App** stays authorized on GitHub, so the next sign-in
-    skips step 8.
+19. **Triager** clicks **Sign out** in the menu. **Server** revokes the
+    token with **GitHub API** (`DELETE /applications/<client ID>/token`), so
+    that a copy of the cookie stops working too, and deletes the cookie. The
+    **OAuth App** stays authorized on GitHub, so the next sign-in skips step
+    8.
 20. If the token stops working, for example because the **Triager** revoked
     it on GitHub, **GitHub API** answers 401. **Server** passes the answer on
     and deletes the cookie, and after a reload the **App** shows the sign-in
@@ -132,13 +134,19 @@ Ending the session:
 5. From there, steps A.14 to A.20. **GitHub sign-in** and the **OAuth App**
    are not involved.
 
+On **Sign out**, **Server** deletes the cookie but does not revoke the token,
+which is the **Triager**'s own, such as the one of `gh`. A copy of the cookie
+works until it expires, 30 days after the sign-in, or until the **Triager**
+revokes the token on GitHub.
+
 ### C. Locally, without the Server
 
 With `flutter run -d chrome`, Flutter's development server serves the **App**,
 and there is no **Server**:
 
 1. **App** asks `/auth/status`, gets no answer from a **Server**, and shows
-   only **Use a token**. With `--dart-define=GITHUB_TOKEN=<token>`, it skips
+   only **Use a token**. The App does this only when it was built without
+   `--dart-define=TRIAGE_SERVER=true`, which the hosted build sets. With `--dart-define=GITHUB_TOKEN=<token>`, it skips
    this and uses that token.
 2. **Triager** pastes a token. **App** keeps it in the **Browser**'s local
    storage, until **Sign out**.
@@ -176,9 +184,14 @@ The Server listens on all network interfaces on Cloud Run, which sets
 In the repository root, run `flutter pub get`. Then, in this folder:
 
 ```bash
-(cd ../ui && flutter build web)
+(cd ../ui && flutter build web --dart-define=TRIAGE_SERVER=true)
 dart run bin/server.dart
 ```
+
+`TRIAGE_SERVER=true` tells the **App** that a **Server** serves it. Then, if
+`/auth/status` fails, the **App** shows an error with **Try again**, rather
+than taking the **Server** for Flutter's development server and keeping a
+pasted token in the **Browser**'s local storage.
 
 and open `http://localhost:8080`. This offers only **Use a token**. To also
 sign in with GitHub, register a development **OAuth App** as in

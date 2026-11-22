@@ -53,6 +53,7 @@ void _runOnTheWeb() {
     page: Uri.base,
     browser: createBrowser(),
     compiledToken: const String.fromEnvironment('GITHUB_TOKEN'),
+    expectServer: const bool.fromEnvironment('TRIAGE_SERVER'),
   );
   final controller = TriageController(
     connect: () async => TriageService(access.client()),

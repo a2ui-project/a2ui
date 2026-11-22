@@ -28,6 +28,9 @@ enum SignInState {
   /// The triager has to sign in.
   signedOut,
 
+  /// The app was built for the server, but the server did not answer.
+  serverUnavailable,
+
   /// The app can call GitHub.
   signedIn,
 }
@@ -37,16 +40,22 @@ enum SignInState {
 /// `pkgs/server/README.md`.
 class GitHubAccess extends ChangeNotifier {
   /// [page] is the URL of the app's page. [compiledToken] is the token from
-  /// `--dart-define=GITHUB_TOKEN`, or empty.
+  /// `--dart-define=GITHUB_TOKEN`, or empty. [expectServer] is
+  /// `--dart-define=TRIAGE_SERVER=true`, which the server's build sets: then
+  /// a failed call to the server is an error, not a sign that `flutter run`
+  /// serves the app, so the token never goes to the page's local storage on
+  /// the hosted site.
   GitHubAccess({
     required Uri page,
     required Browser browser,
     http.Client? httpClient,
     String compiledToken = '',
+    bool expectServer = false,
   }) : _page = page,
        _browser = browser,
        _http = httpClient ?? http.Client(),
-       _compiledToken = compiledToken;
+       _compiledToken = compiledToken,
+       _expectServer = expectServer;
 
   /// The header that the server requires on the app's requests.
   static const Map<String, String> serverHeaders = {
@@ -57,6 +66,7 @@ class GitHubAccess extends ChangeNotifier {
   final Browser _browser;
   final http.Client _http;
   final String _compiledToken;
+  final bool _expectServer;
 
   SignInState _state = SignInState.checking;
   SignInState get state => _state;
@@ -92,6 +102,9 @@ class GitHubAccess extends ChangeNotifier {
   Future<void> check() async {
     if (_compiledToken.isNotEmpty) return _signIn(token: _compiledToken);
 
+    _state = SignInState.checking;
+    _error = null;
+    notifyListeners();
     final Object? status = await _getJson(_server('/auth/status'));
     if (status case {
       'signedIn': final bool signedIn,
@@ -100,6 +113,11 @@ class GitHubAccess extends ChangeNotifier {
       _hasServer = true;
       _canSignInWithGitHub = oauth;
       if (signedIn) return _signIn(login: status['login'] as String?);
+    } else if (_expectServer) {
+      _state = SignInState.serverUnavailable;
+      _error = 'Cannot reach the triage UI server. Try again in a moment.';
+      notifyListeners();
+      return;
     } else if (_browser.readToken() case final String token) {
       // `flutter run` serves the app, so there is no server.
       return _signIn(token: token);

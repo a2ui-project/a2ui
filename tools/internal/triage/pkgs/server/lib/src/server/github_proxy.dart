@@ -62,6 +62,12 @@ final class GitHubProxy {
     final Uri target = _config.githubApi
         .resolve(path.startsWith('/') ? path.substring(1) : path)
         .replace(query: request.url.hasQuery ? request.url.query : null);
+    // A path such as `http://evil.example/` or `//evil.example/` would
+    // replace the host, and the token must only go to GitHub.
+    if (target.origin != _config.githubApi.origin ||
+        !target.path.startsWith(_config.githubApi.path)) {
+      return _json(400, 'Not a GitHub API path.');
+    }
     final upstream = http.Request(request.method, target)
       ..followRedirects = false
       ..headers.addAll({
@@ -69,8 +75,13 @@ final class GitHubProxy {
           if (request.headers[name] case final String value) name: value,
         'authorization': 'Bearer ${session.token}',
         'user-agent': userAgent,
-      })
-      ..bodyBytes = await request.read().expand((chunk) => chunk).toList();
+      });
+    if (request.method != 'GET' && request.method != 'HEAD') {
+      upstream.bodyBytes = await request
+          .read()
+          .expand((chunk) => chunk)
+          .toList();
+    }
 
     final http.Response response;
     try {
@@ -87,6 +98,10 @@ final class GitHubProxy {
           if (response.headers[name] case final String value) name: value,
         if (response.headers['link'] case final String link)
           'link': _rewriteLink(link),
+        // A redirect, for example of a renamed repository, goes through the
+        // proxy too.
+        if (response.headers['location'] case final String location)
+          'location': _rewriteLink(location),
         'cache-control': 'no-store',
         // GitHub no longer accepts the token, for example because the
         // triager revoked it, so the app asks the triager to sign in again.
@@ -95,8 +110,8 @@ final class GitHubProxy {
     );
   }
 
-  /// Points the pagination links in a `Link` header at the proxy, so that
-  /// the app's next requests also go through it.
+  /// Points the GitHub API URLs in a `Link` or `Location` header at the
+  /// proxy, so that the app's next requests also go through it.
   String _rewriteLink(String link) =>
       link.replaceAll(_config.githubApi.toString(), '/github/');
 }

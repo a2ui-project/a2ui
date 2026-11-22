@@ -37,8 +37,19 @@ final class FakeGitHub {
   /// The API requests other than `GET /user`.
   final List<http.Request> apiRequests = [];
 
+  /// The requests that revoked a token.
+  final List<http.Request> revocations = [];
+
+  /// Whether GitHub cannot be reached.
+  bool down = false;
+
   late final MockClient client = MockClient((request) async {
+    if (down) throw http.ClientException('Connection refused');
     final Uri url = request.url;
+    if (url == _githubApi.resolve('applications/client-id/token')) {
+      revocations.add(request);
+      return http.Response('', 204);
+    }
     if (url == _githubWeb.resolve('login/oauth/access_token')) {
       final Map<String, String> form = request.bodyFields;
       final String verifier = form['code_verifier']!;
@@ -68,6 +79,13 @@ final class FakeGitHub {
       return http.Response(jsonEncode({'login': login}), 200);
     }
     apiRequests.add(request);
+    if (url.path == '/repos/old/name') {
+      return http.Response(
+        '',
+        301,
+        headers: {'location': '${_githubApi}repositories/1'},
+      );
+    }
     return http.Response(
       jsonEncode({'method': request.method, 'body': request.body}),
       200,
@@ -212,6 +230,42 @@ void main() {
       });
     });
 
+    test('shows an error page when GitHub cannot be reached', () async {
+      final (Uri authorize, String signInCookie) = await startSignIn('/');
+      github.down = true;
+      final Response callback = await send(
+        'GET',
+        '/auth/callback?code=good-code&state=${authorize.queryParameters['state']}',
+        cookie: signInCookie,
+        header: false,
+      );
+      expect(callback.statusCode, 400);
+      expect(await callback.readAsString(), contains('Cannot reach GitHub'));
+    });
+
+    test('revokes the token on sign out', () async {
+      final (Uri authorize, String signInCookie) = await startSignIn('/');
+      final Response callback = await send(
+        'GET',
+        '/auth/callback?code=good-code&state=${authorize.queryParameters['state']}',
+        cookie: signInCookie,
+        header: false,
+      );
+      final Response logout = await send(
+        'POST',
+        '/auth/logout',
+        cookie: _cookies(callback).first,
+      );
+      expect(logout.statusCode, 204);
+      final http.Request revocation = github.revocations.single;
+      expect(revocation.method, 'DELETE');
+      expect(
+        revocation.headers['authorization'],
+        'Basic ${base64.encode(utf8.encode('client-id:secret'))}',
+      );
+      expect(jsonDecode(revocation.body), {'access_token': 'gho_oauth'});
+    });
+
     test('rejects a callback with another state', () async {
       final (_, String signInCookie) = await startSignIn('/');
       final Response callback = await send(
@@ -264,6 +318,9 @@ void main() {
     expect(safeReturnPath('//evil.test/'), '/');
     expect(safeReturnPath(r'/\evil.test/'), '/');
     expect(safeReturnPath('https://evil.test/'), '/');
+    expect(safeReturnPath('/\t/evil.test/'), '/');
+    expect(safeReturnPath('/\n/evil.test/'), '/');
+    expect(safeReturnPath('/\r/evil.test/'), '/');
     expect(safeReturnPath(null), '/');
   });
 
@@ -284,6 +341,29 @@ void main() {
       expect(response.headers['set-cookie'], isNull);
     });
 
+    test('says when GitHub cannot be reached', () async {
+      github.down = true;
+      final Response response = await send(
+        'POST',
+        '/auth/token',
+        body: {'token': 'ghp_pasted'},
+      );
+      expect(response.statusCode, 502);
+      expect((await json(response))['message'], contains('Cannot reach'));
+    });
+
+    test('reads a session cookie in double quotes', () async {
+      final String cookie = await signInWithToken();
+      final int equals = cookie.indexOf('=');
+      final Response status = await send(
+        'GET',
+        '/auth/status',
+        cookie:
+            '${cookie.substring(0, equals)}="${cookie.substring(equals + 1)}"',
+      );
+      expect((await json(status))['login'], 'bob');
+    });
+
     test('requires the header', () async {
       final Response response = await send(
         'POST',
@@ -295,7 +375,7 @@ void main() {
     });
   });
 
-  test('sign out deletes the session', () async {
+  test('sign out deletes the session, and keeps a pasted token', () async {
     final Response response = await send(
       'POST',
       '/auth/logout',
@@ -303,6 +383,7 @@ void main() {
     );
     expect(response.statusCode, 204);
     expect(response.headers['set-cookie'], contains('Max-Age=0'));
+    expect(github.revocations, isEmpty);
   });
 
   group('GitHub proxy', () {
@@ -330,6 +411,31 @@ void main() {
       );
       expect(response.headers['x-ratelimit-remaining'], '4999');
       expect(response.headers['set-cookie'], isNull);
+    });
+
+    for (final path in [
+      '/github/http://evil.test/steal',
+      '/github///evil.test/steal',
+    ]) {
+      test('sends the token only to GitHub: $path', () async {
+        final Response response = await send(
+          'GET',
+          path,
+          cookie: await signInWithToken(),
+        );
+        expect(response.statusCode, 400);
+        expect(github.apiRequests, isEmpty);
+      });
+    }
+
+    test('passes redirects on through the proxy', () async {
+      final Response response = await send(
+        'GET',
+        '/github/repos/old/name',
+        cookie: await signInWithToken(),
+      );
+      expect(response.statusCode, 301);
+      expect(response.headers['location'], '/github/repositories/1');
     });
 
     test('rejects requests without a session', () async {

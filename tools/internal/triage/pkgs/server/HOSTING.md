@@ -168,6 +168,18 @@ A new `SESSION_SECRET` signs everyone out. A new client secret doesn't.
 
 ## Troubleshooting
 
+- **`gcloud builds submit` says the user is forbidden from accessing the
+  bucket `<project ID>_cloudbuild`.** Cloud Build uploads the source there,
+  and `CorpRunAdmin` cannot write to it. Someone with the Editor role on the
+  project lets you read the bucket and write its objects:
+
+  ```bash
+  for role in roles/storage.legacyBucketReader roles/storage.objectAdmin; do
+    gcloud storage buckets add-iam-policy-binding gs://<project ID>_cloudbuild \
+      --member=user:<you>@google.com --role="${role}"
+  done
+  ```
+
 - **The page says the triager has no access, or shows an UberProxy error.**
   The service must be deployed with `--no-allow-unauthenticated`, and the
   project must grant `roles/run.invoker` to the UberProxy service accounts.

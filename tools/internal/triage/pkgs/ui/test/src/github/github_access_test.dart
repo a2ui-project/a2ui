@@ -146,6 +146,19 @@ void main() {
     });
   });
 
+  test('built for the server, does not fall back when it fails', () async {
+    final access = GitHubAccess(
+      page: _page,
+      browser: browser..token = 'good',
+      httpClient: MockClient((_) async => http.Response('Unavailable', 503)),
+      expectServer: true,
+    );
+    await access.check();
+    expect(access.state, SignInState.serverUnavailable);
+    expect(access.hasServer, isFalse);
+    expect(access.error, contains('Cannot reach'));
+  });
+
   group('without the server', () {
     test('checks a pasted token with GitHub, and keeps it', () async {
       final access = GitHubAccess(
