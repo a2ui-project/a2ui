@@ -39,7 +39,7 @@ void main() {
       reportPrompt(session, DateTime(2026, 11, 12, 9)),
       'Create the triage report for 2026-11-09 to 2026-11-12.\n'
       '\n'
-      'Use the a2ui-triage-bot skill from the main branch of '
+      'Use the a2ui-triage-bot skill from '
       'a2ui-project/a2ui: '
       'https://github.com/a2ui-project/a2ui/tree/main/.agents/skills/'
       'a2ui-triage-bot.\n',
