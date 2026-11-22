@@ -15,7 +15,6 @@
 import 'item.dart';
 import 'item_reader.dart';
 import 'labels.dart';
-import 'rest_json.dart';
 import 'staleness.dart';
 import 'triage_bot_comment.dart';
 
@@ -27,6 +26,7 @@ final class ItemHistory {
     this.pings = const [],
     this.waitingSince,
     this.assignedForTriageSince,
+    this.complete = true,
   });
 
   /// The comments, reviews and review comments, except triage bot comments.
@@ -43,9 +43,14 @@ final class ItemHistory {
   /// When [assignedForTriageLabel] was last added, or null when that is
   /// unknown.
   final DateTime? assignedForTriageSince;
+
+  /// Whether every part of the history loaded. A part that fails to load
+  /// counts as empty.
+  final bool complete;
 }
 
-/// Reads the contributions to [item], and when its timed labels were added.
+/// Reads the contributions to [item], its staleness pings, and when its timed
+/// labels were added.
 ///
 /// The history of the item is read only when it has a label whose age
 /// matters, so that the other items cost no extra call. Errors go to
@@ -60,10 +65,7 @@ Future<ItemHistory> fetchHistory(
     waitingForAuthorResponseLabel,
     assignedForTriageLabel,
   ].where(item.labels.contains).toList();
-  final (
-    ({List<Contribution> contributions, List<Ping> pings}) read,
-    Map<String, DateTime> addedAt,
-  ) = await (
+  final (_Contributions read, Map<String, DateTime>? addedAt) = await (
     _contributions(github, item, errorLog),
     timedLabels.isEmpty
         ? Future.value(const <String, DateTime>{})
@@ -72,10 +74,17 @@ Future<ItemHistory> fetchHistory(
   return ItemHistory(
     contributions: read.contributions,
     pings: read.pings,
-    waitingSince: addedAt[waitingForAuthorResponseLabel],
-    assignedForTriageSince: addedAt[assignedForTriageLabel],
+    waitingSince: addedAt?[waitingForAuthorResponseLabel],
+    assignedForTriageSince: addedAt?[assignedForTriageLabel],
+    complete: read.complete && addedAt != null,
   );
 }
+
+typedef _Contributions = ({
+  List<Contribution> contributions,
+  List<Ping> pings,
+  bool complete,
+});
 
 /// Every contribution to [item] that people see, except triage bot comments
 /// (see [isTriageBotComment]), and the staleness pings among the comments.
@@ -87,12 +96,13 @@ Future<ItemHistory> fetchHistory(
 ///
 /// A source that fails to load counts as empty, so that one failure does
 /// not stop the whole run.
-Future<({List<Contribution> contributions, List<Ping> pings})> _contributions(
+Future<_Contributions> _contributions(
   ItemReader github,
   Item item,
   StringSink errorLog,
 ) async {
   final int number = item.number;
+  var complete = true;
 
   Future<List<Contribution>> read(
     String what,
@@ -102,6 +112,7 @@ Future<({List<Contribution> contributions, List<Ping> pings})> _contributions(
       return await fetch(number);
     } on Object catch (e) {
       errorLog.writeln('Failed to fetch $what for #$number: $e');
+      complete = false;
       return const [];
     }
   }
@@ -136,19 +147,21 @@ Future<({List<Contribution> contributions, List<Ping> pings})> _contributions(
           contribution,
     ],
     pings: [for (final comment in comments) ?pingOf(comment)],
+    complete: complete,
   );
 }
 
-/// When each label in [names] was last added to [item], by label name.
+/// When each label in [names] was last added to [item], by label name, or
+/// null if the history fails to load.
 ///
-/// A label is missing from the result when that cannot be known: the
-/// history fails to load, or it has no record of the label being added.
+/// A label is missing from the result when the history has no record of it
+/// being added.
 ///
 /// Only the latest labeling counts. An item can be parked, answered, and
 /// parked again, and each round needs its own answer; the reply to the first
 /// round must not answer the second. Likewise, adding
 /// [assignedForTriageLabel] again starts a new triage assignment.
-Future<Map<String, DateTime>> _labelsAddedAt(
+Future<Map<String, DateTime>?> _labelsAddedAt(
   ItemReader github,
   Item item,
   List<String> names,
@@ -170,7 +183,7 @@ Future<Map<String, DateTime>> _labelsAddedAt(
     }
   } on Object catch (e) {
     errorLog.writeln('Failed to fetch label events for #${item.number}: $e');
-    return const {};
+    return null;
   }
 
   for (final name in names) {

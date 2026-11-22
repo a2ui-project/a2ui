@@ -20,13 +20,13 @@ final class PostedComment {
   const PostedComment({
     required this.id,
     required this.association,
-    this.htmlUrl,
+    required this.htmlUrl,
   });
 
   factory PostedComment.fromJson(Map<String, Object?> json) => PostedComment(
     id: json['id']! as int,
     association: json['author_association']! as String,
-    htmlUrl: json['html_url'] as String?,
+    htmlUrl: json['html_url']! as String,
   );
 
   final int id;
@@ -34,11 +34,12 @@ final class PostedComment {
   /// The poster's association with the repository, such as `MEMBER`.
   final String association;
 
-  final String? htmlUrl;
+  final String htmlUrl;
 }
 
-/// Posts and deletes comments on the items of one repository.
-abstract interface class ItemCommenter {
+/// The GitHub calls that the staleness pinger makes, on the items of one
+/// repository: it reads them, and posts and deletes comments.
+abstract interface class PingerGitHub implements ItemReader {
   /// Posts a comment with [body] on the item with [number].
   Future<PostedComment> comment(int number, String body);
 
@@ -46,26 +47,22 @@ abstract interface class ItemCommenter {
   Future<void> deleteComment(int id);
 }
 
-/// An [ItemCommenter] that calls the GitHub REST API.
-final class RestItemCommenter implements ItemCommenter {
-  /// Calls GitHub with the client, for the items of [repository], such as
+/// A [PingerGitHub] that calls the GitHub REST API.
+final class RestPingerGitHub extends RestItemReader implements PingerGitHub {
+  /// Calls GitHub with [client], for the items of [repository], such as
   /// `a2ui-project/a2ui`.
-  RestItemCommenter(this._client, this.repository);
-
-  final GitHubClient _client;
-
-  final String repository;
-
-  String get _issues => 'repos/$repository/issues';
+  RestPingerGitHub(super.client, super.repository);
 
   @override
   Future<PostedComment> comment(int number, String body) async =>
       PostedComment.fromJson(
-        await _client.rest('POST', '$_issues/$number/comments', {'body': body})
+        await client.rest('POST', '$issuesPath/$number/comments', {
+              'body': body,
+            })
             as Map<String, Object?>,
       );
 
   @override
   Future<void> deleteComment(int id) =>
-      _client.rest('DELETE', '$_issues/comments/$id');
+      client.rest('DELETE', '$issuesPath/comments/$id');
 }

@@ -16,61 +16,10 @@
 /// `blueprints/features/triage_bot/staleness_ping.blueprint.md`.
 library;
 
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
 import 'package:shared/shared.dart';
 
-import 'commenter.dart';
-
-/// The team's Google Chat space.
-abstract interface class TeamChat {
-  /// Sends a message with [text], in the Google Chat format.
-  Future<void> send(String text);
-}
-
-/// A [TeamChat] that sends messages through an incoming webhook.
-final class WebhookTeamChat implements TeamChat {
-  WebhookTeamChat(this._url, {http.Client? httpClient})
-    : _http = httpClient ?? http.Client();
-
-  final Uri _url;
-  final http.Client _http;
-
-  @override
-  Future<void> send(String text) async {
-    final http.Response response = await _http.post(
-      _url,
-      headers: {'Content-Type': 'application/json; charset=UTF-8'},
-      body: jsonEncode({'text': text}),
-    );
-    if (response.statusCode >= 300) {
-      throw http.ClientException(
-        'Google Chat answered ${response.statusCode}: ${response.body}',
-        _url,
-      );
-    }
-  }
-
-  void close() => _http.close();
-}
-
-/// Reads the map from GitHub logins to Google Chat user IDs, as JSON. An
-/// empty or missing [json] is an empty map.
-///
-/// Throws a [FormatException] if [json] is not a JSON object of strings.
-Map<String, String> parseChatUsers(String? json) {
-  if (json == null || json.trim().isEmpty) return const {};
-  final Object? decoded = jsonDecode(json);
-  if (decoded is! Map<String, Object?> ||
-      decoded.values.any((Object? id) => id is! String)) {
-    throw const FormatException(
-      'Expected a JSON object that maps GitHub logins to Google Chat user '
-      'IDs.',
-    );
-  }
-  return decoded.cast<String, String>();
-}
+import 'github.dart';
+import 'team_chat.dart';
 
 /// A staleness ping, as a GitHub comment and as a Google Chat message.
 typedef PingText = ({String comment, String chat});
@@ -88,7 +37,7 @@ PingText pingText(
 }) {
   final StaleCase staleCase = staleness.staleCase;
   final kind = item.isPullRequest ? 'PR' : 'issue';
-  final String days = daysText(ageInDays(staleness.since, now).floor());
+  final String days = daysText(now.difference(staleness.since).inDays);
   final String ask = switch (staleCase) {
     StaleCase.assignedForTriage =>
       'this $kind was assigned to you for triage $days ago. Please finish '
@@ -117,16 +66,13 @@ PingText pingText(
         return id.startsWith('users/') ? '<$id>' : '<users/$id>';
       })
       .join(' ');
-  final String url =
-      item.htmlUrl ??
-      'https://github.com/$a2uiRepository/issues/${item.number}';
-
   return (
     comment:
         '**From triage bot, ping:** $gitHubMentions $message\n'
         '${pingMarker(staleCase)}\n',
     chat:
-        '*From triage bot, ping:* <$url|${_escapeForChat(item.title)}>\n'
+        '*From triage bot, ping:* '
+        '<${item.htmlUrl}|${_escapeForChat(item.title)}>\n'
         '$chatMentions $message',
   );
 }
@@ -137,12 +83,13 @@ String _escapeForChat(String text) => text
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;');
 
-/// What a run of the staleness pinger did.
-typedef PingRun = ({int stale, int pinged, int failed});
+/// What a run of the staleness pinger did: how many stale items had no
+/// current ping, how many it pinged, and how many failed.
+typedef PingRun = ({int due, int pinged, int failed});
 
 /// Pings the assignees of every stale item in [github] that has no current
-/// ping: posts a comment on the item with [commenter], and sends a message
-/// to [chat] if it is given.
+/// ping: posts a comment on the item, and sends a message to [chat] if it is
+/// given.
 ///
 /// With [dryRun], it writes each comment to [log] instead of posting it,
 /// and sends no messages.
@@ -153,10 +100,12 @@ typedef PingRun = ({int stale, int pinged, int failed});
 /// again. So if the first ping comes from outside the team, it deletes the
 /// ping and stops.
 ///
+/// It skips an item whose history does not load fully, and counts it as
+/// failed: with comments missing, the item can look stale, or unpinged.
+///
 /// It writes what it does to [log], and errors to [errorLog].
 Future<PingRun> pingStaleItems(
-  ItemReader github,
-  ItemCommenter commenter, {
+  PingerGitHub github, {
   required DateTime now,
   required StringSink log,
   required StringSink errorLog,
@@ -171,30 +120,37 @@ Future<PingRun> pingStaleItems(
       if (staleCaseOf(item) != null) item,
   ];
 
-  final List<({Item item, Staleness staleness})> due = [
-    for (final ({Item item, ItemHistory history}) entry in await inBatches(
-      candidates,
-      (Item item) async => (
-        item: item,
-        history: await fetchHistory(github, item, log: log, errorLog: errorLog),
-      ),
-    ))
-      if (stalenessOf(
-            entry.item,
-            entry.history.contributions,
-            assignedForTriageSince: entry.history.assignedForTriageSince,
-          )
-          case final Staleness staleness
-          when staleness.isStale(now) &&
-              staleness.currentPing(entry.history.pings) == null)
-        (item: entry.item, staleness: staleness),
-  ]..sort((a, b) => a.item.number.compareTo(b.item.number));
-
   var pinged = 0;
   var failed = 0;
+  final due = <({Item item, Staleness staleness})>[];
+  for (final (:Item item, :ItemHistory history) in await inBatches(
+    candidates,
+    (Item item) async => (
+      item: item,
+      history: await fetchHistory(github, item, log: log, errorLog: errorLog),
+    ),
+  )) {
+    // fetchHistory has logged the error.
+    if (!history.complete) {
+      failed += 1;
+      continue;
+    }
+    if (stalenessOf(
+          item,
+          history.contributions,
+          assignedForTriageSince: history.assignedForTriageSince,
+        )
+        case final Staleness staleness
+        when staleness.isStale(now) &&
+            staleness.currentPing(history.pings) == null) {
+      due.add((item: item, staleness: staleness));
+    }
+  }
+  due.sort((a, b) => a.item.number.compareTo(b.item.number));
+
   for (final (:Item item, :Staleness staleness) in due) {
     final StaleCase staleCase = staleness.staleCase;
-    final String url = item.htmlUrl ?? '#${item.number}';
+    final String url = item.htmlUrl;
     try {
       // Ping the item as it is now, rather than as the listing has it.
       final Item fresh = await github.item(item.number);
@@ -219,24 +175,29 @@ Future<PingRun> pingStaleItems(
         continue;
       }
 
-      final PostedComment posted = await commenter.comment(
+      final PostedComment posted = await github.comment(
         item.number,
         text.comment,
       );
       if (!isTeamMember(posted.association)) {
         failed += 1;
-        await commenter.deleteComment(posted.id);
         errorLog.writeln(
           'Stopped: the ping on $url was posted from an account outside the '
           'team (author association ${posted.association}), so it would not '
-          'count as a triage bot comment. Deleted it. Run the pinger with '
-          "a team member's GitHub token.",
+          "count as a triage bot comment. Run the pinger with a team member's "
+          'GitHub token.',
         );
+        try {
+          await github.deleteComment(posted.id);
+          errorLog.writeln('Deleted ${posted.htmlUrl}.');
+        } on Object catch (e) {
+          errorLog.writeln('Failed to delete ${posted.htmlUrl}: $e');
+        }
         break;
       }
       pinged += 1;
       log.writeln(
-        'Pinged ${posted.htmlUrl ?? url} — ${staleCase.marker}, mentioned '
+        'Pinged ${posted.htmlUrl} — ${staleCase.marker}, mentioned '
         '$mentioned.',
       );
 
@@ -258,5 +219,5 @@ Future<PingRun> pingStaleItems(
     'current ping, $pinged ${dryRun ? 'would be pinged' : 'pinged'}, '
     '$failed failed',
   );
-  return (stale: due.length, pinged: pinged, failed: failed);
+  return (due: due.length, pinged: pinged, failed: failed);
 }

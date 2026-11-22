@@ -14,7 +14,6 @@
 
 import 'github_client.dart';
 import 'item.dart';
-import 'rest_json.dart';
 
 /// Reads the issues and pull requests of one repository: what the flagger
 /// and the staleness pinger read.
@@ -73,7 +72,7 @@ class RestItemReader implements ItemReader {
 
   Future<List<Contribution>> _contributions(String path) async => [
     for (final Map<String, Object?> json in await _list(path))
-      ?contributionFromJson(json),
+      ?_contributionFromJson(json),
   ];
 
   @override
@@ -81,11 +80,11 @@ class RestItemReader implements ItemReader {
     for (final Map<String, Object?> json in await _list(issuesPath, {
       'state': 'open',
     }))
-      itemFromJson(json),
+      _itemFromJson(json),
   ];
 
   @override
-  Future<Item> item(int number) async => itemFromJson(
+  Future<Item> item(int number) async => _itemFromJson(
     await client.rest('GET', '$issuesPath/$number') as Map<String, Object?>,
   );
 
@@ -106,6 +105,63 @@ class RestItemReader implements ItemReader {
     for (final Map<String, Object?> json in await _list(
       '$issuesPath/$number/events',
     ))
-      IssueEvent.fromJson(json),
+      _issueEventFromJson(json),
   ];
 }
+
+Item _itemFromJson(Map<String, Object?> json) => Item(
+  number: json['number']! as int,
+  state: json['state'] as String? ?? 'open',
+  htmlUrl: json['html_url']! as String,
+  title: json['title'] as String? ?? '',
+  createdAt: DateTime.parse(json['created_at']! as String),
+  authorAssociation: json['author_association']! as String,
+  user: _userFromJson(json['user']),
+  labels: [
+    for (final Object? label in json['labels'] as List<Object?>? ?? [])
+      switch (label) {
+        final String name => name,
+        {'name': final String name} => name,
+        _ => throw FormatException('Not a label: $label'),
+      },
+  ],
+  assignees: [
+    for (final Object? assignee in json['assignees'] as List<Object?>? ?? [])
+      (assignee! as Map<String, Object?>)['login']! as String,
+  ],
+  hasMilestone: json['milestone'] != null,
+  isPullRequest: json['pull_request'] != null,
+  isDraft: json['draft'] == true,
+  commentCount: json['comments'] as int? ?? 0,
+);
+
+/// A comment, a review or a review comment, or null for a review that is
+/// not submitted yet. Reviews have `submitted_at` instead of `created_at`.
+Contribution? _contributionFromJson(Map<String, Object?> json) {
+  final Object? time = json['created_at'] ?? json['submitted_at'];
+  if (time == null) return null;
+  return Contribution(
+    createdAt: DateTime.parse(time as String),
+    association: json['author_association']! as String,
+    user: _userFromJson(json['user']),
+    body: json['body'] as String?,
+  );
+}
+
+IssueEvent _issueEventFromJson(Map<String, Object?> json) => IssueEvent(
+  event: json['event']! as String,
+  label: switch (json['label']) {
+    {'name': final String name} => name,
+    _ => null,
+  },
+  createdAt: DateTime.parse(json['created_at']! as String),
+);
+
+/// An account, or null for a deleted one.
+User? _userFromJson(Object? json) => switch (json) {
+  final Map<String, Object?> user => User(
+    login: user['login'] as String?,
+    type: user['type'] as String?,
+  ),
+  _ => null,
+};

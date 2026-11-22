@@ -36,10 +36,14 @@ RestItemReader restReader(
   'a2ui-project/a2ui',
 );
 
+/// The item that [RestItemReader.item] reads from [json].
+Future<Item> readItem(Map<String, Object?> json) =>
+    restReader([], (_) => json).item(7);
+
 void main() {
-  group('itemFromJson', () {
-    test('reads an issue as the REST API returns it', () {
-      final Item item = itemFromJson({
+  group('RestItemReader', () {
+    test('reads an issue as the REST API returns it', () async {
+      final Item item = await readItem({
         'number': 7,
         'title': 'Crash',
         'state': 'open',
@@ -59,6 +63,7 @@ void main() {
       });
       expect(item.number, 7);
       expect(item.title, 'Crash');
+      expect(item.htmlUrl, 'https://github.com/a2ui-project/a2ui/issues/7');
       expect(item.createdAt, DateTime.utc(2026, 6, 1, 10));
       expect(item.user?.login, 'reporter');
       expect(item.labels, ['P1', 'type: bug']);
@@ -68,9 +73,10 @@ void main() {
       expect(item.commentCount, 2);
     });
 
-    test('reads a draft PR from a deleted account', () {
-      final Item item = itemFromJson({
+    test('reads a draft PR from a deleted account', () async {
+      final Item item = await readItem({
         'number': 8,
+        'html_url': 'https://github.com/a2ui-project/a2ui/pull/8',
         'created_at': '2026-06-01T10:00:00Z',
         'author_association': 'NONE',
         'user': null,
@@ -80,28 +86,46 @@ void main() {
         'draft': true,
       });
       expect(item.user, isNull);
-      expect(item.assigneeCount, 0);
+      expect(item.assignees, isEmpty);
       expect(item.hasMilestone, isFalse);
       expect(item.isPullRequest, isTrue);
       expect(item.isDraft, isTrue);
     });
-  });
 
-  test('contributionFromJson reads reviews, and skips pending ones', () {
-    final Contribution? review = contributionFromJson({
-      'submitted_at': '2026-06-02T10:00:00Z',
-      'author_association': 'MEMBER',
-      'user': {'login': 'maintainer', 'type': 'User'},
-      'body': null,
+    test('reads reviews, and skips pending ones', () async {
+      final List<Contribution> reviews = await restReader(
+        [],
+        (_) => [
+          {
+            'submitted_at': '2026-06-02T10:00:00Z',
+            'author_association': 'MEMBER',
+            'user': {'login': 'maintainer', 'type': 'User'},
+            'body': null,
+          },
+          {'author_association': 'MEMBER', 'user': null},
+        ],
+      ).reviews(7);
+      expect(reviews.single.createdAt, DateTime.utc(2026, 6, 2, 10));
+      expect(reviews.single.body, isNull);
     });
-    expect(review?.createdAt, DateTime.utc(2026, 6, 2, 10));
-    expect(review?.body, isNull);
-    expect(
-      contributionFromJson({'author_association': 'MEMBER', 'user': null}),
-      isNull,
-    );
-  });
-  group('RestItemReader', () {
+
+    test('reads the labelings in the history', () async {
+      final List<IssueEvent> events = await restReader(
+        [],
+        (_) => [
+          {
+            'event': 'labeled',
+            'label': {'name': 'P1'},
+            'created_at': '2026-06-03T10:00:00Z',
+          },
+          {'event': 'assigned', 'created_at': '2026-06-04T10:00:00Z'},
+        ],
+      ).events(7);
+      expect(events.first.label, 'P1');
+      expect(events.first.createdAt, DateTime.utc(2026, 6, 3, 10));
+      expect(events.last.label, isNull);
+    });
+
     test('lists the open items, 100 per page', () async {
       final requests = <http.Request>[];
       final RestItemReader github = restReader(requests, (_) => []);

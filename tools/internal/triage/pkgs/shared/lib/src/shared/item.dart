@@ -31,7 +31,7 @@ final class Item {
   const Item({
     required this.number,
     this.state = 'open',
-    this.htmlUrl,
+    required this.htmlUrl,
     this.title = '',
     required this.createdAt,
     required this.authorAssociation,
@@ -49,7 +49,7 @@ final class Item {
   /// `open` or `closed`.
   final String state;
 
-  final String? htmlUrl;
+  final String htmlUrl;
 
   final String title;
 
@@ -65,8 +65,6 @@ final class Item {
 
   /// The logins of the assignees.
   final List<String> assignees;
-
-  int get assigneeCount => assignees.length;
 
   final bool hasMilestone;
 
@@ -115,6 +113,19 @@ final class Contribution {
 
   /// The text, or null for a review submitted without a summary.
   final String? body;
+}
+
+/// An entry in an item's history.
+final class IssueEvent {
+  const IssueEvent({required this.event, this.label, required this.createdAt});
+
+  /// What happened, such as `labeled`.
+  final String event;
+
+  /// The name of the label that a `labeled` event added.
+  final String? label;
+
+  final DateTime createdAt;
 }
 
 /// Whether [user] is a bot: its account type is `Bot`, or its login ends with

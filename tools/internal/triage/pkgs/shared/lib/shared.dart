@@ -23,7 +23,6 @@ export 'src/shared/item_history.dart';
 export 'src/shared/item_reader.dart';
 export 'src/shared/labels.dart';
 export 'src/shared/repository.dart';
-export 'src/shared/rest_json.dart';
 export 'src/shared/staleness.dart';
 export 'src/shared/triage_bot_comment.dart';
 export 'src/triage_bot/suggestion.dart';

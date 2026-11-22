@@ -148,19 +148,5 @@ void main() {
         expect(result.reason, 'This issue has no priority label.');
       },
     );
-
-    test('builds the URL when the API does not return one', () async {
-      final ItemReason result = await reasonOf(
-        FakeGitHub([
-          Item(
-            number: 1,
-            createdAt: daysAgo(1),
-            authorAssociation: 'NONE',
-            user: reporter,
-          ),
-        ]),
-      );
-      expect(result.url, 'https://github.com/a2ui-project/a2ui/issues/1');
-    });
   });
 }

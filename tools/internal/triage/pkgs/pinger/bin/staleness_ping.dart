@@ -75,8 +75,7 @@ Future<void> main(List<String> args) async {
   final client = GitHubClient(token: await findGitHubToken());
   try {
     final PingRun run = await pingStaleItems(
-      RestItemReader(client, repository),
-      RestItemCommenter(client, repository),
+      RestPingerGitHub(client, repository),
       now: DateTime.now().toUtc(),
       log: stdout,
       errorLog: stderr,

@@ -72,6 +72,21 @@ Contribution lastHumanContribution(
   return latest;
 }
 
+/// Why an item in [staleCase] is stale.
+String _staleReason(StaleCase staleCase) {
+  final String days = daysText(staleCase.days);
+  return switch (staleCase) {
+    StaleCase.assignedForTriage =>
+      "'$assignedForTriageLabel' was added more than $days ago",
+    StaleCase.p0Inactive || StaleCase.p1Inactive =>
+      'this ${staleCase.priority} issue has had no update from the team for '
+          'more than $days',
+    StaleCase.externalPrInactive =>
+      'this PR from an out-of-team contributor has had no response from the '
+          'team for more than $days',
+  };
+}
+
 /// Whether the request that [waitingForAuthorResponseLabel] tracks is
 /// answered: a person outside the team, the author or anyone else,
 /// contributed at or after [waitingSince], when the label was added.
@@ -136,7 +151,7 @@ String? flagReason(
       case final Staleness staleness
       when staleness.hasExpiredPing(pings, now)) {
     final StaleCase staleCase = staleness.staleCase;
-    return '${staleCase.reason}, and the assignees did not act on the '
+    return '${_staleReason(staleCase)}, and the assignees did not act on the '
         'staleness ping within ${daysText(staleCase.graceDays)}.';
   }
 
@@ -145,7 +160,7 @@ String? flagReason(
   // the very things the assignee is there to sort out. An assignment that
   // runs late is flagged by step 2.
   if (labels.contains(assignedForTriageLabel)) {
-    return item.assigneeCount == 0
+    return item.assignees.isEmpty
         ? "'$assignedForTriageLabel' is set, but nobody is assigned."
         : null;
   }
@@ -162,9 +177,9 @@ String? flagReason(
   // contribution is the latest, and is flagged when it goes quiet for more
   // than [prStaleDays].
   if (item.isPullRequest) {
-    if (item.assigneeCount == 0) return 'this PR has no assignee.';
+    if (item.assignees.isEmpty) return 'this PR has no assignee.';
     if (_isExternal(item.authorAssociation)) return null;
-    return ageInDays(latest.createdAt, now) > prStaleDays
+    return now.difference(latest.createdAt) > const Duration(days: prStaleDays)
         ? 'this assigned PR has had no human activity for more than '
               '$prStaleDays days.'
         : null;
@@ -177,7 +192,7 @@ String? flagReason(
   // An assigned issue has a team member on it, so it is flagged only when
   // it has no priority, or by step 2 when it goes stale. A comment from
   // outside the team is the assignee's to answer.
-  if (item.assigneeCount > 0) {
+  if (item.assignees.isNotEmpty) {
     return priority == null ? noPriorityReason : null;
   }
 
@@ -210,7 +225,7 @@ Decision decide(Item item, ItemHistory history, DateTime now) {
 
   // Judge the item as it will look once the waiting label is gone: a label
   // that this run removes must not hold back the flag until the next run.
-  final Item judged = clearWaiting ? withoutWaitingLabel(item) : item;
+  final Item judged = clearWaiting ? _withoutWaitingLabel(item) : item;
 
   return Decision(
     clearWaiting: clearWaiting,
@@ -225,7 +240,7 @@ Decision decide(Item item, ItemHistory history, DateTime now) {
 }
 
 /// [item] without [waitingForAuthorResponseLabel].
-Item withoutWaitingLabel(Item item) => item.withLabels([
+Item _withoutWaitingLabel(Item item) => item.withLabels([
   for (final label in item.labels)
     if (label != waitingForAuthorResponseLabel) label,
 ]);

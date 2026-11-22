@@ -40,11 +40,8 @@ enum SignInState {
 /// `pkgs/server/README.md`.
 class GitHubAccess extends ChangeNotifier {
   /// [page] is the URL of the app's page, or null outside the web, where
-  /// there is neither a page nor a server. [presetToken] is the token the app
-  /// starts with, or empty to show the sign-in: on the web, the one from
-  /// `--dart-define=GITHUB_TOKEN`, and on macOS, the one from `GITHUB_TOKEN`
-  /// or `GH_TOKEN` in the environment or from `gh auth token`. [expectServer]
-  /// is
+  /// there is neither a page nor a server. [presetToken] is the token to
+  /// start with, or empty to show the sign-in. [expectServer] is
   /// `--dart-define=TRIAGE_SERVER=true`, which the server's build sets: then
   /// a failed call to the server is an error, not a sign that `flutter run`
   /// serves the app, so the token never goes to the page's local storage on
@@ -109,10 +106,8 @@ class GitHubAccess extends ChangeNotifier {
   Future<void> check() async {
     if (_presetToken.isNotEmpty) return _signIn(token: _presetToken);
     if (_page == null) {
-      // Outside the web, there is no server to ask.
-      if (_browser.readToken() case final String token) {
-        return _signIn(token: token);
-      }
+      // Outside the web, there is no server to ask, and nothing kept from
+      // an earlier run.
       _state = SignInState.signedOut;
       notifyListeners();
       return;

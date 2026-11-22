@@ -17,14 +17,8 @@ import 'package:shared/shared.dart';
 import 'github.dart';
 import 'rules.dart';
 
-/// An item whose labels the snapshot says to change.
-typedef _Update = ({
-  Item item,
-  List<Contribution> contributions,
-  List<Ping> pings,
-  DateTime? assignedForTriageSince,
-  bool clearWaiting,
-});
+/// An item and its history, as the run first read them.
+typedef _Snapshot = ({Item item, ItemHistory history});
 
 /// Adds [needsTriageLabel] to every open item in [github] that needs triage,
 /// removes it from the rest, and removes [waitingForAuthorResponseLabel]
@@ -46,8 +40,9 @@ Future<void> reconcile(
 
   final List<Item> openItems = await github.openItems();
 
-  final List<_Update> updates = [
-    for (final ({Item item, ItemHistory history}) entry in await inBatches(
+  // The items whose labels the snapshot says to change.
+  final List<_Snapshot> updates = [
+    for (final _Snapshot entry in await inBatches(
       openItems,
       (Item item) async => (
         item: item,
@@ -58,20 +53,14 @@ Future<void> reconcile(
           when decision.clearWaiting ||
               (decision.reason != null) !=
                   entry.item.labels.contains(needsTriageLabel))
-        (
-          item: entry.item,
-          contributions: entry.history.contributions,
-          pings: entry.history.pings,
-          assignedForTriageSince: entry.history.assignedForTriageSince,
-          clearWaiting: decision.clearWaiting,
-        ),
+        entry,
   ];
 
   var added = 0;
   var removed = 0;
   var waitingCleared = 0;
 
-  await inBatches(updates, (_Update update) async {
+  await inBatches(updates, (_Snapshot update) async {
     final Item item = update.item;
     try {
       // Decide on the item as it is now, rather than on the listing.
@@ -83,12 +72,11 @@ Future<void> reconcile(
         return;
       }
 
-      // The contributions are not read again, so whether someone outside
-      // the team responded is the same as in the snapshot.
-      final bool clearWaiting =
-          update.clearWaiting &&
-          fresh.labels.contains(waitingForAuthorResponseLabel);
-      if (clearWaiting) {
+      // The history is not read again: the contributions, the pings and
+      // the times of the labelings are the snapshot's. A labeling time
+      // counts only while the item still has the label.
+      final Decision decision = decide(fresh, update.history, now);
+      if (decision.clearWaiting) {
         await github.removeLabel(item.number, waitingForAuthorResponseLabel);
         waitingCleared += 1;
         log.writeln(
@@ -97,15 +85,7 @@ Future<void> reconcile(
         );
       }
 
-      // The time of the triage assignment and the pings are not read again
-      // either; the steps ignore the time if the label is gone.
-      final String? reason = flagReason(
-        clearWaiting ? withoutWaitingLabel(fresh) : fresh,
-        update.contributions,
-        now,
-        assignedForTriageSince: update.assignedForTriageSince,
-        pings: update.pings,
-      );
+      final String? reason = decision.reason;
       final wantsFlag = reason != null;
 
       // Another run already did it, or there is nothing to do.

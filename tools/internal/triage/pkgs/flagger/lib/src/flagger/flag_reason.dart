@@ -69,9 +69,7 @@ Future<ItemReason> itemReason(
   );
   final String? reason = decide(item, history, now).reason;
   return (
-    url:
-        item.htmlUrl ??
-        'https://github.com/${github.repository}/issues/$number',
+    url: item.htmlUrl,
     reason: reason == null ? null : toSentence(reason),
   );
 }

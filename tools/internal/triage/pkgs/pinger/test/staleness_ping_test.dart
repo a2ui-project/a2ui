@@ -66,13 +66,18 @@ Contribution pingComment(StaleCase staleCase, num days) => Contribution(
   body: '**From triage bot, ping:** @dev ...\n${pingMarker(staleCase)}',
 );
 
-/// An [ItemReader] that serves the items it is given.
-final class FakeReader implements ItemReader {
-  FakeReader(
+/// A [PingerGitHub] that serves the items it is given, and records the
+/// comments it posts and deletes.
+final class FakeGitHub implements PingerGitHub {
+  FakeGitHub(
     List<Item> items, {
     this.itemComments = const {},
     this.itemEvents = const {},
     this.fresh = const {},
+    this.association = 'MEMBER',
+    this.unreadable = const {},
+    this.failing = const {},
+    this.deleteFails = false,
   }) : _items = {for (final item in items) item.number: item};
 
   final Map<int, Item> _items;
@@ -81,6 +86,20 @@ final class FakeReader implements ItemReader {
 
   /// What [item] returns, by number, where it differs from the listing.
   final Map<int, Item> fresh;
+
+  /// The author association of the comments it posts.
+  final String association;
+
+  /// The items whose comments fail to load.
+  final Set<int> unreadable;
+
+  /// The items on which posting a comment fails.
+  final Set<int> failing;
+
+  final bool deleteFails;
+
+  final List<({int number, String body})> posted = [];
+  final List<int> deleted = [];
 
   @override
   String get repository => a2uiRepository;
@@ -92,8 +111,12 @@ final class FakeReader implements ItemReader {
   Future<Item> item(int number) async => fresh[number] ?? _items[number]!;
 
   @override
-  Future<List<Contribution>> comments(int number) async =>
-      itemComments[number] ?? const [];
+  Future<List<Contribution>> comments(int number) async {
+    if (unreadable.contains(number)) {
+      throw const GitHubException('GitHub answered 502');
+    }
+    return itemComments[number] ?? const [];
+  }
 
   @override
   Future<List<Contribution>> reviews(int number) async => const [];
@@ -104,20 +127,6 @@ final class FakeReader implements ItemReader {
   @override
   Future<List<IssueEvent>> events(int number) async =>
       itemEvents[number] ?? const [];
-}
-
-/// An [ItemCommenter] that records the comments.
-final class FakeCommenter implements ItemCommenter {
-  FakeCommenter({this.association = 'MEMBER', this.failing = const {}});
-
-  /// The author association of the comments it posts.
-  final String association;
-
-  /// The items whose comments fail.
-  final Set<int> failing;
-
-  final List<({int number, String body})> posted = [];
-  final List<int> deleted = [];
 
   @override
   Future<PostedComment> comment(int number, String body) async {
@@ -135,7 +144,10 @@ final class FakeCommenter implements ItemCommenter {
   }
 
   @override
-  Future<void> deleteComment(int id) async => deleted.add(id);
+  Future<void> deleteComment(int id) async {
+    if (deleteFails) throw const GitHubException('GitHub answered 502');
+    deleted.add(id);
+  }
 }
 
 /// A [TeamChat] that records the messages.
@@ -155,8 +167,7 @@ final class FakeChat implements TeamChat {
 typedef Run = ({PingRun result, String log, String errors});
 
 Future<Run> run(
-  FakeReader reader,
-  FakeCommenter commenter, {
+  FakeGitHub github, {
   TeamChat? chat,
   Map<String, String> chatUsers = const {},
   bool dryRun = false,
@@ -164,8 +175,7 @@ Future<Run> run(
   final log = StringBuffer();
   final errors = StringBuffer();
   final PingRun result = await pingStaleItems(
-    reader,
-    commenter,
+    github,
     now: now,
     log: log,
     errorLog: errors,
@@ -179,20 +189,19 @@ Future<Run> run(
 void main() {
   group('pingStaleItems', () {
     test('pings a stale item on GitHub and in Google Chat', () async {
-      final commenter = FakeCommenter();
+      final github = FakeGitHub([
+        issue(number: 7, assignees: ['dev', 'lead'], title: 'A <b> & c'),
+      ]);
       final chat = FakeChat();
       final Run r = await run(
-        FakeReader([
-          issue(number: 7, assignees: ['dev', 'lead'], title: 'A <b> & c'),
-        ]),
-        commenter,
+        github,
         chat: chat,
         chatUsers: {'dev': '123', 'other': 'users/9'},
       );
 
-      expect(commenter.posted.single.number, 7);
+      expect(github.posted.single.number, 7);
       expect(
-        commenter.posted.single.body,
+        github.posted.single.body,
         '**From triage bot, ping:** @dev @lead this `P1` issue has had no '
         'update from the team for 31 days. Please post an update, or change '
         'the priority or assignee if the plan has changed. If nothing '
@@ -217,106 +226,91 @@ void main() {
           '#issuecomment-1 — p1-inactive, mentioned @dev, @lead.',
         ),
       );
-      expect(r.result, (stale: 1, pinged: 1, failed: 0));
+      expect(r.result, (due: 1, pinged: 1, failed: 0));
       expect(r.errors, isEmpty);
     });
 
     test('does not ping an item with a current ping', () async {
-      final commenter = FakeCommenter();
-      final Run r = await run(
-        FakeReader(
-          [issue(createdDaysAgo: 60, comments: 1)],
-          itemComments: {
-            1: [pingComment(StaleCase.p1Inactive, 20)],
-          },
-        ),
-        commenter,
+      final github = FakeGitHub(
+        [issue(createdDaysAgo: 60, comments: 1)],
+        itemComments: {
+          1: [pingComment(StaleCase.p1Inactive, 20)],
+        },
       );
+      final Run r = await run(github);
 
-      expect(commenter.posted, isEmpty);
-      expect(r.result.stale, 0);
+      expect(github.posted, isEmpty);
+      expect(r.result.due, 0);
     });
 
     test('pings again when a team update since the last ping went stale '
         'too', () async {
-      final commenter = FakeCommenter();
-      await run(
-        FakeReader(
-          [issue(createdDaysAgo: 100, comments: 2)],
-          itemComments: {
-            1: [pingComment(StaleCase.p1Inactive, 60), memberComment(40)],
-          },
-        ),
-        commenter,
+      final github = FakeGitHub(
+        [issue(createdDaysAgo: 100, comments: 2)],
+        itemComments: {
+          1: [pingComment(StaleCase.p1Inactive, 60), memberComment(40)],
+        },
       );
+      await run(github);
 
-      expect(commenter.posted.single.body, contains('for 40 days'));
+      expect(github.posted.single.body, contains('for 40 days'));
     });
 
     test('pings for the current case only', () async {
       // A ping for another case does not count.
-      final commenter = FakeCommenter();
-      await run(
-        FakeReader(
-          [
-            issue(labels: ['P0'], createdDaysAgo: 3, comments: 1),
-          ],
-          itemComments: {
-            1: [pingComment(StaleCase.p1Inactive, 1)],
-          },
-        ),
-        commenter,
+      final github = FakeGitHub(
+        [
+          issue(labels: ['P0'], createdDaysAgo: 3, comments: 1),
+        ],
+        itemComments: {
+          1: [pingComment(StaleCase.p1Inactive, 1)],
+        },
       );
+      await run(github);
 
       expect(
-        commenter.posted.single.body,
+        github.posted.single.body,
         contains('<!-- a2ui-triage-ping: p0-inactive -->'),
       );
     });
 
     test('leaves fresh items and items that cannot go stale alone', () async {
-      final commenter = FakeCommenter();
-      final Run r = await run(
-        FakeReader([
-          issue(number: 1, createdDaysAgo: 29),
-          issue(number: 2, assignees: []),
-          issue(number: 3, labels: ['P2'], createdDaysAgo: 999),
-          issue(number: 4, pullRequest: true, draft: true, labels: []),
-          issue(
-            number: 5,
-            labels: ['P1', waitingForAuthorResponseLabel],
-            createdDaysAgo: 999,
-          ),
-        ]),
-        commenter,
-      );
+      final github = FakeGitHub([
+        issue(number: 1, createdDaysAgo: 29),
+        issue(number: 2, assignees: []),
+        issue(number: 3, labels: ['P2'], createdDaysAgo: 999),
+        issue(number: 4, pullRequest: true, draft: true, labels: []),
+        issue(
+          number: 5,
+          labels: ['P1', waitingForAuthorResponseLabel],
+          createdDaysAgo: 999,
+        ),
+      ]);
+      final Run r = await run(github);
 
-      expect(commenter.posted, isEmpty);
-      expect(r.result, (stale: 0, pinged: 0, failed: 0));
+      expect(github.posted, isEmpty);
+      expect(r.result, (due: 0, pinged: 0, failed: 0));
     });
 
     test('pings a triage assignment from its latest labeling', () async {
-      final commenter = FakeCommenter();
-      await run(
-        FakeReader(
-          [
-            issue(labels: ['P3', assignedForTriageLabel], createdDaysAgo: 90),
+      final github = FakeGitHub(
+        [
+          issue(labels: ['P3', assignedForTriageLabel], createdDaysAgo: 90),
+        ],
+        itemEvents: {
+          1: [
+            IssueEvent(
+              event: 'labeled',
+              label: assignedForTriageLabel,
+              createdAt: daysAgo(15.5),
+            ),
           ],
-          itemEvents: {
-            1: [
-              IssueEvent(
-                event: 'labeled',
-                label: assignedForTriageLabel,
-                createdAt: daysAgo(15.5),
-              ),
-            ],
-          },
-        ),
-        commenter,
+        },
       );
+      await run(github);
 
       expect(
-        commenter.posted.single.body,
+        github.posted.single.body,
         startsWith(
           '**From triage bot, ping:** @dev this issue was assigned to you for '
           'triage 15 days ago.',
@@ -325,14 +319,13 @@ void main() {
     });
 
     test('pings an external PR', () async {
-      final commenter = FakeCommenter();
-      await run(
-        FakeReader([issue(pullRequest: true, labels: [], createdDaysAgo: 15)]),
-        commenter,
-      );
+      final github = FakeGitHub([
+        issue(pullRequest: true, labels: [], createdDaysAgo: 15),
+      ]);
+      await run(github);
 
       expect(
-        commenter.posted.single.body,
+        github.posted.single.body,
         contains(
           'this PR from an out-of-team contributor has had no response from '
           'the team for 15 days. Please review it, or tell the author what is '
@@ -342,71 +335,88 @@ void main() {
     });
 
     test('skips an item that changed since the listing', () async {
-      final commenter = FakeCommenter();
-      final Run r = await run(
-        FakeReader([issue()], fresh: {1: issue(assignees: [])}),
-        commenter,
-      );
+      final github = FakeGitHub([issue()], fresh: {1: issue(assignees: [])});
+      final Run r = await run(github);
 
-      expect(commenter.posted, isEmpty);
+      expect(github.posted, isEmpty);
       expect(r.log, contains('Skipped'));
     });
 
-    test('prints the comments and posts nothing in a dry run', () async {
-      final commenter = FakeCommenter();
-      final chat = FakeChat();
-      final Run r = await run(
-        FakeReader([issue()]),
-        commenter,
-        chat: chat,
-        dryRun: true,
+    // Without its comments, an item can look stale, or unpinged.
+    test('skips an item whose comments fail to load, and counts it as '
+        'failed', () async {
+      final github = FakeGitHub(
+        [issue(createdDaysAgo: 60, comments: 1)],
+        unreadable: {1},
       );
+      final Run r = await run(github);
 
-      expect(commenter.posted, isEmpty);
+      expect(github.posted, isEmpty);
+      expect(r.errors, contains('Failed to fetch comments for #1'));
+      expect(r.result, (due: 0, pinged: 0, failed: 1));
+    });
+
+    test('prints the comments and posts nothing in a dry run', () async {
+      final github = FakeGitHub([issue()]);
+      final chat = FakeChat();
+      final Run r = await run(github, chat: chat, dryRun: true);
+
+      expect(github.posted, isEmpty);
       expect(chat.messages, isEmpty);
       expect(r.log, contains('Would ping'));
       expect(r.log, contains('<!-- a2ui-triage-ping: p1-inactive -->'));
-      expect(r.result, (stale: 1, pinged: 1, failed: 0));
+      expect(r.result, (due: 1, pinged: 1, failed: 0));
     });
 
     test('logs a failed ping and goes on', () async {
-      final commenter = FakeCommenter(failing: {1});
-      final Run r = await run(
-        FakeReader([issue(number: 1), issue(number: 2)]),
-        commenter,
+      final github = FakeGitHub(
+        [issue(number: 1), issue(number: 2)],
+        failing: {1},
       );
+      final Run r = await run(github);
 
-      expect(commenter.posted.single.number, 2);
+      expect(github.posted.single.number, 2);
       expect(r.errors, contains('Failed to ping'));
-      expect(r.result, (stale: 2, pinged: 1, failed: 1));
+      expect(r.result, (due: 2, pinged: 1, failed: 1));
     });
 
     test('logs a failed Chat message and keeps the comment', () async {
-      final commenter = FakeCommenter();
-      final Run r = await run(
-        FakeReader([issue()]),
-        commenter,
-        chat: FakeChat(fails: true),
-      );
+      final github = FakeGitHub([issue()]);
+      final Run r = await run(github, chat: FakeChat(fails: true));
 
-      expect(commenter.posted, hasLength(1));
+      expect(github.posted, hasLength(1));
       expect(r.errors, contains('Failed to send the Google Chat message'));
-      expect(r.result, (stale: 1, pinged: 1, failed: 1));
+      expect(r.result, (due: 1, pinged: 1, failed: 1));
     });
 
     // A ping from outside the team is not a triage bot comment, so the next
     // run would not see it and would ping again every hour.
     test('deletes a ping posted from outside the team, and stops', () async {
-      final commenter = FakeCommenter(association: 'CONTRIBUTOR');
-      final Run r = await run(
-        FakeReader([issue(number: 1), issue(number: 2)]),
-        commenter,
-      );
+      final github = FakeGitHub([
+        issue(number: 1),
+        issue(number: 2),
+      ], association: 'CONTRIBUTOR');
+      final Run r = await run(github);
 
-      expect(commenter.posted.single.number, 1);
-      expect(commenter.deleted, [1]);
+      expect(github.posted.single.number, 1);
+      expect(github.deleted, [1]);
       expect(r.errors, contains("team member's GitHub token"));
-      expect(r.result, (stale: 2, pinged: 0, failed: 1));
+      expect(r.result, (due: 2, pinged: 0, failed: 1));
+    });
+
+    test('stops even when it cannot delete a ping posted from outside the '
+        'team', () async {
+      final github = FakeGitHub(
+        [issue(number: 1), issue(number: 2)],
+        association: 'CONTRIBUTOR',
+        deleteFails: true,
+      );
+      final Run r = await run(github);
+
+      expect(github.posted.single.number, 1);
+      expect(r.errors, contains('Stopped'));
+      expect(r.errors, contains('Failed to delete'));
+      expect(r.result, (due: 2, pinged: 0, failed: 1));
     });
   });
 
@@ -425,6 +435,41 @@ void main() {
         'the weekly triage.\n'
         '<!-- a2ui-triage-ping: p0-inactive -->\n',
       );
+    });
+  });
+
+  group('RestPingerGitHub', () {
+    test('posts and deletes comments', () async {
+      final requests = <http.Request>[];
+      final github = RestPingerGitHub(
+        GitHubClient(
+          token: 'token',
+          httpClient: MockClient((request) async {
+            requests.add(request);
+            return request.method == 'POST'
+                ? http.Response(
+                    jsonEncode({
+                      'id': 5,
+                      'author_association': 'MEMBER',
+                      'html_url': 'https://github.com/x#issuecomment-5',
+                    }),
+                    201,
+                  )
+                : http.Response('', 204);
+          }),
+        ),
+        'a2ui-project/a2ui',
+      );
+
+      final PostedComment posted = await github.comment(7, 'Hi');
+      await github.deleteComment(posted.id);
+
+      expect(posted.association, 'MEMBER');
+      expect(requests.map((r) => '${r.method} ${r.url.path}'), [
+        'POST /repos/a2ui-project/a2ui/issues/7/comments',
+        'DELETE /repos/a2ui-project/a2ui/issues/comments/5',
+      ]);
+      expect(jsonDecode(requests.first.body), {'body': 'Hi'});
     });
   });
 

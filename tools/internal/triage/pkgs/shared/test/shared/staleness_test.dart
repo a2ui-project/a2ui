@@ -33,6 +33,7 @@ Item item({
   num createdDaysAgo = 100,
 }) => Item(
   number: 1,
+  htmlUrl: 'https://github.com/a2ui-project/a2ui/issues/1',
   state: state,
   createdAt: daysAgo(createdDaysAgo),
   authorAssociation: association,

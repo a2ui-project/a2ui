@@ -57,18 +57,6 @@ enum StaleCase {
   /// depend on the priority.
   final String? priority;
 
-  /// Why an item in this case is stale, for the flagger's reason.
-  String get reason => switch (this) {
-    assignedForTriage =>
-      "'$assignedForTriageLabel' was added more than $days days ago",
-    p0Inactive || p1Inactive =>
-      'this $priority issue has had no update from the team for more than '
-          '${daysText(days)}',
-    externalPrInactive =>
-      'this PR from an out-of-team contributor has had no response from the '
-          'team for more than ${daysText(days)}',
-  };
-
   /// The case with [marker], or null if there is none.
   static StaleCase? byMarker(String marker) =>
       values.where((c) => c.marker == marker).firstOrNull;
@@ -76,10 +64,6 @@ enum StaleCase {
 
 /// [count] days, as in `1 day` or `7 days`.
 String daysText(int count) => count == 1 ? '1 day' : '$count days';
-
-/// The age of [time] at [now], in days.
-double ageInDays(DateTime time, DateTime now) =>
-    now.difference(time).inMicroseconds / Duration.microsecondsPerDay;
 
 /// A staleness ping: a triage bot comment that marks the case it was posted
 /// for.
@@ -158,7 +142,8 @@ final class Staleness {
   final DateTime since;
 
   /// Whether the item is stale at [now].
-  bool isStale(DateTime now) => ageInDays(since, now) > staleCase.days;
+  bool isStale(DateTime now) =>
+      now.difference(since) > Duration(days: staleCase.days);
 
   /// The latest of [pings] that is current: posted for [staleCase] at or
   /// after the clock started. Null if there is none.
@@ -181,7 +166,7 @@ final class Staleness {
     final Ping? ping = currentPing(pings);
     return ping != null &&
         isStale(now) &&
-        ageInDays(ping.createdAt, now) > staleCase.graceDays;
+        now.difference(ping.createdAt) > Duration(days: staleCase.graceDays);
   }
 }
 
