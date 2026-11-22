@@ -79,23 +79,18 @@ public struct A2UITextFieldStyleConfiguration {
       switch variant {
       case .obscured:
         SecureField(labelText, text: value, prompt: prompt)
-          .accessibilityIdentifier("a2ui-\(node.id)")
       case .longText:
         TextField(labelText, text: value, prompt: prompt, axis: .vertical)
           .lineLimit(3...8)
-          .accessibilityIdentifier("a2ui-\(node.id)")
       case .number:
         #if os(iOS)
           TextField(labelText, text: value, prompt: prompt)
             .keyboardType(.decimalPad)
-            .accessibilityIdentifier("a2ui-\(node.id)")
         #else
           TextField(labelText, text: value, prompt: prompt)
-            .accessibilityIdentifier("a2ui-\(node.id)")
         #endif
       case .shortText:
         TextField(labelText, text: value, prompt: prompt)
-          .accessibilityIdentifier("a2ui-\(node.id)")
       }
     }
   }
