@@ -35,11 +35,12 @@ final class Item {
     required this.number,
     this.state = 'open',
     this.htmlUrl,
+    this.title = '',
     required this.createdAt,
     required this.authorAssociation,
     this.user,
     this.labels = const [],
-    this.assigneeCount = 0,
+    this.assignees = const [],
     this.hasMilestone = false,
     this.isPullRequest = false,
     this.isDraft = false,
@@ -50,6 +51,7 @@ final class Item {
     number: json['number']! as int,
     state: json['state'] as String? ?? 'open',
     htmlUrl: json['html_url'] as String?,
+    title: json['title'] as String? ?? '',
     createdAt: DateTime.parse(json['created_at']! as String),
     authorAssociation: json['author_association']! as String,
     user: _userOf(json['user']),
@@ -61,7 +63,10 @@ final class Item {
           _ => throw FormatException('Not a label: $label'),
         },
     ],
-    assigneeCount: (json['assignees'] as List<Object?>?)?.length ?? 0,
+    assignees: [
+      for (final Object? assignee in json['assignees'] as List<Object?>? ?? [])
+        (assignee! as Map<String, Object?>)['login']! as String,
+    ],
     hasMilestone: json['milestone'] != null,
     isPullRequest: json['pull_request'] != null,
     isDraft: json['draft'] == true,
@@ -75,6 +80,8 @@ final class Item {
 
   final String? htmlUrl;
 
+  final String title;
+
   final DateTime createdAt;
 
   /// The author's association with the repository, such as `MEMBER`.
@@ -85,7 +92,10 @@ final class Item {
 
   final List<String> labels;
 
-  final int assigneeCount;
+  /// The logins of the assignees.
+  final List<String> assignees;
+
+  int get assigneeCount => assignees.length;
 
   final bool hasMilestone;
 
@@ -102,11 +112,12 @@ final class Item {
     number: number,
     state: state,
     htmlUrl: htmlUrl,
+    title: title,
     createdAt: createdAt,
     authorAssociation: authorAssociation,
     user: user,
     labels: labels,
-    assigneeCount: assigneeCount,
+    assignees: assignees,
     hasMilestone: hasMilestone,
     isPullRequest: isPullRequest,
     isDraft: isDraft,
@@ -170,6 +181,29 @@ final class IssueEvent {
   final String? label;
 
   final DateTime createdAt;
+}
+
+/// A comment that was just posted, as
+/// `POST /repos/{owner}/{repo}/issues/{number}/comments` returns it.
+final class PostedComment {
+  const PostedComment({
+    required this.id,
+    required this.association,
+    this.htmlUrl,
+  });
+
+  factory PostedComment.fromJson(Map<String, Object?> json) => PostedComment(
+    id: json['id']! as int,
+    association: json['author_association']! as String,
+    htmlUrl: json['html_url'] as String?,
+  );
+
+  final int id;
+
+  /// The poster's association with the repository, such as `MEMBER`.
+  final String association;
+
+  final String? htmlUrl;
 }
 
 User? _userOf(Object? json) =>

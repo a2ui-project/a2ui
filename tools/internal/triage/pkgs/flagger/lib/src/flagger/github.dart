@@ -16,7 +16,8 @@ import 'package:shared/shared.dart';
 
 import 'item.dart';
 
-/// The GitHub calls that the flagger makes, on the items of one repository.
+/// The GitHub calls that the flagger and the staleness pinger make, on the
+/// items of one repository.
 abstract interface class FlaggerGitHub {
   /// The repository, such as `a2ui-project/a2ui`.
   String get repository;
@@ -42,6 +43,12 @@ abstract interface class FlaggerGitHub {
   Future<void> addLabel(int number, String label);
 
   Future<void> removeLabel(int number, String label);
+
+  /// Posts a comment with [body] on the item with [number].
+  Future<PostedComment> comment(int number, String body);
+
+  /// Deletes the comment with [id].
+  Future<void> deleteComment(int id);
 }
 
 /// A [FlaggerGitHub] that calls the GitHub REST API.
@@ -121,4 +128,17 @@ final class RestFlaggerGitHub implements FlaggerGitHub {
     'DELETE',
     '$_issues/$number/labels/${Uri.encodeComponent(label)}',
   );
+
+  @override
+  Future<PostedComment> comment(int number, String body) async =>
+      PostedComment.fromJson(
+        await _client.rest('POST', '$_issues/$number/comments', {
+              'body': body,
+            })
+            as Map<String, Object?>,
+      );
+
+  @override
+  Future<void> deleteComment(int id) =>
+      _client.rest('DELETE', '$_issues/comments/$id');
 }

@@ -16,17 +16,23 @@ import 'package:shared/shared.dart';
 
 import 'github.dart';
 import 'item.dart';
+import 'staleness.dart';
 
 /// What the flagger reads about an item, besides the item itself.
 final class ItemHistory {
   const ItemHistory({
     this.contributions = const [],
+    this.pings = const [],
     this.waitingSince,
     this.assignedForTriageSince,
   });
 
   /// The comments, reviews and review comments, except triage bot comments.
   final List<Contribution> contributions;
+
+  /// The staleness pings: triage bot comments that the staleness pinger
+  /// posted.
+  final List<Ping> pings;
 
   /// When [waitingForAuthorResponseLabel] was last added, or null when that
   /// is unknown.
@@ -53,7 +59,7 @@ Future<ItemHistory> fetchHistory(
     assignedForTriageLabel,
   ].where(item.labels.contains).toList();
   final (
-    List<Contribution> contributions,
+    ({List<Contribution> contributions, List<Ping> pings}) read,
     Map<String, DateTime> addedAt,
   ) = await (
     _contributions(github, item, errorLog),
@@ -62,14 +68,15 @@ Future<ItemHistory> fetchHistory(
         : _labelsAddedAt(github, item, timedLabels, log, errorLog),
   ).wait;
   return ItemHistory(
-    contributions: contributions,
+    contributions: read.contributions,
+    pings: read.pings,
     waitingSince: addedAt[waitingForAuthorResponseLabel],
     assignedForTriageSince: addedAt[assignedForTriageLabel],
   );
 }
 
 /// Every contribution to [item] that people see, except triage bot comments
-/// (see [isTriageBotComment]).
+/// (see [isTriageBotComment]), and the staleness pings among the comments.
 ///
 /// For an issue, that is its comments. A pull request also has reviews and
 /// review comments: an author often answers in a review thread without a
@@ -78,7 +85,7 @@ Future<ItemHistory> fetchHistory(
 ///
 /// A source that fails to load counts as empty, so that one failure does
 /// not stop the whole run.
-Future<List<Contribution>> _contributions(
+Future<({List<Contribution> contributions, List<Ping> pings})> _contributions(
   FlaggerGitHub github,
   Item item,
   StringSink errorLog,
@@ -116,15 +123,18 @@ Future<List<Contribution>> _contributions(
         : Future.value(const <Contribution>[]),
   ).wait;
 
-  return [
-    for (final contribution in [...comments, ...reviews, ...reviewComments])
-      if (!isTriageBotComment(
-        body: contribution.body ?? '',
-        association: contribution.association,
-        byBot: isBot(contribution.user),
-      ))
-        contribution,
-  ];
+  return (
+    contributions: [
+      for (final contribution in [...comments, ...reviews, ...reviewComments])
+        if (!isTriageBotComment(
+          body: contribution.body ?? '',
+          association: contribution.association,
+          byBot: isBot(contribution.user),
+        ))
+          contribution,
+    ],
+    pings: [for (final comment in comments) ?pingOf(comment)],
+  );
 }
 
 /// When each label in [names] was last added to [item], by label name.

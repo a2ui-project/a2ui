@@ -20,25 +20,20 @@ import 'package:shared/shared.dart';
 
 import 'history.dart';
 import 'item.dart';
-
-/// Days an item may carry [assignedForTriageLabel] before it is flagged
-/// (step 2).
-const int triageAssignmentDays = 14;
+import 'staleness.dart';
 
 /// Priorities urgent enough that an unassigned issue is flagged at once
-/// (step 4). Every entry is one of [priorityLabels].
+/// (step 5). Every entry is one of [priorityLabels].
 const Set<String> assigneeRequiredPriorities = {'P0'};
 
 /// Priorities whose unassigned issues are flagged until they have a
-/// milestone (step 4): a milestone plans the work as well as an assignee
+/// milestone (step 5): a milestone plans the work as well as an assignee
 /// does. Every entry is one of [priorityLabels].
 const Set<String> assigneeOrMilestonePriorities = {'P1'};
 
-/// Days of inactivity before an assigned issue is stale (step 4), by
-/// priority. Issues with other priorities are never flagged as stale.
-const Map<String, int> staleDays = {'P0': 1, 'P1': 30};
-
-/// Days of inactivity before an assigned pull request is stale (step 5).
+/// Days of inactivity before an assigned pull request that a team member
+/// opened is stale (step 6). An assigned pull request from outside the team
+/// goes stale as [StaleCase.externalPrInactive] instead.
 const int prStaleDays = 7;
 
 /// What the flagger decides for an item.
@@ -57,9 +52,6 @@ final class Decision {
 /// dependabot opens, needs triage as much as one from a person outside the
 /// team.
 bool _isExternal(String association) => !isTeamMember(association);
-
-double _ageInDays(DateTime time, DateTime now) =>
-    now.difference(time).inMicroseconds / Duration.microsecondsPerDay;
 
 /// The latest human contribution to [item]: its newest comment or review
 /// that is not from a bot, or else the opening post.
@@ -115,13 +107,15 @@ bool externalHasResponded(
 /// logs the reason, and the triage bot copies it into its suggestions.
 ///
 /// [assignedForTriageSince] is when [assignedForTriageLabel] was last added,
-/// or null when that cannot be read.
+/// or null when that cannot be read. [pings] are the staleness pings on the
+/// item.
 String? flagReason(
   Item item,
   List<Contribution> contributions,
-  DateTime now, [
+  DateTime now, {
   DateTime? assignedForTriageSince,
-]) {
+  List<Ping> pings = const [],
+}) {
   final List<String> labels = item.labels;
   final bool openedByExternal = _isExternal(item.authorAssociation);
   final Contribution latest = lastHumanContribution(item, contributions);
@@ -134,55 +128,62 @@ String? flagReason(
   // label once someone outside the team responds, which puts it back.
   if (labels.contains(waitingForAuthorResponseLabel)) return null;
 
-  // Step 2: an item handed to a team member for triage is judged on that
-  // assignment alone, whoever opened it; the steps below would flag it for
-  // the very things the assignee is there to sort out. With no record of
-  // when the label went on, there is nothing to measure, so the deadline
-  // never comes.
-  if (labels.contains(assignedForTriageLabel)) {
-    if (item.assigneeCount == 0) {
-      return "'$assignedForTriageLabel' is set, but nobody is assigned.";
-    }
-    if (assignedForTriageSince != null &&
-        _ageInDays(assignedForTriageSince, now) > triageAssignmentDays) {
-      return "'$assignedForTriageLabel' was added more than "
-          '$triageAssignmentDays days ago.';
-    }
-    return null;
+  // Step 2: a stale item goes back to triage once the staleness pinger has
+  // asked its assignees to act and the grace period has passed. This
+  // applies whoever opened the item, since the ping promised it. Until then,
+  // the steps below do not flag the item for its staleness.
+  if (stalenessOf(
+        item,
+        contributions,
+        assignedForTriageSince: assignedForTriageSince,
+      )
+      case final Staleness staleness when staleness.hasExpiredPing(
+        pings,
+        now,
+      )) {
+    final StaleCase staleCase = staleness.staleCase;
+    return '${staleCase.reason}, and the assignees did not act on the '
+        'staleness ping within ${daysText(staleCase.graceDays)}.';
   }
 
-  // Step 3: the team manages its own items. One that a team member opened
+  // Step 3: an item handed to a team member for triage is judged on that
+  // assignment alone, whoever opened it; the steps below would flag it for
+  // the very things the assignee is there to sort out. An assignment that
+  // runs late is flagged by step 2.
+  if (labels.contains(assignedForTriageLabel)) {
+    return item.assigneeCount == 0
+        ? "'$assignedForTriageLabel' is set, but nobody is assigned."
+        : null;
+  }
+
+  // Step 4: the team manages its own items. One that a team member opened
   // stays off the queue unless the last human word on it is from outside
   // the team, which a team reply settles.
   if (!openedByExternal && !_isExternal(latest.association)) return null;
 
-  // Step 5: a PR needs triage until a team member takes it on by being
+  // Step 6: a PR needs triage until a team member takes it on by being
   // assigned; a team comment alone does not take it off the queue. Once
-  // assigned, it is flagged again when it goes quiet for more than
-  // [prStaleDays].
+  // assigned, a PR from outside the team is flagged by step 2 when it goes
+  // stale. A team member's PR gets here only while an out-of-team
+  // contribution is the latest, and is flagged when it goes quiet for more
+  // than [prStaleDays].
   if (item.isPullRequest) {
     if (item.assigneeCount == 0) return 'this PR has no assignee.';
-    return _ageInDays(latest.createdAt, now) > prStaleDays
+    if (_isExternal(item.authorAssociation)) return null;
+    return ageInDays(latest.createdAt, now) > prStaleDays
         ? 'this assigned PR has had no human activity for more than '
               '$prStaleDays days.'
         : null;
   }
 
-  // Step 4: issues.
+  // Step 5: issues.
   final String? priority = priorityLabels.where(labels.contains).firstOrNull;
   const noPriorityReason = 'this issue has no priority label.';
 
   // An assigned issue has a team member on it, so it is flagged only when
-  // that work goes quiet for longer than its priority allows, or when it has
-  // no priority. A comment from outside the team is the assignee's to
-  // answer.
+  // it has no priority, or by step 2 when it goes stale. A comment from
+  // outside the team is the assignee's to answer.
   if (item.assigneeCount > 0) {
-    final int? threshold = staleDays[priority];
-    if (threshold != null && _ageInDays(latest.createdAt, now) > threshold) {
-      final unit = threshold == 1 ? 'day' : 'days';
-      return 'this $priority issue has had no human activity for more than '
-          '$threshold $unit.';
-    }
     return priority == null ? noPriorityReason : null;
   }
 
@@ -223,7 +224,8 @@ Decision decide(Item item, ItemHistory history, DateTime now) {
       judged,
       history.contributions,
       now,
-      history.assignedForTriageSince,
+      assignedForTriageSince: history.assignedForTriageSince,
+      pings: history.pings,
     ),
   );
 }

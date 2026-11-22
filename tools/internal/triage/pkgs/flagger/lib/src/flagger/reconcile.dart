@@ -19,11 +19,13 @@ import 'github.dart';
 import 'history.dart';
 import 'item.dart';
 import 'rules.dart';
+import 'staleness.dart';
 
 /// An item whose labels the snapshot says to change.
 typedef _Update = ({
   Item item,
   List<Contribution> contributions,
+  List<Ping> pings,
   DateTime? assignedForTriageSince,
   bool clearWaiting,
 });
@@ -63,6 +65,7 @@ Future<void> reconcile(
         (
           item: entry.item,
           contributions: entry.history.contributions,
+          pings: entry.history.pings,
           assignedForTriageSince: entry.history.assignedForTriageSince,
           clearWaiting: decision.clearWaiting,
         ),
@@ -98,13 +101,14 @@ Future<void> reconcile(
         );
       }
 
-      // The time of the triage assignment is not read again either; step 2
-      // ignores it if the label is gone.
+      // The time of the triage assignment and the pings are not read again
+      // either; the steps ignore the time if the label is gone.
       final String? reason = flagReason(
         clearWaiting ? withoutWaitingLabel(fresh) : fresh,
         update.contributions,
         now,
-        update.assignedForTriageSince,
+        assignedForTriageSince: update.assignedForTriageSince,
+        pings: update.pings,
       );
       final wantsFlag = reason != null;
 
