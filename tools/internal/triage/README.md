@@ -9,3 +9,27 @@ Automation for the triage process described in [triage.md](../../../docs/contrib
 5. [`pkgs/shared`](pkgs/shared/): the code that the other packages and the [triage bot](../../../.agents/skills/a2ui-triage-bot/SKILL.md) share, such as reading items from GitHub and the definitions of stale items, and the triage bot's commands.
 
 The packages are in the Dart workspace of the repository root.
+
+## How to
+
+### Run the triage UI
+
+Open go/a2ui-triage-ui, or on macOS, from the repository root:
+
+```bash
+tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/123
+```
+
+See the [ui README](pkgs/ui/README.md) for other ways.
+
+### Run the triage bot
+
+Ask an AI agent:
+
+```
+Start triage bot https://github.com/a2ui-project/a2ui/tree/main/.agents/skills/a2ui-triage-bot
+```
+
+It will run skill every hour: the triage advisor, the staleness pinger and the triage assistant. 
+
+Ask "stop triage bot" to stop it.
