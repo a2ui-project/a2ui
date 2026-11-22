@@ -29,8 +29,8 @@ To take an unfinished PR off the triage queue, the triager converts it to a draf
 
 2. The [staleness pinger](features/triage_bot/staleness_ping.blueprint.md) asks the assignees of stale items to act, before the flagger flags those items.
 
-   1. Runs: daily.
-   2. Started by: a GitHub workflow.
+   1. Runs: hourly.
+   2. Started by: a scheduled agent that runs the [a2ui-triage-bot](../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill.
    3. Needs to: comment on items, and send messages to team members.
 
 3. The **triage advisor** posts a [triage suggestion](features/triage_bot/suggestion.blueprint.md) on each item with `status: needs-triage` and without `status: needs-team-input`.
