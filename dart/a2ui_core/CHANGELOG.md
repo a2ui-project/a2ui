@@ -10,7 +10,8 @@
   longer on such a pattern with a value only a few characters long. To
   migrate, rewrite the group so each repetition consumes at least one
   character, for example `(?:ab?){3}` instead of `(?:a?b?){3}`
-  ([#4236](https://github.com/a2ui-project/a2ui/issues/4236)).
+  ([#4236](https://github.com/a2ui-project/a2ui/issues/4236),
+  [#4360](https://github.com/a2ui-project/a2ui/pull/4360)).
 - Regenerate the v0.9 basic catalog bindings and update documentation paths after moving the pre-1.0 catalogs to `catalogs/` ([#4150](https://github.com/a2ui-project/a2ui/pull/4150)).
 - Added `MessageProcessor.addCatalog`, which adds a catalog to a processor
   after it is built. `createSurface` messages, renderer function calls and
