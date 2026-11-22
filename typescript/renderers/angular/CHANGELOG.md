@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_8) Fix `Text` `additionalStyles` detection so complete 7-key and partial hinted style maps apply without requiring `h6`. A partial map that omits the active `usageHint` applies no inline styles ([#602](https://github.com/a2ui-project/a2ui/issues/602), [#4355](https://github.com/a2ui-project/a2ui/pull/4355)).
+
 ## 0.15.0
 
 - **BREAKING CHANGE**: `ComponentBinder.bindNode` now extracts `BoundProperty.template` on `ChildList` properties strictly from the specification's `path` key (`{componentId, path}`) and ignores non-spec `'@path'` keys. Recommended migration: pass `{componentId, path}` on `ChildList` template objects. [#4274](https://github.com/a2ui-project/a2ui/pull/4274)
