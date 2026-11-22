@@ -6,6 +6,16 @@ The triage UI is a Flutter application that helps the triager to triage. The ter
 
 The triager runs it weekly, as part of [second line triage](../../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager).
 
+## GitHub access
+
+The UI reads and changes items as the triager, with the triager's GitHub token, so that everything it applies is done from the triager's account.
+
+1. On macOS, it uses `GITHUB_TOKEN` or `GH_TOKEN` if set, and otherwise runs `gh auth token`.
+2. The hosted UI, which the [server](../../pkgs/server/README.md) serves to Googlers, shows **Sign in with GitHub** and **Use a token**, where the triager pastes a token. The server keeps the token in an encrypted cookie, and the UI's calls to GitHub go through the server, which adds the token. The UI's JavaScript never sees the token.
+3. On the web without the server, as with `flutter run`, the UI shows **Use a token**, and keeps the token in the browser's local storage. `--dart-define=GITHUB_TOKEN=<token>` skips this.
+
+On the web, **Sign out** in the hamburger menu signs the triager out.
+
 ## Layout
 
 The main parts of the UI:
@@ -18,7 +28,7 @@ The triager can drag the divider between the items and the details to resize the
 
 ### Header
 
-1. The hamburger menu, with **Create report**.
+1. The hamburger menu, with **Create report**, and on the web, **Sign out**.
 2. **Refresh**, which loads the items from GitHub again.
 3. **Hide triaged**, which takes the triaged items out of the list. See [Hide the triaged items](#hide-the-triaged-items).
 4. How many items of the queue the triager has not handled yet, out of all of them, as in "40/45". A handled item is one whose suggestion the triager applied, including the items sent to the team, one that the triager [removed from the list](#details), and one that the **Refresh** of its tab found no longer belongs to its group.
@@ -129,8 +139,8 @@ The suggestion for an issue says P1, but Ann thinks the issue is P2.
 ### Open an item from its suggestion comment
 
 1. Ann reads an issue on GitHub and wants to triage it now.
-2. Ann copies the command from the [suggestion comment](triage_bot/suggestion.blueprint.md#the-suggestion-comment) and runs it in a terminal in the a2ui checkout.
-3. If the tool is running, it shows the issue. Otherwise the command starts the tool with the issue.
+2. Ann clicks the link to the hosted triage UI in the [suggestion comment](triage_bot/suggestion.blueprint.md#the-suggestion-comment). The hosted UI opens with the issue, after Ann signs in to GitHub if needed.
+3. Or Ann copies the command from the suggestion comment and runs it in a terminal in the a2ui checkout. If the tool is running on macOS, it shows the issue. Otherwise the command starts the tool with the issue.
 
 The tool shows the item even if the item no longer has `status: needs-triage`.
 

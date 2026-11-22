@@ -70,4 +70,42 @@ void main() {
       ),
     );
   });
+
+  test(
+    'calls a proxy without a token, and follows its rewritten links',
+    () async {
+      final requests = <http.BaseRequest>[];
+      final client = GitHubClient(
+        token: null,
+        baseUrl: Uri.parse('https://triage.example/github/'),
+        headers: {'X-Requested-With': 'triage-ui'},
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          final int page = int.parse(
+            request.url.queryParameters['page'] ?? '1',
+          );
+          return http.Response(
+            jsonEncode([page]),
+            200,
+            headers: {
+              if (page < 2) 'link': '</github/items?page=2>; rel="next"',
+            },
+          );
+        }),
+      );
+
+      expect(await client.restPages('items'), [
+        [1],
+        [2],
+      ]);
+      expect(requests.map((r) => r.url.toString()), [
+        'https://triage.example/github/items',
+        'https://triage.example/github/items?page=2',
+      ]);
+      for (final r in requests) {
+        expect(r.headers, isNot(contains('Authorization')));
+        expect(r.headers['X-Requested-With'], 'triage-ui');
+      }
+    },
+  );
 }

@@ -20,6 +20,9 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:shared/shared.dart';
 
+import 'src/github/browser_stub.dart'
+    if (dart.library.js_interop) 'src/github/browser_web.dart';
+import 'src/github/github_access.dart';
 import 'src/github/triage_service.dart';
 import 'src/github_item.dart';
 import 'src/item_server.dart';
@@ -27,36 +30,40 @@ import 'src/model/triage_controller.dart';
 import 'src/ui/triage_app.dart';
 
 Future<void> main(List<String> args) async {
-  final controller = TriageController(
-    connect: () async => TriageService(GitHubClient(token: await _findToken())),
-  );
+  if (kIsWeb) return _runOnTheWeb();
 
-  // Opened once the items are loaded.
+  final controller = TriageController(
+    connect: () async =>
+        TriageService(GitHubClient(token: await findGitHubToken())),
+  );
   if (_initialItem(args) case final GitHubItem item) {
     unawaited(controller.open(item));
   }
-
-  // A web page cannot listen on a port.
-  if (!kIsWeb) await _startItemServer(controller);
-
+  await _startItemServer(controller);
   unawaited(controller.start());
   runApp(TriageApp(controller: controller));
 }
 
-/// Finds the triager's GitHub token.
-///
 /// On the web, the app can neither read the environment nor run `gh`, so the
-/// token comes from `--dart-define=GITHUB_TOKEN=<token>`.
-Future<String> _findToken() async {
-  if (!kIsWeb) return findGitHubToken();
-  const token = String.fromEnvironment('GITHUB_TOKEN');
-  if (token.isEmpty) {
-    throw const GitHubException(
-      'Cannot find a GitHub token. Start the app with '
-      '--dart-define=GITHUB_TOKEN="\$(gh auth token)".',
-    );
+/// triager signs in on the page, unless `--dart-define=GITHUB_TOKEN=<token>`
+/// gives the token. A web page cannot listen on a port, so there is no item
+/// server. See `pkgs/server/README.md`.
+void _runOnTheWeb() {
+  final access = GitHubAccess(
+    page: Uri.base,
+    browser: createBrowser(),
+    compiledToken: const String.fromEnvironment('GITHUB_TOKEN'),
+    expectServer: const bool.fromEnvironment('TRIAGE_SERVER'),
+  );
+  final controller = TriageController(
+    connect: () async => TriageService(access.client()),
+  );
+  // Opened once the triager signs in and the items are loaded.
+  if (_initialItem(const []) case final GitHubItem item) {
+    unawaited(controller.open(item));
   }
-  return token;
+  unawaited(access.check());
+  runApp(TriageApp(controller: controller, access: access));
 }
 
 /// Listens for the items that triage_ui.sh sends, and opens them.

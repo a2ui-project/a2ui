@@ -68,7 +68,7 @@ Reply:
 
 > Thanks for the report and the payload that reproduces it. We confirmed the crash and plan to fix it soon. [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column`.
 
-To adjust and apply this suggestion, run in your a2ui checkout:
+To adjust and apply this suggestion, open it in the [hosted triage UI](http://go/a2ui-triage-ui?item=https://github.com/a2ui-project/a2ui/issues/1235), or run in your a2ui checkout:
 
 ```bash
 tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1235
@@ -108,10 +108,12 @@ The parts of the comment, in order:
    2. The `summary`, the `targeting_prs`, the `targeted_issues`, the `reason` and the `suggestion`, as paragraphs under **Summary**, **Targeting PRs**, **Targeted issues**, **Why flagged for triage** and **Suggestion**. **Targeting PRs** and **Targeted issues** have the URL of each item on its own line. The **Targeting PRs**, **Targeted issues** and **Why flagged for triage** paragraphs are left out when their property has no value.
    3. The other properties that have values, as a numbered list: **Close as**, **Add labels**, **Remove labels**, **Assign**, **Unassign**, **Related items**. An example of **Close as** is "Close as: duplicate of #1100".
    4. The `reply`, quoted, under **Reply**.
-   5. The command that opens the item in the triage UI.
+   5. The link to the item in the hosted triage UI, and the command that opens it in the triage UI on macOS.
 3. The **For software** section, collapsed: the component.
 
 The component is written in [A2UI Express](../../../../../../specification/inference_formats/express/Express.g4), as one `root = TriageSuggestion(...)` statement. The code fence makes GitHub show it as written, and the triage UI reads the text between `<a2ui>` and `</a2ui>`.
+
+The link opens the hosted triage UI, which the [server](../../../pkgs/server/README.md) serves to Googlers, with the item: go/a2ui-triage-ui points at the hosted UI, and passes on the `item` parameter, the item's URL, for example `http://go/a2ui-triage-ui?item=https://github.com/a2ui-project/a2ui/issues/123`. After the triager signs in to GitHub, the UI opens the item.
 
 The [triage_ui.sh](../../../triage_ui.sh) command takes the item's URL, for example `https://github.com/a2ui-project/a2ui/issues/123`. GitHub shows a copy button on the code block, so the triager copies the command and pastes it into a terminal. The script:
 

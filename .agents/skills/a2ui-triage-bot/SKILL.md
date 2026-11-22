@@ -183,7 +183,7 @@ Rules for links in `tldr`, `summary`, `suggestion` and `reply`:
 
 ### Suggestion comment
 
-A suggestion comment follows this template: the line `**From triage bot, suggestion:**`, then two collapsed sections: **For humans**, with the suggestion in plain English and the command that opens the item in the triage UI, and **For software**, with the suggestion for the triage UI. Both must say the same thing.
+A suggestion comment follows this template: the line `**From triage bot, suggestion:**`, then two collapsed sections: **For humans**, with the suggestion in plain English and the link and the command that open the item in the triage UI, and **For software**, with the suggestion for the triage UI. Both must say the same thing.
 
 ````markdown
 **From triage bot, suggestion:**
@@ -223,7 +223,7 @@ Reply:
 >
 > <reply-text>
 
-To adjust and apply this suggestion, run in your a2ui checkout:
+To adjust and apply this suggestion, open it in the [hosted triage UI](http://go/a2ui-triage-ui?item=<item URL>), or run in your a2ui checkout:
 
 ```bash
 tools/internal/triage/triage_ui.sh <item URL>
@@ -263,7 +263,7 @@ Formatting rules:
 
 1. Leave out the **Targeting PRs**, **Targeted issues** and **Why flagged for triage** paragraphs when their property has no value. Under **Targeting PRs** and **Targeted issues**, put the URL of each item on its own line. In the numbered list, keep only the lines for properties that have values, and number them from 1. Quote every line of the reply with `>`.
 2. Write logins in backticks without `@`, in every property. A suggestion is not a decision yet, so it must not notify the people it names.
-3. In the command, use the item's URL, such as `https://github.com/a2ui-project/a2ui/issues/123` or `https://github.com/a2ui-project/a2ui/pull/123`.
+3. In the link to the hosted triage UI and in the command, use the item's URL, such as `https://github.com/a2ui-project/a2ui/issues/123` or `https://github.com/a2ui-project/a2ui/pull/123`. The link is `http://go/a2ui-triage-ui?item=` followed by the URL, as it is.
 4. Keep a blank line after each `<summary>` line and before each `</details>`, so that GitHub renders the Markdown inside the section.
 5. In the A2UI block, use the [A2UI Express](../../../specification/inference_formats/express/Express.g4) syntax: one `root = TriageSuggestion(...)` statement with keyword arguments named exactly like the properties. Write strings in `"..."`, escaping `"` and `\` as `\"` and `\\`, or in `"""..."""` when they span several lines. Write numbers without `#`.
 6. Keep the A2UI block inside the code fence, so GitHub shows it as written. The triage UI reads the text between `<a2ui>` and `</a2ui>`. Neither tag may appear inside a string.
@@ -299,7 +299,7 @@ Reply:
 >
 > Thanks for the report and the payload that reproduces it. Setting P1 and assigning `flutter-owner`, who maintains the Flutter renderer. [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column`.
 
-To adjust and apply this suggestion, run in your a2ui checkout:
+To adjust and apply this suggestion, open it in the [hosted triage UI](http://go/a2ui-triage-ui?item=https://github.com/a2ui-project/a2ui/issues/1235), or run in your a2ui checkout:
 
 ```bash
 tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1235
@@ -361,7 +361,7 @@ Reply:
 >
 > Thanks for the request. [#1100](https://github.com/a2ui-project/a2ui/issues/1100) tracks the same component, so we are closing this issue as a duplicate. Add your use case there if it is not covered yet.
 
-To adjust and apply this suggestion, run in your a2ui checkout:
+To adjust and apply this suggestion, open it in the [hosted triage UI](http://go/a2ui-triage-ui?item=https://github.com/a2ui-project/a2ui/issues/1236), or run in your a2ui checkout:
 
 ```bash
 tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1236
@@ -399,7 +399,7 @@ A response comment answers the requests to the triage bot on an item with `statu
 
 1. Answer each request in its own paragraph, starting with a link to the request and who asked, such as "In reply to the [question](https://github.com/a2ui-project/a2ui/issues/3061#issuecomment-6809478783) from `polina-c`: ...".
 2. When a request asks for an action, say what to apply. Follow [triage_criteria.md](references/triage_criteria.md) for what to suggest.
-3. End with the command that opens the item in the triage UI, where the team applies it.
+3. End with the link and the command that open the item in the triage UI, where the team applies it.
 4. Follow the rules for links in step 6, and write logins in backticks without `@`.
 
 Example, on #3061:
@@ -411,7 +411,7 @@ In reply to the [question](https://github.com/a2ui-project/a2ui/issues/3061#issu
 
 To hand the item over, assign `gspencergoog`, add `status: assigned-for-triage` and remove `status: needs-team-input`.
 
-To apply this, run in your a2ui checkout:
+To apply this, open it in the [hosted triage UI](http://go/a2ui-triage-ui?item=https://github.com/a2ui-project/a2ui/issues/3061), or run in your a2ui checkout:
 
 ```bash
 tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/3061
