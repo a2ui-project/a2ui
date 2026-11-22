@@ -1144,6 +1144,9 @@ extension ConformanceTestHelper {
     "core/actions.yaml": [
       "dispatch_action": "ActionsConformanceTests.swift"
     ],
+    "core/add_catalog.yaml": [
+      "process_messages": "MessageProcessorConformanceTests.swift"
+    ],
     "core/agent_function_routing.yaml": [
       "route_agent_function": "AgentFunctionRoutingConformanceTests.swift"
     ],

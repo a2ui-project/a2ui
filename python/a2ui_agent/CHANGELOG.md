@@ -9,6 +9,10 @@
 - `DirectJsonFormat`, `DirectJsonParser` and `schema_to_prompt` accept v0.9 and
   v0.9.1 catalogs together, as `RendererState` does.
   [#3135](https://github.com/a2ui-project/a2ui/pull/3135)
+- `DirectJsonParser` rejects a number out of the range of a double, such as
+  `1e400`, with `A2uiParseError`, as the Dart SDK does. It used to read it as
+  `inf`, which `json.dumps` writes as `Infinity`, a token JSON does not have
+  ([#3847](https://github.com/a2ui-project/a2ui/pull/3847)).
 
 ## 0.12.0 (2026-11-17)
 
