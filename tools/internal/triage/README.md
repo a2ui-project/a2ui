@@ -14,7 +14,7 @@ The packages are in the Dart workspace of the repository root.
 
 ### Run the triage UI
 
-Open go/a2ui-triage-ui, or on macOS, from the repository root:
+Open go/a2ui-triage-ui, or on macOS, from the repository root (link to item to select is optional):
 
 ```bash
 tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/123

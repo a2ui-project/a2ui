@@ -26,7 +26,7 @@ The first three run every hour once the triage bot is [started](#start-the-triag
 
 The triage bot only comments, and the staleness pinger also messages the team's chat space. It never adds or removes labels, assigns people, closes items, or changes milestones: those are the triager's decisions.
 
-The triage bot posts from the account that `gh` is logged in to, which must be a team member's (see [Contributors](../../../tools/internal/triage/blueprints/core.blueprint.md#contributors)). Otherwise its comments are not triage bot comments, and the flagger counts them as comments from outside the team.
+The triage bot posts from the account that `gh` is logged in to, which must be a team member's (see [Contributors](../../../tools/internal/triage/blueprints/core.blueprint.md#contributors)). Otherwise its comments are not triage bot comments, and the flagger counts them as comments from outside the team. [Check the setup](#check-the-setup) before you post.
 
 The triage bot also writes the [triage report](#triage-report): what a team member triaged in a period, and who still has items assigned for triage, for the team chat space and the triage log.
 
@@ -38,19 +38,30 @@ Before you start, read:
 4. [triage_criteria.md](references/triage_criteria.md): how to turn an item into a suggestion.
 5. The [natural-writing](../natural-writing/SKILL.md) skill: rules for the plain English text.
 
+## Check the setup
+
+Before a job that posts or runs the triage scripts, check:
+
+1. You are in a checkout of `a2ui-project/a2ui`: `git remote -v` names it. The scripts run from the root of the checkout. If you are not in one, ask the user for the path of their checkout, or whether to clone the repository, and where.
+2. `gh` is logged in: `gh auth status` succeeds. If it fails, ask the user to run `gh auth login` in a terminal (in Claude Code, they can type `! gh auth login` in the prompt), and wait until they say that they did.
+3. The account is a team member's: `gh api repos/a2ui-project/a2ui -q .permissions.triage` prints `true`. If it prints `false`, tell the user that the triage bot cannot post from this account, because its comments would not count as triage bot comments, and stop. They can log in to another account with `gh auth login`.
+
+In an [hourly run](#hourly-run), nobody may be watching, so do not ask: if a check fails, skip the run and report which check failed and what the user should do.
+
 ## Start the triage bot
 
 When asked to start the triage bot, as in "start triage bot", schedule an [hourly run](#hourly-run) and do the first run at once:
 
-1. Check that the triage bot is not running yet: list your scheduled jobs (with the `CronList` tool in Claude Code) and look for one whose prompt names this skill. If there is one, say that the triage bot is already running, with the job ID and when the next run starts, and stop.
-2. Schedule a job that runs every hour, with your agent's scheduler. In Claude Code, use the `CronCreate` tool with a minute other than 0 or 30, such as `7 * * * *`. If the tool is deferred, load it first, for example with `ToolSearch` and the query `select:CronCreate,CronList,CronDelete`. If your agent has no scheduler, say so and stop. Give the job this prompt, with the absolute path of the root of the repository checkout you are in as `<checkout>`:
+1. [Check the setup](#check-the-setup).
+2. Check that the triage bot is not running yet: list your scheduled jobs (with the `CronList` tool in Claude Code) and look for one whose prompt names this skill. If there is one, say that the triage bot is already running, with the job ID and when the next run starts, and stop.
+3. Schedule a job that runs every hour, with your agent's scheduler. In Claude Code, use the `CronCreate` tool with a minute other than 0 or 30, such as `7 * * * *`. If the tool is deferred, load it first, for example with `ToolSearch` and the query `select:CronCreate,CronList,CronDelete`. If your agent has no scheduler, say so and stop. Give the job this prompt, with the absolute path of the root of the repository checkout you are in as `<checkout>`:
 
    ```text
    Do an hourly run of the a2ui-triage-bot skill in <checkout>/.agents/skills/a2ui-triage-bot/SKILL.md, as its "Hourly run" section says. Run its commands from <checkout>.
    ```
 
-3. Do the first hourly run.
-4. Tell the user that the triage bot is started, the job ID, when the next run starts, and how long the job lasts. In Claude Code, the job lasts until the session ends, and at most 30 days.
+4. Do the first hourly run.
+5. Tell the user that the triage bot is started, the job ID, when the next run starts, and how long the job lasts. In Claude Code, the job lasts until the session ends, and at most 30 days.
 
 Each run uses the scripts and the skill of the checkout it runs in, so start the triage bot in an up-to-date checkout of `main`. If the checkout is on another branch, say so when you start it.
 
@@ -60,9 +71,10 @@ When asked to stop the triage bot, delete the job, with the `CronDelete` tool in
 
 An hourly run does the three hourly triage jobs: the triage advisor, the staleness pinger and the triage assistant. Nobody may be watching, so do not ask the user anything during the run. Run the commands from the root of the repository checkout.
 
-1. The triage advisor and the triage assistant: do steps 1 to 8 for the items with `status: needs-triage` or `status: needs-team-input`, as if the prompt named no items. Both jobs work on the same items, so they share these steps: the advisor posts the suggestion comments, and the assistant answers the requests to the triage bot, in the suggestions or in response comments.
-2. The staleness pinger: follow [Staleness pings](#staleness-pings).
-3. Report, as step 9 says, the items you posted on, the pings, and every failure. Leave out the items you skipped. If the run did nothing, say so in one line.
+1. [Check the setup](#check-the-setup), without asking.
+2. The triage advisor and the triage assistant: do steps 1 to 8 for the items with `status: needs-triage` or `status: needs-team-input`, as if the prompt named no items. Both jobs work on the same items, so they share these steps: the advisor posts the suggestion comments, and the assistant answers the requests to the triage bot, in the suggestions or in response comments.
+3. The staleness pinger: follow [Staleness pings](#staleness-pings).
+4. Report, as step 9 says, the items you posted on, the pings, and every failure. Leave out the items you skipped. If the run did nothing, say so in one line.
 
 ## Inputs
 
