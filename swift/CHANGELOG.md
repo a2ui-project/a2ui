@@ -31,6 +31,10 @@
   is handled within a user gesture so a v1.0 `callRendererFunction` may run functions that set
   `requiresUserActivation`, such as a nested call in its arguments.
   [#4311](https://github.com/a2ui-project/a2ui/pull/4311)
+- Write numbers in `formatString` and in strings bound to a number the way JavaScript's
+  `String(number)` does, as the web renderers do: `0.00001` instead of `1e-05`, `1e-7` instead of
+  `1e-07`, `100000000000000000000` instead of `1e+20`, and `9223372036854776000` instead of
+  `9.223372036854776e+18`. [#NNNN](https://github.com/a2ui-project/a2ui/pull/NNNN)
 
 ## 0.11.0
 

@@ -143,6 +143,22 @@ struct FormatStringFunctionTests {
     #expect(result == .string("Value: \(expected)!"))
   }
 
+  @Test(arguments: [
+    (0.00001, "0.00001"),
+    (1e-7, "1e-7"),
+    (1e19, "10000000000000000000"),
+    (1e21, "1e+21"),
+    (-0.0, "0"),
+    (9_223_372_036_854_775_808.0, "9223372036854776000"),
+    (-2.5, "-2.5"),
+  ])
+  func formatsNumbersLikeJavaScript(value: Double, expected: String) throws {
+    dataModel.set("/amount", value: .number(value))
+    let result = try function.evaluate(
+      arguments: ["value": .string("Amount: ${/amount}")], context: context)
+    #expect(result == .string("Amount: \(expected)"))
+  }
+
   @Test func throwsErrorWhenMissingValueArgument() {
     #expect(throws: FunctionError.self) {
       try function.evaluate(arguments: [:], context: context)

@@ -60,13 +60,7 @@ public final class FormatStringFunction: FunctionImplementation, Sendable {
       case .integer(let i):
         result += String(i)
       case .number(let n):
-        // Format to avoid .0 if integer-like, or let Swift default formatting apply.
-        // Swift Double to String formatting is usually reasonable.
-        if let exactInt = Int(exactly: n) {
-          result += String(exactInt)
-        } else {
-          result += String(n)
-        }
+        result += n.ecmaScriptString
       case .boolean(let b):
         result += b ? "true" : "false"
       case .null:
