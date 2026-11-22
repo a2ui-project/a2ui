@@ -987,9 +987,46 @@ bool _hasNestedQuantifier(RegexNode node) => switch (node) {
   AltRegexNode(:final List<RegexNode> branches) => branches.any(
     _hasNestedQuantifier,
   ),
+  // A repeat that runs its body more than once multiplies every way the body
+  // can match.
   RepeatRegexNode(:final RegexNode body) =>
-    (_isRepeatingQuantifier(node) && _hasUnbounded(body)) ||
+    (_isRepeatingQuantifier(node) &&
+            (_hasUnbounded(body) || _runIsAmbiguous(_unwrapSingle(body)))) ||
         _hasNestedQuantifier(body),
+};
+
+/// Returns whether one run of [node] can match the empty string and can match
+/// the same text in more than one way, so that N runs leave the matcher free
+/// to choose where each run starts and ends.
+///
+/// The Dart `RegExp` engine backtracks exponentially on a repetition of such
+/// a body, with or without an upper bound: `(a?){1000}a{1000}` does not
+/// return within three seconds on `"aaa!"`, nor `(a?){19,}b` on 19
+/// characters. A body with a single way to match it, like `(\d{1,3}){1,4}`,
+/// stays linear.
+///
+/// [node] is a repeat body, already unwrapped of its outer groups.
+bool _runIsAmbiguous(RegexNode node) =>
+    isNullable(node) && _hasShorterMatch(node);
+
+/// Returns whether some string [node] matches has two derivations.
+///
+/// Every node has a single maximal match length, so a second derivation
+/// exists exactly when a shorter match of the same string does. This walks
+/// the tree looking for the place where that shorter match can come from.
+bool _hasShorterMatch(RegexNode node) => switch (node) {
+  EmptyRegexNode() || CharSetRegexNode() || AnchorRegexNode() => false,
+  GroupRegexNode(:final RegexNode body) ||
+  LookaheadRegexNode(:final RegexNode body) => _hasShorterMatch(body),
+  // `a?` adds one derivation, the empty string. A quantifier that admits a
+  // count above one adds more (`a{0,2}` matches `a` and the empty string),
+  // and a repeated group multiplies them.
+  RepeatRegexNode(:final int min, :final RegexNode body) =>
+    _isRepeatingQuantifier(node) || min == 0 || _hasShorterMatch(body),
+  ConcatRegexNode(:final List<RegexNode> items) =>
+    items.every(isNullable) || items.any(_hasShorterMatch),
+  AltRegexNode(:final List<RegexNode> branches) =>
+    branches.any(isNullable) || branches.any(_hasShorterMatch),
 };
 
 RegexNode _unwrapSingle(RegexNode node) {

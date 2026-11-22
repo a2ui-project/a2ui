@@ -175,6 +175,71 @@ void main() {
       }
     });
 
+    test('Rule 2: rejects repetition of an ambiguous nullable group with '
+        'NESTED_QUANTIFIER', () {
+      // A repeat that runs its body more than once multiplies every way the
+      // body can match. Most of these patterns make Dart's `RegExp` run for
+      // seconds on a value only a few characters long, with or without an
+      // upper bound on the repeat.
+      const evil = <String>[
+        '(a?){1000}a{1000}',
+        '(a?){500}a{500}',
+        '(?:a?){1000}a{1000}',
+        '((a?)){1000}a{1000}',
+        '(a?b?){100}a{1000}',
+        '(a|b?){1000}a{1000}',
+        '(a|){1000}a{1000}',
+        '(a{0,2}){2}',
+        '((?:a?){1}){2}',
+        '(a?){1000,}a{1000}',
+        '(a?){500,}a{500}',
+        '(a?){19,}b',
+        '(a?a?)+c',
+        '(a|b?){300,}a{300}',
+        '(a{0,2})+b',
+        '(a?)*a{1000}',
+      ];
+      for (final pattern in evil) {
+        final RegexAnalysisResult res = analyzeRegex(pattern);
+        expect(res.ok, isFalse, reason: 'Expected rejected: $pattern');
+        expect(res.reason, RegexRejection.nestedQuantifier, reason: pattern);
+      }
+
+      const safe = <String>[
+        '(?:ab?){3}c',
+        '(?:ab?){0,2}',
+        '(a|b){2,4}',
+        r'(?:\d{2,4}){2}',
+        '(a?){1}',
+        '(a?){0,1}',
+        '(?:ab?)+c',
+      ];
+      for (final pattern in safe) {
+        expect(analyzeRegex(pattern).ok, isTrue, reason: pattern);
+      }
+    });
+
+    test('Rule 2: rejects a counted nullable repetition before matching', () {
+      // Only the analysis runs here: matching this pattern against "aaa!"
+      // does not return within seconds, so the guard must throw before any
+      // match starts.
+      const pattern = '(a?){1000}a{1000}';
+      final stopwatch = Stopwatch()..start();
+      expect(analyzeRegex(pattern).reason, RegexRejection.nestedQuantifier);
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 1)));
+
+      expect(
+        () => compileGuarded(pattern),
+        throwsA(
+          isA<A2uiExpressionError>().having(
+            (e) => e.message,
+            'message',
+            contains('NESTED_QUANTIFIER'),
+          ),
+        ),
+      );
+    });
+
     test('Rule 3: rejects overlapping alternation inside repetition with '
         'OVERLAPPING_ALTERNATION', () {
       const evilAlt = <String>[
