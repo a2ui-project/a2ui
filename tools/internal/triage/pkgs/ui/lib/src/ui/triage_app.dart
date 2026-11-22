@@ -14,14 +14,20 @@
 
 import 'package:material_ui/material_ui.dart';
 
+import '../github/github_access.dart';
 import '../model/triage_controller.dart';
+import 'sign_in_page.dart';
 import 'triage_page.dart';
 import 'triage_scope.dart';
 
 class TriageApp extends StatelessWidget {
-  const TriageApp({super.key, required this.controller});
+  const TriageApp({super.key, required this.controller, this.access});
 
   final TriageController controller;
+
+  /// The sign-in on the web, or null when the controller finds the token
+  /// itself and the caller starts it, as on macOS.
+  final GitHubAccess? access;
 
   @override
   Widget build(BuildContext context) => TriageScope(
@@ -29,7 +35,13 @@ class TriageApp extends StatelessWidget {
     child: MaterialApp(
       title: 'A2UI triage',
       theme: _theme,
-      home: const TriagePage(),
+      home: switch (access) {
+        null => const TriagePage(),
+        final GitHubAccess access => SignInGate(
+          access: access,
+          child: TriagePage(onSignOut: access.signOut),
+        ),
+      },
     ),
   );
 }

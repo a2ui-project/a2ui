@@ -14,10 +14,18 @@ labels and assignees, is done from your account.
 
 The app runs outside the macOS app sandbox, so that it can run `gh`.
 
-On the web, the app can neither read the environment nor run `gh`, so pass
-the token with `--dart-define=GITHUB_TOKEN=<token>`. The token is then in the
-compiled app, so run it only on your own computer, with `flutter run`, and do
-not deploy a build of it.
+On the web, the app can neither read the environment nor run `gh`, so you
+sign in on the page:
+
+- On the hosted UI, at go/a2ui-triage-ui, with **Sign in with GitHub**, or
+  with **Use a token** and the token that `gh auth token` prints. The
+  [server](../server/README.md) keeps the token in an encrypted cookie, and
+  passes the app's GitHub calls through. [HOSTING.md](../server/HOSTING.md)
+  explains how to host it.
+- With `flutter run`, with **Use a token**. The browser keeps the token in
+  the page's local storage until you sign out. Or pass the token with
+  `--dart-define=GITHUB_TOKEN=<token>`. The token is then in the compiled
+  app, so run it only on your own computer, and do not deploy a build of it.
 
 ## Running
 
@@ -48,8 +56,8 @@ items to it.
 
 ## Code
 
-- `lib/src/github/`: the GitHub client, the queries, and the service that
-  reads and changes items.
+- `lib/src/github/`: the GitHub client, the queries, the service that
+  reads and changes items, and the sign-in on the web (`github_access.dart`).
 - `lib/src/model/`: the items, the triager's drafts, applying a suggestion,
   what the triager did in the session, and the controller that holds the
   app's state.

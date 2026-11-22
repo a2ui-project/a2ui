@@ -31,14 +31,28 @@ final class GitHubException implements Exception {
 
 /// Calls the GitHub REST and GraphQL APIs with a token.
 class GitHubClient {
-  GitHubClient({required String token, http.Client? httpClient})
-    : _token = token,
-      _http = httpClient ?? http.Client();
+  /// Calls the GitHub API at [baseUrl] with [token].
+  ///
+  /// The hosted triage UI passes no [token] and the URL of the server's
+  /// GitHub proxy as [baseUrl]: the server adds the token, and [headers]
+  /// carry the header the server requires. See `pkgs/server/README.md`.
+  GitHubClient({
+    required String? token,
+    http.Client? httpClient,
+    Uri? baseUrl,
+    Map<String, String> headers = const {},
+  }) : _token = token,
+       _http = httpClient ?? http.Client(),
+       _api = baseUrl ?? githubApi,
+       _headers = headers;
 
-  final String _token;
+  /// The GitHub API.
+  static final Uri githubApi = Uri.parse('https://api.github.com/');
+
+  final String? _token;
   final http.Client _http;
-
-  static final Uri _api = Uri.parse('https://api.github.com/');
+  final Uri _api;
+  final Map<String, String> _headers;
 
   /// Runs a GraphQL [query] and returns its `data`.
   ///
@@ -64,7 +78,7 @@ class GitHubClient {
   /// Sends a REST request and returns the decoded JSON response, or null if
   /// the response has no body.
   ///
-  /// [path] is relative to `https://api.github.com/`, with its parts already
+  /// [path] is relative to the API's base URL, with its parts already
   /// encoded. Throws a [GitHubException] if the request fails.
   Future<Object?> rest(String method, String path, [Object? body]) async =>
       (await _send(method, _api.resolve(path), body)).json;
@@ -73,7 +87,7 @@ class GitHubClient {
   /// `Link` header of the response names, and returns the decoded JSON of
   /// every page, in order.
   ///
-  /// [path] is relative to `https://api.github.com/`, with its parts already
+  /// [path] is relative to the API's base URL, with its parts already
   /// encoded. Throws a [GitHubException] if a request fails.
   Future<List<Object?>> restPages(String path) async {
     final pages = <Object?>[];
@@ -87,12 +101,15 @@ class GitHubClient {
   }
 
   /// The URL of the next page in a `Link` header, or null if it has none.
-  static Uri? _nextPage(String? link) {
+  ///
+  /// The server's GitHub proxy rewrites the links to paths on the server, so
+  /// they are resolved against the base URL.
+  Uri? _nextPage(String? link) {
     if (link == null) return null;
     final RegExpMatch? match = RegExp(
       r'<([^>]+)>;\s*rel="next"',
     ).firstMatch(link);
-    return match == null ? null : Uri.parse(match[1]!);
+    return match == null ? null : _api.resolve(match[1]!);
   }
 
   Future<({Object? json, String? link})> _send(
@@ -102,8 +119,9 @@ class GitHubClient {
   ]) async {
     final request = http.Request(method, url)
       ..headers.addAll({
+        ..._headers,
         'Accept': 'application/vnd.github+json',
-        'Authorization': 'Bearer $_token',
+        if (_token != null) 'Authorization': 'Bearer $_token',
         'X-GitHub-Api-Version': '2022-11-28',
       });
     if (body != null) {

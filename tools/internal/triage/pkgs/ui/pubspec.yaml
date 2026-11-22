@@ -32,15 +32,16 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_markdown_plus: ^1.0.7
+  http: ^1.6.0
   material_ui: ^1.11.1
   shared:
     path: ../shared
   url_launcher: ^6.3.2
+  web: ^1.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  http: ^1.6.0
 
 flutter:
   uses-material-design: true

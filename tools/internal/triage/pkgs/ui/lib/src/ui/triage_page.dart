@@ -24,7 +24,10 @@ import 'triage_scope.dart';
 /// The triage UI's only page: the header, the items on the left and the
 /// details of the selected item on the right. See `ui.blueprint.md`.
 class TriagePage extends StatefulWidget {
-  const TriagePage({super.key});
+  const TriagePage({super.key, this.onSignOut});
+
+  /// Signs out of GitHub, on the web. Null hides **Sign out**.
+  final VoidCallback? onSignOut;
 
   @override
   State<TriagePage> createState() => _TriagePageState();
@@ -64,6 +67,15 @@ class _TriagePageState extends State<TriagePage> {
                 child: const Text('Create report'),
               ),
             ),
+            if (widget.onSignOut case final VoidCallback onSignOut)
+              Tooltip(
+                message: 'Sign out of GitHub in this browser',
+                child: MenuItemButton(
+                  leadingIcon: const Icon(Icons.logout),
+                  onPressed: onSignOut,
+                  child: const Text('Sign out'),
+                ),
+              ),
           ],
         ),
         title: const SelectionArea(child: Text('A2UI triage')),

@@ -14,7 +14,7 @@ The triage bot answers only team members. It treats a request from an out-of-tea
 
 The response comment is a triage bot comment that answers the requests to the triage bot on an item with `status: needs-team-input`. It starts with the line `**From triage bot, response:**`, and has no template and no `<a2ui>` block: it is an answer for the team, not a suggestion, so the item's suggestion stays as it is.
 
-For each request, the comment links to the request, names who asked, and answers in plain English. When the request asks for an action, the comment says what to apply, and the team applies it in the triage UI. The comment ends with the command that opens the item in the triage UI. Links and logins follow the rules of the [suggestion comment](suggestion.blueprint.md#the-suggestion-comment).
+For each request, the comment links to the request, names who asked, and answers in plain English. When the request asks for an action, the comment says what to apply, and the team applies it in the triage UI. The comment ends with the link and the command that open the item in the triage UI, as in the [suggestion comment](suggestion.blueprint.md#the-suggestion-comment). Links and logins follow the rules of the [suggestion comment](suggestion.blueprint.md#the-suggestion-comment).
 
 For example, the response to the [request](https://github.com/a2ui-project/a2ui/issues/3061#issuecomment-6809478783) on #3061:
 
@@ -25,7 +25,7 @@ In reply to the [question](https://github.com/a2ui-project/a2ui/issues/3061#issu
 
 To hand the item over, assign `gspencergoog`, add `status: assigned-for-triage` and remove `status: needs-team-input`.
 
-To apply this, run in your a2ui checkout:
+To apply this, open it in the [hosted triage UI](http://go/a2ui-triage-ui?item=https://github.com/a2ui-project/a2ui/issues/3061), or run in your a2ui checkout:
 
 ```bash
 tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/3061
