@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) `RendererState.check_topology` and
+  `validate_payload` on created surfaces (and therefore `Parser.parse_response`
+  and `ResponseStream`) reject v1.0 `{"@call": "@index"}` function calls on
+  components reachable from the surface root without crossing a list template,
+  raising `A2uiValidationError`; string arguments evaluated at render time by
+  catalog functions such as `formatString` are not parsed. Recommended
+  migration: call `@index` only on components rendered inside a
+  `{componentId, path}` list template
+  ([#4357](https://github.com/a2ui-project/a2ui/issues/4357),
+  [#4358](https://github.com/a2ui-project/a2ui/pull/4358)).
 - `DirectJsonParser` rejects a number out of the range of a double, such as
   `1e400`, with `A2uiParseError`, as the Dart SDK does. It used to read it as
   `inf`, which `json.dumps` writes as `Infinity`, a token JSON does not have

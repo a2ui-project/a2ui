@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) `RendererState.checkTopology` and `validatePayload` on created surfaces (and therefore `Parser.parseResponse` and `ResponseStream`) reject v1.0 `{"@call": "@index"}` function calls on components reachable from the surface root without crossing a list template, throwing `A2uiValidationError`; string arguments evaluated at render time by catalog functions such as `formatString` are not parsed. Recommended migration: call `@index` only on components rendered inside a `{componentId, path}` list template ([#4357](https://github.com/a2ui-project/a2ui/issues/4357), [#4358](https://github.com/a2ui-project/a2ui/pull/4358)).
+
 ## 0.2.0
 
 - **BREAKING CHANGE**: (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`, and `@checks` on v1.0 components in `ExpressCompiler`, `ExpressPromptGenerator`, `DirectJsonResponseStream`, and `RendererState`, while keeping v0.9 component output bare. `ExpressDecompiler` reads both `@`-prefixed and legacy bare component envelope keys on v1.0 payloads when the component schema does not declare a custom property with the same bare name ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#3403](https://github.com/a2ui-project/a2ui/issues/3403), [#3466](https://github.com/a2ui-project/a2ui/issues/3466), [#4012](https://github.com/a2ui-project/a2ui/issues/4012), [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).

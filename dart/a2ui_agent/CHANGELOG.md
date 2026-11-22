@@ -3,6 +3,15 @@
 ## Unreleased
 
 - **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.10.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
+- **Breaking:** (v1_0) `RendererState.checkTopology` and `validatePayload` on
+  created surfaces (and therefore `Parser.parseResponse` and `ResponseStream`)
+  reject v1.0 `{"@call": "@index"}` function calls on components reachable from
+  the surface root without crossing a list template, throwing
+  `A2uiValidationError`; string arguments evaluated at render time by catalog
+  functions such as `formatString` are not parsed. Recommended migration: call
+  `@index` only on components rendered inside a `{componentId, path}` list
+  template ([#4357](https://github.com/a2ui-project/a2ui/issues/4357),
+  [#4358](https://github.com/a2ui-project/a2ui/pull/4358)).
 
 ## 0.4.0
 

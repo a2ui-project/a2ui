@@ -876,3 +876,223 @@ describe('RendererState.of', () => {
     expect(() => RendererState.of(new MessageProcessor([]))).toThrow(A2uiCatalogError);
   });
 });
+
+describe('v1.0 @index template-scope validation', () => {
+  const BASIC_V10 = loadBasicCatalog('1.0');
+  const LITERAL_MAP_ID = 'https://example.com/literal_map.json';
+  const LITERAL_MAP_CATALOG = Catalog.fromJson({
+    protocolVersion: '1.0',
+    catalogId: LITERAL_MAP_ID,
+    components: {
+      Box: {
+        type: 'object',
+        properties: {
+          component: {const: 'Box'},
+          payload: {$ref: 'common_types.json#/$defs/DynamicValue'},
+        },
+        required: ['component', 'payload'],
+      },
+      MixedList: {
+        type: 'object',
+        properties: {
+          component: {const: 'MixedList'},
+          slots: {
+            type: 'array',
+            items: {
+              oneOf: [
+                {$ref: 'common_types.json#/$defs/ComponentId'},
+                {
+                  type: 'object',
+                  properties: {
+                    body: {$ref: 'common_types.json#/$defs/ComponentId'},
+                  },
+                  required: ['body'],
+                  additionalProperties: false,
+                },
+              ],
+            },
+          },
+        },
+        required: ['component', 'slots'],
+      },
+    },
+    functions: {},
+    $defs: {
+      anyComponent: {
+        oneOf: [{$ref: '#/components/Box'}, {$ref: '#/components/MixedList'}],
+        discriminator: {propertyName: 'component'},
+      },
+      anyFunction: {not: {}},
+    },
+  });
+
+  it.each([
+    [
+      'event context',
+      [
+        {
+          id: 'root',
+          component: 'Button',
+          child: 'lbl',
+          action: {event: {name: 'tap', context: {row: {'@call': '@index'}}}},
+        },
+        {id: 'lbl', component: 'Text', text: 'Go'},
+      ],
+    ],
+    [
+      'functionCall action',
+      [
+        {
+          id: 'root',
+          component: 'Button',
+          child: 'lbl',
+          action: {
+            functionCall: {'@call': 'formatString', args: {value: {'@call': '@index'}}},
+          },
+        },
+        {id: 'lbl', component: 'Text', text: 'Go'},
+      ],
+    ],
+    [
+      '@checks',
+      [
+        {
+          id: 'root',
+          component: 'TextField',
+          label: 'Name',
+          value: '',
+          '@checks': [
+            {
+              condition: {'@call': 'required', args: {value: {'@call': '@index'}}},
+              message: 'Required',
+            },
+          ],
+        },
+      ],
+    ],
+    [
+      '@accessibility',
+      [
+        {
+          id: 'root',
+          component: 'Text',
+          text: 'Hi',
+          '@accessibility': {label: {'@call': '@index'}},
+        },
+      ],
+    ],
+    [
+      'NestedRef Tabs',
+      [
+        {id: 'root', component: 'Tabs', tabs: [{title: 'Tab 1', child: 'pane'}]},
+        {id: 'pane', component: 'Text', text: {'@call': '@index'}},
+      ],
+    ],
+  ])('rejects @index outside a list template in %s', (_, components) => {
+    const payload = [
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's',
+          catalogId: BASIC_CATALOG_IDS['1.0'],
+          components,
+        },
+      },
+    ];
+    expect(() => validatePayload([BASIC_V10], payload)).toThrow(A2uiValidationError);
+    expect(() => validatePayload([BASIC_V10], payload)).toThrow(/@index.*outside a list template/);
+  });
+
+  it('checks @index scope on a defaultless multi-catalog v1.0 surface', () => {
+    const catalogs = [BASIC_V10, LITERAL_MAP_CATALOG];
+    const badPayload = [
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's',
+          components: [
+            {
+              id: 'root',
+              component: 'Column',
+              '@catalogId': BASIC_CATALOG_IDS['1.0'],
+              children: ['box'],
+            },
+            {
+              id: 'box',
+              component: 'Box',
+              '@catalogId': LITERAL_MAP_ID,
+              payload: {'@call': '@index'},
+            },
+          ],
+        },
+      },
+    ];
+    expect(() => validatePayload(catalogs, badPayload)).toThrow(/Component 'box' calls '@index'/);
+
+    const goodPayload = [
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's',
+          components: [
+            {
+              id: 'root',
+              component: 'Column',
+              '@catalogId': BASIC_CATALOG_IDS['1.0'],
+              children: {componentId: 'box', path: '/items'},
+            },
+            {
+              id: 'box',
+              component: 'Box',
+              '@catalogId': LITERAL_MAP_ID,
+              payload: {'@call': '@index'},
+            },
+          ],
+        },
+      },
+    ];
+    expect(() => validatePayload(catalogs, goodPayload)).not.toThrow();
+  });
+
+  it.each([
+    ['escaped @@call', {'@@call': '@index'}],
+    ['plain call key', {call: '@index'}],
+  ])('accepts %s literal maps at root on v1.0', (_, literalMap) => {
+    expect(() =>
+      validatePayload(
+        [LITERAL_MAP_CATALOG],
+        [
+          {
+            version: '1.0',
+            createSurface: {
+              surfaceId: 's',
+              catalogId: LITERAL_MAP_ID,
+              components: [{id: 'root', component: 'Box', payload: literalMap}],
+            },
+          },
+        ],
+      ),
+    ).not.toThrow();
+  });
+
+  it('walks object items in mixed oneOf ComponentId list slots without nestedRefs', () => {
+    expect(() =>
+      validatePayload(
+        [LITERAL_MAP_CATALOG],
+        [
+          {
+            version: '1.0',
+            createSurface: {
+              surfaceId: 's',
+              catalogId: LITERAL_MAP_ID,
+              components: [
+                {id: 'root', component: 'MixedList', slots: [{body: 'leaf'}]},
+                {id: 'leaf', component: 'Box', payload: {'@call': '@index'}},
+              ],
+            },
+          },
+        ],
+      ),
+    ).toThrow(/Component 'leaf' calls '@index'/);
+  });
+});

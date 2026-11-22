@@ -43,7 +43,10 @@ class PayloadState extends RendererState {
  * sent. A surface that the payload creates with `createSurface` is checked in full, so its
  * components must be valid and reachable from the root, and their references must resolve
  * once every message in the payload is applied: a component may name a child that a later
- * message adds. A surface that the payload only updates may already hold components, so
+ * message adds. On a v1.0 surface that the payload creates, no component reachable from the
+ * root without crossing a list template may contain a `{"@call": "@index"}` function call
+ * (string arguments evaluated at render time by catalog functions such as `formatString` are
+ * not parsed). A surface that the payload only updates may already hold components, so
  * references to components outside the payload and a missing root are accepted there. Each
  * of its components is still checked against a catalog that defines all of them, and the
  * surface passes if one such catalog accepts it.

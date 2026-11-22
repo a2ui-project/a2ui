@@ -832,3 +832,237 @@ def test_a_rollback_finishes_undoing_when_one_undo_fails(caplog):
 
     assert _snapshot(state) == before
     assert "an undo failed" in caplog.text
+
+
+# --- v1.0 @index template-scope validation ---
+
+_BASIC_V10 = BasicCatalog("1.0")
+_LITERAL_MAP_CATALOG = Catalog.from_json({
+    "protocolVersion": "1.0",
+    "catalogId": "https://example.com/literal_map.json",
+    "components": {
+        "Box": {
+            "type": "object",
+            "properties": {
+                "component": {"const": "Box"},
+                "payload": {"$ref": "common_types.json#/$defs/DynamicValue"},
+            },
+            "required": ["component", "payload"],
+        },
+        "MixedList": {
+            "type": "object",
+            "properties": {
+                "component": {"const": "MixedList"},
+                "slots": {
+                    "type": "array",
+                    "items": {
+                        "oneOf": [
+                            {"$ref": "common_types.json#/$defs/ComponentId"},
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "body": {
+                                        "$ref": "common_types.json#/$defs/ComponentId"
+                                    }
+                                },
+                                "required": ["body"],
+                                "additionalProperties": False,
+                            },
+                        ]
+                    },
+                },
+            },
+            "required": ["component", "slots"],
+        },
+    },
+    "functions": {},
+    "$defs": {
+        "anyComponent": {
+            "oneOf": [
+                {"$ref": "#/components/Box"},
+                {"$ref": "#/components/MixedList"},
+            ],
+            "discriminator": {"propertyName": "component"},
+        },
+        "anyFunction": {"not": {}},
+    },
+})
+
+
+@pytest.mark.parametrize(
+    "components",
+    [
+        [
+            {
+                "id": "root",
+                "component": "Button",
+                "child": "lbl",
+                "action": {
+                    "event": {
+                        "name": "tap",
+                        "context": {"row": {"@call": "@index"}},
+                    }
+                },
+            },
+            {"id": "lbl", "component": "Text", "text": "Go"},
+        ],
+        [
+            {
+                "id": "root",
+                "component": "Button",
+                "child": "lbl",
+                "action": {
+                    "functionCall": {
+                        "@call": "formatString",
+                        "args": {"value": {"@call": "@index"}},
+                    }
+                },
+            },
+            {"id": "lbl", "component": "Text", "text": "Go"},
+        ],
+        [{
+            "id": "root",
+            "component": "TextField",
+            "label": "Name",
+            "value": "",
+            "@checks": [{
+                "condition": {
+                    "@call": "required",
+                    "args": {"value": {"@call": "@index"}},
+                },
+                "message": "Required",
+            }],
+        }],
+        [{
+            "id": "root",
+            "component": "Text",
+            "text": "Hi",
+            "@accessibility": {"label": {"@call": "@index"}},
+        }],
+        [
+            {
+                "id": "root",
+                "component": "Tabs",
+                "tabs": [{"title": "Tab 1", "child": "pane"}],
+            },
+            {"id": "pane", "component": "Text", "text": {"@call": "@index"}},
+        ],
+    ],
+    ids=[
+        "event_context",
+        "function_call_action",
+        "checks",
+        "accessibility",
+        "nested_tabs",
+    ],
+)
+def test_validate_payload_rejects_v10_index_outside_template(
+    components: list[dict[str, Any]],
+) -> None:
+    payload = [{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s",
+            "catalogId": _BASIC_V10.catalog_id,
+            "components": components,
+        },
+    }]
+    with pytest.raises(A2uiValidationError, match=r"@index.*outside a list template"):
+        validate_payload([_BASIC_V10], payload)
+
+
+def test_defaultless_multi_catalog_v10_surface_checks_index_scope() -> None:
+    catalogs = [_BASIC_V10, _LITERAL_MAP_CATALOG]
+    bad_payload = [{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s",
+            "components": [
+                {
+                    "id": "root",
+                    "component": "Column",
+                    "@catalogId": _BASIC_V10.catalog_id,
+                    "children": ["box"],
+                },
+                {
+                    "id": "box",
+                    "component": "Box",
+                    "@catalogId": _LITERAL_MAP_CATALOG.catalog_id,
+                    "payload": {"@call": "@index"},
+                },
+            ],
+        },
+    }]
+    with pytest.raises(A2uiValidationError, match=r"Component 'box' calls '@index'"):
+        validate_payload(catalogs, bad_payload)
+
+    good_payload = [{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s",
+            "components": [
+                {
+                    "id": "root",
+                    "component": "Column",
+                    "@catalogId": _BASIC_V10.catalog_id,
+                    "children": {"componentId": "box", "path": "/items"},
+                },
+                {
+                    "id": "box",
+                    "component": "Box",
+                    "@catalogId": _LITERAL_MAP_CATALOG.catalog_id,
+                    "payload": {"@call": "@index"},
+                },
+            ],
+        },
+    }]
+    validate_payload(catalogs, good_payload)
+
+
+@pytest.mark.parametrize(
+    "literal_map",
+    [{"@@call": "@index"}, {"call": "@index"}],
+    ids=["escaped_at_call", "plain_call_key"],
+)
+def test_v10_literal_maps_resembling_index_are_accepted_at_root(
+    literal_map: dict[str, Any],
+) -> None:
+    validate_payload(
+        [_LITERAL_MAP_CATALOG],
+        [{
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "s",
+                "catalogId": _LITERAL_MAP_CATALOG.catalog_id,
+                "components": [
+                    {"id": "root", "component": "Box", "payload": literal_map}
+                ],
+            },
+        }],
+    )
+
+
+def test_mixed_oneof_object_list_item_walks_static_child_for_index_scope() -> None:
+    with pytest.raises(A2uiValidationError, match=r"Component 'leaf' calls '@index'"):
+        validate_payload(
+            [_LITERAL_MAP_CATALOG],
+            [{
+                "version": "1.0",
+                "createSurface": {
+                    "surfaceId": "s",
+                    "catalogId": _LITERAL_MAP_CATALOG.catalog_id,
+                    "components": [
+                        {
+                            "id": "root",
+                            "component": "MixedList",
+                            "slots": [{"body": "leaf"}],
+                        },
+                        {
+                            "id": "leaf",
+                            "component": "Box",
+                            "payload": {"@call": "@index"},
+                        },
+                    ],
+                },
+            }],
+        )

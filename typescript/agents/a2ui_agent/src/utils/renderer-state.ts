@@ -26,6 +26,7 @@ import {
   CatalogApi,
   ComponentApi,
   ComponentModel,
+  isAtLeastVersion,
   MessageProcessor,
   PayloadValidator,
   STRICT_VALIDATION,
@@ -348,11 +349,14 @@ export class RendererState {
    *
    * The surface must have its root, and every reference must resolve. Every component added
    * or replaced since the surface's tree was last checked must be reachable from the root,
-   * within the depth limit. A component that an update left unreachable, by rewriting its
-   * parent's children, is accepted: the protocol has no message that removes one component,
-   * so replacing part of a canvas always leaves such components behind. A surface with no
-   * components yet passes, since its components may arrive later. Surfaces that are deleted
-   * or assumed are skipped.
+   * within the depth limit. On a v1.0 surface, no component reachable from the root without
+   * crossing a list template may contain a `{"@call": "@index"}` function call (string
+   * arguments evaluated at render time by catalog functions such as `formatString` are not
+   * parsed). A component that an update left unreachable, by
+   * rewriting its parent's children, is accepted: the protocol has no message that removes one
+   * component, so replacing part of a canvas always leaves such components behind. A surface
+   * with no components yet passes, since its components may arrive later. Surfaces that are
+   * deleted or assumed are skipped.
    *
    * @throws {A2uiValidationError} If a surface's tree is incomplete or invalid.
    */
@@ -379,6 +383,9 @@ export class RendererState {
           `Component '${unreachable[0]}' is not reachable from '${rootId}' (Orphaned component '${unreachable[0]}' is not reachable from root)`,
         );
       }
+      if (isAtLeastVersion(surface.protocolVersion ?? this.releaseLine, '1.0')) {
+        checkIndexTemplateScope(surface, rootId);
+      }
     }
     // An assumed surface was not checked, so what changed on it stays recorded for the check
     // after it is created.
@@ -392,9 +399,9 @@ export class RendererState {
    * of messages the renderer received that failed a check, such as a stream that failed after
    * it emitted them: no message removes a component, so a component the renderer already
    * holds can't be made reachable later, and the later turns are not held to it. Dangling
-   * references and a missing root are still reported, since `checkTopology` checks those on
-   * the whole surface. Like any other change, it is undone when the transaction it was made
-   * in fails.
+   * references, a missing root, and v1.0 out-of-scope `{"@call": "@index"}` function calls are
+   * still reported, since `checkTopology` checks those on the whole surface. Like any other
+   * change, it is undone when the transaction it was made in fails.
    */
   markChecked(surfaceIds: Iterable<string>): void {
     this.checkNoRunaway();
@@ -1542,4 +1549,104 @@ function restoreKey(container: Message, key: string, value: unknown, position: n
   after.forEach((k, i) => {
     container[k] = values[i];
   });
+}
+
+const NON_REF_OBJECT_KEYS = ['path', '@path', 'call', '@call'] as const;
+
+/** Whether a value is a `ChildList` template (`{componentId, path}`). */
+function isTemplateChildList(value: unknown): boolean {
+  return (
+    isPlainObject(value) &&
+    typeof value['componentId'] === 'string' &&
+    typeof value['path'] === 'string'
+  );
+}
+
+/** Yields static child IDs from a structured list item. */
+function* iterStaticIdsInNestedItem(
+  item: Message,
+  nestedKeys?: ReadonlySet<string>,
+): Generator<string> {
+  if (nestedKeys?.size) {
+    for (const [subKey, subVal] of Object.entries(item)) {
+      if (nestedKeys.has(subKey)) {
+        yield* iterStaticIdsInSlot(subVal);
+      }
+    }
+    return;
+  }
+  if (NON_REF_OBJECT_KEYS.some(k => Object.hasOwn(item, k))) return;
+  for (const subVal of Object.values(item)) {
+    yield* iterStaticIdsInSlot(subVal);
+  }
+}
+
+/** Yields static child component IDs from a single or list reference slot. */
+function* iterStaticIdsInSlot(value: unknown, nestedKeys?: ReadonlySet<string>): Generator<string> {
+  if (typeof value === 'string') {
+    if (value.length > 0) yield value;
+    return;
+  }
+  if (isTemplateChildList(value)) return;
+  if (isPlainObject(value)) {
+    yield* iterStaticIdsInNestedItem(value, nestedKeys);
+    return;
+  }
+  if (!Array.isArray(value)) return;
+  for (const item of value) {
+    if (typeof item === 'string' && item.length > 0) {
+      yield item;
+    } else if (!isTemplateChildList(item) && isPlainObject(item)) {
+      yield* iterStaticIdsInNestedItem(item, nestedKeys);
+    }
+  }
+}
+
+/** Yields child component IDs referenced statically (outside `_template`). */
+function* iterStaticChildIds(comp: ComponentModel): Generator<string> {
+  const refs = comp.catalog?.componentRefMap?.[comp.type];
+  if (!refs) return;
+  for (const [key, val] of Object.entries(comp.properties)) {
+    if (refs.singleRefs.has(key)) {
+      yield* iterStaticIdsInSlot(val);
+    } else if (refs.listRefs.has(key)) {
+      yield* iterStaticIdsInSlot(val, refs.nestedRefs?.[key]);
+    }
+  }
+}
+
+/** Whether a v1.0 property value invokes the `@index` system function. */
+function containsIndexCall(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.some(containsIndexCall);
+  }
+  if (isPlainObject(value)) {
+    if (Object.hasOwn(value, '@path')) return false;
+    if (value['@call'] === '@index') return true;
+    return Object.values(value).some(containsIndexCall);
+  }
+  return false;
+}
+
+/** Throws if a component reachable from `rootId` without a list template calls `@index`. */
+function checkIndexTemplateScope(surface: SurfaceModel, rootId: string): void {
+  const components = surface.componentsModel;
+  const visited = new Set<string>();
+  const stack = [rootId];
+  while (stack.length > 0) {
+    const compId = stack.pop()!;
+    if (visited.has(compId)) continue;
+    visited.add(compId);
+    const comp = components.get(compId);
+    if (!comp) continue;
+    if (containsIndexCall(comp.properties)) {
+      throw new A2uiValidationError(
+        `Component '${compId}' calls '@index' outside a list template.`,
+      );
+    }
+    const children = [...iterStaticChildIds(comp)];
+    for (let i = children.length - 1; i >= 0; i--) {
+      stack.push(children[i]);
+    }
+  }
 }
