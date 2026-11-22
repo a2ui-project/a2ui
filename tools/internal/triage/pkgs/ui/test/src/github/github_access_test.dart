@@ -61,12 +61,12 @@ void main() {
     browser = MemoryBrowser();
   });
 
-  test('uses the token from --dart-define', () async {
+  test('uses the preset token', () async {
     final access = GitHubAccess(
       page: _page,
       browser: browser,
       httpClient: fakeClient(),
-      compiledToken: 'good',
+      presetToken: 'good',
     );
     await access.check();
     expect(access.state, SignInState.signedIn);
@@ -204,6 +204,47 @@ void main() {
       await access.signOut();
       expect(browser.token, isNull);
       expect(browser.reloads, 1);
+    });
+  });
+
+  group('without a page, as on macOS', () {
+    test('uses the preset token', () async {
+      final access = GitHubAccess(
+        page: null,
+        browser: browser,
+        httpClient: fakeClient(),
+        presetToken: 'good',
+      );
+      await access.check();
+      expect(access.state, SignInState.signedIn);
+      expect(requests, isEmpty);
+    });
+
+    test('shows the sign-in without asking for a server', () async {
+      final access = GitHubAccess(
+        page: null,
+        browser: browser,
+        httpClient: fakeClient(),
+      );
+      await access.check();
+      expect(access.state, SignInState.signedOut);
+      expect(access.hasPage, isFalse);
+      expect(access.canSignInWithGitHub, isFalse);
+      expect(requests, isEmpty);
+    });
+
+    test('calls GitHub directly with a pasted token', () async {
+      final access = GitHubAccess(
+        page: null,
+        browser: browser,
+        httpClient: fakeClient(),
+      );
+      await access.check();
+      await access.useToken('good');
+      expect(access.state, SignInState.signedIn);
+      expect(access.login, 'ann');
+      await access.client().rest('GET', 'user');
+      expect(requests.last.url.toString(), 'https://api.github.com/user');
     });
   });
 }

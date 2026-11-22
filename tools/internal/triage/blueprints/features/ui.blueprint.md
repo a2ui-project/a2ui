@@ -10,7 +10,7 @@ The triager runs it weekly, as part of [second line triage](../../../../../docs/
 
 The UI reads and changes items as the triager, with the triager's GitHub token, so that everything it applies is done from the triager's account.
 
-1. On macOS, it uses `GITHUB_TOKEN` or `GH_TOKEN` if set, and otherwise runs `gh auth token`.
+1. On macOS, it uses `GITHUB_TOKEN` or `GH_TOKEN` if set, and otherwise shows **Use a token**, and keeps the token until the triager quits the app.
 2. The hosted UI, which the [server](../../pkgs/server/README.md) serves to Googlers, shows **Sign in with GitHub** and **Use a token**, where the triager pastes a token. The server keeps the token in an encrypted cookie, and the UI's calls to GitHub go through the server, which adds the token. The UI's JavaScript never sees the token.
 3. On the web without the server, as with `flutter run`, the UI shows **Use a token**, and keeps the token in the browser's local storage. `--dart-define=GITHUB_TOKEN=<token>` skips this.
 

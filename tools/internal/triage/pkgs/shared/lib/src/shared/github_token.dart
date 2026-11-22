@@ -24,6 +24,17 @@ const List<String> _ghCommands = [
   '/usr/local/bin/gh',
 ];
 
+/// The person's GitHub token from `GITHUB_TOKEN` or `GH_TOKEN` in
+/// [environment], which defaults to the process's, or null if neither is set.
+String? environmentGitHubToken([Map<String, String>? environment]) {
+  final Map<String, String> env = environment ?? Platform.environment;
+  for (final name in ['GITHUB_TOKEN', 'GH_TOKEN']) {
+    final String? token = env[name]?.trim();
+    if (token != null && token.isNotEmpty) return token;
+  }
+  return null;
+}
+
 /// Finds the person's GitHub token: `GITHUB_TOKEN` or `GH_TOKEN` from the
 /// environment, or else the token that `gh auth token` prints.
 ///
@@ -33,10 +44,8 @@ Future<String> findGitHubToken({
   Future<ProcessResult> Function(String command, List<String> args) run =
       Process.run,
 }) async {
-  final Map<String, String> env = environment ?? Platform.environment;
-  for (final name in ['GITHUB_TOKEN', 'GH_TOKEN']) {
-    final String? token = env[name]?.trim();
-    if (token != null && token.isNotEmpty) return token;
+  if (environmentGitHubToken(environment) case final String token) {
+    return token;
   }
 
   for (final String gh in _ghCommands) {

@@ -152,8 +152,9 @@ and there is no **Server**:
    storage, until **Sign out**.
 3. **App** calls **GitHub API** directly with the token.
 
-The macOS app has no **Browser**, **UberProxy** or **Server**. It finds the
-token in `GITHUB_TOKEN` or with `gh auth token`, and calls **GitHub API**
+The macOS app has no **Browser**, **UberProxy** or **Server**. It uses the
+token in `GITHUB_TOKEN` or `GH_TOKEN`, or else shows only **Use a token** and
+keeps the pasted token until the **Triager** quits it. It calls **GitHub API**
 directly.
 
 ### D. Locally, with the Server

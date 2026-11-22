@@ -31,7 +31,7 @@ String reportPrompt(TriageSession session, DateTime now) {
   final (:String since, :String until) = reportPeriod(session, now);
   return 'Create the triage report for $since to $until.\n'
       '\n'
-      'Use the a2ui-triage-bot skill from the main branch of '
+      'Use the a2ui-triage-bot skill from '
       'a2ui-project/a2ui: $_skillUrl.\n';
 }
 

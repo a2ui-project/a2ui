@@ -20,20 +20,15 @@
       "cwd": "${workspaceFolder}/samples/client/flutter/restaurant_finder/app"
     },
     {
+      // Runs on the device selected in VS Code's status bar: macOS or Chrome.
+      // The web app cannot read the environment or run gh, so the custom tool
+      // passes the GitHub token in a --dart-define. macOS finds it itself.
       "name": "triage_ui",
       "type": "dart",
       "request": "launch",
       "program": "lib/main.dart",
-      "cwd": "${workspaceFolder}/tools/internal/triage/pkgs/ui"
-    },
-    {
-      "name": "triage_ui, web",
-      "type": "dart",
-      "request": "launch",
-      "program": "lib/main.dart",
       "cwd": "${workspaceFolder}/tools/internal/triage/pkgs/ui",
-      "deviceId": "chrome",
-      "toolArgs": ["--dart-define=GITHUB_TOKEN=${env:GITHUB_TOKEN}"]
+      "customTool": "${workspaceFolder}/tools/internal/triage/pkgs/ui/tool/flutter_with_github_token.sh"
     },
     {
       "name": "restaurant finder, Python agent",

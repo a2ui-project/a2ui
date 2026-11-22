@@ -20,7 +20,7 @@ import 'package:shared/shared.dart';
 
 import 'browser.dart';
 
-/// Where the web app is in signing the triager in to GitHub.
+/// Where the app is in signing the triager in to GitHub.
 enum SignInState {
   /// Asking the server whether the triager is signed in.
   checking,
@@ -35,26 +35,30 @@ enum SignInState {
   signedIn,
 }
 
-/// The triager's GitHub access in the web app: signing in with GitHub or a
-/// pasted token, through the server when there is one. The steps are in
+/// The triager's GitHub access: signing in with GitHub or a pasted token,
+/// through the server when there is one. The steps are in
 /// `pkgs/server/README.md`.
 class GitHubAccess extends ChangeNotifier {
-  /// [page] is the URL of the app's page. [compiledToken] is the token from
-  /// `--dart-define=GITHUB_TOKEN`, or empty. [expectServer] is
+  /// [page] is the URL of the app's page, or null outside the web, where
+  /// there is neither a page nor a server. [presetToken] is the token the app
+  /// starts with, or empty to show the sign-in: on the web, the one from
+  /// `--dart-define=GITHUB_TOKEN`, and on macOS, the one from `GITHUB_TOKEN`
+  /// or `GH_TOKEN` in the environment or from `gh auth token`. [expectServer]
+  /// is
   /// `--dart-define=TRIAGE_SERVER=true`, which the server's build sets: then
   /// a failed call to the server is an error, not a sign that `flutter run`
   /// serves the app, so the token never goes to the page's local storage on
   /// the hosted site.
   GitHubAccess({
-    required Uri page,
+    required Uri? page,
     required Browser browser,
     http.Client? httpClient,
-    String compiledToken = '',
+    String presetToken = '',
     bool expectServer = false,
   }) : _page = page,
        _browser = browser,
        _http = httpClient ?? http.Client(),
-       _compiledToken = compiledToken,
+       _presetToken = presetToken,
        _expectServer = expectServer;
 
   /// The header that the server requires on the app's requests.
@@ -62,14 +66,17 @@ class GitHubAccess extends ChangeNotifier {
     'X-Requested-With': 'triage-ui',
   };
 
-  final Uri _page;
+  final Uri? _page;
   final Browser _browser;
   final http.Client _http;
-  final String _compiledToken;
+  final String _presetToken;
   final bool _expectServer;
 
   SignInState _state = SignInState.checking;
   SignInState get state => _state;
+
+  /// Whether the app runs in a page, which it can reload to sign out.
+  bool get hasPage => _page != null;
 
   /// Whether the app was served by the server, rather than by `flutter run`.
   bool get hasServer => _hasServer;
@@ -95,12 +102,21 @@ class GitHubAccess extends ChangeNotifier {
   /// GitHub through the server.
   String? _token;
 
-  Uri _server(String path) => _page.resolve(path);
+  Uri _server(String path) => _page!.resolve(path);
 
   /// Finds out whether the triager is signed in: steps 4 and 14 of the
-  /// README, or a token from `--dart-define` or pasted earlier.
+  /// README, or a preset token or one pasted earlier.
   Future<void> check() async {
-    if (_compiledToken.isNotEmpty) return _signIn(token: _compiledToken);
+    if (_presetToken.isNotEmpty) return _signIn(token: _presetToken);
+    if (_page == null) {
+      // Outside the web, there is no server to ask.
+      if (_browser.readToken() case final String token) {
+        return _signIn(token: token);
+      }
+      _state = SignInState.signedOut;
+      notifyListeners();
+      return;
+    }
 
     _state = SignInState.checking;
     _error = null;
@@ -129,9 +145,10 @@ class GitHubAccess extends ChangeNotifier {
   /// Step 6: leaves the app for the server's sign-in, which comes back to
   /// this page.
   void signInWithGitHub() {
-    final String returnPath = _page.hasQuery
-        ? '${_page.path}?${_page.query}'
-        : _page.path;
+    final Uri page = _page!;
+    final String returnPath = page.hasQuery
+        ? '${page.path}?${page.query}'
+        : page.path;
     _browser.go(
       _server('/auth/login').replace(queryParameters: {'return': returnPath}),
     );

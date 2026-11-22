@@ -25,8 +25,8 @@ class TriageApp extends StatelessWidget {
 
   final TriageController controller;
 
-  /// The sign-in on the web, or null when the controller finds the token
-  /// itself and the caller starts it, as on macOS.
+  /// The sign-in, or null when the caller starts the controller, as in
+  /// tests.
   final GitHubAccess? access;
 
   @override
@@ -39,7 +39,8 @@ class TriageApp extends StatelessWidget {
         null => const TriagePage(),
         final GitHubAccess access => SignInGate(
           access: access,
-          child: TriagePage(onSignOut: access.signOut),
+          // Without a page to reload, the app cannot sign out.
+          child: TriagePage(onSignOut: access.hasPage ? access.signOut : null),
         ),
       },
     ),

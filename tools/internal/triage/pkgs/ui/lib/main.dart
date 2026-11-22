@@ -29,41 +29,40 @@ import 'src/item_server.dart';
 import 'src/model/triage_controller.dart';
 import 'src/ui/triage_app.dart';
 
+/// On macOS, the app signs the triager in with `GITHUB_TOKEN` or `GH_TOKEN`
+/// from the environment, or with the token that `gh auth token` prints. The
+/// web app can do neither, so it uses `--dart-define=GITHUB_TOKEN=<token>`.
+/// Without a token, the triager signs in on the sign-in page. A web page
+/// cannot listen on a port, so there is no item server on the web. See
+/// `pkgs/server/README.md`.
 Future<void> main(List<String> args) async {
-  if (kIsWeb) return _runOnTheWeb();
-
-  final controller = TriageController(
-    connect: () async =>
-        TriageService(GitHubClient(token: await findGitHubToken())),
-  );
-  if (_initialItem(args) case final GitHubItem item) {
-    unawaited(controller.open(item));
-  }
-  await _startItemServer(controller);
-  unawaited(controller.start());
-  runApp(TriageApp(controller: controller));
-}
-
-/// On the web, the app can neither read the environment nor run `gh`, so the
-/// triager signs in on the page, unless `--dart-define=GITHUB_TOKEN=<token>`
-/// gives the token. A web page cannot listen on a port, so there is no item
-/// server. See `pkgs/server/README.md`.
-void _runOnTheWeb() {
   final access = GitHubAccess(
-    page: Uri.base,
+    page: kIsWeb ? Uri.base : null,
     browser: createBrowser(),
-    compiledToken: const String.fromEnvironment('GITHUB_TOKEN'),
+    presetToken: kIsWeb
+        ? const String.fromEnvironment('GITHUB_TOKEN')
+        : await _desktopToken(),
     expectServer: const bool.fromEnvironment('TRIAGE_SERVER'),
   );
   final controller = TriageController(
     connect: () async => TriageService(access.client()),
   );
   // Opened once the triager signs in and the items are loaded.
-  if (_initialItem(const []) case final GitHubItem item) {
+  if (_initialItem(args) case final GitHubItem item) {
     unawaited(controller.open(item));
   }
+  if (!kIsWeb) await _startItemServer(controller);
   unawaited(access.check());
   runApp(TriageApp(controller: controller, access: access));
+}
+
+/// The token from the environment or `gh`, or empty to show the sign-in.
+Future<String> _desktopToken() async {
+  try {
+    return await findGitHubToken();
+  } on GitHubException {
+    return '';
+  }
 }
 
 /// Listens for the items that triage_ui.sh sends, and opens them.

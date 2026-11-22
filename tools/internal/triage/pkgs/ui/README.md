@@ -7,15 +7,14 @@ describes what it does.
 
 ## GitHub access
 
-The app reads and changes items with your GitHub token. It uses
-`GITHUB_TOKEN` if it is set, and otherwise runs `gh auth token`, so log in
-with `gh auth login` first. Everything the app applies, such as replies,
-labels and assignees, is done from your account.
+The app reads and changes items with your GitHub token. Everything the app
+applies, such as replies, labels and assignees, is done from your account.
 
-The app runs outside the macOS app sandbox, so that it can run `gh`.
+On macOS, the app uses `GITHUB_TOKEN` or `GH_TOKEN` if one is set. Otherwise
+it shows **Sign in to GitHub**, where you paste the token that
+`gh auth token` prints. The app keeps it until you quit.
 
-On the web, the app can neither read the environment nor run `gh`, so you
-sign in on the page:
+On the web, the app cannot read the environment, so you sign in on the page:
 
 - On the hosted UI, at go/a2ui-triage-ui, with **Sign in with GitHub**, or
   with **Use a token** and the token that `gh auth token` prints. The
@@ -29,8 +28,8 @@ sign in on the page:
 
 ## Running
 
-From VS Code, run the `triage_ui` launch configuration. From a terminal, in
-the repository root:
+From VS Code, select **macOS** as the device and run the `triage_ui` launch
+configuration. From a terminal, in the repository root:
 
 ```bash
 tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/123
@@ -41,9 +40,9 @@ it runs, the app listens on `127.0.0.1:47123` for the items the script sends.
 
 ### On the web
 
-From VS Code, run the `triage_ui, web` launch configuration, which passes
-`GITHUB_TOKEN` from the environment VS Code runs in. From a terminal, in this
-folder:
+From VS Code, select **Chrome** as the device and run the `triage_ui`
+launch configuration, which passes `GITHUB_TOKEN` from the environment VS Code
+runs in. From a terminal, in this folder:
 
 ```bash
 flutter run -d chrome --dart-define=GITHUB_TOKEN="$(gh auth token)"

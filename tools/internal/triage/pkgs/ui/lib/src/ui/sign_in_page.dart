@@ -20,7 +20,7 @@ import '../github/github_access.dart';
 import 'triage_scope.dart';
 
 /// Shows the sign-in until the triager is signed in to GitHub, and then
-/// [child], and starts loading the items. Used on the web only.
+/// [child], and starts loading the items.
 class SignInGate extends StatefulWidget {
   const SignInGate({super.key, required this.access, required this.child});
 
@@ -156,14 +156,18 @@ class _SignInPageState extends State<SignInPage> {
                   ),
                   onSubmitted: (_) => _useToken(),
                 ),
-                Text(
-                  access.hasServer
-                      ? 'The server keeps the token in an encrypted cookie '
-                            'of this browser.'
-                      : "This browser keeps the token in the page's "
-                            'local storage, until you sign out.',
-                  style: text.bodySmall,
-                ),
+                Text(switch (access) {
+                  GitHubAccess(hasServer: true) =>
+                    'The server keeps the token in an encrypted cookie '
+                        'of this browser.',
+                  GitHubAccess(hasPage: true) =>
+                    "This browser keeps the token in the page's local "
+                        'storage, until you sign out.',
+                  _ =>
+                    'The app keeps the token until you quit it. To skip '
+                        'this page, set GITHUB_TOKEN before you start the '
+                        'app.',
+                }, style: text.bodySmall),
                 if (access.error case final String error)
                   Text(
                     error,
