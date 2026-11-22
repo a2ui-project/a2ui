@@ -31,6 +31,17 @@ private final class StyleInvocationTracker: @unchecked Sendable {
   var cardColorSchemes: [ColorScheme] = []
   var buttonVariants: [A2UIButtonStyleConfiguration.Variant] = []
   var buttonColorSchemes: [ColorScheme] = []
+  var textFieldConfigurations: [TextFieldSnapshot] = []
+  var textFieldColorSchemes: [ColorScheme] = []
+}
+
+private struct TextFieldSnapshot: Equatable {
+  let hasLabel: Bool
+  let variant: A2UITextFieldStyleConfiguration.Variant
+  let errorMessage: String?
+  let hasError: Bool
+  let isDisabled: Bool
+  let nodeID: String
 }
 
 private struct ProbeCardStyle: A2UICardStyle {
@@ -57,6 +68,29 @@ private struct ProbeButtonStyle: A2UIButtonStyle {
     }()
     configuration.label
       .padding(4)
+  }
+}
+
+private struct ProbeTextFieldStyle: A2UITextFieldStyle {
+  @Environment(\.colorScheme) private var colorScheme
+  let tracker: StyleInvocationTracker
+
+  func makeBody(configuration: Configuration) -> some View {
+    let _ = {
+      tracker.textFieldConfigurations.append(
+        TextFieldSnapshot(
+          hasLabel: configuration.label != nil,
+          variant: configuration.variant,
+          errorMessage: configuration.errorMessage,
+          hasError: configuration.hasError,
+          isDisabled: configuration.isDisabled,
+          nodeID: configuration.node.id
+        )
+      )
+      tracker.textFieldColorSchemes.append(colorScheme)
+    }()
+    configuration.field
+      .padding(2)
   }
 }
 
@@ -204,5 +238,109 @@ struct ComponentStyleTests {
       w4.close()
     }
     withExtendedLifetime((w1, w2, w3, w4)) {}
+  }
+
+  private func failingCheck(_ message: String) -> ResolvedCheck {
+    ResolvedCheck(
+      condition: DataBinding<Bool>(identity: .literal(.boolean(false)), value: false),
+      message: message,
+      validationResult: ValidationResult(valid: false, message: message, severity: .error)
+    )
+  }
+
+  @Test func customTextFieldStyleReceivesConfiguration() {
+    let tracker = StyleInvocationTracker()
+    let node = Node(
+      id: "pin",
+      type: "TextField",
+      properties: [
+        "label": "PIN",
+        "variant": "obscured",
+        "checks": [failingCheck("Required")],
+      ]
+    )
+
+    let window = host(
+      A2UITextField(node: node).a2uiTextFieldStyle(ProbeTextFieldStyle(tracker: tracker)))
+    defer { window.close() }
+    withExtendedLifetime(window) {
+      let snapshot = TextFieldSnapshot(
+        hasLabel: true,
+        variant: .obscured,
+        errorMessage: "Required",
+        hasError: true,
+        isDisabled: false,
+        nodeID: "pin"
+      )
+      #expect(tracker.textFieldConfigurations.last == snapshot)
+    }
+  }
+
+  @Test func customTextFieldStyleSeesDisabledStateAndUnknownVariant() {
+    let tracker = StyleInvocationTracker()
+    let node = Node(id: "note", type: "TextField", properties: ["variant": "unknown"])
+
+    let rootView = A2UITextField(node: node)
+      .a2uiTextFieldStyle(ProbeTextFieldStyle(tracker: tracker))
+      .disabled(true)
+
+    let window = host(rootView)
+    defer { window.close() }
+    withExtendedLifetime(window) {
+      let snapshot = TextFieldSnapshot(
+        hasLabel: false,
+        variant: .shortText,
+        errorMessage: nil,
+        hasError: false,
+        isDisabled: true,
+        nodeID: "note"
+      )
+      #expect(tracker.textFieldConfigurations.last == snapshot)
+    }
+  }
+
+  @Test func customTextFieldStyleResolvesEnvironmentInDarkMode() {
+    let tracker = StyleInvocationTracker()
+    let coreCatalog = BasicCatalog.makeCatalog(version: .v091)
+    let viewModel = SurfaceViewModel(surfaceID: "text-field-dark", catalog: coreCatalog)
+    viewModel.componentsModel.applyBatch(adding: [
+      ComponentModel(
+        id: "root",
+        type: "TextField",
+        properties: [
+          "label": .string("Notes"),
+          "variant": .string("longText"),
+          "value": .string(""),
+        ]
+      )
+    ])
+
+    let rootView = Surface.makeWithBasicCatalogs(viewModel: viewModel)
+      .a2uiTextFieldStyle(ProbeTextFieldStyle(tracker: tracker))
+      .environment(\.colorScheme, .dark)
+
+    let window = host(rootView)
+    defer { window.close() }
+    withExtendedLifetime(window) {
+      #expect(tracker.textFieldColorSchemes.contains(.dark))
+      #expect(tracker.textFieldConfigurations.map(\.variant).contains(.longText))
+    }
+  }
+
+  @Test(arguments: ["shortText", "longText", "number", "obscured"])
+  func builtInTextFieldStyleRendersEveryVariant(variant: String) {
+    let node = Node(
+      id: "tf_\(variant)",
+      type: "TextField",
+      properties: [
+        "label": "Field",
+        "variant": variant,
+        "checks": [failingCheck("Required")],
+      ]
+    )
+
+    let window = host(A2UITextField(node: node).a2uiTextFieldStyle(.automatic))
+    defer { window.close() }
+    withExtendedLifetime(window) {}
   }
 }

@@ -134,6 +134,41 @@ handler. Pass that catalog to both `MessageProcessor` and `Surface`, since
 `Catalog<ComponentImplementation>` conforms to `CatalogProtocol`. If you use separate catalogs, give
 `openURLHandler` to the `MessageProcessor` catalog, because that is where functions run.
 
+## Styling Basic Catalog components
+
+`BasicCatalogSwiftUI` has style protocols for some Basic Catalog components, in the spirit of
+SwiftUI's `ButtonStyle`: `A2UIButtonStyle`, `A2UICardStyle` and `A2UITextFieldStyle`. Set a style
+on a `Surface` or any view above it, and every matching component below uses it:
+
+```swift
+struct UnderlinedTextFieldStyle: A2UITextFieldStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      configuration.label?
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      configuration.field
+        .padding(.vertical, 6)
+        .overlay(alignment: .bottom) {
+          Rectangle()
+            .frame(height: 1)
+            .foregroundStyle(configuration.hasError ? Color.red : Color.secondary)
+        }
+    }
+    .opacity(configuration.isDisabled ? 0.5 : 1)
+  }
+}
+
+Surface.makeWithBasicCatalogs(viewModel: viewModel)
+  .a2uiTextFieldStyle(UnderlinedTextFieldStyle())
+  .a2uiButtonStyle(.automatic)
+```
+
+A text field style lays out the label and the input. `configuration.field` is the input control,
+bound to the component's `value` and carrying its accessibility label and identifier, so render it
+once. `A2UITextField` shows the message of a failing check below the style's view. Styles can read
+`@Environment` values, such as `\.colorScheme`.
+
 ## Agent guidelines and coding standards
 
 For AI agents and contributors working in this directory hierarchy:
