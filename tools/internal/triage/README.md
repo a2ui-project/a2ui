@@ -8,4 +8,4 @@ Automation for the triage process described in [triage.md](../../../docs/contrib
 4. [`pkgs/server`](pkgs/server/): the server of the hosted triage UI, which signs the triager in to GitHub. [HOSTING.md](pkgs/server/HOSTING.md) explains how to host it.
 5. [`pkgs/shared`](pkgs/shared/): the code that the other packages and the [triage bot](../../../.agents/skills/a2ui-triage-bot/SKILL.md) share, such as reading items from GitHub and the definitions of stale items, and the triage bot's commands.
 
-The packages are in the Dart workspace of the repository root. Run `flutter pub get` there, and `dart test` (or `flutter test` for `pkgs/ui`) in a package.
+The packages are in the Dart workspace of the repository root.
