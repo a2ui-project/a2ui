@@ -37,7 +37,7 @@
   message, and whether the field is disabled. `A2UITextField` still shows the check message below
   the styled field, and the input keeps its data binding and accessibility properties under any
   style. [#3257](https://github.com/a2ui-project/a2ui/issues/3257),
-  [#NNNN](https://github.com/a2ui-project/a2ui/pull/NNNN)
+  [#4361](https://github.com/a2ui-project/a2ui/pull/4361)
 
 ## 0.11.0
 
