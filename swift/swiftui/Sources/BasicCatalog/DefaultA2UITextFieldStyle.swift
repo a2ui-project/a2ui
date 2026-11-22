@@ -11,9 +11,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 import SwiftUI
 
-/// The default A2UITextFieldStyle: a label above a filled, rounded input whose border and
+/// The default ``A2UITextFieldStyle``: a label above a filled, rounded input whose border and
 /// label turn red while a check fails.
 public struct DefaultA2UITextFieldStyle: A2UITextFieldStyle {
   public init() {}

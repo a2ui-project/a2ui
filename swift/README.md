@@ -161,7 +161,6 @@ struct UnderlinedTextFieldStyle: A2UITextFieldStyle {
 
 Surface.makeWithBasicCatalogs(viewModel: viewModel)
   .a2uiTextFieldStyle(UnderlinedTextFieldStyle())
-  .a2uiButtonStyle(.automatic)
 ```
 
 A text field style lays out the label and the input. `configuration.field` is the input control,

@@ -44,6 +44,13 @@ private struct TextFieldSnapshot: Equatable {
   let nodeID: String
 }
 
+/// The accessibility label and hint a hosted element exposes, read from the platform
+/// accessibility tree with no fallback to the node's values.
+struct ExposedAccessibility: Equatable, Sendable {
+  let label: String?
+  let hint: String?
+}
+
 private struct ProbeCardStyle: A2UICardStyle {
   @Environment(\.colorScheme) private var colorScheme
   let tracker: StyleInvocationTracker
@@ -342,5 +349,109 @@ struct ComponentStyleTests {
     let window = host(A2UITextField(node: node).a2uiTextFieldStyle(.automatic))
     defer { window.close() }
     withExtendedLifetime(window) {}
+  }
+
+  #if canImport(AppKit)
+    private func exposedAccessibility(
+      identifier: String,
+      in window: NSWindow
+    ) -> ExposedAccessibility? {
+      let application = NSApplication.shared
+      let key = "accessibilityEnhancedUserInterface"
+      let wasEnhanced = (application.value(forKey: key) as? Bool) ?? false
+      application.setValue(true, forKey: key)
+      defer { application.setValue(wasEnhanced, forKey: key) }
+      for _ in 0..<5 {
+        RunLoop.main.run(until: Date())
+        window.contentView?.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+      }
+
+      var visited: Set<ObjectIdentifier> = []
+      func find(_ element: AnyObject) -> (any NSAccessibilityProtocol)? {
+        guard visited.count < 2000, visited.insert(ObjectIdentifier(element)).inserted else {
+          return nil
+        }
+        if let axElement = element as? any NSAccessibilityProtocol,
+          axElement.accessibilityIdentifier() == identifier
+        {
+          return axElement
+        }
+        var children: [Any] =
+          (element as? any NSAccessibilityProtocol)?.accessibilityChildren() ?? []
+        if let view = element as? NSView {
+          children += view.subviews
+        }
+        for child in children {
+          if let found = find(child as AnyObject) {
+            return found
+          }
+        }
+        return nil
+      }
+
+      guard let contentView = window.contentView, let element = find(contentView) else {
+        return nil
+      }
+      return ExposedAccessibility(
+        label: element.accessibilityLabel(),
+        hint: element.accessibilityHelp()
+      )
+    }
+  #elseif canImport(UIKit)
+    private func exposedAccessibility(
+      identifier: String,
+      in window: UIWindow
+    ) -> ExposedAccessibility? {
+      func find(_ view: UIView) -> UIView? {
+        if view.accessibilityIdentifier == identifier {
+          return view
+        }
+        for subview in view.subviews {
+          if let found = find(subview) {
+            return found
+          }
+        }
+        return nil
+      }
+
+      guard let element = find(window) else { return nil }
+      return ExposedAccessibility(
+        label: element.accessibilityLabel, hint: element.accessibilityHint)
+    }
+  #endif
+
+  @Test(arguments: [
+    (
+      JSONValue.object(["label": .string("Full name"), "description": .string("As on your ID")]),
+      ExposedAccessibility(label: "Full name", hint: "As on your ID")
+    ),
+    (nil, ExposedAccessibility(label: "Name", hint: nil)),
+  ])
+  func customTextFieldStyleKeepsInputAccessibility(
+    accessibility: JSONValue?,
+    expected: ExposedAccessibility
+  ) {
+    let tracker = StyleInvocationTracker()
+    let coreCatalog = BasicCatalog.makeCatalog(version: .v10)
+    let viewModel = SurfaceViewModel(surfaceID: "text-field-a11y", catalog: coreCatalog)
+    var properties: [String: JSONValue] = [
+      "label": .string("Name"),
+      "value": .string(""),
+    ]
+    properties["accessibility"] = accessibility
+    viewModel.componentsModel.applyBatch(adding: [
+      ComponentModel(id: "root", type: "TextField", properties: properties)
+    ])
+
+    let rootView = Surface.makeWithBasicCatalogs(viewModel: viewModel)
+      .a2uiTextFieldStyle(ProbeTextFieldStyle(tracker: tracker))
+
+    let window = host(rootView)
+    defer { window.close() }
+    withExtendedLifetime(window) {
+      #expect(!tracker.textFieldConfigurations.isEmpty)
+      #expect(exposedAccessibility(identifier: "a2ui-root", in: window) == expected)
+    }
   }
 }

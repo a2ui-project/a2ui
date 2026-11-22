@@ -11,13 +11,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 import SwiftUI
 
-/// A type that applies custom appearance to A2UITextField components within a view
+/// A type that applies custom appearance to ``A2UITextField`` components within a view
 /// hierarchy.
 ///
 /// Configure the text field style for a `Surface` or container view using
-/// SwiftUI/View/a2uiTextFieldStyle(_:).
+/// ``SwiftUI/View/a2uiTextFieldStyle(_:)``.
 public protocol A2UITextFieldStyle: DynamicProperty, Sendable {
   /// A view that represents the styled text field.
   associatedtype Body: View
@@ -27,7 +28,7 @@ public protocol A2UITextFieldStyle: DynamicProperty, Sendable {
 
   /// Creates a view that represents the label and input of a text field.
   ///
-  /// A2UITextField shows the message of a failing check below this view, so a style
+  /// ``A2UITextField`` shows the message of a failing check below this view, so a style
   /// doesn't need to render it.
   @MainActor
   @ViewBuilder
@@ -51,12 +52,12 @@ extension A2UITextFieldStyle {
 }
 
 extension EnvironmentValues {
-  /// The active text field style applied to A2UITextField components in this environment.
+  /// The active text field style applied to ``A2UITextField`` components in this environment.
   @Entry public var a2uiTextFieldStyle: any A2UITextFieldStyle = DefaultA2UITextFieldStyle()
 }
 
 extension View {
-  /// Sets the style for A2UITextField components within this view.
+  /// Sets the style for ``A2UITextField`` components within this view.
   public func a2uiTextFieldStyle(_ style: some A2UITextFieldStyle) -> some View {
     environment(\.a2uiTextFieldStyle, style)
   }

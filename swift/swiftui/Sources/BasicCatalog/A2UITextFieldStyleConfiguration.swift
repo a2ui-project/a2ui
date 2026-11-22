@@ -11,11 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 import A2UICore
 import A2UISwiftUI
 import SwiftUI
 
-/// The properties of an A2UI `TextField` component passed to an A2UITextFieldStyle.
+/// The properties of an A2UI `TextField` component passed to an ``A2UITextFieldStyle``.
 public struct A2UITextFieldStyleConfiguration {
   /// The kind of input an A2UI text field collects.
   public enum Variant: String, Sendable, Equatable {
