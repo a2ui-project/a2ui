@@ -138,7 +138,7 @@ export class Text extends Root {
 
     return (
       HINT_KEYS.some(key => isObject(styles[key])) &&
-      HINT_KEYS.every(key => styles[key] === undefined || isObject(styles[key]))
+      HINT_KEYS.every(key => styles[key] == null || isObject(styles[key]))
     );
   }
 
