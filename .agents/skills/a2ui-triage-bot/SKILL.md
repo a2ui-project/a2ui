@@ -42,14 +42,15 @@ Before you start, read:
 
 When asked to start the triage bot, as in "start triage bot", schedule an [hourly run](#hourly-run) and do the first run at once:
 
-1. Schedule a job that runs every hour, with your agent's scheduler. In Claude Code, use the `CronCreate` tool with a minute other than 0 or 30, such as `7 * * * *`. If your agent has no scheduler, say so and stop. Give the job this prompt, with the absolute path of the repository checkout you are in:
+1. Check that the triage bot is not running yet: list your scheduled jobs (with the `CronList` tool in Claude Code) and look for one whose prompt names this skill. If there is one, say that the triage bot is already running, with the job ID and when the next run starts, and stop.
+2. Schedule a job that runs every hour, with your agent's scheduler. In Claude Code, use the `CronCreate` tool with a minute other than 0 or 30, such as `7 * * * *`. If the tool is deferred, load it first, for example with `ToolSearch` and the query `select:CronCreate,CronList,CronDelete`. If your agent has no scheduler, say so and stop. Give the job this prompt, with the absolute path of the root of the repository checkout you are in as `<checkout>`:
 
    ```text
-   Do an hourly run of the a2ui-triage-bot skill in <checkout>/.agents/skills/a2ui-triage-bot/SKILL.md, as its "Hourly run" section says.
+   Do an hourly run of the a2ui-triage-bot skill in <checkout>/.agents/skills/a2ui-triage-bot/SKILL.md, as its "Hourly run" section says. Run its commands from <checkout>.
    ```
 
-2. Do the first hourly run.
-3. Tell the user that the triage bot is started, the job ID, when the next run starts, and how long the job lasts. In Claude Code, the job lasts until the session ends, and at most 30 days.
+3. Do the first hourly run.
+4. Tell the user that the triage bot is started, the job ID, when the next run starts, and how long the job lasts. In Claude Code, the job lasts until the session ends, and at most 30 days.
 
 Each run uses the scripts and the skill of the checkout it runs in, so start the triage bot in an up-to-date checkout of `main`. If the checkout is on another branch, say so when you start it.
 
@@ -57,9 +58,9 @@ When asked to stop the triage bot, delete the job, with the `CronDelete` tool in
 
 ## Hourly run
 
-An hourly run does the three hourly triage jobs. Nobody may be watching, so do not ask the user anything during the run.
+An hourly run does the three hourly triage jobs: the triage advisor, the staleness pinger and the triage assistant. Nobody may be watching, so do not ask the user anything during the run. Run the commands from the root of the repository checkout.
 
-1. The triage advisor and the triage assistant: do steps 1 to 8 for the items with `status: needs-triage` or `status: needs-team-input`, as if the prompt named no items. The assistant's answers are part of these steps.
+1. The triage advisor and the triage assistant: do steps 1 to 8 for the items with `status: needs-triage` or `status: needs-team-input`, as if the prompt named no items. Both jobs work on the same items, so they share these steps: the advisor posts the suggestion comments, and the assistant answers the requests to the triage bot, in the suggestions or in response comments.
 2. The staleness pinger: follow [Staleness pings](#staleness-pings).
 3. Report, as step 9 says, the items you posted on, the pings, and every failure. Leave out the items you skipped. If the run did nothing, say so in one line.
 
