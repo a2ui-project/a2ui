@@ -14,9 +14,9 @@
 
 import 'package:shared/shared.dart';
 
-import '../model/triage_item.dart';
-import 'json.dart';
-import 'queries.dart';
+import '../github/json.dart';
+import '../github/queries.dart';
+import 'triage_item.dart';
 
 /// The labels of the repository and the people who can be assigned to its
 /// items, to complete what the triager types.

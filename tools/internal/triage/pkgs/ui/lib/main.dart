@@ -23,10 +23,10 @@ import 'package:shared/shared.dart';
 import 'src/github/browser_stub.dart'
     if (dart.library.js_interop) 'src/github/browser_web.dart';
 import 'src/github/github_access.dart';
-import 'src/github/triage_service.dart';
-import 'src/github_item.dart';
 import 'src/item_server.dart';
+import 'src/model/github_item.dart';
 import 'src/model/triage_controller.dart';
+import 'src/model/triage_service.dart';
 import 'src/ui/triage_app.dart';
 
 /// On macOS, the app signs the triager in with `GITHUB_TOKEN` or `GH_TOKEN`

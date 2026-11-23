@@ -16,8 +16,8 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared/shared.dart';
-import 'package:ui/src/github_item.dart';
 import 'package:ui/src/model/applier.dart';
+import 'package:ui/src/model/github_item.dart';
 import 'package:ui/src/model/log_entry.dart';
 import 'package:ui/src/model/triage_controller.dart';
 import 'package:ui/src/model/triage_item.dart';

@@ -15,7 +15,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'github_item.dart';
+import 'model/github_item.dart';
 
 /// Receives the items that `tools/internal/triage/triage_ui.sh` sends to the
 /// running app.

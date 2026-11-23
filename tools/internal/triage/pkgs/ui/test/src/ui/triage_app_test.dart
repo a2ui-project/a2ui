@@ -20,7 +20,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:shared/shared.dart';
-import 'package:ui/src/github_item.dart';
+import 'package:ui/src/model/github_item.dart';
 import 'package:ui/src/model/item_context.dart';
 import 'package:ui/src/model/report_prompt.dart';
 import 'package:ui/src/model/triage_controller.dart';

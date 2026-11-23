@@ -16,8 +16,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ui/src/github_item.dart';
 import 'package:ui/src/item_server.dart';
+import 'package:ui/src/model/github_item.dart';
 
 void main() {
   late List<GitHubItem> received;

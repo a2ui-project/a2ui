@@ -14,7 +14,7 @@
 
 import 'package:shared/shared.dart';
 
-import 'model/triage_item.dart';
+import 'triage_item.dart';
 
 /// An issue or a pull request in [a2uiRepository] or [genuiRepository].
 final class GitHubItem {

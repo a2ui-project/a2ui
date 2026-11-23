@@ -17,13 +17,13 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared/shared.dart';
 
-import '../github/triage_service.dart';
-import '../github_item.dart';
 import 'applier.dart';
+import 'github_item.dart';
 import 'log_entry.dart';
 import 'milestone_change.dart';
 import 'suggestion_draft.dart';
 import 'triage_item.dart';
+import 'triage_service.dart';
 import 'triage_session.dart';
 
 /// A group of the item list, as `ui.blueprint.md` describes. An item can be

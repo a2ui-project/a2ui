@@ -14,9 +14,9 @@
 
 import 'package:shared/shared.dart';
 
-import '../github/triage_service.dart';
 import 'milestone_change.dart';
 import 'triage_item.dart';
+import 'triage_service.dart';
 
 enum StepStatus {
   done,

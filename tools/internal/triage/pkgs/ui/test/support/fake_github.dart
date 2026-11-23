@@ -18,8 +18,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared/shared.dart';
-import 'package:ui/src/github/triage_service.dart';
 import 'package:ui/src/model/triage_item.dart';
+import 'package:ui/src/model/triage_service.dart';
 
 /// The item with [number] in [a2uiRepository].
 ItemRef a2ui(int number) => (repository: a2uiRepository, number: number);

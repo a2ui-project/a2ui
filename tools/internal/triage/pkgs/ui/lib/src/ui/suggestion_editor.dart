@@ -16,11 +16,11 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:shared/shared.dart';
 
-import '../github/triage_service.dart';
 import '../model/applier.dart';
 import '../model/suggestion_draft.dart';
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
+import '../model/triage_service.dart';
 import 'chip_list_field.dart';
 import 'item_info.dart';
 import 'item_log.dart';
