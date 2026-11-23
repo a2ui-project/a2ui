@@ -193,4 +193,21 @@ struct FormatDateFunctionTests {
       arguments: ["value": .string("invalid date"), "format": .string("yyyy")], context: context)
     #expect(result == .string(""))
   }
+
+  @Test func copiesUnrecognizedPatternLettersLiterally() throws {
+    let value = JSONValue.string("2026-02-02T15:17:09.250Z")
+    #expect(try format(value, "E MMM d, yyyy h:mm a") == .string("Mon Feb 2, 2026 3:17 PM"))
+    #expect(try format(value, "E MMM d, YYYY h:mm a") == .string("Mon Feb 2, YYYY 3:17 PM"))
+    #expect(try format(value, "YYYY-MM-DD") == .string("YYYY-02-DD"))
+    #expect(try format(value, "HH:mm:ss.SSS") == .string("15:17:09.SSS"))
+    #expect(try format(value, "y") == .string("y"))
+    #expect(try format(value, "MMMMM") == .string("February2"))
+  }
+
+  @Test func preservesQuotedLiteralsAndShortWeekday() throws {
+    let value = JSONValue.string("2026-02-02T15:17:09Z")
+    #expect(try format(value, "MMM d 'at' h:mm a") == .string("Feb 2 at 3:17 PM"))
+    #expect(try format(value, "h 'o''clock'") == .string("3 o'clock"))
+    #expect(try format(value, "EEE, MMM d") == .string("Mon, Feb 2"))
+  }
 }

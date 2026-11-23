@@ -1093,6 +1093,33 @@
     format: "yyyy-MM-dd HH:mm"
   expect: "2026-09-04 23:30"
 
+- name: test_evaluate_function_format_date_contact_form_pattern
+  description: Verifies formatDate expands the protocol contact form example pattern with yyyy.
+  action: evaluate_function
+  function: formatDate
+  args:
+    value: "2026-02-02T15:17:00Z"
+    format: "E MMM d, yyyy h:mm a"
+  expect: "Mon Feb 2, 2026 3:17 PM"
+
+- name: test_evaluate_function_format_date_unrecognized_letters_copied_literally
+  description: Verifies formatDate expands only the documented Token Reference tokens and copies unrecognized letters through as literal text.
+  action: evaluate_function
+  function: formatDate
+  args:
+    value: "2026-02-02T15:17:09.250Z"
+    format: "E MMM d, YYYY HH:mm:ss.SSS y"
+  expect: "Mon Feb 2, YYYY 15:17:09.SSS y"
+
+- name: test_evaluate_function_format_date_repeated_token_splits_by_token_list
+  description: Verifies formatDate matches tokens greedily against the documented Token Reference (MMMMM splits into MMMM and M).
+  action: evaluate_function
+  function: formatDate
+  args:
+    value: "2026-02-02T15:17:09.250Z"
+    format: "MMMMM"
+  expect: "February2"
+
 # --- FormatStringFunction (D18, D28) ---
 - name: test_evaluate_function_format_string_basic
   description: Verifies formatString evaluates static template string.

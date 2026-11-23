@@ -419,7 +419,7 @@ def test_v1_0_standard_catalog_functions() -> None:
     fc_cur = FormatCurrency(value=100.5, currency="USD")
     assert fc_cur.call == "formatCurrency"
 
-    fc_date = FormatDate(value="2026-10-08", format="YYYY-MM-DD")
+    fc_date = FormatDate(value="2026-10-08", format="yyyy-MM-dd")
     assert fc_date.call == "formatDate"
 
     fc_num_fmt = FormatNumber(value=1234.56, decimals=2)

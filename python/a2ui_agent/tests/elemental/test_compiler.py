@@ -649,7 +649,7 @@ class TestElementalCompiler(unittest.TestCase):
         # 2. Function calls with positional args and action functions
         html_fn = (
             '<body><ui-text id="t1" text="{formatDate(user.created,'
-            " 'YYYY-MM-DD')}\" /></body>"
+            " 'yyyy-MM-dd')}\" /></body>"
         )
         result_fn = self._compile_dict(html_fn)
         comps_fn = result_fn["updateComponents"]["components"]
