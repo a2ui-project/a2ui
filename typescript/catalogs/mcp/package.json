@@ -198,10 +198,10 @@
   "author": "Google",
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "^1.7.4",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "ajv": "^8.17.1",
     "jmespath": "^0.16.0",
-    "zod": "^3.25.76"
+    "zod": "^4.6.6"
   },
   "peerDependencies": {
     "@a2ui/web_core": "workspace:*",
@@ -212,7 +212,7 @@
     "@types/jasmine": "^6.0.0",
     "@types/jmespath": "^0.15.2",
     "@types/node": "^25.9.3",
-    "esbuild": "^0.28.1",
+    "esbuild": "^0.28.2",
     "eslint": "^10.4.1",
     "gts": "^7.0.0",
     "jasmine-core": "^6.3.0",
