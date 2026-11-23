@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 0.1.1
+
+- The shared sandbox proxy accepts messages from external `url` frames configured with `allow-same-origin` when `event.origin` matches the resolved URL origin, revokes prior cross-origin and same-origin URL allowances on later resource updates, and anchors `normalizeOrigin` to a hostname boundary. [#4329](https://github.com/a2ui-project/a2ui/pull/4329)
+
 ## 0.1.0
 
 - **BREAKING CHANGE**: `regexCapture` now validates patterns with `analyzeRegex` from `@a2ui/web_core` and compiles them in Unicode mode (`new RegExp(pattern, 'u')`), converging on the A2UI regex dialect and static safety guard (allowing lookahead assertions while rejecting lookbehind, backreferences, named groups, `\p{...}`, inline flags, and patterns that risk catastrophic backtracking) and removing the `redos-detector` dependency. Recommended migration: rewrite `regexCapture` patterns that use constructs outside the A2UI portable regex subset or exceed 256 code points. [#3854](https://github.com/a2ui-project/a2ui/pull/3854)
