@@ -49,10 +49,14 @@ def batch() -> Iterator[None]:
     finally:
         _batch_state.depth -= 1
         if _batch_state.depth == 0:
-            while _batch_state.depth == 0 and _batch_state.pending:
-                callback = next(iter(_batch_state.pending))
-                del _batch_state.pending[callback]
-                callback()
+            try:
+                while _batch_state.depth == 0 and _batch_state.pending:
+                    callback = next(iter(_batch_state.pending))
+                    del _batch_state.pending[callback]
+                    callback()
+            except BaseException:
+                _batch_state.pending.clear()
+                raise
 
 
 class Subscription:

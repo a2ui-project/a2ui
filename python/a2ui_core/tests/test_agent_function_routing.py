@@ -1318,7 +1318,7 @@ async def test_node_resolver_emits_on_updated_for_check_only_updates() -> None:
     assert updates == [(False, ["Blocked locally"])]
 
     surface.data_model.set("/ok", True)
-    assert updates[-1] == (True, [])
+    assert updates == [(False, ["Blocked locally"]), (True, [])]
 
     call_id = outbound[0]["callAgentFunction"]["functionCallId"]
     proc.process_messages([{
@@ -1326,7 +1326,11 @@ async def test_node_resolver_emits_on_updated_for_check_only_updates() -> None:
         "agentFunctionResponse": {"functionCallId": call_id, "value": False},
     }])
     await _flush()
-    assert updates[-1] == (False, ["Out of stock"])
+    assert updates == [
+        (False, ["Blocked locally"]),
+        (True, []),
+        (False, ["Out of stock"]),
+    ]
     resolver.dispose()
 
 
