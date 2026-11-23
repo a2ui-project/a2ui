@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json",
+  "title": "A2UI VegaChart Catalog",
+  "description": "Catalog for rendering Vega and Vega-Lite charts in A2UI surfaces. Declares the VegaChart component for displaying interactive data visualizations from Vega-Lite JSON specifications.",
+  "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json",
+  "components": {
+    "VegaChart": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "description": "Displays a Vega or Vega-Lite chart.",
+          "properties": {
+            "component": {
+              "const": "VegaChart"
+            },
+            "spec": {
+              "description": "The Vega-Lite spec to render as a JSON object.",
+              "anyOf": [
+                {
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"
+                },
+                {
+                  "type": "object"
+                }
+              ]
+            },
+            "height": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "Optional height of the chart in pixels. Defaults to 290."
+            }
+          },
+          "required": ["component", "spec"]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/VegaChart"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    },
+    "anyFunction": {
+      "not": {}
+    }
+  }
+}
