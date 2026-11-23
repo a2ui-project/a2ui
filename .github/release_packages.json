@@ -10,7 +10,9 @@
       "changelog": "python/a2ui_core/CHANGELOG.md",
       "tag": "python/a2ui-core/v{version}",
       "bootstrap_version": "0.1.1",
-      "heading_date": true
+      "internal_deps": [],
+      "pre_1_0_feature_bump": "minor",
+      "auto_tag": true
     },
     {
       "id": "a2ui-agent-sdk",
@@ -21,7 +23,9 @@
       "changelog": "python/a2ui_agent/CHANGELOG.md",
       "tag": "python/a2ui-agent-sdk/v{version}",
       "bootstrap_version": "0.6.0",
-      "heading_date": true
+      "internal_deps": ["a2ui-core"],
+      "pre_1_0_feature_bump": "minor",
+      "auto_tag": true
     },
     {
       "id": "a2ui-a2a",
@@ -32,7 +36,9 @@
       "changelog": "python/a2ui_a2a/CHANGELOG.md",
       "tag": "python/a2ui-a2a/v{version}",
       "bootstrap_version": "0.0.0",
-      "heading_date": true
+      "internal_deps": ["a2ui-agent-sdk"],
+      "pre_1_0_feature_bump": "minor",
+      "auto_tag": true
     },
     {
       "id": "a2ui-adk",
@@ -43,7 +49,9 @@
       "changelog": "python/a2ui_adk/CHANGELOG.md",
       "tag": "python/a2ui-adk/v{version}",
       "bootstrap_version": "0.0.0",
-      "heading_date": true
+      "internal_deps": ["a2ui-a2a", "a2ui-agent-sdk"],
+      "pre_1_0_feature_bump": "minor",
+      "auto_tag": true
     },
     {
       "id": "dart-a2ui_core",
@@ -59,7 +67,10 @@
       "changelog": "dart/a2ui_core/CHANGELOG.md",
       "tag": "dart/a2ui_core/v{version}",
       "bootstrap_since": "07735d6a654ae3ba25951a8753ddd57b344b1169",
-      "breaking_prefix": "Breaking: "
+      "breaking_prefix": "Breaking: ",
+      "internal_deps": [],
+      "pre_1_0_feature_bump": "patch",
+      "auto_tag": true
     },
     {
       "id": "dart-a2ui_agent",
@@ -76,7 +87,10 @@
       "changelog": "dart/a2ui_agent/CHANGELOG.md",
       "tag": "dart/a2ui_agent/v{version}",
       "bootstrap_since": "07735d6a654ae3ba25951a8753ddd57b344b1169",
-      "breaking_prefix": "Breaking: "
+      "breaking_prefix": "Breaking: ",
+      "internal_deps": ["dart-a2ui_core"],
+      "pre_1_0_feature_bump": "patch",
+      "auto_tag": true
     },
     {
       "id": "dart-a2ui_flutter",
@@ -95,7 +109,10 @@
       "changelog": "dart/a2ui_flutter/CHANGELOG.md",
       "tag": "dart/a2ui_flutter/v{version}",
       "bootstrap_since": "07735d6a654ae3ba25951a8753ddd57b344b1169",
-      "breaking_prefix": "Breaking: "
+      "breaking_prefix": "Breaking: ",
+      "internal_deps": ["dart-a2ui_core"],
+      "pre_1_0_feature_bump": "patch",
+      "auto_tag": true
     },
     {
       "id": "a2ui_cli",
@@ -105,7 +122,10 @@
       "exclude": ["dart/a2ui_cli/test/", "dart/a2ui_cli/tool/", "**/*.md"],
       "changelog": "dart/a2ui_cli/CHANGELOG.md",
       "tag": "cli-v{version}",
-      "breaking_prefix": "Breaking: "
+      "breaking_prefix": "Breaking: ",
+      "internal_deps": ["dart-a2ui_core"],
+      "pre_1_0_feature_bump": "patch",
+      "auto_tag": false
     },
     {
       "id": "web_core",
@@ -115,7 +135,10 @@
       "exclude": ["typescript/core/web_core/tests/", "**/*.test.ts", "**/*.md"],
       "changelog": "typescript/core/web_core/CHANGELOG.md",
       "tag": "npm/web_core/v{version}",
-      "bootstrap_since": "4fdc4c632cf761af64fa474530df8211483fa282"
+      "bootstrap_since": "4fdc4c632cf761af64fa474530df8211483fa282",
+      "internal_deps": [],
+      "pre_1_0_feature_bump": "minor",
+      "auto_tag": true
     },
     {
       "id": "lit",
@@ -125,7 +148,10 @@
       "exclude": ["typescript/renderers/lit/a2ui_explorer/", "**/*.test.ts", "**/*.md"],
       "changelog": "typescript/renderers/lit/CHANGELOG.md",
       "tag": "npm/lit/v{version}",
-      "bootstrap_since": "4fdc4c632cf761af64fa474530df8211483fa282"
+      "bootstrap_since": "4fdc4c632cf761af64fa474530df8211483fa282",
+      "internal_deps": ["web_core", "markdown-it"],
+      "pre_1_0_feature_bump": "minor",
+      "auto_tag": true
     },
     {
       "id": "react",
@@ -141,7 +167,10 @@
       ],
       "changelog": "typescript/renderers/react/CHANGELOG.md",
       "tag": "npm/react/v{version}",
-      "bootstrap_since": "4fdc4c632cf761af64fa474530df8211483fa282"
+      "bootstrap_since": "4fdc4c632cf761af64fa474530df8211483fa282",
+      "internal_deps": ["web_core", "markdown-it"],
+      "pre_1_0_feature_bump": "minor",
+      "auto_tag": true
     },
     {
       "id": "angular",
@@ -156,7 +185,10 @@
       ],
       "changelog": "typescript/renderers/angular/CHANGELOG.md",
       "tag": "npm/angular/v{version}",
-      "bootstrap_since": "4fdc4c632cf761af64fa474530df8211483fa282"
+      "bootstrap_since": "4fdc4c632cf761af64fa474530df8211483fa282",
+      "internal_deps": ["web_core", "markdown-it"],
+      "pre_1_0_feature_bump": "minor",
+      "auto_tag": true
     },
     {
       "id": "markdown-it",
@@ -166,7 +198,10 @@
       "exclude": ["**/*.test.ts", "**/*.md"],
       "changelog": "typescript/renderers/markdown-it/CHANGELOG.md",
       "tag": "npm/markdown-it/v{version}",
-      "bootstrap_since": "45633b97636daf89bafb43fa7db23e3cd916461d"
+      "bootstrap_since": "45633b97636daf89bafb43fa7db23e3cd916461d",
+      "internal_deps": ["web_core"],
+      "pre_1_0_feature_bump": "minor",
+      "auto_tag": true
     },
     {
       "id": "agent",
@@ -176,7 +211,10 @@
       "exclude": ["typescript/agents/a2ui_agent/tests/", "**/*.test.ts", "**/*.md"],
       "changelog": "typescript/agents/a2ui_agent/CHANGELOG.md",
       "tag": "npm/agent/v{version}",
-      "bootstrap_since": "4fdc4c632cf761af64fa474530df8211483fa282"
+      "bootstrap_since": "4fdc4c632cf761af64fa474530df8211483fa282",
+      "internal_deps": ["web_core"],
+      "pre_1_0_feature_bump": "minor",
+      "auto_tag": true
     },
     {
       "id": "catalog-mcp",
@@ -186,7 +224,10 @@
       "exclude": ["typescript/catalogs/mcp/tests/", "**/*.test.ts", "**/*.md"],
       "changelog": "typescript/catalogs/mcp/CHANGELOG.md",
       "tag": "npm/catalog-mcp/v{version}",
-      "bootstrap_since": "f005e440d134338e11a013267fe44d7d09ff5d08"
+      "bootstrap_since": "f005e440d134338e11a013267fe44d7d09ff5d08",
+      "internal_deps": ["web_core"],
+      "pre_1_0_feature_bump": "minor",
+      "auto_tag": true
     },
     {
       "id": "catalog-vegachart",
@@ -196,7 +237,10 @@
       "exclude": ["**/*.test.ts", "**/*.md"],
       "changelog": "typescript/catalogs/vegachart/CHANGELOG.md",
       "tag": "npm/catalog-vegachart/v{version}",
-      "bootstrap_since": "3a64be7990d257a64a2ae3c5ae68adb10cbe4d28"
+      "bootstrap_since": "3a64be7990d257a64a2ae3c5ae68adb10cbe4d28",
+      "internal_deps": ["web_core"],
+      "pre_1_0_feature_bump": "minor",
+      "auto_tag": true
     },
     {
       "id": "swift",
@@ -205,7 +249,10 @@
       "paths": ["swift/core/", "swift/swiftui/", "Package.swift"],
       "exclude": ["swift/sample/", "**/Tests/**", "**/*.md"],
       "changelog": "swift/CHANGELOG.md",
-      "tag": "v{version}+swift"
+      "tag": "v{version}+swift",
+      "internal_deps": [],
+      "pre_1_0_feature_bump": "patch",
+      "auto_tag": false
     }
   ]
 }

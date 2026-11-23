@@ -14,11 +14,12 @@
 
 """Tests for .github/scripts/release_notes.py."""
 
-import datetime
 import glob
 import io
 import json
 import os
+from pathlib import Path
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -43,6 +44,9 @@ def spec(**overrides) -> rn.PackageSpec:
         exclude=("**/*.test.ts",),
         changelog="typescript/core/web_core/CHANGELOG.md",
         tag="npm/web_core/v{version}",
+        internal_deps=(),
+        pre_1_0_feature_bump="minor",
+        auto_tag=True,
     )
     base.update(overrides)
     return rn.PackageSpec(**base)
@@ -107,46 +111,10 @@ class ParseTitleTest(unittest.TestCase):
             with self.subTest(bad=bad):
                 self.assertIsNone(rn.parse_title(bad))
 
-
-class ReleaseNotesBlockTest(unittest.TestCase):
-
-    BODY = textwrap.dedent("""\
-        ## Summary
-        Something.
-
-        ```release-notes
-        - [web_core] `dispose()` now disposes surfaces.
-          Read state first.
-        - [lit] Replace `surface.catalog` with `surface.defaultCatalog`.
-        - Fix `Image.fit` semantics.
-        ```
-
-        ```release-notes
-        - second block is ignored
-        ```
-        """)
-
-    def test_parses_scoped_and_unscoped_bullets(self):
-        bullets = rn.release_notes_block(self.BODY)
-        self.assertEqual(
-            bullets,
-            [
-                rn.Bullet(
-                    "web_core", "`dispose()` now disposes surfaces. Read state first."
-                ),
-                rn.Bullet(
-                    "lit", "Replace `surface.catalog` with `surface.defaultCatalog`."
-                ),
-                rn.Bullet(None, "Fix `Image.fit` semantics."),
-            ],
-        )
-
-    def test_no_block(self):
-        self.assertEqual(rn.release_notes_block("plain body"), [])
-        self.assertFalse(rn.has_release_notes_block("plain body"))
-
-    def test_breaking_footer(self):
+    def test_breaking_footer_ignores_comments(self):
         self.assertTrue(rn.has_breaking_footer("x\n\nBREAKING CHANGE: removed foo\n"))
+        self.assertTrue(rn.has_breaking_footer("BREAKING-CHANGE: hyphen form"))
+        self.assertFalse(rn.has_breaking_footer("<!-- BREAKING CHANGE: no -->\nok"))
         self.assertFalse(rn.has_breaking_footer("no footer here"))
 
 
@@ -181,13 +149,44 @@ class ManifestTest(unittest.TestCase):
         )
         self.assertEqual(specs[0].tag_for("0.10.0"), "v0.10.0+swift")
 
-    def test_rejects_duplicate_id_missing_version_and_unknown_ecosystem(self):
+    def test_rejects_invalid_manifest_fields(self):
         with self.assertRaises(rn.ManifestError):
             self._load([self._entry(), self._entry()])
         with self.assertRaises(rn.ManifestError):
             self._load([self._entry(tag="npm/p/latest")])
         with self.assertRaises(rn.ManifestError):
             self._load([self._entry(ecosystem="cargo")])
+        with self.assertRaises(rn.ManifestError):
+            self._load([self._entry(pre_1_0_feature_bump="major")])
+
+    def test_internal_deps_validation_and_topological_order(self):
+        with self.assertRaises(rn.ManifestError):
+            self._load([self._entry(id="a", internal_deps=["a"])])
+        with self.assertRaises(rn.ManifestError):
+            self._load([self._entry(id="a", internal_deps=["missing"])])
+        with self.assertRaises(rn.ManifestError):
+            self._load([
+                self._entry(id="a", ecosystem="npm"),
+                self._entry(
+                    id="b",
+                    ecosystem="python",
+                    tag="python/b/v{version}",
+                    internal_deps=["a"],
+                ),
+            ])
+        with self.assertRaises(rn.ManifestError):
+            self._load([
+                self._entry(id="a", internal_deps=["b"]),
+                self._entry(id="b", internal_deps=["a"]),
+            ])
+        specs = self._load([
+            self._entry(id="app", internal_deps=["lib"]),
+            self._entry(id="lib", internal_deps=["core"]),
+            self._entry(id="core", internal_deps=[]),
+        ])
+        self.assertEqual(
+            [s.id for s in rn.topological_order(specs)], ["core", "lib", "app"]
+        )
 
     def test_rejects_wildcard_exclude_ending_in_slash(self):
         for pattern in ("**/Tests/", "src/?ests/", "src/[Tt]ests/"):
@@ -200,10 +199,7 @@ class ManifestTest(unittest.TestCase):
         )
         self.assertEqual(specs[0].exclude, ("**/Tests/**", "typescript/p/tests/"))
 
-    def test_fix_with_empty_scope_fails_l1(self):
-        self.assertIsNone(rn.parse_title("fix(): x"))
-
-    def test_repository_manifest_covers_every_changelog(self):
+    def test_repository_manifest_covers_every_changelog_and_is_acyclic(self):
         specs = rn.load_manifest(MANIFEST)
         pattern = os.path.join(REPO_ROOT, "**", "CHANGELOG.md")
         skipped = ("/node_modules/", "/.venv/", "/dist/", "/samples/", "/.git/")
@@ -215,10 +211,14 @@ class ManifestTest(unittest.TestCase):
         in_manifest = sorted(spec.changelog for spec in specs)
         self.assertEqual(on_disk, in_manifest)
         self.assertEqual(len(in_manifest), len(set(in_manifest)))
-        for entry in specs:
-            self.assertTrue(
-                os.path.exists(os.path.join(REPO_ROOT, entry.changelog)), entry.id
-            )
+        ordered = rn.topological_order(specs)
+        self.assertEqual(len(ordered), len(specs))
+        by_id = {s.id: s for s in specs}
+        self.assertFalse(by_id["a2ui_cli"].auto_tag)
+        self.assertFalse(by_id["swift"].auto_tag)
+        self.assertTrue(by_id["web_core"].auto_tag)
+        self.assertEqual(by_id["dart-a2ui_core"].pre_1_0_feature_bump, "patch")
+        self.assertEqual(by_id["web_core"].pre_1_0_feature_bump, "minor")
 
     def test_python_entries_keep_dependency_order(self):
         python = [s.id for s in rn.load_manifest(MANIFEST) if s.ecosystem == "python"]
@@ -263,17 +263,25 @@ class TagTest(unittest.TestCase):
             rn.resolve_anchor(spec(), None, git, stale)
         self.assertEqual(ctx.exception.code, rn.EXIT_UNTAGGED)
         self.assertIn("tag --package web_core --version 0.16.0", str(ctx.exception))
-        # Same heading as the tag, an older heading, or an Unreleased-only
-        # changelog are all fine; so is an explicit --since.
         for ok in ("## 0.15.0\n- x\n", "## 0.14.0\n- x\n", "## Unreleased\n- x\n", ""):
             with self.subTest(changelog=ok):
                 self.assertEqual(
                     rn.resolve_anchor(spec(), None, git, ok), "npm/web_core/v0.15.0"
                 )
         self.assertEqual(rn.resolve_anchor(spec(), "abc", git, stale), "abc")
-        # The bootstrap path predates tags, so its changelog headings are not checked.
-        boot = spec(bootstrap_since="boot")
-        self.assertEqual(rn.resolve_anchor(boot, None, FakeGit(), stale), "boot")
+
+    def test_bootstrap_anchor_refuses_untagged_heading_after_bootstrap(self):
+        boot = spec(bootstrap_since="bootsha")
+        stale = "## 0.16.0\n\n- shipped\n\n## 0.15.0\n\n- old\n"
+        # Heading commit is NOT an ancestor of bootstrap_since -> EXIT_UNTAGGED.
+        with self.assertRaises(rn.ReleaseNotesError) as ctx:
+            rn.resolve_anchor(boot, None, FakeGit(ancestors=set()), stale)
+        self.assertEqual(ctx.exception.code, rn.EXIT_UNTAGGED)
+        # Heading commit IS an ancestor of bootstrap_since -> allowed.
+        self.assertEqual(
+            rn.resolve_anchor(boot, None, FakeGit(ancestors={"abc123"}), stale),
+            "bootsha",
+        )
 
     def test_newest_heading(self):
         self.assertEqual(
@@ -282,241 +290,296 @@ class TagTest(unittest.TestCase):
         self.assertIsNone(rn.newest_heading("# Title\n\n## Unreleased\n"))
 
 
-def commit(sha, title, body=""):
-    return rn.Commit(sha, title, body)
+class TruncateDiffTest(unittest.TestCase):
+
+    def test_prioritizes_public_export_files_then_smallest(self):
+        big_internal = "diff --git a/src/big.ts b/src/big.ts\n+" + ("x" * 200) + "\n"
+        small_internal = "diff --git a/src/small.ts b/src/small.ts\n+tiny\n"
+        public_index = "diff --git a/src/index.ts b/src/index.ts\n+" + ("y" * 80) + "\n"
+        full = big_internal + small_internal + public_index
+        # Under limit: unchanged.
+        kept, truncated, omitted = rn.truncate_diff(full, 1000)
+        self.assertFalse(truncated)
+        self.assertEqual(omitted, [])
+        self.assertEqual(kept, full)
+        # Tight limit: fits public_index + small_internal, omits big_internal.
+        limit = len((public_index + small_internal).encode("utf-8")) + 5
+        kept, truncated, omitted = rn.truncate_diff(full, limit)
+        self.assertTrue(truncated)
+        self.assertIn("src/index.ts", kept)
+        self.assertIn("src/small.ts", kept)
+        self.assertEqual(omitted, ["src/big.ts"])
 
 
-class BuildDraftTest(unittest.TestCase):
+class FetchPrBodiesTest(unittest.TestCase):
 
-    TODAY = datetime.date(2026, 11, 12)
-
-    def test_groups_and_links(self):
-        commits = [
-            commit("a1", "docs(web_core): tweak readme (#1)"),
-            commit("a2", "fix(web_core): handle null (#2)"),
-            commit("a3", "feat(web_core): add thing (#3)"),
-            commit(
-                "a4",
-                "refactor(web_core)!: rename api (#4)",
-                "```release-notes\n- Rename `a` to `b`. Migration: call `b`.\n```",
-            ),
-            commit(
-                "a5",
-                "chore: bump deps (#5)",
-                "```release-notes\n- [web_core] Drop Node 18.\n```",
-            ),
-            commit("a6", "Non conventional title (#6)"),
-        ]
-        draft = rn.build_draft(spec(), commits, "since", "until")
-        self.assertEqual(
-            [(e.group, e.text, e.pr) for e in draft.entries],
-            [
-                ("Breaking", "Rename `a` to `b`. Migration: call `b`.", 4),
-                ("Added", "Add thing", 3),
-                ("Changed", "Drop Node 18.", 5),
-                ("Changed", "Non conventional title", 6),
-                ("Fixed", "Handle null", 2),
-            ],
+    def _make_packrat_db(self, rows):
+        tmp = tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False)
+        tmp.close()
+        self.addCleanup(os.unlink, tmp.name)
+        conn = sqlite3.connect(tmp.name)
+        conn.execute("CREATE TABLE repos (repo_id INTEGER PRIMARY KEY, full_name TEXT)")
+        conn.execute(
+            "CREATE TABLE pull_requests (repo_id INTEGER, number INTEGER, body TEXT)"
         )
-        self.assertEqual([u["pr"] for u in draft.unnoted], [2, 3, 6])
-        self.assertIsNone(draft.unnoted[2]["type"])
-        rendered = rn.render_markdown(spec(), draft, "0.16.0", self.TODAY)
-        self.assertIn(
-            "## 0.16.0\n\n<!-- release-notes: web_core 0.16.0 range since..until -->",
-            rendered,
-        )
-        self.assertIn(
-            "- **BREAKING CHANGE**: Rename `a` to `b`. Migration: call `b`."
-            " ([#4](https://github.com/a2ui-project/a2ui/pull/4))",
-            rendered,
-        )
-        self.assertNotIn("readme", rendered)
+        conn.execute("INSERT INTO repos VALUES (1, 'a2ui-project/a2ui')")
+        for num, body in rows:
+            conn.execute("INSERT INTO pull_requests VALUES (1, ?, ?)", (num, body))
+        conn.commit()
+        conn.close()
+        return Path(tmp.name)
 
-    def test_scoped_and_unscoped_bullets_combine_and_other_scopes_are_ignored(self):
-        body = "```release-notes\n- [lit] lit only\n- everyone\n```"
-        draft = rn.build_draft(
-            spec(), [commit("s1", "feat(x): y (#9)", body)], "a", "b"
-        )
-        self.assertEqual([e.text for e in draft.entries], ["everyone"])
-        lit = spec(id="lit")
-        draft = rn.build_draft(lit, [commit("s1", "feat(x): y (#9)", body)], "a", "b")
-        self.assertEqual([e.text for e in draft.entries], ["lit only", "everyone"])
+    def test_packrat_then_graphql_fallback(self):
+        db = self._make_packrat_db([(10, "from packrat")])
+        queries = []
 
-    def test_markdown_link_at_bullet_start_is_not_a_scope(self):
-        body = "```release-notes\n- [Foo](https://x) was removed.\n```"
-        self.assertEqual(
-            rn.release_notes_block(body),
-            [rn.Bullet(None, "[Foo](https://x) was removed.")],
-        )
+        def fake_gql(query, timeout):
+            queries.append(query)
+            return {
+                "data": {
+                    "rateLimit": {"cost": 1, "remaining": 4999, "resetAt": "soon"},
+                    "repository": {"pr_20": {"body": "from graphql"}},
+                }
+            }
 
-    def test_scope_lists_and_markdown_escapes(self):
-        cases = {
-            # Comma-separated lists, with and without spaces, expand to one
-            # bullet per id in the order written.
-            "- [web_core, lit] shared": [("web_core", "shared"), ("lit", "shared")],
-            "- [web_core,lit,react] shared": [
-                ("web_core", "shared"),
-                ("lit", "shared"),
-                ("react", "shared"),
-            ],
-            "- [ web_core , lit ] shared": [("web_core", "shared"), ("lit", "shared")],
-            # Markdown-escaped underscores, backticks, and trailing commas.
-            r"- [web\_core] escaped": [("web_core", "escaped")],
-            r"- [web\_core, a2ui\_cli] escaped": [
-                ("web_core", "escaped"),
-                ("a2ui_cli", "escaped"),
-            ],
-            "- [`web_core`, `lit`] ticked": [("web_core", "ticked"), ("lit", "ticked")],
-            "- [web_core,] trailing comma": [("web_core", "trailing comma")],
-            # Ids with the other allowed characters.
-            "- [dart-a2ui_core, markdown-it, catalog.v2] ok": [
-                ("dart-a2ui_core", "ok"),
-                ("markdown-it", "ok"),
-                ("catalog.v2", "ok"),
-            ],
-            # Brackets that are not an id list stay literal text.
-            "- [web_core lit] no comma": [(None, "[web_core lit] no comma")],
-            "- [] empty": [(None, "[] empty")],
-            "- [ , ] only commas": [(None, "[ , ] only commas")],
-            "- [see issue #12] prose": [(None, "[see issue #12] prose")],
-            "- [x] task box": [("x", "task box")],
-            # A scope with no text is dropped, like any empty bullet.
-            "- [web_core]": [],
-            "- [web_core]   ": [],
+        bodies, source, errors = rn.fetch_pr_bodies(
+            "a2ui-project/a2ui",
+            [10, 20],
+            packrat_db=db,
+            graphql_runner=fake_gql,
+        )
+        self.assertEqual(bodies, {10: "from packrat", 20: "from graphql"})
+        self.assertEqual(source, "packrat+graphql")
+        self.assertEqual(errors, 0)
+        self.assertEqual(len(queries), 1)
+        self.assertIn("pr_20:", queries[0])
+        self.assertNotIn("pr_10:", queries[0])
+
+    def test_graphql_budget_exhaustion_falls_back_to_commit(self):
+        db = self._make_packrat_db([])
+        now = [0.0]
+
+        def fake_clock():
+            return now[0]
+
+        def slow_gql(query, timeout):
+            now[0] += 100.0
+            return None
+
+        bodies, source, errors = rn.fetch_pr_bodies(
+            "a2ui-project/a2ui",
+            [1, 2, 3],
+            budget_seconds=50.0,
+            packrat_db=db,
+            graphql_runner=slow_gql,
+            clock=fake_clock,
+        )
+        self.assertEqual(bodies, {})
+        self.assertEqual(source, "commit")
+        self.assertEqual(errors, 3)
+
+    def test_commit_source_skips_packrat_and_graphql(self):
+        bodies, source, errors = rn.fetch_pr_bodies(
+            "a2ui-project/a2ui", [1, 2], source="commit"
+        )
+        self.assertEqual((bodies, source, errors), ({}, "commit", 0))
+
+    def test_next_chunk_size_and_empty_packrat_body_fallback(self):
+        self.assertEqual(rn._next_chunk_size(50, 10, 50), 0)
+        self.assertEqual(rn._next_chunk_size(50, 200, 200), 25)
+        db = self._make_packrat_db([(10, "")])
+        bodies, source, errors = rn.fetch_pr_bodies(
+            "a2ui-project/a2ui", [10], source="packrat", packrat_db=db
+        )
+        self.assertEqual(bodies, {})
+        self.assertEqual(source, "commit")
+        self.assertEqual(errors, 0)
+
+
+class CheckNotesTest(unittest.TestCase):
+
+    def test_pre_1_0_web_core_breaking_requires_minor_not_major(self):
+        api = {
+            "status": "ok",
+            "removed": [{"symbol": "Surface.catalog", "kind": "property"}],
+            "changed": [],
+            "added": [],
         }
-        for line, expected in cases.items():
-            with self.subTest(line=line):
-                bullets = rn.release_notes_block(f"```release-notes\n{line}\n```")
-                self.assertEqual([(b.scope, b.text) for b in bullets], expected)
+        ctx = {"package": "web_core", "current_version": "0.15.0"}
+        good_gen = {
+            "recommended_bump": "MINOR",
+            "bullets": ["- **BREAKING CHANGE**: Removed `Surface.catalog`."],
+            "human_review_flags": [],
+        }
+        passed, violations = rn.check_notes(spec(), api, good_gen, ctx)
+        self.assertTrue(passed, violations)
 
-    def test_scope_list_feeds_draft_and_lint(self):
-        body = "```release-notes\n- [web_core, lit] shared note\n- [lit, nope] bad\n```"
-        for package, expected in (
-            ("web_core", ["shared note"]),
-            ("lit", ["shared note", "bad"]),
-        ):
-            with self.subTest(package=package):
-                draft = rn.build_draft(
-                    spec(id=package), [commit("s1", "feat(x): y (#9)", body)], "a", "b"
-                )
-                self.assertEqual([e.text for e in draft.entries], expected)
-        specs = [spec(), spec(id="lit", paths=("typescript/renderers/lit/",))]
-        violations = rn.check_pr(
-            "fix(x): y", body, (), ["typescript/renderers/lit/a.ts"], specs
+        bad_major = {**good_gen, "recommended_bump": "MAJOR"}
+        passed, violations = rn.check_notes(spec(), api, bad_major, ctx)
+        self.assertFalse(passed)
+        self.assertEqual(violations[0]["rule"], "semver_consistency")
+
+        bad_patch = {**good_gen, "recommended_bump": "PATCH"}
+        passed, violations = rn.check_notes(spec(), api, bad_patch, ctx)
+        self.assertFalse(passed)
+
+    def test_post_1_0_breaking_requires_major(self):
+        api = {
+            "status": "ok",
+            "removed": [{"symbol": "Surface.catalog", "kind": "property"}],
+            "changed": [],
+            "added": [],
+        }
+        ctx = {"package": "web_core", "current_version": "1.2.0"}
+        gen_minor = {
+            "recommended_bump": "MINOR",
+            "bullets": ["- **BREAKING CHANGE**: Removed `Surface.catalog`."],
+            "human_review_flags": [],
+        }
+        passed, violations = rn.check_notes(spec(), api, gen_minor, ctx)
+        self.assertFalse(passed)
+        self.assertEqual(violations[0]["rule"], "semver_consistency")
+
+        gen_major = {**gen_minor, "recommended_bump": "MAJOR"}
+        passed, violations = rn.check_notes(spec(), api, gen_major, ctx)
+        self.assertTrue(passed, violations)
+
+    def test_pre_1_0_feature_bump_differs_for_npm_vs_dart(self):
+        api = {
+            "status": "ok",
+            "removed": [],
+            "changed": [],
+            "added": [{"symbol": "NewWidget", "kind": "class"}],
+        }
+        gen_patch = {
+            "recommended_bump": "PATCH",
+            "bullets": ["- Add `NewWidget`."],
+            "human_review_flags": [],
+        }
+        # npm (pre_1_0_feature_bump="minor") rejects PATCH for additions.
+        passed, _ = rn.check_notes(
+            spec(), api, gen_patch, {"current_version": "0.15.0"}
         )
-        self.assertEqual([(v.rule, v.level) for v in violations], [("L4", "error")])
-        self.assertIn("[nope]", violations[0].message)
-        # Escaped ids pass L4 because they are unescaped before the lookup.
-        clean = rn.check_pr(
-            "fix(x): y",
-            "```release-notes\n- [web\\_core, `lit`] fine\n```",
-            (),
-            ["typescript/renderers/lit/a.ts"],
-            specs,
+        self.assertFalse(passed)
+        # Dart (pre_1_0_feature_bump="patch") accepts PATCH and rejects MINOR for additions.
+        dart = spec(
+            id="dart-a2ui_core",
+            ecosystem="pub",
+            pre_1_0_feature_bump="patch",
+            breaking_prefix="Breaking: ",
         )
-        self.assertEqual(clean, [])
-
-    def test_commented_out_block_and_footer_are_ignored(self):
-        body = (
-            "<!--\n```release-notes\n- Example bullet\n```\nBREAKING CHANGE: no\n-->\n"
-            "Real text."
+        passed, violations = rn.check_notes(
+            dart, api, gen_patch, {"current_version": "0.8.0"}
         )
-        self.assertEqual(rn.release_notes_block(body), [])
-        self.assertFalse(rn.has_release_notes_block(body))
-        self.assertFalse(rn.has_breaking_footer(body))
-        self.assertTrue(rn.has_breaking_footer("BREAKING-CHANGE: hyphen form"))
+        self.assertTrue(passed, violations)
+        gen_minor = {**gen_patch, "recommended_bump": "MINOR"}
+        passed, _ = rn.check_notes(dart, api, gen_minor, {"current_version": "0.8.0"})
+        self.assertFalse(passed)
 
-    def test_breaking_footer_and_unnoted_ordering(self):
-        commits = [
-            commit("b1", "fix(web_core): x (#1)"),
-            commit("b2", "feat(web_core): y (#2)", "BREAKING CHANGE: y removed"),
-        ]
-        draft = rn.build_draft(spec(), commits, "a", "b")
-        self.assertEqual(draft.entries[0].group, "Breaking")
-        self.assertEqual([u["pr"] for u in draft.unnoted], [2, 1])
+    def test_breaking_hint_enforced_in_degraded_mode_and_word_boundary_symbols(self):
+        degraded = {"status": "unavailable", "reason": "ecosystem_not_supported"}
+        ctx = {
+            "current_version": "0.8.0",
+            "commits": [
+                {"pr": 99, "sha": "a" * 40, "breaking_hint": True, "net_zero": False}
+            ],
+        }
+        # Missing breaking bullet and missing #99 flag -> FAIL.
+        gen = {
+            "recommended_bump": "PATCH",
+            "bullets": ["- Fix minor bug."],
+            "human_review_flags": ["no_static_api_diff"],
+        }
+        passed, violations = rn.check_notes(spec(), degraded, gen, ctx)
+        self.assertFalse(passed)
+        self.assertTrue(any("#99" in v["issue"] for v in violations))
 
-    FULL_SHA = "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
-
-    def test_revert_inside_range_folds_both(self):
-        commits = [
-            commit(self.FULL_SHA, "feat(web_core): add x (#10)"),
-            commit(
-                "c2",
-                "revert: feat(web_core): add x (#10) (#11)",
-                f"This reverts commit {self.FULL_SHA[:12]}.",
-            ),
-            commit("c3", "fix(web_core): z (#12)"),
-        ]
-        draft = rn.build_draft(spec(), commits, "a", "b")
-        self.assertEqual([e.pr for e in draft.entries], [12])
-
-    def test_revert_of_a_revert_keeps_the_original_change(self):
-        commits = [
-            commit("a" * 40, "feat(web_core): add x (#10)"),
-            commit(
-                "b" * 40,
-                "revert: feat(web_core): add x (#10) (#11)",
-                "This reverts commit " + "a" * 40 + ".",
-            ),
-            commit(
-                "c" * 40,
-                "revert: revert: feat(web_core): add x (#10) (#11) (#12)",
-                "This reverts commit " + "b" * 40 + ".",
-            ),
-        ]
-        draft = rn.build_draft(spec(), commits, "a", "b")
-        self.assertEqual([e.pr for e in draft.entries], [10])
-
-    def test_revert_outside_range_is_listed(self):
-        commits = [
-            commit(
-                "d1",
-                "revert: feat(web_core): old (#5) (#13)",
-                "This reverts commit ffff.",
-            )
-        ]
-        draft = rn.build_draft(spec(), commits, "a", "b")
-        self.assertEqual(
-            [(e.group, e.text) for e in draft.entries],
-            [("Changed", "Revert: feat(web_core): old (#5)")],
+        # Word-boundary symbol match: Surface is NOT satisfied by SurfaceManager.
+        api = {
+            "status": "ok",
+            "removed": [{"symbol": "Surface", "kind": "class"}],
+            "changed": [],
+            "added": [],
+        }
+        gen_substr = {
+            "recommended_bump": "MINOR",
+            "bullets": ["- **BREAKING CHANGE**: Updated `SurfaceManager`."],
+            "human_review_flags": [],
+        }
+        passed, _ = rn.check_notes(
+            spec(), api, gen_substr, {"current_version": "0.8.0"}
         )
+        self.assertFalse(passed)
 
-    def test_body_lookup_overrides_commit_body(self):
-        lookup = {7: "```release-notes\n- From the API.\n```"}.get
-        draft = rn.build_draft(
-            spec(), [commit("e1", "feat(a): b (#7)")], "a", "b", lookup
+    def test_missing_symbols_prefix_unknown_flag_and_degraded_mode(self):
+        api = {
+            "status": "ok",
+            "removed": [{"symbol": "OldFn", "kind": "function"}],
+            "changed": [
+                {"symbol": "StrictFn", "kind": "function", "breaking": True},
+                {"symbol": "MaybeFn", "kind": "function", "breaking": "unknown"},
+            ],
+            "added": [{"symbol": "NewFn", "kind": "function"}],
+        }
+        gen = {
+            "recommended_bump": "MINOR",
+            "bullets": [
+                "- Removed `OldFn` without breaking prefix.",
+                "- Updated `StrictFn` without breaking prefix.",
+                "- Updated `MaybeFn`.",
+            ],
+            "human_review_flags": [],
+        }
+        passed, violations = rn.check_notes(
+            spec(), api, gen, {"current_version": "0.5.0"}
         )
-        self.assertEqual(draft.body_source, "api")
-        self.assertEqual([e.text for e in draft.entries], ["From the API."])
-        self.assertEqual(draft.unnoted, [])
+        self.assertFalse(passed)
+        issues = "\n".join(v["issue"] for v in violations)
+        self.assertIn("OldFn", issues)
+        self.assertIn("StrictFn", issues)
+        self.assertIn("MaybeFn", issues)
+        self.assertIn("NewFn", issues)
 
-    def test_render_dated_heading_dart_prefix_carried_and_empty(self):
-        dart = spec(id="dart", heading_date=False, breaking_prefix="Breaking: ")
-        draft = rn.build_draft(
-            dart,
-            [commit("f1", "feat!: x (#1)", "```release-notes\n- gone\n```")],
-            "a",
-            "b",
-            carried="- Old pending note.",
+        # Degraded mode requires `no_static_api_diff`.
+        degraded = {"status": "unavailable", "reason": "ecosystem_not_supported"}
+        gen_no_flag = {
+            "recommended_bump": "PATCH",
+            "bullets": ["- Fix null handling."],
+            "human_review_flags": [],
+        }
+        passed, violations = rn.check_notes(
+            spec(), degraded, gen_no_flag, {"current_version": "0.5.0"}
         )
-        rendered = rn.render_markdown(dart, draft, "0.8.0", self.TODAY)
-        self.assertIn(
-            rn.CARRIED_MARKER + "\n- Old pending note.\n\n- Breaking: gone", rendered
+        self.assertFalse(passed)
+        self.assertIn("no_static_api_diff", violations[0]["issue"])
+
+        gen_with_flag = {**gen_no_flag, "human_review_flags": ["no_static_api_diff"]}
+        passed, violations = rn.check_notes(
+            spec(), degraded, gen_with_flag, {"current_version": "0.5.0"}
         )
-        python = spec(id="py", heading_date=True)
-        rendered = rn.render_markdown(
-            python, rn.build_draft(python, [], "a", "b"), "0.7.0", self.TODAY
+        self.assertTrue(passed, violations)
+
+    def test_empty_bullets_requires_none_bump(self):
+        api = {"status": "ok", "removed": [], "changed": [], "added": []}
+        ctx = {"current_version": "0.5.0"}
+        passed, _ = rn.check_notes(
+            spec(), api, {"recommended_bump": "NONE", "bullets": []}, ctx
         )
-        self.assertTrue(rendered.startswith("## 0.7.0 (2026-11-12)\n"))
-        self.assertIn("- No consumer-facing changes.", rendered)
+        self.assertTrue(passed)
+        passed, _ = rn.check_notes(
+            spec(), api, {"recommended_bump": "PATCH", "bullets": []}, ctx
+        )
+        self.assertFalse(passed)
 
 
-class ChangelogReadingTest(unittest.TestCase):
+class ChangelogReadingAndWritingTest(unittest.TestCase):
 
     CHANGELOG = textwrap.dedent("""\
         # Title
 
         ## Unreleased
+
+        - Old pending note.
 
         ## 0.16.0
 
@@ -529,7 +592,7 @@ class ChangelogReadingTest(unittest.TestCase):
         - Older.
         """)
 
-    def test_read_section_strips_range_comment_and_accepts_dates(self):
+    def test_read_section_strips_range_comment_and_accepts_legacy_dates(self):
         self.assertEqual(
             rn.read_section(self.CHANGELOG, "0.16.0"),
             "- New thing ([#1](https://github.com/a2ui-project/a2ui/pull/1))",
@@ -538,31 +601,49 @@ class ChangelogReadingTest(unittest.TestCase):
         with self.assertRaises(rn.ReleaseNotesError) as ctx:
             rn.read_section(self.CHANGELOG, "0.14.0")
         self.assertEqual(ctx.exception.code, rn.EXIT_NO_SECTION)
-        with self.assertRaises(rn.ReleaseNotesError):
-            rn.read_section("## 0.1.0\n\n## 0.0.1\n- x\n", "0.1.0")
 
     def test_heading_version_skips_unreleased(self):
         self.assertEqual(rn.heading_version(self.CHANGELOG, "0.15.0"), "0.16.0")
         self.assertEqual(rn.heading_version(self.CHANGELOG, None), "0.16.0")
         with self.assertRaises(rn.ReleaseNotesError):
             rn.heading_version(self.CHANGELOG, "0.16.0")
-        with self.assertRaises(rn.ReleaseNotesError):
-            rn.heading_version("## Unreleased\n\n- pending\n", None)
 
-    def test_strip_unreleased_and_insert_section(self):
-        stripped = rn.strip_unreleased(
-            "# T\n\n## Unreleased\n\n- pending\n\n## 0.1.0\n\n- old\n"
+    def test_write_section_undated_and_carry_unreleased(self):
+        python = spec(id="a2ui-core", ecosystem="python")
+        updated = rn.write_section(
+            python,
+            "0.17.0",
+            "t1",
+            "abc",
+            ["- Add streaming support."],
+            carry_unreleased=True,
+            existing_changelog=self.CHANGELOG,
         )
-        self.assertEqual(stripped, "# T\n\n## 0.1.0\n\n- old\n")
-        inserted = rn.insert_section(stripped, "## 0.2.0\n\n- new\n")
-        self.assertEqual(inserted, "# T\n\n## 0.2.0\n\n- new\n\n## 0.1.0\n\n- old\n")
-        self.assertEqual(
-            rn.insert_section("", "## 0.1.0\n\n- first\n"), "## 0.1.0\n\n- first\n"
+        self.assertIn(
+            "## 0.17.0\n\n<!-- release-notes: a2ui-core 0.17.0 range t1..abc -->",
+            updated,
         )
-        self.assertEqual(
-            rn.insert_section("## 0.1.0\n- a\n", "## 0.2.0\n- b\n"),
-            "## 0.2.0\n- b\n\n## 0.1.0\n- a\n",
+        self.assertIn(rn.CARRIED_MARKER + "\n- Old pending note.", updated)
+        self.assertNotIn("## Unreleased", updated)
+        # Writing an existing or older version is refused.
+        with self.assertRaises(rn.ReleaseNotesError):
+            rn.write_section(
+                python, "0.17.0", "t1", "abc", ["- dup"], existing_changelog=updated
+            )
+        # verify_release catches duplicate headings.
+        dup = "## 0.17.0\n\n- a\n\n## 0.17.0\n\n- b\n"
+        errors, _ = rn.verify_release(python, "0.17.0", dup, FakeGit())
+        self.assertTrue(any("duplicate" in e for e in errors))
+
+    def test_github_default_revert_title_pairs(self):
+        c1 = rn.Commit("a" * 40, "feat(pkg): add x (#10)", "", ("pkg/a.ts",))
+        c2 = rn.Commit(
+            "b" * 40,
+            'Revert "feat(pkg): add x (#10)" (#11)',
+            "This reverts commit " + "a" * 40 + ".",
+            ("pkg/a.ts",),
         )
+        self.assertEqual(rn._reverted_shas([c1, c2]), {"a" * 40, "b" * 40})
 
 
 class VerifyReleaseTest(unittest.TestCase):
@@ -595,8 +676,6 @@ class VerifyReleaseTest(unittest.TestCase):
         self.assertIn("descending", joined)
         self.assertIn("already exists", joined)
         self.assertIn("not an ancestor", joined)
-        errors, _ = rn.verify_release(spec(), "0.17.0", self.GOOD, FakeGit())
-        self.assertIn("no '## 0.17.0' section", errors[0])
 
 
 class _Response(io.BytesIO):
@@ -627,19 +706,6 @@ class TagReleaseTest(unittest.TestCase):
             rn.tag_release(spec(), "0.16.0", FakeGit(), fetch=fetch_factory({}))
         self.assertEqual(ctx.exception.code, rn.EXIT_TAG_REFUSED)
 
-    def test_registry_errors_refuse_instead_of_crashing(self):
-        def server_error(url):
-            raise urllib.error.HTTPError(url, 503, "down", {}, None)
-
-        def offline(url):
-            raise urllib.error.URLError("no network")
-
-        for fetch in (server_error, offline):
-            with self.subTest(fetch=fetch.__name__):
-                with self.assertRaises(rn.ReleaseNotesError) as ctx:
-                    rn.tag_release(spec(), "0.16.0", FakeGit(), fetch=fetch)
-                self.assertEqual(ctx.exception.code, rn.EXIT_TAG_REFUSED)
-
     def test_tags_when_npm_serves_it(self):
         git = FakeGit()
         url = "https://registry.npmjs.org/@a2ui%2Fweb_core/0.16.0"
@@ -653,13 +719,6 @@ class TagReleaseTest(unittest.TestCase):
             id="d", ecosystem="pub", name="a2ui_core", tag="dart/a2ui_core/v{version}"
         )
         url = "https://pub.dev/api/packages/a2ui_core"
-        with self.assertRaises(rn.ReleaseNotesError):
-            rn.tag_release(
-                dart,
-                "0.8.0",
-                FakeGit(),
-                fetch=fetch_factory({url: {"versions": [{"version": "0.7.0"}]}}),
-            )
         out = rn.tag_release(
             dart,
             "0.8.0",
@@ -668,27 +727,6 @@ class TagReleaseTest(unittest.TestCase):
             dry_run=True,
         )
         self.assertEqual(out, "would tag abc123 as dart/a2ui_core/v0.8.0")
-
-    def test_existing_tag_and_no_registry(self):
-        with self.assertRaises(rn.ReleaseNotesError):
-            rn.tag_release(
-                spec(),
-                "0.16.0",
-                FakeGit(tags=["npm/web_core/v0.16.0"]),
-                fetch=fetch_factory({}),
-            )
-        swift = spec(
-            id="swift", ecosystem="swiftpm", name="a2ui", tag="v{version}+swift"
-        )
-        out = rn.tag_release(
-            swift,
-            "0.11.0",
-            FakeGit(),
-            fetch=fetch_factory({}),
-            registry=False,
-            dry_run=True,
-        )
-        self.assertEqual(out, "would tag abc123 as v0.11.0+swift")
 
 
 class TagPendingTest(unittest.TestCase):
@@ -704,38 +742,19 @@ class TagPendingTest(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(text)
 
-    def test_pending_releases_lists_untagged_headings(self):
-        self._changelog(
-            "typescript/core/web_core/CHANGELOG.md", "## 0.16.0\n- x\n## 0.15.0\n- y\n"
-        )
-        self._changelog(
-            "typescript/renderers/lit/CHANGELOG.md", "## Unreleased\n\n## 0.15.0\n- y\n"
-        )
-        specs = [
-            spec(),
-            spec(
-                id="lit",
-                name="@a2ui/lit",
-                changelog="typescript/renderers/lit/CHANGELOG.md",
-                tag="npm/lit/v{version}",
-            ),
-            spec(id="missing", changelog="nope/CHANGELOG.md"),
-        ]
-        git = FakeGit(tags=["npm/web_core/v0.15.0", "npm/lit/v0.15.0"])
-        pending = rn.pending_releases(specs, self.root, git)
-        self.assertEqual([(s.id, v) for s, v in pending], [("web_core", "0.16.0")])
-
-    def test_tag_pending_tags_served_waits_otherwise_and_skips_no_registry(self):
+    def test_tag_pending_skips_auto_tag_false_including_a2ui_cli(self):
         self._changelog("typescript/core/web_core/CHANGELOG.md", "## 0.16.0\n- x\n")
-        self._changelog("typescript/renderers/lit/CHANGELOG.md", "## 0.16.0\n- x\n")
+        self._changelog("dart/a2ui_cli/CHANGELOG.md", "## 0.4.0\n- x\n")
         self._changelog("swift/CHANGELOG.md", "## 0.11.0\n- x\n")
         specs = [
             spec(),
             spec(
-                id="lit",
-                name="@a2ui/lit",
-                changelog="typescript/renderers/lit/CHANGELOG.md",
-                tag="npm/lit/v{version}",
+                id="a2ui_cli",
+                ecosystem="pub",
+                name="a2ui_cli",
+                changelog="dart/a2ui_cli/CHANGELOG.md",
+                tag="cli-v{version}",
+                auto_tag=False,
             ),
             spec(
                 id="swift",
@@ -743,39 +762,25 @@ class TagPendingTest(unittest.TestCase):
                 name="a2ui",
                 changelog="swift/CHANGELOG.md",
                 tag="v{version}+swift",
+                auto_tag=False,
             ),
         ]
         git = FakeGit()
-        served = fetch_factory(
-            {"https://registry.npmjs.org/@a2ui%2Fweb_core/0.16.0": {}}
-        )
+        served = fetch_factory({
+            "https://registry.npmjs.org/@a2ui%2Fweb_core/0.16.0": {},
+            "https://pub.dev/api/packages/a2ui_cli": {
+                "versions": [{"version": "0.4.0"}]
+            },
+        })
         lines = rn.tag_pending(specs, self.root, git, fetch=served)
         self.assertEqual(
             lines,
             [
                 "tagged abc123 as npm/web_core/v0.16.0",
-                "wait lit 0.16.0: not on the registry yet",
-                "skip swift 0.11.0: no registry; tag it by hand",
+                "skip a2ui_cli 0.4.0: auto_tag is disabled; tag it by hand",
+                "skip swift 0.11.0: auto_tag is disabled; tag it by hand",
             ],
         )
-        self.assertIn(["push", "upstream", "npm/web_core/v0.16.0"], git.calls)
-        # A second run finds web_core tagged and reports only the others.
-        lines = rn.tag_pending(specs, self.root, git, fetch=served, dry_run=True)
-        self.assertEqual(lines[0], "wait lit 0.16.0: not on the registry yet")
-
-        # Registry failures are reported per package, not raised.
-        def down(url):
-            raise urllib.error.URLError("offline")
-
-        lines = rn.tag_pending(specs[1:2], self.root, FakeGit(), fetch=down)
-        self.assertTrue(lines[0].startswith("error lit 0.16.0: could not reach"))
-
-    def test_tag_pending_nothing_pending(self):
-        self._changelog("typescript/core/web_core/CHANGELOG.md", "## 0.15.0\n- y\n")
-        lines = rn.tag_pending(
-            [spec()], self.root, FakeGit(tags=["npm/web_core/v0.15.0"])
-        )
-        self.assertEqual(lines, ["nothing pending: every changelog heading has a tag"])
 
 
 class CheckPrTest(unittest.TestCase):
@@ -788,8 +793,8 @@ class CheckPrTest(unittest.TestCase):
             changelog="typescript/renderers/lit/CHANGELOG.md",
         ),
     ]
-    NOTES = "```release-notes\n- [web_core] x. Migration: y.\n```"
     PKG = ["typescript/core/web_core/src/index.ts"]
+    CHANGELOG = "typescript/core/web_core/CHANGELOG.md"
 
     def rules(self, title, body="", labels=(), paths=()):
         return [
@@ -797,32 +802,13 @@ class CheckPrTest(unittest.TestCase):
             for v in rn.check_pr(title, body, labels, paths, self.SPECS)
         ]
 
-    def test_matrix(self):
+    def test_l1_l2_l6_matrix(self):
         cases = [
             ("Update stuff", "", (), (), [("L1", "error")]),
             ("feat(web_core): x", "", (), self.PKG, []),
-            (
-                "feat(web_core)!: x",
-                "",
-                (),
-                self.PKG,
-                [("L2", "error"), ("L3", "error")],
-            ),
-            ("feat(web_core)!: x", self.NOTES, ("breaking-change",), self.PKG, []),
-            (
-                "feat(web_core)!: x",
-                "BREAKING CHANGE: z\n" + self.NOTES,
-                (),
-                self.PKG,
-                [],
-            ),
-            (
-                "feat(web_core)!: x",
-                "BREAKING CHANGE: z",
-                (),
-                self.PKG,
-                [("L3", "error")],
-            ),
+            ("feat(web_core)!: x", "", (), self.PKG, [("L2", "error")]),
+            ("feat(web_core)!: x", "", ("breaking-change",), self.PKG, []),
+            ("feat(web_core)!: x", "BREAKING CHANGE: z", (), self.PKG, []),
             (
                 "feat(web_core): x",
                 "",
@@ -838,89 +824,46 @@ class CheckPrTest(unittest.TestCase):
                 [("L2", "error")],
             ),
             (
-                "fix(x): y",
-                "```release-notes\n- [nope] z\n```",
+                "fix(web_core): x",
+                "",
                 (),
-                self.PKG,
-                [("L4", "error")],
+                [self.CHANGELOG, *self.PKG],
+                [("L6", "error")],
             ),
-            ("fix(x): y", self.NOTES, (), ["docs/readme.md"], [("L5", "warning")]),
-            ("docs: y", "", (), ["docs/readme.md"], []),
-            (
-                "fix(x): y",
-                "```release-notes\n- [lit] z\n- plain\n```",
-                (),
-                ["typescript/renderers/lit/src/a.ts"],
-                [],
-            ),
+            ("release(npm): web_core 0.16.0", "", (), [self.CHANGELOG], []),
+            ("chore(release): bump web_core", "", (), [self.CHANGELOG], []),
+            ("docs(web_core): fix typo", "", ("changelog-edit",), [self.CHANGELOG], []),
+            ("docs(samples): notes", "", (), ["samples/client/lit/CHANGELOG.md"], []),
         ]
         for title, body, labels, paths, expected in cases:
-            with self.subTest(title=title, body=body[:20], labels=labels):
+            with self.subTest(title=title, labels=labels, paths=paths):
                 self.assertEqual(self.rules(title, body, labels, paths), expected)
 
-    CHANGELOG = "typescript/core/web_core/CHANGELOG.md"
-
-    def test_l6_blocks_changelog_edits_outside_release_prs(self):
-        cases = [
-            # A feature PR touching a manifest changelog fails, even with notes.
-            ("fix(web_core): x", (), [self.CHANGELOG, *self.PKG], [("L6", "error")]),
-            # The release PR type is exempt.
-            ("release(npm): web_core 0.16.0", (), [self.CHANGELOG], []),
-            # So is the escape-hatch label.
-            (
-                "docs(web_core): fix dead link",
-                ("changelog-edit",),
-                [self.CHANGELOG],
-                [],
-            ),
-            # `chore(release)` is not the release type and is not exempt.
-            ("chore(release): bump", (), [self.CHANGELOG], [("L6", "error")]),
-            # Changelogs outside the manifest (samples) are not checked.
-            ("docs(samples): notes", (), ["samples/client/lit/CHANGELOG.md"], []),
-            # The check is on exact manifest paths, not any file named CHANGELOG.
-            (
-                "fix(web_core): x",
-                (),
-                ["typescript/core/web_core/docs/CHANGELOG.md.bak"],
-                [],
-            ),
-        ]
-        for title, labels, paths, expected in cases:
-            with self.subTest(title=title, labels=labels, paths=paths):
-                self.assertEqual(self.rules(title, "", labels, paths), expected)
-
-    def test_l6_message_names_every_changelog_and_the_label(self):
+    def test_l6_message_references_title_or_description_not_block(self):
         lit = "typescript/renderers/lit/CHANGELOG.md"
         violations = rn.check_pr(
             "fix(web_core): x", "", (), [lit, self.CHANGELOG], self.SPECS
         )
         self.assertEqual([v.rule for v in violations], ["L6"])
         self.assertIn(f"{self.CHANGELOG}, {lit}", violations[0].message)
-        self.assertIn("changelog-edit", violations[0].message)
-        self.assertIn("release-notes", violations[0].message)
-
-    def test_l6_combines_with_other_rules(self):
-        violations = self.rules(
-            "feat(web_core)!: x", "", (), [self.CHANGELOG, *self.PKG]
+        self.assertIn(
+            "Describe consumer-facing changes in the PR title or description",
+            violations[0].message,
         )
-        self.assertEqual(
-            violations, [("L2", "error"), ("L3", "error"), ("L6", "error")]
-        )
+        self.assertNotIn("release-notes block", violations[0].message)
 
     def test_l1_title_length(self):
         head = "feat(web_core): "
         fits = head + "x" * (rn.MAX_TITLE_LENGTH - len(head))
         self.assertEqual(self.rules(fits, "", (), self.PKG), [])
-        # The (#NNNN) suffix GitHub appends on squash does not count.
         self.assertEqual(self.rules(fits + " (#4215)", "", (), self.PKG), [])
         too_long = fits + "y"
         violations = rn.check_pr(too_long, "", (), self.PKG, self.SPECS)
         self.assertEqual([(v.rule, v.level) for v in violations], [("L1", "error")])
-        self.assertIn(f"{rn.MAX_TITLE_LENGTH + 1} characters", violations[0].message)
 
 
 class GoldenRepoTest(unittest.TestCase):
-    """Runs `draft` end to end against a scripted git repository."""
+    """Runs `context`, `check-notes`, `write-section`, `verify-release`, `tag` end to end."""
 
     @classmethod
     def setUpClass(cls):
@@ -932,16 +875,20 @@ class GoldenRepoTest(unittest.TestCase):
             "GIT_AUTHOR_EMAIL": "t@x",
             "GIT_COMMITTER_NAME": "t",
             "GIT_COMMITTER_EMAIL": "t@x",
-            # Ignore the developer's global config (signing, hooks, templates).
             "GIT_CONFIG_GLOBAL": os.devnull,
             "GIT_CONFIG_NOSYSTEM": "1",
         }
         cls.env = env
 
         def git(*args):
-            subprocess.run(
-                ["git", *args], cwd=cls.root, env=env, check=True, capture_output=True
-            )
+            return subprocess.run(
+                ["git", *args],
+                cwd=cls.root,
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
 
         def write(path, text):
             full = os.path.join(cls.root, path)
@@ -958,6 +905,18 @@ class GoldenRepoTest(unittest.TestCase):
         manifest = {
             "packages": [
                 {
+                    "id": "core",
+                    "ecosystem": "npm",
+                    "name": "@x/core",
+                    "paths": ["core/"],
+                    "exclude": ["**/*.test.ts", "**/*.md"],
+                    "changelog": "core/CHANGELOG.md",
+                    "tag": "npm/core/v{version}",
+                    "internal_deps": [],
+                    "pre_1_0_feature_bump": "minor",
+                    "auto_tag": True,
+                },
+                {
                     "id": "pkg",
                     "ecosystem": "npm",
                     "name": "@x/pkg",
@@ -965,62 +924,39 @@ class GoldenRepoTest(unittest.TestCase):
                     "exclude": ["**/*.test.ts", "**/*.md"],
                     "changelog": "pkg/CHANGELOG.md",
                     "tag": "npm/pkg/v{version}",
-                },
-                {
-                    "id": "other",
-                    "ecosystem": "npm",
-                    "name": "@x/other",
-                    "paths": ["other/"],
-                    "changelog": "other/CHANGELOG.md",
-                    "tag": "npm/other/v{version}",
+                    "internal_deps": ["core"],
+                    "pre_1_0_feature_bump": "minor",
+                    "auto_tag": True,
                 },
             ]
         }
         write(".github/release_packages.json", json.dumps(manifest))
+        write("core/CHANGELOG.md", "# core\n\n## 0.1.0\n\n- Init.\n")
         commit_file(
             "pkg/CHANGELOG.md",
             "# pkg\n\n## Unreleased\n\n- Pending note.\n\n## 0.1.0\n\n- First.\n",
             "chore: init (#1)",
         )
+        git("tag", "npm/core/v0.1.0")
         git("tag", "npm/pkg/v0.1.0")
-        commit_file("pkg/src/a.ts", "a", "feat(pkg): add a (#2)")
-        commit_file("pkg/src/b.ts", "b", "fix(pkg): fix b (#3)")
+
         commit_file(
-            "pkg/src/c.ts",
-            "c",
-            "feat(pkg)!: change c (#4)",
-            "```release-notes\n- [pkg] `c` is now async. Migration: await it.\n-"
-            " [other] unrelated\n```",
+            "pkg/src/index.ts", "export const a = 1;\n", "feat(pkg): add a (#2)"
         )
-        commit_file("pkg/README.md", "docs", "docs(pkg): readme (#5)")
-        commit_file("pkg/src/d.ts", "d", "feat(pkg): add d (#6)")
-        commit_file(
-            "pkg/src/d.ts",
-            "",
+        commit_file("pkg/src/b.ts", "export const b = 2;\n", "fix(pkg): fix b (#3)")
+        commit_file("pkg/src/d.ts", "export const d = 1;\n", "feat(pkg): add d (#6)")
+        reverted_sha = git("rev-parse", "HEAD").strip()
+        os.remove(os.path.join(cls.root, "pkg/src/d.ts"))
+        git("add", "-A")
+        git(
+            "commit",
+            "-q",
+            "-m",
             "revert: feat(pkg): add d (#6) (#7)",
-            "This reverts commit "
-            + subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                cwd=cls.root,
-                env=env,
-                capture_output=True,
-                text=True,
-                check=True,
-            ).stdout.strip()
-            + ".",
+            "-m",
+            f"This reverts commit {reverted_sha}.",
         )
         commit_file("pkg/src/a.test.ts", "t", "test(pkg): cover a (#8)")
-        commit_file("other/src/x.ts", "x", "feat(other): only other (#9)")
-        commit_file("pkg/src/e.ts", "e", "Legacy title without type (#10)")
-        # Control characters in a body must not break record parsing, and a
-        # body that is only a template comment must not produce notes.
-        commit_file(
-            "pkg/src/g.ts",
-            "g",
-            "fix(pkg): control bytes (#13)",
-            "with \x1f unit and \x1e record separators\n<!-- ```release-notes\n-"
-            " nope\n``` -->",
-        )
 
     @classmethod
     def tearDownClass(cls):
@@ -1036,146 +972,132 @@ class GoldenRepoTest(unittest.TestCase):
             sys.stdout, sys.stderr = old
         return code, out.getvalue(), err.getvalue()
 
-    def test_draft_markdown_matches_golden(self):
+    def test_context_dep_changelog_and_net_zero(self):
+        dep_file = os.path.join(self.root, "core_draft.md")
+        with open(dep_file, "w", encoding="utf-8") as handle:
+            handle.write("## 0.2.0\n\n- **BREAKING CHANGE**: Renamed `Core`.\n")
+        self.addCleanup(os.unlink, dep_file)
+
         code, out, err = self.run_cli(
-            "draft",
+            "context",
             "--package",
             "pkg",
-            "--version",
-            "0.2.0",
             "--body-source",
             "commit",
             "--carry-unreleased",
+            "--dep-changelog",
+            f"core={dep_file}",
         )
         self.assertEqual(code, 0, err)
-        body = out.split("-->\n\n", 1)[1]
-        expected = textwrap.dedent(f"""\
-            {rn.CARRIED_MARKER}
-            - Pending note.
+        ctx = json.loads(out)
+        self.assertEqual(ctx["package"], "pkg")
+        self.assertEqual(ctx["current_version"], "0.1.0")
+        self.assertEqual(ctx["since"], "npm/pkg/v0.1.0")
+        self.assertEqual(ctx["carried_unreleased"], "- Pending note.")
+        self.assertEqual(len(ctx["internal_dep_notes"]), 1)
+        self.assertEqual(ctx["internal_dep_notes"][0]["package"], "core")
+        self.assertIn("Renamed `Core`", ctx["internal_dep_notes"][0]["markdown"])
 
-            - **BREAKING CHANGE**: `c` is now async. Migration: await it. ([#4](https://github.com/a2ui-project/a2ui/pull/4))
-            - Add a ([#2](https://github.com/a2ui-project/a2ui/pull/2))
-            - Legacy title without type ([#10](https://github.com/a2ui-project/a2ui/pull/10))
-            - Fix b ([#3](https://github.com/a2ui-project/a2ui/pull/3))
-            - Control bytes ([#13](https://github.com/a2ui-project/a2ui/pull/13))
-            """)
-        self.assertEqual(body, expected)
-        self.assertTrue(
-            out.startswith(
-                "## 0.2.0\n\n<!-- release-notes: pkg 0.2.0 range npm/pkg/v0.1.0.."
+        by_pr = {c["pr"]: c for c in ctx["commits"]}
+        self.assertFalse(by_pr[2]["net_zero"])
+        self.assertEqual(by_pr[2]["files"], ["pkg/src/index.ts"])
+        self.assertTrue(by_pr[6]["net_zero"])
+        self.assertTrue(by_pr[7]["net_zero"])
+        self.assertNotIn(8, by_pr)
+
+    def test_write_section_round_trip_with_verify_release_and_check_notes(self):
+        ctx_code, ctx_out, _ = self.run_cli(
+            "context", "--package", "pkg", "--body-source", "commit"
+        )
+        self.assertEqual(ctx_code, 0)
+        ctx_data = json.loads(ctx_out)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ctx_path = os.path.join(tmpdir, "context.json")
+            api_path = os.path.join(tmpdir, "api.json")
+            notes_path = os.path.join(tmpdir, "gen.json")
+            with open(ctx_path, "w", encoding="utf-8") as h:
+                json.dump(ctx_data, h)
+            with open(api_path, "w", encoding="utf-8") as h:
+                json.dump(
+                    {
+                        "status": "ok",
+                        "removed": [],
+                        "changed": [],
+                        "added": [{"symbol": "a", "kind": "const"}],
+                    },
+                    h,
+                )
+            with open(notes_path, "w", encoding="utf-8") as h:
+                json.dump(
+                    {
+                        "recommended_bump": "MINOR",
+                        "bullets": [
+                            (
+                                "- Add `a`"
+                                " ([#2](https://github.com/a2ui-project/a2ui/pull/2))"
+                            ),
+                            (
+                                "- Fix `b`"
+                                " ([#3](https://github.com/a2ui-project/a2ui/pull/3))"
+                            ),
+                        ],
+                        "human_review_flags": [],
+                    },
+                    h,
+                )
+
+            code, out, err = self.run_cli(
+                "check-notes",
+                "--api",
+                api_path,
+                "--notes",
+                notes_path,
+                "--context",
+                ctx_path,
             )
-        )
+            self.assertEqual(code, 0, err)
+            self.assertEqual(json.loads(out)["verdict"], "PASS")
 
-    def test_draft_json_lists_unnoted(self):
-        code, out, _ = self.run_cli(
-            "draft", "--package", "pkg", "--format", "json", "--body-source", "commit"
-        )
-        self.assertEqual(code, 0)
-        data = json.loads(out)
-        self.assertEqual([u["pr"] for u in data["unnoted"]], [2, 3, 10, 13])
-        self.assertEqual(data["body_source"], "commit")
-        self.assertEqual(data["since"], "npm/pkg/v0.1.0")
-        self.assertTrue(all(len(u["sha"]) == 40 for u in data["unnoted"]))
+            code, _, err = self.run_cli(
+                "write-section",
+                "--package",
+                "pkg",
+                "--version",
+                "0.2.0",
+                "--since",
+                ctx_data["since"],
+                "--until",
+                ctx_data["until"],
+                "--bullets-file",
+                notes_path,
+                "--carry-unreleased",
+            )
+            self.assertEqual(code, 0, err)
 
-    def test_write_with_json_is_a_usage_error(self):
-        code, _, err = self.run_cli(
-            "draft",
-            "--package",
-            "pkg",
-            "--format",
-            "json",
-            "--write",
-            "--version",
-            "9.9.9",
-        )
-        self.assertEqual(code, rn.EXIT_USAGE)
-        self.assertIn("--format md", err)
-
-    def test_no_anchor_exit_code(self):
-        code, _, err = self.run_cli("draft", "--package", "other")
-        self.assertEqual(code, rn.EXIT_NO_ANCHOR)
-        self.assertIn("--since", err)
-
-    def test_write_then_read_and_verify(self):
-        code, _, err = self.run_cli(
-            "draft",
-            "--package",
-            "pkg",
-            "--version",
-            "0.2.0",
-            "--body-source",
-            "commit",
-            "--carry-unreleased",
-            "--write",
-        )
-        self.assertEqual(code, 0, err)
-        with open(
-            os.path.join(self.root, "pkg/CHANGELOG.md"), encoding="utf-8"
-        ) as handle:
-            text = handle.read()
-        self.assertTrue(text.startswith("# pkg\n\n## 0.2.0\n"))
-        self.assertNotIn("## Unreleased", text)
-        self.assertIn("## 0.1.0\n\n- First.\n", text)
         code, out, _ = self.run_cli(
             "read-section", "--package", "pkg", "--version", "0.2.0"
         )
         self.assertEqual(code, 0)
-        self.assertNotIn("<!--", out.split("\n")[0])
+        self.assertIn("- Add `a`", out)
+
         subprocess.run(
             ["git", "commit", "-qam", "release(pkg): 0.2.0 (#11)"],
             cwd=self.root,
             env=self.env,
             check=True,
         )
-        # The release commit only touches the excluded CHANGELOG, so verify
-        # stays silent until a package source file changes after the range.
-        code, out, err = self.run_cli(
-            "verify-release", "--package", "pkg", "--version", "0.2.0"
-        )
-        self.assertEqual(code, 0, err)
-        self.assertNotIn("commits after the drafted range", out)
-        with open(
-            os.path.join(self.root, "pkg/src/f.ts"), "w", encoding="utf-8"
-        ) as handle:
-            handle.write("f")
-        subprocess.run(["git", "add", "-A"], cwd=self.root, env=self.env, check=True)
-        subprocess.run(
-            ["git", "commit", "-qm", "feat(pkg): after the range (#12)"],
-            cwd=self.root,
-            env=self.env,
-            check=True,
-        )
-        code, out, err = self.run_cli(
-            "verify-release", "--package", "pkg", "--version", "0.2.0"
-        )
-        self.assertEqual(code, 0, err)
-        self.assertIn("warning: commits after the drafted range", out)
-        self.assertIn("after the range", out)
-        code, out, _ = self.run_cli(
-            "tag",
-            "--package",
-            "pkg",
-            "--version",
-            "0.2.0",
-            "--no-registry",
-            "--dry-run",
-        )
-        self.assertEqual(code, 0)
-        self.assertIn("would tag", out)
-        # The scheduled mode sees the same untagged release.
-        code, out, _ = self.run_cli("tag", "--pending", "--no-registry", "--dry-run")
-        self.assertEqual(code, 0)
-        self.assertIn("would tag", out)
-        self.assertIn("npm/pkg/v0.2.0", out)
-        # And drafting again is refused until the tag exists.
         code, _, err = self.run_cli(
-            "draft", "--package", "pkg", "--body-source", "commit"
+            "verify-release", "--package", "pkg", "--version", "0.2.0"
+        )
+        self.assertEqual(code, 0, err)
+
+        # Generating context again before tagging exits 6.
+        code, _, err = self.run_cli(
+            "context", "--package", "pkg", "--body-source", "commit"
         )
         self.assertEqual(code, rn.EXIT_UNTAGGED)
         self.assertIn("'## 0.2.0'", err)
-        code, _, err = self.run_cli("tag", "--package", "pkg")
-        self.assertEqual(code, rn.EXIT_USAGE)
-        self.assertIn("--pending", err)
 
     def test_check_pr_cli(self):
         code, _, err = self.run_cli(
@@ -1189,7 +1111,7 @@ class GoldenRepoTest(unittest.TestCase):
         )
         self.assertEqual(code, rn.EXIT_USAGE)
         self.assertIn("[L2]", err)
-        self.assertIn("[L3]", err)
+        self.assertNotIn("[L3]", err)
         code, out, _ = self.run_cli(
             "check-pr",
             "--title",

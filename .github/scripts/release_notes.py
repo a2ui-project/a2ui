@@ -12,34 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Release notes drafted from pull request history, per published package.
+"""Release notes context, validation, writing, and tagging per published package.
 
-Feature pull requests do not edit CHANGELOG.md. The pull request title (a
-conventional commit title, `!` for a breaking change) and an optional fenced
-`release-notes` block in its description are the source. A bullet in that
-block may start with `[id]` or `[id1, id2]` to target specific packages
-(Markdown-escaped underscores and backticked ids are accepted); a bullet
-without a scope applies to every package the pull request touched. At release
-time this script lists the squash commits that touched a package since its
-last release tag, drafts the `## X.Y.Z` section from them, and checks the
-result before publishing.
+Feature pull requests do not edit CHANGELOG.md. At release time this script
+builds a ground-truth bundle (`context`) from the `<last_tag>..HEAD` net diff,
+commit history, PR descriptions, and internal dependency changelogs. It also
+runs deterministic checks (`check-notes`) on generated bullets, writes the
+`## X.Y.Z` section (`write-section`), lints PRs (`check-pr`), verifies release
+changelogs (`verify-release`), reads sections (`read-section`), and creates
+post-registry tags (`tag`).
 
 Subcommands:
 
-  draft           Draft a package's next CHANGELOG section as Markdown or JSON.
-  check-pr        Lint a pull request's title, body, labels, and paths (L1 to L6).
+  context         Build the JSON ground-truth bundle for a package release.
+  check-notes     Deterministically validate generated bullets and SemVer bump.
+  write-section   Render and insert a `## X.Y.Z` section into CHANGELOG.md.
+  check-pr        Lint a pull request's title, labels, and paths (L1, L2, L6).
   read-section    Print the body of a `## X.Y.Z` section.
   verify-release  Check a CHANGELOG before publishing a version.
   tag             Create the release tag once the public registry has it, or
                   `tag --pending` to tag every published release that still
                   lacks one (meant for a scheduled workflow).
 
-Packages, their directories, changelogs, and tag patterns live in
+Packages, their directories, dependencies, changelogs, and tag patterns live in
 .github/release_packages.json. Runs on the standard library only, so it can be
 invoked with a bare `python3`.
 
 Tags are read from the local checkout. In a workflow, check out with
-`fetch-depth: 0` and `fetch-tags: true`; otherwise `draft` falls back to the
+`fetch-depth: 0` and `fetch-tags: true`; otherwise `context` falls back to the
 manifest's `bootstrap_since` and `verify-release` cannot see existing tags.
 """
 
@@ -47,15 +47,17 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import datetime
 import json
 import os
+from pathlib import Path
 import re
+import sqlite3
 import subprocess
 import sys
+import time
+from typing import Callable, Iterable, Sequence
 import urllib.error
 import urllib.request
-from typing import Callable, Iterable, Sequence
 
 MANIFEST_PATH = ".github/release_packages.json"
 REPO = "a2ui-project/a2ui"
@@ -69,13 +71,19 @@ EXIT_NO_SECTION = 3
 EXIT_TAG_REFUSED = 4
 EXIT_MANIFEST = 5
 EXIT_UNTAGGED = 6
+EXIT_CHECK_FAILED = 7
 
-# Longest title `check-pr` accepts, measured without the `(#NNNN)` suffix. The
-# title becomes the squash commit subject and, without a release-notes block,
-# the changelog bullet; nothing merged so far has exceeded this length.
+# Longest title `check-pr` accepts, measured without the `(#NNNN)` suffix.
 MAX_TITLE_LENGTH = 120
+DEFAULT_MAX_DIFF_BYTES = 120_000
+DEFAULT_BODY_BUDGET_SECONDS = 90.0
+GRAPHQL_MIN_REMAINING = 100
+GRAPHQL_DEFAULT_CHUNK = 50
+NETWORK_TIMEOUT_SECONDS = 60
 
 ECOSYSTEMS = ("python", "npm", "pub", "swiftpm", "github")
+PRE_1_0_BUMPS = ("minor", "patch")
+VALID_BUMPS = ("MAJOR", "MINOR", "PATCH", "NONE")
 REGISTRIES = {
     "npm": "https://registry.npmjs.org/{name}/{version}",
     "pub": "https://pub.dev/api/packages/{name}",
@@ -97,15 +105,10 @@ ALLOWED_TYPES = (
     "release",
     "revert",
 )
-# Commit types that only reach the changelog with a release-notes bullet or `!`.
-SILENT_TYPES = frozenset({"docs", "test", "ci", "chore", "build", "style", "release"})
-GROUPS = ("Breaking", "Added", "Changed", "Fixed")
-GROUP_BY_TYPE = {"feat": "Added", "fix": "Fixed"}
 
 BREAKING_LABEL = "breaking-change"
 # Lets a non-release PR fix an already released CHANGELOG section (L6).
 CHANGELOG_EDIT_LABEL = "changelog-edit"
-# Title type of the pull request that cuts a release and writes the section.
 RELEASE_TYPE = "release"
 BREAKING_FOOTERS = ("BREAKING CHANGE:", "BREAKING-CHANGE:")
 BREAKING_FOOTER = BREAKING_FOOTERS[0]
@@ -126,17 +129,11 @@ HTML_COMMENT_SPAN_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 # SwiftPM reads every tag shaped like a version, with or without a leading `v`
 # or trailing build metadata, as a version of the Swift package.
 SWIFTPM_TAG_RE = re.compile(r"^v?\d+\.\d+(\.\d+)?(\+.*)?$")
-FENCE_OPEN_RE = re.compile(r"^```\s*release-notes\s*$")
-FENCE_CLOSE_RE = re.compile(r"^```\s*$")
-# `[web_core] text`, but not a Markdown link such as `[Foo](https://...)`.
-# A scope prefix is `[ids] text` where `ids` is one package id or a
-# comma-separated list. A Markdown link (`[Foo](https://...)`) is not a scope.
-SCOPE_PREFIX_RE = re.compile(r"^\[(?P<scopes>[^\]\n]*)\](?!\()\s*(?P<text>.*)$")
-SCOPE_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 REVERT_SHA_RE = re.compile(r"This reverts commit ([0-9a-f]{7,40})")
 REVERT_PR_RE = re.compile(r"\(#(\d+)\)")
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
-NETWORK_TIMEOUT_SECONDS = 60
+DIFF_HEADER_RE = re.compile(r"^diff --git a/(.+?) b/(.+)$")
+ADDITION_BULLET_RE = re.compile(r"^-\s+(?:Adds?|Introduces?|Supports?|Exposes?|New)\b")
 
 
 class ManifestError(Exception):
@@ -164,8 +161,10 @@ class PackageSpec:
     tag: str
     bootstrap_since: str | None = None
     bootstrap_version: str | None = None
-    heading_date: bool = False
     breaking_prefix: str = "**BREAKING CHANGE**: "
+    internal_deps: tuple[str, ...] = ()
+    pre_1_0_feature_bump: str = "minor"
+    auto_tag: bool = True
 
     def tag_for(self, version: str) -> str:
         return self.tag.replace("{version}", version)
@@ -195,12 +194,7 @@ def parse_version(text: str) -> tuple[int, int, int] | None:
 
 
 def _check_exclude(package_id: str, pattern: str) -> None:
-    """Rejects excludes that git would never match.
-
-    A pathspec without `:(glob)` magic is matched against whole paths, so a
-    wildcard pattern that ends in `/` (such as `**/Tests/`) matches no file.
-    Write `**/Tests/**` instead. Literal directory prefixes are fine.
-    """
+    """Rejects excludes that git would never match."""
     if any(char in pattern for char in "*?[") and pattern.endswith("/"):
         raise ManifestError(
             f"{package_id}: exclude {pattern!r} ends in '/' but contains a wildcard,"
@@ -223,6 +217,11 @@ def _manifest_entry(raw: dict) -> PackageSpec:
             f"{raw['id']}: tag pattern {raw['tag']!r} would be read by SwiftPM as a"
             " Swift package version; prefix it with the ecosystem"
         )
+    feature_bump = raw.get("pre_1_0_feature_bump", "minor")
+    if feature_bump not in PRE_1_0_BUMPS:
+        raise ManifestError(
+            f"{raw['id']}: invalid pre_1_0_feature_bump {feature_bump!r}"
+        )
     for pattern in raw.get("exclude", ()):
         _check_exclude(raw["id"], pattern)
     return PackageSpec(
@@ -235,9 +234,53 @@ def _manifest_entry(raw: dict) -> PackageSpec:
         tag=raw["tag"],
         bootstrap_since=raw.get("bootstrap_since"),
         bootstrap_version=raw.get("bootstrap_version"),
-        heading_date=bool(raw.get("heading_date", False)),
         breaking_prefix=raw.get("breaking_prefix", "**BREAKING CHANGE**: "),
+        internal_deps=tuple(raw.get("internal_deps", ())),
+        pre_1_0_feature_bump=feature_bump,
+        auto_tag=bool(raw.get("auto_tag", True)),
     )
+
+
+def topological_order(specs: Sequence[PackageSpec]) -> list[PackageSpec]:
+    """Returns specs in dependency-first order; raises ManifestError on cycles."""
+    by_id = {spec.id: spec for spec in specs}
+    visiting: set[str] = set()
+    visited: set[str] = set()
+    ordered: list[PackageSpec] = []
+
+    def visit(pkg_id: str) -> None:
+        if pkg_id in visited:
+            return
+        if pkg_id in visiting:
+            raise ManifestError(f"cycle detected in internal_deps involving {pkg_id!r}")
+        visiting.add(pkg_id)
+        for dep in by_id[pkg_id].internal_deps:
+            visit(dep)
+        visiting.remove(pkg_id)
+        visited.add(pkg_id)
+        ordered.append(by_id[pkg_id])
+
+    for spec in specs:
+        visit(spec.id)
+    return ordered
+
+
+def _validate_internal_deps(specs: Sequence[PackageSpec]) -> None:
+    by_id = {spec.id: spec for spec in specs}
+    for spec in specs:
+        for dep_id in spec.internal_deps:
+            if dep_id == spec.id:
+                raise ManifestError(f"{spec.id}: internal_deps cannot reference itself")
+            if dep_id not in by_id:
+                raise ManifestError(
+                    f"{spec.id}: unknown internal_dep {dep_id!r} in manifest"
+                )
+            if by_id[dep_id].ecosystem != spec.ecosystem:
+                raise ManifestError(
+                    f"{spec.id}: internal_dep {dep_id!r} is in ecosystem"
+                    f" {by_id[dep_id].ecosystem!r}, expected {spec.ecosystem!r}"
+                )
+    topological_order(specs)
 
 
 def load_manifest(path: str) -> list[PackageSpec]:
@@ -250,6 +293,7 @@ def load_manifest(path: str) -> list[PackageSpec]:
         if spec.id in seen:
             raise ManifestError(f"duplicate package id {spec.id!r}")
         seen.add(spec.id)
+    _validate_internal_deps(specs)
     return specs
 
 
@@ -308,85 +352,9 @@ def parse_title(title: str) -> ParsedTitle | None:
     )
 
 
-@dataclasses.dataclass(frozen=True)
-class Bullet:
-    scope: str | None
-    text: str
-
-
-def _block_lines(body: str) -> list[str] | None:
-    """Returns the lines of the first `release-notes` fence, or None.
-
-    HTML comments are removed first, so an example block left inside a PR
-    template comment is not mistaken for real notes.
-    """
-    lines = strip_html_comments(body).splitlines()
-    for index, line in enumerate(lines):
-        if FENCE_OPEN_RE.match(line.strip()):
-            block: list[str] = []
-            for inner in lines[index + 1 :]:
-                if FENCE_CLOSE_RE.match(inner.strip()):
-                    return block
-                block.append(inner)
-            return block
-    return None
-
-
 def strip_html_comments(text: str) -> str:
     """Removes `<!-- ... -->` spans, including multi-line ones."""
     return HTML_COMMENT_SPAN_RE.sub("", text)
-
-
-def has_release_notes_block(body: str) -> bool:
-    return _block_lines(body) is not None
-
-
-def parse_scopes(raw: str) -> list[str] | None:
-    """Parses the inside of a `[...]` prefix into package ids.
-
-    Accepts `web_core`, `web_core, lit`, Markdown-escaped `web\\_core`, and
-    ids wrapped in backticks. Returns None when the brackets hold anything
-    that is not an id list, so the bullet is treated as plain text.
-    """
-    ids: list[str] = []
-    for part in raw.split(","):
-        candidate = part.strip().strip("`").replace("\\", "").strip()
-        if not candidate:
-            continue
-        if not SCOPE_ID_RE.match(candidate):
-            return None
-        ids.append(candidate)
-    return ids or None
-
-
-def _bullets_from(raw: str) -> list[Bullet]:
-    """Expands one raw bullet into one Bullet per scope (or one unscoped)."""
-    match = SCOPE_PREFIX_RE.match(raw)
-    scopes = parse_scopes(match.group("scopes")) if match else None
-    if match and scopes:
-        text = match.group("text").strip()
-        return [Bullet(scope, text) for scope in scopes]
-    return [Bullet(None, raw)]
-
-
-def release_notes_block(body: str) -> list[Bullet]:
-    """Parses the bullets of the first `release-notes` fence in a PR body."""
-    lines = _block_lines(body)
-    if lines is None:
-        return []
-    raw_bullets: list[str] = []
-    for line in lines:
-        stripped = line.strip()
-        if not stripped:
-            continue
-        if stripped[:2] in ("- ", "* "):
-            raw_bullets.append(stripped[2:].strip())
-        elif raw_bullets:
-            raw_bullets[-1] = f"{raw_bullets[-1]} {stripped}"
-        else:
-            raw_bullets.append(stripped)
-    bullets = [bullet for raw in raw_bullets for bullet in _bullets_from(raw)]
-    return [bullet for bullet in bullets if bullet.text]
 
 
 def has_breaking_footer(body: str) -> bool:
@@ -412,33 +380,57 @@ def latest_tag(spec: PackageSpec, git: Git) -> str | None:
     return best[1] if best else None
 
 
+def _validate_ref(ref: str, label: str) -> str:
+    if not ref or ref.startswith("-"):
+        raise ReleaseNotesError(f"invalid {label} ref {ref!r}", EXIT_USAGE)
+    return ref
+
+
+def _check_bootstrap_untagged(spec: PackageSpec, newest: str, git: Git) -> None:
+    try:
+        commit = heading_commit(spec, newest, git)
+    except ReleaseNotesError:
+        return
+    if commit and not _is_ancestor(git, commit, spec.bootstrap_since or ""):
+        raise ReleaseNotesError(
+            f"{spec.id}: {spec.changelog} has '## {newest}' added after"
+            f" bootstrap_since ({(spec.bootstrap_since or '')[:12]}) with no"
+            " tag. Action needed: run 'release_notes.py tag --package"
+            f" {spec.id} --version {newest}' before generating the next"
+            " release.",
+            EXIT_UNTAGGED,
+        )
+
+
 def resolve_anchor(
     spec: PackageSpec,
     since: str | None,
     git: Git,
     changelog: str | None = None,
 ) -> str:
-    """Picks the commit the draft starts after: --since, the tag, or bootstrap.
+    """Picks the commit the range starts after: --since, the tag, or bootstrap.
 
-    When the anchor is a tag and the changelog already has a newer `## X.Y.Z`
-    heading, that release was never tagged; drafting from the old tag would
+    When the changelog already has a newer `## X.Y.Z` heading than the anchor,
+    that release was never tagged; generating notes from the old anchor would
     repeat its entries, so this refuses until the tag exists.
     """
     if since:
-        return since
+        return _validate_ref(since, "--since")
     tag = latest_tag(spec, git)
+    newest = newest_heading(changelog) if changelog else None
     if tag:
-        newest = newest_heading(changelog) if changelog else None
         if newest and parse_version(newest) > spec.version_of_tag(tag):
             raise ReleaseNotesError(
                 f"{spec.id}: {spec.changelog} has '## {newest}' but the newest tag is"
                 f" {tag}. Action needed: run 'release_notes.py tag --package"
                 f" {spec.id} --version {newest}' (or wait for the scheduled tag"
-                " run) before drafting the next release.",
+                " run) before generating the next release.",
                 EXIT_UNTAGGED,
             )
         return tag
     if spec.bootstrap_since:
+        if newest:
+            _check_bootstrap_untagged(spec, newest, git)
         return spec.bootstrap_since
     raise ReleaseNotesError(
         f"{spec.id}: no release tag matching {spec.tag!r} and no bootstrap_since in"
@@ -452,6 +444,7 @@ class Commit:
     sha: str
     title: str
     body: str
+    files: tuple[str, ...] = ()
 
     @property
     def parsed(self) -> ParsedTitle | None:
@@ -470,14 +463,38 @@ def pathspecs(spec: PackageSpec) -> list[str]:
     return [*spec.paths, *(f":(exclude){pattern}" for pattern in spec.exclude)]
 
 
+def _commit_files_map(
+    spec: PackageSpec, since: str, until: str, git: Git
+) -> dict[str, tuple[str, ...]]:
+    """Maps commit sha to the sorted package-scoped files touched by that commit."""
+    output = git.run([
+        "log",
+        "--first-parent",
+        "--reverse",
+        "--name-only",
+        "--format=COMMIT:%H",
+        f"{since}..{until}",
+        "--",
+        *pathspecs(spec),
+    ])
+    files_by_sha: dict[str, list[str]] = {}
+    current_sha: str | None = None
+    for line in output.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("COMMIT:") and SHA_RE.match(stripped[7:]):
+            current_sha = stripped[7:]
+            files_by_sha.setdefault(current_sha, [])
+        elif current_sha is not None:
+            files_by_sha[current_sha].append(stripped)
+    return {sha: tuple(sorted(set(paths))) for sha, paths in files_by_sha.items()}
+
+
 def commits_in_range(
     spec: PackageSpec, since: str, until: str, git: Git
 ) -> list[Commit]:
-    """Lists first-parent commits in since..until that touch the package, oldest first.
-
-    Fields and records are NUL-separated (`-z`), which no commit message can
-    contain, so bodies with control characters cannot corrupt the parse.
-    """
+    """Lists first-parent commits in since..until touching the package, oldest first."""
     output = git.run([
         "log",
         "-z",
@@ -495,92 +512,16 @@ def commits_in_range(
         raise ReleaseNotesError(
             f"unexpected git log output for {spec.id}: {len(fields)} fields", EXIT_USAGE
         )
+    files_by_sha = _commit_files_map(spec, since, until, git)
     commits = []
     for sha, title, body in zip(fields[0::3], fields[1::3], fields[2::3]):
         sha = sha.strip()
         if not SHA_RE.match(sha):
             raise ReleaseNotesError(f"unexpected git log record {sha!r}", EXIT_USAGE)
-        commits.append(Commit(sha, title.strip(), body.strip()))
-    return commits
-
-
-def fetch_pr_body(pr: int) -> str | None:
-    """Reads a PR body through `gh api`; None when gh or the token is missing."""
-    if not (os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")):
-        return None
-    try:
-        result = subprocess.run(
-            ["gh", "api", f"repos/{REPO}/pulls/{pr}", "--jq", ".body"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=NETWORK_TIMEOUT_SECONDS,
+        commits.append(
+            Commit(sha, title.strip(), body.strip(), files_by_sha.get(sha, ()))
         )
-    except (
-        subprocess.CalledProcessError,
-        subprocess.TimeoutExpired,
-        FileNotFoundError,
-        OSError,
-    ):
-        return None
-    return result.stdout
-
-
-BodyLookup = Callable[[int], "str | None"]
-
-
-# --- Drafting ----------------------------------------------------------------
-
-
-@dataclasses.dataclass(frozen=True)
-class Entry:
-    group: str
-    text: str
-    pr: int | None
-    sha: str
-    scoped: bool
-
-
-@dataclasses.dataclass
-class Draft:
-    package: str
-    since: str
-    until: str
-    body_source: str
-    entries: list[Entry] = dataclasses.field(default_factory=list)
-    unnoted: list[dict] = dataclasses.field(default_factory=list)
-    carried_unreleased: str = ""
-
-    def to_json(self) -> dict:
-        return {
-            "package": self.package,
-            "since": self.since,
-            "until": self.until,
-            "body_source": self.body_source,
-            "entries": [dataclasses.asdict(entry) for entry in self.entries],
-            "unnoted": self.unnoted,
-            "carried_unreleased": self.carried_unreleased,
-        }
-
-
-def _subject_text(parsed: ParsedTitle | None, title: str) -> str:
-    text = parsed.subject if parsed else re.sub(r"\s+\(#\d+\)\s*$", "", title)
-    if parsed and parsed.type == "revert" and not text.lower().startswith("revert"):
-        text = f"Revert: {text}"
-    return text[:1].upper() + text[1:] if text else text
-
-
-def _group_for(parsed: ParsedTitle | None, breaking: bool) -> str:
-    if breaking:
-        return "Breaking"
-    if parsed is None:
-        return "Changed"
-    return GROUP_BY_TYPE.get(parsed.type, "Changed")
-
-
-def _bullets_for(spec: PackageSpec, bullets: Sequence[Bullet]) -> list[str]:
-    """Bullets scoped to this package plus the unscoped ones, in body order."""
-    return [b.text for b in bullets if b.scope is None or b.scope == spec.id]
+    return commits
 
 
 def _revert_target(
@@ -602,15 +543,13 @@ def _revert_target(
 
 def _is_revert(commit: Commit) -> bool:
     parsed = commit.parsed
-    return bool(parsed and parsed.type == "revert")
+    return bool(
+        (parsed and parsed.type == "revert") or commit.title.startswith('Revert "')
+    )
 
 
-def _fold_reverts(commits: list[Commit]) -> list[Commit]:
-    """Drops a revert and its target when both are inside the range.
-
-    Reverts are resolved newest first, so a revert of a revert cancels the
-    inner revert and the original change stays visible.
-    """
+def _reverted_shas(commits: Sequence[Commit]) -> set[str]:
+    """Returns shas of revert/target pairs cancelled inside the range."""
     by_sha = {commit.sha: commit for commit in commits}
     by_pr = {commit.pr: commit for commit in commits if commit.pr}
     dropped: set[str] = set()
@@ -620,86 +559,825 @@ def _fold_reverts(commits: list[Commit]) -> list[Commit]:
         target = _revert_target(commit, by_sha, by_pr)
         if target is not None and target.sha not in dropped:
             dropped.update({commit.sha, target.sha})
-    return [commit for commit in commits if commit.sha not in dropped]
+    return dropped
 
 
-def _entry_for(
-    spec: PackageSpec, commit: Commit, body_lookup: BodyLookup | None
-) -> tuple[str, list[str], bool, bool] | None:
-    """Returns (group, texts, breaking, noted) for a commit, or None to skip it."""
-    parsed = commit.parsed
-    body = commit.body
-    if body_lookup and commit.pr:
-        body = body_lookup(commit.pr) or body
-    breaking = bool(parsed and parsed.breaking) or has_breaking_footer(body)
-    bullets = _bullets_for(spec, release_notes_block(body))
-    if not bullets and not breaking and parsed and parsed.type in SILENT_TYPES:
+# --- Three-tier PR body fetching ---------------------------------------------
+
+
+def _default_packrat_db() -> Path:
+    xdg = os.environ.get("XDG_DATA_HOME")
+    base = Path(xdg) if xdg else Path.home() / ".local" / "share"
+    return base / "packrat" / "repos.sqlite"
+
+
+def _fetch_packrat_bodies(
+    repo: str, pr_numbers: Sequence[int], db_path: Path | None = None
+) -> dict[int, str]:
+    """Reads PR bodies from local packrat SQLite if available and tracking repo."""
+    if not pr_numbers:
+        return {}
+    path = db_path or _default_packrat_db()
+    if not path.exists():
+        return {}
+    try:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2.0)
+    except sqlite3.Error:
+        return {}
+    try:
+        placeholders = ",".join("?" for _ in pr_numbers)
+        query = (
+            "SELECT p.number, p.body FROM pull_requests p "
+            "JOIN repos r ON r.repo_id = p.repo_id "
+            f"WHERE r.full_name = ? AND p.number IN ({placeholders})"
+        )
+        rows = conn.execute(query, [repo, *pr_numbers]).fetchall()
+        return {int(num): body for num, body in rows if body}
+    except sqlite3.Error:
+        return {}
+    finally:
+        conn.close()
+
+
+GraphQLRunner = Callable[[str, float], "dict | None"]
+
+
+def _default_graphql_runner(query: str, timeout: float) -> dict | None:
+    try:
+        result = subprocess.run(
+            ["gh", "api", "graphql", "-f", f"query={query}"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=max(1.0, min(timeout, float(NETWORK_TIMEOUT_SECONDS))),
+        )
+        if not result.stdout.strip():
+            return None
+        payload = json.loads(result.stdout)
+        return payload if isinstance(payload, dict) and "data" in payload else None
+    except (
+        subprocess.TimeoutExpired,
+        FileNotFoundError,
+        OSError,
+        json.JSONDecodeError,
+    ):
         return None
-    texts = bullets or [_subject_text(parsed, commit.title)]
-    return _group_for(parsed, breaking), texts, breaking, bool(bullets)
 
 
-def build_draft(
+def _build_pr_graphql_query(owner: str, name: str, numbers: Sequence[int]) -> str:
+    fields = "\n".join(
+        f"    pr_{num}: pullRequest(number: {num}) {{ body }}" for num in numbers
+    )
+    return (
+        "query {\n"
+        "  rateLimit { cost remaining resetAt }\n"
+        f'  repository(owner: "{owner}", name: "{name}") {{\n'
+        f"{fields}\n"
+        "  }\n"
+        "}"
+    )
+
+
+def _next_chunk_size(current: int, cost: int, remaining: int) -> int:
+    """Adjusts chunk size from observed GraphQL rateLimit cost and remaining."""
+    usable = max(0, remaining - GRAPHQL_MIN_REMAINING)
+    if usable <= 0:
+        return 0
+    if cost > 0 and cost > usable:
+        scaled = max(1, (current * usable) // cost)
+        return min(current, scaled)
+    return current
+
+
+def _parse_graphql_batch(
+    repo_data: dict, batch: Sequence[int]
+) -> tuple[dict[int, str], int]:
+    bodies: dict[int, str] = {}
+    errors = 0
+    for num in batch:
+        node = repo_data.get(f"pr_{num}")
+        if isinstance(node, dict) and node.get("body") is not None:
+            bodies[num] = str(node["body"])
+        else:
+            errors += 1
+    return bodies, errors
+
+
+def _fetch_graphql_bodies(
+    repo: str,
+    pr_numbers: Sequence[int],
+    budget_seconds: float,
+    graphql_runner: GraphQLRunner,
+    clock: Callable[[], float],
+) -> tuple[dict[int, str], int]:
+    """Fetches PR bodies in GraphQL chunks bounded by rateLimit and wall-clock."""
+    if not pr_numbers or "/" not in repo:
+        return {}, 0
+    owner, name = repo.split("/", 1)
+    deadline = clock() + budget_seconds
+    bodies: dict[int, str] = {}
+    errors = 0
+    chunk_size = GRAPHQL_DEFAULT_CHUNK
+    idx = 0
+    while idx < len(pr_numbers):
+        remaining_time = deadline - clock()
+        if remaining_time <= 0 or chunk_size <= 0:
+            errors += len(pr_numbers) - idx
+            break
+        batch = pr_numbers[idx : idx + chunk_size]
+        payload = graphql_runner(
+            _build_pr_graphql_query(owner, name, batch), remaining_time
+        )
+        if not isinstance(payload, dict) or "data" not in payload:
+            errors += len(pr_numbers) - idx
+            break
+        data = payload.get("data") or {}
+        batch_bodies, batch_errors = _parse_graphql_batch(
+            data.get("repository") or {}, batch
+        )
+        bodies.update(batch_bodies)
+        errors += batch_errors
+        idx += len(batch)
+        rate = data.get("rateLimit") or {}
+        if "remaining" in rate:
+            chunk_size = _next_chunk_size(
+                chunk_size, int(rate.get("cost", 1)), int(rate["remaining"])
+            )
+    return bodies, errors
+
+
+def fetch_pr_bodies(
+    repo: str,
+    pr_numbers: Sequence[int],
+    budget_seconds: float = DEFAULT_BODY_BUDGET_SECONDS,
+    source: str = "auto",
+    packrat_db: Path | None = None,
+    graphql_runner: GraphQLRunner | None = None,
+    clock: Callable[[], float] = time.monotonic,
+) -> tuple[dict[int, str], str, int]:
+    """Fetches PR bodies via packrat -> batched GraphQL -> squash fallback."""
+    unique_prs = sorted(set(pr_numbers))
+    if not unique_prs or source == "commit":
+        return {}, "commit", 0
+    bodies: dict[int, str] = {}
+    used_sources: list[str] = []
+    if source in ("auto", "packrat"):
+        packrat_hits = _fetch_packrat_bodies(repo, unique_prs, packrat_db)
+        if packrat_hits:
+            bodies.update(packrat_hits)
+            used_sources.append("packrat")
+    missing = [num for num in unique_prs if num not in bodies]
+    errors = 0
+    if missing and source in ("auto", "graphql"):
+        runner = graphql_runner or _default_graphql_runner
+        gql_hits, errors = _fetch_graphql_bodies(
+            repo, missing, budget_seconds, runner, clock
+        )
+        if gql_hits:
+            bodies.update(gql_hits)
+            used_sources.append("graphql")
+    if len(bodies) < len(unique_prs) and "commit" not in used_sources:
+        used_sources.append("commit")
+    return bodies, "+".join(used_sources) if used_sources else "commit", errors
+
+
+# --- Diff truncation & context building --------------------------------------
+
+
+def _is_public_export_file(path: str) -> bool:
+    """True when `path` is likely a package public entrypoint or type surface."""
+    name = os.path.basename(path)
+    if name in ("index.ts", "public-api.ts", "__init__.py", "Package.swift"):
+        return True
+    if name.endswith(".d.ts"):
+        return True
+    if (
+        "/lib/" in f"/{path}"
+        and "/lib/src/" not in f"/{path}"
+        and name.endswith(".dart")
+    ):
+        return True
+    return False
+
+
+def _split_diff_chunks(diff_text: str) -> list[tuple[str, str]]:
+    """Splits a unified `git diff` into `(path, chunk_text)` pairs."""
+    chunks: list[tuple[str, list[str]]] = []
+    for line in diff_text.splitlines(keepends=True):
+        match = DIFF_HEADER_RE.match(line)
+        if match:
+            chunks.append((match.group(2), [line]))
+        elif chunks:
+            chunks[-1][1].append(line)
+    return [(path, "".join(lines)) for path, lines in chunks]
+
+
+def truncate_diff(diff_text: str, max_diff_bytes: int) -> tuple[str, bool, list[str]]:
+    """Caps diff size, keeping public-export files first, then smallest files."""
+    if len(diff_text.encode("utf-8")) <= max_diff_bytes:
+        return diff_text, False, []
+    chunks = _split_diff_chunks(diff_text)
+    prioritized = sorted(
+        chunks,
+        key=lambda item: (
+            0 if _is_public_export_file(item[0]) else 1,
+            len(item[1].encode("utf-8")),
+            item[0],
+        ),
+    )
+    kept: list[str] = []
+    omitted: list[str] = []
+    used_bytes = 0
+    for path, chunk in prioritized:
+        size = len(chunk.encode("utf-8"))
+        if used_bytes + size <= max_diff_bytes:
+            kept.append(chunk)
+            used_bytes += size
+        else:
+            omitted.append(path)
+    return "".join(kept), True, sorted(omitted)
+
+
+def _current_version(spec: PackageSpec, changelog: str, git: Git) -> str:
+    tag = latest_tag(spec, git)
+    if tag:
+        ver = spec.version_of_tag(tag)
+        if ver is not None:
+            return ".".join(str(part) for part in ver)
+    newest = newest_heading(changelog) if changelog else None
+    if newest:
+        return newest
+    return spec.bootstrap_version or "0.0.0"
+
+
+def _read_git_file(git: Git, ref: str, path: str) -> str:
+    try:
+        return git.run(["show", f"{ref}:{path}"])
+    except subprocess.CalledProcessError:
+        return ""
+
+
+def _dep_notes_from_file(dep_id: str, path: Path) -> dict[str, object] | None:
+    text = path.read_text(encoding="utf-8").strip()
+    if not text:
+        return None
+    newest = newest_heading(text)
+    if newest:
+        try:
+            section = read_section(text, newest)
+            return {"package": dep_id, "versions": [newest], "markdown": section}
+        except ReleaseNotesError:
+            return None
+    return {"package": dep_id, "versions": [], "markdown": text}
+
+
+def _dep_notes_from_git(
+    dep_spec: PackageSpec, since: str, until: str, git: Git
+) -> dict[str, object] | None:
+    old_text = _read_git_file(git, since, dep_spec.changelog)
+    new_text = _read_git_file(git, until, dep_spec.changelog)
+    if not new_text:
+        return None
+    old_versions = {
+        match.group("version")
+        for heading, _ in _sections(old_text)
+        if (match := HEADING_RE.match(heading))
+    }
+    added_versions: list[str] = []
+    blocks: list[str] = []
+    for heading, _ in _sections(new_text):
+        match = HEADING_RE.match(heading)
+        if not match:
+            continue
+        version = match.group("version")
+        if version in old_versions:
+            continue
+        try:
+            body = read_section(new_text, version)
+        except ReleaseNotesError:
+            continue
+        added_versions.append(version)
+        blocks.append(f"## {version}\n\n{body}")
+    if not added_versions:
+        return None
+    return {
+        "package": dep_spec.id,
+        "versions": added_versions,
+        "markdown": "\n\n".join(blocks),
+    }
+
+
+def _collect_internal_dep_notes(
     spec: PackageSpec,
-    commits: Sequence[Commit],
+    specs: Sequence[PackageSpec],
     since: str,
     until: str,
-    body_lookup: BodyLookup | None = None,
-    carried: str = "",
-) -> Draft:
-    """Groups commits into changelog entries and lists the ones without notes."""
-    draft = Draft(spec.id, since, until, "api" if body_lookup else "commit")
-    draft.carried_unreleased = carried
-    for commit in _fold_reverts(list(commits)):
-        entry = _entry_for(spec, commit, body_lookup)
-        if entry is None:
+    dep_changelogs: dict[str, Path],
+    git: Git,
+) -> list[dict[str, object]]:
+    by_id = {item.id: item for item in specs}
+    notes: list[dict[str, object]] = []
+    for dep_id in spec.internal_deps:
+        if dep_id in dep_changelogs:
+            entry = _dep_notes_from_file(dep_id, dep_changelogs[dep_id])
+        elif dep_id in by_id:
+            entry = _dep_notes_from_git(by_id[dep_id], since, until, git)
+        else:
+            entry = None
+        if entry:
+            notes.append(entry)
+    return notes
+
+
+def _build_commit_records(
+    commits: Sequence[Commit],
+    pr_bodies: dict[int, str],
+    reverted: set[str],
+    changed_files: set[str],
+) -> list[dict[str, object]]:
+    records: list[dict[str, object]] = []
+    for commit in commits:
+        fetched_body = pr_bodies.get(commit.pr) if commit.pr else None
+        body = fetched_body if fetched_body else commit.body
+        parsed = commit.parsed
+        breaking_hint = (
+            bool(parsed and parsed.breaking)
+            or has_breaking_footer(body)
+            or has_breaking_footer(commit.body)
+        )
+        net_zero = commit.sha in reverted or (
+            bool(commit.files) and not any(f in changed_files for f in commit.files)
+        )
+        records.append({
+            "pr": commit.pr,
+            "sha": commit.sha,
+            "title": commit.title,
+            "body": body,
+            "breaking_hint": breaking_hint,
+            "files": list(commit.files),
+            "net_zero": net_zero,
+        })
+    return records
+
+
+def build_context(
+    spec: PackageSpec,
+    since: str | None,
+    until: str,
+    dep_changelogs: dict[str, Path],
+    max_diff_bytes: int = DEFAULT_MAX_DIFF_BYTES,
+    carry_unreleased: bool = False,
+    body_budget_seconds: float = DEFAULT_BODY_BUDGET_SECONDS,
+    *,
+    specs: Sequence[PackageSpec] = (),
+    git: Git,
+    changelog: str = "",
+    body_source: str = "auto",
+    packrat_db: Path | None = None,
+    graphql_runner: GraphQLRunner | None = None,
+    clock: Callable[[], float] = time.monotonic,
+) -> dict[str, object]:
+    """Builds the deterministic JSON ground-truth bundle for a package release."""
+    anchor = resolve_anchor(spec, since, git, changelog)
+    until_ref = _validate_ref(until, "--until")
+    until_sha = git.run(["rev-parse", "--verify", f"{until_ref}^{{commit}}"]).strip()
+    pspecs = pathspecs(spec)
+    diff_stat = git.run(
+        ["diff", "--stat=1000", f"{anchor}..{until_sha}", "--", *pspecs]
+    ).strip()
+    changed_files = {
+        line.strip()
+        for line in git.run(
+            ["diff", "--name-only", f"{anchor}..{until_sha}", "--", *pspecs]
+        ).splitlines()
+        if line.strip()
+    }
+    full_diff = git.run(["diff", f"{anchor}..{until_sha}", "--", *pspecs])
+    net_diff, diff_truncated, omitted_files = truncate_diff(full_diff, max_diff_bytes)
+
+    commits = commits_in_range(spec, anchor, until_sha, git)
+    reverted = _reverted_shas(commits)
+    pr_numbers = [commit.pr for commit in commits if commit.pr is not None]
+    pr_bodies, resolved_source, body_errors = fetch_pr_bodies(
+        REPO,
+        pr_numbers,
+        budget_seconds=body_budget_seconds,
+        source=body_source,
+        packrat_db=packrat_db,
+        graphql_runner=graphql_runner,
+        clock=clock,
+    )
+
+    commit_records = _build_commit_records(commits, pr_bodies, reverted, changed_files)
+
+    dep_notes = _collect_internal_dep_notes(
+        spec, specs, anchor, until_sha, dep_changelogs, git
+    )
+    carried = read_unreleased(changelog) if carry_unreleased and changelog else ""
+    return {
+        "package": spec.id,
+        "current_version": _current_version(spec, changelog, git),
+        "pre_1_0_feature_bump": spec.pre_1_0_feature_bump,
+        "since": anchor,
+        "until": until_sha,
+        "diff_stat": diff_stat,
+        "diff_truncated": diff_truncated,
+        "omitted_files": omitted_files,
+        "body_source": resolved_source,
+        "body_fetch_errors": body_errors,
+        "net_diff": net_diff,
+        "commits": commit_records,
+        "internal_dep_notes": dep_notes,
+        "carried_unreleased": carried,
+    }
+
+
+# --- Deterministic release-notes checker (Gates 1 & 3) -----------------------
+
+
+def _mentions_symbol(text: str, symbol: str) -> bool:
+    return bool(
+        re.search(rf"(?<![A-Za-z0-9_]){re.escape(symbol)}(?![A-Za-z0-9_])", text)
+    )
+
+
+def _check_removed_symbols(
+    spec: PackageSpec,
+    removed: Sequence[dict],
+    bullets: Sequence[str],
+) -> list[dict[str, str]]:
+    violations: list[dict[str, str]] = []
+    for item in removed:
+        symbol = str(item.get("symbol", ""))
+        if not symbol:
             continue
-        group, texts, breaking, noted = entry
-        for text in texts:
-            draft.entries.append(Entry(group, text, commit.pr, commit.sha, noted))
-        if not noted:
-            parsed = commit.parsed
-            draft.unnoted.append({
-                "pr": commit.pr,
-                "sha": commit.sha,
-                "type": parsed.type if parsed else None,
-                "title": commit.title,
-                "breaking": breaking,
+        matching = [b for b in bullets if _mentions_symbol(b, symbol)]
+        if not matching:
+            violations.append({
+                "rule": "api_diff_completeness",
+                "issue": f"Removed public symbol {symbol!r} is missing from bullets.",
+                "fix": (
+                    f"Add a bullet starting with '- {spec.breaking_prefix}' naming"
+                    f" {symbol}."
+                ),
             })
-    draft.entries.sort(key=lambda entry: GROUPS.index(entry.group))
-    draft.unnoted.sort(key=lambda item: not item["breaking"])
-    return draft
+        elif not any(spec.breaking_prefix in b for b in matching):
+            violations.append({
+                "rule": "api_diff_completeness",
+                "issue": (
+                    f"Removed symbol {symbol!r} lacks breaking prefix"
+                    f" {spec.breaking_prefix!r}."
+                ),
+                "fix": (
+                    f"Prefix the bullet mentioning {symbol} with"
+                    f" {spec.breaking_prefix!r}."
+                ),
+            })
+    return violations
+
+
+def _check_changed_symbols(
+    spec: PackageSpec,
+    changed: Sequence[dict],
+    bullets: Sequence[str],
+    joined_flags: str,
+) -> list[dict[str, str]]:
+    violations: list[dict[str, str]] = []
+    for item in changed:
+        symbol = str(item.get("symbol", ""))
+        if not symbol:
+            continue
+        breaking = item.get("breaking")
+        matching = [b for b in bullets if _mentions_symbol(b, symbol)]
+        if not matching:
+            violations.append({
+                "rule": "api_diff_completeness",
+                "issue": f"Changed public symbol {symbol!r} is missing from bullets.",
+                "fix": f"Document the change to {symbol} in bullets.",
+            })
+        elif breaking is True and not any(spec.breaking_prefix in b for b in matching):
+            violations.append({
+                "rule": "api_diff_completeness",
+                "issue": (
+                    f"Breaking change to {symbol!r} lacks prefix"
+                    f" {spec.breaking_prefix!r}."
+                ),
+                "fix": (
+                    f"Prefix the bullet mentioning {symbol} with"
+                    f" {spec.breaking_prefix!r}."
+                ),
+            })
+        if breaking == "unknown" and not _mentions_symbol(joined_flags, symbol):
+            violations.append({
+                "rule": "api_diff_completeness",
+                "issue": (
+                    f"Uncertain breaking change to {symbol!r} is missing from"
+                    " human_review_flags."
+                ),
+                "fix": f"Add {symbol} to human_review_flags for manual verification.",
+            })
+    return violations
+
+
+def _check_added_symbols(
+    added: Sequence[dict], joined_bullets: str
+) -> list[dict[str, str]]:
+    violations: list[dict[str, str]] = []
+    for item in added:
+        symbol = str(item.get("symbol", ""))
+        if symbol and not _mentions_symbol(joined_bullets, symbol):
+            violations.append({
+                "rule": "api_diff_completeness",
+                "issue": f"Added public symbol {symbol!r} is missing from bullets.",
+                "fix": f"Add a bullet naming {symbol}.",
+            })
+    return violations
+
+
+def _check_api_diff_completeness(
+    spec: PackageSpec,
+    api_surface: dict[str, object],
+    bullets: Sequence[str],
+    flags: Sequence[str],
+) -> list[dict[str, str]]:
+    """Gate 1: static API symbol coverage, breaking prefixes, degraded flag."""
+    status = api_surface.get("status")
+    joined_flags = "\n".join(flags)
+    if status == "unavailable":
+        if "no_static_api_diff" not in joined_flags:
+            return [{
+                "rule": "api_diff_completeness",
+                "issue": (
+                    "api_surface is unavailable but human_review_flags lacks"
+                    " 'no_static_api_diff'"
+                ),
+                "fix": "Add 'no_static_api_diff' to human_review_flags.",
+            }]
+        return []
+    if status != "ok":
+        return []
+    return [
+        *_check_removed_symbols(spec, api_surface.get("removed", []), bullets),
+        *_check_changed_symbols(
+            spec, api_surface.get("changed", []), bullets, joined_flags
+        ),
+        *_check_added_symbols(api_surface.get("added", []), "\n".join(bullets)),
+    ]
+
+
+def _active_breaking_commits(context: dict[str, object]) -> list[dict]:
+    return [
+        commit
+        for commit in context.get("commits", [])
+        if isinstance(commit, dict)
+        and commit.get("breaking_hint")
+        and not commit.get("net_zero")
+    ]
+
+
+def _check_breaking_commit_hints(
+    spec: PackageSpec,
+    context: dict[str, object],
+    bullets: Sequence[str],
+    flags: Sequence[str],
+) -> list[dict[str, str]]:
+    """Ensures non-net_zero breaking_hint commits are documented or flagged."""
+    active = _active_breaking_commits(context)
+    if not active:
+        return []
+    has_breaking_bullet = any(spec.breaking_prefix in b for b in bullets)
+    if has_breaking_bullet:
+        return []
+    joined_flags = "\n".join(flags)
+    violations: list[dict[str, str]] = []
+    for commit in active:
+        ref = (
+            f"#{commit['pr']}" if commit.get("pr") else str(commit.get("sha", ""))[:12]
+        )
+        if ref and ref not in joined_flags:
+            violations.append({
+                "rule": "api_diff_completeness",
+                "issue": (
+                    f"Commit {ref} has breaking_hint=true but no bullet uses"
+                    f" {spec.breaking_prefix!r} and {ref} is not in"
+                    " human_review_flags."
+                ),
+                "fix": (
+                    f"Add a breaking bullet with {spec.breaking_prefix!r} or"
+                    f" explain why {ref} is non-breaking in human_review_flags."
+                ),
+            })
+    return violations
+
+
+def _has_breaking_signal(
+    spec: PackageSpec,
+    api_surface: dict[str, object],
+    bullets: Sequence[str],
+    context: dict[str, object],
+) -> bool:
+    if any(spec.breaking_prefix in bullet for bullet in bullets):
+        return True
+    if _active_breaking_commits(context):
+        return True
+    if api_surface.get("status") != "ok":
+        return False
+    if api_surface.get("removed"):
+        return True
+    return any(item.get("breaking") is True for item in api_surface.get("changed", []))
+
+
+def _has_addition_signal(
+    api_surface: dict[str, object], bullets: Sequence[str]
+) -> bool:
+    if api_surface.get("status") == "ok" and api_surface.get("added"):
+        return True
+    return any(ADDITION_BULLET_RE.match(bullet.strip()) for bullet in bullets)
+
+
+def _expected_bump(
+    spec: PackageSpec,
+    current_version: str,
+    breaking: bool,
+    addition: bool,
+) -> str:
+    parsed_ver = parse_version(current_version) or (0, 0, 0)
+    if parsed_ver < (1, 0, 0):
+        if breaking:
+            return "MINOR"
+        if addition:
+            return spec.pre_1_0_feature_bump.upper()
+        return "PATCH"
+    if breaking:
+        return "MAJOR"
+    if addition:
+        return "MINOR"
+    return "PATCH"
+
+
+def _check_semver_consistency(
+    spec: PackageSpec,
+    api_surface: dict[str, object],
+    bullets: Sequence[str],
+    recommended_bump: str,
+    context: dict[str, object],
+) -> list[dict[str, str]]:
+    """Gate 3: version-aware pre-1.0 vs post-1.0 SemVer bump rules."""
+    bump = recommended_bump.strip().upper()
+    if bump not in VALID_BUMPS:
+        return [{
+            "rule": "semver_consistency",
+            "issue": f"Invalid recommended_bump {recommended_bump!r}.",
+            "fix": "Set recommended_bump to one of MAJOR, MINOR, PATCH, NONE.",
+        }]
+    if not bullets:
+        if bump != "NONE":
+            return [{
+                "rule": "semver_consistency",
+                "issue": f"Empty bullets require NONE bump, got {bump}.",
+                "fix": "Set recommended_bump to NONE when bullets is empty.",
+            }]
+        return []
+    current_version = str(context.get("current_version", "0.0.0"))
+    breaking = _has_breaking_signal(spec, api_surface, bullets, context)
+    addition = _has_addition_signal(api_surface, bullets)
+    expected = _expected_bump(spec, current_version, breaking, addition)
+    if bump != expected:
+        return [{
+            "rule": "semver_consistency",
+            "issue": (
+                f"{spec.id} ({current_version}) requires {expected} bump, got {bump}."
+            ),
+            "fix": f"Set recommended_bump to {expected}.",
+        }]
+    return []
+
+
+def check_notes(
+    spec: PackageSpec,
+    api_surface: dict[str, object],
+    gen_output: dict[str, object],
+    context: dict[str, object],
+) -> tuple[bool, list[dict[str, str]]]:
+    """Runs deterministic Gates 1 (API diff) and 3 (SemVer) on generator output."""
+    bullets = [str(b) for b in gen_output.get("bullets", [])]
+    flags = [str(f) for f in gen_output.get("human_review_flags", [])]
+    recommended_bump = str(gen_output.get("recommended_bump", ""))
+
+    violations = [
+        *_check_api_diff_completeness(spec, api_surface, bullets, flags),
+        *_check_breaking_commit_hints(spec, context, bullets, flags),
+        *_check_semver_consistency(
+            spec, api_surface, bullets, recommended_bump, context
+        ),
+    ]
+    return not violations, violations
+
+
+# --- Rendering and CHANGELOG writing -----------------------------------------
 
 
 def range_comment(spec: PackageSpec, version: str, since: str, until: str) -> str:
     return f"<!-- release-notes: {spec.id} {version} range {since}..{until} -->"
 
 
-def heading_for(spec: PackageSpec, version: str, today: datetime.date) -> str:
-    if spec.heading_date:
-        return f"## {version} ({today.isoformat()})"
+def heading_for(version: str) -> str:
+    """Renders an undated `## X.Y.Z` heading for all packages."""
     return f"## {version}"
 
 
 def render_markdown(
-    spec: PackageSpec, draft: Draft, version: str, today: datetime.date
+    spec: PackageSpec,
+    version: str,
+    since: str,
+    until: str,
+    bullets: Sequence[str],
+    carried: str = "",
 ) -> str:
-    """Renders the section: heading, range comment, carried notes, entries."""
+    """Renders a release section: heading, range comment, carried notes, bullets."""
     lines = [
-        heading_for(spec, version, today),
+        heading_for(version),
         "",
-        range_comment(spec, version, draft.since, draft.until),
+        range_comment(spec, version, since, until),
         "",
     ]
-    if draft.carried_unreleased.strip():
-        lines.extend([CARRIED_MARKER, draft.carried_unreleased.strip(), ""])
-    for entry in draft.entries:
-        prefix = spec.breaking_prefix if entry.group == "Breaking" else ""
-        link = f" ([#{entry.pr}]({PR_URL.format(pr=entry.pr)}))" if entry.pr else ""
-        lines.append(f"- {prefix}{entry.text}{link}")
-    if not draft.entries and not draft.carried_unreleased.strip():
+    if carried.strip():
+        lines.extend([CARRIED_MARKER, carried.strip(), ""])
+    cleaned = [bullet.strip() for bullet in bullets if bullet.strip()]
+    for bullet in cleaned:
+        lines.append(bullet if bullet.startswith("- ") else f"- {bullet}")
+    if not cleaned and not carried.strip():
         lines.append("- No consumer-facing changes.")
     return "\n".join(lines).rstrip() + "\n"
+
+
+def write_section(
+    spec: PackageSpec,
+    version: str,
+    since: str,
+    until: str,
+    bullets: Sequence[str],
+    carry_unreleased: bool = False,
+    *,
+    changelog_path: str | None = None,
+    existing_changelog: str | None = None,
+) -> str:
+    """Renders and inserts a release section; writes to disk if path is given."""
+    if existing_changelog is None:
+        existing = (
+            _read(changelog_path)
+            if changelog_path and os.path.exists(changelog_path)
+            else ""
+        )
+    else:
+        existing = existing_changelog
+    target_ver = parse_version(version)
+    if target_ver is None:
+        raise ReleaseNotesError(f"invalid version {version!r}", EXIT_USAGE)
+    newest = newest_heading(existing) if existing else None
+    if newest and target_ver <= parse_version(newest):
+        raise ReleaseNotesError(
+            f"{spec.changelog} already has '## {newest}'; new version"
+            f" {version!r} must be strictly greater",
+            EXIT_USAGE,
+        )
+    carried = read_unreleased(existing) if carry_unreleased and existing else ""
+    section = render_markdown(spec, version, since, until, bullets, carried)
+    base = strip_unreleased(existing) if existing else ""
+    updated = insert_section(base, section)
+    if changelog_path:
+        with open(changelog_path, "w", encoding="utf-8") as handle:
+            handle.write(updated)
+    return updated
+
+
+def _parse_markdown_bullets(raw: str) -> list[str]:
+    bullets: list[str] = []
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith(("- ", "* ")):
+            bullets.append("- " + stripped[2:].strip())
+        elif bullets:
+            bullets[-1] = f"{bullets[-1]} {stripped}"
+        else:
+            bullets.append(f"- {stripped}")
+    return bullets
+
+
+def _load_bullets_file(path: str) -> list[str]:
+    """Reads bullets from a generator JSON file or a Markdown bullet list."""
+    raw = _read(path).strip()
+    if not raw:
+        return []
+    if raw[0] in ("{", "["):
+        data = json.loads(raw)
+        if isinstance(data, dict):
+            return [str(item) for item in data.get("bullets", [])]
+        if isinstance(data, list):
+            return [str(item) for item in data]
+    return _parse_markdown_bullets(raw)
 
 
 # --- CHANGELOG reading -------------------------------------------------------
@@ -847,6 +1525,8 @@ def verify_release(
             " into the section and delete the marker"
         )
     versions = _heading_versions(changelog)
+    if len(versions) != len(set(versions)):
+        errors.append("duplicate version headings found")
     if versions != sorted(versions, reverse=True):
         errors.append("version headings are not in descending order")
     if tag_exists(spec, version, git):
@@ -881,11 +1561,7 @@ def _default_fetch(url: str) -> object:
 
 
 def _registry_has_version(spec: PackageSpec, version: str, fetch: Fetch) -> bool | None:
-    """True/False when the registry answered; None when it has no registry.
-
-    Raises ReleaseNotesError for any registry failure other than 404, so a
-    5xx or an offline machine never leads to a tag.
-    """
+    """True/False when the registry answered; None when it has no registry."""
     template = REGISTRIES.get(spec.ecosystem)
     if template is None:
         return None
@@ -990,12 +1666,16 @@ def tag_pending(
 ) -> list[str]:
     """Tags every pending release the registry already serves; reports the rest.
 
-    Meant for a scheduled workflow: it never fails on a version that is still
-    publishing, and it skips ecosystems without a registry (Swift), whose tag
-    is the release itself and is pushed on purpose.
+    Skips packages with `auto_tag: false` (such as `a2ui_cli` and `swift`) and
+    ecosystems without a registry.
     """
     lines = []
     for spec, version in pending_releases(specs, root, git):
+        if not spec.auto_tag:
+            lines.append(
+                f"skip {spec.id} {version}: auto_tag is disabled; tag it by hand"
+            )
+            continue
         if registry and spec.ecosystem not in REGISTRIES:
             lines.append(f"skip {spec.id} {version}: no registry; tag it by hand")
             continue
@@ -1012,7 +1692,7 @@ def tag_pending(
     return lines or ["nothing pending: every changelog heading has a tag"]
 
 
-# --- PR lint -----------------------------------------------------------------
+# --- PR lint (L1, L2, L6) ----------------------------------------------------
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1020,11 +1700,6 @@ class Violation:
     rule: str
     level: str
     message: str
-
-
-def _touches_package(touched: Iterable[str], specs: Sequence[PackageSpec]) -> bool:
-    paths = tuple(path for spec in specs for path in spec.paths)
-    return any(file.startswith(paths) for file in touched)
 
 
 def _check_breaking_consistency(
@@ -1053,43 +1728,10 @@ def _check_breaking_consistency(
     return []
 
 
-def _check_bullets(
-    parsed: ParsedTitle,
-    bullets: Sequence[Bullet],
-    touched_paths: Iterable[str],
-    specs: Sequence[PackageSpec],
-) -> list[Violation]:
-    """L3 to L5: notes on breaking PRs, known scopes, notes without a package."""
-    violations: list[Violation] = []
-    if parsed.breaking and not bullets:
-        violations.append(
-            Violation(
-                "L3",
-                "error",
-                "a breaking PR needs a ```release-notes block describing the change and"
-                " how to migrate",
-            )
-        )
-    known = {spec.id for spec in specs}
-    for bullet in bullets:
-        if bullet.scope and bullet.scope not in known:
-            violations.append(
-                Violation(
-                    "L4",
-                    "error",
-                    f"unknown package scope [{bullet.scope}]; known:"
-                    f" {', '.join(sorted(known))}",
-                )
-            )
-    if bullets and not _touches_package(touched_paths, specs):
-        violations.append(
-            Violation(
-                "L5",
-                "warning",
-                "release-notes block present but no published package path changed",
-            )
-        )
-    return violations
+def _is_release_pr(parsed: ParsedTitle) -> bool:
+    return parsed.type == RELEASE_TYPE or (
+        parsed.type == "chore" and parsed.scope == "release"
+    )
 
 
 def _check_changelog_edits(
@@ -1099,7 +1741,7 @@ def _check_changelog_edits(
     specs: Sequence[PackageSpec],
 ) -> list[Violation]:
     """L6: only release PRs (or a labeled exception) may edit a CHANGELOG.md."""
-    if parsed.type == RELEASE_TYPE or CHANGELOG_EDIT_LABEL in labels:
+    if _is_release_pr(parsed) or CHANGELOG_EDIT_LABEL in labels:
         return []
     changelogs = {spec.changelog for spec in specs}
     touched = sorted(path for path in touched_paths if path in changelogs)
@@ -1111,9 +1753,9 @@ def _check_changelog_edits(
             "error",
             "CHANGELOG.md is generated at release time; do not edit "
             + ", ".join(touched)
-            + ". Put consumer-facing notes in a ```release-notes block in the PR"
-            f" description instead, or add the '{CHANGELOG_EDIT_LABEL}' label for a"
-            " fix to an already released section.",
+            + ". Describe consumer-facing changes in the PR title or description"
+            f" instead, or add the '{CHANGELOG_EDIT_LABEL}' label for a fix to an"
+            " already released section.",
         )
     ]
 
@@ -1140,7 +1782,7 @@ def check_pr(
     touched_paths: Iterable[str],
     specs: Sequence[PackageSpec],
 ) -> list[Violation]:
-    """Applies the title and body rules L1 to L6."""
+    """Applies pull request rules L1, L2, and L6."""
     parsed = parse_title(title)
     if parsed is None:
         types = ", ".join(ALLOWED_TYPES)
@@ -1156,7 +1798,6 @@ def check_pr(
     return [
         *_check_title_length(title),
         *_check_breaking_consistency(parsed, body, labels),
-        *_check_bullets(parsed, release_notes_block(body), touched_paths, specs),
         *_check_changelog_edits(parsed, labels, touched_paths, specs),
     ]
 
@@ -1189,52 +1830,111 @@ def _read_opt(path: str | None, fallback: str) -> str:
     return _read(path)
 
 
-def _body_lookup(body_source: str) -> BodyLookup | None:
-    """Picks the PR body source: the API when asked for or when a token exists."""
-    has_token = bool(os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN"))
-    if body_source == "api" or (body_source == "auto" and has_token):
-        return fetch_pr_body
-    return None
+def _parse_dep_changelogs(raw_items: Sequence[str]) -> dict[str, Path]:
+    mapping: dict[str, Path] = {}
+    for item in raw_items:
+        if "=" not in item:
+            raise ReleaseNotesError(
+                f"invalid --dep-changelog {item!r}; expected <pkg_id>=<path>",
+                EXIT_USAGE,
+            )
+        pkg_id, path_str = item.split("=", 1)
+        mapping[pkg_id.strip()] = Path(path_str.strip())
+    return mapping
 
 
-def _write_section(
-    spec: PackageSpec, changelog_path: str, section: str, carry: bool
-) -> None:
-    """Inserts a rendered section into the changelog on disk."""
-    existing = _read(changelog_path) if os.path.exists(changelog_path) else ""
-    if carry:
-        existing = strip_unreleased(existing)
-    with open(changelog_path, "w", encoding="utf-8") as handle:
-        handle.write(insert_section(existing, section))
-
-
-def _cmd_draft(args: argparse.Namespace, specs: list[PackageSpec], root: str) -> int:
-    if args.write and (args.format != "md" or not args.version):
-        raise ReleaseNotesError(
-            "--write requires --format md and --version", EXIT_USAGE
-        )
+def _cmd_context(args: argparse.Namespace, specs: list[PackageSpec], root: str) -> int:
     spec = find_package(specs, args.package)
     git = Git(root)
     changelog_path = os.path.join(root, spec.changelog)
     changelog = _read(changelog_path) if os.path.exists(changelog_path) else ""
-    since = resolve_anchor(spec, args.since, git, changelog)
-    until = git.run(["rev-parse", args.until]).strip()
-    commits = commits_in_range(spec, since, until, git)
-    carried = ""
-    if args.carry_unreleased and changelog:
-        carried = read_unreleased(changelog)
-    lookup = _body_lookup(args.body_source)
-    draft = build_draft(spec, commits, since, until, lookup, carried)
-    if args.format == "json":
-        print(json.dumps(draft.to_json(), indent=2))
+    dep_changelogs = _parse_dep_changelogs(args.dep_changelog or ())
+    ctx = build_context(
+        spec,
+        args.since,
+        args.until,
+        dep_changelogs,
+        max_diff_bytes=args.max_diff_bytes,
+        carry_unreleased=args.carry_unreleased,
+        body_budget_seconds=args.body_budget_seconds,
+        specs=specs,
+        git=git,
+        changelog=changelog,
+        body_source=args.body_source,
+    )
+    print(json.dumps(ctx, indent=2))
+    return EXIT_OK
+
+
+def _read_json_file(path: str, label: str) -> dict[str, object]:
+    try:
+        data = json.loads(_read(path))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ReleaseNotesError(
+            f"failed to read {label} ({path}): {error}", EXIT_USAGE
+        ) from error
+    if not isinstance(data, dict):
+        raise ReleaseNotesError(
+            f"{label} ({path}) must contain a JSON object", EXIT_USAGE
+        )
+    return data
+
+
+def _cmd_check_notes(args: argparse.Namespace, specs: list[PackageSpec]) -> int:
+    api_surface = _read_json_file(args.api, "--api")
+    gen_output = _read_json_file(args.notes, "--notes")
+    context = _read_json_file(args.context, "--context")
+    package_id = args.package or context.get("package")
+    if not package_id:
+        raise ReleaseNotesError(
+            "check-notes needs --package or a 'package' field in --context",
+            EXIT_USAGE,
+        )
+    spec = find_package(specs, str(package_id))
+    passed, violations = check_notes(spec, api_surface, gen_output, context)
+    result = {
+        "verdict": "PASS" if passed else "FAIL",
+        "hard_violations": violations,
+    }
+    print(json.dumps(result, indent=2))
+    return EXIT_OK if passed else EXIT_CHECK_FAILED
+
+
+def _cmd_write_section(
+    args: argparse.Namespace, specs: list[PackageSpec], root: str
+) -> int:
+    spec = find_package(specs, args.package)
+    try:
+        bullets = _load_bullets_file(args.bullets_file)
+    except (OSError, json.JSONDecodeError) as error:
+        raise ReleaseNotesError(
+            f"failed to read --bullets-file ({args.bullets_file}): {error}",
+            EXIT_USAGE,
+        ) from error
+    git = Git(root)
+    since = _validate_ref(args.since, "--since")
+    until_ref = _validate_ref(args.until, "--until")
+    until_sha = git.run(["rev-parse", "--verify", f"{until_ref}^{{commit}}"]).strip()
+    changelog_path = os.path.join(root, spec.changelog)
+    if args.stdout:
+        existing = _read(changelog_path) if os.path.exists(changelog_path) else ""
+        carried = (
+            read_unreleased(existing) if args.carry_unreleased and existing else ""
+        )
+        sys.stdout.write(
+            render_markdown(spec, args.version, since, until_sha, bullets, carried)
+        )
         return EXIT_OK
-    version = args.version or "X.Y.Z"
-    section = render_markdown(spec, draft, version, datetime.date.today())
-    if args.write:
-        _write_section(spec, changelog_path, section, args.carry_unreleased)
-        print(f"wrote '## {version}' to {spec.changelog}")
-        return EXIT_OK
-    sys.stdout.write(section)
+    write_section(
+        spec,
+        args.version,
+        since,
+        until_sha,
+        bullets,
+        carry_unreleased=args.carry_unreleased,
+        changelog_path=changelog_path,
+    )
+    print(f"wrote '## {args.version}' to {spec.changelog}")
     return EXIT_OK
 
 
@@ -1257,7 +1957,7 @@ def _cmd_check_pr(args: argparse.Namespace, specs: list[PackageSpec]) -> int:
         print(f"{violation.level}: [{violation.rule}] {violation.message}", file=stream)
     if any(v.level == "error" for v in violations):
         return EXIT_USAGE
-    print("ok: title and release notes pass L1 to L6")
+    print("ok: pull request passes L1, L2, and L6")
     return EXIT_OK
 
 
@@ -1322,19 +2022,54 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    draft = sub.add_parser("draft", help="draft the next CHANGELOG section")
-    draft.add_argument("--package", required=True)
-    draft.add_argument("--since", default=None, help="commit or tag to start after")
-    draft.add_argument("--until", default="HEAD")
-    draft.add_argument("--version", default=None, help="version for the heading")
-    draft.add_argument("--format", choices=("md", "json"), default="md")
-    draft.add_argument(
-        "--body-source", choices=("auto", "api", "commit"), default="auto"
+    ctx = sub.add_parser("context", help="build JSON context bundle for a package")
+    ctx.add_argument("--package", required=True)
+    ctx.add_argument("--since", default=None, help="commit or tag to start after")
+    ctx.add_argument("--until", default="HEAD")
+    ctx.add_argument(
+        "--dep-changelog",
+        action="append",
+        default=[],
+        help="upstream changelog override in <pkg_id>=<path> form (repeatable)",
     )
-    draft.add_argument("--carry-unreleased", action="store_true")
-    draft.add_argument("--write", action="store_true", help="insert into CHANGELOG.md")
+    ctx.add_argument("--max-diff-bytes", type=int, default=DEFAULT_MAX_DIFF_BYTES)
+    ctx.add_argument("--carry-unreleased", action="store_true")
+    ctx.add_argument(
+        "--body-source",
+        choices=("auto", "packrat", "graphql", "commit"),
+        default="auto",
+    )
+    ctx.add_argument(
+        "--body-budget-seconds", type=float, default=DEFAULT_BODY_BUDGET_SECONDS
+    )
+    ctx.add_argument("--format", choices=("json",), default="json")
 
-    check = sub.add_parser("check-pr", help="lint a pull request title and body")
+    cn = sub.add_parser(
+        "check-notes", help="deterministically validate generated bullets and bump"
+    )
+    cn.add_argument("--package", default=None)
+    cn.add_argument("--api", required=True, help="path to api_surface.json")
+    cn.add_argument("--notes", required=True, help="path to generator output JSON")
+    cn.add_argument("--context", required=True, help="path to context.json")
+
+    ws = sub.add_parser("write-section", help="render and insert a CHANGELOG section")
+    ws.add_argument("--package", required=True)
+    ws.add_argument("--version", required=True)
+    ws.add_argument("--since", required=True)
+    ws.add_argument("--until", required=True)
+    ws.add_argument(
+        "--bullets-file",
+        required=True,
+        help="path to generator JSON or Markdown bullet list",
+    )
+    ws.add_argument("--carry-unreleased", action="store_true")
+    ws.add_argument(
+        "--stdout",
+        action="store_true",
+        help="print rendered section instead of writing CHANGELOG.md",
+    )
+
+    check = sub.add_parser("check-pr", help="lint a pull request title and paths")
     check.add_argument("--title", default=None)
     check.add_argument("--title-file", default=None)
     check.add_argument("--body", default=None)
@@ -1372,8 +2107,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         root = _repo_root(args.repo_root)
         specs = load_manifest(args.manifest or os.path.join(root, MANIFEST_PATH))
-        if args.command == "draft":
-            return _cmd_draft(args, specs, root)
+        if args.command == "context":
+            return _cmd_context(args, specs, root)
+        if args.command == "check-notes":
+            return _cmd_check_notes(args, specs)
+        if args.command == "write-section":
+            return _cmd_write_section(args, specs, root)
         if args.command == "check-pr":
             return _cmd_check_pr(args, specs)
         if args.command == "read-section":
