@@ -60,7 +60,7 @@ This `P1` issue has had no update from the team for 30 days. Please post an upda
 
 The pinger has no Google credentials, so it does not send the messages itself. With `--messages <file>`, it writes them to the file, one JSON object per line with the assignee's GitHub login in `login`, their Google account in `to`, and the message in `text`. The triage bot then sends each message with its Google Chat tool.
 
-The pinger reads the assignees' Google accounts from `TRIAGE_CHAT_USERS`, a JSON object that maps GitHub logins to Google accounts, such as `{"octocat": "octocat@google.com"}`. An assignee missing from the map gets only the GitHub comment, and the pinger says so.
+The pinger reads the assignees' Google accounts from `TRIAGE_CHAT_USERS`, a JSON object that maps GitHub logins to Google accounts, such as `{"octocat": "octocat@google.com"}`. Nobody sets it up front: before each run, the triage bot finds the accounts of the assignees that the run pings in the go/github registry, where Googlers link their GitHub accounts, and keeps the accounts it found for later runs. An assignee missing from the map, such as one who has not linked their accounts, gets only the GitHub comment, and the pinger says so.
 
 ## Failures
 
