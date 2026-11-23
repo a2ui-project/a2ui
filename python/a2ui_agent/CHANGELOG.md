@@ -4,6 +4,12 @@
   `1e400`, with `A2uiParseError`, as the Dart SDK does. It used to read it as
   `inf`, which `json.dumps` writes as `Infinity`, a token JSON does not have
   ([#3847](https://github.com/a2ui-project/a2ui/pull/3847)).
+- `DirectJsonResponseStream` waits for `path` when a streamed `updateDataModel`
+  writes `value` before `path`, and restores the prior root data model if
+  `path` arrives in a later chunk, instead of overwriting the root data model or
+  raising `A2uiValidationError` on list values
+  ([#4132](https://github.com/a2ui-project/a2ui/issues/4132),
+  [#4191](https://github.com/a2ui-project/a2ui/pull/4191)).
 
 ## 0.12.0 (2026-11-17)
 
