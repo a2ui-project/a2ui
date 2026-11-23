@@ -16,6 +16,6 @@
 /// requests to act, before the flagger flags them for triage.
 library;
 
+export 'src/direct_messages.dart';
 export 'src/github.dart';
 export 'src/staleness_ping.dart';
-export 'src/team_chat.dart';

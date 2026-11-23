@@ -23,7 +23,7 @@ The triage bot runs four triage jobs (see [Triage jobs](../../../tools/internal/
 
 Once [started](#start-the-triage-bot), the triage bot runs the first three jobs every hour. The jobs are described in the blueprints in [`features/triage_bot/`](../../../tools/internal/triage/blueprints/features/triage_bot/).
 
-The triage bot only comments on items, and the staleness pinger also messages the team's chat space. The triage bot never adds or removes labels, assigns people, closes items, or changes milestones: those are the triager's decisions.
+The triage bot only comments on items, and the staleness pinger also sends direct messages to the assignees of stale items. The triage bot never adds or removes labels, assigns people, closes items, or changes milestones: those are the triager's decisions.
 
 Before you start, read:
 
@@ -55,7 +55,7 @@ When asked to start the triage bot, as in "start triage bot":
    ```
 
 5. Do the first [hourly run](#hourly-run).
-6. Tell the user that the triage bot is started, with the job ID, when the next run starts, and when the job expires, as the scheduler reports them. If `TRIAGE_../../../tools/internal/triage/blueprints/features/triage_bot/staleness_ping.blueprint.md#the-google-chat-message_WEBHOOK_URL` is not set, also say that the pings do not go to the team's chat space (see [The Google Chat message](../../../tools/internal/triage/blueprints/features/triage_bot/staleness_ping.blueprint.md#the-google-chat-message)).
+6. Tell the user that the triage bot is started, with the job ID, when the next run starts, and when the job expires, as the scheduler reports them. If `TRIAGE_CHAT_USERS` is not set, also say that the pings go only to GitHub, without direct messages to the assignees (see [The direct message](../../../tools/internal/triage/blueprints/features/triage_bot/staleness_ping.blueprint.md#the-direct-message)).
 
 When asked to stop the triage bot, find its job as in step 3, delete it, and say that the triage bot is stopped.
 
@@ -118,7 +118,7 @@ A triage bot comment is posted by a team member or a bot, and starts with `**Fro
 
 1. `**From triage bot, suggestion:**`: a suggestion comment, with an `<a2ui>` block.
 2. `**From triage bot, response:**`: a response comment, which answers requests to the triage bot.
-3. Anything else: other triage bot comments, such as the staleness pinger's `**From triage bot, ping:**`. The pinger also starts its Google Chat message with this prefix, in bold, written `*From triage bot, ping:*` in the Google Chat format.
+3. Anything else: other triage bot comments, such as the staleness pinger's `**From triage bot, ping:**`. The pinger also starts its direct messages with this prefix, in bold, written `*From triage bot, ping:*` in the Google Chat format.
 
 Earlier triage bot comments start with `**From triage bot:**`, and the line after it names the kind: "Triage suggestion:" or "Response to requests:".
 
@@ -470,13 +470,16 @@ List every item with its outcome and a link: suggestion posted, response posted,
 
 ## Staleness pings
 
-[staleness_ping.dart](../../../tools/internal/triage/pkgs/pinger/bin/staleness_ping.dart) finds the [stale items](../../../tools/internal/triage/blueprints/features/triage_bot/staleness_ping.blueprint.md#stale-items) that have no current ping, posts a ping on each one, and sends each ping to the team's chat space when `TRIAGE_CHAT_WEBHOOK_URL` is set. Do not find the stale items or write the pings yourself: the flagger reads the same definitions to flag the items whose pings expired, so the two always agree.
+[staleness_ping.dart](../../../tools/internal/triage/pkgs/pinger/bin/staleness_ping.dart) finds the [stale items](../../../tools/internal/triage/blueprints/features/triage_bot/staleness_ping.blueprint.md#stale-items) that have no current ping, posts a ping on each one, and writes a [direct message](../../../tools/internal/triage/blueprints/features/triage_bot/staleness_ping.blueprint.md#the-direct-message) to each assignee that `TRIAGE_CHAT_USERS` maps to a Google account. Do not find the stale items or write the pings yourself: the flagger reads the same definitions to flag the items whose pings expired, so the two always agree.
 
 ```bash
-dart run tools/internal/triage/pkgs/pinger/bin/staleness_ping.dart
+messages="$(mktemp)"
+dart run tools/internal/triage/pkgs/pinger/bin/staleness_ping.dart --messages "$messages"
 ```
 
-For a dry run, add `--dry-run`: the script prints each ping instead of posting it. Report each item the script pinged, with its link and case, from its lines that start with `Pinged` or `Would ping`. If the script exits with an error, report the errors it printed, and do not post the failed pings yourself: the next run tries again.
+Then send the direct messages. Each line of the `$messages` file is a JSON object with the assignee's GitHub login in `login`, their Google account in `to`, and the message in `text`. Send each `text`, as it is, as a direct message to `to` with your Google Chat tool, from the triager's account, in the Google Chat format: `*From triage bot, ping:*` is bold, and `<url|title>` is a link. Do not add anything to the message. If you have no Google Chat tool, or a message fails, report each message you did not send, with its recipient and text, and do not retry: the GitHub comment already asks the assignee. Delete the file afterwards.
+
+For a dry run, add `--dry-run` instead of `--messages`: the script prints each ping and direct message instead of posting or writing it. Report each item the script pinged, with its link and case, from its lines that start with `Pinged` or `Would ping`, and the direct messages you sent. If the script exits with an error, report the errors it printed, and do not post the failed pings yourself: the next run tries again.
 
 ## Triage report
 
