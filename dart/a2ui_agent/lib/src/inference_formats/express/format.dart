@@ -42,7 +42,9 @@ class ExpressFormatFactory extends InferenceFormatFactory {
   /// streaming.
   final Set<String> progressiveKeys;
 
-  /// Throws [A2uiCatalogError] if two of [catalogs] share an id.
+  /// Throws [A2uiCatalogError] if two of [catalogs] share an id, if they
+  /// target different protocol versions, or if several target a version before
+  /// v1.0.
   @override
   InferenceFormat createFormat(
     List<CatalogApi> catalogs, {
@@ -57,13 +59,16 @@ class ExpressFormatFactory extends InferenceFormatFactory {
 
 /// The Express format bound to the catalogs of one request.
 ///
-/// The first catalog is the default for a surface that does not name one.
+/// A lone catalog is the catalog of every surface; with several v1.0 catalogs,
+/// a surface has no catalog of its own.
 class ExpressFormat extends InferenceFormat {
   /// [allowedMessages] names the message types the model may write, such as
   /// `createSurface`; null allows all of them. The prompt describes only the
   /// statements that compile to these types.
   ///
-  /// Throws [A2uiCatalogError] if two of [catalogs] share an id.
+  /// Throws [A2uiCatalogError] if two of [catalogs] share an id, if they
+  /// target different protocol versions, or if several target a version before
+  /// v1.0.
   ExpressFormat(
     List<CatalogApi> catalogs, {
     List<List<AgentToRendererMessage>> examples = const [],
@@ -77,7 +82,7 @@ class ExpressFormat extends InferenceFormat {
              ? null
              : List.unmodifiable(allowedMessages),
        ) {
-    checkDistinctIds(catalogs);
+    checkMixedCatalogs(catalogs);
   }
 
   /// Property keys whose open string literals are healed progressively during
