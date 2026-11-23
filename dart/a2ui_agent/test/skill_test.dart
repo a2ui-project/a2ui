@@ -272,9 +272,8 @@ void main() {
 
     test('writes each skill and returns its Markdown', () {
       final skill = Skill(name: 'a2ui-core', description: 'd', content: 'c');
-      final Map<String, String> written = SkillSet([
-        skill,
-      ]).exportToDirectory(out);
+      final Map<String, String> written = SkillSet([skill])
+          .exportToDirectory(out);
       expect(written, {'a2ui-core/SKILL.md': skill.toMarkdown()});
       expect(
         File('$out/a2ui-core/SKILL.md').readAsStringSync(),
@@ -307,9 +306,8 @@ void main() {
 
     test('removes a symlink at a skill directory without following it', () {
       Link('$out/a2ui-core').createSync(elsewhere);
-      SkillSet([
-        Skill(name: 'a2ui-core', description: '', content: ''),
-      ]).exportToDirectory(out);
+      SkillSet([Skill(name: 'a2ui-core', description: '', content: '')])
+          .exportToDirectory(out);
       expect(File('$elsewhere/keep.txt').existsSync(), isTrue);
       expect(
         FileSystemEntity.typeSync('$out/a2ui-core', followLinks: false),
@@ -320,9 +318,8 @@ void main() {
 
     test('replaces a file at a skill directory', () {
       File('$out/a2ui-core').writeAsStringSync('in the way');
-      SkillSet([
-        Skill(name: 'a2ui-core', description: '', content: ''),
-      ]).exportToDirectory(out);
+      SkillSet([Skill(name: 'a2ui-core', description: '', content: '')])
+          .exportToDirectory(out);
       expect(File('$out/a2ui-core/SKILL.md').existsSync(), isTrue);
     });
   });

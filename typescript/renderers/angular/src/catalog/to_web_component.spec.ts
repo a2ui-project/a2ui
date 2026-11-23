@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {Component, Injector} from '@angular/core';
+import {Component, InjectionToken, Injector, inject} from '@angular/core';
 
 import {TestBed} from '@angular/core/testing';
 import {z} from 'zod';
@@ -24,6 +24,7 @@ import {
   ComponentContext,
   ComponentModel,
   NodeResolver,
+  SurfaceGroupModel,
   SurfaceModel,
   getValue,
 } from '@a2ui/web_core';
@@ -34,7 +35,13 @@ import {
 } from '@a2ui/web_core/universal';
 import {DynamicStringSchema} from '@a2ui/web_core/v0_9';
 import {toWebComponent} from './to_web_component';
-import {AngularWcHost, setDefaultUniversalInjector} from './angular_wc_host';
+import {
+  AngularWcHost,
+  clearDefaultUniversalInjector,
+  registerSurfaceGroupInjector,
+  registerUniversalHostInjector,
+  setDefaultUniversalInjector,
+} from './angular_wc_host';
 import {ComponentBinder} from '../core/component-binder.service';
 import {CatalogComponent} from '../core/catalog_component';
 import {
@@ -522,5 +529,115 @@ describe('toWebComponent', () => {
 
     document.body.removeChild(el);
     resolver.dispose();
+  });
+
+  it('retains earlier active fallback injectors when a newer injector is cleared', () => {
+    const LABEL_TOKEN = new InjectionToken<string>('LABEL_TOKEN');
+
+    @Component({
+      selector: 'test-stacked-injector-wc',
+      template: '<span class="token-val">{{ label }}</span>',
+      standalone: true,
+    })
+    class TestStackedInjectorComponent extends CatalogComponent<ComponentApi> {
+      readonly label = inject(LABEL_TOKEN);
+    }
+
+    const impl = createUniversalImplementation(
+      {name: 'StackedInjectorTest', schema: z.object({})},
+      TestStackedInjectorComponent,
+    );
+    const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
+    const surface = new SurfaceModel('surface-stacked', catalog);
+    surface.componentsModel.addComponent(
+      new ComponentModel('comp-stacked', 'StackedInjectorTest', {}, catalog),
+    );
+
+    const injectorA = Injector.create({
+      providers: [{provide: LABEL_TOKEN, useValue: 'from-A'}],
+      parent: injector,
+    });
+    const injectorB = Injector.create({
+      providers: [{provide: LABEL_TOKEN, useValue: 'from-B'}],
+      parent: injector,
+    });
+
+    setDefaultUniversalInjector(injectorA);
+    setDefaultUniversalInjector(injectorB);
+    clearDefaultUniversalInjector(injectorB);
+
+    registerUniversalElement(impl);
+    const el = document.createElement(impl.tagName) as AngularWcHost;
+    el.context = new ComponentContext(surface, 'comp-stacked', '/');
+    document.body.appendChild(el);
+
+    expect(el.querySelector('.token-val')!.textContent).toBe('from-A');
+    document.body.removeChild(el);
+  });
+
+  it('resolves distinct injectors from enclosing DOM hosts and SurfaceGroupModels', () => {
+    const LABEL_TOKEN = new InjectionToken<string>('LABEL_TOKEN');
+
+    @Component({
+      selector: 'test-scoped-injector-wc',
+      template: '<span class="token-val">{{ label }}</span>',
+      standalone: true,
+    })
+    class TestScopedInjectorComponent extends CatalogComponent<ComponentApi> {
+      readonly label = inject(LABEL_TOKEN);
+    }
+
+    const impl = createUniversalImplementation(
+      {name: 'ScopedInjectorTest', schema: z.object({})},
+      TestScopedInjectorComponent,
+    );
+    const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
+    const groupA = new SurfaceGroupModel<AngularComponentImplementation>();
+    const groupB = new SurfaceGroupModel<AngularComponentImplementation>();
+    const surfaceA = new SurfaceModel('surf-a', catalog);
+    const surfaceB = new SurfaceModel('surf-b', catalog);
+    surfaceA.componentsModel.addComponent(
+      new ComponentModel('comp-a', 'ScopedInjectorTest', {}, catalog),
+    );
+    surfaceB.componentsModel.addComponent(
+      new ComponentModel('comp-b', 'ScopedInjectorTest', {}, catalog),
+    );
+    groupA.addSurface(surfaceA);
+    groupB.addSurface(surfaceB);
+
+    const injectorA = Injector.create({
+      providers: [{provide: LABEL_TOKEN, useValue: 'bubble-A'}],
+      parent: injector,
+    });
+    const injectorB = Injector.create({
+      providers: [{provide: LABEL_TOKEN, useValue: 'bubble-B'}],
+      parent: injector,
+    });
+
+    const hostContainerA = document.createElement('div');
+    const hostContainerB = document.createElement('div');
+    document.body.appendChild(hostContainerA);
+    document.body.appendChild(hostContainerB);
+    registerUniversalHostInjector(hostContainerA, injectorA);
+    registerSurfaceGroupInjector(groupB, injectorB);
+
+    registerUniversalElement(impl);
+    const elA = document.createElement(impl.tagName) as AngularWcHost;
+    elA.context = new ComponentContext(surfaceA, 'comp-a', '/');
+    hostContainerA.appendChild(elA);
+
+    const elB = document.createElement(impl.tagName) as AngularWcHost;
+    elB.context = new ComponentContext(surfaceB, 'comp-b', '/');
+    hostContainerB.appendChild(elB);
+
+    expect(elA.querySelector('.token-val')!.textContent).toBe('bubble-A');
+    expect(elB.querySelector('.token-val')!.textContent).toBe('bubble-B');
+
+    registerUniversalHostInjector(hostContainerA, undefined);
+    registerSurfaceGroupInjector(groupB, undefined);
+    document.body.removeChild(hostContainerA);
+    document.body.removeChild(hostContainerB);
+    groupA.dispose();
+    groupB.dispose();
   });
 });

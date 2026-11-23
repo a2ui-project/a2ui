@@ -2,17 +2,8 @@
 
 ## Unreleased
 
-- **Breaking:** (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`, and
-  `@checks` on v1.0 components in `ExpressCompiler`, `DirectJsonResponseStream`,
-  `MessageReader`, and `RendererState`, while keeping v0.9 component output
-  bare. `ExpressDecompiler` reads both `@`-prefixed and legacy bare component
-  envelope keys on v1.0 payloads when the component schema does not declare a
-  custom property with the same bare name
-  ([#1376](https://github.com/a2ui-project/a2ui/issues/1376),
-  [#3403](https://github.com/a2ui-project/a2ui/issues/3403),
-  [#3466](https://github.com/a2ui-project/a2ui/issues/3466),
-  [#4012](https://github.com/a2ui-project/a2ui/issues/4012),
-  [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+- **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.10.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
+
 - **Breaking:** `PromptGenerator` declares `catalogs` and renders its snippet
   from three sections, `generateBaseRules()`,
   `generateCatalogInstructions({catalog})` and `generateExamples({catalog})`,
@@ -27,6 +18,24 @@
   core skill with the format's rules, a skill per catalog, or a `SkillSet` of
   all of them that `exportToDirectory` writes to disk
   ([#4217](https://github.com/a2ui-project/a2ui/pull/4217)).
+
+## 0.4.0
+
+- **Breaking:** Requires `a2ui_core` `^0.8.0`, whose types this library
+  re-exports.
+
+- **Breaking:** (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`, and
+  `@checks` on v1.0 components in `ExpressCompiler`, `DirectJsonResponseStream`,
+  `MessageReader`, and `RendererState`, while keeping v0.9 component output
+  bare. `ExpressDecompiler` reads both `@`-prefixed and legacy bare component
+  envelope keys on v1.0 payloads when the component schema does not declare a
+  custom property with the same bare name
+  ([#1376](https://github.com/a2ui-project/a2ui/issues/1376),
+  [#3403](https://github.com/a2ui-project/a2ui/issues/3403),
+  [#3466](https://github.com/a2ui-project/a2ui/issues/3466),
+  [#4012](https://github.com/a2ui-project/a2ui/issues/4012),
+  [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+- Add explicit type annotations to internal local and pattern variables to satisfy the `specify_nonobvious_local_variable_types` analyzer lint on Dart 3.15+ ([#4233](https://github.com/a2ui-project/a2ui/pull/4233)).
 
 ## 0.3.0
 

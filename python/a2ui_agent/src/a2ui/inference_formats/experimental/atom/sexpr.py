@@ -45,7 +45,7 @@ class Symbol(str):
     """A bare token that is not a keyword, string, number, boolean or null."""
 
 
-class Form(list):
+class Form(list[Any]):
     """A parenthesized expression. Bracketed lists parse to a plain `list`."""
 
 

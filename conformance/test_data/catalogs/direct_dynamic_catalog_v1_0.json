@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/direct_dynamic_catalog_v1_0.json",
+  "protocolVersion": "1.0",
+  "title": "Conformance Direct Dynamic Schema Catalog (v1.0)",
+  "description": "A catalog whose component properties reference DataBinding and FunctionCall directly rather than through a Dynamic* union.",
+  "catalogId": "conformance/direct_dynamic",
+  "components": {
+    "Column": {
+      "type": "object",
+      "description": "Renders a vertical list of child components.",
+      "properties": {
+        "component": { "const": "Column" },
+        "children": { "$ref": "common_types.json#/$defs/ChildList" }
+      },
+      "required": ["component", "children"]
+    },
+    "DirectDynamicProbe": {
+      "type": "object",
+      "description": "Exposes direct DataBinding, FunctionCall, and inline dynamic union properties.",
+      "properties": {
+        "component": { "const": "DirectDynamicProbe" },
+        "binding": { "$ref": "common_types.json#/$defs/DataBinding" },
+        "count": { "$ref": "common_types.json#/$defs/DataBinding" },
+        "flag": {
+          "oneOf": [
+            { "type": "boolean" },
+            { "$ref": "common_types.json#/$defs/DataBinding" },
+            { "$ref": "common_types.json#/$defs/FunctionCall" }
+          ]
+        },
+        "computed": { "$ref": "common_types.json#/$defs/FunctionCall" }
+      },
+      "required": ["component", "binding", "count", "flag", "computed"]
+    }
+  }
+}

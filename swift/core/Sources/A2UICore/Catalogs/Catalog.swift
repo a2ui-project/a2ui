@@ -36,6 +36,10 @@ public protocol CatalogProtocol: Sendable {
   /// Optional theme schema for this catalog.
   var themeSchema: Schema? { get }
 
+  /// Optional Markdown design guidelines for this catalog, which agents add to the prompt
+  /// alongside its components and functions.
+  var instructions: String? { get }
+
   /// Map of function name → ``FunctionImplementation``.
   var functions: [String: any FunctionImplementation] { get }
 
@@ -63,6 +67,10 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
   /// Optional theme schema for this catalog.
   public var themeSchema: Schema?
 
+  /// Optional Markdown design guidelines for this catalog, which agents add to the prompt
+  /// alongside its components and functions.
+  public var instructions: String?
+
   /// Creates a catalog from arrays of components and functions.
   ///
   /// - Parameters:
@@ -71,15 +79,18 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
   ///   - components: Array of component definitions conforming to ``ComponentAPI``.
   ///   - functions: Array of function implementations (defaults to empty).
   ///   - themeSchema: Optional theme schema (defaults to nil).
+  ///   - instructions: Optional Markdown design guidelines for agents (defaults to nil).
   public init(
     id: String,
     protocolVersion: String? = nil,
     components: [Component],
     functions: [any FunctionImplementation] = [],
-    themeSchema: Schema? = nil
+    themeSchema: Schema? = nil,
+    instructions: String? = nil
   ) {
     self.id = id
     self.protocolVersion = protocolVersion
+    self.instructions = instructions
     self.components = Dictionary(
       components.map { ($0.name, $0) },
       uniquingKeysWith: { _, last in last }
@@ -121,7 +132,8 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
         )
       },
       functions: Array(functions.values),
-      themeSchema: themeSchema
+      themeSchema: themeSchema,
+      instructions: instructions
     )
   }
 
@@ -137,7 +149,10 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
   /// )
   /// ```
   ///
-  /// The derived catalog keeps this catalog's protocol version and theme schema.
+  /// The derived catalog keeps this catalog's protocol version and theme schema. It does not
+  /// keep this catalog's ``instructions``, which describe this catalog: instructions often name
+  /// its ID and its components in their examples, so they would teach a model to write messages
+  /// for the wrong catalog. `instructions` are the derived catalog's own.
   ///
   /// - Parameters:
   ///   - id: The derived catalog's ID.
@@ -146,11 +161,14 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
   ///     every component of this one.
   ///   - functions: The functions of the derived catalog, as for `components`. If `nil`, the
   ///     derived catalog keeps every function of this one.
+  ///   - instructions: The derived catalog's Markdown design guidelines for agents. If `nil`,
+  ///     the derived catalog has none.
   /// - Throws: ``A2UICatalogError`` if a name is not an entry of this catalog.
   public func derive(
     id: String,
     components: [DerivedCatalogEntry<Component>]? = nil,
-    functions: [DerivedCatalogEntry<any FunctionImplementation>]? = nil
+    functions: [DerivedCatalogEntry<any FunctionImplementation>]? = nil,
+    instructions: String? = nil
   ) throws -> Catalog<Component> {
     let derivedComponents = try components.map { entries in
       try entries.map { entry -> Component in
@@ -183,7 +201,8 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
       protocolVersion: protocolVersion,
       components: derivedComponents ?? Array(self.components.values),
       functions: derivedFunctions ?? Array(self.functions.values),
-      themeSchema: themeSchema
+      themeSchema: themeSchema,
+      instructions: instructions
     )
   }
 
@@ -193,19 +212,24 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
     protocolVersion: A2UIProtocolVersion,
     components: [Component],
     functions: [any FunctionImplementation] = [],
-    themeSchema: Schema? = nil
+    themeSchema: Schema? = nil,
+    instructions: String? = nil
   ) {
     self.init(
       id: id,
       protocolVersion: protocolVersion.rawValue,
       components: components,
       functions: functions,
-      themeSchema: themeSchema
+      themeSchema: themeSchema,
+      instructions: instructions
     )
   }
 }
 
 extension CatalogProtocol {
+  /// No instructions, for a conforming type that does not declare its own.
+  public var instructions: String? { nil }
+
   /// The protocol version of this catalog as an `A2UIProtocolVersion` enum, if recognized.
   public var a2uiProtocolVersion: A2UIProtocolVersion? {
     guard let protocolVersion else { return nil }

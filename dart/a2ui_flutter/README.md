@@ -360,7 +360,7 @@ agent you trust.
 ## Protocol v0.9
 
 `package:a2ui_flutter/v0_9/basic_catalog.dart` implements the
-[v0.9 basic catalog](../../specification/v0_9/catalogs/basic/catalog.json)
+[v0.9 basic catalog](../../catalogs/basic/v0_9/catalog.json)
 under the same names, with the v0.9 differences: Text has the `h1` to `h5`
 variants, TextField checks `validationRegexp`, and the components take the
 surface theme's `primaryColor` as the Material theme's primary color.
@@ -415,4 +415,4 @@ surface's data model and a log of actions and errors.
 
 `test/catalog/basic/examples_test.dart` renders every
 [v1.0 basic catalog example](../../catalogs/basic/v1/examples) and every
-[v0.9 one](../../specification/v0_9/catalogs/basic/examples).
+[v0.9 one](../../catalogs/basic/v0_9/examples).

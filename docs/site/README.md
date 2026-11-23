@@ -85,3 +85,25 @@ To include every specification version on `a2ui.org` **without duplicating Markd
     - Migrate the remaining Markdown pages from `docs/public/` once the pilot pages are signed off.
 5. **Phase 5 — Cutover `.github/workflows/docs.yml` & Retire MkDocs**
     - Point `.github/workflows/docs.yml` to build and deploy `docs/site/dist/`.
+
+---
+
+## 6. Local Development
+
+`docs/site` is currently a standalone `npm` package (outside the root Yarn workspaces, with its own `package-lock.json`), so use `npm` rather than `yarn` (tracked for possible Yarn Berry migration in [#4220](https://github.com/a2ui-project/a2ui/issues/4220)). Because the root `package.json` declares `yarn` as `packageManager`, set `COREPACK_ENABLE_STRICT=0` when running `npm` inside the repository.
+
+```bash
+# Install dependencies
+COREPACK_ENABLE_STRICT=0 npm --prefix docs/site ci
+
+# Start local Astro dev server (stages assets, CNAME, llms.txt, and schemas first)
+COREPACK_ENABLE_STRICT=0 npm --prefix docs/site run dev
+
+# Run unit tests and asset/spec checks
+COREPACK_ENABLE_STRICT=0 npm --prefix docs/site test
+COREPACK_ENABLE_STRICT=0 npm --prefix docs/site run check
+
+# Build production bundle (includes link/anchor/CNAME checks) and preview locally
+COREPACK_ENABLE_STRICT=0 npm --prefix docs/site run build
+COREPACK_ENABLE_STRICT=0 npm --prefix docs/site run preview
+```
