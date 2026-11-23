@@ -70,8 +70,8 @@ final RegExp _token = RegExp(
 ///
 /// Finding, wrapping and unwrapping blocks does not depend on the version.
 class ExpressParser extends Parser {
-  /// The first of [catalogs] is the default for a surface that does not name
-  /// its catalog.
+  /// A lone catalog in [catalogs] is the catalog of every surface; with several
+  /// v1.0 catalogs, a surface has no catalog of its own.
   ExpressParser(
     List<CatalogApi> catalogs, {
     Set<String> progressiveKeys = defaultExpressProgressiveKeys,
