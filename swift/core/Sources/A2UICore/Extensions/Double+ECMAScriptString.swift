@@ -34,8 +34,9 @@ extension Double {
   /// Splits the `description` of a positive finite number into its significant digits, without
   /// leading or trailing zeros, and the position of the decimal point relative to the first
   /// digit: the number equals `0.<digits> × 10^pointPosition`.
-  private static func shortestDigits(of value: Double) -> (digits: [Character], pointPosition: Int)?
-  {
+  private static func shortestDigits(
+    of value: Double
+  ) -> (digits: [Character], pointPosition: Int)? {
     let parts = value.description.split(separator: "e", omittingEmptySubsequences: false)
     guard parts.count <= 2 else { return nil }
     var exponent = 0
