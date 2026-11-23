@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import sys
 from collections.abc import Callable, Iterable, Mapping
 from importlib.metadata import version
@@ -53,6 +54,15 @@ _LOG_SYNC_INTERVAL_SECONDS = 0.2
 AgentMessageInput: TypeAlias = Mapping[str, Any] | BaseModel
 RendererMessageHandler: TypeAlias = Callable[[RendererToAgentMessage], None]
 _T = TypeVar("_T")
+_LOGGER = logging.getLogger(__name__)
+
+
+def _dispatch(handlers: Iterable[Callable[[_T], None]], message: _T) -> None:
+    for handler in tuple(handlers):
+        try:
+            handler(message)
+        except Exception:
+            _LOGGER.exception("A2UI handler failed")
 
 
 def _is_ipykernel_kernel(kernel: object) -> bool:
@@ -223,8 +233,6 @@ class A2UISurface(anywidget.AnyWidget):
         self._messages.put_nowait(message)
         if action is not None:
             self._actions.put_nowait(action)
-        for handler in tuple(self._message_handlers):
-            handler(message)
+        _dispatch(self._message_handlers, message)
         if action is not None:
-            for action_handler in tuple(self._action_handlers):
-                action_handler(action)
+            _dispatch(self._action_handlers, action)

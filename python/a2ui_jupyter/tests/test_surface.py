@@ -288,21 +288,29 @@ def test_action_reaches_both_action_interfaces() -> None:
     remove_action_handler()
 
 
-def test_failing_message_handler_does_not_drop_the_action() -> None:
+def test_failing_handler_does_not_stop_delivery(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     surface = A2UISurface()
+    messages: list[Any] = []
+    actions: list[Any] = []
 
     def fail(_message: Any) -> None:
         raise RuntimeError("handler failed")
 
     surface.on_message(fail)
+    surface.on_message(messages.append)
+    surface.on_action(fail)
+    surface.on_action(actions.append)
 
-    with pytest.raises(RuntimeError, match="handler failed"):
-        surface._handle_frontend_message(
-            surface, {"type": "a2ui", "message": ACTION}, []
-        )
+    surface._handle_frontend_message(surface, {"type": "a2ui", "message": ACTION}, [])
 
     action = asyncio.run(asyncio.wait_for(surface.next_action(), timeout=0.1))
     assert action.model_dump(by_alias=True, exclude_unset=True) == ACTION
+    assert messages == actions == [action]
+    assert [
+        str(record.exc_info[1]) for record in caplog.records if record.exc_info
+    ] == ["handler failed", "handler failed"]
 
 
 def test_waiting_in_jupyterlite_raises_instead_of_hanging(

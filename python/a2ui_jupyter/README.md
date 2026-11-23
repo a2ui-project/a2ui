@@ -91,6 +91,9 @@ you from running other cells until the form is submitted, and there is no
 call that waits synchronously for the user. A cancel button has no special
 meaning either: it sends an ordinary action, like any other button.
 
+If a callback raises, the kernel logs the exception and continues calling the
+other registered callbacks for that message.
+
 The reason is how the click reaches Python. The browser sends each click as a
 widget (comm) message to the kernel, and the kernel that runs your cells is
 the same kernel that must handle that message. So a cell can wait for a click
