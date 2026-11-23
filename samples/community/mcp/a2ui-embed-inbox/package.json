@@ -5,7 +5,7 @@
   "description": "Internal proof of concept: an inbox assistant MCP server that prepares every email decision with a recommendation in one interactive A2UI v1.0 card inside MCP Apps through @a2ui/embed",
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && a2ui-embed build",
     "test": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
