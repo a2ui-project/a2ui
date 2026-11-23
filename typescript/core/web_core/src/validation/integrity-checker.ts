@@ -255,9 +255,13 @@ function traverseRecursionAndPaths(item: unknown, globalDepth: number): void {
  * @param data Data payload or component hierarchy to evaluate.
  * @param startDepth Depth that `data` itself sits at, for a value held by a
  *   container whose depth has already been counted.
+ * @throws {RangeError} If `startDepth` is not a non-negative integer.
  * @throws {A2uiRecursionError} If global structure depth exceeds the limit.
  * @throws {A2uiValidationError} If an invalid JSON Pointer path format is encountered.
  */
 export function validateRecursionAndPaths(data: unknown, startDepth = 0): void {
+  if (!Number.isInteger(startDepth) || startDepth < 0) {
+    throw new RangeError(`startDepth must be a non-negative integer, got ${startDepth}`);
+  }
   traverseRecursionAndPaths(data, startDepth);
 }

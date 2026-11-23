@@ -376,6 +376,77 @@ void main() {
     },
   );
 
+  test(
+    'v0.9 function with map-valued additionalProperties validates deeply '
+    'nested calls in linear time',
+    timeout: const Timeout(Duration(seconds: 30)),
+    () {
+      final _RendererCatalog base = BasicCatalog.v0_9();
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: base.id,
+        components: base.components.values.toList(),
+        functions: [
+          ...base.functions.values,
+          _DynamicMapFunction('joinValues'),
+        ],
+        themeSchema: base.themeSchema,
+        schemaId: base.schemaId,
+        title: base.title,
+        description: base.description,
+        protocolVersion: base.protocolVersion,
+        instructions: base.instructions,
+        definitions: base.definitions,
+      );
+
+      Map<String, Object?> nestedJoinValues(
+        int depth, {
+        Object? leaf = 'leaf',
+      }) {
+        var current = leaf;
+        for (var i = 0; i < depth; i++) {
+          current = {
+            'call': 'joinValues',
+            'args': {'item': current},
+          };
+        }
+        return current! as Map<String, Object?>;
+      }
+
+      void process(Object text) {
+        final processor = MessageProcessor<ComponentApi>(
+          catalogs: [catalog],
+          defaultVersion: A2uiProtocolVersion.v0_9,
+        );
+        processor.processMessages(
+          AgentToRendererMessage.parseAll([
+            {
+              'version': 'v0.9',
+              'createSurface': {
+                'surfaceId': 's1',
+                'catalogId': BasicCatalog.v0_9Id,
+              },
+            },
+            {
+              'version': 'v0.9',
+              'updateComponents': {
+                'surfaceId': 's1',
+                'components': [
+                  {'id': 'root', 'component': 'Text', 'text': text},
+                ],
+              },
+            },
+          ], protocolVersion: A2uiProtocolVersion.v0_9),
+        );
+      }
+
+      expect(() => process(nestedJoinValues(23)), returnsNormally);
+      expect(
+        () => process(nestedJoinValues(10, leaf: 42)),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    },
+  );
+
   _registerExamples(
     'the v0.9.1 basic catalog examples against the v0.9.1 document',
     '../catalogs/basic/v0_9_1/examples',
@@ -467,4 +538,25 @@ class _OpenObjectFunction extends FunctionImplementation {
     DataContext context, [
     CancellationSignal? cancellationSignal,
   ]) => null;
+}
+
+class _DynamicMapFunction extends FunctionImplementation {
+  _DynamicMapFunction(String name)
+    : super(
+        name: name,
+        returnType: A2uiReturnType.string,
+        argumentSchema: Schema.fromMap(const {
+          'type': 'object',
+          'additionalProperties': {
+            r'$ref': r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString',
+          },
+        }),
+      );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) => args.values.join(',');
 }

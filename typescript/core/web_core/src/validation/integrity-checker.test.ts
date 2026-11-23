@@ -521,6 +521,32 @@ describe('Integrity Verification', () => {
         );
       });
     }
+
+    it('validates startDepth as a non-negative integer and shifts the depth bound', () => {
+      assert.doesNotThrow(() => validateRecursionAndPaths('leaf', 50));
+      assert.throws(
+        () => validateRecursionAndPaths({nested: 'x'}, 50),
+        (err: unknown) =>
+          err instanceof A2uiRecursionError &&
+          err.message.includes('Global recursion limit exceeded'),
+      );
+
+      for (const bad of [
+        -1,
+        -100,
+        Number.NaN,
+        1.5,
+        Number.POSITIVE_INFINITY,
+        Number.NEGATIVE_INFINITY,
+      ]) {
+        assert.throws(
+          () => validateRecursionAndPaths({}, bad),
+          (err: unknown) =>
+            err instanceof RangeError &&
+            err.message.includes('startDepth must be a non-negative integer'),
+        );
+      }
+    });
   });
 
   describe('Integrity and Recursion Errors', () => {

@@ -350,7 +350,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
         return self._extract_operations_for_action(action, raw_payload)
 
     def _validate_message_version(self, raw_payload: dict[str, Any]) -> None:
-        """Checks the `version` header on pre-v0.8+ envelopes that require one."""
+        """Checks the `version` header on v0.9 and later envelopes."""
         ver_str = (
             self.version.value if hasattr(self.version, "value") else str(self.version)
         )

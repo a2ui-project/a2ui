@@ -1302,6 +1302,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         !args.containsKey('properties') &&
         !args.containsKey(r'$ref') &&
         !args.containsKey('additionalProperties') &&
+        args['unevaluatedProperties'] is! Map &&
         !args.containsKey('patternProperties') &&
         !args.containsKey('allOf') &&
         !args.containsKey('anyOf') &&

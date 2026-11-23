@@ -79,6 +79,38 @@ def validate_component_integrity(
                 )
 
 
+def _traverse_recursion_and_paths(item: Any, global_depth: int) -> None:
+    if global_depth > MAX_GLOBAL_DEPTH:
+        raise A2uiRecursionError(
+            f"Global recursion limit exceeded: Depth > {MAX_GLOBAL_DEPTH}"
+        )
+
+    if isinstance(item, list):
+        for x in item:
+            _traverse_recursion_and_paths(x, global_depth + 1)
+        return
+
+    if isinstance(item, dict):
+        # v1.0 binds data with "@path"; v0.9 and templates use "path".
+        for path_key in ("path", "@path"):
+            path = item.get(path_key)
+            if isinstance(path, str) and not re.fullmatch(RELAXED_PATH_PATTERN, path):
+                raise A2uiValidationError(
+                    f"Invalid path syntax: '{path}'",
+                    details=[
+                        A2uiErrorDetail(
+                            path=path_key,
+                            code="invalid_pointer",
+                            message=f"Invalid path syntax: '{path}'",
+                        )
+                    ],
+                    path=f"/{path_key}",
+                )
+
+        for v in item.values():
+            _traverse_recursion_and_paths(v, global_depth + 1)
+
+
 def validate_recursion_and_paths(data: Any, start_depth: int = 0) -> None:
     """Traverses message payload structures verifying recursion depth and data pointer path syntax.
 
@@ -87,41 +119,15 @@ def validate_recursion_and_paths(data: Any, start_depth: int = 0) -> None:
       start_depth: The depth that `data` itself sits at, for a value held by a
         container whose depth has already been counted.
     """
-
-    def traverse(item: Any, global_depth: int) -> None:
-        if global_depth > MAX_GLOBAL_DEPTH:
-            raise A2uiRecursionError(
-                f"Global recursion limit exceeded: Depth > {MAX_GLOBAL_DEPTH}"
-            )
-
-        if isinstance(item, list):
-            for x in item:
-                traverse(x, global_depth + 1)
-            return
-
-        if isinstance(item, dict):
-            # v1.0 binds data with "@path"; v0.9 and templates use "path".
-            for path_key in ("path", "@path"):
-                path = item.get(path_key)
-                if isinstance(path, str) and not re.fullmatch(
-                    RELAXED_PATH_PATTERN, path
-                ):
-                    raise A2uiValidationError(
-                        f"Invalid path syntax: '{path}'",
-                        details=[
-                            A2uiErrorDetail(
-                                path=path_key,
-                                code="invalid_pointer",
-                                message=f"Invalid path syntax: '{path}'",
-                            )
-                        ],
-                        path=f"/{path_key}",
-                    )
-
-            for v in item.values():
-                traverse(v, global_depth + 1)
-
-    traverse(data, start_depth)
+    if (
+        isinstance(start_depth, bool)
+        or not isinstance(start_depth, int)
+        or start_depth < 0
+    ):
+        raise ValueError(
+            f"start_depth must be a non-negative integer, got {start_depth!r}"
+        )
+    _traverse_recursion_and_paths(data, start_depth)
 
 
 def analyze_topology(

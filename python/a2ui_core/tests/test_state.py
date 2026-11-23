@@ -851,6 +851,21 @@ def test_validate_recursion_and_paths_checks_siblings_of_function_call():
         )
 
 
+@pytest.mark.parametrize(
+    "bad_start_depth",
+    [-1, -100, True, False, 1.5, float("nan"), float("inf"), "0"],
+)
+def test_validate_recursion_and_paths_validates_start_depth(bad_start_depth: Any):
+    with pytest.raises(ValueError, match="start_depth must be a non-negative integer"):
+        validate_recursion_and_paths({}, start_depth=bad_start_depth)
+
+
+def test_validate_recursion_and_paths_start_depth_shifts_bound():
+    validate_recursion_and_paths("leaf", start_depth=50)
+    with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
+        validate_recursion_and_paths({"nested": "x"}, start_depth=50)
+
+
 def test_surface_components_model_collection_helpers_and_topology():
     from a2ui.core.validation import ValidationConfig
     from a2ui.core.exceptions import A2uiIntegrityError
