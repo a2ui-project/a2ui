@@ -1,5 +1,12 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
+## Unreleased
+
+- Fix `formatString` clamping whole doubles outside the signed 64-bit range,
+  including values nested in lists and objects. Large bounds in `numeric` and
+  `length` validation messages also keep their value
+  ([#4193](https://github.com/a2ui-project/a2ui/issues/4193)).
+
 ## 0.9.0
 
 - **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.5.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
