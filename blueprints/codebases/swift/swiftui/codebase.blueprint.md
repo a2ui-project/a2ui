@@ -36,7 +36,8 @@ The native SwiftUI rendering adaptation layer for A2UI.
 - **Resolver ownership**: `SurfaceViewModel` in `A2UICore` instantiates `NodeResolver`, and only
   `SurfaceViewModel.dispose()` disposes it. `Surface` neither creates nor disposes a resolver on
   unmount, so removing the view leaves resolver subscriptions active until the view model is
-  disposed (`a2ui_framework_adapter.blueprint.md` §4.1 and §7 deviation).
+  disposed ([a2ui_framework_adapter.blueprint.md](../../../modules/a2ui_framework_adapter.blueprint.md)
+  §4.1 and §7 deviation).
 - **Explicit view catalogs and lookup fallback**: Because `SurfaceViewModel` stays UI-independent
   with schema-only `AnyComponentAPI` catalogs, `Surface` takes view-carrying
   `catalogs: [Catalog<ComponentImplementation>]` alongside `viewModel` (with
@@ -62,13 +63,14 @@ The native SwiftUI rendering adaptation layer for A2UI.
   carries static `metadata`, and `ResolvedAction` forwards call-time action `metadata`. However,
   `ComponentNodeView.body` evaluates `(node.properties, node.metadata)` unconditionally on every
   render, so a `@metadata`-only update also invalidates views that read only `properties`
-  (`a2ui_framework_adapter.blueprint.md` §3 in `9055207b`, holding both module and feature pins
-  before `9055207b`).
+  ([a2ui_framework_adapter.blueprint.md](../../../modules/a2ui_framework_adapter.blueprint.md) §3 in
+  `9055207b`, holding both module and feature pins before `9055207b`).
 - **Version-agnostic theme environment**: `Surface` injects `viewModel.theme` into
   `EnvironmentValues.a2uiTheme` on every protocol version, and `DefaultA2UIButtonStyle` reads its
   `primaryColor`. While `MessageProcessor` drops `theme` on a v1.0 `createSurface`, a v1.0
   `SurfaceViewModel` constructed directly with `theme:` still styles buttons
-  (`a2ui_framework_adapter.blueprint.md` §8 `No theme on v1.0` in `a641e84f`).
+  ([a2ui_framework_adapter.blueprint.md](../../../modules/a2ui_framework_adapter.blueprint.md) §8
+  `No theme on v1.0` in `a641e84f`).
 - **Unconditional `accessibility` property fallback in `Node.explicitAccessibilityAttributes`**:
   While `NodeResolver` keeps `@accessibility` in `node.properties["@accessibility"]` and leaves a
   custom v1.0 `accessibility` property in `node.properties["accessibility"]`,
@@ -76,7 +78,9 @@ The native SwiftUI rendering adaptation layer for A2UI.
   checks `properties["@accessibility"] ?? properties["accessibility"]` without inspecting
   `protocolVersion`. On a v1.0 component that declares an object-valued `accessibility` property
   and omits `@accessibility`, the adapter can misread that custom property as protocol
-  accessibility attributes (`a2ui_framework_adapter.blueprint.md` §3 in `24d1bf9c`).
+  accessibility attributes
+  ([a2ui_framework_adapter.blueprint.md](../../../modules/a2ui_framework_adapter.blueprint.md) §3 in
+  `24d1bf9c`).
 
 ## **Validation & Execution Recipes**
 
