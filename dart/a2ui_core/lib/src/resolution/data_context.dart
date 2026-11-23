@@ -28,6 +28,7 @@ import '../primitives/protocol_version.dart';
 import '../primitives/reactivity.dart';
 import '../validation/component_graph.dart' show maxFunctionCallArgs;
 import '../validation/schema_resolution.dart';
+import 'schema_defaults.dart';
 import 'validation_result_coercion.dart';
 
 /// A function that invokes a catalog function by name.
@@ -735,7 +736,13 @@ class DataContext {
           return _agentCallValue(existing, keepFailed: keepFailed);
         }
         if (caller == null) rethrow;
-        final _AgentCall entry = _agentCall(call, catalogId, args, caller);
+        final _AgentCall entry = _agentCall(
+          call,
+          catalogId,
+          args,
+          caller,
+          outboundArgs: _outboundArgs(error, args),
+        );
         onAgentCall?.call(key, entry);
         return _agentCallValue(entry, keepFailed: keepFailed);
       }
@@ -895,6 +902,14 @@ class DataContext {
     return error.catalogId;
   }
 
+  /// The arguments a call that failed locally with [error] sends to the
+  /// agent: for a [SchemaOnlyFunction], the ones its schema checked, with
+  /// defaults, and otherwise its resolved [args] as they are.
+  static Map<String, Object?> _outboundArgs(
+    A2uiCatalogResolutionError error,
+    Map<String, Object?> args,
+  ) => error is _SchemaOnlyCall ? error.args : args;
+
   /// Reports [error], raised evaluating the function [name], through the
   /// reporter. Callers without a reporter rethrow instead.
   void _report(Object error, String name) {
@@ -945,13 +960,16 @@ class DataContext {
   /// it, and calls that resolve to the same catalog share one entry whether
   /// or not they named it.
   ///
-  /// [args] must be plain JSON (see [_checkJsonArguments]).
+  /// The entry is filed under [args], which must be plain JSON (see
+  /// [_checkJsonArguments]), and the outbound call carries [outboundArgs],
+  /// which default to [args].
   _AgentCall _agentCall(
     FunctionCall call,
     String catalogId,
     Map<String, dynamic> args,
-    AgentFunctionCaller caller,
-  ) {
+    AgentFunctionCaller caller, {
+    Map<String, Object?>? outboundArgs,
+  }) {
     final _AgentCall? existing = _agentCalls.lookup(call, catalogId, args);
     if (existing != null) return existing;
     // A call that names no catalog is filed under the one it resolved to,
@@ -968,7 +986,7 @@ class DataContext {
 
     final outbound = FunctionCall(
       call: call.call,
-      args: args,
+      args: outboundArgs ?? args,
       returnType: call.returnType,
       catalogId: catalogId,
       reservedKeys: true,
@@ -1227,6 +1245,7 @@ class DataContext {
     Object? result;
     AgentFunctionCaller? agentCaller;
     String? agentCatalogId;
+    Map<String, Object?> agentArgs = args;
     try {
       if (atLeastV10 &&
           call.call.startsWith('@') &&
@@ -1244,6 +1263,7 @@ class DataContext {
         agentCaller = agentCatalogId == null ? null : _agentCallerOrNull;
         if (agentCaller == null) rethrow;
         _checkJsonArguments(call.call, args);
+        agentArgs = _outboundArgs(error, args);
       } finally {
         _marksExecutionFailures = false;
       }
@@ -1257,7 +1277,7 @@ class DataContext {
         result = await agentCaller(
           FunctionCall(
             call: call.call,
-            args: args,
+            args: agentArgs,
             returnType: call.returnType,
             catalogId: agentCatalogId,
             reservedKeys: true,
@@ -2038,6 +2058,27 @@ A2uiWarning missingDataBindingWarning(String path) => A2uiWarning(
 final Expando<Map<FunctionImplementation, Map<String, Object?>>>
 _resolvedArgumentSchemas = Expando();
 
+/// Function argument schemas with only their references resolved, per
+/// catalog and then per function.
+final Expando<Map<FunctionImplementation, Map<String, Object?>>>
+_argumentSchemasWithRefsResolved = Expando();
+
+/// The failure [CatalogInvokerExtension.invoke] reports for a call to a
+/// [SchemaOnlyFunction] whose arguments passed its checks: there is no local
+/// implementation, so the call may go to the agent with [args].
+class _SchemaOnlyCall extends A2uiCatalogResolutionError {
+  /// The checked arguments with the schema's defaults, which the outbound
+  /// `callAgentFunction` carries.
+  final Map<String, Object?> args;
+
+  _SchemaOnlyCall(
+    super.message, {
+    required String super.catalogId,
+    required String super.functionName,
+    required this.args,
+  });
+}
+
 extension CatalogInvokerExtension
     on Catalog<ComponentApi, FunctionImplementation> {
   /// Invokes a catalog function by name with the given arguments.
@@ -2057,6 +2098,11 @@ extension CatalogInvokerExtension
   /// to the `ValidationResult` a validation function returns; it is read by
   /// its validity, as the specification defines the type (see
   /// [coerceValidationResults]).
+  ///
+  /// A [SchemaOnlyFunction] passes the same checks and then, instead of
+  /// running, throws an [A2uiCatalogResolutionError] as an undeclared
+  /// function does, so that [DataContext] sends the call to the agent with the
+  /// checked arguments and the schema's defaults.
   Object? invoke(String name, Map<String, dynamic> args, DataContext context) {
     final FunctionImplementation? fn = functions[name];
     if (fn == null) {
@@ -2086,10 +2132,19 @@ extension CatalogInvokerExtension
     final List<ValidationError> errors = argumentErrors(fn, callArgs);
     if (errors.isNotEmpty) {
       throw A2uiExpressionError(
-        "Arguments to '$name' do not match its schema in catalog '$id': "
+        "Validation failed for function '$name' in catalog '$id': "
         '${errors.map((e) => e.toErrorString()).join('; ')}',
         expression: name,
         details: callArgs,
+      );
+    }
+    if (fn is SchemaOnlyFunction) {
+      throw _SchemaOnlyCall(
+        "Function '$name' in catalog '$id' is schema-only and has no "
+        'implementation on this renderer.',
+        catalogId: id,
+        functionName: name,
+        args: withSchemaDefaults(callArgs, _argumentSchemaWithRefsResolved(fn)),
       );
     }
     final bool markFailures = context._marksExecutionFailures;
@@ -2119,16 +2174,26 @@ extension CatalogInvokerExtension
     return byFunction[fn] ??= _resolveArgumentSchema(fn);
   }
 
+  /// The argument schema of [fn] with its references resolved and nothing
+  /// else changed, cached like [_resolvedArgumentSchema].
+  Map<String, Object?> _argumentSchemaWithRefsResolved(
+    FunctionImplementation fn,
+  ) {
+    final Map<FunctionImplementation, Map<String, Object?>> byFunction =
+        _argumentSchemasWithRefsResolved[this] ??= Map.identity();
+    return byFunction[fn] ??= resolveSchemaRefs(
+      fn.argumentSchema.value,
+      validationSchema,
+      commonTypes: commonTypesSchema,
+    );
+  }
+
   /// The argument schema of [fn] with its references resolved and, in a
   /// catalog for v1.0 or later, each boolean position also accepting an
   /// object with a boolean `valid`, as a DynamicBoolean coerces one to that
   /// boolean.
   Map<String, Object?> _resolveArgumentSchema(FunctionImplementation fn) {
-    final Map<String, Object?> schema = resolveSchemaRefs(
-      fn.argumentSchema.value,
-      validationSchema,
-      commonTypes: commonTypesSchema,
-    );
+    final Map<String, Object?> schema = _argumentSchemaWithRefsResolved(fn);
     final A2uiProtocolVersion? version = protocolVersion;
     if (version == null || !version.isAtLeast(A2uiProtocolVersion.v1_0)) {
       return schema;

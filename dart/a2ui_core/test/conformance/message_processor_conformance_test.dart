@@ -112,10 +112,7 @@ const Map<String, Set<String>> _knownKeys = {
 /// and `core/multi_catalog.yaml`, which render basic-catalog components.
 void main() {
   _registerSuite('core/message_processor_v0_9.yaml');
-  _registerSuite(
-    'core/message_processor_v1_0.yaml',
-    expectedFailures: _messageProcessorV10ExpectedFailures,
-  );
+  _registerSuite('core/message_processor_v1_0.yaml');
   _registerSuite('core/add_catalog.yaml');
   _registerSuite(
     'core/reserved_keys.yaml',
@@ -132,13 +129,6 @@ void main() {
   _registerSuite('core/index_function.yaml', onlyAction: 'validate');
   _registerSuite('core/multi_catalog.yaml', onlyAction: 'validate');
 }
-
-/// Cases in `core/message_processor_v1_0.yaml` this SDK fails, with why.
-const Map<String, String> _messageProcessorV10ExpectedFailures = {
-  'test_v10_custom_envelope_properties_declared_in_combiner_branches':
-      'Catalog.fromJson does not load oneOf/anyOf nested in a component\'s '
-      'allOf, so the properties those branches declare are unknown.',
-};
 
 void _registerSuite(
   String suite, {

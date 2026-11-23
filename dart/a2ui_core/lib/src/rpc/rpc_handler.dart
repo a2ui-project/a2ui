@@ -358,6 +358,13 @@ class RpcHandler {
         RpcErrorCode.invalidFunctionCall,
       );
     }
+    if (fn is SchemaOnlyFunction) {
+      throw A2uiRpcError(
+        "Function '$name' in catalog '${catalog.id}' is schema-only and has "
+        'no implementation on this renderer.',
+        RpcErrorCode.invalidFunctionCall,
+      );
+    }
     if (fn.allowedCallers == AllowedCallers.rendererOnly) {
       throw A2uiRpcError(
         "Function '$name' cannot be called by agent (allowedCallers is "
@@ -433,9 +440,10 @@ class RpcHandler {
     if (catalogId != null) {
       final Catalog<ComponentApi, FunctionImplementation>? fromSurface =
           surface?.availableCatalogs[catalogId];
-      if (fromSurface != null &&
-          fromSurface.functions.containsKey(functionName)) {
-        return fromSurface;
+      final FunctionImplementation? surfaceFunction =
+          fromSurface?.functions[functionName];
+      if (surfaceFunction != null && surfaceFunction is! SchemaOnlyFunction) {
+        return fromSurface!;
       }
       for (final Catalog<ComponentApi, FunctionImplementation> candidate
           in catalogs) {

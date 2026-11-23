@@ -1,0 +1,68 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# The conformance cases a harness may skip by design.
+#
+# `scripts/check_executed_cases.py --allowed-skips conformance/allowed_skips.yaml`
+# reads the entries for the harness it checks. A `skipped` record is allowed
+# when its suite matches one of an entry's `suites` globs and, when the entry
+# has a `reasonPattern`, its reason matches that regular expression. Any other
+# skipped case, and any `xfailed` case, is a gap and fails the check. So is an
+# entry that covers a suite being checked but allows no record, so the file
+# lists only skips that still happen.
+#
+# A skip belongs here only when the harness is not meant to run the case: a
+# protocol version the SDK does not implement, a suite another harness runs, an
+# API that belongs to another SDK, or one of two cases that state one rule for
+# two designs, where the harness runs the other. Behavior the SDK is meant to
+# have and lacks is a gap to fix, not an entry to add.
+#
+# CI passes this file for the Dart harnesses.
+
+dart-core:
+  - suites:
+      - core/validator_v0_8.yaml
+      - core/message_processor_v0_8.yaml
+      - core/catalog.yaml
+      - core/agent_to_renderer.yaml
+    reasonPattern: 'v0\.8'
+    why: a2ui_core for Dart implements protocols v0.9, v0.9.1 and v1.0, not v0.8.
+  - suites:
+      - core/adapter_conformance.yaml
+      - core/accessibility.yaml
+    why: These suites check a rendered UI, so the Flutter adapter harness runs them.
+  - suites:
+      - core/agent_function_routing.yaml
+    reasonPattern: "unrelated path change"
+    why: The suite states the rule for re-sending a cancelled call in two cases, one for each way a core re-evaluates nested calls; a2ui_core runs test_agent_routing_cancelled_call_is_sent_again_when_its_value_is_rewritten, as TypeScript does.
+
+dart-agent:
+  - suites:
+      - agent/direct_json/response_streaming.yaml
+      - agent/renderer_capabilities.yaml
+    reasonPattern: 'v0\.8'
+    why: a2ui_agent for Dart implements protocols v0.9, v0.9.1 and v1.0, not v0.8.
+  - suites:
+      - agent/legacy/**
+    why: The legacy suites cover the pre-blueprint agent interface of kotlin/agent_sdk_legacy, which the current agent suites supersede.
+  - suites:
+      - agent/builder/builder.yaml
+      - agent/macros/macros.yaml
+    why: The fluent builder and macro APIs are Python-only helpers (F-AGT-26 and F-AGT-54 in features.yaml).
+  - suites:
+      - agent/elemental/**
+      - agent/atom/**
+    why: Elemental and Atom are experimental Python-only inference formats.
+
+flutter: []

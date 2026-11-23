@@ -23,6 +23,11 @@ import 'conformance_harness.dart';
 /// Runs the shared `conformance/core/common_types.yaml` suite against
 /// [PayloadValidator.commonTypesFor] and `a2ui_core`'s UAX #31 identifier
 /// rules.
+///
+/// `common_types_schema` compares what [PayloadValidator.commonTypesFor]
+/// returns with the specification. `a2ui_core` embeds the specification
+/// document rather than generating it from models, so the case checks the
+/// embedded copy and the version it is picked for.
 void main() {
   final List<ConformanceTestCase> cases = loadConformanceSuite(
     'core/common_types.yaml',
@@ -37,9 +42,6 @@ void main() {
       suite: 'core/common_types.yaml',
       expectedFailures: _expectedFailures,
       unsupported: _unsupported,
-      skipReason: (testCase) => testCase['action'] == 'common_types_schema'
-          ? 'no schema generation from models'
-          : null,
     );
   });
 }
@@ -99,10 +101,22 @@ const Map<String, Object?> _v1_0CatalogStub = {
 };
 
 void _runCase(ConformanceTestCase testCase) {
-  final action = testCase['action'] as String?;
-  if (action != 'validate_common_type') {
-    throw StateError('Unsupported common_types conformance action: $action');
+  switch (testCase['action']) {
+    case 'common_types_schema':
+      expectSchemaMatchesFile(
+        testCase,
+        PayloadValidator.commonTypesFor(
+          A2uiProtocolVersion.fromJson(testCase['protocolVersion']),
+        ),
+      );
+    case 'validate_common_type':
+      _runValidateCommonTypeCase(testCase);
+    case final Object? action:
+      throw StateError('Unsupported common_types conformance action: $action');
   }
+}
+
+void _runValidateCommonTypeCase(ConformanceTestCase testCase) {
   assertKnownKeys(
     testCase,
     _validateCommonTypeCaseKeys,

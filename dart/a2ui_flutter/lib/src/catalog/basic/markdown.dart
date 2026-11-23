@@ -25,8 +25,8 @@ typedef A2uiMarkdownBuilder = Widget Function(
 /// Renders the markdown of the basic `Text` components below it.
 ///
 /// A Text with the `body` variant, or none, is built by [builder]. Every
-/// other Text, and every Text without an [A2uiMarkdown] above it, shows its
-/// text without common Markdown markers.
+/// other Text, and every Text without an [A2uiMarkdown] above it, renders
+/// simple Markdown itself.
 class A2uiMarkdown extends InheritedWidget {
   const A2uiMarkdown({super.key, required this.builder, required super.child});
 

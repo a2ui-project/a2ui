@@ -218,6 +218,10 @@ void main() {
       expect(props.isValid, isFalse);
       expect(props.validationErrors, ['Must be ok']);
       expect(props.validationResults.single.message, 'Must be ok');
+      expect(
+        props.validationResult,
+        const ValidationResult(valid: false, message: 'Must be ok'),
+      );
     });
 
     test('is valid without checks', () {
@@ -227,6 +231,7 @@ void main() {
       expect(props.isValid, isTrue);
       expect(props.validationErrors, isEmpty);
       expect(props.validationResults, isEmpty);
+      expect(props.validationResult, const ValidationResult(valid: true));
     });
   });
 
@@ -268,6 +273,15 @@ void main() {
 
     test('keeps only string validation errors', () {
       expect(props.validationErrors, ['First']);
+    });
+
+    test('reads a validationResult of another type as valid', () {
+      expect(
+        const ComponentProps({
+          'validationResult': {'valid': false},
+        }).validationResult,
+        const ValidationResult(valid: true),
+      );
     });
   });
 

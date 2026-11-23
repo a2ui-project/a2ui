@@ -204,10 +204,17 @@ final RegExp _email = RegExp(
 );
 
 /// Checks that [value] is a string with basic email address syntax.
+///
+/// A failure carries the code `INVALID_EMAIL` and `error` severity.
 ValidationResult validateEmail(Object? value) =>
     value is String && _email.hasMatch(value)
     ? _valid
-    : _invalid('Must be a valid email address.');
+    : const ValidationResult(
+        valid: false,
+        code: 'INVALID_EMAIL',
+        message: 'Please enter a valid email address (e.g. user@example.com).',
+        severity: 'error',
+      );
 
 // ---------------------------------------------------------------------------
 // Logic

@@ -52,6 +52,31 @@ class ManifestRecord:
 
 
 @dataclass(frozen=True)
+class AllowedSkip:
+    """A kind of case a harness may skip by design, from the allowed-skips file.
+
+    A `skipped` record is allowed when its suite matches one of `suites` and,
+    when `reason_pattern` is set, its reason matches the pattern.
+    """
+
+    suites: tuple[str, ...]
+    why: str
+    reason_pattern: re.Pattern[str] | None = None
+
+    def covers_suite(self, suite: str) -> bool:
+        """Whether one of this entry's suite globs matches `suite`."""
+        return any(_glob_to_regex(glob).match(suite) for glob in self.suites)
+
+    def allows(self, record: ManifestRecord) -> bool:
+        """Whether this entry allows `record` to be skipped."""
+        if record.status != "skipped" or not self.covers_suite(record.suite):
+            return False
+        return self.reason_pattern is None or bool(
+            self.reason_pattern.search(record.reason or "")
+        )
+
+
+@dataclass(frozen=True)
 class Finding:
     """Fatal discrepancy discovered while comparing a manifest to a corpus."""
 
@@ -250,6 +275,116 @@ def _record_schema_error(record: ManifestRecord) -> str | None:
     return str(first_error.message)
 
 
+def load_allowed_skips(path: Path, harness: str) -> list[AllowedSkip]:
+    """Loads the entries the allowed-skips file at `path` lists for `harness`.
+
+    The file maps a harness name to a list of entries, each with `suites` (a
+    list of suite globs), `why` (the design reason), and an optional
+    `reasonPattern` (a regular expression a skip reason must match).
+    """
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must map harness names to lists of entries")
+    entries: list[AllowedSkip] = []
+    for index, raw in enumerate(data.get(harness) or []):
+        where = f"{path} {harness}[{index}]"
+        if not isinstance(raw, dict) or set(raw) - {"suites", "why", "reasonPattern"}:
+            raise ValueError(
+                f"{where} must hold only `suites`, `why` and `reasonPattern`"
+            )
+        suites = raw.get("suites")
+        why = raw.get("why")
+        pattern = raw.get("reasonPattern")
+        if (
+            not isinstance(suites, list)
+            or not suites
+            or not all(isinstance(glob, str) and glob for glob in suites)
+        ):
+            raise ValueError(f"{where} needs a non-empty list of suite globs")
+        if not isinstance(why, str) or not why.strip():
+            raise ValueError(f"{where} needs a non-empty `why`")
+        if pattern is not None and not isinstance(pattern, str):
+            raise ValueError(f"{where} `reasonPattern` must be a string")
+        entries.append(
+            AllowedSkip(
+                suites=tuple(suites),
+                why=why.strip(),
+                reason_pattern=re.compile(pattern) if pattern else None,
+            )
+        )
+    return entries
+
+
+def _check_gaps(
+    records: Sequence[ManifestRecord],
+    corpus: Mapping[str, set[str]],
+    excluded_map: Mapping[str, str],
+    allowed_skips: Sequence[AllowedSkip],
+) -> list[Finding]:
+    """Reports skipped or expected-to-fail cases the allowed skips do not cover.
+
+    Also reports an entry that covers a suite in the corpus but allows no
+    record, so the file lists only skips that still happen.
+    """
+    findings: list[Finding] = []
+    used: set[int] = set()
+    for record in records:
+        if (
+            record.error is not None
+            or record.suite not in corpus
+            or record.suite in excluded_map
+            or record.case not in corpus[record.suite]
+        ):
+            continue
+        if record.status == "xfailed":
+            findings.append(
+                Finding(
+                    kind="GAP",
+                    suite=record.suite,
+                    case=record.case,
+                    message=(
+                        f"Expected failure {record.suite}#{record.case}:"
+                        f" {record.reason}"
+                    ),
+                )
+            )
+        elif record.status == "skipped":
+            allowing = [
+                index
+                for index, entry in enumerate(allowed_skips)
+                if entry.allows(record)
+            ]
+            used.update(allowing)
+            if not allowing:
+                findings.append(
+                    Finding(
+                        kind="GAP",
+                        suite=record.suite,
+                        case=record.case,
+                        message=(
+                            f"Skipped {record.suite}#{record.case}, which no"
+                            f" allowed skip covers: {record.reason}"
+                        ),
+                    )
+                )
+    active_suites = [suite for suite in corpus if suite not in excluded_map]
+    for index, entry in enumerate(allowed_skips):
+        if index in used or not any(entry.covers_suite(s) for s in active_suites):
+            continue
+        findings.append(
+            Finding(
+                kind="UNUSED_ALLOWED_SKIP",
+                suite=", ".join(entry.suites),
+                case=None,
+                message=(
+                    f"Allowed skip for {', '.join(entry.suites)} ({entry.why})"
+                    " matched no skipped case"
+                ),
+            )
+        )
+    return findings
+
+
 def _check_single_record(
     record: ManifestRecord,
     corpus: Mapping[str, set[str]],
@@ -319,8 +454,13 @@ def compare(
     corpus: Mapping[str, set[str]],
     records: Sequence[ManifestRecord],
     excluded: Mapping[str, str] | None = None,
+    allowed_skips: Sequence[AllowedSkip] | None = None,
 ) -> list[Finding]:
-    """Compares manifest records against expected corpus suites and cases."""
+    """Compares manifest records against expected corpus suites and cases.
+
+    With `allowed_skips`, a skipped case they do not cover and any expected
+    failure are findings too.
+    """
     excluded_map = dict(excluded or {})
     findings: list[Finding] = []
     seen: dict[tuple[str, str], int] = {}
@@ -341,6 +481,8 @@ def compare(
                         message=f"Missing record for {suite}#{case}",
                     )
                 )
+    if allowed_skips is not None:
+        findings.extend(_check_gaps(records, corpus, excluded_map, allowed_skips))
     return findings
 
 
@@ -438,6 +580,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Exclude a suite with a required reason (repeatable).",
     )
     parser.add_argument(
+        "--allowed-skips",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "YAML file of the skips each harness may record by design. With it,"
+            " any other skipped case and any expected failure is a finding."
+        ),
+    )
+    parser.add_argument(
         "--matrix-out",
         type=Path,
         default=None,
@@ -462,7 +614,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     corpus = load_corpus(args.conformance_root, args.corpora, only=args.only)
     records = load_records(args.manifest_dir, args.harness)
-    findings = compare(corpus, records, excluded)
+    allowed_skips = (
+        load_allowed_skips(args.allowed_skips, args.harness)
+        if args.allowed_skips is not None
+        else None
+    )
+    findings = compare(corpus, records, excluded, allowed_skips)
 
     if args.matrix_out is not None:
         in_corpus_records = [

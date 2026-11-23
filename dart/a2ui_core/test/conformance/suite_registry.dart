@@ -22,6 +22,9 @@ const Map<String, Map<String, String>> coreSuiteActions = {
   'core/agent_function_routing.yaml': {
     'route_agent_function': 'agent_function_routing_conformance_test.dart',
   },
+  'core/agent_to_renderer.yaml': {
+    'agent_to_renderer_schema': 'agent_to_renderer_conformance_test.dart',
+  },
   'core/catalog.yaml': {
     'derive': 'catalog_schema_conformance_test.dart',
     'from_json': 'catalog_schema_conformance_test.dart',
@@ -100,8 +103,6 @@ const Map<String, String> unsupportedCoreSuites = {
   'core/adapter_conformance.yaml':
       'Adapter conformance cases require a UI framework renderer and run in '
       'the framework adapter harness.',
-  'core/agent_to_renderer.yaml':
-      'Protocol envelope schema generation is not implemented in a2ui_core.',
   'core/message_processor_v0_8.yaml':
       'Targets protocol v0.8, which a2ui_core does not implement.',
   'core/validator_v0_8.yaml':

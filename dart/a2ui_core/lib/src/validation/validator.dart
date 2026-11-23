@@ -189,10 +189,11 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// The `common_types.json` document this package publishes for [version].
   ///
   /// A copy of `specification/<version>/json/common_types.json`, embedded at
-  /// build time by `tool/generate_common_types.dart` so that a package
+  /// build time by `tool/generate_protocol_schemas.dart` so that a package
   /// installed from pub.dev can resolve the shared types without reading the
   /// specification repository. Each call returns a fresh document, so a caller
-  /// may edit the result. v0.9.1 shares the v0.9 document.
+  /// may edit the result. v0.9.1 publishes the same document as v0.9, so it
+  /// shares that copy.
   ///
   /// The same selection backs [Catalog.commonTypesSchema], which the catalog's
   /// reference map and the renderer's binders read, so the validator and the

@@ -764,14 +764,7 @@ void main() {
         File('../../specification/v0_9/json/server_to_client.json')
             .readAsStringSync(),
       );
-      expect(
-        snippet(),
-        contains(jsonEncode(published)),
-        reason:
-            'lib/src/inference_formats/direct_json/server_to_client.g.dart '
-            'has drifted from the specification. Run '
-            '`dart run tool/generate_server_to_client.dart`.',
-      );
+      expect(snippet(), contains(jsonEncode(published)));
     });
 
     test('embeds the common types and the catalog', () {

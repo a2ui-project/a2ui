@@ -228,9 +228,10 @@ A2uiMarkdown(
 ```
 
 A Text that no `A2uiMarkdown` renders, which includes every heading and
-caption Text, shows its text without common Markdown markers. A body Text
-that is one heading line, such as `## Summary`, also takes the style of that
-heading level.
+caption Text, renders simple Markdown itself: emphasis, strong text,
+strikethrough and code spans are styled, and links and images show only their
+text. A body Text also styles each heading line by its level, such as
+`## Summary`, and starts list items with a bullet.
 
 ## Defining Custom Components
 

@@ -663,7 +663,10 @@ void main() {
         _call(v10, 'email', {'value': 'nope'}),
         const ValidationResult(
           valid: false,
-          message: 'Must be a valid email address.',
+          code: 'INVALID_EMAIL',
+          message:
+              'Please enter a valid email address (e.g. user@example.com).',
+          severity: 'error',
         ),
       );
       expect(

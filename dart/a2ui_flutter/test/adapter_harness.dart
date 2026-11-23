@@ -31,11 +31,7 @@ import 'package:yaml/yaml.dart';
 
 /// Reasoned skip entries keyed by `<case>` or `<case>/<op|expectKey>`.
 /// Every entry in this map must match at least one case during the run.
-const Map<String, String> unsupported = {
-  'v10_theme_dropped_in_permissive_mode_renders_like_none':
-      'Theme dropping in permissive mode not yet implemented in '
-      'a2ui_core Dart message parser',
-};
+const Map<String, String> unsupported = {};
 
 final Set<String> _matchedUnsupportedKeys = {};
 

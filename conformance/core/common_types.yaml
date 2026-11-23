@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Conformance suite for the common types an SDK derives from its own models.
+# Conformance suite for the common types an SDK exposes, whether it derives them
+# from its own models or embeds the specification document.
 #
 # `action: common_types_schema` calls the SDK's "common types schema as JSON"
 # entry point for a protocol version and parses the result. Serialized with
@@ -26,21 +27,21 @@
 
 - name: test_v09_common_types_schema_matches_specification
   features: [F-CORE-07]
-  description: The v0.9 common types schema generated from the SDK models matches specification/v0_9/json/common_types.json exactly.
+  description: The v0.9 common types schema the SDK exposes matches specification/v0_9/json/common_types.json exactly.
   action: common_types_schema
   protocolVersion: "v0.9"
   expectFile: "specification/v0_9/json/common_types.json"
 
 - name: test_v091_common_types_schema_matches_specification
   features: [F-CORE-07]
-  description: The v0.9.1 common types schema generated from the SDK models matches specification/v0_9_1/json/common_types.json exactly.
+  description: The v0.9.1 common types schema the SDK exposes matches specification/v0_9_1/json/common_types.json exactly.
   action: common_types_schema
   protocolVersion: "v0.9.1"
   expectFile: "specification/v0_9_1/json/common_types.json"
 
 - name: test_v10_common_types_schema_matches_specification
   features: [F-CORE-07]
-  description: The v1.0 common types schema generated from the SDK models matches specification/v1_0/json/common_types.json exactly.
+  description: The v1.0 common types schema the SDK exposes matches specification/v1_0/json/common_types.json exactly.
   action: common_types_schema
   protocolVersion: "1.0"
   expectFile: "specification/v1_0/json/common_types.json"

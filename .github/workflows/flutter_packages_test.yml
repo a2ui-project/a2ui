@@ -148,6 +148,7 @@ jobs:
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --harness dart-core \
             --corpus core \
+            --allowed-skips conformance/allowed_skips.yaml \
             --exclude "core/message_processor_scaling.yaml=performance: runs with -P performance"
           uv run --project conformance python conformance/scripts/check_feature_coverage.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
@@ -161,11 +162,13 @@ jobs:
           uv run --project conformance python conformance/scripts/check_executed_cases.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --harness flutter \
-            --corpus adapter
+            --corpus adapter \
+            --allowed-skips conformance/allowed_skips.yaml
           uv run --project conformance python conformance/scripts/check_executed_cases.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --harness flutter \
-            --corpus e2e
+            --corpus e2e \
+            --allowed-skips conformance/allowed_skips.yaml
           uv run --project conformance python conformance/scripts/check_feature_coverage.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --harness flutter
@@ -179,12 +182,14 @@ jobs:
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --corpus agent \
             --harness dart-agent \
+            --allowed-skips conformance/allowed_skips.yaml \
             --exclude "agent/direct_json/scaling.yaml=performance: runs with -P performance" \
             --exclude "agent/express/scaling.yaml=performance: runs with -P performance"
           uv run --project conformance python conformance/scripts/check_executed_cases.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --corpus e2e \
-            --harness dart-agent
+            --harness dart-agent \
+            --allowed-skips conformance/allowed_skips.yaml
           uv run --project conformance python conformance/scripts/check_feature_coverage.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --harness dart-agent
@@ -277,4 +282,5 @@ jobs:
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --harness ${{ matrix.package.harness }} \
             --corpus ${{ matrix.package.corpus }} \
+            --allowed-skips conformance/allowed_skips.yaml \
             --only '${{ matrix.package.suites }}'

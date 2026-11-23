@@ -806,7 +806,9 @@ class MessageProcessor<T extends ComponentApi> {
         );
       case final Map<Object?, Object?> envelope
           when envelope.keys.every((key) => key is String):
-        final Map<String, Object?> json = envelope.cast<String, Object?>();
+        final Map<String, Object?> json = _withoutDroppedTheme(
+          envelope.cast<String, Object?>(),
+        );
         return (
           json: json,
           operations: adapterRegistry.resolve(json).toOperations(json),
@@ -817,6 +819,32 @@ class MessageProcessor<T extends ComponentApi> {
           'got ${item.runtimeType}.',
         );
     }
+  }
+
+  /// [envelope] without the `theme` of a v1.0 `createSurface` when the
+  /// current config allows unknown elements, as
+  /// [ValidationConfig.relaxed] does and no config does.
+  ///
+  /// v1.0 removed `theme`, so strict validation rejects a `createSurface`
+  /// carrying one, and a relaxed processor drops it and creates the surface
+  /// as if it had none.
+  Map<String, Object?> _withoutDroppedTheme(Map<String, Object?> envelope) {
+    if (!(_config?.allowUnknownElements ?? true)) return envelope;
+    final Object? body = envelope['createSurface'];
+    if (body is! Map<Object?, Object?> || !body.containsKey('theme')) {
+      return envelope;
+    }
+    final Object? rawVersion = envelope['version'];
+    final A2uiProtocolVersion? version = rawVersion is String
+        ? A2uiProtocolVersion.tryParse(rawVersion)
+        : null;
+    if (version == null || !version.isAtLeast(A2uiProtocolVersion.v1_0)) {
+      return envelope;
+    }
+    return {
+      ...envelope,
+      'createSurface': {...body}..remove('theme'),
+    };
   }
 
   /// Applies [message]'s operations in order and returns, for each, the

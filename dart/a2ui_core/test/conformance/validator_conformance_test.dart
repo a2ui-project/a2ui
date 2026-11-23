@@ -31,22 +31,7 @@ const Map<String, String> _v10ExpectedFailures = {};
 const Map<String, String> _reservedKeysExpectedFailures = {};
 
 /// Cases in `core/validation_result.yaml` expected to fail.
-const Map<String, String> _validationResultExpectedFailures = {
-  'test_validation_result_dynamic_object_return':
-      'NodeResolver does not expose a singular validationResult property on '
-      'resolved component props, and the built-in email function omits the '
-      'INVALID_EMAIL code and example suffix in its default message.',
-  'test_validation_result_boolean_fallback':
-      'NodeResolver does not expose a singular validationResult property on '
-      'resolved component props.',
-  'test_validation_result_multiple_rules_preserve_order':
-      'Built-in email validation function does not set code INVALID_EMAIL on '
-      'its ValidationResult.',
-  'test_validation_result_reactive_recovery_on_data_update':
-      'Built-in email validation function returns "Must be a valid email '
-      'address." rather than the message with the '
-      '"(e.g. user@example.com)" suffix.',
-};
+const Map<String, String> _validationResultExpectedFailures = {};
 
 /// Cases in `core/error_responses.yaml` expected to fail.
 const Map<String, String> _errorResponsesExpectedFailures = {};

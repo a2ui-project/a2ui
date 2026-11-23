@@ -630,6 +630,54 @@ void main() {
       );
     });
 
+    test('refuses a schema-only function', () async {
+      final h = RpcHandler(
+        catalogs: [
+          _catalog('basic', [
+            SchemaOnlyFunction(
+              name: 'remote',
+              argumentSchema: Schema.object(),
+              allowedCallers: AllowedCallers.rendererOrAgent,
+            ),
+          ]),
+        ],
+        outboundListener: sent.add,
+      );
+      addTearDown(h.dispose);
+      final A2uiFunctionResponse r = await run(
+        h,
+        _inbound('remote'),
+        withSurface: false,
+      );
+      expectError(
+        r,
+        RpcErrorCode.invalidFunctionCall,
+        "Function 'remote' in catalog 'basic' is schema-only",
+      );
+    });
+
+    test('runs the handler catalog function that the surface catalog of the '
+        'same id declares schema-only', () async {
+      final shared = SurfaceModel<ComponentApi>(
+        'shared',
+        defaultCatalog: _catalog('basic', [
+          SchemaOnlyFunction(
+            name: 'echo',
+            argumentSchema: Schema.object(),
+            allowedCallers: AllowedCallers.rendererOrAgent,
+          ),
+        ]),
+        protocolVersion: '1.0',
+      );
+      addTearDown(shared.dispose);
+      final RendererFunctionResponseMessage response = await handler()
+          .handleCallRendererFunction(
+            _inbound('echo', args: {'value': 'local'}),
+            surface: shared,
+          );
+      expect(response.response.value, 'local');
+    });
+
     test('reports no catalog when catalogId is omitted', () async {
       final A2uiFunctionResponse rHeadless = await run(
         handler(),

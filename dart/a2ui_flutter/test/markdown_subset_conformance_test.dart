@@ -24,18 +24,6 @@ import 'adapter_harness.dart';
 import 'support/basic_test_catalog.dart';
 import 'support/surface_harness.dart';
 
-const Map<String, String> knownGaps = {
-  'emphasis_and_strong':
-      'basic Text without A2uiMarkdown strips emphasis and strong markers '
-      'without rich spans',
-  'headings':
-      'basic Text without A2uiMarkdown only styles single-line headings',
-  'inline_code':
-      'basic Text without A2uiMarkdown strips code backticks without '
-      'monospace styling',
-  'lists': 'basic Text without A2uiMarkdown keeps list markers as plain text',
-};
-
 const Set<String> _knownCaseKeys = {
   'name',
   'description',
@@ -232,18 +220,6 @@ void main() {
       ? '$current/../../conformance/adapter/markdown_subset.yaml'
       : '$current/conformance/adapter/markdown_subset.yaml';
   final List<Object?> tests = loadYamlTests(suitePath);
-  final matchedGaps = <String>{};
-
-  tearDownAll(() {
-    final List<String> unusedGaps =
-        knownGaps.keys.where((key) => !matchedGaps.contains(key)).toList()
-          ..sort();
-    expect(
-      unusedGaps,
-      isEmpty,
-      reason: 'Unused knownGaps entries did not match any case: $unusedGaps',
-    );
-  });
 
   group('Markdown Subset Conformance (adapter/markdown_subset.yaml)', () {
     for (final raw in tests) {
@@ -251,39 +227,6 @@ void main() {
       final name = testCase['name']! as String;
 
       testWidgets(name, (tester) async {
-        final String? gapReason = knownGaps[name];
-        if (gapReason != null) {
-          matchedGaps.add(name);
-          var failedAsExpected = false;
-          try {
-            await _verifyMarkdownCase(tester, testCase);
-          } on TestFailure {
-            failedAsExpected = true;
-          }
-          if (!failedAsExpected) {
-            final unexpectedPassMessage =
-                'Known gap "$name" unexpectedly passed; '
-                'remove it from knownGaps.';
-            writeManifestRecord({
-              'harness': 'flutter',
-              'suite': 'adapter/markdown_subset.yaml',
-              'case': name,
-              'status': 'failed',
-              'reason': unexpectedPassMessage,
-            });
-            fail(unexpectedPassMessage);
-          }
-          writeManifestRecord({
-            'harness': 'flutter',
-            'suite': 'adapter/markdown_subset.yaml',
-            'case': name,
-            'status': 'xfailed',
-            'reason': gapReason,
-          });
-          markTestSkipped('Known gap: $gapReason');
-          return;
-        }
-
         try {
           await _verifyMarkdownCase(tester, testCase);
           writeManifestRecord({
