@@ -139,8 +139,10 @@ describe('sandbox proxy helpers', () => {
       expect(normalizeOrigin('https://127.0.0.1:8443')).toBe('https://localhost:8443');
     });
 
-    it('leaves localhost and standard domain origins unmodified', () => {
+    it('leaves localhost, non-loopback IP prefixes, and standard domain origins unmodified', () => {
       expect(normalizeOrigin('http://localhost:4200')).toBe('http://localhost:4200');
+      expect(normalizeOrigin('https://127.0.0.1.run')).toBe('https://127.0.0.1.run');
+      expect(normalizeOrigin('http://127.0.0.10:8080')).toBe('http://127.0.0.10:8080');
       expect(normalizeOrigin('https://a2ui.org')).toBe('https://a2ui.org');
       expect(normalizeOrigin('https://example.com:8080')).toBe('https://example.com:8080');
     });
@@ -747,6 +749,205 @@ describe('startSandboxProxy', () => {
       dispatch({data: {type: 'x'}, origin: 'https://evil.example', source: innerWindow});
       expect(parentPost).not.toHaveBeenCalled();
       expect(console.error).toHaveBeenCalled();
+    });
+
+    it('forwards inner frame messages from the configured URL origin when allow-same-origin is set', () => {
+      dispatch({
+        data: {
+          type: A2uiSandboxMessageType.SandboxResourceReady,
+          url: 'https://app.example/ui?tab=1',
+          sandbox: 'allow-scripts ALLOW-SAME-ORIGIN',
+        },
+        origin: HOST_ORIGIN,
+        source: parentWindow,
+      });
+      parentPost.calls.reset();
+      dispatch({
+        data: {type: 'a2ui_app_frame_ready'},
+        origin: 'https://app.example',
+        source: innerWindow,
+      });
+      expect(parentPost).toHaveBeenCalledOnceWith({type: 'a2ui_app_frame_ready'}, HOST_ORIGIN);
+
+      dispatch({
+        data: {
+          jsonrpc: '2.0',
+          method: RESOURCE_READY_NOTIFICATION,
+          params: {
+            url: 'blob:https://mcp.example/550e8400',
+            sandbox: 'allow-scripts\tallow-same-origin',
+          },
+        },
+        origin: HOST_ORIGIN,
+        source: parentWindow,
+      });
+      parentPost.calls.reset();
+      dispatch({
+        data: {jsonrpc: '2.0', method: 'ui/initialize'},
+        origin: 'https://mcp.example',
+        source: innerWindow,
+      });
+      expect(parentPost).toHaveBeenCalledOnceWith(
+        {jsonrpc: '2.0', method: 'ui/initialize'},
+        HOST_ORIGIN,
+      );
+
+      dispatch({
+        data: {
+          type: A2uiSandboxMessageType.SandboxResourceReady,
+          url: '/a2ui-fixtures/inert/sandbox.html',
+          sandbox: 'allow-scripts allow-same-origin',
+        },
+        origin: HOST_ORIGIN,
+        source: parentWindow,
+      });
+      parentPost.calls.reset();
+      dispatch({data: {type: 'rel'}, origin: HOST_ORIGIN, source: innerWindow});
+      expect(parentPost).toHaveBeenCalledOnceWith({type: 'rel'}, HOST_ORIGIN);
+
+      dispatch({
+        data: {
+          type: A2uiSandboxMessageType.SandboxResourceReady,
+          url: 'http://127.0.0.1:8080/ui',
+          sandbox: 'allow-scripts allow-same-origin',
+        },
+        origin: HOST_ORIGIN,
+        source: parentWindow,
+      });
+      parentPost.calls.reset();
+      dispatch({data: {type: 'loopback'}, origin: 'http://localhost:8080', source: innerWindow});
+      expect(parentPost).toHaveBeenCalledOnceWith({type: 'loopback'}, HOST_ORIGIN);
+    });
+
+    it('rejects other origins, downgraded schemes, and non-matching ports on allow-same-origin url frames', () => {
+      const errorSpy = spyOn(console, 'error');
+      dispatch({
+        data: {
+          type: A2uiSandboxMessageType.SandboxResourceReady,
+          url: 'https://app.example/ui',
+          sandbox: 'allow-scripts allow-same-origin',
+        },
+        origin: HOST_ORIGIN,
+        source: parentWindow,
+      });
+      parentPost.calls.reset();
+
+      for (const badOrigin of [
+        'https://evil.example',
+        HOST_ORIGIN,
+        'http://app.example',
+        'https://app.example:8443',
+      ]) {
+        dispatch({data: {type: 'x'}, origin: badOrigin, source: innerWindow});
+      }
+
+      expect(parentPost).not.toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalledTimes(4);
+      expect(errorSpy.calls.first().args.join(' ')).toContain('https://app.example');
+    });
+
+    it('rejects cross-origin and unopted same-origin inner messages without valid opt-in url configuration', () => {
+      spyOn(console, 'error');
+      const cases = [
+        {url: 'https://app.example/ui'},
+        {url: '/a2ui-fixtures/inert/sandbox.html'},
+        {url: 'https://app.example/ui', sandbox: 'allow-scripts\u00a0allow-same-origin'},
+        {
+          html: '<p>inline</p>',
+          url: 'https://app.example/ui',
+          sandbox: 'allow-scripts allow-same-origin',
+        },
+        {url: '   ', sandbox: 'allow-scripts allow-same-origin'},
+        {url: 'http://[::1', sandbox: 'allow-scripts allow-same-origin'},
+        {url: 'data:text/html,<p>hi</p>', sandbox: 'allow-scripts allow-same-origin'},
+        {url: 'blob:null/1234', sandbox: 'allow-scripts allow-same-origin'},
+      ];
+
+      for (const resource of cases) {
+        dispatch({
+          data: {type: A2uiSandboxMessageType.SandboxResourceReady, ...resource},
+          origin: HOST_ORIGIN,
+          source: parentWindow,
+        });
+        parentPost.calls.reset();
+        dispatch({data: {type: 'x'}, origin: 'https://app.example', source: innerWindow});
+        dispatch({data: {type: 'x'}, origin: HOST_ORIGIN, source: innerWindow});
+        expect(parentPost).withContext(JSON.stringify(resource)).not.toHaveBeenCalled();
+      }
+
+      dispatch({data: {type: 'opaque'}, origin: 'null', source: innerWindow});
+      expect(parentPost).toHaveBeenCalledOnceWith({type: 'opaque'}, HOST_ORIGIN);
+    });
+
+    it('revokes the previous url origin when a later resource changes mode, drops allow-same-origin, or switches url', () => {
+      spyOn(console, 'error');
+      const allowResource = (url: string) => {
+        dispatch({
+          data: {
+            type: A2uiSandboxMessageType.SandboxResourceReady,
+            url,
+            sandbox: 'allow-scripts allow-same-origin',
+          },
+          origin: HOST_ORIGIN,
+          source: parentWindow,
+        });
+      };
+
+      allowResource('https://first.example/ui');
+      parentPost.calls.reset();
+      dispatch({data: {type: 'ok'}, origin: 'https://first.example', source: innerWindow});
+      expect(parentPost).toHaveBeenCalledOnceWith({type: 'ok'}, HOST_ORIGIN);
+
+      // Switching to a second URL origin revokes the first.
+      allowResource('https://second.example/ui');
+      parentPost.calls.reset();
+      dispatch({data: {type: 'stale'}, origin: 'https://first.example', source: innerWindow});
+      expect(parentPost).not.toHaveBeenCalled();
+      dispatch({data: {type: 'ok2'}, origin: 'https://second.example', source: innerWindow});
+      expect(parentPost).toHaveBeenCalledOnceWith({type: 'ok2'}, HOST_ORIGIN);
+
+      // Dropping allow-same-origin revokes both cross-origin and same-origin URLs.
+      allowResource('/a2ui-fixtures/inert/sandbox.html');
+      parentPost.calls.reset();
+      dispatch({data: {type: 'same-ok'}, origin: HOST_ORIGIN, source: innerWindow});
+      expect(parentPost).toHaveBeenCalledOnceWith({type: 'same-ok'}, HOST_ORIGIN);
+      dispatch({
+        data: {
+          type: A2uiSandboxMessageType.SandboxResourceReady,
+          url: '/a2ui-fixtures/inert/sandbox.html',
+        },
+        origin: HOST_ORIGIN,
+        source: parentWindow,
+      });
+      parentPost.calls.reset();
+      dispatch({data: {type: 'dropped-same'}, origin: HOST_ORIGIN, source: innerWindow});
+      expect(parentPost).not.toHaveBeenCalled();
+
+      // Switching to inline HTML revokes the URL origin.
+      allowResource('https://second.example/ui');
+      dispatch({
+        data: {
+          type: A2uiSandboxMessageType.SandboxResourceReady,
+          html: '<p>inline</p>',
+          sandbox: 'allow-scripts allow-same-origin',
+        },
+        origin: HOST_ORIGIN,
+        source: parentWindow,
+      });
+      parentPost.calls.reset();
+      dispatch({data: {type: 'inline'}, origin: 'https://second.example', source: innerWindow});
+      expect(parentPost).not.toHaveBeenCalled();
+
+      // A resource-ready message with neither html nor url revokes the URL origin.
+      allowResource('https://second.example/ui');
+      dispatch({
+        data: {type: A2uiSandboxMessageType.SandboxResourceReady},
+        origin: HOST_ORIGIN,
+        source: parentWindow,
+      });
+      parentPost.calls.reset();
+      dispatch({data: {type: 'empty'}, origin: 'https://second.example', source: innerWindow});
+      expect(parentPost).not.toHaveBeenCalled();
     });
 
     it('ignores messages from unrelated windows', () => {
