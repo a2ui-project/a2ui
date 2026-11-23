@@ -26,7 +26,12 @@ from a2ui.core import A2uiCatalogError, A2uiError, Catalog
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import ProtocolVersion
 
-from .catalog_resolver import _CAPABILITIES_ENTRIES, _V0_8_KEY, _is_bare_entry
+from .catalog_resolver import (
+    _CAPABILITIES_ENTRIES,
+    _V0_8_KEY,
+    _is_bare_entry,
+    validate_inline_catalog_local_refs,
+)
 
 
 def read_renderer_capabilities(
@@ -119,7 +124,14 @@ def read_renderer_capabilities(
                         f" is incompatible with {key!r} renderer capabilities"
                         f" under {metadata_key!r}."
                     )
-            Catalog.from_json(document, protocol_version=protocol_version.value)
+            parsed = Catalog.from_json(
+                document, protocol_version=protocol_version.value
+            )
+            validate_inline_catalog_local_refs(
+                document,
+                parsed.catalog_id,
+                to_protocol_version(parsed.protocol_version),
+            )
     except A2uiCatalogError:
         raise
     except (ValidationError, A2uiError) as exc:

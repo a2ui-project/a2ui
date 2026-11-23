@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: `resolveCatalogs` and `readRendererCapabilities` reject inline catalogs whose local `#...` `$ref` pointers do not resolve against the inline catalog document or the protocol version's `common_types.json`, throwing `A2uiCatalogError` naming the inline `catalogId` and `$ref` even when `acceptsInlineCatalogs` is `false`. `resolveCatalogs` also drops inline catalogs whose `catalogId` matches an already-active catalog and emits a `console.warn` diagnostic. Recommended migration: point each local `$ref` in an inline catalog to a definition declared in that inline catalog or in the target protocol version's `common_types.json` ([#3165](https://github.com/a2ui-project/a2ui/issues/3165)).
+
 ## 0.2.0
 
 - **BREAKING CHANGE**: (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`, and `@checks` on v1.0 components in `ExpressCompiler`, `ExpressPromptGenerator`, `DirectJsonResponseStream`, and `RendererState`, while keeping v0.9 component output bare. `ExpressDecompiler` reads both `@`-prefixed and legacy bare component envelope keys on v1.0 payloads when the component schema does not declare a custom property with the same bare name ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#3403](https://github.com/a2ui-project/a2ui/issues/3403), [#3466](https://github.com/a2ui-project/a2ui/issues/3466), [#4012](https://github.com/a2ui-project/a2ui/issues/4012), [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).

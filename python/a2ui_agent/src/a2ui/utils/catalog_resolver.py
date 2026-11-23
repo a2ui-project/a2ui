@@ -17,6 +17,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import functools
+import logging
+import re
 from typing import Any, TYPE_CHECKING
 
 from pydantic import BaseModel, ValidationError
@@ -30,6 +33,8 @@ from a2ui.core.schema import (
     v0_9,
     v1_0,
 )
+
+from .schemas import load_common_types_schema
 
 if TYPE_CHECKING:
     from a2ui.processor import CatalogConfig
@@ -45,6 +50,148 @@ _CAPABILITIES_ENTRIES: dict[ProtocolVersion, tuple[str, type[BaseModel]]] = {
 _V0_8_KEY = _CAPABILITIES_ENTRIES[ProtocolVersion.V0_8][0]
 # The fields of a capabilities entry, as the specification names them.
 _ENTRY_FIELDS = frozenset({"supportedCatalogIds", "inlineCatalogs"})
+_logger = logging.getLogger(__name__)
+
+_ARRAY_INDEX_RE = re.compile(r"^(?:0|[1-9][0-9]*)\Z")
+_INVALID_ESCAPE_RE = re.compile(r"~(?![01])")
+_LITERAL_VALUE_KEYWORDS = frozenset({"const", "default", "enum", "examples"})
+_SCHEMA_COMPOSITE_KEYWORDS = ("allOf", "anyOf", "oneOf", "not")
+_SCHEMA_MAP_KEYWORDS = frozenset({
+    "$defs",
+    "components",
+    "definitions",
+    "dependencies",
+    "dependentSchemas",
+    "functions",
+    "patternProperties",
+    "properties",
+    "styles",
+})
+
+
+@functools.cache
+def _common_type_defs(protocol_version: ProtocolVersion) -> frozenset[str]:
+    """Returns the published ``common_types.json`` ``$defs`` names for ``protocol_version``."""
+    return frozenset(load_common_types_schema(protocol_version).get("$defs", ()))
+
+
+def _follow_pointer(document: Mapping[str, Any], segments: list[str]) -> Any:
+    """Returns the node that ``segments`` name in ``document``, or ``None``."""
+    curr: Any = document
+    for segment in segments:
+        if isinstance(curr, Mapping) and segment in curr:
+            curr = curr[segment]
+        elif (
+            isinstance(curr, list)
+            and _ARRAY_INDEX_RE.fullmatch(segment) is not None
+            and len(segment) <= len(str(len(curr)))
+            and int(segment) < len(curr)
+        ):
+            curr = curr[int(segment)]
+        else:
+            return None
+    return curr
+
+
+def _is_resolvable_local_ref(
+    document: Mapping[str, Any],
+    ref: str,
+    common_defs: frozenset[str],
+) -> bool:
+    """Returns whether ``ref`` resolves inside ``document`` or ``common_types.json``."""
+    if ref == "#":
+        return True
+    if not ref.startswith("#/"):
+        return False
+    raw_tokens = ref[2:].split("/")
+    if any(_INVALID_ESCAPE_RE.search(token) for token in raw_tokens):
+        return False
+    segments = [token.replace("~1", "/").replace("~0", "~") for token in raw_tokens]
+    if isinstance(_follow_pointer(document, segments), Mapping):
+        return True
+    return len(segments) == 2 and segments[0] == "$defs" and segments[1] in common_defs
+
+
+def _is_flat_theme_map(value: Mapping[str, Any]) -> bool:
+    """Returns whether a root ``theme`` object is a v0.9 flat property map."""
+    if isinstance(value.get("$ref"), str):
+        return False
+    if isinstance(value.get("type"), (str, list)):
+        return False
+    if isinstance(value.get("properties"), Mapping):
+        return False
+    return not any(key in value for key in _SCHEMA_COMPOSITE_KEYWORDS)
+
+
+def _is_schema_map_child(
+    parent: Mapping[str, Any],
+    document: Mapping[str, Any],
+    key: str,
+    value: Any,
+) -> bool:
+    """Returns whether ``value`` maps user-chosen names to sub-schemas."""
+    if not isinstance(value, Mapping):
+        return False
+    if key in _SCHEMA_MAP_KEYWORDS:
+        return True
+    return parent is document and key == "theme" and _is_flat_theme_map(value)
+
+
+def _enqueue_object_children(
+    node: Mapping[str, Any],
+    document: Mapping[str, Any],
+    in_schema_map: bool,
+    stack: list[tuple[Any, bool]],
+) -> None:
+    """Pushes child schema nodes of ``node`` onto ``stack``."""
+    if in_schema_map:
+        stack.extend((value, False) for value in reversed(list(node.values())))
+        return
+    for key, value in reversed(list(node.items())):
+        if key not in _LITERAL_VALUE_KEYWORDS:
+            stack.append((value, _is_schema_map_child(node, document, key, value)))
+
+
+def validate_inline_catalog_local_refs(
+    document: Mapping[str, Any],
+    catalog_id: str,
+    protocol_version: ProtocolVersion,
+) -> None:
+    """Validates that every local ``#...`` ``$ref`` in ``document`` resolves.
+
+    Allows ``#/$defs/<CommonType>`` pointers defined in the protocol version's
+    ``common_types.json`` so pre-1.0 inline catalogs emitted without ``$defs``
+    remain valid, while rejecting undefined catalog-local pointers.
+
+    Args:
+      document: The raw inline catalog dictionary.
+      catalog_id: Identifier of the inline catalog for error reporting.
+      protocol_version: Target protocol version for ``common_types.json`` lookup.
+
+    Raises:
+      A2uiCatalogError: If ``document`` contains an unresolvable local ``$ref``.
+    """
+    common_defs = _common_type_defs(protocol_version)
+    stack: list[tuple[Any, bool]] = [(document, False)]
+    while stack:
+        node, in_schema_map = stack.pop()
+        if isinstance(node, list):
+            stack.extend((item, False) for item in reversed(node))
+            continue
+        if not isinstance(node, Mapping):
+            continue
+        if not in_schema_map:
+            ref = node.get("$ref")
+            if (
+                isinstance(ref, str)
+                and ref.startswith("#")
+                and not _is_resolvable_local_ref(document, ref, common_defs)
+            ):
+                raise A2uiCatalogError(
+                    f"Inline catalog '{catalog_id}' contains an unresolvable"
+                    f" local $ref '{ref}'."
+                )
+        _enqueue_object_children(node, document, in_schema_map, stack)
 
 
 def resolve_catalogs(
@@ -113,12 +260,18 @@ def resolve_catalogs(
                 f" '{catalog.catalog_id}' reads '{other_key}'."
             )
     entry = _capabilities_entry(renderer_capabilities, key, entry_model)
-    # Every inline catalog is parsed, so a malformed one is an error even when
-    # the agent doesn't accept inline catalogs.
-    inline = [
-        Catalog.from_json(document, protocol_version=protocol_version.value)
-        for document in entry.get("inlineCatalogs", [])
-    ]
+    # Every inline catalog is parsed and checked for local $ref integrity, so a
+    # malformed one is an error even when the agent doesn't accept inline
+    # catalogs.
+    inline: list[CatalogApi] = []
+    for document in entry.get("inlineCatalogs", []):
+        parsed = Catalog.from_json(document, protocol_version=protocol_version.value)
+        validate_inline_catalog_local_refs(
+            document,
+            parsed.catalog_id,
+            to_protocol_version(parsed.protocol_version),
+        )
+        inline.append(parsed)
 
     registered_by_id: dict[str, CatalogApi] = {}
     for catalog in registered:
@@ -130,7 +283,14 @@ def resolve_catalogs(
             active[catalog_id] = registered_by_id[catalog_id]
     if accepts_inline_catalogs:
         for catalog in inline:
-            active.setdefault(catalog.catalog_id, catalog)
+            if catalog.catalog_id in active:
+                _logger.warning(
+                    "Dropping inline catalog '%s': a catalog with this ID is"
+                    " already active.",
+                    catalog.catalog_id,
+                )
+                continue
+            active[catalog.catalog_id] = catalog
 
     if not active:
         raise A2uiCatalogError(

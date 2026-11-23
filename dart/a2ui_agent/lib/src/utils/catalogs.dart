@@ -84,3 +84,180 @@ List<String> agentCallableFunctions(List<CatalogApi> catalogs) {
             function.name,
   ];
 }
+
+final RegExp _arrayIndexPattern = RegExp(r'^(?:0|[1-9][0-9]*)$');
+final RegExp _invalidEscapePattern = RegExp(r'~(?![01])');
+
+const Set<String> _literalValueKeywords = {
+  'const',
+  'default',
+  'enum',
+  'examples',
+};
+
+const List<String> _schemaCompositeKeywords = [
+  'allOf',
+  'anyOf',
+  'oneOf',
+  'not',
+];
+
+const Set<String> _schemaMapKeywords = {
+  r'$defs',
+  'components',
+  'definitions',
+  'dependencies',
+  'dependentSchemas',
+  'functions',
+  'patternProperties',
+  'properties',
+  'styles',
+};
+
+const Set<String> _preV1CommonTypeDefs = {
+  'AccessibilityAttributes',
+  'Action',
+  'CheckRule',
+  'Checkable',
+  'ChildList',
+  'ComponentCommon',
+  'ComponentId',
+  'DataBinding',
+  'DynamicBoolean',
+  'DynamicNumber',
+  'DynamicString',
+  'DynamicStringList',
+  'DynamicValue',
+  'FunctionCall',
+};
+
+const Set<String> _v1CommonTypeDefs = {
+  ..._preV1CommonTypeDefs,
+  'CallId',
+  'Child',
+  'Extensions',
+  'FunctionCommon',
+  'FunctionResponse',
+  'IndexSystemFunction',
+  'Surface',
+};
+
+Object? _followPointer(Map<String, Object?> document, List<String> segments) {
+  Object? current = document;
+  for (final segment in segments) {
+    if (current is Map && current.containsKey(segment)) {
+      current = current[segment];
+    } else if (current is List && _arrayIndexPattern.hasMatch(segment)) {
+      final int? index = int.tryParse(segment);
+      if (index == null || index < 0 || index >= current.length) return null;
+      current = current[index];
+    } else {
+      return null;
+    }
+  }
+  return current;
+}
+
+bool _isResolvableLocalRef(
+  Map<String, Object?> document,
+  String ref,
+  Set<String> commonDefs,
+) {
+  if (ref == '#') return true;
+  if (!ref.startsWith('#/')) return false;
+  final List<String> rawTokens = ref.substring(2).split('/');
+  if (rawTokens.any(_invalidEscapePattern.hasMatch)) return false;
+  final List<String> segments = [
+    for (final String token in rawTokens)
+      token.replaceAll('~1', '/').replaceAll('~0', '~'),
+  ];
+  if (_followPointer(document, segments) is Map) return true;
+  return segments.length == 2 &&
+      segments[0] == r'$defs' &&
+      commonDefs.contains(segments[1]);
+}
+
+bool _isFlatThemeMap(Map<Object?, Object?> value) {
+  if (value[r'$ref'] is String) return false;
+  final Object? rawType = value['type'];
+  if (rawType is String || rawType is List) return false;
+  if (value['properties'] is Map) return false;
+  return !_schemaCompositeKeywords.any(value.containsKey);
+}
+
+bool _isSchemaMapChild(
+  Map<Object?, Object?> parent,
+  Map<String, Object?> document,
+  Object? key,
+  Object? value,
+) {
+  if (value is! Map || key is! String) return false;
+  if (_schemaMapKeywords.contains(key)) return true;
+  return identical(parent, document) &&
+      key == 'theme' &&
+      _isFlatThemeMap(value);
+}
+
+void _enqueueObjectChildren(
+  Map<Object?, Object?> node,
+  Map<String, Object?> document,
+  bool inSchemaMap,
+  List<(Object?, bool)> stack,
+) {
+  if (inSchemaMap) {
+    for (final Object? value in node.values.toList().reversed) {
+      stack.add((value, false));
+    }
+    return;
+  }
+  for (final MapEntry<Object?, Object?> entry
+      in node.entries.toList().reversed) {
+    final Object? key = entry.key;
+    if (key is! String || !_literalValueKeywords.contains(key)) {
+      stack.add((
+        entry.value,
+        _isSchemaMapChild(node, document, key, entry.value),
+      ));
+    }
+  }
+}
+
+/// Validates that every local `#...` `$ref` in [document] resolves.
+///
+/// Allows `#/$defs/<CommonType>` pointers defined in the protocol version's
+/// `common_types.json` so pre-1.0 inline catalogs emitted without `$defs`
+/// remain valid, while rejecting undefined catalog-local pointers.
+void validateInlineCatalogLocalRefs(
+  Map<String, Object?> document,
+  String catalogId, {
+  A2uiProtocolVersion? protocolVersion,
+}) {
+  final Set<String> commonDefs =
+      (protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false)
+      ? _v1CommonTypeDefs
+      : _preV1CommonTypeDefs;
+  final stack = <(Object?, bool)>[(document, false)];
+  while (stack.isNotEmpty) {
+    final (Object? node, bool inSchemaMap) = stack.removeLast();
+    if (node is List) {
+      for (final Object? item in node.reversed) {
+        stack.add((item, false));
+      }
+      continue;
+    }
+    if (node is! Map) continue;
+    if (!inSchemaMap) {
+      final Object? ref = node[r'$ref'];
+      if (ref is String &&
+          ref.startsWith('#') &&
+          !_isResolvableLocalRef(document, ref, commonDefs)) {
+        throw A2uiCatalogError(
+          "Inline catalog '$catalogId' contains an unresolvable local "
+          "\$ref '$ref'.",
+          catalogId: catalogId,
+        );
+      }
+    }
+    _enqueueObjectChildren(node, document, inSchemaMap, stack);
+  }
+}

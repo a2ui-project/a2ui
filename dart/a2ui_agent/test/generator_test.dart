@@ -383,6 +383,405 @@ void main() {
         [inline],
       );
     });
+
+    test('rejects inline catalogs containing unresolvable local refs', () {
+      final v1Registered = [
+        CatalogConfig(
+          Catalog.fromJson({
+            'catalogId': 'https://example.com/v1.json',
+            'protocolVersion': '1.0',
+            'components': {
+              'Text': {
+                'type': 'object',
+                'properties': {
+                  'component': {'const': 'Text'},
+                  'text': {'type': 'string'},
+                },
+                'required': ['component', 'text'],
+              },
+            },
+          }),
+        ),
+      ];
+      for (final badRef in const [
+        r'#/$defs/CatalogComponentCommon',
+        '#CatalogComponentCommon',
+        r'#/$defs/Bad~2Escape',
+      ]) {
+        final Map<String, Object?> badInline = {
+          'catalogId': 'renderer/bad-ref',
+          'protocolVersion': '1.0',
+          'components': {
+            'Marquee': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Marquee'},
+                'tone': {r'$ref': badRef},
+              },
+              'required': ['component', 'tone'],
+            },
+          },
+        };
+        final capabilities = A2uiRendererCapabilities.fromJson({
+          '1.0': {
+            'supportedCatalogIds': ['https://example.com/v1.json'],
+            'inlineCatalogs': [badInline],
+          },
+        });
+        for (final accepts in const [true, false]) {
+          expect(
+            () => resolveCatalogs(
+              v1Registered,
+              capabilities,
+              acceptsInlineCatalogs: accepts,
+            ),
+            throwsA(
+              isA<A2uiCatalogError>()
+                  .having((e) => e.message, 'message', contains('bad-ref'))
+                  .having((e) => e.message, 'message', contains(badRef)),
+            ),
+          );
+        }
+        expect(
+          () => readRendererCapabilities({
+            a2uiRendererCapabilitiesKey: {
+              '1.0': {
+                'supportedCatalogIds': ['https://example.com/v1.json'],
+                'inlineCatalogs': [badInline],
+              },
+            },
+          }),
+          throwsA(
+            isA<A2uiCatalogError>()
+                .having((e) => e.message, 'message', contains('bad-ref'))
+                .having((e) => e.message, 'message', contains(badRef)),
+          ),
+        );
+      }
+
+      expect(
+        () => readRendererCapabilities({
+          a2uiRendererCapabilitiesKey: {
+            '1.0': {
+              'supportedCatalogIds': <String>[],
+              'inlineCatalogs': [
+                {
+                  'catalogId': 'renderer/scalar-ref',
+                  'protocolVersion': '1.0',
+                  'components': {
+                    'Marquee': {
+                      'type': 'object',
+                      'properties': {
+                        'component': {'const': 'Marquee'},
+                        'tone': {r'$ref': '#/catalogId'},
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        }),
+        throwsA(
+          isA<A2uiCatalogError>()
+              .having(
+                (e) => e.message,
+                'message',
+                contains('renderer/scalar-ref'),
+              )
+              .having((e) => e.message, 'message', contains('#/catalogId')),
+        ),
+      );
+    });
+
+    test(
+      'accepts v0.9 MessageProcessor inline catalogs and valid escaped refs',
+      () {
+        final CatalogApi parsedV09 = Catalog.fromJson({
+          'catalogId': 'renderer/v09',
+          'components': {
+            'Label': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Label'},
+                'text': {r'$ref': r'common_types.json#/$defs/DynamicString'},
+              },
+              'required': ['component', 'text'],
+            },
+          },
+        }, protocolVersion: A2uiProtocolVersion.v0_9);
+        final v09Catalog = Catalog<ComponentApi, FunctionImplementation>(
+          id: parsedV09.id,
+          protocolVersion: A2uiProtocolVersion.v0_9,
+          components: parsedV09.components.values.toList(),
+        );
+        final processor = MessageProcessor<ComponentApi>(
+          catalogs: [v09Catalog],
+        );
+        final A2uiRendererCapabilities generated = processor
+            .getRendererCapabilities(
+              const CapabilitiesOptions(
+                versions: [A2uiProtocolVersion.v0_9],
+                includeInlineCatalogs: true,
+              ),
+            );
+        final A2uiRendererCapabilities? extracted = readRendererCapabilities({
+          a2uiClientCapabilitiesKey: generated.toJson(),
+        }, A2uiProtocolVersion.v0_9);
+        expect(extracted, isNotNull);
+        final List<CatalogApi> active = resolveCatalogs(
+          registered,
+          extracted,
+          acceptsInlineCatalogs: true,
+        );
+        expect(active.map((c) => c.id), ['renderer/v09']);
+
+        // Bare #/$defs/DynamicString resolves on v0.9, while v1.0-only Child fails.
+        final List<CatalogApi> bareCommonActive = resolveCatalogs(
+          registered,
+          A2uiRendererCapabilities.fromJson({
+            'v0.9': {
+              'supportedCatalogIds': <String>[],
+              'inlineCatalogs': [
+                {
+                  'catalogId': 'renderer/v09-bare-common',
+                  'components': {
+                    'Label': {
+                      'type': 'object',
+                      'properties': {
+                        'component': {'const': 'Label'},
+                        'text': {r'$ref': r'#/$defs/DynamicString'},
+                      },
+                      'required': ['component', 'text'],
+                    },
+                  },
+                },
+              ],
+            },
+          }),
+          acceptsInlineCatalogs: true,
+        );
+        expect(bareCommonActive.map((c) => c.id), ['renderer/v09-bare-common']);
+
+        expect(
+          () => resolveCatalogs(
+            registered,
+            A2uiRendererCapabilities.fromJson({
+              'v0.9': {
+                'supportedCatalogIds': <String>[],
+                'inlineCatalogs': [
+                  {
+                    'catalogId': 'renderer/v09-bad-common',
+                    'components': {
+                      'Card': {
+                        'type': 'object',
+                        'properties': {
+                          'component': {'const': 'Card'},
+                          'child': {r'$ref': r'#/$defs/Child'},
+                        },
+                      },
+                    },
+                  },
+                ],
+              },
+            }),
+            acceptsInlineCatalogs: true,
+          ),
+          throwsA(
+            isA<A2uiCatalogError>().having(
+              (e) => e.message,
+              'message',
+              contains(r'#/$defs/Child'),
+            ),
+          ),
+        );
+
+        // Flat v0.9 theme with sibling 'type' and 'default' tokens checks
+        // 'default', and root theme '$ref' is checked as a schema.
+        expect(
+          () => readRendererCapabilities({
+            a2uiClientCapabilitiesKey: {
+              'v0.9': {
+                'supportedCatalogIds': <String>[],
+                'inlineCatalogs': [
+                  {
+                    'catalogId': 'renderer/theme-tokens',
+                    'components': <String, Object?>{},
+                    'theme': {
+                      'type': {'type': 'string'},
+                      'default': {r'$ref': r'#/$defs/MissingThemeToken'},
+                    },
+                  },
+                ],
+              },
+            },
+          }, A2uiProtocolVersion.v0_9),
+          throwsA(
+            isA<A2uiCatalogError>().having(
+              (e) => e.message,
+              'message',
+              contains('MissingThemeToken'),
+            ),
+          ),
+        );
+        expect(
+          () => readRendererCapabilities({
+            a2uiClientCapabilitiesKey: {
+              'v0.9': {
+                'supportedCatalogIds': <String>[],
+                'inlineCatalogs': [
+                  {
+                    'catalogId': 'renderer/theme-ref',
+                    'components': <String, Object?>{},
+                    'theme': {r'$ref': r'#/$defs/MissingThemeSchema'},
+                  },
+                ],
+              },
+            },
+          }, A2uiProtocolVersion.v0_9),
+          throwsA(
+            isA<A2uiCatalogError>().having(
+              (e) => e.message,
+              'message',
+              contains('MissingThemeSchema'),
+            ),
+          ),
+        );
+
+        // An incompatible protocolVersion on entry 0 is not masked by entry 1's
+        // local $ref error.
+        expect(
+          () => readRendererCapabilities({
+            a2uiRendererCapabilitiesKey: {
+              '1.0': {
+                'supportedCatalogIds': <String>[],
+                'inlineCatalogs': [
+                  {
+                    'catalogId': 'renderer/wrong-version',
+                    'protocolVersion': '0.9',
+                    'components': <String, Object?>{},
+                  },
+                  {
+                    'catalogId': 'renderer/later-ref-error',
+                    'protocolVersion': '1.0',
+                    'components': {
+                      'Marquee': {
+                        'type': 'object',
+                        'properties': {
+                          'component': {'const': 'Marquee'},
+                          'tone': {r'$ref': r'#/$defs/MissingLater'},
+                        },
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+          throwsA(
+            isA<A2uiCatalogError>().having(
+              (e) => e.message,
+              'message',
+              contains('renderer/wrong-version'),
+            ),
+          ),
+        );
+
+        final Map<String, Object?> escapedInline = {
+          'catalogId': 'renderer/escaped',
+          'protocolVersion': '1.0',
+          'components': {
+            'Marquee': {
+              'type': 'object',
+              'allOf': [
+                {r'$ref': r'#/$defs/a~1b~0c/allOf/0'},
+              ],
+              'properties': {
+                'component': {'const': 'Marquee'},
+                'literalRef': {
+                  'type': 'object',
+                  'const': {r'$ref': r'#/$defs/not_a_schema_ref'},
+                },
+                'default': {'type': 'string'},
+              },
+              'required': ['component'],
+            },
+          },
+          r'$defs': {
+            'a/b~c': {
+              'allOf': [
+                {
+                  'type': 'object',
+                  'properties': {
+                    'label': {'type': 'string'},
+                  },
+                },
+              ],
+            },
+            'anyComponent': {
+              'oneOf': [
+                {r'$ref': '#/components/Marquee'},
+              ],
+              'discriminator': {'propertyName': 'component'},
+            },
+            'anyFunction': {'not': <String, Object?>{}},
+          },
+        };
+        final v1Registered = [
+          CatalogConfig(
+            Catalog.fromJson({
+              'catalogId': 'https://example.com/v1.json',
+              'protocolVersion': '1.0',
+              'components': <String, Object?>{},
+            }),
+          ),
+        ];
+        final List<CatalogApi> resolvedEscaped = resolveCatalogs(
+          v1Registered,
+          A2uiRendererCapabilities.fromJson({
+            '1.0': {
+              'supportedCatalogIds': <String>[],
+              'inlineCatalogs': [escapedInline],
+            },
+          }),
+          acceptsInlineCatalogs: true,
+        );
+        expect(resolvedEscaped.map((c) => c.id), ['renderer/escaped']);
+
+        final Map<String, Object?> badDefaultProp = {
+          ...escapedInline,
+          'components': {
+            'Marquee': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Marquee'},
+                'default': {r'$ref': r'#/$defs/MissingDefaultSchema'},
+              },
+              'required': ['component'],
+            },
+          },
+        };
+        expect(
+          () => resolveCatalogs(
+            v1Registered,
+            A2uiRendererCapabilities.fromJson({
+              '1.0': {
+                'supportedCatalogIds': <String>[],
+                'inlineCatalogs': [badDefaultProp],
+              },
+            }),
+            acceptsInlineCatalogs: true,
+          ),
+          throwsA(
+            isA<A2uiCatalogError>().having(
+              (e) => e.message,
+              'message',
+              contains('MissingDefaultSchema'),
+            ),
+          ),
+        );
+      },
+    );
   });
 
   group('A2uiRequestProcessor.parseResponse', () {

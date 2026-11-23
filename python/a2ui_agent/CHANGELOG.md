@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: `resolve_catalogs` and `read_renderer_capabilities`
+  reject inline catalogs whose local `#...` `$ref` pointers do not resolve
+  against the inline catalog document or the protocol version's
+  `common_types.json`, raising `A2uiCatalogError` naming the inline `catalogId`
+  and `$ref` even when `accepts_inline_catalogs` is `False`. `resolve_catalogs`
+  also logs a warning when an accepted inline catalog is dropped because its
+  `catalogId` is already active. Recommended migration: point each local `$ref`
+  in an inline catalog to a definition declared in that inline catalog or in the
+  target protocol version's `common_types.json`
+  ([#3165](https://github.com/a2ui-project/a2ui/issues/3165)).
 - `DirectJsonParser` rejects a number out of the range of a double, such as
   `1e400`, with `A2uiParseError`, as the Dart SDK does. It used to read it as
   `inf`, which `json.dumps` writes as `Infinity`, a token JSON does not have
