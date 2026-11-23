@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.1.1
+
 - The shared sandbox proxy accepts messages from external `url` frames configured with `allow-same-origin` when `event.origin` matches the resolved URL origin, revokes prior cross-origin and same-origin URL allowances on later resource updates, and anchors `normalizeOrigin` to a hostname boundary. [#4329](https://github.com/a2ui-project/a2ui/pull/4329)
 
 ## 0.1.0
