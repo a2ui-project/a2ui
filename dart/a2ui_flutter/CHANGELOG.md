@@ -23,11 +23,13 @@
   text in bold, strikethrough with a line through it, and code spans in a
   monospace font. A body Text also styles every heading line by its level and
   starts list items with a bullet, which screen readers skip. Wrap the surface
-  in an `A2uiMarkdown` to render Markdown with a package of your choice.
+  in an `A2uiMarkdown` to render Markdown with a package of your choice
+  ([#4377](https://github.com/a2ui-project/a2ui/pull/4377)).
 
 - Add `ComponentProps.validationResult`, the result of the first failing
   check, or a valid result when none fails. Needs the next `a2ui_core`
-  release.
+  release
+  ([#4377](https://github.com/a2ui-project/a2ui/pull/4377)).
 
 ## 0.5.0
 

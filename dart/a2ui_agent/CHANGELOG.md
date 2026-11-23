@@ -4,11 +4,13 @@
 
 - `A2uiGenerator.createProcessor` accepts `null` renderer capabilities, so the
   result of `readRendererCapabilities` can be passed unchanged, and throws
-  `A2uiCatalogError` for it, as the TypeScript and Python SDKs do.
+  `A2uiCatalogError` for it, as the TypeScript and Python SDKs do
+  ([#4377](https://github.com/a2ui-project/a2ui/pull/4377)).
 
 - The Direct JSON prompt takes the message schema from `a2ui_core`'s
   `AgentToRendererMessage.schemaFor`, so this package needs the next
-  `a2ui_core` release. The prompt text is unchanged.
+  `a2ui_core` release. The prompt text is unchanged
+  ([#4377](https://github.com/a2ui-project/a2ui/pull/4377)).
 
 ## 0.5.0
 

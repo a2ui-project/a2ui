@@ -5,18 +5,21 @@
 - **Breaking:** (v1_0) The basic catalog's `email` check fails with code
   `INVALID_EMAIL`, severity `error` and the message "Please enter a valid email
   address (e.g. user@example.com).", as in the other SDKs, instead of "Must be a
-  valid email address.". A check's own `message` still replaces it.
+  valid email address.". A check's own `message` still replaces it
+  ([#4377](https://github.com/a2ui-project/a2ui/pull/4377)).
 
 - **Breaking:** (v1_0) A `MessageProcessor` running without a
   `ValidationConfig`, or with one that sets `allowUnknownElements` such as
   `ValidationConfig.relaxed`, drops the `theme` of a `createSurface` and
   creates the surface as if it had none, instead of rejecting the message.
-  Strict validation still rejects it.
+  Strict validation still rejects it
+  ([#4377](https://github.com/a2ui-project/a2ui/pull/4377)).
 
 - Add `AgentToRendererMessage.schemaFor`, which returns the agent-to-renderer
   message schema the specification publishes for a protocol version:
   `server_to_client.json` for v0.9 and v0.9.1, and `agent_to_renderer.json` for
-  v1.0. Each call returns a fresh document.
+  v1.0. Each call returns a fresh document
+  ([#4377](https://github.com/a2ui-project/a2ui/pull/4377)).
 
 - (v1_0) Add `SchemaOnlyFunction`, a `FunctionImplementation` that declares a
   function the renderer does not implement. A call to it is checked against
@@ -26,20 +29,24 @@
   `EXPRESSION_ERROR` and not sent. `SchemaOnlyFunction.fromApi` declares a
   function that `Catalog.fromJson` read. `RpcHandler` refuses a
   `callRendererFunction` naming one, and `Catalog.rendererFunctions` leaves it
-  out.
+  out
+  ([#4377](https://github.com/a2ui-project/a2ui/pull/4377)).
 
 - The resolved properties of a component with checks include
   `validationResult`: the first failing check's `ValidationResult`, or a valid
-  one when no check fails.
+  one when no check fails
+  ([#4377](https://github.com/a2ui-project/a2ui/pull/4377)).
 
 - `Catalog.fromJson` keeps `oneOf`, `anyOf` and other keywords nested in an
   inline `allOf` member of a component in `resolvedComponentSchemas`, so
   `PayloadValidator` checks properties declared only in those branches instead
-  of rejecting them as unknown.
+  of rejecting them as unknown
+  ([#4377](https://github.com/a2ui-project/a2ui/pull/4377)).
 
 - A function call whose arguments do not match the function's schema is
   reported as "Validation failed for function '<name>' in catalog '<id>'", as
-  in the TypeScript and Python SDKs.
+  in the TypeScript and Python SDKs
+  ([#4377](https://github.com/a2ui-project/a2ui/pull/4377)).
 
 ## 0.9.0
 
