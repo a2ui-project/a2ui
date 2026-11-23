@@ -1140,5 +1140,38 @@ describe('ExpressPromptGenerator', () => {
       const instructions = new ExpressPromptGenerator([cat]).generateCatalogInstructions(cat);
       expect(instructions).toContain('• CyclicAllOfWidget(node? (static))');
     });
+
+    it('treats inline (non-$ref) allOf wire-envelope branches as wire envelopes', () => {
+      const cat = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        catalogId: 'test/inline_allof_wire',
+        protocolVersion: '1.0',
+        components: {
+          InlineAllOfWireWidget: {
+            type: 'object',
+            properties: {
+              component: {const: 'InlineAllOfWireWidget'},
+              label: {
+                allOf: [
+                  {
+                    type: 'object',
+                    properties: {'@path': {type: 'string'}},
+                    required: ['@path'],
+                  },
+                  {
+                    type: 'object',
+                    properties: {extra: {type: 'string'}},
+                  },
+                ],
+              },
+            },
+            required: ['component'],
+          },
+        },
+      });
+      const instructions = new ExpressPromptGenerator([cat]).generateCatalogInstructions(cat);
+      expect(instructions).toContain('• InlineAllOfWireWidget(label?)');
+      expect(instructions).not.toContain('Map with keys:');
+    });
   });
 });

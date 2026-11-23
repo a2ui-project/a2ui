@@ -229,15 +229,20 @@ function isProtocolWireEnvelope(
     if (
       Array.isArray(s.allOf) &&
       s.allOf.some(sub => {
-        if (!sub || typeof sub !== 'object' || visited.has(sub)) {
+        if (!sub || typeof sub !== 'object' || Array.isArray(sub) || visited.has(sub)) {
           return false;
         }
-        visited.add(sub);
+        const resolved = helper.dereferenceLocalSchema(sub) ?? (sub as Record<string, unknown>);
+        const dereferenced = resolved !== sub;
+        if (dereferenced) {
+          visited.add(sub);
+        }
         try {
-          const resolved = helper.dereferenceLocalSchema(sub) ?? (sub as Record<string, unknown>);
           return isProtocolWireEnvelope(resolved, helper, visited);
         } finally {
-          visited.delete(sub);
+          if (dereferenced) {
+            visited.delete(sub);
+          }
         }
       })
     ) {
