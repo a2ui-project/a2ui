@@ -222,6 +222,55 @@ abstract class FunctionImplementation extends FunctionApi {
   ]);
 }
 
+/// A function a renderer's catalog declares without implementing it: a
+/// schema-only declaration.
+///
+/// It lets a catalog of [FunctionImplementation]s, which is what a renderer's
+/// `MessageProcessor` holds, declare a function that runs on the agent. From
+/// v1.0, a call to it is checked against [allowedCallers],
+/// [requiresUserActivation] and [argumentSchema], and is then sent to the
+/// agent with `callAgentFunction`, its arguments carrying the schema's
+/// defaults. Without a way to reach the agent, such as before v1.0, the call
+/// fails with an `EXPRESSION_ERROR`. An agent's `callRendererFunction` naming
+/// it is refused, since the renderer cannot run it.
+class SchemaOnlyFunction extends FunctionImplementation {
+  /// Creates a schema-only declaration, with the parameters [FunctionApi]
+  /// takes.
+  const SchemaOnlyFunction({
+    required super.name,
+    required super.argumentSchema,
+    super.returnType,
+    super.description,
+    super.allowedCallers,
+    super.requiresUserActivation,
+    super.definition,
+  });
+
+  /// Declares [api], such as a function read by [Catalog.fromJson], without
+  /// an implementation, keeping its signature and [definition].
+  SchemaOnlyFunction.fromApi(FunctionApi api)
+    : super(
+        name: api.name,
+        argumentSchema: api.argumentSchema,
+        returnType: api.returnType,
+        description: api.description,
+        allowedCallers: api.declaredAllowedCallers,
+        requiresUserActivation: api.declaredRequiresUserActivation,
+        definition: api.definition,
+      );
+
+  /// Throws [UnsupportedError]: the function runs on the agent, not here.
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) => throw UnsupportedError(
+    "Function '$name' is schema-only and has no implementation on this "
+    'renderer.',
+  );
+}
+
 /// Invocation metadata passed to an [AgentFunctionHandler].
 class AgentFunctionContext {
   /// The catalog the called function belongs to.
@@ -450,10 +499,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   });
 
   /// The functions that run on the renderer, keyed by name: every entry of
-  /// [functions] that is not an [AgentFunction].
+  /// [functions] that is neither an [AgentFunction] nor a
+  /// [SchemaOnlyFunction].
   late final Map<String, F> rendererFunctions = Map.unmodifiable({
     for (final MapEntry<String, F> entry in functions.entries)
-      if (entry.value is! AgentFunction) entry.key: entry.value,
+      if (entry.value is! AgentFunction && entry.value is! SchemaOnlyFunction)
+        entry.key: entry.value,
   });
 
   /// The document's shared named definitions: its `$defs`, except `theme`
@@ -2155,6 +2206,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           keyOrder: keyOrder,
           unmerged: unmerged,
         );
+        // Keywords this merge does not fold in, such as a nested `oneOf` or
+        // `anyOf`, still constrain the component, so they stay an `allOf`
+        // member.
+        final Map<String, Object?> unmergedKeywords = {
+          for (final MapEntry<String, Object?> entry in subMap.entries)
+            if (!_mergedInlineMemberKeys.contains(entry.key))
+              entry.key: entry.value,
+        };
+        if (unmergedKeywords.isNotEmpty) unmerged?.add(unmergedKeywords);
       }
       if (keyOrder) {
         // [schema] first, then its `allOf` branches in authored order with
@@ -2172,6 +2232,21 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     }
     if (contributes && !keyOrder) result.add(schema);
   }
+
+  /// The keywords of an inline `allOf` member that flattening merges into
+  /// the component, or that only apply to the member itself, so they do not
+  /// stay an `allOf` member of the flattened schema.
+  static const Set<String> _mergedInlineMemberKeys = {
+    'type',
+    'description',
+    'allOf',
+    'properties',
+    'required',
+    'unevaluatedProperties',
+    'additionalProperties',
+    'allowedParents',
+    'allowedChildren',
+  };
 
   static bool _isComponentCommonRef(String ref) =>
       ref.endsWith('/ComponentCommon');

@@ -345,14 +345,17 @@ class GenericBinder {
         // A null slot is a rule whose condition awaits an agent response: it
         // neither passes nor fails until the response arrives, and
         // `validationPending` says so.
-        final ruleResults = <ValidationResult?>[];
+        final ruleResults = <_RuleResult?>[];
 
         void applyValidationState(
           void Function(String key, Object value) write,
         ) {
+          final failedRules = <_RuleResult>[
+            for (final _RuleResult? r in ruleResults)
+              if (r != null && !r.result.valid) r,
+          ];
           final failedResults = <ValidationResult>[
-            for (final ValidationResult? r in ruleResults)
-              if (r != null && !r.valid) r,
+            for (final _RuleResult r in failedRules) r.result,
           ];
           final errors = <String>[
             for (final ValidationResult r in failedResults)
@@ -362,6 +365,11 @@ class GenericBinder {
           write('isValid', errors.isEmpty);
           write('validationErrors', errors);
           write('validationResults', failedResults);
+          write(
+            'validationResult',
+            failedRules.firstOrNull?.asReported ??
+                const ValidationResult(valid: true),
+          );
           write('validationPending', ruleResults.any((r) => r == null));
         }
 
@@ -411,11 +419,11 @@ class GenericBinder {
           final String? explicitMessage = isPathBound ? null : ruleMessage;
 
           final int slot = ruleResults.length;
-          ruleResults.add(const ValidationResult(valid: true));
+          ruleResults.add(_RuleResult.passed);
 
-          ValidationResult? resultOf(DynamicValueState state) => state.pending
+          _RuleResult? resultOf(DynamicValueState state) => state.pending
               ? null
-              : ValidationResult.fromEvaluation(
+              : _RuleResult.of(
                   state.value,
                   explicitMessage: explicitMessage,
                   fallbackMessage: fallbackMessage,
@@ -886,4 +894,53 @@ bool _isInlineAction(Map<String, Object?> schema) {
       properties.length == 1 &&
       (properties.containsKey('event') ||
           properties.containsKey('functionCall'));
+}
+
+/// The outcome of one check rule.
+class _RuleResult {
+  /// The normalized result, as `validationResults` lists it.
+  final ValidationResult result;
+
+  /// Whether the rule's condition stated a severity, rather than leaving the
+  /// default of `error` to the normalization.
+  final bool statesSeverity;
+
+  const _RuleResult(this.result, {required this.statesSeverity});
+
+  static const _RuleResult passed = _RuleResult(
+    ValidationResult(valid: true),
+    statesSeverity: false,
+  );
+
+  /// The outcome of a rule whose condition evaluated to [value]; see
+  /// [ValidationResult.fromEvaluation] for the messages.
+  factory _RuleResult.of(
+    Object? value, {
+    required String? explicitMessage,
+    required String fallbackMessage,
+  }) => _RuleResult(
+    ValidationResult.fromEvaluation(
+      value,
+      explicitMessage: explicitMessage,
+      fallbackMessage: fallbackMessage,
+    ),
+    statesSeverity: switch (value) {
+      ValidationResult(:final String? severity) => severity != null,
+      final Map<Object?, Object?> map => switch (map['severity']) {
+        'error' || 'warning' || 'info' => true,
+        _ => false,
+      },
+      _ => false,
+    },
+  );
+
+  /// [result] as the condition reported it, for `validationResult`: without
+  /// a severity unless the condition stated one.
+  ValidationResult get asReported => statesSeverity
+      ? result
+      : ValidationResult(
+          valid: result.valid,
+          message: result.message,
+          code: result.code,
+        );
 }

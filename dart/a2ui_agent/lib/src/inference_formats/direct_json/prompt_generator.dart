@@ -19,7 +19,6 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../prompt/generator.dart';
 import '../../utils/catalogs.dart';
-import 'server_to_client.g.dart';
 
 const String _defaultWorkflowRules = '''
 
@@ -77,7 +76,7 @@ class DirectJsonPromptGenerator extends PromptGenerator {
       );
     }
     final A2uiProtocolVersion version = catalogsProtocolVersion(catalogs);
-    Map<String, Object?> a2rSchema = _loadAgentToRendererSchema(version);
+    Map<String, Object?> a2rSchema = AgentToRendererMessage.schemaFor(version);
     if (allowedMessages != null) {
       a2rSchema = _pruneMessagesSchema(a2rSchema, allowedMessages!);
     }
@@ -138,31 +137,6 @@ Map<String, Object?> _exampleMessageJson(AgentToRendererMessage message) {
     }
   }
   return json;
-}
-
-Map<String, Object?> _loadAgentToRendererSchema(A2uiProtocolVersion version) {
-  switch (version) {
-    case A2uiProtocolVersion.v0_9:
-      return jsonDecode(serverToClientV0_9Json) as Map<String, Object?>;
-    case A2uiProtocolVersion.v0_9_1:
-      final schema = jsonDecode(serverToClientV0_9Json) as Map<String, Object?>;
-      final Object? defs = schema[r'$defs'];
-      if (defs is Map) {
-        for (final Object? defSchema in defs.values) {
-          if (defSchema is Map) {
-            final Object? props = defSchema['properties'];
-            if (props is Map && props.containsKey('version')) {
-              props['version'] = {
-                'enum': ['v0.9', 'v0.9.1'],
-              };
-            }
-          }
-        }
-      }
-      return schema;
-    case A2uiProtocolVersion.v1_0:
-      return jsonDecode(agentToRendererV1_0Json) as Map<String, Object?>;
-  }
 }
 
 Set<String> _collectRefs(Object? node) {

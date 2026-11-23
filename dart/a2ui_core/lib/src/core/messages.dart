@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/semver.dart';
 import '../primitives/uax31.dart';
+import 'agent_to_renderer_schemas.g.dart';
 
 /// Base class for the messages an agent sends a renderer.
 ///
@@ -168,6 +171,22 @@ abstract class AgentToRendererMessage {
     if (version.isAtLeast(A2uiProtocolVersion.v1_0))
       ..._agentToRendererV1BodyKeys,
   ];
+
+  /// The JSON schema of the messages an agent may send in [version], as the
+  /// specification publishes it: `server_to_client.json` before v1.0 and
+  /// `agent_to_renderer.json` from v1.0.
+  ///
+  /// A copy of the specification document, embedded at build time by
+  /// `tool/generate_protocol_schemas.dart` so that a package installed from
+  /// pub.dev can show a model the message schema without reading the
+  /// specification repository. Each call returns a fresh document, so a
+  /// caller may edit the result.
+  static Map<String, Object?> schemaFor(A2uiProtocolVersion version) =>
+      jsonDecode(switch (version) {
+        A2uiProtocolVersion.v0_9 => agentToRendererV0_9Json,
+        A2uiProtocolVersion.v0_9_1 => agentToRendererV0_9_1Json,
+        A2uiProtocolVersion.v1_0 => agentToRendererV1_0Json,
+      }) as Map<String, Object?>;
 }
 
 /// The message bodies an agent-to-renderer envelope may carry in every

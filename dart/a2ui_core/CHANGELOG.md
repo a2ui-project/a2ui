@@ -1,5 +1,46 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
+## Unreleased
+
+- **Breaking:** (v1_0) The basic catalog's `email` check fails with code
+  `INVALID_EMAIL`, severity `error` and the message "Please enter a valid email
+  address (e.g. user@example.com).", as in the other SDKs, instead of "Must be a
+  valid email address.". A check's own `message` still replaces it.
+
+- **Breaking:** (v1_0) A `MessageProcessor` running without a
+  `ValidationConfig`, or with one that sets `allowUnknownElements` such as
+  `ValidationConfig.relaxed`, drops the `theme` of a `createSurface` and
+  creates the surface as if it had none, instead of rejecting the message.
+  Strict validation still rejects it.
+
+- Add `AgentToRendererMessage.schemaFor`, which returns the agent-to-renderer
+  message schema the specification publishes for a protocol version:
+  `server_to_client.json` for v0.9 and v0.9.1, and `agent_to_renderer.json` for
+  v1.0. Each call returns a fresh document.
+
+- (v1_0) Add `SchemaOnlyFunction`, a `FunctionImplementation` that declares a
+  function the renderer does not implement. A call to it is checked against
+  its `allowedCallers`, `requiresUserActivation` and argument schema, then sent
+  to the agent with `callAgentFunction`, its arguments carrying the schema's
+  defaults; arguments that fail the schema are reported as an
+  `EXPRESSION_ERROR` and not sent. `SchemaOnlyFunction.fromApi` declares a
+  function that `Catalog.fromJson` read. `RpcHandler` refuses a
+  `callRendererFunction` naming one, and `Catalog.rendererFunctions` leaves it
+  out.
+
+- The resolved properties of a component with checks include
+  `validationResult`: the first failing check's `ValidationResult`, or a valid
+  one when no check fails.
+
+- `Catalog.fromJson` keeps `oneOf`, `anyOf` and other keywords nested in an
+  inline `allOf` member of a component in `resolvedComponentSchemas`, so
+  `PayloadValidator` checks properties declared only in those branches instead
+  of rejecting them as unknown.
+
+- A function call whose arguments do not match the function's schema is
+  reported as "Validation failed for function '<name>' in catalog '<id>'", as
+  in the TypeScript and Python SDKs.
+
 ## 0.9.0
 
 - **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.5.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).

@@ -115,12 +115,6 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
       return reason;
     }
   }
-  final args = testCase['args']! as Map<String, Object?>;
-  if (testCase['action'] == 'create_processor' &&
-      !args.containsKey('renderer_capabilities')) {
-    return 'createProcessor takes non-nullable renderer capabilities, so the '
-        'type system rejects a request without them before it can run.';
-  }
   return null;
 }
 
@@ -214,9 +208,10 @@ void _createProcessor(Map<String, Object?> testCase, SuiteVersion version) {
   };
   final List<Object?> before = _describe(generator);
   A2uiRequestProcessor create() => generator.createProcessor(
-    version.capabilities(
-      args['renderer_capabilities']! as Map<String, Object?>,
-    ),
+    switch (args['renderer_capabilities']) {
+      null => null,
+      final Object json => version.capabilities(json as Map<String, Object?>),
+    },
     inferenceFormatFactory: switch (args['format_override']) {
       null => null,
       final Object name => _factory(name),

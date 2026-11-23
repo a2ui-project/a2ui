@@ -124,4 +124,12 @@ extension type const ComponentProps(NodeProps _props) implements NodeProps {
         ),
         _ => const [],
       };
+
+  /// The result of the first failing `checks` entry, or a valid result when
+  /// none fails. Its severity is null unless the check's condition stated
+  /// one, which leaves the default of `error`.
+  ValidationResult get validationResult => switch (this['validationResult']) {
+    final ValidationResult r => r,
+    _ => const ValidationResult(valid: true),
+  };
 }

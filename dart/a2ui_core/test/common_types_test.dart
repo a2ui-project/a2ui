@@ -33,7 +33,24 @@ void main() {
         specification,
         reason:
             'lib/src/validation/common_types.g.dart has drifted from the '
-            'specification. Run `dart run tool/generate_common_types.dart`.',
+            'specification. Run `dart run tool/generate_protocol_schemas.dart`.',
+      );
+    });
+
+    test('v0.9.1 publishes the same document as v0.9', () {
+      final String specification = File(
+        resolveConformancePath(
+          '../specification/v0_9_1/json/common_types.json',
+        ),
+      ).readAsStringSync();
+
+      expect(
+        commonTypesV0_9Json,
+        specification,
+        reason:
+            'specification/v0_9_1/json/common_types.json no longer matches '
+            'v0.9. Embed it in tool/generate_protocol_schemas.dart and return '
+            'it from PayloadValidator.commonTypesFor.',
       );
     });
 
@@ -47,7 +64,7 @@ void main() {
         specification,
         reason:
             'lib/src/validation/common_types.g.dart has drifted from the '
-            'specification. Run `dart run tool/generate_common_types.dart`.',
+            'specification. Run `dart run tool/generate_protocol_schemas.dart`.',
       );
     });
 

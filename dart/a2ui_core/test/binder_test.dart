@@ -416,11 +416,21 @@ void main() {
           severity: 'error',
         ),
       ]);
+      // A boolean condition states no severity, so the first failure is
+      // reported without one.
+      expect(
+        binder.resolvedProps.value['validationResult'],
+        const ValidationResult(valid: false, message: 'Must be valid'),
+      );
 
       surface.dataModel.set('/valid', true);
       expect(binder.resolvedProps.value['isValid'], true);
       expect(binder.resolvedProps.value['validationErrors'], isEmpty);
       expect(binder.resolvedProps.value['validationResults'], isEmpty);
+      expect(
+        binder.resolvedProps.value['validationResult'],
+        const ValidationResult(valid: true),
+      );
       binder.dispose();
     });
 
@@ -585,6 +595,15 @@ void main() {
           severity: 'info',
         ),
       ]);
+      expect(
+        binder.resolvedProps.value['validationResult'],
+        const ValidationResult(
+          valid: false,
+          message: 'Weak password',
+          code: 'WARN_WEAK',
+          severity: 'warning',
+        ),
+      );
 
       binder.dispose();
       customSurface.dispose();

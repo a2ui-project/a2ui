@@ -1859,6 +1859,62 @@ void main() {
       );
       expect(processor.model.allSurfaces, isEmpty);
     });
+
+    group('v1.0 createSurface theme', () {
+      Map<String, Object?> withTheme(String surfaceId) => {
+        'version': '1.0',
+        'createSurface': {
+          'surfaceId': surfaceId,
+          'catalogId': 'v10',
+          'theme': {'primaryColor': '#FF00AA'},
+        },
+      };
+
+      test('is rejected under strict validation', () {
+        final processor = MessageProcessor<ComponentApi>(
+          catalogs: [v10Catalog()],
+          validationConfig: ValidationConfig.strict,
+        );
+        addTearDown(processor.dispose);
+        expect(
+          () => processor.processMessages(withTheme('s')),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(processor.model.getSurface('s'), isNull);
+      });
+
+      test('is dropped under relaxed validation and without a config', () {
+        for (final ValidationConfig? config in [
+          ValidationConfig.relaxed,
+          null,
+        ]) {
+          final processor = MessageProcessor<ComponentApi>(
+            catalogs: [v10Catalog()],
+            validationConfig: config,
+          );
+          addTearDown(processor.dispose);
+          processor.processMessages(withTheme('s'));
+          expect(
+            processor.model.getSurface('s')!.theme,
+            isEmpty,
+            reason: '$config',
+          );
+        }
+      });
+
+      test('is dropped under a per-call relaxed config', () {
+        final processor = MessageProcessor<ComponentApi>(
+          catalogs: [v10Catalog()],
+          validationConfig: ValidationConfig.strict,
+        );
+        addTearDown(processor.dispose);
+        processor.processMessages(
+          withTheme('s'),
+          validationConfig: ValidationConfig.relaxed,
+        );
+        expect(processor.model.getSurface('s')!.theme, isEmpty);
+      });
+    });
   });
 
   group('MessageProcessor per-call validation config', () {

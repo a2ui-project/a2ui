@@ -16,8 +16,11 @@ import 'package:meta/meta.dart';
 
 /// Structured outcome of a client-side validation check rule.
 ///
-/// Returned by v1.0 validation functions and exposed in `validationResults` on
-/// resolved component properties for `Checkable` components.
+/// Returned by v1.0 validation functions and exposed on the resolved
+/// properties of `Checkable` components: `validationResults` lists the
+/// failing checks, and `validationResult` holds the first of them, without a
+/// severity unless its condition stated one, or a valid result when none
+/// fails.
 @immutable
 class ValidationResult {
   /// Whether the check passed.

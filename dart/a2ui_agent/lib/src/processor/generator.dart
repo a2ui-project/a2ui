@@ -18,6 +18,7 @@ import '../inference_format.dart';
 import '../inference_formats/express/format.dart';
 import '../utils/catalog_resolver.dart';
 import '../utils/catalogs.dart';
+import '../utils/renderer_capabilities.dart';
 import '../utils/renderer_state.dart';
 import 'catalog_config.dart';
 import 'processor.dart';
@@ -54,6 +55,11 @@ class A2uiGenerator {
 
   /// Creates a processor for a renderer that declared [rendererCapabilities].
   ///
+  /// [rendererCapabilities] is nullable so that what
+  /// [readRendererCapabilities] returns can be passed unchanged, but a
+  /// processor serves one renderer and needs its capabilities to negotiate
+  /// against: a request that carries none is an [A2uiCatalogError].
+  ///
   /// The active catalogs are those [resolveCatalogs] returns, which does not
   /// accept inline catalogs here, and the examples are the turns written in
   /// their protocol version. [inferenceFormatFactory] overrides the
@@ -63,15 +69,21 @@ class A2uiGenerator {
   ///
   /// Throws [A2uiValidationError] if [rendererCapabilities] declares nothing
   /// for any version of the registered catalogs, or an example turn is
-  /// written in a version none of them targets; [A2uiCatalogError] if the
-  /// renderer supports none of the registered catalogs, or [state] holds
-  /// other catalogs than the active ones; and the [A2uiError] a renderer
-  /// would report for an example the active catalogs cannot render.
+  /// written in a version none of them targets; [A2uiCatalogError] if
+  /// [rendererCapabilities] is null, the renderer supports none of the
+  /// registered catalogs, or [state] holds other catalogs than the active
+  /// ones; and the [A2uiError] a renderer would report for an example the
+  /// active catalogs cannot render.
   A2uiRequestProcessor createProcessor(
-    A2uiRendererCapabilities rendererCapabilities, {
+    A2uiRendererCapabilities? rendererCapabilities, {
     InferenceFormatFactory? inferenceFormatFactory,
     RendererState? state,
   }) {
+    if (rendererCapabilities == null) {
+      throw A2uiCatalogError(
+        'createProcessor requires renderer capabilities to negotiate against.',
+      );
+    }
     final List<CatalogApi> active = resolveCatalogs(
       catalogs,
       rendererCapabilities,

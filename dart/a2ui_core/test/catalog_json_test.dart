@@ -2140,6 +2140,57 @@ void main() {
       expect((box['properties'] as Map).containsKey('accessibility'), isTrue);
       expect((box['properties'] as Map).containsKey('metadata'), isFalse);
     });
+
+    test('keeps oneOf and anyOf nested in an inline allOf member', () {
+      final oneOf = [
+        {
+          'properties': {
+            'mode': {'const': 'a'},
+          },
+        },
+        {
+          'properties': {
+            'mode': {'const': 'b'},
+          },
+        },
+      ];
+      final anyOf = [
+        {
+          'properties': {
+            'note': {'type': 'string'},
+          },
+        },
+      ];
+      final Schema pager = Catalog.fromJson({
+        'catalogId': 'combiners',
+        'protocolVersion': '1.0',
+        'components': {
+          'Pager': {
+            'type': 'object',
+            'allOf': [
+              {
+                'type': 'object',
+                'properties': {
+                  'text': {'type': 'string'},
+                },
+                'required': ['text'],
+                'additionalProperties': false,
+                'oneOf': oneOf,
+                'anyOf': anyOf,
+              },
+            ],
+          },
+        },
+      }).resolvedComponentSchema('Pager')!;
+
+      expect(pager.value['properties'], {
+        'text': {'type': 'string'},
+      });
+      expect(pager.value['required'], ['text']);
+      expect(pager.value['allOf'], [
+        {'oneOf': oneOf, 'anyOf': anyOf},
+      ]);
+    });
   });
 
   group('inline catalogs', () {

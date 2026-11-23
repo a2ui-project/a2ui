@@ -571,3 +571,154 @@ def test_load_records_returns_empty_when_manifest_dir_is_file(tmp_path: Path) ->
     manifest_file = tmp_path / "not_a_dir.jsonl"
     manifest_file.write_text("{}", encoding="utf-8")
     assert load_records(manifest_file, "python-core") == []
+
+
+AllowedSkip = check_executed_cases.AllowedSkip
+load_allowed_skips = check_executed_cases.load_allowed_skips
+
+
+def _record(case: str, status: str, reason: str | None = None) -> dict[str, Any]:
+    suite = "core/beta.yaml" if case == "case_three" else "core/alpha.yaml"
+    record: dict[str, Any] = {
+        "harness": "dart-core",
+        "suite": suite,
+        "case": case,
+        "status": status,
+    }
+    if reason is not None:
+        record["reason"] = reason
+    return record
+
+
+def _write_allowed_skips(tmp_path: Path, entries: list[dict[str, Any]]) -> Path:
+    path = tmp_path / "allowed_skips.yaml"
+    path.write_text(yaml.safe_dump({"dart-core": entries}), encoding="utf-8")
+    return path
+
+
+def test_allowed_skips_allow_a_skip_by_suite_and_reason(tmp_path: Path) -> None:
+    conf_root, manifest_dir = _create_temp_conformance(tmp_path)
+    _write_jsonl(
+        manifest_dir / "dart-core.jsonl",
+        [
+            _record("case_one", "passed"),
+            _record("case_two", "skipped", "Targets protocol v0.8."),
+            _record("case_three", "skipped", "Runs in the adapter harness."),
+        ],
+    )
+    allowed = load_allowed_skips(
+        _write_allowed_skips(
+            tmp_path,
+            [
+                {"suites": ["core/alpha.yaml"], "reasonPattern": r"v0\.8", "why": "a"},
+                {"suites": ["core/b*.yaml"], "why": "b"},
+            ],
+        ),
+        "dart-core",
+    )
+    corpus = load_corpus(conf_root, ["core"])
+    records = load_records(manifest_dir, "dart-core")
+    assert compare(corpus, records, {}, allowed) == []
+
+
+def test_allowed_skips_report_other_skips_and_expected_failures(
+    tmp_path: Path,
+) -> None:
+    conf_root, manifest_dir = _create_temp_conformance(tmp_path)
+    _write_jsonl(
+        manifest_dir / "dart-core.jsonl",
+        [
+            _record("case_one", "skipped", "Not implemented yet."),
+            _record("case_two", "skipped", "Targets protocol v0.8."),
+            _record("case_three", "xfailed", "Known bug."),
+        ],
+    )
+    allowed = [
+        AllowedSkip(
+            suites=("core/alpha.yaml",),
+            why="v0.8",
+            reason_pattern=check_executed_cases.re.compile(r"v0\.8"),
+        )
+    ]
+    corpus = load_corpus(conf_root, ["core"])
+    records = load_records(manifest_dir, "dart-core")
+    findings = compare(corpus, records, {}, allowed)
+    assert [(f.kind, f.case) for f in findings] == [
+        ("GAP", "case_one"),
+        ("GAP", "case_three"),
+    ]
+    # Without allowed skips, the same records are accounted for.
+    assert compare(corpus, records, {}) == []
+
+
+def test_allowed_skips_report_an_entry_that_allows_nothing(tmp_path: Path) -> None:
+    conf_root, manifest_dir = _create_temp_conformance(tmp_path)
+    _write_jsonl(
+        manifest_dir / "dart-core.jsonl",
+        [
+            _record("case_one", "passed"),
+            _record("case_two", "passed"),
+            _record("case_three", "passed"),
+        ],
+    )
+    allowed = [
+        AllowedSkip(suites=("core/alpha.yaml",), why="stale"),
+        AllowedSkip(suites=("agent/**",), why="not checked here"),
+    ]
+    corpus = load_corpus(conf_root, ["core"])
+    records = load_records(manifest_dir, "dart-core")
+    findings = compare(corpus, records, {}, allowed)
+    assert [(f.kind, f.suite) for f in findings] == [
+        ("UNUSED_ALLOWED_SKIP", "core/alpha.yaml")
+    ]
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        {"suites": [], "why": "x"},
+        {"suites": ["core/alpha.yaml"]},
+        {"suites": ["core/alpha.yaml"], "why": "x", "reason": "typo"},
+        {"suites": ["core/alpha.yaml"], "why": "x", "reasonPattern": 1},
+    ],
+)
+def test_load_allowed_skips_rejects_malformed_entries(
+    tmp_path: Path, entry: dict[str, Any]
+) -> None:
+    with pytest.raises(ValueError):
+        load_allowed_skips(_write_allowed_skips(tmp_path, [entry]), "dart-core")
+
+
+def test_main_with_allowed_skips_fails_on_a_gap(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conf_root, manifest_dir = _create_temp_conformance(tmp_path)
+    _write_jsonl(
+        manifest_dir / "dart-core.jsonl",
+        [
+            _record("case_one", "passed"),
+            _record("case_two", "passed"),
+            _record("case_three", "skipped", "Not implemented yet."),
+        ],
+    )
+    allowed_path = _write_allowed_skips(tmp_path, [])
+    argv = [
+        "--manifest-dir",
+        str(manifest_dir),
+        "--harness",
+        "dart-core",
+        "--corpus",
+        "core",
+        "--conformance-root",
+        str(conf_root),
+    ]
+    assert main(argv) == 0
+    assert main([*argv, "--allowed-skips", str(allowed_path)]) == 1
+    assert "GAP: Skipped core/beta.yaml#case_three" in capsys.readouterr().err
+
+
+def test_repository_allowed_skips_file_loads() -> None:
+    path = CONFORMANCE_DIR / "allowed_skips.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    for harness in data:
+        load_allowed_skips(path, harness)

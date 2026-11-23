@@ -37,24 +37,10 @@ void main() {
       cases,
       _runCase,
       suite: 'core/agent_function_routing.yaml',
-      skipReason: (testCase) {
-        final List<Object?> catalogs =
-            testCase['catalogs'] as List<Object?>? ?? const [];
-        final bool declaresAgentFunctions = catalogs.any(
-          (catalog) =>
-              (catalog! as Map<String, Object?>).containsKey('agentFunctions'),
-        );
-        if (declaresAgentFunctions) return _noSchemaOnlyFunctions;
-        return _knownDivergences[testCase['name']];
-      },
+      skipReason: (testCase) => _knownDivergences[testCase['name']],
     );
   });
 }
-
-/// Why a case that declares `agentFunctions` is skipped: a known divergence.
-const String _noSchemaOnlyFunctions =
-    'Known divergence: a Dart catalog holds FunctionImplementations, so it '
-    'cannot declare a function without an implementation (schema-only).';
 
 /// Cases this core's behavior does not fit, by name, with the reason.
 const Map<String, String> _knownDivergences = {
@@ -76,7 +62,8 @@ final Schema _probeSchema = Schema.combined(
 );
 
 /// Builds the catalogs of a case. `localFunctions` take this SDK's basic
-/// catalog implementations for the case's protocol version.
+/// catalog implementations for the case's protocol version, and
+/// `agentFunctions` are declared as [SchemaOnlyFunction]s.
 List<_RendererCatalog> _catalogs(
   ConformanceTestCase testCase,
   A2uiProtocolVersion version,
@@ -95,10 +82,32 @@ List<_RendererCatalog> _catalogs(
           for (final Object? name
               in raw['localFunctions'] as List<Object?>? ?? const [])
             basic.functions[name]!,
+          for (final MapEntry<String, Object?> entry
+              in (raw['agentFunctions'] as Map<String, Object?>? ?? const {})
+                  .entries)
+            _schemaOnly(entry.key, entry.value! as Map<String, Object?>),
         ],
       ),
   ];
 }
+
+/// The schema-only function [name] a case's `agentFunctions` declares.
+SchemaOnlyFunction _schemaOnly(String name, Map<String, Object?> declaration) =>
+    SchemaOnlyFunction(
+      name: name,
+      argumentSchema: Schema.fromMap(
+        declaration['args']! as Map<String, Object?>,
+      ),
+      returnType: switch (declaration['returnType']) {
+        final String returnType => A2uiReturnType.fromJson(returnType),
+        _ => A2uiReturnType.any,
+      },
+      allowedCallers: switch (declaration['allowedCallers']) {
+        final String callers => AllowedCallers.fromJson(callers),
+        _ => null,
+      },
+      requiresUserActivation: declaration['requiresUserActivation'] as bool?,
+    );
 
 /// Lets futures that already completed, and those they schedule, run.
 Future<void> _flush() async {

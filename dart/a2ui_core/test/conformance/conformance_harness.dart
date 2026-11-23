@@ -853,3 +853,42 @@ Catalog<ComponentApi, FunctionImplementation> basicCatalogFor(
     protocolVersion: basic.protocolVersion,
   );
 }
+
+/// The top-level keys of a case comparing a protocol schema the SDK publishes
+/// with a specification document, as [expectSchemaMatchesFile] reads them.
+const Set<String> schemaCaseKeys = {
+  ...caseMetadataKeys,
+  'expectFile',
+  'protocolVersion',
+};
+
+/// Fails unless [schema], serialized with sorted keys, equals the document
+/// the case's `expectFile` names serialized the same way, as the
+/// `*_schema` actions of `common_types.yaml` and `agent_to_renderer.yaml`
+/// require.
+void expectSchemaMatchesFile(
+  ConformanceTestCase testCase,
+  Map<String, Object?> schema,
+) {
+  assertKnownKeys(testCase, schemaCaseKeys, 'case:${testCase['action']}');
+  final expectFile = testCase['expectFile']! as String;
+  expect(
+    _encodeWithSortedKeys(schema),
+    _encodeWithSortedKeys(readConformanceJson(expectFile)),
+    reason: '${testCase['name']}: the schema differs from $expectFile.',
+  );
+}
+
+/// Encodes [value] as indented JSON with every object's keys sorted, so two
+/// documents that differ only in key order encode the same.
+String _encodeWithSortedKeys(Object? value) {
+  Object? sorted(Object? node) => switch (node) {
+    final Map<Object?, Object?> map => {
+      for (final String key in map.keys.cast<String>().toList()..sort())
+        key: sorted(map[key]),
+    },
+    final List<Object?> list => [for (final Object? item in list) sorted(item)],
+    _ => node,
+  };
+  return const JsonEncoder.withIndent('  ').convert(sorted(value));
+}
