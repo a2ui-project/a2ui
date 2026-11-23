@@ -40,6 +40,16 @@
     "piscina": "5.2.0",
     "vite": "^8.0.16",
     "@babel/core": "7.29.6",
-    "esbuild": "0.28.1"
+    "esbuild": "0.28.1",
+    "a2ui-embed-inbox/@a2ui/web_core": "portal:../../typescript/core/web_core",
+    "@a2ui/lit/@a2ui/web_core": "portal:../../typescript/core/web_core",
+    "@a2ui/embed/@a2ui/web_core": "portal:../../typescript/core/web_core",
+    "@a2ui/embed/@a2ui/lit": "portal:../../typescript/renderers/lit",
+    "a2ui-embed-inbox/lit": "link:../../node_modules/lit",
+    "@a2ui/lit/lit": "link:../../node_modules/lit",
+    "@a2ui/web_core/lit": "link:../../node_modules/lit",
+    "@a2ui/embed/lit": "link:../../node_modules/lit",
+    "@a2ui/embed/@a2ui/markdown-it": "portal:../../typescript/renderers/markdown-it",
+    "@a2ui/markdown-it/@a2ui/web_core": "portal:../../typescript/core/web_core"
   }
 }
