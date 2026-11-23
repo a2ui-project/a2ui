@@ -14,44 +14,114 @@
 
 # --- Skill Generator Conformance Tests ---
 #
-# Each case builds one format from `args.catalog` and checks the skill it
-# generates: its frontmatter against `expected_frontmatter`, the YAML between
-# the `---` lines, byte for byte, and its body against the sections of that
-# SDK's own prompt generator, so the cases hold for every SDK whatever its
-# prompt says (the prompt suites check the wording):
+# Each case builds one format from `args.catalog` or `args.catalogs`, with the
+# prompt examples `args.examples` names, and calls `SkillGenerator` the way an
+# agent does. Paths are relative to the repository root. An argument of the
+# generator is passed only when the case gives it, so a case that leaves it out
+# checks the SDK's default:
 #
-# - `from_format`: the body is the format's prompt snippet, trimmed.
+# - `name` and `description`: the skill's name and description.
+# - `skill_catalogs`: the `catalogs` of `generate_skill` or `generate_skillset`,
+#   which default to the format's catalogs. Each is one of the format's
+#   catalogs.
+# - `skill_catalog`: the `catalog` of `generate_catalog_skill`, which defaults
+#   to the format's first catalog. It is one of the format's catalogs.
+# - `include_examples`: whether `generate_catalog_skill` adds the examples.
+# - `core_name`: the name of the core skill `generate_skillset` builds.
+#
+# A case checks the skill's frontmatter against `expected_frontmatter`, the
+# YAML between the `---` lines, byte for byte, its filename against
+# `expected_filename`, and its body against the sections of that SDK's own
+# prompt generator, so the cases hold for every SDK whatever its prompt says
+# (the prompt suites check the wording):
+#
+# - `from_format`: without `skill_catalogs`, the body is the format's prompt
+#   snippet, trimmed. With them, it is `generate_base_rules()`, then each
+#   of those catalogs' `generate_catalog_instructions(catalog)`, then
+#   `### Examples:`, a blank line and each distinct
+#   `generate_examples(catalog)` text, with a blank line between sections that
+#   render anything; the format's own prompt snippet is the same afterwards.
 # - `core_syntax`: the body is `generate_base_rules()`, trimmed.
 # - `from_catalog`: the body is `generate_catalog_instructions(catalog)`,
-#   followed, when `generate_examples(catalog)` renders anything, by a blank
-#   line, `### Examples:`, a blank line and the examples, all trimmed.
+#   followed, when `include_examples` is not false and
+#   `generate_examples(catalog)` renders anything, by a blank line,
+#   `### Examples:`, a blank line and the examples, all trimmed.
 #
 # The serialized skill is `---`, a newline, `expected_frontmatter` (which ends
-# with a newline), `---`, a blank line, and the body ending with a newline.
+# with a newline), `---`, a blank line, and the body ending with a newline. A
+# case may also list substrings the body must carry (`expect_contains`) or
+# must not carry (`expect_absent`), which pin examples across SDKs.
 
 - name: test_express_monolithic_skill
   features: [F-AGT-06]
-  description: Generates a monolithic skill for the Express format and the basic catalog.
+  description: Generates a monolithic skill for the Express format and the basic catalog, with the default name and description.
   action: from_format
   args:
     format: express
     catalog: catalogs/basic/v1/catalog.json
-    name: a2ui
   expected_frontmatter: |
     name: a2ui
     description: Generates interactive user interface components for user requests.
+  expected_filename: a2ui/SKILL.md
+
+- name: test_express_monolithic_skill_with_name_and_description
+  features: [F-AGT-06]
+  description: A monolithic skill takes the name and description it is given, and its file is named after it.
+  action: from_format
+  args:
+    format: express
+    catalog: catalogs/basic/v1/catalog.json
+    name: travel-ui
+    description: Builds flight search and booking screens.
+  expected_frontmatter: |
+    name: travel-ui
+    description: Builds flight search and booking screens.
+  expected_filename: travel-ui/SKILL.md
+
+- name: test_express_monolithic_skill_for_given_catalogs
+  features: [F-AGT-05, F-AGT-06]
+  description: >-
+    A monolithic skill for catalogs it is given describes only those catalogs,
+    here the chart catalog of a format that also has the basic catalog, and
+    leaves the format's own prompt as it was.
+  action: from_format
+  args:
+    format: express
+    catalogs:
+      - catalogs/basic/v1/catalog.json
+      - catalogs/vegachart/v1/catalog.json
+    skill_catalogs:
+      - catalogs/vegachart/v1/catalog.json
+  expected_frontmatter: |
+    name: a2ui
+    description: Generates interactive user interface components for user requests.
+  expected_filename: a2ui/SKILL.md
 
 - name: test_express_core_skill
   features: [F-AGT-06]
-  description: Generates a core syntax skill for the Express format.
+  description: Generates a core syntax skill for the Express format, with the default name and description.
   action: core_syntax
   args:
     format: express
     catalog: catalogs/basic/v1/catalog.json
-    name: a2ui-core
   expected_frontmatter: |
     name: a2ui-core
     description: Core A2UI protocol instructions and syntax rules for UI generation.
+  expected_filename: a2ui-core/SKILL.md
+
+- name: test_express_core_skill_with_name_and_description
+  features: [F-AGT-06]
+  description: A core skill takes the name and description it is given, and its file is named after it.
+  action: core_syntax
+  args:
+    format: express
+    catalog: catalogs/basic/v1/catalog.json
+    name: ui-rules
+    description: Rules for writing A2UI Express.
+  expected_frontmatter: |
+    name: ui-rules
+    description: Rules for writing A2UI Express.
+  expected_filename: ui-rules/SKILL.md
 
 - name: test_express_catalog_skill
   features: [F-AGT-06]
@@ -63,23 +133,142 @@
   args:
     format: express
     catalog: catalogs/basic/v1/catalog.json
+    skill_catalog: catalogs/basic/v1/catalog.json
   expected_frontmatter: |
     name: a2ui-basic
     description: UI component catalog signatures for basic. Use when building basic user
       interface components.
+  expected_filename: a2ui-basic/SKILL.md
+
+- name: test_express_catalog_skill_defaults_to_first_catalog
+  features: [F-AGT-06]
+  description: >-
+    Without a catalog, a catalog skill is built for the format's first catalog.
+    Its name comes from the last segment of the catalog id that is not a
+    version or a `.json` file, here `vegachart`.
+  action: from_catalog
+  args:
+    format: express
+    catalogs:
+      - catalogs/vegachart/v1/catalog.json
+      - catalogs/basic/v1/catalog.json
+  expected_frontmatter: |
+    name: a2ui-vegachart
+    description: UI component catalog signatures for vegachart. Use when building vegachart
+      user interface components.
+  expected_filename: a2ui-vegachart/SKILL.md
+
+- name: test_express_catalog_skill_with_examples
+  features: [F-AGT-06]
+  description: >-
+    A catalog skill for a format with examples carries them after the
+    catalog's instructions, in Express. The catalog id `conformance/simplified`
+    names the skill `a2ui-simplified`.
+  action: from_catalog
+  args:
+    format: express
+    catalog: conformance/test_data/catalogs/simplified_catalog_v1_0.json
+    examples:
+      - conformance/test_data/examples/greeting_surface.json
+  expected_frontmatter: |
+    name: a2ui-simplified
+    description: UI component catalog signatures for simplified. Use when building simplified
+      user interface components.
+  expected_filename: a2ui-simplified/SKILL.md
+  expect_contains:
+    - "### Examples:"
+    - 'root = Text("Hello")'
+
+- name: test_express_catalog_skill_without_examples
+  features: [F-AGT-06]
+  description: >-
+    With `include_examples` false, a catalog skill leaves out the format's
+    examples. It takes the name and description it is given.
+  action: from_catalog
+  args:
+    format: express
+    catalog: conformance/test_data/catalogs/simplified_catalog_v1_0.json
+    examples:
+      - conformance/test_data/examples/greeting_surface.json
+    name: greetings
+    description: Components for greeting cards.
+    include_examples: false
+  expected_frontmatter: |
+    name: greetings
+    description: Components for greeting cards.
+  expected_filename: greetings/SKILL.md
+  expect_absent:
+    - "### Examples:"
+    - 'root = Text("Hello")'
 
 # A `skill_set` case generates the format's SkillSet and checks that its
 # filenames are `expected_skills`, in order, and that the core skill is what
-# `core_syntax` generates with the default name and each catalog skill what
-# `from_catalog` generates for its catalog. The format is built without
-# examples, so no catalog skill drops examples that an earlier one holds.
+# `core_syntax` generates with `core_name`, or the default name without it, and
+# each catalog skill what `from_catalog` generates for its catalog. The format
+# is built without examples, so no catalog skill drops examples that an earlier
+# one holds. `expected_lookups` maps a query to the filename of the skill
+# `SkillSet.get(query)` returns, or to null when it returns none: it looks a
+# skill up by filename, then by name, then, for a query of at least three
+# characters, by part of a filename.
 
 - name: test_express_skill_set
   features: [F-AGT-06]
-  description: Generates a modular SkillSet for the Express format.
+  description: Generates a modular SkillSet for the Express format, and looks its skills up.
   action: skill_set
   args:
     format: express
+    catalog: catalogs/basic/v1/catalog.json
+  expected_skills:
+    - a2ui-core/SKILL.md
+    - a2ui-basic/SKILL.md
+  expected_lookups:
+    a2ui-basic/SKILL.md: a2ui-basic/SKILL.md
+    a2ui-core: a2ui-core/SKILL.md
+    basic: a2ui-basic/SKILL.md
+    ba: null
+    a2ui-missing: null
+
+- name: test_express_skill_set_two_catalogs
+  features: [F-AGT-05, F-AGT-06]
+  description: A SkillSet for a format with two catalogs holds the core skill and one skill for each catalog, in the format's order.
+  action: skill_set
+  args:
+    format: express
+    catalogs:
+      - catalogs/basic/v1/catalog.json
+      - catalogs/vegachart/v1/catalog.json
+  expected_skills:
+    - a2ui-core/SKILL.md
+    - a2ui-basic/SKILL.md
+    - a2ui-vegachart/SKILL.md
+  expected_lookups:
+    vegachart: a2ui-vegachart/SKILL.md
+
+- name: test_express_skill_set_for_given_catalogs_and_core_name
+  features: [F-AGT-05, F-AGT-06]
+  description: A SkillSet for catalogs it is given holds a skill for each of them only, and its core skill takes the name it is given.
+  action: skill_set
+  args:
+    format: express
+    catalogs:
+      - catalogs/basic/v1/catalog.json
+      - catalogs/vegachart/v1/catalog.json
+    skill_catalogs:
+      - catalogs/vegachart/v1/catalog.json
+    core_name: ui-rules
+  expected_skills:
+    - ui-rules/SKILL.md
+    - a2ui-vegachart/SKILL.md
+  expected_lookups:
+    ui-rules: ui-rules/SKILL.md
+    basic: null
+
+- name: test_direct_json_skill_set
+  features: [F-AGT-06]
+  description: A SkillSet for the Direct JSON format has the same skills as for Express, built from the Direct JSON prompt.
+  action: skill_set
+  args:
+    format: direct_json
     catalog: catalogs/basic/v1/catalog.json
   expected_skills:
     - a2ui-core/SKILL.md
@@ -90,6 +279,8 @@
 # Each case writes `pre_existing_files` under a fresh temporary directory, builds a
 # SkillSet from the literal `skills`, exports it there, and then checks that every
 # path in `expected_files` exists and every path in `expected_absent_files` does not.
+# An export that succeeds returns each skill's Markdown keyed by its filename, as
+# `to_dict()` does, and writes that Markdown to the file.
 
 - name: test_export_wipes_stale_files_and_preserves_siblings
   features: [F-AGT-06]
@@ -141,6 +332,7 @@
     - src/skills/nested/stale.txt
 
 - name: test_export_root_level_filename_does_not_wipe_output_dir
+  features: [F-AGT-06]
   description: >-
     A skill whose filename has no directory component is written into the output
     directory root without removing anything else in it.
@@ -160,6 +352,7 @@
     - some-skill/SKILL.md
 
 - name: test_export_rejects_filename_outside_output_dir
+  features: [F-AGT-06]
   description: >-
     A skill whose filename is absolute or has a `.` or `..` segment is rejected with a
     validation error, and nothing in the output directory is removed or written.
@@ -191,6 +384,7 @@
 # skill and the prompt snippet from it, and compares them.
 
 - name: test_express_monolithic_skill_equals_prompt_snippet_one_catalog
+  features: [F-AGT-06]
   description: With one catalog, the Express monolithic skill's body is the Express prompt snippet.
   action: monolithic_skill_equals_prompt_snippet
   args:
@@ -199,6 +393,7 @@
       - catalogs/basic/v1/catalog.json
 
 - name: test_express_monolithic_skill_equals_prompt_snippet_two_catalogs
+  features: [F-AGT-05, F-AGT-06]
   description: With two catalogs, the Express monolithic skill's body is the Express prompt snippet, including what the format renders once for all catalogs.
   action: monolithic_skill_equals_prompt_snippet
   args:
@@ -208,6 +403,7 @@
       - catalogs/vegachart/v1/catalog.json
 
 - name: test_direct_json_monolithic_skill_equals_prompt_snippet_one_catalog
+  features: [F-AGT-06]
   description: With one catalog, the Direct JSON monolithic skill's body is the Direct JSON prompt snippet.
   action: monolithic_skill_equals_prompt_snippet
   args:
@@ -216,6 +412,7 @@
       - catalogs/basic/v1/catalog.json
 
 - name: test_direct_json_monolithic_skill_equals_prompt_snippet_two_catalogs
+  features: [F-AGT-05, F-AGT-06]
   description: With two catalogs, the Direct JSON monolithic skill's body is the Direct JSON prompt snippet, so the protocol schemas appear once in both.
   action: monolithic_skill_equals_prompt_snippet
   args:

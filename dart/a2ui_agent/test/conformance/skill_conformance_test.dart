@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:a2ui_agent/a2ui_agent.dart';
@@ -24,11 +25,25 @@ import 'suites.dart';
 ///
 /// The suite's catalogs are v1.0, so it runs as written in v1.0 only. Its
 /// paths are relative to the repository root.
+const Set<String> _skillCaseKeys = {
+  ...caseMetadataKeys,
+  'args',
+  'expected_frontmatter',
+  'expected_filename',
+  'expect_contains',
+  'expect_absent',
+};
+const Set<String> _formatArgs = {'format', 'catalog', 'catalogs', 'examples'};
 const Map<String, Set<String>> _knownKeys = {
-  'case:from_format': {...caseMetadataKeys, 'args', 'expected_frontmatter'},
-  'case:core_syntax': {...caseMetadataKeys, 'args', 'expected_frontmatter'},
-  'case:from_catalog': {...caseMetadataKeys, 'args', 'expected_frontmatter'},
-  'case:skill_set': {...caseMetadataKeys, 'args', 'expected_skills'},
+  'case:from_format': _skillCaseKeys,
+  'case:core_syntax': _skillCaseKeys,
+  'case:from_catalog': _skillCaseKeys,
+  'case:skill_set': {
+    ...caseMetadataKeys,
+    'args',
+    'expected_skills',
+    'expected_lookups',
+  },
   'case:export_to_directory': {
     ...caseMetadataKeys,
     'args',
@@ -37,10 +52,16 @@ const Map<String, Set<String>> _knownKeys = {
     'expected_absent_files',
   },
   'case:monolithic_skill_equals_prompt_snippet': {...caseMetadataKeys, 'args'},
-  'args:from_format': {'format', 'catalog', 'name'},
-  'args:core_syntax': {'format', 'catalog', 'name'},
-  'args:from_catalog': {'format', 'catalog'},
-  'args:skill_set': {'format', 'catalog'},
+  'args:from_format': {..._formatArgs, 'name', 'description', 'skill_catalogs'},
+  'args:core_syntax': {..._formatArgs, 'name', 'description'},
+  'args:from_catalog': {
+    ..._formatArgs,
+    'skill_catalog',
+    'name',
+    'description',
+    'include_examples',
+  },
+  'args:skill_set': {..._formatArgs, 'skill_catalogs', 'core_name'},
   'args:export_to_directory': {'skills', 'pre_existing_files'},
   'args:monolithic_skill_equals_prompt_snippet': {'format', 'catalogs'},
   'skill': {'name', 'description', 'content', 'filename'},
@@ -74,59 +95,134 @@ void _runCase(Map<String, Object?> testCase) {
     return;
   }
 
-  final List<CatalogApi> catalogs = [
+  final Map<Object?, CatalogApi> catalogsByPath = {
     for (final Object? path in [
       ?args['catalog'],
       ...?(args['catalogs'] as List<Object?>?),
     ])
-      CatalogConfig.fromPath('$_repoRoot/$path').transformedCatalog,
+      path: CatalogConfig.fromPath('$_repoRoot/$path').transformedCatalog,
+  };
+  final List<CatalogApi> catalogs = catalogsByPath.values.toList();
+
+  /// The format's catalog loaded from [path].
+  CatalogApi catalogAt(Object? path) =>
+      catalogsByPath[path] ??
+      (throw ArgumentError.value(path, 'path', "is not the format's catalog"));
+
+  final List<List<AgentToRendererMessage>> examples = [
+    for (final Object? path in args['examples'] as List<Object?>? ?? const [])
+      _loadExample(path! as String),
   ];
   final InferenceFormat format = switch (args['format']) {
-    'express' => ExpressFormat(catalogs),
-    'direct_json' => DirectJsonFormat(catalogs),
+    'express' => ExpressFormat(catalogs, examples: examples),
+    'direct_json' => DirectJsonFormat(catalogs, examples: examples),
     final Object? name => throw ArgumentError.value(name, 'format'),
   };
   final generator = SkillGenerator(format);
-  final name = args['name'] as String?;
-
   final PromptGenerator prompt = format.promptGenerator;
 
-  /// Checks [skill]'s frontmatter against the case and its body against
-  /// [body], a section of the format's own prompt.
-  void expectSkill(Skill skill, String body) => expect(
-    skill.toMarkdown(),
-    '---\n${testCase['expected_frontmatter']}---\n\n${body.trim()}\n',
-  );
+  // The generator's arguments, passed only when the case gives them, so that
+  // a case without them checks the defaults.
+  final name = args['name'] as String?;
+  final description = args['description'] as String?;
+  final List<CatalogApi>? skillCatalogs = (args['skill_catalogs'] as List?)
+      ?.map(catalogAt)
+      .toList();
+
+  /// Checks [skill] against the case, and its body against [body], built
+  /// from the sections of the format's own prompt.
+  void expectSkill(Skill skill, String body) {
+    expect(
+      skill.toMarkdown(),
+      '---\n${testCase['expected_frontmatter']}---\n\n${body.trim()}\n',
+    );
+    if (testCase['expected_filename'] case final String filename) {
+      expect(skill.filename, filename);
+    }
+    for (final Object? text
+        in testCase['expect_contains'] as List<Object?>? ?? const []) {
+      expect(skill.content, contains(text));
+    }
+    for (final Object? text
+        in testCase['expect_absent'] as List<Object?>? ?? const []) {
+      expect(skill.content, isNot(contains(text)));
+    }
+  }
 
   switch (action) {
     case 'from_format':
+      final String snippet = prompt.generate();
+      final Skill skill = name == null
+          ? generator.generateSkill(
+              description: description,
+              catalogs: skillCatalogs,
+            )
+          : generator.generateSkill(
+              name: name,
+              description: description,
+              catalogs: skillCatalogs,
+            );
       expectSkill(
-        generator.generateSkill(name: name ?? 'a2ui'),
-        prompt.generate(),
+        skill,
+        skillCatalogs == null ? snippet : _catalogsBody(prompt, skillCatalogs),
       );
+      expect(prompt.generate(), snippet);
     case 'core_syntax':
-      expectSkill(
-        generator.generateCoreSkill(name: name ?? 'a2ui-core'),
-        prompt.generateBaseRules(),
-      );
+      final Skill skill = name == null
+          ? generator.generateCoreSkill(description: description)
+          : generator.generateCoreSkill(name: name, description: description);
+      expectSkill(skill, prompt.generateBaseRules());
     case 'from_catalog':
-      final CatalogApi catalog = catalogs.first;
-      final String examples = prompt.generateExamples(catalog: catalog);
+      final CatalogApi? given = args.containsKey('skill_catalog')
+          ? catalogAt(args['skill_catalog'])
+          : null;
+      final includeExamples = args['include_examples'] as bool?;
+      final Skill skill = includeExamples == null
+          ? generator.generateCatalogSkill(
+              catalog: given,
+              name: name,
+              description: description,
+            )
+          : generator.generateCatalogSkill(
+              catalog: given,
+              name: name,
+              description: description,
+              includeExamples: includeExamples,
+            );
+      final CatalogApi catalog = given ?? catalogs.first;
+      final String examples = includeExamples ?? true
+          ? prompt.generateExamples(catalog: catalog)
+          : '';
       expectSkill(
-        generator.generateCatalogSkill(catalog: catalog),
+        skill,
         [
           prompt.generateCatalogInstructions(catalog: catalog),
           if (examples.isNotEmpty) '$examplesHeading$examples',
         ].join('\n\n'),
       );
     case 'skill_set':
-      final Map<String, String> files = generator.generateSkillSet().toMap();
+      final coreName = args['core_name'] as String?;
+      final SkillSet skills = coreName == null
+          ? generator.generateSkillSet(catalogs: skillCatalogs)
+          : generator.generateSkillSet(
+              catalogs: skillCatalogs,
+              coreName: coreName,
+            );
+      final Map<String, String> files = skills.toMap();
       expect(files.keys, testCase['expected_skills']);
+      final Skill core = coreName == null
+          ? generator.generateCoreSkill()
+          : generator.generateCoreSkill(name: coreName);
       expect(files.values, [
-        generator.generateCoreSkill().toMarkdown(),
-        for (final CatalogApi catalog in catalogs)
+        core.toMarkdown(),
+        for (final CatalogApi catalog in skillCatalogs ?? catalogs)
           generator.generateCatalogSkill(catalog: catalog).toMarkdown(),
       ]);
+      final Map<String, Object?> lookups =
+          testCase['expected_lookups'] as Map<String, Object?>? ?? const {};
+      for (final MapEntry(:String key, :Object? value) in lookups.entries) {
+        expect(skills.get(key)?.filename, value, reason: 'get("$key")');
+      }
     case 'monolithic_skill_equals_prompt_snippet':
       final Skill skill = generator.generateSkill();
       final String snippet = format.promptGenerator.generate();
@@ -141,6 +237,32 @@ void _runCase(Map<String, Object?> testCase) {
       );
   }
 }
+
+/// The body of a monolithic skill for [catalogs] that are not the format's
+/// own: the base rules, each catalog's instructions, and each distinct
+/// examples text under [examplesHeading].
+String _catalogsBody(PromptGenerator prompt, List<CatalogApi> catalogs) {
+  final examples = <String>[];
+  for (final catalog in catalogs) {
+    final String text = prompt.generateExamples(catalog: catalog);
+    if (text.isNotEmpty && !examples.contains(text)) examples.add(text);
+  }
+  return [
+    prompt.generateBaseRules(),
+    for (final catalog in catalogs)
+      prompt.generateCatalogInstructions(catalog: catalog),
+    if (examples.isNotEmpty) '$examplesHeading${examples.join('\n\n')}',
+  ].where((section) => section.isNotEmpty).join('\n\n');
+}
+
+/// The prompt example at [path], relative to the repository root.
+List<AgentToRendererMessage> _loadExample(String path) =>
+    AgentToRendererMessage.parseAll([
+      for (final Object? message in jsonDecode(
+        File('$_repoRoot/$path').readAsStringSync(),
+      ) as List<Object?>)
+        Map<String, Object?>.from(message! as Map),
+    ], protocolVersion: A2uiProtocolVersion.v1_0).messages;
 
 /// Writes the case's `pre_existing_files` under a fresh directory, exports a
 /// [SkillSet] of its literal `skills` there, and checks which paths exist.
@@ -174,7 +296,11 @@ void _exportToDirectory(
         ),
       );
     }
-    skills.exportToDirectory(out.path);
+    final Map<String, String> written = skills.exportToDirectory(out.path);
+    expect(written, skills.toMap());
+    for (final MapEntry(:String key, :String value) in written.entries) {
+      expect(File('${out.path}/$key').readAsStringSync(), value);
+    }
   }
 
   if (testCase['expect_error'] case final Object error) {

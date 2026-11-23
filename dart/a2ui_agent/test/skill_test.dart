@@ -411,6 +411,12 @@ void main() {
         ('catalogs/basic/v1/catalog.json', 'a2ui-basic'),
         (r'C:\catalogs\Material\catalog.json', 'a2ui-material'),
         ('https://example.com/forms/v2', 'a2ui-forms'),
+        ('https://example.com/forms/v1.0', 'a2ui-forms'),
+        ('catalogs/video/v0_9/catalog.json', 'a2ui-video'),
+        (
+          'https://a2ui.org/specification/v1_0/catalogs/vegachart/catalog.json',
+          'a2ui-vegachart',
+        ),
         ('Simple', 'a2ui-simple'),
         ('catalog.json', 'a2ui-catalog.json'),
       ]) {

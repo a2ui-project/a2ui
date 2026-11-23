@@ -1,5 +1,7 @@
 ## Unreleased
 
+- `SkillGenerator` names a catalog skill after the last segment of the catalog id even when that segment starts with `v`, such as `vegachart`, and skips only a version segment such as `v1` or `v0_9`. The vegachart catalog's skill was named `a2ui-catalogs` and is now `a2ui-vegachart` ([#4217](https://github.com/a2ui-project/a2ui/pull/4217)).
+
 ## 0.2.1
 
 - `DirectJsonParser` rejects a number out of the range of a double, such as `1e400`, with `ParseError`, as the Dart SDK does. It used to read it as `Infinity`, which `JSON.stringify` writes as `null` ([#3847](https://github.com/a2ui-project/a2ui/pull/3847)).

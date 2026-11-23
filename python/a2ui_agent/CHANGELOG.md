@@ -4,6 +4,11 @@
   `1e400`, with `A2uiParseError`, as the Dart SDK does. It used to read it as
   `inf`, which `json.dumps` writes as `Infinity`, a token JSON does not have
   ([#3847](https://github.com/a2ui-project/a2ui/pull/3847)).
+- `SkillGenerator` names a catalog skill after the last segment of the catalog
+  id even when that segment starts with `v`, such as `vegachart`, and skips
+  only a version segment such as `v1` or `v0_9`. The vegachart catalog's skill
+  was named `a2ui-catalogs` and is now `a2ui-vegachart`
+  ([#4217](https://github.com/a2ui-project/a2ui/pull/4217)).
 
 ## 0.12.0 (2026-11-17)
 

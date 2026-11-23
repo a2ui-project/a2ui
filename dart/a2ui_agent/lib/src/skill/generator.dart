@@ -135,7 +135,7 @@ class SkillGenerator {
 
 /// [catalog]'s id in lower case, or for an id that is a path or URL, its
 /// last segment that is not a `.json` file, or the one before it when that is
-/// a version such as `v1`; `basic` for a catalog with no id.
+/// a version such as `v1` or `v0_9`; `basic` for a catalog with no id.
 String _catalogName(CatalogApi catalog) {
   final String id = catalog.id.replaceAll(r'\', '/');
   if (id.isEmpty) return 'basic';
@@ -146,9 +146,12 @@ String _catalogName(CatalogApi catalog) {
   var name = id;
   if (id.contains('/') && segments.isNotEmpty) {
     name = segments.last;
-    if (name.startsWith('v') && segments.length > 1) {
+    if (_version.hasMatch(name) && segments.length > 1) {
       name = segments[segments.length - 2];
     }
   }
   return name.toLowerCase();
 }
+
+/// A version segment of a catalog id, such as `v1`, `v1_0` or `v0.9`.
+final RegExp _version = RegExp(r'^v\d+([._]\d+)*$');

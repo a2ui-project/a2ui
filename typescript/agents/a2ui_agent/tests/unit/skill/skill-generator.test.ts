@@ -33,6 +33,7 @@ import {
   SkillSet,
 } from '../../../src/index.js';
 import {CatalogApi} from '../../../src/internal/web-core.js';
+import {cleanCatalogName} from '../../../src/skill/skill.js';
 import {REPO_ROOT} from '../../helpers/basic-catalogs.js';
 
 const SPEC_DIR = path.join(REPO_ROOT, 'specification', 'v1_0');
@@ -73,6 +74,17 @@ describe('SkillGenerator', () => {
     expect(skillObj.filename).toContain('a2ui-basic/SKILL.md');
     const content = skillObj.toMarkdown();
     expect(content).toContain('Positional Component Signatures');
+  });
+
+  it('skips a last catalog id segment only when it is a version', () => {
+    for (const [id, name] of [
+      ['https://a2ui.org/specification/v1_0/catalogs/vegachart/catalog.json', 'vegachart'],
+      ['catalogs/video/v0_9/catalog.json', 'video'],
+      ['https://example.com/forms/v1.0', 'forms'],
+      ['https://example.com/forms/v2', 'forms'],
+    ]) {
+      expect(cleanCatalogName({id}), id).toBe(name);
+    }
   });
 
   it('generates a base grammar skill via generateCoreSkill()', () => {

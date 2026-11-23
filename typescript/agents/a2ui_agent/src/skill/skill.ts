@@ -27,6 +27,9 @@ import {CatalogApi} from '../internal/web-core.js';
 
 const YAML_LINE_WIDTH = 80;
 
+/** A version segment of a catalog id, such as `v1`, `v1_0` or `v0.9`. */
+const VERSION_SEGMENT = /^v\d+([._]\d+)*$/;
+
 /**
  * Derives a clean, LLM-friendly catalog name from a catalog ID or URL.
  */
@@ -42,7 +45,7 @@ export function cleanCatalogName(catalog: unknown): string {
     const parts = rawId.split('/').filter(p => p.length > 0 && !p.endsWith('.json'));
     if (parts.length > 0) {
       let cand = parts[parts.length - 1];
-      if (cand.startsWith('v') && parts.length > 1) {
+      if (VERSION_SEGMENT.test(cand) && parts.length > 1) {
         cand = parts[parts.length - 2];
       }
       rawId = cand;

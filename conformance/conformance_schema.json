@@ -1415,12 +1415,24 @@
         "action": {
           "const": "from_format"
         },
-        "args": {
-          "type": "object"
-        },
+        "args": {"$ref": "#/$defs/FromFormatArgs"},
         "expected_frontmatter": {
           "type": "string",
-          "description": "The skill's frontmatter, byte for byte. Its body must be the format's prompt snippet, trimmed."
+          "description": "The skill's frontmatter, byte for byte. Without `args.skill_catalogs`, its body must be the format's prompt snippet, trimmed; with them, the base rules, those catalogs' instructions and their distinct examples."
+        },
+        "expected_filename": {
+          "type": "string",
+          "description": "The skill's filename, relative to the directory a SkillSet is exported to."
+        },
+        "expect_contains": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Substrings the skill's body must carry."
+        },
+        "expect_absent": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Substrings the skill's body must not carry."
         }
       },
       "required": ["action", "args", "expected_frontmatter"]
@@ -1432,12 +1444,24 @@
         "action": {
           "const": "core_syntax"
         },
-        "args": {
-          "type": "object"
-        },
+        "args": {"$ref": "#/$defs/CoreSyntaxArgs"},
         "expected_frontmatter": {
           "type": "string",
           "description": "The skill's frontmatter, byte for byte. Its body must be `generate_base_rules()`, trimmed."
+        },
+        "expected_filename": {
+          "type": "string",
+          "description": "The skill's filename, relative to the directory a SkillSet is exported to."
+        },
+        "expect_contains": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Substrings the skill's body must carry."
+        },
+        "expect_absent": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Substrings the skill's body must not carry."
         }
       },
       "required": ["action", "args", "expected_frontmatter"]
@@ -1449,12 +1473,24 @@
         "action": {
           "const": "from_catalog"
         },
-        "args": {
-          "type": "object"
-        },
+        "args": {"$ref": "#/$defs/FromCatalogArgs"},
         "expected_frontmatter": {
           "type": "string",
-          "description": "The skill's frontmatter, byte for byte. Its body must be `generate_catalog_instructions(catalog)`, followed by `### Examples:` and `generate_examples(catalog)` when that renders anything, trimmed."
+          "description": "The skill's frontmatter, byte for byte. Its body must be `generate_catalog_instructions(catalog)`, followed by `### Examples:` and `generate_examples(catalog)` when `include_examples` is not false and that renders anything, trimmed."
+        },
+        "expected_filename": {
+          "type": "string",
+          "description": "The skill's filename, relative to the directory a SkillSet is exported to."
+        },
+        "expect_contains": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Substrings the skill's body must carry."
+        },
+        "expect_absent": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Substrings the skill's body must not carry."
         }
       },
       "required": ["action", "args", "expected_frontmatter"]
@@ -1466,18 +1502,125 @@
         "action": {
           "const": "skill_set"
         },
-        "args": {
-          "type": "object"
-        },
+        "args": {"$ref": "#/$defs/SkillSetArgs"},
         "expected_skills": {
           "type": "array",
-          "description": "The SkillSet's filenames, in order. Its core skill must equal the `core_syntax` skill with the default name, and each catalog skill the `from_catalog` skill for its catalog.",
+          "description": "The SkillSet's filenames, in order. Its core skill must equal the `core_syntax` skill named `args.core_name`, or with the default name without it, and each catalog skill the `from_catalog` skill for its catalog.",
           "items": {
             "type": "string"
           }
+        },
+        "expected_lookups": {
+          "type": "object",
+          "additionalProperties": {"type": ["string", "null"]},
+          "description": "Maps a query to the filename of the skill `SkillSet.get(query)` returns, or to null when it returns none."
         }
       },
       "required": ["action", "args", "expected_skills"]
+    },
+    "SkillFormatArgs": {
+      "description": "The format a skill case builds and the catalogs and examples it is built with. Paths are relative to the repository root.",
+      "type": "object",
+      "properties": {
+        "format": {"$ref": "#/$defs/InferenceFormatName"},
+        "catalog": {
+          "type": "string",
+          "description": "The format's one catalog."
+        },
+        "catalogs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string"},
+          "description": "The format's catalogs, in order."
+        },
+        "examples": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Prompt examples the format is built with, each a JSON file holding the messages of one turn."
+        }
+      },
+      "required": ["format"]
+    },
+    "FromFormatArgs": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/SkillFormatArgs"}],
+      "properties": {
+        "format": true,
+        "catalog": true,
+        "catalogs": true,
+        "examples": true,
+        "name": {
+          "type": "string",
+          "description": "Passed to `generate_skill`, whose default is `a2ui`."
+        },
+        "description": {"type": "string", "description": "Passed to `generate_skill`."},
+        "skill_catalogs": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Passed to `generate_skill` as `catalogs`, each one of the format's catalogs."
+        }
+      },
+      "additionalProperties": false
+    },
+    "CoreSyntaxArgs": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/SkillFormatArgs"}],
+      "properties": {
+        "format": true,
+        "catalog": true,
+        "catalogs": true,
+        "examples": true,
+        "name": {
+          "type": "string",
+          "description": "Passed to `generate_core_skill`, whose default is `a2ui-core`."
+        },
+        "description": {"type": "string", "description": "Passed to `generate_core_skill`."}
+      },
+      "additionalProperties": false
+    },
+    "FromCatalogArgs": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/SkillFormatArgs"}],
+      "properties": {
+        "format": true,
+        "catalog": true,
+        "catalogs": true,
+        "examples": true,
+        "skill_catalog": {
+          "type": "string",
+          "description": "Passed to `generate_catalog_skill` as `catalog`, one of the format's catalogs. Without it, the skill is for the format's first catalog."
+        },
+        "name": {
+          "type": "string",
+          "description": "Passed to `generate_catalog_skill`, whose default is `a2ui-<catalog name>`."
+        },
+        "description": {"type": "string", "description": "Passed to `generate_catalog_skill`."},
+        "include_examples": {
+          "type": "boolean",
+          "description": "Passed to `generate_catalog_skill`, whose default is true."
+        }
+      },
+      "additionalProperties": false
+    },
+    "SkillSetArgs": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/SkillFormatArgs"}],
+      "properties": {
+        "format": true,
+        "catalog": true,
+        "catalogs": true,
+        "examples": true,
+        "skill_catalogs": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Passed to `generate_skillset` as `catalogs`, each one of the format's catalogs."
+        },
+        "core_name": {
+          "type": "string",
+          "description": "Passed to `generate_skillset`, whose default is `a2ui-core`."
+        }
+      },
+      "additionalProperties": false
     },
     "ExportToDirectoryTest": {
       "type": "object",
