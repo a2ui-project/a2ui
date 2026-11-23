@@ -36,11 +36,11 @@ void writeSkillFiles(String outputDir, Map<String, String> files) {
     if (segments.length == 1) continue;
     final List<String> dirSegments = segments.sublist(0, segments.length - 1);
     _checkInside(
-      _join(outputDir, dirSegments.sublist(0, dirSegments.length - 1)),
+      _join(root, dirSegments.sublist(0, dirSegments.length - 1)),
       root,
       filename,
     );
-    skillDirs.add(_join(outputDir, dirSegments));
+    skillDirs.add(_join(root, dirSegments));
   }
 
   for (final dir in skillDirs) {
@@ -58,7 +58,7 @@ void writeSkillFiles(String outputDir, Map<String, String> files) {
 
   for (final MapEntry(key: String filename, value: String markdown)
       in files.entries) {
-    File(_join(outputDir, filename.split(RegExp(r'[\\/]'))))
+    File(_join(root, filename.split(RegExp(r'[\\/]'))))
       ..parent.createSync(recursive: true)
       ..writeAsStringSync(markdown);
   }
