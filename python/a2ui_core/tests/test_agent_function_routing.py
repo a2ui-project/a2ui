@@ -33,6 +33,7 @@ from a2ui.core import (
     DataContext,
     MessageProcessor,
     MessageProcessorOptions,
+    NodeResolver,
     SurfaceModel,
 )
 from a2ui.core.basic_catalog import BasicCatalog
@@ -1254,6 +1255,83 @@ async def test_failed_check_call_invalidates_and_notifies() -> None:
     assert len(props) > count, "pending to failed notifies subscribers"
     assert props[-1]["isValid"] is False
     binder.dispose()
+
+
+@pytest.mark.asyncio
+async def test_node_resolver_emits_on_updated_for_check_only_updates() -> None:
+    outbound: list[dict[str, Any]] = []
+    proc = MessageProcessor(
+        [BasicCatalog("1.0")],
+        options=MessageProcessorOptions(outbound_listener=outbound.append),
+    )
+    proc.process_messages([{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": BasicCatalog("1.0").id,
+        },
+    }])
+    proc.process_messages([
+        {
+            "version": "1.0",
+            "updateDataModel": {"surfaceId": "s1", "path": "/ok", "value": True},
+        },
+        {
+            "version": "1.0",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [
+                    {"id": "label", "component": "Text", "text": "Buy"},
+                    {
+                        "id": "root",
+                        "component": "Button",
+                        "child": "label",
+                        "action": {"event": {"name": "buy"}},
+                        "@checks": [
+                            {
+                                "condition": {"@path": "/ok"},
+                                "message": "Blocked locally",
+                            },
+                            {
+                                "condition": {"@call": "inStock", "args": {}},
+                                "message": "Out of stock",
+                            },
+                        ],
+                    },
+                ],
+            },
+        },
+    ])
+    surface = proc.model.get_surface("s1")
+    assert surface is not None
+    resolver = NodeResolver(surface)
+    root = resolver.root
+    assert root is not None
+    assert root.is_valid is True
+
+    updates: list[tuple[bool, list[str]]] = []
+    root.on_updated.subscribe(
+        lambda _: updates.append((root.is_valid, list(root.validation_errors)))
+    )
+
+    surface.data_model.set("/ok", False)
+    assert updates == [(False, ["Blocked locally"])]
+
+    surface.data_model.set("/ok", True)
+    assert updates == [(False, ["Blocked locally"]), (True, [])]
+
+    call_id = outbound[0]["callAgentFunction"]["functionCallId"]
+    proc.process_messages([{
+        "version": "1.0",
+        "agentFunctionResponse": {"functionCallId": call_id, "value": False},
+    }])
+    await _flush()
+    assert updates == [
+        (False, ["Blocked locally"]),
+        (True, []),
+        (False, ["Out of stock"]),
+    ]
+    resolver.dispose()
 
 
 @pytest.mark.asyncio

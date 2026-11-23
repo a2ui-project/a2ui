@@ -1,6 +1,7 @@
 ## Unreleased
 
 - **BREAKING CHANGE**: (v1_0) `RpcHandler` evaluates nested `@call` objects and `${...}` template expressions inside `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions and unactivated `requiresUserActivation` functions with `INVALID_FUNCTION_CALL` while permitting `agentOnly` and `rendererOrAgent` functions, and checking nested `@call` objects before any sibling argument executes. Recommended migration: set `allowedCallers` to `"rendererOrAgent"` or `"agentOnly"` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774), [#4336](https://github.com/a2ui-project/a2ui/pull/4336)).
+- Emit `ComponentNode.on_updated` when check-only validation attributes (`is_valid`, `validation_errors`, or `validation_results`) change in `NodeResolver`, including asynchronous `callAgentFunction` check settlement ([#4307](https://github.com/a2ui-project/a2ui/issues/4307), [#4308](https://github.com/a2ui-project/a2ui/pull/4308)).
 
 ## 0.7.1 (2026-11-23)
 
