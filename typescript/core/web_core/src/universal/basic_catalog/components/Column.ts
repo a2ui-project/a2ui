@@ -53,8 +53,12 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<ColumnSup
    * The styles of the column can be customized by redefining the following
    * CSS variables:
    *
-   * - `--a2ui-column-gap`: The gap between items in the column. Defaults to `--a2ui-spacing-m`.
-   * - `--a2ui-column-width`: The width of the column. Defaults to `100%`.
+   * - `--a2ui-column-gap`: Gap between items in the column. Defaults to `--a2ui-spacing-m`.
+   * - `--a2ui-column-width`: Width of the column. Defaults to `100%`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-spacing-m`: Fallback gap between items in the column.
    *
    * @nocollapse
    */

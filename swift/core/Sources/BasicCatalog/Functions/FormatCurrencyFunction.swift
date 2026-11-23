@@ -30,7 +30,8 @@ public final class FormatCurrencyFunction: FunctionImplementation, Sendable {
             "decimals": { "type": "number" },
             "grouping": { "type": "boolean" }
           },
-          "required": ["currency", "value"]
+          "required": ["currency", "value"],
+          "additionalProperties": false
         }
         """
     )

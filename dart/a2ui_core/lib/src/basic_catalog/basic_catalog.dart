@@ -33,7 +33,7 @@ export 'function_support.dart' show OpenUrlCallback;
 ///
 /// Each catalog is defined in code: its components, function signatures,
 /// theme and shared definitions are generated from the published catalog
-/// document (`specification/v0_9/catalogs/basic/catalog.json` and
+/// document (`catalogs/basic/v0_9/catalog.json` and
 /// `catalogs/basic/v1/catalog.json`) by `tool/generate_basic_catalogs.dart`,
 /// so [Catalog.toJson] writes the published document.
 ///
@@ -60,28 +60,26 @@ abstract final class BasicCatalog {
   static Catalog<ComponentApi, FunctionImplementation> v0_9({
     String locale = defaultBasicCatalogLocale,
     OpenUrlCallback? openUrl,
-  }) =>
-      basicCatalogV0_9(
-        _implement(
-          v0_9Id,
-          basicFunctionSignaturesV0_9(),
-          basicFunctionBodiesV0_9(locale: locale, openUrl: openUrl),
-        ),
-      );
+  }) => basicCatalogV0_9(
+    _implement(
+      v0_9Id,
+      basicFunctionSignaturesV0_9(),
+      basicFunctionBodiesV0_9(locale: locale, openUrl: openUrl),
+    ),
+  );
 
   /// The v1.0 basic catalog, whose validation rules return a
   /// [ValidationResult].
   static Catalog<ComponentApi, FunctionImplementation> v1_0({
     String locale = defaultBasicCatalogLocale,
     OpenUrlCallback? openUrl,
-  }) =>
-      basicCatalogV1_0(
-        _implement(
-          v1_0Id,
-          basicFunctionSignaturesV1_0(),
-          basicFunctionBodiesV1_0(locale: locale, openUrl: openUrl),
-        ),
-      );
+  }) => basicCatalogV1_0(
+    _implement(
+      v1_0Id,
+      basicFunctionSignaturesV1_0(),
+      basicFunctionBodiesV1_0(locale: locale, openUrl: openUrl),
+    ),
+  );
 
   /// Each of [signatures] evaluated by its entry in [bodies].
   ///
@@ -125,24 +123,23 @@ abstract final class BasicCatalog {
 /// and calls resolve in their `@path`/`@call` form.
 class FormatStringFunction extends FunctionImplementation {
   FormatStringFunction()
-      : super(
-          name: 'formatString',
-          returnType: A2uiReturnType.string,
-          argumentSchema: Schema.object(
-            properties: {
-              'value': Schema.string(
-                description: 'The string template to interpolate.',
-              ),
-            },
-            required: ['value'],
-          ),
-        );
+    : super(
+        name: 'formatString',
+        returnType: A2uiReturnType.string,
+        argumentSchema: Schema.object(
+          properties: {
+            'value': Schema.string(
+              description: 'The string template to interpolate.',
+            ),
+          },
+          required: ['value'],
+        ),
+      );
 
   @override
   Object? execute(
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      formatTemplate(args['value'], context);
+  ]) => formatTemplate(args['value'], context);
 }

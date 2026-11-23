@@ -58,9 +58,8 @@ void main() {
     ]);
     final reported = <String>{};
     for (var i = 0; i < count; i++) {
-      surface(
-        's$i',
-      ).onError.subscribe((error) => reported.add(error.surfaceId!));
+      surface('s$i').onError
+          .subscribe((error) => reported.add(error.surfaceId!));
     }
     final controller = ScrollController();
     addTearDown(controller.dispose);

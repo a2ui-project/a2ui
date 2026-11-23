@@ -37,7 +37,8 @@ void main() {
       _runCase,
       suite: 'core/catalog.yaml',
       unsupported: _knownDivergences,
-      skipReason: (testCase) => testCase['protocolVersion'] == 'v0.8' &&
+      skipReason: (testCase) =>
+          testCase['protocolVersion'] == 'v0.8' &&
               testCase['action'] != 'round_trip'
           ? _noV08
           : null,
@@ -90,12 +91,7 @@ const Map<String, Set<String>> _knownKeys = {
     'expectFile',
     'protocolVersion',
   },
-  'args:derive': {
-    'catalogId',
-    'components',
-    'functions',
-    'instructions',
-  },
+  'args:derive': {'catalogId', 'components', 'functions', 'instructions'},
 };
 
 /// Why a case naming protocol version v0.8 is skipped, unless it is a
@@ -312,8 +308,8 @@ Map<String, Object?> _componentShapes(CatalogApi catalog) {
   const envelope = {'id', 'component'};
   final Map<String, Object?> components =
       (catalog.validationSchema['components'] as Map?)
-              ?.cast<String, Object?>() ??
-          const {};
+          ?.cast<String, Object?>() ??
+      const {};
   return {
     for (final MapEntry<String, Object?> entry in components.entries)
       entry.key: {
@@ -333,13 +329,13 @@ Map<String, Object?> _componentShapes(CatalogApi catalog) {
 
 /// The return type, callers and activation of each function.
 Map<String, Object?> _functionSignatures(CatalogApi catalog) => {
-      for (final FunctionApi function in catalog.functions.values)
-        function.name: {
-          'returnType': function.returnType.name,
-          'allowedCallers': function.allowedCallers.jsonValue,
-          'requiresUserActivation': function.requiresUserActivation,
-        },
-    };
+  for (final FunctionApi function in catalog.functions.values)
+    function.name: {
+      'returnType': function.returnType.name,
+      'allowedCallers': function.allowedCallers.jsonValue,
+      'requiresUserActivation': function.requiresUserActivation,
+    },
+};
 
 /// The protocol version a case names, or null when it names none.
 ///
@@ -511,7 +507,8 @@ void _runRoundTripCase(Map<String, Object?> testCase) {
   expect(
     _jsonEquivalent(out, source),
     isTrue,
-    reason: '$name: toJson differs from the source document.\n'
+    reason:
+        '$name: toJson differs from the source document.\n'
         'Source: ${jsonEncode(source)}\nOutput: ${jsonEncode(out)}',
   );
 
@@ -519,7 +516,8 @@ void _runRoundTripCase(Map<String, Object?> testCase) {
   expect(
     _jsonEquivalent(again, out),
     isTrue,
-    reason: '$name: toJson is not idempotent.\n'
+    reason:
+        '$name: toJson is not idempotent.\n'
         'First: ${jsonEncode(out)}\nSecond: ${jsonEncode(again)}',
   );
 }
@@ -593,8 +591,8 @@ void _runDeriveCase(Map<String, Object?> testCase) {
     testCase,
     _document(testCase['catalog'] ?? testCase['catalogPath']),
   );
-  final Map<String, Object?> args =
-      (testCase['args']! as Map).cast<String, Object?>();
+  final Map<String, Object?> args = (testCase['args']! as Map)
+      .cast<String, Object?>();
   assertKnownKeys(args, _knownKeys['args:derive']!, 'args:derive');
 
   /// The new entries of the kind [section] in [list], keyed by name.
@@ -616,20 +614,19 @@ void _runDeriveCase(Map<String, Object?> testCase) {
       ? null
       : [
           for (final item in list)
-            if (item is String) item
+            if (item is String) item,
         ];
 
   final components = args['components'] as List<Object?>?;
   final functions = args['functions'] as List<Object?>?;
   CatalogApi derive() => source.derive(
-        catalogId: args['catalogId']! as String,
-        components: kept(components),
-        addComponents:
-            added('components', components).values.cast<ComponentApi>(),
-        functions: kept(functions),
-        addFunctions: added('functions', functions).values.cast<FunctionApi>(),
-        instructions: args['instructions'] as String?,
-      );
+    catalogId: args['catalogId']! as String,
+    components: kept(components),
+    addComponents: added('components', components).values.cast<ComponentApi>(),
+    functions: kept(functions),
+    addFunctions: added('functions', functions).values.cast<FunctionApi>(),
+    instructions: args['instructions'] as String?,
+  );
 
   if (testCase['expectError'] case final Map<Object?, Object?> expectError) {
     assertKnownKeys(
@@ -651,8 +648,8 @@ void _runDeriveCase(Map<String, Object?> testCase) {
     return;
   }
 
-  final Map<String, Object?> expected =
-      (testCase['expect']! as Map).cast<String, Object?>();
+  final Map<String, Object?> expected = (testCase['expect']! as Map)
+      .cast<String, Object?>();
   assertKnownKeys(expected, _deriveExpectKeys, 'expect:derive');
   final CatalogApi derived = derive();
   final Map<String, Object?> document = derived.toJson();
@@ -685,8 +682,11 @@ void _runDeriveCase(Map<String, Object?> testCase) {
     }
   }
   if (expected['theme'] case final Object theme) {
-    expect(_differences(document['theme'], theme), isEmpty,
-        reason: '$name: theme');
+    expect(
+      _differences(document['theme'], theme),
+      isEmpty,
+      reason: '$name: theme',
+    );
   }
   if (expected.containsKey('instructions')) {
     expect(
@@ -714,26 +714,25 @@ CatalogApi? _builtinCatalog(String name, A2uiProtocolVersion? version) =>
 CatalogApi _load(
   Map<String, Object?> testCase,
   Map<String, Object?> document,
-) =>
-    Catalog.fromJson(
-      document,
-      protocolVersion: _version(testCase),
-      catalogId: testCase['catalogId'] as String?,
-    );
+) => Catalog.fromJson(
+  document,
+  protocolVersion: _version(testCase),
+  catalogId: testCase['catalogId'] as String?,
+);
 
 /// The names under a document's `components`, `functions` or `$defs`, in
 /// either form `functions` takes.
 List<String> _names(Object? section) => switch (section) {
-      final Map<Object?, Object?> map => [for (final key in map.keys) '$key'],
-      final List<Object?> list => [
-          for (final Object? item in list)
-            if (item is String)
-              item
-            else if (item is Map && item['name'] is String)
-              item['name']! as String,
-        ],
-      _ => const [],
-    };
+  final Map<Object?, Object?> map => [for (final key in map.keys) '$key'],
+  final List<Object?> list => [
+    for (final Object? item in list)
+      if (item is String)
+        item
+      else if (item is Map && item['name'] is String)
+        item['name']! as String,
+  ],
+  _ => const [],
+};
 
 /// JSON equality that ignores object key order and the order of `enum`
 /// values and `required` names.

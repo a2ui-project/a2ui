@@ -54,6 +54,21 @@ private func makeTestSurfaceCatalogForRendering() throws -> AnyCatalog {
   )
 }
 
+private struct SurfaceMetadataEnvironmentProbeView: View {
+  @Environment(\.a2uiSurfaceMetadata) private var metadata
+  let onRead: ([String: JSONValue]?) -> Void
+
+  var body: some View {
+    Color.clear
+      .onAppear {
+        onRead(metadata)
+      }
+      .onChange(of: metadata) { _, newValue in
+        onRead(newValue)
+      }
+  }
+}
+
 @Suite(.serialized)
 @MainActor
 struct SurfaceTests {
@@ -84,7 +99,8 @@ struct SurfaceTests {
       catalog: catalog
     )
     let surface = Surface(
-      viewModel: viewModel
+      viewModel: viewModel,
+      catalogs: []
     )
     #expect(surface.surfaceID == "s1")
   }
@@ -96,10 +112,12 @@ struct SurfaceTests {
       catalog: catalog
     )
     let firstSurface = Surface(
-      viewModel: viewModel
+      viewModel: viewModel,
+      catalogs: []
     )
     let secondSurface = Surface(
-      viewModel: viewModel
+      viewModel: viewModel,
+      catalogs: []
     )
     #expect(firstSurface.surfaceID == secondSurface.surfaceID)
   }
@@ -115,10 +133,12 @@ struct SurfaceTests {
       catalog: catalog
     )
     let firstSurface = Surface(
-      viewModel: firstViewModel
+      viewModel: firstViewModel,
+      catalogs: []
     )
     let secondSurface = Surface(
-      viewModel: secondViewModel
+      viewModel: secondViewModel,
+      catalogs: []
     )
     #expect(firstSurface.surfaceID != secondSurface.surfaceID)
   }
@@ -141,6 +161,45 @@ struct SurfaceTests {
     viewModel.removeExtension("surfaceTheme")
     viewModel.removeExtension("mode")
     #expect(viewModel.metadata == nil)
+  }
+
+  @Test func surfaceMetadataEnvironmentDefaultsToNilAndPropagatesUpdates() throws {
+    #expect(EnvironmentValues().a2uiSurfaceMetadata == nil)
+
+    let schema = try Schema(instance: #"{"type": "object"}"#)
+    var observedMetadata: [String: JSONValue]?
+    let probeComponent = ComponentImplementation(name: "probe", schema: schema) { _ in
+      SurfaceMetadataEnvironmentProbeView { metadata in
+        observedMetadata = metadata
+      }
+    }
+    let catalog = Catalog(id: "default", components: [probeComponent])
+    let initialMetadata: [String: JSONValue] = [
+      "extensions": .object(["surfaceTheme": .string("dark")])
+    ]
+    let viewModel = SurfaceViewModel(
+      surfaceID: "metadata-env",
+      catalog: catalog,
+      metadata: initialMetadata
+    )
+    viewModel.componentsModel.addComponent(
+      ComponentModel(id: "root", type: "probe", properties: [:])
+    )
+    let driver = HostedViewDriver(surface: Surface(viewModel: viewModel, catalog: catalog))
+    defer { driver.tearDown() }
+
+    #expect(observedMetadata == initialMetadata)
+
+    try viewModel.setExtension("mode", value: .string("compact"))
+    driver.flush()
+    #expect(
+      observedMetadata == [
+        "extensions": .object([
+          "surfaceTheme": .string("dark"),
+          "mode": .string("compact"),
+        ])
+      ]
+    )
   }
 
   @Test func swappingSurfaceViewModelsDisposesOldResolverAndRendersNewSurface() throws {
@@ -233,5 +292,35 @@ struct SurfaceTests {
     #expect(firstViewModel.rootNode?.string(for: "text") == "Surface A")
     #expect(secondSurface.surfaceID == "surface-b")
     #expect(secondViewModel.rootNode?.string(for: "text") == "Surface B")
+  }
+
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func makeWithBasicCatalogsConfiguresAllVersionsAndProtocolFallback(
+    version: A2UIProtocolVersion
+  ) {
+    let customCatalog = AnyCatalog(
+      id: "https://example.com/custom",
+      protocolVersion: version,
+      components: []
+    )
+    let explicitDefaultViewModel = SurfaceViewModel(
+      surfaceID: "explicit-default",
+      catalogs: [customCatalog.id: customCatalog],
+      defaultCatalogID: customCatalog.id,
+      protocolVersion: version
+    )
+    let explicitSurface = Surface.makeWithBasicCatalogs(viewModel: explicitDefaultViewModel)
+    #expect(explicitSurface.catalogs.count == A2UIProtocolVersion.allCases.count)
+    #expect(explicitSurface.defaultCatalogID == customCatalog.id)
+
+    let nilDefaultViewModel = SurfaceViewModel(
+      surfaceID: "nil-default",
+      catalogs: [:],
+      defaultCatalogID: nil,
+      protocolVersion: version
+    )
+    #expect(nilDefaultViewModel.defaultCatalogID == nil)
+    let fallbackSurface = Surface.makeWithBasicCatalogs(viewModel: nilDefaultViewModel)
+    #expect(fallbackSurface.defaultCatalogID == BasicCatalog.catalogURI(version: version))
   }
 }

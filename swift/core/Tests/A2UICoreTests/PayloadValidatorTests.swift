@@ -878,4 +878,164 @@ struct PayloadValidatorTests {
     }
     #expect(error.details.map(\.path) == ["@catalogId"])
   }
+
+  private final class MockBoundedFunction: FunctionImplementation, Sendable {
+    let api: FunctionAPI
+
+    init() throws {
+      self.api = FunctionAPI(
+        name: "bounded",
+        returnType: .boolean,
+        schema: try Schema(
+          instance: """
+            {
+              "type": "object",
+              "properties": {
+                "value": { "type": "string" },
+                "min": { "type": "integer", "minimum": 0 },
+                "max": { "type": "integer", "minimum": 0 },
+                "items": {
+                  "type": "array",
+                  "items": { "type": "boolean" },
+                  "minItems": 2
+                }
+              },
+              "required": ["value"],
+              "anyOf": [
+                { "required": ["min"] },
+                { "required": ["max"] }
+              ],
+              "additionalProperties": false
+            }
+            """
+        )
+      )
+    }
+
+    func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+      .boolean(true)
+    }
+  }
+
+  @Test func dynamicFunctionArgsPreserveAnyOfAdditionalPropertiesMinItemsAndReturnType() throws {
+    let textSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "const": "Text" },
+            "text": {
+              "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicBoolean"
+            }
+          },
+          "required": ["id", "component", "text"],
+          "additionalProperties": false
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let catalog = Catalog(
+      id: "https://example.com/catalogs/test/v0_9/catalog.json",
+      protocolVersion: "0.9",
+      components: [AnyComponentAPI(name: "Text", schema: textSchema)],
+      functions: [try MockBoundedFunction()]
+    ).eraseToAnyCatalog()
+    let validator = PayloadValidator(
+      catalog: catalog,
+      config: ValidationConfig(protocolVersion: .v09)
+    )
+
+    try validator.validateComponent([
+      "id": .string("t1"),
+      "component": .string("Text"),
+      "text": .object([
+        "call": .string("bounded"),
+        "args": .object([
+          "value": .object(["path": .string("/name")]),
+          "min": .integer(1),
+          "items": .array([.object(["path": .string("/flag")]), .boolean(true)]),
+        ]),
+        "returnType": .string("boolean"),
+      ]),
+    ])
+
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validateComponent([
+        "id": .string("t1"),
+        "component": .string("Text"),
+        "text": .object([
+          "call": .string("bounded"),
+          "args": .object([
+            "value": .object(["path": .string("/name")])
+          ]),
+          "returnType": .string("boolean"),
+        ]),
+      ])
+    }
+
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validateComponent([
+        "id": .string("t1"),
+        "component": .string("Text"),
+        "text": .object([
+          "call": .string("bounded"),
+          "args": .object([
+            "value": .object(["path": .string("/name")]),
+            "min": .integer(1),
+            "extra": .boolean(true),
+          ]),
+          "returnType": .string("boolean"),
+        ]),
+      ])
+    }
+
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validateComponent([
+        "id": .string("t1"),
+        "component": .string("Text"),
+        "text": .object([
+          "call": .string("bounded"),
+          "args": .object([
+            "value": .object(["path": .string("/name")]),
+            "min": .integer(1),
+            "items": .array([.object(["path": .string("/flag")])]),
+          ]),
+          "returnType": .string("boolean"),
+        ]),
+      ])
+    }
+
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validateComponent([
+        "id": .string("t1"),
+        "component": .string("Text"),
+        "text": .object([
+          "call": .string("bounded"),
+          "args": .object([
+            "value": .object(["path": .string("/name")]),
+            "min": .integer(1),
+            "items": .array([.object(["path": .string("/flag")]), .string("not-a-bool")]),
+          ]),
+          "returnType": .string("boolean"),
+        ]),
+      ])
+    }
+
+    let returnTypeError = try #require(throws: A2UIValidationError.self) {
+      try validator.validateComponent([
+        "id": .string("t1"),
+        "component": .string("Text"),
+        "text": .object([
+          "call": .string("bounded"),
+          "args": .object([
+            "value": .object(["path": .string("/name")]),
+            "min": .integer(1),
+          ]),
+          "returnType": .string("string"),
+        ]),
+      ])
+    }
+    #expect(returnTypeError.details.map(\.path) == ["text/returnType"])
+  }
 }

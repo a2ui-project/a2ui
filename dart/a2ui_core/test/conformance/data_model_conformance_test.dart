@@ -25,23 +25,9 @@ const Map<String, Set<String>> _knownKeys = {
     'steps',
     'watch',
   },
-  'case:validate': {
-    ...caseMetadataKeys,
-    'catalog',
-    'expect',
-    'steps',
-  },
-  'case:resolve_path': {
-    ...caseMetadataKeys,
-    'args',
-    'catalog',
-    'expect',
-  },
-  'args:resolve_path': {
-    'contextPath',
-    'context_path',
-    'path',
-  },
+  'case:validate': {...caseMetadataKeys, 'catalog', 'expect', 'steps'},
+  'case:resolve_path': {...caseMetadataKeys, 'args', 'catalog', 'expect'},
+  'args:resolve_path': {'contextPath', 'context_path', 'path'},
   'step:data_model': {
     'expect',
     'expect_absent',
@@ -53,17 +39,9 @@ const Map<String, Set<String>> _knownKeys = {
     'path',
     'value',
   },
-  'step:validate': {
-    'description',
-    'expectError',
-    'payload',
-  },
-  'expect:validate': {
-    'surfaces',
-  },
-  'surface:validate': {
-    'dataModel',
-  },
+  'step:validate': {'description', 'expectError', 'payload'},
+  'expect:validate': {'surfaces'},
+  'surface:validate': {'dataModel'},
 };
 
 /// Runs the shared `conformance/core/data_model.yaml` suite against
@@ -89,11 +67,7 @@ void main() {
   group('conformance core/data_model.yaml', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
 
-    runConformanceSuite(
-      cases,
-      _runCase,
-      suite: 'core/data_model.yaml',
-    );
+    runConformanceSuite(cases, _runCase, suite: 'core/data_model.yaml');
   });
 
   group('conformance core/data_model_pointers.yaml', () {
@@ -140,7 +114,7 @@ void _runPayloadDataModelCase(Map<String, Object?> testCase) {
   ];
   final String version =
       envelopes.map((e) => e['version']).whereType<String>().firstOrNull ??
-          'v0.9';
+      'v0.9';
   final Set<String> catalogIds = {
     for (final Map<String, Object?> envelope in envelopes)
       if (envelope['createSurface'] case final Map<String, Object?> body)
@@ -185,11 +159,7 @@ void _assertPayloadDataModelSurfaces(
 ) {
   final expected = testCase['expect'] as Map<String, Object?>?;
   if (expected == null) return;
-  assertKnownKeys(
-    expected,
-    _knownKeys['expect:validate']!,
-    'expect:validate',
-  );
+  assertKnownKeys(expected, _knownKeys['expect:validate']!, 'expect:validate');
   final surfaces = expected['surfaces'] as Map<String, Object?>?;
   if (surfaces == null) return;
   surfaces.forEach((surfaceId, surfaceExp) {
@@ -218,11 +188,15 @@ void _runResolvePathCase(Map<String, Object?> testCase) {
   final args = testCase['args']! as Map<String, Object?>;
   assertKnownKeys(args, _knownKeys['args:resolve_path']!, 'args:resolve_path');
   final String path = (args['path'] as String?) ?? '';
-  final String contextPath = (args['contextPath'] as String?) ??
+  final String contextPath =
+      (args['contextPath'] as String?) ??
       (args['context_path'] as String?) ??
       '/';
-  final ctx =
-      DataContext(DataModel(), (call, fnArgs, ctx) => null, contextPath);
+  final ctx = DataContext(
+    DataModel(),
+    (call, fnArgs, ctx) => null,
+    contextPath,
+  );
   expect(ctx.resolvePath(path), equals(testCase['expect']));
 }
 

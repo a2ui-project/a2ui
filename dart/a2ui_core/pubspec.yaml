@@ -17,12 +17,12 @@ description: >-
   Core of the A2UI protocol for Dart: messages, the data model, data binding
   and expressions shared by A2UI renderers and agents.
 repository: https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_core
-version: 0.7.0
+version: 0.8.0
 
 resolution: workspace
 
 environment:
-  sdk: ">=3.5.0 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
   collection: ^1.18.0

@@ -20,10 +20,7 @@ import 'conformance_harness.dart';
 
 class _TestActionFunction extends FunctionImplementation {
   _TestActionFunction(String name)
-      : super(
-          name: name,
-          argumentSchema: Schema.fromMap({'type': 'object'}),
-        );
+    : super(name: name, argumentSchema: Schema.fromMap({'type': 'object'}));
 
   @override
   Object? execute(
@@ -82,11 +79,7 @@ void main() {
   group('conformance core/actions.yaml', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
 
-    runConformanceSuite(
-      cases,
-      _runCase,
-      suite: 'core/actions.yaml',
-    );
+    runConformanceSuite(cases, _runCase, suite: 'core/actions.yaml');
   });
 }
 
@@ -122,8 +115,8 @@ Future<void> _runDispatchActionCase(Map<String, Object?> testCase) async {
       testCase['sourceComponentId'] as String? ?? 'test_component';
   final Object? rawAction =
       testCase['actionPayload'] ?? testCase['action_data'];
-  final Map<String, Object?>? dispatchMetadata =
-      (testCase['metadata'] as Map?)?.cast<String, Object?>();
+  final Map<String, Object?>? dispatchMetadata = (testCase['metadata'] as Map?)
+      ?.cast<String, Object?>();
   final expectError = testCase['expectError'] as Map<String, Object?>?;
   if (expectError != null) {
     assertKnownKeys(expectError, knownExpectErrorKeys, 'expectError');
@@ -163,17 +156,18 @@ Future<void> _runDispatchActionCase(Map<String, Object?> testCase) async {
 (SurfaceModel<ComponentApi>, DataContext) _createActionTestFixture(
   Map<String, Object?> testCase,
 ) {
-  final initialData = (testCase['dataModel'] ?? testCase['data_model'])
-      as Map<String, Object?>?;
+  final initialData =
+      (testCase['dataModel'] ?? testCase['data_model'])
+          as Map<String, Object?>?;
   final versionStr = testCase['protocolVersion'] as String?;
   final A2uiProtocolVersion? protocolVersion = versionStr == null
       ? null
       : A2uiProtocolVersion.tryParseSemVer(versionStr);
   final Catalog<ComponentApi, FunctionImplementation> basic =
       (protocolVersion != null &&
-              protocolVersion.isAtLeast(A2uiProtocolVersion.v1_0))
-          ? BasicCatalog.v1_0(openUrl: (_) {})
-          : BasicCatalog.v0_9(openUrl: (_) {});
+          protocolVersion.isAtLeast(A2uiProtocolVersion.v1_0))
+      ? BasicCatalog.v1_0(openUrl: (_) {})
+      : BasicCatalog.v0_9(openUrl: (_) {});
   final catalog = Catalog<ComponentApi, FunctionImplementation>(
     id: 'test_catalog',
     components: basic.components.values.toList(),
@@ -237,7 +231,8 @@ Future<void> _executeActionPayload(
       A2uiRendererError(
         code: 'INVALID_ACTION',
         surfaceId: surface.id,
-        message: "Invalid action payload in component '$sourceComponentId': "
+        message:
+            "Invalid action payload in component '$sourceComponentId': "
             '$rawAction',
         details: rawAction,
       ),
@@ -259,11 +254,15 @@ void _assertDispatchedAction(
       testCase['expectDispatched'] == null) {
     expect(dispatched, isNull);
   }
-  final expected = (testCase['expectDispatched'] ?? testCase['expected'])
-      as Map<String, Object?>?;
+  final expected =
+      (testCase['expectDispatched'] ?? testCase['expected'])
+          as Map<String, Object?>?;
   if (expected == null) return;
   assertKnownKeys(
-      expected, _knownKeys['expectDispatched']!, 'expectDispatched');
+    expected,
+    _knownKeys['expectDispatched']!,
+    'expectDispatched',
+  );
   expect(dispatched, isNotNull);
   expect(dispatched!.name, equals(expected['name']));
   if (expected.containsKey('surfaceId')) {

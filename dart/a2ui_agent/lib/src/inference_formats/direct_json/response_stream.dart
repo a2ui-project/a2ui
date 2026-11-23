@@ -78,9 +78,8 @@ abstract class _DirectJsonStream<P extends StreamPart>
     this._parser, {
     required bool wrapped,
     required this.state,
-    required bool continues,
+    required this._continues,
   }) : _wrapped = wrapped,
-       _continues = continues,
        _inBlock = !wrapped;
 
   final DirectJsonParser _parser;
@@ -525,12 +524,10 @@ abstract class _DirectJsonStream<P extends StreamPart>
       for (final Object? component in added)
         if (component is Map<String, Object?>) component,
     ], earlier: earlier);
-    final delta =
-        reader.read({
-              ...envelope,
-              growing.key: {...body, 'components': added},
-            })
-            as UpdateComponentsMessage;
+    final delta = reader.read({
+      ...envelope,
+      growing.key: {...body, 'components': added},
+    }) as UpdateComponentsMessage;
     _applyMessage(delta);
     final previous = growing.message as UpdateComponentsMessage;
     final message = UpdateComponentsMessage(

@@ -54,14 +54,24 @@ extension View {
   /// ``SwiftUI/View/a2uiAccessibilityControl(for:)`` on that control instead. SwiftUI drops an
   /// accessibility hint on a `.contain` group, so `description` does not reach assistive
   /// technologies there.
+  ///
+  /// On a `.combine` element, an explicit label replaces the visible text for assistive
+  /// technologies, so the text reported inside it with ``SwiftUI/View/a2uiAccessibleText(_:)``
+  /// is dropped. ``A2UIAccessibilityModifier`` reports the label to live regions instead.
   @ViewBuilder
   public func a2uiAccessibilityElement(
     for node: Node,
     children: AccessibilityChildBehavior
   ) -> some View {
     let attributes = node.explicitAccessibilityAttributes
-    if attributes?.label?.isEmpty == false || attributes?.description?.isEmpty == false {
+    let hasExplicitLabel = attributes?.label?.isEmpty == false
+    if hasExplicitLabel || attributes?.description?.isEmpty == false {
       accessibilityElement(children: children)
+        .transformPreference(A2UIAccessibleTextKey.self) { text in
+          if children == .combine, hasExplicitLabel {
+            text = []
+          }
+        }
     } else {
       // The children stay separate elements, and SwiftUI passes a stack's identifier on to each
       // child that has none of its own. An empty identifier here, inside the `a2ui-<id>` that
@@ -72,6 +82,18 @@ extension View {
         self
       }
     }
+  }
+
+  /// Reports the text this view shows, so an enclosing live region can announce it when it
+  /// changes. See ``A2UIAccessibleTextKey``.
+  ///
+  /// Call this from a component that renders text, with the text as it reads on screen (for
+  /// example without Markdown syntax), before
+  /// ``SwiftUI/View/a2uiAccessibilityElement(for:children:)`` so an explicit label on a
+  /// `.combine` element replaces it. `nil` and empty text report nothing. The text is only
+  /// evaluated inside a live region, so building it costs nothing elsewhere.
+  public func a2uiAccessibleText(_ text: @autoclosure @escaping () -> String?) -> some View {
+    modifier(A2UIAccessibleTextReporter(text: text))
   }
 
   @ViewBuilder

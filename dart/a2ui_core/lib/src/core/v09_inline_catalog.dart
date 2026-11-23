@@ -56,7 +56,7 @@ Map<String, Object?> v09InlineCatalog(Map<String, Object?> document) {
     'catalogId': document['catalogId'],
     if (components.isNotEmpty) 'components': components,
     if (functions.isNotEmpty) 'functions': functions,
-    if (theme != null) 'theme': theme,
+    'theme': ?theme,
   };
 }
 
@@ -134,10 +134,11 @@ class _V09Refs {
 
   static const String _defsPrefix = r'#/$defs/';
 
-  static final Set<String> _commonDefs = ((jsonDecode(commonTypesV0_9Json)
-          as Map<String, Object?>)[r'$defs']! as Map<String, Object?>)
-      .keys
-      .toSet();
+  static final Set<String> _commonDefs =
+      ((jsonDecode(commonTypesV0_9Json) as Map<String, Object?>)[r'$defs']!
+              as Map<String, Object?>)
+          .keys
+          .toSet();
 
   /// A deep copy of [node] with its local references rewritten.
   Object? rewrite(Object? node) {
@@ -151,7 +152,7 @@ class _V09Refs {
         if (entry.key != r'$ref') entry.key! as String: rewrite(entry.value),
     };
     if (ref is! String || !ref.startsWith('#')) {
-      return <String, Object?>{if (ref != null) r'$ref': ref, ...rest};
+      return <String, Object?>{r'$ref': ?ref, ...rest};
     }
     if (ref.startsWith(_defsPrefix) &&
         _commonDefs.contains(ref.substring(_defsPrefix.length))) {

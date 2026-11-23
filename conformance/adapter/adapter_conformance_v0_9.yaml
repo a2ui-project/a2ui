@@ -30,7 +30,7 @@
   description: Verifies that nested Column, Row, Card, Text, and Button components render in declared hierarchy and order.
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   action: render_surface
   steps:
     - op: process_messages
@@ -106,7 +106,7 @@
   description: Verifies that a single v1.0 createSurface message with inline components and dataModel renders immediately without follow-up messages.
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   action: render_surface
   steps:
     - op: process_messages
@@ -150,7 +150,7 @@
   description: Verifies that a pending child renders a non-crashing placeholder and upgrades in place when its definition arrives without remounting the parent container.
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   action: render_surface
   steps:
     - op: process_messages
@@ -201,7 +201,7 @@
   description: Verifies that user input on a TextField with a writable @path binding mutates the DataModel and reactively updates dependent Text components.
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   action: render_surface
   steps:
     - op: process_messages
@@ -268,7 +268,7 @@
   description: Verifies that an event action dispatches an outbound action event with resolved context, whereas a local functionCall action executes locally without emitting an outbound action event.
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   action: render_surface
   steps:
     - op: process_messages
@@ -352,7 +352,7 @@
   description: Verifies that explicit AccessibilityAttributes (label, description, live, hidden) and implicit child text label inference are applied and override correctly.
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   action: render_surface
   steps:
     - op: process_messages
@@ -423,7 +423,7 @@
   description: Verifies that unknown component types and same-scope cyclic references render safe fallback placeholders and emit UNKNOWN_COMPONENT_TYPE and CYCLIC_REFERENCE diagnostics on surface.onError.
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   action: render_surface
   steps:
     - op: process_messages
@@ -485,7 +485,7 @@
   description: Verifies that unmounting the surface view disposes its NodeResolver and releases all active reactive subscriptions on the SurfaceModel and DataModel.
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   action: render_surface
   steps:
     - op: process_messages
@@ -528,7 +528,7 @@
   description: Verifies that processing a deleteSurface message removes the surface from the group, unmounts the rendered view, and releases all active reactive subscriptions.
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   action: render_surface
   steps:
     - op: process_messages
@@ -577,7 +577,7 @@
   description: Verifies that replacing a component with a different type under the same id creates a new view identity rather than reusing the prior component's stateful view.
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   action: render_surface
   steps:
     - op: process_messages
@@ -641,7 +641,7 @@
   description: Verifies that when a parent component removes a child from its children list, the unreferenced child node is disposed and releases its data model subscriptions.
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   action: render_surface
   steps:
     - op: process_messages
@@ -711,7 +711,7 @@
   description: Verifies that user_input on CheckBox, ChoicePicker, Slider, and DateTimeInput writes back to bound @path entries in DataModel and updates dependent views.
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   action: render_surface
   steps:
     - op: process_messages
@@ -932,7 +932,7 @@
   action: render_surface
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   steps:
     - op: process_messages
       messages:
@@ -1027,7 +1027,7 @@
   action: render_surface
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   steps:
     - op: process_messages
       messages:
@@ -1081,7 +1081,7 @@
   action: render_surface
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   steps:
     - op: process_messages
       messages:
@@ -1151,7 +1151,7 @@
   action: render_surface
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9/catalog.json
   steps:
     - op: process_messages
       messages:

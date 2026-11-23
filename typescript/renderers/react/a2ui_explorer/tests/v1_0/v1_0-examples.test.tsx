@@ -15,6 +15,7 @@
  */
 
 import {act} from 'react';
+import {getDemoItems} from '../../src/examples';
 import {loadExample, cleanup, getSurface, whenSettled} from '../utils/test-utils';
 
 function getErrorLogs(container: HTMLElement): string[] {
@@ -31,7 +32,7 @@ describe('React Explorer v1.0 Examples & Version Toggle', () => {
   });
 
   it('should switch between v0.9 and v1.0 via the header version selector', async () => {
-    container = await loadExample('00_simple-text.json', '0.9');
+    container = await loadExample('scaffold-simple-text.json', '0.9');
 
     const versionBtns = Array.from(
       container.querySelectorAll('[class*="versionBtn"]'),
@@ -58,23 +59,23 @@ describe('React Explorer v1.0 Examples & Version Toggle', () => {
     expect(surface.textContent).toContain('Hello, Minimal Catalog!');
   });
 
-  it('should render v1.0 00_simple-text.json', async () => {
-    container = await loadExample('00_simple-text.json', '1.0');
+  it('should render v1.0 scaffold-simple-text.json', async () => {
+    container = await loadExample('scaffold-simple-text.json', '1.0');
     const surface = getSurface(container);
     expect(surface.textContent).toContain('Hello, Minimal Catalog!');
     expect(getErrorLogs(container)).toEqual([]);
   });
 
-  it('should render v1.0 02_email-compose.json', async () => {
-    container = await loadExample('02_email-compose.json', '1.0');
+  it('should render v1.0 email-compose.json', async () => {
+    container = await loadExample('email-compose.json', '1.0');
     const surface = getSurface(container);
     const text = surface.textContent || '';
     expect(text).toContain('Send');
     expect(getErrorLogs(container)).toEqual([]);
   });
 
-  it('should render v1.0 34_child-list-template.json with template expansion', async () => {
-    container = await loadExample('34_child-list-template.json', '1.0');
+  it('should render v1.0 child-list-template.json with template expansion', async () => {
+    container = await loadExample('child-list-template.json', '1.0');
     const surface = getSurface(container);
     const text = surface.textContent || '';
     expect(text).toContain('Dynamic Item List');
@@ -84,10 +85,25 @@ describe('React Explorer v1.0 Examples & Version Toggle', () => {
     expect(getErrorLogs(container)).toEqual([]);
   });
 
-  it('should render v1.0 31_incremental-dashboard.json cleanly', async () => {
-    container = await loadExample('31_incremental-dashboard.json', '1.0');
+  it('should render v1.0 incremental-dashboard.json cleanly', async () => {
+    container = await loadExample('incremental-dashboard.json', '1.0');
     const surface = getSurface(container);
     expect(surface).toBeTruthy();
     expect(getErrorLogs(container)).toEqual([]);
+  });
+
+  it('should order scaffold examples first and strip the scaffold- prefix from titles', () => {
+    const itemsV10 = getDemoItems('v1.0');
+    expect(itemsV10.slice(0, 8).map(item => item.filename)).toEqual([
+      'scaffold-simple-text.json',
+      'scaffold-row-layout.json',
+      'scaffold-interactive-button.json',
+      'scaffold-simple-login-form.json',
+      'scaffold-complex-layout.json',
+      'scaffold-formatted-text.json',
+      'scaffold-incremental.json',
+      'flight-status.json',
+    ]);
+    expect(itemsV10[0].title).toBe('Simple Text');
   });
 });

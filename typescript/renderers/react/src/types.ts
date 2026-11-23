@@ -14,4 +14,24 @@
  * limitations under the License.
  */
 
-export * from './v0_8/types';
+export type {
+  Types,
+  Primitives,
+  AnyComponentNode,
+  Surface,
+  SurfaceID,
+  Theme,
+  ServerToClientMessage,
+  A2UIClientEventMessage,
+  Action,
+  DataValue,
+  MessageProcessor,
+  StringValue,
+  NumberValue,
+  BooleanValue,
+  A2UIComponentProps,
+  ComponentLoader,
+  ComponentRegistration,
+  OnActionCallback,
+  A2UIProviderConfig,
+} from './v0_8/types';

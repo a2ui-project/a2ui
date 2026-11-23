@@ -179,7 +179,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### Data Model and Data Binding (`/concepts/data-binding/`) [P0]
 
-- **Sources**: [`specification/v1_0/json/common_types.json`](../../specification/v1_0/json/common_types.json), [`specification/v0_9_1/json/common_types.json`](../../specification/v0_9_1/json/common_types.json), [`catalogs/basic/v1/examples/`](../../catalogs/basic/v1/examples/), and [`specification/v0_9_1/catalogs/basic/examples/`](../../specification/v0_9_1/catalogs/basic/examples/).
+- **Sources**: [`specification/v1_0/json/common_types.json`](../../specification/v1_0/json/common_types.json), [`specification/v0_9_1/json/common_types.json`](../../specification/v0_9_1/json/common_types.json), [`catalogs/basic/v1/examples/`](../../catalogs/basic/v1/examples/), and [`catalogs/basic/v0_9_1/examples/`](../../catalogs/basic/v0_9_1/examples/).
 - **Content Outline**:
     1. **What is the Data Model?**: Per-surface reactive JSON state scoped to `surfaceId`, updated independently of the UI tree via `updateDataModel` JSON Pointers.
     2. **Populating the Data Model**: Contrast deterministic backend/tool data injection with LLM-generated initial `dataModel` or `updateDataModel` messages.
@@ -267,7 +267,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### Glossary (`/concepts/glossary/`) [P2]
 
-- Port [`docs/public/concepts/glossary.md`](../public/concepts/glossary.md), updated with `v1.0` terminology (`agent_to_renderer`, `renderer_to_agent`, `@path`, `@call`, `callAgentFunction`, `callRendererFunction`).
+- Cover `v1.0` terminology (`agent_to_renderer`, `renderer_to_agent`, `@path`, `@call`, `callAgentFunction`, `callRendererFunction`).
 
 ### Guides
 
@@ -289,7 +289,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### How to Integrate A2UI into an Agent (`/guides/agent-integration/`) [P1]
 
-- **Sources**: Link to [SDKs](#sdks) (`/concepts/sdks/#agent-sdk`) for package coordinates; verify APIs against `python/a2ui_agent/`, `python/a2ui_adk/`, `python/a2ui_a2a/`, `typescript/agents/a2ui_agent/`, `dart/a2ui_agent/`, and [`docs/public/guides/a2ui-with-any-agent-framework.md`](../public/guides/a2ui-with-any-agent-framework.md).
+- **Sources**: Link to [SDKs](#sdks) (`/concepts/sdks/#agent-sdk`) for package coordinates; verify APIs against `python/a2ui_agent/`, `python/a2ui_adk/`, `python/a2ui_a2a/`, `typescript/agents/a2ui_agent/`, and `dart/a2ui_agent/`.
 - **Content Outline** (tabbed across `TypeScript` | `Python` | `Dart`):
     1. **Overview**: Direct purpose statement linking to `/concepts/sdks/#agent-sdk`, noting single-binary co-location via shared Core SDK data structures, and cross-linking to `/guides/client-integration/`, `/guides/defining-a-catalog/`, and `/concepts/inference-formats/`.
     2. **Step 1: Install Dependencies**: Tabbed install commands matching `/concepts/sdks/#agent-sdk`.
@@ -304,7 +304,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### How to Define a Catalog (`/guides/defining-a-catalog/`) [P1]
 
-- **Sources**: [`docs/public/guides/defining-your-own-catalog.md`](../public/guides/defining-your-own-catalog.md), [`docs/public/guides/authoring-components.md`](../public/guides/authoring-components.md), `/specification/v1.0/schemas/#catalog_definition.json`, [`catalogs/basic/v1/catalog.json`](../../catalogs/basic/v1/catalog.json), and [`specification/v0_9_1/catalogs/basic/catalog.json`](../../specification/v0_9_1/catalogs/basic/catalog.json).
+- **Sources**: `/specification/v1.0/schemas/#catalog_definition.json`, [`catalogs/basic/v1/catalog.json`](../../catalogs/basic/v1/catalog.json), and [`catalogs/basic/v0_9_1/catalog.json`](../../catalogs/basic/v0_9_1/catalog.json).
 - **Content Outline**:
     1. **When You Need a Standalone `catalog.json`**: Sharing a language-agnostic contract across separate agent and client runtimes.
     2. **Catalog Schema Anatomy (`v1.0` vs. `v0.9.1` Tabs)**: Envelope metadata (`$schema`, `$id`, `catalogId` URI, `title`, `description`, plus v1.0-only `protocolVersion`, `metadata`, and `instructions`), top-level `components` and `functions` maps (direct component properties + `allowedParents`/`allowedChildren` + `Checkable` `checks` support and function `returnType`/`allowedCallers`/`requiresUserActivation` in v1.0 vs. `allOf` `ComponentCommon` wrappers in v0.9.1), and `$defs` (`anyComponent`, `anyFunction`).
@@ -360,7 +360,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### A2UI over MCP (`/guides/a2ui-over-mcp/`) [P1]
 
-- Port [`docs/public/guides/a2ui_over_mcp.md`](../public/guides/a2ui_over_mcp.md), referencing [`samples/community/mcp/a2ui-over-mcp-recipe/`](../../samples/community/mcp/a2ui-over-mcp-recipe/).
+- Reference [`samples/community/mcp/a2ui-over-mcp-recipe/`](../../samples/community/mcp/a2ui-over-mcp-recipe/).
 
 <a id="mcp-apps-in-a2ui-surfaces"></a>
 
@@ -372,13 +372,13 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### A2UI Dynamic Rendering within MCP Applications (`/guides/a2ui-in-mcp-apps/`) [P1]
 
-- Port [`docs/public/guides/a2ui-in-mcp-apps.md`](../public/guides/a2ui-in-mcp-apps.md), referencing [`samples/community/mcp/a2ui-in-mcpapps/`](../../samples/community/mcp/a2ui-in-mcpapps/).
+- Reference [`samples/community/mcp/a2ui-in-mcpapps/`](../../samples/community/mcp/a2ui-in-mcpapps/).
 
 <a id="authoring-universal-web-components"></a>
 
 #### Authoring Universal Web Components (`/guides/authoring-universal-components/`) [P1]
 
-- Port [`docs/public/guides/authoring-universal-components.md`](../public/guides/authoring-universal-components.md) (`A2uiLitElement` from `@a2ui/web_core/v0_9/universal` or `@a2ui/lit/v0_9`, consumed across React, Angular, and Lit via `WebComponentImplementation`).
+- Document `A2uiLitElement` from `@a2ui/web_core/v0_9/universal` or `@a2ui/lit/v0_9`, consumed across React, Angular, and Lit via `WebComponentImplementation`.
 
 <a id="sdk-development"></a>
 
@@ -407,7 +407,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 ### Community Projects (`/ecosystem/renderers/`) [P1]
 
-- Port and clean up [`docs/public/ecosystem/renderers.md`](../public/ecosystem/renderers.md):
+- **Content Outline**:
     1. **Introduction & Disclaimer**: Clarify community maintenance and link to [`/concepts/sdks/`](#sdks) for official first-party SDKs.
     2. **Unified Community Renderers Table**: Project/package name, target platform/framework, supported protocol versions (`v0.8`, `v0.9.1`, `v1.0`), maintenance status, and repo/registry links.
     3. **Agent-Side Libraries & Ecosystem Utilities**: Community server libraries, transports, and developer tools.
@@ -436,7 +436,7 @@ Single-source specification markdown files directly from `specification/` and `c
     - `v0.9.1 JSON Schemas Explorer`: `/specification/v0.9.1/schemas/`
     - `v0.9.1 A2A Extension`: [`specification/v0_9_1/docs/a2ui_extension_specification.md`](../../specification/v0_9_1/docs/a2ui_extension_specification.md)
     - `v0.9.1 Evolution Guide`: [`specification/v0_9_1/docs/evolution_guide.md`](../../specification/v0_9_1/docs/evolution_guide.md)
-    - `v0.9.1 Basic Catalog Guide`: [`specification/v0_9_1/docs/basic_catalog_implementation_guide.md`](../../specification/v0_9_1/docs/basic_catalog_implementation_guide.md)
+    - `v0.9.1 Basic Catalog Guide`: [`catalogs/basic/v0_9_1/basic_catalog_implementation_guide.md`](../../catalogs/basic/v0_9_1/basic_catalog_implementation_guide.md)
 
 ---
 
@@ -461,7 +461,7 @@ Each version's **JSON Schemas Explorer** (`/specification/<ver>/schemas/`, imple
         - _Data Model_: `client_data_model.json`
         - _Capabilities_: `server_capabilities.json`, `client_capabilities.json`
         - _Batching & Wrappers_: `server_to_client_list.json`, `client_to_server_list.json`, `server_to_client_list_wrapper.json`, `client_to_server_list_wrapper.json`
-        - _Basic Catalog Schema_: Rendered at the end of the [`v0.9.1` Basic Catalog Guide](src/content/docs/specification/v0.9.1-basic-catalog-implementation-guide.mdx) (`/specification/v0.9.1-basic-catalog-implementation-guide/#basic_catalog.json`, sourced from [`specification/v0_9_1/catalogs/basic/catalog.json`](../../specification/v0_9_1/catalogs/basic/catalog.json)).
+        - _Basic Catalog Schema_: Rendered at the end of the [`v0.9.1` Basic Catalog Guide](src/content/docs/specification/v0.9.1-basic-catalog-implementation-guide.mdx) (`/specification/v0.9.1-basic-catalog-implementation-guide/#basic_catalog.json`, sourced from [`catalogs/basic/v0_9_1/catalog.json`](../../catalogs/basic/v0_9_1/catalog.json)).
 2. **Utility Bar per Schema**:
     - Displays the canonical `$id` URI with a 1-click **Copy `$id`** button when `$id` is present (omitted on schemas without `$id`, such as v0.9.1 `client_to_server.json`), a **Raw JSON** link pointing to the exact versioned static file staged in `public/specification/<version_dir>/` by [`prepare-spec-assets.mjs`](scripts/prepare-spec-assets.mjs), and a **Jump to Definition / Copy Permalink** dropdown.
 3. **Permalink Contract Implementation**:
