@@ -3,7 +3,7 @@
 ## Unreleased
 
 - **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.10.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
-- **Breaking:** `resolveCatalogs` and `readRendererCapabilities` reject inline catalogs whose local `#...` `$ref` pointers do not resolve against the inline catalog document or the protocol version's `common_types.json`, throwing `A2uiCatalogError` naming the inline `catalogId` and `$ref` even when `acceptsInlineCatalogs` is `false`. `resolveCatalogs` also emits a `dart:developer` warning log when an accepted inline catalog is dropped because its `catalogId` is already active. Recommended migration: point each local `$ref` in an inline catalog to a definition declared in that inline catalog or in the target protocol version's `common_types.json` ([#3165](https://github.com/a2ui-project/a2ui/issues/3165)).
+- **Breaking:** `resolveCatalogs` and `readRendererCapabilities` reject inline catalogs whose local `#...` `$ref` pointers do not resolve against the inline catalog document or the protocol version's `common_types.json`, throwing `A2uiCatalogError` naming the inline `catalogId` and `$ref` even when `acceptsInlineCatalogs` is `false`. `resolveCatalogs` also emits a `dart:developer` warning log when an accepted inline catalog is dropped because its `catalogId` is already active. Recommended migration: point each local `$ref` in an inline catalog to a definition declared in that inline catalog or in the target protocol version's `common_types.json` ([#3165](https://github.com/a2ui-project/a2ui/issues/3165), [#4367](https://github.com/a2ui-project/a2ui/pull/4367)).
 
 ## 0.4.0
 
