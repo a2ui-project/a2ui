@@ -11,6 +11,9 @@
   nested inside `callRendererFunction` arguments.
   [#3774](https://github.com/a2ui-project/a2ui/issues/3774),
   [#4336](https://github.com/a2ui-project/a2ui/pull/4336)
+
+## 0.12.0
+
 - **BREAKING CHANGE**: Make `EnvironmentValues.a2uiCatalogs`,
   `EnvironmentValues.a2uiDefaultCatalogID`, and `EnvironmentValues.a2uiSurfaceMetadata` read-only
   (`public internal(set)`) in `A2UISwiftUI`, and remove `A2UICatalogsKey` and
@@ -40,6 +43,22 @@
   is handled within a user gesture so a v1.0 `callRendererFunction` may run functions that set
   `requiresUserActivation`, such as a nested call in its arguments.
   [#4311](https://github.com/a2ui-project/a2ui/pull/4311)
+- Add `MessageProcessor.addCatalog(_:)` to register a catalog after initialization.
+  `createSurface` messages, renderer function calls, and `getRendererCapabilities(options:)` see
+  the added catalog, while existing surfaces keep their original catalogs; duplicate catalog IDs
+  throw `A2UICatalogError`. [#3303](https://github.com/a2ui-project/a2ui/issues/3303),
+  [#3304](https://github.com/a2ui-project/a2ui/pull/3304)
+- Generalize direct `DataBinding` properties to `DataBinding<JSONValue>`, resolve direct
+  `FunctionCall` properties, and preserve typed resolution for inline dynamic unions in
+  `NodeResolver`. [#3809](https://github.com/a2ui-project/a2ui/issues/3809)
+- Report a two-way binding write that the data model rejects, such as writing `/name/first` while
+  `/name` is a string, as a `DATA_ERROR` to the surface's `ActionHandling` and the
+  `MessageProcessor` outbound listener instead of dropping it silently. The data model stays
+  unchanged. [#4257](https://github.com/a2ui-project/a2ui/pull/4257)
+- Draw SVG elliptical arc commands (`A` and `a`) in `SVGPathParser`, so `Icon` `svgPath` values
+  with arcs render circles and rounded shapes instead of dropping those segments. Arc flags written
+  without separators (for example `a1 1 0 011 1`) are also accepted.
+  [#4260](https://github.com/a2ui-project/a2ui/pull/4260)
 
 ## 0.11.0
 
@@ -81,9 +100,6 @@
   (or pass `catalogs: []`). Recommended migration: pass `BasicCatalogImplementation.allCatalogs`,
   use `Surface.makeWithBasicCatalogs(viewModel:)`, or pass `catalogs: []` explicitly.
   [#4024](https://github.com/a2ui-project/a2ui/pull/4024)
-- Generalize direct `DataBinding` properties to `DataBinding<JSONValue>`, resolve direct
-  `FunctionCall` properties, and preserve typed resolution for inline dynamic unions in
-  `NodeResolver`. [#3809](https://github.com/a2ui-project/a2ui/issues/3809)
 - Add `A2UICardStyle` (`.automatic`, `.elevated`, `.outlined`), `A2UIButtonStyle` (`.automatic`),
   `View.a2uiCardStyle(_:)`, `View.a2uiButtonStyle(_:)`, and
   `Surface.makeWithBasicCatalogs(viewModel:)` in `BasicCatalogSwiftUI`.
@@ -127,14 +143,6 @@
   modifier (collected through `A2UIAccessibleTextKey`). `A2UIText` reports its text without
   Markdown syntax, and custom components that render text can call the modifier too.
   [#4021](https://github.com/a2ui-project/a2ui/pull/4021)
-- Report a two-way binding write that the data model rejects, such as writing `/name/first` while
-  `/name` is a string, as a `DATA_ERROR` to the surface's `ActionHandling` and the
-  `MessageProcessor` outbound listener instead of dropping it silently. The data model stays
-  unchanged. [#4257](https://github.com/a2ui-project/a2ui/pull/4257)
-- Draw SVG elliptical arc commands (`A` and `a`) in `SVGPathParser`, so `Icon` `svgPath` values
-  with arcs render circles and rounded shapes instead of dropping those segments. Arc flags written
-  without separators (for example `a1 1 0 011 1`) are also accepted.
-  [#4260](https://github.com/a2ui-project/a2ui/pull/4260)
 
 ## 0.10.0
 

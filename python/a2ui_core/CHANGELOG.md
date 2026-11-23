@@ -1,6 +1,9 @@
 ## Unreleased
 
 - **BREAKING CHANGE**: (v1_0) `RpcHandler` evaluates nested `@call` objects and `${...}` template expressions inside `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions and unactivated `requiresUserActivation` functions with `INVALID_FUNCTION_CALL` while permitting `agentOnly` and `rendererOrAgent` functions, and checking nested `@call` objects before any sibling argument executes. Recommended migration: set `allowedCallers` to `"rendererOrAgent"` or `"agentOnly"` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774), [#4336](https://github.com/a2ui-project/a2ui/pull/4336)).
+
+## 0.7.1 (2026-11-23)
+
 - Add `MessageProcessor.add_catalog(catalog)`, which adds a catalog to a
   processor after it is built. `createSurface` messages, renderer function
   calls and `get_renderer_capabilities` see the catalog from then on; surfaces
