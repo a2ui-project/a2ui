@@ -51,8 +51,8 @@ public final class MessageProcessor: ObservableObject {
   }
 
   let rpcHandler: RPCHandler
-  private let registeredCatalogs: [AnyCatalog]
-  private let catalogs: [String: AnyCatalog]
+  private var registeredCatalogs: [AnyCatalog]
+  private var catalogs: [String: AnyCatalog]
   private weak var actionHandler: (any ActionHandling)?
   private let actionForwarder = ProcessorActionForwarder()
   private let errorMapper = MessageErrorMapper()
@@ -108,6 +108,23 @@ public final class MessageProcessor: ObservableObject {
     validationConfig: ValidationConfig = .relaxed
   ) {
     self.init(catalogs: [catalog], actionHandler: actionHandler, validationConfig: validationConfig)
+  }
+
+  /// Adds a catalog to the ones this processor holds.
+  ///
+  /// `createSurface` messages, renderer function calls and `getRendererCapabilities(options:)`
+  /// see the catalog from this call on. Surfaces created before the call keep the catalogs they
+  /// were created with.
+  ///
+  /// - Parameter catalog: The catalog to add.
+  /// - Throws: `A2UICatalogError` if the processor already holds a catalog with the same ID.
+  public func addCatalog(_ catalog: any CatalogProtocol) throws {
+    let anyCatalog = catalog.eraseToAnyCatalog()
+    guard catalogs[anyCatalog.id] == nil else {
+      throw A2UICatalogError("Catalog already registered: \(anyCatalog.id)")
+    }
+    registeredCatalogs.append(anyCatalog)
+    catalogs[anyCatalog.id] = anyCatalog
   }
 
   /// Returns the aggregated data model for active surfaces with `sendDataModel` enabled.
@@ -298,6 +315,10 @@ public final class MessageProcessor: ObservableObject {
       catalogDictionary["protocolVersion"] = .string(semver)
     }
     catalogDictionary["catalogId"] = .string(catalog.id)
+    // Only v1.0 `catalog_definition.json` defines `instructions`.
+    if version.isAtLeastV10, let instructions = catalog.instructions {
+      catalogDictionary["instructions"] = .string(instructions)
+    }
     if !componentsDictionary.isEmpty {
       catalogDictionary["components"] = .object(componentsDictionary)
     }
@@ -551,11 +572,17 @@ public final class MessageProcessor: ObservableObject {
   ///
   /// Any validation or lifecycle errors are mapped via `MessageErrorMapper`
   /// and reported to `ActionHandling`.
-  public func process(message: AgentToRendererMessage) {
+  ///
+  /// - Parameters:
+  ///   - message: The message to process.
+  ///   - isUserActivated: Whether the message is handled within a user gesture. Only when this
+  ///     is `true` may a v1.0 `callRendererFunction` run functions that set
+  ///     `requiresUserActivation`, such as a nested call in its arguments.
+  public func process(message: AgentToRendererMessage, isUserActivated: Bool = false) {
     do {
       let operations = try adaptToOperations(message)
       for operation in operations {
-        try processOperation(operation)
+        try processOperation(operation, isUserActivated: isUserActivated)
       }
     } catch {
       let surfaceID = extractSurfaceID(from: error, fallback: message.surfaceID ?? "")
@@ -583,9 +610,14 @@ public final class MessageProcessor: ObservableObject {
   ///
   /// Any validation or lifecycle errors are mapped via `MessageErrorMapper`
   /// and reported to `ActionHandling`.
-  public func process(messages: [AgentToRendererMessage]) {
+  ///
+  /// - Parameters:
+  ///   - messages: The messages to process.
+  ///   - isUserActivated: Whether the messages are handled within a user gesture, as for
+  ///     ``process(message:isUserActivated:)``.
+  public func process(messages: [AgentToRendererMessage], isUserActivated: Bool = false) {
     for message in messages {
-      process(message: message)
+      process(message: message, isUserActivated: isUserActivated)
     }
   }
 
@@ -626,15 +658,25 @@ public final class MessageProcessor: ObservableObject {
   /// Resolves a version adapter from a raw JSON payload, normalizes it into
   /// ``InternalOperation`` values, and executes them, forwarding any errors to
   /// `ActionHandling` and `outboundListener`.
-  public func process(payload: JSONValue) {
-    try? processMessages(payload)
+  ///
+  /// - Parameters:
+  ///   - payload: The raw JSON payload: a single message or an array of messages.
+  ///   - isUserActivated: Whether the payload is handled within a user gesture, as for
+  ///     ``process(message:isUserActivated:)``.
+  public func process(payload: JSONValue, isUserActivated: Bool = false) {
+    try? processMessages(payload, isUserActivated: isUserActivated)
   }
 
   /// Resolves a version adapter from a raw JSON payload, normalizes it into
   /// ``InternalOperation`` values, and executes them, forwarding any mapped
   /// `RendererError` to `ActionHandling` and `outboundListener` before throwing
   /// the underlying validation, integrity, recursion, or catalog error.
-  public func processMessages(_ payload: JSONValue) throws {
+  ///
+  /// - Parameters:
+  ///   - payload: The raw JSON payload: a single message or an array of messages.
+  ///   - isUserActivated: Whether the payload is handled within a user gesture, as for
+  ///     ``process(message:isUserActivated:)``.
+  public func processMessages(_ payload: JSONValue, isUserActivated: Bool = false) throws {
     let operations: [InternalOperation]
     let envelopeVersion: A2UIProtocolVersion
     do {
@@ -661,7 +703,7 @@ public final class MessageProcessor: ObservableObject {
 
     for operation in operations {
       do {
-        try processOperation(operation)
+        try processOperation(operation, isUserActivated: isUserActivated)
       } catch {
         let surfaceID = extractSurfaceID(from: error, fallback: operation.surfaceID ?? "")
         let version = resolveVersion(
@@ -843,7 +885,10 @@ public final class MessageProcessor: ObservableObject {
 
   // MARK: - Version-Neutral Operation Execution
 
-  private func processOperation(_ operation: InternalOperation) throws {
+  private func processOperation(
+    _ operation: InternalOperation,
+    isUserActivated: Bool = false
+  ) throws {
     switch operation {
     case .createSurface(let op):
       try processCreateSurfaceOp(op)
@@ -854,7 +899,7 @@ public final class MessageProcessor: ObservableObject {
     case .deleteSurface(let op):
       try processDeleteSurfaceOp(op)
     case .callRendererFunction(let op):
-      try processCallRendererFunctionOp(op)
+      try processCallRendererFunctionOp(op, isUserActivated: isUserActivated)
     case .agentFunctionResponse(let op):
       try processAgentFunctionResponseOp(op)
     }
@@ -963,7 +1008,10 @@ public final class MessageProcessor: ObservableObject {
     }
   }
 
-  private func processCallRendererFunctionOp(_ op: InternalCallRendererFunctionOp) throws {
+  private func processCallRendererFunctionOp(
+    _ op: InternalCallRendererFunctionOp,
+    isUserActivated: Bool
+  ) throws {
     let msg = CallRendererFunctionMessage(
       surfaceID: op.surfaceID,
       functionCallID: op.functionCallID,
@@ -974,7 +1022,7 @@ public final class MessageProcessor: ObservableObject {
       ),
       version: op.version
     )
-    let userActivated = op.isUserActivated
+    let userActivated = isUserActivated || op.isUserActivated
     let (dataContext, defaultCatalogID) = resolveRPCDataContext(surfaceID: op.surfaceID)
     let callID = op.functionCallID
     activeRPCTasks[callID]?.cancel()

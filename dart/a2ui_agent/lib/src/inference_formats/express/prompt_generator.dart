@@ -25,8 +25,8 @@ import 'schema_helper.dart';
 /// Renders the system prompt snippet teaching a model to write Express for
 /// [catalogs].
 class ExpressPromptGenerator extends PromptGenerator {
-  /// The first of [catalogs] is the default for a surface that does not name
-  /// its catalog.
+  /// A lone catalog in [catalogs] is the catalog of every surface; with several
+  /// v1.0 catalogs, a surface has no catalog of its own.
   const ExpressPromptGenerator(
     this.catalogs, {
     this.examples = const [],
@@ -57,10 +57,11 @@ class ExpressPromptGenerator extends PromptGenerator {
   /// tells the model how a component or function call names its catalog.
   ///
   /// Throws [A2uiCatalogError] if [catalogs] is empty, since there would be
-  /// nothing the model could be told to write, or target different protocol
-  /// versions, [ArgumentError] if [allowedMessages] names a message type the
-  /// catalogs' version does not have, and [A2uiValidationError] if an example
-  /// has no Express notation; see [ExpressDecompiler.decompile].
+  /// nothing the model could be told to write, they target different protocol
+  /// versions, or several catalogs target a version before v1.0,
+  /// [ArgumentError] if [allowedMessages] names a message type the catalogs'
+  /// version does not have, and [A2uiValidationError] if an example has no
+  /// Express notation; see [ExpressDecompiler.decompile].
   @override
   String generate() {
     if (catalogs.isEmpty) {
@@ -98,7 +99,7 @@ class ExpressPromptGenerator extends PromptGenerator {
         ..write('\n\n')
         ..write(section(catalogs.single, '##'));
     } else {
-      buffer.write(v1 ? _catalogsV1(catalogs) : _catalogsV0_9(catalogs));
+      buffer.write(_catalogsV1(catalogs));
       if (systemFunctions.isNotEmpty) buffer.write('\n\n$systemFunctions');
       for (final CatalogApi catalog in catalogs) {
         buffer
@@ -118,15 +119,6 @@ class ExpressPromptGenerator extends PromptGenerator {
     return buffer.toString();
   }
 }
-
-/// Before v1.0 a surface uses one catalog, which its `surface(...)` line
-/// names unless it is the first.
-String _catalogsV0_9(List<CatalogApi> catalogs) =>
-    '\n\n## Catalogs\n\n'
-    'Components and functions come from the catalogs below. A surface '
-    'uses one catalog. The first catalog, `${catalogs.first.id}`, is the '
-    'default. To build a surface from another catalog, name it in the '
-    'surface line, e.g. surface("my-surface", "${catalogs.last.id}").';
 
 /// From v1.0 a surface names no catalog, and each component and function
 /// call belongs to the catalog declaring its name, which the model names
@@ -721,8 +713,7 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 
 ## Grammar Rules''';
 
-const String _componentsRule =
-    '''Component constructors can be assigned to variables or nested inline inside parent component arguments:
+const String _componentsRule = '''Component constructors can be assigned to variables or nested inline inside parent component arguments:
 header = ComponentA(prop1="val1")
 root = ComponentB([header, ComponentC("Click", action=Event("submit"))])
 
@@ -770,8 +761,7 @@ const String _actionEventsRuleV0_9 =
     r'''Action events: represent server-side actions using the Event helper:
 Event("save_deal", {rep: $/form/rep})''';
 
-const String _actionEventsRuleV1 =
-    r'''Action events: represent server-side actions using the Event helper, `Event(name, context?, userMessage=...)`:
+const String _actionEventsRuleV1 = r'''Action events: represent server-side actions using the Event helper, `Event(name, context?, userMessage=...)`:
 Event("save_deal", {rep: $/form/rep})
 Event("reply", userMessage="Replying now")
 Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)
@@ -784,14 +774,12 @@ const String _nestedFunctionsRule =
 const String _dataModelRule =
     r'Data model population: Assign a value directly to an absolute data path (e.g. $/path/to/key = "value") to populate or initialize values inside the shared dataModel. The value can be a primitive, array, or map.';
 
-const String _templateRule =
-    r'''Dynamic list templates: If a component expects a template child list, represent it using the _template helper:
+const String _templateRule = r'''Dynamic list templates: If a component expects a template child list, represent it using the _template helper:
 _template($/path/to/list, itemTemplate)
 And define the template component variable on another line, utilizing relative path references prefixed with $:
 itemTemplate = Image($url)''';
 
-const String _deleteSurfaceRule =
-    '''To delete a user interface surface, output the standalone `deleteSurface(surfaceId)` command (no variable assignment):
+const String _deleteSurfaceRule = '''To delete a user interface surface, output the standalone `deleteSurface(surfaceId)` command (no variable assignment):
 deleteSurface("dashboard-surface-1")''';
 
 String _rendererCallRule(List<String> callable) =>
@@ -807,6 +795,5 @@ const List<String> _argumentRules = [
   '''Required actions: Parameters named 'action' (or annotated in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.''',
 ];
 
-const String _surfaceRule =
-    '''Surface targeting: Output `surface(surfaceId)` to specify or target a user interface surface:
+const String _surfaceRule = '''Surface targeting: Output `surface(surfaceId)` to specify or target a user interface surface:
 surface("dashboard-surface-1")''';

@@ -427,7 +427,8 @@ def _load_catalog_paths_spec(
         with open(full_p, "r", encoding="utf-8") as f:
             c_json = json.load(f)
         c_id = c_json.get("catalogId") or c_json.get("id") or "test-catalog"
-        if c_id in basic_ids or "basic/catalog.json" in p:
+        norm_p = p.replace("\\", "/")
+        if c_id in basic_ids or "basic/catalog.json" in norm_p or "basic/v" in norm_p:
             matching_basic = _basic_catalog_for_version(p_ver)
             specified_catalogs.append(matching_basic)
             catalogs_map[c_id] = matching_basic
@@ -510,16 +511,28 @@ def _base_catalogs_map(version: str) -> dict[str, Any]:
     return catalogs_map
 
 
+def _load_step_catalogs(step: dict[str, Any]) -> list[Any]:
+    """Loads the catalogs a process_messages step adds with add_catalog."""
+    return [_load_catalog_path(p) for p in step.get("addCatalogPaths") or []]
+
+
 def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
     version = resolve_protocol_version(case) or "v0.9"
     cur_basic = _basic_catalog_for_version(version)
     catalogs_map = _base_catalogs_map(version)
+    # A catalog a step adds is missing until that step runs, so nothing stands
+    # in for it.
+    step_catalog_ids = {
+        c.catalog_id
+        for step in case.get("steps") or []
+        for c in _load_step_catalogs(step)
+    }
 
     def add_catalog_id(cat_id: str, ver: str | None = None) -> None:
         has_exact_id = any(
             getattr(c, "catalog_id", None) == cat_id for c in catalogs_map.values()
         )
-        if not cat_id or has_exact_id:
+        if not cat_id or cat_id in step_catalog_ids or has_exact_id:
             return
         catalogs_map[cat_id] = Catalog(
             catalog_id=cat_id,
@@ -1367,7 +1380,9 @@ def _step_messages(step: dict[str, Any], idx: int) -> Any:
     messages = step.get("messages") or step.get("payload")
     if not messages and "message" in step:
         messages = [step["message"]]
-    assert messages, f"Step {idx} has no messages or payload"
+    assert (
+        messages or "addCatalogPaths" in step
+    ), f"Step {idx} has no messages or payload"
     return messages
 
 
@@ -1449,6 +1464,7 @@ _PROCESS_MESSAGES_CASE_KEYS: frozenset[str] = _CASE_METADATA_KEYS | frozenset({
     "validationConfig",
 })
 _PROCESS_MESSAGES_STEP_KEYS: frozenset[str] = frozenset({
+    "addCatalogPaths",
     "expect",
     "expectError",
     "message",
@@ -1477,13 +1493,20 @@ def _run_process_messages_step(
     expect_error: Any,
     expected: dict[str, Any],
     captured_renderer_errors: list[dict[str, Any]],
+    added_catalogs: list[Any] | None = None,
 ) -> None:
+    def run_step() -> None:
+        for catalog in added_catalogs or []:
+            processor.add_catalog(catalog)
+        if messages:
+            processor.process_messages(messages)
+
     if expect_error:
         captured_renderer_errors.clear()
         with assert_raises(expect_error, captured_renderer_errors):
-            processor.process_messages(messages)
+            run_step()
     else:
-        processor.process_messages(messages)
+        run_step()
         _assert_expected_surface_state(processor, expected)
 
 
@@ -1526,6 +1549,7 @@ def validate_process_messages_case(case: dict[str, Any]) -> None:
             expect_error,
             expected,
             captured_renderer_errors,
+            added_catalogs=_load_step_catalogs(step),
         )
 
 

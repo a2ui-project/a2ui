@@ -55,9 +55,15 @@ typedef _SurfaceCatalog = ({bool known, String? catalogId});
 /// its `returnType`, is written as the map literal that compiles to it. What
 /// no Express block can compile to is an error; see [decompile].
 class ExpressDecompiler {
-  /// The first of [catalogs] is the default for a surface that does not name
-  /// its catalog.
-  ExpressDecompiler(this.catalogs);
+  /// A lone catalog in [catalogs] is the catalog of every surface; with several
+  /// v1.0 catalogs, a surface has no catalog of its own.
+  ///
+  /// Throws [A2uiCatalogError] if two of [catalogs] share an id, if they
+  /// target different protocol versions, or if several target a version before
+  /// v1.0.
+  ExpressDecompiler(this.catalogs) {
+    checkMixedCatalogs(catalogs);
+  }
 
   final List<CatalogApi> catalogs;
 
@@ -82,9 +88,8 @@ class ExpressDecompiler {
   /// `callRendererFunction` is written as the function call it makes, as a
   /// statement of its own.
   ///
-  /// Throws [A2uiCatalogError] if there are no [catalogs] or they target
-  /// different versions, and [A2uiValidationError] if a message has no
-  /// Express notation:
+  /// Throws [A2uiCatalogError] if there are no [catalogs],
+  /// and [A2uiValidationError] if a message has no Express notation:
   ///
   /// - a `createSurface` with a theme, with `sendDataModel`, with metadata,
   ///   or without the components that give the surface its root;
@@ -611,10 +616,12 @@ class _Component {
         final Iterable<String> ids = value.cast<String>().map(_reference);
         return '[${ids.join(', ')}]';
       }
-      if (value case {
-        'componentId': final String componentId,
-        'path': final String path,
-      } when value.length == 2 && variables.containsKey(componentId)) {
+      if (value
+          case {
+            'componentId': final String componentId,
+            'path': final String path,
+          }
+          when value.length == 2 && variables.containsKey(componentId)) {
         if (_path(path) case final String written) {
           return '_template($written, ${variables[componentId]!})';
         }
@@ -788,20 +795,21 @@ class _Component {
   }
 
   String _check(Object? rule) {
-    if (rule case {
-      'condition': final Map<Object?, Object?> condition,
-      'message': final String message,
-    } when rule.length == 2) {
+    if (rule
+        case {
+          'condition': final Map<Object?, Object?> condition,
+          'message': final String message,
+        }
+        when rule.length == 2) {
       final Object? name = condition[_callKey];
       final Object? args = condition['args'];
       final bool written = condition.keys.every(
         (k) => k == _callKey || k == 'args' || (_v1 && k == 'catalogId'),
       );
       if (name is String && args is Map && written) {
-        if (_function(name, condition['catalogId']) case (
-          final CatalogSchemaHelper helper,
-          final String? catalogId,
-        ) when args.keys.every(helper.parameters(name).contains)) {
+        if (_function(name, condition['catalogId'])
+            case (final CatalogSchemaHelper helper, final String? catalogId)
+            when args.keys.every(helper.parameters(name).contains)) {
           return _checkCall(name, helper, args, message, catalogId);
         }
       }

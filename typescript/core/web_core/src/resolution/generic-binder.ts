@@ -162,7 +162,7 @@ function resolveChildRefOptions(
 }
 
 function augmentRootObjectShape(
-  schema: z.ZodTypeAny,
+  schema: z.ZodTypeAny | undefined,
   baseShape: Record<string, BehaviorNode>,
   options?: ChildRefAnalysisOptions,
 ): Record<string, BehaviorNode> {
@@ -214,9 +214,12 @@ const AT_CHECKS = '@checks';
  * @returns Root BehaviorNode describing schema properties.
  */
 export function scrapeSchemaBehavior(
-  schema: z.ZodTypeAny,
+  schema: z.ZodTypeAny | undefined,
   options?: ChildRefAnalysisOptions,
 ): BehaviorNode {
+  if (!schema) {
+    return {type: 'STATIC'};
+  }
   const cache = getOptionsBehaviorCache(behaviorCache, options);
   const cached = cache.get(schema);
   if (cached) {
@@ -241,9 +244,12 @@ export function scrapeSchemaBehavior(
  * and `accessibility` behaviors attached.
  */
 export function scrapeComponentBehavior(
-  schema: z.ZodTypeAny,
+  schema: z.ZodTypeAny | undefined,
   options?: ChildRefAnalysisOptions,
 ): BehaviorNode {
+  if (!schema) {
+    return makeObjectBehavior(augmentRootObjectShape(undefined, {}, options));
+  }
   const cache = getOptionsBehaviorCache(componentBehaviorCache, options);
   const cached = cache.get(schema);
   if (cached) {
@@ -895,7 +901,7 @@ function scrapeObjectShape(
  * @returns Behavior node representing runtime handling for the schema.
  */
 function getFieldBehavior(
-  type: z.ZodTypeAny,
+  type: z.ZodTypeAny | undefined,
   visited = new Set<z.ZodTypeAny>(),
   options?: ChildRefAnalysisOptions,
   inArray = false,
@@ -1321,10 +1327,10 @@ export class GenericBinder<T> {
   private connect() {
     if (this.isConnected) return;
     this.isConnected = true;
-    const sub = this.context.componentModel.onUpdated.subscribe(() => {
+    const sub = this.context.componentModel.onUpdated?.subscribe(() => {
       this.rebuildAllBindings();
     });
-    this.compUnsub = () => sub.unsubscribe();
+    this.compUnsub = sub ? () => sub.unsubscribe() : undefined;
     this.rebuildAllBindings();
   }
 
@@ -1462,12 +1468,7 @@ export class GenericBinder<T> {
     }
 
     const templateObj = value as Record<string, unknown>;
-    const templatePath =
-      typeof templateObj.path === 'string'
-        ? templateObj.path
-        : typeof templateObj['@path'] === 'string'
-          ? templateObj['@path']
-          : undefined;
+    const templatePath = typeof templateObj.path === 'string' ? templateObj.path : undefined;
     const templateComponentId =
       typeof templateObj.componentId === 'string' ? templateObj.componentId : undefined;
 
@@ -1475,11 +1476,7 @@ export class GenericBinder<T> {
       return value;
     }
 
-    const atLeastV10 = isAtLeastVersion(
-      this.context.dataContext.surface?.protocolVersion ??
-        this.context.dataContext.surface?.defaultCatalog?.protocolVersion,
-      '1.0',
-    );
+    const atLeastV10 = this.context.dataContext.atLeastV10;
     const binding = atLeastV10 ? {'@path': templatePath} : {path: templatePath};
     const bound = this.context.dataContext.subscribeDynamicValue(binding, newVal => {
       const resolvedChildren = this.mapTemplateChildren(newVal, templateComponentId, templatePath);

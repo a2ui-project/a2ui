@@ -383,9 +383,8 @@ Map<String, Map<String, Object?>> systemFunctionSchemas(
   if (commonTypes[r'$defs'] case final Map<Object?, Object?> defs)
     for (final Object? schema in defs.values)
       if (schema is Map)
-        if (_properties(schema.cast<String, Object?>())['@call'] case {
-          'const': final String name,
-        } when name.startsWith('@'))
+        if (_properties(schema.cast<String, Object?>())['@call']
+            case {'const': final String name} when name.startsWith('@'))
           name: schema.cast<String, Object?>(),
 };
 

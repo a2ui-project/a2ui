@@ -28,14 +28,30 @@ import 'package:test/test.dart';
 void main() {
   final CatalogApi basic = Catalog.fromJson(
     jsonDecode(
-          File(
-            '../../specification/v0_9/catalogs/basic/catalog.json',
-          ).readAsStringSync(),
-        )
-        as Map<String, Object?>,
+      File('../../catalogs/basic/v0_9/catalog.json').readAsStringSync(),
+    ) as Map<String, Object?>,
   );
   final CatalogApi custom = Catalog.fromJson({
     'catalogId': 'https://example.com/custom.json',
+    'components': {
+      'Gauge': {
+        'type': 'object',
+        'properties': {
+          'component': {'const': 'Gauge'},
+          'value': {'type': 'number'},
+        },
+        'required': ['component', 'value'],
+      },
+    },
+  });
+  final CatalogApi v1Basic = Catalog.fromJson(
+    jsonDecode(File('../../catalogs/basic/v1/catalog.json').readAsStringSync())
+        as Map<String, Object?>,
+    protocolVersion: A2uiProtocolVersion.v1_0,
+  );
+  final CatalogApi v1Custom = Catalog.fromJson({
+    'catalogId': 'https://example.com/custom.json',
+    'protocolVersion': '1.0',
     'components': {
       'Gauge': {
         'type': 'object',
@@ -422,10 +438,8 @@ root = Text($/user/name)
     group('number literals', () {
       /// The `value` of a `Gauge` written with [literal].
       Object? gauge(String literal) {
-        final List<ResponsePart>
-        parts = processor([basic, custom]).parseResponse(
-          '<a2ui>surface("g", "${custom.id}"); root = Gauge($literal)</a2ui>',
-        );
+        final List<ResponsePart> parts = processor([custom])
+            .parseResponse('<a2ui>surface("g"); root = Gauge($literal)</a2ui>');
         final AgentToRendererMessage last =
             (parts.single as A2uiPart).a2ui.last;
         return (last as UpdateComponentsMessage).components.single['value'];
@@ -489,26 +503,14 @@ surface("s1")
       expect((parts[4] as A2uiPart).a2ui.single, isA<DeleteSurfaceMessage>());
     });
 
-    test('with a surface built from another catalog', () {
-      final List<ResponsePart> parts = processor([basic, custom]).parseResponse(
-        '<a2ui>surface("g", "${custom.id}"); root = Gauge(0.5)</a2ui>',
+    test('rejects several v0.9 catalogs', () {
+      expect(
+        () => processor([basic, custom]),
+        throwsA(isA<A2uiCatalogError>()),
       );
-      final List<AgentToRendererMessage> messages =
-          (parts.single as A2uiPart).a2ui;
-      expect((messages.first as CreateSurfaceMessage).catalogId, custom.id);
-      expect((messages.last as UpdateComponentsMessage).components, [
-        {'id': 'root', 'component': 'Gauge', 'value': 0.5},
-      ]);
     });
 
     test('v1.0 surface and component extensions kwargs', () {
-      final CatalogApi v1Basic = Catalog.fromJson(
-        jsonDecode(
-              File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
-            )
-            as Map<String, Object?>,
-        protocolVersion: A2uiProtocolVersion.v1_0,
-      );
       final List<AgentToRendererMessage> compiled = ExpressCompiler([v1Basic])
           .compile(
             'surface("s", extensions={surf_ext: {version: 1}})\n'
@@ -538,21 +540,21 @@ surface("s1")
         },
       });
       expect(
-        () => ExpressCompiler([
-          v1Basic,
-        ]).compile('root = Text("Hello", extensions={"bad-key": true})'),
+        () =>
+            ExpressCompiler([v1Basic])
+                .compile('root = Text("Hello", extensions={"bad-key": true})'),
         throwsError<A2uiValidationError>(),
       );
       expect(
-        () => ExpressCompiler([
-          basic,
-        ]).compile('root = Text("Hello", extensions={comp_ext: true})'),
+        () =>
+            ExpressCompiler([basic])
+                .compile('root = Text("Hello", extensions={comp_ext: true})'),
         throwsError<A2uiValidationError>(),
       );
       expect(
-        () => ExpressCompiler([
-          v1Basic,
-        ]).compile('root = Text("Hello", extensions=[1, 2])'),
+        () =>
+            ExpressCompiler([v1Basic])
+                .compile('root = Text("Hello", extensions=[1, 2])'),
         throwsError<A2uiValidationError>(),
       );
       final List<AgentToRendererMessage> viaVar = ExpressCompiler([v1Basic])
@@ -725,9 +727,11 @@ surface("s1")
     });
 
     test('describes only the statements of the allowed messages', () {
-      String snippet(List<String> allowed) => ExpressFormatFactory(
-        allowedMessages: allowed,
-      ).createFormat([basic]).promptGenerator.generate();
+      String snippet(List<String> allowed) =>
+          ExpressFormatFactory(allowedMessages: allowed)
+              .createFormat([basic])
+              .promptGenerator
+              .generate();
 
       final String data = snippet(['updateDataModel']);
       expect(data, contains(r'$/path/to/key = "value"'));
@@ -748,17 +752,19 @@ surface("s1")
 
     test('rejects an allowed message v0.9 does not have', () {
       expect(
-        () => const ExpressFormatFactory(
-          allowedMessages: ['callFunction'],
-        ).createFormat([basic]).promptGenerator.generate(),
+        () =>
+            const ExpressFormatFactory(allowedMessages: ['callFunction'])
+                .createFormat([basic])
+                .promptGenerator
+                .generate(),
         throwsA(isA<ArgumentError>()),
       );
     });
 
     test('names each catalog when there are several', () {
-      final String snippet = processor([basic, custom]).promptSnippet;
-      expect(snippet, contains('## Catalog `${basic.id}`'));
-      expect(snippet, contains('## Catalog `${custom.id}`'));
+      final String snippet = processor([v1Basic, v1Custom]).promptSnippet;
+      expect(snippet, contains('## Catalog `${v1Basic.id}`'));
+      expect(snippet, contains('## Catalog `${v1Custom.id}`'));
       expect(snippet, contains('• Gauge(value (static))'));
     });
 
@@ -1362,9 +1368,8 @@ surface("s1")
     });
 
     test('compiles and decompiles a block', () {
-      final List<AgentToRendererMessage> messages = ExpressCompiler([
-        basic,
-      ]).compile('root = Text("Hello")');
+      final List<AgentToRendererMessage> messages = ExpressCompiler([basic])
+          .compile('root = Text("Hello")');
       final String block = ExpressDecompiler([basic]).decompile(messages);
       expect(
         ExpressParser([basic]).compile(block).map((m) => m.toJson()),
@@ -1547,9 +1552,8 @@ surface("s1")
 
     /// The action of the `root` Button [block] compiles to.
     Object? action(String block) {
-      final List<AgentToRendererMessage> messages = ExpressCompiler([
-        v1,
-      ]).compile('$block\nlabel = Text("Go")');
+      final List<AgentToRendererMessage> messages = ExpressCompiler([v1])
+          .compile('$block\nlabel = Text("Go")');
       final components =
           (messages.single.toJson()['createSurface']! as Map)['components']!
               as List;
@@ -1714,9 +1718,8 @@ surface("s1")
 
     /// The items of the `root` Links [block] compiles to.
     Object? items(String block) {
-      final List<AgentToRendererMessage> messages = ExpressCompiler([
-        links,
-      ]).compile(block);
+      final List<AgentToRendererMessage> messages = ExpressCompiler([links])
+          .compile(block);
       final components =
           (messages.single.toJson()['createSurface']! as Map)['components']!
               as List;
@@ -1763,9 +1766,8 @@ surface("s1")
 
     /// The `root` component [block] compiles to, against [catalog].
     Map<String, Object?> rootOf(CatalogApi catalog, String block) {
-      final List<AgentToRendererMessage> messages = ExpressCompiler([
-        catalog,
-      ]).compile(block);
+      final List<AgentToRendererMessage> messages = ExpressCompiler([catalog])
+          .compile(block);
       final components =
           (messages.single.toJson()['createSurface']! as Map)['components']!
               as List;

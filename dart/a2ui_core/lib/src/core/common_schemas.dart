@@ -21,9 +21,9 @@ const String _commonTypesUri = 'common_types.json#/\$defs';
 /// `Catalog.refMap` and the prompt generators which shared type a property
 /// uses.
 Schema _withRef(Schema schema, String name) => Schema.fromMap(<String, Object?>{
-      ...schema.value,
-      'commonTypesRef': '$_commonTypesUri/$name',
-    });
+  ...schema.value,
+  'commonTypesRef': '$_commonTypesUri/$name',
+});
 
 /// Dart builders for the v0.9 `common_types.json` definitions.
 ///
@@ -95,9 +95,7 @@ class CommonSchemas {
   );
 
   static final Schema componentId = _withRef(
-    Schema.string(
-      description: 'The unique identifier for a component.',
-    ),
+    Schema.string(description: 'The unique identifier for a component.'),
     'ComponentId',
   );
 
@@ -148,7 +146,7 @@ class CommonSchemas {
           items: Schema.object(
             properties: {
               'condition': dynamicBoolean,
-              'message': Schema.string()
+              'message': Schema.string(),
             },
             required: ['condition', 'message'],
           ),
@@ -169,7 +167,11 @@ class CommonSchemas {
   static final Schema dynamicStringList = _withRef(
     Schema.combined(
       description: 'A list of strings',
-      anyOf: [Schema.list(items: Schema.string()), dataBinding, functionCall],
+      anyOf: [
+        Schema.list(items: Schema.string()),
+        dataBinding,
+        functionCall,
+      ],
     ),
     'DynamicStringList',
   );
@@ -207,10 +209,7 @@ class CommonSchemas {
 
   static final Schema componentCommon = _withRef(
     Schema.object(
-      properties: {
-        'id': componentId,
-        'accessibility': accessibilityAttributes,
-      },
+      properties: {'id': componentId, 'accessibility': accessibilityAttributes},
       required: ['id'],
     ),
     'ComponentCommon',
@@ -243,14 +242,16 @@ class CommonSchemasV1 {
     Schema.object(
       description: 'Invokes a named function.',
       properties: {
-        '@call':
-            Schema.string(description: 'The name of the function to call.'),
+        '@call': Schema.string(
+          description: 'The name of the function to call.',
+        ),
         'args': Schema.object(
           description: 'Arguments passed to the function.',
           additionalProperties: true,
         ),
         'catalogId': Schema.string(
-          description: 'The catalog ID for this function, overriding any '
+          description:
+              'The catalog ID for this function, overriding any '
               'surface-level default catalogId.',
         ),
       },
@@ -286,7 +287,11 @@ class CommonSchemasV1 {
   static final Schema dynamicStringList = _withRef(
     Schema.combined(
       description: 'A list of strings',
-      oneOf: [Schema.list(items: Schema.string()), dataBinding, functionCall],
+      oneOf: [
+        Schema.list(items: Schema.string()),
+        dataBinding,
+        functionCall,
+      ],
     ),
     'DynamicStringList',
   );
