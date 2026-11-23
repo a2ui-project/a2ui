@@ -17,7 +17,7 @@ import concurrent.futures
 import inspect
 import logging
 import uuid
-from collections.abc import Awaitable, Callable, Iterable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, TypeVar, Union, cast
 
@@ -458,30 +458,54 @@ class RpcHandler:
 
     def _check_nested_argument_permissions(
         self,
-        value: Any,
+        args: Any,
         context: DataContext | None,
         active_catalog: Any,
         is_user_activated: bool,
-    ) -> str | None:
-        stack: list[tuple[Any, int]] = [(value, 0)]
+    ) -> tuple[RpcErrorCode, str] | None:
+        if not isinstance(args, dict):
+            return None
+        stack: list[tuple[Any, int]] = [
+            (child, 1) for child in reversed(list(args.values()))
+        ]
         while stack:
             current, depth = stack.pop()
-            if depth > 1000 or not isinstance(current, (dict, list)):
-                continue
-            children: Iterable[Any]
-            if isinstance(current, dict):
-                err = self._check_nested_call_record(
-                    current, context, active_catalog, is_user_activated
+            if depth > 1000:
+                return (
+                    RpcErrorCode.EXECUTION_ERROR,
+                    "Maximum dynamic value nesting depth exceeded (1000).",
                 )
-                if err is not None:
-                    return err
-                children = current.values()
-            else:
-                children = current
-            children_list = list(children)
-            for child in reversed(children_list):
+            err, children = self._inspect_nested_node(
+                current, context, active_catalog, is_user_activated
+            )
+            if err is not None:
+                return (RpcErrorCode.INVALID_FUNCTION_CALL, err)
+            for child in reversed(children):
                 stack.append((child, depth + 1))
         return None
+
+    def _inspect_nested_node(
+        self,
+        current: Any,
+        context: DataContext | None,
+        active_catalog: Any,
+        is_user_activated: bool,
+    ) -> tuple[str | None, list[Any]]:
+        if isinstance(current, list):
+            return (None, current)
+        if not isinstance(current, dict):
+            return (None, [])
+        if isinstance(current.get("@call"), str):
+            err = self._check_nested_call_record(
+                current, context, active_catalog, is_user_activated
+            )
+            if err is not None:
+                return (err, [])
+            raw_args = current.get("args")
+            if isinstance(raw_args, dict):
+                return (None, list(raw_args.values()))
+            return (None, [raw_args] if raw_args is not None else [])
+        return (None, list(current.values()))
 
     def _check_nested_call_record(
         self,
@@ -521,10 +545,11 @@ class RpcHandler:
             args, context, matched_catalog, is_user_activated
         )
         if nested_access_err is not None:
+            err_code, err_msg = nested_access_err
             err_resp = self._create_response_error(
                 call_id,
-                RpcErrorCode.INVALID_FUNCTION_CALL,
-                nested_access_err,
+                err_code,
+                err_msg,
                 version=version,
             )
             self._emit_outbound_response(

@@ -407,45 +407,60 @@ class RpcHandler {
   }
 
   void _checkNestedArgumentPermissions(
-    Object? value,
+    Map<String, dynamic> rawArgs,
     SurfaceModel<ComponentApi>? surface,
     Catalog<ComponentApi, FunctionImplementation> activeCatalog,
-    ExecutionContext execution, [
-    int depth = 0,
-  ]) {
-    if (depth > maxDynamicValueDepth) return;
-    if (value is List) {
-      for (final Object? item in value) {
-        _checkNestedArgumentPermissions(
-          item,
-          surface,
-          activeCatalog,
-          execution,
-          depth + 1,
+    ExecutionContext execution,
+  ) {
+    final stack = <({Object? value, int depth})>[
+      for (final Object? child in rawArgs.values.toList().reversed)
+        (value: child, depth: 0),
+    ];
+    while (stack.isNotEmpty) {
+      final ({Object? value, int depth}) entry = stack.removeLast();
+      if (entry.depth > maxDynamicValueDepth) {
+        throw A2uiRpcError(
+          'Maximum dynamic value nesting depth exceeded '
+          '($maxDynamicValueDepth).',
+          RpcErrorCode.executionError,
         );
       }
-      return;
-    }
-    if (value is! Map) return;
-    final Object? callName = value['@call'];
-    if (callName is String && !callName.startsWith('@')) {
-      final Catalog<ComponentApi, FunctionImplementation>? nestedCatalog =
-          _resolveNestedCatalog(value, surface, activeCatalog);
-      final FunctionImplementation? nestedFn =
-          nestedCatalog?.functions[callName];
-      if (nestedFn != null) {
-        _checkExecutionPermissions(nestedFn, callName, execution);
-      }
-    }
-    for (final Object? child in value.values) {
-      _checkNestedArgumentPermissions(
-        child,
+      final List<Object?> children = _inspectNestedNode(
+        entry.value,
         surface,
         activeCatalog,
         execution,
-        depth + 1,
       );
+      for (int i = children.length - 1; i >= 0; i--) {
+        stack.add((value: children[i], depth: entry.depth + 1));
+      }
     }
+  }
+
+  List<Object?> _inspectNestedNode(
+    Object? value,
+    SurfaceModel<ComponentApi>? surface,
+    Catalog<ComponentApi, FunctionImplementation> activeCatalog,
+    ExecutionContext execution,
+  ) {
+    if (value is List) return value;
+    if (value is! Map) return const [];
+    final Object? callName = value['@call'];
+    if (callName is String) {
+      if (!callName.startsWith('@')) {
+        final Catalog<ComponentApi, FunctionImplementation>? nestedCatalog =
+            _resolveNestedCatalog(value, surface, activeCatalog);
+        final FunctionImplementation? nestedFn =
+            nestedCatalog?.functions[callName];
+        if (nestedFn != null) {
+          _checkExecutionPermissions(nestedFn, callName, execution);
+        }
+      }
+      final Object? nestedArgs = value['args'];
+      if (nestedArgs is Map) return nestedArgs.values.toList();
+      return nestedArgs != null ? <Object?>[nestedArgs] : const [];
+    }
+    return value.values.toList();
   }
 
   Catalog<ComponentApi, FunctionImplementation>? _resolveNestedCatalog(

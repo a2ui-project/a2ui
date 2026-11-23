@@ -228,8 +228,8 @@ export class RpcHandler {
     if (nestedAccessError) {
       const errorResponse = this.createResponseError(
         functionCallId,
-        RpcErrorCode.INVALID_FUNCTION_CALL,
-        nestedAccessError,
+        nestedAccessError.code,
+        nestedAccessError.message,
         version,
       );
       await this.emitOutboundResponse(errorResponse);
@@ -639,34 +639,61 @@ export class RpcHandler {
   }
 
   private checkNestedArgumentPermissions(
+    args: Record<string, unknown> | undefined,
+    context: DataContext,
+    activeCatalog: Catalog<any>,
+    isUserActivated: boolean,
+  ): {code: RpcErrorCode; message: string} | null {
+    if (!args || typeof args !== 'object' || Array.isArray(args)) {
+      return null;
+    }
+    const stack: Array<{value: unknown; depth: number}> = Object.values(args)
+      .reverse()
+      .map(value => ({value, depth: 1}));
+    while (stack.length > 0) {
+      const {value, depth} = stack.pop()!;
+      if (depth > MAX_DYNAMIC_VALUE_DEPTH) {
+        return {
+          code: RpcErrorCode.EXECUTION_ERROR,
+          message: `Maximum dynamic value nesting depth exceeded (${MAX_DYNAMIC_VALUE_DEPTH})`,
+        };
+      }
+      const step = this.inspectNestedNode(value, context, activeCatalog, isUserActivated);
+      if (step.error) {
+        return {code: RpcErrorCode.INVALID_FUNCTION_CALL, message: step.error};
+      }
+      for (let i = step.children.length - 1; i >= 0; i--) {
+        stack.push({value: step.children[i], depth: depth + 1});
+      }
+    }
+    return null;
+  }
+
+  private inspectNestedNode(
     value: unknown,
     context: DataContext,
     activeCatalog: Catalog<any>,
     isUserActivated: boolean,
-    depth = 0,
-  ): string | null {
-    if (depth > MAX_DYNAMIC_VALUE_DEPTH || !value || typeof value !== 'object') {
-      return null;
+  ): {error?: string; children: unknown[]} {
+    if (Array.isArray(value)) {
+      return {children: value};
     }
-    const children = Array.isArray(value)
-      ? value
-      : (() => {
-          const rec = value as Record<string, unknown>;
-          const selfErr = this.checkNestedCallRecord(rec, context, activeCatalog, isUserActivated);
-          return selfErr ? selfErr : Object.values(rec);
-        })();
-    if (typeof children === 'string') return children;
-    for (const child of children) {
-      const err = this.checkNestedArgumentPermissions(
-        child,
-        context,
-        activeCatalog,
-        isUserActivated,
-        depth + 1,
-      );
-      if (err) return err;
+    if (!value || typeof value !== 'object') {
+      return {children: []};
     }
-    return null;
+    const rec = value as Record<string, unknown>;
+    if (typeof rec['@call'] === 'string') {
+      const error = this.checkNestedCallRecord(rec, context, activeCatalog, isUserActivated);
+      if (error) {
+        return {error, children: []};
+      }
+      const rawArgs = rec['args'];
+      if (rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs)) {
+        return {children: Object.values(rawArgs as Record<string, unknown>)};
+      }
+      return {children: rawArgs !== undefined ? [rawArgs] : []};
+    }
+    return {children: Object.values(rec)};
   }
 
   private checkNestedCallRecord(

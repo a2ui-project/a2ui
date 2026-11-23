@@ -967,11 +967,9 @@ def test_call_renderer_function_nested_caller_boundary_and_sibling_atomicity() -
                             "args": {},
                         },
                         "second": [{
-                            "@call": {
-                                "@call": "secretRendererOnly",
-                                "catalogId": cat_id,
-                                "args": {},
-                            }
+                            "@call": "secretRendererOnly",
+                            "catalogId": cat_id,
+                            "args": {},
                         }],
                     },
                 ),
@@ -1029,3 +1027,74 @@ def test_call_renderer_function_nested_caller_boundary_and_sibling_atomicity() -
         context=ctx,
     )
     assert agent_resp["rendererFunctionResponse"]["value"] == {"token": "AGENT_SECRET"}
+
+    # 4. 600 chained @call wrappers still reject secretRendererOnly before sibling runs,
+    # and >1000 levels fail closed with EXECUTION_ERROR before sibling runs.
+    deep_forbidden: Any = {
+        "@call": "secretRendererOnly",
+        "catalogId": cat_id,
+        "args": {},
+    }
+    for _ in range(600):
+        deep_forbidden = {
+            "@call": "echoAll",
+            "catalogId": cat_id,
+            "args": {"inner": deep_forbidden},
+        }
+    deep_resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="nested-deep-600",
+                surface_id="s-nested-boundary",
+                call_function=FunctionCall(
+                    call="echoAll",
+                    catalog_id=cat_id,
+                    args={
+                        "first": {
+                            "@call": "mutatingAllowed",
+                            "catalogId": cat_id,
+                            "args": {},
+                        },
+                        "second": deep_forbidden,
+                    },
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+    assert (
+        deep_resp["rendererFunctionResponse"]["error"]["code"]
+        == "INVALID_FUNCTION_CALL"
+    )
+    assert side_effects == []
+
+    over_deep: Any = "leaf"
+    for _ in range(1005):
+        over_deep = [over_deep]
+    over_deep_resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="nested-over-deep",
+                surface_id="s-nested-boundary",
+                call_function=FunctionCall(
+                    call="echoAll",
+                    catalog_id=cat_id,
+                    args={
+                        "first": {
+                            "@call": "mutatingAllowed",
+                            "catalogId": cat_id,
+                            "args": {},
+                        },
+                        "second": over_deep,
+                    },
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+    assert (
+        over_deep_resp["rendererFunctionResponse"]["error"]["code"] == "EXECUTION_ERROR"
+    )
+    assert side_effects == []

@@ -1111,11 +1111,9 @@ void main() {
                   },
                   'second': [
                     {
-                      '@call': {
-                        '@call': 'secretRendererOnly',
-                        'catalogId': 'boundary-cat',
-                        'args': <String, Object?>{},
-                      },
+                      '@call': 'secretRendererOnly',
+                      'catalogId': 'boundary-cat',
+                      'args': <String, Object?>{},
                     },
                   ],
                 },
@@ -1176,6 +1174,94 @@ void main() {
           );
       expect(agentRes.response.error, isNull);
       expect(agentRes.response.value, {'token': 'AGENT_SECRET'});
+
+      // 4. 600 chained `@call` wrappers reject `secretRendererOnly` before
+      // sibling runs, and >1000 levels fail closed with `EXECUTION_ERROR`.
+      Object deepForbidden = <String, Object?>{
+        '@call': 'secretRendererOnly',
+        'catalogId': 'boundary-cat',
+        'args': <String, Object?>{},
+      };
+      for (var i = 0; i < 600; i++) {
+        deepForbidden = <String, Object?>{
+          '@call': 'echoAll',
+          'catalogId': 'boundary-cat',
+          'args': <String, Object?>{'inner': deepForbidden},
+        };
+      }
+      final RendererFunctionResponseMessage deepRes = await h
+          .handleCallRendererFunction(
+            CallRendererFunctionMessage(
+              version: '1.0',
+              functionCallId: 'nested-deep-600',
+              surfaceId: 's-boundary',
+              callFunction: {
+                '@call': 'echoAll',
+                'catalogId': 'boundary-cat',
+                'args': {
+                  'first': {
+                    '@call': 'mutatingAllowed',
+                    'catalogId': 'boundary-cat',
+                    'args': <String, Object?>{},
+                  },
+                  'second': deepForbidden,
+                },
+              },
+            ),
+            surface: boundarySurface,
+          );
+      expect(
+        deepRes.response.error?.code,
+        RpcErrorCode.invalidFunctionCall.wireValue,
+      );
+      expect(sideEffects, isEmpty);
+
+      Object overDeep = 'leaf';
+      for (var i = 0; i < 1005; i++) {
+        overDeep = <Object>[overDeep];
+      }
+      final RendererFunctionResponseMessage overDeepRes = await h
+          .handleCallRendererFunction(
+            CallRendererFunctionMessage(
+              version: '1.0',
+              functionCallId: 'nested-over-deep',
+              surfaceId: 's-boundary',
+              callFunction: {
+                '@call': 'echoAll',
+                'catalogId': 'boundary-cat',
+                'args': {
+                  'first': {
+                    '@call': 'mutatingAllowed',
+                    'catalogId': 'boundary-cat',
+                    'args': <String, Object?>{},
+                  },
+                  'second': overDeep,
+                },
+              },
+            ),
+            surface: boundarySurface,
+          );
+      expect(
+        overDeepRes.response.error?.code,
+        RpcErrorCode.executionError.wireValue,
+      );
+      expect(sideEffects, isEmpty);
+
+      // 5. Renderer-side `agentOnly` error leaves `details` null.
+      expect(
+        () => boundaryCat.invoke(
+          'agentOnlyFn',
+          const {},
+          DataContext(boundarySurface.dataModel, boundaryCat.invoke, '/'),
+        ),
+        throwsA(
+          isA<A2uiExpressionError>().having(
+            (e) => e.details,
+            'details',
+            isNull,
+          ),
+        ),
+      );
     });
   });
 }

@@ -734,11 +734,9 @@ struct RPCHandlerTests {
             ]),
             "message": .array([
               .object([
-                "@call": .object([
-                  "@call": .string("secretRendererOnly"),
-                  "catalogId": .string("nested-cat"),
-                  "args": .object([:]),
-                ])
+                "@call": .string("secretRendererOnly"),
+                "catalogId": .string("nested-cat"),
+                "args": .object([:]),
               ])
             ]),
           ]
@@ -798,6 +796,66 @@ struct RPCHandlerTests {
     #expect(agentAllowedResponse.error == nil)
     #expect(agentAllowedResponse.value == .string("AGENT_SECRET"))
     #expect(agentOnlyFn.invocations == 1)
+
+    var deepForbidden: JSONValue = .object([
+      "@call": .string("secretRendererOnly"),
+      "catalogId": .string("nested-cat"),
+      "args": .object([:]),
+    ])
+    for _ in 0..<600 {
+      deepForbidden = .object([
+        "@call": .string("echo"),
+        "catalogId": .string("nested-cat"),
+        "args": .object(["message": deepForbidden]),
+      ])
+    }
+    let deepBlockedResponse = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "nested-deep-600",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "nested-cat",
+          args: [
+            "first": .object([
+              "@call": .string("mutatingAllowed"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ]),
+            "message": deepForbidden,
+          ]
+        ),
+        version: .v10
+      ),
+      catalogs: [catalog.id: catalog]
+    )
+    #expect(deepBlockedResponse.error?.code == "INVALID_FUNCTION_CALL")
+    #expect(mutatingFn.invocations == 0)
+
+    var overDeep: JSONValue = .string("leaf")
+    for _ in 0..<1005 {
+      overDeep = .array([overDeep])
+    }
+    let overDeepResponse = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "nested-over-deep",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "nested-cat",
+          args: [
+            "first": .object([
+              "@call": .string("mutatingAllowed"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ]),
+            "message": overDeep,
+          ]
+        ),
+        version: .v10
+      ),
+      catalogs: [catalog.id: catalog]
+    )
+    #expect(overDeepResponse.error?.code == "EXECUTION_ERROR")
+    #expect(mutatingFn.invocations == 0)
   }
 }
 

@@ -136,29 +136,15 @@ public final class RPCHandler {
       )
     }
 
-    // Validate allowedCallers constraint: agent must be permitted to invoke.
-    if function.api.allowedCallers == .rendererOnly {
-      let errorPayload = FunctionErrorPayload(
-        code: .invalidFunctionCall,
-        message:
-          "Function '\(callName)' cannot be called by agent (allowedCallers is rendererOnly)."
-      )
+    // Validate allowedCallers and user activation constraints.
+    if let permissionError = Self.checkExecutionPermissions(
+      function: function,
+      name: callName,
+      userActivationPresent: userActivationPresent
+    ) {
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
-        error: errorPayload,
-        version: message.version
-      )
-    }
-
-    // Validate user activation requirement.
-    if function.api.requiresUserActivation && !userActivationPresent {
-      let errorPayload = FunctionErrorPayload(
-        code: .invalidFunctionCall,
-        message: "Function '\(callName)' requires user activation context to execute."
-      )
-      return RendererFunctionResponseMessage(
-        functionCallID: message.functionCallID,
-        error: errorPayload,
+        error: permissionError,
         version: message.version
       )
     }
@@ -171,13 +157,13 @@ public final class RPCHandler {
       standaloneCatalog: catalog
     )
     if let nestedError = Self.checkNestedArgumentPermissions(
-      in: .object(OrderedDictionary(uniqueKeysWithValues: rawArgs)),
+      in: rawArgs,
       handler: argHandler,
       userActivationPresent: userActivationPresent
     ) {
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
-        error: FunctionErrorPayload(code: .invalidFunctionCall, message: nestedError),
+        error: nestedError,
         version: message.version
       )
     }
@@ -298,47 +284,90 @@ public final class RPCHandler {
     }
   }
 
+  private static func checkExecutionPermissions(
+    function: any FunctionImplementation,
+    name: String,
+    userActivationPresent: Bool
+  ) -> FunctionErrorPayload? {
+    if function.api.allowedCallers == .rendererOnly {
+      return FunctionErrorPayload(
+        code: .invalidFunctionCall,
+        message: "Function '\(name)' cannot be called by agent (allowedCallers is rendererOnly)."
+      )
+    }
+    if function.api.requiresUserActivation && !userActivationPresent {
+      return FunctionErrorPayload(
+        code: .invalidFunctionCall,
+        message: "Function '\(name)' requires user activation context to execute."
+      )
+    }
+    return nil
+  }
+
   private static func checkNestedArgumentPermissions(
-    in value: JSONValue,
+    in rawArgs: [String: JSONValue],
     handler: RPCArgumentFunctionHandler,
-    userActivationPresent: Bool,
-    depth: Int = 0
-  ) -> String? {
-    guard depth <= 1000 else { return nil }
-    let children: [JSONValue]
-    switch value {
-    case .array(let items):
-      children = items
-    case .object(let dict):
-      if let err = checkNestedCallRecord(
-        dict,
+    userActivationPresent: Bool
+  ) -> FunctionErrorPayload? {
+    var stack: [(value: JSONValue, depth: Int)] = rawArgs.values.reversed().map { ($0, 0) }
+    while let entry = stack.popLast() {
+      if entry.depth > 1000 {
+        return FunctionErrorPayload(
+          code: .executionError,
+          message: "Maximum dynamic value nesting depth exceeded (1000)."
+        )
+      }
+      let step = inspectNestedNode(
+        entry.value,
         handler: handler,
         userActivationPresent: userActivationPresent
-      ) {
-        return err
+      )
+      if let error = step.error {
+        return error
       }
-      children = Array(dict.values)
-    default:
-      return nil
-    }
-    for child in children {
-      if let err = checkNestedArgumentPermissions(
-        in: child,
-        handler: handler,
-        userActivationPresent: userActivationPresent,
-        depth: depth + 1
-      ) {
-        return err
+      for child in step.children.reversed() {
+        stack.append((value: child, depth: entry.depth + 1))
       }
     }
     return nil
+  }
+
+  private static func inspectNestedNode(
+    _ value: JSONValue,
+    handler: RPCArgumentFunctionHandler,
+    userActivationPresent: Bool
+  ) -> (error: FunctionErrorPayload?, children: [JSONValue]) {
+    switch value {
+    case .array(let items):
+      return (nil, items)
+    case .object(let dict):
+      if dict["@call"]?.stringValue != nil {
+        if let err = checkNestedCallRecord(
+          dict,
+          handler: handler,
+          userActivationPresent: userActivationPresent
+        ) {
+          return (err, [])
+        }
+        if case .object(let argDict)? = dict["args"] {
+          return (nil, Array(argDict.values))
+        }
+        if let rawArgs = dict["args"] {
+          return (nil, [rawArgs])
+        }
+        return (nil, [])
+      }
+      return (nil, Array(dict.values))
+    default:
+      return (nil, [])
+    }
   }
 
   private static func checkNestedCallRecord(
     _ dict: OrderedDictionary<String, JSONValue>,
     handler: RPCArgumentFunctionHandler,
     userActivationPresent: Bool
-  ) -> String? {
+  ) -> FunctionErrorPayload? {
     guard let callName = dict["@call"]?.stringValue, !callName.hasPrefix("@") else {
       return nil
     }
@@ -350,14 +379,11 @@ public final class RPCHandler {
     else {
       return nil
     }
-    if fn.api.allowedCallers == .rendererOnly {
-      return
-        "Function '\(callName)' cannot be called by agent (allowedCallers is rendererOnly)."
-    }
-    if fn.api.requiresUserActivation && !userActivationPresent {
-      return "Function '\(callName)' requires user activation context to execute."
-    }
-    return nil
+    return checkExecutionPermissions(
+      function: fn,
+      name: callName,
+      userActivationPresent: userActivationPresent
+    )
   }
 
   /// The message of an error thrown while answering an agent-initiated call, or `fallback` when

@@ -1160,11 +1160,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
             catalogId: catId,
             args: {
               first: {'@call': 'mutatingAllowed', catalogId: catId, args: {}},
-              second: [
-                {
-                  '@call': {'@call': 'secretRendererOnly', catalogId: catId, args: {}},
-                },
-              ],
+              second: [{'@call': 'secretRendererOnly', catalogId: catId, args: {}}],
             },
           },
         },
@@ -1250,5 +1246,73 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       ctx,
     );
     assert.deepStrictEqual(agentRes.rendererFunctionResponse.value, {token: 'AGENT_SECRET'});
+
+    // 4. 600 chained `@call` wrappers (+1 per wrapper) still reject `secretRendererOnly`
+    // before sibling `mutatingAllowed` runs, and >1000 levels fail closed with `EXECUTION_ERROR`.
+    let deepForbidden: unknown = {'@call': 'secretRendererOnly', catalogId: catId, args: {}};
+    for (let i = 0; i < 600; i++) {
+      deepForbidden = {'@call': 'echoAll', catalogId: catId, args: {inner: deepForbidden}};
+    }
+    const deepForbiddenRes = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-deep-600',
+          surfaceId: 's-nested-boundary',
+          callFunction: {
+            '@call': 'echoAll',
+            catalogId: catId,
+            args: {
+              first: {'@call': 'mutatingAllowed', catalogId: catId, args: {}},
+              second: deepForbidden,
+            },
+          },
+        },
+      },
+      ctx,
+    );
+    assert.strictEqual(
+      deepForbiddenRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
+    assert.deepStrictEqual(sideEffects, []);
+
+    let overDeep: unknown = 'leaf';
+    for (let i = 0; i < 1005; i++) {
+      overDeep = [overDeep];
+    }
+    const overDeepRes = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-over-deep',
+          surfaceId: 's-nested-boundary',
+          callFunction: {
+            '@call': 'echoAll',
+            catalogId: catId,
+            args: {
+              first: {'@call': 'mutatingAllowed', catalogId: catId, args: {}},
+              second: overDeep,
+            },
+          },
+        },
+      },
+      ctx,
+    );
+    assert.strictEqual(
+      overDeepRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.EXECUTION_ERROR,
+    );
+    assert.deepStrictEqual(sideEffects, []);
+
+    // 5. Renderer-side `agentOnly` evaluation keeps `error.details` undefined.
+    const surfaceErrors: Array<{details?: unknown}> = [];
+    const sub = surface.onError.subscribe(err => {
+      surfaceErrors.push(err);
+    });
+    ctx.resolveDynamicValue({'@call': 'agentOnlyFn', catalogId: catId, args: {}});
+    sub.unsubscribe();
+    assert.strictEqual(surfaceErrors.length, 1);
+    assert.strictEqual(surfaceErrors[0].details, undefined);
   });
 });

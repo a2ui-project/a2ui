@@ -1336,7 +1336,6 @@ function assertCallerBoundary(fn: FunctionApi, ctx: DataContext | undefined): vo
     throw new A2uiExpressionError(
       `Function '${fn.name}' cannot be called by renderer (allowedCallers is agentOnly).`,
       fn.name,
-      {invalidFunctionCall: true},
     );
   }
 }
@@ -1355,7 +1354,7 @@ function assertUserActivation(fn: FunctionApi, ctx: DataContext | undefined): vo
     throw new A2uiExpressionError(
       `Function '${fn.name}' requires user activation and cannot be evaluated without an active user gesture.`,
       fn.name,
-      {invalidFunctionCall: true},
+      isAgent ? {invalidFunctionCall: true} : undefined,
     );
   }
 }

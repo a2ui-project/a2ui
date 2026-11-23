@@ -2138,7 +2138,6 @@ extension CatalogInvokerExtension
           "Function '$name' cannot be called by renderer (allowedCallers is "
           'agentOnly).',
           expression: name,
-          details: _invalidFunctionCallDetail,
         );
       }
     }
@@ -2146,7 +2145,7 @@ extension CatalogInvokerExtension
       throw A2uiExpressionError(
         "Function '$name' requires user activation context to execute.",
         expression: name,
-        details: _invalidFunctionCallDetail,
+        details: context._isAgentCall ? _invalidFunctionCallDetail : null,
       );
     }
     final Map<String, dynamic> callArgs = coerceValidationResultArgs(
