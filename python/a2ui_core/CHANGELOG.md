@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.7.1 (2026-11-23)
+
 - Add `MessageProcessor.add_catalog(catalog)`, which adds a catalog to a
   processor after it is built. `createSurface` messages, renderer function
   calls and `get_renderer_capabilities` see the catalog from then on; surfaces
