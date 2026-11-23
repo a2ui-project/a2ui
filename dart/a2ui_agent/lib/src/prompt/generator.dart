@@ -83,19 +83,20 @@ String assembleInstructions(
   final bool isOwn = _sameCatalogs(targets, own);
 
   final parts = <String>[generator.generateBaseRules()];
-  final examples = <String>[];
+  final examples = <String>{};
   if (isOwn) {
     parts.add(generator.generateCatalogInstructions());
     examples.add(generator.generateExamples());
   } else {
     for (final catalog in targets) {
       parts.add(generator.generateCatalogInstructions(catalog: catalog));
-      final String text = generator.generateExamples(catalog: catalog);
-      if (!examples.contains(text)) examples.add(text);
+      examples.add(generator.generateExamples(catalog: catalog));
     }
   }
-  final List<String> shown = examples.where((e) => e.isNotEmpty).toList();
-  if (shown.isNotEmpty) parts.add('$examplesHeading${shown.join('\n\n')}');
+  examples.remove('');
+  if (examples.isNotEmpty) {
+    parts.add('$examplesHeading${examples.join('\n\n')}');
+  }
   return parts.where((p) => p.isNotEmpty).join('\n\n');
 }
 
