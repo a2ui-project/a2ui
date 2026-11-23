@@ -616,8 +616,10 @@ class MessageProcessor<T extends ComponentApi> {
         pointer != null &&
         pointer.startsWith('/') &&
         !pointer.substring(1).contains('/')) {
-      final String key =
-          pointer.substring(1).replaceAll('~1', '/').replaceAll('~0', '~');
+      final String key = pointer
+          .substring(1)
+          .replaceAll('~1', '/')
+          .replaceAll('~0', '~');
       if (item.containsKey(key)) {
         return (
           A2uiErrorDetail(

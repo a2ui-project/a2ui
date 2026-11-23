@@ -1472,18 +1472,19 @@ void main() {
           isA<A2uiValidationError>()
               .having((e) => e.path, 'path', '/components/0/id')
               .having((e) => e.errors, 'details', [
-            const A2uiErrorDetail(
-              path: '/id',
-              code: 'invalid_value',
-              message: "Component missing an 'id'.",
-              surfaceId: 's',
-            ),
-          ]),
+                const A2uiErrorDetail(
+                  path: '/id',
+                  code: 'invalid_value',
+                  message: "Component missing an 'id'.",
+                  surfaceId: 's',
+                ),
+              ]),
         ),
       );
 
-      final List<ErrorMessage> errors =
-          processor.processMessagesWithErrors([update]);
+      final List<ErrorMessage> errors = processor.processMessagesWithErrors([
+        update,
+      ]);
       expect(errors, hasLength(1));
       expect(errors.single.error.code, 'VALIDATION_FAILED');
       expect(errors.single.error.path, '/components/0/id');
