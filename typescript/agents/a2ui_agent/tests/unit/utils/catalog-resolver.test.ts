@@ -15,7 +15,7 @@
  */
 
 import {MessageProcessor} from '@a2ui/web_core';
-import {describe, expect, it, vi} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {
   A2UI_CLIENT_CAPABILITIES_KEY,
@@ -41,6 +41,10 @@ describe('resolveCatalogs', () => {
   const supportedConfigs = [configBasic, configCustom1, configCustom2];
 
   const inline = (catalogId: string) => ({catalogId, protocolVersion: '1.0', components: {}});
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it('activates every catalog the renderer names, in its preference order', () => {
     const caps: RendererCapabilities = {
@@ -137,73 +141,65 @@ describe('resolveCatalogs', () => {
 
   it('keeps the active registered catalog and warns when an inline catalog reuses its id', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    try {
-      const caps: RendererCapabilities = {
-        supportedCatalogIds: ['id_basic'],
-        inlineCatalogs: [
-          {
-            catalogId: 'id_basic',
-            protocolVersion: '1.0',
-            components: {
-              Marquee: {
-                type: 'object',
-                properties: {component: {const: 'Marquee'}},
-                required: ['component'],
-              },
+    const caps: RendererCapabilities = {
+      supportedCatalogIds: ['id_basic'],
+      inlineCatalogs: [
+        {
+          catalogId: 'id_basic',
+          protocolVersion: '1.0',
+          components: {
+            Marquee: {
+              type: 'object',
+              properties: {component: {const: 'Marquee'}},
+              required: ['component'],
             },
           },
-        ],
-      };
-      const resolved = resolveCatalogs([configBasic], caps, true);
-      expect(resolved).toEqual([catBasic]);
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Dropping inline catalog 'id_basic'"),
-      );
-    } finally {
-      warnSpy.mockRestore();
-    }
+        },
+      ],
+    };
+    const resolved = resolveCatalogs([configBasic], caps, true);
+    expect(resolved).toEqual([catBasic]);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Dropping inline catalog 'id_basic'"),
+    );
   });
 
   it('keeps the first inline catalog and warns when duplicate inline catalog ids appear', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    try {
-      const caps: RendererCapabilities = {
-        supportedCatalogIds: [],
-        inlineCatalogs: [
-          {
-            catalogId: 'id_dup',
-            protocolVersion: '1.0',
-            components: {
-              First: {
-                type: 'object',
-                properties: {component: {const: 'First'}},
-                required: ['component'],
-              },
+    const caps: RendererCapabilities = {
+      supportedCatalogIds: [],
+      inlineCatalogs: [
+        {
+          catalogId: 'id_dup',
+          protocolVersion: '1.0',
+          components: {
+            First: {
+              type: 'object',
+              properties: {component: {const: 'First'}},
+              required: ['component'],
             },
           },
-          {
-            catalogId: 'id_dup',
-            protocolVersion: '1.0',
-            components: {
-              Second: {
-                type: 'object',
-                properties: {component: {const: 'Second'}},
-                required: ['component'],
-              },
+        },
+        {
+          catalogId: 'id_dup',
+          protocolVersion: '1.0',
+          components: {
+            Second: {
+              type: 'object',
+              properties: {component: {const: 'Second'}},
+              required: ['component'],
             },
           },
-        ],
-      };
-      const resolved = resolveCatalogs([configBasic], caps, true);
-      expect(resolved).toHaveLength(1);
-      expect(resolved[0].id).toBe('id_dup');
-      expect([...resolved[0].components.keys()]).toEqual(['First']);
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Dropping inline catalog 'id_dup'"),
-      );
-    } finally {
-      warnSpy.mockRestore();
-    }
+        },
+      ],
+    };
+    const resolved = resolveCatalogs([configBasic], caps, true);
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0].id).toBe('id_dup');
+    expect([...resolved[0].components.keys()]).toEqual(['First']);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Dropping inline catalog 'id_dup'"),
+    );
   });
 
   it.each([
