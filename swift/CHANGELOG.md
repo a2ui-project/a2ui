@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.12.0
+
 - **BREAKING CHANGE**: Make `EnvironmentValues.a2uiCatalogs`,
   `EnvironmentValues.a2uiDefaultCatalogID`, and `EnvironmentValues.a2uiSurfaceMetadata` read-only
   (`public internal(set)`) in `A2UISwiftUI`, and remove `A2UICatalogsKey` and
