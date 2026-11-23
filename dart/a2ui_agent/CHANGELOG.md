@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.10.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
+- `DirectJsonResponseStream` waits for `path` when a streamed `updateDataModel` writes `value` before `path`, and restores the prior root data model if `path` arrives in a later chunk, instead of overwriting the root data model or failing on list values ([#4132](https://github.com/a2ui-project/a2ui/issues/4132), [#4191](https://github.com/a2ui-project/a2ui/pull/4191)).
 
 ## 0.4.0
 

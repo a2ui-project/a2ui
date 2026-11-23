@@ -12,6 +12,7 @@
   `MessageProcessor.catalogs` lists the added catalog too, and still cannot
   be modified ([#3303](https://github.com/a2ui-project/a2ui/issues/3303),
   [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
+- Format `lib/src/processing/processor.dart` and `test/processor_test.dart` with Dart 3.13 `dart format` ([#4191](https://github.com/a2ui-project/a2ui/pull/4191)).
 
 ## 0.8.0
 
