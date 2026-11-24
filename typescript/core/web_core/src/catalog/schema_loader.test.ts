@@ -590,6 +590,49 @@ describe('Catalog.fromJson & schema_loader', () => {
     assert.strictEqual(holder.safeParse({}).success, false);
   });
 
+  it('rejects an array over maxItems without visiting its items', () => {
+    const catalog = Catalog.fromJson({
+      catalogId: 'https://example.com/max_items_catalog.json',
+      protocolVersion: '1.0',
+      components: {
+        Tags: {
+          type: 'object',
+          properties: {
+            tags: {
+              type: 'array',
+              items: {type: 'string', pattern: '^[a-z]+$'},
+              maxItems: 2,
+              uniqueItems: true,
+            },
+          },
+        },
+      },
+    } as any);
+    const schema = catalog.components.get('Tags')!.schema;
+
+    // Counts reads of array elements, so the test notices if the items are
+    // parsed (or passed to the `uniqueItems` check) after `maxItems` fails.
+    let itemReads = 0;
+    const tags = new Proxy(['a', 'b', 'c'], {
+      get(target, key, receiver) {
+        if (typeof key === 'string' && /^\d+$/.test(key)) itemReads++;
+        return Reflect.get(target, key, receiver);
+      },
+    });
+
+    const result = schema.safeParse({tags});
+    assert.ok(!result.success);
+    assert.deepStrictEqual(
+      result.error.issues.map(issue => [issue.code, issue.path]),
+      [['too_big', ['tags']]],
+    );
+    assert.strictEqual(itemReads, 0);
+
+    assert.strictEqual(schema.safeParse({tags: ['a', 'b']}).success, true);
+    assert.strictEqual(schema.safeParse({tags: ['a', 'a']}).success, false);
+    assert.strictEqual(schema.safeParse({tags: ['A']}).success, false);
+  });
+
   it('applies the default of an optional function argument that is missing', () => {
     const catalog = Catalog.fromJson({
       catalogId: 'https://example.com/fn_defaults_catalog.json',
