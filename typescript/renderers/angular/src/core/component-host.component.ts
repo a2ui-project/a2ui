@@ -348,6 +348,7 @@ export class ComponentHostComponent {
     if (
       this.rendererService.useUniversalComponents &&
       isWebComponentImplementation(node.impl) &&
+      node.impl.element !== AngularWcHost &&
       !(node.impl.element.prototype instanceof AngularWcHost)
     ) {
       this.setupWebComponent(node.impl, node);

@@ -391,9 +391,10 @@ export class AngularWcHost extends HTMLElement {
     this.binder = undefined;
     this.ngZone = undefined;
     if (ref) {
+      const nativeElement = ref.location.nativeElement;
       appRef?.detachView(ref.hostView);
       ref.destroy();
-      ref.location.nativeElement.remove();
+      nativeElement.remove();
     }
   }
 }
