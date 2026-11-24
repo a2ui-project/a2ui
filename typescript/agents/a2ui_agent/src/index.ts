@@ -191,6 +191,14 @@ export {
   SkillSet,
 } from './skill/index.js';
 
+// Component trees
+export {
+  type ComponentChild,
+  type ComponentNode,
+  type FlatComponent,
+} from './component-tree/component-node.js';
+export {type FlattenComponentTreeOptions, flattenComponentTree} from './component-tree/flatten.js';
+
 // Renderer-to-agent messages
 export {
   type ProcessResult,
