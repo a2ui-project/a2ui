@@ -18,6 +18,7 @@ import {A2uiCatalogError} from '../errors.js';
 import {RendererCapabilities, toCanonicalVersion} from '../internal/web-core.js';
 import {catalogFromDocument} from '../processor/catalog-providers.js';
 import {ProtocolVersion} from '../types.js';
+import {assertResolvableInlineCatalogLocalRefs} from './catalog-resolver.js';
 
 /** Transport metadata key for v0.9 and v0.9.1 client capabilities. */
 export const A2UI_CLIENT_CAPABILITIES_KEY = 'a2uiClientCapabilities';
@@ -91,7 +92,8 @@ function validateInlineCatalogs(
         `Each inline catalog in '${entryKey}' renderer capabilities under '${metadataKey}' must declare a valid string 'protocolVersion'.`,
       );
     }
-    catalogFromDocument(cat, 'inlineCatalogs', wireVersion);
+    const built = catalogFromDocument(cat, 'inlineCatalogs', wireVersion);
+    assertResolvableInlineCatalogLocalRefs(cat, built.id, built.protocolVersion || wireVersion);
     inlineCatalogs.push({...cat});
   }
   return inlineCatalogs;
