@@ -201,7 +201,11 @@ export {type FlattenComponentTreeOptions, flattenComponentTree} from './componen
 
 // Macros
 export {defineMacro, type MacroConfig, type MacroDefinition} from './macros/define-macro.js';
-export {MacroExpander, type MacroExpanderOptions} from './macros/expander.js';
+export {
+  MacroExpander,
+  type MacroExpanderOptions,
+  type TransformToTransportOptions,
+} from './macros/expander.js';
 export {
   type MacroArgs,
   type MacroInput,

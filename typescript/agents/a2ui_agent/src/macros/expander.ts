@@ -40,6 +40,7 @@ import {MacroProtocolError} from './macro-protocol-error.js';
 
 const DEFAULT_MACRO_CATALOG_ID = 'https://a2ui.org/catalogs/macros';
 const MAX_EXPANSION_DEPTH = 16;
+const MAX_TRACKED_SURFACES = 256;
 const COMPONENT_BODY_KEYS = ['createSurface', 'updateComponents'] as const;
 
 type JsonObject = Record<string, unknown>;
@@ -103,6 +104,16 @@ export interface MacroExpanderOptions {
   onError?: 'passthrough' | 'raise';
 }
 
+/** Options for `MacroExpander.transformToTransport`. */
+export interface TransformToTransportOptions {
+  /**
+   * The default catalog of each surface by ID, or `null` for a surface without one. When
+   * given, the call starts from this map and leaves the expander's own record of surfaces
+   * unchanged, so one expander can serve several sessions.
+   */
+  surfaceCatalogs?: Readonly<Record<string, string | null>>;
+}
+
 /**
  * Lowers macros to the catalog components a renderer knows.
  *
@@ -110,6 +121,10 @@ export interface MacroExpanderOptions {
  * from the transport catalogs. The expander lowers the model's messages back to the
  * transport catalogs with `transformToTransport` before they reach the renderer. Macros
  * target A2UI v1.0.
+ *
+ * The expander remembers the default catalog of the last 256 surfaces it sees created,
+ * until they are deleted. Use one expander per session, or pass `surfaceCatalogs` to
+ * `transformToTransport`.
  */
 export class MacroExpander {
   /** The catalog the macros belong to, as given in the options. */
@@ -285,8 +300,15 @@ export class MacroExpander {
    *     macro catalog without a base catalog to replace it.
    * @throws {A2uiRecursionError} If macros keep invoking macros beyond 16 levels.
    */
-  transformToTransport(messages: readonly AgentToRendererMessage[]): AgentToRendererMessage[] {
-    return messages.map(message => this.lowerMessage(message, this.surfaceCatalogs));
+  transformToTransport(
+    messages: readonly AgentToRendererMessage[],
+    options: TransformToTransportOptions = {},
+  ): AgentToRendererMessage[] {
+    const surfaces =
+      options.surfaceCatalogs === undefined
+        ? this.surfaceCatalogs
+        : new Map(Object.entries(options.surfaceCatalogs));
+    return messages.map(message => this.lowerMessage(message, surfaces));
   }
 
   private lowerMessage(
@@ -302,6 +324,10 @@ export class MacroExpander {
     }
     if (this.macros.size === 0) {
       return message;
+    }
+    const deleted = (message as unknown as JsonObject)['deleteSurface'];
+    if (isJsonObject(deleted) && typeof deleted['surfaceId'] === 'string') {
+      surfaces.delete(deleted['surfaceId']);
     }
     const lowered: JsonObject = {...(message as unknown as JsonObject)};
     for (const bodyKey of COMPONENT_BODY_KEYS) {
@@ -347,6 +373,14 @@ export class MacroExpander {
     }
     surfaces.delete(surfaceId);
     surfaces.set(surfaceId, inferenceCatalogId ?? null);
+    if (surfaces.size > MAX_TRACKED_SURFACES) {
+      const [oldest] = surfaces.keys();
+      surfaces.delete(oldest);
+      console.warn(
+        `Evicted oldest tracked surface '${oldest}' from MacroExpander ` +
+          `(limit=${MAX_TRACKED_SURFACES}).`,
+      );
+    }
   }
 
   private surfaceScope(

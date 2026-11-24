@@ -591,7 +591,8 @@ export function runCatalogCase(testCase: LoadedCase): CatalogApi | undefined {
 /** Runs a transport case and returns the lowered messages. */
 export function runTransportCase(testCase: LoadedCase): AgentToRendererMessage[] {
   const expander = buildExpander(testCase);
-  return expander.transformToTransport(transportMessages(testCase));
+  const surfaceCatalogs = testCase['surface_catalogs'] as Record<string, string | null> | undefined;
+  return expander.transformToTransport(transportMessages(testCase), {surfaceCatalogs});
 }
 
 /** The messages a transport case sends: its `messages`, or messages built from `input`. */

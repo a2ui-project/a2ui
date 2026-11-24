@@ -121,24 +121,12 @@ const ERROR_BY_CATEGORY: Record<string, new (...args: never[]) => Error> = {
  */
 const VERSION_REJECTION_CASES = new Set(['13_error_envelope_version_mismatch']);
 
-/** Cases whose behavior lands in a later commit of this change. */
-const PENDING = new Set([
-  '37a_stateless_surface_catalogs_override_expands',
-  '37b_stateless_surface_catalogs_override_skips',
-]);
-
 function skipReason(testCase: LoadedCase): string | undefined {
   const needsV09Macros =
     !testCase['empty_macros'] &&
     macroVersion(testCase) !== '1.0' &&
     !VERSION_REJECTION_CASES.has(testCase.name);
-  if (needsV09Macros) {
-    return 'macros support v1.0 only';
-  }
-  if (PENDING.has(testCase.name)) {
-    return 'not implemented yet';
-  }
-  return undefined;
+  return needsV09Macros ? 'macros support v1.0 only' : undefined;
 }
 
 function runCase(testCase: LoadedCase): CatalogApi | AgentToRendererMessage[] | undefined {
