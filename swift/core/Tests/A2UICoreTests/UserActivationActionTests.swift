@@ -24,13 +24,17 @@ private final class SpyUserActivationFunction: FunctionImplementation, @unchecke
   let api: FunctionAPI
   var callCount = 0
 
-  init(name: String, requiresUserActivation: Bool) throws {
+  init(
+    name: String,
+    requiresUserActivation: Bool,
+    allowedCallers: AllowedCallers = .rendererOnly
+  ) throws {
     let emptySchema = try Schema(instance: #"{"type": "object"}"#)
     self.api = FunctionAPI(
       name: name,
       returnType: .string,
       schema: emptySchema,
-      allowedCallers: .rendererOnly,
+      allowedCallers: allowedCallers,
       requiresUserActivation: requiresUserActivation
     )
   }
@@ -411,7 +415,8 @@ struct UserActivationActionTests {
   @Test func callRendererFunctionRefusesGatedNestedCallByDefault() async throws {
     let gatedFunction = try SpyUserActivationFunction(
       name: "openExternal",
-      requiresUserActivation: true
+      requiresUserActivation: true,
+      allowedCallers: .rendererOrAgent
     )
     let (processor, responses) = try Self.makeRPCProcessor(gatedFunction: gatedFunction)
 
@@ -424,6 +429,7 @@ struct UserActivationActionTests {
     #expect(Set(responses().map(\.functionCallID)) == ["rpc-1", "rpc-2", "rpc-3", "rpc-4"])
     for response in responses() {
       #expect(response.value == nil)
+      #expect(response.error?.code == FunctionErrorPayload.Code.invalidFunctionCall.rawValue)
       #expect(response.error?.message.contains("requires user activation") == true)
     }
     #expect(gatedFunction.callCount == 0)
@@ -432,7 +438,8 @@ struct UserActivationActionTests {
   @Test func callRendererFunctionRunsGatedNestedCallWhenUserActivated() async throws {
     let gatedFunction = try SpyUserActivationFunction(
       name: "openExternal",
-      requiresUserActivation: true
+      requiresUserActivation: true,
+      allowedCallers: .rendererOrAgent
     )
     let (processor, responses) = try Self.makeRPCProcessor(gatedFunction: gatedFunction)
 

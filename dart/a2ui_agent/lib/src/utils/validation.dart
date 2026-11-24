@@ -36,7 +36,7 @@ import 'renderer_state.dart';
 /// A v1.0 `callRendererFunction` is checked against the catalogs, never run:
 /// its catalog must be active and declare the function, the agent must be
 /// allowed to call the function, its arguments must match the function's
-/// schema, and a call nested in them must be one the renderer can make. A
+/// schema, and a call nested in them must also be one the agent may call. A
 /// surface it names must exist when it arrives, or be one the payload never
 /// named before, which an earlier payload may have created.
 ///
