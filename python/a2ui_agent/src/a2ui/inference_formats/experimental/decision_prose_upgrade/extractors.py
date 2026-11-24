@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+import math
 import time
 from typing import Any, Protocol, runtime_checkable
 
@@ -251,14 +252,25 @@ class StructuredOutputExtractor:
             p_null_raw = entry.get("p_null", 0.0 if found else 1.0)
             confidence = (
                 float(conf_raw)
-                if isinstance(conf_raw, (int, float)) and not isinstance(conf_raw, bool)
-                else (1.0 if found else 0.0)
+                if isinstance(conf_raw, (int, float))
+                and not isinstance(conf_raw, bool)
+                and math.isfinite(float(conf_raw))
+                else (
+                    0.0
+                    if isinstance(conf_raw, (int, float))
+                    else (1.0 if found else 0.0)
+                )
             )
             p_null = (
                 float(p_null_raw)
                 if isinstance(p_null_raw, (int, float))
                 and not isinstance(p_null_raw, bool)
-                else (0.0 if found else 1.0)
+                and math.isfinite(float(p_null_raw))
+                else (
+                    1.0
+                    if isinstance(p_null_raw, (int, float))
+                    else (0.0 if found else 1.0)
+                )
             )
             extracted[spec.path] = ExtractedField(
                 path=spec.path,

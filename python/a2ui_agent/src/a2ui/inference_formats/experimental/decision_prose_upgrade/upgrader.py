@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection, Mapping, Sequence
+import math
 from typing import Any, Literal
 
 from a2ui.core import A2uiCatalogError, CatalogApi
@@ -63,7 +64,11 @@ def _matches_field_type(field_type: FieldType, value: Any) -> bool:
     if value is None:
         return False
     if field_type is FieldType.NUMBER:
-        return isinstance(value, (int, float)) and not isinstance(value, bool)
+        return (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+        )
     if field_type is FieldType.BOOLEAN:
         return isinstance(value, bool)
     if field_type in (FieldType.LIST_TEXT, FieldType.LIST_DATE):
@@ -84,12 +89,15 @@ def _field_failure_reason(
         return f"field '{spec.path}' was truncated"
     if thresholds.reject_needs_review and extracted.needs_review:
         return f"field '{spec.path}' flagged needs_review"
-    if extracted.p_null >= thresholds.max_p_null:
+    if not math.isfinite(extracted.p_null) or extracted.p_null >= thresholds.max_p_null:
         return (
             f"field '{spec.path}' p_null {extracted.p_null:.3f}"
             f" >= {thresholds.max_p_null:.3f}"
         )
-    if extracted.confidence < thresholds.min_field_confidence:
+    if (
+        not math.isfinite(extracted.confidence)
+        or extracted.confidence < thresholds.min_field_confidence
+    ):
         return (
             f"field '{spec.path}' confidence {extracted.confidence:.3f}"
             f" < {thresholds.min_field_confidence:.3f}"
@@ -99,10 +107,7 @@ def _field_failure_reason(
     ):
         return f"field '{spec.path}' source_span is not grounded in prose"
     if not _matches_field_type(spec.field_type, extracted.value):
-        return (
-            f"field '{spec.path}' value type mismatch for"
-            f" '{spec.field_type.value}'"
-        )
+        return f"field '{spec.path}' value type mismatch for '{spec.field_type.value}'"
     return None
 
 
@@ -322,7 +327,7 @@ class ProseSurfaceUpgrader:
                 template.fields,
                 timeout_seconds=timeout_seconds,
             )
-        except Exception as exc:
+        except (FieldExtractionError, TimeoutError) as exc:
             if self._abstain_on_extractor_error:
                 return ProseUpgradeResult(
                     template_id=template.id,
@@ -356,6 +361,25 @@ class ProseSurfaceUpgrader:
             extracted_data[spec.key] = ef.value
 
         safe_data = _redact_flat_data(extracted_data, exclude=exclude)
+        safe_paths = {f"/{k.replace('~', '~0').replace('/', '~1')}" for k in safe_data}
+        missing_required = [
+            path
+            for path in (
+                *(s.path for s in template.fields if s.required),
+                *template.surface.required_paths,
+            )
+            if path not in safe_paths
+        ]
+        if missing_required:
+            return ProseUpgradeResult(
+                template_id=template.id,
+                abstained=True,
+                reason=f"required field redacted or missing: '{missing_required[0]}'",
+                gate_probability=gate_prob,
+                template_confidence=tmpl_prob,
+                decision_calls=1,
+                extraction_latency_ms=extraction.latency_ms,
+            )
         compiled = self._compile_and_lower(
             template,
             safe_data,
@@ -389,21 +413,22 @@ class ProseSurfaceUpgrader:
                 for c in self._transport_catalogs
                 if c.catalog_id == template.surface.catalog_id
             ]
-            if matching:
-                catalogs = matching
+            if not matching:
+                raise A2uiCatalogError(
+                    f"Unknown catalog_id {template.surface.catalog_id!r}."
+                )
+            catalogs = matching
         compiler = ExpressCompiler(catalogs)
         compiled = list(compiler.compile(template.surface.dsl, surface_id=surface_id))
         effective_sid = _created_surface_id(compiled, surface_id)
-        data_msg = to_message_models([
-            {
-                "version": "1.0",
-                "updateDataModel": {
-                    "surfaceId": effective_sid,
-                    "path": "/",
-                    "value": dict(data_model),
-                },
-            }
-        ])
+        data_msg = to_message_models([{
+            "version": "1.0",
+            "updateDataModel": {
+                "surfaceId": effective_sid,
+                "path": "/",
+                "value": dict(data_model),
+            },
+        }])
         compiled.extend(data_msg)
         return lower_for_transport(
             compiled,
