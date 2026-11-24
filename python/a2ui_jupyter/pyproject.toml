@@ -24,6 +24,7 @@ dependencies = [
   "a2ui-core>=0.6.0,<0.7.0",
   "anywidget>=0.11.0",
   "jupyter-ui-poll>=1.0.0",
+  "pydantic>=2.0",
 ]
 
 [project.urls]
