@@ -80,6 +80,22 @@ describe('registerUniversalElement', () => {
     assert.strictEqual(registry.get('a2ui-test'), MockElementA);
   });
 
+  it('no-ops safely when already registered with a subclass of the constructor', () => {
+    class SubElementA extends MockElementA {}
+    registry.set('a2ui-sub-test', SubElementA);
+    const comp: WebComponentImplementation = {
+      name: 'SubTest',
+      schema: z.object({}),
+      tagName: 'a2ui-sub-test',
+      element: MockElementA,
+    };
+
+    assert.doesNotThrow(() => {
+      registerUniversalElement(comp);
+    });
+    assert.strictEqual(registry.get('a2ui-sub-test'), SubElementA);
+  });
+
   it('throws an error when registered with a conflicting constructor', () => {
     const compA: WebComponentImplementation = {
       name: 'TestA',
