@@ -20,8 +20,11 @@ JupyterLite, see [JupyterLite](#jupyterlite).
 
 ## Build
 
-The Python package includes a JavaScript bundle built from the repository's
-TypeScript workspace. From the repository root, run:
+The Python package includes a JavaScript bundle (`static/widget.js` and
+`static/widget.css`) built from the repository's TypeScript workspace. The
+bundle is committed to Git, so the Python package has no build-time dependency
+on the TypeScript sources. When the renderer changes, rebuild the bundle and
+commit the updated files. From the repository root, run:
 
 ```bash
 corepack yarn workspace @a2ui/jupyter build
@@ -29,9 +32,6 @@ corepack yarn workspace @a2ui/jupyter build
 
 Then install the Python package in the same environment as the Jupyter kernel.
 For a source checkout, run `uv sync --all-packages` from the repository root.
-Build the bundle before building a source distribution or wheel: the generated
-files are not checked into Git, and the distribution build fails if they are
-missing.
 
 ## Use in a notebook
 

@@ -1,0 +1,1 @@
+.a2ui-widget-status:not(:empty){border-left:3px solid var(--jp-error-color1, #b3261e);color:var(--jp-ui-font-color1, inherit);margin:0 0 .75rem;padding:.25rem .75rem}.a2ui-widget-surface{min-width:0}
