@@ -17,7 +17,7 @@
 import pytest
 
 from a2ui.core.common.semver import SemVer
-from a2ui.core.exceptions import A2uiValidationError
+from a2ui.core.exceptions import A2uiRecursionError, A2uiValidationError
 from a2ui.core.processing.operations import (
     InternalCreateSurfaceOp,
     InternalDeleteSurfaceOp,
@@ -589,3 +589,96 @@ def test_version_normalization_without_leading_v():
         })
         assert len(ops) == 1
         assert isinstance(ops[0], InternalCreateSurfaceOp)
+
+
+def _nested_format_string_message(version: str, call_key: str, calls: int) -> dict:
+    value: object = "leaf"
+    for _ in range(calls):
+        value = {call_key: "formatString", "args": {"value": value}}
+    return {
+        "version": version,
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [{"id": "root", "component": "Text", "text": value}],
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("version", "call_key"),
+    [("v0.9", "call"), ("1.0", "@call")],
+)
+def test_extract_operations_unwraps_containers_before_per_message_depth_check(
+    version: str,
+    call_key: str,
+):
+    """Verifies each message starts at depth 0 whether standalone, in a list, or in `{"messages": [...]}`."""
+    adapter = VersionAdapterFactory.get_adapter(version)
+    at_limit = _nested_format_string_message(version, call_key, 23)
+    past_limit = _nested_format_string_message(version, call_key, 24)
+
+    for container in (at_limit, [at_limit], {"messages": [at_limit]}):
+        ops = adapter.extract_operations(container)
+        assert len(ops) == 1
+
+    for container in (past_limit, [past_limit], {"messages": [past_limit]}):
+        with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
+            adapter.extract_operations(container)
+
+    # Keys beside "messages" on a wrapper carry no operations: its messages apply.
+    for wrapper in (
+        {"version": version, "messages": [at_limit]},
+        {"messages": [at_limit], "updateComponents": {"surfaceId": "other"}},
+    ):
+        ops = adapter.extract_operations(wrapper)
+        assert [op.surface_id for op in ops] == ["s1"]
+
+    # A value beside "messages" counts its depth from the wrapper that holds it.
+    # Ten lists put the wrapper at depth 10, so 40 lists nested beside "messages"
+    # end at depth 50, and 41 at depth 51.
+    def nested_lists(count: int) -> object:
+        value: object = []
+        for _ in range(count - 1):
+            value = [value]
+        return value
+
+    def wrapper_at_depth_10(extra: object) -> object:
+        payload: object = {"messages": [at_limit], "extra": extra}
+        for _ in range(10):
+            payload = [payload]
+        return payload
+
+    assert len(adapter.extract_operations(wrapper_at_depth_10(nested_lists(40)))) == 1
+    with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
+        adapter.extract_operations(wrapper_at_depth_10(nested_lists(41)))
+    with pytest.raises(A2uiValidationError, match="Invalid path syntax"):
+        adapter.extract_operations(
+            {"messages": [at_limit], "meta": {"path": "/invalid/escape/~2"}}
+        )
+
+    nested_arrays_50: object = at_limit
+    for _ in range(50):
+        nested_arrays_50 = [nested_arrays_50]
+    assert len(adapter.extract_operations(nested_arrays_50)) == 1
+
+    nested_arrays_51: object = [nested_arrays_50]
+    with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
+        adapter.extract_operations(nested_arrays_51)
+
+    wrapped_25: object = at_limit
+    for _ in range(25):
+        wrapped_25 = {"messages": [wrapped_25]}
+    assert len(adapter.extract_operations(wrapped_25)) == 1
+
+    wrapped_26: object = {"messages": [wrapped_25]}
+    with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
+        adapter.extract_operations(wrapped_26)
+
+    empty_wrapped_25: object = {"messages": []}
+    for _ in range(24):
+        empty_wrapped_25 = {"messages": [empty_wrapped_25]}
+    assert adapter.extract_operations(empty_wrapped_25) == []
+
+    empty_wrapped_26: object = {"messages": [empty_wrapped_25]}
+    with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
+        adapter.extract_operations(empty_wrapped_26)

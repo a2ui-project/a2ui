@@ -314,7 +314,7 @@ export class RendererState {
    * A v1.0 `callRendererFunction` is checked, never run: the surface it names must exist,
    * its catalog must be active and declare the function, the agent must be allowed to call
    * the function, which must not require a user activation, its arguments must match the
-   * function's schema as written, and the calls nested in them must be calls the renderer
+   * function's schema as written, and the calls nested in them must also be calls the agent
    * can make. The arguments are resolved outside any list template, so they may not call
    * `@index`, and each data binding in them must hold a string `@path` and nothing else.
    *
@@ -1244,15 +1244,15 @@ function checkArgs(catalog: CatalogApi, name: string, args: unknown, subject: st
 /**
  * Checks the function calls nested in a `callRendererFunction`'s arguments.
  *
- * The renderer resolves each one as it resolves the arguments, as a renderer call. Every
- * object in the arguments, a call or not, must hold no unrecognized reserved `@` directive.
- * An object with `@path` is a data binding, so it must hold a string `@path` and nothing
- * else; a relative path is allowed. A call must hold no field but `@call`, `catalogId` and
- * `args`, a string `catalogId` and an object `args`, if any; see `checkNestedCall`. An object
- * whose `@call` is not a string is no call, and the renderer resolves its values, so they
- * are checked too.
+ * The renderer resolves each one under the agent's caller boundary as it resolves the
+ * arguments. Every object in the arguments, a call or not, must hold no unrecognized reserved
+ * `@` directive. An object with `@path` is a data binding, so it must hold a string `@path`
+ * and nothing else; a relative path is allowed. A call must hold no field but `@call`,
+ * `catalogId` and `args`, a string `catalogId` and an object `args`, if any; see
+ * `checkNestedCall`. An object whose `@call` is not a string is no call, and the renderer
+ * resolves its values, so they are checked too.
  *
- * @throws {A2uiValidationError} If a nested call is one the renderer can't make, or a data
+ * @throws {A2uiValidationError} If a nested call is one the agent can't make, or a data
  *     binding is malformed.
  */
 function checkNestedCalls(context: NestedCallContext, value: unknown): void {
@@ -1296,7 +1296,7 @@ function checkDataBinding(subject: string, binding: Message): void {
  * Checks one call nested in a `callRendererFunction`'s arguments.
  *
  * A call that names a catalog runs in it, which must be one of the catalogs. One that names
- * none runs where `context.home` says. The renderer can't run an `agentOnly` function there,
+ * none runs where `context.home` says. The agent can't run a `rendererOnly` function there,
  * nor one that requires a user activation, since the agent's call has none. A reserved `@`
  * system function belongs to no catalog, so it must not name one. The renderer resolves the
  * arguments outside any list template, so `@index` has no item to report and is refused.
@@ -1340,12 +1340,12 @@ function checkNestedCall(context: NestedCallContext, record: Message, name: stri
     if (typeof record.catalogId !== 'string') {
       throw new A2uiValidationError(`${holds} whose 'catalogId' must be a string.`);
     }
-    checkRendererCall(heldCatalog(catalogs, record.catalogId, where), name, args, where);
+    checkAgentNestedCall(heldCatalog(catalogs, record.catalogId, where), name, args, where);
     return;
   }
   switch (home.kind) {
     case 'catalog':
-      checkRendererCall(home.catalog, name, args, where);
+      checkAgentNestedCall(home.catalog, name, args, where);
       return;
     case 'none':
       throw new A2uiValidationError(
@@ -1361,7 +1361,7 @@ function checkNestedCall(context: NestedCallContext, record: Message, name: stri
       const refusals: A2uiValidationError[] = [];
       for (const catalog of declaring) {
         try {
-          checkRendererCall(catalog, name, args, where);
+          checkAgentNestedCall(catalog, name, args, where);
           return;
         } catch (e) {
           if (!(e instanceof A2uiValidationError)) throw e;
@@ -1374,19 +1374,29 @@ function checkNestedCall(context: NestedCallContext, record: Message, name: stri
 }
 
 /**
- * Checks that the renderer may make a call to a function in a catalog, as one the agent's
- * `callRendererFunction` started, and that its arguments match.
+ * Checks that the agent may make a nested call to a function in a catalog inside
+ * `callRendererFunction` arguments, and that its arguments match.
  */
-function checkRendererCall(catalog: CatalogApi, name: string, args: unknown, where: string): void {
+function checkAgentNestedCall(
+  catalog: CatalogApi,
+  name: string,
+  args: unknown,
+  where: string,
+): void {
   const fn = catalog.functions.get(name);
-  if (fn?.allowedCallers === 'agentOnly') {
+  if (!fn) {
+    checkArgs(catalog, name, args, where);
+    return;
+  }
+  const allowedCallers = fn.allowedCallers ?? 'rendererOnly';
+  if (allowedCallers !== 'agentOnly' && allowedCallers !== 'rendererOrAgent') {
     throw new A2uiValidationError(
-      `${where} the renderer can't make: Function '${name}' cannot be called by renderer (allowedCallers is agentOnly).`,
+      `${where} the agent can't make: Function '${name}' cannot be called by agent (allowedCallers is ${allowedCallers}).`,
     );
   }
-  if (fn?.requiresUserActivation) {
+  if (fn.requiresUserActivation) {
     throw new A2uiValidationError(
-      `${where} the renderer can't make: Function '${name}' requires a user activation, and a call from the agent has none.`,
+      `${where} the agent can't make: Function '${name}' requires a user activation, and a call from the agent has none.`,
     );
   }
   checkArgs(catalog, name, args, where);
