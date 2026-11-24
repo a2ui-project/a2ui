@@ -136,29 +136,15 @@ public final class RPCHandler {
       )
     }
 
-    // Validate allowedCallers constraint: agent must be permitted to invoke.
-    if function.api.allowedCallers == .rendererOnly {
-      let errorPayload = FunctionErrorPayload(
-        code: .invalidFunctionCall,
-        message:
-          "Function '\(callName)' cannot be called by agent (allowedCallers is rendererOnly)."
-      )
+    // Validate allowedCallers and user activation constraints.
+    if let permissionError = Self.checkExecutionPermissions(
+      function: function,
+      name: callName,
+      userActivationPresent: userActivationPresent
+    ) {
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
-        error: errorPayload,
-        version: message.version
-      )
-    }
-
-    // Validate user activation requirement.
-    if function.api.requiresUserActivation && !userActivationPresent {
-      let errorPayload = FunctionErrorPayload(
-        code: .invalidFunctionCall,
-        message: "Function '\(callName)' requires user activation context to execute."
-      )
-      return RendererFunctionResponseMessage(
-        functionCallID: message.functionCallID,
-        error: errorPayload,
+        error: permissionError,
         version: message.version
       )
     }
@@ -170,6 +156,18 @@ public final class RPCHandler {
       fallback: fallbackHandler,
       standaloneCatalog: catalog
     )
+    if let nestedError = Self.checkNestedArgumentPermissions(
+      in: rawArgs,
+      handler: argHandler,
+      userActivationPresent: userActivationPresent
+    ) {
+      return RendererFunctionResponseMessage(
+        functionCallID: message.functionCallID,
+        error: nestedError,
+        version: message.version
+      )
+    }
+
     let argResolutionContext = DataContext(
       dataModel: dataContext?.dataModel ?? DataModel(),
       path: dataContext?.path ?? "",
@@ -179,6 +177,7 @@ public final class RPCHandler {
       isUserActivated: userActivationPresent
     )
     argResolutionContext.activeFunctionCatalogID = catalog.id
+    argResolutionContext.isAgentCall = true
     // `RPCArgumentFunctionHandler` intentionally omits `agentFunctionCatalogID` and
     // `agentFunctionValue`: an agent-initiated `callRendererFunction` cannot wait on another
     // outbound call back to the agent, so any unimplemented nested call fails locally.
@@ -196,15 +195,21 @@ public final class RPCHandler {
       isUserActivated: userActivationPresent
     )
     effectiveContext.activeFunctionCatalogID = catalog.id
+    effectiveContext.isAgentCall = true
 
     var resolvedArgs: [String: JSONValue] = [:]
     for (key, val) in rawArgs {
       resolvedArgs[key] = argResolutionContext.resolveDynamicValue(val)
+      if argHandler.capturedInvalidFunctionCallError != nil {
+        break
+      }
     }
 
-    if let capturedError = argHandler.capturedError {
+    if let capturedError = argHandler.capturedInvalidFunctionCallError ?? argHandler.capturedError {
+      let code: FunctionErrorPayload.Code =
+        argHandler.capturedInvalidFunctionCallError != nil ? .invalidFunctionCall : .executionError
       let errorPayload = FunctionErrorPayload(
-        code: .executionError,
+        code: code,
         message: Self.errorMessage(
           capturedError,
           fallback: "An argument of the function call could not be resolved."
@@ -234,16 +239,33 @@ public final class RPCHandler {
 
     do {
       let result = try function.evaluate(arguments: resolvedArgs, context: effectiveContext)
+      if let capturedError = executionHandler.capturedInvalidFunctionCallError {
+        let errorPayload = FunctionErrorPayload(
+          code: .invalidFunctionCall,
+          message: Self.errorMessage(
+            capturedError,
+            fallback: "An error occurred during function execution."
+          )
+        )
+        return RendererFunctionResponseMessage(
+          functionCallID: message.functionCallID,
+          error: errorPayload,
+          version: message.version
+        )
+      }
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
         value: result,
         version: message.version
       )
     } catch {
+      let effectiveError = executionHandler.capturedInvalidFunctionCallError ?? error
+      let code: FunctionErrorPayload.Code =
+        Self.isInvalidFunctionCallError(effectiveError) ? .invalidFunctionCall : .executionError
       let errorPayload = FunctionErrorPayload(
-        code: .executionError,
+        code: code,
         message: Self.errorMessage(
-          error,
+          effectiveError,
           fallback: "An error occurred during function execution."
         )
       )
@@ -253,6 +275,125 @@ public final class RPCHandler {
         version: message.version
       )
     }
+  }
+
+  fileprivate static func isInvalidFunctionCallError(_ error: any Error) -> Bool {
+    guard let fnError = error as? FunctionError else { return false }
+    switch fnError {
+    case .callerDisallowed, .userActivationRequired:
+      return true
+    default:
+      return false
+    }
+  }
+
+  private static func checkExecutionPermissions(
+    function: any FunctionImplementation,
+    name: String,
+    userActivationPresent: Bool
+  ) -> FunctionErrorPayload? {
+    if function.api.allowedCallers == .rendererOnly {
+      return FunctionErrorPayload(
+        code: .invalidFunctionCall,
+        message: "Function '\(name)' cannot be called by agent (allowedCallers is rendererOnly)."
+      )
+    }
+    if function.api.requiresUserActivation && !userActivationPresent {
+      return FunctionErrorPayload(
+        code: .invalidFunctionCall,
+        message: "Function '\(name)' requires user activation context to execute."
+      )
+    }
+    return nil
+  }
+
+  private static let maxDynamicValueDepth = 1000
+
+  private static func checkNestedArgumentPermissions(
+    in rawArgs: [String: JSONValue],
+    handler: RPCArgumentFunctionHandler,
+    userActivationPresent: Bool
+  ) -> FunctionErrorPayload? {
+    var stack: [(value: JSONValue, depth: Int)] = rawArgs.values.reversed().map { ($0, 0) }
+    var exceededMaxDepth = false
+    while let entry = stack.popLast() {
+      if entry.depth > maxDynamicValueDepth {
+        exceededMaxDepth = true
+        continue
+      }
+      let step = inspectNestedNode(
+        entry.value,
+        handler: handler,
+        userActivationPresent: userActivationPresent
+      )
+      if let error = step.error {
+        return error
+      }
+      for child in step.children.reversed() {
+        stack.append((value: child, depth: entry.depth + 1))
+      }
+    }
+    if exceededMaxDepth {
+      return FunctionErrorPayload(
+        code: .executionError,
+        message: "Maximum dynamic value nesting depth exceeded (\(maxDynamicValueDepth))."
+      )
+    }
+    return nil
+  }
+
+  private static func inspectNestedNode(
+    _ value: JSONValue,
+    handler: RPCArgumentFunctionHandler,
+    userActivationPresent: Bool
+  ) -> (error: FunctionErrorPayload?, children: [JSONValue]) {
+    switch value {
+    case .array(let items):
+      return (nil, items)
+    case .object(let dict):
+      if dict["@call"]?.stringValue != nil {
+        if let err = checkNestedCallRecord(
+          dict,
+          handler: handler,
+          userActivationPresent: userActivationPresent
+        ) {
+          return (err, [])
+        }
+        if case .object(let argDict)? = dict["args"] {
+          return (nil, Array(argDict.values))
+        }
+        if let rawArgs = dict["args"] {
+          return (nil, [rawArgs])
+        }
+        return (nil, [])
+      }
+      return (nil, Array(dict.values))
+    default:
+      return (nil, [])
+    }
+  }
+
+  private static func checkNestedCallRecord(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    handler: RPCArgumentFunctionHandler,
+    userActivationPresent: Bool
+  ) -> FunctionErrorPayload? {
+    guard let callName = dict["@call"]?.stringValue, !callName.hasPrefix("@") else {
+      return nil
+    }
+    let rawCatalogID = dict["catalogId"]
+    guard rawCatalogID == nil || rawCatalogID?.stringValue != nil else { return nil }
+    let catalogID = rawCatalogID?.stringValue
+    guard (try? handler.validateFunctionCatalog(id: catalogID, functionName: callName)) != nil,
+      let fn = handler.function(named: callName, catalogID: catalogID)
+    else {
+      return nil
+    }
+    return checkExecutionPermissions(
+      function: fn,
+      name: callName,
+      userActivationPresent: userActivationPresent
+    )
   }
 
   /// The message of an error thrown while answering an agent-initiated call, or `fallback` when
@@ -412,6 +553,7 @@ private final class RPCArgumentFunctionHandler: FunctionHandler {
   private let fallback: DummyContextFunctionHandler
   private let standaloneCatalog: AnyCatalog?
   private(set) var capturedError: Error?
+  private(set) var capturedInvalidFunctionCallError: Error?
 
   init(
     delegate: FunctionHandler?,
@@ -440,6 +582,9 @@ private final class RPCArgumentFunctionHandler: FunctionHandler {
   func handleFunctionError(_ error: Error, functionName: String) {
     if capturedError == nil {
       capturedError = error
+    }
+    if capturedInvalidFunctionCallError == nil, RPCHandler.isInvalidFunctionCallError(error) {
+      capturedInvalidFunctionCallError = error
     }
     delegate?.handleFunctionError(error, functionName: functionName)
   }

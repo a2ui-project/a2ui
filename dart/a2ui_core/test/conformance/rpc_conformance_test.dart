@@ -47,6 +47,15 @@ class _CannedFunction extends FunctionImplementation {
         return ((args['amount'] as num?) ?? 0) * 0.1;
       case 'echoArgs':
         return Map<String, Object?>.from(args);
+      case 'renderTemplate':
+        return BasicCatalog.v1_0(openUrl: (_) {}).functions['formatString']!
+            .execute(args, context, cancellationSignal);
+      case 'tagValue':
+        return 'tagged:${args['value']!}';
+      case 'secretRendererOnly':
+        return 'SECRET';
+      case 'agentSecret':
+        return 'AGENT_OK';
       default:
         return null;
     }
@@ -207,11 +216,6 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
       args['functionMetadata'] as Map<String, Object?>? ?? const {};
   final userActivation = args['userActivationPresent'] == true;
 
-  final functions = <FunctionImplementation>[
-    for (final MapEntry<String, Object?> entry in metadata.entries)
-      _cannedFunction(entry.key, entry.value as Map<String, Object?>? ?? {}),
-  ];
-
   final String catalogId = _catalogIdFor(
     args,
     message,
@@ -226,6 +230,16 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
       testCase['protocolVersion'] as String? ??
       '1.0';
 
+  final functionsByCatalog = <String, List<FunctionImplementation>>{};
+  for (final MapEntry<String, Object?> entry in metadata.entries) {
+    final Map<String, Object?> meta =
+        entry.value as Map<String, Object?>? ?? const {};
+    final String targetCatalogId = meta['catalogId'] as String? ?? catalogId;
+    (functionsByCatalog[targetCatalogId] ??= <FunctionImplementation>[]).add(
+      _cannedFunction(entry.key, meta),
+    );
+  }
+
   final A2uiProtocolVersion? parsedCatalogVersion =
       A2uiProtocolVersion.tryParseSemVer(catalogVersion);
   final Catalog<ComponentApi, FunctionImplementation> basic = BasicCatalog.v1_0(
@@ -234,12 +248,26 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   final catalog = Catalog<ComponentApi, FunctionImplementation>(
     id: catalogId,
     components: const [],
-    functions: functions,
+    functions: functionsByCatalog[catalogId] ?? const [],
     protocolVersion: parsedCatalogVersion,
   );
+  final extraCatalogs = <Catalog<ComponentApi, FunctionImplementation>>[
+    for (final MapEntry<String, List<FunctionImplementation>> entry
+        in functionsByCatalog.entries)
+      if (entry.key != catalogId)
+        Catalog<ComponentApi, FunctionImplementation>(
+          id: entry.key,
+          components: const [],
+          functions: entry.value,
+          protocolVersion: parsedCatalogVersion,
+        ),
+  ];
+  final bool hasBasic =
+      catalogId == 'basic' || functionsByCatalog.containsKey('basic');
   final catalogs = <Catalog<ComponentApi, FunctionImplementation>>[
     catalog,
-    if (catalogId != 'basic')
+    ...extraCatalogs,
+    if (!hasBasic)
       Catalog<ComponentApi, FunctionImplementation>(
         id: 'basic',
         components: basic.components.values.toList(),

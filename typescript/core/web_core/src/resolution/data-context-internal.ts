@@ -20,6 +20,7 @@
  */
 
 import type {Catalog} from '../catalog/types.js';
+import {A2uiExpressionError} from '../errors.js';
 import type {Signal} from '../reactivity/signals.js';
 import type {DataContext} from './data-context.js';
 
@@ -29,6 +30,7 @@ export interface DataContextFlags {
   passive?: boolean;
   action?: boolean;
   noAgentRouting?: boolean;
+  agentCaller?: boolean;
   activeCatalogId?: string;
   activeCatalog?: Catalog<any>;
 }
@@ -44,6 +46,7 @@ interface DataContextInternals {
     keepPending: boolean,
   ): unknown;
   allowsAgentRouting(ctx: DataContext): boolean;
+  isAgentCaller(ctx: DataContext): boolean;
   resolveSignalValue(
     ctx: DataContext,
     value: unknown,
@@ -166,4 +169,33 @@ export function withActiveCallCatalogId(
     return ctx;
   }
   return impl.withFlags(ctx, {activeCatalogId: catalogId, activeCatalog: catalog});
+}
+
+/**
+ * Returns a view of `ctx` marked as an agent-initiated `callRendererFunction`
+ * evaluation so nested `@call` and `${...}` expressions enforce the agent
+ * caller boundary.
+ */
+export function withAgentCaller(ctx: DataContext, userActivated = false): DataContext {
+  return getInternals().withFlags(ctx, {agentCaller: true, userActivated});
+}
+
+/** Whether `ctx` is evaluating an agent-initiated `callRendererFunction`. */
+export function isAgentCaller(ctx: DataContext): boolean {
+  return getInternals().isAgentCaller(ctx);
+}
+
+/**
+ * Whether `err` is an `A2uiExpressionError` raised because a function violated
+ * its caller boundary (`allowedCallers`) or `requiresUserActivation` gate.
+ */
+export function isInvalidFunctionCallError(err: unknown): boolean {
+  return (
+    err instanceof A2uiExpressionError &&
+    Boolean(
+      err.details &&
+      typeof err.details === 'object' &&
+      (err.details as {invalidFunctionCall?: boolean}).invalidFunctionCall,
+    )
+  );
 }
