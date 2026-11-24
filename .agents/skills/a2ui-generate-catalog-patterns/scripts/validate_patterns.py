@@ -34,6 +34,7 @@ from a2ui.inference_formats.experimental.decision import (
     PatternExpander,
     PatternLibrary,
     PatternRef,
+    QuestionKind,
     SlotBinding,
     SlotKind,
     SlotSpec,
@@ -688,7 +689,7 @@ def _filter_item_fields(
             kept[f_name] = binding
             continue
         f_spec = slot.fields.get(f_name)
-        if f_spec is not None and f_spec.required:
+        if f_spec is not None and (f_spec.required or f_spec.repeat):
             kept[f_name] = binding
     return kept
 
@@ -731,6 +732,96 @@ def _strip_optional_repeat_slot(
         semantic_type=binding.semantic_type,
         format_hints=binding.format_hints,
     )
+
+
+def _declared_slot_names(block: BlockSpec) -> frozenset[str]:
+    """Returns all top-level slot names and repeated item field names on `block`."""
+    names: set[str] = set(block.slots.keys())
+    for slot in block.slots.values():
+        names.update(slot.fields.keys())
+    return frozenset(names)
+
+
+def _bound_slot_names(bindings: BlockBindings) -> frozenset[str]:
+    """Returns top-level slot names and repeated item field names bound in `bindings`."""
+    names: set[str] = set()
+    for slot_name, binding in bindings.slots.items():
+        if not binding.bound:
+            continue
+        names.add(slot_name)
+        for f_name, f_binding in binding.fields.items():
+            if f_binding.bound:
+                names.add(f_name)
+        for item in binding.items:
+            for f_name, f_binding in item.items():
+                if f_binding.bound:
+                    names.add(f_name)
+    return frozenset(names)
+
+
+def _option_satisfies_slot_requires(
+    requires: Mapping[str, tuple[str, ...]],
+    option: str,
+    declared_slots: frozenset[str],
+    bound_slots: frozenset[str],
+) -> bool:
+    """Returns whether every slot precondition for `option` in `requires` is bound."""
+    for req in requires.get(option, ()):
+        if req in declared_slots and req not in bound_slots:
+            return False
+    return True
+
+
+def _filter_combos_for_bindings(
+    combos: Sequence[Mapping[str, str]],
+    resolved_knobs: Mapping[str, str],
+    block: BlockSpec,
+    bindings: BlockBindings,
+) -> tuple[Mapping[str, str], ...]:
+    """Drops knob combinations whose grammar `requires` slot preconditions are unbound."""
+    declared = _declared_slot_names(block)
+    bound = _bound_slot_names(bindings)
+    kept: list[Mapping[str, str]] = []
+    for combo in combos:
+        merged = {**combo, **resolved_knobs}
+        if all(
+            _option_satisfies_slot_requires(q_spec.requires, val, declared, bound)
+            for k, val in merged.items()
+            if (q_spec := block.anatomy.get(k)) is not None
+        ):
+            kept.append(combo)
+    return tuple(kept)
+
+
+def _filter_instances_for_bindings(
+    instances: Mapping[str, Mapping[str, str]],
+    block: BlockSpec,
+    bindings: BlockBindings,
+) -> dict[str, dict[str, str]]:
+    """Rewrites instance answers whose grammar `requires` slot preconditions are unbound."""
+    declared = _declared_slot_names(block)
+    bound = _bound_slot_names(bindings)
+    eligible_by_q: dict[str, tuple[str, ...]] = {}
+    for q_name, q_spec in block.instance.items():
+        if q_spec.kind is QuestionKind.BOOLEAN:
+            continue
+        eligible = tuple(
+            opt
+            for opt in q_spec.option_ids()
+            if _option_satisfies_slot_requires(q_spec.requires, opt, declared, bound)
+        )
+        if eligible:
+            eligible_by_q[q_name] = eligible
+    filtered: dict[str, dict[str, str]] = {}
+    for idx_key, answers in instances.items():
+        updated = dict(answers)
+        idx_num = int(idx_key) if idx_key.isdigit() else 0
+        for q_name, val in answers.items():
+            allowed = eligible_by_q.get(q_name)
+            if allowed and val not in allowed:
+                updated[q_name] = allowed[idx_num % len(allowed)]
+        filtered[idx_key] = updated
+    return filtered
 
 
 def _required_only_bindings(
@@ -987,16 +1078,22 @@ def dry_run_block(
     failures.extend(full_failures)
 
     required_bindings = _required_only_bindings(block, bindings)
-    if required_bindings != bindings:
+    if required_bindings != bindings and required_bindings.slots:
+        req_combos = _filter_combos_for_bindings(
+            combos, resolved.knobs, block, required_bindings
+        )
+        req_instances = _filter_instances_for_bindings(
+            instances, block, required_bindings
+        )
         req_runs, req_failures = _run_block_binding_pass(
             expander,
             cat_pattern,
             block,
             required_bindings,
-            instances,
+            req_instances,
             payload,
             graph,
-            combos,
+            req_combos,
             resolved.knobs,
             patterns_path=patterns_path,
         )
@@ -1602,10 +1699,18 @@ def _load_patterns_sidecar(
     """Loads `patterns.json` and checks catalog/grammar parity, returning a schema error on parse failure."""
     if p_path is None:
         return None, None
+    target_file = p_path / "patterns.json" if p_path.is_dir() else p_path
     try:
         library = load_pattern_library(p_path, grammar=loaded.grammar)
     except ToolError as exc:
-        if "targets grammarVersion" in str(exc) or not p_path.is_file():
+        cause = exc.__cause__
+        if isinstance(cause, OSError) or not target_file.is_file():
+            raise
+        if (
+            isinstance(cause, PatternError)
+            and f"expected {loaded.grammar.version!r}." in str(cause)
+            and "targets grammarVersion" in str(cause)
+        ):
             raise
         return None, str(exc)
     if library.catalog_id != loaded.catalog.catalog_id:
@@ -1629,10 +1734,11 @@ def _load_templates_sidecar(
     """Loads `templates.json`, returning a schema error string if an existing file is malformed."""
     if t_path is None:
         return None, None
+    target_file = t_path / "templates.json" if t_path.is_dir() else t_path
     try:
         return load_template_registry(t_path), None
     except ToolError as exc:
-        if not t_path.is_file():
+        if isinstance(exc.__cause__, OSError) or not target_file.is_file():
             raise
         return None, str(exc)
 

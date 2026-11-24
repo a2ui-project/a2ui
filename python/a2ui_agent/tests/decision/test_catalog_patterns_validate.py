@@ -496,3 +496,65 @@ def test_malformed_sidecar_returns_schema_ok_false_and_custom_child_slots_lint(
     assert any(
         f.stage == "lint" and "empty_container" in f.message for f in lint_failures
     )
+
+
+def test_required_only_dry_run_honors_grammar_requires_and_keeps_nested_repeats(
+    tmp_path: Path,
+) -> None:
+    """Verifies required-only dry runs filter grammar requires preconditions and retain repeat sub-slots."""
+    basic_cat = REPO_ROOT / "catalogs" / "basic" / "v1" / "catalog.json"
+    basic_pat_path = REPO_ROOT / "catalogs" / "basic" / "v1" / "patterns.json"
+    strict_patterns = json.loads(basic_pat_path.read_text(encoding="utf-8"))
+
+    # Strip defensive $defaults from `choice`, `multiChoice`, and `range` fieldVariants:
+    # grammar `requires` guarantees `options` / `min`+`max` whenever those controls are picked.
+    fv = strict_patterns["patterns"]["form"]["fieldVariants"]
+    fv["choice"]["options"] = {"$slot": "options"}
+    fv["multiChoice"]["options"] = {"$slot": "options"}
+    fv["range"]["max"] = {"$slot": "max"}
+
+    pat_path = write_json(tmp_path, "patterns.json", strict_patterns)
+    pay_path = write_json(
+        tmp_path, "sample_payloads.json", DESIGN_SYSTEM_SAMPLE_PAYLOADS
+    )
+    loaded = _common.load_catalog(basic_cat)
+    report = validate_patterns.validate_catalog_artifacts(
+        loaded, payload_path=pay_path, patterns_path=pat_path
+    )
+    assert report.ok is True, report.failures
+
+    # Nested optional repeat sub-slots (e.g. comparison.options.fields.attributes) are retained.
+    comp_block = loaded.grammar.blocks["comparison"]
+    comp_full = validate_patterns.synthetic_block_bindings(comp_block)
+    comp_req = validate_patterns._required_only_bindings(comp_block, comp_full)
+    assert all("attributes" in item for item in comp_req.slots["options"].items)
+
+
+def test_sidecar_loader_propagates_oserror_and_handles_directory_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verifies OSError raises ToolError while malformed files in directories set schema_ok=False."""
+    cat_path = write_json(tmp_path, "catalog.json", design_system_catalog_dict("1.0"))
+    pay_path = write_json(
+        tmp_path, "sample_payloads.json", DESIGN_SYSTEM_SAMPLE_PAYLOADS
+    )
+    dir_with_bad = tmp_path / "sidecar_dir"
+    dir_with_bad.mkdir()
+    bad_pat = dir_with_bad / "patterns.json"
+    bad_pat.write_text("{invalid json", encoding="utf-8")
+
+    loaded = _common.load_catalog(cat_path)
+    report = validate_patterns.validate_catalog_artifacts(
+        loaded, payload_path=pay_path, patterns_path=dir_with_bad
+    )
+    assert report.schema_ok is False
+    assert report.schema_error is not None
+
+    def raise_perm(_path: object, **_kwargs: object) -> object:
+        raise _common.ToolError("unreadable") from PermissionError("denied")
+
+    monkeypatch.setattr(validate_patterns, "load_pattern_library", raise_perm)
+    with pytest.raises(_common.ToolError, match="unreadable"):
+        validate_patterns.validate_catalog_artifacts(
+            loaded, payload_path=pay_path, patterns_path=bad_pat
+        )
