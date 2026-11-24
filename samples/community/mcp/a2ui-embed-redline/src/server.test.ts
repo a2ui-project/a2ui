@@ -100,6 +100,13 @@ describe('a2ui-embed-redline MCP server', () => {
       expect(`${PLUGIN_TOOL_PREFIX}${tool.name}`.length).toBeLessThanOrEqual(64);
     }
     expect(client.getInstructions()).toBe(SERVER_INSTRUCTIONS);
+    expect(SERVER_INSTRUCTIONS).toContain(
+      'Make redline_negotiator the final tool call of your turn',
+    );
+    const redlineTool = tools.find(t => t.name === REDLINE_TOOL_NAME)!;
+    expect(redlineTool.description).toContain(
+      'Make redline_negotiator the final tool call of your turn',
+    );
   });
 
   it('composes genuinely distinct, schema-valid component trees across scenarios', async () => {
@@ -135,6 +142,7 @@ describe('a2ui-embed-redline MCP server', () => {
       const dataModel = messages.find(m => m['updateDataModel'])!['updateDataModel'].value;
       expect(jsonBytes(dataModel)).toBeLessThan(12 * 1024);
       expect(collectKeys(dataModel).has('path')).toBe(false);
+      expect(textOf(res)).toContain('Make redline_negotiator the final tool call of your turn');
     }
 
     const typesOf = (res: CallToolResult) =>

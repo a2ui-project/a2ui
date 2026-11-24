@@ -205,20 +205,51 @@ export function composeSurfaceView(
   };
 }
 
-/** Builds validated A2UI messages and a clean plain-text summary for the model. */
+/** Builds validated A2UI messages and a complete plain-text summary for the model. */
 export function composeNegotiationResponse(surfaceId: string, scenario: NegotiationScenario) {
   const view = composeSurfaceView(surfaceId, scenario);
   const messages = createSurfaceMessages(view);
   const metrics = computeNegotiationMetrics(view.dataModel['clauses'], view.dataModel['stances']);
-  const clauseLines = scenario.clauses.map(
-    clause =>
-      `- ${clause.section} ${clause.title}: ★ ${clause.initialStance} (${clause.rationale})`,
+
+  const benchmarkLines = scenario.standaloneBenchmarks.map(
+    bench =>
+      `- Benchmark (${bench.label}): ${bench.theirsLabel} vs ${bench.normLabel}${bench.oursLabel ? `, counter target ${bench.oursLabel}` : ''}.`,
   );
+
+  const milestoneLine = scenario.milestones
+    ? (() => {
+        const total = scenario.milestones.totalAmount;
+        const theirs = scenario.milestones.theirsMilestones
+          .map(m => `${m.percent}% ${m.label} (${formatDollars((total * m.percent) / 100)})`)
+          .join(' / ');
+        const ours = scenario.milestones.recommendedMilestones
+          .map(m => `${m.percent}% ${m.label} (${formatDollars((total * m.percent) / 100)})`)
+          .join(' / ');
+        return `- Payment Schedule (${formatDollars(total)} total): Theirs [${theirs}] -> Recommended Counter [${ours}].`;
+      })()
+    : undefined;
+
+  const clauseLines = scenario.clauses.map(clause => {
+    const benchNote = clause.inlineBenchmark
+      ? ` [Benchmark: ${clause.inlineBenchmark.theirsLabel} vs ${clause.inlineBenchmark.normLabel}]`
+      : '';
+    return [
+      `- ${clause.section} ${clause.title} (★ pre-selected: ${clause.initialStance}; risk if accepted: ${formatDollars(clause.exposureAccept)}, fallback: ${formatDollars(clause.exposureFallback)}, counter: ${formatDollars(clause.exposureCounter)})${benchNote}:`,
+      `  • Theirs: ${clause.theirsText}`,
+      `  • Recommended Counter: ${clause.counterAsk}`,
+      `  • Soft Fallback: ${clause.fallbackAsk}`,
+      `  • Rationale: ${clause.rationale}`,
+    ].join('\n');
+  });
+
   const text = [
-    `Opened Redline Negotiator for "${scenario.docTitle}" (${scenario.summaryBadge}).`,
-    `Signing as-is carries ${formatDollars(metrics.maxExposure)} worst-case downside; the pre-selected stances reduce exposure to ${formatDollars(metrics.currentExposure)} (saving ${formatDollars(metrics.savedDollars)}) at ${metrics.frictionScore}/100 friction (${metrics.frictionLabel}).`,
+    `Rendered Redline Negotiator inline for "${scenario.docTitle}" (${scenario.summaryBadge}).`,
+    `Exposure & Leverage Summary: Signing as-is carries ${formatDollars(metrics.maxExposure)} worst-case downside (floor: ${formatDollars(metrics.minExposure)}). The pre-selected stances reduce downside to ${formatDollars(metrics.currentExposure)} (cutting ${formatDollars(metrics.savedDollars)}) at ${metrics.frictionScore}/100 deal friction (${metrics.frictionLabel}).`,
+    ...benchmarkLines,
+    ...(milestoneLine ? [milestoneLine] : []),
     ...clauseLines,
-    'The user can flip each clause between Counter, Fallback, and Accept, switch Collaborative/Firm tone, and lock their counter-offer in the card. Nothing is sent automatically.',
+    'The interactive studio also includes a live Collaborative/Firm counter-offer email draft and Lock/Reset controls; nothing is sent externally until the user acts.',
+    "IMPORTANT: Make redline_negotiator the final tool call of your turn: never call read_file, run_command, update_focus, or any other tool after redline_negotiator returns, because the interactive A2UI studio is already rendered inline for the user and any subsequent tool call collapses the app into the 'Worked for' block. Answer directly from this text summary.",
   ].join('\n');
 
   return {view, messages, text};
