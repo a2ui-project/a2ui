@@ -375,7 +375,10 @@
           "id": "filters_col",
           "component": "Column",
           "children": [
-            "filters_search",
+            {
+              "$if": "query",
+              "id": "filters_search"
+            },
             {
               "$if": "categories",
               "id": "filters_categories"
@@ -387,8 +390,7 @@
           "component": "TextField",
           "label": "Search",
           "value": {
-            "$slot": "query",
-            "$default": ""
+            "$slot": "query"
           },
           "variant": "shortText"
         },

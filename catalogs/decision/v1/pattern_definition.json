@@ -167,7 +167,7 @@
       "description": "Optional value-formatting directive evaluated dynamically when the catalog declares formatCurrency or formatNumber.",
       "properties": {
         "slot": {"type": "string", "minLength": 1},
-        "kind": {"type": "string", "enum": ["currency", "number", "percent", "duration"]},
+        "kind": {"type": "string", "enum": ["currency", "number", "percent"]},
         "template": {
           "type": "string",
           "description": "Optional formatString wrapper around the formatted value, using {value} as placeholder."
