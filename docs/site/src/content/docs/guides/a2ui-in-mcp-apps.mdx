@@ -231,7 +231,7 @@ export function createReleaseServer(): McpServer {
 <details>
 <summary>View wire payload</summary>
 
-`app.tool` validates the `a2ui` array against A2UI v1.0 and `dist/a2ui-app.catalog.json`, then wraps it in an MCP `CallToolResult` where `content` holds the model-facing text summary and `structuredContent.a2ui` holds the versioned `EmbedPayload`:
+`releaseCardMessages` produces the following A2UI v1.0 message array:
 
 ```json
 [
@@ -292,6 +292,8 @@ export function createReleaseServer(): McpServer {
   }
 ]
 ```
+
+`app.tool` validates that array against A2UI v1.0 and `dist/a2ui-app.catalog.json`, then wraps it in an MCP `CallToolResult` where `content` holds the model-facing text summary and `structuredContent.a2ui.messages` holds the A2UI messages shown above:
 
 ```json
 {
@@ -364,102 +366,26 @@ Ask the host to check the release status for `checkout-api`. The host calls `rel
 
 ---
 
-## Bundle custom components and catalogs
+## Register a custom catalog
 
-When a workflow calls for domain-specific controls beyond `basicCatalog`, write a custom component with `A2uiLitElement` (or a plain `HTMLElement` Web Component; see [Authoring Universal Web Components](../authoring-universal-components/)), include it in a `Catalog`, and add that catalog to `a2ui-embed.config.ts`.
+When a workflow needs domain-specific controls alongside `basicCatalog`, author your custom Web Components first (see [Authoring Universal Web Components](../authoring-universal-components/) and [How to Define a Catalog](../defining-a-catalog/)), group them into a `Catalog`, and register that catalog in `a2ui-embed.config.ts`.
 
-### Write a custom component
-
-Define the component's property schema with `spec` and `ComponentApi` from `@a2ui/web_core/v1_0`, implement its element class, and export the `{...Api, tagName, element}` descriptor:
-
-```typescript
-// src/stat_card.ts
-import {A2uiLitElement, DynamicStringSchema, spec, type ComponentApi} from '@a2ui/web_core/v1_0';
-import {css, html, nothing} from 'lit';
-import {z} from 'zod';
-
-export const StatCardApi = {
-  name: 'StatCard',
-  schema: spec(
-    z
-      .object({
-        label: DynamicStringSchema.describe('REF:#/$defs/DynamicString|Metric label.'),
-        value: DynamicStringSchema.describe('REF:#/$defs/DynamicString|Formatted metric value.'),
-      })
-      .describe('Compact metric summary tile.')
-      .strict(),
-    {mixins: [], required: ['label', 'value']},
-  ),
-} satisfies ComponentApi;
-
-export class A2uiStatCardElement extends A2uiLitElement<typeof StatCardApi> {
-  static readonly tagName = 'a2ui-stat-card';
-
-  static override styles = css`
-    :host {
-      display: block;
-      padding: 0.75rem 1rem;
-      border: var(--a2ui-border-width, 1px) solid var(--a2ui-color-border);
-      border-radius: var(--a2ui-border-radius, 0.25rem);
-      background: var(--a2ui-color-surface);
-    }
-    .label {
-      font-size: 0.75rem;
-      color: var(--a2ui-text-caption-color);
-    }
-    .value {
-      font-size: 1.25rem;
-      font-weight: 600;
-    }
-  `;
-
-  protected override readonly api = StatCardApi;
-
-  override render() {
-    const props = this.controller?.props;
-    if (!props) return nothing;
-    return html`
-      <div class="label">${props.label ?? ''}</div>
-      <div class="value">${props.value ?? ''}</div>
-    `;
-  }
-}
-
-export const StatCard = {
-  ...StatCardApi,
-  tagName: A2uiStatCardElement.tagName,
-  element: A2uiStatCardElement,
-};
-```
-
-### Register the catalog and rebuild
-
-Combine `StatCard` with the components and functions from `basicCatalog` (or define a standalone catalog; see [How to Define a Catalog](../defining-a-catalog/)):
+Define a catalog containing only your custom components (for example, a `StatCard` component from `./stat_card.js`):
 
 ```typescript
 // src/release_catalog.ts
 import type {WebComponentImplementation} from '@a2ui/web_core/universal';
 import {Catalog} from '@a2ui/web_core/v1_0';
-import {basicCatalog} from '@a2ui/embed/build';
 import {StatCard} from './stat_card.js';
 
 export const RELEASE_CATALOG_ID = 'https://example.com/catalogs/release/v1/catalog.json';
 
-export const releaseCatalog = new Catalog<WebComponentImplementation>(
-  RELEASE_CATALOG_ID,
-  '1.0',
-  [...basicCatalog.components.values(), StatCard],
-  [...basicCatalog.functions.values()],
-  {
-    themeSchema: basicCatalog.themeSchema,
-    schemaUri: 'https://json-schema.org/draft/2020-12/schema',
-    schemaId: RELEASE_CATALOG_ID,
-    title: 'Release Tracker Catalog',
-  },
-);
+export const releaseCatalog = new Catalog<WebComponentImplementation>(RELEASE_CATALOG_ID, '1.0', [
+  StatCard,
+]);
 ```
 
-Add `releaseCatalog` to `a2ui-embed.config.ts` and rerun `npx a2ui-embed build`:
+List `releaseCatalog` alongside `basicCatalog` in `a2ui-embed.config.ts` and rerun `npx a2ui-embed build`:
 
 ```typescript
 // a2ui-embed.config.ts
@@ -470,6 +396,18 @@ export default defineConfig({
   catalogs: [basicCatalog, releaseCatalog],
   output: 'dist/a2ui-app.html',
 });
+```
+
+`a2ui-embed build` bundles both catalogs into `dist/a2ui-app.html` and writes both schemas into `dist/a2ui-app.catalog.json` keyed by catalog ID. On a surface created with `catalogId: BASIC_CATALOG_ID`, reference components from `releaseCatalog` by setting `'@catalogId': RELEASE_CATALOG_ID` on those component entries (or set `catalogId: RELEASE_CATALOG_ID` on `createSurface` when the surface uses `releaseCatalog` as its default):
+
+```typescript
+{
+  id: 'approvals_tile',
+  '@catalogId': RELEASE_CATALOG_ID,
+  component: 'StatCard',
+  label: 'Approvals',
+  value: String(state.approvals),
+}
 ```
 
 Keep two rules in mind when building custom catalogs with `a2ui-embed build`:
@@ -783,7 +721,7 @@ sequenceDiagram
 ```typescript
 import {startEmbedApp} from '@a2ui/embed/mcp';
 import {renderMarkdown} from '@a2ui/markdown-it';
-import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {basicCatalog} from '@a2ui/web_core/v1_0';
 
 const handle = startEmbedApp({
   catalogs: [basicCatalog],
