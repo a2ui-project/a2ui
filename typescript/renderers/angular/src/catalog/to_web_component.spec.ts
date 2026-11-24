@@ -409,6 +409,46 @@ describe('toWebComponent', () => {
     document.body.removeChild(hostEl);
   });
 
+  it('removes the child element on disconnect even if ngOnDestroy throws', () => {
+    @Component({
+      selector: 'test-throwing-destroy-wc',
+      template: '<span>Throwing</span>',
+      standalone: true,
+    })
+    class TestThrowingDestroyComponent extends CatalogComponent<ComponentApi> implements OnDestroy {
+      ngOnDestroy(): void {
+        throw new Error('destroy failed');
+      }
+    }
+
+    const impl = createUniversalImplementation(
+      {name: 'ThrowingDestroyTest', schema: z.object({})},
+      TestThrowingDestroyComponent,
+    );
+    const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
+    const surface = new SurfaceModel('surface-throwing-destroy', catalog);
+    surface.componentsModel.addComponent(
+      new ComponentModel('comp-throwing-destroy', 'ThrowingDestroyTest', {}, catalog),
+    );
+
+    registerUniversalElement(impl);
+    const hostEl = document.createElement(impl.tagName) as AngularWcHost;
+    hostEl.injector = injector;
+    hostEl.context = new ComponentContext(surface, 'comp-throwing-destroy', '/');
+    document.body.appendChild(hostEl);
+    expect(hostEl.querySelectorAll('test-throwing-destroy-wc').length).toBe(1);
+
+    expect(() => hostEl.disconnectedCallback()).toThrowError('destroy failed');
+    expect(hostEl.querySelectorAll('test-throwing-destroy-wc').length).toBe(0);
+
+    document.body.removeChild(hostEl);
+    document.body.appendChild(hostEl);
+    expect(hostEl.querySelectorAll('test-throwing-destroy-wc').length).toBe(1);
+    expect(() => hostEl.disconnectedCallback()).toThrowError('destroy failed');
+    expect(hostEl.querySelectorAll('test-throwing-destroy-wc').length).toBe(0);
+    document.body.removeChild(hostEl);
+  });
+
   it('disambiguates tag names when two different component classes share the same name', () => {
     class CompClassA extends CatalogComponent<ComponentApi> {}
     class CompClassB extends CatalogComponent<ComponentApi> {}
