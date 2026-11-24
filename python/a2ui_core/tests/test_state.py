@@ -1369,3 +1369,29 @@ def test_validate_components_update_writes_at_catalog_id_for_non_default_catalog
         [ComponentModel("root", "Label", other, {"text": "Hi"})],
         config=ValidationConfig(),
     )
+
+
+def test_batch_clears_pending_on_callback_exception() -> None:
+    from a2ui.core.common.events import batch, enqueue_or_run
+
+    called: list[str] = []
+
+    def failing() -> None:
+        called.append("failing")
+        raise RuntimeError("boom")
+
+    def stale() -> None:
+        called.append("stale")
+
+    def later() -> None:
+        called.append("later")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        with batch():
+            enqueue_or_run(failing)
+            enqueue_or_run(stale)
+
+    with batch():
+        enqueue_or_run(later)
+
+    assert called == ["failing", "later"]

@@ -1,6 +1,7 @@
 ## Unreleased
 
 - **BREAKING CHANGE**: Remove the limit of 5 on nested function calls from `validate_recursion_and_paths`, and remove `MAX_FUNC_CALL_DEPTH`. Function call nesting is bounded only by the global depth limit (`MAX_GLOBAL_DEPTH`), so payloads that failed with `functionCall depth > 5` are now accepted. Recommended migration: drop references to `MAX_FUNC_CALL_DEPTH` ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
+- Emit `ComponentNode.on_updated` when check-only validation attributes (`is_valid`, `validation_errors`, or `validation_results`) change in `NodeResolver`, including asynchronous `callAgentFunction` check settlement ([#4307](https://github.com/a2ui-project/a2ui/issues/4307), [#4308](https://github.com/a2ui-project/a2ui/pull/4308)).
 
 ## 0.7.1 (2026-11-23)
 
