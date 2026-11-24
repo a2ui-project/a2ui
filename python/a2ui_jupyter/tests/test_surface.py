@@ -154,20 +154,18 @@ def test_send_validates_the_full_batch_before_sending(
     surface = A2UISurface()
 
     with pytest.raises(ValidationError):
-        surface.send(
-            [
-                {
-                    "version": "1.0",
-                    "createSurface": {
-                        "surfaceId": "surface-1",
-                        "catalogId": (
-                            "https://a2ui.org/specification/v1_0/basic_catalog.json"
-                        ),
-                    },
+        surface.send([
+            {
+                "version": "1.0",
+                "createSurface": {
+                    "surfaceId": "surface-1",
+                    "catalogId": (
+                        "https://a2ui.org/specification/v1_0/basic_catalog.json"
+                    ),
                 },
-                {"version": "0.9", "deleteSurface": {"surfaceId": "surface-1"}},
-            ]
-        )
+            },
+            {"version": "0.9", "deleteSurface": {"surfaceId": "surface-1"}},
+        ])
 
     assert sent == []
     assert surface.message_log == []
@@ -209,6 +207,51 @@ def test_send_logs_and_sends_valid_messages_in_order(
     assert [content["message"] for content in sent] == messages
 
 
+def test_send_accepts_generators_of_messages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        anywidget.AnyWidget,
+        "send",
+        lambda _widget, content, buffers=None: sent.append(content),
+    )
+    surface = A2UISurface()
+    message = {"version": "1.0", "deleteSurface": {"surfaceId": "surface-1"}}
+
+    surface.send(dict(message) for _ in range(2))
+
+    assert [entry["sequence"] for entry in surface.message_log] == [0, 1]
+    assert [content["message"] for content in sent] == [message, message]
+
+
+def test_send_treats_single_message_objects_as_one_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        anywidget.AnyWidget,
+        "send",
+        lambda _widget, content, buffers=None: sent.append(content),
+    )
+    surface = A2UISurface()
+    message = {"version": "1.0", "deleteSurface": {"surfaceId": "surface-1"}}
+    model = surface_module._AGENT_MESSAGE_ADAPTER.validate_python(message)
+
+    surface.send(model)
+
+    assert [entry["message"] for entry in surface.message_log] == [message]
+
+    payloads: list[Any] = ["deleteSurface", b"deleteSurface"]
+    for payload in payloads:
+        with pytest.raises(ValidationError) as error:
+            surface.send(payload)
+        assert error.value.errors()[0]["input"] == payload
+
+    assert len(surface.message_log) == 1
+    assert len(sent) == 1
+
+
 def test_send_burst_syncs_the_log_once_and_display_flushes_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -223,26 +266,22 @@ def test_send_burst_syncs_the_log_once_and_display_flushes_it(
     surface.observe(lambda change: log_syncs.append(len(change["new"])), "message_log")
 
     async def send_burst() -> None:
-        surface.send(
-            {
-                "version": "1.0",
-                "createSurface": {
-                    "surfaceId": "surface-1",
-                    "catalogId": "https://a2ui.org/specification/v1_0/basic_catalog.json",
-                },
-            }
-        )
+        surface.send({
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "surface-1",
+                "catalogId": "https://a2ui.org/specification/v1_0/basic_catalog.json",
+            },
+        })
         for value in range(3):
-            surface.send(
-                {
-                    "version": "1.0",
-                    "updateDataModel": {
-                        "surfaceId": "surface-1",
-                        "path": "/value",
-                        "value": value,
-                    },
-                }
-            )
+            surface.send({
+                "version": "1.0",
+                "updateDataModel": {
+                    "surfaceId": "surface-1",
+                    "path": "/value",
+                    "value": value,
+                },
+            })
         assert [content["sequence"] for content in sent] == [0, 1, 2, 3]
         assert log_syncs == []
         surface._repr_mimebundle_()
@@ -321,7 +360,7 @@ def test_failing_handler_does_not_stop_delivery(
 def test_waiting_in_jupyterlite_raises_instead_of_hanging(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(surface_module.sys, "platform", "emscripten")
+    monkeypatch.setattr(sys, "platform", "emscripten")
     surface = A2UISurface()
 
     with pytest.raises(RuntimeError, match="on_action or on_message"):

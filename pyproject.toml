@@ -134,7 +134,7 @@ pyink-annotation-pragmas = [
 strict = true
 explicit_package_bases = true
 namespace_packages = true
-mypy_path = "python/a2ui_core/src:python/a2ui_agent/src:python/a2ui_a2a/src:python/a2ui_adk/src:blueprints:eval:eval/bin"
+mypy_path = "python/a2ui_core/src:python/a2ui_agent/src:python/a2ui_a2a/src:python/a2ui_adk/src:python/a2ui_jupyter/src:blueprints:eval:eval/bin"
 exclude = [
     "^python/a2ui_core/tests/",
     "^python/a2ui_agent/tests/",

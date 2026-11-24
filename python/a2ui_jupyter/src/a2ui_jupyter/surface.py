@@ -97,7 +97,9 @@ def _kernel_needs_comm_polling() -> bool:
     try:
         parts = ver.split(".")[:2]
         major_str = "".join(c for c in parts[0] if c.isdigit()) if parts else ""
-        minor_str = "".join(c for c in parts[1] if c.isdigit()) if len(parts) > 1 else ""
+        minor_str = (
+            "".join(c for c in parts[1] if c.isdigit()) if len(parts) > 1 else ""
+        )
         major = int(major_str) if major_str else 0
         minor = int(minor_str) if minor_str else 0
     except Exception:
@@ -151,7 +153,8 @@ class A2UISurface(anywidget.AnyWidget):
         All messages are validated before any are sent, so a bad item cannot
         partially apply a batch.
         """
-        if isinstance(messages, (BaseModel, Mapping)):
+        # BaseModel is checked explicitly because Pydantic models are iterable.
+        if isinstance(messages, (BaseModel, Mapping, str, bytes)):
             batch = [messages]
         else:
             batch = list(messages)
