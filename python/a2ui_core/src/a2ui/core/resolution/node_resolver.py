@@ -721,16 +721,18 @@ class NodeResolver:
         )
         self._prune_removed_ref_keys(record, raw)
         is_valid, val_errors, val_results = _extract_validation_fields(raw)
-        record.node.is_valid = is_valid
-        record.node.validation_errors = val_errors
-        record.node.validation_results = val_results
 
         new_edges = self._resolve_all_child_refs(record, raw)
         self._cleanup_unreferenced_edges(record, new_edges)
         record.child_edges = new_edges
 
         wrapped = self._wrap_and_stabilize_props(record, raw)
-        record.node.set_props(wrapped)
+        record.node.set_props(
+            wrapped,
+            is_valid=is_valid,
+            validation_errors=val_errors,
+            validation_results=val_results,
+        )
 
     def _prune_removed_ref_keys(
         self, record: _NodeRecord, next_props: dict[str, Any]
