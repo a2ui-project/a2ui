@@ -123,17 +123,10 @@ const VERSION_REJECTION_CASES = new Set(['13_error_envelope_version_mismatch']);
 
 /** Cases whose behavior lands in a later commit of this change. */
 const PENDING = new Set([
-  '04_action_string_coercion_v1_0',
-  '05_data_binding_coercion_v1_0',
   '13_error_envelope_version_mismatch',
   '19_envelope_attributes_preservation',
   '20_mixable_catalogs_resolution',
-  '21_v1_0_data_binding_and_function_call_coercion',
-  '22_v1_0_action_user_message_coercion',
-  '25_v1_0_literal_object_preservation',
-  '26_v1_0_dynamic_child_list_and_checks',
   '30_root_envelope_deep_merge_and_declared_override',
-  '32_v1_0_action_function_call_shorthand',
   '33_runtime_failure_and_undeclared_property_fallback',
   '33b_error_on_error_raise_surfaces_validation_error',
   '34_v1_0_multi_catalog_foo_bar_baz_and_defaultless_surface',
