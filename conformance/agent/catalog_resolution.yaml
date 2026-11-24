@@ -44,10 +44,8 @@
 #   render.
 # * Each inline catalog becomes an active catalog of its own rather than being
 #   merged into a registered one.
-# * An inline catalog whose id matches a registered one is left undefined. A
-#   renderer that names a catalog and then redefines it inline is sending
-#   contradictory capabilities, so the suite does not pin a behaviour rather
-#   than force every SDK to agree on how to handle a client bug.
+# * An inline catalog whose id matches an already-active registered or earlier
+#   inline catalog is dropped in favor of the active catalog.
 # * Inline catalogs carry no agent transformers, since transformers belong to a
 #   registered CatalogConfig rather than to a catalog document.
 # * An inline catalog an agent does not accept is dropped without an error, the
@@ -55,8 +53,9 @@
 # * A malformed inline catalog is an error whether or not the agent accepts
 #   inline catalogs. An `inlineCatalogs` that is not an array, an entry in
 #   `inlineCatalogs` that is not an object, or an inline catalog object that is
-#   not a valid catalog (for example one with no non-empty string `catalogId` or
-#   bad `components`) is a `CatalogError`.
+#   not a valid catalog (for example one with no non-empty string `catalogId`,
+#   bad `components`, or an unresolvable local `#...` `$ref`) is a
+#   `CatalogError`.
 # * Resolved catalogs are the transformed ones, so a pruning transformer on a
 #   registration is visible in the result.
 #
@@ -411,6 +410,157 @@
         inlineCatalogs: "conformance/simplified"
   expect_error:
     category: CatalogError
+
+- name: test_inline_catalog_matching_active_registered_id_keeps_registered
+  description: An inline catalog whose catalogId matches an already-active registered catalog is dropped in favor of the registered catalog.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    accepts_inline_catalogs: true
+    renderer_capabilities:
+      "1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+        inlineCatalogs:
+          - catalogId: "conformance/simplified"
+            protocolVersion: "1.0"
+            components:
+              Marquee:
+                type: object
+                properties:
+                  component: {const: "Marquee"}
+                  text: {type: string}
+                required: ["component", "text"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+    catalogs:
+      - catalog_id: "conformance/simplified"
+        components: ["Text", "Button", "Card", "Column"]
+
+- name: test_duplicate_inline_catalog_ids_keep_first
+  description: When multiple inline catalogs share a catalogId, the first inline catalog stays active and later duplicates are dropped.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    accepts_inline_catalogs: true
+    renderer_capabilities:
+      "1.0":
+        supportedCatalogIds: []
+        inlineCatalogs:
+          - catalogId: "renderer/inline"
+            protocolVersion: "1.0"
+            components:
+              Marquee:
+                type: object
+                properties:
+                  component: {const: "Marquee"}
+                  text: {type: string}
+                required: ["component", "text"]
+          - catalogId: "renderer/inline"
+            protocolVersion: "1.0"
+            components:
+              Ticker:
+                type: object
+                properties:
+                  component: {const: "Ticker"}
+                  symbol: {type: string}
+                required: ["component", "symbol"]
+  expect:
+    active_catalog_ids: ["renderer/inline"]
+    catalogs:
+      - catalog_id: "renderer/inline"
+        components: ["Marquee"]
+
+- name: test_inline_catalog_with_unresolvable_local_ref_is_an_error
+  description: An inline catalog containing an unresolvable local $ref fails with CatalogError naming the catalogId and $ref.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    accepts_inline_catalogs: true
+    renderer_capabilities:
+      "1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+        inlineCatalogs:
+          - catalogId: "renderer/inline"
+            protocolVersion: "1.0"
+            components:
+              Marquee:
+                type: object
+                allOf:
+                  - $ref: "#/$defs/CatalogComponentCommon"
+                properties:
+                  component: {const: "Marquee"}
+                  text: {type: string}
+                required: ["component", "text"]
+  expect_error:
+    category: CatalogError
+    message: 'renderer/inline.*#/\$defs/CatalogComponentCommon'
+
+- name: test_rejected_inline_catalog_with_unresolvable_local_ref_is_an_error
+  description: An inline catalog containing an unresolvable local $ref fails with CatalogError even when the agent does not accept inline catalogs.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    accepts_inline_catalogs: false
+    renderer_capabilities:
+      "1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+        inlineCatalogs:
+          - catalogId: "renderer/inline"
+            protocolVersion: "1.0"
+            components:
+              Marquee:
+                type: object
+                allOf:
+                  - $ref: "#/$defs/CatalogComponentCommon"
+                properties:
+                  component: {const: "Marquee"}
+                  text: {type: string}
+                required: ["component", "text"]
+  expect_error:
+    category: CatalogError
+    message: 'renderer/inline.*#/\$defs/CatalogComponentCommon'
+
+- name: test_inline_catalog_with_resolvable_local_def_ref_is_accepted
+  description: An inline catalog whose local $ref resolves against its own $defs becomes active.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    accepts_inline_catalogs: true
+    renderer_capabilities:
+      "1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+        inlineCatalogs:
+          - catalogId: "renderer/inline"
+            protocolVersion: "1.0"
+            components:
+              Marquee:
+                type: object
+                properties:
+                  component: {const: "Marquee"}
+                  tone:
+                    $ref: "#/$defs/Tone"
+                required: ["component", "tone"]
+            $defs:
+              Tone:
+                type: string
+                enum: ["muted", "accent"]
+              anyComponent:
+                oneOf:
+                  - $ref: "#/components/Marquee"
+                discriminator:
+                  propertyName: component
+              anyFunction:
+                not: {}
+  expect:
+    active_catalog_ids: ["conformance/simplified", "renderer/inline"]
+    catalogs:
+      - catalog_id: "renderer/inline"
+        components: ["Marquee"]
 
 # --- Transformers ---
 

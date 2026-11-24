@@ -128,13 +128,47 @@ class ComponentNode:
 class MutableComponentNode(ComponentNode):
     """Internal mutable view of a ComponentNode managed by NodeResolver."""
 
-    def set_props(self, next_props: dict[str, Any]) -> None:
-        """Replaces resolved properties and notifies listeners when changed."""
+    def set_props(
+        self,
+        next_props: dict[str, Any],
+        *,
+        is_valid: bool | None = None,
+        validation_errors: list[str] | None = None,
+        validation_results: list[dict[str, Any]] | None = None,
+    ) -> None:
+        """Replaces resolved properties and validation state, notifying listeners when changed."""
         if self._disposed:
             return
-        if not _shallow_equal_props(self.props, next_props):
+        props_changed = not _shallow_equal_props(self.props, next_props)
+        validation_changed = self._apply_validation_state(
+            is_valid, validation_errors, validation_results
+        )
+        if props_changed:
             self.props = next_props
+        if props_changed or validation_changed:
             self.on_updated.emit(self.props)
+
+    def _apply_validation_state(
+        self,
+        is_valid: bool | None,
+        validation_errors: list[str] | None,
+        validation_results: list[dict[str, Any]] | None,
+    ) -> bool:
+        next_valid = self.is_valid if is_valid is None else is_valid
+        next_errors = (
+            self.validation_errors if validation_errors is None else validation_errors
+        )
+        next_results = (
+            self.validation_results
+            if validation_results is None
+            else validation_results
+        )
+        prev = (self.is_valid, self.validation_errors, self.validation_results)
+        curr = (next_valid, next_errors, next_results)
+        if prev == curr:
+            return False
+        self.is_valid, self.validation_errors, self.validation_results = curr
+        return True
 
     def set_metadata(self, next_metadata: A2uiMetadata | None) -> None:
         """Replaces envelope metadata and notifies listeners when changed."""
