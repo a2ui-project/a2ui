@@ -280,12 +280,16 @@ class RendererState:
 
         The surface must have its root, and every reference must resolve.
         Every component added or replaced since the surface's tree was last
-        checked must be reachable from the root, within the depth limit. A
-        component that an update left unreachable, by rewriting its parent's
-        children, is accepted: the protocol has no message that removes one
-        component, so replacing part of a canvas always leaves such
-        components behind. A surface with no components yet passes, since its
-        components may arrive later. Surfaces that are deleted are skipped.
+        checked must be reachable from the root, within the depth limit. On a
+        v1.0 surface, no component reachable from the root without crossing a
+        list template may contain a `{"@call": "@index"}` function call (string
+        arguments evaluated at render time by catalog functions such as
+        `formatString` are not parsed). A component that an update left
+        unreachable, by rewriting its parent's children, is accepted: the
+        protocol has no message that removes one component, so replacing part
+        of a canvas always leaves such components behind. A surface with no
+        components yet passes, since its components may arrive later. Surfaces
+        that are deleted are skipped.
 
         A v0.8 surface whose updates are still buffered, waiting for its
         `beginRendering`, is rejected, as a v0.9 update to a surface that was
@@ -328,6 +332,9 @@ class RendererState:
                 raise A2uiIntegrityError(
                     f"Component '{unreachable[0]}' is not reachable from '{root_id}'"
                 )
+            _check_index_template_scope(
+                surface, self._protocol_version, components, root_id
+            )
         # An assumed surface was not checked, so what changed on it stays
         # recorded for the check after its v0.8 `beginRendering`.
         self.mark_checked(s for s in surface_ids if s not in self._assumed)
@@ -340,7 +347,8 @@ class RendererState:
         check, such as a stream that failed after it emitted them: no message
         removes a component, so a component the renderer already holds can't
         be made reachable later, and the later turns are not held to it.
-        Dangling references and a missing root are still reported, since
+        Dangling references, a missing root, and v1.0 out-of-scope
+        `{"@call": "@index"}` function calls are still reported, since
         `check_topology` checks those on the whole surface. Like any other
         change, it is undone when the transaction it was made in fails.
         """
@@ -1033,7 +1041,11 @@ def validate_payload(
     `createSurface` or the v0.8 `beginRendering`, is checked in full, so its
     components must be valid and reachable from the root, and their references
     must resolve once every message in the payload is applied: a component may
-    name a child that a later message adds. A surface that the payload only
+    name a child that a later message adds. On a v1.0 surface that the payload
+    creates, no component reachable from the root without crossing a list
+    template may contain a `{"@call": "@index"}` function call (string arguments
+    evaluated at render time by catalog functions such as `formatString` are not
+    parsed). A surface that the payload only
     updates may already hold components, so references to components outside
     the payload and a missing root are accepted there. Each of its components
     is still checked against a catalog that defines all of them, and the
@@ -1313,6 +1325,113 @@ def _check_nested_call(
             continue
         return
     raise errors[0]
+
+
+_NON_REF_OBJECT_KEYS: tuple[str, ...] = ("path", "@path", "call", "@call")
+
+
+def _is_template_child_list(value: Any) -> bool:
+    """Whether a value is a `ChildList` template (`{componentId, path}`)."""
+    return (
+        isinstance(value, Mapping)
+        and isinstance(value.get("componentId"), str)
+        and isinstance(value.get("path"), str)
+    )
+
+
+def _iter_static_ids_in_nested_item(
+    item: Mapping[str, Any], nested_keys: set[str] | None = None
+) -> Iterator[str]:
+    """Yields static child IDs from a structured list item."""
+    if nested_keys:
+        for sub_key, sub_val in item.items():
+            if sub_key in nested_keys:
+                yield from _iter_static_ids_in_slot(sub_val)
+        return
+    if any(k in item for k in _NON_REF_OBJECT_KEYS):
+        return
+    for sub_val in item.values():
+        yield from _iter_static_ids_in_slot(sub_val)
+
+
+def _iter_static_ids_in_slot(
+    value: Any, nested_keys: set[str] | None = None
+) -> Iterator[str]:
+    """Yields static child component IDs from a single or list reference slot."""
+    if isinstance(value, str):
+        if value:
+            yield value
+        return
+    if _is_template_child_list(value):
+        return
+    if isinstance(value, Mapping):
+        yield from _iter_static_ids_in_nested_item(value, nested_keys)
+        return
+    if not isinstance(value, list):
+        return
+    for item in value:
+        if isinstance(item, str) and item:
+            yield item
+        elif not _is_template_child_list(item) and isinstance(item, Mapping):
+            yield from _iter_static_ids_in_nested_item(item, nested_keys)
+
+
+def _iter_static_child_ids(comp: ComponentModel) -> Iterator[str]:
+    """Yields child component IDs referenced statically (outside `_template`)."""
+    ref_spec = (
+        comp.catalog.get_component_ref_spec(comp.type)
+        if comp.catalog is not None and hasattr(comp.catalog, "get_component_ref_spec")
+        else None
+    )
+    if ref_spec is None:
+        return
+    for key, val in comp.properties.items():
+        if key in ref_spec.single_refs:
+            yield from _iter_static_ids_in_slot(val)
+        elif key in ref_spec.list_refs:
+            yield from _iter_static_ids_in_slot(val, ref_spec.nested_refs.get(key))
+
+
+def _contains_index_call(value: Any) -> bool:
+    """Whether a v1.0 property value invokes the `@index` system function."""
+    if isinstance(value, list):
+        return any(_contains_index_call(item) for item in value)
+    if isinstance(value, Mapping):
+        if "@path" in value:
+            return False
+        if value.get("@call") == INDEX_FUNCTION_NAME:
+            return True
+        return any(_contains_index_call(item) for item in value.values())
+    return False
+
+
+def _check_index_template_scope(
+    surface: SurfaceModel,
+    fallback_version: ProtocolVersion,
+    components: Mapping[str, ComponentModel],
+    root_id: str,
+) -> None:
+    """Raises if a v1.0 component reachable without a template calls `@index`."""
+    if not is_at_least_version(
+        surface.protocol_version or fallback_version, ProtocolVersion.V1_0
+    ):
+        return
+    visited: set[str] = set()
+    stack: list[str] = [root_id]
+    while stack:
+        comp_id = stack.pop()
+        if comp_id in visited:
+            continue
+        visited.add(comp_id)
+        comp = components.get(comp_id)
+        if comp is None:
+            continue
+        if _contains_index_call(comp.properties):
+            raise A2uiValidationError(
+                f"Component '{comp_id}' calls '{INDEX_FUNCTION_NAME}' outside a"
+                " list template."
+            )
+        stack.extend(reversed(list(_iter_static_child_ids(comp))))
 
 
 def _check_agent_may_make(catalog: CatalogApi, name: str, where: str) -> None:

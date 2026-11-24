@@ -34,15 +34,37 @@ const Map<String, Set<String>> _knownKeys = {
   'expect_surface:renderer_state_turns': {'components', 'data'},
 };
 
+const String _noSystemFunctions =
+    'v0.9 defines no system functions, so a call to @index runs as written '
+    'in v1.0 only.';
+
+const Map<String, String> _v1OnlyCases = {
+  'test_renderer_state_express_index_at_root_rejected': _noSystemFunctions,
+  'test_renderer_state_direct_json_index_on_static_child_rejected':
+      _noSystemFunctions,
+  'test_renderer_state_shared_template_and_static_child_index_rejected':
+      _noSystemFunctions,
+  'test_renderer_state_template_and_nested_static_child_index_accepted_'
+          'and_orphan_preserved':
+      _noSystemFunctions,
+};
+
 void main() {
   const path = 'agent/renderer_state.yaml';
+  final allCaseNames = <String>{};
   for (final SuiteVersion version in SuiteVersion.values) {
     group('conformance $path ${version.label}', () {
       final List<Map<String, Object?>> cases = loadSuite(path);
       test('suite is not empty', () => expect(cases, isNotEmpty));
       for (final testCase in cases) {
-        test(testCase['name']! as String, () {
+        final name = testCase['name']! as String;
+        allCaseNames.add(name);
+        test(name, () {
           if (version == SuiteVersion.v0_9) {
+            if (_v1OnlyCases[name] case final String reason) {
+              markTestSkipped(reason);
+              return;
+            }
             final args = <String, Object?>{
               'catalogs': testCase['catalogs'] ?? const [_defaultCatalogPath],
             };
@@ -60,6 +82,7 @@ void main() {
       }
     });
   }
+  verifyNoUnusedEntries('renderer_state', allCaseNames, _v1OnlyCases.keys);
 }
 
 void _runCase(Map<String, Object?> testCase, SuiteVersion version) {

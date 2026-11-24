@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Breaking:** (v1_0) `RendererState.checkTopology` and `validatePayload` on
+  created surfaces (and therefore `Parser.parseResponse` and `ResponseStream`)
+  reject v1.0 `{"@call": "@index"}` function calls on components reachable from
+  the surface root without crossing a list template, throwing
+  `A2uiValidationError`; string arguments evaluated at render time by catalog
+  functions such as `formatString` are not parsed. Recommended migration: call
+  `@index` only on components rendered inside a `{componentId, path}` list
+  template ([#4357](https://github.com/a2ui-project/a2ui/issues/4357),
+  [#4358](https://github.com/a2ui-project/a2ui/pull/4358)).
 - **Breaking:** (v1_0) With the updated `a2ui_core`, `validatePayload`, `RendererState.apply`, and the inference format parsers check function calls nested in `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions while accepting `agentOnly` and `rendererOrAgent` functions. Set `allowedCallers` to `rendererOrAgent` or `agentOnly` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774), [#4336](https://github.com/a2ui-project/a2ui/pull/4336)).
 - **Breaking:** `resolveCatalogs` and `readRendererCapabilities` reject inline catalogs whose local `#...` `$ref` pointers do not resolve against the inline catalog document or the protocol version's `common_types.json`, throwing `A2uiCatalogError` naming the inline `catalogId` and `$ref` even when `acceptsInlineCatalogs` is `false`. `resolveCatalogs` also emits a `dart:developer` warning log when an accepted inline catalog is dropped because its `catalogId` is already active. Recommended migration: point each local `$ref` in an inline catalog to a definition declared in that inline catalog or in the target protocol version's `common_types.json` ([#3165](https://github.com/a2ui-project/a2ui/issues/3165), [#4367](https://github.com/a2ui-project/a2ui/pull/4367)).
 - `ExpressPromptGenerator` (`promptSnippet`) now traverses `oneOf`, `anyOf`,

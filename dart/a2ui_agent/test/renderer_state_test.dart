@@ -1481,6 +1481,279 @@ void main() {
         ),
       );
     });
+
+    group('v1.0 @index template-scope validation', () {
+      final CatalogApi basicV10 = BasicCatalog.v1_0();
+      const literalMapId = 'https://example.com/literal_map.json';
+      final CatalogApi literalMapCatalog = Catalog.fromJson(const {
+        'protocolVersion': '1.0',
+        'catalogId': literalMapId,
+        'components': {
+          'Box': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'Box'},
+              'payload': {r'$ref': r'common_types.json#/$defs/DynamicValue'},
+            },
+            'required': ['component', 'payload'],
+          },
+          'MixedList': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'MixedList'},
+              'slots': {
+                'type': 'array',
+                'items': {
+                  'oneOf': [
+                    {r'$ref': r'common_types.json#/$defs/ComponentId'},
+                    {
+                      'type': 'object',
+                      'properties': {
+                        'body': {
+                          r'$ref': r'common_types.json#/$defs/ComponentId',
+                        },
+                      },
+                      'required': ['body'],
+                      'additionalProperties': false,
+                    },
+                  ],
+                },
+              },
+            },
+            'required': ['component', 'slots'],
+          },
+        },
+        'functions': <String, Object?>{},
+        r'$defs': {
+          'anyComponent': {
+            'oneOf': [
+              {r'$ref': '#/components/Box'},
+              {r'$ref': '#/components/MixedList'},
+            ],
+            'discriminator': {'propertyName': 'component'},
+          },
+          'anyFunction': {'not': <String, Object?>{}},
+        },
+      });
+
+      final cases = <String, List<Map<String, Object?>>>{
+        'event context': [
+          {
+            'id': 'root',
+            'component': 'Button',
+            'child': 'lbl',
+            'action': {
+              'event': {
+                'name': 'tap',
+                'context': {
+                  'row': {'@call': '@index'},
+                },
+              },
+            },
+          },
+          {'id': 'lbl', 'component': 'Text', 'text': 'Go'},
+        ],
+        'functionCall action': [
+          {
+            'id': 'root',
+            'component': 'Button',
+            'child': 'lbl',
+            'action': {
+              'functionCall': {
+                '@call': 'formatString',
+                'args': {
+                  'value': {'@call': '@index'},
+                },
+              },
+            },
+          },
+          {'id': 'lbl', 'component': 'Text', 'text': 'Go'},
+        ],
+        '@checks': [
+          {
+            'id': 'root',
+            'component': 'TextField',
+            'label': 'Name',
+            'value': '',
+            '@checks': [
+              {
+                'condition': {
+                  '@call': 'required',
+                  'args': {
+                    'value': {'@call': '@index'},
+                  },
+                },
+                'message': 'Required',
+              },
+            ],
+          },
+        ],
+        '@accessibility': [
+          {
+            'id': 'root',
+            'component': 'Text',
+            'text': 'Hi',
+            '@accessibility': {
+              'label': {'@call': '@index'},
+            },
+          },
+        ],
+        'NestedRef Tabs': [
+          {
+            'id': 'root',
+            'component': 'Tabs',
+            'tabs': [
+              {'title': 'Tab 1', 'child': 'pane'},
+            ],
+          },
+          {
+            'id': 'pane',
+            'component': 'Text',
+            'text': {'@call': '@index'},
+          },
+        ],
+      };
+
+      for (final MapEntry<String, List<Map<String, Object?>>> entry
+          in cases.entries) {
+        test('rejects @index outside a list template in ${entry.key}', () {
+          expect(
+            () => validatePayload(
+              [basicV10],
+              [
+                CreateSurfaceMessage(
+                  version: '1.0',
+                  surfaceId: 's',
+                  catalogId: BasicCatalog.v1_0Id,
+                  components: entry.value,
+                ),
+              ],
+            ),
+            throwsA(
+              isA<A2uiValidationError>().having(
+                (e) => e.message,
+                'message',
+                contains("calls '@index' outside a list template"),
+              ),
+            ),
+          );
+        });
+      }
+
+      test(
+        'checks @index scope on a defaultless multi-catalog v1.0 surface',
+        () {
+          final catalogs = [basicV10, literalMapCatalog];
+          expect(
+            () => validatePayload(catalogs, [
+              CreateSurfaceMessage(
+                version: '1.0',
+                surfaceId: 's',
+                components: const [
+                  {
+                    'id': 'root',
+                    'component': 'Column',
+                    '@catalogId': BasicCatalog.v1_0Id,
+                    'children': ['box'],
+                  },
+                  {
+                    'id': 'box',
+                    'component': 'Box',
+                    '@catalogId': literalMapId,
+                    'payload': {'@call': '@index'},
+                  },
+                ],
+              ),
+            ]),
+            throwsA(
+              isA<A2uiValidationError>().having(
+                (e) => e.message,
+                'message',
+                contains("Component 'box' calls '@index'"),
+              ),
+            ),
+          );
+
+          validatePayload(catalogs, [
+            CreateSurfaceMessage(
+              version: '1.0',
+              surfaceId: 's',
+              components: const [
+                {
+                  'id': 'root',
+                  'component': 'Column',
+                  '@catalogId': BasicCatalog.v1_0Id,
+                  'children': {'componentId': 'box', 'path': '/items'},
+                },
+                {
+                  'id': 'box',
+                  'component': 'Box',
+                  '@catalogId': literalMapId,
+                  'payload': {'@call': '@index'},
+                },
+              ],
+            ),
+          ]);
+        },
+      );
+
+      for (final (String label, Map<String, Object?> literalMap) in const [
+        ('escaped @@call', {'@@call': '@index'}),
+        ('plain call key', {'call': '@index'}),
+      ]) {
+        test('accepts $label literal map at root on v1.0', () {
+          validatePayload(
+            [literalMapCatalog],
+            [
+              CreateSurfaceMessage(
+                version: '1.0',
+                surfaceId: 's',
+                catalogId: literalMapId,
+                components: [
+                  {'id': 'root', 'component': 'Box', 'payload': literalMap},
+                ],
+              ),
+            ],
+          );
+        });
+      }
+
+      test('walks object items in mixed oneOf ComponentId list slots', () {
+        expect(
+          () => validatePayload(
+            [literalMapCatalog],
+            [
+              CreateSurfaceMessage(
+                version: '1.0',
+                surfaceId: 's',
+                catalogId: literalMapId,
+                components: const [
+                  {
+                    'id': 'root',
+                    'component': 'MixedList',
+                    'slots': [
+                      {'body': 'leaf'},
+                    ],
+                  },
+                  {
+                    'id': 'leaf',
+                    'component': 'Box',
+                    'payload': {'@call': '@index'},
+                  },
+                ],
+              ),
+            ],
+          ),
+          throwsA(
+            isA<A2uiValidationError>().having(
+              (e) => e.message,
+              'message',
+              contains("Component 'leaf' calls '@index'"),
+            ),
+          ),
+        );
+      });
+    });
   });
 }
 

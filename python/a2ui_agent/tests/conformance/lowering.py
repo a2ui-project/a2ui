@@ -93,6 +93,16 @@ V1_ONLY_CASES: dict[str, str] = {
     "test_decompile_express_unknown_system_function_is_a_validation_error": (
         _NO_SYSTEM_FUNCTIONS
     ),
+    "test_renderer_state_express_index_at_root_rejected": _NO_SYSTEM_FUNCTIONS,
+    "test_renderer_state_direct_json_index_on_static_child_rejected": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
+    "test_renderer_state_shared_template_and_static_child_index_rejected": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
+    "test_renderer_state_template_and_nested_static_child_index_accepted_and_orphan_preserved": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
     "test_compile_express_event_user_message": _NO_USER_MESSAGE,
     "test_compile_express_event_user_message_binding_with_context": _NO_USER_MESSAGE,
     "test_decompile_express_event_action_with_user_message": _NO_USER_MESSAGE,

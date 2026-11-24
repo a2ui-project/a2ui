@@ -300,12 +300,16 @@ class RendererState {
   ///
   /// The surface must have its root, and every reference must resolve. Every
   /// component added or replaced since the surface's tree was last checked
-  /// must be reachable from the root, within the depth limit. A component
-  /// that an update left unreachable, by rewriting its parent's children, is
-  /// accepted: the protocol has no message that removes one component, so
-  /// replacing part of a canvas always leaves such components behind. A
-  /// surface with no components yet passes, since its components may arrive
-  /// later. Surfaces that are deleted or assumed are skipped.
+  /// must be reachable from the root, within the depth limit. On a v1.0
+  /// surface, no component reachable from the root without crossing a list
+  /// template may contain a `{"@call": "@index"}` function call (string
+  /// arguments evaluated at render time by catalog functions such as
+  /// `formatString` are not parsed). A component that an update left
+  /// unreachable, by rewriting its parent's children, is accepted: the protocol
+  /// has no message that removes one component, so replacing part of a canvas
+  /// always leaves such components behind. A surface with no components yet
+  /// passes, since its components may arrive later. Surfaces that are deleted
+  /// or assumed are skipped.
   ///
   /// Throws [A2uiValidationError] if a surface's tree is incomplete or
   /// invalid.
@@ -334,6 +338,7 @@ class RendererState {
           componentIds: unreachable,
         );
       }
+      _checkIndexTemplateScope(surface, _protocolVersion, rootId);
     }
     // An assumed surface was not checked, so what changed on it stays
     // recorded for the check after it is created.
@@ -347,9 +352,10 @@ class RendererState {
   /// such as a stream that failed after it emitted them: no message removes a
   /// component, so a component the renderer already holds can't be made
   /// reachable later, and the later turns are not held to it. Dangling
-  /// references and a missing root are still reported, since [checkTopology]
-  /// checks those on the whole surface. Like any other change, this is undone
-  /// when the transaction it was made in fails.
+  /// references, a missing root, and v1.0 out-of-scope `{"@call": "@index"}`
+  /// function calls are still reported, since [checkTopology] checks those on
+  /// the whole surface. Like any other change, this is undone when the
+  /// transaction it was made in fails.
   void markChecked(Iterable<String> surfaceIds) {
     for (final surfaceId in LinkedHashSet<String>.of(surfaceIds)) {
       _forgetChanged(surfaceId);
@@ -1186,3 +1192,124 @@ Object? _deepCopy(Object? value) => switch (value) {
   ],
   _ => value,
 };
+
+/// Whether [value] is a `ChildList` template (`{componentId, path}`).
+bool _isTemplateChildList(Object? value) =>
+    value is Map<Object?, Object?> &&
+    value['componentId'] is String &&
+    value['path'] is String;
+
+/// Static child component IDs in [item], an entry of a [NestedRef] list.
+Iterable<String> _staticIdsInNestedItem(
+  Map<Object?, Object?> item,
+  Map<String, RefKind> fields,
+) sync* {
+  for (final MapEntry<Object?, Object?> entry in item.entries) {
+    if (entry.key case final String subKey) {
+      if (fields[subKey] case final RefKind subKind) {
+        yield* _staticIdsInSlot(entry.value, subKind);
+      }
+    }
+  }
+}
+
+/// Static child component IDs in [value] for a non-inferred [ListRef].
+Iterable<String> _staticIdsInListSlot(Object? value) sync* {
+  if (value case final String id when id.isNotEmpty) {
+    yield id;
+    return;
+  }
+  if (_isTemplateChildList(value) || value is! List<Object?>) return;
+  for (final Object? item in value) {
+    if (item case final String id when id.isNotEmpty) yield id;
+  }
+}
+
+/// Static child component IDs in [value] for a [NestedRef].
+Iterable<String> _staticIdsInNestedListSlot(
+  Object? value,
+  Map<String, RefKind> fields,
+  bool includesIds,
+) sync* {
+  if (_isTemplateChildList(value) || value is! List<Object?>) return;
+  for (final Object? item in value) {
+    if (includesIds && item is String && item.isNotEmpty) {
+      yield item;
+    } else if (!_isTemplateChildList(item) && item is Map<Object?, Object?>) {
+      yield* _staticIdsInNestedItem(item, fields);
+    }
+  }
+}
+
+/// Static child component IDs in [value] for a property of [kind].
+Iterable<String> _staticIdsInSlot(Object? value, RefKind kind) =>
+    switch (kind) {
+      SingleRef() =>
+        value is String && value.isNotEmpty
+            ? <String>[value]
+            : const <String>[],
+      ListRef(inferred: true) => const <String>[],
+      ListRef(inferred: false) => _staticIdsInListSlot(value),
+      NestedRef(:final Map<String, RefKind> fields, :final bool includesIds) =>
+        _staticIdsInNestedListSlot(value, fields, includesIds),
+    };
+
+/// Child component IDs [component] references statically (outside `_template`).
+Iterable<String> _staticChildIds(
+  SurfaceModel<ComponentApi> surface,
+  ComponentModel component,
+) sync* {
+  final Catalog<ComponentApi, FunctionImplementation> catalog;
+  try {
+    catalog = surface.resolveCatalog(component.catalog);
+  } on A2uiError {
+    return;
+  }
+  final RefFields fields = catalog.refMap.fieldsFor(component.type);
+  if (fields.isEmpty) return;
+  for (final MapEntry<String, dynamic> entry in component.properties.entries) {
+    if (fields[entry.key] case final RefKind kind) {
+      yield* _staticIdsInSlot(entry.value, kind);
+    }
+  }
+}
+
+/// Whether [value], a v1.0 property value, invokes `@index`.
+bool _containsIndexCall(Object? value) => switch (value) {
+  final List<Object?> list => list.any(_containsIndexCall),
+  final Map<Object?, Object?> map when map.containsKey('@path') => false,
+  final Map<Object?, Object?> map when map['@call'] == '@index' => true,
+  final Map<Object?, Object?> map => map.values.any(_containsIndexCall),
+  _ => false,
+};
+
+/// Throws if a v1.0 component on [surface] reachable from [rootId] without
+/// crossing a list template calls `@index`.
+void _checkIndexTemplateScope(
+  SurfaceModel<ComponentApi> surface,
+  A2uiProtocolVersion fallbackVersion,
+  String rootId,
+) {
+  final A2uiProtocolVersion surfaceVersion =
+      A2uiProtocolVersion.tryParse(surface.protocolVersion ?? '') ??
+      fallbackVersion;
+  if (!surfaceVersion.isAtLeast(A2uiProtocolVersion.v1_0)) return;
+  final SurfaceComponentsModel components = surface.componentsModel;
+  final visited = <String>{};
+  final stack = <String>[rootId];
+  while (stack.isNotEmpty) {
+    final String compId = stack.removeLast();
+    if (!visited.add(compId)) continue;
+    final ComponentModel? comp = components.get(compId);
+    if (comp == null) continue;
+    if (_containsIndexCall(comp.properties)) {
+      throw A2uiValidationError(
+        "Component '$compId' calls '@index' outside a list template.",
+      );
+    }
+    final List<String> children = _staticChildIds(surface, comp).toList();
+    for (int i = children.length - 1; i >= 0; i--) {
+      stack.add(children[i]);
+    }
+  }
+}

@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) `RendererState.check_topology` and
+  `validate_payload` on created surfaces (and therefore `Parser.parse_response`
+  and `ResponseStream`) reject v1.0 `{"@call": "@index"}` function calls on
+  components reachable from the surface root without crossing a list template,
+  raising `A2uiValidationError`; string arguments evaluated at render time by
+  catalog functions such as `formatString` are not parsed. Recommended
+  migration: call `@index` only on components rendered inside a
+  `{componentId, path}` list template
+  ([#4357](https://github.com/a2ui-project/a2ui/issues/4357),
+  [#4358](https://github.com/a2ui-project/a2ui/pull/4358)).
 - **BREAKING CHANGE**: (v1_0) `validate_payload`, `RendererState.apply`, and inference format parsers check function calls nested in `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions while accepting `agentOnly` and `rendererOrAgent` functions. Recommended migration: set `allowedCallers` to `"rendererOrAgent"` or `"agentOnly"` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774), [#4336](https://github.com/a2ui-project/a2ui/pull/4336)).
 - **BREAKING CHANGE**: `resolve_catalogs` and `read_renderer_capabilities`
   reject inline catalogs whose local `#...` `$ref` pointers do not resolve

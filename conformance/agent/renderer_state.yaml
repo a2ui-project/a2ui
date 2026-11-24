@@ -512,3 +512,161 @@
                 "@path": "/title"
           data:
             title: "Committed"
+
+# --- v1.0 @index template-scope checks ---
+
+- name: test_renderer_state_express_index_at_root_rejected
+  description: Calling the v1.0 @index system function on the root component, which is outside any list template, is rejected with a ValidationError.
+  action: renderer_state_turns
+  catalogs:
+    - "test_data/catalogs/simplified_catalog_v1_0.json"
+  turns:
+    - format: express
+      response: |-
+        <a2ui>
+        surface("s1")
+        root = Text(@index())
+        </a2ui>
+      expect_error:
+        category: "ValidationError"
+        message: "@index"
+
+- name: test_renderer_state_direct_json_index_on_static_child_rejected
+  description: Calling @index on a component reachable from the root via static child references without crossing a list template is rejected with a ValidationError.
+  action: renderer_state_turns
+  catalogs:
+    - "test_data/catalogs/simplified_catalog_v1_0.json"
+  turns:
+    - format: direct_json
+      response: |-
+        <a2ui-json>
+        [
+          {
+            "version": "1.0",
+            "createSurface": {
+              "surfaceId": "s1",
+              "catalogId": "conformance/simplified"
+            }
+          },
+          {
+            "version": "1.0",
+            "updateComponents": {
+              "surfaceId": "s1",
+              "components": [
+                {"id": "root", "component": "Column", "children": ["card"]},
+                {"id": "card", "component": "Card", "child": "hdr"},
+                {"id": "hdr", "component": "Text", "text": {"@call": "@index"}}
+              ]
+            }
+          }
+        ]
+        </a2ui-json>
+      expect_error:
+        category: "ValidationError"
+        message: "@index"
+
+- name: test_renderer_state_shared_template_and_static_child_index_rejected
+  description: A component calling @index that is referenced both via a list template and directly via a static child path from root is instantiated outside a list template on the static branch and rejected.
+  action: renderer_state_turns
+  catalogs:
+    - "test_data/catalogs/simplified_catalog_v1_0.json"
+  turns:
+    - format: express
+      response: |-
+        <a2ui>
+        surface("s1")
+        root = Column([row, items_list])
+        items_list = Column(_template($/items, row))
+        row = Text(@index())
+        </a2ui>
+      expect_error:
+        category: "ValidationError"
+        message: "@index"
+
+- name: test_renderer_state_template_and_nested_static_child_index_accepted_and_orphan_preserved
+  description: Calling @index inside a list template item and its static descendant passes, orphaned template components left behind on later turns do not fail subsequent checks, and an out-of-scope @index update rolls back atomically.
+  action: renderer_state_turns
+  catalogs:
+    - "test_data/catalogs/simplified_catalog_v1_0.json"
+  turns:
+    - format: express
+      response: |-
+        <a2ui>
+        surface("s1")
+        root = Column(_template($/items, item_box))
+        item_box = Column([item_label])
+        item_label = Text(@index(1))
+        </a2ui>
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Column"
+              children:
+                componentId: "item_box"
+                path: "/items"
+            item_box:
+              component: "Column"
+              children: ["item_label"]
+            item_label:
+              component: "Text"
+              text:
+                "@call": "@index"
+                args:
+                  offset: 1
+          data: {}
+    - format: express
+      response: |-
+        <a2ui>
+        surface("s1", update=true)
+        root = Text("Summary")
+        </a2ui>
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Text"
+              text: "Summary"
+            item_box:
+              component: "Column"
+              children: ["item_label"]
+            item_label:
+              component: "Text"
+              text:
+                "@call": "@index"
+                args:
+                  offset: 1
+          data: {}
+    - format: express
+      response: |-
+        <a2ui>
+        surface("s1", update=true)
+        $/status = "bad"
+        root = Text(@index())
+        </a2ui>
+      expect_error:
+        category: "ValidationError"
+        message: "@index"
+    - format: express
+      response: |-
+        <a2ui>
+        surface("s1", update=true)
+        $/status = "ok"
+        </a2ui>
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Text"
+              text: "Summary"
+            item_box:
+              component: "Column"
+              children: ["item_label"]
+            item_label:
+              component: "Text"
+              text:
+                "@call": "@index"
+                args:
+                  offset: 1
+          data:
+            status: "ok"
