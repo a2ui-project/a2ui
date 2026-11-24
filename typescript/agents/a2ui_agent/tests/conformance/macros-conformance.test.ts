@@ -25,7 +25,7 @@
 
 import {readFileSync} from 'fs';
 
-import {expect} from 'vitest';
+import {afterEach, beforeEach, expect, vi} from 'vitest';
 
 import {
   A2uiCatalogError,
@@ -123,12 +123,7 @@ const VERSION_REJECTION_CASES = new Set(['13_error_envelope_version_mismatch']);
 
 /** Cases whose behavior lands in a later commit of this change. */
 const PENDING = new Set([
-  '13_error_envelope_version_mismatch',
-  '19_envelope_attributes_preservation',
   '20_mixable_catalogs_resolution',
-  '30_root_envelope_deep_merge_and_declared_override',
-  '33_runtime_failure_and_undeclared_property_fallback',
-  '33b_error_on_error_raise_surfaces_validation_error',
   '34_v1_0_multi_catalog_foo_bar_baz_and_defaultless_surface',
   '35_v1_0_auto_stamping_from_base_catalogs_on_defaultless_surface',
   '35b_error_ambiguous_primitive_on_defaultless_surface',
@@ -143,8 +138,6 @@ const PENDING = new Set([
   '39a_error_deferred_self_recursion_untracked',
   '39b_error_mutual_recursion_defaultless_surface',
   '39c_error_mutual_recursion_foreign_surface',
-  '40c_error_lower_v0_9_envelope_with_v1_0_macros',
-  '40i_error_v1_0_macro_emitting_reserved_surface_component',
 ]);
 
 function skipReason(testCase: LoadedCase): string | undefined {
@@ -297,6 +290,15 @@ function expectCatalog(catalog: CatalogApi, expected: Record<string, unknown>): 
     expect(catalog.protocolVersion).toBe(expected['protocol_version']);
   }
 }
+
+// Invocations that fail under `onError: 'passthrough'` are logged; the cases check the
+// lowered messages instead.
+beforeEach(() => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describeSuite(
   `Conformance: ${SUITE}`,

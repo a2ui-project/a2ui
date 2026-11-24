@@ -28,7 +28,13 @@ import {
   toCanonicalVersion,
 } from '../internal/web-core.js';
 import {coerceArguments} from './coercion.js';
-import {macroComponentSchema, MacroDefinition, validateMacroName} from './define-macro.js';
+import {
+  isReservedComponentName,
+  macroComponentSchema,
+  MacroDefinition,
+  validateMacroName,
+} from './define-macro.js';
+import {invocationArguments, mergeEnvelopeFields} from './invocation-envelope.js';
 import {MacroProtocolError} from './macro-protocol-error.js';
 
 const DEFAULT_MACRO_CATALOG_ID = 'https://a2ui.org/catalogs/macros';
@@ -221,11 +227,16 @@ export class MacroExpander {
    *
    * An invocation's components replace it in the list, descendants first, as
    * `flattenComponentTree` lists them: the root takes the invocation's ID, and the other
-   * IDs are namespaced under it. Macros used inside a rendered tree are lowered too.
+   * IDs are namespaced under it. The invocation's `@accessibility`, `@metadata` and
+   * `@checks` are merged onto the root. Macros used inside a rendered tree are lowered too.
+   *
+   * An invocation that fails, for example on an argument that doesn't match its parameter,
+   * is kept unexpanded and logged, or throws under `onError: 'raise'`.
    *
    * @returns New messages; `messages` is left unchanged.
-   * @throws {A2uiValidationError} If an invocation's arguments don't match its macro, or
-   *     its `render` throws.
+   * @throws {A2uiValidationError} If a message has a protocol version other than v1.0, a
+   *     macro renders a component named `Surface`, or, under `onError: 'raise'`, an
+   *     invocation fails.
    * @throws {A2uiRecursionError} If macros keep invoking macros beyond 16 levels.
    */
   transformToTransport(messages: readonly AgentToRendererMessage[]): AgentToRendererMessage[] {
@@ -233,6 +244,13 @@ export class MacroExpander {
   }
 
   private lowerMessage(message: AgentToRendererMessage): AgentToRendererMessage {
+    const version = (message as unknown as JsonObject)['version'];
+    if (typeof version === 'string') {
+      assertV10(
+        version,
+        normalized => `Cannot lower v${normalized} message envelope with a v1.0 MacroExpander.`,
+      );
+    }
     if (this.macros.size === 0) {
       return message;
     }
@@ -274,15 +292,44 @@ export class MacroExpander {
   }
 
   private expandInvocation(
-    component: JsonObject,
+    invocation: JsonObject,
     macro: MacroDefinition,
     depth: number,
   ): unknown[] {
-    const {component: _name, id, ...args} = component;
-    const instanceId = typeof id === 'string' ? id : undefined;
-    const tree = renderMacro(macro, coerceArguments(macro, args));
-    const lowered = flattenComponentTree(tree, {rootId: instanceId});
-    return this.expandComponents(lowered, depth + 1);
+    const instanceId = typeof invocation['id'] === 'string' ? invocation['id'] : undefined;
+    try {
+      const declared = new Set(Object.keys(macro.parameters));
+      const args = structuredClone(invocationArguments(invocation, declared));
+      const tree = renderMacro(macro, coerceArguments(macro, args));
+      const lowered = flattenComponentTree(tree, {rootId: instanceId});
+      for (const component of lowered) {
+        if (isReservedComponentName(component.component)) {
+          throw new MacroProtocolError(
+            `Macro '${macro.name}' emitted reserved component name 'Surface'.`,
+          );
+        }
+      }
+      mergeEnvelopeFields(invocation, declared, lowered, instanceId);
+      return this.expandComponents(lowered, depth + 1);
+    } catch (e) {
+      if (
+        e instanceof A2uiRecursionError ||
+        e instanceof MacroProtocolError ||
+        e instanceof A2uiCatalogError
+      ) {
+        throw e;
+      }
+      if (this.onError === 'raise') {
+        if (e instanceof A2uiValidationError) {
+          throw e;
+        }
+        throw new A2uiValidationError(
+          `Failed to expand macro '${macro.name}' (id=${JSON.stringify(instanceId)}): ${String(e)}`,
+        );
+      }
+      console.error(`Failed to expand macro '${macro.name}':`, e);
+      return [invocation];
+    }
   }
 
   private pruner(): ComponentPruningTransformer | undefined {

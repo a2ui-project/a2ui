@@ -48,6 +48,13 @@ export const GOLDEN_DIR = conformancePath('agent/macros/golden');
 
 const V1_0_BASIC_CID = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
 const V0_9_BASIC_CID = 'https://a2ui.org/specification/v0_9/standard_catalog.json';
+const FOO_CID = 'https://example.com/catalogs/foo/v1/catalog.json';
+const BAR_CID = 'https://example.com/catalogs/bar/v1/catalog.json';
+const BRAND_CID = 'https://example.com/brand.json';
+const BRAND_SURFACE_CID = 'https://example.com/brand_surface.json';
+const CAT_A_CID = 'https://example.com/catalog_a.json';
+const CAT_B_CID = 'https://example.com/catalog_b.json';
+const BAZ_MACROS_CID = 'https://example.com/catalogs/baz_macros.json';
 
 const RAW_SUITE = load(readFileSync(conformancePath(SUITE), 'utf8')) as {
   custom_catalogs?: Record<string, Record<string, unknown>>;
@@ -281,6 +288,217 @@ export const SUITE_MACROS_V1_0: readonly MacroDefinition[] = [
   PositiveCountCard,
 ];
 
+// The catalog-scoped reference macros (`get_scoped_suite_macros` in Python), by the
+// `macro_catalog_id` of the cases that use them.
+
+const BarBadge = builderNode('BarBadge');
+const BarButton = builderNode('BarButton');
+const BrandBox = builderNode('BrandBox');
+const Chart = builderNode('Chart');
+const ChartCard = builderNode('ChartCard');
+const FooHeader = builderNode('FooHeader');
+const FooPanel = builderNode('FooPanel');
+
+const BrandText = defineMacro({
+  name: 'Text',
+  description: 'Custom brand Text macro wrapping a basic Text inside a Card.',
+  parameters: {text: param.string(), variant: param.string({default: 'body'})},
+  render: ({text, variant}) => Card({child: Text({text: `[Brand] ${text}`, variant})}),
+});
+
+const UnannotatedBrandCard = defineMacro({
+  name: 'UnannotatedBrandCard',
+  description: 'Brand card emitting unannotated Card, BrandBox, and Text nodes.',
+  parameters: {title: param.string()},
+  render: ({title}) => Card({child: BrandBox({child: Text({text: title, variant: 'body'})})}),
+});
+
+const BrandBadge = defineMacro({
+  name: 'BrandBadge',
+  description: 'Brand badge emitting basic Card and Text with explicit catalogId.',
+  parameters: {label: param.string()},
+  render: ({label}) =>
+    Card({
+      '@catalogId': V1_0_BASIC_CID,
+      child: Text({'@catalogId': V1_0_BASIC_CID, text: `[Badge] ${label}`, variant: 'body'}),
+    }),
+});
+
+const InnerBadgeScoped = defineMacro({
+  name: 'InnerBadgeScoped',
+  description: 'Scoped inner badge emitting BrandBox and unannotated basic Text.',
+  parameters: {label: param.string()},
+  render: ({label}) =>
+    BrandBox({
+      '@catalogId': BRAND_CID,
+      child: Text({text: `Scoped Badge: ${label}`, variant: 'caption'}),
+    }),
+});
+
+const OuterPanelScoped = defineMacro({
+  name: 'OuterPanelScoped',
+  description: 'Scoped outer panel emitting unannotated Text alongside deferred InnerBadgeScoped.',
+  parameters: {title: param.string()},
+  render: ({title}) =>
+    Card({
+      child: Column({
+        children: [
+          Text({text: title, variant: 'body'}),
+          {component: 'InnerBadgeScoped', label: title, '@catalogId': BRAND_CID},
+        ],
+      }),
+    }),
+});
+
+const BrandChart = defineMacro({
+  name: 'Chart',
+  description: 'Brand Chart macro emitting ChartCard wrapping an unannotated Chart primitive.',
+  parameters: {series: param.string()},
+  render: ({series}) => ChartCard({child: Chart({series: `[Brand] ${series}`})}),
+});
+
+const BrandSurfaceText = defineMacro({
+  name: 'Text',
+  description:
+    'Brand surface Text macro emitting cross-catalog basic Card and Text around BrandBox.',
+  parameters: {text: param.string(), variant: param.string({default: 'body'})},
+  render: ({text, variant}) =>
+    Card({
+      '@catalogId': V1_0_BASIC_CID,
+      child: BrandBox({
+        '@catalogId': BRAND_SURFACE_CID,
+        child: Text({'@catalogId': V1_0_BASIC_CID, text: `[Brand] ${text}`, variant}),
+      }),
+    }),
+});
+
+const BrandSurfaceBadge = defineMacro({
+  name: 'BrandBadge',
+  description: 'Brand surface badge emitting cross-catalog basic Card and Text around BrandBox.',
+  parameters: {label: param.string()},
+  render: ({label}) =>
+    Card({
+      '@catalogId': V1_0_BASIC_CID,
+      child: BrandBox({
+        '@catalogId': BRAND_SURFACE_CID,
+        child: Text({'@catalogId': V1_0_BASIC_CID, text: `[Badge] ${label}`, variant: 'body'}),
+      }),
+    }),
+});
+
+const BazMacro = defineMacro({
+  name: 'BazMacro',
+  description:
+    'Composite macro combining FooCatalog and BarCatalog primitives with explicit catalogIds.',
+  parameters: {
+    headline: param.dynamicString(),
+    badge_tag: param.string(),
+    cta_label: param.string(),
+    on_cta: param.action(),
+  },
+  render: ({headline, badge_tag, cta_label, on_cta}) =>
+    FooPanel({
+      '@catalogId': FOO_CID,
+      children: [
+        FooHeader({'@catalogId': FOO_CID, title: headline}),
+        BarBadge({'@catalogId': BAR_CID, tag: badge_tag}),
+        BarButton({'@catalogId': BAR_CID, label: cta_label, action: on_cta}),
+      ],
+    }),
+});
+
+const ProductCard = defineMacro({
+  name: 'ProductCard',
+  description: 'Macro sharing its name with ProductCard primitive in catalog_a.json.',
+  parameters: {name: param.string()},
+  render: ({name}) => Card({child: Text({text: `Product: ${name}`})}),
+});
+
+const BrandBoxMacro = defineMacro({
+  name: 'BrandBox',
+  description: 'Macro wrapping a same-named BrandBox primitive from catalog_a.json.',
+  parameters: {title: param.string()},
+  render: ({title}) =>
+    Card({child: BrandBox({'@catalogId': CAT_A_CID, child: Text({text: title})})}),
+});
+
+const InnerBadgeInherited = defineMacro({
+  name: 'InnerBadgeInherited',
+  description:
+    'Deferred inner macro inheriting enclosing catalogId when surface catalog is registered.',
+  parameters: {label: param.string()},
+  render: ({label}) =>
+    BrandBox({
+      '@catalogId': CAT_A_CID,
+      child: Text({text: `Inherited Badge: ${label}`, variant: 'caption'}),
+    }),
+});
+
+const OuterPanelInherited = defineMacro({
+  name: 'OuterPanelInherited',
+  description: 'Outer macro emitting unannotated deferred InnerBadgeInherited node.',
+  parameters: {title: param.string()},
+  render: ({title}) =>
+    Card({
+      child: Column({
+        children: [
+          Text({text: title, variant: 'body'}),
+          {component: 'InnerBadgeInherited', label: title},
+        ],
+      }),
+    }),
+});
+
+const DeferredCycle = defineMacro({
+  name: 'DeferredCycle',
+  description: 'Deferred self-recursive macro node.',
+  parameters: {label: param.string()},
+  render: ({label}) => Card({child: {component: 'DeferredCycle', label}}),
+});
+
+const CycleA = defineMacro({
+  name: 'CycleA',
+  description: 'Mutually recursive deferred macro A referencing CycleB.',
+  parameters: {label: param.string()},
+  render: ({label}) => Card({child: {component: 'CycleB', label}}),
+});
+
+const CycleB = defineMacro({
+  name: 'CycleB',
+  description: 'Mutually recursive deferred macro B referencing CycleA.',
+  parameters: {label: param.string()},
+  render: ({label}) => Card({child: {component: 'CycleA', label}}),
+});
+
+const EmitsSurface = defineMacro({
+  name: 'EmitsSurface',
+  description: 'Macro illegally emitting reserved Surface component in v1.0.',
+  render: () => ({component: 'Surface'}),
+});
+
+export const SCOPED_SUITE_MACROS: Readonly<Record<string, readonly MacroDefinition[]>> = {
+  [BRAND_CID]: [
+    BrandText,
+    UnannotatedBrandCard,
+    BrandBadge,
+    InnerBadgeScoped,
+    OuterPanelScoped,
+    BrandChart,
+  ],
+  [BRAND_SURFACE_CID]: [BrandSurfaceText, BrandSurfaceBadge],
+  [BAZ_MACROS_CID]: [BazMacro],
+  [CAT_B_CID]: [
+    ProductCard,
+    BrandBoxMacro,
+    InnerBadgeInherited,
+    OuterPanelInherited,
+    DeferredCycle,
+    CycleA,
+    CycleB,
+    EmitsSurface,
+  ],
+};
+
 // Catalog resolution and case execution.
 
 /** The protocol version of a case's envelope: `1.0`, `v0.9` or `v0.8`. */
@@ -320,6 +538,14 @@ function selectMacros(testCase: LoadedCase): readonly MacroDefinition[] {
   const colliding = testCase['colliding_macro'] as string | undefined;
   if (colliding !== undefined) {
     return [defineMacro({name: colliding, render: () => Card({child: Text({text: 'colliding'})})})];
+  }
+  const macroCatalogId = testCase['macro_catalog_id'] as string | undefined;
+  if (macroCatalogId !== undefined) {
+    const scoped = SCOPED_SUITE_MACROS[macroCatalogId];
+    if (scoped === undefined) {
+      throw new Error(`No scoped macros registered for macro_catalog_id ${macroCatalogId}`);
+    }
+    return scoped;
   }
   return SUITE_MACROS_V1_0;
 }

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {
   A2uiRecursionError,
@@ -58,6 +58,10 @@ function lowerComponents(
 }
 
 describe('MacroExpander.transformToTransport', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('replaces an invocation with its components, root last with the invocation ID', () => {
     expect(lowerComponents([Label], [{component: 'Label', id: 'l', text: 'Hi'}])).toEqual([
       {component: 'Text', id: 'l__text_1', text: 'Hi', variant: 'info'},
@@ -171,6 +175,54 @@ describe('MacroExpander.transformToTransport', () => {
   ])('rejects %s', (_case, args) => {
     expect(() => lowerComponents([Label], [{component: 'Label', id: 'l', ...args}])).toThrow(
       A2uiValidationError,
+    );
+  });
+
+  it('rejects messages of another protocol version, with or without macros', () => {
+    const v09 = [
+      {version: 'v0.9', updateComponents: {surfaceId: 's', components: []}},
+    ] as unknown as AgentToRendererMessage[];
+
+    expect(() => new MacroExpander([Label]).transformToTransport(v09)).toThrow(A2uiValidationError);
+    expect(() => new MacroExpander([]).transformToTransport(v09)).toThrow(A2uiValidationError);
+  });
+
+  it('throws for a macro that renders a Surface whatever onError says', () => {
+    const Bad = defineMacro({name: 'Bad', render: () => ({component: 'Ｓurface'})});
+
+    expect(() =>
+      new MacroExpander([Bad]).transformToTransport(update([{component: 'Bad', id: 'b'}])),
+    ).toThrow(A2uiValidationError);
+  });
+
+  it('keeps a failed invocation unexpanded and logs it under onError passthrough', () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const [message] = new MacroExpander([Label]).transformToTransport(
+      update([
+        {component: 'Label', id: 'bad', text: 'Hi', weight: 2},
+        {component: 'Label', id: 'ok', text: 'Ok'},
+      ]),
+    ) as unknown as Array<{updateComponents: {components: Array<Record<string, unknown>>}}>;
+
+    expect(message.updateComponents.components.map(component => component['id'])).toEqual([
+      'bad',
+      'ok__text_1',
+      'ok',
+    ]);
+    expect(logged).toHaveBeenCalledTimes(1);
+  });
+
+  it('wraps an error from render in A2uiValidationError under onError raise', () => {
+    const Throws = defineMacro({
+      name: 'Throws',
+      render: (): ComponentNode => {
+        throw new Error('boom');
+      },
+    });
+
+    expect(() => lowerComponents([Throws], [{component: 'Throws', id: 't'}])).toThrow(
+      /Failed to expand macro 'Throws' \(id="t"\): Error: boom/,
     );
   });
 });
