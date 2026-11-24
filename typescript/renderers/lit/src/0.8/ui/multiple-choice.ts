@@ -20,6 +20,7 @@ import {Root} from './root.js';
 import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
 import * as Primitives from '@a2ui/web_core/types/primitives';
 import {structuralStyles} from './styles.js';
+import {setBoundData} from './data-binding.js';
 import {extractStringValue} from './utils/utils.js';
 
 @customElement('a2ui-multiplechoice')
@@ -275,12 +276,7 @@ export class MultipleChoice extends Root {
       return;
     }
 
-    this.processor.setData(
-      this.component,
-      this.selections.path,
-      value,
-      this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID,
-    );
+    setBoundData(this, this.selections.path, value);
   }
 
   getCurrentSelections(): string[] {

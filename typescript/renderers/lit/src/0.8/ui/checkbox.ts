@@ -22,6 +22,7 @@ import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
 import {classMap} from 'lit/directives/class-map.js';
 import {styleMap} from 'lit/directives/style-map.js';
 import {structuralStyles} from './styles.js';
+import {setBoundData} from './data-binding.js';
 import {extractStringValue} from './utils/utils.js';
 
 @customElement('a2ui-checkbox')
@@ -71,12 +72,7 @@ export class Checkbox extends Root {
       return;
     }
 
-    this.processor.setData(
-      this.component,
-      this.value.path,
-      value,
-      this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID,
-    );
+    setBoundData(this, this.value.path, value);
   }
 
   #renderField(value: boolean | number) {
