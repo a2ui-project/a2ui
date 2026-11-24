@@ -23,6 +23,7 @@ from a2ui.core.state import (
     SurfaceComponentsModel,
     SurfaceModel,
     SurfaceGroupModel,
+    validate_recursion_and_paths,
 )
 from a2ui.core.exceptions import (
     A2uiCatalogError,
@@ -791,6 +792,80 @@ def test_surface_components_model_max_depth_enforcement():
     assert len(visited_chain) == 3
 
 
+def _nest_calls(depth: int, call_key: str) -> dict[str, Any]:
+    """Returns `depth` function calls, each nested in the args of the one before."""
+    value: dict[str, Any] = {call_key: "leaf", "args": {}}
+    for _ in range(depth - 1):
+        value = {call_key: "wrap", "args": {"value": value}}
+    return value
+
+
+def _nest_objects(depth: int) -> dict[str, Any]:
+    """Returns `depth` plain objects, each nested in the one before."""
+    value: dict[str, Any] = {}
+    for _ in range(depth - 1):
+        value = {"nested": value}
+    return value
+
+
+@pytest.mark.parametrize("call_key", ["call", "@call"])
+def test_validate_recursion_and_paths_bounds_nested_calls_by_global_depth(
+    call_key: str,
+):
+    # Function call nesting has no limit of its own.
+    validate_recursion_and_paths(_nest_calls(6, call_key))
+    # Each call adds two levels, the call and its args, so the args of the 25th
+    # call are at depth 49 and those of the 26th at depth 51.
+    validate_recursion_and_paths(_nest_calls(25, call_key))
+    with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
+        validate_recursion_and_paths(_nest_calls(26, call_key))
+
+
+def test_validate_recursion_and_paths_checks_siblings_of_function_call():
+    function_call = {"call": "now", "args": {}}
+
+    validate_recursion_and_paths(
+        {"functionCall": function_call, "sibling": _nest_objects(50)}
+    )
+    with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
+        validate_recursion_and_paths(
+            {"functionCall": function_call, "sibling": _nest_objects(51)}
+        )
+    with pytest.raises(A2uiValidationError, match="Invalid path syntax"):
+        validate_recursion_and_paths(
+            {"functionCall": function_call, "sibling": {"path": "/bad/~2"}}
+        )
+    with pytest.raises(A2uiValidationError, match="Invalid path syntax"):
+        validate_recursion_and_paths(
+            {"functionCall": function_call, "sibling": [{"@path": "/bad/~2"}]}
+        )
+
+    # The function call itself is still checked.
+    with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
+        validate_recursion_and_paths(
+            {"functionCall": _nest_calls(26, "call"), "sibling": {}}
+        )
+    with pytest.raises(A2uiValidationError, match="Invalid path syntax"):
+        validate_recursion_and_paths(
+            {"functionCall": {"call": "now", "args": {"v": {"path": "/bad/~2"}}}}
+        )
+
+
+@pytest.mark.parametrize(
+    "bad_start_depth",
+    [-1, -100, True, False, 1.5, float("nan"), float("inf"), "0"],
+)
+def test_validate_recursion_and_paths_validates_start_depth(bad_start_depth: Any):
+    with pytest.raises(ValueError, match="start_depth must be a non-negative integer"):
+        validate_recursion_and_paths({}, start_depth=bad_start_depth)
+
+
+def test_validate_recursion_and_paths_start_depth_shifts_bound():
+    validate_recursion_and_paths("leaf", start_depth=50)
+    with pytest.raises(A2uiRecursionError, match="Global recursion limit exceeded"):
+        validate_recursion_and_paths({"nested": "x"}, start_depth=50)
+
+
 def test_surface_components_model_collection_helpers_and_topology():
     from a2ui.core.validation import ValidationConfig
     from a2ui.core.exceptions import A2uiIntegrityError
@@ -1294,3 +1369,29 @@ def test_validate_components_update_writes_at_catalog_id_for_non_default_catalog
         [ComponentModel("root", "Label", other, {"text": "Hi"})],
         config=ValidationConfig(),
     )
+
+
+def test_batch_clears_pending_on_callback_exception() -> None:
+    from a2ui.core.common.events import batch, enqueue_or_run
+
+    called: list[str] = []
+
+    def failing() -> None:
+        called.append("failing")
+        raise RuntimeError("boom")
+
+    def stale() -> None:
+        called.append("stale")
+
+    def later() -> None:
+        called.append("later")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        with batch():
+            enqueue_or_run(failing)
+            enqueue_or_run(stale)
+
+    with batch():
+        enqueue_or_run(later)
+
+    assert called == ["failing", "later"]

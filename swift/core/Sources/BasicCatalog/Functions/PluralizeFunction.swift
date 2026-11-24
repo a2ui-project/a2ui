@@ -47,7 +47,8 @@ public final class PluralizeFunction: FunctionImplementation, @unchecked Sendabl
             "many": { "type": "string" },
             "other": { "type": "string" }
           },
-          "required": ["value", "other"]
+          "required": ["value", "other"],
+          "additionalProperties": false
         }
         """
     )

@@ -836,6 +836,7 @@ async def test_call_renderer_function_prefers_executable_rpc_catalog_over_schema
             "functions": {
                 "renderTemplate": {
                     "returnType": "string",
+                    "allowedCallers": "rendererOrAgent",
                     "parameters": {
                         "type": "object",
                         "properties": {"value": {"type": "string"}},
@@ -843,6 +844,7 @@ async def test_call_renderer_function_prefers_executable_rpc_catalog_over_schema
                 },
                 "rpcHelper": {
                     "returnType": "string",
+                    "allowedCallers": "rendererOrAgent",
                     "parameters": {"type": "object", "properties": {}},
                 },
             },
@@ -893,3 +895,334 @@ async def test_call_renderer_function_prefers_executable_rpc_catalog_over_schema
 
     assert resp["rendererFunctionResponse"]["value"] == "Hello from-executable-rpc"
     assert ctx.active_catalog_id is None
+
+
+def test_call_renderer_function_nested_caller_boundary_and_sibling_atomicity() -> None:
+    basic_format_string = v1_0.BasicCatalog().get_function("formatString")
+    assert basic_format_string is not None
+
+    side_effects: list[str] = []
+    cat_id = "https://example.com/catalogs/nested-boundary/v1/catalog.json"
+    cat = Catalog(
+        cat_id,
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="mutatingAllowed",
+                execute=lambda args, context=None, *_: (
+                    side_effects.append("mutated") or "ok"
+                ),
+                allowed_callers="rendererOrAgent",
+            ),
+            FunctionImplementation(
+                name="secretRendererOnly",
+                execute=lambda args, context=None, *_: (
+                    side_effects.append("leaked") or "SECRET"
+                ),
+                allowed_callers="rendererOnly",
+            ),
+            FunctionImplementation(
+                name="agentOnlyFn",
+                execute=lambda args, context=None, *_: "AGENT_SECRET",
+                allowed_callers="agentOnly",
+            ),
+            FunctionImplementation(
+                name="echoAll",
+                execute=lambda args, context=None, *_: dict(args),
+                allowed_callers="rendererOrAgent",
+            ),
+            FunctionImplementation(
+                name="renderTpl",
+                execute=lambda args, context=None, *_: basic_format_string.execute(
+                    args, context
+                ),
+                allowed_callers="rendererOrAgent",
+            ),
+            FunctionImplementation(
+                name="activatedRequiredArg",
+                execute=lambda args, context=None, *_: "OPENED",
+                allowed_callers="rendererOrAgent",
+                requires_user_activation=True,
+                schema={
+                    "type": "object",
+                    "properties": {"url": {"type": "string"}},
+                    "required": ["url"],
+                },
+            ),
+            FunctionImplementation(
+                name="schemaOnlyActivated",
+                execute=None,
+                allowed_callers="rendererOrAgent",
+                requires_user_activation=True,
+                schema={"type": "object", "properties": {}},
+            ),
+        ],
+    )
+    surface = SurfaceModel(
+        "s-nested-boundary",
+        default_catalog=cat,
+        available_catalogs={cat_id: cat},
+        protocol_version="1.0",
+    )
+    surface.data_model.set("/tpl", "Leak: ${secretRendererOnly()}")
+    ctx = DataContext(surface=surface, path="/")
+    handler = RpcHandler([cat])
+
+    # 1. Pre-check rejects nested rendererOnly before sibling mutatingAllowed executes.
+    sibling_resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="nested-sibling-atomic",
+                surface_id="s-nested-boundary",
+                call_function=FunctionCall(
+                    call="echoAll",
+                    catalog_id=cat_id,
+                    args={
+                        "first": {
+                            "@call": "mutatingAllowed",
+                            "catalogId": cat_id,
+                            "args": {},
+                        },
+                        "second": [{
+                            "@call": "secretRendererOnly",
+                            "catalogId": cat_id,
+                            "args": {},
+                        }],
+                    },
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+    assert (
+        sibling_resp["rendererFunctionResponse"]["error"]["code"]
+        == "INVALID_FUNCTION_CALL"
+    )
+    assert side_effects == []
+
+    # 2. Dynamic ${secretRendererOnly()} stored in DataModel and read via @path is rejected.
+    tpl_resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="nested-datamodel-tpl",
+                surface_id="s-nested-boundary",
+                call_function=FunctionCall(
+                    call="renderTpl",
+                    catalog_id=cat_id,
+                    args={"value": {"@path": "/tpl"}},
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+    assert (
+        tpl_resp["rendererFunctionResponse"]["error"]["code"] == "INVALID_FUNCTION_CALL"
+    )
+    assert side_effects == []
+
+    # 3. Nested agentOnly call succeeds under callRendererFunction.
+    agent_resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="nested-agent-only",
+                surface_id="s-nested-boundary",
+                call_function=FunctionCall(
+                    call="echoAll",
+                    catalog_id=cat_id,
+                    args={
+                        "token": {
+                            "@call": "agentOnlyFn",
+                            "catalogId": cat_id,
+                            "args": {},
+                        }
+                    },
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+    assert agent_resp["rendererFunctionResponse"]["value"] == {"token": "AGENT_SECRET"}
+
+    # 4. 600 chained @call wrappers still reject secretRendererOnly before sibling runs,
+    # and >1000 levels fail closed with EXECUTION_ERROR before sibling runs.
+    deep_forbidden: Any = {
+        "@call": "secretRendererOnly",
+        "catalogId": cat_id,
+        "args": {},
+    }
+    for _ in range(600):
+        deep_forbidden = {
+            "@call": "echoAll",
+            "catalogId": cat_id,
+            "args": {"inner": deep_forbidden},
+        }
+    deep_resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="nested-deep-600",
+                surface_id="s-nested-boundary",
+                call_function=FunctionCall(
+                    call="echoAll",
+                    catalog_id=cat_id,
+                    args={
+                        "first": {
+                            "@call": "mutatingAllowed",
+                            "catalogId": cat_id,
+                            "args": {},
+                        },
+                        "second": deep_forbidden,
+                    },
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+    assert (
+        deep_resp["rendererFunctionResponse"]["error"]["code"]
+        == "INVALID_FUNCTION_CALL"
+    )
+    assert side_effects == []
+
+    over_deep: Any = "leaf"
+    for _ in range(1005):
+        over_deep = [over_deep]
+    over_deep_resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="nested-over-deep",
+                surface_id="s-nested-boundary",
+                call_function=FunctionCall(
+                    call="echoAll",
+                    catalog_id=cat_id,
+                    args={
+                        "first": {
+                            "@call": "mutatingAllowed",
+                            "catalogId": cat_id,
+                            "args": {},
+                        },
+                        "second": over_deep,
+                    },
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+    assert (
+        over_deep_resp["rendererFunctionResponse"]["error"]["code"] == "EXECUTION_ERROR"
+    )
+    assert side_effects == []
+
+    # 5. Unactivated ${...} template calling a requires_user_activation function
+    # with missing args or schema-only declaration returns INVALID_FUNCTION_CALL.
+    for call_id, tpl in [
+        ("tpl-act-missing-arg", "Leak: ${activatedRequiredArg()}"),
+        ("tpl-act-schema-only", "Leak: ${schemaOnlyActivated()}"),
+    ]:
+        resp = handler.handle_call_renderer_function(
+            CallRendererFunctionMessage(
+                version="1.0",
+                call_renderer_function=CallRendererFunction(
+                    function_call_id=call_id,
+                    surface_id="s-nested-boundary",
+                    call_function=FunctionCall(
+                        call="renderTpl",
+                        catalog_id=cat_id,
+                        args={"value": tpl},
+                    ),
+                ),
+            ),
+            context=ctx,
+        )
+        assert (
+            resp["rendererFunctionResponse"]["error"]["code"] == "INVALID_FUNCTION_CALL"
+        )
+
+    # 6. Preflight recognizes snake_case `catalog_id` before sibling runs.
+    snake_resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="nested-snake-cat-id",
+                surface_id="s-nested-boundary",
+                call_function=FunctionCall(
+                    call="echoAll",
+                    catalog_id=cat_id,
+                    args={
+                        "first": {
+                            "@call": "mutatingAllowed",
+                            "catalogId": cat_id,
+                            "args": {},
+                        },
+                        "second": {
+                            "@call": "secretRendererOnly",
+                            "catalog_id": cat_id,
+                            "args": {},
+                        },
+                    },
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+    assert (
+        snake_resp["rendererFunctionResponse"]["error"]["code"]
+        == "INVALID_FUNCTION_CALL"
+    )
+    assert side_effects == []
+
+    # 7. Over-deep branch alongside a shallow forbidden sibling still returns
+    # INVALID_FUNCTION_CALL deterministically.
+    mixed_depth_resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="nested-depth-and-forbidden",
+                surface_id="s-nested-boundary",
+                call_function=FunctionCall(
+                    call="echoAll",
+                    catalog_id=cat_id,
+                    args={
+                        "first": over_deep,
+                        "second": {
+                            "@call": "secretRendererOnly",
+                            "catalogId": cat_id,
+                            "args": {},
+                        },
+                    },
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+    assert (
+        mixed_depth_resp["rendererFunctionResponse"]["error"]["code"]
+        == "INVALID_FUNCTION_CALL"
+    )
+    assert side_effects == []
+
+    # 8. A 998-deep literal array passes preflight and resolves iteratively
+    # without hitting Python's RecursionError.
+    deep_998: Any = "leaf"
+    for _ in range(998):
+        deep_998 = [deep_998]
+    deep_998_resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="nested-998-literal",
+                surface_id="s-nested-boundary",
+                call_function=FunctionCall(
+                    call="echoAll",
+                    catalog_id=cat_id,
+                    args={"nested": deep_998},
+                ),
+            ),
+        ),
+        context=ctx,
+    )
+    assert "error" not in deep_998_resp["rendererFunctionResponse"]

@@ -1,5 +1,9 @@
 ## Unreleased
 
+- (v0_8) Fix `Text` `additionalStyles` detection so complete 7-key and partial hinted style maps apply without requiring `h6`. A partial map that omits the active `usageHint` applies no inline styles ([#602](https://github.com/a2ui-project/a2ui/issues/602), [#4355](https://github.com/a2ui-project/a2ui/pull/4355)).
+
+## 0.16.0
+
 - (v0_9) Import `Catalog` and `ComponentApi` from `@a2ui/web_core` instead of `@a2ui/web_core/v0_9` in the v0.9 basic catalog barrel. [#4182](https://github.com/a2ui-project/a2ui/pull/4182)
 
 ## 0.15.0

@@ -31,6 +31,7 @@ import {ComponentContext} from '../resolution/component-context.js';
 import {NodeResolver} from '../resolution/node-resolver.js';
 import {CheckableSchema} from '../v0_9/schema/common-types.js';
 import {A2uiLitElement} from './a2ui-lit-element.js';
+import {A2UI_ELEMENT_CONNECTED_EVENT} from './element_connected_event.js';
 
 const MockTextApi = {
   name: 'Text',
@@ -207,6 +208,36 @@ describe('A2uiLitElement', () => {
 
     assert.ok(el.renderRoot instanceof (globalThis as any).ShadowRoot);
     assert.deepStrictEqual(document.adoptedStyleSheets, sheetsBefore);
+  });
+
+  it('dispatches a bubbling, composed connected event once, on the first connect with a context', async () => {
+    const events: Event[] = [];
+    const listener = (event: Event) => events.push(event);
+    document.body.addEventListener(A2UI_ELEMENT_CONNECTED_EVENT, listener);
+
+    const withoutContext = document.createElement('test-a2ui-element') as any;
+    document.body.appendChild(withoutContext);
+    assert.strictEqual(events.length, 0);
+
+    withoutContext.context = new ComponentContext(surface, 'root');
+    await withoutContext.updateComplete;
+    assert.strictEqual(events.length, 1);
+    assert.strictEqual(events[0].target, withoutContext);
+
+    const el = document.createElement('test-a2ui-element') as any;
+    el.context = new ComponentContext(surface, 'root');
+    document.body.appendChild(el);
+    document.body.removeChild(el);
+    document.body.appendChild(el);
+
+    document.body.removeEventListener(A2UI_ELEMENT_CONNECTED_EVENT, listener);
+    assert.strictEqual(events.length, 2);
+    assert.strictEqual(events[1].target, el);
+    assert.ok(events[1].bubbles);
+    assert.ok(events[1].composed);
+
+    withoutContext.remove();
+    el.remove();
   });
 
   it('should create controller when context is set', async () => {

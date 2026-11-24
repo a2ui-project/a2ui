@@ -49,8 +49,7 @@ ArgParser buildCompileArgParser() {
     ..addOption(
       'target',
       abbr: 't',
-      help:
-          'Target platform identifier (must match host target; defaults to host target).',
+      help: 'Target platform identifier (must match host target; defaults to host target).',
     )
     ..addOption(
       'version',

@@ -35,7 +35,15 @@ export const BOUNDARY_FORBIDDEN_PATTERNS = [
 
 export const BOUNDARY_ALLOWLIST = [
   'src/catalog/angular_wc_host.ts',
+  'src/catalog/types.ts',
   'src/core/component-binder.service.ts',
   'src/core/component-host.component.ts',
   'src/v0_9/catalog/basic/button.component.ts',
 ];
+
+/**
+ * Ratchet: `BOUNDARY_ALLOWLIST.length` may not exceed this number
+ * (`scripts/adapter_boundary_allowlist.test.mjs`). Raise it in the same
+ * change that adds an entry, and say why in the pull request.
+ */
+export const BOUNDARY_ALLOWLIST_BASELINE = 5;

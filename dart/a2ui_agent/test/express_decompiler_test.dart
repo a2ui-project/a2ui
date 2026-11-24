@@ -29,11 +29,8 @@ import 'package:test/test.dart';
 void main() {
   final CatalogApi basic = Catalog.fromJson(
     jsonDecode(
-          File(
-            '../../specification/v0_9/catalogs/basic/catalog.json',
-          ).readAsStringSync(),
-        )
-        as Map<String, Object?>,
+      File('../../catalogs/basic/v0_9/catalog.json').readAsStringSync(),
+    ) as Map<String, Object?>,
   );
   final CatalogApi custom = Catalog.fromJson({
     'catalogId': 'https://example.com/custom.json',
@@ -62,6 +59,8 @@ void main() {
   });
   final Parser parser = const ExpressFormatFactory().createFormat([
     basic,
+  ]).createParser();
+  final Parser customParser = const ExpressFormatFactory().createFormat([
     custom,
   ]).createParser();
 
@@ -92,6 +91,19 @@ void main() {
     final String written = parser.decompile(original);
     expect(
       parser.compile(written).map((m) => m.toJson()),
+      original.map((m) => m.toJson()),
+      reason: 'Express written:\n$written',
+    );
+    return written;
+  }
+
+  /// Writes [bodies] in Express using [customParser], checks that compiling
+  /// the result returns them, and returns what was written.
+  String customRoundTrip(List<Map<String, Object?>> bodies) {
+    final List<AgentToRendererMessage> original = messages(bodies);
+    final String written = customParser.decompile(original);
+    expect(
+      customParser.compile(written).map((m) => m.toJson()),
       original.map((m) => m.toJson()),
       reason: 'Express written:\n$written',
     );
@@ -162,7 +174,7 @@ void main() {
     });
 
     test('a check calling a function without parameters', () {
-      final String written = roundTrip([
+      final String written = customRoundTrip([
         create('s', custom.id),
         components('s', [
           {
@@ -242,28 +254,16 @@ void main() {
       expect(written, contains(r'row = Text($name)'));
     });
 
-    test('a surface of another catalog, naming it', () {
-      final String written = roundTrip([
-        create('g', custom.id),
-        components('g', [
-          {'id': 'root', 'component': 'Gauge', 'value': 0.5},
-        ]),
-      ]);
-      expect(written, contains('surface("g", "${custom.id}")'));
-    });
-
-    test('an update of a surface of another catalog, naming it', () {
-      final String written = roundTrip([
-        components('g', [
-          {'id': 'needle', 'component': 'Gauge', 'value': 0.5},
-        ]),
-      ]);
-      expect(written, contains('surface("g", "${custom.id}")'));
+    test('rejects several v0.9 catalogs', () {
+      expect(
+        () => const ExpressFormatFactory().createFormat([basic, custom]),
+        throwsA(isA<A2uiCatalogError>()),
+      );
     });
 
     group('a double the way ECMAScript Number.prototype.toString does', () {
       /// What a `Gauge` with [value] is written as, after a round trip.
-      String gauge(double value) => roundTrip([
+      String gauge(double value) => customRoundTrip([
         create('g', custom.id),
         components('g', [
           {'id': 'root', 'component': 'Gauge', 'value': value},
@@ -374,9 +374,8 @@ void main() {
     test('v1.0 surface and component metadata.extensions as extensions=', () {
       final CatalogApi v1Basic = Catalog.fromJson(
         jsonDecode(
-              File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
-            )
-            as Map<String, Object?>,
+          File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
+        ) as Map<String, Object?>,
         protocolVersion: A2uiProtocolVersion.v1_0,
       );
       final Parser v1Parser = const ExpressFormatFactory().createFormat([
@@ -522,7 +521,7 @@ void main() {
     for (final double value in [double.infinity, double.nan]) {
       test('a non-finite number ($value)', () {
         expect(
-          () => parser.decompile(
+          () => customParser.decompile(
             messages([
               create('g', custom.id),
               components('g', [
@@ -548,9 +547,8 @@ void main() {
     test('a non-UAX 31 component id in protocol v1.0', () {
       final CatalogApi v1Basic = Catalog.fromJson(
         jsonDecode(
-              File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
-            )
-            as Map<String, Object?>,
+          File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
+        ) as Map<String, Object?>,
         protocolVersion: A2uiProtocolVersion.v1_0,
       );
       final Parser v1Parser = const ExpressFormatFactory().createFormat([

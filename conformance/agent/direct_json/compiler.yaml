@@ -155,6 +155,16 @@
   expect_error:
     category: "ParseError"
 
+- name: test_compile_json_number_out_of_range_is_a_parse_error
+  description: A number too large for a double, such as `1e400`, is a parse error rather than an infinity that JSON cannot write back out.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '[{"version": "1.0", "updateDataModel": {"surfaceId": "s1", "path": "/total", "value": 1e400}}]'
+  expect_error:
+    category: "ParseError"
+
 - name: test_compile_json_empty_block_is_a_parse_error
   description: A block with nothing in it is a parse error rather than an empty message list.
   action: compile
@@ -407,10 +417,10 @@
           notes: "line\n2"
 
 # A `callRendererFunction` is checked the way the renderer that receives it
-# would check it, without running it: the function must be one the agent may
-# call, and each call nested in its arguments must be one the renderer can make
-# while it resolves them. These cases use agent_functions_catalog_v1_0.json,
-# whose functions the agent may call; `record` takes a value of any shape.
+# would check it, without running it: both the target function and each call
+# nested in its arguments must be ones the agent may call. These cases use
+# agent_functions_catalog_v1_0.json, whose functions the agent may call;
+# `record` takes a value of any shape.
 
 - name: test_compile_json_call_renderer_function_the_agent_may_call
   description: A callRendererFunction naming a function whose allowedCallers is rendererOrAgent compiles to that message.
@@ -441,7 +451,7 @@
     message: "rendererOnly"
 
 - name: test_compile_json_call_renderer_function_nested_call_is_accepted
-  description: A call nested in the arguments of a callRendererFunction that names no surface runs in the catalog of the call, so a call there to a function the renderer may make compiles.
+  description: A call nested in the arguments of a callRendererFunction that names no surface runs in the catalog of the call, so a call there to a function the agent may call compiles.
   action: compile
   args:
     format: direct_json
@@ -533,16 +543,25 @@
           args:
             key: "mood"
 
-- name: test_compile_json_call_renderer_function_nested_agent_only_call_is_a_validation_error
-  description: A call nested in the arguments of a callRendererFunction is made by the renderer while it resolves them, so a nested call to a function whose allowedCallers is agentOnly is a validation error.
+- name: test_compile_json_call_renderer_function_nested_agent_only_call_compiles
+  description: A call nested in the arguments of a callRendererFunction is evaluated under the agent caller boundary, so a nested call to a function whose allowedCallers is agentOnly compiles.
   action: compile
   args:
     format: direct_json
     catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
   input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@call": "peek", "args": {"key": "mood"}}}}}}]'
-  expect_error:
-    category: "ValidationError"
-    message: "agentOnly"
+  expect:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "c1"
+        callFunction:
+          "@call": "record"
+          catalogId: "conformance/agent_functions"
+          args:
+            value:
+              "@call": "peek"
+              args:
+                key: "mood"
 
 - name: test_compile_json_call_renderer_function_catalog_not_held_is_a_validation_error
   description: A callRendererFunction naming a catalog that isn't one of the agent's catalogs is a validation error.

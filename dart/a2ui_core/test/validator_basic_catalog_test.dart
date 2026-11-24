@@ -17,6 +17,7 @@ import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/validation/component_refs.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
@@ -35,7 +36,7 @@ Map<String, Object?> _readJson(String relativePath) =>
         as Map<String, Object?>;
 
 Map<String, Object?> basicCatalogDocument() =>
-    _readJson('../specification/v0_9_1/catalogs/basic/catalog.json');
+    _readJson('../catalogs/basic/v0_9_1/catalog.json');
 
 void main() {
   group('the basic catalog', () {
@@ -90,27 +91,26 @@ void main() {
   // their `format` inside a `oneOf`. Without format checking every string
   // matches all three branches, so `oneOf` rejects even a valid bound.
   final Map<String, PayloadValidator<ComponentApi, FunctionApi> Function()>
-      dateTimeValidators = {
+  dateTimeValidators = {
     'v0.9.1': () => PayloadValidator<ComponentApi, FunctionApi>(
-          catalog: Catalog.fromJson(basicCatalogDocument()),
-          protocolVersion: A2uiProtocolVersion.v0_9,
-        ),
+      catalog: Catalog.fromJson(basicCatalogDocument()),
+      protocolVersion: A2uiProtocolVersion.v0_9,
+    ),
     'v1': () => PayloadValidator<ComponentApi, FunctionApi>(
-          catalog:
-              Catalog.fromJson(_readJson('../catalogs/basic/v1/catalog.json')),
-          protocolVersion: A2uiProtocolVersion.v1_0,
-          commonTypesSchema: _readJson(
-            '../specification/v1_0/json/common_types.json',
-          ),
-        ),
+      catalog: Catalog.fromJson(_readJson('../catalogs/basic/v1/catalog.json')),
+      protocolVersion: A2uiProtocolVersion.v1_0,
+      commonTypesSchema: _readJson(
+        '../specification/v1_0/json/common_types.json',
+      ),
+    ),
   };
 
   Map<String, Object?> dateTimeInput(Map<String, Object?> bounds) => {
-        'id': 'when',
-        'component': 'DateTimeInput',
-        'value': '',
-        ...bounds,
-      };
+    'id': 'when',
+    'component': 'DateTimeInput',
+    'value': '',
+    ...bounds,
+  };
 
   for (final MapEntry(key: catalogName, value: newValidator)
       in dateTimeValidators.entries) {
@@ -120,11 +120,7 @@ void main() {
       late final PayloadValidator<ComponentApi, FunctionApi> validator =
           newValidator();
 
-      for (final bound in [
-        '2026-01-01',
-        '09:00:00',
-        '2026-01-01T09:00:00Z',
-      ]) {
+      for (final bound in ['2026-01-01', '09:00:00', '2026-01-01T09:00:00Z']) {
         test('accept the literal $bound', () {
           expect(
             () => validator.validateComponent(
@@ -158,15 +154,308 @@ void main() {
     });
   }
 
+  group('nested function calls in the v0.9 basic catalog', () {
+    /// [depth] `formatString` calls, each the `value` of the one before; the
+    /// innermost takes [innermost] for its `value`.
+    Map<String, Object?> nestedFormatString(
+      int depth, {
+      Object? innermost = 'leaf',
+    }) {
+      var value = innermost;
+      for (var i = 0; i < depth; i++) {
+        value = {
+          'call': 'formatString',
+          'args': {'value': value},
+        };
+      }
+      return value! as Map<String, Object?>;
+    }
+
+    void process(Object? text) {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [BasicCatalog.v0_9()],
+        defaultVersion: A2uiProtocolVersion.v0_9,
+      );
+      processor.processMessages(
+        AgentToRendererMessage.parseAll([
+          {
+            'version': 'v0.9',
+            'createSurface': {
+              'surfaceId': 's1',
+              'catalogId': BasicCatalog.v0_9Id,
+            },
+          },
+          {
+            'version': 'v0.9',
+            'updateComponents': {
+              'surfaceId': 's1',
+              'components': [
+                {'id': 'root', 'component': 'Text', 'text': text},
+              ],
+            },
+          },
+        ], protocolVersion: A2uiProtocolVersion.v0_9),
+      );
+    }
+
+    // Checking a call against every function of the catalog, arguments and
+    // all, takes time that multiplies with each level of nesting: ten levels
+    // would not finish. The timeout fails the test instead.
+    for (final depth in [10, 20, 23]) {
+      test(
+        'MessageProcessor accepts $depth nested calls',
+        timeout: const Timeout(Duration(seconds: 30)),
+        () {
+          expect(() => process(nestedFormatString(depth)), returnsNormally);
+        },
+      );
+    }
+
+    for (final (String label, Object? innermost) in [
+      (
+        'names an unknown function',
+        {
+          'call': 'nope',
+          'args': {'value': 'x'},
+        },
+      ),
+      (
+        'passes an argument of the wrong type',
+        {
+          'call': 'formatString',
+          'args': {'value': 3},
+        },
+      ),
+      (
+        'passes an undeclared argument',
+        {
+          'call': 'formatString',
+          'args': {'value': 'x', 'extra': 1},
+        },
+      ),
+      (
+        'has an undeclared field',
+        {
+          'call': 'formatString',
+          'args': {'value': 'x'},
+          'bogus': 1,
+        },
+      ),
+      (
+        'states a return type the function does not have',
+        {
+          'call': 'formatString',
+          'args': {'value': 'x'},
+          'returnType': 'number',
+        },
+      ),
+      (
+        'returns a boolean where a string is expected',
+        {
+          'call': 'required',
+          'args': {'value': 'x'},
+          'returnType': 'boolean',
+        },
+      ),
+    ]) {
+      test(
+        'MessageProcessor rejects a call nested ten deep that $label',
+        timeout: const Timeout(Duration(seconds: 30)),
+        () {
+          expect(
+            () => process(nestedFormatString(9, innermost: innermost)),
+            throwsA(isA<A2uiValidationError>()),
+          );
+        },
+      );
+    }
+  });
+
+  test(
+    'v0.9 Button.action accepts a custom FunctionImplementation with an open '
+    'object argumentSchema',
+    () {
+      final _RendererCatalog base = BasicCatalog.v0_9();
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: base.id,
+        components: base.components.values.toList(),
+        functions: [
+          ...base.functions.values,
+          _OpenObjectFunction('incrementCounter'),
+        ],
+        themeSchema: base.themeSchema,
+        schemaId: base.schemaId,
+        title: base.title,
+        description: base.description,
+        protocolVersion: base.protocolVersion,
+        instructions: base.instructions,
+        definitions: base.definitions,
+      );
+
+      List<Map<String, Object?>> buttonMessages(
+        Map<String, Object?> action,
+      ) => [
+        {
+          'version': 'v0.9',
+          'createSurface': {
+            'surfaceId': 's1',
+            'catalogId': BasicCatalog.v0_9Id,
+          },
+        },
+        {
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Row',
+                'children': ['event_btn', 'func_btn'],
+              },
+              {
+                'id': 'event_btn',
+                'component': 'Button',
+                'child': 'event_label',
+                'action': {
+                  'event': {
+                    'name': 'buy_item',
+                    'context': {
+                      'sku': {'path': '/itemId'},
+                    },
+                  },
+                },
+              },
+              {'id': 'event_label', 'component': 'Text', 'text': 'Buy'},
+              {
+                'id': 'func_btn',
+                'component': 'Button',
+                'child': 'func_label',
+                'action': action,
+              },
+              {'id': 'func_label', 'component': 'Text', 'text': 'Increment'},
+            ],
+          },
+        },
+      ];
+
+      MessageProcessor<ComponentApi> newProcessor() =>
+          MessageProcessor<ComponentApi>(
+            catalogs: [catalog],
+            defaultVersion: A2uiProtocolVersion.v0_9,
+          );
+
+      expect(
+        () => newProcessor().processMessages(
+          AgentToRendererMessage.parseAll(
+            buttonMessages({
+              'functionCall': {
+                'call': 'incrementCounter',
+                'args': {'path': '/counter', 'step': 5},
+              },
+            }),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
+        returnsNormally,
+      );
+
+      expect(
+        () => newProcessor().processMessages(
+          AgentToRendererMessage.parseAll(
+            buttonMessages({
+              'functionCall': {
+                'call': 'unregisteredAction',
+                'args': {'path': '/counter'},
+              },
+            }),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    },
+  );
+
+  test(
+    'v0.9 function with map-valued additionalProperties validates deeply '
+    'nested calls in linear time',
+    timeout: const Timeout(Duration(seconds: 30)),
+    () {
+      final _RendererCatalog base = BasicCatalog.v0_9();
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: base.id,
+        components: base.components.values.toList(),
+        functions: [
+          ...base.functions.values,
+          _DynamicMapFunction('joinValues'),
+        ],
+        themeSchema: base.themeSchema,
+        schemaId: base.schemaId,
+        title: base.title,
+        description: base.description,
+        protocolVersion: base.protocolVersion,
+        instructions: base.instructions,
+        definitions: base.definitions,
+      );
+
+      Map<String, Object?> nestedJoinValues(
+        int depth, {
+        Object? leaf = 'leaf',
+      }) {
+        var current = leaf;
+        for (var i = 0; i < depth; i++) {
+          current = {
+            'call': 'joinValues',
+            'args': {'item': current},
+          };
+        }
+        return current! as Map<String, Object?>;
+      }
+
+      void process(Object text) {
+        final processor = MessageProcessor<ComponentApi>(
+          catalogs: [catalog],
+          defaultVersion: A2uiProtocolVersion.v0_9,
+        );
+        processor.processMessages(
+          AgentToRendererMessage.parseAll([
+            {
+              'version': 'v0.9',
+              'createSurface': {
+                'surfaceId': 's1',
+                'catalogId': BasicCatalog.v0_9Id,
+              },
+            },
+            {
+              'version': 'v0.9',
+              'updateComponents': {
+                'surfaceId': 's1',
+                'components': [
+                  {'id': 'root', 'component': 'Text', 'text': text},
+                ],
+              },
+            },
+          ], protocolVersion: A2uiProtocolVersion.v0_9),
+        );
+      }
+
+      expect(() => process(nestedJoinValues(23)), returnsNormally);
+      expect(
+        () => process(nestedJoinValues(10, leaf: 42)),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    },
+  );
+
   _registerExamples(
     'the v0.9.1 basic catalog examples against the v0.9.1 document',
-    '../specification/v0_9_1/catalogs/basic/examples',
+    '../catalogs/basic/v0_9_1/examples',
     () => rendererCatalog(basicCatalogDocument()),
     A2uiProtocolVersion.v0_9,
   );
   _registerExamples(
     'the v0.9 basic catalog examples against BasicCatalog.v0_9()',
-    '../specification/v0_9/catalogs/basic/examples',
+    '../catalogs/basic/v0_9/examples',
     BasicCatalog.v0_9,
     A2uiProtocolVersion.v0_9,
   );
@@ -192,8 +481,7 @@ void _registerExamples(
     final examples = Directory(resolveConformancePath(directory));
     final List<File> files = examples.listSync().whereType<File>().where((f) {
       return f.path.endsWith('.json');
-    }).toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
+    }).toList()..sort((a, b) => a.path.compareTo(b.path));
 
     test('the examples are present', () {
       expect(files, isNotEmpty, reason: examples.path);
@@ -203,8 +491,9 @@ void _registerExamples(
       final String name = file.uri.pathSegments.last;
       test(name, skip: skips[name], () async {
         final Object? document = jsonDecode(file.readAsStringSync());
-        final Object? messages =
-            document is Map ? document['messages'] : document;
+        final Object? messages = document is Map
+            ? document['messages']
+            : document;
         expect(
           messages,
           isA<List<Object?>>(),
@@ -231,4 +520,43 @@ void _registerExamples(
       });
     }
   });
+}
+
+class _OpenObjectFunction extends FunctionImplementation {
+  _OpenObjectFunction(String name)
+    : super(
+        name: name,
+        argumentSchema: Schema.fromMap(const {
+          'type': 'object',
+          'additionalProperties': true,
+        }),
+      );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) => null;
+}
+
+class _DynamicMapFunction extends FunctionImplementation {
+  _DynamicMapFunction(String name)
+    : super(
+        name: name,
+        returnType: A2uiReturnType.string,
+        argumentSchema: Schema.fromMap(const {
+          'type': 'object',
+          'additionalProperties': {
+            r'$ref': r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString',
+          },
+        }),
+      );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) => args.values.join(',');
 }

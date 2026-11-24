@@ -24,40 +24,40 @@ const String _childListRef =
 
 /// A v1.0 catalog declaring composition constraints on three of its types.
 CatalogApi _catalog() => Catalog.fromJson({
-      'catalogId': 'custom',
-      'protocolVersion': '1.0',
-      'components': {
-        'Column': {
-          'type': 'object',
-          'properties': {
-            'children': {r'$ref': _childListRef},
-          },
-        },
-        'Row': {
-          'type': 'object',
-          'properties': {
-            'children': {r'$ref': _childListRef},
-          },
-        },
-        'ColumnHeader': {
-          'type': 'object',
-          'allowedParents': ['Column'],
-        },
-        'RestrictedBox': {
-          'type': 'object',
-          'allowedChildren': ['Text', 'Button'],
-          'properties': {
-            'children': {r'$ref': _childListRef},
-          },
-        },
-        'Banner': {
-          'type': 'object',
-          'allowedParents': ['Surface'],
-        },
-        'Text': {'type': 'object'},
-        'Video': {'type': 'object'},
+  'catalogId': 'custom',
+  'protocolVersion': '1.0',
+  'components': {
+    'Column': {
+      'type': 'object',
+      'properties': {
+        'children': {r'$ref': _childListRef},
       },
-    });
+    },
+    'Row': {
+      'type': 'object',
+      'properties': {
+        'children': {r'$ref': _childListRef},
+      },
+    },
+    'ColumnHeader': {
+      'type': 'object',
+      'allowedParents': ['Column'],
+    },
+    'RestrictedBox': {
+      'type': 'object',
+      'allowedChildren': ['Text', 'Button'],
+      'properties': {
+        'children': {r'$ref': _childListRef},
+      },
+    },
+    'Banner': {
+      'type': 'object',
+      'allowedParents': ['Surface'],
+    },
+    'Text': {'type': 'object'},
+    'Video': {'type': 'object'},
+  },
+});
 
 void _check(
   CatalogApi catalog,
@@ -65,26 +65,21 @@ void _check(
   Iterable<Map<String, Object?>> existing = const [],
   String rootId = 'root',
   String? surfaceId = 's1',
-}) =>
-    checkCompositionConstraints(
-      components,
-      extractComponentRefFields(catalog),
-      extractCompositionRules(catalog),
-      existing: existing,
-      rootId: rootId,
-      surfaceId: surfaceId,
-    );
+}) => checkCompositionConstraints(
+  components,
+  extractComponentRefFields(catalog),
+  extractCompositionRules(catalog),
+  existing: existing,
+  rootId: rootId,
+  surfaceId: surfaceId,
+);
 
 Matcher _violation(String code, {required String? path, String? message}) =>
     isA<A2uiValidationError>()
         .having((e) => e.code, 'code', code)
         .having((e) => e.path, 'path', path)
         .having((e) => e.surfaceId, 'surfaceId', 's1')
-        .having(
-          (e) => e.message,
-          'message',
-          message ?? anything,
-        );
+        .having((e) => e.message, 'message', message ?? anything);
 
 void main() {
   group('Catalog.fromJson composition constraints', () {
@@ -93,10 +88,10 @@ void main() {
 
       expect(catalog.components['ColumnHeader']!.allowedParents, ['Column']);
       expect(catalog.components['ColumnHeader']!.allowedChildren, isNull);
-      expect(
-        catalog.components['RestrictedBox']!.allowedChildren,
-        ['Text', 'Button'],
-      );
+      expect(catalog.components['RestrictedBox']!.allowedChildren, [
+        'Text',
+        'Button',
+      ]);
       expect(catalog.components['Text']!.allowedParents, isNull);
     });
 
@@ -147,7 +142,8 @@ void main() {
           _violation(
             'UNALLOWED_PARENT',
             path: '/components/0',
-            message: "Component 'root' (ColumnHeader) cannot be placed under "
+            message:
+                "Component 'root' (ColumnHeader) cannot be placed under "
                 "parent 'Surface' (Surface). Allowed parents: ['Column'].",
           ),
         ),
@@ -168,7 +164,8 @@ void main() {
           _violation(
             'UNALLOWED_PARENT',
             path: '/components/1',
-            message: "Component 'invalid_header' (ColumnHeader) cannot be "
+            message:
+                "Component 'invalid_header' (ColumnHeader) cannot be "
                 "placed under parent 'root' (Row). Allowed parents: "
                 "['Column'].",
           ),
@@ -191,7 +188,8 @@ void main() {
           _violation(
             'UNALLOWED_CHILD',
             path: '/components/0/children/1',
-            message: "Container 'root' (RestrictedBox) cannot contain child "
+            message:
+                "Container 'root' (RestrictedBox) cannot contain child "
                 "'v1' (Video). Allowed children: ['Text', 'Button'].",
           ),
         ),
@@ -230,7 +228,8 @@ void main() {
           _violation(
             'UNALLOWED_CHILD',
             path: null,
-            message: "Container 'root' (RestrictedBox) cannot contain child "
+            message:
+                "Container 'root' (RestrictedBox) cannot contain child "
                 "'v1' (Video). Allowed children: ['Text', 'Button'].",
           ),
         ),
@@ -261,23 +260,15 @@ void main() {
 
     test('treats Surface as the parent of the configured root id', () {
       expect(
-        () => _check(
-          _catalog(),
-          [
-            {'id': 'main', 'component': 'ColumnHeader'},
-          ],
-          rootId: 'main',
-        ),
+        () => _check(_catalog(), [
+          {'id': 'main', 'component': 'ColumnHeader'},
+        ], rootId: 'main'),
         throwsA(_violation('UNALLOWED_PARENT', path: '/components/0')),
       );
       expect(
-        () => _check(
-          _catalog(),
-          [
-            {'id': 'root', 'component': 'ColumnHeader'},
-          ],
-          rootId: 'main',
-        ),
+        () => _check(_catalog(), [
+          {'id': 'root', 'component': 'ColumnHeader'},
+        ], rootId: 'main'),
         returnsNormally,
       );
     });
@@ -326,10 +317,7 @@ void main() {
           _violation('UNALLOWED_CHILD', path: '/components/0/children/0'),
         ),
       );
-      expect(
-        p.model.getSurface('s1')?.componentsModel.get('root'),
-        isNull,
-      );
+      expect(p.model.getSurface('s1')?.componentsModel.get('root'), isNull);
     });
 
     test('omits the path when the parent arrived in an earlier message', () {
@@ -374,15 +362,13 @@ void main() {
           _violation(
             'UNALLOWED_CHILD',
             path: null,
-            message: "Container 'root' (RestrictedBox) cannot contain child "
+            message:
+                "Container 'root' (RestrictedBox) cannot contain child "
                 "'v1' (Video). Allowed children: ['Text', 'Button'].",
           ),
         ),
       );
-      expect(
-        p.model.getSurface('s1')?.componentsModel.get('v1'),
-        isNull,
-      );
+      expect(p.model.getSurface('s1')?.componentsModel.get('v1'), isNull);
     });
 
     test('treats Surface as the parent of the configured root id', () {
@@ -447,12 +433,7 @@ void main() {
       String id,
       String type, [
       List<String>? children,
-    ]) =>
-        {
-          'id': id,
-          'component': type,
-          if (children != null) 'children': children,
-        };
+    ]) => {'id': id, 'component': type, 'children': ?children};
 
     for (final MapEntry(key: String name, value: ValidationConfig config)
         in configs.entries) {
@@ -546,17 +527,19 @@ void main() {
           );
         });
 
-        test('rejects a root its allowedParents does not let the surface hold',
-            () {
-          final p = _DeferredPair(config);
-          p.expectSame([
-            component('a', 'Box', ['root']),
-          ]);
-          expect(
-            p.expectSame([component('root', 'Header')]),
-            _violation('UNALLOWED_PARENT', path: '/components/0'),
-          );
-        });
+        test(
+          'rejects a root its allowedParents does not let the surface hold',
+          () {
+            final p = _DeferredPair(config);
+            p.expectSame([
+              component('a', 'Box', ['root']),
+            ]);
+            expect(
+              p.expectSame([component('root', 'Header')]),
+              _violation('UNALLOWED_PARENT', path: '/components/0'),
+            );
+          },
+        );
 
         test('agrees with the whole-surface check on random batches', () {
           const ids = ['root', 'a', 'b', 'c', 'd', 'e'];
@@ -595,45 +578,46 @@ void main() {
 /// constraint.
 final Catalog<ComponentApi, FunctionImplementation> _deferredCatalog =
     Catalog<ComponentApi, FunctionImplementation>(
-  id: 'custom',
-  protocolVersion: A2uiProtocolVersion.v1_0,
-  components: Catalog.fromJson({
-    'catalogId': 'custom',
-    'protocolVersion': '1.0',
-    'components': {
-      'Box': {
-        'type': 'object',
-        'properties': {
-          'children': {r'$ref': _childListRef},
-        },
-      },
-      'Strict': {
-        'type': 'object',
-        'allowedChildren': ['Item', 'Box'],
-        'properties': {
-          'children': {r'$ref': _childListRef},
-        },
-      },
-      'Card': {
-        'type': 'object',
-        'properties': {
-          'child': {
-            r'$ref': 'https://a2ui.org/specification/v1_0/common_types.json'
-                '#/\$defs/ComponentId',
+      id: 'custom',
+      protocolVersion: A2uiProtocolVersion.v1_0,
+      components: Catalog.fromJson({
+        'catalogId': 'custom',
+        'protocolVersion': '1.0',
+        'components': {
+          'Box': {
+            'type': 'object',
+            'properties': {
+              'children': {r'$ref': _childListRef},
+            },
+          },
+          'Strict': {
+            'type': 'object',
+            'allowedChildren': ['Item', 'Box'],
+            'properties': {
+              'children': {r'$ref': _childListRef},
+            },
+          },
+          'Card': {
+            'type': 'object',
+            'properties': {
+              'child': {
+                r'$ref':
+                    'https://a2ui.org/specification/v1_0/common_types.json'
+                    '#/\$defs/ComponentId',
+              },
+            },
+          },
+          'Item': {
+            'type': 'object',
+            'allowedParents': ['Strict', 'Box', 'Surface'],
+          },
+          'Header': {
+            'type': 'object',
+            'allowedParents': ['Box'],
           },
         },
-      },
-      'Item': {
-        'type': 'object',
-        'allowedParents': ['Strict', 'Box', 'Surface'],
-      },
-      'Header': {
-        'type': 'object',
-        'allowedParents': ['Box'],
-      },
-    },
-  }).components.values.toList(),
-);
+      }).components.values.toList(),
+    );
 
 /// Two processors under the same deferred [ValidationConfig], each holding
 /// surface `s1`.
@@ -644,8 +628,8 @@ final Catalog<ComponentApi, FunctionImplementation> _deferredCatalog =
 /// each batch against the whole surface.
 class _DeferredPair {
   _DeferredPair(ValidationConfig config)
-      : incremental = _processor(config),
-        whole = _processor(config);
+    : incremental = _processor(config),
+      whole = _processor(config);
 
   final MessageProcessor<ComponentApi> incremental;
   final MessageProcessor<ComponentApi> whole;
@@ -656,11 +640,11 @@ class _DeferredPair {
         defaultVersion: A2uiProtocolVersion.v1_0,
         validationConfig: config,
       )..processMessages([
-          {
-            'version': '1.0',
-            'createSurface': {'surfaceId': 's1', 'catalogId': 'custom'},
-          },
-        ]);
+        {
+          'version': '1.0',
+          'createSurface': {'surfaceId': 's1', 'catalogId': 'custom'},
+        },
+      ]);
 
   /// Sends [components] to both processors, expects the same outcome and the
   /// same components from both, and returns the error both raised, or null.
@@ -674,8 +658,11 @@ class _DeferredPair {
     expect(_describe(actual), _describe(expected), reason: context);
     expect(_snapshot(incremental), _snapshot(whole), reason: context);
     if (expected == null) {
-      final ComponentModel first =
-          whole.model.getSurface('s1')!.componentsModel.all.first;
+      final ComponentModel first = whole.model
+          .getSurface('s1')!
+          .componentsModel
+          .all
+          .first;
       first.properties = first.properties;
     }
     return actual;
@@ -699,18 +686,17 @@ class _DeferredPair {
   }
 
   static String? _describe(A2uiError? error) => switch (error) {
-        null => null,
-        final A2uiValidationError e =>
-          '${e.runtimeType} ${e.code} ${e.path}: ${e.message}',
-        final A2uiError e => '${e.runtimeType}: ${e.message}',
-      };
+    null => null,
+    final A2uiValidationError e =>
+      '${e.runtimeType} ${e.code} ${e.path}: ${e.message}',
+    final A2uiError e => '${e.runtimeType}: ${e.message}',
+  };
 
   static Map<String, Object?> _snapshot(
     MessageProcessor<ComponentApi> processor,
-  ) =>
-      {
-        for (final ComponentModel c
-            in processor.model.getSurface('s1')!.componentsModel.all)
-          c.id: c.toJson(),
-      };
+  ) => {
+    for (final ComponentModel c
+        in processor.model.getSurface('s1')!.componentsModel.all)
+      c.id: c.toJson(),
+  };
 }

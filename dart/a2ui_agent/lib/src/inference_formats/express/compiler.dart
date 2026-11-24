@@ -148,9 +148,15 @@ String _stripSentinelTags(String text) {
 /// no catalog, its `surface(...)` line may not name one, and every component
 /// and function call carries the id of its catalog.
 class ExpressCompiler {
-  /// The first of [catalogs] is the default for a surface that does not name
-  /// its catalog.
-  ExpressCompiler(this.catalogs);
+  /// A lone catalog in [catalogs] is the catalog of every surface; with several
+  /// v1.0 catalogs, a surface has no catalog of its own.
+  ///
+  /// Throws [A2uiCatalogError] if two of [catalogs] share an id, if they
+  /// target different protocol versions, or if several target a version before
+  /// v1.0.
+  ExpressCompiler(this.catalogs) {
+    checkMixedCatalogs(catalogs);
+  }
 
   final List<CatalogApi> catalogs;
 
@@ -177,7 +183,7 @@ class ExpressCompiler {
   /// [A2uiValidationError] if it names anything the catalogs do not declare,
   /// a component does not match its schema, or the block uses something the
   /// catalogs' version has no message for, and [A2uiCatalogError] if there are
-  /// no [catalogs] or they target different versions.
+  /// no [catalogs].
   List<AgentToRendererMessage> compile(String source) {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError('Compiling Express needs at least one catalog.');
@@ -1230,9 +1236,8 @@ class _SurfaceCompiler {
               return enumOf(helper.propertySchema(name, prop)) != null;
             }
 
-            if ([
-              for (int idx = position; idx < target; idx++) idx,
-            ].every(canSkip)) {
+            if ([for (int idx = position; idx < target; idx++) idx]
+                .every(canSkip)) {
               position = target;
               moved = true;
             }
@@ -1453,9 +1458,8 @@ class _SurfaceCompiler {
   (List<ExpressNode>, String?) _checkArguments(CheckNode check) {
     if (!_v1) return (check.args, null);
     for (final (int index, ExpressNode arg) in check.args.indexed) {
-      if (arg case MapNode(
-        entries: {'catalogId': final ExpressNode node},
-      ) when arg.entries.length == 1) {
+      if (arg case MapNode(entries: {'catalogId': final ExpressNode node})
+          when arg.entries.length == 1) {
         if (node case LiteralNode(value: final String catalogId)) {
           return ([...check.args]..removeAt(index), catalogId);
         }

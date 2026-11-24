@@ -35,6 +35,7 @@ import {nextNodeId} from '../resolution/node-id.js';
 import {ResolvedBinding} from '../resolution/resolved-binding.js';
 import {type ComponentId} from '../types/common-types.js';
 import {A2uiController} from './a2ui-controller.js';
+import {dispatchA2uiElementConnected} from './element_connected_event.js';
 import {
   type CheckableResolvedProps,
   hasValidationErrors,
@@ -354,6 +355,7 @@ export abstract class A2uiLitElement<
   override connectedCallback() {
     super.connectedCallback();
     this.adoptLightDomStyles();
+    dispatchA2uiElementConnected(this);
   }
 
   /**
@@ -531,6 +533,7 @@ export abstract class A2uiLitElement<
 
   protected override updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
+    dispatchA2uiElementConnected(this);
     const props = this.controller?.props as CheckableResolvedProps | undefined;
     this.applyAccessibilityAttributes(resolveAccessibilityProps(props), props);
   }

@@ -22,10 +22,12 @@ import {fileURLToPath} from 'node:url';
 
 import {
   BOUNDARY_ALLOWLIST as ANGULAR_ALLOWLIST,
+  BOUNDARY_ALLOWLIST_BASELINE as ANGULAR_BASELINE,
   BOUNDARY_RESTRICTED as ANGULAR_RESTRICTED,
 } from '../typescript/renderers/angular/eslint.boundary.mjs';
 import {
   BOUNDARY_ALLOWLIST as REACT_ALLOWLIST,
+  BOUNDARY_ALLOWLIST_BASELINE as REACT_BASELINE,
   BOUNDARY_RESTRICTED as REACT_RESTRICTED,
 } from '../typescript/renderers/react/eslint.boundary.mjs';
 
@@ -37,14 +39,14 @@ const PACKAGES = [
     dir: resolve(REPO_ROOT, 'typescript/renderers/react'),
     allowlist: REACT_ALLOWLIST,
     restricted: REACT_RESTRICTED,
-    baseline: 4,
+    baseline: REACT_BASELINE,
   },
   {
     name: '@a2ui/angular',
     dir: resolve(REPO_ROOT, 'typescript/renderers/angular'),
     allowlist: ANGULAR_ALLOWLIST,
     restricted: ANGULAR_RESTRICTED,
-    baseline: 4,
+    baseline: ANGULAR_BASELINE,
   },
 ];
 
@@ -78,6 +80,13 @@ function importsRestrictedSymbol(source, restricted) {
 describe('adapter boundary allowlist ratchet', () => {
   for (const pkg of PACKAGES) {
     describe(pkg.name, () => {
+      it('declares an integer baseline next to its allowlist', () => {
+        assert.ok(
+          Number.isInteger(pkg.baseline) && pkg.baseline >= 0,
+          `${pkg.name} must export BOUNDARY_ALLOWLIST_BASELINE from eslint.boundary.mjs`,
+        );
+      });
+
       it(`allowlist size does not exceed baseline (${pkg.baseline})`, () => {
         assert.ok(
           pkg.allowlist.length <= pkg.baseline,

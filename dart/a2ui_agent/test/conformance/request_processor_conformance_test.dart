@@ -87,14 +87,13 @@ void main() {
       }
     });
   }
-  verifyNoUnusedEntries('request_processor', allCaseNames, [
-    ..._v1OnlyCases.keys,
-    'test_express_create_format_rejects_several_v0_9_catalogs',
-  ]);
+  verifyNoUnusedEntries('request_processor', allCaseNames, _v1OnlyCases.keys);
 }
 
 /// Cases v0.9 cannot state, with the reason for each.
 const Map<String, String> _v1OnlyCases = {
+  'test_express_format_binds_multiple_catalogs_and_examples':
+      'Express requires A2UI v1.0 or later for several catalogs.',
   'test_processor_parses_multi_catalog_express_response':
       'v0.9 sends a surface\'s components in an updateComponents of their '
       'own rather than in its createSurface.',
@@ -104,12 +103,6 @@ const Map<String, String> _v1OnlyCases = {
 };
 
 String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
-  if (testCase['name'] ==
-      'test_express_create_format_rejects_several_v0_9_catalogs') {
-    return 'See #3341: Express in this SDK currently accepts several v0.9 '
-        'catalogs, with each surface naming its catalog in '
-        'surface(id, catalogId).';
-  }
   if (version == SuiteVersion.v0_9) {
     if (_v1OnlyCases[testCase['name']] case final String reason) {
       return reason;
@@ -150,9 +143,8 @@ void _createFormat(Map<String, Object?> testCase, SuiteVersion version) {
     _knownKeys['args:create_format']!,
     'args:create_format',
   );
-  InferenceFormat create() => _factory(
-    args['format'],
-  ).createFormat(version.catalogs(args), examples: _examples(args, version));
+  InferenceFormat create() => _factory(args['format'])
+      .createFormat(version.catalogs(args), examples: _examples(args, version));
   if (testCase['expect_error'] case final Object error) {
     expectThrowsCategory(create, error);
     return;

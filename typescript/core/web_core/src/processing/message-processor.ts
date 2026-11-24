@@ -40,6 +40,7 @@ import {
   A2uiDataError,
   A2uiError,
   A2uiIntegrityError,
+  A2uiRecursionError,
   A2uiValidationError,
 } from '../errors.js';
 import {
@@ -93,6 +94,7 @@ import {
 import {toOutboundActionMessage} from './outbound-envelope.js';
 import {DataContext} from '../resolution/data-context.js';
 import {
+  MAX_GLOBAL_DEPTH,
   RELAXED_PATH_PATTERN,
   RELAXED_VALIDATION,
   STRICT_VALIDATION,
@@ -244,6 +246,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   /**
    * Initializes a new `MessageProcessor` instance.
    *
+   * The processor keeps its own copy of `catalogs`, which `addCatalog` adds
+   * to; the array passed in is not changed.
+   *
    * @param catalogs List of available component catalogs.
    * @param actionHandler Global handler for actions dispatched from all surfaces.
    * @param options Configuration options for the processor.
@@ -268,7 +273,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       );
     }
     this.maxAgentCallCacheEntries = maxEntries;
-    this.registeredCatalogs = catalogs;
+    this.registeredCatalogs = [...catalogs];
     this.model = new SurfaceGroupModel<T>();
     this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
     this.defaultVersion = options?.version;
@@ -298,9 +303,28 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     });
   }
 
-  /** The catalogs the processor was created with, in priority order. */
+  /** The catalogs the processor holds, in priority order. */
   get catalogs(): Catalog<T>[] {
     return [...this.registeredCatalogs];
+  }
+
+  /**
+   * Adds a catalog to the ones this processor holds.
+   *
+   * `createSurface` messages, renderer function calls and
+   * `getRendererCapabilities` see the catalog from this call on. Surfaces
+   * created before the call keep the catalogs they were created with.
+   *
+   * @param catalog The catalog to add.
+   * @throws {A2uiCatalogError} If the processor already holds a catalog with
+   *     the same id.
+   */
+  addCatalog(catalog: Catalog<any>): void {
+    if (this.registeredCatalogs.some(c => c.id === catalog.id)) {
+      throw new A2uiCatalogError(`Catalog already registered: ${catalog.id}`);
+    }
+    // The RPC handler holds this same array, so it is updated in place.
+    this.registeredCatalogs.push(catalog);
   }
 
   /**
@@ -660,14 +684,20 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   processMessagesWithErrors(messages: unknown, context?: ExecutionContext): RendererErrorMessage[] {
     return this.withValidationConfig(context, () => {
       const items = Array.isArray(messages) ? messages : [messages];
+      // An item of a top-level array is one wrapper deep, as it is in `processMessages`.
+      const wrapperDepth = Array.isArray(messages) ? 1 : 0;
       const errors: RendererErrorMessage[] = [];
       for (const item of items) {
         const itemEnvelopeContext = extractEnvelopeErrorContext(item, this.defaultVersion);
         let currentContext = itemEnvelopeContext;
         try {
-          const operations = this.prepareOperations(item as ProcessableMessagePayload, ctx => {
-            currentContext = ctx;
-          });
+          const operations = this.prepareOperations(
+            item as ProcessableMessagePayload,
+            ctx => {
+              currentContext = ctx;
+            },
+            wrapperDepth,
+          );
           for (const op of operations) {
             currentContext = this.contextFromOperation(op, itemEnvelopeContext);
             this.processOperation(op, context);
@@ -864,7 +894,21 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private prepareSingleItem(
     item: ProcessableMessagePayload,
     onItemContext?: (ctx: ErrorEnvelopeContext) => void,
+    wrapperDepth = 0,
   ): InternalOperation[] {
+    if (wrapperDepth > MAX_GLOBAL_DEPTH) {
+      throw new A2uiRecursionError(`Global recursion limit exceeded: Depth > ${MAX_GLOBAL_DEPTH}`);
+    }
+
+    if (Array.isArray(item)) {
+      return this.prepareOperations(item, onItemContext, wrapperDepth);
+    }
+
+    const wrappedMessages = this.unwrapMessagesEnvelope(item, wrapperDepth);
+    if (wrappedMessages !== undefined) {
+      return this.prepareOperations(wrappedMessages, onItemContext, wrapperDepth + 1);
+    }
+
     onItemContext?.(extractEnvelopeErrorContext(item, this.defaultVersion));
 
     if (this.validationConfig) {
@@ -882,19 +926,58 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     return this.extractSingleMessageOperations(item);
   }
 
+  private unwrapMessagesEnvelope(
+    item: ProcessableMessagePayload,
+    wrapperDepth: number,
+  ): ProcessableMessagePayload | undefined {
+    if (typeof item !== 'object' || item === null || isInternalOperation(item)) {
+      return undefined;
+    }
+    const candidate = (item as {messages?: unknown}).messages;
+    if (!Array.isArray(candidate)) return undefined;
+    if (this.validationConfig) {
+      this.validateWrapperSiblingKeys(item as Record<string, unknown>, wrapperDepth);
+    }
+    return candidate as ProcessableMessagePayload;
+  }
+
+  /**
+   * Checks the keys beside `messages` on a wrapper for depth and path syntax.
+   *
+   * Those keys carry no operations and are otherwise ignored. Their depth
+   * counts from the wrapper that holds them, so that a value beside
+   * `messages` nests no deeper than a message inside it may.
+   */
+  private validateWrapperSiblingKeys(
+    wrapperObj: Record<string, unknown>,
+    wrapperDepth: number,
+  ): void {
+    // A null prototype keeps an own `__proto__` key as an ordinary property.
+    const siblings: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+    for (const [key, value] of Object.entries(wrapperObj)) {
+      if (key !== 'messages') siblings[key] = value;
+    }
+    validateRecursionAndPaths(siblings, wrapperDepth);
+  }
+
   private prepareOperations(
     messages: ProcessableMessagePayload,
     onItemContext?: (ctx: ErrorEnvelopeContext) => void,
+    wrapperDepth = 0,
   ): InternalOperation[] {
+    if (wrapperDepth > MAX_GLOBAL_DEPTH) {
+      throw new A2uiRecursionError(`Global recursion limit exceeded: Depth > ${MAX_GLOBAL_DEPTH}`);
+    }
+
     if (!messages || (Array.isArray(messages) && messages.length === 0)) return [];
 
     if (Array.isArray(messages)) {
       return messages.flatMap(item =>
-        this.prepareSingleItem(item as ProcessableMessagePayload, onItemContext),
+        this.prepareSingleItem(item as ProcessableMessagePayload, onItemContext, wrapperDepth + 1),
       );
     }
 
-    return this.prepareSingleItem(messages, onItemContext);
+    return this.prepareSingleItem(messages, onItemContext, wrapperDepth);
   }
 
   /**
@@ -1615,7 +1698,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   ): Catalog<T> {
     if (catalogId !== undefined && !surface.availableCatalogs.has(catalogId)) {
       const known = this.registeredCatalogs.find(c => c.id === catalogId);
-      if (known) {
+      if (known && !isCatalogVersionCompatible(known.protocolVersion, surface.protocolVersion)) {
         throw new A2uiCatalogError(
           `${subject} names catalog '${catalogId}', whose specification version (${known.protocolVersion}) does not match surface '${surface.id}' version (${surface.protocolVersion}).`,
         );

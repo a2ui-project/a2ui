@@ -23,8 +23,10 @@ void main() {
         catalogId: 'https://example.com/cat.json',
         surfaceId: 'surf-cat',
       );
-      final ErrorMessage mapped =
-          MessageErrorMapper.map(catalogErr, defaultVersion: '1.0');
+      final ErrorMessage mapped = MessageErrorMapper.map(
+        catalogErr,
+        defaultVersion: '1.0',
+      );
 
       expect(mapped.version, '1.0');
       expect(mapped.error.code, 'CATALOG_NOT_FOUND');
@@ -128,8 +130,10 @@ void main() {
         expression: '@index',
         surfaceId: 'surf-expr',
       );
-      final ErrorMessage mappedExpr =
-          MessageErrorMapper.map(exprErr, defaultVersion: '1.0');
+      final ErrorMessage mappedExpr = MessageErrorMapper.map(
+        exprErr,
+        defaultVersion: '1.0',
+      );
       // Pins current Dart MessageErrorMapper behavior (EXECUTION_ERROR) rather
       // than a cross-SDK wire error code.
       expect(mappedExpr.error.code, 'EXECUTION_ERROR');
@@ -144,8 +148,10 @@ void main() {
         path: '/items/bad',
         surfaceId: 'surf-data',
       );
-      final ErrorMessage mappedData =
-          MessageErrorMapper.map(dataErr, defaultVersion: '1.0');
+      final ErrorMessage mappedData = MessageErrorMapper.map(
+        dataErr,
+        defaultVersion: '1.0',
+      );
       expect(mappedData.error.code, 'DATA_ERROR');
       expect(mappedData.error.surfaceId, 'surf-data');
       expect(mappedData.error.functionCallId, isNull);
