@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Literal
 
 from modes import RenderMode
@@ -88,7 +89,7 @@ def parse_budget_ms(value: str) -> tuple[bool, float | None]:
         parsed = float(low)
     except ValueError:
         return False, None
-    if parsed <= 0.0:
+    if not math.isfinite(parsed) or parsed <= 0.0:
         return False, None
     return True, parsed
 

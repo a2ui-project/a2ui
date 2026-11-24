@@ -89,7 +89,7 @@ const configs: Record<string, AppConfig> = {
   playground: playgroundConfig,
 };
 
-type MarkdownRendererFn = (value: string, options?: any) => Promise<string>;
+type MarkdownRendererFn = (value: string, options?: Record<string, unknown>) => Promise<string>;
 
 /**
  * Shell application element hosting A2UI demo apps, local JSON mockups,
@@ -99,7 +99,7 @@ type MarkdownRendererFn = (value: string, options?: any) => Promise<string>;
 export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   /** Markdown renderer callback provided via Lit context to child A2UI components. */
   @provide({context: Context.markdown})
-  markdownRenderer: MarkdownRendererFn = (value: string, options?: any) => {
+  markdownRenderer: MarkdownRendererFn = (value: string, options?: Record<string, unknown>) => {
     return Promise.resolve(renderMarkdown(value, options));
   };
 
@@ -107,7 +107,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   private _requesting = false;
 
   @state()
-  private _lastMessages: any[] = [];
+  private _lastMessages: unknown[] = [];
 
   /** Active shell application configuration selected via the `?app=` URL query parameter. */
   @state()
@@ -806,12 +806,12 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   ];
 
   // Create a Message Processor that uses the catalogs.
-  private _processor = new v0_9.MessageProcessor<any>(
+  private _processor = new v0_9.MessageProcessor<v0_9.ComponentApi>(
     [basicCatalog, v1BasicCatalog, playgroundRpcCatalog],
-    async (action: v0_9.A2uiClientAction): Promise<any> => {
+    async (action: v0_9.A2uiClientAction): Promise<void> => {
       console.debug('Handling action', action);
 
-      const context: Record<string, any> = {...action.context};
+      const context: Record<string, unknown> = {...action.context};
 
       if (this._isLocalMode) {
         this.showToast(`⚡ Action dispatched: "${action.name}"`, 'info');
@@ -895,10 +895,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
    * Removes any adopted config stylesheet when the shell element is disconnected.
    */
   override disconnectedCallback() {
-    for (const timer of this._rpcTimers.values()) {
-      clearTimeout(timer);
-    }
-    this._rpcTimers.clear();
+    this.#clearPendingRpcTimers();
     this.#removeAdoptedConfigStyles();
     super.disconnectedCallback();
   }
@@ -977,6 +974,8 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
    * Resets the A2A conversation session, clears all active surfaces, and resets the trace.
    */
   #resetSession = () => {
+    this._sessionGeneration += 1;
+    this.#clearPendingRpcTimers();
     this._a2uiClient.resetSession();
     for (const surfaceId of Array.from(this._processor.model.surfacesMap.keys())) {
       this._processor.model.deleteSurface(surfaceId);
@@ -1197,7 +1196,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     if (!clearsSurfaces) {
       formEl.reset();
     }
-    await this.#sendAndProcessMessage(body as any);
+    await this.#sendAndProcessMessage(body);
   }
 
   /**
@@ -1303,15 +1302,25 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   }
 
   async #selectMode(mode: string) {
+    const previous = this._activeMode;
     this._activeMode = mode;
-    await this.#sendAndProcessMessage(`/mode ${mode}`);
+    const result = await this.#sendAndProcessMessage(`/mode ${mode}`);
+    if (
+      (result.messages.length === 0 && result.trace === null) ||
+      result.trace?.candidates[0]?.error
+    ) {
+      this._activeMode = previous;
+    }
   }
 
   async #selectBackend(backend: string) {
     const previous = this._activeBackend;
     this._activeBackend = backend;
-    await this.#sendAndProcessMessage(`/backend ${backend}`);
-    if (this._trace?.candidates[0]?.error) {
+    const result = await this.#sendAndProcessMessage(`/backend ${backend}`);
+    if (
+      (result.messages.length === 0 && result.trace === null) ||
+      result.trace?.candidates[0]?.error
+    ) {
       this._activeBackend = previous;
     }
   }
@@ -1330,8 +1339,42 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     }
   }
 
-  private _rpcTimers = new Map<string, number>();
+  private _sessionGeneration = 0;
+  private _rpcTimers = new Map<string, {timer: number; message: unknown}>();
   private _rpcLastSent = new Map<string, number>();
+
+  #clearPendingRpcTimers() {
+    for (const pending of this._rpcTimers.values()) {
+      clearTimeout(pending.timer);
+      this.#settleOutboundRpcError(pending.message, 'CANCELLED', 'Session reset or disconnected.');
+    }
+    this._rpcTimers.clear();
+    this._rpcLastSent.clear();
+  }
+
+  #settleOutboundRpcError(
+    message: unknown,
+    code: 'CANCELLED' | 'EXECUTION_ERROR',
+    errorMessage: string,
+  ) {
+    const call = (message as Record<string, unknown> | null)?.['callAgentFunction'] as
+      | Record<string, unknown>
+      | undefined;
+    const callId = typeof call?.['functionCallId'] === 'string' ? call['functionCallId'] : null;
+    if (!callId) return;
+    const synthetic = [
+      {
+        version: '1.0',
+        agentFunctionResponse: {
+          functionCallId: callId,
+          error: {code, message: errorMessage},
+        },
+      },
+    ];
+    this._processor.processMessages(
+      synthetic as Parameters<typeof this._processor.processMessages>[0],
+    );
+  }
 
   #rpcDebounceKey(message: unknown): string | null {
     const call = (message as Record<string, unknown> | null)?.['callAgentFunction'] as
@@ -1346,12 +1389,14 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
 
   async #dispatchOutboundRpc(message: unknown) {
     if (this._isLocalMode) return;
+    const generation = this._sessionGeneration;
     try {
       const result = await this._a2uiClient.sendTurn(
-        message as any,
+        message,
         this._processor.getRendererCapabilities({versions: ['v0.9', '1.0']}),
         {inspector: Boolean(this.config.inspector)},
       );
+      if (generation !== this._sessionGeneration) return;
       if (result.trace !== null) {
         this._trace = result.trace;
         this.#syncHeaderControlsFromTrace(result.trace);
@@ -1368,10 +1413,15 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
             'info',
           );
         }
-        this._processor.processMessages(result.messages as any[]);
+        this._processor.processMessages(
+          result.messages as Parameters<typeof this._processor.processMessages>[0],
+        );
       }
     } catch (err) {
       console.error(err);
+      if (generation !== this._sessionGeneration) return;
+      this.showToast('Validation request failed. Check the agent server connection.', 'error');
+      this.#settleOutboundRpcError(message, 'EXECUTION_ERROR', 'RPC transport failed.');
     }
   }
 
@@ -1384,8 +1434,9 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     }
     const existing = this._rpcTimers.get(key);
     if (existing !== undefined) {
-      clearTimeout(existing);
+      clearTimeout(existing.timer);
       this._rpcTimers.delete(key);
+      this.#settleOutboundRpcError(existing.message, 'CANCELLED', 'Superseded by newer RPC call.');
     }
     const now = Date.now();
     const lastSent = this._rpcLastSent.get(key) ?? 0;
@@ -1400,7 +1451,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
       this._rpcLastSent.set(key, Date.now());
       void this.#dispatchOutboundRpc(message);
     }, delayMs);
-    this._rpcTimers.set(key, timer);
+    this._rpcTimers.set(key, {timer, message});
   }
 
   /**
@@ -1462,7 +1513,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
    * @param message User text or client action object to send.
    * @return The turn result containing A2UI wire messages and optional inspector trace.
    */
-  async #sendMessage(message: any): Promise<A2UIClientTurnResult> {
+  async #sendMessage(message: unknown): Promise<A2UIClientTurnResult> {
     try {
       this._requesting = true;
       this.#startLoadingAnimation();
@@ -1479,6 +1530,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
       return response;
     } catch (err) {
       console.error(err);
+      this.showToast('Request failed. Check the agent server connection.', 'error');
     } finally {
       this._requesting = false;
       this.#stopLoadingAnimation();
@@ -1536,12 +1588,16 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
    *
    * @param request User prompt string or client action payload.
    */
-  async #sendAndProcessMessage(request) {
+  async #sendAndProcessMessage(request: unknown): Promise<A2UIClientTurnResult> {
+    const generation = this._sessionGeneration;
     const result = await this.#sendMessage(request);
-    const messages = result.messages as any[];
+    if (generation !== this._sessionGeneration) {
+      return result;
+    }
+    const messages = result.messages as Parameters<typeof this._processor.processMessages>[0];
     console.debug('Received messages', messages);
 
-    this._lastMessages = messages;
+    this._lastMessages = result.messages;
     if (result.trace !== null) {
       this._trace = result.trace;
       this.#syncHeaderControlsFromTrace(result.trace);
@@ -1550,10 +1606,11 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     if (this.config.clearSurfacesOnResponse ?? true) {
       this.#deleteAllSurfaces();
     } else {
-      this.#pruneTurnSurfacesBeforeBatch(messages);
+      this.#pruneTurnSurfacesBeforeBatch(result.messages);
     }
 
     this._processor.processMessages(messages);
+    return result;
   }
 
   /**

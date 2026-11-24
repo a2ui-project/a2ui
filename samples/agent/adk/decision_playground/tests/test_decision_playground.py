@@ -170,9 +170,14 @@ async def test_binder_tool_host_redacts_api_key_in_wire_and_trace() -> None:
     assert "option" in records[0]["probabilities"][0]
     assert "prob" in records[0]["probabilities"][0]
     wire_json = json.dumps(result.messages)
-    assert "sk-live-secret-do-not-expose" not in wire_json
+    assert "sk_demo_" not in wire_json
+    assert "apiKey" not in wire_json
     stage4_json = json.dumps(result.trace["candidates"][0]["wireOutput"]["messages"])
-    assert "sk-live-secret-do-not-expose" not in stage4_json
+    assert "sk_demo_" not in stage4_json
+    assert "apiKey" not in stage4_json
+    stage1_json = json.dumps(result.trace["stage1"])
+    assert "sk_demo_" not in stage1_json
+    assert "apiKey" not in stage1_json
     assert any("updateDataModel" in m for m in result.messages)
 
 
@@ -487,7 +492,9 @@ async def test_binder_macro_incident_tool_lowers_to_basic_catalog() -> None:
 
 
 @pytest.mark.asyncio
-async def test_prose_mode_upgrades_structured_prose_and_abstains_on_unstructured() -> None:
+async def test_prose_mode_upgrades_structured_prose_and_abstains_on_unstructured() -> (
+    None
+):
     agent = _make_agent()
 
     upgraded = await agent.handle_text_turn(
@@ -495,7 +502,11 @@ async def test_prose_mode_upgrades_structured_prose_and_abstains_on_unstructured
     )
     assert upgraded.trace is not None
     assert upgraded.trace["activeMode"] == "prose"
-    data_msgs = [m["updateDataModel"]["value"] for m in upgraded.messages if "updateDataModel" in m]
+    data_msgs = [
+        m["updateDataModel"]["value"]
+        for m in upgraded.messages
+        if "updateDataModel" in m
+    ]
     assert len(data_msgs) == 1
     assert data_msgs[0]["orderId"] == "ORD-8492"
 
@@ -504,7 +515,10 @@ async def test_prose_mode_upgrades_structured_prose_and_abstains_on_unstructured
     )
     assert abstained.trace is not None
     assert abstained.trace["activeMode"] == "prose"
-    assert abstained.trace["candidates"][0]["decisionOutput"]["stage"] == "abstain_fallback"
+    assert (
+        abstained.trace["candidates"][0]["decisionOutput"]["stage"]
+        == "abstain_fallback"
+    )
 
 
 @pytest.mark.asyncio

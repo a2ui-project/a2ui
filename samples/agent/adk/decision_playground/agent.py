@@ -31,7 +31,7 @@ from commands import (
     parse_render_mode,
 )
 from modes import COMPARE_MODES, PlaygroundSettings, RenderMode, RenderOutcome
-from renderers import PlaygroundRenderers
+from renderers import PlaygroundRenderers, redact_payload
 from surfaces import (
     GATED_PRESET_ALIASES,
     GATED_PRESET_BY_ALIAS,
@@ -333,8 +333,9 @@ class PlaygroundAgent:
         updated = replace(updated, mode=active_mode)
         self._set_settings(context_id, updated)
         payload = entry.fn()
+        safe_payload = redact_payload(payload)
         prompt_with_data = (
-            f"{entry.intent}\n\nData:\n```json\n{json.dumps(payload, indent=2)}\n```"
+            f"{entry.intent}\n\nData:\n```json\n{json.dumps(safe_payload, indent=2)}\n```"
         )
         if active_mode is RenderMode.CASCADE:
             outcome, calls = await self._renderers.run_cascade(
@@ -342,7 +343,9 @@ class PlaygroundAgent:
                 surface_id="main",
                 budget_ms=updated.budget_ms,
                 session_id=context_id,
-                data_payload=payload if isinstance(payload, Mapping) else None,
+                data_payload=safe_payload
+                if isinstance(safe_payload, Mapping)
+                else None,
             )
         elif active_mode in (RenderMode.EXPRESS, RenderMode.DIRECT):
             outcome, calls = await self._renderers.run_baseline(
@@ -373,7 +376,7 @@ class PlaygroundAgent:
             compare=False,
             stage1_source="direct_tool",
             tool_name=entry.fn.__name__,
-            payload=payload,
+            payload=safe_payload,
             candidates=[candidate],
         )
         self._last_trace[context_id] = trace
@@ -627,7 +630,7 @@ class PlaygroundAgent:
             compare=False,
             stage1_source=source,
             tool_name=None,
-            payload=payload,
+            payload=redact_payload(payload) if payload is not None else None,
             candidates=[candidate],
         )
         self._last_trace[context_id] = trace

@@ -36,7 +36,9 @@ from a2ui.inference_formats.experimental.decision import (
     ActionSpec,
     DecisionBackend,
     DecisionBackendError,
+    PointerSummary,
     create_decision_backend,
+    is_secret_pointer,
 )
 from a2ui.inference_formats.experimental.decision_binder import ToolPointerBinder
 from a2ui.inference_formats.experimental.decision_cascade import (
@@ -81,6 +83,28 @@ from surfaces import (
 _GEMINI_DECISIONS_URL = "https://generativelanguage.googleapis.com/v1beta/decisions"
 _TYPESAFE_SYSTEMONE_URL = "https://api.typesafe.ai/v1/systemone"
 _VERCEL_SYSTEMONE_URL = "https://ai-gateway.vercel.sh/typesafe/v1/systemone"
+
+
+def redact_payload(value: Any, prefix: str = "") -> Any:
+    """Recursively strips secret keys from `value` using `is_secret_pointer`."""
+    if isinstance(value, Mapping):
+        redacted: dict[str, Any] = {}
+        for k, v in value.items():
+            key_str = str(k)
+            escaped = key_str.replace("~", "~0").replace("/", "~1")
+            pointer = f"{prefix}/{escaped}"
+            probe = PointerSummary(
+                path=pointer, value_type="string", cardinality=1, key=key_str
+            )
+            if is_secret_pointer(probe):
+                continue
+            redacted[key_str] = redact_payload(v, pointer)
+        return redacted
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [
+            redact_payload(item, f"{prefix}/{idx}") for idx, item in enumerate(value)
+        ]
+    return value
 
 
 def _env_matches_backend(*names: str) -> bool:
@@ -303,7 +327,25 @@ class PlaygroundRenderers:
             )
 
         if decision.tier is CascadeTier.TEXT_ONLY:
-            reply_text = await self._text_only_reply(prompt, session_id=session_id)
+            try:
+                reply_text = await self._text_only_reply(prompt, session_id=session_id)
+            except Exception as exc:
+                elapsed = (time.perf_counter() - start) * 1000.0
+                err = f"text_only LLM error: {exc}"
+                return (
+                    RenderOutcome(
+                        mode=RenderMode.CASCADE,
+                        surface_id=surface_id,
+                        messages=tuple(build_status_card_messages(surface_id, err)),
+                        ok=False,
+                        error=err,
+                        stage="abstain_fallback",
+                        fallback_source="text_only",
+                        fallback_reason="llm_error",
+                        total_latency_ms=elapsed,
+                    ),
+                    rec.calls,
+                )
             elapsed = (time.perf_counter() - start) * 1000.0
             return (
                 RenderOutcome(
@@ -333,14 +375,7 @@ class PlaygroundRenderers:
             )
             msg_dicts = list(to_message_dicts(compiled))
             if data_payload is not None:
-                safe_data = {
-                    k: v
-                    for k, v in data_payload.items()
-                    if not any(
-                        tok in k.lower()
-                        for tok in ("key", "secret", "token", "password")
-                    )
-                }
+                safe_data = redact_payload(data_payload)
                 msg_dicts.append({
                     "version": "1.0",
                     "updateDataModel": {
@@ -559,8 +594,7 @@ class PlaygroundRenderers:
         async def _call_flash(
             prompt: str, schema: dict[str, Any], timeout: float | None
         ) -> Mapping[str, Any]:
-            del timeout
-            resp = await asyncio.to_thread(
+            coro = asyncio.to_thread(
                 client.models.generate_content,
                 model=model_name,
                 contents=prompt,
@@ -570,6 +604,11 @@ class PlaygroundRenderers:
                     temperature=0.0,
                     thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
                 ),
+            )
+            resp = (
+                await asyncio.wait_for(coro, timeout=timeout)
+                if timeout is not None
+                else await coro
             )
             return dict(json.loads(resp.text or "{}"))
 
@@ -767,12 +806,26 @@ class PlaygroundRenderers:
             else ExpressFormat(list(catalogs))
         )
         instruction = fmt.prompt_generator.generate()
-        turn = await self._llm(
-            instruction_key=f"{mode.value}:{len(catalogs[0].components)}",
-            instruction=instruction,
-            user_text=f"Render surface '{surface_id}' for: {prompt}",
-            session_id=session_id,
-        )
+        try:
+            turn = await self._llm(
+                instruction_key=f"{mode.value}:{len(catalogs[0].components)}",
+                instruction=instruction,
+                user_text=f"Render surface '{surface_id}' for: {prompt}",
+                session_id=session_id,
+            )
+        except Exception as exc:
+            elapsed = (time.perf_counter() - start) * 1000.0
+            err = f"{mode.value} LLM error: {exc}"
+            return RenderOutcome(
+                mode=mode,
+                surface_id=surface_id,
+                messages=tuple(build_status_card_messages(surface_id, err)),
+                ok=False,
+                error=err,
+                stage="abstain_fallback",
+                fallback_reason="llm_error",
+                total_latency_ms=elapsed,
+            )
         elapsed = (time.perf_counter() - start) * 1000.0
         try:
             parts = fmt.create_parser().parse_response(turn.text)

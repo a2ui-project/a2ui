@@ -482,12 +482,15 @@ describe('a2ui-shell layout and inspector integration', () => {
     };
 
     const callEnvelope = {
-      version: 'v1.0',
+      version: '1.0',
       callAgentFunction: {
-        id: 'call-1',
+        functionCallId: 'call-1',
         surfaceId: 'main',
-        name: 'is_bug_report_complete',
-        args: {title: 'Crash'},
+        callFunction: {
+          '@call': 'is_bug_report_complete',
+          catalogId: 'https://a2ui.org/samples/decision_playground/rpc/v1',
+          args: {value: 'Crash'},
+        },
       },
     };
     const outboundListener = (
@@ -495,13 +498,12 @@ describe('a2ui-shell layout and inspector integration', () => {
         outboundListener?: (msg: unknown) => void;
       }
     ).outboundListener;
-    if (outboundListener) {
-      outboundListener(callEnvelope);
-      await new Promise(resolve => setTimeout(resolve, 0));
-      await el.updateComplete;
-      expect(sentPayloads).toEqual([callEnvelope]);
-      expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual(['main']);
-    }
+    expect(outboundListener).toBeDefined();
+    outboundListener!(callEnvelope);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await el.updateComplete;
+    expect(sentPayloads).toEqual([callEnvelope]);
+    expect(Array.from(internal._processor.model.surfacesMap.keys())).toEqual(['main']);
   });
 
   it('shows gated presets in gated mode and macro example only in binder mode', () => {
