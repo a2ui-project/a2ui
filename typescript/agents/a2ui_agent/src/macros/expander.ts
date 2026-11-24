@@ -17,6 +17,7 @@
 import {ComponentPruningTransformer} from '../catalog-transformers/pruning.js';
 import {ComponentNode, isComponentNode} from '../component-tree/component-node.js';
 import {flattenComponentTree} from '../component-tree/flatten.js';
+import {CatalogSchemaHelper, getEnvelopeValue} from '../inference-formats/express/schema-helper.js';
 import {
   A2uiCatalogError,
   A2uiRecursionError,
@@ -42,6 +43,38 @@ const MAX_EXPANSION_DEPTH = 16;
 const COMPONENT_BODY_KEYS = ['createSurface', 'updateComponents'] as const;
 
 type JsonObject = Record<string, unknown>;
+
+/** What the expander knows about the surface that a list of components belongs to. */
+interface SurfaceScope {
+  readonly surfaceId: string | undefined;
+  /** The surface's default catalog as the model sees it; may be the macro catalog. */
+  readonly catalogId: string | undefined;
+  /** The surface's default catalog as the renderer sees it. */
+  readonly transportCatalogId: string | undefined;
+  /** Whether the expander has seen the surface created. */
+  readonly known: boolean;
+}
+
+/** Where in the nesting of macro trees a list of components is. */
+interface ExpansionLevel {
+  readonly depth: number;
+  /** The macros whose trees enclose this level. */
+  readonly activeMacros: ReadonlySet<string>;
+  /** The catalog of the macro whose tree this level is. */
+  readonly enclosingCatalogId: string | undefined;
+}
+
+const TOP_LEVEL: ExpansionLevel = {
+  depth: 0,
+  activeMacros: new Set(),
+  enclosingCatalogId: undefined,
+};
+
+/** A component that invokes a macro, and the catalog it invokes it in. */
+interface ResolvedInvocation {
+  readonly macro: MacroDefinition;
+  readonly catalogId: string | undefined;
+}
 
 /** Options for `MacroExpander`. */
 export interface MacroExpanderOptions {
@@ -88,6 +121,9 @@ export class MacroExpander {
   private readonly catalogComponents = new Map<string, ReadonlySet<string>>();
   /** The IDs of the registered base catalogs, in the order they were registered. */
   private readonly baseCatalogIds: string[] = [];
+  private readonly schemaHelpers = new Map<string, CatalogSchemaHelper>();
+  /** The default catalog of each surface seen created; `null` for none. */
+  private readonly surfaceCatalogs = new Map<string, string | null>();
 
   /**
    * @throws {A2uiValidationError} If a macro name is not a valid v1.0 component name, or a
@@ -230,6 +266,13 @@ export class MacroExpander {
    * IDs are namespaced under it. The invocation's `@accessibility`, `@metadata` and
    * `@checks` are merged onto the root. Macros used inside a rendered tree are lowered too.
    *
+   * On a surface that mixes catalogs, a component invokes a macro only in the macros'
+   * catalog: by its `@catalogId`, the catalog of the macro whose tree it is in, or the
+   * surface's default, which the expander learns from `createSurface`. A lowered
+   * component without `@catalogId` gets the one registered base catalog that defines it,
+   * where the surface's default catalog doesn't. A surface whose default is the standalone
+   * macro catalog gets the transport catalog as its default instead.
+   *
    * An invocation that fails, for example on an argument that doesn't match its parameter,
    * is kept unexpanded and logged, or throws under `onError: 'raise'`.
    *
@@ -237,13 +280,19 @@ export class MacroExpander {
    * @throws {A2uiValidationError} If a message has a protocol version other than v1.0, a
    *     macro renders a component named `Surface`, or, under `onError: 'raise'`, an
    *     invocation fails.
+   * @throws {A2uiCatalogError} If no registered base catalog, or more than one, defines a
+   *     lowered component that needs a catalog, or a surface's default is the standalone
+   *     macro catalog without a base catalog to replace it.
    * @throws {A2uiRecursionError} If macros keep invoking macros beyond 16 levels.
    */
   transformToTransport(messages: readonly AgentToRendererMessage[]): AgentToRendererMessage[] {
-    return messages.map(message => this.lowerMessage(message));
+    return messages.map(message => this.lowerMessage(message, this.surfaceCatalogs));
   }
 
-  private lowerMessage(message: AgentToRendererMessage): AgentToRendererMessage {
+  private lowerMessage(
+    message: AgentToRendererMessage,
+    surfaces: Map<string, string | null>,
+  ): AgentToRendererMessage {
     const version = (message as unknown as JsonObject)['version'];
     if (typeof version === 'string') {
       assertV10(
@@ -257,46 +306,215 @@ export class MacroExpander {
     const lowered: JsonObject = {...(message as unknown as JsonObject)};
     for (const bodyKey of COMPONENT_BODY_KEYS) {
       const body = lowered[bodyKey];
-      if (!isJsonObject(body) || !Array.isArray(body['components'])) {
+      if (!isJsonObject(body)) {
         continue;
       }
-      lowered[bodyKey] = {
-        ...body,
-        components: this.expandComponents(structuredClone(body['components']), 0),
-      };
+      const loweredBody = {...body};
+      const surfaceId = typeof body['surfaceId'] === 'string' ? body['surfaceId'] : undefined;
+      if (bodyKey === 'createSurface' && surfaceId !== undefined) {
+        this.trackCreatedSurface(loweredBody, surfaceId, surfaces);
+      }
+      const components = body['components'];
+      if (Array.isArray(components) && components.length > 0) {
+        loweredBody['components'] = this.expandComponents(
+          structuredClone(components),
+          TOP_LEVEL,
+          this.surfaceScope(surfaceId, surfaces),
+        );
+      }
+      lowered[bodyKey] = loweredBody;
     }
     return lowered as unknown as AgentToRendererMessage;
   }
 
-  private expandComponents(components: readonly unknown[], depth: number): unknown[] {
-    if (depth > MAX_EXPANSION_DEPTH) {
+  /**
+   * Records the default catalog of a created surface. A default that names the standalone
+   * macro catalog is replaced by the transport catalog the renderer knows.
+   */
+  private trackCreatedSurface(
+    body: JsonObject,
+    surfaceId: string,
+    surfaces: Map<string, string | null>,
+  ): void {
+    const declared = nonEmptyString(body['catalogId']);
+    const [inferenceCatalogId, transportCatalogId] = this.surfaceCatalogPair(declared, true);
+    if (transportCatalogId !== declared) {
+      if (transportCatalogId === undefined) {
+        delete body['catalogId'];
+      } else {
+        body['catalogId'] = transportCatalogId;
+      }
+    }
+    surfaces.delete(surfaceId);
+    surfaces.set(surfaceId, inferenceCatalogId ?? null);
+  }
+
+  private surfaceScope(
+    surfaceId: string | undefined,
+    surfaces: ReadonlyMap<string, string | null>,
+  ): SurfaceScope {
+    if (surfaceId === undefined || !surfaces.has(surfaceId)) {
+      return {surfaceId, catalogId: undefined, transportCatalogId: undefined, known: false};
+    }
+    const [catalogId, transportCatalogId] = this.surfaceCatalogPair(
+      surfaces.get(surfaceId) ?? undefined,
+      false,
+    );
+    return {surfaceId, catalogId, transportCatalogId, known: true};
+  }
+
+  /**
+   * The default catalog of a surface as the model sees it and as the renderer sees it.
+   * They differ when the model's default is the standalone macro catalog, which the
+   * renderer doesn't know: the renderer then gets the only registered base catalog, or no
+   * default when several are registered.
+   *
+   * @throws {A2uiCatalogError} If a created surface's default is the standalone macro
+   *     catalog and no base catalog is registered.
+   */
+  private surfaceCatalogPair(
+    catalogId: string | undefined,
+    isCreated: boolean,
+  ): [string | undefined, string | undefined] {
+    const isMacroCatalog =
+      catalogId === this.macroCatalogId && !this.baseCatalogIds.includes(catalogId);
+    if (!isMacroCatalog) {
+      return [catalogId, catalogId];
+    }
+    if (this.baseCatalogIds.length === 0 && isCreated) {
+      throw new A2uiCatalogError(
+        `Surface default catalogId '${catalogId}' is a standalone macro catalog, and no ` +
+          'base catalogs are registered on MacroExpander to resolve a transport catalog.',
+      );
+    }
+    return [catalogId, this.baseCatalogIds.length === 1 ? this.baseCatalogIds[0] : undefined];
+  }
+
+  private expandComponents(
+    components: readonly unknown[],
+    level: ExpansionLevel,
+    surface: SurfaceScope,
+  ): unknown[] {
+    if (level.depth > MAX_EXPANSION_DEPTH) {
       throw new A2uiRecursionError(
         `Macro expansion exceeded maximum recursion depth of ${MAX_EXPANSION_DEPTH}.`,
       );
     }
     const expanded: unknown[] = [];
     for (const component of components) {
-      const macro = isJsonObject(component) ? this.invokedMacro(component) : undefined;
-      if (macro === undefined) {
+      const invocation = isJsonObject(component)
+        ? this.resolveInvocation(component, level, surface)
+        : undefined;
+      if (invocation === undefined) {
         expanded.push(component);
       } else {
-        expanded.push(...this.expandInvocation(component as JsonObject, macro, depth));
+        expanded.push(
+          ...this.expandInvocation(component as JsonObject, invocation, level, surface),
+        );
       }
     }
     return expanded;
   }
 
-  private invokedMacro(component: JsonObject): MacroDefinition | undefined {
+  /**
+   * Decides whether a component invokes one of the macros, and in which catalog.
+   *
+   * The component's catalog is its `@catalogId`; inside a macro's tree, the catalog of
+   * that macro when the component names no catalog component; otherwise the surface's
+   * default. A scoped expander expands only components of its own catalog. An unscoped
+   * one with base catalogs leaves alone a component whose catalog has a component of that
+   * name, unless `passthroughComponents` pruned it, and one whose catalog it doesn't know.
+   */
+  private resolveInvocation(
+    component: JsonObject,
+    level: ExpansionLevel,
+    surface: SurfaceScope,
+  ): ResolvedInvocation | undefined {
     const name = component['component'];
-    return typeof name === 'string' ? this.macros.get(name) : undefined;
+    if (typeof name !== 'string') {
+      return undefined;
+    }
+    const macro = this.macros.get(name);
+    if (macro === undefined) {
+      return undefined;
+    }
+    const declared = new Set(Object.keys(macro.parameters));
+    const ownCatalogId = getEnvelopeValue(component, 'catalogId', true, declared) ?? undefined;
+    let catalogId: string | undefined;
+    if (ownCatalogId !== undefined) {
+      if (typeof ownCatalogId !== 'string' || ownCatalogId === '') {
+        console.warn(
+          `Skipping macro '${name}' on component ${JSON.stringify(component['id'])}: ` +
+            `invalid catalogId ${JSON.stringify(ownCatalogId)}.`,
+        );
+        return undefined;
+      }
+      catalogId = ownCatalogId;
+    } else if (this.inheritsEnclosingCatalog(name, level, surface)) {
+      catalogId = level.enclosingCatalogId;
+    } else {
+      catalogId = surface.catalogId;
+    }
+
+    if (level.depth > 0 && ownCatalogId === undefined && this.isCatalogComponent(name)) {
+      return undefined;
+    }
+    if (level.activeMacros.has(name)) {
+      // Inside its own tree, a macro's name is the catalog component it wraps.
+      const wrapsCatalogComponent =
+        catalogId !== level.enclosingCatalogId ||
+        (catalogId !== undefined && this.catalogHasComponent(catalogId, name)) ||
+        (ownCatalogId === undefined && this.isCatalogComponent(name));
+      if (wrapsCatalogComponent) {
+        return undefined;
+      }
+    }
+    if (this.catalogId !== undefined) {
+      return catalogId === this.catalogId ? {macro, catalogId} : undefined;
+    }
+    if (this.catalogComponents.size > 0 && catalogId !== undefined) {
+      if (!this.catalogComponents.has(catalogId) && catalogId !== this.macroCatalogId) {
+        return undefined;
+      }
+      const keptCatalogComponent =
+        this.catalogHasComponent(catalogId, name) &&
+        (this.passthroughComponents === undefined || this.passthroughComponents.has(name));
+      if (keptCatalogComponent) {
+        return undefined;
+      }
+    }
+    return {macro, catalogId};
+  }
+
+  /** Whether an unannotated component in a macro's tree belongs to that macro's catalog. */
+  private inheritsEnclosingCatalog(
+    name: string,
+    level: ExpansionLevel,
+    surface: SurfaceScope,
+  ): boolean {
+    if (level.depth === 0 || level.enclosingCatalogId === undefined) {
+      return false;
+    }
+    const surfaceCatalogIsForeign =
+      surface.catalogId !== undefined &&
+      surface.catalogId !== level.enclosingCatalogId &&
+      surface.catalogId !== this.macroCatalogId &&
+      !this.catalogComponents.has(surface.catalogId);
+    if (surfaceCatalogIsForeign || this.isCatalogComponent(name)) {
+      return false;
+    }
+    const anyCatalogComponents = [...this.catalogComponents.values()].some(names => names.size > 0);
+    return !(level.activeMacros.has(name) && !anyCatalogComponents);
   }
 
   private expandInvocation(
     invocation: JsonObject,
-    macro: MacroDefinition,
-    depth: number,
+    {macro, catalogId}: ResolvedInvocation,
+    level: ExpansionLevel,
+    surface: SurfaceScope,
   ): unknown[] {
     const instanceId = typeof invocation['id'] === 'string' ? invocation['id'] : undefined;
+    let expanded: unknown[];
     try {
       const declared = new Set(Object.keys(macro.parameters));
       const args = structuredClone(invocationArguments(invocation, declared));
@@ -310,7 +528,15 @@ export class MacroExpander {
         }
       }
       mergeEnvelopeFields(invocation, declared, lowered, instanceId);
-      return this.expandComponents(lowered, depth + 1);
+      expanded = this.expandComponents(
+        lowered,
+        {
+          depth: level.depth + 1,
+          activeMacros: new Set([...level.activeMacros, macro.name]),
+          enclosingCatalogId: catalogId ?? this.catalogId,
+        },
+        surface,
+      );
     } catch (e) {
       if (
         e instanceof A2uiRecursionError ||
@@ -330,6 +556,90 @@ export class MacroExpander {
       console.error(`Failed to expand macro '${macro.name}':`, e);
       return [invocation];
     }
+    if (level.depth === 0) {
+      this.stampOwningCatalogs(expanded, surface);
+    }
+    return expanded;
+  }
+
+  /**
+   * Stamps `@catalogId` on lowered components that name no catalog where the renderer
+   * would otherwise look in the wrong one: on a surface without a default catalog, or
+   * with a default that doesn't define the component. The stamp is the one registered
+   * base catalog that defines the component.
+   *
+   * @throws {A2uiCatalogError} If no registered base catalog, or more than one, defines
+   *     such a component.
+   */
+  private stampOwningCatalogs(components: readonly unknown[], surface: SurfaceScope): void {
+    if (!surface.known || this.baseCatalogIds.length === 0) {
+      return;
+    }
+    const surfaceDefault = surface.transportCatalogId;
+    for (const component of components) {
+      if (!isJsonObject(component) || typeof component['component'] !== 'string') {
+        continue;
+      }
+      const name = component['component'];
+      const owners = this.baseCatalogIds.filter(id => this.catalogHasComponent(id, name));
+      if (this.onError === 'passthrough' && this.macros.has(name) && owners.length === 0) {
+        // An invocation that failed and was kept as it is.
+        continue;
+      }
+      if (
+        getEnvelopeValue(component, 'catalogId', true, this.customCatalogIdOwners(name, owners)) !=
+        null
+      ) {
+        continue;
+      }
+      const needsStamp =
+        surfaceDefault === undefined ||
+        (this.baseCatalogIds.includes(surfaceDefault) &&
+          !this.catalogHasComponent(surfaceDefault, name));
+      if (!needsStamp) {
+        continue;
+      }
+      const where =
+        surfaceDefault === undefined
+          ? `defaultless surface '${surface.surfaceId}'`
+          : `surface '${surface.surfaceId}' (default '${surfaceDefault}')`;
+      if (owners.length === 1) {
+        component['@catalogId'] = owners[0];
+      } else if (owners.length > 1) {
+        throw new A2uiCatalogError(
+          `Expanded component '${name}' has no catalogId on ${where} and is defined in ` +
+            `multiple base catalogs: ${owners.join(', ')}. Set @catalogId explicitly in the ` +
+            'macro.',
+        );
+      } else {
+        throw new A2uiCatalogError(
+          `Expanded component '${name}' has no catalogId on ${where} and is not found in ` +
+            `any registered base catalog: ${this.baseCatalogIds.join(', ')}.`,
+        );
+      }
+    }
+  }
+
+  /**
+   * `catalogId` when every catalog that defines the component declares a `catalogId`
+   * property of its own, which a bare `catalogId` then is, rather than the envelope field.
+   */
+  private customCatalogIdOwners(name: string, owners: readonly string[]): ReadonlySet<string> {
+    const custom =
+      owners.length > 0 &&
+      owners.every(id =>
+        this.schemaHelpers.get(id)?.getCustomEnvelopeProperties(name).has('catalogId'),
+      );
+    return custom ? new Set(['catalogId']) : new Set();
+  }
+
+  private catalogHasComponent(catalogId: string, name: string): boolean {
+    return this.catalogComponents.get(catalogId)?.has(name) ?? false;
+  }
+
+  /** Whether a registered catalog defines a component of this name. */
+  private isCatalogComponent(name: string): boolean {
+    return [...this.catalogComponents.values()].some(names => names.has(name));
   }
 
   private pruner(): ComponentPruningTransformer | undefined {
@@ -344,6 +654,12 @@ export class MacroExpander {
       return;
     }
     this.catalogComponents.set(catalog.id, new Set(catalog.components.keys()));
+    try {
+      this.schemaHelpers.set(catalog.id, new CatalogSchemaHelper(catalog, '1.0'));
+    } catch {
+      // Without a schema helper, the catalog counts as declaring no custom envelope
+      // properties.
+    }
     if (!this.baseCatalogIds.includes(catalog.id)) {
       this.baseCatalogIds.push(catalog.id);
     }
@@ -379,6 +695,10 @@ function renderMacro(macro: MacroDefinition, args: JsonObject): ComponentNode {
     throw new A2uiValidationError(`Macro '${macro.name}' must return a component node.`);
   }
   return tree;
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value !== '' ? value : undefined;
 }
 
 function isJsonObject(value: unknown): value is JsonObject {

@@ -123,21 +123,8 @@ const VERSION_REJECTION_CASES = new Set(['13_error_envelope_version_mismatch']);
 
 /** Cases whose behavior lands in a later commit of this change. */
 const PENDING = new Set([
-  '20_mixable_catalogs_resolution',
-  '34_v1_0_multi_catalog_foo_bar_baz_and_defaultless_surface',
-  '35_v1_0_auto_stamping_from_base_catalogs_on_defaultless_surface',
-  '35b_error_ambiguous_primitive_on_defaultless_surface',
-  '36_surface_lifecycle_delete_recreate_and_null_catalog_id',
   '37a_stateless_surface_catalogs_override_expands',
   '37b_stateless_surface_catalogs_override_skips',
-  '37c_scoped_expander_skips_untracked_and_invalid_catalog_id',
-  '37d_default_macro_catalog_id_expands_after_base_registration',
-  '37e_standalone_macro_catalog_surface_default',
-  '38a_custom_catalog_collision_and_same_name_wrapper',
-  '38b_scoped_nested_macro_and_non_basic_surface',
-  '39a_error_deferred_self_recursion_untracked',
-  '39b_error_mutual_recursion_defaultless_surface',
-  '39c_error_mutual_recursion_foreign_surface',
 ]);
 
 function skipReason(testCase: LoadedCase): string | undefined {
@@ -291,10 +278,11 @@ function expectCatalog(catalog: CatalogApi, expected: Record<string, unknown>): 
   }
 }
 
-// Invocations that fail under `onError: 'passthrough'` are logged; the cases check the
-// lowered messages instead.
+// The expander logs invocations it skips or that fail under `onError: 'passthrough'`; the
+// cases check the lowered messages instead.
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 afterEach(() => {
   vi.restoreAllMocks();
