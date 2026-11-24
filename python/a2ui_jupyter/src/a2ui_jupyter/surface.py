@@ -68,7 +68,8 @@ def _dispatch(handlers: Iterable[Callable[[_T], None]], message: _T) -> None:
 def _is_ipykernel_kernel(kernel: object) -> bool:
     # Matched by module name, so the package never imports ipykernel.
     return any(
-        cls.__module__.partition(".")[0] == "ipykernel" for cls in type(kernel).__mro__
+        cls.__module__ and cls.__module__.partition(".")[0] == "ipykernel"
+        for cls in type(kernel).__mro__
     )
 
 
