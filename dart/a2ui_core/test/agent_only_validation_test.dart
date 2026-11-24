@@ -225,7 +225,12 @@ void main() {
             'returnType': 'string',
             'properties': {
               'call': {'const': 'getMoonPhase'},
-              'args': {'type': 'object'},
+              'args': {
+                'type': 'object',
+                'properties': {
+                  'date': {'type': 'string'},
+                },
+              },
             },
             'required': ['call'],
           },
