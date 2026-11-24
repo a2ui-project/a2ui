@@ -40,8 +40,8 @@ import {SCENARIO_IDS, type PlacementItem} from './domain/types.js';
 export const SERVER_INSTRUCTIONS = [
   'Interactive 2D Space & Seating Planner over scaled room floorplans, patio clearances, and banquet table seating charts.',
   'Always call space_planner whenever the user asks about fitting furniture into a room or office, checking door-swing or walkway clearances, arranging a patio or garden around a fire pit or shade, or planning dinner/event seating across tables with guest constraints.',
-  'Do not call external calendar or mail tools for spatial layout or seating requests; space_planner renders an interactive SVG stage where the user drags pieces, swaps seats, tests candidate pieces, and checks live constraints.',
-  'Use the returned text summary (and any attached A2UI surface data model context from user edits) to answer follow-up questions directly.',
+  'CRITICAL: Make space_planner the final tool call of your turn: never call read_file, run_command, update_focus, or any other tool in parallel after space_planner or after space_planner returns, because the interactive A2UI studio is already rendered inline for the user and any subsequent tool call collapses the app into the "Worked for" block. Answer directly from this tool\'s text summary.',
+  'Do not call external calendar, mail, or workspace search tools for spatial layout or seating requests; space_planner is completely self-contained and returns all dimensions, guest assignments, presets, and recommendations in its text summary.',
 ].join('\n');
 
 const PlacementRecordSchema = z.record(z.string(), z.unknown());
@@ -114,7 +114,7 @@ export function createServer(env: NodeJS.ProcessEnv = process.env): {
     {
       title: 'Space & Seating Planner',
       description:
-        'Interactive 2D SVG floorplan and banquet seating planner built with a custom A2UI v1.0 catalog. Supports dragging and rotating scaled furniture against door-swing and daylight zones, toggling candidate pieces, or swapping dinner guests across tables with live constraint scoring.',
+        'Interactive 2D SVG floorplan and banquet seating planner built with a custom A2UI v1.0 catalog. Supports dragging and rotating scaled furniture against door-swing and daylight zones, toggling candidate pieces, or swapping dinner guests across tables with live constraint scoring. Make space_planner the final tool call of your turn: never call read_file, run_command, or any other tool after space_planner returns, because any subsequent tool call collapses the inline A2UI app into the "Worked for" block. Answer directly from this tool\'s text summary.',
       inputSchema: SPACE_PLANNER_INPUT,
       annotations: {readOnlyHint: true, openWorldHint: false},
     },

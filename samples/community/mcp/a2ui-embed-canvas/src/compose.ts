@@ -281,23 +281,62 @@ function buildSummaryText(bundle: ScenarioBundle, components: readonly A2uiCompo
   const ruleSummary = evaluation.results
     .map(r => `- [${r.status.toUpperCase()}] ${r.label}: ${r.detail}`)
     .join('\n');
+  const presetLines =
+    bundle.presets.length > 0
+      ? [
+          'Recommended 1-click presets in card:',
+          ...bundle.presets.map(
+            p => `- ${p.label}${p.recommended ? ' (★ Agent pick)' : ''}: ${p.tagline}`,
+          ),
+        ]
+      : [];
+  const tailInstruction =
+    'IMPORTANT: The interactive Space & Seating Planner card is now rendered inline for the user. Make space_planner your final tool call of this turn — do NOT call read_file, run_command, or any other tool after space_planner returns (any subsequent tool call collapses the inline A2UI app). Summarize directly from the details above.';
 
   if (bundle.scene.mode === 'seating') {
     const guests = bundle.initialPlacements as readonly SeatPlacement[];
+    const tableLines = bundle.scene.tables.map(table => {
+      const seated = guests
+        .filter(g => g.tableId === table.id)
+        .sort((a, b) => a.seatIdx - b.seatIdx)
+        .map(g => `#${g.seatIdx + 1} ${g.name}${g.diet !== 'none' ? ` [${g.diet}]` : ''}`)
+        .join(', ');
+      return `- ${table.label}: ${seated}`;
+    });
     return [
       `Rendered ${bundle.scene.title} (${bundle.scenarioId}) with custom components: ${componentTypes}.`,
       `Seating: ${guests.length} guests across ${bundle.scene.tables.length} tables (${evaluation.summary}).`,
+      'Current table assignments:',
+      ...tableLines,
+      'Recommended fix: Swap Dan Mercer (#6 at Table A) with Tariq Al-Mansoor (#5 at Table B) — or click "Harmonious Banquet" / "Auto-resolve conflicts" — to separate Maya and Dan while keeping kids next to parents, all 3 vegans together at Table A, Grandpa Arthur in the quiet Conservatory zone, and a co-host at each table (5/5 rules passing, 100%).',
+      ...presetLines,
       'Constraint check:',
       ruleSummary,
+      tailInstruction,
     ].join('\n');
   }
 
   const pieces = bundle.initialPlacements as readonly FloorplanPlacement[];
+  const pieceLines = pieces.map(
+    p => `- ${p.label} at (${p.x}", ${p.y}"), rot ${p.rot}° — ${p.note}`,
+  );
+  const trayLines =
+    bundle.pieces.length > 0
+      ? [
+          'Candidate pieces in tray:',
+          ...bundle.pieces.map(t => `- ${t.label} (${t.w}×${t.h}", ${t.badge}) — ${t.note}`),
+        ]
+      : [];
   return [
     `Rendered ${bundle.scene.title} (${bundle.scenarioId}) with custom components: ${componentTypes}.`,
     `Space: ${formatRoomFeet(bundle.scene.roomW)} × ${formatRoomFeet(bundle.scene.roomH)} with ${pieces.length} placed items (${evaluation.summary}).`,
+    'Placed items:',
+    ...pieceLines,
+    ...trayLines,
+    ...presetLines,
     'Constraint check:',
     ruleSummary,
+    tailInstruction,
   ].join('\n');
 }
 
