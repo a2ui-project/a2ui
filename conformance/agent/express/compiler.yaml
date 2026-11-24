@@ -2569,3 +2569,44 @@
                     value:
                       "@path": "/name"
                 message: "Name is required"
+
+- name: test_compile_express_option_object_coercion_with_one_of_databinding
+  features: [F-AGT-21]
+  description: Literal string options coerce to {label, value} objects when the property schema uses a oneOf union that also admits DataBinding.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/union_express_catalog_v1_0.json"
+  input: 'root = ToggleGroup(["Day", "Week"])'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/union_express"
+        components:
+          - id: "root"
+            component: "ToggleGroup"
+            options:
+              - label: "Day"
+                value: "Day"
+              - label: "Week"
+                value: "Week"
+
+- name: test_compile_express_one_of_option_property_allows_data_binding
+  features: [F-AGT-21]
+  description: A union option property admitting DataBinding still compiles a $/path reference as a data binding.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/union_express_catalog_v1_0.json"
+  input: "root = ToggleGroup($/choices)"
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/union_express"
+        components:
+          - id: "root"
+            component: "ToggleGroup"
+            options:
+              "@path": "/choices"
