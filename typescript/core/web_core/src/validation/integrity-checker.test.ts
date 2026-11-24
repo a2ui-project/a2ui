@@ -30,7 +30,7 @@ import {A2uiIntegrityError, A2uiRecursionError} from '../errors.js';
 import {ComponentModel} from '../state/component-model.js';
 import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
-import {getComponentReferences} from './integrity-checker.js';
+import {getComponentReferences, validateRecursionAndPaths} from './integrity-checker.js';
 
 describe('Integrity Verification', () => {
   describe('getComponentReferences', () => {
@@ -493,6 +493,57 @@ describe('Integrity Verification', () => {
             allowDanglingReferences: false,
             allowOrphanComponents: false,
           }),
+        );
+      }
+    });
+  });
+
+  describe('validateRecursionAndPaths', () => {
+    /** Returns `depth` function calls, each nested in the args of the one before. */
+    function nestCalls(depth: number, callKey: string): Record<string, unknown> {
+      let value: Record<string, unknown> = {[callKey]: 'leaf', args: {}};
+      for (let i = 1; i < depth; i++) value = {[callKey]: 'wrap', args: {value}};
+      return value;
+    }
+
+    for (const callKey of ['call', '@call']) {
+      it(`bounds nested '${callKey}' function calls by the global depth limit alone`, () => {
+        // Function call nesting has no limit of its own.
+        assert.doesNotThrow(() => validateRecursionAndPaths(nestCalls(6, callKey)));
+        // Each call adds two levels, the call and its args, so the args of the 25th call
+        // are at depth 49 and those of the 26th at depth 51.
+        assert.doesNotThrow(() => validateRecursionAndPaths(nestCalls(25, callKey)));
+        assert.throws(
+          () => validateRecursionAndPaths(nestCalls(26, callKey)),
+          (err: unknown) =>
+            err instanceof A2uiRecursionError &&
+            err.message.includes('Global recursion limit exceeded'),
+        );
+      });
+    }
+
+    it('validates startDepth as a non-negative integer and shifts the depth bound', () => {
+      assert.doesNotThrow(() => validateRecursionAndPaths('leaf', 50));
+      assert.throws(
+        () => validateRecursionAndPaths({nested: 'x'}, 50),
+        (err: unknown) =>
+          err instanceof A2uiRecursionError &&
+          err.message.includes('Global recursion limit exceeded'),
+      );
+
+      for (const bad of [
+        -1,
+        -100,
+        Number.NaN,
+        1.5,
+        Number.POSITIVE_INFINITY,
+        Number.NEGATIVE_INFINITY,
+      ]) {
+        assert.throws(
+          () => validateRecursionAndPaths({}, bad),
+          (err: unknown) =>
+            err instanceof RangeError &&
+            err.message.includes('startDepth must be a non-negative integer'),
         );
       }
     });
