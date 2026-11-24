@@ -18,10 +18,19 @@
 # The build context is the repository root, because the packages are in the
 # Dart workspace there. deploy.sh prepares it.
 
-# 1. Build stage: an image with Flutter builds the web app and compiles the
-# server.
-ARG FLUTTER_IMAGE=ghcr.io/cirruslabs/flutter:stable
-FROM ${FLUTTER_IMAGE} AS build
+# 1. Build stage: Flutter, at the version the repository needs, builds the web
+# app and compiles the server. Prebuilt Flutter images lag behind stable, so
+# this clones the release tag.
+FROM debian:bookworm-slim AS build
+ARG FLUTTER_VERSION=3.50.1
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       ca-certificates curl git unzip xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 --branch "${FLUTTER_VERSION}" \
+    https://github.com/flutter/flutter.git /opt/flutter
+ENV PATH=/opt/flutter/bin:$PATH
+RUN flutter --disable-analytics && flutter --version
 WORKDIR /src
 COPY . .
 RUN flutter pub get
