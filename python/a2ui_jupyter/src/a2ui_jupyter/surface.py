@@ -87,7 +87,20 @@ def _kernel_needs_comm_polling() -> bool:
     kernel = getattr(get_ipython(), "kernel", None)
     if kernel is None or not _is_ipykernel_kernel(kernel):
         return False
-    major, minor = (int(part) for part in version("ipykernel").split(".")[:2])
+    try:
+        ver = version("ipykernel")
+    except Exception:
+        ipykernel = sys.modules.get("ipykernel")
+        ver = getattr(ipykernel, "__version__", "0.0") if ipykernel else "0.0"
+
+    try:
+        parts = ver.split(".")[:2]
+        major_str = "".join(c for c in parts[0] if c.isdigit()) if parts else ""
+        minor_str = "".join(c for c in parts[1] if c.isdigit()) if len(parts) > 1 else ""
+        major = int(major_str) if major_str else 0
+        minor = int(minor_str) if minor_str else 0
+    except Exception:
+        major, minor = 0, 0
     if (major, minor) >= _NATIVE_COMM_DISPATCH_VERSION:
         return False
     if (major, minor) >= _NO_POLLING_VERSION:
