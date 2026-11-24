@@ -358,6 +358,41 @@
   expect_contains: ["Text(", "Chart("]
   expect_deterministic: true
 
+- name: test_express_snippet_introspects_one_of_and_any_of_unions
+  features: [F-AGT-04, F-AGT-21]
+  description: Express prompt generation traverses oneOf, anyOf, and local $defs for object and array-of-objects properties while omitting wire-envelope keys.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/union_express_catalog_v1_0.json"
+  expect_contains:
+    - "• LineChart(series, points?, config?)"
+    - "    List of maps keys:\n    * name - Name of the series\n    * color - Hex color code\n    * data - Points along the line"
+    - "  - points: List of maps with keys:\n    * x - X coordinate\n    * y - Y coordinate"
+    - "    Map keys:\n    * showLegend - Whether to show the legend\n    * yAxisLabel"
+  expect_absent:
+    - "* @path"
+    - "* path"
+
+- name: test_express_snippet_introspects_all_of_and_local_defs_in_unions
+  features: [F-AGT-04, F-AGT-21]
+  description: Express prompt generation merges allOf object properties, handles enum unions without emitting object keys, and dereferences local $defs.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/union_express_catalog_v1_0.json"
+  expect_contains:
+    - "• CompositeWidget(title, iconName? (static), settings? (static), rows? (static))"
+    - "  - iconName: Icon identifier. Must be one of: 'home', 'search', 'settings'"
+    - "    Map keys:\n    * compact - Use compact spacing\n    * theme - Color theme"
+    - "  - rows: List of maps with keys:\n    * id - Row identifier\n    * badge - Optional row badge"
+  expect_absent:
+    - "svgPath"
+    - "* @path"
+    - "* path"
+
 # --- Errors ---
 
 - name: test_express_no_active_catalogs_is_an_error
