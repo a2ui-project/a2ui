@@ -27,11 +27,19 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<ModalSupportedApis>
    * The styles of the modal can be customized by redefining the following
    * CSS variables:
    *
-   * - `--a2ui-modal-background`: Controls the background of the modal content.
-   * - `--a2ui-modal-padding`: Controls the padding of the modal content.
-   * - `--a2ui-modal-border-radius`: Controls the border radius of the modal content.
-   * - `--a2ui-modal-box-shadow`: Controls the box shadow of the modal content.
-   * - `--a2ui-modal-backdrop-bg`: Controls the background of the backdrop.
+   * - `--a2ui-modal-backdrop-bg`: Background of the modal overlay backdrop. Defaults to `rgba(0, 0, 0, 0.5)`.
+   * - `--a2ui-modal-background`: Background of the modal dialog surface. Defaults to `--a2ui-color-surface`.
+   * - `--a2ui-modal-padding`: Padding of the modal dialog surface. Defaults to `--a2ui-spacing-xl`.
+   * - `--a2ui-modal-border-radius`: Border radius of the modal dialog surface. Defaults to `--a2ui-border-radius`.
+   * - `--a2ui-modal-box-shadow`: Box shadow of the modal dialog surface. Defaults to `0 10px 25px rgba(0, 0, 0, 0.2)`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-color-surface`: Fallback background color of the modal dialog surface.
+   * - `--a2ui-spacing-xl`: Fallback padding of the modal dialog surface.
+   * - `--a2ui-border-radius`: Fallback border radius of the modal dialog surface.
+   * - `--a2ui-text-caption-color`: Text color of the close button. Defaults to `#999`.
+   * - `--a2ui-text-color`: Hover text color of the close button. Defaults to `#333`.
    *
    * @nocollapse
    */

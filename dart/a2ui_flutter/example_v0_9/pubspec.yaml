@@ -17,8 +17,8 @@ description: A chat app that renders the A2UI a Gemini model writes, on protocol
 publish_to: "none"
 
 environment:
-  sdk: ">=3.10.0 <4.0.0"
-  flutter: ">=3.38.0"
+  sdk: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.0"
 
 resolution: workspace
 

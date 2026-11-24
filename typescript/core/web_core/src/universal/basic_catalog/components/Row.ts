@@ -53,7 +53,11 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<RowSupported
    * The styles of the row can be customized by redefining the following
    * CSS variables:
    *
-   * - `--a2ui-row-gap`: The gap between items in the row. Defaults to `--a2ui-spacing-m`.
+   * - `--a2ui-row-gap`: Gap between items in the row. Defaults to `--a2ui-spacing-m`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-spacing-m`: Fallback gap between items in the row.
    *
    * @nocollapse
    */

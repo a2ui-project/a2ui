@@ -407,14 +407,14 @@ describe('generate-catalog-schemas.mjs', () => {
         '{allOf: [{if: {type: "string"}, then: {format: "date"}}]}).optional()',
     );
     const plainCode = generatePropertyZod(
-      'count',
-      {type: 'integer', minimum: 0},
-      ['count'],
+      'date',
+      {type: 'string', format: 'date'},
+      ['date'],
       commonDefs,
       usedImports,
       uri,
     );
-    assert.strictEqual(plainCode, 'spec(z.number().int(), {keywords: {minimum: 0}})');
+    assert.strictEqual(plainCode, 'spec(z.string(), {keywords: {format: "date"}})');
   });
 
   it('derives annotations from the difference to the published schema', () => {

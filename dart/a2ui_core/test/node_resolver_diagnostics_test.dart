@@ -21,21 +21,19 @@ import 'package:preact_signals/preact_signals.dart' show SignalEffectException;
 import 'package:test/test.dart';
 
 Catalog<ComponentApi, FunctionImplementation> _catalog() => _MutableCatalog(
-      id: 'diagnostic-test',
-      components: [
-        ComponentApi(name: 'Text', schema: Schema.object()),
-        ComponentApi(
-          name: 'Card',
-          schema:
-              Schema.object(properties: {'child': CommonSchemas.componentId}),
-        ),
-        ComponentApi(
-          name: 'Column',
-          schema:
-              Schema.object(properties: {'children': CommonSchemas.childList}),
-        ),
-      ],
-    );
+  id: 'diagnostic-test',
+  components: [
+    ComponentApi(name: 'Text', schema: Schema.object()),
+    ComponentApi(
+      name: 'Card',
+      schema: Schema.object(properties: {'child': CommonSchemas.componentId}),
+    ),
+    ComponentApi(
+      name: 'Column',
+      schema: Schema.object(properties: {'children': CommonSchemas.childList}),
+    ),
+  ],
+);
 
 /// A catalog whose components a test may add and remove while a surface
 /// uses it. [Catalog.components] is unmodifiable, so the tests that change
@@ -105,36 +103,40 @@ void main() {
       },
     );
 
-    test('rearms after deleting and readding an id containing colons',
-        () async {
-      _add(surface, 'root', 'Column', {
-        'children': ['weird:x'],
-      });
-      _add(surface, 'weird:x', 'Bogus');
-      await Future<void>.delayed(Duration.zero);
-      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+    test(
+      'rearms after deleting and readding an id containing colons',
+      () async {
+        _add(surface, 'root', 'Column', {
+          'children': ['weird:x'],
+        });
+        _add(surface, 'weird:x', 'Bogus');
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
 
-      surface.componentsModel.removeComponent('weird:x');
-      _add(surface, 'weird:x', 'Bogus');
-      await Future<void>.delayed(Duration.zero);
-      expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
-    });
+        surface.componentsModel.removeComponent('weird:x');
+        _add(surface, 'weird:x', 'Bogus');
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
+      },
+    );
 
-    test('reports a cycle again after property repair and reintroduction',
-        () async {
-      _add(surface, 'root', 'Card', {'child': 'card'});
-      _add(surface, 'card', 'Card', {'child': 'card'});
-      _add(surface, 'leaf', 'Text');
-      await Future<void>.delayed(Duration.zero);
-      expect(reports('CYCLIC_REFERENCE'), 1);
+    test(
+      'reports a cycle again after property repair and reintroduction',
+      () async {
+        _add(surface, 'root', 'Card', {'child': 'card'});
+        _add(surface, 'card', 'Card', {'child': 'card'});
+        _add(surface, 'leaf', 'Text');
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('CYCLIC_REFERENCE'), 1);
 
-      surface.componentsModel.get('card')!.properties = {'child': 'leaf'};
-      await Future<void>.delayed(Duration.zero);
-      expect(reports('CYCLIC_REFERENCE'), 1);
-      surface.componentsModel.get('card')!.properties = {'child': 'card'};
-      await Future<void>.delayed(Duration.zero);
-      expect(reports('CYCLIC_REFERENCE'), 2);
-    });
+        surface.componentsModel.get('card')!.properties = {'child': 'leaf'};
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('CYCLIC_REFERENCE'), 1);
+        surface.componentsModel.get('card')!.properties = {'child': 'card'};
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('CYCLIC_REFERENCE'), 2);
+      },
+    );
   });
 
   group('NodeResolver diagnostic bookkeeping', () {
@@ -146,49 +148,51 @@ void main() {
       final errors = <Object?>[];
       final StreamSubscription<LogRecord> subscription =
           Logger('a2ui.EventNotifier').onRecord.listen((record) {
-        if (record.loggerName == 'a2ui.EventNotifier' &&
-            record.level == Level.SEVERE) {
-          final Object? e = record.error;
-          errors.add(e is SignalEffectException ? e.error : e);
-        }
-      });
+            if (record.loggerName == 'a2ui.EventNotifier' &&
+                record.level == Level.SEVERE) {
+              final Object? e = record.error;
+              errors.add(e is SignalEffectException ? e.error : e);
+            }
+          });
       addTearDown(subscription.cancel);
       return errors;
     }
 
-    test('a failed observer neither loses a diagnostic nor repeats it',
-        () async {
-      final List<Object?> listenerErrors = collectListenerErrors();
-      var shouldThrow = true;
-      final void Function() unsubscribe = resolver.rootNode.subscribe((node) {
-        if (node != null && shouldThrow) {
-          shouldThrow = false;
-          throw StateError('root observer failed');
-        }
-      });
-      addTearDown(unsubscribe);
-      _add(surface, 'weird', 'Bogus');
-      _add(surface, 'root', 'Column', {
-        'children': ['weird'],
-      });
-      expect(listenerErrors, [isA<StateError>()]);
-      await Future<void>.delayed(Duration.zero);
-      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
-      expect(resolver.activeNodeCount, 2);
-      final ComponentModel root = surface.componentsModel.get('root')!;
-      root.properties = {'children': <String>[]};
-      root.properties = {
-        'children': ['weird'],
-      };
-      await Future<void>.delayed(Duration.zero);
-      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
-      expect(children().single.state, NodeState.unknownType);
-      root.properties = {
-        'children': ['weird', 'weird'],
-      };
-      await Future<void>.delayed(Duration.zero);
-      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
-    });
+    test(
+      'a failed observer neither loses a diagnostic nor repeats it',
+      () async {
+        final List<Object?> listenerErrors = collectListenerErrors();
+        var shouldThrow = true;
+        final void Function() unsubscribe = resolver.rootNode.subscribe((node) {
+          if (node != null && shouldThrow) {
+            shouldThrow = false;
+            throw StateError('root observer failed');
+          }
+        });
+        addTearDown(unsubscribe);
+        _add(surface, 'weird', 'Bogus');
+        _add(surface, 'root', 'Column', {
+          'children': ['weird'],
+        });
+        expect(listenerErrors, [isA<StateError>()]);
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+        expect(resolver.activeNodeCount, 2);
+        final ComponentModel root = surface.componentsModel.get('root')!;
+        root.properties = {'children': <String>[]};
+        root.properties = {
+          'children': ['weird'],
+        };
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+        expect(children().single.state, NodeState.unknownType);
+        root.properties = {
+          'children': ['weird', 'weird'],
+        };
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+      },
+    );
 
     test('a failed update delivers what it found once', () async {
       _add(surface, 'known', 'Bogus');
@@ -261,35 +265,37 @@ void main() {
       },
     );
 
-    test('unmounting unknown nodes does not rearm a persistent condition',
-        () async {
-      _add(surface, 'weird', 'Bogus');
-      _add(surface, 'root', 'Column', {
-        'children': ['weird', 'weird'],
-      });
-      await Future<void>.delayed(Duration.zero);
-      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
-      surface.componentsModel.get('root')!.properties = {
-        'children': <String>[],
-      };
-      expect(resolver.activeNodeCount, 1);
-      surface.componentsModel.get('root')!.properties = {
-        'children': ['weird', 'weird', 'weird'],
-      };
-      await Future<void>.delayed(Duration.zero);
-      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+    test(
+      'unmounting unknown nodes does not rearm a persistent condition',
+      () async {
+        _add(surface, 'weird', 'Bogus');
+        _add(surface, 'root', 'Column', {
+          'children': ['weird', 'weird'],
+        });
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+        surface.componentsModel.get('root')!.properties = {
+          'children': <String>[],
+        };
+        expect(resolver.activeNodeCount, 1);
+        surface.componentsModel.get('root')!.properties = {
+          'children': ['weird', 'weird', 'weird'],
+        };
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
 
-      surface.componentsModel.get('root')!.properties = {
-        'children': <String>[],
-      };
-      surface.componentsModel.removeComponent('weird');
-      _add(surface, 'weird', 'Bogus');
-      surface.componentsModel.get('root')!.properties = {
-        'children': ['weird'],
-      };
-      await Future<void>.delayed(Duration.zero);
-      expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
-    });
+        surface.componentsModel.get('root')!.properties = {
+          'children': <String>[],
+        };
+        surface.componentsModel.removeComponent('weird');
+        _add(surface, 'weird', 'Bogus');
+        surface.componentsModel.get('root')!.properties = {
+          'children': ['weird'],
+        };
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
+      },
+    );
 
     test(
       'successfully resolving a pair rearms its prior unknown diagnostic',
@@ -350,31 +356,33 @@ void main() {
       },
     );
 
-    test('retiring an old cycle cannot clear a rearmed replacement scope',
-        () async {
-      _add(surface, 'leaf', 'Text');
-      _add(surface, 'root', 'Column', {
-        'children': ['leaf', 'root'],
-      });
-      await Future<void>.delayed(Duration.zero);
-      expect(reports('CYCLIC_REFERENCE'), 1);
-      children().first.onDestroyed.subscribe((_) {
+    test(
+      'retiring an old cycle cannot clear a rearmed replacement scope',
+      () async {
+        _add(surface, 'leaf', 'Text');
         _add(surface, 'root', 'Column', {
-          'children': ['root'],
+          'children': ['leaf', 'root'],
         });
-      });
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('CYCLIC_REFERENCE'), 1);
+        children().first.onDestroyed.subscribe((_) {
+          _add(surface, 'root', 'Column', {
+            'children': ['root'],
+          });
+        });
 
-      surface.componentsModel.removeComponent('root');
-      await Future<void>.delayed(Duration.zero);
-      expect(reports('CYCLIC_REFERENCE'), 2);
-      expect(children().single.state, NodeState.cyclic);
-      surface.componentsModel.get('root')!.properties = {
-        'children': ['root', 'root'],
-      };
-      await Future<void>.delayed(Duration.zero);
-      expect(reports('CYCLIC_REFERENCE'), 2);
-      expect(resolver.activeNodeCount, 3);
-    });
+        surface.componentsModel.removeComponent('root');
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('CYCLIC_REFERENCE'), 2);
+        expect(children().single.state, NodeState.cyclic);
+        surface.componentsModel.get('root')!.properties = {
+          'children': ['root', 'root'],
+        };
+        await Future<void>.delayed(Duration.zero);
+        expect(reports('CYCLIC_REFERENCE'), 2);
+        expect(resolver.activeNodeCount, 3);
+      },
+    );
 
     test(
       'an earlier deletion listener replaces and rearms an unknown model',
@@ -469,7 +477,7 @@ void main() {
         [for (final warning in warnings) (warning.code, warning.path)],
         [
           ('MISSING_DATA_BINDING', '/missing'),
-          ('MISSING_DATA_BINDING', '/other')
+          ('MISSING_DATA_BINDING', '/other'),
         ],
       );
       expect(warnings.first.surfaceId, 'bound');

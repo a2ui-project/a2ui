@@ -30,7 +30,7 @@ public struct Surface: View {
 
   public init(
     viewModel: SurfaceViewModel,
-    catalogs: [Catalog<ComponentImplementation>] = [],
+    catalogs: [Catalog<ComponentImplementation>],
     defaultCatalogID: String? = nil
   ) {
     self.viewModel = viewModel

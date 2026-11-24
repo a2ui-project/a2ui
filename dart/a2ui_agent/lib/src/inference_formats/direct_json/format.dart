@@ -67,7 +67,7 @@ class DirectJsonFormat extends InferenceFormat {
   /// properties hold prose depends on the catalog, so there is no built-in
   /// set. Empty turns healing off.
   ///
-  /// [bufferIncompleteComponents] holds a streamed component of catalogs
+  /// [_bufferIncompleteComponents] holds a streamed component of catalogs
   /// before v1.0 back until its JSON object closes, as a parser always does
   /// for v1.0 catalogs; see [DirectJsonParser.bufferIncompleteComponents].
   ///
@@ -77,14 +77,13 @@ class DirectJsonFormat extends InferenceFormat {
     List<List<AgentToRendererMessage>> examples = const [],
     List<String>? allowedMessages,
     Set<String> progressiveKeys = const {},
-    bool bufferIncompleteComponents = false,
+    this._bufferIncompleteComponents = false,
   }) : promptGenerator = DirectJsonPromptGenerator(
          List.unmodifiable(catalogs),
          examples: List.unmodifiable(examples),
          allowedMessages: allowedMessages,
        ),
-       _progressiveKeys = Set.unmodifiable(progressiveKeys),
-       _bufferIncompleteComponents = bufferIncompleteComponents {
+       _progressiveKeys = Set.unmodifiable(progressiveKeys) {
     checkDistinctIds(catalogs);
   }
 

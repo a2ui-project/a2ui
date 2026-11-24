@@ -26,18 +26,27 @@ void main() {
     final List<Example> examples = await loadExamples(rootBundle);
 
     for (final (A2uiProtocolVersion version, String directory) in [
-      (
-        A2uiProtocolVersion.v0_9,
-        '../../../specification/v0_9/catalogs/basic/examples',
-      ),
+      (A2uiProtocolVersion.v0_9, '../../../catalogs/basic/v0_9/examples'),
       (A2uiProtocolVersion.v1_0, '../../../catalogs/basic/v1/examples'),
     ]) {
       final List<String> specified = [
         for (final FileSystemEntity file in Directory(directory).listSync())
           if (file.path.endsWith('.json')) file.uri.pathSegments.last,
-      ]..sort();
+      ]..sort(compareExampleFileNames);
+
+      const expectedLeading = [
+        'scaffold-simple-text.json',
+        'scaffold-row-layout.json',
+        'scaffold-interactive-button.json',
+        'scaffold-simple-login-form.json',
+        'scaffold-complex-layout.json',
+        'scaffold-formatted-text.json',
+        'scaffold-incremental.json',
+        'flight-status.json',
+      ];
 
       expect(specified, isNotEmpty, reason: directory);
+      expect(specified.take(8).toList(), expectedLeading, reason: directory);
       expect([
         for (final e in examples)
           if (e.version == version) e.fileName,

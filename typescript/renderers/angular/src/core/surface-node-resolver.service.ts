@@ -15,7 +15,7 @@
  */
 
 import {Injectable, OnDestroy} from '@angular/core';
-import {NodeResolver, type SurfaceModel} from '@a2ui/web_core/v0_9';
+import {NodeResolver, type SurfaceModel} from '@a2ui/web_core';
 
 import type {AngularComponentImplementation} from '../catalog/types';
 

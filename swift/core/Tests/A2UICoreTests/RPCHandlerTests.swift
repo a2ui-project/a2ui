@@ -43,6 +43,37 @@ struct RPCHandlerTests {
     }
   }
 
+  private struct MockThrowingFunction: FunctionImplementation {
+    let api: FunctionAPI
+    let error: any Error
+
+    init(error: any Error) {
+      let schema = try! Schema(
+        rawSchema: .object(["type": .string("object")]),
+        context: Context(dialect: .draft2020_12)
+      )
+      self.api = FunctionAPI(
+        name: "fail",
+        returnType: .any,
+        schema: schema,
+        allowedCallers: .rendererOrAgent
+      )
+      self.error = error
+    }
+
+    func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+      throw error
+    }
+  }
+
+  private struct QuotaError: LocalizedError {
+    var errorDescription: String? { "Quota exceeded" }
+  }
+
+  private enum StorageError: Error {
+    case diskFull
+  }
+
   @Test func incomingCallSuccess() async {
     let handler = RPCHandler()
     let echoFn = MockEchoFunction()
@@ -72,6 +103,67 @@ struct RPCHandlerTests {
     #expect(response.functionCallID == "call_1")
     #expect(response.value == .string("Hello Agent"))
     #expect(response.error == nil)
+  }
+
+  private func respondToThrowingFunction(
+    _ error: any Error
+  ) async -> RendererFunctionResponseMessage {
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [MockThrowingFunction(error: error)]
+    ).eraseToAnyCatalog()
+    let callMessage = CallRendererFunctionMessage(
+      functionCallID: "call_fail",
+      callFunction: CallFunctionPayload(call: "fail", catalogID: "test", args: [:]),
+      version: .v10
+    )
+    return await RPCHandler().handleIncomingCall(callMessage, catalogs: [catalog.id: catalog])
+  }
+
+  @Test func incomingCallThrowingFunctionAnswersWithErrorMessage() async {
+    let response = await respondToThrowingFunction(A2UIValidationError("Disk is full"))
+
+    #expect(response.functionCallID == "call_fail")
+    #expect(response.value == nil)
+    #expect(
+      response.error
+        == FunctionErrorPayload(code: .executionError, message: "Disk is full")
+    )
+  }
+
+  @Test func incomingCallThrowingLocalizedErrorAnswersWithErrorDescription() async {
+    let response = await respondToThrowingFunction(QuotaError())
+
+    #expect(
+      response.error
+        == FunctionErrorPayload(code: .executionError, message: "Quota exceeded")
+    )
+  }
+
+  @Test func incomingCallThrowingPlainErrorAnswersWithItsDescription() async {
+    let response = await respondToThrowingFunction(StorageError.diskFull)
+
+    #expect(
+      response.error
+        == FunctionErrorPayload(code: .executionError, message: "diskFull")
+    )
+  }
+
+  @Test(arguments: ["", "  \n\t "])
+  func incomingCallThrowingFunctionWithoutMessageAnswersWithFallback(
+    emptyMessage: String
+  ) async {
+    let response = await respondToThrowingFunction(A2UIValidationError(emptyMessage))
+
+    #expect(
+      response.error
+        == FunctionErrorPayload(
+          code: .executionError,
+          message: "An error occurred during function execution."
+        )
+    )
   }
 
   @Test func incomingCallAfterDisposeAnswersDisposed() async {
@@ -571,6 +663,285 @@ struct RPCHandlerTests {
 
     let retryResult = try await retryTask.value
     #expect(retryResult == .string("reused_ok"))
+  }
+
+  private final class SpyNestedFunction: FunctionImplementation, @unchecked Sendable {
+    let api: FunctionAPI
+    let returnValue: JSONValue
+    var invocations = 0
+
+    init(name: String, allowedCallers: AllowedCallers, returnValue: JSONValue) throws {
+      self.api = FunctionAPI(
+        name: name,
+        returnType: .string,
+        schema: try Schema(instance: #"{"type": "object"}"#),
+        allowedCallers: allowedCallers
+      )
+      self.returnValue = returnValue
+    }
+
+    func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+      invocations += 1
+      return returnValue
+    }
+  }
+
+  private final class TriggerBoundaryViolationFunction: FunctionImplementation, @unchecked Sendable
+  {
+    let api: FunctionAPI
+    let targetCall: JSONValue
+    var invocations = 0
+
+    init(name: String, targetCall: JSONValue) throws {
+      self.api = FunctionAPI(
+        name: name,
+        returnType: .string,
+        schema: try Schema(instance: #"{"type": "object"}"#),
+        allowedCallers: .rendererOrAgent
+      )
+      self.targetCall = targetCall
+    }
+
+    func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+      invocations += 1
+      return context.resolveDynamicValue(targetCall)
+    }
+  }
+
+  @Test func incomingCallRejectsNestedRendererOnlyBeforeSiblingRunsAndAllowsAgentOnly()
+    async throws
+  {
+    let mutatingFn = try SpyNestedFunction(
+      name: "mutatingAllowed",
+      allowedCallers: .rendererOrAgent,
+      returnValue: .string("ok")
+    )
+    let secretFn = try SpyNestedFunction(
+      name: "secretRendererOnly",
+      allowedCallers: .rendererOnly,
+      returnValue: .string("SECRET")
+    )
+    let agentOnlyFn = try SpyNestedFunction(
+      name: "agentOnlyFn",
+      allowedCallers: .agentOnly,
+      returnValue: .string("AGENT_SECRET")
+    )
+    let schemaOnlyRendererFn = SchemaOnlyFunction(
+      api: FunctionAPI(
+        name: "schemaOnlyRendererFn",
+        returnType: .string,
+        schema: try Schema(instance: #"{"type": "object"}"#),
+        allowedCallers: .rendererOnly
+      )
+    )
+    let catalog = Catalog(
+      id: "nested-cat",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [MockEchoFunction(), mutatingFn, secretFn, agentOnlyFn, schemaOnlyRendererFn]
+    ).eraseToAnyCatalog()
+    let handler = RPCHandler()
+
+    let blockedResponse = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "nested-blocked",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "nested-cat",
+          args: [
+            "first": .object([
+              "@call": .string("mutatingAllowed"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ]),
+            "message": .array([
+              .object([
+                "@call": .string("secretRendererOnly"),
+                "catalogId": .string("nested-cat"),
+                "args": .object([:]),
+              ])
+            ]),
+          ]
+        ),
+        version: .v10
+      ),
+      catalogs: [catalog.id: catalog]
+    )
+    #expect(blockedResponse.error?.code == "INVALID_FUNCTION_CALL")
+    #expect(mutatingFn.invocations == 0)
+    #expect(secretFn.invocations == 0)
+
+    let schemaOnlyBlockedResponse = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "nested-schema-only-blocked",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "nested-cat",
+          args: [
+            "first": .object([
+              "@call": .string("mutatingAllowed"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ]),
+            "message": .object([
+              "@call": .string("schemaOnlyRendererFn"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ]),
+          ]
+        ),
+        version: .v10
+      ),
+      catalogs: [catalog.id: catalog]
+    )
+    #expect(schemaOnlyBlockedResponse.error?.code == "INVALID_FUNCTION_CALL")
+    #expect(mutatingFn.invocations == 0)
+
+    let agentAllowedResponse = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "nested-agent-allowed",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "nested-cat",
+          args: [
+            "message": .object([
+              "@call": .string("agentOnlyFn"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ])
+          ]
+        ),
+        version: .v10
+      ),
+      catalogs: [catalog.id: catalog]
+    )
+    #expect(agentAllowedResponse.error == nil)
+    #expect(agentAllowedResponse.value == .string("AGENT_SECRET"))
+    #expect(agentOnlyFn.invocations == 1)
+
+    var deepForbidden: JSONValue = .object([
+      "@call": .string("secretRendererOnly"),
+      "catalogId": .string("nested-cat"),
+      "args": .object([:]),
+    ])
+    for _ in 0..<600 {
+      deepForbidden = .object([
+        "@call": .string("echo"),
+        "catalogId": .string("nested-cat"),
+        "args": .object(["message": deepForbidden]),
+      ])
+    }
+    let deepBlockedResponse = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "nested-deep-600",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "nested-cat",
+          args: [
+            "first": .object([
+              "@call": .string("mutatingAllowed"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ]),
+            "message": deepForbidden,
+          ]
+        ),
+        version: .v10
+      ),
+      catalogs: [catalog.id: catalog]
+    )
+    #expect(deepBlockedResponse.error?.code == "INVALID_FUNCTION_CALL")
+    #expect(mutatingFn.invocations == 0)
+
+    var overDeep: JSONValue = .string("leaf")
+    for _ in 0..<1005 {
+      overDeep = .array([overDeep])
+    }
+    let overDeepResponse = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "nested-over-deep",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "nested-cat",
+          args: [
+            "first": .object([
+              "@call": .string("mutatingAllowed"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ]),
+            "message": overDeep,
+          ]
+        ),
+        version: .v10
+      ),
+      catalogs: [catalog.id: catalog]
+    )
+    #expect(overDeepResponse.error?.code == "EXECUTION_ERROR")
+    #expect(mutatingFn.invocations == 0)
+
+    let mixedDepthResponse = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "nested-depth-and-forbidden",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "nested-cat",
+          args: [
+            "first": overDeep,
+            "message": .object([
+              "@call": .string("secretRendererOnly"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ]),
+          ]
+        ),
+        version: .v10
+      ),
+      catalogs: [catalog.id: catalog]
+    )
+    #expect(mixedDepthResponse.error?.code == "INVALID_FUNCTION_CALL")
+    #expect(mutatingFn.invocations == 0)
+
+    // Early break stops evaluating remaining sibling arguments once a runtime
+    // boundary violation is captured during argument resolution.
+    let triggerFn = try TriggerBoundaryViolationFunction(
+      name: "triggerForbidden",
+      targetCall: .object([
+        "@call": .string("secretRendererOnly"),
+        "catalogId": .string("nested-cat"),
+        "args": .object([:]),
+      ])
+    )
+    let breakCatalog = Catalog(
+      id: "nested-cat",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [MockEchoFunction(), secretFn, triggerFn]
+    ).eraseToAnyCatalog()
+    let breakResponse = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "nested-early-break",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "nested-cat",
+          args: [
+            "a": .object([
+              "@call": .string("triggerForbidden"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ]),
+            "b": .object([
+              "@call": .string("triggerForbidden"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ]),
+          ]
+        ),
+        version: .v10
+      ),
+      catalogs: [breakCatalog.id: breakCatalog]
+    )
+    #expect(breakResponse.error?.code == "INVALID_FUNCTION_CALL")
+    #expect(triggerFn.invocations == 1)
   }
 }
 

@@ -19,6 +19,7 @@ import {customElement, property} from 'lit/decorators.js';
 import {markdown} from './directives/directives.js';
 import {Root} from './root.js';
 import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
+import {isObject} from '@a2ui/web_core/data/guards';
 import * as Primitives from '@a2ui/web_core/types/primitives';
 import * as Types from '@a2ui/web_core/types/types';
 import * as Context from './context/context.js';
@@ -28,15 +29,19 @@ import {styleMap} from 'lit/directives/style-map.js';
 import {structuralStyles} from './styles.js';
 import {Styles} from '../index.js';
 
+type UsageHint = NonNullable<Types.ResolvedText['usageHint']>;
+
 interface HintedStyles {
-  h1: Record<string, string>;
-  h2: Record<string, string>;
-  h3: Record<string, string>;
-  h4: Record<string, string>;
-  h5: Record<string, string>;
-  body: Record<string, string>;
-  caption: Record<string, string>;
+  h1?: Record<string, string>;
+  h2?: Record<string, string>;
+  h3?: Record<string, string>;
+  h4?: Record<string, string>;
+  h5?: Record<string, string>;
+  body?: Record<string, string>;
+  caption?: Record<string, string>;
 }
+
+const HINT_KEYS: readonly UsageHint[] = ['h1', 'h2', 'h3', 'h4', 'h5', 'caption', 'body'];
 
 @customElement('a2ui-text')
 export class Text extends Root {
@@ -129,27 +134,31 @@ export class Text extends Root {
   }
 
   #areHintedStyles(styles: unknown): styles is HintedStyles {
-    if (typeof styles !== 'object') return false;
-    if (Array.isArray(styles)) return false;
-    if (!styles) return false;
+    if (!isObject(styles)) return false;
 
-    const expected = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'caption', 'body'];
-    return expected.every(v => v in styles);
+    return (
+      HINT_KEYS.some(key => isObject(styles[key])) &&
+      HINT_KEYS.every(key => styles[key] == null || isObject(styles[key]))
+    );
   }
 
-  #getAdditionalStyles() {
-    let additionalStyles: Record<string, string> = {};
+  #getAdditionalStyles(): Record<string, string> {
     const styles = this.theme.additionalStyles?.Text;
-    if (!styles) return additionalStyles;
+    if (!styles) return {};
 
     if (this.#areHintedStyles(styles)) {
-      const hint = this.usageHint ?? 'body';
-      additionalStyles = styles[hint] as Record<string, string>;
-    } else {
-      additionalStyles = styles;
+      const hint: UsageHint = this.usageHint ?? 'body';
+      return styles[hint] ?? {};
     }
 
-    return additionalStyles;
+    if (
+      isObject(styles) &&
+      Object.values(styles).every(v => v == null || typeof v === 'string' || typeof v === 'number')
+    ) {
+      return styles as Record<string, string>;
+    }
+
+    return {};
   }
 
   override render() {

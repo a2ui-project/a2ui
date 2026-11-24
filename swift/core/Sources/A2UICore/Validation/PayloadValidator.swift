@@ -582,17 +582,13 @@ public final class PayloadValidator: Sendable {
     }
 
     let normalizedArgs = args ?? [:]
-    if allowDynamicArgValues && containsDynamicExpression(in: normalizedArgs) {
-      try validateRequiredKeysOnly(
-        name: name,
-        args: normalizedArgs,
-        schemaJSON: function.api.schema.jsonValue
-      )
-      return
-    }
+    let schema =
+      allowDynamicArgValues && containsDynamicExpression(in: normalizedArgs)
+      ? schemaAllowingDynamicArgs(baseSchema: function.api.schema, args: normalizedArgs)
+      : function.api.schema
 
     let argsInstance: JSONValue = .object(OrderedDictionary(uniqueKeysWithValues: normalizedArgs))
-    let result = function.api.schema.validate(argsInstance)
+    let result = schema.validate(argsInstance)
     guard !result.isValid else { return }
     throw buildFunctionSchemaValidationError(name: name, result: result)
   }
@@ -633,27 +629,37 @@ public final class PayloadValidator: Sendable {
     return catalog.functions[name]
   }
 
-  private func validateRequiredKeysOnly(
-    name: String,
-    args: [String: JSONValue],
-    schemaJSON: JSONValue
-  ) throws {
-    guard let requiredKeys = schemaJSON["required"]?.arrayValue?.compactMap(\.stringValue) else {
-      return
+  private func schemaAllowingDynamicArgs(
+    baseSchema: Schema,
+    args: [String: JSONValue]
+  ) -> Schema {
+    guard var rawObj = baseSchema.jsonValue.objectValue,
+      var properties = rawObj["properties"]?.objectValue
+    else {
+      return baseSchema
     }
-    for reqKey in requiredKeys where args[reqKey] == nil {
-      let msg = "Missing required argument '\(reqKey)' for function '\(name)'"
-      throw A2UIValidationError(
-        msg,
-        details: [
-          A2UIErrorDetail(
-            path: "functions.\(name).\(reqKey)",
-            code: "missing_field",
-            message: msg
+    for (key, argValue) in args where properties[key] != nil {
+      switch argValue {
+      case .object where isDynamicExpression(argValue):
+        properties[key] = .object([:])
+      case .array(let items) where items.contains(where: { isDynamicExpression($0) }):
+        if var propObj = properties[key]?.objectValue, let itemSchema = propObj["items"] {
+          propObj["prefixItems"] = .array(
+            items.map { isDynamicExpression($0) ? .object([:]) : itemSchema }
           )
-        ]
-      )
+          propObj["items"] = .object([:])
+          properties[key] = .object(propObj)
+        }
+      default:
+        break
+      }
     }
+    rawObj["properties"] = .object(properties)
+    return
+      (try? Schema(
+        rawSchema: .object(rawObj),
+        context: A2UISchemaRegistry.makeContext()
+      )) ?? baseSchema
   }
 
   private func buildFunctionSchemaValidationError(
@@ -908,6 +914,11 @@ public final class PayloadValidator: Sendable {
           args: rawArgs,
           allowDynamicArgValues: true
         )
+        try validateNestedReturnType(
+          dict: dict,
+          rawName: rawName,
+          propertyPath: propertyPath
+        )
       } else {
         try assertFunctionIdentifiers(name: rawName, args: rawArgs)
       }
@@ -918,6 +929,35 @@ public final class PayloadValidator: Sendable {
         propertyPath: propertyPath
       )
     }
+  }
+
+  private func validateNestedReturnType(
+    dict: OrderedDictionary<String, JSONValue>,
+    rawName: String,
+    propertyPath: String
+  ) throws {
+    guard !enforceIdentifiers,
+      let rawReturnType = dict["returnType"],
+      let function = catalog.functions[rawName],
+      function.api.returnType != .any,
+      rawReturnType.stringValue != function.api.returnType.rawValue
+    else {
+      return
+    }
+    let msg =
+      "Function '\(rawName)' expected returnType '\(function.api.returnType.rawValue)', "
+      + "got '\(rawReturnType.stringValue ?? "unknown")'"
+    let detailPath = propertyPath.isEmpty ? "returnType" : "\(propertyPath)/returnType"
+    throw A2UIValidationError(
+      msg,
+      details: [
+        A2UIErrorDetail(
+          path: detailPath,
+          code: "invalid_value",
+          message: msg
+        )
+      ]
+    )
   }
 
   private func validateNestedSystemCall(

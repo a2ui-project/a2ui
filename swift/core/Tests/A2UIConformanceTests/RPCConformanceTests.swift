@@ -68,6 +68,7 @@ struct RPCConformanceTests {
 
   private static let knownFunctionMetaKeys: Set<String> = [
     "allowedCallers",
+    "catalogId",
     "parameters",
     "requiresUserActivation",
   ]
@@ -280,29 +281,45 @@ struct RPCConformanceTests {
   }
 
   private func buildRPCCatalogs(for testCase: ConformanceTestCase) -> [String: AnyCatalog] {
-    var functions: [any FunctionImplementation] = BasicFunctions.allFunctions
+    var sharedFunctions: [any FunctionImplementation] = BasicFunctions.allFunctions
+    var scopedFunctions: [String: [any FunctionImplementation]] = [:]
     if let metadata = testCase.args?["functionMetadata"]?.objectValue {
       for (fnName, metaVal) in metadata {
-        functions.append(makeMockRPCFunction(name: fnName, metadata: metaVal))
+        let mockFn = makeMockRPCFunction(name: fnName, metadata: metaVal)
+        if let fnCatID = metaVal["catalogId"]?.stringValue {
+          scopedFunctions[fnCatID, default: []].append(mockFn)
+        } else {
+          sharedFunctions.append(mockFn)
+        }
       }
     }
 
     var catalogs: [String: AnyCatalog] = [:]
     for id in ["basic", "media_catalog", "system_catalog", "store_catalog"] {
+      let extra = scopedFunctions.removeValue(forKey: id) ?? []
       catalogs[id] = Catalog<AnyComponentAPI>(
         id: id,
         protocolVersion: "1.0",
         components: [],
-        functions: functions
+        functions: sharedFunctions + extra
       ).eraseToAnyCatalog()
     }
     if let extraCatID = testCase.args?["catalogId"]?.stringValue {
       let extraCatVersion = testCase.args?["catalogVersion"]?.stringValue ?? "1.0"
+      let extra = scopedFunctions.removeValue(forKey: extraCatID) ?? []
       catalogs[extraCatID] = Catalog<AnyComponentAPI>(
         id: extraCatID,
         protocolVersion: extraCatVersion,
         components: [],
-        functions: functions
+        functions: sharedFunctions + extra
+      ).eraseToAnyCatalog()
+    }
+    for (scopedCatID, fns) in scopedFunctions {
+      catalogs[scopedCatID] = Catalog<AnyComponentAPI>(
+        id: scopedCatID,
+        protocolVersion: "1.0",
+        components: [],
+        functions: fns
       ).eraseToAnyCatalog()
     }
     return catalogs
@@ -327,7 +344,7 @@ struct RPCConformanceTests {
         allowedCallers: callers,
         requiresUserActivation: requiresUserActivation
       ) { _, _ in
-        throw A2UIValidationError("Runtime error")
+        throw A2UIValidationError("An error occurred during function execution.")
       }
     case "playMedia":
       return ConformanceMockRPCFunction(
@@ -359,6 +376,64 @@ struct RPCConformanceTests {
           ordered[key] = args[key]
         }
         return .object(ordered)
+      }
+    case "renderTemplate":
+      return ConformanceMockRPCFunction(
+        name: functionName,
+        schema: parameterSchema,
+        allowedCallers: callers,
+        requiresUserActivation: requiresUserActivation
+      ) { args, context in
+        try FormatStringFunction().evaluate(arguments: args, context: context)
+      }
+    case "tagValue":
+      return ConformanceMockRPCFunction(
+        name: functionName,
+        schema: parameterSchema,
+        allowedCallers: callers,
+        requiresUserActivation: requiresUserActivation
+      ) { args, _ in
+        guard let rawValue = args["value"] else {
+          throw FunctionError.executionFailed(
+            name: functionName,
+            message: "Missing required 'value' argument."
+          )
+        }
+        let rendered: String
+        switch rawValue {
+        case .string(let s):
+          rendered = s
+        case .integer(let i):
+          rendered = String(i)
+        case .number(let n):
+          rendered = Int(exactly: n).map(String.init) ?? String(n)
+        case .boolean(let b):
+          rendered = String(b)
+        default:
+          throw FunctionError.executionFailed(
+            name: functionName,
+            message: "Unsupported 'value' argument."
+          )
+        }
+        return .string("tagged:\(rendered)")
+      }
+    case "secretRendererOnly":
+      return ConformanceMockRPCFunction(
+        name: functionName,
+        schema: parameterSchema,
+        allowedCallers: callers,
+        requiresUserActivation: requiresUserActivation
+      ) { _, _ in
+        .string("SECRET")
+      }
+    case "agentSecret":
+      return ConformanceMockRPCFunction(
+        name: functionName,
+        schema: parameterSchema,
+        allowedCallers: callers,
+        requiresUserActivation: requiresUserActivation
+      ) { _, _ in
+        .string("AGENT_OK")
       }
     default:
       return ConformanceMockRPCFunction(

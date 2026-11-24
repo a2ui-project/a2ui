@@ -213,27 +213,28 @@ void main() {
       );
     });
 
-    test('is refused when an agentOnly function is nested in its '
+    test('is refused when a rendererOnly function is nested in its '
         'arguments', () {
       expect(
         () => validatePayload(catalogs, [
           call(
             'shared',
             args: {
-              'value': {'@call': 'secret'},
+              'value': {'@call': 'local'},
             },
           ),
         ]),
         refused(
-          "Function call 'secret' in function call 'f1' is a call the "
-          "renderer can't make: $agentOnly",
+          "Function call 'local' in function call 'f1' is a call the "
+          "agent can't make: Function 'local' cannot be called by agent "
+          '(allowedCallers is rendererOnly).',
         ),
       );
     });
 
-    test('accepts a rendererOrAgent or rendererOnly function nested in its '
+    test('accepts a rendererOrAgent or agentOnly function nested in its '
         'arguments', () {
-      for (final name in ['shared', 'local']) {
+      for (final name in ['shared', 'secret']) {
         validatePayload(catalogs, [
           call(
             'secret',
@@ -363,8 +364,9 @@ void main() {
 
   group('a call nested in the arguments of a callRendererFunction', () {
     // `greeter` declares `greet`, which `arcana` does not, and `tap`, which
-    // requires a user activation; `echo` takes any object.
-    final CatalogApi greeter = Catalog.fromJson({
+    // requires a user activation on an agent-callable function; `echo` takes
+    // any object.
+    final CatalogApi greeterBase = Catalog.fromJson({
       'catalogId': 'greeter',
       'protocolVersion': '1.0',
       'components': {
@@ -395,6 +397,26 @@ void main() {
         },
       },
     });
+    final FunctionApi tapSignature = greeterBase.functions['tap']!;
+    final CatalogApi greeter = Catalog(
+      id: greeterBase.id,
+      components: greeterBase.components.values.toList(),
+      functions: [
+        for (final FunctionApi fn in greeterBase.functions.values)
+          if (fn.name == 'tap')
+            FunctionApi(
+              name: tapSignature.name,
+              argumentSchema: tapSignature.argumentSchema,
+              returnType: tapSignature.returnType,
+              allowedCallers: AllowedCallers.rendererOrAgent,
+              requiresUserActivation: true,
+            )
+          else
+            fn,
+      ],
+      protocolVersion: greeterBase.protocolVersion,
+      definitions: greeterBase.definitions,
+    );
     final all = [arcana, greeter];
 
     AgentToRendererMessage surface(String surfaceId, {String? catalogId}) =>
@@ -513,13 +535,17 @@ void main() {
 
     test('is refused on an assumed surface if every declaring catalog '
         'refuses it', () {
+      validatePayload(all, [
+        callWith({'@call': 'secret'}, surfaceId: 'elsewhere'),
+      ]);
       expect(
         () => validatePayload(all, [
-          callWith({'@call': 'secret'}, surfaceId: 'elsewhere'),
+          callWith({'@call': 'local'}, surfaceId: 'elsewhere'),
         ]),
         refused(
-          "Function call 'secret' in function call 'f1' is a call the "
-          "renderer can't make: $agentOnly",
+          "Function call 'local' in function call 'f1' is a call the "
+          "agent can't make: Function 'local' cannot be called by agent "
+          '(allowedCallers is rendererOnly).',
         ),
       );
     });
@@ -576,7 +602,7 @@ void main() {
         ]),
         refused(
           "Function call 'tap' in function call 'f1' is a call the "
-          "renderer can't make: Function 'tap' requires a user activation, "
+          "agent can't make: Function 'tap' requires a user activation, "
           'and a call from the agent has none.',
         ),
       );
@@ -651,14 +677,20 @@ void main() {
           callWith(
             {
               '@call': {
-                'x': {'@call': 'secret'},
+                'x': {'@call': 'local', 'catalogId': arcana.id},
               },
             },
             catalogId: greeter.id,
             name: 'echo',
           ),
         ]),
-        throwsA(isA<A2uiValidationError>()),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('rendererOnly'),
+          ),
+        ),
       );
     });
   });

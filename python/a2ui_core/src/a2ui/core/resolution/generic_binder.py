@@ -21,6 +21,7 @@ from functools import cache
 from typing import Any, Callable, Final
 
 from ..common import Subscription
+from ..common.events import enqueue_or_run
 from ..schema._dynamic_types import (
     dynamic_literal_kinds,
     is_function_call_branch,
@@ -68,10 +69,11 @@ STRUCTURAL_REF_NAMES: Final[frozenset[str]] = frozenset({
 def _dynamic_ref_names() -> frozenset[str]:
     """Returns the defs that bind to dynamic values.
 
-    These are `DataBinding` plus every dynamic value def (e.g. `DynamicString`)
-    identified structurally in the generated common_types schemas.
+    These are `DataBinding` and `FunctionCall` plus every dynamic value def
+    (e.g. `DynamicString`) identified structurally in the generated
+    common_types schemas.
     """
-    return frozenset({"DataBinding"}) | get_all_dynamic_type_names()
+    return frozenset({"DataBinding", "FunctionCall"}) | get_all_dynamic_type_names()
 
 
 def _extract_ref_name(ref: str | None) -> str:
@@ -206,6 +208,8 @@ def _classify_all_of(
         and merged_shape["checks"].type == BehaviorType.CHECKABLE
     ):
         merged_shape.setdefault("@checks", BehaviorNode(BehaviorType.CHECKABLE))
+    if first_special is not None and first_special.type != BehaviorType.CHECKABLE:
+        return first_special
     if found_object or merged_shape:
         return BehaviorNode(BehaviorType.OBJECT, shape=merged_shape)
     return first_special
@@ -621,7 +625,7 @@ class GenericBinder:
             return value
         comp_id = template_obj.get("componentId")
         template_path = (
-            template_obj.get("@path")
+            template_obj.get("path")
             if self.context.data_context.at_least_v10
             else template_obj.get("path") or template_obj.get("dataBinding")
         )
@@ -888,6 +892,9 @@ class GenericBinder:
         return isinstance(condition.get("path"), str) and "call" not in condition
 
     def _notify(self) -> None:
+        enqueue_or_run(self._flush_notify)
+
+    def _flush_notify(self) -> None:
         for listener in list(self.listeners):
             try:
                 listener(self.current_props)

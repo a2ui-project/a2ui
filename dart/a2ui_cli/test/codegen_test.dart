@@ -51,9 +51,9 @@ void main() {
           entry.value,
         );
 
-        final catalogJson =
-            jsonDecode(File(catalogPath).readAsStringSync())
-                as Map<String, dynamic>;
+        final catalogJson = jsonDecode(
+          File(catalogPath).readAsStringSync(),
+        ) as Map<String, dynamic>;
         final catalog = CodegenCatalog.fromJson(catalogJson);
         final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(
           catalog,
@@ -61,9 +61,10 @@ void main() {
         final emitter = PythonEmitter(analysed);
         final String generated = emitter.generate().trim();
 
-        final String expected = File(
-          goldenPath,
-        ).readAsStringSync().replaceAll('\r\n', '\n').trim();
+        final String expected = File(goldenPath)
+            .readAsStringSync()
+            .replaceAll('\r\n', '\n')
+            .trim();
 
         expect(
           generated,
@@ -82,9 +83,9 @@ void main() {
           fixturesDir,
           'catalogs/functions.json',
         );
-        final catalogJson =
-            jsonDecode(File(catalogPath).readAsStringSync())
-                as Map<String, dynamic>;
+        final catalogJson = jsonDecode(
+          File(catalogPath).readAsStringSync(),
+        ) as Map<String, dynamic>;
         final catalog = CodegenCatalog.fromJson(catalogJson);
         final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(
           catalog,
@@ -116,9 +117,9 @@ void main() {
         fixturesDir,
         'catalogs/nested_types.json',
       );
-      final catalogJson =
-          jsonDecode(File(catalogPath).readAsStringSync())
-              as Map<String, dynamic>;
+      final catalogJson = jsonDecode(
+        File(catalogPath).readAsStringSync(),
+      ) as Map<String, dynamic>;
       final catalog = CodegenCatalog.fromJson(catalogJson);
       final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(catalog);
       final emitter = PythonEmitter(analysed);
@@ -140,9 +141,9 @@ void main() {
 
     test('supports custom base import and catalog name overrides', () {
       final String catalogPath = p.join(fixturesDir, 'catalogs/enums.json');
-      final catalogJson =
-          jsonDecode(File(catalogPath).readAsStringSync())
-              as Map<String, dynamic>;
+      final catalogJson = jsonDecode(
+        File(catalogPath).readAsStringSync(),
+      ) as Map<String, dynamic>;
       final catalog = CodegenCatalog.fromJson(catalogJson);
       final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(catalog);
       final emitter = PythonEmitter(
@@ -164,11 +165,11 @@ void main() {
       () {
         final String catalogPath = p.join(
           repoRoot,
-          'specification/v0_9_1/catalogs/basic/catalog.json',
+          'catalogs/basic/v0_9_1/catalog.json',
         );
-        final catalogJson =
-            jsonDecode(File(catalogPath).readAsStringSync())
-                as Map<String, dynamic>;
+        final catalogJson = jsonDecode(
+          File(catalogPath).readAsStringSync(),
+        ) as Map<String, dynamic>;
         final catalog = CodegenCatalog.fromJson(catalogJson);
         final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(
           catalog,
@@ -240,7 +241,7 @@ void main() {
               'Generated basic catalog output must match checked-in Python '
               'agent SDK file byte-for-byte. Regenerate with:\n'
               'dart run dart/a2ui_cli/bin/a2ui.dart codegen '
-              '--catalog specification/v0_9_1/catalogs/basic/catalog.json '
+              '--catalog catalogs/basic/v0_9_1/catalog.json '
               '--out python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/basic.py',
         );
       },
@@ -251,9 +252,9 @@ void main() {
         repoRoot,
         'catalogs/basic/v1/catalog.json',
       );
-      final catalogJson =
-          jsonDecode(File(catalogPath).readAsStringSync())
-              as Map<String, dynamic>;
+      final catalogJson = jsonDecode(
+        File(catalogPath).readAsStringSync(),
+      ) as Map<String, dynamic>;
       final catalog = CodegenCatalog.fromJson(catalogJson);
       final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(catalog);
       final emitter = PythonEmitter(analysed);

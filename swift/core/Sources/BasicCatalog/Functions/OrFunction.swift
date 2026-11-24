@@ -30,7 +30,8 @@ public final class OrFunction: FunctionImplementation, Sendable {
               "minItems": 2
             }
           },
-          "required": ["values"]
+          "required": ["values"],
+          "additionalProperties": false
         }
         """
     )

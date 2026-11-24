@@ -190,8 +190,8 @@ final class MutableComponentNode<T extends ComponentApi>
     this.impl,
     this.state = NodeState.resolved,
     ReadonlySignal<Map<String, Object?>?>? metadata,
-  ])  : _props = signal(initialProps),
-        metadata = metadata ?? signal<Map<String, Object?>?>(null);
+  ]) : _props = signal(initialProps),
+       metadata = metadata ?? signal<Map<String, Object?>?>(null);
 
   @override
   bool get disposed => _disposed;

@@ -16,7 +16,7 @@ name: a2ui_agent_e2e_test
 publish_to: "none"
 
 environment:
-  sdk: ">=3.10.0 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
 
 resolution: workspace
 
