@@ -160,7 +160,6 @@ class PackageSpec:
     changelog: str
     tag: str
     bootstrap_since: str | None = None
-    bootstrap_version: str | None = None
     breaking_prefix: str = "**BREAKING CHANGE**: "
     internal_deps: tuple[str, ...] = ()
     pre_1_0_feature_bump: str = "minor"
@@ -233,7 +232,6 @@ def _manifest_entry(raw: dict) -> PackageSpec:
         changelog=raw["changelog"],
         tag=raw["tag"],
         bootstrap_since=raw.get("bootstrap_since"),
-        bootstrap_version=raw.get("bootstrap_version"),
         breaking_prefix=raw.get("breaking_prefix", "**BREAKING CHANGE**: "),
         internal_deps=tuple(raw.get("internal_deps", ())),
         pre_1_0_feature_bump=feature_bump,
@@ -807,7 +805,7 @@ def _current_version(spec: PackageSpec, changelog: str, git: Git) -> str:
     newest = newest_heading(changelog) if changelog else None
     if newest:
         return newest
-    return spec.bootstrap_version or "0.0.0"
+    return "0.0.0"
 
 
 def _read_git_file(git: Git, ref: str, path: str) -> str:

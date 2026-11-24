@@ -9,7 +9,6 @@
       "exclude": ["python/a2ui_core/tests/", "**/*.md"],
       "changelog": "python/a2ui_core/CHANGELOG.md",
       "tag": "python/a2ui-core/v{version}",
-      "bootstrap_version": "0.1.1",
       "internal_deps": [],
       "pre_1_0_feature_bump": "minor",
       "auto_tag": true
@@ -22,7 +21,6 @@
       "exclude": ["python/a2ui_agent/tests/", "**/*.md"],
       "changelog": "python/a2ui_agent/CHANGELOG.md",
       "tag": "python/a2ui-agent-sdk/v{version}",
-      "bootstrap_version": "0.6.0",
       "internal_deps": ["a2ui-core"],
       "pre_1_0_feature_bump": "minor",
       "auto_tag": true
@@ -35,7 +33,6 @@
       "exclude": ["python/a2ui_a2a/tests/", "**/*.md"],
       "changelog": "python/a2ui_a2a/CHANGELOG.md",
       "tag": "python/a2ui-a2a/v{version}",
-      "bootstrap_version": "0.0.0",
       "internal_deps": ["a2ui-agent-sdk"],
       "pre_1_0_feature_bump": "minor",
       "auto_tag": true
@@ -48,7 +45,6 @@
       "exclude": ["python/a2ui_adk/tests/", "**/*.md"],
       "changelog": "python/a2ui_adk/CHANGELOG.md",
       "tag": "python/a2ui-adk/v{version}",
-      "bootstrap_version": "0.0.0",
       "internal_deps": ["a2ui-a2a", "a2ui-agent-sdk"],
       "pre_1_0_feature_bump": "minor",
       "auto_tag": true
