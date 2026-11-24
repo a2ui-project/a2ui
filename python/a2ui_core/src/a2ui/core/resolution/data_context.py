@@ -53,6 +53,9 @@ class MissingDataBindingWarning(UserWarning):
     pass
 
 
+MAX_DYNAMIC_VALUE_DEPTH = 1000
+
+
 # Validates the arguments of a call to a function the resolved catalog does not
 # declare, which is routed to the agent: their shape and identifiers are
 # checked, but the function itself is not looked up.
@@ -816,30 +819,97 @@ class DataContext:
                     return res
                 return self._peek_value(res)
 
-        # 3. Recurse into lists/arrays
-        if isinstance(value, list):
-            return [
-                self._resolve_value(item, peek, abort_signal, keep_failed=keep_failed)
-                for item in value
-            ]
-
-        # 4. Recurse into normal objects/dictionaries (with v1.0 escaping and validation)
-        if isinstance(value, dict):
-            if at_least_v10:
-                validate_reserved_directives(value.keys(), proto_ver or "1.0")
-                return {
-                    unescape_object_key(k): self._resolve_value(
-                        v, peek, abort_signal, keep_failed=keep_failed
-                    )
-                    for k, v in value.items()
-                }
-            return {
-                k: self._resolve_value(v, peek, abort_signal, keep_failed=keep_failed)
-                for k, v in value.items()
-            }
+        # 3 & 4. Traverse lists and plain objects iteratively so deeply nested
+        # literal containers stay within Python's call stack up to
+        # MAX_DYNAMIC_VALUE_DEPTH.
+        if isinstance(value, (list, dict)):
+            return self._resolve_container_iterative(
+                value,
+                peek,
+                abort_signal,
+                keep_failed=keep_failed,
+                at_least_v10=at_least_v10,
+                proto_ver=proto_ver,
+            )
 
         # 5. Return static literals directly
         return value
+
+    @staticmethod
+    def _is_dynamic_binding_or_call(value: Any, at_least_v10: bool) -> bool:
+        if not isinstance(value, dict):
+            return False
+        if "componentId" not in value:
+            has_path = (
+                ("@path" in value and isinstance(value["@path"], str))
+                if at_least_v10
+                else ("path" in value and isinstance(value["path"], str))
+            )
+            if has_path:
+                return True
+        return (
+            ("@call" in value and isinstance(value["@call"], str))
+            if at_least_v10
+            else ("call" in value and isinstance(value["call"], str))
+        )
+
+    def _resolve_container_iterative(
+        self,
+        root: list[Any] | dict[str, Any],
+        peek: bool,
+        abort_signal: AbortSignal | None,
+        *,
+        keep_failed: bool,
+        at_least_v10: bool,
+        proto_ver: str | None,
+    ) -> Any:
+        def _prepare(container: list[Any] | dict[str, Any]) -> tuple[bool, Any, Any]:
+            if isinstance(container, dict):
+                if at_least_v10:
+                    validate_reserved_directives(container.keys(), proto_ver or "1.0")
+                return (True, iter(container.items()), {})
+            return (False, iter(container), [])
+
+        is_dict, it, result = _prepare(root)
+        stack: list[tuple[bool, Any, Any, int]] = [(is_dict, it, result, 0)]
+        while stack:
+            cur_is_dict, cur_it, cur_out, cur_depth = stack[-1]
+            try:
+                nxt = next(cur_it)
+            except StopIteration:
+                stack.pop()
+                continue
+            if cur_is_dict:
+                raw_k, child = nxt
+                out_k = unescape_object_key(raw_k) if at_least_v10 else raw_k
+            else:
+                out_k = None
+                child = nxt
+
+            if isinstance(child, (list, dict)) and not self._is_dynamic_binding_or_call(
+                child, at_least_v10
+            ):
+                child_depth = cur_depth + 1
+                if child_depth > MAX_DYNAMIC_VALUE_DEPTH:
+                    raise A2uiExpressionError(
+                        "Maximum dynamic value nesting depth exceeded"
+                        f" ({MAX_DYNAMIC_VALUE_DEPTH})."
+                    )
+                c_is_dict, c_it, c_out = _prepare(child)
+                if cur_is_dict:
+                    cur_out[out_k] = c_out
+                else:
+                    cur_out.append(c_out)
+                stack.append((c_is_dict, c_it, c_out, child_depth))
+            else:
+                resolved = self._resolve_value(
+                    child, peek, abort_signal, keep_failed=keep_failed
+                )
+                if cur_is_dict:
+                    cur_out[out_k] = resolved
+                else:
+                    cur_out.append(resolved)
+        return result
 
     def _resolve_action_values(
         self, items: list[Any], labels: list[str]
@@ -1395,6 +1465,14 @@ class DataContext:
                     else None
                 )
                 self._check_caller_boundary(fn, name, self._is_agent_caller)
+                if fn is not None:
+                    self._check_action_user_activation(
+                        fn,
+                        name,
+                        in_action,
+                        self._is_agent_caller,
+                        effective_user_activated,
+                    )
                 if self._agent_disabled and self._routes_to_agent(fn):
                     raise A2uiExpressionError(
                         f"Function '{name}' is not implemented by the renderer."
@@ -1427,16 +1505,6 @@ class DataContext:
                         f"Function '{name}' not found in {catalog_desc}."
                     )
 
-            # An event action's context and user message are imperative too,
-            # so a function in them needs the action's user activation. A
-            # refusal is not an execution failure.
-            self._check_action_user_activation(
-                fn,
-                name,
-                in_action,
-                self._is_agent_caller,
-                effective_user_activated,
-            )
             in_body = True
             local_fn = fn
             local_catalog = target_catalog

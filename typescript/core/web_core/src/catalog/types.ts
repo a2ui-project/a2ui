@@ -1316,11 +1316,23 @@ function routeToAgent(
 }
 
 /**
+ * Package-internal helper that enforces `allowedCallers` and
+ * `requiresUserActivation` for a catalog function before argument validation
+ * or evaluation.
+ *
+ * @internal
+ */
+export function assertFunctionPermissions(fn: FunctionApi, ctx: DataContext | undefined): void {
+  assertCallerBoundary(fn, ctx);
+  assertUserActivation(fn, ctx);
+}
+
+/**
  * Enforces `allowedCallers` against the active caller (`agent` when `ctx` was
  * initiated by `callRendererFunction`, `renderer` otherwise).
  */
 function assertCallerBoundary(fn: FunctionApi, ctx: DataContext | undefined): void {
-  if (fn.name.startsWith('@')) return;
+  if (fn.name?.startsWith('@')) return;
   const boundary = fn.allowedCallers ?? 'rendererOnly';
   if (ctx instanceof DataContext && isAgentCaller(ctx)) {
     if (boundary !== 'rendererOrAgent' && boundary !== 'agentOnly') {

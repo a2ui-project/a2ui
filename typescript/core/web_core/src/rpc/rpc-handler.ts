@@ -649,14 +649,13 @@ export class RpcHandler {
     }
     const stack: Array<{value: unknown; depth: number}> = Object.values(args)
       .reverse()
-      .map(value => ({value, depth: 1}));
+      .map(value => ({value, depth: 0}));
+    let exceededMaxDepth = false;
     while (stack.length > 0) {
       const {value, depth} = stack.pop()!;
       if (depth > MAX_DYNAMIC_VALUE_DEPTH) {
-        return {
-          code: RpcErrorCode.EXECUTION_ERROR,
-          message: `Maximum dynamic value nesting depth exceeded (${MAX_DYNAMIC_VALUE_DEPTH})`,
-        };
+        exceededMaxDepth = true;
+        continue;
       }
       const step = this.inspectNestedNode(value, context, activeCatalog, isUserActivated);
       if (step.error) {
@@ -665,6 +664,12 @@ export class RpcHandler {
       for (let i = step.children.length - 1; i >= 0; i--) {
         stack.push({value: step.children[i], depth: depth + 1});
       }
+    }
+    if (exceededMaxDepth) {
+      return {
+        code: RpcErrorCode.EXECUTION_ERROR,
+        message: `Maximum dynamic value nesting depth exceeded (${MAX_DYNAMIC_VALUE_DEPTH})`,
+      };
     }
     return null;
   }

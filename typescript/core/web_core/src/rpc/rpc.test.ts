@@ -1314,5 +1314,113 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     sub.unsubscribe();
     assert.strictEqual(surfaceErrors.length, 1);
     assert.strictEqual(surfaceErrors[0].details, undefined);
+
+    // 6. Forbidden `${...}` call with an unknown argument key returns
+    // `INVALID_FUNCTION_CALL` instead of being swallowed as `""`, and nested
+    // side-effecting arguments do not execute before the boundary check.
+    const bogusArgRes = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-tpl-bogus-arg',
+          surfaceId: 's-nested-boundary',
+          callFunction: {
+            '@call': 'renderTpl',
+            catalogId: catId,
+            args: {value: 'Leak: ${secretRendererOnly(bogus: 1)}'},
+          },
+        },
+      },
+      ctx,
+    );
+    assert.strictEqual(
+      bogusArgRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
+
+    const eagerArgRes = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-tpl-eager-arg',
+          surfaceId: 's-nested-boundary',
+          callFunction: {
+            '@call': 'renderTpl',
+            catalogId: catId,
+            args: {value: '${secretRendererOnly(label: mutatingAllowed())}'},
+          },
+        },
+      },
+      ctx,
+    );
+    assert.strictEqual(
+      eagerArgRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
+    assert.deepStrictEqual(sideEffects, []);
+
+    // 7. Over-deep branch alongside a shallow forbidden sibling still returns
+    // `INVALID_FUNCTION_CALL` deterministically.
+    const mixedDepthRes = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-depth-and-forbidden',
+          surfaceId: 's-nested-boundary',
+          callFunction: {
+            '@call': 'echoAll',
+            catalogId: catId,
+            args: {
+              first: overDeep,
+              second: {'@call': 'secretRendererOnly', catalogId: catId, args: {}},
+            },
+          },
+        },
+      },
+      ctx,
+    );
+    assert.strictEqual(
+      mixedDepthRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
+    assert.deepStrictEqual(sideEffects, []);
+
+    // 8. `resolveImmediateFunctionSignal` chains `prevUnsubscribe` when a
+    // zero-arg function returns a `Signal` with its own cleanup callback.
+    let innerUnsubscribed = false;
+    const signalReturningFn = createFunctionImplementation(
+      {
+        name: 'signalReturningFn',
+        returnType: 'string' as const,
+        schema: z.object({}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
+      () => {
+        const inner = signal('hello');
+        inner.unsubscribe = () => {
+          innerUnsubscribed = true;
+        };
+        return inner;
+      },
+    );
+    const sigCat = new Catalog('sig-cat', '1.0', [], [signalReturningFn]);
+    const sigSurface = new SurfaceModel(
+      's-sig',
+      sigCat,
+      new Map([['sig-cat', sigCat]]),
+      undefined,
+      false,
+      new DataModel({}),
+      '1.0',
+    );
+    const sigCtx = new DataContext(sigSurface, '/');
+    const resolvedSig = sigCtx.resolveSignal<string>({
+      '@call': 'signalReturningFn',
+      catalogId: 'sig-cat',
+      args: {},
+    });
+    assert.strictEqual(peekValue(resolvedSig), 'hello');
+    resolvedSig.unsubscribe?.();
+    assert.strictEqual(innerUnsubscribed, true);
   });
 });

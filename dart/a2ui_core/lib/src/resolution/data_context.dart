@@ -128,6 +128,11 @@ class DataContext {
   /// Whether this context evaluates an agent-initiated `callRendererFunction`.
   final bool _isAgentCall;
 
+  /// Optional package-internal precheck run before evaluating nested `@call`
+  /// arguments in agent-initiated contexts.
+  final void Function(String name, String? catalogId, DataContext context)?
+  _precheckFunction;
+
   /// With [_onError], failed invocations are reported and resolve to null.
   /// Without it, the original exception is rethrown.
   ///
@@ -166,6 +171,7 @@ class DataContext {
     this._callAgentFunction,
   }) : _invoke = invoke,
        _isAgentCall = parent?._isAgentCall ?? false,
+       _precheckFunction = parent?._precheckFunction,
        _explicitIndex = index,
        _callCatalogId = parent?._callCatalogId,
        _callCatalogInvoker = parent?._callCatalogInvoker,
@@ -184,6 +190,8 @@ class DataContext {
     required this._invokerForCatalog,
     required this.isUserActivated,
     required this._isAgentCall,
+    void Function(String name, String? catalogId, DataContext context)?
+    precheckFunction,
     required this._callAgentFunction,
     required this._agentCalls,
     this.parent,
@@ -192,7 +200,8 @@ class DataContext {
     FunctionInvoker? callCatalogInvoker,
     MissingDataReporter? onMissingData,
     Set<String>? warnedPaths,
-  }) : _explicitIndex = index,
+  }) : _precheckFunction = precheckFunction ?? parent?._precheckFunction,
+       _explicitIndex = index,
        _callCatalogId = identical(callCatalogId, _inheritCallCatalog)
            ? parent?._callCatalogId
            : callCatalogId,
@@ -410,6 +419,13 @@ class DataContext {
           return keepFailed ? _failedArg : null;
         }
         final call = FunctionCall.fromJson(_asStringKeyedMap(value));
+        if (_isAgentCall && !call.call.startsWith('@')) {
+          _precheckFunction?.call(
+            call.call,
+            call.catalogId ?? _activeCallCatalogId,
+            this,
+          );
+        }
         final args = <String, dynamic>{};
         for (final MapEntry<String, dynamic> entry in call.args.entries) {
           args[entry.key] = _resolveDynamicValue(
@@ -549,6 +565,13 @@ class DataContext {
         String? lastAgentKey;
         _AgentCall? lastAgentCall;
         return computed(() {
+          if (_isAgentCall && !call.call.startsWith('@')) {
+            _precheckFunction?.call(
+              call.call,
+              call.catalogId ?? _activeCallCatalogId,
+              this,
+            );
+          }
           final args = <String, dynamic>{
             for (final MapEntry<String, ReadonlySignal<Object?>> entry
                 in argSignals.entries)
@@ -603,6 +626,13 @@ class DataContext {
             entry.key: _resolveSignal(entry.value, depth + 1),
         };
         return computed(() {
+          if (_isAgentCall && !call.call.startsWith('@')) {
+            _precheckFunction?.call(
+              call.call,
+              call.catalogId ?? _activeCallCatalogId,
+              this,
+            );
+          }
           final args = <String, dynamic>{
             for (final MapEntry<String, ReadonlySignal<Object?>> entry
                 in argSignals.entries)
@@ -746,6 +776,7 @@ class DataContext {
         return _agentCallValue(entry, keepFailed: keepFailed);
       }
     } catch (error) {
+      if (_isAgentCall && isInvalidFunctionCallError(error)) rethrow;
       if (_onError == null) rethrow;
       _report(error, call.call);
       return keepFailed ? _failedArg : null;
@@ -1564,6 +1595,7 @@ class DataContext {
     invokerForCatalog: _invokerForCatalog,
     isUserActivated: true,
     isAgentCall: _isAgentCall,
+    precheckFunction: _precheckFunction,
     callAgentFunction: _callAgentFunction,
     agentCalls: _agentCalls,
     parent: parent,
@@ -1586,6 +1618,7 @@ class DataContext {
     invokerForCatalog: _invokerForCatalog,
     isUserActivated: isUserActivated,
     isAgentCall: _isAgentCall,
+    precheckFunction: _precheckFunction,
     callAgentFunction: _callAgentFunction,
     agentCalls: _agentCalls,
     parent: parent,
@@ -1976,6 +2009,7 @@ DataContext dataContextWithoutAgentCalls(DataContext context) =>
       invokerForCatalog: context._invokerForCatalog,
       isUserActivated: context.isUserActivated,
       isAgentCall: context._isAgentCall,
+      precheckFunction: context._precheckFunction,
       callAgentFunction: null,
       agentCalls: _AgentCallCache(),
       parent: context.parent,
@@ -1989,25 +2023,29 @@ DataContext dataContextWithoutAgentCalls(DataContext context) =>
 /// Package-internal: [context] marked as an agent-initiated
 /// `callRendererFunction` evaluation so nested `@call` and `${...}` expressions
 /// enforce the agent caller boundary.
-DataContext dataContextForAgentCall(DataContext context) =>
-    DataContext._derived(
-      context.dataModel,
-      context._invoke,
-      context.path,
-      onError: context._onError,
-      protocolVersion: context.protocolVersion,
-      invokerForCatalog: context._invokerForCatalog,
-      isUserActivated: context.isUserActivated,
-      isAgentCall: true,
-      callAgentFunction: context._callAgentFunction,
-      agentCalls: context._agentCalls,
-      parent: context.parent,
-      index: context._explicitIndex,
-      callCatalogId: context._callCatalogId,
-      callCatalogInvoker: context._callCatalogInvoker,
-      onMissingData: context._onMissingData,
-      warnedPaths: context._warnedPaths,
-    );
+DataContext dataContextForAgentCall(
+  DataContext context, {
+  void Function(String name, String? catalogId, DataContext context)?
+  precheckFunction,
+}) => DataContext._derived(
+  context.dataModel,
+  context._invoke,
+  context.path,
+  onError: context._onError,
+  protocolVersion: context.protocolVersion,
+  invokerForCatalog: context._invokerForCatalog,
+  isUserActivated: context.isUserActivated,
+  isAgentCall: true,
+  precheckFunction: precheckFunction ?? context._precheckFunction,
+  callAgentFunction: context._callAgentFunction,
+  agentCalls: context._agentCalls,
+  parent: context.parent,
+  index: context._explicitIndex,
+  callCatalogId: context._callCatalogId,
+  callCatalogInvoker: context._callCatalogInvoker,
+  onMissingData: context._onMissingData,
+  warnedPaths: context._warnedPaths,
+);
 
 const Map<String, bool> _invalidFunctionCallDetail = {
   'invalidFunctionCall': true,
@@ -2095,6 +2133,40 @@ A2uiWarning missingDataBindingWarning(String path) => A2uiWarning(
 final Expando<Map<FunctionImplementation, Map<String, Object?>>>
 _resolvedArgumentSchemas = Expando();
 
+/// Package-internal: enforces `allowedCallers` and `requiresUserActivation`
+/// for [fn] against [context].
+void assertCatalogFunctionPermissions(
+  FunctionImplementation fn,
+  String name,
+  DataContext context,
+) {
+  if (!name.startsWith('@')) {
+    if (context._isAgentCall) {
+      if (fn.allowedCallers == AllowedCallers.rendererOnly) {
+        throw A2uiExpressionError(
+          "Function '$name' cannot be called by agent (allowedCallers is "
+          'rendererOnly).',
+          expression: name,
+          details: _invalidFunctionCallDetail,
+        );
+      }
+    } else if (fn.allowedCallers == AllowedCallers.agentOnly) {
+      throw A2uiExpressionError(
+        "Function '$name' cannot be called by renderer (allowedCallers is "
+        'agentOnly).',
+        expression: name,
+      );
+    }
+  }
+  if (fn.requiresUserActivation && !context.isUserActivated) {
+    throw A2uiExpressionError(
+      "Function '$name' requires user activation context to execute.",
+      expression: name,
+      details: context._isAgentCall ? _invalidFunctionCallDetail : null,
+    );
+  }
+}
+
 extension CatalogInvokerExtension
     on Catalog<ComponentApi, FunctionImplementation> {
   /// Invokes a catalog function by name with the given arguments.
@@ -2123,31 +2195,7 @@ extension CatalogInvokerExtension
         functionName: name,
       );
     }
-    if (!name.startsWith('@')) {
-      if (context._isAgentCall) {
-        if (fn.allowedCallers == AllowedCallers.rendererOnly) {
-          throw A2uiExpressionError(
-            "Function '$name' cannot be called by agent (allowedCallers is "
-            'rendererOnly).',
-            expression: name,
-            details: _invalidFunctionCallDetail,
-          );
-        }
-      } else if (fn.allowedCallers == AllowedCallers.agentOnly) {
-        throw A2uiExpressionError(
-          "Function '$name' cannot be called by renderer (allowedCallers is "
-          'agentOnly).',
-          expression: name,
-        );
-      }
-    }
-    if (fn.requiresUserActivation && !context.isUserActivated) {
-      throw A2uiExpressionError(
-        "Function '$name' requires user activation context to execute.",
-        expression: name,
-        details: context._isAgentCall ? _invalidFunctionCallDetail : null,
-      );
-    }
+    assertCatalogFunctionPermissions(fn, name, context);
     final Map<String, dynamic> callArgs = coerceValidationResultArgs(
       fn.argumentSchema.value,
       args,

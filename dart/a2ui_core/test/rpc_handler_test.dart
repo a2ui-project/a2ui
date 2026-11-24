@@ -1262,6 +1262,79 @@ void main() {
           ),
         ),
       );
+
+      // 6. Mixed-error template prioritizes `INVALID_FUNCTION_CALL` over an
+      // earlier unknown-function error, and nested side-effecting args do not
+      // run before the forbidden call is rejected.
+      final RendererFunctionResponseMessage mixedTplRes = await h
+          .handleCallRendererFunction(
+            CallRendererFunctionMessage(
+              version: '1.0',
+              functionCallId: 'nested-mixed-tpl',
+              surfaceId: 's-boundary',
+              callFunction: {
+                '@call': 'renderTpl',
+                'catalogId': 'boundary-cat',
+                'args': {'value': r'${noSuchFn()}${secretRendererOnly()}'},
+              },
+            ),
+            surface: boundarySurface,
+          );
+      expect(
+        mixedTplRes.response.error?.code,
+        RpcErrorCode.invalidFunctionCall.wireValue,
+      );
+
+      final RendererFunctionResponseMessage eagerArgRes = await h
+          .handleCallRendererFunction(
+            CallRendererFunctionMessage(
+              version: '1.0',
+              functionCallId: 'nested-eager-arg',
+              surfaceId: 's-boundary',
+              callFunction: {
+                '@call': 'renderTpl',
+                'catalogId': 'boundary-cat',
+                'args': {
+                  'value': r'${secretRendererOnly(label: mutatingAllowed())}',
+                },
+              },
+            ),
+            surface: boundarySurface,
+          );
+      expect(
+        eagerArgRes.response.error?.code,
+        RpcErrorCode.invalidFunctionCall.wireValue,
+      );
+      expect(sideEffects, isEmpty);
+
+      // 7. Over-deep sibling alongside a shallow forbidden call still returns
+      // `INVALID_FUNCTION_CALL` deterministically.
+      final RendererFunctionResponseMessage mixedDepthRes = await h
+          .handleCallRendererFunction(
+            CallRendererFunctionMessage(
+              version: '1.0',
+              functionCallId: 'nested-depth-and-forbidden',
+              surfaceId: 's-boundary',
+              callFunction: {
+                '@call': 'echoAll',
+                'catalogId': 'boundary-cat',
+                'args': {
+                  'first': overDeep,
+                  'second': {
+                    '@call': 'secretRendererOnly',
+                    'catalogId': 'boundary-cat',
+                    'args': <String, Object?>{},
+                  },
+                },
+              },
+            ),
+            surface: boundarySurface,
+          );
+      expect(
+        mixedDepthRes.response.error?.code,
+        RpcErrorCode.invalidFunctionCall.wireValue,
+      );
+      expect(sideEffects, isEmpty);
     });
   });
 }

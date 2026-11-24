@@ -200,6 +200,9 @@ public final class RPCHandler {
     var resolvedArgs: [String: JSONValue] = [:]
     for (key, val) in rawArgs {
       resolvedArgs[key] = argResolutionContext.resolveDynamicValue(val)
+      if argHandler.capturedInvalidFunctionCallError != nil {
+        break
+      }
     }
 
     if let capturedError = argHandler.capturedInvalidFunctionCallError ?? argHandler.capturedError {
@@ -304,18 +307,19 @@ public final class RPCHandler {
     return nil
   }
 
+  private static let maxDynamicValueDepth = 1000
+
   private static func checkNestedArgumentPermissions(
     in rawArgs: [String: JSONValue],
     handler: RPCArgumentFunctionHandler,
     userActivationPresent: Bool
   ) -> FunctionErrorPayload? {
     var stack: [(value: JSONValue, depth: Int)] = rawArgs.values.reversed().map { ($0, 0) }
+    var exceededMaxDepth = false
     while let entry = stack.popLast() {
-      if entry.depth > 1000 {
-        return FunctionErrorPayload(
-          code: .executionError,
-          message: "Maximum dynamic value nesting depth exceeded (1000)."
-        )
+      if entry.depth > maxDynamicValueDepth {
+        exceededMaxDepth = true
+        continue
       }
       let step = inspectNestedNode(
         entry.value,
@@ -328,6 +332,12 @@ public final class RPCHandler {
       for child in step.children.reversed() {
         stack.append((value: child, depth: entry.depth + 1))
       }
+    }
+    if exceededMaxDepth {
+      return FunctionErrorPayload(
+        code: .executionError,
+        message: "Maximum dynamic value nesting depth exceeded (\(maxDynamicValueDepth))."
+      )
     }
     return nil
   }

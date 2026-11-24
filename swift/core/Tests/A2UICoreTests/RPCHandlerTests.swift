@@ -686,6 +686,28 @@ struct RPCHandlerTests {
     }
   }
 
+  private final class TriggerBoundaryViolationFunction: FunctionImplementation, @unchecked Sendable
+  {
+    let api: FunctionAPI
+    let targetCall: JSONValue
+    var invocations = 0
+
+    init(name: String, targetCall: JSONValue) throws {
+      self.api = FunctionAPI(
+        name: name,
+        returnType: .string,
+        schema: try Schema(instance: #"{"type": "object"}"#),
+        allowedCallers: .rendererOrAgent
+      )
+      self.targetCall = targetCall
+    }
+
+    func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+      invocations += 1
+      return context.resolveDynamicValue(targetCall)
+    }
+  }
+
   @Test func incomingCallRejectsNestedRendererOnlyBeforeSiblingRunsAndAllowsAgentOnly()
     async throws
   {
@@ -856,6 +878,70 @@ struct RPCHandlerTests {
     )
     #expect(overDeepResponse.error?.code == "EXECUTION_ERROR")
     #expect(mutatingFn.invocations == 0)
+
+    let mixedDepthResponse = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "nested-depth-and-forbidden",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "nested-cat",
+          args: [
+            "first": overDeep,
+            "message": .object([
+              "@call": .string("secretRendererOnly"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ]),
+          ]
+        ),
+        version: .v10
+      ),
+      catalogs: [catalog.id: catalog]
+    )
+    #expect(mixedDepthResponse.error?.code == "INVALID_FUNCTION_CALL")
+    #expect(mutatingFn.invocations == 0)
+
+    // Early break stops evaluating remaining sibling arguments once a runtime
+    // boundary violation is captured during argument resolution.
+    let triggerFn = try TriggerBoundaryViolationFunction(
+      name: "triggerForbidden",
+      targetCall: .object([
+        "@call": .string("secretRendererOnly"),
+        "catalogId": .string("nested-cat"),
+        "args": .object([:]),
+      ])
+    )
+    let breakCatalog = Catalog(
+      id: "nested-cat",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [MockEchoFunction(), secretFn, triggerFn]
+    ).eraseToAnyCatalog()
+    let breakResponse = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "nested-early-break",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "nested-cat",
+          args: [
+            "a": .object([
+              "@call": .string("triggerForbidden"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ]),
+            "b": .object([
+              "@call": .string("triggerForbidden"),
+              "catalogId": .string("nested-cat"),
+              "args": .object([:]),
+            ]),
+          ]
+        ),
+        version: .v10
+      ),
+      catalogs: [breakCatalog.id: breakCatalog]
+    )
+    #expect(breakResponse.error?.code == "INVALID_FUNCTION_CALL")
+    #expect(triggerFn.invocations == 1)
   }
 }
 

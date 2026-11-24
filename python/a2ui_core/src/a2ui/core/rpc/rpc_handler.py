@@ -25,7 +25,7 @@ from ..catalog import CatalogApi
 from ..common.event_loop import get_or_create_event_loop
 from ..exceptions import A2uiRpcError, RpcErrorCode
 from ..processing.adapters import is_catalog_version_compatible
-from ..resolution.data_context import DataContext
+from ..resolution.data_context import MAX_DYNAMIC_VALUE_DEPTH, DataContext
 from ..schema.v1_0 import (
     CallAgentFunction,
     CallAgentFunctionMessage,
@@ -434,12 +434,13 @@ class RpcHandler:
         context: DataContext | None,
         active_catalog: Any,
     ) -> Any:
-        raw_cat_id = call_obj.get("catalogId")
-        if (
-            "catalogId" in call_obj
-            and raw_cat_id is not None
-            and not isinstance(raw_cat_id, str)
-        ):
+        has_cat_key = "catalogId" in call_obj or "catalog_id" in call_obj
+        raw_cat_id = (
+            call_obj["catalogId"]
+            if "catalogId" in call_obj
+            else call_obj.get("catalog_id")
+        )
+        if has_cat_key and raw_cat_id is not None and not isinstance(raw_cat_id, str):
             return None
         surface = getattr(context, "surface", None)
         if isinstance(raw_cat_id, str):
@@ -466,15 +467,14 @@ class RpcHandler:
         if not isinstance(args, dict):
             return None
         stack: list[tuple[Any, int]] = [
-            (child, 1) for child in reversed(list(args.values()))
+            (child, 0) for child in reversed(list(args.values()))
         ]
+        exceeded_max_depth = False
         while stack:
             current, depth = stack.pop()
-            if depth > 1000:
-                return (
-                    RpcErrorCode.EXECUTION_ERROR,
-                    "Maximum dynamic value nesting depth exceeded (1000).",
-                )
+            if depth > MAX_DYNAMIC_VALUE_DEPTH:
+                exceeded_max_depth = True
+                continue
             err, children = self._inspect_nested_node(
                 current, context, active_catalog, is_user_activated
             )
@@ -482,6 +482,14 @@ class RpcHandler:
                 return (RpcErrorCode.INVALID_FUNCTION_CALL, err)
             for child in reversed(children):
                 stack.append((child, depth + 1))
+        if exceeded_max_depth:
+            return (
+                RpcErrorCode.EXECUTION_ERROR,
+                (
+                    "Maximum dynamic value nesting depth exceeded"
+                    f" ({MAX_DYNAMIC_VALUE_DEPTH})."
+                ),
+            )
         return None
 
     def _inspect_nested_node(

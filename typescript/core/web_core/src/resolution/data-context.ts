@@ -47,7 +47,7 @@ import {
 } from '../common/settle_deep.js';
 
 import {FunctionInvoker} from '../catalog/function_invoker.js';
-import {Catalog, CatalogInterface} from '../catalog/types.js';
+import {assertFunctionPermissions, Catalog, CatalogInterface} from '../catalog/types.js';
 import {SpecVersion} from '../spec_versions.js';
 import {resolveSurfaceCatalog} from '../state/resolve-surface-catalog.js';
 import {SurfaceModel} from '../state/surface-model.js';
@@ -743,6 +743,30 @@ export class DataContext {
     if (!targetCatalog) {
       return (keepPending ? this.failedArgument(undefined) : undefined) as V;
     }
+    // The evaluation flags are fixed on a scoped view of this context, so
+    // permission checks, the function, and error handling that run after
+    // pending arguments settle see the same flags as a synchronous call.
+    const activeCatalogId = !callName.startsWith('@') ? targetCatalog.id : undefined;
+    const scope =
+      (userActivated && !this.isUserActivated) || activeCatalogId !== undefined
+        ? this.withFlags({
+            userActivated: userActivated && !this.isUserActivated,
+            activeCatalogId,
+            activeCatalog: activeCatalogId !== undefined ? targetCatalog : undefined,
+          })
+        : this;
+    const fnDecl = !callName.startsWith('@') ? targetCatalog.functions?.get(callName) : undefined;
+    if (fnDecl) {
+      try {
+        assertFunctionPermissions(fnDecl, scope);
+      } catch (e: unknown) {
+        if (scope.isAgentCaller && isInvalidFunctionCallError(e)) {
+          throw e;
+        }
+        scope.dispatchExpressionError(e, callName);
+        return (keepPending ? scope.failedArgument(e) : undefined) as V;
+      }
+    }
     try {
       validateFunctionArgs(callName, call.args, targetCatalog);
     } catch (e: unknown) {
@@ -763,18 +787,6 @@ export class DataContext {
     }
     abortOnFailedArgument(args, abortController);
 
-    // The evaluation flags are fixed on a scoped view of this context, so
-    // the function and the error handling that run after pending arguments
-    // settle see the same flags as a synchronous call.
-    const activeCatalogId = !callName.startsWith('@') ? targetCatalog.id : undefined;
-    const scope =
-      (userActivated && !this.isUserActivated) || activeCatalogId !== undefined
-        ? this.withFlags({
-            userActivated: userActivated && !this.isUserActivated,
-            activeCatalogId,
-            activeCatalog: activeCatalogId !== undefined ? targetCatalog : undefined,
-          })
-        : this;
     const result = scope.evaluateFunctionReactive<V>(
       callName,
       args,
@@ -984,21 +996,33 @@ export class DataContext {
       if (!targetCatalog) {
         return signal((keepPending ? this.failedArgument(undefined) : undefined) as unknown as V);
       }
-      try {
-        validateFunctionArgs(callName, call.args, targetCatalog);
-      } catch (e: unknown) {
-        this.dispatchExpressionError(e, callName);
-        return signal((keepPending ? this.failedArgument(e) : undefined) as unknown as V);
-      }
       // A binding evaluates passively. The flag is fixed on a scoped view of
-      // this context, so the function and the error handling that run after
-      // pending arguments settle see it too.
+      // this context, so permission checks, the function, and error handling
+      // that run after pending arguments settle see it too.
       const activeCatalogId = !callName.startsWith('@') ? targetCatalog.id : undefined;
       const scope = this.withFlags({
         passive: true,
         activeCatalogId,
         activeCatalog: activeCatalogId !== undefined ? targetCatalog : undefined,
       });
+      const fnDecl = !callName.startsWith('@') ? targetCatalog.functions?.get(callName) : undefined;
+      if (fnDecl) {
+        try {
+          assertFunctionPermissions(fnDecl, scope);
+        } catch (e: unknown) {
+          if (scope.isAgentCaller && isInvalidFunctionCallError(e)) {
+            throw e;
+          }
+          scope.dispatchExpressionError(e, callName);
+          return signal((keepPending ? scope.failedArgument(e) : undefined) as unknown as V);
+        }
+      }
+      try {
+        validateFunctionArgs(callName, call.args, targetCatalog);
+      } catch (e: unknown) {
+        this.dispatchExpressionError(e, callName);
+        return signal((keepPending ? this.failedArgument(e) : undefined) as unknown as V);
+      }
       const argSignals: Record<string, Signal<unknown>> = {};
 
       for (const [key, argVal] of Object.entries(call.args ?? {})) {
@@ -1103,9 +1127,6 @@ export class DataContext {
             setValue(resultSig, res);
           }
         } catch (e: unknown) {
-          if (scope.isAgentCaller && isInvalidFunctionCallError(e)) {
-            throw e;
-          }
           failedArgsKey = argsKey;
           scope.dispatchExpressionError(e, callName);
           // In reactive mode, we should not throw. Instead, reset the signal value.
@@ -1520,19 +1541,17 @@ export class DataContext {
   }
 
   /**
-   * Evaluates a catalog function and returns its reactive Signal or static value.
-   *
-   * Invokes the function with this context through the invoker of the
-   * catalog the call resolved to, and dispatches an `EXPRESSION_ERROR` if
-   * execution throws.
+   * Evaluates a function call immediately (for zero-arg or agent-initiated
+   * calls) and wraps its result in a `Signal` that cleans up argument
+   * subscriptions and aborts pending work when unsubscribed.
    *
    * @template V Expected return type of the function evaluation.
-   * @param name Name of the function to evaluate.
-   * @param args Resolved arguments to pass to the function.
+   * @param callName Name of the function to evaluate.
+   * @param keys Argument names in `argSignals`.
+   * @param argSignals Resolved argument signals to read and clean up.
    * @param invoker Invoker of the catalog the call resolved to.
-   * @param abortSignal Optional abort signal to cancel asynchronous execution.
    * @param keepPending Whether the call is nested inside a function argument.
-   * @returns The evaluated result as a reactive `Signal` or static value, or `undefined` on failure.
+   * @returns A `Signal` holding the evaluated result.
    */
   private resolveImmediateFunctionSignal<V>(
     callName: string,
@@ -1546,17 +1565,37 @@ export class DataContext {
       defineOwn(args, keys[i], getValue(argSignals[keys[i]]));
     }
     const abortController = new AbortController();
-    const result = this.evaluateFunctionReactive<V>(
-      callName,
-      args,
-      invoker,
-      abortController.signal,
-      keepPending,
-    );
-    let sig: Signal<V>;
+    let result: Signal<V> | V;
+    try {
+      result = this.evaluateFunctionReactive<V>(
+        callName,
+        args,
+        invoker,
+        abortController.signal,
+        keepPending,
+      );
+    } catch (e: unknown) {
+      abortController.abort();
+      for (let i = 0; i < keys.length; i++) {
+        argSignals[keys[i]].unsubscribe?.();
+      }
+      throw e;
+    }
     if (isSignal(result)) {
-      sig = result;
-    } else if (isThenable(result)) {
+      const inner = result;
+      const prevUnsubscribe = inner.unsubscribe?.bind(inner);
+      const wrapped = computed(() => getValue(inner));
+      wrapped.unsubscribe = () => {
+        abortController.abort();
+        prevUnsubscribe?.();
+        for (let i = 0; i < keys.length; i++) {
+          argSignals[keys[i]].unsubscribe?.();
+        }
+      };
+      return wrapped;
+    }
+    let sig: Signal<V>;
+    if (isThenable(result)) {
       const pendingSig = signal<V | undefined>(undefined);
       if (keepPending) {
         setValue(
@@ -1583,6 +1622,21 @@ export class DataContext {
     return sig;
   }
 
+  /**
+   * Evaluates a catalog function and returns its reactive Signal or static value.
+   *
+   * Invokes the function with this context through the invoker of the
+   * catalog the call resolved to, and dispatches an `EXPRESSION_ERROR` if
+   * execution throws.
+   *
+   * @template V Expected return type of the function evaluation.
+   * @param name Name of the function to evaluate.
+   * @param args Resolved arguments to pass to the function.
+   * @param invoker Invoker of the catalog the call resolved to.
+   * @param abortSignal Optional abort signal to cancel asynchronous execution.
+   * @param keepPending Whether the call is nested inside a function argument.
+   * @returns The evaluated result as a reactive `Signal` or static value, or `undefined` on failure.
+   */
   private evaluateFunctionReactive<V>(
     name: string,
     args: Record<string, unknown>,

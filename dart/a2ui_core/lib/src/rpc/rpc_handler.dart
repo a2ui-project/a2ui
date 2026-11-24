@@ -360,9 +360,46 @@ class RpcHandler {
     }
     _checkExecutionPermissions(fn, name, execution);
     _checkNestedArgumentPermissions(call.args, surface, catalog, execution);
+    A2uiError? firstArgError;
+    A2uiError? invalidCallError;
+    void captureError(A2uiError error) {
+      firstArgError ??= error;
+      if (isInvalidFunctionCallError(error)) {
+        invalidCallError ??= error;
+      }
+    }
+
+    void precheckNestedFunction(
+      String targetName,
+      String? targetCatalogId,
+      DataContext ctx,
+    ) {
+      final Catalog<ComponentApi, FunctionImplementation>? targetCatalog =
+          targetCatalogId != null
+          ? (catalog.id == targetCatalogId
+                ? catalog
+                : surface?.availableCatalogs[targetCatalogId] ??
+                      (surface?.defaultCatalog?.id == targetCatalogId
+                          ? surface?.defaultCatalog
+                          : null))
+          : (surface != null ? surface.defaultCatalog : catalog);
+      final FunctionImplementation? targetFn =
+          targetCatalog?.functions[targetName];
+      if (targetFn != null) {
+        assertCatalogFunctionPermissions(targetFn, targetName, ctx);
+      }
+    }
+
     final DataContext dataContext = dataContextWithCallCatalog(
       dataContextForAgentCall(
-        _dataContextFor(surface, catalog, message.version, execution),
+        _dataContextFor(
+          surface,
+          catalog,
+          message.version,
+          execution,
+          onError: captureError,
+        ),
+        precheckFunction: precheckNestedFunction,
       ),
       catalog.id,
       catalog.invoke,
@@ -370,6 +407,8 @@ class RpcHandler {
     final Map<String, dynamic> resolvedArgs = _resolveCallArguments(
       call.args,
       dataContext,
+      getCapturedInvalidCallError: () => invalidCallError,
+      getCapturedFirstError: () => firstArgError,
     );
     final List<ValidationError> errors = catalog.argumentErrors(
       fn,
@@ -383,7 +422,15 @@ class RpcHandler {
       );
     }
 
-    return _invokeTargetFunction(functionCallId, fn, resolvedArgs, dataContext);
+    firstArgError = null;
+    invalidCallError = null;
+    return _invokeTargetFunction(
+      functionCallId,
+      fn,
+      resolvedArgs,
+      dataContext,
+      getCapturedInvalidCallError: () => invalidCallError,
+    );
   }
 
   void _checkExecutionPermissions(
@@ -416,14 +463,12 @@ class RpcHandler {
       for (final Object? child in rawArgs.values.toList().reversed)
         (value: child, depth: 0),
     ];
+    var exceededMaxDepth = false;
     while (stack.isNotEmpty) {
       final ({Object? value, int depth}) entry = stack.removeLast();
       if (entry.depth > maxDynamicValueDepth) {
-        throw A2uiRpcError(
-          'Maximum dynamic value nesting depth exceeded '
-          '($maxDynamicValueDepth).',
-          RpcErrorCode.executionError,
-        );
+        exceededMaxDepth = true;
+        continue;
       }
       final List<Object?> children = _inspectNestedNode(
         entry.value,
@@ -434,6 +479,12 @@ class RpcHandler {
       for (int i = children.length - 1; i >= 0; i--) {
         stack.add((value: children[i], depth: entry.depth + 1));
       }
+    }
+    if (exceededMaxDepth) {
+      throw A2uiRpcError(
+        'Maximum dynamic value nesting depth exceeded ($maxDynamicValueDepth).',
+        RpcErrorCode.executionError,
+      );
     }
   }
 
@@ -486,15 +537,38 @@ class RpcHandler {
 
   Map<String, dynamic> _resolveCallArguments(
     Map<String, dynamic> rawArgs,
-    DataContext dataContext,
-  ) {
+    DataContext dataContext, {
+    required A2uiError? Function() getCapturedInvalidCallError,
+    required A2uiError? Function() getCapturedFirstError,
+  }) {
     try {
-      return {
-        for (final MapEntry<String, dynamic> entry in rawArgs.entries)
-          entry.key: dataContext.resolveDynamicValue(entry.value),
-      };
+      final resolved = <String, dynamic>{};
+      for (final MapEntry<String, dynamic> entry in rawArgs.entries) {
+        resolved[entry.key] = dataContext.resolveDynamicValue(entry.value);
+        if (getCapturedInvalidCallError() != null) {
+          break;
+        }
+      }
+      final A2uiError? capturedError =
+          getCapturedInvalidCallError() ?? getCapturedFirstError();
+      if (capturedError != null) {
+        final String errorMessage = capturedError.message;
+        throw A2uiRpcError(
+          errorMessage.isEmpty
+              ? 'An argument of the function call could not be resolved.'
+              : errorMessage,
+          getCapturedInvalidCallError() != null
+              ? RpcErrorCode.invalidFunctionCall
+              : RpcErrorCode.executionError,
+          cause: capturedError,
+        );
+      }
+      return resolved;
+    } on A2uiRpcError {
+      rethrow;
     } catch (error) {
-      final Object unwrapped = unwrapSignalError(error);
+      final Object unwrapped =
+          getCapturedInvalidCallError() ?? unwrapSignalError(error);
       final String errorMessage = unwrapped is A2uiError
           ? unwrapped.message
           : unwrapped.toString();
@@ -514,15 +588,30 @@ class RpcHandler {
     String functionCallId,
     FunctionImplementation fn,
     Map<String, dynamic> resolvedArgs,
-    DataContext dataContext,
-  ) async {
+    DataContext dataContext, {
+    required A2uiError? Function() getCapturedInvalidCallError,
+  }) async {
     try {
       Object? result = fn.execute(resolvedArgs, dataContext);
       if (result is Future) result = await result;
       if (result is ReadonlySignal) result = result.value;
+      final A2uiError? capturedInvalid = getCapturedInvalidCallError();
+      if (capturedInvalid != null) {
+        final String errorMessage = capturedInvalid.message;
+        throw A2uiRpcError(
+          errorMessage.isEmpty
+              ? 'An error occurred during function execution.'
+              : errorMessage,
+          RpcErrorCode.invalidFunctionCall,
+          cause: capturedInvalid,
+        );
+      }
       return A2uiFunctionResponse.value(functionCallId, result);
+    } on A2uiRpcError {
+      rethrow;
     } catch (error) {
-      final Object unwrapped = unwrapSignalError(error);
+      final Object unwrapped =
+          getCapturedInvalidCallError() ?? unwrapSignalError(error);
       final String errorMessage = unwrapped is A2uiError
           ? unwrapped.message
           : unwrapped.toString();
@@ -572,14 +661,16 @@ class RpcHandler {
     SurfaceModel<ComponentApi>? surface,
     Catalog<ComponentApi, FunctionImplementation> catalog,
     String version,
-    ExecutionContext execution,
-  ) {
+    ExecutionContext execution, {
+    ExpressionErrorReporter? onError,
+  }) {
     if (surface != null) {
       return DataContext(
         surface.dataModel,
         (name, args, context) =>
             surface.resolveCatalog(null).invoke(name, args, context),
         '/',
+        onError: onError,
         protocolVersion: surface.protocolVersion == null
             ? null
             : A2uiProtocolVersion.tryParseSemVer(surface.protocolVersion!),
@@ -599,6 +690,7 @@ class RpcHandler {
       DataModel(),
       catalog.invoke,
       '/',
+      onError: onError,
       protocolVersion:
           A2uiProtocolVersion.tryParseSemVer(version) ??
           A2uiProtocolVersion.v1_0,
