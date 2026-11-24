@@ -37,6 +37,7 @@ from a2ui.inference_formats.express import (
     ExpressCompiler,
     ExpressDuplicateParamError,
     ExpressDuplicatePropertyError,
+    ExpressForbiddenDatabindingError,
     ExpressInvalidParamError,
     ExpressParseError,
     ExpressParser,
@@ -697,6 +698,229 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
         self.assertEqual(
             root["tags"],
             [{"@call": "concat", "args": {"a": "a", "b": "b"}}],
+        )
+
+    def test_option_object_coercion_with_one_of_databinding_and_local_defs(self):
+        """Coerces string option literals when options uses oneOf with DataBinding and local $defs item ref."""
+        union_options_catalog = Catalog.from_json(
+            {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "catalogId": "test/union_options",
+                "protocolVersion": "1.0",
+                "components": {
+                    "ToggleGroup": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "ToggleGroup"},
+                            "options": {
+                                "oneOf": [
+                                    {
+                                        "type": "array",
+                                        "items": {"$ref": "#/$defs/SelectOption"},
+                                    },
+                                    {
+                                        "$ref": "common_types.json#/$defs/DataBinding",
+                                    },
+                                ],
+                            },
+                        },
+                        "required": ["component", "options"],
+                    },
+                },
+                "$defs": {
+                    "SelectOption": {
+                        "type": "object",
+                        "properties": {
+                            "label": {"$ref": "common_types.json#/$defs/DynamicString"},
+                            "value": {"type": "string"},
+                        },
+                        "required": ["label", "value"],
+                    },
+                },
+            },
+            protocol_version="1.0",
+        )
+        compiler = ExpressCompiler([union_options_catalog], version="1.0")
+        inline_messages = to_message_dicts(
+            compiler.compile('root = ToggleGroup(["Day", "Week"])')
+        )
+        self.assertEqual(
+            inline_messages[0]["createSurface"]["components"],
+            [
+                {
+                    "id": "root",
+                    "component": "ToggleGroup",
+                    "options": [
+                        {"label": "Day", "value": "Day"},
+                        {"label": "Week", "value": "Week"},
+                    ],
+                },
+            ],
+        )
+
+        bound_messages = to_message_dicts(
+            compiler.compile("root = ToggleGroup($/choices)")
+        )
+        self.assertEqual(
+            bound_messages[0]["createSurface"]["components"],
+            [
+                {
+                    "id": "root",
+                    "component": "ToggleGroup",
+                    "options": {"@path": "/choices"},
+                },
+            ],
+        )
+
+        mixed_messages = to_message_dicts(
+            compiler.compile('root = ToggleGroup([{label: $/ok, value: "Day"}])')
+        )
+        self.assertEqual(
+            mixed_messages[0]["createSurface"]["components"],
+            [
+                {
+                    "id": "root",
+                    "component": "ToggleGroup",
+                    "options": [{"label": {"@path": "/ok"}, "value": "Day"}],
+                },
+            ],
+        )
+
+        with self.assertRaises(ExpressForbiddenDatabindingError):
+            compiler.compile("root = ToggleGroup([$/bad])")
+        with self.assertRaises(ExpressForbiddenDatabindingError):
+            compiler.compile('root = ToggleGroup([{label: "Day", value: $/bad}])')
+
+    def test_version_strict_path_maps_and_flattened_action(self):
+        """Enforces version-strict DataBinding keys, rejects bindings on {label, path} maps, and wraps flattened Actions."""
+        v1_catalog = Catalog.from_json(
+            {
+                "catalogId": "test/v1_static_map_and_action",
+                "protocolVersion": "1.0",
+                "components": {
+                    "Widget": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "Widget"},
+                            "fileRef": {
+                                "type": "object",
+                                "properties": {
+                                    "label": {"type": "string"},
+                                    "path": {"type": "string"},
+                                },
+                                "required": ["label", "path"],
+                            },
+                            "barePath": {
+                                "type": "object",
+                                "properties": {"path": {"type": "string"}},
+                                "required": ["path"],
+                            },
+                            "flatAction": {
+                                "oneOf": [
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "event": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "name": {"type": "string"}
+                                                },
+                                                "required": ["name"],
+                                            }
+                                        },
+                                        "required": ["event"],
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "functionCall": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "@call": {"type": "string"},
+                                                    "args": {"type": "object"},
+                                                },
+                                                "required": ["@call"],
+                                            }
+                                        },
+                                        "required": ["functionCall"],
+                                    },
+                                ]
+                            },
+                        },
+                        "required": ["component"],
+                    }
+                },
+                "functions": {
+                    "openUrl": {
+                        "type": "object",
+                        "returnType": "void",
+                        "properties": {
+                            "@call": {"const": "openUrl"},
+                            "args": {
+                                "type": "object",
+                                "properties": {"url": {"type": "string"}},
+                                "required": ["url"],
+                            },
+                        },
+                        "required": ["@call", "args"],
+                    }
+                },
+            },
+            protocol_version="1.0",
+        )
+        v1_compiler = ExpressCompiler([v1_catalog], version="1.0")
+        with self.assertRaises(ExpressForbiddenDatabindingError):
+            v1_compiler.compile("root = Widget(fileRef=$/file)")
+        with self.assertRaises(ExpressForbiddenDatabindingError):
+            v1_compiler.compile("root = Widget(barePath=$/file)")
+        msgs = to_message_dicts(
+            v1_compiler.compile('root = Widget(flatAction=openUrl("https://a2ui.org"))')
+        )
+        self.assertEqual(
+            msgs[0]["createSurface"]["components"][0]["flatAction"],
+            {
+                "functionCall": {
+                    "@call": "openUrl",
+                    "args": {"url": "https://a2ui.org"},
+                }
+            },
+        )
+
+        v09_catalog = Catalog.from_json(
+            {
+                "catalogId": "test/v09_at_path_rejected",
+                "protocolVersion": "0.9",
+                "components": {
+                    "Widget": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "Widget"},
+                            "atPathOnly": {
+                                "type": "object",
+                                "properties": {"@path": {"type": "string"}},
+                                "required": ["@path"],
+                            },
+                            "barePath": {
+                                "type": "object",
+                                "properties": {"path": {"type": "string"}},
+                                "required": ["path"],
+                            },
+                        },
+                        "required": ["component"],
+                    }
+                },
+            },
+            protocol_version="v0.9",
+        )
+        v09_compiler = ExpressCompiler([v09_catalog], version="v0.9")
+        with self.assertRaises(ExpressForbiddenDatabindingError):
+            v09_compiler.compile("root = Widget(atPathOnly=$/file)")
+        v09_msgs = to_message_dicts(
+            v09_compiler.compile("root = Widget(barePath=$/file)")
+        )
+        self.assertEqual(
+            v09_msgs[1]["updateComponents"]["components"][0]["barePath"],
+            {"path": "/file"},
         )
 
 

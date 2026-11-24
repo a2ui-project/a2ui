@@ -12,9 +12,51 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+import threading
 from typing import Any, Callable, Generic, TypeVar
 
 T = TypeVar("T")
+
+
+class _BatchState(threading.local):
+    """Per-thread state for synchronous notification batching."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.depth: int = 0
+        self.pending: dict[Callable[[], None], None] = {}
+
+
+_batch_state = _BatchState()
+
+
+def enqueue_or_run(callback: Callable[[], None]) -> None:
+    """Runs callback immediately, or coalesces it into the active batch."""
+    if _batch_state.depth > 0:
+        _batch_state.pending[callback] = None
+    else:
+        callback()
+
+
+@contextmanager
+def batch() -> Iterator[None]:
+    """Coalesces queued callbacks until the outermost synchronous batch exits."""
+    _batch_state.depth += 1
+    try:
+        yield
+    finally:
+        _batch_state.depth -= 1
+        if _batch_state.depth == 0:
+            try:
+                while _batch_state.depth == 0 and _batch_state.pending:
+                    callback = next(iter(_batch_state.pending))
+                    del _batch_state.pending[callback]
+                    callback()
+            except BaseException:
+                _batch_state.pending.clear()
+                raise
 
 
 class Subscription:

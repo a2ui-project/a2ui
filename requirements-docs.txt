@@ -1,2 +1,4 @@
-ghp-import
-jsonschema
+# Keep jsonschema and referencing aligned with uv.lock.
+ghp-import==2.1.0
+jsonschema==4.26.0
+referencing==0.37.0
