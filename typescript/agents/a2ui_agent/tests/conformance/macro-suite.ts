@@ -30,6 +30,7 @@ import {load} from 'js-yaml';
 
 import {
   A2uiValidationError,
+  type AgentToRendererMessage,
   Catalog,
   type CatalogApi,
   type ComponentNode,
@@ -359,4 +360,42 @@ export function runCatalogCase(testCase: LoadedCase): CatalogApi | undefined {
     default:
       throw new Error(`Unexpected catalog action ${testCase.action}`);
   }
+}
+
+/** Runs a transport case and returns the lowered messages. */
+export function runTransportCase(testCase: LoadedCase): AgentToRendererMessage[] {
+  const expander = buildExpander(testCase);
+  return expander.transformToTransport(transportMessages(testCase));
+}
+
+/** The messages a transport case sends: its `messages`, or messages built from `input`. */
+function transportMessages(testCase: LoadedCase): AgentToRendererMessage[] {
+  if (testCase['messages'] !== undefined) {
+    return structuredClone(testCase['messages']) as AgentToRendererMessage[];
+  }
+  const version = envelopeVersion(testCase);
+  const surfaceId = (testCase['surface_id'] as string | undefined) ?? 'conformance';
+  const input = testCase['input'];
+  const components = structuredClone(Array.isArray(input) ? input : [input]);
+  const messages: Record<string, unknown>[] = [];
+  if (testCase['catalog_id'] !== undefined) {
+    messages.push({version, createSurface: {surfaceId, catalogId: testCase['catalog_id']}});
+  }
+  messages.push({version, updateComponents: {surfaceId, components}});
+  return messages as unknown as AgentToRendererMessage[];
+}
+
+/** The catalogs a renderer would check the lowered messages against. */
+export function validationCatalogs(testCase: LoadedCase): CatalogApi[] {
+  const version = envelopeVersion(testCase);
+  const ids = testCase['validation_catalogs'] as string[] | undefined;
+  if (ids !== undefined) {
+    return ids.map(id => resolveCatalog(id, version));
+  }
+  const catalogs = [basicCatalog(version)];
+  const catalogId = testCase['catalog_id'] as string | undefined;
+  if (catalogId !== undefined && catalogId !== catalogs[0].id) {
+    catalogs.push(resolveCatalog(catalogId, version));
+  }
+  return catalogs;
 }

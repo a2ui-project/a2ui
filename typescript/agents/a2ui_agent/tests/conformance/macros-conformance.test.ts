@@ -23,16 +23,27 @@
  * v1.0, so cases that need v0.9 macros are skipped.
  */
 
+import {readFileSync} from 'fs';
+
 import {expect} from 'vitest';
 
 import {
   A2uiCatalogError,
   A2uiRecursionError,
   A2uiValidationError,
+  type AgentToRendererMessage,
   type CatalogApi,
+  validatePayload,
 } from '../../src/index.js';
 import {LoadedCase, loadCases} from './loader.js';
-import {macroVersion, runCatalogCase, SUITE} from './macro-suite.js';
+import {
+  GOLDEN_DIR,
+  macroVersion,
+  runCatalogCase,
+  runTransportCase,
+  SUITE,
+  validationCatalogs,
+} from './macro-suite.js';
 import {
   assertKnownKeys,
   CASE_METADATA_KEYS,
@@ -91,6 +102,13 @@ const CATALOG_ACTIONS = new Set([
   'transform_to_inference_catalog',
 ]);
 
+const VALIDATION_KEYS = new Set([
+  'allow_dangling_references',
+  'allow_missing_root',
+  'allow_orphan_components',
+  'skip_renderer_validation',
+]);
+
 const ERROR_BY_CATEGORY: Record<string, new (...args: never[]) => Error> = {
   CatalogError: A2uiCatalogError,
   RecursionError: A2uiRecursionError,
@@ -105,17 +123,9 @@ const VERSION_REJECTION_CASES = new Set(['13_error_envelope_version_mismatch']);
 
 /** Cases whose behavior lands in a later commit of this change. */
 const PENDING = new Set([
-  '01_status_badge_expansion_v1_0',
-  '02_slot_boundary_preservation_v1_0',
-  '03_multi_slot_list_coercion_v1_0',
   '04_action_string_coercion_v1_0',
   '05_data_binding_coercion_v1_0',
-  '06_primitive_and_dict_arguments_v1_0',
-  '07_nested_macro_composition_v1_0',
-  '08_surface_lifecycle_envelopes_v1_0',
   '13_error_envelope_version_mismatch',
-  '14_multiple_macro_instances_namespacing_v1_0',
-  '15_mixed_primitive_and_macro_envelope_v1_0',
   '19_envelope_attributes_preservation',
   '20_mixable_catalogs_resolution',
   '21_v1_0_data_binding_and_function_call_coercion',
@@ -158,11 +168,60 @@ function skipReason(testCase: LoadedCase): string | undefined {
   return undefined;
 }
 
-function runCase(testCase: LoadedCase): CatalogApi | undefined {
+function runCase(testCase: LoadedCase): CatalogApi | AgentToRendererMessage[] | undefined {
   if (CATALOG_ACTIONS.has(testCase.action)) {
     return runCatalogCase(testCase);
   }
+  if (testCase.action === 'build') {
+    const messages = runTransportCase(testCase);
+    if (messages.length > 0) {
+      validateLowered(testCase, messages);
+    }
+    return messages;
+  }
   throw new Error(`Unsupported action ${testCase.action}`);
+}
+
+/**
+ * Checks lowered messages the way a renderer holding the case's catalogs would, unless the
+ * case says the renderer would reject them. `validatePayload` accepts a missing root,
+ * dangling references and unreachable components on a surface the payload doesn't
+ * create, which covers the relaxations the cases ask for.
+ */
+function validateLowered(testCase: LoadedCase, messages: unknown): void {
+  const validation = (testCase['validation'] ?? {}) as Record<string, unknown>;
+  assertKnownKeys(validation, VALIDATION_KEYS, 'validation');
+  if (!validation['skip_renderer_validation']) {
+    validatePayload(validationCatalogs(testCase), messages);
+  }
+}
+
+function expectTransport(
+  messages: AgentToRendererMessage[],
+  expected: Record<string, unknown>,
+): void {
+  const records = messages as unknown as Array<Record<string, Record<string, unknown>>>;
+  const components = records.flatMap(
+    message =>
+      (message['updateComponents']?.['components'] ?? []) as Array<Record<string, unknown>>,
+  );
+  if ('create_surface_catalog_id' in expected) {
+    const created = records.filter(message => 'createSurface' in message);
+    expect(created).toHaveLength(1);
+    expect(created[0]['createSurface']['catalogId']).toBe(expected['create_surface_catalog_id']);
+  }
+  if ('components' in expected) {
+    expect(components).toEqual(expected['components']);
+  }
+  if ('component_types' in expected) {
+    expect(components.map(component => component['component'])).toEqual(
+      expected['component_types'],
+    );
+  }
+  if ('absent_property_on_all_components' in expected) {
+    const property = expected['absent_property_on_all_components'] as string;
+    expect(components.filter(component => property in component)).toEqual([]);
+  }
 }
 
 function expectError(testCase: LoadedCase): void {
@@ -255,16 +314,26 @@ describeSuite(
       expectError(testCase);
       return;
     }
+    const result = runCase(testCase);
+    if (testCase['golden'] !== undefined) {
+      const golden = JSON.parse(
+        readFileSync(`${GOLDEN_DIR}/${testCase['golden'] as string}`, 'utf8'),
+      ) as unknown;
+      expect(result).toEqual(golden);
+      return;
+    }
     const expected = testCase['expect'] as Record<string, unknown> | undefined;
     if (expected === undefined) {
       throw new Error(`Case ${testCase.name} has no expectation this harness checks`);
     }
     assertKnownKeys(expected, MACRO_EXPECT_KEYS, 'macros expect');
-    const catalog = runCase(testCase);
-    if (catalog === undefined) {
-      throw new Error(`Case ${testCase.name} produced no catalog`);
+    if (Array.isArray(result)) {
+      expectTransport(result, expected);
+    } else if (result !== undefined) {
+      expectCatalog(result, expected);
+    } else {
+      throw new Error(`Case ${testCase.name} produced nothing to check`);
     }
-    expectCatalog(catalog, expected);
   },
   {skipReason},
 );

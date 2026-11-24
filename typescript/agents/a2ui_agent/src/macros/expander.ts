@@ -15,17 +15,27 @@
  */
 
 import {ComponentPruningTransformer} from '../catalog-transformers/pruning.js';
+import {ComponentNode, isComponentNode} from '../component-tree/component-node.js';
+import {flattenComponentTree} from '../component-tree/flatten.js';
 import {
   A2uiCatalogError,
+  A2uiRecursionError,
+  A2uiValidationError,
+  AgentToRendererMessage,
   Catalog,
   CatalogApi,
   normalizeVersionString,
   toCanonicalVersion,
 } from '../internal/web-core.js';
+import {coerceArguments} from './coercion.js';
 import {macroComponentSchema, MacroDefinition, validateMacroName} from './define-macro.js';
 import {MacroProtocolError} from './macro-protocol-error.js';
 
 const DEFAULT_MACRO_CATALOG_ID = 'https://a2ui.org/catalogs/macros';
+const MAX_EXPANSION_DEPTH = 16;
+const COMPONENT_BODY_KEYS = ['createSurface', 'updateComponents'] as const;
+
+type JsonObject = Record<string, unknown>;
 
 /** Options for `MacroExpander`. */
 export interface MacroExpanderOptions {
@@ -58,7 +68,9 @@ export interface MacroExpanderOptions {
  * Lowers macros to the catalog components a renderer knows.
  *
  * The model sees the macros through the inference catalogs `transformCatalogs` derives
- * from the transport catalogs. Macros target A2UI v1.0.
+ * from the transport catalogs. The expander lowers the model's messages back to the
+ * transport catalogs with `transformToTransport` before they reach the renderer. Macros
+ * target A2UI v1.0.
  */
 export class MacroExpander {
   /** The catalog the macros belong to, as given in the options. */
@@ -203,6 +215,76 @@ export class MacroExpander {
     });
   }
 
+  /**
+   * Lowers the macro invocations in `createSurface` and `updateComponents` messages to the
+   * catalog components they render. Other messages and components are kept as they are.
+   *
+   * An invocation's components replace it in the list, descendants first, as
+   * `flattenComponentTree` lists them: the root takes the invocation's ID, and the other
+   * IDs are namespaced under it. Macros used inside a rendered tree are lowered too.
+   *
+   * @returns New messages; `messages` is left unchanged.
+   * @throws {A2uiValidationError} If an invocation's arguments don't match its macro, or
+   *     its `render` throws.
+   * @throws {A2uiRecursionError} If macros keep invoking macros beyond 16 levels.
+   */
+  transformToTransport(messages: readonly AgentToRendererMessage[]): AgentToRendererMessage[] {
+    return messages.map(message => this.lowerMessage(message));
+  }
+
+  private lowerMessage(message: AgentToRendererMessage): AgentToRendererMessage {
+    if (this.macros.size === 0) {
+      return message;
+    }
+    const lowered: JsonObject = {...(message as unknown as JsonObject)};
+    for (const bodyKey of COMPONENT_BODY_KEYS) {
+      const body = lowered[bodyKey];
+      if (!isJsonObject(body) || !Array.isArray(body['components'])) {
+        continue;
+      }
+      lowered[bodyKey] = {
+        ...body,
+        components: this.expandComponents(structuredClone(body['components']), 0),
+      };
+    }
+    return lowered as unknown as AgentToRendererMessage;
+  }
+
+  private expandComponents(components: readonly unknown[], depth: number): unknown[] {
+    if (depth > MAX_EXPANSION_DEPTH) {
+      throw new A2uiRecursionError(
+        `Macro expansion exceeded maximum recursion depth of ${MAX_EXPANSION_DEPTH}.`,
+      );
+    }
+    const expanded: unknown[] = [];
+    for (const component of components) {
+      const macro = isJsonObject(component) ? this.invokedMacro(component) : undefined;
+      if (macro === undefined) {
+        expanded.push(component);
+      } else {
+        expanded.push(...this.expandInvocation(component as JsonObject, macro, depth));
+      }
+    }
+    return expanded;
+  }
+
+  private invokedMacro(component: JsonObject): MacroDefinition | undefined {
+    const name = component['component'];
+    return typeof name === 'string' ? this.macros.get(name) : undefined;
+  }
+
+  private expandInvocation(
+    component: JsonObject,
+    macro: MacroDefinition,
+    depth: number,
+  ): unknown[] {
+    const {component: _name, id, ...args} = component;
+    const instanceId = typeof id === 'string' ? id : undefined;
+    const tree = renderMacro(macro, coerceArguments(macro, args));
+    const lowered = flattenComponentTree(tree, {rootId: instanceId});
+    return this.expandComponents(lowered, depth + 1);
+  }
+
   private pruner(): ComponentPruningTransformer | undefined {
     return this.passthroughComponents === undefined
       ? undefined
@@ -230,4 +312,28 @@ function assertV10(version: string, message: (version: string) => string): void 
 
 function isV10(version: string): boolean {
   return toCanonicalVersion(normalizeVersionString(version)) === '1.0';
+}
+
+/**
+ * Calls a macro's `render`. A `render` that keeps calling itself overflows the stack, which
+ * is reported as the recursion it is.
+ */
+function renderMacro(macro: MacroDefinition, args: JsonObject): ComponentNode {
+  let tree: unknown;
+  try {
+    tree = macro.render(args as never);
+  } catch (e) {
+    if (e instanceof RangeError && /call stack/i.test(e.message)) {
+      throw new A2uiRecursionError(`Macro '${macro.name}' renders itself without end.`);
+    }
+    throw e;
+  }
+  if (!isComponentNode(tree)) {
+    throw new A2uiValidationError(`Macro '${macro.name}' must return a component node.`);
+  }
+  return tree;
+}
+
+function isJsonObject(value: unknown): value is JsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
