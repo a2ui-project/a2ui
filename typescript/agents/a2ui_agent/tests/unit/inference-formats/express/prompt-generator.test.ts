@@ -783,5 +783,395 @@ describe('ExpressPromptGenerator', () => {
       expect(snippet).toContain('$/info = {component: "NotAComponent"}');
       expect(snippet).not.toContain('@catalogId');
     });
+
+    it('introspects oneOf and anyOf unions for object and array-of-objects property details', () => {
+      const cat = catalogFromTestDocument({
+        catalogId: 'https://example.com/charts.json',
+        protocolVersion: '1.0',
+        components: {
+          LineChart: {
+            type: 'object',
+            description: 'Renders a line chart.',
+            properties: {
+              component: {const: 'LineChart'},
+              series: {
+                description:
+                  'Array of data series, where each series represents a package or metric line.',
+                oneOf: [
+                  {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        name: {type: 'string', description: 'Name of the series'},
+                        color: {type: 'string', description: 'Hex color code'},
+                        data: {
+                          type: 'array',
+                          description: 'Points along the line',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              date: {type: 'string'},
+                              value: {type: 'number'},
+                            },
+                            required: ['value'],
+                          },
+                        },
+                      },
+                      required: ['name', 'data'],
+                    },
+                  },
+                  {
+                    $ref: 'common_types.json#/$defs/DataBinding',
+                  },
+                ],
+              },
+              points: {
+                anyOf: [
+                  {
+                    $ref: 'common_types.json#/$defs/DataBinding',
+                  },
+                  {
+                    type: 'array',
+                    items: {
+                      $ref: '#/$defs/PointItem',
+                    },
+                  },
+                ],
+              },
+              config: {
+                description: 'Chart configuration object.',
+                oneOf: [
+                  {
+                    type: 'object',
+                    properties: {
+                      showLegend: {type: 'boolean', description: 'Whether to show the legend'},
+                      yAxisLabel: {type: 'string'},
+                    },
+                  },
+                  {
+                    $ref: 'common_types.json#/$defs/DataBinding',
+                  },
+                ],
+              },
+              center: {
+                anyOf: [
+                  {
+                    type: 'object',
+                    properties: {
+                      lat: {type: 'number'},
+                      lng: {type: 'number'},
+                    },
+                  },
+                  {
+                    $ref: 'common_types.json#/$defs/DataBinding',
+                  },
+                ],
+              },
+            },
+            required: ['component', 'series'],
+          },
+        },
+        $defs: {
+          PointItem: {
+            type: 'object',
+            properties: {
+              x: {type: 'number', description: 'X coordinate'},
+              y: {type: 'number', description: 'Y coordinate'},
+            },
+            required: ['x', 'y'],
+          },
+        },
+      });
+
+      const instructions = new ExpressPromptGenerator([cat]).generateCatalogInstructions(cat);
+      expect(instructions).toContain(
+        '• LineChart(series, points?, config?, center?)\n' +
+          '  - Description: Renders a line chart.\n' +
+          '  - series: Array of data series, where each series represents a package or metric line.\n' +
+          '    List of maps keys:\n' +
+          '    * name - Name of the series\n' +
+          '    * color - Hex color code\n' +
+          '    * data - Points along the line\n' +
+          '  - points: List of maps with keys:\n' +
+          '    * x - X coordinate\n' +
+          '    * y - Y coordinate\n' +
+          '  - config: Chart configuration object.\n' +
+          '    Map keys:\n' +
+          '    * showLegend - Whether to show the legend\n' +
+          '    * yAxisLabel\n' +
+          '  - center: Map with keys:\n' +
+          '    * lat\n' +
+          '    * lng',
+      );
+    });
+
+    it('handles locally flattened wire envelopes, allOf composition, local enum $defs, and local $ref aliases to common_types', () => {
+      const cat = catalogFromTestDocument({
+        catalogId: 'https://example.com/flattened.json',
+        protocolVersion: '1.0',
+        components: {
+          CompositeWidget: {
+            type: 'object',
+            description: 'Widget exercising flattened common_types and allOf schemas.',
+            properties: {
+              component: {const: 'CompositeWidget'},
+              title: {
+                description: 'Display title.',
+                $ref: '#/$defs/common_types_DynamicString',
+              },
+              iconName: {
+                description: 'Icon identifier.',
+                oneOf: [
+                  {$ref: '#/$defs/StandardIconEnum'},
+                  {
+                    type: 'object',
+                    properties: {
+                      svgPath: {type: 'string'},
+                    },
+                  },
+                ],
+              },
+              settings: {
+                description: 'Merged settings object.',
+                allOf: [
+                  {$ref: '#/$defs/BaseSettings'},
+                  {
+                    type: 'object',
+                    properties: {
+                      theme: {type: 'string', description: 'Color theme'},
+                    },
+                  },
+                ],
+              },
+              rows: {
+                type: 'array',
+                items: {
+                  allOf: [
+                    {$ref: '#/$defs/BaseRow'},
+                    {
+                      properties: {
+                        badge: {type: 'string', description: 'Optional row badge'},
+                      },
+                    },
+                  ],
+                },
+              },
+              onTap: {
+                $ref: '#/$defs/LocalActionAlias',
+              },
+              content: {
+                $ref: '#/$defs/LocalChildAlias',
+              },
+            },
+            required: ['component', 'title'],
+          },
+        },
+        $defs: {
+          common_types_DataBinding: {
+            type: 'object',
+            properties: {
+              '@path': {type: 'string'},
+            },
+            required: ['@path'],
+          },
+          common_types_FunctionCall: {
+            type: 'object',
+            properties: {
+              '@call': {type: 'string'},
+              args: {type: 'object'},
+              returnType: {type: 'string'},
+            },
+            required: ['@call'],
+          },
+          common_types_DynamicString: {
+            oneOf: [
+              {$ref: '#/$defs/common_types_DataBinding'},
+              {
+                allOf: [
+                  {$ref: '#/$defs/common_types_FunctionCall'},
+                  {properties: {returnType: {const: 'string'}}},
+                ],
+              },
+              {
+                allOf: [
+                  {$ref: 'common_types.json#/$defs/FunctionCall'},
+                  {properties: {returnType: {const: 'string'}}},
+                ],
+              },
+              {type: 'string'},
+            ],
+          },
+          StandardIconEnum: {
+            type: 'string',
+            enum: ['home', 'search', 'settings'],
+          },
+          BaseSettings: {
+            type: 'object',
+            properties: {
+              compact: {type: 'boolean', description: 'Use compact spacing'},
+            },
+          },
+          BaseRow: {
+            type: 'object',
+            properties: {
+              id: {type: 'string', description: 'Row identifier'},
+            },
+          },
+          LocalActionAlias: {
+            $ref: 'common_types.json#/$defs/Action',
+          },
+          LocalChildAlias: {
+            $ref: 'common_types.json#/$defs/ComponentId',
+          },
+        },
+      });
+
+      const instructions = new ExpressPromptGenerator([cat]).generateCatalogInstructions(cat);
+      expect(instructions).toContain(
+        '• CompositeWidget(title, iconName? (static), settings? (static), rows? (static), onTap? (static), content? (component ID))\n' +
+          '  - Description: Widget exercising flattened common_types and allOf schemas.\n' +
+          '  - title: Display title.\n' +
+          "  - iconName: Icon identifier. Must be one of: 'home', 'search', 'settings'\n" +
+          '  - settings: Merged settings object.\n' +
+          '    Map keys:\n' +
+          '    * compact - Use compact spacing\n' +
+          '    * theme - Color theme\n' +
+          '  - rows: List of maps with keys:\n' +
+          '    * id - Row identifier\n' +
+          '    * badge - Optional row badge',
+      );
+      expect(instructions).not.toContain('@path');
+      expect(instructions).not.toContain('@call');
+      expect(instructions).not.toContain('returnType');
+      expect(instructions).not.toContain('svgPath');
+    });
+
+    it('preserves domain map keys with path or primitive event, annotates flattened actions, and handles cyclic $defs', () => {
+      const cat = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        catalogId: 'test/domain_maps_and_cycles',
+        protocolVersion: '1.0',
+        components: {
+          FileLogWidget: {
+            type: 'object',
+            properties: {
+              component: {const: 'FileLogWidget'},
+              file: {
+                type: 'object',
+                properties: {
+                  path: {type: 'string', description: 'File path'},
+                },
+              },
+              log: {
+                type: 'object',
+                properties: {
+                  event: {type: 'string', description: 'Log event name'},
+                },
+                required: ['event'],
+              },
+              onFlatTap: {
+                oneOf: [
+                  {
+                    type: 'object',
+                    properties: {
+                      event: {
+                        type: 'object',
+                        properties: {name: {type: 'string'}},
+                        required: ['name'],
+                      },
+                    },
+                    required: ['event'],
+                  },
+                  {
+                    type: 'object',
+                    properties: {
+                      functionCall: {
+                        type: 'object',
+                        properties: {'@call': {type: 'string'}},
+                        required: ['@call'],
+                      },
+                    },
+                    required: ['functionCall'],
+                  },
+                ],
+              },
+              node: {$ref: '#/$defs/CycleNode'},
+            },
+            required: ['component'],
+          },
+        },
+        $defs: {
+          CycleNode: {
+            oneOf: [{$ref: '#/$defs/CycleNode'}, {type: 'string'}],
+          },
+        },
+      });
+      const instructions = new ExpressPromptGenerator([cat]).generateCatalogInstructions(cat);
+      expect(instructions).toContain(
+        '• FileLogWidget(file? (static), log? (static), onFlatTap? (static), node? (static))',
+      );
+      expect(instructions).toContain('* path - File path');
+      expect(instructions).toContain('* event - Log event name');
+      expect(instructions).not.toContain('functionCall');
+    });
+
+    it('handles cyclic allOf $defs without stack overflow', () => {
+      const cat = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        catalogId: 'test/cyclic_allof',
+        protocolVersion: '1.0',
+        components: {
+          CyclicAllOfWidget: {
+            type: 'object',
+            properties: {
+              component: {const: 'CyclicAllOfWidget'},
+              node: {$ref: '#/$defs/SelfAllOf'},
+            },
+            required: ['component'],
+          },
+        },
+        $defs: {
+          SelfAllOf: {
+            allOf: [{$ref: '#/$defs/SelfAllOf'}, {type: 'string'}],
+          },
+        },
+      });
+      const instructions = new ExpressPromptGenerator([cat]).generateCatalogInstructions(cat);
+      expect(instructions).toContain('• CyclicAllOfWidget(node? (static))');
+    });
+
+    it('treats inline (non-$ref) allOf wire-envelope branches as wire envelopes', () => {
+      const cat = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        catalogId: 'test/inline_allof_wire',
+        protocolVersion: '1.0',
+        components: {
+          InlineAllOfWireWidget: {
+            type: 'object',
+            properties: {
+              component: {const: 'InlineAllOfWireWidget'},
+              label: {
+                allOf: [
+                  {
+                    type: 'object',
+                    properties: {'@path': {type: 'string'}},
+                    required: ['@path'],
+                  },
+                  {
+                    type: 'object',
+                    properties: {extra: {type: 'string'}},
+                  },
+                ],
+              },
+            },
+            required: ['component'],
+          },
+        },
+      });
+      const instructions = new ExpressPromptGenerator([cat]).generateCatalogInstructions(cat);
+      expect(instructions).toContain('• InlineAllOfWireWidget(label?)');
+      expect(instructions).not.toContain('Map with keys:');
+    });
   });
 });
