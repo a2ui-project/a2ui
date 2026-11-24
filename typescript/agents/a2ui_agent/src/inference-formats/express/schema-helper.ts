@@ -26,23 +26,41 @@ import {CatalogApi, V09_STANDARD_DEFS, V10_STANDARD_DEFS} from '../../internal/w
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 
 const COMMON_DEF_REGEX = /(?:^|\/)common_types\.json#\/(?:\$defs|definitions)\/(\w+)$/;
+const LOCAL_DEF_REGEX = /^#\/(?:\$defs|definitions)\/(\w+)$/;
+
+const COMMON_DEF_NAMES: ReadonlySet<string> = new Set([
+  'ComponentCommon',
+  'ComponentCommonMetadata',
+  'Checkable',
+  ...Object.keys(V09_STANDARD_DEFS),
+  ...Object.keys(V10_STANDARD_DEFS),
+]);
 
 /**
- * Recognizes protocol common types referenced via `$ref` into `common_types.json`.
+ * Recognizes protocol common types referenced via `$ref` into `common_types.json`,
+ * or catalog-local `#/$defs/<Name>` aliases whose name is a standard common type.
  *
- * Matches both relative paths (`common_types.json#/$defs/<Name>`) and absolute URLs
- * (`https://a2ui.org/specification/.../common_types.json#/$defs/<Name>`), under either
+ * Matches relative paths (`common_types.json#/$defs/<Name>`), absolute URLs
+ * (`https://a2ui.org/specification/.../common_types.json#/$defs/<Name>`), and
+ * preserved local `#/$defs/<Name>` aliases for standard common types, under either
  * `$defs` or the older `definitions`.
  *
  * @param ref The `$ref` string to inspect.
- * @returns The def name if pointing into `common_types.json`, or undefined.
+ * @returns The def name if pointing to a protocol common type, or undefined.
  */
 export function commonDefName(ref: unknown): string | undefined {
   if (typeof ref !== 'string') {
     return undefined;
   }
   const match = COMMON_DEF_REGEX.exec(ref);
-  return match ? match[1] : undefined;
+  if (match) {
+    return match[1];
+  }
+  const localMatch = LOCAL_DEF_REGEX.exec(ref);
+  if (localMatch && COMMON_DEF_NAMES.has(localMatch[1])) {
+    return localMatch[1];
+  }
+  return undefined;
 }
 
 /**
@@ -144,25 +162,75 @@ export function getEnvelopeValue(
 }
 
 /**
+ * Returns whether `sub` is a schema declaring an object, `$ref`, or combinator.
+ */
+export function isObjectOrRefSchema(sub: unknown): boolean {
+  if (!sub || typeof sub !== 'object' || Array.isArray(sub)) {
+    return false;
+  }
+  const s = sub as Record<string, unknown>;
+  return (
+    '$ref' in s ||
+    s.type === 'object' ||
+    (s.properties !== undefined && typeof s.properties === 'object') ||
+    'allOf' in s ||
+    'oneOf' in s ||
+    'anyOf' in s
+  );
+}
+
+function isFlattenedAction(s: Record<string, unknown>): boolean {
+  if (s.type !== undefined && s.type !== 'object') {
+    return false;
+  }
+  const props =
+    s.properties && typeof s.properties === 'object' && !Array.isArray(s.properties)
+      ? (s.properties as Record<string, unknown>)
+      : undefined;
+  const reqs = Array.isArray(s.required) ? s.required : undefined;
+  if (!props || !reqs) {
+    return false;
+  }
+  const keys = Object.keys(props);
+  if (keys.length !== 1) {
+    return false;
+  }
+  const key = keys[0];
+  return (
+    (key === 'event' || key === 'functionCall') &&
+    reqs.includes(key) &&
+    isObjectOrRefSchema(props[key])
+  );
+}
+
+/**
  * Checks whether a property schema is an Action slot.
  *
- * A property is an action slot when its schema references the common `Action` def,
+ * A property is an action slot when its schema references the common `Action` def
+ * or declares a flattened `Action` branch (`{event}` or `{functionCall}`),
  * directly or through `oneOf`/`anyOf`/`allOf`.
  *
  * @param schema The property JSON schema to inspect.
- * @returns True if the schema references the common `Action` type.
+ * @param helper Optional helper used to dereference local `#/...` `$ref`s in union branches.
+ * @param visited Seen schema objects for cycle and diamond-DAG deduplication.
+ * @returns True if the schema references or matches an `Action` slot.
  */
-export function isActionSlot(schema: unknown): boolean {
-  if (!schema || typeof schema !== 'object') {
+export function isActionSlot(
+  schema: unknown,
+  helper?: CatalogSchemaHelper,
+  visited: Set<unknown> = new Set(),
+): boolean {
+  if (!schema || typeof schema !== 'object' || visited.has(schema)) {
     return false;
   }
-  const s = schema as Record<string, unknown>;
-  if (typeof s.$ref === 'string' && commonDefName(s.$ref) === 'Action') {
+  visited.add(schema);
+  const s = helper?.dereferenceLocalSchema(schema) ?? (schema as Record<string, unknown>);
+  if ((typeof s.$ref === 'string' && commonDefName(s.$ref) === 'Action') || isFlattenedAction(s)) {
     return true;
   }
   for (const key of ['allOf', 'oneOf', 'anyOf'] as const) {
     const list = s[key];
-    if (Array.isArray(list) && list.some(sub => isActionSlot(sub))) {
+    if (Array.isArray(list) && list.some(sub => isActionSlot(sub, helper, visited))) {
       return true;
     }
   }
@@ -178,19 +246,26 @@ export function isActionSlot(schema: unknown): boolean {
  * @param schema The property JSON schema to inspect.
  * @returns True if schema expects option objects.
  */
-export function expectsOptionObjects(schema: unknown): boolean {
-  if (!schema || typeof schema !== 'object') {
+export function expectsOptionObjects(
+  schema: unknown,
+  helper?: CatalogSchemaHelper,
+  visited: Set<unknown> = new Set(),
+): boolean {
+  if (!schema || typeof schema !== 'object' || visited.has(schema)) {
     return false;
   }
-  const s = schema as Record<string, unknown>;
+  visited.add(schema);
+  const s = helper?.dereferenceLocalSchema(schema) ?? (schema as Record<string, unknown>);
   if ('items' in s) {
     const itemsSchema = s.items;
 
+    const labelValueVisited = new Set<unknown>();
     const hasLabelValue = (sub: unknown): boolean => {
-      if (!sub || typeof sub !== 'object') {
+      if (!sub || typeof sub !== 'object' || labelValueVisited.has(sub)) {
         return false;
       }
-      const subObj = sub as Record<string, unknown>;
+      labelValueVisited.add(sub);
+      const subObj = helper?.dereferenceLocalSchema(sub) ?? (sub as Record<string, unknown>);
       if (
         subObj.properties &&
         typeof subObj.properties === 'object' &&
@@ -215,7 +290,7 @@ export function expectsOptionObjects(schema: unknown): boolean {
   for (const key of ['allOf', 'oneOf', 'anyOf'] as const) {
     const list = s[key];
     if (Array.isArray(list)) {
-      if (list.some(sub => expectsOptionObjects(sub))) {
+      if (list.some(sub => expectsOptionObjects(sub, helper, visited))) {
         return true;
       }
     }
@@ -511,35 +586,41 @@ export class CatalogSchemaHelper {
   }
 
   private loadMappings(): void {
-    const findEnum = (s: unknown): string[] | undefined => {
-      if (s && typeof s === 'object') {
-        let obj = s as Record<string, unknown>;
-        const visitedPointers = new Set<string>();
-        let ref = localRef(obj);
-        while (ref) {
-          if (visitedPointers.has(ref)) {
-            break;
-          }
-          visitedPointers.add(ref);
-          const resolved = this.resolveJsonPointer(this.catalog, ref);
-          if (resolved && typeof resolved === 'object') {
-            obj = resolved as Record<string, unknown>;
-            ref = localRef(obj);
-          } else {
-            break;
-          }
+    const findEnum = (s: unknown, visited: Set<unknown> = new Set()): string[] | undefined => {
+      if (!s || typeof s !== 'object' || visited.has(s)) {
+        return undefined;
+      }
+      visited.add(s);
+      let obj = s as Record<string, unknown>;
+      const visitedPointers = new Set<string>();
+      let ref = localRef(obj);
+      while (ref) {
+        if (visitedPointers.has(ref)) {
+          break;
         }
-        if (Array.isArray(obj.enum)) {
-          return obj.enum as string[];
+        visitedPointers.add(ref);
+        const resolved = this.resolveJsonPointer(this.catalog, ref);
+        if (resolved && typeof resolved === 'object') {
+          if (visited.has(resolved)) {
+            return undefined;
+          }
+          visited.add(resolved);
+          obj = resolved as Record<string, unknown>;
+          ref = localRef(obj);
+        } else {
+          break;
         }
-        for (const k of ['oneOf', 'anyOf', 'allOf'] as const) {
-          const list = obj[k];
-          if (Array.isArray(list)) {
-            for (const subS of list) {
-              const res = findEnum(subS);
-              if (res) {
-                return res;
-              }
+      }
+      if (Array.isArray(obj.enum)) {
+        return obj.enum as string[];
+      }
+      for (const k of ['oneOf', 'anyOf', 'allOf'] as const) {
+        const list = obj[k];
+        if (Array.isArray(list)) {
+          for (const subS of list) {
+            const res = findEnum(subS, visited);
+            if (res) {
+              return res;
             }
           }
         }
@@ -953,35 +1034,54 @@ export class CatalogSchemaHelper {
               ? '@checks'
               : undefined;
         if (lookupKey !== undefined) {
-          const propVal = props[lookupKey];
-          if (!propVal || typeof propVal !== 'object') {
-            return undefined;
-          }
-          const current = propVal as Record<string, unknown>;
-          const visitedPointers = new Set<string>();
-          let ref = localRef(current);
-          let merged: Record<string, unknown> = current;
-          while (ref) {
-            if (visitedPointers.has(ref)) {
-              break;
-            }
-            visitedPointers.add(ref);
-            const resolved = this.resolveJsonPointer(this.catalog, ref);
-            if (resolved && typeof resolved === 'object') {
-              merged = {
-                ...(resolved as Record<string, unknown>),
-                ...merged,
-              };
-              ref = localRef(resolved);
-            } else {
-              break;
-            }
-          }
-          return merged;
+          return this.dereferenceLocalSchema(props[lookupKey]);
         }
       }
     }
     return undefined;
+  }
+
+  /**
+   * Resolves a chain of local `#/...` `$ref`s on a schema object against the catalog,
+   * merging sibling properties onto the resolved target so outer overrides (such as
+   * `description`) win.
+   *
+   * @param schema The schema object to dereference.
+   * @returns The dereferenced schema object, or undefined if `schema` is not an object.
+   */
+  dereferenceLocalSchema(schema: unknown): Record<string, unknown> | undefined {
+    if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+      return undefined;
+    }
+    const current = schema as Record<string, unknown>;
+    const visitedPointers = new Set<string>();
+    let ref = localRef(current);
+    let merged: Record<string, unknown> = current;
+    while (ref) {
+      if (visitedPointers.has(ref)) {
+        break;
+      }
+      visitedPointers.add(ref);
+      const resolved = this.resolveJsonPointer(this.catalog, ref);
+      if (resolved && typeof resolved === 'object' && !Array.isArray(resolved)) {
+        const {$ref: consumedLocalRef, ...overrides} = merged;
+        merged = {
+          ...(resolved as Record<string, unknown>),
+          ...overrides,
+        };
+        if (
+          merged.$ref === undefined &&
+          consumedLocalRef !== undefined &&
+          commonDefName(consumedLocalRef) !== undefined
+        ) {
+          merged.$ref = consumedLocalRef;
+        }
+        ref = localRef(resolved);
+      } else {
+        break;
+      }
+    }
+    return merged;
   }
 
   /**
@@ -1022,9 +1122,25 @@ export class CatalogSchemaHelper {
 
       const obj = s as Record<string, unknown>;
 
-      if (obj.properties && typeof obj.properties === 'object') {
+      if (
+        (obj.type === undefined || obj.type === 'object') &&
+        obj.properties &&
+        typeof obj.properties === 'object'
+      ) {
         const props = obj.properties as Record<string, unknown>;
-        if ('path' in props || '@path' in props) {
+        const keys = Object.keys(props);
+        const reqs = Array.isArray(obj.required) ? obj.required : undefined;
+        if (keys.length === 1 && keys[0] === this.keys.path && reqs?.includes(this.keys.path)) {
+          return true;
+        }
+        if (
+          inCommonTypes &&
+          keys.length === 2 &&
+          'componentId' in props &&
+          'path' in props &&
+          reqs?.includes('componentId') &&
+          reqs?.includes('path')
+        ) {
           return true;
         }
       }

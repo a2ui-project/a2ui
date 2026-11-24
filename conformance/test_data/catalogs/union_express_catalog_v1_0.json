@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/union_express_catalog_v1_0.json",
+  "protocolVersion": "1.0",
+  "title": "Conformance Union Express Catalog (v1.0)",
+  "description": "Exercises oneOf, anyOf, allOf, and local $defs schemas in Express prompt generation and option-object coercion.",
+  "catalogId": "conformance/union_express",
+  "components": {
+    "LineChart": {
+      "type": "object",
+      "description": "Renders a line chart.",
+      "properties": {
+        "component": { "const": "LineChart" },
+        "series": {
+          "description": "Array of data series.",
+          "oneOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "description": "Name of the series" },
+                  "color": { "type": "string", "description": "Hex color code" },
+                  "data": {
+                    "type": "array",
+                    "description": "Points along the line",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "date": { "type": "string" },
+                        "value": { "type": "number" }
+                      },
+                      "required": ["value"]
+                    }
+                  }
+                },
+                "required": ["name", "data"]
+              }
+            },
+            { "$ref": "common_types.json#/$defs/DataBinding" }
+          ]
+        },
+        "points": {
+          "anyOf": [
+            { "$ref": "common_types.json#/$defs/DataBinding" },
+            { "type": "array", "items": { "$ref": "#/$defs/PointItem" } }
+          ]
+        },
+        "config": {
+          "description": "Chart configuration object.",
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "showLegend": {
+                  "type": "boolean",
+                  "description": "Whether to show the legend"
+                },
+                "yAxisLabel": { "type": "string" }
+              }
+            },
+            { "$ref": "common_types.json#/$defs/DataBinding" }
+          ]
+        }
+      },
+      "required": ["component", "series"]
+    },
+    "CompositeWidget": {
+      "type": "object",
+      "description": "Widget exercising allOf composition, local enum $defs, and local property refs.",
+      "properties": {
+        "component": { "const": "CompositeWidget" },
+        "title": {
+          "description": "Display title.",
+          "$ref": "common_types.json#/$defs/DynamicString"
+        },
+        "iconName": {
+          "description": "Icon identifier.",
+          "oneOf": [
+            { "$ref": "#/$defs/StandardIconEnum" },
+            { "type": "object", "properties": { "svgPath": { "type": "string" } } }
+          ]
+        },
+        "settings": {
+          "description": "Merged settings object.",
+          "allOf": [
+            { "$ref": "#/$defs/BaseSettings" },
+            {
+              "type": "object",
+              "properties": {
+                "theme": { "type": "string", "description": "Color theme" }
+              }
+            }
+          ]
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              { "$ref": "#/$defs/BaseRow" },
+              {
+                "properties": {
+                  "badge": { "type": "string", "description": "Optional row badge" }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "required": ["component", "title"]
+    },
+    "ToggleGroup": {
+      "type": "object",
+      "description": "Selects an option from a union options list.",
+      "properties": {
+        "component": { "const": "ToggleGroup" },
+        "options": {
+          "oneOf": [
+            { "type": "array", "items": { "$ref": "#/$defs/SelectOption" } },
+            { "$ref": "common_types.json#/$defs/DataBinding" }
+          ]
+        }
+      },
+      "required": ["component", "options"]
+    }
+  },
+  "functions": {},
+  "$defs": {
+    "PointItem": {
+      "type": "object",
+      "properties": {
+        "x": { "type": "number", "description": "X coordinate" },
+        "y": { "type": "number", "description": "Y coordinate" }
+      },
+      "required": ["x", "y"]
+    },
+    "StandardIconEnum": {
+      "type": "string",
+      "enum": ["home", "search", "settings"]
+    },
+    "BaseSettings": {
+      "type": "object",
+      "properties": {
+        "compact": { "type": "boolean", "description": "Use compact spacing" }
+      }
+    },
+    "BaseRow": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Row identifier" }
+      }
+    },
+    "SelectOption": {
+      "type": "object",
+      "properties": {
+        "label": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "value": { "type": "string" }
+      },
+      "required": ["label", "value"]
+    },
+    "anyComponent": {
+      "oneOf": [
+        { "$ref": "#/components/LineChart" },
+        { "$ref": "#/components/CompositeWidget" },
+        { "$ref": "#/components/ToggleGroup" }
+      ],
+      "discriminator": { "propertyName": "component" }
+    },
+    "anyFunction": { "not": {} }
+  }
+}
