@@ -280,6 +280,31 @@
   expect_error:
     category: CatalogError
 
+- name: entry with inline catalog containing unresolvable local ref raises CatalogError
+  description: A version entry whose inline catalog contains an unresolvable local $ref raises CatalogError naming the catalogId and $ref.
+  action: read_renderer_capabilities
+  args:
+    version: "1.0"
+    metadata:
+      a2uiRendererCapabilities:
+        "1.0":
+          supportedCatalogIds: []
+          inlineCatalogs:
+            - catalogId: "renderer/inline"
+              protocolVersion: "1.0"
+              components:
+                Marquee:
+                  type: object
+                  allOf:
+                    - $ref: "#/$defs/CatalogComponentCommon"
+                  properties:
+                    component: {const: "Marquee"}
+                    text: {type: string}
+                  required: ["component", "text"]
+  expect_error:
+    category: CatalogError
+    message: 'renderer/inline.*#/\$defs/CatalogComponentCommon'
+
 - name: v1.0 entry with v0.9 inline catalog raises CatalogError
   description: A v1.0 capabilities entry whose inline catalog declares protocolVersion 0.9 raises CatalogError.
   features: [F-AGT-18]
