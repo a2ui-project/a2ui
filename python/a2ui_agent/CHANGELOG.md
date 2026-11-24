@@ -1,5 +1,24 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: `resolve_catalogs` and `read_renderer_capabilities`
+  reject inline catalogs whose local `#...` `$ref` pointers do not resolve
+  against the inline catalog document or the protocol version's
+  `common_types.json`, raising `A2uiCatalogError` naming the inline `catalogId`
+  and `$ref` even when `accepts_inline_catalogs` is `False`. `resolve_catalogs`
+  also logs a warning when an accepted inline catalog is dropped because its
+  `catalogId` is already active. Recommended migration: point each local `$ref`
+  in an inline catalog to a definition declared in that inline catalog or in the
+  target protocol version's `common_types.json`
+  ([#3165](https://github.com/a2ui-project/a2ui/issues/3165),
+  [#4367](https://github.com/a2ui-project/a2ui/pull/4367)).
+- `ExpressPromptGenerator` now traverses `oneOf`, `anyOf`, `allOf`, and locally
+  flattened wire envelopes when extracting structured map-key instructions and
+  enum constraints, and `ExpressCompiler` now coerces literal string arrays into
+  `{label, value}` option objects on union properties that also admit data
+  bindings
+  ([#3400](https://github.com/a2ui-project/a2ui/issues/3400),
+  [#4184](https://github.com/a2ui-project/a2ui/pull/4184)).
+
 ## 0.12.1 (2026-11-23)
 
 - `DirectJsonParser` rejects a number out of the range of a double, such as

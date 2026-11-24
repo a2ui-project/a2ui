@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: `resolveCatalogs` and `readRendererCapabilities` reject inline catalogs whose local `#...` `$ref` pointers do not resolve against the inline catalog document or the protocol version's `common_types.json`, throwing `A2uiCatalogError` naming the inline `catalogId` and `$ref` even when `acceptsInlineCatalogs` is `false`. `resolveCatalogs` also drops inline catalogs whose `catalogId` matches an already-active catalog and emits a `console.warn` diagnostic. Recommended migration: point each local `$ref` in an inline catalog to a definition declared in that inline catalog or in the target protocol version's `common_types.json` ([#3165](https://github.com/a2ui-project/a2ui/issues/3165), [#4367](https://github.com/a2ui-project/a2ui/pull/4367)).
+- `ExpressPromptGenerator` and `ExpressCompiler` now traverse `oneOf`, `anyOf`, `allOf`, and local `#/$defs/...` references when extracting structured map-key prompt instructions, enum constraints, and option-object array coercion rules ([#3400](https://github.com/a2ui-project/a2ui/issues/3400), [#4184](https://github.com/a2ui-project/a2ui/pull/4184)).
+
 ## 0.2.1
 
 - `DirectJsonParser` rejects a number out of the range of a double, such as `1e400`, with `ParseError`, as the Dart SDK does. It used to read it as `Infinity`, which `JSON.stringify` writes as `null` ([#3847](https://github.com/a2ui-project/a2ui/pull/3847)).
