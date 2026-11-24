@@ -13,6 +13,7 @@
   appends to; the sequence passed to the constructor is not changed
   ([#3303](https://github.com/a2ui-project/a2ui/issues/3303),
   [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
+- Avoid repeated `Catalog.validation_schema` deep copies during internal payload validation and component reference resolution ([#4314](https://github.com/a2ui-project/a2ui/issues/4314), [#4326](https://github.com/a2ui-project/a2ui/pull/4326)).
 
 ## 0.7.0 (2026-11-17)
 
