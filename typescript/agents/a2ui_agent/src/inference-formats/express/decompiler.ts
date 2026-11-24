@@ -144,11 +144,17 @@ export function flattenDataModel(dataDict: unknown): Array<[string, unknown]> {
  * @param propSchema The property JSON schema to inspect.
  * @returns True if property references component ID.
  */
-export function isComponentReferenceProperty(propSchema: unknown): boolean {
-  if (!propSchema || typeof propSchema !== 'object') {
+export function isComponentReferenceProperty(
+  propSchema: unknown,
+  helper?: CatalogSchemaHelper,
+  visited: Set<unknown> = new Set(),
+): boolean {
+  if (!propSchema || typeof propSchema !== 'object' || visited.has(propSchema)) {
     return false;
   }
-  const schema = propSchema as Record<string, unknown>;
+  visited.add(propSchema);
+  const schema =
+    helper?.dereferenceLocalSchema(propSchema) ?? (propSchema as Record<string, unknown>);
   if (typeof schema.$ref === 'string') {
     const def = commonDefName(schema.$ref);
     if (def === 'ComponentId' || def === 'Child' || def === 'ChildList') {
@@ -159,14 +165,14 @@ export function isComponentReferenceProperty(propSchema: unknown): boolean {
     const subs = schema[key];
     if (Array.isArray(subs)) {
       for (const sub of subs) {
-        if (isComponentReferenceProperty(sub)) {
+        if (isComponentReferenceProperty(sub, helper, visited)) {
           return true;
         }
       }
     }
   }
   if (schema.type === 'array' && schema.items) {
-    return isComponentReferenceProperty(schema.items);
+    return isComponentReferenceProperty(schema.items, helper, visited);
   }
   return false;
 }
@@ -751,7 +757,7 @@ export class ExpressDecompiler {
   ): string | undefined {
     if (propName in comp) {
       const pSchema = helper.getPropertySchema(compName, propName);
-      const isPropRef = isComponentReferenceProperty(pSchema);
+      const isPropRef = isComponentReferenceProperty(pSchema, helper);
       const valStr = this.decompileValue(
         comp[propName],
         varNames,
