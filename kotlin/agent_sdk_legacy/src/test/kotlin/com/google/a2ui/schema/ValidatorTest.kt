@@ -16,6 +16,7 @@
 
 package com.google.a2ui.schema
 
+import com.google.a2ui.exceptions.A2uiRecursionException
 import kotlin.io.path.createTempFile
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -308,5 +309,62 @@ class ValidatorTest {
       }
 
     assertEquals("Invalid path syntax: '/invalid/escape/~2'", exception.message)
+  }
+
+  /** Returns [depth] function calls, each nested in the args of the one before. */
+  private fun nestCalls(depth: Int): JsonObject {
+    var value = JsonObject(mapOf("call" to JsonPrimitive("leaf"), "args" to JsonObject(emptyMap())))
+    repeat(depth - 1) {
+      value =
+        JsonObject(
+          mapOf("call" to JsonPrimitive("wrap"), "args" to JsonObject(mapOf("value" to value)))
+        )
+    }
+    return value
+  }
+
+  /** Returns an `updateComponents` message whose root `Text` takes [text]. */
+  private fun textMessage(text: JsonObject): JsonObject =
+    JsonObject(
+      mapOf(
+        "version" to JsonPrimitive("v0.9"),
+        "updateComponents" to
+          JsonObject(
+            mapOf(
+              "surfaceId" to JsonPrimitive("s1"),
+              "components" to
+                JsonArray(
+                  listOf(
+                    JsonObject(
+                      mapOf(
+                        "id" to JsonPrimitive("root"),
+                        "component" to JsonPrimitive("Text"),
+                        "text" to text,
+                      )
+                    )
+                  )
+                ),
+            )
+          ),
+      )
+    )
+
+  @Test
+  fun acceptsFunctionCallsNestedDeeperThanFive() {
+    pathValidator.validate(textMessage(nestCalls(6)), strictIntegrity = false)
+    // The outermost call is at depth 4 from the message and each call adds two levels, the call
+    // and its args, so the args of the 23rd call are at depth 49.
+    pathValidator.validate(textMessage(nestCalls(23)), strictIntegrity = false)
+  }
+
+  @Test
+  fun rejectsFunctionCallsNestedPastTheGlobalDepthLimit() {
+    // The args of the 24th call are at depth 51.
+    val exception =
+      assertFailsWith<A2uiRecursionException> {
+        pathValidator.validate(textMessage(nestCalls(24)), strictIntegrity = false)
+      }
+
+    assertEquals("Global recursion limit exceeded: Depth > 50", exception.message)
   }
 }
