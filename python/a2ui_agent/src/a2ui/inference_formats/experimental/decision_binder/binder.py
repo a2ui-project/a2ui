@@ -1005,8 +1005,9 @@ class ToolPointerBinder:
             matching = [
                 c for c in self._inference_catalogs if c.catalog_id == spec.catalog_id
             ]
-            if matching:
-                catalogs = matching
+            if not matching:
+                raise A2uiCatalogError(f"Unknown catalog_id {spec.catalog_id!r}.")
+            catalogs = matching
         compiler = ExpressCompiler(catalogs)
         compiled = list(compiler.compile(spec.dsl, surface_id=surface_id))
         effective_sid = _created_surface_id(compiled, surface_id)
@@ -1078,14 +1079,23 @@ class ToolPointerBinder:
         answer_map: Mapping[str, DecisionAnswer],
         data_model: Mapping[str, Any],
         action_by_id: Mapping[str, ActionSpec],
+        asked_qids: Collection[str] = (),
     ) -> tuple[dict[str, Any] | None, str]:
         """Decodes all slot answers for `target`, returning `(bindings, error)`."""
         assert target.node is not None
+        asked = set(asked_qids)
         bound: dict[str, Any] = {}
         for slot in target.node.slots:
             qid = f"bind:{target.target_key}:{slot.name}"
+            ans = answer_map.get(qid)
+            if ans is None and qid in asked:
+                raise DecisionBackendError(
+                    f"Decision backend omitted answer for '{qid}'.",
+                    backend_kind=self._backend.backend_kind,
+                    model_id=self._backend.model_id,
+                )
             ok, has_value, value = _decode_slot_answer(
-                target, slot, answer_map.get(qid), data_model, action_by_id
+                target, slot, ans, data_model, action_by_id
             )
             if not ok:
                 return None, f"missing required slot '{slot.name}'"
@@ -1201,6 +1211,7 @@ class ToolPointerBinder:
             return self._finalize_target(
                 selected_target,
                 answer_map=answer_map,
+                asked_qids=[q.id for q in questions],
                 data_model=safe_data_model,
                 actions=normalized_actions,
                 surface_id=surface_id,
@@ -1292,6 +1303,9 @@ class ToolPointerBinder:
         return self._finalize_target(
             target,
             answer_map=answer_map,
+            asked_qids=[
+                q.id for q in slot_questions_by_target.get(target.target_key, ())
+            ],
             data_model=safe_data_model,
             actions=actions,
             surface_id=surface_id,
@@ -1366,6 +1380,7 @@ class ToolPointerBinder:
         target: _TargetSpec,
         *,
         answer_map: Mapping[str, DecisionAnswer],
+        asked_qids: Collection[str] = (),
         data_model: Mapping[str, Any],
         actions: Sequence[ActionSpec],
         surface_id: str,
@@ -1382,7 +1397,7 @@ class ToolPointerBinder:
         else:
             action_by_id = {a.id: a for a in actions}
             decoded, err = self._bind_component_slots(
-                target, answer_map, data_model, action_by_id
+                target, answer_map, data_model, action_by_id, asked_qids=asked_qids
             )
             if decoded is None:
                 return BindResult(
