@@ -25,7 +25,7 @@ export const GOAL_MIXER_TOOL = {
   config: {
     title: 'Multi-Goal Trade-Off Mixer',
     description:
-      'Interactive Multi-Goal Mixer studio for balancing competing targets in one tactile A2UI v1.0 card: weekday high-protein meal prep (calories, protein, grocery budget, weekday prep mins, Sunday 45m batch tracks), monthly surplus debt payoff vs emergency savings (cash cushion, months to debt-free, interest saved, emergency fund), or weekly hybrid training & recovery.',
+      "Interactive Multi-Goal Mixer studio for balancing competing targets in one tactile A2UI v1.0 card: weekday high-protein meal prep (calories, protein, grocery budget, weekday prep mins, Sunday 45m batch tracks), monthly surplus debt payoff vs emergency savings (cash cushion, months to debt-free, interest saved, emergency fund), or weekly hybrid training & recovery. Make `goal_mixer` the final tool call of your turn: never call `read_file`, `run_command`, or any other tool in parallel after `goal_mixer` or after `goal_mixer` returns, because the interactive A2UI studio is already rendered inline for the user and any subsequent tool call collapses the app into the 'Worked for' block. Answer directly from this tool's text summary.",
     inputSchema: {
       prompt: z
         .string()

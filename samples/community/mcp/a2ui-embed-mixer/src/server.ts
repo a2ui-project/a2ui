@@ -36,9 +36,13 @@ import {appHtmlPath, catalogSchemaPath, loadEnvFile} from './config.js';
 import {MixerService} from './mixer_service.js';
 import {GOAL_MIXER_TOOL} from './tools.js';
 
+export const TAIL_HOIST_RULE =
+  "Make `goal_mixer` the final tool call of your turn: never call `read_file`, `run_command`, or any other tool in parallel after `goal_mixer` or after `goal_mixer` returns, because the interactive A2UI studio is already rendered inline for the user and any subsequent tool call collapses the app into the 'Worked for' block. Answer directly from this tool's text summary.";
+
 export const SERVER_INSTRUCTIONS = [
   'Multi-Goal Trade-Off Mixer studio (`goal_mixer`) built on @a2ui/embed with a 100% custom catalog.',
   'Call `goal_mixer` whenever the user asks to use Goal Mixer, balance weekday meal prep macros/calories/budget/prep time, allocate monthly cash surplus between debt payoff and emergency savings, or balance weekly endurance, strength, and recovery targets.',
+  TAIL_HOIST_RULE,
   'Different domains compose distinct custom component layouts from the same catalog (for example meal_prep includes PrepTrackGantt + ParetoPlane2D + PortionScrubTile + TargetRingCluster, whereas debt_savings composes compact financial TargetRingCluster + payoff ParetoPlane2D + surplus allocation tiles without PrepTrackGantt).',
   'Surfaces set `sendDataModel: true`: when the user scrubs 0.5x–2.0x portion scales, clicks swap pills, or selects a Pareto frontier preset dot, the updated `/items` and `/selectedPresetId` are attached to the next chat turn.',
 ].join('\n');

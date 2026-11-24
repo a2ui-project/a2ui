@@ -250,18 +250,40 @@ export function composeMixerSurface(surfaceId: string, blueprint: ScenarioBluepr
 /** Human- and model-readable text summary of a composed Goal Mixer card (contains zero A2UI syntax). */
 export function summarizeMixerCard(prompt: string, blueprint: ScenarioBlueprint): string {
   const totals = evaluateMixTotals(blueprint.items, blueprint.targets);
+  const targetLines = totals.metrics
+    .map(m => `- ${m.label}: ${m.formatted} (goal ${m.targetLabel}, ${m.deltaLabel})`)
+    .join('\n');
   const picks = blueprint.items
     .map(item => {
       const opt = item.options.find(o => o.id === item.activeOptionId) ?? item.options[0];
-      return `- ${item.title}: ${opt?.label ?? item.activeOptionId} (${item.scale.toFixed(1)}x) — ${opt?.note ?? ''}`;
+      const alts = item.options
+        .filter(o => o.id !== (opt?.id ?? item.activeOptionId))
+        .map(o => `${o.label} (${o.note})`)
+        .join('; ');
+      return `- ${item.title}: ★ ${opt?.label ?? item.activeOptionId} at ${item.scale.toFixed(1)}x (${opt?.note ?? ''}) | swaps: ${alts}`;
     })
     .join('\n');
+  const frontierLine = blueprint.pareto
+    ? `Pareto frontier presets (${blueprint.pareto.title}): ${blueprint.pareto.presets
+        .map(p => `${p.label} (${blueprint.pareto!.xKey}=${p.x}, ${blueprint.pareto!.yKey}=${p.y})`)
+        .join(', ')}.`
+    : '';
+  const ganttLine = blueprint.gantt
+    ? `Parallel tracks (${blueprint.gantt.title}, ${blueprint.gantt.totalMinutes}m): ${blueprint.gantt.tracks
+        .map(t => `${t.name} [${t.blocks.map(b => b.label).join(' + ')}]`)
+        .join('; ')}.`
+    : '';
 
   return [
-    `Opened Goal Mixer (${blueprint.title}) for: "${prompt.slice(0, 140)}".`,
+    `Opened Goal Mixer (${blueprint.title}) inline for: "${prompt.slice(0, 140)}".`,
+    `Recommendation: ${blueprint.subtitle}`,
     `Initial converged mix (${totals.hits}/${totals.total} targets in band): ${totals.summaryLine}.`,
-    'Pre-selected items and swap alternatives:',
+    'Target bands:',
+    targetLines,
+    'Pre-selected items and 1-click swap options (all scrubbable 0.5x–2.0x client-side):',
     picks,
-    'The user can scrub 0.5x–2.0x scales, swap options, or click Pareto frontier presets live in the card before locking the mix.',
+    ...(frontierLine ? [frontierLine] : []),
+    ...(ganttLine ? [ganttLine] : []),
+    "IMPORTANT: Make `goal_mixer` the final tool call of your turn: never call `read_file`, `run_command`, or any other tool in parallel after `goal_mixer` or after `goal_mixer` returns, because the interactive A2UI studio is already rendered inline for the user and any subsequent tool call collapses the app into the 'Worked for' block. Answer directly from this tool's text summary.",
   ].join('\n');
 }

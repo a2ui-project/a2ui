@@ -121,6 +121,10 @@ describe('a2ui-embed-mixer MCP server', () => {
       | undefined;
     expect(actionMeta?.ui?.visibility).toEqual(['app']);
     expect(client.getInstructions()).toBe(SERVER_INSTRUCTIONS);
+    expect(SERVER_INSTRUCTIONS).toContain('Make `goal_mixer` the final tool call of your turn');
+    expect(tools.find(t => t.name === 'goal_mixer')?.description).toContain(
+      'Make `goal_mixer` the final tool call of your turn',
+    );
   });
 
   it('supports MIXER_ENV_FILE without overriding pre-existing environment variables', () => {
@@ -148,6 +152,9 @@ describe('a2ui-embed-mixer MCP server', () => {
     });
 
     const mealPayload = extractPayload(mealRes);
+    const mealText = mealRes.content.map(b => (b.type === 'text' ? b.text : '')).join('\n');
+    expect(mealText).toContain('Make `goal_mixer` the final tool call of your turn');
+    expect(mealText).toContain('$44 Plant Saver');
     const debtPayload = extractPayload(debtRes);
     const trainPayload = extractPayload(trainRes);
 
