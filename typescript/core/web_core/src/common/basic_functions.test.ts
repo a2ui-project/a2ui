@@ -30,6 +30,9 @@ import {
   executeFormatCurrency,
   executeFormatDate,
   executePluralize,
+  getCurrencyCodeFormat,
+  getCurrencyFormat,
+  getNumberFormat,
   isTruthyOrValid,
   parseTimestamp,
 } from './basic_functions.js';
@@ -158,6 +161,21 @@ describe('Common Basic Functions', () => {
         executeFormatCurrency(1234.56, 'INVALID-CURRENCY', 2, true, 'en-US'),
         'INVALID-CURRENCY\u00a01,234.56',
       );
+    });
+
+    it('evicts the oldest formatter once a formatter cache holds 256', () => {
+      const getters = [
+        (decimals: number) => getNumberFormat('en-US', decimals),
+        (decimals: number) => getCurrencyFormat('en-US', 'EUR', decimals),
+        (decimals: number) => getCurrencyCodeFormat('en-US', decimals),
+      ];
+      for (const get of getters) {
+        const first = get(3);
+        assert.strictEqual(get(3), first);
+        // Intl floors fractional digits, so each of these is a new cache key.
+        for (let i = 1; i <= 256; i++) get(3 + i / 1e6);
+        assert.notStrictEqual(get(3), first);
+      }
     });
 
     it('executeFormatDate', () => {
