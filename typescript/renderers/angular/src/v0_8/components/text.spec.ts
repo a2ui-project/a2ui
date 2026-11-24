@@ -110,4 +110,76 @@ describe('Text Component', () => {
     expect(sectionEl.nativeElement.className).toContain('style-h1');
     expect(sectionEl.nativeElement.className).not.toContain('style-body');
   });
+
+  describe('additionalStyles.Text', () => {
+    function createTextWithStyles(
+      textStyles: NonNullable<Theme['additionalStyles']>['Text'],
+      usageHint: string | null = 'body',
+    ): ComponentFixture<Text> {
+      mockTheme.additionalStyles = {Text: textStyles};
+      const styledFixture = TestBed.createComponent(Text);
+      styledFixture.componentRef.setInput('surfaceId', 'surface-1');
+      styledFixture.componentRef.setInput('component', {id: 'text-2', type: 'Text', weight: 1});
+      styledFixture.componentRef.setInput('weight', 1);
+      styledFixture.componentRef.setInput('text', {literalString: 'Styled'});
+      styledFixture.componentRef.setInput('usageHint', usageHint);
+      styledFixture.detectChanges();
+      return styledFixture;
+    }
+
+    it('should apply styles from a 7-key hinted map without h6', () => {
+      const styledFixture = createTextWithStyles(
+        {
+          h1: {color: 'rgb(10, 20, 30)'},
+          h2: {},
+          h3: {},
+          h4: {},
+          h5: {},
+          body: {color: 'rgb(40, 50, 60)'},
+          caption: {},
+        },
+        'h1',
+      );
+      const sectionEl = styledFixture.debugElement.query(By.css('section'));
+      expect(sectionEl.nativeElement.style.color).toBe('rgb(10, 20, 30)');
+
+      styledFixture.componentRef.setInput('usageHint', null);
+      styledFixture.detectChanges();
+      expect(sectionEl.nativeElement.style.color).toBe('rgb(40, 50, 60)');
+    });
+
+    it('should apply partial hinted styles and fall back to empty styles on unconfigured hints', () => {
+      const styledFixture = createTextWithStyles({h1: {color: 'rgb(200, 10, 10)'}}, 'h1');
+      const sectionEl = styledFixture.debugElement.query(By.css('section'));
+      expect(sectionEl.nativeElement.style.color).toBe('rgb(200, 10, 10)');
+
+      styledFixture.componentRef.setInput('usageHint', 'body');
+      styledFixture.detectChanges();
+      expect(sectionEl.nativeElement.style.color).toBe('');
+    });
+
+    it('should apply flat style maps and ignore empty or malformed mixed maps', () => {
+      const flatFixture = createTextWithStyles({color: 'rgb(1, 2, 3)'}, 'h2');
+      expect(flatFixture.debugElement.query(By.css('section')).nativeElement.style.color).toBe(
+        'rgb(1, 2, 3)',
+      );
+
+      const undefHintFlatFixture = createTextWithStyles(
+        {color: 'rgb(1, 2, 3)', body: undefined} as unknown as Record<string, string>,
+        'h2',
+      );
+      expect(
+        undefHintFlatFixture.debugElement.query(By.css('section')).nativeElement.style.color,
+      ).toBe('rgb(1, 2, 3)');
+
+      const mixedFixture = createTextWithStyles(
+        {h1: {color: 'rgb(1, 2, 3)'}, body: '16px'} as unknown as Record<string, string>,
+        'h1',
+      );
+      expect(mixedFixture.debugElement.query(By.css('section')).nativeElement.style.color).toBe('');
+
+      const emptyFixture = createTextWithStyles({}, 'body');
+      expect(emptyFixture.debugElement.query(By.css('section')).nativeElement.style.color).toBe('');
+    });
+  });
 });

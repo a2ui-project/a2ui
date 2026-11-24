@@ -14,6 +14,8 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
+import 'catalogs.dart';
+
 /// Transport metadata key for v0.9 and v0.9.1 client capabilities.
 const String a2uiClientCapabilitiesKey = 'a2uiClientCapabilities';
 
@@ -81,25 +83,99 @@ A2uiRendererCapabilities? readRendererCapabilities(
     );
   }
 
+  final List<Object?>? rawInline = entry['inlineCatalogs'] is List<Object?>
+      ? entry['inlineCatalogs']! as List<Object?>
+      : null;
+  final A2uiRendererCapabilities capabilities;
   try {
-    final capabilities = A2uiRendererCapabilities.fromJson(<String, Object?>{
+    capabilities = A2uiRendererCapabilities.fromJson(<String, Object?>{
       entryKey: entry,
     });
-    for (final CatalogApi catalog
-        in capabilities.forVersion(version)?.inlineCatalogs ?? const []) {
-      final A2uiProtocolVersion? declared = catalog.protocolVersion;
-      if (declared != null &&
-          !isCatalogVersionCompatible(declared.jsonValue, version.jsonValue)) {
-        throw A2uiCatalogError(
-          "Inline catalog '${catalog.id}' declares protocolVersion "
-          "'${declared.jsonValue}', which is incompatible with '$entryKey' "
-          "renderer capabilities under '$metadataKey'.",
-        );
-      }
+  } on A2uiCatalogError catch (e) {
+    if (e.catalogId == null && rawInline != null) {
+      _rethrowWithInlineCatalogId(rawInline, version);
     }
-    return capabilities;
+    rethrow;
   } on A2uiError catch (e) {
-    if (e is A2uiCatalogError) rethrow;
     throw A2uiCatalogError(e.message);
+  }
+
+  _validateParsedInlineCatalogs(
+    capabilities.forVersion(version)?.inlineCatalogs ?? const [],
+    rawInline,
+    version,
+    entryKey,
+    metadataKey,
+  );
+  return capabilities;
+}
+
+void _validateParsedInlineCatalogs(
+  List<CatalogApi> parsedInline,
+  List<Object?>? rawInline,
+  A2uiProtocolVersion version,
+  String entryKey,
+  String metadataKey,
+) {
+  for (var i = 0; i < parsedInline.length; i++) {
+    final CatalogApi catalog = parsedInline[i];
+    final A2uiProtocolVersion? declared = catalog.protocolVersion;
+    if (declared != null &&
+        !isCatalogVersionCompatible(declared.jsonValue, version.jsonValue)) {
+      throw A2uiCatalogError(
+        "Inline catalog '${catalog.id}' declares protocolVersion "
+        "'${declared.jsonValue}', which is incompatible with '$entryKey' "
+        "renderer capabilities under '$metadataKey'.",
+      );
+    }
+    final Object? rawDoc = rawInline != null && i < rawInline.length
+        ? rawInline[i]
+        : null;
+    validateInlineCatalogLocalRefs(
+      rawDoc is Map ? rawDoc.cast<String, Object?>() : catalog.toJson(),
+      catalog.id,
+      protocolVersion: declared ?? version,
+    );
+  }
+}
+
+(String, A2uiProtocolVersion)? _rawInlineTarget(
+  Object? rawDoc,
+  A2uiProtocolVersion fallbackVersion,
+) {
+  if (rawDoc is! Map) return null;
+  final Object? rawId = rawDoc['catalogId'];
+  final Object? rawVersion = rawDoc['protocolVersion'];
+  if (rawId is! String || rawId.isEmpty) return null;
+  if (rawVersion == null) return (rawId, fallbackVersion);
+  if (rawVersion is! String) return null;
+  final A2uiProtocolVersion? declared = A2uiProtocolVersion.tryParseSemVer(
+    rawVersion,
+  );
+  if (declared == null ||
+      !isCatalogVersionCompatible(
+        declared.jsonValue,
+        fallbackVersion.jsonValue,
+      )) {
+    return null;
+  }
+  return (rawId, declared);
+}
+
+void _rethrowWithInlineCatalogId(
+  List<Object?> rawInline,
+  A2uiProtocolVersion version,
+) {
+  for (final rawDoc in rawInline) {
+    final (String id, A2uiProtocolVersion target)? parsed = _rawInlineTarget(
+      rawDoc,
+      version,
+    );
+    if (parsed == null) break;
+    validateInlineCatalogLocalRefs(
+      (rawDoc! as Map).cast<String, Object?>(),
+      parsed.$1,
+      protocolVersion: parsed.$2,
+    );
   }
 }

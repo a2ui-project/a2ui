@@ -18,17 +18,26 @@ The shared `catalog_resolution.yaml` suite covers the negotiation rules under
 v1.0. These tests cover the capabilities shapes and versions it doesn't.
 """
 
+import logging
+
 import pytest
 
 from a2ui.catalog_transformers import (
     ComponentPruningTransformer,
     FunctionPruningTransformer,
 )
-from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog
+from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY, A2UI_RENDERER_CAPABILITIES_KEY
+from a2ui.core import (
+    A2uiCatalogError,
+    A2uiValidationError,
+    CapabilitiesOptions,
+    Catalog,
+    MessageProcessor,
+)
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import v0_8, v0_9, v1_0
 from a2ui.processor import CatalogConfig
-from a2ui.utils import resolve_catalogs
+from a2ui.utils import read_renderer_capabilities, resolve_catalogs
 
 
 def _config(catalog_id: str, protocol_version: str, *components: str) -> CatalogConfig:
@@ -268,7 +277,7 @@ def test_a_v10_to_json_document_is_accepted_as_an_inline_catalog():
     }
 
 
-def test_an_active_catalog_keeps_its_id_over_an_inline_catalog():
+def test_an_active_catalog_keeps_its_id_over_an_inline_catalog(caplog):
     capabilities = {
         "v0.9": {
             "supportedCatalogIds": ["a"],
@@ -278,11 +287,266 @@ def test_an_active_catalog_keeps_its_id_over_an_inline_catalog():
         }
     }
 
-    (resolved,) = resolve_catalogs(
-        [_config("a", "0.9", "Text")], capabilities, accepts_inline_catalogs=True
-    )
+    with caplog.at_level(logging.WARNING, logger="a2ui.utils.catalog_resolver"):
+        (resolved,) = resolve_catalogs(
+            [_config("a", "0.9", "Text")], capabilities, accepts_inline_catalogs=True
+        )
 
     assert set(resolved.components) == {"Text"}
+    assert "Dropping inline catalog 'a'" in caplog.text
+
+
+def test_duplicate_inline_catalog_ids_keep_the_first_and_warn(caplog):
+    capabilities = {
+        "v0.9": {
+            "supportedCatalogIds": [],
+            "inlineCatalogs": [
+                {"catalogId": "dup", "components": {"First": {"type": "object"}}},
+                {"catalogId": "dup", "components": {"Second": {"type": "object"}}},
+            ],
+        }
+    }
+
+    with caplog.at_level(logging.WARNING, logger="a2ui.utils.catalog_resolver"):
+        (resolved,) = resolve_catalogs(
+            [_config("a", "0.9", "Text")], capabilities, accepts_inline_catalogs=True
+        )
+
+    assert resolved.catalog_id == "dup"
+    assert set(resolved.components) == {"First"}
+    assert "Dropping inline catalog 'dup'" in caplog.text
+
+
+@pytest.mark.parametrize("accepts_inline_catalogs", [True, False])
+@pytest.mark.parametrize(
+    "bad_ref",
+    [
+        "#/$defs/CatalogComponentCommon",
+        "#/components/Missing",
+        "#/catalogId",
+        "#CatalogComponentCommon",
+        "#/$defs/Bad~2Escape",
+    ],
+)
+def test_inline_catalog_with_unresolvable_local_ref_is_rejected(
+    bad_ref: str, accepts_inline_catalogs: bool
+):
+    inline_doc = {
+        "catalogId": "renderer/bad-ref",
+        "protocolVersion": "1.0",
+        "components": {
+            "Marquee": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "Marquee"},
+                    "tone": {"$ref": bad_ref},
+                },
+                "required": ["component", "tone"],
+            }
+        },
+    }
+    capabilities = {
+        "1.0": {
+            "supportedCatalogIds": ["a"],
+            "inlineCatalogs": [inline_doc],
+        }
+    }
+
+    with pytest.raises(A2uiCatalogError, match="renderer/bad-ref") as exc_info:
+        resolve_catalogs(
+            [_config("a", "1.0", "Text")],
+            capabilities,
+            accepts_inline_catalogs=accepts_inline_catalogs,
+        )
+    assert bad_ref in str(exc_info.value)
+
+    with pytest.raises(A2uiCatalogError, match="renderer/bad-ref") as read_exc:
+        read_renderer_capabilities(
+            {A2UI_RENDERER_CAPABILITIES_KEY: capabilities}, "1.0"
+        )
+    assert bad_ref in str(read_exc.value)
+
+
+def test_v09_message_processor_inline_catalogs_with_common_type_refs_resolve():
+    v09_catalog = Catalog.from_json(
+        {
+            "catalogId": "renderer/v09",
+            "components": {
+                "Label": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "Label"},
+                        "text": {"$ref": "common_types.json#/$defs/DynamicString"},
+                    },
+                    "required": ["component", "text"],
+                }
+            },
+        },
+        protocol_version="0.9",
+    )
+    processor = MessageProcessor([v09_catalog])
+    capabilities = processor.get_renderer_capabilities(
+        CapabilitiesOptions(versions=["v0.9"], include_inline_catalogs=True)
+    )
+    extracted = read_renderer_capabilities(
+        {A2UI_CLIENT_CAPABILITIES_KEY: capabilities}, "v0.9"
+    )
+    assert extracted is not None
+
+    (resolved,) = resolve_catalogs(
+        [_config("other", "0.9", "Text")], extracted, accepts_inline_catalogs=True
+    )
+    assert resolved.catalog_id == "renderer/v09"
+
+    # v1.0-only common types (such as Child) must be rejected on v0.9 inline catalogs.
+    v09_with_v10_common = {
+        "v0.9": {
+            "supportedCatalogIds": [],
+            "inlineCatalogs": [{
+                "catalogId": "renderer/v09-bad-common",
+                "components": {
+                    "Card": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "Card"},
+                            "child": {"$ref": "#/$defs/Child"},
+                        },
+                    }
+                },
+            }],
+        }
+    }
+    with pytest.raises(A2uiCatalogError, match=r"#/\$defs/Child"):
+        resolve_catalogs(
+            [_config("other", "0.9", "Text")],
+            v09_with_v10_common,
+            accepts_inline_catalogs=True,
+        )
+
+
+def test_inline_catalog_theme_and_array_index_boundaries():
+    # Flat v0.9 theme with sibling 'type' and 'default' tokens validates 'default'.
+    flat_theme_caps = {
+        "v0.9": {
+            "supportedCatalogIds": [],
+            "inlineCatalogs": [{
+                "catalogId": "renderer/theme-tokens",
+                "components": {},
+                "theme": {
+                    "type": {"type": "string"},
+                    "default": {"$ref": "#/$defs/MissingThemeToken"},
+                },
+            }],
+        }
+    }
+    with pytest.raises(A2uiCatalogError, match="MissingThemeToken"):
+        resolve_catalogs(
+            [_config("a", "0.9", "Text")], flat_theme_caps, accepts_inline_catalogs=True
+        )
+
+    theme_ref_caps = {
+        "v0.9": {
+            "supportedCatalogIds": [],
+            "inlineCatalogs": [{
+                "catalogId": "renderer/theme-ref",
+                "components": {},
+                "theme": {"$ref": "#/$defs/MissingThemeSchema"},
+            }],
+        }
+    }
+    with pytest.raises(A2uiCatalogError, match="MissingThemeSchema"):
+        resolve_catalogs(
+            [_config("a", "0.9", "Text")], theme_ref_caps, accepts_inline_catalogs=True
+        )
+
+    # Oversized (>4300-digit) and trailing-newline array indices raise A2uiCatalogError.
+    for bad_index in ["9" * 5000, "0\n"]:
+        bad_index_doc = {
+            "catalogId": "renderer/bad-index",
+            "protocolVersion": "1.0",
+            "components": {
+                "Marquee": {
+                    "type": "object",
+                    "allOf": [{"type": "object"}],
+                    "properties": {
+                        "component": {"const": "Marquee"},
+                        "tone": {"$ref": f"#/components/Marquee/allOf/{bad_index}"},
+                    },
+                }
+            },
+        }
+        with pytest.raises(A2uiCatalogError, match="renderer/bad-index"):
+            read_renderer_capabilities(
+                {
+                    A2UI_RENDERER_CAPABILITIES_KEY: {
+                        "1.0": {
+                            "supportedCatalogIds": [],
+                            "inlineCatalogs": [bad_index_doc],
+                        }
+                    }
+                },
+                "1.0",
+            )
+
+
+def test_inline_catalog_escaped_and_indexed_local_refs_and_literal_values():
+    inline_doc = {
+        "catalogId": "renderer/escaped",
+        "protocolVersion": "1.0",
+        "components": {
+            "Marquee": {
+                "type": "object",
+                "allOf": [{"$ref": "#/$defs/a~1b~0c/allOf/0"}],
+                "properties": {
+                    "component": {"const": "Marquee"},
+                    "literalRef": {
+                        "type": "object",
+                        "const": {"$ref": "#/$defs/not_a_schema_ref"},
+                    },
+                    "default": {"type": "string"},
+                },
+                "required": ["component"],
+            }
+        },
+        "$defs": {
+            "a/b~c": {
+                "allOf": [{
+                    "type": "object",
+                    "properties": {"label": {"type": "string"}},
+                }]
+            },
+            "anyComponent": {
+                "oneOf": [{"$ref": "#/components/Marquee"}],
+                "discriminator": {"propertyName": "component"},
+            },
+            "anyFunction": {"not": {}},
+        },
+    }
+    capabilities = {"1.0": {"supportedCatalogIds": [], "inlineCatalogs": [inline_doc]}}
+    (resolved,) = resolve_catalogs(
+        [_config("a", "1.0", "Text")], capabilities, accepts_inline_catalogs=True
+    )
+    assert resolved.catalog_id == "renderer/escaped"
+
+    bad_default_prop = {
+        **inline_doc,
+        "components": {
+            "Marquee": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "Marquee"},
+                    "default": {"$ref": "#/$defs/MissingDefaultSchema"},
+                },
+                "required": ["component"],
+            }
+        },
+    }
+    with pytest.raises(A2uiCatalogError, match="MissingDefaultSchema"):
+        resolve_catalogs(
+            [_config("a", "1.0", "Text")],
+            {"1.0": {"supportedCatalogIds": [], "inlineCatalogs": [bad_default_prop]}},
+            accepts_inline_catalogs=True,
+        )
 
 
 @pytest.mark.parametrize("accepts_inline_catalogs", [True, False])
