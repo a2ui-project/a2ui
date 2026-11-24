@@ -25,16 +25,16 @@ from pathlib import Path
 from typing import Any, TypeAlias, TypeVar
 
 import anywidget
-from IPython import get_ipython
-from jupyter_ui_poll import ui_events
-from pydantic import BaseModel, TypeAdapter
-from traitlets import Dict as TraitDict, List
-
 from a2ui.core.schema.v1_0 import (
     A2uiRendererActionMessage,
     AgentToRendererMessage,
     RendererToAgentMessage,
 )
+from IPython import get_ipython
+from jupyter_ui_poll import ui_events
+from pydantic import BaseModel, TypeAdapter
+from traitlets import Dict as TraitDict
+from traitlets import List
 
 _AGENT_MESSAGE_ADAPTER: TypeAdapter[AgentToRendererMessage] = TypeAdapter(
     AgentToRendererMessage
@@ -137,7 +137,7 @@ class A2UISurface(anywidget.AnyWidget):
         All messages are validated before any are sent, so a bad item cannot
         partially apply a batch.
         """
-        if isinstance(messages, BaseModel) or isinstance(messages, Mapping):
+        if isinstance(messages, (BaseModel, Mapping)):
             batch = [messages]
         else:
             batch = list(messages)

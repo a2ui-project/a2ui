@@ -25,10 +25,9 @@ from typing import Any
 
 import anywidget
 import pytest
-from pydantic import ValidationError
-
 from a2ui_jupyter import A2UISurface
 from a2ui_jupyter import surface as surface_module
+from pydantic import ValidationError
 
 ACTION = {
     "version": "1.0",
@@ -155,18 +154,20 @@ def test_send_validates_the_full_batch_before_sending(
     surface = A2UISurface()
 
     with pytest.raises(ValidationError):
-        surface.send([
-            {
-                "version": "1.0",
-                "createSurface": {
-                    "surfaceId": "surface-1",
-                    "catalogId": (
-                        "https://a2ui.org/specification/v1_0/basic_catalog.json"
-                    ),
+        surface.send(
+            [
+                {
+                    "version": "1.0",
+                    "createSurface": {
+                        "surfaceId": "surface-1",
+                        "catalogId": (
+                            "https://a2ui.org/specification/v1_0/basic_catalog.json"
+                        ),
+                    },
                 },
-            },
-            {"version": "0.9", "deleteSurface": {"surfaceId": "surface-1"}},
-        ])
+                {"version": "0.9", "deleteSurface": {"surfaceId": "surface-1"}},
+            ]
+        )
 
     assert sent == []
     assert surface.message_log == []
@@ -222,22 +223,26 @@ def test_send_burst_syncs_the_log_once_and_display_flushes_it(
     surface.observe(lambda change: log_syncs.append(len(change["new"])), "message_log")
 
     async def send_burst() -> None:
-        surface.send({
-            "version": "1.0",
-            "createSurface": {
-                "surfaceId": "surface-1",
-                "catalogId": "https://a2ui.org/specification/v1_0/basic_catalog.json",
-            },
-        })
-        for value in range(3):
-            surface.send({
+        surface.send(
+            {
                 "version": "1.0",
-                "updateDataModel": {
+                "createSurface": {
                     "surfaceId": "surface-1",
-                    "path": "/value",
-                    "value": value,
+                    "catalogId": "https://a2ui.org/specification/v1_0/basic_catalog.json",
                 },
-            })
+            }
+        )
+        for value in range(3):
+            surface.send(
+                {
+                    "version": "1.0",
+                    "updateDataModel": {
+                        "surfaceId": "surface-1",
+                        "path": "/value",
+                        "value": value,
+                    },
+                }
+            )
         assert [content["sequence"] for content in sent] == [0, 1, 2, 3]
         assert log_syncs == []
         surface._repr_mimebundle_()
