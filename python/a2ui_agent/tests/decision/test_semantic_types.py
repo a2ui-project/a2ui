@@ -518,9 +518,12 @@ class TestFixturePayloadPointerSemantics:
 def test_unclosed_multiline_brace_prose_classifies_quickly() -> None:
     import time
 
-    adversarial = '{\n  "k": ' + ("a" * 8000) + "\nno closing brace"
-    started = time.monotonic()
-    sem_type, _ = classify_scalar(adversarial, "notes")
-    elapsed = time.monotonic() - started
-    assert sem_type != SemanticType.CODE
-    assert elapsed < 0.2
+    for adversarial in (
+        '{\n  "k": ' + ("a" * 8000) + "\nno closing brace",
+        "{" + ('"k": 1, ' * 1500),
+    ):
+        started = time.monotonic()
+        sem_type, _ = classify_scalar(adversarial, "notes")
+        elapsed = time.monotonic() - started
+        assert sem_type != SemanticType.CODE
+        assert elapsed < 0.2

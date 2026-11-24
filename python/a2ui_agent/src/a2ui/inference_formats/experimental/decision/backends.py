@@ -104,7 +104,7 @@ _BUNDLED_CALIBRATION_PATH = Path(__file__).with_name("calibration_profiles.json"
 
 _STEP_ZERO_LABELS: tuple[str, ...] = tuple("ABCDEFGHIJ")
 _STEP_ZERO_MAX_CONCURRENCY = 16
-_URL_IN_TEXT_RE = re.compile(r"https?://[^\s'\"<>]+")
+_URL_IN_TEXT_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9+.-]*://[^\s'\"<>]+")
 
 _BackendT = TypeVar("_BackendT", bound="_AsyncClosable")
 _T = TypeVar("_T")
@@ -119,7 +119,17 @@ AuthSpec: TypeAlias = str | Callable[[], str | Any] | None
 
 def _sanitize_url(url: str) -> str:
     """Strips credentials, query parameters, and fragments from a URL."""
-    parsed = urllib.parse.urlsplit(url)
+    try:
+        parsed = urllib.parse.urlsplit(url)
+    except ValueError:
+        base = url.split("?", 1)[0].split("#", 1)[0]
+        scheme, sep, rest = base.partition("://")
+        if sep:
+            authority, slash, path = rest.partition("/")
+            if "@" in authority:
+                authority = authority.rsplit("@", 1)[-1]
+            return f"{scheme}{sep}{authority}{slash}{path}"
+        return base
     if not parsed.scheme or not parsed.netloc:
         return url.split("?", 1)[0].split("#", 1)[0]
     host = parsed.hostname or ""
@@ -134,8 +144,14 @@ def _sanitize_url(url: str) -> str:
 
 
 def _sanitize_error_text(text: str) -> str:
-    """Sanitizes any HTTP(S) URLs embedded in an exception string."""
+    """Sanitizes any URLs embedded in an exception string."""
     return _URL_IN_TEXT_RE.sub(lambda match: _sanitize_url(match.group(0)), text)
+
+
+def _consume_task_exception(task: asyncio.Task[Any]) -> None:
+    """Consumes unhandled exceptions from abandoned background tasks."""
+    if not task.cancelled():
+        task.exception()
 
 
 def _safe_nonneg_float(value: Any) -> float:
@@ -706,6 +722,7 @@ class _HttpClientOwner(_AsyncClosable):
     _adc_token: str | None
     _adc_expires_at: float
     _adc_lock: threading.Lock
+    _adc_inflight: dict[asyncio.AbstractEventLoop, asyncio.Task[str | None]]
 
     def _init_http_client(
         self, client: httpx.AsyncClient | None, timeout_seconds: float
@@ -718,6 +735,7 @@ class _HttpClientOwner(_AsyncClosable):
         self._adc_token = None
         self._adc_expires_at = 0.0
         self._adc_lock = threading.Lock()
+        self._adc_inflight = {}
 
     @property
     def _owned_client(self) -> httpx.AsyncClient | None:
@@ -738,12 +756,25 @@ class _HttpClientOwner(_AsyncClosable):
             client = self._owned_clients.pop(lp, None)
             if client is not None and not client.is_closed:
                 self._stale_clients.append(client)
+        closed_adc = [lp for lp in self._adc_inflight if lp.is_closed()]
+        for lp in closed_adc:
+            self._adc_inflight.pop(lp, None)
 
     def _pop_stale_clients(self) -> list[httpx.AsyncClient]:
         """Removes and returns unclosed clients collected from closed loops."""
         stale = [c for c in self._stale_clients if not c.is_closed]
         self._stale_clients.clear()
         return stale
+
+    @staticmethod
+    async def _aclose_foreign_client(client: httpx.AsyncClient) -> None:
+        """Closes a client from a closed or stopped loop, ignoring closed-loop errors."""
+        if client.is_closed:
+            return
+        try:
+            await client.aclose()
+        except RuntimeError:
+            pass
 
     def _get_client(self) -> httpx.AsyncClient:
         """Returns the caller-supplied client or a loop-local owned one."""
@@ -764,11 +795,12 @@ class _HttpClientOwner(_AsyncClosable):
         with self._lock:
             self._sweep_closed_loops()
             client = self._owned_clients.pop(loop, None)
+            self._adc_inflight.pop(loop, None)
             stale = self._pop_stale_clients()
         if client is not None and not client.is_closed:
             await client.aclose()
         for old in stale:
-            await old.aclose()
+            await self._aclose_foreign_client(old)
 
     async def aclose(self) -> None:
         """Closes all internally owned `httpx.AsyncClient` instances."""
@@ -776,6 +808,7 @@ class _HttpClientOwner(_AsyncClosable):
             self._sweep_closed_loops()
             items = list(self._owned_clients.items())
             self._owned_clients.clear()
+            self._adc_inflight.clear()
             stale = self._pop_stale_clients()
         if not items and not stale:
             return
@@ -783,16 +816,17 @@ class _HttpClientOwner(_AsyncClosable):
         for loop, client in items:
             if client.is_closed:
                 continue
-            if loop is current_loop or loop.is_closed() or not loop.is_running():
+            if loop is current_loop:
                 await client.aclose()
+            elif loop.is_closed() or not loop.is_running():
+                await self._aclose_foreign_client(client)
             else:
                 try:
                     asyncio.run_coroutine_threadsafe(client.aclose(), loop)
                 except RuntimeError:
-                    await client.aclose()
+                    await self._aclose_foreign_client(client)
         for old in stale:
-            if not old.is_closed:
-                await old.aclose()
+            await self._aclose_foreign_client(old)
 
     backend_kind: str
     model_id: str
@@ -815,9 +849,25 @@ class _HttpClientOwner(_AsyncClosable):
         now = time.time()
         if self._adc_token and now < self._adc_expires_at:
             return self._adc_token
+        loop = asyncio.get_running_loop()
+        with self._lock:
+            task = self._adc_inflight.get(loop)
+            if task is None or task.done():
+
+                async def _run_refresh() -> str | None:
+                    try:
+                        return await asyncio.to_thread(self._refresh_adc_token_sync)
+                    finally:
+                        with self._lock:
+                            if self._adc_inflight.get(loop) is task:
+                                self._adc_inflight.pop(loop, None)
+
+                task = loop.create_task(_run_refresh())
+                task.add_done_callback(_consume_task_exception)
+                self._adc_inflight[loop] = task
         try:
             token = await asyncio.wait_for(
-                asyncio.to_thread(self._refresh_adc_token_sync),
+                asyncio.shield(task),
                 timeout=self._timeout_seconds,
             )
         except asyncio.TimeoutError as exc:
@@ -866,13 +916,15 @@ class _HttpClientOwner(_AsyncClosable):
             detail = _extract_http_error_detail(exc.response)
             summary = f"HTTP {status} {phrase}".strip()
             if detail:
-                summary = f"{summary}: {detail}"
+                summary = f"{summary}: {_sanitize_error_text(detail)}"
             raise self._backend_error(f"failed: {summary}", endpoint_url, exc) from exc
         except httpx.HTTPError as exc:
             detail = _sanitize_error_text(str(exc))
             raise self._backend_error(f"failed: {detail}", endpoint_url, exc) from exc
         except ValueError as exc:
-            reason = f"returned a body that is not JSON: {exc}"
+            reason = (
+                f"returned a body that is not JSON: {_sanitize_error_text(str(exc))}"
+            )
             raise self._backend_error(reason, endpoint_url, exc) from exc
 
     def _backend_error(
@@ -1592,9 +1644,15 @@ class StepZeroLogprobBackend(_HttpClientOwner):
                     question, batch.shared_context, headers
                 )
 
-        return tuple(
-            await asyncio.gather(*(_bounded_score(q) for q in batch.questions))
-        )
+        tasks = [asyncio.create_task(_bounded_score(q)) for q in batch.questions]
+        try:
+            return tuple(await asyncio.gather(*tasks))
+        except BaseException:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            raise
 
 
 def _choice_option_probabilities(

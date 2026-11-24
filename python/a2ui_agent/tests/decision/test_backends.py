@@ -1335,3 +1335,152 @@ async def test_malformed_numeric_fields_in_backend_replies_do_not_crash() -> Non
         sys1 = JevHttpBackend("http://jev.local/v1/systemone", client=client)
         (ans2,) = await sys1.answer(_batch(score_q))
     assert ans2.expected is None
+
+
+@pytest.mark.asyncio
+async def test_closed_loop_stale_client_runtime_error_is_ignored() -> None:
+    backend = JevHttpBackend("http://jev.local/predict")
+
+    class _ClosedLoopClient:
+
+        def __init__(self, *, fail: bool) -> None:
+            self.is_closed = False
+            self.fail = fail
+            self.close_calls = 0
+
+        async def aclose(self) -> None:
+            self.close_calls += 1
+            if self.fail:
+                raise RuntimeError("Event loop is closed")
+            self.is_closed = True
+
+    first = _ClosedLoopClient(fail=True)
+    second = _ClosedLoopClient(fail=False)
+    with backend._lock:
+        backend._stale_clients.extend([first, second])  # type: ignore[list-item]
+
+    await backend.aclose_current_loop()
+    assert first.close_calls == 1
+    assert second.close_calls == 1
+    assert second.is_closed
+
+    third = _ClosedLoopClient(fail=True)
+    fourth = _ClosedLoopClient(fail=False)
+    with backend._lock:
+        backend._stale_clients.extend([third, fourth])  # type: ignore[list-item]
+
+    await backend.aclose()
+    assert third.close_calls == 1
+    assert fourth.is_closed
+
+
+@pytest.mark.asyncio
+async def test_step_zero_cancels_sibling_tasks_on_failure() -> None:
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        prompt = body.get("prompt", "")
+        if "q1" in prompt:
+            await started.wait()
+            return httpx.Response(500, json={"error": "boom"})
+        started.set()
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+        return httpx.Response(200, json={"choices": []})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        backend = StepZeroLogprobBackend(
+            "http://vllm.local/v1/completions", "m", client=client
+        )
+        with pytest.raises(DecisionBackendError, match="HTTP 500"):
+            await backend.answer(
+                _batch(_choice("q1", "a", "b"), _choice("q2", "a", "b"))
+            )
+    assert cancelled.is_set()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_adc_refresh_coalesces_inflight_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import threading
+
+    from a2ui.inference_formats.experimental.decision import backends
+
+    calls = 0
+    gate = threading.Event()
+
+    def slow_adc(_timeout: float) -> str | None:
+        nonlocal calls
+        calls += 1
+        gate.wait(timeout=2.0)
+        return None
+
+    monkeypatch.setattr(backends, "_get_adc_token_sync", slow_adc)
+    backend = JevHttpBackend(
+        "http://jev.local/predict", auth="adc", timeout_seconds=5.0
+    )
+
+    tasks = [
+        asyncio.create_task(backend._resolve_adc_token("http://jev.local/predict"))
+        for _ in range(4)
+    ]
+    await asyncio.sleep(0.05)
+    gate.set()
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    assert all(isinstance(r, DecisionBackendError) for r in results)
+    assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_error_sanitization_covers_non_http_schemes_http_details_and_malformed_hosts() -> (
+    None
+):
+    from a2ui.inference_formats.experimental.decision import backends
+
+    text = (
+        "proxy socks5://alice:secret@proxy.internal:1080/p?token=abc "
+        "HTTPS://bob:pw@api.example.com/v1?key=xyz "
+        "http://carol:pw@[bad]/path?token=999#frag"
+    )
+    sanitized = backends._sanitize_error_text(text)
+    for leaked in (
+        "alice",
+        "secret",
+        "token=abc",
+        "bob",
+        "pw",
+        "key=xyz",
+        "carol",
+        "token=999",
+        "frag",
+    ):
+        assert leaked not in sanitized
+    assert "socks5://proxy.internal:1080/p" in sanitized
+    assert "https://api.example.com/v1" in sanitized
+    assert "http://[bad]/path" in sanitized
+
+    def echo_secret_500(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            500,
+            json={
+                "error": {
+                    "message": "upstream https://u:p@host.local/x?api_key=leak failed"
+                }
+            },
+        )
+
+    async with _json_client(echo_secret_500) as client:
+        backend = JevHttpBackend("http://jev.local/predict", client=client)
+        with pytest.raises(DecisionBackendError) as exc_info:
+            await backend.answer(_batch(_choice("q", "a", "b")))
+    msg = str(exc_info.value)
+    assert "api_key=leak" not in msg
+    assert "u:p@" not in msg
+    assert "https://host.local/x" in msg
