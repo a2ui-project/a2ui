@@ -51,6 +51,9 @@ public final class DataContext {
   /// The catalog ID of the catalog function currently executing in this context, if any.
   public internal(set) var activeFunctionCatalogID: String?
 
+  /// Whether this context evaluates an agent-initiated `callRendererFunction` request.
+  var isAgentCall = false
+
   /// Whether a function call was not evaluated or sent because one of its arguments includes a
   /// call that has no value (see `unsettledCallCount`).
   ///
@@ -128,6 +131,7 @@ public final class DataContext {
       isUserActivated: isUserActivated
     )
     nestedContext.activeFunctionCatalogID = activeFunctionCatalogID
+    nestedContext.isAgentCall = isAgentCall
     return nestedContext
   }
 
@@ -150,6 +154,7 @@ public final class DataContext {
         isUserActivated: userActivation
       )
       scopedContext.activeFunctionCatalogID = activeFunctionCatalogID
+      scopedContext.isAgentCall = isAgentCall
       return scopedContext.resolveDynamicValue(value)
     }
     switch value {
@@ -183,6 +188,24 @@ public final class DataContext {
     default:
       return value
     }
+  }
+
+  /// In v1.0, nested calls inside an agent-initiated `callRendererFunction` evaluate under the
+  /// agent caller boundary (`rendererOnly` rejected; `agentOnly` allowed), while bindings, checks,
+  /// and actions evaluate under the renderer caller boundary (`agentOnly` rejected).
+  private func callerBoundaryError(
+    name callName: String,
+    function: any FunctionImplementation
+  ) -> FunctionError? {
+    guard atLeastV10, !callName.hasPrefix("@") else { return nil }
+    if isAgentCall {
+      return function.api.allowedCallers == .rendererOnly
+        ? .callerDisallowed(name: callName, caller: "agent (allowedCallers is rendererOnly).")
+        : nil
+    }
+    return function.api.allowedCallers == .agentOnly
+      ? .callerDisallowed(name: callName, caller: "renderer")
+      : nil
   }
 
   private func evaluateFunctionCall(
@@ -221,14 +244,8 @@ public final class DataContext {
       recordFailedCall()
       return .null
     }
-    // Bindings, checks and actions are renderer callers. In v1.0 an agentOnly function runs
-    // only through an agent-initiated callRendererFunction, which RPCHandler evaluates
-    // directly. allowedCallers is a v1.0 feature, so v0.9 calls are not restricted.
-    if atLeastV10 && function.api.allowedCallers == .agentOnly {
-      functionHandler?.handleFunctionError(
-        FunctionError.callerDisallowed(name: callName, caller: "renderer"),
-        functionName: callName
-      )
+    if let boundaryError = callerBoundaryError(name: callName, function: function) {
+      functionHandler?.handleFunctionError(boundaryError, functionName: callName)
       recordFailedCall()
       return .null
     }

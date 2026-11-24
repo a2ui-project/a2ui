@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_8) Fix `Text` `additionalStyles` detection so complete 7-key and partial hinted style maps apply without requiring `h6`. A partial map that omits the active `usageHint` applies no inline styles ([#602](https://github.com/a2ui-project/a2ui/issues/602), [#4355](https://github.com/a2ui-project/a2ui/pull/4355)).
+
 ## 0.16.0
 
 - Migrate the Angular renderer stack to Angular 22. [#3405](https://github.com/a2ui-project/a2ui/issues/3405), [#3406](https://github.com/a2ui-project/a2ui/pull/3406)

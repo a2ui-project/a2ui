@@ -420,7 +420,7 @@ struct FormatStringFunctionTests {
         catalogID: standaloneID,
         args: [
           "value": .object([
-            "@call": .string("formatString"),
+            "@call": .string("rpcFormatString"),
             "catalogId": .string(standaloneID),
             "args": .object(["value": .string("arg:${activeCat()}")]),
           ])
@@ -517,6 +517,31 @@ struct FormatStringFunctionTests {
     #expect(defaultCatResponse.error == nil)
     #expect(defaultCatResponse.value == .string("Default:\(surfaceCatalogID)"))
     #expect(errorRecorder.capturedErrors.isEmpty)
+
+    // A `@path`-bound `${...}` template invoking a `rendererOnly` function (`formatString`) is
+    // rejected with `INVALID_FUNCTION_CALL`, even when preceded by a failing `${noSuchFn()}`
+    // expression in the same template.
+    surface.dataModel.set(
+      "/forbiddenTpl",
+      value: .string("${noSuchFn()}${formatString(value: 'x')}")
+    )
+    let forbiddenTplMessage = CallRendererFunctionMessage(
+      surfaceID: "s-surface",
+      functionCallID: "rpc-6",
+      callFunction: CallFunctionPayload(
+        call: "rpcFormatString",
+        catalogID: standaloneID,
+        args: ["value": .object(["@path": .string("/forbiddenTpl")])]
+      ),
+      version: .v10
+    )
+    let forbiddenTplResponse = await RPCHandler().handleIncomingCall(
+      forbiddenTplMessage,
+      catalogs: allCatalogs,
+      defaultCatalogID: surfaceCatalogID,
+      dataContext: surfaceContext
+    )
+    #expect(forbiddenTplResponse.error?.code == "INVALID_FUNCTION_CALL")
   }
 }
 
@@ -561,7 +586,8 @@ private struct ActiveCatalogFunction: FunctionImplementation, Sendable {
   let api = FunctionAPI(
     name: "activeCat",
     returnType: .string,
-    schema: try! JSONSchema.Schema(instance: "{}")
+    schema: try! JSONSchema.Schema(instance: "{}"),
+    allowedCallers: .rendererOrAgent
   )
 
   @MainActor
