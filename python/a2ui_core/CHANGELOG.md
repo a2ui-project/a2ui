@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Emit `ComponentNode.on_updated` when check-only validation attributes (`is_valid`, `validation_errors`, or `validation_results`) change in `NodeResolver`, including asynchronous `callAgentFunction` check settlement ([#4307](https://github.com/a2ui-project/a2ui/issues/4307), [#4308](https://github.com/a2ui-project/a2ui/pull/4308)).
+
 ## 0.7.1 (2026-11-23)
 
 - Add `MessageProcessor.add_catalog(catalog)`, which adds a catalog to a
