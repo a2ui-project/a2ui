@@ -393,6 +393,34 @@ def test_generic_binder_path_bound_check_keeps_data_model_message():
     assert parser.parse('${${"nested"}}') == ["nested"]
 
 
+def test_generic_binder_check_fails_on_non_boolean_valid():
+    """A check whose result has a non-boolean `valid` fails, like in Dart and Swift."""
+    cat = BasicCatalog("1.0")
+    data_model = DataModel({"check": {"valid": "true"}})
+    comp = ComponentModel(
+        "field_1",
+        "TextField",
+        cat,
+        {
+            "label": "Field",
+            "checks": [{
+                "condition": {"@path": "/check"},
+                "message": "Rule fallback message",
+            }],
+        },
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model, protocol_version="1.0")
+    binder = GenericBinder(ComponentContext(comp, DataContext(surface, path="/")))
+
+    assert binder.current_props["isValid"] is False
+    assert binder.current_props["validationErrors"] == ["Rule fallback message"]
+
+    data_model.set("/check", {"valid": "yes"})
+    assert binder.current_props["isValid"] is False
+
+    binder.dispose()
+
+
 def test_expression_parser_function_calls():
     from a2ui.core.expressions.expression_parser import ExpressionParser
 

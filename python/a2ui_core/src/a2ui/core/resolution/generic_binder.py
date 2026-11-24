@@ -745,6 +745,9 @@ class GenericBinder:
         if isinstance(val, dict):
             is_obj = "severity" in val or "code" in val
             raw = dict(val)
+            if "valid" in raw:
+                # Only `True` passes; pydantic would read "true" or "yes" as True.
+                raw["valid"] = raw["valid"] is True
         elif hasattr(val, "valid"):
             is_obj = True
             raw = {
