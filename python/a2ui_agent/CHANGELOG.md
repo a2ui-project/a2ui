@@ -1,5 +1,22 @@
 ## Unreleased
 
+- `ExpressPromptGenerator` now traverses `oneOf`, `anyOf`, `allOf`, and locally
+  flattened wire envelopes when extracting structured map-key instructions and
+  enum constraints, and `ExpressCompiler` now coerces literal string arrays into
+  `{label, value}` option objects on union properties that also admit data
+  bindings
+  ([#3400](https://github.com/a2ui-project/a2ui/issues/3400),
+  [#4184](https://github.com/a2ui-project/a2ui/pull/4184)).
+
+## 0.12.1 (2026-11-23)
+
+- `DirectJsonParser` rejects a number out of the range of a double, such as
+  `1e400`, with `A2uiParseError`, as the Dart SDK does. It used to read it as
+  `inf`, which `json.dumps` writes as `Infinity`, a token JSON does not have
+  ([#3847](https://github.com/a2ui-project/a2ui/pull/3847)).
+
+## 0.12.0 (2026-11-17)
+
 - **BREAKING CHANGE**: (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`,
   and `@checks` on v1.0 components across `ExpressCompiler`,
   `AtomCompiler`, `ElementalCompiler`, `MacroExpander`, `RendererState`, and the
@@ -20,6 +37,8 @@
   metadata (`a2uiRendererCapabilities` in v1.0 and `a2uiClientCapabilities` in
   v0.8, v0.9, and v0.9.1).
   [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
+- Package dependency updated to require `a2ui-core>=0.7.0,<0.8.0`.
+  [#4258](https://github.com/a2ui-project/a2ui/pull/4258)
 
 ## 0.11.0 (2026-11-10)
 

@@ -31,7 +31,7 @@ import {fileURLToPath} from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../../..'); // monorepo root
 const V08_EXAMPLES = join(ROOT, 'specification/v0_8/json/catalogs/basic/examples');
-const V09_EXAMPLES = join(ROOT, 'specification/v0_9/catalogs/basic/examples');
+const V09_EXAMPLES = join(ROOT, 'catalogs/basic/v0_9/examples');
 const V08_OUT = join(__dirname, '../src/data/gallery/v08/generated.ts');
 const V09_OUT = join(__dirname, '../src/data/gallery/v09/generated.ts');
 
@@ -84,6 +84,60 @@ const HEIGHTS = {
   'movie-card': 380,
 };
 const DEFAULT_HEIGHT = 340;
+
+const EXAMPLE_ORDER = [
+  'flight-status.json',
+  'email-compose.json',
+  'calendar-day.json',
+  'weather-current.json',
+  'product-card.json',
+  'music-player.json',
+  'task-card.json',
+  'user-profile.json',
+  'login-form.json',
+  'notification-permission.json',
+  'purchase-complete.json',
+  'chat-message.json',
+  'coffee-order.json',
+  'sports-player.json',
+  'account-balance.json',
+  'workout-summary.json',
+  'event-detail.json',
+  'track-list.json',
+  'software-purchase.json',
+  'restaurant-card.json',
+  'shipping-status.json',
+  'credit-card.json',
+  'step-counter.json',
+  'recipe-card.json',
+  'contact-card.json',
+  'podcast-episode.json',
+  'stats-card.json',
+  'countdown-timer.json',
+  'movie-card.json',
+  'modal-sample.json',
+  'live-invitation-builder.json',
+  'incremental-dashboard.json',
+  'advanced-form-validator.json',
+  'financial-data-grid.json',
+  'child-list-template.json',
+  'markdown-text.json',
+  'modal.json',
+  'native-grid.json',
+];
+
+const EXAMPLE_ORDER_INDEX = new Map(EXAMPLE_ORDER.map((name, index) => [name, index]));
+
+function compareExampleFilenames(a, b) {
+  const indexA = EXAMPLE_ORDER_INDEX.get(a);
+  const indexB = EXAMPLE_ORDER_INDEX.get(b);
+  if (indexA !== undefined && indexB !== undefined) {
+    return indexA - indexB;
+  }
+  if (indexA !== undefined) return -1;
+  if (indexB !== undefined) return 1;
+  return a.localeCompare(b);
+}
 
 function slugToName(slug) {
   return slug
@@ -202,8 +256,8 @@ function parseV09(example, slug) {
 
 function generateFile(examplesDir, version, parser) {
   const files = readdirSync(examplesDir)
-    .filter(f => f.endsWith('.json'))
-    .sort();
+    .filter(f => f.endsWith('.json') && !f.startsWith('scaffold-'))
+    .sort(compareExampleFilenames);
   const widgets = [];
 
   for (const file of files) {

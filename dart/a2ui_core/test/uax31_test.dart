@@ -43,27 +43,29 @@ void main() {
       expect(isValidUax31Identifier('@@index', allowLeadingAt: true), isFalse);
     });
 
-    test('rejects empty strings, leading digits, hyphens, dashes, and spaces',
-        () {
-      expect(isValidUax31Identifier(''), isFalse);
-      expect(isValidUax31Identifier('1abc'), isFalse);
-      expect(isValidUax31Identifier('123invalid'), isFalse);
-      expect(isValidUax31Identifier('a-b'), isFalse);
-      expect(isValidUax31Identifier('my-component'), isFalse);
-      expect(isValidUax31Identifier('a–b'), isFalse); // En dash (U+2013)
-      expect(isValidUax31Identifier('Component–Name'), isFalse);
-      expect(isValidUax31Identifier('prop—name'), isFalse); // Em dash (U+2014)
-      expect(isValidUax31Identifier('func֊name'), isFalse); // Armenian hyphen
-      expect(isValidUax31Identifier('has space'), isFalse);
-      expect(isValidUax31Identifier('prop!'), isFalse);
-      expect(isValidUax31Identifier('foo.bar'), isFalse);
-    });
+    test(
+      'rejects empty strings, leading digits, hyphens, dashes, and spaces',
+      () {
+        expect(isValidUax31Identifier(''), isFalse);
+        expect(isValidUax31Identifier('1abc'), isFalse);
+        expect(isValidUax31Identifier('123invalid'), isFalse);
+        expect(isValidUax31Identifier('a-b'), isFalse);
+        expect(isValidUax31Identifier('my-component'), isFalse);
+        expect(isValidUax31Identifier('a–b'), isFalse); // En dash (U+2013)
+        expect(isValidUax31Identifier('Component–Name'), isFalse);
+        expect(
+          isValidUax31Identifier('prop—name'),
+          isFalse,
+        ); // Em dash (U+2014)
+        expect(isValidUax31Identifier('func֊name'), isFalse); // Armenian hyphen
+        expect(isValidUax31Identifier('has space'), isFalse);
+        expect(isValidUax31Identifier('prop!'), isFalse);
+        expect(isValidUax31Identifier('foo.bar'), isFalse);
+      },
+    );
 
     test('assertUax31Identifier throws on invalid identifiers', () {
-      expect(
-        () => assertUax31Identifier('ValidName'),
-        returnsNormally,
-      );
+      expect(() => assertUax31Identifier('ValidName'), returnsNormally);
       expect(
         () => assertUax31Identifier('@index', allowLeadingAt: true),
         returnsNormally,

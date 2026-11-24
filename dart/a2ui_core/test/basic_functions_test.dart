@@ -17,11 +17,8 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 class _TestFn extends FunctionImplementation {
-  _TestFn(
-    String name,
-    this.body, {
-    Schema? argumentSchema,
-  }) : super(name: name, argumentSchema: argumentSchema ?? Schema.object());
+  _TestFn(String name, this.body, {Schema? argumentSchema})
+    : super(name: name, argumentSchema: argumentSchema ?? Schema.object());
 
   final Object? Function(Map<String, dynamic> args, DataContext context) body;
 
@@ -30,8 +27,7 @@ class _TestFn extends FunctionImplementation {
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      body(args, context);
+  ]) => body(args, context);
 }
 
 void main() {
@@ -155,41 +151,39 @@ void main() {
       },
     );
 
-    test(
-      'inherits formatString catalogId for v1.0 template calls '
-      'while keeping @index catalogless',
-      () {
-        final Catalog<ComponentApi, FunctionImplementation> basic =
-            BasicCatalog.v1_0();
-        final surface = SurfaceModel<ComponentApi>(
-          's-no-default',
-          protocolVersion: '1.0',
-          availableCatalogs: [basic],
-        );
-        addTearDown(surface.dispose);
-        final errors = <A2uiRendererError>[];
-        surface.onError.subscribe(errors.add);
-        final root = ComponentModel('root', 'Text', {});
-        final DataContext rootCtx = ComponentContext(
-          surface,
-          root,
-          basePath: '/items/2',
-          index: 2,
-        ).dataContext;
+    test('inherits formatString catalogId for v1.0 template calls '
+        'while keeping @index catalogless', () {
+      final Catalog<ComponentApi, FunctionImplementation> basic =
+          BasicCatalog.v1_0();
+      final surface = SurfaceModel<ComponentApi>(
+        's-no-default',
+        protocolVersion: '1.0',
+        availableCatalogs: [basic],
+      );
+      addTearDown(surface.dispose);
+      final errors = <A2uiRendererError>[];
+      surface.onError.subscribe(errors.add);
+      final root = ComponentModel('root', 'Text', {});
+      final DataContext rootCtx = ComponentContext(
+        surface,
+        root,
+        basePath: '/items/2',
+        index: 2,
+      ).dataContext;
 
-        const template = r'Row ${@index()}: '
-            r"${pluralize(value: 2, one: 'drop', other: 'drops')} "
-            r'(${not(value: not(value: true))})';
-        final Map<String, Object?> callExpr = {
-          '@call': 'formatString',
-          'catalogId': basic.id,
-          'args': {'value': template},
-        };
-        expect(rootCtx.resolveDynamicValue(callExpr), 'Row 2: drops (true)');
-        expect(rootCtx.resolveSignal(callExpr).value, 'Row 2: drops (true)');
-        expect(errors, isEmpty);
-      },
-    );
+      const template =
+          r'Row ${@index()}: '
+          r"${pluralize(value: 2, one: 'drop', other: 'drops')} "
+          r'(${not(value: not(value: true))})';
+      final Map<String, Object?> callExpr = {
+        '@call': 'formatString',
+        'catalogId': basic.id,
+        'args': {'value': template},
+      };
+      expect(rootCtx.resolveDynamicValue(callExpr), 'Row 2: drops (true)');
+      expect(rootCtx.resolveSignal(callExpr).value, 'Row 2: drops (true)');
+      expect(errors, isEmpty);
+    });
 
     test(
       'resolves v1.0 template calls in formatString catalog even when '
@@ -213,10 +207,7 @@ void main() {
         final errors = <A2uiRendererError>[];
         surface.onError.subscribe(errors.add);
         final root = ComponentModel('root', 'Text', {});
-        final DataContext rootCtx = ComponentContext(
-          surface,
-          root,
-        ).dataContext;
+        final DataContext rootCtx = ComponentContext(surface, root).dataContext;
 
         final Map<String, Object?> callExpr = {
           '@call': 'formatString',
@@ -237,14 +228,11 @@ void main() {
           '/',
           protocolVersion: A2uiProtocolVersion.v1_0,
         );
-        final Object? standaloneRes = basic.invoke(
-          'formatString',
-          {
-            'value': r'Standalone: '
-                r"${pluralize(value: 1, one: 'item', other: 'items')}",
-          },
-          standaloneCtx,
-        );
+        final Object? standaloneRes = basic.invoke('formatString', {
+          'value':
+              r'Standalone: '
+              r"${pluralize(value: 1, one: 'item', other: 'items')}",
+        }, standaloneCtx);
         expect(
           standaloneRes is ReadonlySignal ? standaloneRes.value : standaloneRes,
           'Standalone: item',
@@ -263,11 +251,9 @@ void main() {
             _TestFn('extOnly', (args, ctx) => 'from-ext'),
           ],
         );
-        final Object? extRes = extCat.invoke(
-          'formatString',
-          {'value': r'Got ${extOnly()}'},
-          rootCtx,
-        );
+        final Object? extRes = extCat.invoke('formatString', {
+          'value': r'Got ${extOnly()}',
+        }, rootCtx);
         expect(
           extRes is ReadonlySignal ? extRes.value : extRes,
           'Got from-ext',
@@ -296,14 +282,10 @@ void main() {
             ),
           ],
         );
-        final Object? delegatedRes = partialSameId.invoke(
-          'delegateFormat',
-          {
-            'value':
-                r"SameId: ${pluralize(value: 2, one: 'drop', other: 'drops')}",
-          },
-          standaloneCtx,
-        );
+        final Object? delegatedRes = partialSameId.invoke('delegateFormat', {
+          'value':
+              r"SameId: ${pluralize(value: 2, one: 'drop', other: 'drops')}",
+        }, standaloneCtx);
         expect(
           delegatedRes is ReadonlySignal ? delegatedRes.value : delegatedRes,
           'SameId: drops',
@@ -324,28 +306,22 @@ void main() {
                   'inner': {'call': 'nestedFn', 'args': <String, Object?>{}},
                 },
               });
-              expect(
-                preAdapted,
-                {
-                  '@call': 'otherFn',
-                  'args': {
-                    'inner': {
-                      '@call': 'nestedFn',
-                      'catalogId': 'https://example.com/inspect/catalog.json',
-                      'args': <String, Object?>{},
-                    },
+              expect(preAdapted, {
+                '@call': 'otherFn',
+                'args': {
+                  'inner': {
+                    '@call': 'nestedFn',
+                    'catalogId': 'https://example.com/inspect/catalog.json',
+                    'args': <String, Object?>{},
                   },
                 },
-              );
+              });
               checkedPreAdapted = true;
               return 'ok';
             }),
           ],
         );
-        expect(
-          inspectCat.invoke('inspectAdapt', {}, standaloneCtx),
-          'ok',
-        );
+        expect(inspectCat.invoke('inspectAdapt', {}, standaloneCtx), 'ok');
         expect(checkedPreAdapted, isTrue);
 
         // Mutating `surface.dataModel` recomputes `resolveSignal` with the
@@ -356,7 +332,8 @@ void main() {
           '@call': 'formatString',
           'catalogId': BasicCatalog.v1_0Id,
           'args': {
-            'value': r'Row ${@index()}: '
+            'value':
+                r'Row ${@index()}: '
                 r"${pluralize(value: /count, one: 'item', other: 'items')}",
           },
         });

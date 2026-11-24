@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- `ExpressPromptGenerator` (`promptSnippet`) now traverses `oneOf`, `anyOf`,
+  `allOf`, and locally flattened `DataBinding`, `FunctionCall`, `ChildList`, and
+  `Action` wire envelopes when generating property map-key instructions and
+  `(static)` / `(component ID)` / `(action)` annotations, and aligns
+  post-description indented headings to `Map keys:` and `List of maps keys:`
+  ([#3400](https://github.com/a2ui-project/a2ui/issues/3400),
+  [#4184](https://github.com/a2ui-project/a2ui/pull/4184)).
+
+## 0.5.0
+
+- **Breaking:** Requires `a2ui_core` `^0.9.0`, whose types this library
+  re-exports.
+
+- **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.10.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
+- Express format rejects binding multiple catalogs targeting a protocol version
+  before v1.0 with an `A2uiCatalogError`, matching the v1.0 multi-catalog
+  specification ([#3341](https://github.com/a2ui-project/a2ui/issues/3341),
+  [#4277](https://github.com/a2ui-project/a2ui/pull/4277)).
+
+## 0.4.0
+
+- **Breaking:** Requires `a2ui_core` `^0.8.0`, whose types this library
+  re-exports.
+
 - **Breaking:** (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`, and
   `@checks` on v1.0 components in `ExpressCompiler`, `DirectJsonResponseStream`,
   `MessageReader`, and `RendererState`, while keeping v0.9 component output
@@ -13,6 +37,7 @@
   [#3466](https://github.com/a2ui-project/a2ui/issues/3466),
   [#4012](https://github.com/a2ui-project/a2ui/issues/4012),
   [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+- Add explicit type annotations to internal local and pattern variables to satisfy the `specify_nonobvious_local_variable_types` analyzer lint on Dart 3.15+ ([#4233](https://github.com/a2ui-project/a2ui/pull/4233)).
 
 ## 0.3.0
 

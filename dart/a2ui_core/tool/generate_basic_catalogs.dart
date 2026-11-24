@@ -52,7 +52,7 @@ typedef BasicCatalogSource = ({
 /// write, relative to the package directory.
 const List<BasicCatalogSource> sources = [
   (
-    source: 'specification/v0_9/catalogs/basic/catalog.json',
+    source: 'catalogs/basic/v0_9/catalog.json',
     output: 'lib/src/basic_catalog/v0_9/catalog.g.dart',
     suffix: 'V0_9',
     label: 'v0.9',
@@ -250,22 +250,24 @@ String _schema(Schema schema) =>
 
 /// The JSON [value] as a Dart literal, with the types `jsonDecode` gives.
 String _literal(Object? value) => switch (value) {
-      null => 'null',
-      bool() || num() => '$value',
-      final String string => _string(string),
-      final List<Object?> list => list.isEmpty
-          ? '<Object?>[]'
-          : '<Object?>[${list.map(_literal).join(', ')},]',
-      final Map<Object?, Object?> map => map.isEmpty
-          ? '<String, Object?>{}'
-          : '<String, Object?>{${_mapEntries(map)},}',
-      _ => throw ArgumentError.value(value, 'value', 'is not JSON'),
-    };
+  null => 'null',
+  bool() || num() => '$value',
+  final String string => _string(string),
+  final List<Object?> list =>
+    list.isEmpty
+        ? '<Object?>[]'
+        : '<Object?>[${list.map(_literal).join(', ')},]',
+  final Map<Object?, Object?> map =>
+    map.isEmpty
+        ? '<String, Object?>{}'
+        : '<String, Object?>{${_mapEntries(map)},}',
+  _ => throw ArgumentError.value(value, 'value', 'is not JSON'),
+};
 
 String _mapEntries(Map<Object?, Object?> map) => [
-      for (final MapEntry<Object?, Object?> entry in map.entries)
-        '${_string(entry.key! as String)}: ${_literal(entry.value)}',
-    ].join(', ');
+  for (final MapEntry<Object?, Object?> entry in map.entries)
+    '${_string(entry.key! as String)}: ${_literal(entry.value)}',
+].join(', ');
 
 /// [value] as a Dart string literal: single-quoted, or double-quoted when it
 /// holds a single quote and no double quote, and raw when that spares

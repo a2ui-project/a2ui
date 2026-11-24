@@ -129,9 +129,8 @@ void main() {
       {'id': 'h3', 'component': 'Text', 'text': '### Closed ###'},
     ], catalog: _catalog);
 
-    final TextTheme theme = Theme.of(
-      tester.element(find.text('Title')),
-    ).textTheme;
+    final TextTheme theme = Theme.of(tester.element(find.text('Title')))
+        .textTheme;
     expect(
       tester.widget<Text>(find.text('Title')).style?.fontSize,
       theme.headlineMedium!.fontSize,

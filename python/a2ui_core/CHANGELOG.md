@@ -1,6 +1,26 @@
 ## Unreleased
 
+- Emit `ComponentNode.on_updated` when check-only validation attributes (`is_valid`, `validation_errors`, or `validation_results`) change in `NodeResolver`, including asynchronous `callAgentFunction` check settlement ([#4307](https://github.com/a2ui-project/a2ui/issues/4307), [#4308](https://github.com/a2ui-project/a2ui/pull/4308)).
+
+## 0.7.1 (2026-11-23)
+
+- Add `MessageProcessor.add_catalog(catalog)`, which adds a catalog to a
+  processor after it is built. `createSurface` messages, renderer function
+  calls and `get_renderer_capabilities` see the catalog from then on; surfaces
+  created before the call keep the catalogs they were created with. A catalog
+  whose ID the processor already holds is rejected with `A2uiCatalogError`.
+  `MessageProcessor.catalogs` is the processor's own list, which `add_catalog`
+  appends to; the sequence passed to the constructor is not changed
+  ([#3303](https://github.com/a2ui-project/a2ui/issues/3303),
+  [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
+- Avoid repeated `Catalog.validation_schema` deep copies during internal payload validation and component reference resolution ([#4314](https://github.com/a2ui-project/a2ui/issues/4314), [#4326](https://github.com/a2ui-project/a2ui/pull/4326)).
+
+## 0.7.0 (2026-11-17)
+
+- **BREAKING CHANGE**: Enforce basic catalog function argument and return-type validation across `StrictBaseModel`, `SchemaValidator`, and `PayloadValidator`: reject `str` and `bool` values on pure `int`/`float` fields (such as `length.min`, `length.max`, `numeric.min`, and `numeric.max`), enforce `anyOf` required-branch constraints (`SchemaKeywords.required_any_of`), enforce RFC 3986 scheme-prefixed URI syntax (`^[A-Za-z][A-Za-z0-9+.-]*:\S*$`) on `"format": "uri"` fields (such as `openUrl.args.url`), and validate declared `returnType` values on nested function calls against the catalog function definition on pre-1.0 surfaces. Recommended migration: pass numeric values to `min` and `max`, supply at least one bound on `length` and `numeric`, pass a scheme-prefixed URI to `openUrl.url`, and match or omit `returnType` on nested function calls ([#4173](https://github.com/a2ui-project/a2ui/issues/4173), [#4187](https://github.com/a2ui-project/a2ui/pull/4187)).
 - **BREAKING CHANGE**: (v1_0) Update `ComponentCommon` and `Checkable` schemas, `Catalog.validation_schema`, and `ComponentModel.component_tree` to emit `@catalogId`, `@metadata`, `@accessibility`, and `@checks` on v1.0 surfaces (`ComponentModel.component_tree` writes envelope metadata under `@metadata`), while `PayloadValidator` and `MessageProcessor` gate component `metadata` and `catalogId` envelope handling to v1.0+ surfaces (so pre-1.0 surfaces treat them as ordinary component properties), dual-read legacy bare `catalogId`, `metadata`, `accessibility`, and `checks` when undeclared as custom properties by the component schema, validate `@metadata.extensions` keys as UAX #31 identifiers, reject `null` `@catalogId` / legacy `catalogId`, and reject components specifying both `@`-prefixed and bare forms of the same mixin ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#3466](https://github.com/a2ui-project/a2ui/issues/3466), [#3511](https://github.com/a2ui-project/a2ui/issues/3511), [#4012](https://github.com/a2ui-project/a2ui/issues/4012), [#4037](https://github.com/a2ui-project/a2ui/pull/4037), [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+- Resolve component properties that reference `FunctionCall` directly (including `allOf`-constrained branches) in `GenericBinder` and `NodeResolver` ([#3809](https://github.com/a2ui-project/a2ui/issues/3809)).
+- (v1_0) Accept the `path` key of `ChildList` templates in `GenericBinder` ([#3809](https://github.com/a2ui-project/a2ui/issues/3809)).
 
 ## 0.6.0 (2026-11-10)
 
