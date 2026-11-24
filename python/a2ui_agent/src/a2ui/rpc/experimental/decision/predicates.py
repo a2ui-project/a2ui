@@ -43,7 +43,6 @@ from a2ui.core import (
 )
 from a2ui.inference_formats.experimental.decision import (
     DecisionBackend,
-    DecisionBackendError,
     DecisionBatch,
     DecisionQuestion,
     QuestionKind,
