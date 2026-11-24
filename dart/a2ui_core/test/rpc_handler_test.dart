@@ -849,7 +849,13 @@ void main() {
       final Catalog<ComponentApi, FunctionImplementation> basic =
           BasicCatalog.v1_0();
       final FunctionImplementation fs = basic.functions['formatString']!;
-      final FunctionImplementation pluralize = basic.functions['pluralize']!;
+      final FunctionImplementation rawPluralize = basic.functions['pluralize']!;
+      final FunctionImplementation pluralize = _Fn(
+        'pluralize',
+        rawPluralize.execute,
+        argumentSchema: rawPluralize.argumentSchema,
+        allowedCallers: AllowedCallers.rendererOrAgent,
+      );
       final Catalog<ComponentApi, FunctionImplementation> standalone = _catalog(
         'standalone-fmt',
         [
@@ -1042,6 +1048,293 @@ void main() {
       expect(concurrentRes[1].value, 'Surface:B');
       expect(concurrentRes[2].value, 'Headless:A');
       expect(concurrentRes[3].value, 'Headless:B');
+    });
+
+    test('rejects nested rendererOnly calls before sibling arguments execute '
+        'and enforces agent caller boundary on DataModel templates', () async {
+      final sideEffects = <String>[];
+      final FunctionImplementation fs =
+          BasicCatalog.v1_0().functions['formatString']!;
+      final Catalog<ComponentApi, FunctionImplementation> boundaryCat =
+          _catalog('boundary-cat', [
+            _Fn('mutatingAllowed', (_, _) {
+              sideEffects.add('mutated');
+              return 'ok';
+            }, allowedCallers: AllowedCallers.rendererOrAgent),
+            _Fn('secretRendererOnly', (_, _) {
+              sideEffects.add('leaked');
+              return 'SECRET';
+            }, allowedCallers: AllowedCallers.rendererOnly),
+            _Fn(
+              'agentOnlyFn',
+              (_, _) => 'AGENT_SECRET',
+              allowedCallers: AllowedCallers.agentOnly,
+            ),
+            _Fn(
+              'echoAll',
+              (args, _) => Map<String, Object?>.from(args),
+              allowedCallers: AllowedCallers.rendererOrAgent,
+            ),
+            _Fn(
+              'renderTpl',
+              fs.execute,
+              argumentSchema: fs.argumentSchema,
+              allowedCallers: AllowedCallers.rendererOrAgent,
+            ),
+          ]);
+      final boundarySurface = SurfaceModel<ComponentApi>(
+        's-boundary',
+        defaultCatalog: boundaryCat,
+        availableCatalogs: [boundaryCat],
+        protocolVersion: '1.0',
+      );
+      boundarySurface.dataModel.set('/tpl', r'Leak: ${secretRendererOnly()}');
+      final h = RpcHandler(catalogs: [boundaryCat], outboundListener: sent.add);
+      addTearDown(h.dispose);
+
+      // 1. Sibling `mutatingAllowed` must not run when a sibling nested
+      // `@call` targets a `rendererOnly` function.
+      final RendererFunctionResponseMessage siblingRes = await h
+          .handleCallRendererFunction(
+            CallRendererFunctionMessage(
+              version: '1.0',
+              functionCallId: 'nested-sibling',
+              surfaceId: 's-boundary',
+              callFunction: {
+                '@call': 'echoAll',
+                'catalogId': 'boundary-cat',
+                'args': {
+                  'first': {
+                    '@call': 'mutatingAllowed',
+                    'catalogId': 'boundary-cat',
+                    'args': <String, Object?>{},
+                  },
+                  'second': [
+                    {
+                      '@call': 'secretRendererOnly',
+                      'catalogId': 'boundary-cat',
+                      'args': <String, Object?>{},
+                    },
+                  ],
+                },
+              },
+            ),
+            surface: boundarySurface,
+          );
+      expect(
+        siblingRes.response.error?.code,
+        RpcErrorCode.invalidFunctionCall.wireValue,
+      );
+      expect(sideEffects, isEmpty);
+
+      // 2. Dynamic `${secretRendererOnly()}` read via `@path` from DataModel
+      // fails with `INVALID_FUNCTION_CALL`.
+      final RendererFunctionResponseMessage tplRes = await h
+          .handleCallRendererFunction(
+            CallRendererFunctionMessage(
+              version: '1.0',
+              functionCallId: 'nested-tpl',
+              surfaceId: 's-boundary',
+              callFunction: {
+                '@call': 'renderTpl',
+                'catalogId': 'boundary-cat',
+                'args': {
+                  'value': {'@path': '/tpl'},
+                },
+              },
+            ),
+            surface: boundarySurface,
+          );
+      expect(
+        tplRes.response.error?.code,
+        RpcErrorCode.invalidFunctionCall.wireValue,
+      );
+      expect(sideEffects, isEmpty);
+
+      // 3. Nested `agentOnly` call succeeds under `callRendererFunction`.
+      final RendererFunctionResponseMessage agentRes = await h
+          .handleCallRendererFunction(
+            CallRendererFunctionMessage(
+              version: '1.0',
+              functionCallId: 'nested-agent',
+              surfaceId: 's-boundary',
+              callFunction: {
+                '@call': 'echoAll',
+                'catalogId': 'boundary-cat',
+                'args': {
+                  'token': {
+                    '@call': 'agentOnlyFn',
+                    'catalogId': 'boundary-cat',
+                    'args': <String, Object?>{},
+                  },
+                },
+              },
+            ),
+            surface: boundarySurface,
+          );
+      expect(agentRes.response.error, isNull);
+      expect(agentRes.response.value, {'token': 'AGENT_SECRET'});
+
+      // 4. 600 chained `@call` wrappers reject `secretRendererOnly` before
+      // sibling runs, and >1000 levels fail closed with `EXECUTION_ERROR`.
+      Object deepForbidden = <String, Object?>{
+        '@call': 'secretRendererOnly',
+        'catalogId': 'boundary-cat',
+        'args': <String, Object?>{},
+      };
+      for (var i = 0; i < 600; i++) {
+        deepForbidden = <String, Object?>{
+          '@call': 'echoAll',
+          'catalogId': 'boundary-cat',
+          'args': <String, Object?>{'inner': deepForbidden},
+        };
+      }
+      final RendererFunctionResponseMessage deepRes = await h
+          .handleCallRendererFunction(
+            CallRendererFunctionMessage(
+              version: '1.0',
+              functionCallId: 'nested-deep-600',
+              surfaceId: 's-boundary',
+              callFunction: {
+                '@call': 'echoAll',
+                'catalogId': 'boundary-cat',
+                'args': {
+                  'first': {
+                    '@call': 'mutatingAllowed',
+                    'catalogId': 'boundary-cat',
+                    'args': <String, Object?>{},
+                  },
+                  'second': deepForbidden,
+                },
+              },
+            ),
+            surface: boundarySurface,
+          );
+      expect(
+        deepRes.response.error?.code,
+        RpcErrorCode.invalidFunctionCall.wireValue,
+      );
+      expect(sideEffects, isEmpty);
+
+      Object overDeep = 'leaf';
+      for (var i = 0; i < 1005; i++) {
+        overDeep = <Object>[overDeep];
+      }
+      final RendererFunctionResponseMessage overDeepRes = await h
+          .handleCallRendererFunction(
+            CallRendererFunctionMessage(
+              version: '1.0',
+              functionCallId: 'nested-over-deep',
+              surfaceId: 's-boundary',
+              callFunction: {
+                '@call': 'echoAll',
+                'catalogId': 'boundary-cat',
+                'args': {
+                  'first': {
+                    '@call': 'mutatingAllowed',
+                    'catalogId': 'boundary-cat',
+                    'args': <String, Object?>{},
+                  },
+                  'second': overDeep,
+                },
+              },
+            ),
+            surface: boundarySurface,
+          );
+      expect(
+        overDeepRes.response.error?.code,
+        RpcErrorCode.executionError.wireValue,
+      );
+      expect(sideEffects, isEmpty);
+
+      // 5. Renderer-side `agentOnly` error leaves `details` null.
+      expect(
+        () => boundaryCat.invoke(
+          'agentOnlyFn',
+          const {},
+          DataContext(boundarySurface.dataModel, boundaryCat.invoke, '/'),
+        ),
+        throwsA(
+          isA<A2uiExpressionError>().having(
+            (e) => e.details,
+            'details',
+            isNull,
+          ),
+        ),
+      );
+
+      // 6. Mixed-error template prioritizes `INVALID_FUNCTION_CALL` over an
+      // earlier unknown-function error, and nested side-effecting args do not
+      // run before the forbidden call is rejected.
+      final RendererFunctionResponseMessage mixedTplRes = await h
+          .handleCallRendererFunction(
+            CallRendererFunctionMessage(
+              version: '1.0',
+              functionCallId: 'nested-mixed-tpl',
+              surfaceId: 's-boundary',
+              callFunction: {
+                '@call': 'renderTpl',
+                'catalogId': 'boundary-cat',
+                'args': {'value': r'${noSuchFn()}${secretRendererOnly()}'},
+              },
+            ),
+            surface: boundarySurface,
+          );
+      expect(
+        mixedTplRes.response.error?.code,
+        RpcErrorCode.invalidFunctionCall.wireValue,
+      );
+
+      final RendererFunctionResponseMessage eagerArgRes = await h
+          .handleCallRendererFunction(
+            CallRendererFunctionMessage(
+              version: '1.0',
+              functionCallId: 'nested-eager-arg',
+              surfaceId: 's-boundary',
+              callFunction: {
+                '@call': 'renderTpl',
+                'catalogId': 'boundary-cat',
+                'args': {
+                  'value': r'${secretRendererOnly(label: mutatingAllowed())}',
+                },
+              },
+            ),
+            surface: boundarySurface,
+          );
+      expect(
+        eagerArgRes.response.error?.code,
+        RpcErrorCode.invalidFunctionCall.wireValue,
+      );
+      expect(sideEffects, isEmpty);
+
+      // 7. Over-deep sibling alongside a shallow forbidden call still returns
+      // `INVALID_FUNCTION_CALL` deterministically.
+      final RendererFunctionResponseMessage mixedDepthRes = await h
+          .handleCallRendererFunction(
+            CallRendererFunctionMessage(
+              version: '1.0',
+              functionCallId: 'nested-depth-and-forbidden',
+              surfaceId: 's-boundary',
+              callFunction: {
+                '@call': 'echoAll',
+                'catalogId': 'boundary-cat',
+                'args': {
+                  'first': overDeep,
+                  'second': {
+                    '@call': 'secretRendererOnly',
+                    'catalogId': 'boundary-cat',
+                    'args': <String, Object?>{},
+                  },
+                },
+              },
+            ),
+            surface: boundarySurface,
+          );
+      expect(
+        mixedDepthRes.response.error?.code,
+        RpcErrorCode.invalidFunctionCall.wireValue,
+      );
+      expect(sideEffects, isEmpty);
     });
   });
 }
