@@ -9045,7 +9045,7 @@ Override the `--a2ui-*` CSS custom properties on `:root` or a container element 
 }
 ```
 
-When the surface renders inside a shadow root, Basic Catalog components adopt the default stylesheet into that shadow root instead of `document`, so the host page's styles stay untouched. The shadow root's defaults replace values set on `:root` and classes set on `<html>`. Set the `--a2ui-*` overrides and the `.a2ui-dark` or `.a2ui-light` class on the shadow host element instead.
+When the surface renders inside a shadow root, omit the top-level `injectBasicCatalogStyles()` call from [Step 2](#step-2-initialize-messageprocessor), or pass your shadow root to `injectBasicCatalogStyles(shadowRoot)`. Basic Catalog components adopt the default stylesheet into that enclosing shadow root instead of `document`, so the host page's styles stay untouched. The shadow root's defaults replace values set on `:root` and classes set on `<html>`. Set the `--a2ui-*` overrides and the `.a2ui-dark` or `.a2ui-light` class on the shadow host element instead.
 
 In React, `setMarkdownRenderer(renderMarkdown)` from [Step 2](#step-2-initialize-messageprocessor) configures the built-in Basic catalog `Text` elements; if your custom React catalog components call `useMarkdownRenderer()`, also wrap your tree in `<MarkdownContext.Provider value={renderMarkdown}>` from `@a2ui/react`.
 
