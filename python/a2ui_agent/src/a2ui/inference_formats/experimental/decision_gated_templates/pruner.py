@@ -202,11 +202,7 @@ def extract_gates_and_variants(
                 raise A2uiCatalogError(
                     f"Variant group '{group}' has conflicting 'minConfidence' settings."
                 )
-            if (
-                prev_prompt is not None
-                and prompt is not None
-                and prev_prompt != prompt
-            ):
+            if prev_prompt is not None and prompt is not None and prev_prompt != prompt:
                 raise A2uiCatalogError(
                     f"Variant group '{group}' has conflicting 'prompt' settings."
                 )
@@ -217,9 +213,7 @@ def extract_gates_and_variants(
         )
 
     if _ROOT_ID not in seen_ids:
-        raise A2uiCatalogError(
-            f"Gated template must contain a '{_ROOT_ID}' component."
-        )
+        raise A2uiCatalogError(f"Gated template must contain a '{_ROOT_ID}' component.")
 
     variant_groups: list[VariantGroupSpec] = []
     for group, options in variant_options_by_group.items():
@@ -250,14 +244,14 @@ def _child_ids_of(comp: Mapping[str, Any]) -> list[str]:
         if isinstance(val, str):
             refs.append(val)
     children = comp.get("children")
-    if isinstance(children, list):
+    if isinstance(children, Sequence) and not isinstance(children, (str, bytes)):
         refs.extend(item for item in children if isinstance(item, str))
     elif isinstance(children, Mapping):
         tmpl_id = children.get("componentId")
         if isinstance(tmpl_id, str):
             refs.append(tmpl_id)
     tabs = comp.get("tabs")
-    if isinstance(tabs, list):
+    if isinstance(tabs, Sequence) and not isinstance(tabs, (str, bytes)):
         for tab in tabs:
             if isinstance(tab, Mapping) and isinstance(tab.get("child"), str):
                 refs.append(str(tab["child"]))
@@ -280,9 +274,7 @@ def _strip_gate_metadata(comp: dict[str, Any]) -> None:
         comp.pop("@metadata", None)
 
 
-def _clean_parent_references(
-    comp: dict[str, Any], pruned: set[str]
-) -> bool:
+def _clean_parent_references(comp: dict[str, Any], pruned: set[str]) -> bool:
     """Cleans references to `pruned` IDs on `comp`; returns True if `comp` must be pruned."""
     for key in _REQUIRED_SINGLE_CHILD_KEYS:
         val = comp.get(key)
@@ -290,7 +282,7 @@ def _clean_parent_references(
             return True
 
     children = comp.get("children")
-    if isinstance(children, list):
+    if isinstance(children, Sequence) and not isinstance(children, (str, bytes)):
         comp["children"] = [
             cid for cid in children if not (isinstance(cid, str) and cid in pruned)
         ]
@@ -300,7 +292,7 @@ def _clean_parent_references(
             return True
 
     tabs = comp.get("tabs")
-    if isinstance(tabs, list):
+    if isinstance(tabs, Sequence) and not isinstance(tabs, (str, bytes)):
         remaining_tabs = [
             tab
             for tab in tabs

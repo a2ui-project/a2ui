@@ -326,18 +326,14 @@ class GatedTemplateEvaluator:
             kind=QuestionKind.CHOICE,
             prompt="Select the best gated UI template for this payload, or none.",
             options=tuple(p.spec.id for p in eligible),
-            option_texts=tuple(
-                f"{p.spec.id}: {p.spec.description}" for p in eligible
-            ),
+            option_texts=tuple(f"{p.spec.id}: {p.spec.description}" for p in eligible),
             allow_none=True,
         )
         questions_by_tid = {
             p.spec.id: _build_template_questions(p, prefix_template_id=True)
             for p in eligible
         }
-        all_gate_questions = [
-            q for p in eligible for q in questions_by_tid[p.spec.id]
-        ]
+        all_gate_questions = [q for p in eligible for q in questions_by_tid[p.spec.id]]
         total_pairs = len(select_q.candidates()) + sum(
             len(q.candidates()) for q in all_gate_questions
         )
@@ -442,7 +438,13 @@ class GatedTemplateEvaluator:
         for gate in prepared.gates:
             qid = f"gate:{prefix}{gate.component_id}"
             ans = answer_map.get(qid)
-            yes_prob = float(ans.yes) if ans is not None else 0.0
+            if ans is None:
+                raise DecisionBackendError(
+                    f"Decision backend omitted answer for '{qid}'.",
+                    backend_kind=self._backend.backend_kind,
+                    model_id=self._backend.model_id,
+                )
+            yes_prob = float(ans.yes)
             keep = yes_prob >= gate.threshold
             if not keep:
                 pruned_ids.add(gate.component_id)
@@ -460,7 +462,13 @@ class GatedTemplateEvaluator:
         for group in prepared.variants:
             qid = f"variant:{prefix}{group.group}"
             ans = answer_map.get(qid)
-            chosen, prob = ans.top() if ans is not None else ("none", 0.0)
+            if ans is None:
+                raise DecisionBackendError(
+                    f"Decision backend omitted answer for '{qid}'.",
+                    backend_kind=self._backend.backend_kind,
+                    model_id=self._backend.model_id,
+                )
+            chosen, prob = ans.top()
             below_conf = prob < group.min_confidence
             if not chosen or chosen == "none" or below_conf:
                 if not group.allow_none:
@@ -555,7 +563,9 @@ class GatedTemplateEvaluator:
             transport_catalogs=self._transport_catalogs,
             renderer_state=renderer_state,
         )
-        kept_all = tuple(str(c["id"]) for c in surviving if isinstance(c.get("id"), str))
+        kept_all = tuple(
+            str(c["id"]) for c in surviving if isinstance(c.get("id"), str)
+        )
         return GatedTemplateResult(
             messages=lowered,
             template_id=prepared.spec.id,
