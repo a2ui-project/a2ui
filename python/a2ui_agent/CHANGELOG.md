@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) `validate_payload`, `RendererState.apply`, and inference format parsers check function calls nested in `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions while accepting `agentOnly` and `rendererOrAgent` functions. Recommended migration: set `allowedCallers` to `"rendererOrAgent"` or `"agentOnly"` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774), [#4336](https://github.com/a2ui-project/a2ui/pull/4336)).
 - **BREAKING CHANGE**: `resolve_catalogs` and `read_renderer_capabilities`
   reject inline catalogs whose local `#...` `$ref` pointers do not resolve
   against the inline catalog document or the protocol version's

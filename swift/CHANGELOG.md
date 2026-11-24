@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) `RPCHandler` evaluates nested `@call` objects and `${...}` template
+  expressions inside `callRendererFunction.callFunction.args` under the agent's caller boundary
+  instead of the renderer's, rejecting `rendererOnly` functions and unactivated
+  `requiresUserActivation` functions with `INVALID_FUNCTION_CALL` while permitting `agentOnly` and
+  `rendererOrAgent` functions, and checking nested `@call` objects before any sibling argument runs.
+  Recommended migration: set `allowedCallers` to `.rendererOrAgent` or `.agentOnly` on functions
+  nested inside `callRendererFunction` arguments.
+  [#3774](https://github.com/a2ui-project/a2ui/issues/3774),
+  [#4336](https://github.com/a2ui-project/a2ui/pull/4336)
 - **BREAKING CHANGE**: Remove the limit of 5 on nested function calls from message validation in
   `A2UICore`. Function call nesting is bounded only by the global depth limit of 50, so payloads
   that failed with `functionCall depth > 5` are now accepted
