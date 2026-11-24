@@ -41,13 +41,16 @@ import shutil
 import subprocess
 import threading
 import time
-from typing import Any, Protocol, TypeAlias, TypeVar, cast, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, TypeVar, runtime_checkable
 import urllib.parse
 
-try:
+if TYPE_CHECKING:
     import httpx
-except ImportError:  # pragma: no cover - exercised via monkeypatch
-    httpx = None  # type: ignore[assignment]
+else:
+    try:
+        import httpx
+    except ImportError:  # pragma: no cover - exercised via monkeypatch
+        httpx: Any = None
 
 from a2ui.core import A2uiValidationError
 from a2ui.utils._experimental import experimental

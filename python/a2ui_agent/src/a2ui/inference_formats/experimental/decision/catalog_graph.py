@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from enum import Enum
 from typing import Any
 
 from a2ui.core import CatalogApi
@@ -409,7 +410,7 @@ class CatalogDecisionGraph:
         self._catalogs = check_mixed_catalogs(catalogs)
         self._helpers = build_catalog_helpers(self._catalogs)
         first_ver = self._catalogs[0].protocol_version
-        raw_ver = str(first_ver.value if hasattr(first_ver, "value") else first_ver)
+        raw_ver = str(first_ver.value if isinstance(first_ver, Enum) else first_ver)
         self.protocol_version: str = (
             raw_ver if raw_ver.startswith("v") else f"v{raw_ver}"
         )
