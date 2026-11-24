@@ -80,7 +80,8 @@ class _SignalDataSubscription<T extends Object?>
 
 /// A dynamic value as [DataContext.resolveSignalWithPending] reports it:
 /// its current `value`, and whether that value is a placeholder for an
-/// agent call whose response has not arrived (`pending`).
+/// agent call or asynchronous local function whose result has not arrived
+/// (`pending`).
 typedef DynamicValueState = ({Object? value, bool pending});
 
 /// Provides data access relative to a specific path in the DataModel.
@@ -517,7 +518,9 @@ class DataContext {
     Object? value,
     int depth, {
     bool keepFailed = false,
+    bool keepPending = false,
   }) {
+    final bool propagatePending = keepPending || keepFailed;
     if (depth > maxDynamicValueDepth) {
       _reportDepthExceeded();
       return signal(keepFailed ? _failedArg : null);
@@ -535,40 +538,12 @@ class DataContext {
             return keepFailed ? _failedArg : null;
           });
         }
-        final call = FunctionCall.fromJson(_asStringKeyedMap(value));
-        final Map<String, ReadonlySignal<Object?>> argSignals = {
-          for (final MapEntry<String, dynamic> entry in call.args.entries)
-            entry.key: _resolveSignal(entry.value, depth + 1, keepFailed: true),
-        };
-        String? lastAgentKey;
-        _AgentCall? lastAgentCall;
-        return computed(() {
-          final args = <String, dynamic>{
-            for (final MapEntry<String, ReadonlySignal<Object?>> entry
-                in argSignals.entries)
-              entry.key: entry.value.value,
-          };
-          if (_containsFailedArg(args)) return keepFailed ? _failedArg : null;
-          if (_containsPendingArg(args)) {
-            return keepFailed ? _pendingArg : null;
-          }
-          final Object? result = _evaluateFunction(
-            call,
-            args,
-            keepFailed: keepFailed,
-            canSend: true,
-            lastAgentKey: lastAgentKey,
-            lastAgentCall: lastAgentCall,
-            onAgentCall: (key, entry) {
-              lastAgentKey = key;
-              lastAgentCall = entry;
-            },
-          );
-          if (result is ReadonlySignal) {
-            return result.value;
-          }
-          return result;
-        });
+        return _resolveFunctionCallSignal(
+          FunctionCall.fromJson(_asStringKeyedMap(value)),
+          depth,
+          keepFailed: keepFailed,
+          propagatePending: propagatePending,
+        );
       }
       if (value is Map) {
         final Map<String, dynamic> stringMap = _asStringKeyedMap(value);
@@ -578,8 +553,14 @@ class DataContext {
         }
         final entries = <String, ReadonlySignal<Object?>>{
           for (final MapEntry<String, dynamic> e in stringMap.entries)
-            (e.key.startsWith('@@') ? e.key.substring(1) : e.key):
-                _resolveSignal(e.value, depth + 1, keepFailed: keepFailed),
+            (e.key.startsWith('@@')
+                ? e.key.substring(1)
+                : e.key): _resolveSignal(
+              e.value,
+              depth + 1,
+              keepFailed: keepFailed,
+              keepPending: propagatePending,
+            ),
         };
         return computed(
           () => {for (final e in entries.entries) e.key: e.value.value},
@@ -591,23 +572,12 @@ class DataContext {
         return _watchBinding(resolvePath(pathVal));
       }
       if (isFunctionCall(value)) {
-        final call = FunctionCall.fromJson(_asStringKeyedMap(value as Map));
-        final Map<String, ReadonlySignal<Object?>> argSignals = {
-          for (final MapEntry<String, dynamic> entry in call.args.entries)
-            entry.key: _resolveSignal(entry.value, depth + 1),
-        };
-        return computed(() {
-          final args = <String, dynamic>{
-            for (final MapEntry<String, ReadonlySignal<Object?>> entry
-                in argSignals.entries)
-              entry.key: entry.value.value,
-          };
-          final Object? result = _evaluateFunction(call, args);
-          if (result is ReadonlySignal) {
-            return result.value;
-          }
-          return result;
-        });
+        return _resolveFunctionCallSignal(
+          FunctionCall.fromJson(_asStringKeyedMap(value as Map)),
+          depth,
+          keepFailed: keepFailed,
+          propagatePending: propagatePending,
+        );
       }
       if (value is Map) {
         final Map<String, dynamic> stringMap = _asStringKeyedMap(value);
@@ -616,7 +586,11 @@ class DataContext {
         }
         final Map<String, ReadonlySignal<Object?>> entries = {
           for (final MapEntry<String, dynamic> entry in stringMap.entries)
-            entry.key: _resolveSignal(entry.value, depth + 1),
+            entry.key: _resolveSignal(
+              entry.value,
+              depth + 1,
+              keepPending: propagatePending,
+            ),
         };
         return computed(
           () => {
@@ -633,11 +607,101 @@ class DataContext {
       }
       final List<ReadonlySignal<Object?>> items = [
         for (final item in value)
-          _resolveSignal(item, depth + 1, keepFailed: keepFailed),
+          _resolveSignal(
+            item,
+            depth + 1,
+            keepFailed: keepFailed,
+            keepPending: propagatePending,
+          ),
       ];
       return computed(() => [for (final item in items) item.value]);
     }
     return signal(value);
+  }
+
+  /// Resolves a reactive [call] signal for both v1.0 (`@call`) and pre-1.0
+  /// (`call`) expressions, tracking any [Future] returned by a local function
+  /// per binding so the binding stays pending until settled and ignores stale
+  /// completions when arguments change.
+  ReadonlySignal<Object?> _resolveFunctionCallSignal(
+    FunctionCall call,
+    int depth, {
+    required bool keepFailed,
+    required bool propagatePending,
+  }) {
+    final Map<String, ReadonlySignal<Object?>> argSignals = {
+      for (final MapEntry<String, dynamic> entry in call.args.entries)
+        entry.key: _resolveSignal(
+          entry.value,
+          depth + 1,
+          keepFailed: atLeastV10,
+          keepPending: true,
+        ),
+    };
+    String? lastAgentKey;
+    _AgentCall? lastAgentCall;
+    Object? lastAsyncArgs;
+    _LocalAsyncCall? lastAsyncCall;
+    void invalidateAsync() {
+      lastAsyncCall?.stale = true;
+      lastAsyncCall = null;
+      lastAsyncArgs = null;
+    }
+
+    return computed(() {
+      final args = <String, dynamic>{
+        for (final MapEntry<String, ReadonlySignal<Object?>> entry
+            in argSignals.entries)
+          entry.key: entry.value.value,
+      };
+      if (atLeastV10 && _containsFailedArg(args)) {
+        invalidateAsync();
+        return keepFailed ? _failedArg : null;
+      }
+      if (_containsPendingArg(args)) {
+        invalidateAsync();
+        return propagatePending ? _pendingArg : null;
+      }
+      if (lastAsyncCall != null && _argsEqual(lastAsyncArgs, args)) {
+        return _localAsyncCallValue(
+          lastAsyncCall!,
+          keepFailed: keepFailed,
+          keepPending: propagatePending,
+        );
+      }
+      invalidateAsync();
+      // Snapshot before invoking so a function that mutates `args` cannot
+      // cause `_argsEqual` to fail on re-evaluation and loop.
+      final Object? argsSnapshot = _frozen(args);
+      final Object? result = atLeastV10
+          ? _evaluateFunction(
+              call,
+              args,
+              keepFailed: keepFailed,
+              canSend: true,
+              lastAgentKey: lastAgentKey,
+              lastAgentCall: lastAgentCall,
+              onAgentCall: (key, entry) {
+                lastAgentKey = key;
+                lastAgentCall = entry;
+              },
+            )
+          : _evaluateFunction(call, args);
+      if (result is Future<Object?>) {
+        final _LocalAsyncCall entry = _startLocalAsyncCall(result, call.call);
+        lastAsyncCall = entry;
+        lastAsyncArgs = argsSnapshot;
+        return _localAsyncCallValue(
+          entry,
+          keepFailed: keepFailed,
+          keepPending: propagatePending,
+        );
+      }
+      if (result is ReadonlySignal) {
+        return result.value;
+      }
+      return result;
+    });
   }
 
   /// The error for a v1.0 call to a reserved `@` system function that has a
@@ -754,6 +818,78 @@ class DataContext {
     if (entry.pending) return keepFailed ? _pendingArg : null;
     if (entry.failed) return keepFailed ? _failedArg : null;
     return entry.value.value;
+  }
+
+  /// Tracks [future] returned by a local catalog function named [functionName]
+  /// so the binding stays pending until it settles, ignores completions after
+  /// the call becomes stale, and reports errors as `EXPRESSION_ERROR`.
+  _LocalAsyncCall _startLocalAsyncCall(
+    Future<Object?> future,
+    String functionName,
+  ) {
+    final entry = _LocalAsyncCall();
+    future.then<void>(
+      (Object? value) {
+        if (entry.stale) return;
+        batch(() {
+          entry.pending = false;
+          entry.value.value = value;
+          entry.version.value++;
+        });
+      },
+      onError: (Object error) {
+        if (entry.stale) return;
+        batch(() {
+          entry.pending = false;
+          entry.failed = true;
+          entry.version.value++;
+        });
+        _report(error, functionName);
+      },
+    );
+    return entry;
+  }
+
+  /// The value a tracked local async call gives a binding: the settled value
+  /// (unwrapping a [ReadonlySignal]), or null / [_pendingArg] / [_failedArg]
+  /// while pending or after failure.
+  static Object? _localAsyncCallValue(
+    _LocalAsyncCall entry, {
+    required bool keepFailed,
+    required bool keepPending,
+  }) {
+    entry.version.value;
+    if (entry.pending) return keepPending ? _pendingArg : null;
+    if (entry.failed) return keepFailed ? _failedArg : null;
+    final Object? value = entry.value.value;
+    if (value is ReadonlySignal) return value.value;
+    return value;
+  }
+
+  /// Deep equality for function-call arguments that treats two `double.nan`
+  /// values as equal so a `NaN` argument does not trigger repeated async
+  /// invocations when a binding re-evaluates.
+  static bool _argsEqual(Object? a, Object? b) {
+    if (identical(a, b)) return true;
+    if (a is double && b is double && a.isNaN && b.isNaN) return true;
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (!_argsEqual(a[i], b[i])) return false;
+      }
+      return true;
+    }
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final MapEntry<Object?, Object?> entry in a.entries) {
+        if (!b.containsKey(entry.key) ||
+            !_argsEqual(entry.value, b[entry.key])) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return a == b;
   }
 
   static const String _indexFunctionName = '@index';
@@ -1140,8 +1276,9 @@ class DataContext {
   }
 
   /// [resolveSignal], paired with whether the value is a placeholder for
-  /// a pending agent call. The signal updates when the value changes and
-  /// when a pending call it reads settles, even if its value stays null.
+  /// a pending agent call or asynchronous local function. The signal updates
+  /// when the value changes and when a pending call it reads settles, even if
+  /// its value stays null.
   ReadonlySignal<DynamicValueState> resolveSignalWithPending(Object? value) {
     final ReadonlySignal<Object?> resolved = _resolveSignal(
       value,
@@ -1848,6 +1985,24 @@ class _ActionGroup {
   bool get aborted => _aborted || (_parent?.aborted ?? false);
 
   void abort() => _aborted = true;
+}
+
+/// One asynchronous local catalog function call tracked by a reactive binding.
+class _LocalAsyncCall {
+  /// The call's resolved value, null while pending or after a failure.
+  final Signal<Object?> value = signal<Object?>(null);
+
+  /// Bumped when this call settles (with a value, including null, or an error).
+  final Signal<int> version = signal<int>(0);
+
+  /// Whether the call is still awaiting its future.
+  bool pending = true;
+
+  /// Whether the call settled with an error.
+  bool failed = false;
+
+  /// Whether this call was superseded by a newer evaluation of the binding.
+  bool stale = false;
 }
 
 /// One function call sent to the agent on a context's behalf.

@@ -1,5 +1,9 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
+## Unreleased
+
+- Track `Future` results returned by local catalog functions in `DataContext.resolveSignal` and `DataContext.resolveSignalWithPending` so reactive bindings and check rules stay pending until the future settles, update with the resolved value, report async failures as `EXPRESSION_ERROR`, and ignore stale completions after arguments change ([#4380](https://github.com/a2ui-project/a2ui/issues/4380)).
+
 ## 0.9.0
 
 - **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.5.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
