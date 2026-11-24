@@ -190,9 +190,14 @@ describe('BasicCatalogA2uiLitElement', () => {
     const shadowRoot = host.attachShadow({mode: 'open'});
     document.body.appendChild(host);
 
+    const existingSheet = new CSSStyleSheet();
+    shadowRoot.adoptedStyleSheets = [existingSheet];
+
     injectBasicCatalogStyles(shadowRoot);
 
-    assert.strictEqual(shadowRoot.adoptedStyleSheets.length, 1);
+    // The default sheet goes first, so the host component's own rules win.
+    assert.strictEqual(shadowRoot.adoptedStyleSheets.length, 2);
+    assert.strictEqual(shadowRoot.adoptedStyleSheets[1], existingSheet);
     assert.strictEqual(document.adoptedStyleSheets.length, 0);
 
     host.remove();
@@ -201,6 +206,7 @@ describe('BasicCatalogA2uiLitElement', () => {
   it('injectBasicCatalogStyles falls back to a style tag when a shadow root rejects adoption', () => {
     const host = document.createElement('div');
     const shadowRoot = host.attachShadow({mode: 'open'});
+    shadowRoot.appendChild(document.createElement('style'));
     Object.defineProperty(shadowRoot, 'adoptedStyleSheets', {
       get: () => [],
       set: () => {
@@ -211,6 +217,8 @@ describe('BasicCatalogA2uiLitElement', () => {
     injectBasicCatalogStyles(shadowRoot);
 
     assert.ok(shadowRoot.querySelector('style[data-a2ui-basic-catalog]') !== null);
+    // The style goes first, so the host component's own rules win.
+    assert.ok(shadowRoot.firstElementChild?.matches('style[data-a2ui-basic-catalog]'));
     assert.strictEqual(document.head.querySelector('style[data-a2ui-basic-catalog]'), null);
   });
 

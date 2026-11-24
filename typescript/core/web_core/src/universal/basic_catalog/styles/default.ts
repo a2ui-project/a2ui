@@ -46,9 +46,7 @@ const DEFAULT_CSS = `
   :where(:root),
   :host,
   :where(.a2ui-dark),
-  :where(.a2ui-light),
-  :host(.a2ui-dark),
-  :host(.a2ui-light) {
+  :where(.a2ui-light) {
     --a2ui-color-background: light-dark(#eee, #111);
     --a2ui-color-on-background: light-dark(#333, #eee);
 
@@ -102,25 +100,30 @@ const DEFAULT_CSS = `
 `;
 
 /**
- * Caches the default stylesheet so it is only created once.
+ * Caches the default stylesheet of each document, so it is only created once
+ * per document. A constructable stylesheet can only be adopted by the document
+ * it was created in, so an iframe needs a sheet of its own.
  */
-let defaultStyleSheet: CSSStyleSheet | undefined;
+const defaultStyleSheets = new WeakMap<Document, CSSStyleSheet>();
 
 /**
- * Retrieves the default CSSStyleSheet for A2UI components.
+ * Retrieves the default CSSStyleSheet for A2UI components in a document.
  *
  * If the stylesheet doesn't exist, it creates and initializes one with default
  * theme variables from the DEFAULT_CSS string.
  *
+ * @param ownerDoc The document the stylesheet will be adopted into.
  * @returns The default CSSStyleSheet used by A2UI.
  */
-function getDefaultStyleSheet(): CSSStyleSheet {
-  if (!defaultStyleSheet) {
-    const sheet = new CSSStyleSheet();
+function getDefaultStyleSheet(ownerDoc: Document): CSSStyleSheet {
+  let sheet = defaultStyleSheets.get(ownerDoc);
+  if (!sheet) {
+    const StyleSheetCtor = ownerDoc.defaultView?.CSSStyleSheet ?? CSSStyleSheet;
+    sheet = new StyleSheetCtor();
     sheet.replaceSync(DEFAULT_CSS);
-    defaultStyleSheet = sheet;
+    defaultStyleSheets.set(ownerDoc, sheet);
   }
-  return defaultStyleSheet;
+  return sheet;
 }
 
 /**
@@ -146,11 +149,11 @@ function getDefaultStyleSheet(): CSSStyleSheet {
  *     into. Defaults to `document`.
  */
 export function injectBasicCatalogStyles(targetRoot?: Document | ShadowRoot): void {
-  if (typeof document === 'undefined') return;
-  const target = targetRoot ?? document;
+  const target = targetRoot ?? (typeof document !== 'undefined' ? document : undefined);
+  if (!target) return;
 
   try {
-    const sheet = getDefaultStyleSheet();
+    const sheet = getDefaultStyleSheet(getOwnerDocument(target));
     const sheets = target.adoptedStyleSheets;
     if (Array.isArray(sheets)) {
       if (sheets.includes(sheet)) return;
@@ -171,16 +174,24 @@ function isDocument(target: Document | ShadowRoot): target is Document {
   return 'createElement' in target;
 }
 
+function getOwnerDocument(target: Document | ShadowRoot): Document {
+  return isDocument(target) ? target : (target.ownerDocument ?? document);
+}
+
 function injectStyleTagFallback(target: Document | ShadowRoot): void {
   if (target.querySelector('style[data-a2ui-basic-catalog]')) return;
 
-  const ownerDoc = isDocument(target) ? target : (target.ownerDocument ?? document);
-  const style = ownerDoc.createElement('style');
+  const style = getOwnerDocument(target).createElement('style');
   style.setAttribute('data-a2ui-basic-catalog', '');
   style.textContent = DEFAULT_CSS;
 
-  const parent = isDocument(target) ? (target.head ?? target.documentElement) : target;
-  parent?.appendChild(style);
+  if (isDocument(target)) {
+    (target.head ?? target.documentElement)?.appendChild(style);
+  } else {
+    // First in a shadow root, like the adopted sheet, so `:host` rules from
+    // components that connect later still win by source order.
+    target.insertBefore(style, target.firstChild);
+  }
 }
 
 /**
