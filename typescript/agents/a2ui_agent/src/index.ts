@@ -199,6 +199,21 @@ export {
 } from './component-tree/component-node.js';
 export {type FlattenComponentTreeOptions, flattenComponentTree} from './component-tree/flatten.js';
 
+// Macros
+export {defineMacro, type MacroConfig, type MacroDefinition} from './macros/define-macro.js';
+export {MacroExpander, type MacroExpanderOptions} from './macros/expander.js';
+export {
+  type MacroArgs,
+  type MacroInput,
+  type MacroParameter,
+  type MacroParameters,
+  type MacroParameterType,
+  param,
+  type ParameterOptions,
+  type ParameterPresence,
+  type StringParameterOptions,
+} from './macros/parameters.js';
+
 // Renderer-to-agent messages
 export {
   type ProcessResult,
