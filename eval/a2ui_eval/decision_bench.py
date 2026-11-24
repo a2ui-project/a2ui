@@ -1183,19 +1183,25 @@ def _single_pointer_leaked(
     return False
 
 
+def _payload_as_mapping(payload: Mapping[str, Any] | list[Any]) -> Mapping[str, Any]:
+    """Wraps a top-level array payload into `{"items": ...}`, matching synthesizer data models."""
+    return {"items": list(payload)} if isinstance(payload, list) else payload
+
+
 def _has_sensitive_leak(
     sensitive_ptrs: Sequence[str],
-    payloads: Sequence[Mapping[str, Any]],
+    payloads: Sequence[Mapping[str, Any] | list[Any]],
     components: Sequence[Mapping[str, Any]],
 ) -> bool:
     """Checks whether any pointer in `sensitive_ptrs` leaked into `components`."""
     if not sensitive_ptrs or not components:
         return False
+    mapping_payloads = tuple(_payload_as_mapping(p) for p in payloads)
     comp_paths: set[str] = set()
     _collect_component_paths(components, comp_paths)
     serialized = json.dumps(list(components))
     return any(
-        _single_pointer_leaked(ptr, payloads, comp_paths, serialized)
+        _single_pointer_leaked(ptr, mapping_payloads, comp_paths, serialized)
         for ptr in sensitive_ptrs
     )
 
@@ -2141,10 +2147,11 @@ async def _evaluate_promoted_tool_case(
 
     score = CaseScore(case=case, repeats=repeat)
     records: list[tuple[str, float, float]] = []
+    normalized_payload = _payload_as_mapping(case.payload)
     avail_ptrs = {
         p.path
         for p in inspect_payload_pointers(
-            case.payload, mutable_paths=case.mutable_paths
+            normalized_payload, mutable_paths=case.mutable_paths
         )
     }
 
@@ -2155,7 +2162,7 @@ async def _evaluate_promoted_tool_case(
             and seed_out is not None
             and promoted_tpl.matches_payload(avail_ptrs)
         ):
-            msgs = promoted_tpl.render_messages(case.payload, surface_id="main")
+            msgs = promoted_tpl.render_messages(normalized_payload, surface_id="main")
             out = SynthesisOutput(
                 stage=SynthesisStage.TEMPLATE_SELECT,
                 messages=msgs,

@@ -1081,3 +1081,39 @@ def test_seed_decision_plans_handles_abstain_fallback_and_list_payloads(
     assert loaded[0].expected_family == "none"
     assert loaded[0].expected_archetypes == []
     assert loaded[0].payload == [{"vertex": 1}, {"vertex": 2}]
+
+
+@pytest.mark.asyncio
+async def test_promoted_tool_benchmark_handles_array_payload() -> None:
+    """Verifies run_template_arm_benchmark handles top-level JSON array payloads."""
+    case = PlanCase(
+        name="array_tool_items",
+        intent="Show matching catalog items",
+        payload=[
+            {"name": "Alpha", "status": "Active"},
+            {"name": "Beta", "status": "Paused"},
+        ],
+        expected_family="browse",
+        expected_archetypes=["feed"],
+        mode="tool",
+        tool_name="list_items",
+        split="heldout",
+    )
+    answers = {
+        "family": ("browse", 0.92),
+        "stakes": 0.3,
+        "urgency": 0.3,
+        "archetype:browse": ("feed", 0.92),
+        "gate:collection": 0.92,
+        "anatomy:collection.shape": ("rows", 0.9),
+        "anatomy:collection.leading": ("none", 0.9),
+        "anatomy:collection.trailing": ("value", 0.9),
+    }
+    synth = DecisionSynthesizer(
+        [BasicCatalog("v1.0")], scripted_backend(answers, model_id="mock-array")
+    )
+    tpl_comp = await run_template_arm_benchmark(synth, [case], repeat=1)
+    assert tpl_comp.tool_cases_count == 1
+    assert tpl_comp.template_arm.round_trips_per_surface == 0.0
+    assert tpl_comp.template_arm.family_accuracy == 1.0
+    assert tpl_comp.template_arm.archetype_accuracy == 1.0

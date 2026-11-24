@@ -187,23 +187,34 @@ backends:
     assert rc_strict == 1
 
 
-def test_scorecard_cli_empty_split_exits_nonzero(tmp_path: Path) -> None:
+def test_scorecard_cli_empty_split_exits_nonzero(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Verifies empty `--split tuning` returns non-zero instead of an empty scorecard."""
     ds_dir = tmp_path / "ds"
     ds_dir.mkdir()
     _write_heldout_only(ds_dir / "heldout_v1.yaml")
 
     rc_empty = decision_scorecard.main(
-        ["--dataset", str(ds_dir), "--split", "tuning", "--spec", "mock/mock"]
+        ["--dataset", str(ds_dir), "--split", "tuning", "--spec", "mock:mock"]
     )
     assert rc_empty != 0
+    assert "No cases found in" in capsys.readouterr().err
 
 
 @pytest.mark.asyncio
 async def test_scorecard_always_includes_mock_baseline(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Verifies mock/mock baseline is added for remote-only specs."""
+    """Verifies mock/mock baseline is added for remote-only specs without hitting live Jev."""
+    for var in (
+        "JEV_API_KEY",
+        "TYPESAFE_API_KEY",
+        "A2UI_DECISION_URL",
+        "A2UI_DECISION_AUTH",
+        "A2UI_DECISION_TOKEN",
+    ):
+        monkeypatch.delenv(var, raising=False)
     ds_dir = tmp_path / "ds"
     ds_dir.mkdir()
     _write_heldout_only(ds_dir / "heldout_v1.yaml")
