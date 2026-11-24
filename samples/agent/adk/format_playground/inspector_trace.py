@@ -50,7 +50,7 @@ from a2ui.inference_formats.experimental.decision import (
     eligible_archetypes,
 )
 from modes import LlmTurn, RenderMode, RenderResult, TurnMetrics
-from renderers import stage2_user_text
+from renderers import sanitize_url, stage2_user_text
 
 PLAYGROUND_TRACE_MIME_TYPE = "application/x-a2ui-playground-trace+json"
 """MIME type carried in `DataPart.metadata['mimeType']` for playground traces."""
@@ -68,18 +68,9 @@ def sanitize_endpoint_url(url: str | None) -> str | None:
         The sanitized `scheme://hostname[:port]/path` string, or `None` if
         `url` is empty or invalid.
     """
-    if not isinstance(url, str) or not url.strip():
+    if not isinstance(url, str):
         return None
-    parts = urllib.parse.urlsplit(url.strip())
-    if not parts.scheme or not parts.hostname:
-        return None
-    try:
-        port = parts.port
-    except ValueError:
-        return None
-    host = f"[{parts.hostname}]" if ":" in parts.hostname else parts.hostname
-    netloc = f"{host}:{port}" if port is not None else host
-    return urllib.parse.urlunsplit((parts.scheme, netloc, parts.path, "", ""))
+    return sanitize_url(url)
 
 
 def resolve_wire_format(
@@ -95,7 +86,10 @@ def resolve_wire_format(
     """
     endpoint_url = getattr(backend, "endpoint_url", None)
     if isinstance(endpoint_url, str) and endpoint_url.strip():
-        path = urllib.parse.urlsplit(endpoint_url.strip()).path.rstrip("/")
+        try:
+            path = urllib.parse.urlsplit(endpoint_url.strip()).path.rstrip("/")
+        except ValueError:
+            path = ""
         if path.endswith("/v1beta/decisions"):
             return "gemini_decisions"
         if path.endswith("/v1/systemone"):
@@ -871,23 +865,30 @@ def _component_type_name(comp: Mapping[str, Any]) -> str:
 def _serialize_planned_block(
     planned: PlannedBlock,
     components: Sequence[Mapping[str, Any]],
+    *,
+    all_prefixes: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     """Serializes one `PlannedBlock` for `DecisionOutputStage.layoutPlan.blocks`.
 
     Args:
         planned: `PlannedBlock` from `LayoutPlan.blocks`.
         components: Emitted A2UI component dictionaries for the surface.
+        all_prefixes: Prefixes (`"<id_prefix_or_block_id>_"`) of all sibling blocks.
 
     Returns:
         A serialized block dictionary for the inspector block tree.
     """
     base_id = planned.id_prefix or planned.block_id
     prefix = f"{base_id}_"
+    longer_sibling_prefixes = tuple(
+        p for p in all_prefixes if len(p) > len(prefix) and p.startswith(prefix)
+    )
     matching = [
         c
         for c in components
         if isinstance(c.get("id"), str)
-        and (c["id"] in {base_id, f"{base_id}_root"} or str(c["id"]).startswith(prefix))
+        and (c["id"] == base_id or c["id"].startswith(prefix))
+        and not c["id"].startswith(longer_sibling_prefixes)
     ]
     comp_name = (
         _component_type_name(matching[0]) if matching else ""
@@ -941,6 +942,7 @@ def _serialize_layout_plan(
     effective_fit = float(
         plan.fit_score if plan.fit_score is not None else (fit_score or 0.0)
     )
+    all_prefixes = frozenset(f"{b.id_prefix or b.block_id}_" for b in plan.blocks)
     return {
         "surfaceId": surface_id,
         "family": plan.family,
@@ -953,7 +955,10 @@ def _serialize_layout_plan(
         "stakes": float(plan.stakes),
         "urgency": float(plan.urgency),
         "actionsAllowed": bool(plan.actions_allowed),
-        "blocks": [_serialize_planned_block(b, components) for b in plan.blocks],
+        "blocks": [
+            _serialize_planned_block(b, components, all_prefixes=all_prefixes)
+            for b in plan.blocks
+        ],
     }
 
 

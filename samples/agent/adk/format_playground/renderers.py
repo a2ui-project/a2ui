@@ -87,14 +87,42 @@ _DECISION_ERRORS = (A2uiError, ValueError, TypeError, DecisionBackendError)
 _URL_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9+.-]*://[^\s'\"<>]+")
 
 
+def sanitize_url(url: str) -> str | None:
+    """Strips credentials, query parameters, and fragments from a valid URL.
+
+    Returns `None` when `url` is empty, missing a scheme/hostname, or fails parsing.
+    """
+    trimmed = url.strip()
+    if not trimmed:
+        return None
+    try:
+        parts = urllib.parse.urlsplit(trimmed)
+        port = parts.port
+    except ValueError:
+        return None
+    if not parts.scheme or not parts.hostname:
+        return None
+    host = f"[{parts.hostname}]" if ":" in parts.hostname else parts.hostname
+    netloc = f"{host}:{port}" if port is not None else host
+    return urllib.parse.urlunsplit((parts.scheme, netloc, parts.path, "", ""))
+
+
 def _redact_one_url(match: re.Match[str]) -> str:
     """Strips credentials, query parameters, and fragments from one matched URL."""
     raw = match.group(0)
     trimmed = raw.rstrip(".,;:)")
     suffix = raw[len(trimmed) :]
-    parts = urllib.parse.urlsplit(trimmed)
-    netloc = parts.netloc.rsplit("@", 1)[-1]
-    cleaned = urllib.parse.urlunsplit((parts.scheme, netloc, parts.path, "", ""))
+    cleaned = sanitize_url(trimmed)
+    if cleaned is None:
+        base = trimmed.split("?", 1)[0].split("#", 1)[0]
+        scheme, sep, rest = base.partition("://")
+        if sep:
+            authority, slash, path = rest.partition("/")
+            if "@" in authority:
+                authority = authority.rsplit("@", 1)[-1]
+            cleaned = f"{scheme}{sep}{authority}{slash}{path}"
+        else:
+            cleaned = base
     return f"{cleaned}{suffix}"
 
 

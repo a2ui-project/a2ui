@@ -810,3 +810,56 @@ async def test_build_turn_trace_matches_grouped_id_prefix_components() -> None:
     assert blocks[1]["children"] == ["sections_1_body"]
     assert blocks[2]["component"] == "Image"
     assert blocks[2]["children"] == []
+
+
+async def test_serialize_layout_plan_does_not_swallow_longer_sibling_prefixes() -> None:
+    """Verifies an unprefixed `prose` block does not absorb `prose_group_0_*` components."""
+    from inspector_trace import _serialize_layout_plan, sanitize_endpoint_url
+
+    assert sanitize_endpoint_url("http://user:pw@[bad]/v1") is None
+
+    plan = LayoutPlan(
+        family="read",
+        archetype="article",
+        page=PageBindings(),
+        blocks=(
+            PlannedBlock(block_id="prose", pattern="prose", probability=0.9),
+            PlannedBlock(
+                block_id="prose",
+                pattern="prose",
+                probability=0.85,
+                id_prefix="prose_group_0",
+            ),
+        ),
+        confidence=0.9,
+        fit_score=0.9,
+    )
+    messages = [{
+        "version": "1.0",
+        "updateComponents": {
+            "surfaceId": "main",
+            "components": [
+                {
+                    "id": "root",
+                    "component": "Column",
+                    "children": ["prose_root", "prose_group_0_root"],
+                },
+                {"id": "prose_root", "component": "Column", "children": ["prose_body"]},
+                {"id": "prose_body", "component": "Text", "text": "Intro"},
+                {
+                    "id": "prose_group_0_root",
+                    "component": "Column",
+                    "children": ["prose_group_0_heading"],
+                },
+                {
+                    "id": "prose_group_0_heading",
+                    "component": "Text",
+                    "text": "Section 1",
+                },
+            ],
+        },
+    }]
+    serialized = _serialize_layout_plan(plan, "main", 0.9, messages)
+    blocks = serialized["blocks"]
+    assert blocks[0]["children"] == ["prose_body"]
+    assert blocks[1]["children"] == ["prose_group_0_heading"]

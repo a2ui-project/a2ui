@@ -572,6 +572,13 @@ async def test_render_decision_redacts_credentials_query_and_fragment_in_errors(
     assert "https://jev.example.com:8443/v1/systemone" in redacted
     assert "http://[::1]:9000/v1/decisions)." in redacted
 
+    # Malformed bracketed host must not raise ValueError inside exception handlers.
+    malformed = _redact_urls("bad host http://carol:secret@[bad]/v1?key=leak#frag!")
+    assert "secret" not in malformed
+    assert "key=leak" not in malformed
+    assert "frag" not in malformed
+    assert "http://[bad]/v1" in malformed
+
     class _FailingBackend(DeterministicMockBackend):
 
         async def answer(self, batch: DecisionBatch) -> Any:
