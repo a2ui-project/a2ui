@@ -229,13 +229,7 @@ Because `acknowledge` omits an explicit `ActionSpec.context` and the surface has
         {
           "id": "root",
           "component": "Column",
-          "children": [
-            "page_head",
-            "collection_root",
-            "facts_root",
-            "form_root",
-            "actions_root"
-          ]
+          "children": ["page_head", "collection_root", "facts_root", "form_root", "actions_root"]
         },
         {
           "id": "page_head",
@@ -425,7 +419,7 @@ For every block, `resolve_surface_operation` (together with `_as_fresh_surface` 
 
 ### Plan cache, data-only updates, and `region` constraints
 
-`DecisionSynthesizer` maintains a bounded LRU `PlanCache` (`max_entries = 64`) keyed by `PlanCacheKey(surface_id, catalog_id, grammar_version, shape_signature)`. `plan_shape_signature` (`models.py`) hashes `intent` along with the sorted `(path, value_type, semantic_type, element_keys, element_semantic_types, mutable_hint)` tuples of the inspected pointers, `actions`, `exclude`, `mutable_paths`, `labels`, `layout`, `title`, `summary`, `template_ids`, `conservativeness`, and `model_id`.
+`DecisionSynthesizer` maintains a bounded LRU `PlanCache` (`max_entries = 64`) keyed by `PlanCacheKey(surface_id, catalog_id, grammar_version, shape_signature)`. `plan_shape_signature` (`models.py`) hashes `intent` along with the sorted `(path, value_type, semantic_type, element_keys, element_semantic_types, hints, mutable_hint)` tuples of the inspected pointers, `actions`, `exclude`, `mutable_paths`, `labels`, `layout`, `title`, `summary`, `template_ids`, `conservativeness`, and `model_id`.
 
 When a subsequent turn targets an existing `surfaceId` with `replace=False` and `region=None`, and the new block produces the exact same `PlanCacheKey` (meaning `intent`, pointer schema, and action contract stayed constant while scalar values or array length changed, such as during live metric refreshes or tool-mode polling), `DecisionSynthesizer` skips the decision backend and component expansion entirely. It emits a single `updateDataModel` message with `cache_hit=True` and `decision_calls=0`. If the agent changes `intent` on Turn 2, `plan_shape_signature` changes, `PlanCache` misses, and the synthesizer re-plans and emits `updateComponents` plus `updateDataModel` (`SurfaceOperation.UPDATE_ROOT`).
 
@@ -666,9 +660,9 @@ Each v1.0 component catalog owns a `patterns.json` file beside its `catalog.json
   "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
   "grammarVersion": "1",
   "patterns": {
-    "page": { "...": "..." },
-    "headline": { "...": "..." },
-    "facts": { "...": "..." }
+    "page": {"...": "..."},
+    "headline": {"...": "..."},
+    "facts": {"...": "..."}
   }
 }
 ```
@@ -683,7 +677,7 @@ Inside a pattern's `components` and `fieldVariants`, JSON objects whose keys beg
 | :--------------- | :-------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `$slot`          | `"slotName"` or `"slotName.field"`                  | Emits a v1.0 data binding `{"@path": "..."}` to the pointer bound to that slot (or a relative field path inside `$repeat`). Falls back to sibling `$default` when unbound.                                                                                                                                                                                                       |
 | `$text`          | String with `{slot}` or `{$index1}` placeholders    | Substitutes authored literals directly, or emits a v1.0 `{"@call": "formatString", "args": {"value": ...}}` function call when any placeholder resolves to a data-bound pointer.                                                                                                                                                                                                 |
-| `$format`        | `{"slot": "...", "kind": "...", "template": "..."}` | Formats a bound pointer using the catalog's declared formatter functions (`formatCurrency`, `formatNumber`, `formatDate`, `formatString`) according to `kind` and the pointer's semantic hints, optionally wrapping with `template` (`{value}`), or falling back to a plain data binding when the formatter is undeclared.                                                       |
+| `$format`        | `{"slot": "...", "kind": "...", "template": "..."}` | Formats a bound pointer using the catalog's declared formatter functions (`formatCurrency`, `formatNumber`, `formatString`) according to `kind` (`currency`, `number`, `percent`) and the pointer's semantic hints, optionally wrapping with `template` (`{value}`), or falling back to a plain data binding when the formatter is undeclared.                                   |
 | `$default`       | Any literal value                                   | Fallback value emitted when a sibling `$slot`, `$knobValue`, or `$event` is unbound.                                                                                                                                                                                                                                                                                             |
 | `$if`            | `"slotName"`                                        | Includes the component (or child ID reference in a `children` array) only when the named slot is bound.                                                                                                                                                                                                                                                                          |
 | `$ifKnob`        | `{"knob": ["val1", ...]}`                           | Includes the component or child reference only when every listed variant knob matches.                                                                                                                                                                                                                                                                                           |

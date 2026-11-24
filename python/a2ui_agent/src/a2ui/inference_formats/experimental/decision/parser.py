@@ -249,7 +249,7 @@ class DecisionParser(Parser):
         del is_final
         messages: list[AgentToRendererMessage] = []
         touched: list[str] = []
-        blocks = self._extract_blocks(format_content)
+        blocks = self.extract_blocks(format_content)
         for idx, block in enumerate(blocks, start=1):
             default_id = self._default_surface_id(idx, len(blocks))
             output = self._synthesize_block_sync(
@@ -418,4 +418,4 @@ def _require_messages(output: SynthesisOutput, format_content: str) -> None:
     )
 
 
-__all__ = ["DecisionParser", "surface_operation_for"]
+__all__ = ["DecisionParser", "extract_decision_blocks", "surface_operation_for"]

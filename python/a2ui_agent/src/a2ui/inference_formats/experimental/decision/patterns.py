@@ -60,8 +60,13 @@ _OMIT = object()
 
 
 def _escape_format_string_literal(text: str) -> str:
-    """Escapes backslashes and ``${`` markers in literal `formatString` text."""
-    return text.replace("\\", "\\\\").replace("${", "\\${")
+    """Escapes ``${`` markers in literal `formatString` text."""
+    return text.replace("${", "\\${")
+
+
+def _pointer_is_format_string_safe(pointer: str) -> bool:
+    """Returns whether `pointer` can be safely interpolated inside ``${...}``."""
+    return "{" not in pointer and "}" not in pointer
 
 
 class PatternError(A2uiValidationError):
@@ -895,6 +900,8 @@ def _eval_text_placeholder(
     if binding is None or not binding.bound:
         return "", False
     if binding.pointer:
+        if not _pointer_is_format_string_safe(binding.pointer):
+            return "", False
         return f"${{{binding.pointer}}}", True
     if binding.literal is not None:
         return (
@@ -1436,6 +1443,8 @@ def _format_pointer_value(
     declared: frozenset[str],
 ) -> Any:
     """Formats a pointer-bound `$format` slot based on `format_hints` and `declared`."""
+    if not _pointer_is_format_string_safe(ptr):
+        return make_data_binding(ptr, is_v10=True)
     hints = binding.format_hints
     if hints.get("alreadyFormatted"):
         return _wrap_format_template(f"${{{ptr}}}", None, ptr, template, declared)
@@ -1749,22 +1758,22 @@ def _slot_kind_for(
 def _container_slots_for(
     comp: Mapping[str, Any],
     graph: CatalogDecisionGraph | None,
-) -> tuple[tuple[str, SlotKind, str | None], ...]:
-    """Returns `(prop_name, SlotKind, child_id_key)` for container slots present on `comp`."""
+) -> tuple[tuple[str, SlotKind, str | None, bool], ...]:
+    """Returns `(prop_name, SlotKind, child_id_key, required)` for container slots on `comp`."""
     comp_type = comp.get("component")
     if graph is not None and isinstance(comp_type, str):
         spec = graph.get_component(comp_type)
         if spec is not None:
             return tuple(
-                (slot.name, slot.kind, slot.child_id_key)
+                (slot.name, slot.kind, slot.child_id_key, slot.required)
                 for slot in spec.slots
                 if slot.kind in _CONTAINER_SLOT_KINDS and slot.name in comp
             )
-    fallback: list[tuple[str, SlotKind, str | None]] = []
+    fallback: list[tuple[str, SlotKind, str | None, bool]] = []
     if "child" in comp:
-        fallback.append(("child", SlotKind.CHILD, None))
+        fallback.append(("child", SlotKind.CHILD, None, True))
     if "children" in comp:
-        fallback.append(("children", SlotKind.CHILD_LIST, None))
+        fallback.append(("children", SlotKind.CHILD_LIST, None, True))
     return tuple(fallback)
 
 
@@ -2154,29 +2163,55 @@ def _expand_children_property(
 
 
 def _prune_child_list_slot(
-    comp: dict[str, Any], prop_name: str, live_ids: set[str]
+    comp: dict[str, Any], prop_name: str, live_ids: set[str], *, required: bool
 ) -> bool:
     """Prunes dead references from a `CHILD_LIST` slot and returns whether live refs remain."""
     val = comp.get(prop_name)
     if isinstance(val, list):
-        comp[prop_name] = [x for x in val if x in live_ids]
-        return bool(comp[prop_name])
-    return isinstance(val, Mapping)
+        kept = [x for x in val if x in live_ids]
+        if kept:
+            comp[prop_name] = kept
+            return True
+        if not required:
+            comp.pop(prop_name, None)
+        else:
+            comp[prop_name] = kept
+        return False
+    if isinstance(val, Mapping):
+        tpl_id = val.get("componentId")
+        if isinstance(tpl_id, str) and tpl_id in live_ids:
+            return True
+        if not required:
+            comp.pop(prop_name, None)
+        return False
+    return False
 
 
 def _prune_named_child_array_slot(
-    comp: dict[str, Any], prop_name: str, child_id_key: str, live_ids: set[str]
+    comp: dict[str, Any],
+    prop_name: str,
+    child_id_key: str,
+    live_ids: set[str],
+    *,
+    required: bool,
 ) -> bool:
     """Prunes dead entries from a `NAMED_CHILD_ARRAY` slot and returns whether entries remain."""
     val = comp.get(prop_name)
     if not isinstance(val, list):
         return False
-    comp[prop_name] = [
+    kept = [
         entry
         for entry in val
         if isinstance(entry, Mapping) and entry.get(child_id_key) in live_ids
     ]
-    return bool(comp[prop_name])
+    if kept:
+        comp[prop_name] = kept
+        return True
+    if not required:
+        comp.pop(prop_name, None)
+    else:
+        comp[prop_name] = kept
+    return False
 
 
 def _prune_container_slot(
@@ -2185,15 +2220,23 @@ def _prune_container_slot(
     slot_kind: SlotKind,
     child_id_key: str | None,
     live_ids: set[str],
+    *,
+    required: bool = True,
 ) -> bool:
     """Prunes dead references from one container slot and returns whether it has live refs."""
     if slot_kind is SlotKind.CHILD:
         val = comp.get(prop_name)
-        return isinstance(val, str) and val in live_ids
+        if isinstance(val, str) and val in live_ids:
+            return True
+        if not required:
+            comp.pop(prop_name, None)
+        return False
     if slot_kind is SlotKind.CHILD_LIST:
-        return _prune_child_list_slot(comp, prop_name, live_ids)
+        return _prune_child_list_slot(comp, prop_name, live_ids, required=required)
     if slot_kind is SlotKind.NAMED_CHILD_ARRAY and child_id_key:
-        return _prune_named_child_array_slot(comp, prop_name, child_id_key, live_ids)
+        return _prune_named_child_array_slot(
+            comp, prop_name, child_id_key, live_ids, required=required
+        )
     return False
 
 
@@ -2209,9 +2252,14 @@ def _is_container_now_empty(
         return False
     live_ids = set(by_id) | preserve_ids
     has_live = False
-    for prop_name, slot_kind, child_id_key in slots:
-        if _prune_container_slot(comp, prop_name, slot_kind, child_id_key, live_ids):
+    for prop_name, slot_kind, child_id_key, required in slots:
+        slot_live = _prune_container_slot(
+            comp, prop_name, slot_kind, child_id_key, live_ids, required=required
+        )
+        if slot_live:
             has_live = True
+        elif required:
+            return True
     return not has_live
 
 
@@ -2277,7 +2325,7 @@ def _referenced_children(
 ) -> list[str]:
     """Returns direct child component IDs referenced by `comp`."""
     refs: list[str] = []
-    for prop_name, slot_kind, child_id_key in _container_slots_for(comp, graph):
+    for prop_name, slot_kind, child_id_key, _ in _container_slots_for(comp, graph):
         refs.extend(
             _slot_referenced_children(comp.get(prop_name), slot_kind, child_id_key)
         )
@@ -2316,13 +2364,17 @@ def _prune_empty_containers(
     root_comp = by_id.get(root_id)
     if root_comp is not None:
         live_ids = set(by_id) | preserved
-        for prop_name, slot_kind, child_id_key in _container_slots_for(
+        for prop_name, slot_kind, child_id_key, required in _container_slots_for(
             root_comp, graph
         ):
-            if slot_kind in (SlotKind.CHILD_LIST, SlotKind.NAMED_CHILD_ARRAY):
-                _prune_container_slot(
-                    root_comp, prop_name, slot_kind, child_id_key, live_ids
-                )
+            _prune_container_slot(
+                root_comp,
+                prop_name,
+                slot_kind,
+                child_id_key,
+                live_ids,
+                required=required,
+            )
 
     reachable = _collect_reachable_ids(by_id, root_id, graph)
     return [c for c in components if c.get("id") in reachable]

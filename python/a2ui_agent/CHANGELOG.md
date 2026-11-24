@@ -16,8 +16,8 @@
   `@experimental` warning, and the HTTP backends require the optional
   `decision` extra (`pip install 'a2ui-agent-sdk[decision]'`).
   - `DecisionFormat` and `DecisionFormatFactory` implement `InferenceFormat`
-    and `InferenceFormatFactory`, so `A2uiRequestProcessor(catalogs,
-format_factory=DecisionFormatFactory(backend=create_decision_backend()))`
+    and `InferenceFormatFactory`, so
+    `A2uiRequestProcessor(catalogs, format_factory=DecisionFormatFactory(backend=create_decision_backend()))`
     works like the Express and Direct JSON factories. `DecisionPromptGenerator`
     asks for `<a2ui>` decision blocks, few-shot examples are `DecisionBlock`
     instances passed as `block_examples` (A2UI message examples are ignored

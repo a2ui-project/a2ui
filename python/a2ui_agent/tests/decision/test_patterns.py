@@ -2006,25 +2006,69 @@ def test_format_string_escapes_interpolation_and_validates_currency() -> None:
         "@call": "formatString",
         "args": {"value": "### ${formatNumber(value:${/rate})} ms/\\${/token}"},
     }
-    # Literal-only $text containing `${` escapes when mixed with a pointer slot.
-    facts = expander.expand_block(
+    # Literal-only $text containing `${` escapes without doubling backslashes,
+    # and pointer keys containing braces cannot break out of `${...}`.
+    text_lib = PatternLibrary.from_json({
+        "catalogId": catalog.catalog_id,
+        "grammarVersion": "1",
+        "patterns": {
+            "facts": {
+                "slots": ["label", "value", "bad"],
+                "variants": [{
+                    "root": "col",
+                    "components": [
+                        {
+                            "id": "col",
+                            "component": "Column",
+                            "children": ["t1", "t2", "t3"],
+                        },
+                        {
+                            "id": "t1",
+                            "component": "Text",
+                            "text": {"$text": "{label}: {value}"},
+                        },
+                        {
+                            "id": "t2",
+                            "component": "Text",
+                            "text": {"$text": "Price: {bad}"},
+                        },
+                        {
+                            "id": "t3",
+                            "component": "Text",
+                            "text": {
+                                "$format": {
+                                    "slot": "bad",
+                                    "kind": "currency",
+                                    "template": "Total {value}",
+                                }
+                            },
+                        },
+                    ],
+                }],
+            }
+        },
+    })
+    text_exp = PatternExpander(text_lib, graph).expand_block(
         "facts",
         "facts",
         BlockBindings(
             slots={
-                "rows": SlotBinding(
-                    items=(
-                        {
-                            "label": SlotBinding(literal="Env ${/secret}"),
-                            "value": SlotBinding(pointer="/val"),
-                        },
-                    )
-                )
+                "label": SlotBinding(literal=r"Env ${/secret} C:\temp"),
+                "value": SlotBinding(pointer="/val"),
+                "bad": SlotBinding(
+                    pointer="/price }${/secret",
+                    format_hints={"currency": "USD"},
+                ),
             }
         ),
     )
-    serialized = json.dumps(facts.components)
-    assert "evil" not in serialized
+    text_by_id = {c["id"]: c for c in text_exp.components}
+    assert text_by_id["facts_t1"]["text"] == {
+        "@call": "formatString",
+        "args": {"value": r"Env \${/secret} C:\temp: ${/val}"},
+    }
+    assert text_by_id["facts_t2"]["text"] == "Price: "
+    assert text_by_id["facts_t3"]["text"] == {"@path": "/price }${/secret"}
     assert "\\${/token}" in json.dumps(hl.components)
 
 
@@ -2139,3 +2183,92 @@ def test_custom_container_slot_names_expand_and_prune_via_catalog_graph() -> Non
     assert by_id["facts_tabs"]["panes"] == [{"title": "Main", "panel": "facts_deck"}]
     assert by_id["facts_deck"]["entries"] == ["facts_row_lbl_0"]
     assert "facts_unused" not in by_id
+
+
+def test_prune_template_child_list_and_multi_slot_containers() -> None:
+    custom_cat_id = "https://example.com/catalogs/multi-slot/v1/catalog.json"
+    schema: dict[str, Any] = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": custom_cat_id,
+        "protocolVersion": "1.0",
+        "components": {
+            "Box": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "Box"},
+                    "children": {"$ref": "common_types.json#/$defs/ChildList"},
+                },
+                "required": ["component", "children"],
+            },
+            "SplitPane": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "SplitPane"},
+                    "body": {"$ref": "common_types.json#/$defs/ComponentId"},
+                    "header": {"$ref": "common_types.json#/$defs/ComponentId"},
+                    "extras": {"$ref": "common_types.json#/$defs/ChildList"},
+                },
+                "required": ["component", "body"],
+            },
+            "Label": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "Label"},
+                    "text": {"$ref": "common_types.json#/$defs/DynamicString"},
+                },
+                "required": ["component", "text"],
+            },
+        },
+        "functions": {},
+    }
+    graph = CatalogDecisionGraph([Catalog.from_json(schema)])
+    from a2ui.inference_formats.experimental.decision.patterns import (
+        _prune_empty_containers,
+    )
+
+    # TemplateChildList whose componentId is an empty container is pruned;
+    # multi-slot containers pop optional dead CHILD and empty CHILD_LIST slots,
+    # and drop themselves when a required CHILD slot dies.
+    components = [
+        {
+            "id": "root",
+            "component": "Box",
+            "children": ["pane_ok", "pane_dead_req", "tpl_box"],
+        },
+        {
+            "id": "pane_ok",
+            "component": "SplitPane",
+            "body": "live_lbl",
+            "header": "empty_header_box",
+            "extras": ["empty_extra_box"],
+        },
+        {"id": "empty_header_box", "component": "Box", "children": []},
+        {"id": "empty_extra_box", "component": "Box", "children": []},
+        {"id": "live_lbl", "component": "Label", "text": "Hello"},
+        {
+            "id": "pane_dead_req",
+            "component": "SplitPane",
+            "body": "empty_req_box",
+            "header": "orphan_lbl",
+        },
+        {"id": "empty_req_box", "component": "Box", "children": []},
+        {"id": "orphan_lbl", "component": "Label", "text": "Orphan"},
+        {
+            "id": "tpl_box",
+            "component": "Box",
+            "children": {"path": "/rows", "componentId": "empty_tpl_row"},
+        },
+        {"id": "empty_tpl_row", "component": "Box", "children": []},
+    ]
+    pruned = _prune_empty_containers(components, "root", graph=graph)
+    by_id = {c["id"]: c for c in pruned}
+    assert by_id["root"]["children"] == ["pane_ok"]
+    assert by_id["pane_ok"] == {
+        "id": "pane_ok",
+        "component": "SplitPane",
+        "body": "live_lbl",
+    }
+    assert "pane_dead_req" not in by_id
+    assert "orphan_lbl" not in by_id
+    assert "tpl_box" not in by_id
+    assert "empty_tpl_row" not in by_id
