@@ -1410,6 +1410,91 @@ void v1RulesTests() {
       );
     });
 
+    test('JSON-loaded v0.9 function closes object args against undeclared '
+        'arguments unless the document opens them', () {
+      Map<String, Object?> function(String name, Map<String, Object?> args) => {
+        'type': 'object',
+        'properties': {
+          'call': {'const': name},
+          'args': args,
+        },
+        'required': ['call'],
+      };
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'json-v09',
+        'protocolVersion': 'v0.9',
+        'components': {
+          'Box': {
+            'type': 'object',
+            'properties': {
+              'value': {r'$ref': '$_v0_9CommonTypes#/\$defs/DynamicString'},
+            },
+          },
+        },
+        'functions': {
+          'greet': function('greet', {
+            'type': 'object',
+            'properties': {
+              'name': {'type': 'string'},
+            },
+          }),
+          'ping': function('ping', {'type': 'object'}),
+          'openEcho': function('openEcho', {
+            'type': 'object',
+            'additionalProperties': true,
+          }),
+        },
+      });
+      final PayloadValidator<ComponentApi, FunctionApi> validator =
+          PayloadValidator(catalog: catalog);
+
+      const accepted = <String, Map<String, Object?>>{
+        'greet': {'name': 'Ada'},
+        'ping': {},
+        'openEcho': {'anyKey': 123},
+      };
+      const rejected = <String, Map<String, Object?>>{
+        'greet': {'name': 'Ada', 'undeclared': 1},
+        'ping': {'undeclared': 1},
+      };
+
+      // validateComponent, validateFunction and validateFunctionArgs agree.
+      for (final MapEntry(key: name, value: args) in accepted.entries) {
+        expect(
+          () => validator.validateComponent(_box({'call': name, 'args': args})),
+          returnsNormally,
+          reason: name,
+        );
+        expect(
+          () => validator.validateFunction(name, args),
+          returnsNormally,
+          reason: name,
+        );
+        expect(
+          () => validator.validateFunctionArgs(name, args),
+          returnsNormally,
+          reason: name,
+        );
+      }
+      for (final MapEntry(key: name, value: args) in rejected.entries) {
+        expect(
+          () => validator.validateComponent(_box({'call': name, 'args': args})),
+          throwsA(isA<A2uiValidationError>()),
+          reason: name,
+        );
+        expect(
+          () => validator.validateFunction(name, args),
+          throwsA(isA<A2uiValidationError>()),
+          reason: name,
+        );
+        expect(
+          () => validator.validateFunctionArgs(name, args),
+          throwsA(isA<A2uiValidationError>()),
+          reason: name,
+        );
+      }
+    });
+
     test('rejects an unknown nested function in a v0.9 catalog', () {
       expect(
         () => _versionedValidator('v0.9').validateComponent(

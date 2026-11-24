@@ -952,7 +952,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     wrapperObj: Record<string, unknown>,
     wrapperDepth: number,
   ): void {
-    const siblings: Record<string, unknown> = {};
+    // A null prototype keeps an own `__proto__` key as an ordinary property.
+    const siblings: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
     for (const [key, value] of Object.entries(wrapperObj)) {
       if (key !== 'messages') siblings[key] = value;
     }

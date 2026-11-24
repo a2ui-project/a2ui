@@ -3499,6 +3499,20 @@ describe('MessageProcessor component envelope mixins', () => {
         (err: unknown) =>
           err instanceof A2uiValidationError && err.message.includes('Invalid path syntax'),
       );
+      // `JSON.parse` makes `__proto__` an own key, and its value is checked like any other.
+      const protoKeyWrapper = (extra: unknown) =>
+        JSON.parse(`{"messages": [], "__proto__": ${JSON.stringify(extra)}}`) as never;
+      assert.throws(
+        () => standaloneProc.processMessages(protoKeyWrapper({path: '/invalid/escape/~2'})),
+        (err: unknown) =>
+          err instanceof A2uiValidationError && err.message.includes('Invalid path syntax'),
+      );
+      assert.throws(
+        () => standaloneProc.processMessages(protoKeyWrapper(nestedArrays(51))),
+        (err: unknown) =>
+          err instanceof A2uiRecursionError &&
+          err.message.includes('Global recursion limit exceeded'),
+      );
       // Without a validationConfig the keys are ignored unchecked, as messages are.
       assert.doesNotThrow(() =>
         defaultProc.processMessages(wrapperAtDepth10(nestedArrays(41)) as never),

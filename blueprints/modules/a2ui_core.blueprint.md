@@ -1013,8 +1013,16 @@ The matrix below details the specific validation checks, their responsible compo
 | **Depth & Syntax**       | Per-message JSON nesting depth limit (>50, depth 0 per message), which also bounds call nesting      | `MessageProcessor.processMessages()` (`validateRecursionAndPaths()`)      | `A2uiRecursionError`                       |
 | **Depth & Syntax**       | JSON Pointer path syntax validation                                                                  | `MessageProcessor.processMessages()`                                      | `A2uiValidationError`                      |
 
+##### Per-Message Depth, Wrapper Bounds & `ValidationConfig` Gating
+
+Implementations MUST start each individual message's `validateRecursionAndPaths()` traversal at depth `0`, and MUST bound the containers around messages by `MAX_GLOBAL_DEPTH` (`50`): a nested batch array (`[...]`) adds 1 level, and a `{"messages": [...]}` envelope adds 2 (the wrapper object and its `messages` array). Wrapper nesting depth MUST be enforced unconditionally.
+
+Sibling keys beside `messages` on a `{"messages": [...]}` wrapper carry no operations and MUST be ignored when extracting them. Implementations MUST still check those keys with `validateRecursionAndPaths()`, for depth and for `path`/`@path` syntax, by passing the wrapper object without its `messages` key and starting at the wrapper's depth.
+
+Whether the per-message and wrapper sibling-key `validateRecursionAndPaths()` checks are gated on an active `ValidationConfig` on `MessageProcessor` (as in TypeScript and Dart) or run unconditionally in version adapters during envelope extraction (as in Python and Swift) is implementation-defined.
+
 > [!NOTE]
-> **Per-Message Depth, Wrapper Bounds & `ValidationConfig` Gating**: Implementations MUST bound nested batch arrays (`[...]`, 1 level each) and `{"messages": [...]}` envelopes (2 levels each: wrapper object plus `messages` array) by `MAX_GLOBAL_DEPTH` (`50`), ignore sibling keys on `{"messages": [...]}` wrappers when extracting operations while holding their values to `validateRecursionAndPaths()` (depth counted from the wrapper and `path`/`@path` syntax), and start each individual message's `validateRecursionAndPaths()` traversal at depth `0`. Wrapper nesting depth is enforced unconditionally; in TypeScript and Dart, per-message and wrapper sibling-key `validateRecursionAndPaths()` checks are gated on an active `ValidationConfig` on `MessageProcessor`, whereas Python and Swift version adapters enforce per-message checks unconditionally during envelope extraction (Dart `MessageProcessor` and Swift `BaseVersionAdapter` currently unwrap one container level, check depth after envelope parsing, and leave wrapper sibling keys unchecked).
+> **Current SDK Deviations**: Dart `MessageProcessor` and Swift `BaseVersionAdapter` unwrap one container level, check depth after envelope parsing, and leave wrapper sibling keys unchecked. Python `VersionAdapterFactory.resolve_from_payload` reads the version through one container level, so `MessageProcessor` rejects a payload that nests containers deeper before `BaseVersionAdapter` unwraps it. TypeScript `BaseVersionAdapter.extractOperations` unwraps nested containers without a depth bound or sibling-key check of its own; `MessageProcessor` applies both before calling it.
 
 ---
 

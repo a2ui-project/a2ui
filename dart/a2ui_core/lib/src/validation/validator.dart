@@ -1204,16 +1204,17 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   Map<String, Schema> get _resolvedFunctionSchemas => _resolvedFunctions ??= {
     for (final MapEntry<String, F> entry in catalog.functions.entries)
       entry.key: _resolve(
-        _v1 || entry.value.definition != null
+        _v1
             ? entry.value.argumentSchema.value
             : _closePreV1ArgumentSchema(entry.value.argumentSchema.value),
       ),
   };
 
   /// Mirrors `Catalog._serializeFunction`'s `unevaluatedProperties` closure on
-  /// pre-v1.0 object argument schemas so code-defined v0.9 functions reject
-  /// undeclared arguments unless `additionalProperties` or
-  /// `unevaluatedProperties` explicitly permits them.
+  /// pre-v1.0 object argument schemas so v0.9 functions, whether defined in
+  /// code or read by `Catalog.fromJson`, reject undeclared arguments unless
+  /// `additionalProperties` or `unevaluatedProperties` explicitly permits
+  /// them.
   static Map<String, Object?> _closePreV1ArgumentSchema(
     Map<String, Object?> schema,
   ) {
@@ -1292,23 +1293,11 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   }
 
   /// The function [definition] with any object allowed for `args`, or null if
-  /// it is not an object schema whose `args` has subschema constraints.
+  /// it is not an object schema that gives `args` a schema object.
   static Map<String, Object?>? _withoutArgumentSchema(Object? definition) {
     if (definition is! Map) return null;
     final Object? properties = definition['properties'];
-    if (properties is! Map || !properties.containsKey('args')) return null;
-    final Object? args = properties['args'];
-    if (args is Map &&
-        !args.containsKey('properties') &&
-        !args.containsKey(r'$ref') &&
-        !args.containsKey('additionalProperties') &&
-        args['unevaluatedProperties'] is! Map &&
-        !args.containsKey('patternProperties') &&
-        !args.containsKey('allOf') &&
-        !args.containsKey('anyOf') &&
-        !args.containsKey('oneOf')) {
-      return null;
-    }
+    if (properties is! Map || properties['args'] is! Map) return null;
     return {
       ...definition.cast<String, Object?>(),
       'properties': {
