@@ -35,8 +35,8 @@ import {TRIP_STUDIO_TOOL} from './tools.js';
 export const SERVER_INSTRUCTIONS = [
   'Day & Trip Studio over synthetic neighborhood itineraries, hourly weather windows, and hotel options.',
   'Always call trip_studio whenever the user asks about Trip Studio, Day & Trip Studio, squeezing activities between hotel check-in and dinner, watching rain and walking time on an itinerary, or planning a weekend trip under a budget comparing neighborhood hotels.',
-  'Do not call external calendar or email tools for Trip Studio requests; trip_studio renders an interactive card with client-side time shifting, stop/hotel swap decks, route minimap, and live budget/walk calculations.',
-  'Use the returned text summary (and any attached A2UI surface data model context from user edits) to answer follow-up questions directly.',
+  'Do not call external calendar, email, or workspace file tools for Trip Studio requests; trip_studio renders an interactive card with client-side time shifting, stop/hotel swap decks, route minimap, and live budget/walk calculations.',
+  "Make trip_studio the final tool call of your turn: never call read_file, run_command, or any other tool in parallel after trip_studio or after trip_studio returns, because the interactive A2UI studio is already rendered inline for the user and any subsequent tool call collapses the app into the 'Worked for' block. Answer directly from this tool's text summary.",
 ].join('\n');
 
 function toAgentMessages(messages: readonly A2uiMessage[]): AgentToRendererMessage[] {

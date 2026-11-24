@@ -267,21 +267,67 @@ function buildSummaryText(
 ): string {
   const stats = computeTripStats(fixture.stops, fixture.hotel, budgetCap);
   const componentTypes = [...new Set(components.map(c => c.component))].join(', ');
-  const stopLines = fixture.stops.map(
-    stop =>
-      `- ${formatClock(stop.startMin)}–${formatClock(stop.startMin + stop.durationMin)} ${stop.title} (${stop.area}, $${stop.cost}, ${stop.indoor ? 'indoor' : 'outdoor'})`,
-  );
-  const hotelLine = fixture.hotel
-    ? `Basecamp hotel: ${fixture.hotel.name} (${fixture.hotel.area}, $${fixture.hotel.totalCost} for ${fixture.hotel.nights} nights, ${fixture.hotel.tag}).`
-    : 'No overnight hotel stay in this day window.';
+  const stopLines = fixture.stops.map(stop => {
+    const diag = stats.byStop[stop.id];
+    const walk = diag && diag.walkMin > 0 ? `, ${diag.walkMin}m walk` : '';
+    return `- ${formatClock(stop.startMin)}–${formatClock(stop.startMin + stop.durationMin)} ${stop.title} (${stop.area}, $${stop.cost}, ${stop.indoor ? 'indoor' : 'outdoor'}, open ${formatClock(stop.openMin)}–${formatClock(stop.closeMin)}${walk})`;
+  });
 
-  return [
-    `Rendered ${fixture.title} (${fixture.id}) with custom components: ${componentTypes}.`,
-    hotelLine,
-    `Totals: $${stats.totalCost} spend${budgetCap > 0 ? ` against $${budgetCap} cap` : ''}, ${stats.totalWalkMin}m walking, ${stats.conflictCount} schedule conflicts.`,
-    'Stops:',
-    ...stopLines,
-  ].join('\n');
+  const sections: string[] = [
+    `Rendered ${fixture.title} (${fixture.id}, neighborhood: ${fixture.neighborhood}) with custom components: ${componentTypes}.`,
+    `Totals: $${stats.totalCost} total spend${budgetCap > 0 ? ` against $${budgetCap} cap ($${Math.abs(stats.remainingBudget)} ${stats.overBudget ? 'over' : 'under'} cap)` : ''} [stay $${stats.categories.stay}, food $${stats.categories.food}, tickets $${stats.categories.tickets}, transit $${stats.categories.transit}], ${stats.totalWalkMin}m total walking, ${stats.conflictCount} schedule conflicts.`,
+  ];
+
+  if (fixture.weather && fixture.weather.length > 0) {
+    const hoursLine = fixture.weather
+      .map(h => `${h.label} ${h.tempC}°C (${h.condition}, ${h.rainPct}% rain)`)
+      .join(', ');
+    sections.push(
+      `Weather window${fixture.weatherAlert ? ` (${fixture.weatherAlert})` : ''}: ${hoursLine}.`,
+    );
+  }
+
+  if (fixture.hotel) {
+    sections.push(
+      `Selected basecamp hotel: ${fixture.hotel.name} (${fixture.hotel.area}, $${fixture.hotel.totalCost} for ${fixture.hotel.nights} nights + $${fixture.hotel.transitCost} transit, ${fixture.hotel.tag}).`,
+    );
+  }
+
+  if (fixture.hotelSwaps && fixture.hotelSwaps.length > 0) {
+    sections.push(
+      'Hotel swap options in card:',
+      ...fixture.hotelSwaps.map(
+        opt =>
+          `  * [${opt.badge}] ${opt.title} (${opt.area}): $${opt.cost} stay + $${opt.transitCost ?? 0} transit — ${opt.reason}`,
+      ),
+    );
+  }
+
+  sections.push('Scheduled stops:', ...stopLines);
+
+  if (fixture.stopSwaps) {
+    const swapLines: string[] = [];
+    for (const stop of fixture.stops) {
+      const opts = fixture.stopSwaps[stop.id];
+      if (!opts || opts.length === 0 || stop.locked) continue;
+      const summary = opts
+        .map(
+          opt =>
+            `[${opt.badge}] ${opt.title} ($${opt.cost}, ${opt.indoor ? 'indoor' : 'outdoor'}: ${opt.reason})`,
+        )
+        .join('; ');
+      swapLines.push(`  * Alternatives for ${stop.title}: ${summary}`);
+    }
+    if (swapLines.length > 0) {
+      sections.push('Stop swap options in card:', ...swapLines);
+    }
+  }
+
+  sections.push(
+    "Make trip_studio the final tool call of your turn: never call read_file, run_command, or any other tool in parallel after trip_studio or after trip_studio returns, because the interactive A2UI studio is already rendered inline for the user and any subsequent tool call collapses the app into the 'Worked for' block. Answer directly from this tool's text summary.",
+  );
+
+  return sections.join('\n');
 }
 
 export interface ComposedStudio {

@@ -67,6 +67,10 @@ describe('a2ui-embed-trip MCP server', () => {
       expect(fullName).toMatch(/^[a-zA-Z0-9_-]{1,64}$/);
     }
     expect(client.getInstructions()).toBe(SERVER_INSTRUCTIONS);
+    expect(SERVER_INSTRUCTIONS).toContain('Make trip_studio the final tool call of your turn');
+    expect(tools.find(t => t.name === 'trip_studio')?.description).toContain(
+      'Make trip_studio the final tool call of your turn',
+    );
   });
 
   it('renders afternoon_gap and weekend_budget compositions and handles actions + followUps', async () => {
@@ -77,6 +81,8 @@ describe('a2ui-embed-trip MCP server', () => {
     });
     expect(gapResult.isError).toBeFalsy();
     expect(textOf(gapResult)).toContain('Kyoto Afternoon Gap Studio');
+    expect(textOf(gapResult)).toContain('Museum of Kyoto Craft Vaults');
+    expect(textOf(gapResult)).toContain('Make trip_studio the final tool call of your turn');
 
     const surfaceId = (
       payloadOf(gapResult)!.messages.find(m => 'createSurface' in m)!['createSurface'] as {

@@ -25,7 +25,7 @@ export const TRIP_STUDIO_TOOL = {
   config: {
     title: 'Day & Trip Studio',
     description:
-      'Interactive Day & Trip Studio card for planning day itineraries, squeezing stops into an afternoon gap between check-in and dinner, watching hourly rain windows and walking times, or comparing weekend neighborhood hotels against a budget cap. Renders a custom A2UI v1.0 travel studio where the user shifts stop times, swaps stops or hotels client-side, and locks the plan.',
+      "Interactive Day & Trip Studio card for planning day itineraries, squeezing stops into an afternoon gap between check-in and dinner, watching hourly rain windows and walking times, or comparing weekend neighborhood hotels against a budget cap. Renders a custom A2UI v1.0 travel studio where the user shifts stop times, swaps stops or hotels client-side, and locks the plan. Make trip_studio the final tool call of your turn: never call read_file, run_command, or any other tool in parallel after trip_studio or after trip_studio returns, because the interactive A2UI studio is already rendered inline for the user and any subsequent tool call collapses the app into the 'Worked for' block. Answer directly from this tool's text summary.",
     inputSchema: {
       prompt: z
         .string()
