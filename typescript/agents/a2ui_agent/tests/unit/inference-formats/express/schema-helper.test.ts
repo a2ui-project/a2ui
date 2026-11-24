@@ -355,7 +355,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
   });
 
   describe('6. Catalog-local def negative test', () => {
-    it('does not treat catalog-local MyAction or DynamicFoo as Action or admitting path unless having path', () => {
+    it('does not treat catalog-local MyAction or DynamicFoo as Action or misclassify non-binding path objects', () => {
       const mockDoc: Record<string, unknown> = {
         catalogId: 'test_negative',
         protocolVersion: '1.0',
@@ -366,7 +366,10 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
               component: {const: 'CustomComp'},
               actionSlot: {$ref: '#/$defs/MyAction'},
               dynamicFoo: {$ref: '#/$defs/DynamicFoo'},
-              withPath: {$ref: '#/$defs/WithPath'},
+              withAtPath: {$ref: '#/$defs/WithAtPath'},
+              withBarePath: {$ref: '#/$defs/WithBarePath'},
+              withOptionalAtPath: {$ref: '#/$defs/WithOptionalAtPath'},
+              withLabelAndPath: {$ref: '#/$defs/WithLabelAndPath'},
             },
           },
         },
@@ -384,11 +387,33 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
               value: {type: 'string'},
             },
           },
-          WithPath: {
+          WithAtPath: {
+            type: 'object',
+            properties: {
+              '@path': {type: 'string'},
+            },
+            required: ['@path'],
+          },
+          WithBarePath: {
             type: 'object',
             properties: {
               path: {type: 'string'},
             },
+            required: ['path'],
+          },
+          WithOptionalAtPath: {
+            type: 'object',
+            properties: {
+              '@path': {type: 'string'},
+            },
+          },
+          WithLabelAndPath: {
+            type: 'object',
+            properties: {
+              label: {type: 'string'},
+              path: {type: 'string'},
+            },
+            required: ['label', 'path'],
           },
         },
       };
@@ -397,15 +422,96 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
       const helper = new CatalogSchemaHelper(customCat, '1.0');
 
       const actionSlotSchema = helper.getPropertySchema('CustomComp', 'actionSlot');
-      expect(isActionSlot(actionSlotSchema)).toBe(false);
+      expect(isActionSlot(actionSlotSchema, helper)).toBe(false);
       expect(helper.admitsPath(actionSlotSchema)).toBe(false);
 
       const dynamicFooSchema = helper.getPropertySchema('CustomComp', 'dynamicFoo');
-      expect(isActionSlot(dynamicFooSchema)).toBe(false);
+      expect(isActionSlot(dynamicFooSchema, helper)).toBe(false);
       expect(helper.admitsPath(dynamicFooSchema)).toBe(false);
 
-      const withPathSchema = helper.getPropertySchema('CustomComp', 'withPath');
-      expect(helper.admitsPath(withPathSchema)).toBe(true);
+      expect(helper.admitsPath(helper.getPropertySchema('CustomComp', 'withAtPath'))).toBe(true);
+      expect(helper.admitsPath(helper.getPropertySchema('CustomComp', 'withBarePath'))).toBe(false);
+      expect(helper.admitsPath(helper.getPropertySchema('CustomComp', 'withOptionalAtPath'))).toBe(
+        false,
+      );
+      expect(helper.admitsPath(helper.getPropertySchema('CustomComp', 'withLabelAndPath'))).toBe(
+        false,
+      );
+
+      const v09Doc: Record<string, unknown> = {
+        ...mockDoc,
+        catalogId: 'test_negative_v09',
+        protocolVersion: 'v0.9',
+      };
+      const v09Helper = new CatalogSchemaHelper(Catalog.fromJson(v09Doc), 'v0.9');
+      expect(v09Helper.admitsPath(v09Helper.getPropertySchema('CustomComp', 'withBarePath'))).toBe(
+        true,
+      );
+      expect(v09Helper.admitsPath(v09Helper.getPropertySchema('CustomComp', 'withAtPath'))).toBe(
+        false,
+      );
+    });
+
+    it('preserves common-type $ref in dereferenceLocalSchema, resolves union local $defs, and survives cyclic $defs', () => {
+      const cat = Catalog.fromJson({
+        catalogId: 'test_local_defs',
+        protocolVersion: '1.0',
+        components: {
+          ActionAndCycle: {
+            type: 'object',
+            properties: {
+              component: {const: 'ActionAndCycle'},
+              onTap: {
+                oneOf: [{$ref: '#/$defs/TapAction'}, {type: 'null'}],
+              },
+              targetId: {$ref: '#/$defs/ComponentId'},
+              node: {$ref: '#/$defs/CycleNode'},
+              flatAction: {
+                oneOf: [
+                  {
+                    type: 'object',
+                    properties: {
+                      event: {
+                        type: 'object',
+                        properties: {name: {type: 'string'}},
+                        required: ['name'],
+                      },
+                    },
+                    required: ['event'],
+                  },
+                  {
+                    type: 'object',
+                    properties: {
+                      functionCall: {
+                        type: 'object',
+                        properties: {'@call': {type: 'string'}},
+                        required: ['@call'],
+                      },
+                    },
+                    required: ['functionCall'],
+                  },
+                ],
+              },
+            },
+          },
+        },
+        $defs: {
+          ComponentId: {type: 'string'},
+          TapAction: {$ref: 'common_types.json#/$defs/Action'},
+          CycleNode: {
+            oneOf: [{$ref: '#/$defs/CycleNode'}, {type: 'string'}],
+          },
+        },
+      });
+      const helper = new CatalogSchemaHelper(cat, '1.0');
+      expect(helper.getPropertySchema('ActionAndCycle', 'targetId')?.$ref).toBe(
+        '#/$defs/ComponentId',
+      );
+      expect(isActionSlot(helper.getPropertySchema('ActionAndCycle', 'onTap'), helper)).toBe(true);
+      expect(isActionSlot(helper.getPropertySchema('ActionAndCycle', 'flatAction'), helper)).toBe(
+        true,
+      );
+      expect(helper.getPropertyEnum('ActionAndCycle', 'node')).toBeUndefined();
     });
   });
 
