@@ -1,6 +1,6 @@
 ## Unreleased
 
-- (v0_8) Re-render interactive input components and connected `Root` elements sharing the same processor and surface when bound values update on plain `A2uiMessageProcessor` instances, and preserve native `date`, `time`, and `datetime-local` values across `DateTimeInput` re-renders.
+- (v0_8) Re-render interactive input components and connected `Root` elements sharing the same processor and surface when bound values update on plain `A2uiMessageProcessor` instances, and preserve native `date`, `time`, and `datetime-local` values across `DateTimeInput` re-renders. [#4390](https://github.com/a2ui-project/a2ui/pull/4390)
 
 ## 0.16.0
 
