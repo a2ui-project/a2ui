@@ -66,6 +66,29 @@ void checkDistinctIds(List<CatalogApi> catalogs) {
   }
 }
 
+/// Checks that [catalogs] have distinct ids and, if several catalogs are given,
+/// that they target A2UI v1.0 or later.
+///
+/// In Express, when several catalogs are active, components and function calls
+/// carry per-item `catalogId` fields, which requires A2UI v1.0 or later.
+///
+/// Throws [A2uiCatalogError] if any catalog id repeats, if the catalogs target
+/// different protocol versions, or if several catalogs target a version before
+/// v1.0.
+void checkMixedCatalogs(List<CatalogApi> catalogs) {
+  checkDistinctIds(catalogs);
+  if (catalogs.length > 1) {
+    final A2uiProtocolVersion version = catalogsProtocolVersion(catalogs);
+    if (!version.isAtLeast(A2uiProtocolVersion.v1_0)) {
+      throw A2uiCatalogError(
+        'Several catalogs need A2UI v1.0 or later, where components and '
+        'function calls carry their own catalogId, but got '
+        '${version.semverValue}.',
+      );
+    }
+  }
+}
+
 /// The functions of [catalogs] the agent may ask the renderer to run with
 /// `callRendererFunction`: those whose `allowedCallers` admits the agent, and
 /// which need no user activation, which a call from the agent never has.

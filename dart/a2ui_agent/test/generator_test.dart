@@ -149,14 +149,15 @@ void main() {
 
   group('A2uiGenerator.createProcessor', () {
     test('activates supported catalogs in the renderer preference order', () {
-      final A2uiRequestProcessor processor = generator().createProcessor(
-        A2uiRendererCapabilities.forCatalogIds([
-          b.id,
-          'https://example.com/unknown.json',
-          a.id,
-          b.id,
-        ]),
-      );
+      final A2uiRequestProcessor processor =
+          generator(format: const _TextFormatFactory()).createProcessor(
+            A2uiRendererCapabilities.forCatalogIds([
+              b.id,
+              'https://example.com/unknown.json',
+              a.id,
+              b.id,
+            ]),
+          );
       expect(processor.activeCatalogs, [b, a]);
     });
 
@@ -352,19 +353,20 @@ void main() {
         null,
         A2uiProtocolVersion.v0_9_1,
       ]);
-      for (final InferenceFormatFactory format in const [
-        DirectJsonFormatFactory(),
-        ExpressFormatFactory(),
-      ]) {
-        expect(
-          A2uiRequestProcessor(
-            activeCatalogs: active,
-            formatFactory: format,
-          ).promptSnippet,
-          contains(inline.id),
-          reason: '${format.runtimeType}',
-        );
-      }
+      expect(
+        A2uiRequestProcessor(
+          activeCatalogs: active,
+          formatFactory: const DirectJsonFormatFactory(),
+        ).promptSnippet,
+        contains(inline.id),
+      );
+      expect(
+        () => A2uiRequestProcessor(
+          activeCatalogs: active,
+          formatFactory: const ExpressFormatFactory(),
+        ),
+        throwsA(isA<A2uiCatalogError>()),
+      );
     });
 
     test('activates one of two inline catalogs sharing an id', () {

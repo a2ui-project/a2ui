@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Emit `ComponentNode.on_updated` when check-only validation attributes (`is_valid`, `validation_errors`, or `validation_results`) change in `NodeResolver`, including asynchronous `callAgentFunction` check settlement ([#4307](https://github.com/a2ui-project/a2ui/issues/4307), [#4308](https://github.com/a2ui-project/a2ui/pull/4308)).
+
+## 0.7.1 (2026-11-23)
+
 - Add `MessageProcessor.add_catalog(catalog)`, which adds a catalog to a
   processor after it is built. `createSurface` messages, renderer function
   calls and `get_renderer_capabilities` see the catalog from then on; surfaces
@@ -9,6 +13,7 @@
   appends to; the sequence passed to the constructor is not changed
   ([#3303](https://github.com/a2ui-project/a2ui/issues/3303),
   [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
+- Avoid repeated `Catalog.validation_schema` deep copies during internal payload validation and component reference resolution ([#4314](https://github.com/a2ui-project/a2ui/issues/4314), [#4326](https://github.com/a2ui-project/a2ui/pull/4326)).
 
 ## 0.7.0 (2026-11-17)
 
