@@ -478,9 +478,8 @@ bool _allowsBinding(
     return true;
   }
   if (_isFlattenedDataBinding(schema, pathKey)) return true;
-  return _rawAlternatives(
-    schema,
-  ).any((sub) => _allowsBinding(sub, pathKey, seen));
+  return _rawAlternatives(schema)
+      .any((sub) => _allowsBinding(sub, pathKey, seen));
 }
 
 /// Whether a property of [schema] accepts a data binding.
@@ -570,9 +569,8 @@ bool _expectsOptionObjects(Map<Object?, Object?> schema, Set<Object> seen) {
   if (schema['items'] case final Map<Object?, Object?> items) {
     return _hasLabelAndValue(items, Set<Object>.identity());
   }
-  return _rawAlternatives(
-    schema,
-  ).any((sub) => _expectsOptionObjects(sub, seen));
+  return _rawAlternatives(schema)
+      .any((sub) => _expectsOptionObjects(sub, seen));
 }
 
 /// Whether [schema] is a list of `{label, value}` options, which Express lets
