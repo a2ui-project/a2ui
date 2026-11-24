@@ -3,6 +3,8 @@
 ## Unreleased
 
 - **Breaking:** (v1_0) `RpcHandler` evaluates nested `@call` objects and `${...}` template expressions inside `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions and unactivated `requiresUserActivation` functions with `RpcErrorCode.invalidFunctionCall` while permitting `agentOnly` and `rendererOrAgent` functions, and checking nested `@call` objects before any sibling argument runs. `MessageProcessor.forAgent` applies the same agent-boundary validation to nested `@call` objects (`A2uiValidationError`). Set `allowedCallers` to `rendererOrAgent` or `agentOnly` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774), [#4336](https://github.com/a2ui-project/a2ui/pull/4336)).
+- **Breaking:** Remove the limit of 5 on nested function calls from `checkPathsAndRecursion` and `MessageProcessor`. Function call nesting is bounded only by the global depth limit of 50, so payloads that failed with `functionCall depth > 5` are now accepted ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
+- **Breaking:** (v0_9) `PayloadValidator` closes pre-v1.0 object `argumentSchema`s, of functions defined in code or read by `Catalog.fromJson`, with `unevaluatedProperties: false` in `validateFunction` and `validateFunctionArgs` to match `Catalog.validationSchema`. Set `additionalProperties: true` (or `unevaluatedProperties: true`) on schemas that accept undeclared arguments ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
 
 ## 0.9.0
 

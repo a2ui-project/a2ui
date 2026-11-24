@@ -163,12 +163,17 @@ function del(surfaceId = 's'): Message {
 
 const RECORDING_ID = 'https://example.com/recording.json';
 
-/** A catalog whose `record` function appends its args to `calls`. */
+/**
+ * A catalog whose `record` function appends its args to `calls`.
+ *
+ * `note` is a string unless `options.note` gives it another schema.
+ */
 function recordingCatalog(
   calls: unknown[],
   options: {
     allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
     requiresUserActivation?: boolean;
+    note?: z.ZodTypeAny;
   } = {allowedCallers: 'rendererOrAgent'},
 ): CatalogApi {
   return new Catalog(
@@ -179,7 +184,7 @@ function recordingCatalog(
       {
         name: 'record',
         returnType: 'void',
-        schema: z.object({note: z.string().optional()}).strict(),
+        schema: z.object({note: options.note ?? z.string().optional()}).strict(),
         execute: (args: Record<string, unknown>) => {
           calls.push(args);
         },
@@ -508,14 +513,20 @@ describe('callRendererFunction validation', () => {
     expect(() => new RendererState(CATALOGS).apply([message])).toThrow(A2uiValidationError);
   });
 
+  it('accepts calls nested deeper than five', () => {
+    expect(() =>
+      validatePayload(CATALOGS, [call('echo', {args: {value: nestCalls(10)}})]),
+    ).not.toThrow();
+  });
+
   it.each([
-    ['bad path', {'@path': 'bad~pointer'}],
-    ['calls nested too deep', nestCalls(7)],
-    ['objects nested too deep', nestObjects(60)],
-  ])('rejects arguments the processor would refuse: %s', (_, value) => {
-    expect(() => validatePayload(CATALOGS, [call('echo', {args: {value}})])).toThrow(
-      A2uiValidationError,
-    );
+    ['bad path', {'@path': 'bad~pointer'}, /Invalid path syntax: 'bad~pointer'/],
+    ['calls nested too deep', nestCalls(30), /Global recursion limit exceeded/],
+    ['objects nested too deep', nestObjects(60), /Global recursion limit exceeded/],
+  ])('rejects arguments the processor would refuse: %s', (_, value, match) => {
+    const payload = [call('echo', {args: {value}})];
+    expect(() => validatePayload(CATALOGS, payload)).toThrow(A2uiValidationError);
+    expect(() => validatePayload(CATALOGS, payload)).toThrow(match);
   });
 
   it.each([
@@ -672,14 +683,19 @@ describe('callRendererFunction validation', () => {
   });
 
   it.each([
-    ['bad path', {'@path': 'bad~pointer'}],
-    ['calls nested too deep', nestCalls(7)],
-    ['null args', null],
+    ['bad path', {'@path': 'bad~pointer'}, /Invalid path syntax: 'bad~pointer'/],
+    ['calls nested too deep', nestCalls(30, 'record', 'note'), /Global recursion limit exceeded/],
+    ['null args', null, /must pass an object for 'args'/],
   ])(
     "rejects a call the processor would refuse before the state's changes are final: %s",
-    (_, value) => {
+    (_, value, match) => {
       const calls: unknown[] = [];
-      const catalog = recordingCatalog(calls);
+      // `note` takes any value and the nested calls name `record`, so that nothing but the
+      // check under test refuses the call.
+      const catalog = recordingCatalog(calls, {
+        allowedCallers: 'rendererOrAgent',
+        note: z.unknown(),
+      });
       const processor = new MessageProcessor([catalog as never, BASIC as never]);
       const handled: unknown[] = [];
       vi.spyOn(processor.rpc, 'handleCallRendererFunction').mockImplementation(message => {
@@ -691,7 +707,14 @@ describe('callRendererFunction validation', () => {
       const callFunction = (message.callRendererFunction as Message).callFunction as Message;
       callFunction.args = value === null ? null : {note: value};
 
-      expect(() => state.apply([create(), message])).toThrow(A2uiValidationError);
+      let thrown: unknown;
+      try {
+        state.apply([create(), message]);
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).toBeInstanceOf(A2uiValidationError);
+      expect((thrown as Error).message).toMatch(match);
       expect(state.surfaceIds).toEqual([]);
       expect(processor.model.getSurface('s')).toBeUndefined();
       expect(handled).toEqual([]);
@@ -699,10 +722,15 @@ describe('callRendererFunction validation', () => {
   );
 });
 
-/** Returns `depth` function calls, each nested in the arguments of the one before. */
-function nestCalls(depth: number): Message {
-  let value: Message = {'@call': 'scrollTo', args: {id: 'x'}};
-  for (let i = 1; i < depth; i++) value = {'@call': 'echo', args: {value}};
+/**
+ * Returns `depth` function calls, each nested in the arguments of the one before.
+ *
+ * The innermost call is to `scrollTo`, and each call around it is to `name`, which takes the
+ * call it holds as its `arg` argument. With `name` given, every call is to `name`.
+ */
+function nestCalls(depth: number, name?: string, arg = 'value'): Message {
+  let value: Message = name ? {'@call': name, args: {}} : {'@call': 'scrollTo', args: {id: 'x'}};
+  for (let i = 1; i < depth; i++) value = {'@call': name ?? 'echo', args: {[arg]: value}};
   return value;
 }
 
