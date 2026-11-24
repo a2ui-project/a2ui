@@ -21,6 +21,7 @@ import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
 import * as Primitives from '@a2ui/web_core/types/primitives';
 import {classMap} from 'lit/directives/class-map.js';
 import {styleMap} from 'lit/directives/style-map.js';
+import {setBoundData} from './data-binding.js';
 import {structuralStyles} from './styles.js';
 
 @customElement('a2ui-datetimeinput')
@@ -80,12 +81,7 @@ export class DateTimeInput extends Root {
       return;
     }
 
-    this.processor.setData(
-      this.component,
-      this.value.path,
-      value,
-      this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID,
-    );
+    setBoundData(this, this.value.path, value);
   }
 
   #renderField(value: string) {
@@ -127,15 +123,42 @@ export class DateTimeInput extends Root {
     return 'datetime-local';
   }
 
-  #formatInputValue(value: string) {
-    const inputType = this.#getInputType();
-    const date = value ? new Date(value) : null;
+  #formatNativeInputValue(
+    value: string,
+    inputType: 'date' | 'time' | 'datetime-local',
+  ): string | null {
+    if (inputType === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return value;
+    }
+    if (inputType === 'time' && /^\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(value)) {
+      return value.slice(0, 5);
+    }
+    if (
+      inputType === 'datetime-local' &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(value)
+    ) {
+      return value.slice(0, 16);
+    }
+    return null;
+  }
 
-    if (!date || isNaN(date.getTime())) {
+  #formatInputValue(value: string) {
+    if (!value) {
       return '';
     }
 
-    const year = this.#padNumber(date.getFullYear());
+    const inputType = this.#getInputType();
+    const nativeValue = this.#formatNativeInputValue(value, inputType);
+    if (nativeValue !== null) {
+      return nativeValue;
+    }
+
+    const date = new Date(value);
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+
+    const year = date.getFullYear().toString().padStart(4, '0');
     const month = this.#padNumber(date.getMonth() + 1);
     const day = this.#padNumber(date.getDate());
     const hours = this.#padNumber(date.getHours());

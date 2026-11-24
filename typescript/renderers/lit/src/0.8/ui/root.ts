@@ -26,6 +26,7 @@ import {AnyComponentNode, SurfaceID, Theme} from '@a2ui/web_core/types/types';
 import {themeContext} from './context/theme.js';
 import {structuralStyles} from './styles.js';
 import {componentRegistry} from './component-registry.js';
+import {registerBoundRoot} from './data-binding.js';
 
 type NodeOfType<T extends AnyComponentNode['type']> = Extract<AnyComponentNode, {type: T}>;
 
@@ -82,6 +83,7 @@ export class Root extends SignalWatcher(LitElement) {
    * We need this to stop the effect when the component is disconnected.
    */
   #lightDomEffectDisposer: null | (() => void) = null;
+  #bindingController = registerBoundRoot(this);
 
   protected override willUpdate(changedProperties: PropertyValues<this>): void {
     if (changedProperties.has('childComponents')) {
@@ -108,6 +110,7 @@ export class Root extends SignalWatcher(LitElement) {
    */
   override disconnectedCallback(): void {
     super.disconnectedCallback();
+    this.#bindingController.hostDisconnected();
 
     if (this.#lightDomEffectDisposer) {
       this.#lightDomEffectDisposer();

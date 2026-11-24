@@ -22,6 +22,7 @@ import * as Primitives from '@a2ui/web_core/types/primitives';
 import {classMap} from 'lit/directives/class-map.js';
 import {styleMap} from 'lit/directives/style-map.js';
 import {structuralStyles} from './styles.js';
+import {setBoundData} from './data-binding.js';
 import {extractNumberValue, extractStringValue} from './utils/utils.js';
 
 @customElement('a2ui-slider')
@@ -73,12 +74,7 @@ export class Slider extends Root {
       return;
     }
 
-    this.processor.setData(
-      this.component,
-      this.value.path,
-      value,
-      this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID,
-    );
+    setBoundData(this, this.value.path, value);
   }
 
   #renderField(value: string | number) {

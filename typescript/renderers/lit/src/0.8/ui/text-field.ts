@@ -17,12 +17,12 @@
 import {html, css, nothing} from 'lit';
 import {customElement, property} from 'lit/decorators.js';
 import {Root} from './root.js';
-import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
 import * as Primitives from '@a2ui/web_core/types/primitives';
 import * as Types from '@a2ui/web_core/types/types';
 import {Events, isSafeRegex} from '@a2ui/web_core/v0_8';
 import {classMap} from 'lit/directives/class-map.js';
 import {styleMap} from 'lit/directives/style-map.js';
+import {setBoundData} from './data-binding.js';
 import {extractStringValue} from './utils/utils.js';
 import {structuralStyles} from './styles.js';
 
@@ -86,12 +86,7 @@ export class TextField extends Root {
       return;
     }
 
-    this.processor.setData(
-      this.component,
-      this.text.path,
-      value,
-      this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID,
-    );
+    setBoundData(this, this.text.path, value);
   }
 
   #renderField(value: string | number, label: string) {
