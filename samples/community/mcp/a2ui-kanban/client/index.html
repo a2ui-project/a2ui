@@ -34,6 +34,14 @@
         --chat-accent: light-dark(#1d4ed8, #93c5fd);
         --chat-primary-bg: #1d4ed8;
         --chat-primary-fg: #ffffff;
+      }
+
+      /*
+       * A2UI basic catalog styles are adopted into the shadow root of the chat
+       * element, where their `:host` defaults beat values inherited from
+       * `:root`. Override the `--a2ui-*` tokens on the shadow host itself.
+       */
+      a2ui-kanban-chat {
         --a2ui-color-background: var(--chat-surface-bg);
         --a2ui-color-on-background: var(--chat-fg);
         --a2ui-color-surface: var(--chat-surface-bg);

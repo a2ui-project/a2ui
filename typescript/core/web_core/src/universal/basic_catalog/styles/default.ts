@@ -20,27 +20,33 @@
  * This should be only variable definitions, so they can pierce into the
  * shadow DOM of components.
  *
- * It uses `:where()` to ensure zero specificity, allowing page styles to
- * override these defaults as needed without having to deal with specificity.
+ * Document-level selectors use `:where()` to ensure zero specificity, allowing
+ * page styles to override these defaults as needed without having to deal with
+ * specificity. `:host` selectors cannot be wrapped in `:where()`, since a
+ * shadow host is only matched by a direct `:host` compound selector.
  *
  * By default, the theme follows the user's `color-scheme` preference, but
  * developers can force either the light/dark variants using the `a2ui-light`
- * or `a2ui-dark` classes on the root element of their app.
+ * or `a2ui-dark` classes on the root element of their app. Inside a shadow
+ * root, set the class, and any `--a2ui-*` overrides, on the shadow host.
  */
 const DEFAULT_CSS = `
-  :where(:root) {
+  :where(:root), :host {
     color-scheme: light dark;
   }
 
-  :where(.a2ui-dark) {
+  :where(.a2ui-dark), :host(.a2ui-dark) {
     color-scheme: dark;
   }
 
-  :where(.a2ui-light) {
+  :where(.a2ui-light), :host(.a2ui-light) {
     color-scheme: light;
   }
 
-  :where(:root), :where(.a2ui-dark), :where(.a2ui-light) {
+  :where(:root),
+  :host,
+  :where(.a2ui-dark),
+  :where(.a2ui-light) {
     --a2ui-color-background: light-dark(#eee, #111);
     --a2ui-color-on-background: light-dark(#333, #eee);
 
@@ -94,28 +100,34 @@ const DEFAULT_CSS = `
 `;
 
 /**
- * Caches the default stylesheet so it is only created once.
+ * Caches the default stylesheet of each document, so it is only created once
+ * per document. A constructable stylesheet can only be adopted by the document
+ * it was created in, so an iframe needs a sheet of its own.
  */
-let defaultStyleSheet: CSSStyleSheet | undefined;
+const defaultStyleSheets = new WeakMap<Document, CSSStyleSheet>();
 
 /**
- * Retrieves the default CSSStyleSheet for A2UI components.
+ * Retrieves the default CSSStyleSheet for A2UI components in a document.
  *
  * If the stylesheet doesn't exist, it creates and initializes one with default
  * theme variables from the DEFAULT_CSS string.
  *
+ * @param ownerDoc The document the stylesheet will be adopted into.
  * @returns The default CSSStyleSheet used by A2UI.
  */
-function getDefaultStyleSheet(): CSSStyleSheet {
-  if (!defaultStyleSheet) {
-    defaultStyleSheet = new CSSStyleSheet();
-    defaultStyleSheet.replaceSync(DEFAULT_CSS);
+function getDefaultStyleSheet(ownerDoc: Document): CSSStyleSheet {
+  let sheet = defaultStyleSheets.get(ownerDoc);
+  if (!sheet) {
+    const StyleSheetCtor = ownerDoc.defaultView?.CSSStyleSheet ?? CSSStyleSheet;
+    sheet = new StyleSheetCtor();
+    sheet.replaceSync(DEFAULT_CSS);
+    defaultStyleSheets.set(ownerDoc, sheet);
   }
-  return defaultStyleSheet;
+  return sheet;
 }
 
 /**
- * Injects CSS variables for the A2UI basic catalog into the document stylesheet collection.
+ * Injects CSS variables for the A2UI basic catalog into the document or target root stylesheet collection.
  *
  * This method is used by the A2UI-provided basic catalogs of each renderer
  * so design token values can be shared across all of them.
@@ -128,31 +140,57 @@ function getDefaultStyleSheet(): CSSStyleSheet {
  * Users may redefine the values of the CSS variables exposed in the default
  * stylesheet above (and the specific ones exposed by each basic catalog
  * package) to customize the appearance of the items of the basic catalog.
+ *
+ * Adopts the stylesheet via `adoptedStyleSheets` if supported, falling back to
+ * a `<style data-a2ui-basic-catalog>` element injection if `adoptedStyleSheets` is unavailable
+ * or unsupported in the current environment.
+ *
+ * @param targetRoot An optional Document or ShadowRoot to adopt the stylesheet
+ *     into. Defaults to `document`.
  */
-export function injectBasicCatalogStyles(targetRoot?: Document | ShadowRoot) {
-  if (typeof document === 'undefined') return;
-  const sheet = getDefaultStyleSheet();
-  const docSheets = typeof document !== 'undefined' ? (document as any).adoptedStyleSheets : null;
-  if (docSheets && typeof docSheets.includes === 'function' && !docSheets.includes(sheet)) {
-    try {
-      (document as any).adoptedStyleSheets = [...docSheets, sheet];
-    } catch {
-      // Fallback
+export function injectBasicCatalogStyles(targetRoot?: Document | ShadowRoot): void {
+  const target = targetRoot ?? (typeof document !== 'undefined' ? document : undefined);
+  if (!target) return;
+
+  try {
+    const sheet = getDefaultStyleSheet(getOwnerDocument(target));
+    const sheets = target.adoptedStyleSheets;
+    if (Array.isArray(sheets)) {
+      if (sheets.includes(sheet)) return;
+      // In a shadow root the sheet goes first, so `:host` rules from components
+      // that connect later still win by source order.
+      target.adoptedStyleSheets = isDocument(target) ? [...sheets, sheet] : [sheet, ...sheets];
+      return;
     }
+  } catch {
+    // Constructable stylesheets or adoption are unavailable or threw: fall back
+    // to a <style> element below.
   }
-  if (targetRoot && targetRoot !== document) {
-    const targetSheets = (targetRoot as any).adoptedStyleSheets;
-    if (
-      targetSheets &&
-      typeof targetSheets.includes === 'function' &&
-      !targetSheets.includes(sheet)
-    ) {
-      try {
-        (targetRoot as any).adoptedStyleSheets = [...targetSheets, sheet];
-      } catch {
-        // Fallback
-      }
-    }
+
+  injectStyleTagFallback(target);
+}
+
+function isDocument(target: Document | ShadowRoot): target is Document {
+  return 'createElement' in target;
+}
+
+function getOwnerDocument(target: Document | ShadowRoot): Document {
+  return isDocument(target) ? target : (target.ownerDocument ?? document);
+}
+
+function injectStyleTagFallback(target: Document | ShadowRoot): void {
+  if (target.querySelector('style[data-a2ui-basic-catalog]')) return;
+
+  const style = getOwnerDocument(target).createElement('style');
+  style.setAttribute('data-a2ui-basic-catalog', '');
+  style.textContent = DEFAULT_CSS;
+
+  if (isDocument(target)) {
+    (target.head ?? target.documentElement)?.appendChild(style);
+  } else {
+    // First in a shadow root, like the adopted sheet, so `:host` rules from
+    // components that connect later still win by source order.
+    target.insertBefore(style, target.firstChild);
   }
 }
 
