@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:typed_data';
+
 import 'package:a2ui_core/a2ui_core.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
@@ -20,9 +22,10 @@ import '../../component_implementation.dart';
 import '../../component_props.dart';
 
 /// Builds the basic `Image` component: the image at an `http` or `https`
-/// `url`, sized by `variant`, resized by `fit` (`cover` for a header without
-/// one) and labelled for accessibility by `description`. Any other URL, and
-/// an image that fails to load, shows a broken-image icon labelled by the
+/// `url`, or inline in a `data:` URL of an `image/*` type, sized by
+/// `variant`, resized by `fit` (`cover` for a header without one) and
+/// labelled for accessibility by `description`. Any other URL, and an image
+/// that fails to load or decode, shows a broken-image icon labelled by the
 /// same `description`.
 Widget buildImage(
   BuildContext context,
@@ -43,17 +46,21 @@ Widget buildImage(
           label: description,
           child: const Icon(Icons.broken_image),
         );
-  final Widget image = url.startsWith('http://') || url.startsWith('https://')
-      ? Image.network(
-          url,
+  final ImageProvider? provider =
+      url.startsWith('http://') || url.startsWith('https://')
+      ? NetworkImage(url)
+      : _DataUrlImage.tryParse(url);
+  final Widget image = provider == null
+      ? broken
+      : Image(
+          image: provider,
           fit:
               BoxFit.values.asNameMap()[props.string('fit')] ??
               (variant == 'header' ? BoxFit.cover : BoxFit.fill),
           semanticLabel: description,
           excludeFromSemantics: description.isEmpty,
           errorBuilder: (context, error, stackTrace) => broken,
-        )
-      : broken;
+        );
   return switch (variant) {
     'icon' => _atStart(SizedBox.square(dimension: 24, child: image)),
     'avatar' => _atStart(
@@ -81,3 +88,36 @@ Widget _atStart(Widget child) => Align(
   heightFactor: 1,
   child: child,
 );
+
+/// The image inline in a `data:` URL.
+///
+/// Two are equal when their URLs are, unlike [MemoryImage], so a rebuild with
+/// the same URL finds the decoded image in the image cache.
+class _DataUrlImage extends MemoryImage {
+  _DataUrlImage._(this._url, super.bytes);
+
+  /// The image in [url], or null when [url] is not a valid `data:` URL of an
+  /// `image/*` type.
+  static _DataUrlImage? tryParse(String url) {
+    final UriData? data = Uri.tryParse(url)?.data;
+    if (data == null || !data.mimeType.toLowerCase().startsWith('image/')) {
+      return null;
+    }
+    final Uint8List bytes;
+    try {
+      bytes = data.contentAsBytes();
+    } on FormatException {
+      return null;
+    }
+    return _DataUrlImage._(url, bytes);
+  }
+
+  final String _url;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _DataUrlImage && other._url == _url && other.scale == scale;
+
+  @override
+  int get hashCode => Object.hash(_url, scale);
+}
