@@ -14,8 +14,8 @@
 
 import 'package:material_ui/material_ui.dart';
 
+import '../model/analysis_draft.dart';
 import '../model/draft_changes.dart';
-import '../model/suggestion_draft.dart';
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
 import 'group_actions.dart';
@@ -37,7 +37,7 @@ class MultiSelectionView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
-    final List<SuggestionDraft> drafts = [
+    final List<AnalysisDraft> drafts = [
       for (final i in items) controller.draftFor(i),
     ];
     final TextTheme text = Theme.of(context).textTheme;

@@ -60,10 +60,16 @@ class TriageService {
   /// [a2uiRepository], and the pull requests in [genuiRepository]. Draft
   /// pull requests are left out: they are not triage work until their
   /// authors mark them ready for review.
+  ///
+  /// GitHub search requires a query to name the kind of item, so issues and
+  /// pull requests are searched apart.
   Future<List<TriageItem>> fetchQueue() async {
     final List<List<TriageItem>> found = await [
       for (final label in [needsTriageLabel, needsTeamInputLabel]) ...[
-        _searchItems('repo:$a2uiRepository is:open label:"$label" -draft:true'),
+        _searchItems('repo:$a2uiRepository is:issue is:open label:"$label"'),
+        _searchItems(
+          'repo:$a2uiRepository is:pr is:open label:"$label" -draft:true',
+        ),
         _searchItems(
           'repo:$genuiRepository is:pr is:open label:"$label" -draft:true',
         ),

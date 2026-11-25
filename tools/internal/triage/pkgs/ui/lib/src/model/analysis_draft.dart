@@ -18,32 +18,32 @@ import 'package:shared/shared.dart';
 
 import 'milestone_change.dart';
 
-/// A triage suggestion as the triager edits it, before applying it.
-class SuggestionDraft extends ChangeNotifier {
-  SuggestionDraft(TriageSuggestion suggestion)
-    : _initial = suggestion,
-      tldr = suggestion.tldr,
-      summary = suggestion.summary,
-      reason = suggestion.reason,
-      suggestion = suggestion.suggestion,
-      reply = TextEditingController(text: suggestion.reply ?? ''),
+/// A triage analysis as the triager edits it, before applying it.
+class AnalysisDraft extends ChangeNotifier {
+  AnalysisDraft(TriageAnalysis analysis)
+    : _initial = analysis,
+      tldr = analysis.tldr,
+      summary = analysis.summary,
+      reason = analysis.reason,
+      suggestion = analysis.suggestion,
+      reply = TextEditingController(text: analysis.reply ?? ''),
       duplicateOf = TextEditingController(
-        text: suggestion.duplicateOf?.toString() ?? '',
+        text: analysis.duplicateOf?.toString() ?? '',
       ),
-      _closeAs = suggestion.closeAs,
-      _addedLabels = suggestion.addedLabels,
-      _removedLabels = suggestion.removedLabels,
-      _newAssignees = suggestion.newAssignees,
-      _removedAssignees = suggestion.removedAssignees,
-      targetingPrs = suggestion.targetingPrs,
-      targetedIssues = suggestion.targetedIssues,
-      relatedItems = suggestion.relatedItems {
+      _closeAs = analysis.closeAs,
+      _addedLabels = analysis.addedLabels,
+      _removedLabels = analysis.removedLabels,
+      _newAssignees = analysis.newAssignees,
+      _removedAssignees = analysis.removedAssignees,
+      targetingPrs = analysis.targetingPrs,
+      targetedIssues = analysis.targetedIssues,
+      relatedItems = analysis.relatedItems {
     reply.addListener(notifyListeners);
     duplicateOf.addListener(notifyListeners);
   }
 
-  /// The suggestion that the draft started from.
-  final TriageSuggestion _initial;
+  /// The analysis that the draft started from.
+  final TriageAnalysis _initial;
 
   /// The triage bot's TL;DR, which the triager reads but does not apply.
   final String? tldr;
@@ -111,7 +111,7 @@ class SuggestionDraft extends ChangeNotifier {
   /// Whether the triager changed the draft since it started, or since the
   /// last [revert].
   bool get isEdited {
-    final TriageSuggestion s = _initial;
+    final TriageAnalysis s = _initial;
     return reply.text != (s.reply ?? '') ||
         duplicateOf.text != (s.duplicateOf?.toString() ?? '') ||
         _closeAs != s.closeAs ||
@@ -122,10 +122,10 @@ class SuggestionDraft extends ChangeNotifier {
         !milestoneChange.isEmpty;
   }
 
-  /// Undoes the triager's changes, back to the suggestion the draft started
+  /// Undoes the triager's changes, back to the analysis the draft started
   /// from.
   void revert() {
-    final TriageSuggestion s = _initial;
+    final TriageAnalysis s = _initial;
     reply.text = s.reply ?? '';
     duplicateOf.text = s.duplicateOf?.toString() ?? '';
     _set(() {
@@ -141,7 +141,7 @@ class SuggestionDraft extends ChangeNotifier {
 
   /// Whether the draft changes anything on GitHub.
   bool get hasChanges {
-    final TriageSuggestion s = toSuggestion();
+    final TriageAnalysis s = toAnalysis();
     return s.reply != null ||
         s.closeAs != null ||
         s.addedLabels.isNotEmpty ||
@@ -162,14 +162,14 @@ class SuggestionDraft extends ChangeNotifier {
     return null;
   }
 
-  /// The milestone change to apply with [toSuggestion].
+  /// The milestone change to apply with [toAnalysis].
   MilestoneChange get milestoneChange =>
       MilestoneChange(set: _newMilestone, remove: _removedMilestone);
 
-  /// The draft as the suggestion to apply, without the milestone change.
-  TriageSuggestion toSuggestion() {
+  /// The draft as the analysis to apply, without the milestone change.
+  TriageAnalysis toAnalysis() {
     final String text = reply.text.trim();
-    return TriageSuggestion(
+    return TriageAnalysis(
       tldr: tldr,
       summary: summary,
       reason: reason,

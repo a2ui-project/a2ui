@@ -148,6 +148,7 @@ class FakeGitHub implements FlaggerGitHub {
     this.itemComments = const {},
     this.itemEvents = const {},
     this.fresh = const {},
+    this.failingComments = const {},
   }) : _items = {for (final item in items) item.number: item};
 
   final Map<int, Item> _items;
@@ -161,6 +162,9 @@ class FakeGitHub implements FlaggerGitHub {
   /// What [item] returns, by number, where it differs from the listing, as
   /// when another run changed the item.
   final Map<int, Item> fresh;
+
+  /// The numbers of the items whose comments fail to load.
+  final Set<int> failingComments;
 
   final List<int> addedFlags = [];
   final List<({int number, String label})> removedLabels = [];
@@ -183,6 +187,9 @@ class FakeGitHub implements FlaggerGitHub {
   @override
   Future<List<Contribution>> comments(int number) async {
     commentCalls.add(number);
+    if (failingComments.contains(number)) {
+      throw const GitHubException('GitHub answered 502: Bad Gateway');
+    }
     return itemComments[number] ?? const [];
   }
 

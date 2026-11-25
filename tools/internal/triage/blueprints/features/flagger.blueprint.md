@@ -4,7 +4,7 @@ The [flagger](../../pkgs/flagger/) runs in the [`Flag/Unflag issues and PRs`](ht
 
 An **out-of-team contributor** is anyone without the `OWNER`, `MEMBER` or `COLLABORATOR` association on the repository. Bots are out-of-team contributors too, so an issue filed by a workflow or a PR opened by dependabot needs triage like any other. A bot comment does not count as a reply, though: it does not change the latest human contribution, and it does not clear `status: waiting-for-author-response`.
 
-A [triage bot](../core.blueprint.md#contributors) comment, which starts with `**From triage bot,` or `**From triage bot:` and is posted from a team member's or a bot's account, is output from the triage tooling. The flagger does not count it as a contribution, so a triage suggestion does not reset the staleness clock or answer an out-of-team comment. It reads one kind of triage bot comment, the staleness pinger's pings, in step 2.
+A [triage bot](../core.blueprint.md#contributors) comment, which starts with `**From triage bot,` or `**From triage bot:` and is posted from a team member's or a bot's account, is output from the triage tooling. The flagger does not count it as a contribution, so a triage analysis does not reset the staleness clock or answer an out-of-team comment. It reads one kind of triage bot comment, the staleness pinger's pings, in step 2.
 
 The flagger uses the following rules to decide if a PR or issue should get **the label `status: needs-triage`**:
 

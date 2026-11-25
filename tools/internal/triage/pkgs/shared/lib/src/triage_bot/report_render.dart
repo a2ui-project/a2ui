@@ -183,7 +183,13 @@ _Sections _sections(Report report) {
 }
 
 /// Renders [report] as plain text, with [footer] as the last line.
-String _renderLines(Report report, String footer) {
+///
+/// [escape] escapes the item titles and descriptions for the format.
+String _renderLines(
+  Report report,
+  String footer, {
+  String Function(String text) escape = _plain,
+}) {
   final _Sections(
     :String title,
     :List<String> summary,
@@ -200,14 +206,17 @@ String _renderLines(Report report, String footer) {
     for (final group in assigned) {
       lines.addAll(['', group.heading]);
       for (final AssignedItem item in group.items) {
-        lines.addAll(['  - ${item.url}', '    ${item.title}']);
+        lines.addAll(['  - ${item.url}', '    ${escape(item.title)}']);
       }
     }
   }
   for (final group in groups) {
     lines.addAll(['', group.heading]);
     for (final ItemActions item in group.items) {
-      lines.addAll(['  - ${item.url}', '    ${item.title}: ${describe(item)}']);
+      lines.addAll([
+        '  - ${item.url}',
+        '    ${escape('${item.title}: ${describe(item)}')}',
+      ]);
     }
   }
   lines.addAll(['', footer]);
@@ -218,10 +227,21 @@ String _renderLines(Report report, String footer) {
 String renderText(Report report) =>
     _renderLines(report, 'Created by triage bot skill ($skillUrl)');
 
+String _plain(String text) => text;
+
 /// Renders [report] as the text of a Google Chat message, where `<url|text>`
 /// is a link. Chat links the item URLs by itself.
-String renderChat(Report report) =>
-    _renderLines(report, 'Created by <$skillUrl|triage bot> skill');
+String renderChat(Report report) => _renderLines(
+  report,
+  'Created by <$skillUrl|triage bot> skill',
+  escape: _escapeForChat,
+);
+
+/// Escapes the characters that Google Chat reads as markup in [text].
+String _escapeForChat(String text) => text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
 
 String _escapeHtml(String text) => text
     .replaceAll('&', '&amp;')

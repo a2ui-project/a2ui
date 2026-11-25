@@ -14,14 +14,14 @@
 
 import 'package:shared/shared.dart';
 
+import 'analysis_draft.dart';
 import 'milestone_change.dart';
-import 'suggestion_draft.dart';
 import 'triage_controller.dart';
 import 'triage_item.dart';
 
 /// Everything the triage UI knows about [items], as Markdown that the
 /// triager pastes at the start of a prompt to an agent: for each item, its
-/// state, description and comments, the triage bot's suggestion, and the
+/// state, description and comments, the triage bot's analysis, and the
 /// changes that **Apply** would make.
 ///
 /// [items] are the items in the details' tabs: the selected item first, and
@@ -53,6 +53,7 @@ void _writeItem(StringBuffer out, TriageController controller, TriageItem i) {
   String list(Iterable<String> names) =>
       names.isEmpty ? 'none' : names.join(', ');
   String numbers(Iterable<int> ns) => list(ns.map((n) => '#$n'));
+  String names(Iterable<ItemRef> refs) => list(refs.map(shortNameOf));
 
   out
     ..writeln('# ${i.name}: ${i.title}')
@@ -73,8 +74,9 @@ void _writeItem(StringBuffer out, TriageController controller, TriageItem i) {
     ..writeln('- Milestone: ${i.milestone ?? 'none'}')
     ..writeln(
       i.isPullRequest
-          ? '- Fixes issues: ${numbers(i.linkedItems)}'
-          : '- Fixed by open PRs: ${numbers(i.linkedItems)}',
+          ? '- Fixes issues: '
+                '${names([...i.linkedItems, ...i.closedLinkedItems])}'
+          : '- Fixed by open PRs: ${names(i.linkedItems)}',
     );
   if (controller.session.isSentToTeam(i.ref)) {
     out.writeln('- In this session: I sent it to the team.');
@@ -107,22 +109,22 @@ void _writeItem(StringBuffer out, TriageController controller, TriageItem i) {
   out
     ..writeln()
     ..writeln(
-      '## Triage bot suggestion'
-      '${i.suggestionStatus == SuggestionStatus.outdated ? ' (outdated: '
+      '## Triage bot analysis'
+      '${i.analysisStatus == AnalysisStatus.outdated ? ' (outdated: '
                 'the item changed after the triage bot commented)' : ''}',
     )
     ..writeln();
-  final SuggestionDraft draft = controller.draftFor(i);
-  switch (i.suggestionStatus) {
-    case SuggestionStatus.none:
+  final AnalysisDraft draft = controller.draftFor(i);
+  switch (i.analysisStatus) {
+    case AnalysisStatus.none:
       out.writeln('None.');
-    case SuggestionStatus.invalid:
+    case AnalysisStatus.invalid:
       out.writeln(
-        'The suggestion comment does not hold a valid suggestion: '
-        '${i.suggestionError}',
+        'The analysis comment does not hold a valid analysis: '
+        '${i.analysisError}',
       );
-    case SuggestionStatus.current || SuggestionStatus.outdated:
-      out.writeln('- Comment: ${i.suggestionUrl}');
+    case AnalysisStatus.current || AnalysisStatus.outdated:
+      out.writeln('- Comment: ${i.analysisUrl}');
       for (final (String title, String? text) in [
         ('TL;DR', draft.tldr),
         ('Summary', draft.summary),
@@ -148,13 +150,13 @@ void _writeItem(StringBuffer out, TriageController controller, TriageItem i) {
     )
     ..writeln();
   final List<String> changes = _changes(
-    draft.toSuggestion(),
+    draft.toAnalysis(),
     draft.milestoneChange,
   );
   out.writeln(changes.isEmpty ? 'None.' : changes.join('\n'));
 }
 
-List<String> _changes(TriageSuggestion s, MilestoneChange milestone) {
+List<String> _changes(TriageAnalysis s, MilestoneChange milestone) {
   return [
     if (s.closeAs case final String reason)
       '- Close as ${reason.replaceAll('_', ' ')}'

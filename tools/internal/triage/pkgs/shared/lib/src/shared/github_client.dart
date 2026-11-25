@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -36,15 +37,19 @@ class GitHubClient {
   /// The hosted triage UI passes no [token] and the URL of the server's
   /// GitHub proxy as [baseUrl]: the server adds the token, and [headers]
   /// carry the header the server requires. See `pkgs/server/README.md`.
+  ///
+  /// A request that gets no full response within [timeout] fails.
   GitHubClient({
     required String? token,
     http.Client? httpClient,
     Uri? baseUrl,
     Map<String, String> headers = const {},
+    Duration timeout = const Duration(seconds: 30),
   }) : _token = token,
        _http = httpClient ?? http.Client(),
        _api = baseUrl ?? githubApi,
-       _headers = headers;
+       _headers = headers,
+       _timeout = timeout;
 
   /// The GitHub API.
   static final Uri githubApi = Uri.parse('https://api.github.com/');
@@ -53,6 +58,7 @@ class GitHubClient {
   final http.Client _http;
   final Uri _api;
   final Map<String, String> _headers;
+  final Duration _timeout;
 
   /// Runs a GraphQL [query] and returns its `data`.
   ///
@@ -61,18 +67,26 @@ class GitHubClient {
     String query, [
     Map<String, Object?> variables = const {},
   ]) async {
-    final response =
-        await rest('POST', 'graphql', {'query': query, 'variables': variables})
-            as Map<String, Object?>;
-    if (response['errors'] case final List<Object?> errors
-        when errors.isNotEmpty) {
+    final Object? response = await rest('POST', 'graphql', {
+      'query': query,
+      'variables': variables,
+    });
+    if (response case {
+      'errors': final List<Object?> errors,
+    } when errors.isNotEmpty) {
       throw GitHubException(
         errors
-            .map((Object? e) => (e! as Map<String, Object?>)['message'])
+            .map(
+              (Object? e) => switch (e) {
+                {'message': final String message} => message,
+                _ => '$e',
+              },
+            )
             .join(' '),
       );
     }
-    return response['data']! as Map<String, Object?>;
+    if (response case {'data': final Map<String, Object?> data}) return data;
+    throw const GitHubException('GitHub returned no GraphQL data.');
   }
 
   /// Sends a REST request and returns the decoded JSON response, or null if
@@ -132,14 +146,28 @@ class GitHubClient {
 
     final http.Response response;
     try {
-      response = await http.Response.fromStream(await _http.send(request));
+      response = await _http
+          .send(request)
+          .then(http.Response.fromStream)
+          .timeout(_timeout);
     } on http.ClientException catch (e) {
       throw GitHubException('Cannot reach GitHub: ${e.message}');
+    } on TimeoutException {
+      throw GitHubException(
+        'GitHub did not answer within ${_timeout.inSeconds} seconds.',
+      );
     }
 
-    final Object? json = response.body.isEmpty
-        ? null
-        : jsonDecode(response.body);
+    // Error pages from GitHub or a proxy in front of it can be HTML.
+    Object? json;
+    FormatException? decodeError;
+    if (response.body.isNotEmpty) {
+      try {
+        json = jsonDecode(response.body);
+      } on FormatException catch (e) {
+        decodeError = e;
+      }
+    }
     if (response.statusCode >= 300) {
       final String reason = switch (json) {
         {'message': final String message} => message,
@@ -147,6 +175,12 @@ class GitHubClient {
       };
       throw GitHubException(
         'GitHub answered ${response.statusCode}: $reason',
+        statusCode: response.statusCode,
+      );
+    }
+    if (decodeError != null) {
+      throw GitHubException(
+        'GitHub returned invalid JSON: ${decodeError.message}',
         statusCode: response.statusCode,
       );
     }

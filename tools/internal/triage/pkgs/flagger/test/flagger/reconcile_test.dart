@@ -172,6 +172,34 @@ void main() {
     expect(github.commentCalls, [12]);
   });
 
+  test('keeps the labels of an item whose history fails to load', () async {
+    // An issue with a P3 whose external comment is unanswered: without its
+    // comments, the rules would see nothing to flag.
+    final github = FakeGitHub(
+      [
+        issue(number: 14, labels: ['P3', needsTriageLabel], comments: 1),
+        externalIssue(number: 15, comments: 1),
+      ],
+      itemComments: {
+        14: [externalComment(2)],
+      },
+      failingComments: {14, 15},
+    );
+    final String log = await run(github);
+
+    expect(github.removedLabels, isEmpty);
+    expect(github.addedFlags, isEmpty);
+    expect(github.itemCalls, isEmpty);
+    expect(
+      log,
+      contains(
+        'Skipped https://github.com/a2ui-project/a2ui/issues/14 — its '
+        'history could not be read in full.',
+      ),
+    );
+    expect(log, contains('Failed to fetch comments for #14: '));
+  });
+
   test('logs an item that fails to update, and goes on', () async {
     final github = _FailingGitHub([
       externalIssue(number: 1),
@@ -184,12 +212,12 @@ void main() {
   });
 
   group('triage bot comments', () {
-    final Contribution suggestion = contribution(
-      body: '**From triage bot, suggestion:**\n\n...',
+    final Contribution analysis = contribution(
+      body: '**From triage bot, analysis:**\n\n...',
     );
 
     // Regression: https://github.com/a2ui-project/a2ui/issues/1888 lost its
-    // staleness flag when a maintainer posted a triage suggestion on it.
+    // staleness flag when a maintainer posted a triage analysis on it.
     test('do not reset the staleness clock', () async {
       final github = FakeGitHub(
         [
@@ -205,7 +233,7 @@ void main() {
           40: [
             contribution(createdAt: daysAgo(40), body: 'Looking into it.'),
             pingComment(StaleCase.p0Inactive, 30),
-            suggestion,
+            analysis,
           ],
         },
       );
@@ -226,7 +254,7 @@ void main() {
           ),
         ],
         itemComments: {
-          41: [externalComment(1), suggestion],
+          41: [externalComment(1), analysis],
         },
       );
       await run(github);
@@ -534,12 +562,23 @@ void main() {
       expect(github.addedFlags, [30]);
     });
 
-    test('leaves an overdue assignment alone until it is pinged', () async {
-      final FakeGitHub github = handedOut(31, labeledDaysAgo: overdue);
+    test('leaves a stale assignment alone until it is pinged', () async {
+      final FakeGitHub github = handedOut(
+        31,
+        labeledDaysAgo: assignment.days + 1,
+      );
       await run(github);
 
       expect(github.eventCalls, [31]);
       expect(github.addedFlags, isEmpty);
+    });
+
+    test('flags an overdue assignment that nobody pinged', () async {
+      final FakeGitHub github = handedOut(38, labeledDaysAgo: overdue);
+      final String log = await run(github);
+
+      expect(github.addedFlags, [38]);
+      expect(log, contains('nobody pinged the assignees'));
     });
 
     test('leaves an assignment alone within the grace period of its '

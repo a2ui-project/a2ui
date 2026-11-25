@@ -2,7 +2,7 @@
 
 The triage UI, a Flutter app for macOS and the web that helps the triager go
 through the GitHub items in the A2UI repository that need triage, and apply the
-triage bot's triage suggestions. [ui.blueprint.md](../../blueprints/features/ui.blueprint.md)
+suggestions in the triage bot's analyses. [ui.blueprint.md](../../blueprints/features/ui.blueprint.md)
 describes what it does.
 
 ## GitHub access
@@ -60,9 +60,9 @@ items to it.
 - `lib/src/model/`: the items, the triager's drafts, applying a suggestion,
   what the triager did in the session, and the controller that holds the
   app's state.
-- `lib/src/ui/`: the widgets. `suggestion_surface.dart` renders the
-  suggestion comment as an A2UI surface, whose `TriageSuggestion` component
-  is the editor in `suggestion_editor.dart`.
+- `lib/src/ui/`: the widgets. `analysis_surface.dart` renders the
+  analysis comment as an A2UI surface, whose `TriageAnalysis` component
+  is the editor in `analysis_editor.dart`.
 
 ## Testing
 

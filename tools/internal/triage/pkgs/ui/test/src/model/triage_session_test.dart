@@ -25,10 +25,10 @@ void main() {
 
   test('tells the items sent to the team from the triaged ones', () {
     final session = TriageSession()
-      ..recordApplied(item(1), const TriageSuggestion(addedLabels: ['P2']))
+      ..recordApplied(item(1), const TriageAnalysis(addedLabels: ['P2']))
       ..recordApplied(
         item(2),
-        const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
+        const TriageAnalysis(addedLabels: [needsTeamInputLabel]),
       );
 
     expect(session.isApplied(a2ui(1)), isTrue);
@@ -44,9 +44,9 @@ void main() {
     final session = TriageSession()
       ..recordApplied(
         item(1),
-        const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
+        const TriageAnalysis(addedLabels: [needsTeamInputLabel]),
       )
-      ..recordApplied(item(1), const TriageSuggestion(addedLabels: ['P2']));
+      ..recordApplied(item(1), const TriageAnalysis(addedLabels: ['P2']));
 
     expect(session.isApplied(a2ui(1)), isTrue);
     expect(session.isSentToTeam(a2ui(1)), isFalse);

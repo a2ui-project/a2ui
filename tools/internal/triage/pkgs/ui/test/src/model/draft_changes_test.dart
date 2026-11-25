@@ -14,8 +14,8 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared/shared.dart';
+import 'package:ui/src/model/analysis_draft.dart';
 import 'package:ui/src/model/draft_changes.dart';
-import 'package:ui/src/model/suggestion_draft.dart';
 import 'package:ui/src/model/triage_item.dart';
 
 import '../../support/fake_github.dart';
@@ -24,16 +24,16 @@ void main() {
   final issue = TriageItem.fromGraphQL(itemNode(12));
   final pr = TriageItem.fromGraphQL(itemNode(13, pr: true));
 
-  List<DraftChange> changesOf(TriageItem item, TriageSuggestion suggestion) {
-    final draft = SuggestionDraft(suggestion);
+  List<DraftChange> changesOf(TriageItem item, TriageAnalysis analysis) {
+    final draft = AnalysisDraft(analysis);
     addTearDown(draft.dispose);
     return draftChanges(item, draft);
   }
 
   test('lists every change in the order Apply makes them, one per label, '
       'assignee and milestone', () {
-    final draft = SuggestionDraft(
-      const TriageSuggestion(
+    final draft = AnalysisDraft(
+      const TriageAnalysis(
         reply: 'Thanks.',
         closeAs: TriageCloseReason.notPlanned,
         addedLabels: ['P2', 'type: bug'],
@@ -61,7 +61,7 @@ void main() {
     expect(
       changesOf(
         pr,
-        const TriageSuggestion(
+        const TriageAnalysis(
           reply: 'Which design?',
           closeAs: TriageCloseReason.notPlanned,
           addedLabels: [needsTeamInputLabel],
@@ -76,7 +76,7 @@ void main() {
   });
 
   test('removes a milestone only when it sets none', () {
-    final draft = SuggestionDraft(const TriageSuggestion())
+    final draft = AnalysisDraft(const TriageAnalysis())
       ..removedMilestone = 'October';
     addTearDown(draft.dispose);
 
@@ -92,7 +92,7 @@ void main() {
   test('shares the changes that every item has, in the order of the first', () {
     final List<DraftChange> first = changesOf(
       issue,
-      const TriageSuggestion(
+      const TriageAnalysis(
         reply: 'Thanks.',
         addedLabels: ['type: bug', 'P2'],
         removedLabels: [needsTriageLabel],
@@ -100,7 +100,7 @@ void main() {
     );
     final List<DraftChange> second = changesOf(
       issue,
-      const TriageSuggestion(
+      const TriageAnalysis(
         reply: 'Thanks!',
         addedLabels: ['P2', 'type: bug'],
         removedLabels: [needsTriageLabel],

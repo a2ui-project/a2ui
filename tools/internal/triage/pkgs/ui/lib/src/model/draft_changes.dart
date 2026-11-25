@@ -14,9 +14,9 @@
 
 import 'package:shared/shared.dart';
 
+import 'analysis_draft.dart';
 import 'applier.dart';
 import 'milestone_change.dart';
-import 'suggestion_draft.dart';
 import 'triage_item.dart';
 
 /// One change that applying an item's draft makes on GitHub: its kind, such
@@ -29,8 +29,8 @@ typedef DraftChange = ({String kind, String value});
 
 /// The changes that [applySuggestion] makes to [item] with [draft], in the
 /// order it makes them, with one change per label, assignee and milestone.
-List<DraftChange> draftChanges(TriageItem item, SuggestionDraft draft) {
-  final TriageSuggestion s = draft.toSuggestion();
+List<DraftChange> draftChanges(TriageItem item, AnalysisDraft draft) {
+  final TriageAnalysis s = draft.toAnalysis();
   final MilestoneChange milestone = draft.milestoneChange;
   return [
     if (replyToPost(s) case final String reply) (kind: 'Reply', value: reply),

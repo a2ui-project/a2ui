@@ -20,6 +20,7 @@ import 'package:shelf/shelf.dart';
 import 'auth.dart';
 import 'config.dart';
 import 'cookies.dart';
+import 'graphql_mutations.dart';
 
 /// Handles `/github/`: passes the app's GitHub API calls to GitHub with the
 /// triager's token from the session cookie (steps 15 to 17 in the README).
@@ -36,6 +37,36 @@ final class GitHubProxy {
     'content-type',
     'x-github-api-version',
   ];
+
+  /// The repositories whose items the app changes.
+  static const List<String> _repositories = [
+    'a2ui-project/a2ui',
+    'flutter/genui',
+  ];
+
+  /// The calls that the app makes, as the method and the path relative to
+  /// the GitHub API. The proxy passes on no others, so that a token that
+  /// allows more, such as the one of `gh`, is only used for triage.
+  static final List<(String, RegExp)> _allowedCalls = () {
+    final issue =
+        'repos/(?:${_repositories.map(RegExp.escape).join('|')})/issues/[0-9]+';
+    return [
+      ('POST', RegExp(r'^graphql$')),
+      ('PATCH', RegExp('^$issue\$')),
+      ('POST', RegExp('^$issue/comments\$')),
+      ('POST', RegExp('^$issue/labels\$')),
+      ('DELETE', RegExp('^$issue/labels/[^/]+\$')),
+      ('POST', RegExp('^$issue/assignees\$')),
+      ('DELETE', RegExp('^$issue/assignees\$')),
+    ];
+  }();
+
+  /// The GraphQL mutations that the app makes. It also makes queries, which
+  /// change nothing.
+  static const Set<String> _allowedMutations = {
+    'closeIssue',
+    'closePullRequest',
+  };
 
   /// The response headers that the proxy passes back to the app.
   static const List<String> _responseHeaders = [
@@ -58,16 +89,19 @@ final class GitHubProxy {
       return _json(401, 'You are not signed in. Reload the page to sign in.');
     }
 
-    final String path = request.url.path.substring('github'.length);
-    final Uri target = _config.githubApi
-        .resolve(path.startsWith('/') ? path.substring(1) : path)
-        .replace(query: request.url.hasQuery ? request.url.query : null);
-    // A path such as `http://evil.example/` or `//evil.example/` would
-    // replace the host, and the token must only go to GitHub.
-    if (target.origin != _config.githubApi.origin ||
-        !target.path.startsWith(_config.githubApi.path)) {
-      return _json(400, 'Not a GitHub API path.');
+    final Uri? target = _target(request);
+    if (target == null) return _json(400, 'Not a GitHub API path.');
+    final String apiPath = target.path.substring(_config.githubApi.path.length);
+    if (!_allowedCalls.any(
+      ((String, RegExp) call) =>
+          call.$1 == request.method && call.$2.hasMatch(apiPath),
+    )) {
+      return _json(
+        403,
+        'The triage UI does not make this call: ${request.method} /$apiPath',
+      );
     }
+
     final upstream = http.Request(request.method, target)
       ..followRedirects = false
       ..headers.addAll({
@@ -81,6 +115,11 @@ final class GitHubProxy {
           .read()
           .expand((chunk) => chunk)
           .toList();
+    }
+    if (apiPath == 'graphql') {
+      if (_graphQLError(upstream.bodyBytes) case final Response error) {
+        return error;
+      }
     }
 
     final http.Response response;
@@ -108,6 +147,54 @@ final class GitHubProxy {
         if (response.statusCode == 401) 'set-cookie': _cookies.clearSession(),
       },
     );
+  }
+
+  /// The GitHub API URL that [request] is for, or null if it is not one.
+  ///
+  /// A path such as `http://evil.example/` or `//evil.example/` would
+  /// replace the host, and the token must only go to GitHub.
+  Uri? _target(Request request) {
+    final String path = request.url.path.substring('github'.length);
+    final Uri target;
+    try {
+      target = _config.githubApi
+          .resolve(path.startsWith('/') ? path.substring(1) : path)
+          .replace(query: request.url.hasQuery ? request.url.query : null);
+    } on FormatException {
+      return null;
+    }
+    // Checked before `origin`, which throws for other URLs, such as the
+    // `foo:bar` that `/github/foo:bar` resolves to.
+    if (!(target.isScheme('http') || target.isScheme('https')) ||
+        !target.hasAuthority ||
+        target.origin != _config.githubApi.origin ||
+        !target.path.startsWith(_config.githubApi.path)) {
+      return null;
+    }
+    return target;
+  }
+
+  /// A 400 or 403 response if [body] is not a GraphQL request whose
+  /// mutations are in [_allowedMutations], or else null.
+  Response? _graphQLError(List<int> body) {
+    final Object? json;
+    try {
+      json = jsonDecode(utf8.decode(body));
+    } on FormatException {
+      return _json(400, 'Expected {"query": "<GraphQL query>"}.');
+    }
+    if (json case {'query': final String query}) {
+      final Set<String>? fields = mutationFields(query);
+      if (fields == null || !_allowedMutations.containsAll(fields)) {
+        return _json(
+          403,
+          'The triage UI does not make this GraphQL call. Its mutations are '
+          '${_allowedMutations.join(' and ')}.',
+        );
+      }
+      return null;
+    }
+    return _json(400, 'Expected {"query": "<GraphQL query>"}.');
   }
 
   /// Points the GitHub API URLs in a `Link` or `Location` header at the

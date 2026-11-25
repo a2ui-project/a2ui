@@ -13,7 +13,7 @@
 // limitations under the License.
 
 /// The start of every triage bot comment, followed by the kind of comment,
-/// as in `**From triage bot, suggestion:**`, or by a colon in earlier
+/// as in `**From triage bot, analysis:**`, or by a colon in earlier
 /// comments, as in `**From triage bot:**`. See `blueprints/core.blueprint.md`.
 final RegExp _triageBotPrefix = RegExp(r'^\*\*From triage bot[,:]');
 

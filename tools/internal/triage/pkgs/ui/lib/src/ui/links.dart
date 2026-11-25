@@ -28,8 +28,20 @@ String issueUrl(ItemRef item) =>
 String pullRequestUrl(ItemRef item) =>
     'https://github.com/${item.repository}/pull/${item.number}';
 
-/// Opens [url] in the browser.
-Future<void> openUrl(String url) => launchUrl(Uri.parse(url));
+/// Opens [url] in the browser, if it is an http or https URL with a host.
+///
+/// Links come from issues, comments and the triage bot's analysis, so a
+/// `file:` link, or one to an app, could open what the triager did not
+/// expect.
+Future<void> openUrl(String url) async {
+  final Uri? uri = Uri.tryParse(url);
+  if (uri == null ||
+      !(uri.isScheme('https') || uri.isScheme('http')) ||
+      uri.host.isEmpty) {
+    return;
+  }
+  await launchUrl(uri);
+}
 
 /// A small button that copies [url] to the clipboard, for the right of a
 /// link.

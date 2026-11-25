@@ -30,6 +30,6 @@ Ask an AI agent:
 Start triage bot https://github.com/a2ui-project/a2ui/tree/main/.agents/skills/a2ui-triage-bot
 ```
 
-Every hour, it runs the triage advisor, the staleness pinger and the triage assistant.
+Every hour, it runs the triage analyzer, the staleness pinger and the triage assistant.
 
 Ask "stop triage bot" to stop it.

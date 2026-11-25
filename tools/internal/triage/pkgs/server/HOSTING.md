@@ -116,26 +116,46 @@ tools/internal/triage/pkgs/server/deploy.sh --project <project ID>
 `--dry-run` prints the commands that change GCP, without running them.
 `deploy.sh` then does the following:
 
-1. Enables the Cloud Run, Cloud Build and Artifact Registry APIs, and creates
-   the `cr-images` image repository if needed.
+1. Enables the Cloud Run, Cloud Build, Artifact Registry and IAM APIs, and
+   creates the `cr-images` image repository and the
+   `gs://<project ID>_cloudbuild` bucket if needed.
 2. Lets the project's default compute service account, which Cloud Build runs
-   as, write logs and images.
+   as, write images to `cr-images`, use the `_cloudbuild` bucket, and write
+   logs. It grants the roles on the repository and the bucket, not on the
+   project, so that other services in a shared project gain nothing.
 3. Copies the committed files to a temporary folder, and runs Cloud Build on
    them with the [Dockerfile](Dockerfile). The build takes a few minutes,
    mostly for `flutter build web`. Cloud Build writes its logs to the
    project's own bucket, because Corp Run admins cannot read the default
    one.
-4. Deploys the image as the Cloud Run service `a2ui-triage`, reachable only
-   through UberProxy (`--ingress=internal-and-cloud-load-balancing
---no-allow-unauthenticated`), with 1 CPU, 512 MiB, and 0 to 3 instances.
-   It passes the secrets in a temporary file that only you can read, which
-   it deletes afterwards, because Corp Run admins cannot grant access to
-   Secret Manager.
+4. Creates the service account `a2ui-triage@<project ID>.iam.gserviceaccount.com`
+   if needed, without roles: the Server only calls GitHub, and needs no
+   access to GCP.
+5. Deploys the image as the Cloud Run service `a2ui-triage`, running as that
+   service account, reachable only through UberProxy
+   (`--ingress=internal-and-cloud-load-balancing --no-allow-unauthenticated`),
+   with 1 CPU, 512 MiB, and 0 to 3 instances. It passes the secrets in a
+   temporary file that only you can read, which it deletes afterwards,
+   because Corp Run admins cannot grant access to Secret Manager.
 
-Options: `--service` for another service name, `--region` (default
+Options: `--service` for another service name, which also names its service
+account, so it must have 6 to 30 characters, `--region` (default
 `us-west1`), `--env-file` for another secrets file, and `--skip-build` to
 deploy an image that was built for the current commit before, for example
 after changing only the secrets.
+
+Earlier versions of `deploy.sh` granted the default compute service account
+`roles/storage.admin` and `roles/artifactregistry.writer` on the whole
+project. If you deployed with one of them, and nothing else in the project
+needs these roles, remove them:
+
+```bash
+for role in roles/storage.admin roles/artifactregistry.writer; do
+  gcloud projects remove-iam-policy-binding <project ID> --condition=None \
+    --member=serviceAccount:<project number>-compute@developer.gserviceaccount.com \
+    --role="${role}"
+done
+```
 
 ## 5. Check it and share it
 
@@ -178,6 +198,17 @@ A new `SESSION_SECRET` signs everyone out. A new client secret doesn't.
     gcloud storage buckets add-iam-policy-binding gs://<project ID>_cloudbuild \
       --member=user:<you>@google.com --role="${role}"
   done
+  ```
+
+- **`gcloud run deploy` says you lack `iam.serviceAccounts.actAs`.** To
+  deploy a service that runs as `a2ui-triage@<project ID>.iam.gserviceaccount.com`,
+  you need the Service Account User role on that account. Someone with the
+  Owner role on the project grants it:
+
+  ```bash
+  gcloud iam service-accounts add-iam-policy-binding \
+    a2ui-triage@<project ID>.iam.gserviceaccount.com --project=<project ID> \
+    --member=user:<you>@google.com --role=roles/iam.serviceAccountUser
   ```
 
 - **The page says the triager has no access, or shows an UberProxy error.**

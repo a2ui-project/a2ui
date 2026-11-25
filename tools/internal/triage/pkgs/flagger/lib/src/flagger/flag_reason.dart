@@ -52,7 +52,9 @@ String toSentence(String reason) =>
 /// with the same rules and data as the flagger's runs. The reason is null if
 /// the flagger does not flag it.
 ///
-/// Messages from reading the item go to [log] and [errorLog].
+/// Messages from reading the item go to [log] and [errorLog]. Throws a
+/// [GitHubException] if the item or its whole history cannot be read, since
+/// the rules would judge a partial history wrongly.
 Future<ItemReason> itemReason(
   FlaggerGitHub github,
   int number,
@@ -67,6 +69,12 @@ Future<ItemReason> itemReason(
     log: log,
     errorLog: errorLog,
   );
+  if (!history.complete) {
+    throw GitHubException(
+      'Cannot read the whole history of ${item.htmlUrl}; see the errors '
+      'above.',
+    );
+  }
   final String? reason = decide(item, history, now).reason;
   return (
     url: item.htmlUrl,

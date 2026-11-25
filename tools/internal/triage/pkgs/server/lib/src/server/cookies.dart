@@ -56,8 +56,13 @@ final class Cookies {
   final ServerConfig _config;
   final Sealer _sealer;
 
-  static const String _sessionName = 'triage_session';
-  static const String _signInName = 'triage_sign_in';
+  /// The cookie names start with `__Host-` over HTTPS, so that the browser
+  /// does not let another service on the same domain, such as
+  /// `cr.gclb.goog`, set a cookie with the same name. The browser accepts
+  /// such a cookie only from HTTPS, with `Secure`, `Path=/` and no domain.
+  String get _prefix => _config.secureCookies ? '__Host-' : '';
+  String get _sessionName => '${_prefix}triage_session';
+  String get _signInName => '${_prefix}triage_sign_in';
   static const String _sessionPurpose = 'session';
   static const String _signInPurpose = 'sign_in';
 
@@ -69,14 +74,18 @@ final class Cookies {
 
   /// The triager's session, or null if the triager is not signed in.
   Future<Session?> session(Request request) async {
-    final String? sealed = _read(request, _sessionName);
-    if (sealed == null) return null;
-    return switch (await _sealer.open(_sessionPurpose, sealed)) {
-      {'token': final String token, 'login': final String login} &&
-          final Map<String, Object?> value =>
-        Session(token: token, login: login, fromOAuth: value['oauth'] == true),
-      _ => null,
-    };
+    for (final String sealed in _read(request, _sessionName)) {
+      if (await _sealer.open(_sessionPurpose, sealed)
+          case {'token': final String token, 'login': final String login} &&
+              final Map<String, Object?> value) {
+        return Session(
+          token: token,
+          login: login,
+          fromOAuth: value['oauth'] == true,
+        );
+      }
+    }
+    return null;
   }
 
   /// The `Set-Cookie` header value that stores [session].
@@ -87,42 +96,36 @@ final class Cookies {
       'login': session.login,
       'oauth': session.fromOAuth,
     }, maxAge: sessionMaxAge),
-    path: '/',
     maxAge: sessionMaxAge,
   );
 
   /// The `Set-Cookie` header value that deletes the session.
-  String clearSession() =>
-      _cookie(_sessionName, '', path: '/', maxAge: Duration.zero);
+  String clearSession() => _cookie(_sessionName, '', maxAge: Duration.zero);
 
   /// The state of the sign-in in progress, or null if there is none, or it
   /// expired.
   Future<Map<String, Object?>?> signIn(Request request) async {
-    final String? sealed = _read(request, _signInName);
-    if (sealed == null) return null;
-    return _sealer.open(_signInPurpose, sealed);
+    for (final String sealed in _read(request, _signInName)) {
+      if (await _sealer.open(_signInPurpose, sealed) case final state?) {
+        return state;
+      }
+    }
+    return null;
   }
 
   /// The `Set-Cookie` header value that stores the state of a sign-in.
   Future<String> setSignIn(Map<String, Object?> state) async => _cookie(
     _signInName,
     await _sealer.seal(_signInPurpose, state, maxAge: signInMaxAge),
-    path: '/auth/',
     maxAge: signInMaxAge,
   );
 
   /// The `Set-Cookie` header value that deletes the state of a sign-in.
-  String clearSignIn() =>
-      _cookie(_signInName, '', path: '/auth/', maxAge: Duration.zero);
+  String clearSignIn() => _cookie(_signInName, '', maxAge: Duration.zero);
 
-  String _cookie(
-    String name,
-    String value, {
-    required String path,
-    required Duration maxAge,
-  }) => [
+  String _cookie(String name, String value, {required Duration maxAge}) => [
     '$name=$value',
-    'Path=$path',
+    'Path=/',
     'Max-Age=${maxAge.inSeconds}',
     'HttpOnly',
     // Lax: the browser sends the cookie when GitHub redirects back to the
@@ -131,9 +134,11 @@ final class Cookies {
     if (_config.secureCookies) 'Secure',
   ].join('; ');
 
-  static String? _read(Request request, String name) {
+  /// The values of the cookies named [name]. A browser can send several,
+  /// with different paths or domains, so the caller tries each.
+  static Iterable<String> _read(Request request, String name) sync* {
     final String? header = request.headers['cookie'];
-    if (header == null) return null;
+    if (header == null) return;
     for (final String part in header.split(';')) {
       final int equals = part.indexOf('=');
       if (equals < 0) continue;
@@ -143,9 +148,8 @@ final class Cookies {
         if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
           value = value.substring(1, value.length - 1);
         }
-        return value.isEmpty ? null : value;
+        if (value.isNotEmpty) yield value;
       }
     }
-    return null;
   }
 }

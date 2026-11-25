@@ -35,7 +35,12 @@ void main() {
     await server.close();
   });
 
-  Future<int> send(String method, String path, String body) async {
+  Future<int> send(
+    String method,
+    String path,
+    String body, {
+    Map<String, String> headers = const {},
+  }) async {
     final HttpClientRequest request = await client.open(
       method,
       '127.0.0.1',
@@ -46,6 +51,7 @@ void main() {
       'application',
       'x-www-form-urlencoded',
     );
+    headers.forEach(request.headers.set);
     request.write(body);
     final HttpClientResponse response = await request.close();
     await response.drain<void>();
@@ -88,6 +94,56 @@ void main() {
     expect(await send('POST', '/close', body), HttpStatus.notFound);
     expect(await send('GET', '/open', ''), HttpStatus.methodNotAllowed);
     expect(received, isEmpty);
+  });
+
+  test('refuses requests from web pages', () async {
+    final String body = form('https://github.com/a2ui-project/a2ui/issues/1');
+
+    expect(
+      await send(
+        'POST',
+        '/open',
+        body,
+        headers: {'Origin': 'https://example.com'},
+      ),
+      HttpStatus.forbidden,
+    );
+    expect(
+      await send(
+        'POST',
+        '/open',
+        body,
+        headers: {'Sec-Fetch-Site': 'cross-site'},
+      ),
+      HttpStatus.forbidden,
+    );
+    expect(received, isEmpty);
+  });
+
+  test('rejects a body that is too long or not UTF-8', () async {
+    final String url = 'https://github.com/a2ui-project/a2ui/issues/1';
+    expect(
+      await send(
+        'POST',
+        '/open',
+        '${form(url)}&pad=${'x' * ItemServer.maxBodyBytes}',
+      ),
+      HttpStatus.requestEntityTooLarge,
+    );
+
+    final HttpClientRequest request = await client.post(
+      '127.0.0.1',
+      server.port,
+      '/open',
+    );
+    request.add([...utf8.encode('item='), 0xff, 0xfe]);
+    final HttpClientResponse response = await request.close();
+    await response.drain<void>();
+    expect(response.statusCode, HttpStatus.badRequest);
+    expect(received, isEmpty);
+
+    // The server still answers.
+    expect(await send('POST', '/open', form(url)), HttpStatus.ok);
   });
 
   test('fails to start on a port in use', () async {

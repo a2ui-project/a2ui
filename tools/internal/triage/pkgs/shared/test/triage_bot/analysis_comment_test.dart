@@ -16,10 +16,10 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:shared/shared.dart';
 import 'package:test/test.dart';
 
-/// A suggestion comment like the one in triage_bot/suggestion.blueprint.md.
+/// An analysis comment like the one in triage_bot/analysis.blueprint.md.
 String comment(String component) =>
     '''
-**From triage bot, suggestion:**
+**From triage bot, analysis:**
 
 <details>
 <summary>For humans</summary>
@@ -41,10 +41,10 @@ $component
 ''';
 
 void main() {
-  test('reads every property of a suggestion', () {
-    final payload = SuggestionPayload.parse(
+  test('reads every property of an analysis', () {
+    final payload = AnalysisPayload.parse(
       comment('''
-root = TriageSuggestion(
+root = TriageAnalysis(
   tldr="""Case: duplicate request.
 Suggestion: close as a duplicate.""",
   summary="""The Flutter renderer crashes on an empty `Row`.""",
@@ -63,7 +63,7 @@ Suggestion: close as a duplicate.""",
 )'''),
     );
 
-    final TriageSuggestion s = payload.suggestion;
+    final TriageAnalysis s = payload.analysis;
     expect(
       s.tldr,
       'Case: duplicate request.\nSuggestion: close as a duplicate.',
@@ -88,9 +88,9 @@ Suggestion: close as a duplicate.""",
   });
 
   test('reads omitted properties as empty', () {
-    final TriageSuggestion s = SuggestionPayload.parse(
-      comment('root = TriageSuggestion(summary="A", suggestion="B")'),
-    ).suggestion;
+    final TriageAnalysis s = AnalysisPayload.parse(
+      comment('root = TriageAnalysis(summary="A", suggestion="B")'),
+    ).analysis;
 
     expect(s.reply, isNull);
     expect(s.closeAs, isNull);
@@ -105,31 +105,30 @@ Suggestion: close as a duplicate.""",
 
   test('rejects a comment without an <a2ui> block', () {
     expect(
-      () => SuggestionPayload.parse('**From triage bot, response:**\n\nHi.'),
+      () => AnalysisPayload.parse('**From triage bot, response:**\n\nHi.'),
       rejected,
     );
   });
 
   test('rejects a block that does not compile', () {
     expect(
-      () =>
-          SuggestionPayload.parse(comment('root = TriageSuggestion(summary=')),
+      () => AnalysisPayload.parse(comment('root = TriageAnalysis(summary=')),
       rejected,
     );
   });
 
-  test('rejects a component that is not a TriageSuggestion', () {
+  test('rejects a component that is not a TriageAnalysis', () {
     expect(
-      () => SuggestionPayload.parse(comment('root = Text(text="Hi")')),
+      () => AnalysisPayload.parse(comment('root = Text(text="Hi")')),
       rejected,
     );
   });
 
-  test('rejects an invalid TriageSuggestion', () {
+  test('rejects an invalid TriageAnalysis', () {
     expect(
-      () => SuggestionPayload.parse(
+      () => AnalysisPayload.parse(
         comment(
-          'root = TriageSuggestion(summary="A", suggestion="B", '
+          'root = TriageAnalysis(summary="A", suggestion="B", '
           'close_as="maybe")',
         ),
       ),
@@ -137,16 +136,64 @@ Suggestion: close as a duplicate.""",
     );
   });
 
+  test('rejects a TriageAnalysis that is not the root of a surface', () {
+    expect(
+      () => AnalysisPayload.parse(
+        comment('analysis = TriageAnalysis(summary="A", suggestion="B")'),
+      ),
+      throwsA(
+        isA<FormatException>().having(
+          (e) => e.message,
+          'message',
+          anyOf(contains('one surface'), contains('does not render')),
+        ),
+      ),
+    );
+  });
+
+  test('rejects close_as and duplicate_of that do not go together', () {
+    for (final properties in [
+      'close_as="duplicate"',
+      'close_as="completed", duplicate_of=12',
+      'duplicate_of=12',
+    ]) {
+      expect(
+        () => AnalysisPayload.parse(
+          comment(
+            'root = TriageAnalysis(summary="A", suggestion="B", $properties)',
+          ),
+        ),
+        throwsA(
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            contains('duplicate_of exactly when close_as is duplicate'),
+          ),
+        ),
+        reason: properties,
+      );
+    }
+    expect(
+      AnalysisPayload.parse(
+        comment(
+          'root = TriageAnalysis(summary="A", suggestion="B", '
+          'close_as="duplicate", duplicate_of=12)',
+        ),
+      ).analysis.duplicateOf,
+      12,
+    );
+  });
+
   test('rejects two blocks', () {
     final String one = comment(
-      'root = TriageSuggestion(summary="A", suggestion="B")',
+      'root = TriageAnalysis(summary="A", suggestion="B")',
     );
-    expect(() => SuggestionPayload.parse('$one\n$one'), rejected);
+    expect(() => AnalysisPayload.parse('$one\n$one'), rejected);
   });
 
   test('recognizes the <a2ui> block', () {
     final String body = comment(
-      'root = TriageSuggestion(summary="A", suggestion="B")',
+      'root = TriageAnalysis(summary="A", suggestion="B")',
     );
     expect(hasA2uiBlock(body), isTrue);
     expect(hasA2uiBlock('**From triage bot, ping:** @a'), isFalse);

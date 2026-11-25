@@ -115,7 +115,7 @@ bool externalHasResponded(
 }
 
 /// Why [item] needs [needsTriageLabel], or null if it does not. The flagger
-/// logs the reason, and the triage bot copies it into its suggestions.
+/// logs the reason, and the triage bot copies it into its analyses.
 ///
 /// [assignedForTriageSince] is when [assignedForTriageLabel] was last added,
 /// or null when that cannot be read. [pings] are the staleness pings on the
@@ -141,18 +141,25 @@ String? flagReason(
 
   // Step 2: a stale item goes back to triage once the staleness pinger has
   // asked its assignees to act and the grace period has passed. This
-  // applies whoever opened the item, since the ping promised it. Until then,
-  // the steps below do not flag the item for its staleness.
+  // applies whoever opened the item, since the ping promised it. An item
+  // that nobody pinged, because nobody ran the pinger, goes back once it
+  // has been stale for as long as a ping and its grace period would take.
+  // Until then, the steps below do not flag the item for its staleness.
   if (stalenessOf(
         item,
         contributions,
         assignedForTriageSince: assignedForTriageSince,
       )
-      case final Staleness staleness
-      when staleness.hasExpiredPing(pings, now)) {
+      case final Staleness staleness) {
     final StaleCase staleCase = staleness.staleCase;
-    return '${_staleReason(staleCase)}, and the assignees did not act on the '
-        'staleness ping within ${daysText(staleCase.graceDays)}.';
+    if (staleness.hasExpiredPing(pings, now)) {
+      return '${_staleReason(staleCase)}, and the assignees did not act on '
+          'the staleness ping within ${daysText(staleCase.graceDays)}.';
+    }
+    if (staleness.currentPing(pings) == null && staleness.isOverdue(now)) {
+      return '${_staleReason(staleCase)}, and nobody pinged the assignees '
+          'within ${daysText(staleCase.graceDays)} after that.';
+    }
   }
 
   // Step 3: an item handed to a team member for triage is judged on that

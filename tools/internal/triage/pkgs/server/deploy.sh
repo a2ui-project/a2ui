@@ -56,6 +56,21 @@ if [[ -z "${project}" ]]; then
   echo "Pass --project <Corp Run project ID>." >&2
   exit 2
 fi
+# The service runs as a service account of the same name.
+if [[ ! "${service}" =~ ^[a-z][-a-z0-9]{4,28}[a-z0-9]$ ]]; then
+  echo "The service name must be 6 to 30 lowercase letters, digits or dashes," \
+    "starting with a letter and not ending with a dash." >&2
+  exit 2
+fi
+
+# The temporary files, which hold the source and the secrets.
+stage=""
+env_yaml=""
+cleanup() {
+  if [[ -n "${stage}" ]]; then rm -rf "${stage}"; fi
+  if [[ -n "${env_yaml}" ]]; then rm -f "${env_yaml}"; fi
+}
+trap cleanup EXIT
 
 if command -v gcloud >/dev/null 2>&1; then
   gcloud_bin="$(command -v gcloud)"
@@ -108,9 +123,16 @@ fi
 project_number="$("${gcloud_bin}" projects describe "${project}" --format='value(projectNumber)')"
 public_url="${PUBLIC_URL:-https://${service}-${project_number}.cr.gclb.goog}"
 image="${region}-docker.pkg.dev/${project}/cr-images/${service}:${commit}"
+# The service only calls GitHub, so its account has no roles. Without its
+# own account, it would run as the project's default compute service
+# account, which other services in a shared project may have given roles.
+runtime_sa="${service}@${project}.iam.gserviceaccount.com"
+# Cloud Build runs as the default compute service account.
+build_sa="${project_number}-compute@developer.gserviceaccount.com"
+build_bucket="gs://${project}_cloudbuild"
 
 echo "Project:      ${project} (${project_number}), ${region}"
-echo "Service:      ${service}"
+echo "Service:      ${service}, running as ${runtime_sa}"
 echo "Image:        ${image}"
 echo "Public URL:   ${public_url}"
 echo "Callback URL: ${public_url}/auth/callback"
@@ -121,6 +143,7 @@ if [[ "${skip_build}" -eq 0 ]]; then
   echo "--> Enabling the APIs"
   run "${gcloud_bin}" services enable run.googleapis.com \
     cloudbuild.googleapis.com artifactregistry.googleapis.com \
+    iam.googleapis.com \
     --project="${project}"
 
   echo "--> Creating the image repository, if it does not exist"
@@ -131,13 +154,29 @@ if [[ "${skip_build}" -eq 0 ]]; then
       --repository-format=docker
   fi
 
+  echo "--> Creating the Cloud Build bucket, if it does not exist"
+  # Cloud Build reads the source from it and writes the logs to it.
+  if ! "${gcloud_bin}" storage buckets describe "${build_bucket}" \
+      --project="${project}" >/dev/null 2>&1; then
+    run "${gcloud_bin}" storage buckets create "${build_bucket}" \
+      --project="${project}" --location="${region}" \
+      --uniform-bucket-level-access
+  fi
+
   echo "--> Letting Cloud Build write logs and images"
-  compute_sa="${project_number}-compute@developer.gserviceaccount.com"
-  for role in roles/storage.admin roles/logging.logWriter roles/artifactregistry.writer; do
-    run "${gcloud_bin}" projects add-iam-policy-binding "${project}" \
-      --member="serviceAccount:${compute_sa}" --role="${role}" \
-      --condition=None --format=none
+  # Only on the Cloud Build bucket and the image repository, not on the
+  # project, which other services may share.
+  for role in roles/storage.legacyBucketReader roles/storage.objectAdmin; do
+    run "${gcloud_bin}" storage buckets add-iam-policy-binding "${build_bucket}" \
+      --member="serviceAccount:${build_sa}" --role="${role}" --format=none
   done
+  run "${gcloud_bin}" artifacts repositories add-iam-policy-binding cr-images \
+    --project="${project}" --location="${region}" \
+    --member="serviceAccount:${build_sa}" \
+    --role=roles/artifactregistry.writer --format=none
+  run "${gcloud_bin}" projects add-iam-policy-binding "${project}" \
+    --member="serviceAccount:${build_sa}" --role=roles/logging.logWriter \
+    --condition=None --format=none
 
   echo "--> Building the image with Cloud Build"
   # Only the committed files, so the build is the same as the commit. The
@@ -149,15 +188,21 @@ if [[ "${skip_build}" -eq 0 ]]; then
   # default Cloud Build logs bucket.
   run "${gcloud_bin}" builds submit "${stage}" \
     --project="${project}" --tag="${image}" \
-    --gcs-log-dir="gs://${project}_cloudbuild/logs"
-  rm -rf "${stage}"
+    --gcs-log-dir="${build_bucket}/logs"
+fi
+
+echo "--> Creating the service's service account, if it does not exist"
+if ! "${gcloud_bin}" iam service-accounts describe "${runtime_sa}" \
+    --project="${project}" >/dev/null 2>&1; then
+  run "${gcloud_bin}" iam service-accounts create "${service}" \
+    --project="${project}" \
+    --display-name="${service} on Cloud Run, without roles"
 fi
 
 echo "--> Deploying to Cloud Run"
 # The secrets go in a file only this user can read, so they are not on the
 # command line. Corp Run admins cannot grant access to Secret Manager.
 env_yaml="$(mktemp -t a2ui-triage-env.XXXXXX.yaml)"
-trap 'rm -f "${env_yaml}"' EXIT
 chmod 600 "${env_yaml}"
 {
   echo "PUBLIC_URL: $(yaml_string "${public_url}")"
@@ -174,6 +219,7 @@ run "${gcloud_bin}" run deploy "${service}" \
   --project="${project}" \
   --region="${region}" \
   --image="${image}" \
+  --service-account="${runtime_sa}" \
   --ingress=internal-and-cloud-load-balancing \
   --no-allow-unauthenticated \
   --network=cr-infra-vpc-network \

@@ -25,7 +25,7 @@ class TriageSession {
 
   /// The applied items, and whether each was sent to the team.
   final Map<ItemRef, bool> _sentToTeam = {};
-  final Set<ItemRef> _replied = {};
+  final Map<ItemRef, String> _replies = {};
 
   /// Whether the triager applied a suggestion to [item] that did not send
   /// it to the team.
@@ -37,15 +37,20 @@ class TriageSession {
   /// team.
   bool isHandled(ItemRef item) => _sentToTeam.containsKey(item);
 
-  /// Records that the triager applied [suggestion] to [item]. A suggestion
+  /// Records that the triager applied [analysis] to [item]. An analysis
   /// that adds `status: needs-team-input` sends the item to the team. A
   /// later apply to the same item replaces the earlier one.
-  void recordApplied(TriageItem item, TriageSuggestion suggestion) =>
-      _sentToTeam[item.ref] = suggestion.addedLabels.contains(
+  void recordApplied(TriageItem item, TriageAnalysis analysis) =>
+      _sentToTeam[item.ref] = analysis.addedLabels.contains(
         needsTeamInputLabel,
       );
 
-  bool hasReplied(ItemRef item) => _replied.contains(item);
+  /// The last reply that the triager posted to [item], or null if they did
+  /// not post one, or [forgetReply] was called since.
+  String? postedReply(ItemRef item) => _replies[item];
 
-  void recordReplied(ItemRef item) => _replied.add(item);
+  void recordReply(ItemRef item, String reply) => _replies[item] = reply;
+
+  /// Forgets the reply posted to [item], as when [item] changed on GitHub.
+  void forgetReply(ItemRef item) => _replies.remove(item);
 }

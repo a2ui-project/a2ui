@@ -103,6 +103,26 @@ void main() {
       );
     });
 
+    test('fails rather than judge an item on part of its history', () {
+      expect(
+        reasonOf(
+          FakeGitHub(
+            [
+              issue(labels: ['P2'], createdAt: daysAgo(1), comments: 1),
+            ],
+            failingComments: {1},
+          ),
+        ),
+        throwsA(
+          isA<GitHubException>().having(
+            (e) => e.message,
+            'message',
+            contains('Cannot read the whole history of '),
+          ),
+        ),
+      );
+    });
+
     test('reads when the timed labels were added, and the pings', () async {
       final ItemReason result = await reasonOf(
         FakeGitHub(

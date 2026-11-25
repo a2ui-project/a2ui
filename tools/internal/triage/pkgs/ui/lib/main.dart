@@ -36,6 +36,9 @@ import 'src/ui/triage_app.dart';
 /// cannot listen on a port, so there is no item server on the web. See
 /// `pkgs/server/README.md`.
 Future<void> main(List<String> args) async {
+  // The item server can bring the window to the front through a platform
+  // channel before runApp.
+  WidgetsFlutterBinding.ensureInitialized();
   final access = GitHubAccess(
     page: kIsWeb ? Uri.base : null,
     browser: createBrowser(),

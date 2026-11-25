@@ -14,15 +14,12 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared/shared.dart';
-import 'package:shared/src/triage_bot/report.dart';
-import 'package:shared/src/triage_bot/report_args.dart';
-import 'package:shared/src/triage_bot/report_command.dart';
-import 'package:shared/src/triage_bot/report_github.dart';
-import 'package:shared/src/triage_bot/report_render.dart';
+import 'package:shared/triage_report.dart';
 import 'package:test/test.dart';
 
 const String login = 'triager';
@@ -269,12 +266,74 @@ void main() {
       },
     );
 
-    test('keeps the last of a close and a reopen', () {
-      final ItemActions? reopened = itemActions(
+    test('counts the close of a PR that was merged later', () {
+      final RawItem declinedThenMerged = rawItem(
+        typename: 'PullRequest',
+        state: 'MERGED',
+        events: [
+          event('ClosedEvent'),
+          event(
+            'ReopenedEvent',
+            actor: 'author',
+            createdAt: '2026-11-12T00:00:00Z',
+          ),
+          event(
+            'ClosedEvent',
+            actor: 'author',
+            createdAt: '2026-11-13T00:00:00Z',
+          ),
+        ],
+      );
+      expect(itemActions(declinedThenMerged, login, period)?.closed, (
+        reason: null,
+        duplicateOf: null,
+      ));
+    });
+
+    test('cancels out a close and a reopen', () {
+      const later = '2026-11-06T00:00:00Z';
+      expect(
+        itemActions(
+          withEvents([
+            event('ClosedEvent'),
+            event('ReopenedEvent', createdAt: later),
+          ]),
+          login,
+          period,
+        ),
+        isNull,
+      );
+      expect(
+        itemActions(
+          withEvents([
+            event('ReopenedEvent'),
+            event('ClosedEvent', createdAt: later),
+          ]),
+          login,
+          period,
+        ),
+        isNull,
+      );
+    });
+
+    test('keeps the last of the closes and reopens that do not cancel out', () {
+      final ItemActions? closed = itemActions(
         withEvents([
           event('ClosedEvent'),
           event('ReopenedEvent', createdAt: '2026-11-06T00:00:00Z'),
+          event(
+            'ClosedEvent',
+            stateReason: 'NOT_PLANNED',
+            createdAt: '2026-11-07T00:00:00Z',
+          ),
         ]),
+        login,
+        period,
+      );
+      expect(closed?.closed, (reason: 'NOT_PLANNED', duplicateOf: null));
+      expect(closed?.reopened, isFalse);
+      final ItemActions? reopened = itemActions(
+        withEvents([event('ReopenedEvent')]),
         login,
         period,
       );
@@ -293,7 +352,7 @@ void main() {
       expect(triaged([comment('Thanks for the report.')])?.commented, isTrue);
       expect(triaged([comment('Thanks.', beforePeriod)])?.commented, isFalse);
       for (final heading in [
-        '**From triage bot, suggestion:**',
+        '**From triage bot, analysis:**',
         '**From triage bot, response:**',
         '**From triage bot, ping:** @someone',
         '**From triage bot:**\n\nTriage suggestion:',
@@ -320,7 +379,7 @@ void main() {
         comments: [
           const RawComment(
             author: login,
-            body: '**From triage bot, suggestion:**',
+            body: '**From triage bot, analysis:**',
             createdAt: inPeriod,
           ),
         ],
@@ -544,8 +603,26 @@ Created by triage bot skill ($skillUrl)
       final String text = renderText(report);
       String body(String report) =>
           report.substring(0, report.lastIndexOf('Created by'));
-      expect(body(chat), body(text));
+      expect(
+        body(chat),
+        body(text).replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
+      );
       expect(chat, endsWith('\n\nCreated by <$skillUrl|triage bot> skill\n'));
+    });
+
+    test('escapes the markup characters in titles', () {
+      final String chat = renderChat(
+        reportWith(
+          items: [
+            actions(title: 'A & <b>', addedLabels: ['P3']),
+          ],
+          assignedForTriage: [
+            assignedItem(4071, ['expert'], title: '<dialog> & more'),
+          ],
+        ),
+      );
+      expect(chat, contains('    A &amp; &lt;b&gt;: added P3\n'));
+      expect(chat, contains('    &lt;dialog&gt; &amp; more\n'));
     });
   });
 
@@ -706,15 +783,24 @@ Created by triage bot skill ($skillUrl)
               },
             },
             '/search/issues' => switch (request.url.queryParameters['q']!) {
-              final String q when q.contains('updated:') => {
-                'total_count': 2,
-                'items': [
-                  {'number': 5},
-                  {'number': 6},
-                ],
-              },
+              final String q when !q.contains(RegExp(r'is:(issue|pr)\b')) =>
+                const _Unprocessable(),
+              final String q when q.contains('updated:') =>
+                q.contains('is:issue')
+                    ? {
+                        'total_count': 2,
+                        'items': [
+                          {'number': 5},
+                          {'number': 6},
+                        ],
+                      }
+                    : {'total_count': 0, 'items': <Object?>[]},
               final String q when q.contains(needsTriageLabel) => {
-                'total_count': 3,
+                'total_count': q.contains('is:issue') ? 2 : 1,
+                'items': <Object?>[],
+              },
+              final String q when q.contains('is:issue') => {
+                'total_count': 0,
                 'items': <Object?>[],
               },
               _ => {
@@ -734,9 +820,15 @@ Created by triage bot skill ($skillUrl)
             },
             _ => null,
           };
-          return body == null
-              ? http.Response('{"message": "Not Found"}', 404)
-              : http.Response(jsonEncode(body), 200);
+          return switch (body) {
+            null => http.Response('{"message": "Not Found"}', 404),
+            _Unprocessable() => http.Response(
+              '{"message": "Query must include \'is:issue\' or '
+              '\'is:pull-request\'"}',
+              422,
+            ),
+            _ => http.Response(jsonEncode(body), 200),
+          };
         }),
       );
       final out = StringBuffer();
@@ -793,4 +885,121 @@ Created by triage bot skill ($skillUrl)
       }
     });
   });
+
+  group('collectReport', () {
+    final DateTime now = DateTime.parse('2026-11-20T00:00:00Z');
+
+    /// A GitHub whose search finds [count] items updated in a range of
+    /// seconds, and nothing else. Records the search requests in [searches].
+    GitHubClient searching(
+      int Function(DateTime since, DateTime until) count,
+      List<Map<String, String>> searches,
+    ) => GitHubClient(
+      token: 'token',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/graphql') {
+          return http.Response('{"data": {"repository": {}}}', 200);
+        }
+        final Map<String, String> query = request.url.queryParameters;
+        final String q = query['q']!;
+        final RegExpMatch? range = RegExp(
+          r'updated:(\S+)\.\.(\S+)',
+        ).firstMatch(q);
+        if (range == null || !q.contains('is:issue')) {
+          return http.Response('{"total_count": 0, "items": []}', 200);
+        }
+        searches.add(query);
+        final int total = count(
+          DateTime.parse(range[1]!),
+          DateTime.parse(range[2]!),
+        );
+        final int page = int.parse(query['page']!);
+        final int perPage = int.parse(query['per_page']!);
+        final int first = (page - 1) * perPage;
+        return http.Response(
+          jsonEncode({
+            'total_count': total,
+            'items': [
+              for (var n = first; n < min(total, first + perPage); n++)
+                {'number': n + 1},
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+
+    test('reads each page of a search once, up to now', () async {
+      final searches = <Map<String, String>>[];
+      await collectReport(
+        searching((_, _) => 150, searches),
+        login,
+        period,
+        now: now,
+      );
+      expect(searches.map((q) => q['page']), ['1', '2']);
+      expect(
+        searches.first['q'],
+        contains('updated:2026-11-04T00:00:00Z..2026-11-20T00:00:00Z'),
+      );
+    });
+
+    test('splits a range with more results than search returns', () async {
+      final searches = <Map<String, String>>[];
+      await collectReport(
+        searching(
+          (since, until) =>
+              until.difference(since) > const Duration(days: 4) ? 1001 : 10,
+          searches,
+        ),
+        login,
+        period,
+        now: now,
+      );
+      final List<String> ranges = [
+        for (final q in searches)
+          RegExp(r'updated:(\S+)').firstMatch(q['q']!)![1]!,
+      ];
+      expect(
+        ranges,
+        unorderedEquals([
+          '2026-11-04T00:00:00Z..2026-11-20T00:00:00Z',
+          '2026-11-04T00:00:00Z..2026-11-12T00:00:00Z',
+          '2026-11-12T00:00:01Z..2026-11-20T00:00:00Z',
+          '2026-11-04T00:00:00Z..2026-11-08T00:00:00Z',
+          '2026-11-12T00:00:01Z..2026-11-16T00:00:00Z',
+          '2026-11-08T00:00:01Z..2026-11-12T00:00:00Z',
+          '2026-11-16T00:00:01Z..2026-11-20T00:00:00Z',
+        ]),
+      );
+    });
+
+    test('fails when one second has more results than search returns', () {
+      final DateTime busy = DateTime.parse('2026-11-10T08:00:00Z');
+      expect(
+        collectReport(
+          searching(
+            (since, until) =>
+                since.isAfter(busy) || until.isBefore(busy) ? 0 : 1001,
+            [],
+          ),
+          login,
+          period,
+          now: now,
+        ),
+        throwsA(
+          isA<GitHubException>().having(
+            (e) => e.message,
+            'message',
+            contains('more than GitHub search can list'),
+          ),
+        ),
+      );
+    });
+  });
+}
+
+/// A search that GitHub refuses to run.
+final class _Unprocessable {
+  const _Unprocessable();
 }

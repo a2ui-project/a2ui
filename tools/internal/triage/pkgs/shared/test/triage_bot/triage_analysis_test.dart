@@ -20,29 +20,29 @@ void main() {
   final validator = PayloadValidator<ComponentApi, FunctionApi>(
     catalog: Catalog<ComponentApi, FunctionApi>(
       id: 'triage_test',
-      components: [triageSuggestionApi],
+      components: [triageAnalysisApi],
       protocolVersion: A2uiProtocolVersion.v1_0,
     ),
     protocolVersion: A2uiProtocolVersion.v1_0,
   );
   final Matcher rejected = throwsA(isA<A2uiValidationError>());
 
-  Map<String, Object?> suggestion([Map<String, Object?> extra = const {}]) => {
-    'id': 'suggestion',
-    'component': 'TriageSuggestion',
+  Map<String, Object?> analysis([Map<String, Object?> extra = const {}]) => {
+    'id': 'analysis',
+    'component': 'TriageAnalysis',
     'summary': 'The Flutter renderer crashes on an empty Row.',
     'suggestion': 'Accept as a P1 bug and assign to the Flutter owner.',
     ...extra,
   };
 
-  test('accepts a suggestion with only the required properties', () {
-    expect(() => validator.validateComponent(suggestion()), returnsNormally);
+  test('accepts an analysis with only the required properties', () {
+    expect(() => validator.validateComponent(analysis()), returnsNormally);
   });
 
-  test('accepts a suggestion with every property', () {
+  test('accepts an analysis with every property', () {
     expect(
       () => validator.validateComponent(
-        suggestion({
+        analysis({
           'tldr': 'Case: duplicate request.\nSuggestion: close as duplicate.',
           'reason': 'Priority is not set.',
           'reply': 'Thanks for the report. This duplicates #7.',
@@ -62,16 +62,16 @@ void main() {
   });
 
   for (final property in ['summary', 'suggestion']) {
-    test('rejects a suggestion without $property', () {
+    test('rejects an analysis without $property', () {
       expect(
-        () => validator.validateComponent(suggestion()..remove(property)),
+        () => validator.validateComponent(analysis()..remove(property)),
         rejected,
       );
     });
 
     test('rejects an empty $property', () {
       expect(
-        () => validator.validateComponent(suggestion({property: ''})),
+        () => validator.validateComponent(analysis({property: ''})),
         rejected,
       );
     });
@@ -80,7 +80,7 @@ void main() {
   test('accepts every close reason', () {
     for (final String reason in TriageCloseReason.values) {
       expect(
-        () => validator.validateComponent(suggestion({'close_as': reason})),
+        () => validator.validateComponent(analysis({'close_as': reason})),
         returnsNormally,
         reason: 'close_as: $reason',
       );
@@ -89,7 +89,7 @@ void main() {
 
   test('rejects an unknown close reason', () {
     expect(
-      () => validator.validateComponent(suggestion({'close_as': 'merged'})),
+      () => validator.validateComponent(analysis({'close_as': 'merged'})),
       rejected,
     );
   });
@@ -97,7 +97,7 @@ void main() {
   for (final property in ['tldr', 'reason', 'reply']) {
     test('rejects an empty $property', () {
       expect(
-        () => validator.validateComponent(suggestion({property: ''})),
+        () => validator.validateComponent(analysis({property: ''})),
         rejected,
       );
     });
@@ -107,7 +107,7 @@ void main() {
     for (final Object reference in ['#12', 0, 1.5]) {
       expect(
         () => validator.validateComponent(
-          suggestion({'close_as': 'duplicate', 'duplicate_of': reference}),
+          analysis({'close_as': 'duplicate', 'duplicate_of': reference}),
         ),
         rejected,
         reason: 'duplicate_of: $reference',
@@ -117,7 +117,7 @@ void main() {
 
   test('rejects an unknown property', () {
     expect(
-      () => validator.validateComponent(suggestion({'priority': 'P1'})),
+      () => validator.validateComponent(analysis({'priority': 'P1'})),
       rejected,
     );
   });
@@ -125,7 +125,7 @@ void main() {
   test('rejects a label that is not a string', () {
     expect(
       () => validator.validateComponent(
-        suggestion({
+        analysis({
           'added_labels': [1],
         }),
       ),
@@ -136,7 +136,7 @@ void main() {
   test('rejects a repeated assignee', () {
     expect(
       () => validator.validateComponent(
-        suggestion({
+        analysis({
           'new_assignees': ['octocat', 'octocat'],
         }),
       ),
@@ -148,7 +148,7 @@ void main() {
     for (final Object reference in ['#12', 0, 1.5]) {
       expect(
         () => validator.validateComponent(
-          suggestion({
+          analysis({
             'related_items': [reference],
           }),
         ),

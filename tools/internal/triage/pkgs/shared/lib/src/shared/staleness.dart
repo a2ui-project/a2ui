@@ -168,6 +168,13 @@ final class Staleness {
         isStale(now) &&
         now.difference(ping.createdAt) > Duration(days: staleCase.graceDays);
   }
+
+  /// Whether the item has been stale at [now] for longer than the grace
+  /// period of [staleCase]. An item that nobody pinged by then, because
+  /// nobody ran the pinger, goes back to triage without a ping.
+  bool isOverdue(DateTime now) =>
+      now.difference(since) >
+      Duration(days: staleCase.days + staleCase.graceDays);
 }
 
 /// The case of [item] and when its clock started, or null when the item

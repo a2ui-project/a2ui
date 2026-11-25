@@ -16,7 +16,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:shared/shared.dart';
 
-import '../model/suggestion_draft.dart';
+import '../model/analysis_draft.dart';
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
 import 'dates.dart';
@@ -24,13 +24,18 @@ import 'label_colors.dart';
 import 'links.dart';
 import 'triage_scope.dart';
 
-/// What the triager should know about [item]: its title, age, author,
-/// labels and assignees, notices about its state, the triage bot's TL;DR,
-/// summary, reason and suggestion, the comment for the team, and the related
-/// items.
+/// What the triager should know about [item], in this order:
+///
+/// 1. What GitHub says: its title, age, author, labels, assignees and
+///    milestone, notices about its state, and why the flagger flagged it.
+/// 2. The triage bot's analysis, apart from the facts, since an agent
+///    wrote it: the TL;DR, summary and suggestion.
+/// 3. The comment for the team, and the related items.
+/// 4. The item's description and comments, as GitHub shows them, so that
+///    the triager can check the analysis without opening GitHub.
 ///
 /// The details show it in their left column, next to the editable
-/// suggestion.
+/// analysis.
 class ItemInfo extends StatelessWidget {
   const ItemInfo({super.key, required this.item});
 
@@ -39,8 +44,8 @@ class ItemInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
-    final SuggestionDraft draft = controller.draftFor(item);
-    final String? suggestionUrl = item.suggestionUrl;
+    final AnalysisDraft draft = controller.draftFor(item);
+    final String? analysisUrl = item.analysisUrl;
     String none(List<String> names) =>
         names.isEmpty ? 'none' : names.join(', ');
 
@@ -74,6 +79,7 @@ class ItemInfo extends StatelessWidget {
               ],
             ),
             Text('Assignees: ${none(item.assignees)}.'),
+            Text('Milestone: ${item.milestone ?? 'none'}.'),
           ],
         ),
         if (controller.session.isApplied(item.ref))
@@ -91,32 +97,26 @@ class ItemInfo extends StatelessWidget {
           const _Notice('The item does not have "$needsTriageLabel".'),
         if (controller.changedOnGitHub(item.ref))
           const _Notice(
-            'The item changed on GitHub, so the suggestion shows its '
+            'The item changed on GitHub, so the analysis shows its '
             'current state, and your edits to it are gone.',
             warning: true,
           ),
-        // The list already says that the item has no suggestion, and the
-        // suggestion heading shows that it is outdated.
-        if (item.suggestionStatus == SuggestionStatus.invalid)
+        // The list already says that the item has no analysis.
+        if (item.analysisStatus == AnalysisStatus.invalid)
           _Notice(
-            'The suggestion comment does not hold a valid suggestion, '
-            'so the suggestion is empty. ${item.suggestionError}',
+            'The analysis comment does not hold a valid analysis, '
+            'so the analysis is empty. ${item.analysisError}',
             warning: true,
-            url: suggestionUrl,
+            url: analysisUrl,
             linkText: 'Open the comment',
           ),
-        if (draft.tldr case final String tldr) _Text('TL;DR', tldr),
-        if (draft.summary case final String summary) _Text('Summary', summary),
+        // The flagger's reason, which the analysis copies, is a fact.
         if (draft.reason case final String reason)
           _Text('Why flagged for triage', reason),
-        if (draft.suggestion case final String suggestion)
-          _Text(
-            'Suggestion',
-            suggestion,
-            label: item.suggestionStatus == SuggestionStatus.outdated
-                ? const _OutdatedLabel()
-                : null,
-          ),
+        if (draft.tldr != null ||
+            draft.summary != null ||
+            draft.suggestion != null)
+          _AnalysisCard(item: item, draft: draft),
         if (item.teamNote case final TeamNote note)
           _Text(
             'From ${note.author == null ? 'triager' : '@${note.author}'} '
@@ -128,7 +128,171 @@ class ItemInfo extends StatelessWidget {
           listenable: draft,
           builder: (context, _) => _RelatedItems(item: item, draft: draft),
         ),
+        _Discussion(item: item),
       ],
+    );
+  }
+}
+
+/// The triage bot's TL;DR, summary and suggestion, in a box of their own
+/// under a heading that says an agent wrote them, whether they are current,
+/// and where the comment is.
+class _AnalysisCard extends StatelessWidget {
+  const _AnalysisCard({required this.item, required this.draft});
+
+  final TriageItem item;
+  final AnalysisDraft draft;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final String? url = item.analysisUrl;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.35),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Icon(
+                  Icons.smart_toy_outlined,
+                  size: 20,
+                  color: theme.colorScheme.secondary,
+                ),
+                Text('Triage bot analysis', style: theme.textTheme.titleSmall),
+                Text(
+                  '(agent-generated)',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                switch (item.analysisStatus) {
+                  AnalysisStatus.outdated => const _StatusLabel.outdated(),
+                  AnalysisStatus.current => const _StatusLabel.current(),
+                  _ => const SizedBox.shrink(),
+                },
+                if (url != null) LinkText('Open the comment', url: url),
+              ],
+            ),
+            if (draft.tldr case final String tldr) _Text('TL;DR', tldr),
+            if (draft.summary case final String summary)
+              _Text('Summary', summary, collapsible: true),
+            if (draft.suggestion case final String suggestion)
+              _Text('Suggestion', suggestion, collapsible: true),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The item's description and comments, oldest first, as GitHub shows
+/// them, without the triage bot's analysis comments.
+class _Discussion extends StatelessWidget {
+  const _Discussion({required this.item});
+
+  final TriageItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final int count = item.comments.length;
+    return ExpansionTile(
+      title: Text(
+        count == 1
+            ? 'Description and 1 comment'
+            : 'Description and $count comments',
+        style: Theme.of(context).textTheme.titleSmall,
+      ),
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(bottom: 8),
+      expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+      initiallyExpanded: true,
+      shape: const Border(),
+      collapsedShape: const Border(),
+      children: [
+        _Post(
+          author: item.author,
+          createdAt: item.createdAt,
+          body: item.body,
+          url: item.url,
+          emptyText: 'No description provided.',
+        ),
+        for (final ItemComment c in item.comments)
+          _Post(
+            author: c.author,
+            createdAt: c.createdAt,
+            body: c.body,
+            url: c.url,
+          ),
+      ],
+    );
+  }
+}
+
+/// A description or a comment: who wrote it and when, linked to it on
+/// GitHub, and its Markdown.
+class _Post extends StatelessWidget {
+  const _Post({
+    required this.author,
+    required this.createdAt,
+    required this.body,
+    required this.url,
+    this.emptyText = '',
+  });
+
+  final String? author;
+  final DateTime createdAt;
+  final String body;
+  final String url;
+
+  /// What to show when [body] is empty.
+  final String emptyText;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool empty = body.trim().isEmpty;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 6,
+            children: [
+              LinkText(
+                '${author == null ? 'A deleted account' : '@$author'}, '
+                '${age(createdAt)} ago',
+                url: url,
+              ),
+              if (empty)
+                Text(
+                  emptyText,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontStyle: FontStyle.italic,
+                  ),
+                )
+              else
+                _Markdown(body),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -176,67 +340,121 @@ class _Notice extends StatelessWidget {
 }
 
 /// [text], rendered as Markdown, under [title].
-class _Text extends StatelessWidget {
-  const _Text(this.title, this.text, {this.label});
+///
+/// A [collapsible] text longer than a few lines shows only its start, with
+/// a **Show more** button, so that the item stays quick to scan.
+class _Text extends StatefulWidget {
+  const _Text(this.title, this.text, {this.collapsible = false});
 
   final String title;
   final String text;
+  final bool collapsible;
 
-  /// Shown after [title], such as [_OutdatedLabel].
-  final Widget? label;
+  @override
+  State<_Text> createState() => _TextState();
+}
+
+class _TextState extends State<_Text> {
+  /// How much of a long text shows while it is collapsed.
+  static const double _collapsedHeight = 110;
+
+  var _expanded = false;
+
+  bool get _long =>
+      widget.text.length > 400 || '\n'.allMatches(widget.text).length > 5;
 
   @override
   Widget build(BuildContext context) {
-    final Widget? label = this.label;
+    final bool collapsed = widget.collapsible && _long && !_expanded;
+    final Widget markdown = _Markdown(widget.text);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 4,
       children: [
-        Wrap(
-          spacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleSmall),
-            ?label,
-          ],
-        ),
-        MarkdownBody(
-          data: text,
-          // As GitHub shows a comment: a line break starts a new line.
-          softLineBreak: true,
-          onTapLink: (String text, String? href, String title) {
-            if (href != null) openUrl(href);
-          },
-        ),
+        Text(widget.title, style: Theme.of(context).textTheme.titleSmall),
+        if (collapsed)
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: _collapsedHeight),
+            child: ClipRect(
+              child: SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                child: markdown,
+              ),
+            ),
+          )
+        else
+          markdown,
+        if (widget.collapsible && _long)
+          TextButton(
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+            ),
+            onPressed: () => setState(() => _expanded = !_expanded),
+            child: Text(_expanded ? 'Show less' : 'Show more'),
+          ),
       ],
     );
   }
 }
 
-/// Marks an outdated suggestion, as GitHub marks an outdated review
-/// comment: a small yellow label.
-class _OutdatedLabel extends StatelessWidget {
-  const _OutdatedLabel();
+/// [text] as Markdown, as GitHub shows a comment.
+class _Markdown extends StatelessWidget {
+  const _Markdown(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => MarkdownBody(
+    data: text,
+    // As GitHub shows a comment: a line break starts a new line.
+    softLineBreak: true,
+    onTapLink: (String text, String? href, String title) {
+      if (href != null) openUrl(href);
+    },
+  );
+}
+
+/// Says whether the analysis is current or outdated, as GitHub marks an
+/// outdated review comment: a small colored label.
+class _StatusLabel extends StatelessWidget {
+  const _StatusLabel.current()
+    : _text = 'Current',
+      _tooltip = 'Nothing happened on the item after the triage bot commented.',
+      _outdated = false;
+
+  const _StatusLabel.outdated()
+    : _text = 'Outdated',
+      _tooltip =
+          'Something happened on the item after the triage bot '
+          'commented.',
+      _outdated = true;
+
+  final String _text;
+  final String _tooltip;
+  final bool _outdated;
 
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final yellow = dark ? const Color(0xFFD29922) : const Color(0xFF9A6700);
+    final color = _outdated
+        ? (dark ? const Color(0xFFD29922) : const Color(0xFF9A6700))
+        : (dark ? const Color(0xFF3FB950) : const Color(0xFF1A7F37));
     return Tooltip(
-      message: 'Something happened on the item after the triage bot commented.',
+      message: _tooltip,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: yellow.withValues(alpha: dark ? 0.15 : 0.1),
-          border: Border.all(color: yellow.withValues(alpha: 0.4)),
+          color: color.withValues(alpha: dark ? 0.15 : 0.1),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
           child: Text(
-            'Outdated',
+            _text,
             style: Theme.of(
               context,
-            ).textTheme.labelSmall?.copyWith(color: yellow),
+            ).textTheme.labelSmall?.copyWith(color: color),
           ),
         ),
       ),
@@ -245,31 +463,37 @@ class _OutdatedLabel extends StatelessWidget {
 }
 
 /// Links to the items that the item is linked to, and to the ones the
-/// suggestion names.
+/// analysis names.
 class _RelatedItems extends StatelessWidget {
   const _RelatedItems({required this.item, required this.draft});
 
   final TriageItem item;
-  final SuggestionDraft draft;
+  final AnalysisDraft draft;
 
   @override
   Widget build(BuildContext context) {
-    final int? duplicateOf = draft.toSuggestion().duplicateOf;
-    // The number, its label, and whether it is a PR, if the label says.
-    // The numbers are in the item's repository.
-    final links = <(int, String, bool?)>[
-      for (final int n in item.linkedItems)
+    final int? duplicateOf = draft.toAnalysis().duplicateOf;
+    final List<ItemRef> linked = [
+      ...item.linkedItems,
+      ...item.closedLinkedItems,
+    ];
+    // The item, its label, and whether it is a PR, if the label says. The
+    // numbers that the analysis names are in the item's repository.
+    final links = <(ItemRef, String, bool?)>[
+      for (final ItemRef r in linked)
         item.isPullRequest
-            ? (n, 'Fixes issue #$n', false)
-            : (n, 'Fixed by PR #$n', true),
+            ? (r, 'Fixes issue ${shortNameOf(r)}', false)
+            : (r, 'Fixed by PR ${shortNameOf(r)}', true),
       if (duplicateOf != null)
-        (duplicateOf, 'Duplicate of #$duplicateOf', false),
+        (item.refTo(duplicateOf), 'Duplicate of #$duplicateOf', false),
       // The PRs and issues that GitHub links already have a link above.
       for (final int n in draft.targetingPrs)
-        if (!item.linkedItems.contains(n)) (n, 'Targeted by PR #$n', true),
+        if (!linked.contains(item.refTo(n)))
+          (item.refTo(n), 'Targeted by PR #$n', true),
       for (final int n in draft.targetedIssues)
-        if (!item.linkedItems.contains(n)) (n, 'Targets issue #$n', false),
-      for (final int n in draft.relatedItems) (n, '#$n', null),
+        if (!linked.contains(item.refTo(n)))
+          (item.refTo(n), 'Targets issue #$n', false),
+      for (final int n in draft.relatedItems) (item.refTo(n), '#$n', null),
     ];
     if (links.isEmpty) return const SizedBox.shrink();
     return Column(
@@ -282,12 +506,8 @@ class _RelatedItems extends StatelessWidget {
           runSpacing: 4,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            for (final (int n, String text, bool? isPullRequest) in links)
-              _RelatedItem(
-                ref: item.refTo(n),
-                text: text,
-                isPullRequest: isPullRequest,
-              ),
+            for (final (ItemRef ref, String text, bool? isPullRequest) in links)
+              _RelatedItem(ref: ref, text: text, isPullRequest: isPullRequest),
           ],
         ),
       ],

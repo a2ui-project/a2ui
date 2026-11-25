@@ -1,27 +1,27 @@
-# Triage suggestions
+# Triage analyses
 
-The terms are defined in [core.blueprint.md](../../core.blueprint.md). The [triage advisor](../../core.blueprint.md#triage-jobs) posts the suggestions.
+The terms are defined in [core.blueprint.md](../../core.blueprint.md). The [triage analyzer](../../core.blueprint.md#triage-jobs) posts the analyses.
 
-A triage suggestion says what the triager should do with an issue or a PR. It goes through these steps:
+A triage analysis says what the triager should do with an issue or a PR. It goes through these steps:
 
-1. The triage bot, the [a2ui-triage-bot](../../../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill, takes each open item with `status: needs-triage` or `status: needs-team-input`, or each item named in its prompt. If the item has no [current suggestion](#current-and-outdated-suggestions), the triage bot:
+1. The triage bot, the [a2ui-triage-bot](../../../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill, takes each open item with `status: needs-triage` or `status: needs-team-input`, or each item named in its prompt. If the item has no [current analysis](#current-and-outdated-analyses), the triage bot:
 
    1. Researches the item and decides what the triager should do.
-   2. Writes the decision as a [`TriageSuggestion`](#the-triagesuggestion-component) A2UI component.
-   3. Posts the drafted [suggestion comment](#the-suggestion-comment) on the item.
+   2. If the item has no analysis, or the activity after it changes it significantly, writes the decision as a [`TriageAnalysis`](#the-triageanalysis-component) A2UI component, and posts it in a new [analysis comment](#the-analysis-comment).
+   3. Otherwise, [updates the latest analysis](#updating-an-analysis).
 
 2. The [triage UI](../ui.blueprint.md):
 
-   1. Parses the suggestion from the comment.
+   1. Parses the analysis from the comment.
    2. Shows it to the triager.
    3. Lets the triager change it.
-   4. Applies it to the item when the triager clicks **Apply**.
+   4. Applies its suggestion to the item when the triager clicks **Apply**.
 
 The triage bot only comments. It never changes labels, assignees or the state of an item: that is the triager's decision.
 
-## Current and outdated suggestions
+## Current and outdated analyses
 
-A suggestion is **current** when nothing happened on the item after the latest suggestion comment was posted or last edited. Otherwise it is **outdated**. Things that happen on an item are:
+An analysis is **current** when nothing happened on the item after the latest analysis comment was posted or last edited. Otherwise it is **outdated**. Things that happen on an item are:
 
 1. A comment, other than a triage bot comment.
 2. A PR review.
@@ -29,14 +29,14 @@ A suggestion is **current** when nothing happened on the item after the latest s
 4. A commit pushed to a PR.
 5. A change of labels, assignees or state, except adding or removing `status: needs-triage`. The flagger manages that label, so its changes say nothing new about the item.
 
-## The suggestion comment
+## The analysis comment
 
-The suggestion comment is a [triage bot](../../core.blueprint.md#contributors) comment with an `<a2ui>` block. It follows the template below: the line `**From triage bot, suggestion:**`, then two collapsed sections: **For humans**, with the suggestion in plain English and the command that opens the item in the triage UI, and **For software**, with the suggestion as a component for the triage UI. Both sections say the same thing.
+The analysis comment is a [triage bot](../../core.blueprint.md#contributors) comment with an `<a2ui>` block. It follows the template below: the line `**From triage bot, analysis:**`, two collapsed sections, and a disclaimer. **For humans** has the analysis in plain English and the command that opens the item in the triage UI, and **For software** has the analysis as a component for the triage UI. Both sections say the same thing.
 
-For example, the suggestion comment on an illustrative issue #1235:
+For example, the analysis comment on an illustrative issue #1235:
 
 ````markdown
-**From triage bot, suggestion:**
+**From triage bot, analysis:**
 
 <details>
 <summary>For humans</summary>
@@ -68,7 +68,7 @@ Reply:
 
 > Thanks for the report and the payload that reproduces it. We confirmed the crash and plan to fix it soon. [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column`.
 
-To adjust and apply this suggestion, open it in the [hosted triage UI](http://go/a2ui-triage-ui?item=https://github.com/a2ui-project/a2ui/issues/1235), or run in your a2ui checkout:
+To adjust the analysis and apply its suggestion, open it in the [hosted triage UI](http://go/a2ui-triage-ui?item=https://github.com/a2ui-project/a2ui/issues/1235), or run in your a2ui checkout:
 
 ```bash
 tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1235
@@ -81,7 +81,7 @@ tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1
 
 ```
 <a2ui>
-root = TriageSuggestion(
+root = TriageAnalysis(
   tldr="""Case: this issue highlights a problem.
 Suggestion: set P1 and assign for triage to an expert.""",
   summary="""The issue highlights the problem: Flutter renderer throws an exception when a `Row` has an empty `children` list. [Per blueprint](the_blueprint.md), it should not.""",
@@ -98,11 +98,13 @@ Suggestion: set P1 and assign for triage to an expert.""",
 ```
 
 </details>
+
+This analysis is auto-created to help humans to triage this item. Please, do not treat it as a team decision.
 ````
 
 The parts of the comment, in order:
 
-1. The line `**From triage bot, suggestion:**`.
+1. The line `**From triage bot, analysis:**`.
 2. The **For humans** section, collapsed:
    1. The `tldr`, under **TL;DR**. The part is left out when there is no TL;DR.
    2. The `summary`, the `targeting_prs`, the `targeted_issues`, the `reason` and the `suggestion`, as paragraphs under **Summary**, **Targeting PRs**, **Targeted issues**, **Why flagged for triage** and **Suggestion**. **Targeting PRs** and **Targeted issues** have the URL of each item on its own line. The **Targeting PRs**, **Targeted issues** and **Why flagged for triage** paragraphs are left out when their property has no value.
@@ -110,8 +112,10 @@ The parts of the comment, in order:
    4. The `reply`, quoted, under **Reply**.
    5. The link to the item in the hosted triage UI, and the command that opens it in the triage UI on macOS.
 3. The **For software** section, collapsed: the component.
+4. The line that [Updating an analysis](#updating-an-analysis) adds, if the triage bot updated the analysis.
+5. The disclaimer: "This analysis is auto-created to help humans to triage this item. Please, do not treat it as a team decision."
 
-The component is written in [A2UI Express](../../../../../../specification/inference_formats/express/Express.g4), as one `root = TriageSuggestion(...)` statement. The code fence makes GitHub show it as written, and the triage UI reads the text between `<a2ui>` and `</a2ui>`.
+The component is written in [A2UI Express](../../../../../../specification/inference_formats/express/Express.g4), as one `root = TriageAnalysis(...)` statement. The code fence makes GitHub show it as written, and the triage UI reads the text between `<a2ui>` and `</a2ui>`.
 
 The link opens the hosted triage UI, which the [server](../../../pkgs/server/README.md) serves to Googlers, with the item: go/a2ui-triage-ui points at the hosted UI, and passes on the `item` parameter, the item's URL, for example `http://go/a2ui-triage-ui?item=https://github.com/a2ui-project/a2ui/issues/123`. After the triager signs in to GitHub, the UI opens the item.
 
@@ -122,13 +126,25 @@ The [triage_ui.sh](../../../triage_ui.sh) command takes the item's URL, for exam
 
 The `tldr`, the `summary`, the `suggestion` and the `reply` link every artifact they mention, so that the triager can check it in one click: files, folders, lines of code, issues, PRs, commits, workflow runs, docs pages and specifications. The link is on the words that name the artifact: in "The `genui` package README links to `./DESIGN.md`", "README" links to the README file, not to its repository. When the text says what someone said, asked, decided or did, the words link to where they did it, such as the comment: in "`jacobsimionato` declined the Go SDK in #1279 and asked `nan-yu` to confirm", "declined" and "asked" link to `jacobsimionato`'s comment. Links to files point to a commit SHA, not to a branch, so that they keep showing what the triage bot read. When the text is about specific lines, such as a broken link or the code that causes a bug, it links to those lines with a permalink, the commit SHA and a line anchor such as `#L10-L20`, not to the whole file. Issues and PRs are Markdown links with the number as their text, such as `[#123](https://github.com/a2ui-project/a2ui/pull/123)`, or `[owner/repo#123](https://github.com/owner/repo/issues/123)` in another repository: GitHub turns a bare `#123` into a link, but the triage UI does not.
 
-The comment names people by their GitHub login in backticks, without `@`. A suggestion is not a decision yet, so it does not notify the people it names.
+The comment names people by their GitHub login in backticks, without `@`. An analysis is not a decision, so it does not notify the people it names.
 
-An item can have several suggestion comments. When the suggestion is outdated, the triage bot posts a new one and leaves the earlier ones as they are, so that people can follow the triage as a conversation: each suggestion, the comments and requests that made it outdated, and the next suggestion that answers them. The latest suggestion comment is the item's suggestion.
+An item can have several analysis comments. When the analysis is outdated and the activity after it changes it significantly, the triage bot posts a new one and leaves the earlier ones as they are, so that people can follow the triage as a conversation: each analysis, the comments and requests that made it outdated, and the next analysis that answers them. The latest analysis comment is the item's analysis.
 
-## The `TriageSuggestion` component
+## Updating an analysis
 
-The component is defined in [triage_suggestion.dart](../../../pkgs/shared/lib/src/triage_bot/triage_suggestion.dart). Its properties:
+The activity after an analysis changes it significantly when it brings a request to the triage bot, or when the triage bot would change the case, the suggested action, or a property such as the labels, the assignees, the close reason or the reply.
+
+Otherwise, the triage bot does not post a new analysis. It edits the latest analysis comment instead, and adds this line above the disclaimer, with a link to each comment and review it took into account, and other activity in a few words:
+
+```markdown
+This analysis does not change after taking the later submitted comments into account: [comment](https://github.com/a2ui-project/a2ui/issues/1235#issuecomment-1) from `octocat`.
+```
+
+A later update replaces the line, and lists everything since the analysis was posted. The edit makes the analysis current.
+
+## The `TriageAnalysis` component
+
+The component is defined in [triage_analysis.dart](../../../pkgs/shared/lib/src/triage_bot/triage_analysis.dart). Its properties:
 
 1. `tldr`: the case and the suggestion in a few words each, as two lines: "Case: ..." and "Suggestion: ...", such as "Case: this issue highlights a problem." and "Suggestion: set P1 and assign for triage to an expert." It is the short form of the `summary` and the `suggestion`.
 2. `summary` (required): what the item is about, in plain English.

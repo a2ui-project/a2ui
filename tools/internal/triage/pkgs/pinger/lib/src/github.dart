@@ -21,12 +21,20 @@ final class PostedComment {
     required this.id,
     required this.association,
     required this.htmlUrl,
+    this.user,
   });
 
   factory PostedComment.fromJson(Map<String, Object?> json) => PostedComment(
     id: json['id']! as int,
     association: json['author_association']! as String,
     htmlUrl: json['html_url']! as String,
+    user: switch (json['user']) {
+      {'login': final String? login, 'type': final String? type} => User(
+        login: login,
+        type: type,
+      ),
+      _ => null,
+    },
   );
 
   final int id;
@@ -35,6 +43,9 @@ final class PostedComment {
   final String association;
 
   final String htmlUrl;
+
+  /// The poster, or null if GitHub did not say.
+  final User? user;
 }
 
 /// The GitHub calls that the staleness pinger makes, on the items of one

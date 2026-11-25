@@ -30,11 +30,11 @@ ItemRef genui(int number) => (repository: genuiRepository, number: number);
 /// The time the fake items are created at, and later times.
 DateTime day(int n) => DateTime.utc(2026, 11, n);
 
-/// A suggestion comment, as the triage bot posts it, with [component] in its
+/// An analysis comment, as the triage bot posts it, with [component] in its
 /// `<a2ui>` block.
-String suggestionComment(String component) =>
+String analysisComment(String component) =>
     '''
-**From triage bot, suggestion:**
+**From triage bot, analysis:**
 
 <details>
 <summary>For humans</summary>
@@ -96,6 +96,8 @@ Map<String, Object?> itemNode(
   List<Map<String, Object?>> timeline = const [],
   List<Map<String, Object?>> reviews = const [],
   List<int> linked = const [],
+  List<ItemRef> crossLinked = const [],
+  List<int> closedLinked = const [],
   String? milestone,
 }) {
   final kind = pr ? 'pull' : 'issues';
@@ -124,7 +126,21 @@ Map<String, Object?> itemNode(
     'timelineItems': nodes(timeline),
     if (pr) 'reviews': nodes(reviews),
     pr ? 'closingIssuesReferences' : 'closedByPullRequestsReferences': nodes([
-      for (final n in linked) {'number': n},
+      for (final ItemRef ref in [
+        for (final n in linked) (repository: repository, number: n),
+        ...crossLinked,
+      ])
+        {
+          'number': ref.number,
+          'state': 'OPEN',
+          'repository': {'nameWithOwner': ref.repository},
+        },
+      for (final n in closedLinked)
+        {
+          'number': n,
+          'state': 'CLOSED',
+          'repository': {'nameWithOwner': repository},
+        },
     ]),
   };
 }
@@ -303,6 +319,13 @@ class FakeGitHub {
         r'label:"([^"]+)"',
       ).firstMatch(searchQuery)!.group(1)!;
       final bool genui = searchQuery.contains('repo:$genuiRepository ');
+      // Like GitHub, a search that does not name the kind of item finds
+      // nothing.
+      final String? kind = switch (searchQuery) {
+        final String q when q.contains('is:issue') => 'Issue',
+        final String q when q.contains('is:pr') => 'PullRequest',
+        _ => null,
+      };
       return _json({
         'data': {
           'search': {
@@ -313,8 +336,7 @@ class FakeGitHub {
                     !(searchQuery.contains('-draft:true') &&
                         item['isDraft'] == true) &&
                     _names(item, 'labels', 'name').contains(label) &&
-                    (!searchQuery.contains('is:pr') ||
-                        item['__typename'] == 'PullRequest'))
+                    item['__typename'] == kind)
                   item,
             ],
           },

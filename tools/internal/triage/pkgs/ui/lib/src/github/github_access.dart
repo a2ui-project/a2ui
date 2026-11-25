@@ -195,7 +195,9 @@ class GitHubAccess extends ChangeNotifier {
   }
 
   /// Step 19: signs out, and loads the page again to show the sign-in.
+  /// Without a page, as on macOS, it shows the sign-in at once.
   Future<void> signOut() async {
+    if (_page == null) return _signOut();
     if (_hasServer) {
       try {
         await _http.post(_server('/auth/logout'), headers: serverHeaders);
@@ -209,6 +211,9 @@ class GitHubAccess extends ChangeNotifier {
   }
 
   /// The client that calls GitHub as the signed-in triager.
+  ///
+  /// It keeps working after the triager signs in again: it calls GitHub
+  /// with the token of the latest sign-in.
   GitHubClient client() {
     if (_state != SignInState.signedIn) {
       throw const GitHubException('Sign in to GitHub first.');
@@ -218,9 +223,12 @@ class GitHubAccess extends ChangeNotifier {
             token: null,
             baseUrl: _server('/github/'),
             headers: serverHeaders,
-            httpClient: _http,
+            httpClient: _SignedInClient(this, direct: false),
           )
-        : GitHubClient(token: _token, httpClient: _http);
+        : GitHubClient(
+            token: null,
+            httpClient: _SignedInClient(this, direct: true),
+          );
   }
 
   void _signIn({String? token, String? login}) {
@@ -229,6 +237,23 @@ class GitHubAccess extends ChangeNotifier {
     _error = null;
     _state = SignInState.signedIn;
     notifyListeners();
+  }
+
+  void _signOut({String? error}) {
+    _token = null;
+    _login = null;
+    _error = error;
+    _state = SignInState.signedOut;
+    notifyListeners();
+  }
+
+  /// GitHub, or the server for it, answered 401: the token expired or was
+  /// revoked, or the server's session ended. The server has already deleted
+  /// its session cookie.
+  void _rejected() {
+    if (_state != SignInState.signedIn) return;
+    _browser.writeToken(null);
+    _signOut(error: 'GitHub no longer accepts your sign-in. Sign in again.');
   }
 
   /// Gets [url] from the server and decodes it, or returns null if there is
@@ -251,5 +276,29 @@ Object? _decode(String body) {
     return jsonDecode(body);
   } on FormatException {
     return null;
+  }
+}
+
+/// Calls GitHub for [GitHubAccess.client]. When [direct], it adds the token
+/// of the latest sign-in, since the server adds none. It signs the triager
+/// out when GitHub answers 401.
+final class _SignedInClient extends http.BaseClient {
+  _SignedInClient(this._access, {required this.direct});
+
+  final GitHubAccess _access;
+  final bool direct;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    if (direct) {
+      final String? token = _access._token;
+      if (token == null) {
+        throw const GitHubException('Sign in to GitHub first.');
+      }
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+    final http.StreamedResponse response = await _access._http.send(request);
+    if (response.statusCode == 401) _access._rejected();
+    return response;
   }
 }

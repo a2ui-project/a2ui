@@ -18,4 +18,5 @@ library;
 
 export 'src/direct_messages.dart';
 export 'src/github.dart';
+export 'src/ping_args.dart';
 export 'src/staleness_ping.dart';

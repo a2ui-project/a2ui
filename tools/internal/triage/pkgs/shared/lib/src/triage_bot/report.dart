@@ -201,10 +201,11 @@ final class ItemActions {
   final List<String> unassigned;
 
   /// How the person closed the item, or null if they did not close it, or
-  /// reopened it after.
+  /// their closes and reopens cancel out.
   final ItemClose? closed;
 
-  /// Whether the person reopened the item, and did not close it after.
+  /// Whether the person reopened the item, and their closes and reopens do
+  /// not cancel out.
   final bool reopened;
 
   /// Whether the person commented, other than with triage bot comments.
@@ -345,15 +346,24 @@ ItemActions? itemActions(RawItem item, String login, Period period) {
     'UnassignedEvent',
     (e) => e.assignee,
   );
-  final RawEvent? state = events
-      .where(
-        (event) =>
-            event.typename == 'ReopenedEvent' ||
-            (event.typename == 'ClosedEvent' &&
-                event.closer == null &&
-                item.state != 'MERGED'),
-      )
-      .lastOrNull;
+  // A merged PR cannot be reopened, so its last close is the merge.
+  final RawEvent? mergeClose = item.state == 'MERGED'
+      ? item.events.where((e) => e.typename == 'ClosedEvent').lastOrNull
+      : null;
+  final List<RawEvent> stateEvents = [
+    for (final event in events)
+      if (event.typename == 'ReopenedEvent' ||
+          (event.typename == 'ClosedEvent' &&
+              event.closer == null &&
+              !identical(event, mergeClose)))
+        event,
+  ];
+  // Closing and reopening cancel out, as adding and removing a label do:
+  // the state changed only if the first and the last change go the same way.
+  final RawEvent? state =
+      stateEvents.firstOrNull?.typename == stateEvents.lastOrNull?.typename
+      ? stateEvents.lastOrNull
+      : null;
   final ItemClose? closed = state?.typename == 'ClosedEvent'
       ? (reason: state!.stateReason, duplicateOf: state.duplicateOf)
       : null;

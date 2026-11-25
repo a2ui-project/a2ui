@@ -30,7 +30,7 @@ The **Server** listens on port 8080 and routes by path:
 | --------------------------------- | ------------------------------------------------------------------ |
 | `/`, `/main.dart.js`, `/assets/…` | Returns the file from `/app/web/` (the **App**)                    |
 | `/auth/…`                         | Sign-in with GitHub, a pasted token, sign-out, status              |
-| `/github/…`                       | Adds the triager's token and forwards the call to `api.github.com` |
+| `/github/…`                       | Adds the triager's token and forwards [the App's calls](#the-github-proxy) to `api.github.com` |
 | `/healthz`                        | Answers `ok`                                                       |
 
 Once the **Browser** has the App's files, the **App** runs in the **Browser**,
@@ -86,14 +86,20 @@ nobody uses it.
 9. **GitHub sign-in** redirects the **Browser** to **Server**
    `/auth/callback?code=…&state=…`, through **UberProxy** again.
 10. **Server** checks that `state` matches the cookie, which proves that the
-    sign-in started in this **Browser**, not on another site.
+    sign-in started in this **Browser**, not on another site. Only then does
+    it show an error that GitHub sent, so that a link from another site
+    cannot put its own text on the page.
 11. **Server** sends the code, the **OAuth App**'s client secret and the PKCE
     verifier to **GitHub sign-in**, which returns the **Triager**'s token.
 12. **Server** asks **GitHub API** `GET /user` with the token, and learns the
     **Triager**'s login.
 13. **Server** encrypts the token and the login into the session cookie
     (`HttpOnly; Secure; SameSite=Lax`, 30 days), deletes the short-lived
-    cookie, and redirects the **Browser** back to the return path.
+    cookie, and redirects the **Browser** back to the return path. Over
+    HTTPS, the cookie names start with `__Host-`, so that another service on
+    the same domain, such as `cr.gclb.goog`, cannot set a cookie with the
+    same name. If the **Browser** sends several cookies with the name anyway,
+    **Server** uses the one it can decrypt.
 14. **App** starts again, asks `GET /auth/status`, gets "signed in as
     `<login>`", and loads the items.
 
@@ -103,8 +109,8 @@ Working after the sign-in:
     `X-Requested-With` header. The **Browser** attaches the session cookie by
     itself.
 16. **Server** decrypts the cookie, checks the header, which a page on
-    another site cannot add, and forwards the call to **GitHub API** with
-    `Authorization: Bearer <token>`.
+    another site cannot add, checks that the **App** makes such calls, and
+    forwards the call to **GitHub API** with `Authorization: Bearer <token>`.
 17. **GitHub API** answers. **Server** passes the answer back to the **App**,
     and rewrites the pagination links to point at the **Server**.
 18. GitHub records every comment, label and assignee as made by the
@@ -173,12 +179,32 @@ The Server reads its settings from environment variables:
 | `PORT`                                                 | The port to listen on                                                                          | `8080`                                      |
 | `PUBLIC_URL`                                           | The URL the **Browser** opens. GitHub sends the triager back to `<PUBLIC_URL>/auth/callback`   | `http://localhost:<PORT>`                   |
 | `WEB_DIR`                                              | The folder with the output of `flutter build web`                                              | `../ui/build/web` (`/app/web` in the image) |
-| `SESSION_SECRET`                                       | The secret that the cookie encryption key is made from. Changing it signs everyone out         | Random, so a restart signs everyone out     |
+| `SESSION_SECRET`                                       | The secret that the cookie encryption key is made from. Changing it signs everyone out. Required on Cloud Run, where each instance would make its own | Random, so a restart signs everyone out     |
 | `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` | The **OAuth App**. Without them, **Sign in with GitHub** is off and only **Use a token** works | Not set                                     |
 
 The Server listens on all network interfaces on Cloud Run, which sets
 `K_SERVICE`, and only on localhost elsewhere. Cookies are `Secure` when
 `PUBLIC_URL` is `https`.
+
+## The GitHub proxy
+
+The triager's token can do much more than triage, for example when it is the
+one of `gh`. So `/github/` passes on only the calls that the **App** makes,
+and answers 403 to others:
+
+| Call                                                           | What the **App** does with it |
+| -------------------------------------------------------------- | ----------------------------- |
+| `POST /graphql`                                                | Reads items, and closes them  |
+| `PATCH /repos/<repository>/issues/<number>`                    | Sets or removes the milestone |
+| `POST /repos/<repository>/issues/<number>/comments`            | Posts the reply               |
+| `POST /repos/<repository>/issues/<number>/labels`              | Adds labels                   |
+| `DELETE /repos/<repository>/issues/<number>/labels/<label>`    | Removes a label               |
+| `POST`, `DELETE /repos/<repository>/issues/<number>/assignees` | Assigns and unassigns people  |
+
+`<repository>` is `a2ui-project/a2ui` or `flutter/genui`. GraphQL queries
+change nothing, and the only mutations it passes on are `closeIssue` and
+`closePullRequest`. When the **App** starts making another call, add it to
+`lib/src/server/github_proxy.dart`.
 
 ## Running locally
 
@@ -209,7 +235,8 @@ GITHUB_OAUTH_CLIENT_ID=… GITHUB_OAUTH_CLIENT_SECRET=… dart run bin/server.da
 - `bin/server.dart`: reads the settings, and starts the Server.
 - `lib/src/server/handler.dart`: routes the requests.
 - `lib/src/server/auth.dart`: `/auth/`, the steps above.
-- `lib/src/server/github_proxy.dart`: `/github/`.
+- `lib/src/server/github_proxy.dart`: `/github/`, with the calls it passes
+  on. `graphql_mutations.dart` finds the mutations in a GraphQL request.
 - `lib/src/server/cookies.dart` and `sealer.dart`: the encrypted cookies
   (AES-256-GCM).
 - `lib/src/server/config.dart`: the settings.

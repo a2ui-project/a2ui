@@ -24,6 +24,15 @@ const String genuiRepository = 'flutter/genui';
 /// `a2ui-project/a2ui`, and its number there.
 typedef ItemRef = ({String repository, int number});
 
+/// "#12" for an item in [a2uiRepository], and "genui #12" for an item in
+/// another repository.
+String shortNameOf(ItemRef ref) => '${_repositoryPrefix(ref)}#${ref.number}';
+
+/// The repository's name and a space, or nothing for [a2uiRepository].
+String _repositoryPrefix(ItemRef ref) => ref.repository == a2uiRepository
+    ? ''
+    : '${ref.repository.split('/').last} ';
+
 /// The prefix of the comment that the triager posts for the team when they
 /// add [needsTeamInputLabel], as the triage UI shows it above the reply.
 const String teamNoteTitle = 'Requires team input. Note for the discussion:';
@@ -31,45 +40,45 @@ const String teamNoteTitle = 'Requires team input. Note for the discussion:';
 /// The heading of the comment that the triager posts for the team when they
 /// add [needsTeamInputLabel]. The triage UI adds it to the reply when it
 /// applies the suggestion, and shows the latest such comment with the item's
-/// suggestion. See `docs/contributing/triage/triage.md`.
+/// analysis. See `docs/contributing/triage/triage.md`.
 const String teamNoteHeading = '**$teamNoteTitle**\n\n';
 
 /// The types of items, in the order the list shows them. See
 /// `ui.blueprint.md`.
 enum ItemKind {
   /// An issue that open pull requests are linked to close, whoever opened
-  /// them, or that the suggestion lists pull requests in `targeting_prs`
+  /// them, or that the analysis lists pull requests in `targeting_prs`
   /// for.
   issueWithPrs,
 
   /// An issue that no open pull request is linked to close, and whose
-  /// suggestion lists no pull request in `targeting_prs`. Closed and merged
+  /// analysis lists no pull request in `targeting_prs`. Closed and merged
   /// pull requests do not count.
   issueWithoutPrs,
 
-  /// A pull request that closes issues, or whose suggestion lists issues in
+  /// A pull request that closes issues, or whose analysis lists issues in
   /// `targeted_issues`.
   prWithIssues,
 
-  /// A pull request that closes no issue, and whose suggestion lists no
+  /// A pull request that closes no issue, and whose analysis lists no
   /// issue in `targeted_issues`.
   prWithoutIssues,
 }
 
-/// Whether an item has a triage suggestion, and whether it is current. See
-/// `blueprints/features/triage_bot/suggestion.blueprint.md`.
-enum SuggestionStatus {
+/// Whether an item has a triage analysis, and whether it is current. See
+/// `blueprints/features/triage_bot/analysis.blueprint.md`.
+enum AnalysisStatus {
   /// No triage bot comment on the item has an `<a2ui>` block.
   none,
 
-  /// The suggestion comment does not hold a valid suggestion.
+  /// The analysis comment does not hold a valid analysis.
   invalid,
 
-  /// Nothing happened on the item after the suggestion comment was last
+  /// Nothing happened on the item after the analysis comment was last
   /// edited.
   current,
 
-  /// Something happened on the item after the suggestion comment was last
+  /// Something happened on the item after the analysis comment was last
   /// edited.
   outdated,
 }
@@ -86,6 +95,7 @@ final class TriageItem {
     required this.isPullRequest,
     required this.isOpen,
     this.isMerged = false,
+    this.isDraft = false,
     required this.createdAt,
     required this.updatedAt,
     this.author,
@@ -93,10 +103,11 @@ final class TriageItem {
     this.assignees = const [],
     this.milestone,
     this.linkedItems = const [],
-    this.suggestionStatus = SuggestionStatus.none,
-    this.suggestion,
-    this.suggestionError,
-    this.suggestionUrl,
+    this.closedLinkedItems = const [],
+    this.analysisStatus = AnalysisStatus.none,
+    this.analysis,
+    this.analysisError,
+    this.analysisUrl,
     this.teamNote,
     this.comments = const [],
   });
@@ -108,7 +119,7 @@ final class TriageItem {
     final List<Map<String, Object?>> comments = nodesOf(node['comments']);
 
     // The latest of each.
-    final Map<String, Object?>? suggestionComment = comments.reversed
+    final Map<String, Object?>? analysisComment = comments.reversed
         .where(
           (c) => _isTriageBotComment(c) && hasA2uiBlock(c['body']! as String),
         )
@@ -118,30 +129,46 @@ final class TriageItem {
         .nonNulls
         .firstOrNull;
 
-    SuggestionStatus status = SuggestionStatus.none;
-    SuggestionPayload? suggestion;
-    String? suggestionError;
-    if (suggestionComment != null) {
+    AnalysisStatus status = AnalysisStatus.none;
+    AnalysisPayload? analysis;
+    String? analysisError;
+    if (analysisComment != null) {
       try {
-        suggestion = SuggestionPayload.parse(
-          suggestionComment['body']! as String,
-        );
-        final DateTime suggestedAt =
-            dateOf(suggestionComment['lastEditedAt']) ??
-            dateOf(suggestionComment['createdAt'])!;
-        status = _activity(node, comments).any(suggestedAt.isBefore)
-            ? SuggestionStatus.outdated
-            : SuggestionStatus.current;
+        analysis = AnalysisPayload.parse(analysisComment['body']! as String);
+        final DateTime analyzedAt =
+            dateOf(analysisComment['lastEditedAt']) ??
+            dateOf(analysisComment['createdAt'])!;
+        status = _activity(node, comments).any(analyzedAt.isBefore)
+            ? AnalysisStatus.outdated
+            : AnalysisStatus.current;
       } on FormatException catch (e) {
-        status = SuggestionStatus.invalid;
-        suggestionError = e.message;
+        status = AnalysisStatus.invalid;
+        analysisError = e.message;
       }
     }
 
     final url = node['url']! as String;
+    final String repository = Uri.parse(url).pathSegments.take(2).join('/');
+    final List<({ItemRef ref, bool isOpen})> linked = [
+      for (final Map<String, Object?> l in nodesOf(
+        node[isPullRequest
+            ? 'closingIssuesReferences'
+            : 'closedByPullRequestsReferences'],
+      ))
+        (
+          ref: (
+            repository: switch (l['repository']) {
+              {'nameWithOwner': final String name} => name,
+              _ => repository,
+            },
+            number: l['number']! as int,
+          ),
+          isOpen: l['state'] == null || l['state'] == 'OPEN',
+        ),
+    ];
     return TriageItem(
       id: node['id']! as String,
-      repository: Uri.parse(url).pathSegments.take(2).join('/'),
+      repository: repository,
       number: node['number']! as int,
       title: node['title']! as String,
       body: (node['body'] as String? ?? '').replaceAll('\r\n', '\n'),
@@ -149,6 +176,7 @@ final class TriageItem {
       isPullRequest: isPullRequest,
       isOpen: node['state'] == 'OPEN',
       isMerged: node['state'] == 'MERGED',
+      isDraft: node['isDraft'] == true,
       createdAt: dateOf(node['createdAt'])!,
       updatedAt: dateOf(node['updatedAt'])!,
       author: loginOf(node['author']),
@@ -165,22 +193,22 @@ final class TriageItem {
         _ => null,
       },
       linkedItems: [
-        for (final Map<String, Object?> linked in nodesOf(
-          node[isPullRequest
-              ? 'closingIssuesReferences'
-              : 'closedByPullRequestsReferences'],
-        ))
-          linked['number']! as int,
+        for (final l in linked)
+          if (l.isOpen) l.ref,
       ],
-      suggestionStatus: status,
-      suggestion: suggestion,
-      suggestionError: suggestionError,
-      suggestionUrl: suggestionComment?['url'] as String?,
+      closedLinkedItems: [
+        for (final l in linked)
+          if (!l.isOpen) l.ref,
+      ],
+      analysisStatus: status,
+      analysis: analysis,
+      analysisError: analysisError,
+      analysisUrl: analysisComment?['url'] as String?,
       teamNote: teamNote,
       comments: [
         for (final Map<String, Object?> c in comments)
-          // The suggestion comments hold the suggestion's A2UI messages, and
-          // [suggestion] has the latest suggestion.
+          // The analysis comments hold the analysis's A2UI messages, and
+          // [analysis] has the latest analysis.
           if (!_isTriageBotComment(c) || !hasA2uiBlock(c['body']! as String))
             ItemComment(
               author: loginOf(c['author']),
@@ -208,6 +236,9 @@ final class TriageItem {
 
   /// Whether the item is a merged pull request.
   final bool isMerged;
+
+  /// Whether the item is a draft pull request.
+  final bool isDraft;
   final DateTime createdAt;
 
   /// When anything about the item last changed on GitHub.
@@ -221,44 +252,50 @@ final class TriageItem {
   /// The title of the item's milestone, or null if it has none.
   final String? milestone;
 
-  /// For an issue, the numbers of the open pull requests that close it. For
-  /// a pull request, the numbers of the issues it closes. They are in the
-  /// item's [repository].
-  final List<int> linkedItems;
+  /// For an issue, the open pull requests that close it. For a pull request,
+  /// the open issues it closes. They can be in another repository.
+  final List<ItemRef> linkedItems;
 
-  final SuggestionStatus suggestionStatus;
+  /// For a pull request, the closed issues it closes. The triage UI links
+  /// them, but does not open them for editing.
+  final List<ItemRef> closedLinkedItems;
 
-  /// The suggestion, unless [suggestionStatus] is [SuggestionStatus.none] or
-  /// [SuggestionStatus.invalid].
-  final SuggestionPayload? suggestion;
+  final AnalysisStatus analysisStatus;
 
-  /// What is wrong with the suggestion comment, when [suggestionStatus] is
-  /// [SuggestionStatus.invalid].
-  final String? suggestionError;
+  /// The analysis, unless [analysisStatus] is [AnalysisStatus.none] or
+  /// [AnalysisStatus.invalid].
+  final AnalysisPayload? analysis;
 
-  /// The URL of the suggestion comment, if the item has one.
-  final String? suggestionUrl;
+  /// What is wrong with the analysis comment, when [analysisStatus] is
+  /// [AnalysisStatus.invalid].
+  final String? analysisError;
+
+  /// The URL of the analysis comment, if the item has one.
+  final String? analysisUrl;
 
   /// The latest comment that a triager posted for the team, if the item has
   /// one.
   final TeamNote? teamNote;
 
   /// The last 100 comments, oldest first, without the triage bot's
-  /// suggestion comments.
+  /// analysis comments.
   final List<ItemComment> comments;
 
   bool get needsTriage => labels.contains(needsTriageLabel);
 
   bool get needsTeamInput => labels.contains(needsTeamInputLabel);
 
-  /// [linkedItems], then the other items that the [suggestion] lists in
+  /// [linkedItems], then the other items that the [analysis] lists in
   /// `targeting_prs`, for an issue, or in `targeted_issues`, for a pull
   /// request. The list groups and flags the item by them.
-  List<int> get linkedAndTargetedItems => {
+  List<ItemRef> get linkedAndTargetedItems => {
     ...linkedItems,
-    ...?(isPullRequest
-        ? suggestion?.suggestion.targetedIssues
-        : suggestion?.suggestion.targetingPrs),
+    for (final int n
+        in (isPullRequest
+                ? analysis?.analysis.targetedIssues
+                : analysis?.analysis.targetingPrs) ??
+            const <int>[])
+      refTo(n),
   }.toList();
 
   ItemKind get kind =>
@@ -271,22 +308,18 @@ final class TriageItem {
 
   ItemRef get ref => (repository: repository, number: number);
 
-  /// The item with [number] in the item's repository, such as one of
-  /// [linkedItems].
+  /// The item with [number] in the item's repository, such as one that the
+  /// [analysis] lists.
   ItemRef refTo(int number) => (repository: repository, number: number);
 
   /// "#12" for an item in [a2uiRepository], and "genui #12" for an item in
   /// another repository.
-  String get shortName => '$_repositoryPrefix#$number';
+  String get shortName => shortNameOf(ref);
 
   /// "Issue #12" or "PR #12" for an item in [a2uiRepository], and
   /// "genui PR #12" for an item in another repository.
   String get name =>
-      '$_repositoryPrefix${isPullRequest ? 'PR' : 'Issue'} #$number';
-
-  /// The repository's name and a space, or nothing for [a2uiRepository].
-  String get _repositoryPrefix =>
-      repository == a2uiRepository ? '' : '${repository.split('/').last} ';
+      '${_repositoryPrefix(ref)}${isPullRequest ? 'PR' : 'Issue'} #$number';
 
   /// Whether a `Comments` node is a triage bot comment. See
   /// `core.blueprint.md`.
@@ -300,7 +333,7 @@ final class TriageItem {
   }
 
   /// The times of the things that happened on the item, as
-  /// `triage_bot/suggestion.blueprint.md` lists them.
+  /// `triage_bot/analysis.blueprint.md` lists them.
   static Iterable<DateTime> _activity(
     Map<String, Object?> node,
     List<Map<String, Object?>> comments,

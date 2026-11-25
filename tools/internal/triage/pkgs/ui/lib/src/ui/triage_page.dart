@@ -26,7 +26,8 @@ import 'triage_scope.dart';
 class TriagePage extends StatefulWidget {
   const TriagePage({super.key, this.onSignOut});
 
-  /// Signs out of GitHub, on the web. Null hides **Sign out**.
+  /// Signs out of GitHub. Null hides **Sign out**, as when tests start the
+  /// controller without a sign-in.
   final VoidCallback? onSignOut;
 
   @override
@@ -69,7 +70,7 @@ class _TriagePageState extends State<TriagePage> {
             ),
             if (widget.onSignOut case final VoidCallback onSignOut)
               Tooltip(
-                message: 'Sign out of GitHub in this browser',
+                message: 'Sign out of GitHub',
                 child: MenuItemButton(
                   leadingIcon: const Icon(Icons.logout),
                   onPressed: onSignOut,
@@ -87,7 +88,9 @@ class _TriagePageState extends State<TriagePage> {
                   'except for items that changed on GitHub.',
               child: TextButton.icon(
                 icon: const Icon(Icons.refresh),
-                onPressed: controller.loading ? null : controller.refresh,
+                onPressed: controller.loading || controller.isApplyingAny
+                    ? null
+                    : controller.refresh,
                 label: const Text('Refresh'),
               ),
             ),

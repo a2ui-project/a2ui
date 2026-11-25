@@ -14,11 +14,11 @@
 # limitations under the License.
 
 # Opens a GitHub item in the triage UI, so that the triager can adjust and
-# apply its triage suggestion.
+# apply its triage analysis.
 #
 # If the triage UI is running, sends the item to it. Otherwise starts the app on
 # macOS with the item. See
-# blueprints/features/triage_bot/suggestion.blueprint.md.
+# blueprints/features/triage_bot/analysis.blueprint.md.
 #
 # Usage: tools/internal/triage/triage_ui.sh <item URL>
 # Example: tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/123

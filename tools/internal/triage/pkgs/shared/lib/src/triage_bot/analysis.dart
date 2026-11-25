@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'triage_suggestion.dart';
+import 'triage_analysis.dart';
 
-/// The values of a [triageSuggestionApi] component.
+/// The values of a [triageAnalysisApi] component.
 ///
 /// An empty list means none, as an omitted list does in the component.
-final class TriageSuggestion {
-  const TriageSuggestion({
+final class TriageAnalysis {
+  const TriageAnalysis({
     this.tldr,
     this.summary,
     this.reason,
@@ -36,43 +36,41 @@ final class TriageSuggestion {
   });
 
   /// Reads the properties of a component that is valid against
-  /// [triageSuggestionApi].
-  factory TriageSuggestion.fromProperties(Map<String, Object?> properties) =>
-      TriageSuggestion(
-        tldr: properties[TriageSuggestionProps.tldr] as String?,
-        summary: properties[TriageSuggestionProps.summary] as String?,
-        reason: properties[TriageSuggestionProps.reason] as String?,
-        suggestion: properties[TriageSuggestionProps.suggestion] as String?,
-        reply: properties[TriageSuggestionProps.reply] as String?,
-        closeAs: properties[TriageSuggestionProps.closeAs] as String?,
-        duplicateOf: (properties[TriageSuggestionProps.duplicateOf] as num?)
+  /// [triageAnalysisApi].
+  factory TriageAnalysis.fromProperties(Map<String, Object?> properties) =>
+      TriageAnalysis(
+        tldr: properties[TriageAnalysisProps.tldr] as String?,
+        summary: properties[TriageAnalysisProps.summary] as String?,
+        reason: properties[TriageAnalysisProps.reason] as String?,
+        suggestion: properties[TriageAnalysisProps.suggestion] as String?,
+        reply: properties[TriageAnalysisProps.reply] as String?,
+        closeAs: properties[TriageAnalysisProps.closeAs] as String?,
+        duplicateOf: (properties[TriageAnalysisProps.duplicateOf] as num?)
             ?.toInt(),
-        addedLabels: _strings(properties[TriageSuggestionProps.addedLabels]),
-        removedLabels: _strings(
-          properties[TriageSuggestionProps.removedLabels],
-        ),
-        newAssignees: _strings(properties[TriageSuggestionProps.newAssignees]),
+        addedLabels: _strings(properties[TriageAnalysisProps.addedLabels]),
+        removedLabels: _strings(properties[TriageAnalysisProps.removedLabels]),
+        newAssignees: _strings(properties[TriageAnalysisProps.newAssignees]),
         removedAssignees: _strings(
-          properties[TriageSuggestionProps.removedAssignees],
+          properties[TriageAnalysisProps.removedAssignees],
         ),
-        targetingPrs: _ints(properties[TriageSuggestionProps.targetingPrs]),
-        targetedIssues: _ints(properties[TriageSuggestionProps.targetedIssues]),
-        relatedItems: _ints(properties[TriageSuggestionProps.relatedItems]),
+        targetingPrs: _ints(properties[TriageAnalysisProps.targetingPrs]),
+        targetedIssues: _ints(properties[TriageAnalysisProps.targetedIssues]),
+        relatedItems: _ints(properties[TriageAnalysisProps.relatedItems]),
       );
 
   /// The case and the suggestion in a few words each, as two lines:
   /// "Case: ..." and "Suggestion: ...". Null when the triage bot did not
-  /// write it, or for a suggestion that the triager writes from scratch.
+  /// write it, or for an analysis that the triager writes from scratch.
   final String? tldr;
 
-  /// What the item is about. Null for a suggestion that the triager writes
+  /// What the item is about. Null for an analysis that the triager writes
   /// from scratch.
   final String? summary;
 
   /// Why the item is flagged for triage, or null when it is not flagged.
   final String? reason;
 
-  /// What the triager should do and why. Null for a suggestion that the
+  /// What the triager should do and why. Null for an analysis that the
   /// triager writes from scratch.
   final String? suggestion;
 

@@ -13,11 +13,12 @@
 // limitations under the License.
 
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:shared/shared.dart';
 
+import '../model/analysis_draft.dart';
 import '../model/applier.dart';
-import '../model/suggestion_draft.dart';
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
 import '../model/triage_service.dart';
@@ -25,26 +26,26 @@ import 'chip_list_field.dart';
 import 'item_info.dart';
 import 'item_log.dart';
 import 'label_colors.dart';
-import 'remove_list_field.dart';
+import 'links.dart';
 import 'triage_scope.dart';
 
-/// The triage suggestion for [item], which the triager edits and applies:
+/// The triage analysis of [item], which the triager edits and applies:
 /// the reply, how to close the item, its priority, labels, assignees and
 /// milestone. Shows the steps of the last apply if it failed, and
-/// **Revert** at the bottom.
+/// **Revert** at the bottom. Nothing can be edited while the item applies.
 ///
 /// The edits are kept in the controller's draft for [item], which starts as
 /// [initial]. The details show the summary, reason and suggestion of the
 /// draft next to the editor, in [ItemInfo].
-class SuggestionEditor extends StatelessWidget {
-  const SuggestionEditor({
+class AnalysisEditor extends StatelessWidget {
+  const AnalysisEditor({
     super.key,
     required this.item,
-    this.initial = const TriageSuggestion(),
+    this.initial = const TriageAnalysis(),
   });
 
   final TriageItem item;
-  final TriageSuggestion initial;
+  final TriageAnalysis initial;
 
   /// The value of the close choice that keeps the item open.
   static const String _keepOpen = 'open';
@@ -52,41 +53,24 @@ class SuggestionEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
-    final SuggestionDraft draft = controller.draftFor(item, initial);
+    final AnalysisDraft draft = controller.draftFor(item, initial);
     return ListenableBuilder(
       listenable: draft,
       builder: (context, _) {
         final bool applying = controller.isApplying(item.ref);
+        final bool enabled = !applying;
         final ApplyResult? result = controller.lastResult(item.ref);
         final RepositoryInfo info = controller.repositoryInfo(item.repository);
         LabelColors? colorsOf(String name) =>
             labelColors(info.labelColors[name]);
-        final List<String> milestones = [
-          for (final String m in info.milestones.keys)
-            if (m != item.milestone) m,
-        ];
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 16,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 8,
-              children: [
-                // Posted before the reply, as the reply's heading.
-                if (draft.addedLabels.contains(needsTeamInputLabel))
-                  const Text(teamNoteTitle),
-                TextField(
-                  controller: draft.reply,
-                  minLines: 2,
-                  maxLines: 10,
-                  decoration: const InputDecoration(
-                    labelText: 'Reply',
-                    border: OutlineInputBorder(),
-                    alignLabelWithHint: true,
-                  ),
-                ),
-              ],
+            _ReplyField(
+              key: ValueKey(item.ref),
+              draft: draft,
+              enabled: enabled,
             ),
             Wrap(
               spacing: 16,
@@ -135,10 +119,12 @@ class SuggestionEditor extends StatelessWidget {
                     else
                       draft.closeAs ?? _keepOpen,
                   },
-                  onSelectionChanged: (Set<String> selected) {
-                    final String value = selected.single;
-                    draft.closeAs = value == _keepOpen ? null : value;
-                  },
+                  onSelectionChanged: enabled
+                      ? (Set<String> selected) {
+                          final String value = selected.single;
+                          draft.closeAs = value == _keepOpen ? null : value;
+                        }
+                      : null,
                 ),
                 if (draft.closeAs == TriageCloseReason.duplicate &&
                     !item.isPullRequest)
@@ -146,6 +132,7 @@ class SuggestionEditor extends StatelessWidget {
                     width: 180,
                     child: TextField(
                       controller: draft.duplicateOf,
+                      enabled: enabled,
                       keyboardType: TextInputType.number,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: const InputDecoration(
@@ -157,75 +144,72 @@ class SuggestionEditor extends StatelessWidget {
                   ),
               ],
             ),
-            _PriorityField(item: item, draft: draft),
+            _PriorityField(item: item, draft: draft, enabled: enabled),
             ChipListField(
-              label: 'Add labels',
+              label: 'Labels',
+              chooseTooltip: 'Choose labels',
+              enabled: enabled,
               colorsOf: colorsOf,
-              chooseTooltip: 'Choose labels to add',
-              // The priority has a field of its own.
-              values: _withoutPriorities(draft.addedLabels),
+              // The priority has a field of its own, and apply always
+              // removes `status: needs-triage`.
+              current: _shownLabels(item.labels),
+              added: _withoutPriorities(draft.addedLabels),
+              removed: _shownLabels(draft.removedLabels),
+              fixedRemovals: [
+                if (item.labels.contains(needsTriageLabel)) needsTriageLabel,
+              ],
               // `status: needs-team-input` comes first, since the triager
               // adds it to every item they cannot triage.
               options: _withoutPriorities([
-                for (final String label in [
-                  if (info.labels.contains(needsTeamInputLabel))
-                    needsTeamInputLabel,
-                  ...info.labels.where((l) => l != needsTeamInputLabel),
-                ])
-                  if (!item.labels.contains(label)) label,
+                if (info.labels.contains(needsTeamInputLabel))
+                  needsTeamInputLabel,
+                ...info.labels.where((l) => l != needsTeamInputLabel),
               ]),
-              onChanged: (List<String> v) => draft.addedLabels = [
-                ...v,
-                ..._onlyPriorities(draft.addedLabels),
-              ],
-            ),
-            if (_shownLabels(item.labels).isNotEmpty)
-              ChipListField(
-                label: 'Remove labels',
-                colorsOf: colorsOf,
-                chooseTooltip: 'Choose labels to remove',
-                deleteTooltip: (String name) => 'Keep $name',
-                values: _shownLabels(draft.removedLabels),
-                options: _shownLabels(item.labels),
-                onChanged: (List<String> v) => draft.removedLabels = [
+              onChanged: (ChipListChange change) => draft
+                ..addedLabels = [
+                  ...change.added,
+                  ..._onlyPriorities(draft.addedLabels),
+                ]
+                ..removedLabels = [
                   ..._hiddenLabels(draft.removedLabels),
-                  ...v,
+                  ...change.removed,
                 ],
-              ),
+            ),
             ChipListField(
-              label: 'Assign',
-              chooseTooltip: 'Choose people to assign',
-              values: draft.newAssignees,
-              options: info.assignableUsers,
-              onChanged: (List<String> v) => draft.newAssignees = v,
-            ),
-            RemoveListField(
-              label: 'Unassign',
-              names: item.assignees,
+              label: 'Assignees',
+              chooseTooltip: 'Choose assignees',
+              enabled: enabled,
+              current: item.assignees,
+              added: draft.newAssignees,
               removed: draft.removedAssignees,
-              onChanged: (List<String> v) => draft.removedAssignees = v,
+              options: info.assignableUsers,
+              onChanged: (ChipListChange change) => draft
+                ..newAssignees = change.added
+                ..removedAssignees = change.removed,
             ),
-            if (milestones.isNotEmpty || draft.newMilestone != null)
-              ChipListField(
-                label: 'Set milestone',
-                chooseTooltip: 'Choose the milestone',
-                single: true,
-                values: [?draft.newMilestone],
-                options: milestones,
-                onChanged: (List<String> v) =>
-                    draft.newMilestone = v.firstOrNull,
-              ),
-            RemoveListField(
-              label: 'Remove milestone',
-              names: [?item.milestone],
+            ChipListField(
+              label: 'Milestone',
+              chooseTooltip: 'Choose the milestone',
+              single: true,
+              enabled: enabled,
+              current: [?item.milestone],
+              added: [?draft.newMilestone],
               removed: [?draft.removedMilestone],
-              onChanged: (List<String> v) =>
-                  draft.removedMilestone = v.firstOrNull,
+              options: info.milestones.keys.toList(),
+              onChanged: (ChipListChange change) {
+                final String? set = change.added.firstOrNull;
+                draft
+                  ..newMilestone = set
+                  // Setting a milestone replaces the item's.
+                  ..removedMilestone = set == null
+                      ? change.removed.firstOrNull
+                      : null;
+              },
             ),
             if (result != null && !result.succeeded && !applying)
               _FailedApply(result),
             Tooltip(
-              message: 'Undo your changes to this suggestion',
+              message: 'Undo your changes to this analysis',
               child: TextButton(
                 onPressed: draft.isEdited && !applying
                     ? () => controller.revert([item])
@@ -236,6 +220,87 @@ class SuggestionEditor extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// The reply, with a toggle between writing it and previewing it as GitHub
+/// shows a comment, and a line that says what apply posts it under.
+class _ReplyField extends StatefulWidget {
+  const _ReplyField({super.key, required this.draft, required this.enabled});
+
+  final AnalysisDraft draft;
+  final bool enabled;
+
+  @override
+  State<_ReplyField> createState() => _ReplyFieldState();
+}
+
+class _ReplyFieldState extends State<_ReplyField> {
+  bool _preview = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final AnalysisDraft draft = widget.draft;
+    final ThemeData theme = Theme.of(context);
+    final String heading = draft.addedLabels.contains(needsTeamInputLabel)
+        ? teamNoteTitle
+        : 'From triage:';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 8,
+      children: [
+        SegmentedButton<bool>(
+          showSelectedIcon: false,
+          style: const ButtonStyle(visualDensity: VisualDensity.compact),
+          segments: const [
+            ButtonSegment(value: false, label: Text('Write')),
+            ButtonSegment(value: true, label: Text('Preview')),
+          ],
+          selected: {_preview},
+          onSelectionChanged: (Set<bool> selected) =>
+              setState(() => _preview = selected.single),
+        ),
+        if (_preview)
+          InputDecorator(
+            decoration: const InputDecoration(
+              labelText: 'Reply',
+              border: OutlineInputBorder(),
+            ),
+            child: draft.reply.text.trim().isEmpty
+                ? Text(
+                    'Nothing to preview',
+                    style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                  )
+                : MarkdownBody(
+                    data: draft.reply.text,
+                    // As GitHub shows a comment: a line break starts a new
+                    // line.
+                    softLineBreak: true,
+                    onTapLink: (String text, String? href, String title) {
+                      if (href != null) openUrl(href);
+                    },
+                  ),
+          )
+        else
+          TextField(
+            controller: draft.reply,
+            enabled: widget.enabled,
+            minLines: 2,
+            maxLines: 10,
+            decoration: const InputDecoration(
+              labelText: 'Reply',
+              border: OutlineInputBorder(),
+              alignLabelWithHint: true,
+            ),
+          ),
+        Text(
+          'Apply posts the reply under "$heading"',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -253,8 +318,9 @@ List<String> _onlyPriorities(List<String> labels) => [
     if (_priorities.contains(l)) l,
 ];
 
-/// Whether **Remove labels** leaves out [label]: the priority has a field of
-/// its own, and apply always removes `status: needs-triage`.
+/// Whether the **Labels** field leaves out [label] as one the triager
+/// changes: the priority has a field of its own, and apply always removes
+/// `status: needs-triage`.
 bool _isHidden(String label) =>
     _priorities.contains(label) || label == needsTriageLabel;
 
@@ -285,10 +351,15 @@ const Map<String, String> _priorityMeanings = {
 /// removes the item's other priority labels. Unselecting it removes all of
 /// them.
 class _PriorityField extends StatelessWidget {
-  const _PriorityField({required this.item, required this.draft});
+  const _PriorityField({
+    required this.item,
+    required this.draft,
+    required this.enabled,
+  });
 
   final TriageItem item;
-  final SuggestionDraft draft;
+  final AnalysisDraft draft;
+  final bool enabled;
 
   /// The priority that the item has once the draft is applied.
   String? get _priority {
@@ -337,8 +408,9 @@ class _PriorityField extends StatelessWidget {
               ),
           ],
           selected: {?priority},
-          onSelectionChanged: (Set<String> selected) =>
-              _select(selected.firstOrNull),
+          onSelectionChanged: enabled
+              ? (Set<String> selected) => _select(selected.firstOrNull)
+              : null,
         ),
       ],
     );

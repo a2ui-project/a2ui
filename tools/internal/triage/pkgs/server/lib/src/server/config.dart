@@ -75,9 +75,17 @@ final class ServerConfig {
       throw ConfigException('PUBLIC_URL is not an http(s) URL: $publicUrl');
     }
 
+    // Cloud Run sets K_SERVICE, and sends requests from outside the
+    // container. Elsewhere, only this computer can reach the server.
+    final bool onCloudRun = env.containsKey('K_SERVICE');
+
     final List<int> sessionKey;
     if (read('SESSION_SECRET') case final String secret) {
       sessionKey = sha256.convert(utf8.encode(secret)).bytes;
+    } else if (onCloudRun) {
+      // Each instance would make its own key, and a sign-in that starts on
+      // one instance and comes back to another would fail.
+      throw const ConfigException('Set SESSION_SECRET on Cloud Run.');
     } else {
       final random = Random.secure();
       sessionKey = [for (var i = 0; i < 32; i++) random.nextInt(256)];
@@ -103,9 +111,7 @@ final class ServerConfig {
         sessionKey: sessionKey,
         oauthClientId: clientId,
         oauthClientSecret: read('GITHUB_OAUTH_CLIENT_SECRET'),
-        // Cloud Run sets K_SERVICE, and sends requests from outside the
-        // container. Elsewhere, only this computer can reach the server.
-        listenOnAllInterfaces: env.containsKey('K_SERVICE'),
+        listenOnAllInterfaces: onCloudRun,
       ),
       warnings: warnings,
     );

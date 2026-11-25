@@ -17,6 +17,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:shared/shared.dart';
 import 'package:ui/src/github/browser.dart';
 import 'package:ui/src/github/github_access.dart';
 
@@ -245,6 +246,80 @@ void main() {
       expect(access.login, 'ann');
       await access.client().rest('GET', 'user');
       expect(requests.last.url.toString(), 'https://api.github.com/user');
+    });
+
+    test('signs out without reloading', () async {
+      final access = GitHubAccess(
+        page: null,
+        browser: browser,
+        httpClient: fakeClient(),
+        presetToken: 'good',
+      );
+      await access.check();
+      final GitHubClient client = access.client();
+
+      await access.signOut();
+      expect(access.state, SignInState.signedOut);
+      expect(browser.reloads, 0);
+      expect(access.client, throwsA(isA<GitHubException>()));
+      await expectLater(
+        client.rest('GET', 'user'),
+        throwsA(isA<GitHubException>()),
+      );
+      expect(requests, isEmpty);
+    });
+  });
+
+  group('when GitHub stops accepting the sign-in', () {
+    test('shows the sign-in, and goes on with the next token', () async {
+      browser.token = 'revoked';
+      final access = GitHubAccess(
+        page: _page,
+        browser: browser,
+        httpClient: fakeClient(),
+      );
+      await access.check();
+      expect(access.state, SignInState.signedIn);
+      final GitHubClient client = access.client();
+
+      await expectLater(
+        client.rest('GET', 'user'),
+        throwsA(
+          isA<GitHubException>().having((e) => e.statusCode, 'status', 401),
+        ),
+      );
+      expect(access.state, SignInState.signedOut);
+      expect(access.error, contains('Sign in again'));
+      expect(browser.token, isNull);
+      expect(browser.reloads, 0);
+
+      await access.useToken('good');
+      expect(access.state, SignInState.signedIn);
+      expect(await client.rest('GET', 'user'), {'login': 'ann'});
+      expect(requests.last.headers['Authorization'], 'Bearer good');
+    });
+
+    test('shows the sign-in when the server session ends', () async {
+      final access = GitHubAccess(
+        page: _page,
+        browser: browser,
+        httpClient: MockClient((request) async {
+          return switch (request.url.path) {
+            '/auth/status' => http.Response(
+              jsonEncode({'oauth': true, 'signedIn': true, 'login': 'ann'}),
+              200,
+            ),
+            _ => http.Response(jsonEncode({'message': 'Sign in again.'}), 401),
+          };
+        }),
+      );
+      await access.check();
+      await expectLater(
+        access.client().rest('GET', 'user'),
+        throwsA(isA<GitHubException>()),
+      );
+      expect(access.state, SignInState.signedOut);
+      expect(access.canSignInWithGitHub, isTrue);
     });
   });
 }

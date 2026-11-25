@@ -16,7 +16,7 @@
 /// UI.
 ///
 /// The triage bot does not suggest milestones, so the change is not part of a
-/// `TriageSuggestion`.
+/// `TriageAnalysis`.
 final class MilestoneChange {
   const MilestoneChange({this.set, this.remove});
 

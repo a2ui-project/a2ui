@@ -8,5 +8,6 @@
   "black-formatter.path": ["pyink"],
   "[dart]": {
     "editor.defaultFormatter": "Dart-Code.dart-code"
-  }
+  },
+  "markdown.validate.enabled": true
 }

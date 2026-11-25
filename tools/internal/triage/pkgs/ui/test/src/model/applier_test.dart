@@ -36,14 +36,14 @@ void main() {
 
   Future<ApplyResult> apply(
     int number,
-    TriageSuggestion suggestion, {
+    TriageAnalysis analysis, {
     bool replyPosted = false,
     void Function()? onReplyPosted,
     MilestoneChange milestone = MilestoneChange.none,
   }) => applySuggestion(
     github.service(),
     item(number),
-    suggestion,
+    analysis,
     replyPosted: replyPosted,
     onReplyPosted: onReplyPosted ?? () {},
     milestone: milestone,
@@ -54,7 +54,7 @@ void main() {
     var replied = false;
     final ApplyResult result = await apply(
       12,
-      const TriageSuggestion(
+      const TriageAnalysis(
         reply: 'Thanks!',
         closeAs: TriageCloseReason.duplicate,
         duplicateOf: 7,
@@ -100,7 +100,7 @@ void main() {
       '"status: needs-team-input"', () async {
     final ApplyResult result = await apply(
       13,
-      const TriageSuggestion(
+      const TriageAnalysis(
         reply: 'Is this a P0?',
         addedLabels: [needsTeamInputLabel],
       ),
@@ -119,7 +119,7 @@ void main() {
   test('closes a pull request without a reason', () async {
     final ApplyResult result = await apply(
       13,
-      const TriageSuggestion(closeAs: TriageCloseReason.notPlanned),
+      const TriageAnalysis(closeAs: TriageCloseReason.notPlanned),
     );
 
     expect(result.steps.single.description, 'Close');
@@ -131,7 +131,7 @@ void main() {
 
     final ApplyResult result = await apply(
       12,
-      const TriageSuggestion(
+      const TriageAnalysis(
         newAssignees: ['octocat', 'stranger'],
         closeAs: TriageCloseReason.completed,
       ),
@@ -151,7 +151,7 @@ void main() {
 
     final ApplyResult result = await apply(
       12,
-      const TriageSuggestion(reply: 'Hi', addedLabels: ['P1']),
+      const TriageAnalysis(reply: 'Hi', addedLabels: ['P1']),
     );
 
     expect(result.steps.map((StepResult s) => s.status), [
@@ -164,7 +164,7 @@ void main() {
   test('does not post a reply that was posted', () async {
     final ApplyResult result = await apply(
       12,
-      const TriageSuggestion(reply: 'Hi', addedLabels: ['P1']),
+      const TriageAnalysis(reply: 'Hi', addedLabels: ['P1']),
       replyPosted: true,
     );
 
@@ -176,7 +176,7 @@ void main() {
   test('sets a milestone, which replaces the old one', () async {
     final ApplyResult result = await apply(
       14,
-      const TriageSuggestion(),
+      const TriageAnalysis(),
       milestone: const MilestoneChange(
         set: 'December launch',
         remove: 'November launch',
@@ -193,12 +193,12 @@ void main() {
   test('removes the milestone, if the item still has it', () async {
     final ApplyResult removed = await apply(
       14,
-      const TriageSuggestion(),
+      const TriageAnalysis(),
       milestone: const MilestoneChange(remove: 'November launch'),
     );
     final ApplyResult skipped = await apply(
       12,
-      const TriageSuggestion(),
+      const TriageAnalysis(),
       milestone: const MilestoneChange(remove: 'November launch'),
     );
 
@@ -210,7 +210,7 @@ void main() {
   test('fails to set a milestone that is not open', () async {
     final ApplyResult result = await apply(
       12,
-      const TriageSuggestion(),
+      const TriageAnalysis(),
       milestone: const MilestoneChange(set: 'Long ago'),
     );
 

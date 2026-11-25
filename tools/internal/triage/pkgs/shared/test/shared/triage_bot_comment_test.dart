@@ -17,7 +17,7 @@ import 'package:test/test.dart';
 
 void main() {
   test('recognizes the triage bot prefix', () {
-    expect(hasTriageBotPrefix('**From triage bot, suggestion:**\n'), isTrue);
+    expect(hasTriageBotPrefix('**From triage bot, analysis:**\n'), isTrue);
     expect(hasTriageBotPrefix('  **From triage bot, ping:** @a'), isTrue);
     expect(
       hasTriageBotPrefix('Thanks!\n**From triage bot, response:**'),
@@ -34,7 +34,7 @@ void main() {
   });
 
   group('isTriageBotComment', () {
-    const body = '**From triage bot, suggestion:**\n\nNeeds a priority.';
+    const body = '**From triage bot, analysis:**\n\nNeeds a priority.';
 
     test('is true for a team member', () {
       for (final String association in teamAssociations) {

@@ -24,7 +24,7 @@ import 'triage_scope.dart';
 
 /// What the tool did to [item] in this session, newest first: each apply
 /// with its steps, errors and posted texts, and each refresh that reset the
-/// suggestion.
+/// analysis.
 class ItemLog extends StatelessWidget {
   const ItemLog({super.key, required this.item});
 

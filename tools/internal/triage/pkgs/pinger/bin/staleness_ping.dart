@@ -35,31 +35,25 @@
 // maps GitHub logins to Google accounts.
 //
 // It exits with 1 if a ping or a message fails, and with 2 for wrong
-// arguments or settings.
+// arguments or settings, a missing token, or a messages file it cannot
+// write.
 
 import 'dart:io';
 
 import 'package:pinger/pinger.dart';
 import 'package:shared/shared.dart';
 
-const String _usage =
-    'Usage: dart run tools/internal/triage/pkgs/pinger/bin/staleness_ping.dart '
-    '[--dry-run] [--messages <file>]';
-
 Future<void> main(List<String> args) async {
-  var dryRun = false;
-  String? messagesPath;
-  for (var i = 0; i < args.length; i++) {
-    switch (args[i]) {
-      case '--dry-run':
-        dryRun = true;
-      case '--messages' when i + 1 < args.length:
-        messagesPath = args[++i];
-      default:
-        stderr.writeln(_usage);
-        exitCode = 2;
-        return;
-    }
+  final bool dryRun;
+  final String? messagesPath;
+  try {
+    (:dryRun, :messagesPath) = parsePingArgs(args);
+  } on FormatException catch (e) {
+    stderr
+      ..writeln(e.message)
+      ..writeln(pingUsage);
+    exitCode = 2;
+    return;
   }
   final Map<String, String> env = Platform.environment;
 
@@ -72,9 +66,25 @@ Future<void> main(List<String> args) async {
     return;
   }
 
-  final JsonLinesOutbox? outbox = messagesPath == null || dryRun
-      ? null
-      : JsonLinesOutbox(File(messagesPath));
+  final String token;
+  try {
+    token = await findGitHubToken();
+  } on GitHubException catch (e) {
+    stderr.writeln(e.message);
+    exitCode = 2;
+    return;
+  }
+
+  final JsonLinesOutbox? outbox;
+  try {
+    outbox = messagesPath == null || dryRun
+        ? null
+        : JsonLinesOutbox(File(messagesPath));
+  } on FileSystemException catch (e) {
+    stderr.writeln('Cannot write the direct messages: $e');
+    exitCode = 2;
+    return;
+  }
   if (!dryRun) {
     if (messagesPath == null) {
       stdout.writeln('No --messages file, so no direct messages are written.');
@@ -86,7 +96,7 @@ Future<void> main(List<String> args) async {
   }
 
   final String repository = env['GITHUB_REPOSITORY'] ?? a2uiRepository;
-  final client = GitHubClient(token: await findGitHubToken());
+  final client = GitHubClient(token: token);
   try {
     final PingRun run = await pingStaleItems(
       RestPingerGitHub(client, repository),

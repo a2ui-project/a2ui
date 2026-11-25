@@ -17,6 +17,7 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 
 import '../github/github_access.dart';
+import '../model/triage_controller.dart';
 import 'triage_scope.dart';
 
 /// Shows the sign-in until the triager is signed in to GitHub, and then
@@ -32,7 +33,8 @@ class SignInGate extends StatefulWidget {
 }
 
 class _SignInGateState extends State<SignInGate> {
-  bool _started = false;
+  /// Whether a start is scheduled or running.
+  bool _starting = false;
 
   @override
   void initState() {
@@ -52,11 +54,27 @@ class _SignInGateState extends State<SignInGate> {
     setState(() {});
   }
 
+  /// Loads the items once the triager is signed in. After the triager signs
+  /// in again, as when GitHub stopped accepting the token, the controller
+  /// keeps its items, and only the error of the rejected call goes away.
   void _startIfSignedIn() {
-    if (!_started && widget.access.state == SignInState.signedIn) {
-      _started = true;
-      unawaited(TriageScope.read(context).start());
-    }
+    if (_starting || widget.access.state != SignInState.signedIn) return;
+    _starting = true;
+    // Starting notifies the controller's listeners, which must not happen
+    // while a frame is being built, as the first one is during initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!mounted) return;
+        final TriageController controller = TriageScope.read(context);
+        if (controller.isConnected) {
+          controller.dismissError();
+        } else {
+          await controller.start();
+        }
+      } finally {
+        _starting = false;
+      }
+    });
   }
 
   @override

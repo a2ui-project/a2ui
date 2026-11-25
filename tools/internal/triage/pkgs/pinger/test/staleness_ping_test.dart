@@ -75,8 +75,11 @@ final class FakeGitHub implements PingerGitHub {
     this.itemComments = const {},
     this.itemEvents = const {},
     this.fresh = const {},
+    this.freshComments = const {},
     this.association = 'MEMBER',
+    this.poster = member,
     this.unreadable = const {},
+    this.unreadableFresh = const {},
     this.failing = const {},
     this.deleteFails = false,
   }) : _items = {for (final item in items) item.number: item};
@@ -88,11 +91,23 @@ final class FakeGitHub implements PingerGitHub {
   /// What [item] returns, by number, where it differs from the listing.
   final Map<int, Item> fresh;
 
+  /// What [comments] returns, by number, once [item] has read the item:
+  /// the comments posted since the listing.
+  final Map<int, List<Contribution>> freshComments;
+
   /// The author association of the comments it posts.
   final String association;
 
+  /// The author of the comments it posts.
+  final User poster;
+
   /// The items whose comments fail to load.
   final Set<int> unreadable;
+
+  /// The items whose comments fail to load once [item] has read the item.
+  final Set<int> unreadableFresh;
+
+  final Set<int> _read = {};
 
   /// The items on which posting a comment fails.
   final Set<int> failing;
@@ -109,14 +124,19 @@ final class FakeGitHub implements PingerGitHub {
   Future<List<Item>> openItems() async => _items.values.toList();
 
   @override
-  Future<Item> item(int number) async => fresh[number] ?? _items[number]!;
+  Future<Item> item(int number) async {
+    _read.add(number);
+    return fresh[number] ?? _items[number]!;
+  }
 
   @override
   Future<List<Contribution>> comments(int number) async {
-    if (unreadable.contains(number)) {
+    final bool read = _read.contains(number);
+    if (unreadable.contains(number) ||
+        (read && unreadableFresh.contains(number))) {
       throw const GitHubException('GitHub answered 502');
     }
-    return itemComments[number] ?? const [];
+    return [...?itemComments[number], if (read) ...?freshComments[number]];
   }
 
   @override
@@ -138,6 +158,7 @@ final class FakeGitHub implements PingerGitHub {
     return PostedComment(
       id: posted.length,
       association: association,
+      user: poster,
       htmlUrl:
           'https://github.com/a2ui-project/a2ui/issues/$number'
           '#issuecomment-${posted.length}',
@@ -259,19 +280,33 @@ void main() {
       final github = FakeGitHub(
         [issue(createdDaysAgo: 100, comments: 2)],
         itemComments: {
-          1: [pingComment(StaleCase.p1Inactive, 60), memberComment(40)],
+          1: [pingComment(StaleCase.p1Inactive, 60), memberComment(33)],
         },
       );
       await run(github);
 
-      expect(github.posted.single.body, contains('for 40 days'));
+      expect(github.posted.single.body, contains('for 33 days'));
+    });
+
+    // The flagger flags such an item at once, so a ping that gives the
+    // assignees a grace period would not hold.
+    test('leaves an item that nobody pinged before it was overdue to the '
+        'flagger', () async {
+      const StaleCase staleCase = StaleCase.p1Inactive;
+      final github = FakeGitHub([
+        issue(createdDaysAgo: staleCase.days + staleCase.graceDays + 1),
+      ]);
+      final Run r = await run(github);
+
+      expect(github.posted, isEmpty);
+      expect(r.result.due, 0);
     });
 
     test('pings for the current case only', () async {
       // A ping for another case does not count.
       final github = FakeGitHub(
         [
-          issue(labels: ['P0'], createdDaysAgo: 3, comments: 1),
+          issue(labels: ['P0'], createdDaysAgo: 1.5, comments: 1),
         ],
         itemComments: {
           1: [pingComment(StaleCase.p1Inactive, 1)],
@@ -351,6 +386,82 @@ void main() {
 
       expect(github.posted, isEmpty);
       expect(r.log, contains('Skipped'));
+    });
+
+    // Two triagers can run the triage bot at the same time.
+    test('skips an item that another run pinged since the listing', () async {
+      final github = FakeGitHub(
+        [issue()],
+        fresh: {1: issue(comments: 1)},
+        freshComments: {
+          1: [pingComment(StaleCase.p1Inactive, 0)],
+        },
+      );
+      final outbox = FakeOutbox();
+      final Run r = await run(
+        github,
+        outbox: outbox,
+        chatUsers: {'dev': 'dev@google.com'},
+      );
+
+      expect(github.posted, isEmpty);
+      expect(outbox.messages, isEmpty);
+      expect(r.log, contains('Skipped'));
+      expect(r.result, (due: 1, pinged: 0, failed: 0));
+    });
+
+    test('skips an item that the team answered since the listing', () async {
+      final github = FakeGitHub(
+        [issue()],
+        fresh: {1: issue(comments: 1)},
+        freshComments: {
+          1: [memberComment(0)],
+        },
+      );
+      final Run r = await run(github);
+
+      expect(github.posted, isEmpty);
+      expect(r.log, contains('Skipped'));
+    });
+
+    test('counts an item as failed when its history fails to load again '
+        'before the ping', () async {
+      final github = FakeGitHub(
+        [issue()],
+        fresh: {1: issue(comments: 1)},
+        unreadableFresh: {1},
+      );
+      final Run r = await run(github);
+
+      expect(github.posted, isEmpty);
+      expect(r.errors, contains('Failed to fetch comments for #1'));
+      expect(r.result, (due: 1, pinged: 0, failed: 1));
+    });
+
+    test('keeps a title on one line, inside its link', () async {
+      final github = FakeGitHub([
+        issue(title: 'Crash |\r\n  *Fake* <https://x.test|link> end'),
+      ]);
+      final outbox = FakeOutbox();
+      await run(github, outbox: outbox, chatUsers: {'dev': 'dev@google.com'});
+
+      expect(
+        outbox.messages.single.text.split('\n').first,
+        '*From triage bot, ping:* '
+        '<https://github.com/a2ui-project/a2ui/issues/1|'
+        'Crash ｜ *Fake* &lt;https://x.test｜link&gt; end>',
+      );
+    });
+
+    test('finds Google accounts whatever the case of the login', () async {
+      final github = FakeGitHub([
+        issue(assignees: ['Dev']),
+      ]);
+      final outbox = FakeOutbox();
+      await run(github, outbox: outbox, chatUsers: {'dev': 'dev@google.com'});
+
+      expect(outbox.messages.single.login, 'Dev');
+      expect(outbox.messages.single.to, 'dev@google.com');
     });
 
     // Without its comments, an item can look stale, or unpinged.
@@ -439,6 +550,21 @@ void main() {
       expect(r.errors, contains('Failed to delete'));
       expect(r.result, (due: 2, pinged: 0, failed: 1));
     });
+
+    // A bot's comment with the prefix is a triage bot comment, as the flagger
+    // reads it.
+    test('keeps a ping posted by a bot', () async {
+      final github = FakeGitHub(
+        [issue()],
+        association: 'NONE',
+        poster: const User(login: 'triage-app[bot]', type: 'Bot'),
+      );
+      final Run r = await run(github);
+
+      expect(github.posted, hasLength(1));
+      expect(github.deleted, isEmpty);
+      expect(r.result, (due: 1, pinged: 1, failed: 0));
+    });
   });
 
   group('pingText', () {
@@ -473,6 +599,7 @@ void main() {
                       'id': 5,
                       'author_association': 'MEMBER',
                       'html_url': 'https://github.com/x#issuecomment-5',
+                      'user': {'login': 'triage-app[bot]', 'type': 'Bot'},
                     }),
                     201,
                   )
@@ -486,6 +613,7 @@ void main() {
       await github.deleteComment(posted.id);
 
       expect(posted.association, 'MEMBER');
+      expect(isBot(posted.user), isTrue);
       expect(requests.map((r) => '${r.method} ${r.url.path}'), [
         'POST /repos/a2ui-project/a2ui/issues/7/comments',
         'DELETE /repos/a2ui-project/a2ui/issues/comments/5',
@@ -506,9 +634,69 @@ void main() {
       expect(parseChatUsers('  '), isEmpty);
     });
 
+    // GitHub logins are not case-sensitive.
+    test('lowercases the logins and trims the accounts', () {
+      expect(parseChatUsers('{"OctoCat": " octocat@google.com "}'), {
+        'octocat': 'octocat@google.com',
+      });
+    });
+
     test('rejects anything else', () {
-      for (final json in ['[]', '{"dev": 1}', 'not json']) {
+      for (final json in [
+        '[]',
+        '{"dev": 1}',
+        '{"dev": null}',
+        '{"dev": ""}',
+        '{"dev": "  "}',
+        '{"dev": "dev"}',
+        'not json',
+      ]) {
         expect(() => parseChatUsers(json), throwsFormatException, reason: json);
+      }
+    });
+  });
+
+  group('parsePingArgs', () {
+    test('reads the options in any order', () {
+      expect(parsePingArgs([]), (dryRun: false, messagesPath: null));
+      expect(parsePingArgs(['--dry-run', '--messages', 'out.jsonl']), (
+        dryRun: true,
+        messagesPath: 'out.jsonl',
+      ));
+      expect(parsePingArgs(['--messages', 'out.jsonl', '--dry-run']), (
+        dryRun: true,
+        messagesPath: 'out.jsonl',
+      ));
+    });
+
+    // Otherwise `--messages "$messages" --dry-run`, with `$messages` unset,
+    // would take `--dry-run` as the file and post for real.
+    test('rejects --messages without a file', () {
+      for (final args in [
+        ['--messages'],
+        ['--messages', '--dry-run'],
+        ['--messages', '', '--dry-run'],
+        ['--messages', '-'],
+      ]) {
+        expect(
+          () => parsePingArgs(args),
+          throwsFormatException,
+          reason: '$args',
+        );
+      }
+    });
+
+    test('rejects unknown arguments', () {
+      for (final args in [
+        ['--dryrun'],
+        ['out.jsonl'],
+        ['--messages=out.jsonl'],
+      ]) {
+        expect(
+          () => parsePingArgs(args),
+          throwsFormatException,
+          reason: '$args',
+        );
       }
     });
   });

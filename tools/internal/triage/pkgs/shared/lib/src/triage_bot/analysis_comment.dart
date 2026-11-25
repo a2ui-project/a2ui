@@ -15,10 +15,10 @@
 import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 
-import 'suggestion.dart';
-import 'triage_suggestion.dart';
+import 'analysis.dart';
+import 'triage_analysis.dart';
 
-/// Whether [body] has an `<a2ui>` block, as a suggestion comment does.
+/// Whether [body] has an `<a2ui>` block, as an analysis comment does.
 bool hasA2uiBlock(String body) => _parser.hasFormatContent(body);
 
 final ExpressParser _parser = ExpressParser([triageCatalog]);
@@ -29,18 +29,18 @@ final PayloadValidator<ComponentApi, FunctionApi> _validator =
       protocolVersion: A2uiProtocolVersion.v1_0,
     );
 
-/// The suggestion in a suggestion comment, as A2UI messages and as values.
+/// The analysis in an analysis comment, as A2UI messages and as values.
 ///
-/// See `blueprints/features/triage_bot/suggestion.blueprint.md`.
-final class SuggestionPayload {
-  SuggestionPayload._(this.messages, this.suggestion);
+/// See `blueprints/features/triage_bot/analysis.blueprint.md`.
+final class AnalysisPayload {
+  AnalysisPayload._(this.messages, this.analysis);
 
-  /// Reads the `TriageSuggestion` component from the `<a2ui>` block of a
-  /// suggestion comment's [body].
+  /// Reads the `TriageAnalysis` component from the `<a2ui>` block of a
+  /// analysis comment's [body].
   ///
   /// Throws a [FormatException] that says what is wrong if [body] has no
-  /// block, or the block is not one valid `TriageSuggestion` component.
-  factory SuggestionPayload.parse(String body) {
+  /// block, or the block is not one valid `TriageAnalysis` component.
+  factory AnalysisPayload.parse(String body) {
     final List<RawA2uiPart> blocks = _parser
         .unwrap(body)
         .whereType<RawA2uiPart>()
@@ -70,28 +70,62 @@ final class SuggestionPayload {
         },
     ];
     if (components.length != 1 ||
-        components.single['component'] != TriageSuggestionProps.componentName) {
+        components.single['component'] != TriageAnalysisProps.componentName) {
       throw const FormatException(
-        'The <a2ui> block must hold exactly one TriageSuggestion component.',
+        'The <a2ui> block must hold exactly one TriageAnalysis component.',
       );
     }
     try {
       _validator.validateComponent(components.single);
     } on A2uiError catch (e) {
-      throw FormatException('The TriageSuggestion is not valid: ${e.message}');
+      throw FormatException('The TriageAnalysis is not valid: ${e.message}');
     }
+    _checkSurface(messages, components.single['id']);
 
     final Map<String, Object?> properties = {...components.single}
       ..remove('id');
-    return SuggestionPayload._(
-      List.unmodifiable(messages),
-      TriageSuggestion.fromProperties(properties),
+    final analysis = TriageAnalysis.fromProperties(properties);
+    if ((analysis.closeAs == TriageCloseReason.duplicate) !=
+        (analysis.duplicateOf != null)) {
+      throw const FormatException(
+        'The TriageAnalysis must have duplicate_of exactly when close_as is '
+        'duplicate.',
+      );
+    }
+    return AnalysisPayload._(List.unmodifiable(messages), analysis);
+  }
+
+  /// Checks that [messages] create one surface whose root is the component
+  /// with [id], as a renderer would build it. Compiling an `<a2ui>` block
+  /// that assigns the component to another name than `root`, for example,
+  /// updates components without creating a surface.
+  static void _checkSurface(List<AgentToRendererMessage> messages, Object? id) {
+    final processor = MessageProcessor<ComponentApi>.forAgent(
+      catalogs: [triageCatalog],
+      defaultVersion: A2uiProtocolVersion.v1_0,
     );
+    try {
+      processor.processMessages(messages);
+      final List<SurfaceModel<ComponentApi>> surfaces = processor
+          .model
+          .allSurfaces
+          .toList();
+      if (surfaces.length != 1 || surfaces.single.rootId != id) {
+        throw const FormatException(
+          'The <a2ui> block must create one surface with the TriageAnalysis '
+          'as its root.',
+        );
+      }
+    } on A2uiError catch (e) {
+      throw FormatException('The <a2ui> block does not render: ${e.message}');
+    } finally {
+      processor.dispose();
+    }
   }
 
   /// The messages that create a surface with the component as its root.
   final List<AgentToRendererMessage> messages;
 
   /// The values of the component.
-  final TriageSuggestion suggestion;
+  final TriageAnalysis analysis;
 }

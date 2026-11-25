@@ -50,8 +50,8 @@ void main() {
         linked: [20],
         comments: [
           commentNode(
-            suggestionComment(
-              'root = TriageSuggestion(tldr="""Case: a crash.\n'
+            analysisComment(
+              'root = TriageAnalysis(tldr="""Case: a crash.\n'
               'Suggestion: set P1.""", summary="""A crash on an **empty** '
               'Row.""", reason="Priority is not set.", '
               'suggestion="""Set P1 and assign octocat.""", '
@@ -132,7 +132,7 @@ void main() {
   Finder inList(String text) =>
       find.descendant(of: find.byType(ListTile), matching: find.text(text));
 
-  testWidgets('shows the queue, and the suggestion of the first item', (
+  testWidgets('shows the queue, and the analysis of the first item', (
     tester,
   ) async {
     await pumpApp(tester);
@@ -152,12 +152,12 @@ void main() {
     expect(find.byTooltip('Issue with open PRs'), findsOneWidget);
     expect(find.byTooltip('Issue without open PRs'), findsOneWidget);
     expect(find.byTooltip('PR with issues'), findsOneWidget);
-    expect(inList('suggestion'), findsNothing);
-    expect(inList('no suggestion'), findsNWidgets(2));
+    expect(inList('analysis'), findsNothing);
+    expect(inList('no analysis'), findsNWidgets(2));
     expect(inList('PR #20'), findsOneWidget);
     expect(inList('issue #10'), findsOneWidget);
 
-    // The suggestion, rendered by the TriageSuggestion component.
+    // The analysis, rendered by the TriageAnalysis component.
     // The TL;DR keeps its line break, as GitHub shows it.
     expect(find.text('TL;DR'), findsOneWidget);
     expect(find.text('Case: a crash.\nSuggestion: set P1.'), findsOneWidget);
@@ -188,11 +188,12 @@ void main() {
     expect(priorityOf(tester), {'P1'});
     expect(find.widgetWithText(InputChip, 'P1'), findsNothing);
     expect(find.widgetWithText(InputChip, 'octocat'), findsOneWidget);
-    // Item 10 has only `status: needs-triage`, which apply removes without
-    // showing it, and no assignee or milestone.
-    expect(find.text('Remove labels'), findsNothing);
-    expect(find.text('Unassign'), findsNothing);
-    expect(find.text('Remove milestone'), findsNothing);
+    // Item 10 has only `status: needs-triage`, which apply removes whatever
+    // the triager does, so it is struck through and cannot be kept.
+    expect(find.byTooltip('Apply removes $needsTriageLabel'), findsOneWidget);
+    expect(find.byTooltip('Keep $needsTriageLabel'), findsNothing);
+    // The assignee to add is marked as added.
+    expect(find.byTooltip('Apply adds octocat'), findsOneWidget);
     expect(find.widgetWithText(ActionChip, '#1234'), findsOneWidget);
     // PR #20 is linked to close the issue, so it has only the GitHub link.
     expect(
@@ -257,7 +258,7 @@ void main() {
     expect(inList('needs team input'), findsNothing);
   });
 
-  testWidgets('applies the edited suggestion and moves to the next item', (
+  testWidgets('applies the edited analysis and moves to the next item', (
     tester,
   ) async {
     await pumpApp(tester);
@@ -338,8 +339,8 @@ void main() {
     expect(find.text('Issues with open PRs (0/1)'), findsOneWidget);
   });
 
-  testWidgets('removes labels from the dropdown, assignees and the milestone '
-      'with checkboxes, and clears the priority', (tester) async {
+  testWidgets('removes labels from the dropdown, an assignee and the '
+      'milestone with their chips, and clears the priority', (tester) async {
     github.items[10]!
       ..['labels'] = {
         'nodes': [
@@ -357,8 +358,8 @@ void main() {
     await pumpApp(tester);
 
     // The priority and `status: needs-triage` are not among the labels to
-    // remove; apply removes `status: needs-triage` anyway.
-    await tester.tap(find.byTooltip('Choose labels to remove').first);
+    // choose; apply removes `status: needs-triage` anyway.
+    await tester.tap(find.byTooltip('Choose labels').first);
     await tester.pumpAndSettle();
     expect(find.widgetWithText(MenuItemButton, 'type: bug'), findsOneWidget);
     expect(find.widgetWithText(MenuItemButton, 'P2'), findsNothing);
@@ -417,7 +418,7 @@ void main() {
     await pumpApp(tester);
 
     // The dropdown shows a dot of the label's color.
-    await tester.tap(find.byTooltip('Choose labels to add').first);
+    await tester.tap(find.byTooltip('Choose labels').first);
     await tester.pumpAndSettle();
     expect(
       find.descendant(
@@ -472,7 +473,7 @@ void main() {
       ))
         text.data!,
     ];
-    await tester.tap(find.byTooltip('Choose labels to add').first);
+    await tester.tap(find.byTooltip('Choose labels').first);
     await tester.pumpAndSettle();
     // The priorities have a field of their own, and
     // `status: needs-team-input` comes first.
@@ -495,7 +496,7 @@ void main() {
     // Opened again, the dropdown lists the checked label first.
     await tester.tapAt(Offset.zero);
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Choose labels to add').first);
+    await tester.tap(find.byTooltip('Choose labels').first);
     await tester.pumpAndSettle();
     expect(choices(), ['type: bug', needsTeamInputLabel, 'area: docs']);
   });
@@ -521,7 +522,7 @@ void main() {
     // Another field has the cursor when the triager opens the dropdown.
     await tester.tap(find.widgetWithText(TextField, 'Reply').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Choose labels to add').first);
+    await tester.tap(find.byTooltip('Choose labels').first);
     await tester.pumpAndSettle();
     expect(filter(), findsOneWidget);
     // The cursor is in the search field, so the triager can type right away.
@@ -555,7 +556,7 @@ void main() {
     // Closing the dropdown clears the filter.
     await tester.tapAt(Offset.zero);
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Choose labels to add').first);
+    await tester.tap(find.byTooltip('Choose labels').first);
     await tester.pumpAndSettle();
     expect(find.byType(MenuItemButton), findsNWidgets(8));
   }, variant: TargetPlatformVariant.desktop());
@@ -566,20 +567,20 @@ void main() {
     controller
       ..draftFor(
         controller.item(a2ui(10))!,
-        const TriageSuggestion(
+        const TriageAnalysis(
           addedLabels: [needsTeamInputLabel],
           reply: 'Is this a P0?',
         ),
       )
       ..draftFor(
         controller.item(a2ui(20))!,
-        const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
+        const TriageAnalysis(addedLabels: [needsTeamInputLabel]),
       )
       ..select(a2ui(10));
     await tester.pumpAndSettle();
 
-    // The prefix that Apply adds to the reply shows above it.
-    expect(find.text(teamNoteTitle), findsOneWidget);
+    // The heading that Apply posts the reply under shows below it.
+    expect(find.textContaining(teamNoteTitle), findsOneWidget);
 
     await tester.tap(find.widgetWithText(FilledButton, 'Apply to 2 items'));
     await tester.pump();
@@ -643,7 +644,7 @@ void main() {
     Future<void> addBugLabelToThePr() async {
       await tester.tap(find.widgetWithText(Tab, '#20'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Choose labels to add'));
+      await tester.tap(find.byTooltip('Choose labels'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(MenuItemButton, 'type: bug'));
       await tester.tapAt(Offset.zero);
@@ -654,7 +655,7 @@ void main() {
     expect(edited, findsOneWidget);
     expect(find.widgetWithText(InputChip, 'type: bug'), findsOneWidget);
 
-    // Each Edit tab has its own Revert, for its own suggestion.
+    // Each Edit tab has its own Revert, for its own analysis.
     await tester.tap(find.widgetWithText(Tab, '#10'));
     await tester.pumpAndSettle();
     expect(tester.widget<TextButton>(revert).onPressed, isNull);
@@ -678,7 +679,7 @@ void main() {
     }
     await tester.pumpAndSettle();
 
-    // The issue's suggestion and the PR's edits, in one click.
+    // The issue's analysis and the PR's edits, in one click.
     expect(github.calls, [
       'POST issues/10/comments {"body":"Thanks for the report."}',
       'DELETE issues/10/labels/status%3A%20needs-triage',
@@ -750,7 +751,7 @@ void main() {
   });
 
   testWidgets('shows the type and state of related items', (tester) async {
-    // The suggestion names PR #1234 as related, and the issue is linked to
+    // The analysis names PR #1234 as related, and the issue is linked to
     // PR #20, which this test merges.
     github
       ..items[1234] = itemNode(1234, pr: true, state: 'CLOSED', labels: [])
@@ -891,7 +892,7 @@ void main() {
       inView(find.text(needsTriageLabel)),
     );
     expect(needsTriage.top, inExclusiveRange(shared.top, individual.top));
-    // Only #10 has the rest of the suggestion.
+    // Only #10 has the rest of the analysis.
     expect(inView(find.text('Thanks for the report.')), findsOneWidget);
     expect(inView(find.text('P1')), findsOneWidget);
     expect(inView(find.text('Assign: octocat')), findsOneWidget);
@@ -1156,7 +1157,7 @@ void main() {
     expect(tester.getSize(find.byType(ItemInfo).first).width, after);
   });
 
-  testWidgets('labels an outdated suggestion "Outdated", without a warning', (
+  testWidgets('labels an outdated analysis "Outdated", without a warning', (
     tester,
   ) async {
     github = FakeGitHub([
@@ -1164,8 +1165,8 @@ void main() {
         12,
         comments: [
           commentNode(
-            suggestionComment(
-              'root = TriageSuggestion(summary="""A question.""", '
+            analysisComment(
+              'root = TriageAnalysis(summary="""A question.""", '
               'suggestion="""Answer it.""")',
             ),
             at: day(2),
@@ -1191,7 +1192,7 @@ void main() {
     expect(find.textContaining('outdated'), findsNothing);
   });
 
-  testWidgets('an item without a suggestion removes only '
+  testWidgets('an item without an analysis removes only '
       '"$needsTriageLabel", without showing it', (tester) async {
     await pumpApp(tester);
     await expand(tester, 'Needs triage (3/3)');
@@ -1199,7 +1200,7 @@ void main() {
     await tester.tap(inList('#11 Docs are unclear'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('no suggestion yet'), findsNothing);
+    expect(find.textContaining('no analysis yet'), findsNothing);
     expect(find.text('Remove labels'), findsNothing);
     final Finder apply = find.widgetWithText(FilledButton, 'Apply');
     expect(tester.widget<FilledButton>(apply).onPressed, isNotNull);

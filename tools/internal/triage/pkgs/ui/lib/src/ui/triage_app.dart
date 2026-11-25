@@ -39,8 +39,7 @@ class TriageApp extends StatelessWidget {
         null => const TriagePage(),
         final GitHubAccess access => SignInGate(
           access: access,
-          // Without a page to reload, the app cannot sign out.
-          child: TriagePage(onSignOut: access.hasPage ? access.signOut : null),
+          child: TriagePage(onSignOut: access.signOut),
         ),
       },
     ),

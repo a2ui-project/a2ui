@@ -4,7 +4,7 @@ The terms are defined in [core.blueprint.md](../../core.blueprint.md). The [tria
 
 A team member can ask the triage bot for something in a comment on the item that addresses it, usually in a comment that starts with `Triage bot, `. For example, on #3061 the triager [asked](https://github.com/a2ui-project/a2ui/issues/3061#issuecomment-6809478783): "Triage bot, can you suggest an expert?"
 
-A request is answered when a triage bot comment, a suggestion or a response, was posted after it. At its next run, the triage bot researches each request that is not answered yet, and answers it by posting a [response comment](#the-response-comment).
+A request is answered when a triage bot comment, an analysis or a response, was posted after it. At its next run, the triage bot researches each request that is not answered yet, and answers it by posting a [response comment](#the-response-comment).
 
 When the request asks for an action, such as assigning someone, the triage bot suggests it and does not do it.
 
@@ -12,9 +12,9 @@ The triage bot answers only team members. It treats a request from an out-of-tea
 
 ## The response comment
 
-The response comment is a triage bot comment that answers the requests to the triage bot on an item with `status: needs-team-input`. It starts with the line `**From triage bot, response:**`, and has no template and no `<a2ui>` block: it is an answer for the team, not a suggestion, so the item's suggestion stays as it is.
+The response comment is a triage bot comment that answers the requests to the triage bot on an item with `status: needs-team-input`. It starts with the line `**From triage bot, response:**`, and has no template and no `<a2ui>` block: it is an answer for the team, not an analysis, so the item's analysis stays as it is.
 
-For each request, the comment links to the request, names who asked, and answers in plain English. When the request asks for an action, the comment says what to apply, and the team applies it in the triage UI. The comment ends with the link and the command that open the item in the triage UI, as in the [suggestion comment](suggestion.blueprint.md#the-suggestion-comment). Links and logins follow the rules of the [suggestion comment](suggestion.blueprint.md#the-suggestion-comment).
+For each request, the comment links to the request, names who asked, and answers in plain English. When the request asks for an action, the comment says what to apply, and the team applies it in the triage UI. The comment ends with the link and the command that open the item in the triage UI, as in the [analysis comment](analysis.blueprint.md#the-analysis-comment). Links and logins follow the rules of the [analysis comment](analysis.blueprint.md#the-analysis-comment).
 
 For example, the response to the [request](https://github.com/a2ui-project/a2ui/issues/3061#issuecomment-6809478783) on #3061:
 

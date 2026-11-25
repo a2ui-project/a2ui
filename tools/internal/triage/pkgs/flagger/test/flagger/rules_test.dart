@@ -250,15 +250,39 @@ void main() {
       final int threshold = staleCase.days;
       final int grace = staleCase.graceDays;
 
-      // Staleness alone does not flag: the pinger asks the assignees first.
+      // Staleness alone does not flag at first: the pinger asks the
+      // assignees first.
       test('does not flag an assigned $priority that went stale without a '
-          'ping', () {
+          'ping, for as long as a ping and its grace period would take', () {
         final Item item = externalIssue(
           labels: [priority],
           assignees: 1,
-          createdAt: daysAgo(9999),
+          createdAt: daysAgo(threshold + grace),
         );
         expect(flagReason(item, [], now), isNull);
+      });
+
+      // Nobody ran the pinger, so the item goes back to triage on its own.
+      test('flags an assigned $priority that nobody pinged once it is '
+          'overdue', () {
+        final Item item = externalIssue(
+          labels: [priority],
+          assignees: 1,
+          createdAt: daysAgo(threshold + grace + 1),
+        );
+        final String? reason = flagReason(item, [], now);
+        expect(reason, flaggedFor('no update from the team'));
+        expect(reason, flaggedFor('nobody pinged the assignees'));
+        // A ping for another case does not hold off the flag.
+        expect(
+          flagReason(
+            item,
+            [],
+            now,
+            pings: [ping(StaleCase.assignedForTriage, 0)],
+          ),
+          flaggedFor('nobody pinged the assignees'),
+        );
       });
 
       test('does not flag an assigned $priority within the grace period of '
@@ -351,14 +375,14 @@ void main() {
         final Item item = externalIssue(
           labels: [priority],
           assignees: 1,
-          createdAt: daysAgo(9999),
+          createdAt: daysAgo(threshold + grace),
         );
         expect(
           flagReason(
             item,
             [],
             now,
-            pings: [ping(StaleCase.assignedForTriage, 9000)],
+            pings: [ping(StaleCase.assignedForTriage, grace - 0.5)],
           ),
           isNull,
         );
@@ -473,11 +497,30 @@ void main() {
       createdAt: createdAt,
     );
 
-    test('does not flag an overdue assignment without a ping', () {
+    test('does not flag a stale assignment without a ping until it is '
+        'overdue', () {
       expect(
-        flagReason(handedOut(), [], now, assignedForTriageSince: overdue),
+        flagReason(
+          handedOut(),
+          [],
+          now,
+          assignedForTriageSince: daysAgo(
+            assignment.days + assignment.graceDays,
+          ),
+        ),
         isNull,
       );
+    });
+
+    test('flags an overdue assignment that nobody pinged', () {
+      final String? reason = flagReason(
+        handedOut(),
+        [],
+        now,
+        assignedForTriageSince: overdue,
+      );
+      expect(reason, flaggedFor('assigned-for-triage'));
+      expect(reason, flaggedFor('nobody pinged the assignees'));
     });
 
     test('does not flag an assignment within the grace period of its '
@@ -735,9 +778,22 @@ void main() {
       expect(flagReason(item, [memberComment(0)], now), isNull);
     });
 
-    test('does not flag a stale assigned external PR without a ping', () {
-      final Item item = pr(createdAt: daysAgo(9999), assignees: 1);
+    test('does not flag a stale assigned external PR without a ping until '
+        'it is overdue', () {
+      const StaleCase staleCase = StaleCase.externalPrInactive;
+      final Item item = pr(
+        createdAt: daysAgo(staleCase.days + staleCase.graceDays),
+        assignees: 1,
+      );
       expect(flagReason(item, [], now), isNull);
+    });
+
+    test('flags an overdue assigned external PR that nobody pinged', () {
+      final Item item = pr(createdAt: daysAgo(9999), assignees: 1);
+      expect(
+        flagReason(item, [], now),
+        flaggedFor('nobody pinged the assignees'),
+      );
     });
 
     test('flags an assigned external PR once its ping expires', () {
@@ -885,7 +941,7 @@ void main() {
   // outside the team is unanswered.
   group('flagReason, team items', () {
     test('does not flag a team issue with no out-of-team input, whatever '
-        'else is wrong with it', () {
+        'else is wrong with it, until it goes stale', () {
       for (final labels in [
         <String>[],
         ['P0'],
@@ -895,7 +951,7 @@ void main() {
           final Item item = issue(
             labels: labels,
             assignees: assignees,
-            createdAt: daysAgo(9999),
+            createdAt: daysAgo(StaleCase.p0Inactive.days),
           );
           expect(
             flagReason(item, [], now),

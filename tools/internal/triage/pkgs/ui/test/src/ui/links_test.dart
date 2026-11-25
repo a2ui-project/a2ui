@@ -52,6 +52,35 @@ void main() {
     ]);
   });
 
+  testWidgets('opens only http and https URLs with a host', (tester) async {
+    final launched = <Object?>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/url_launcher'),
+      (MethodCall call) async {
+        launched.add((call.arguments as Map)['url']);
+        return true;
+      },
+    );
+    for (final url in [
+      'file:///etc/passwd',
+      'smb://server/share',
+      'vscode://file/x',
+      'javascript:alert(1)',
+      'https:///no-host',
+      'http://[::1',
+      'not a url',
+    ]) {
+      await openUrl(url);
+    }
+    await openUrl('http://example.com/a');
+    await openUrl('https://github.com/a2ui-project/a2ui/issues/1');
+
+    expect(launched, [
+      'http://example.com/a',
+      'https://github.com/a2ui-project/a2ui/issues/1',
+    ]);
+  });
+
   testWidgets('opens the URL when the link is clicked', (tester) async {
     final launched = <Object?>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(

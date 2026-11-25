@@ -55,33 +55,48 @@ final class ApplyResult {
   );
 }
 
-/// How [item] is closed with [suggestion]: "as duplicate of #1100", "as
+/// How [item] is closed with [analysis]: "as duplicate of #1100", "as
 /// completed" or "as not planned" for an issue, and empty for a pull
 /// request, which has no close reason.
-String closeReason(TriageItem item, TriageSuggestion suggestion) {
+String closeReason(TriageItem item, TriageAnalysis analysis) {
   if (item.isPullRequest) return '';
-  return switch (suggestion.closeAs) {
-    TriageCloseReason.duplicate => 'as duplicate of #${suggestion.duplicateOf}',
+  return switch (analysis.closeAs) {
+    TriageCloseReason.duplicate => 'as duplicate of #${analysis.duplicateOf}',
     TriageCloseReason.notPlanned => 'as not planned',
     _ => 'as completed',
   };
 }
 
-/// The reply that applying [suggestion] posts, or null if it has none. If
-/// [suggestion] adds [needsTeamInputLabel], the reply is a note for the team,
-/// posted under [teamNoteHeading].
-String? replyToPost(TriageSuggestion suggestion) {
-  final String? reply = suggestion.reply;
+/// The heading of a reply that the triager posts. See
+/// `docs/contributing/triage/triage.md`.
+const String replyHeading = '**From triage:**\n\n';
+
+final RegExp _replyHeading = RegExp(
+  r'^\s*\*\*(?:From triage|Requires team input\. Note for the discussion):'
+  r'\*\*[ \t]*(?:\n[ \t]*)*',
+);
+
+/// [reply] without a leading [replyHeading] or [teamNoteHeading], which the
+/// triage bot's replies can start with.
+String withoutReplyHeading(String reply) =>
+    reply.replaceFirst(_replyHeading, '');
+
+/// The reply that applying [analysis] posts, or null if it has none: under
+/// [replyHeading], or under [teamNoteHeading] if [analysis] adds
+/// [needsTeamInputLabel], since the reply is then a note for the team.
+String? replyToPost(TriageAnalysis analysis) {
+  final String? reply = analysis.reply;
   if (reply == null) return null;
-  return suggestion.addedLabels.contains(needsTeamInputLabel)
-      ? '$teamNoteHeading$reply'
-      : reply;
+  final String heading = analysis.addedLabels.contains(needsTeamInputLabel)
+      ? teamNoteHeading
+      : replyHeading;
+  return '$heading${withoutReplyHeading(reply)}';
 }
 
-/// Applies [suggestion] to [item] on GitHub: posts the [replyToPost],
-/// changes the labels, assignees and, with [milestone], the milestone, and
-/// closes the item, in this order. [milestones] gives the numbers of the
-/// open milestones by title.
+/// Applies the suggestion of [analysis] to [item] on GitHub: posts the
+/// [replyToPost], changes the labels, assignees and, with [milestone], the
+/// milestone, and closes the item, in this order. [milestones] gives the
+/// numbers of the open milestones by title.
 ///
 /// Stops at the first step that fails. Skips the reply if [replyPosted],
 /// so that retrying after a failure does not post it twice, and calls
@@ -89,15 +104,15 @@ String? replyToPost(TriageSuggestion suggestion) {
 Future<ApplyResult> applySuggestion(
   TriageService service,
   TriageItem item,
-  TriageSuggestion suggestion, {
+  TriageAnalysis analysis, {
   required bool replyPosted,
   required void Function() onReplyPosted,
   MilestoneChange milestone = MilestoneChange.none,
   Map<String, int> milestones = const {},
 }) async {
   final ItemRef n = item.ref;
-  final String? reply = replyToPost(suggestion);
-  final String? closeAs = suggestion.closeAs;
+  final String? reply = replyToPost(analysis);
+  final String? closeAs = analysis.closeAs;
   final String? newMilestone = milestone.set;
   final String? removedMilestone = milestone.remove;
   final steps = <_Step>[
@@ -108,25 +123,25 @@ Future<ApplyResult> applySuggestion(
               await service.postComment(n, reply);
               onReplyPosted();
             }, text: reply),
-    if (suggestion.removedLabels.isNotEmpty)
+    if (analysis.removedLabels.isNotEmpty)
       _Step(
-        'Remove labels: ${suggestion.removedLabels.join(', ')}',
-        () => service.removeLabels(n, suggestion.removedLabels),
+        'Remove labels: ${analysis.removedLabels.join(', ')}',
+        () => service.removeLabels(n, analysis.removedLabels),
       ),
-    if (suggestion.addedLabels.isNotEmpty)
+    if (analysis.addedLabels.isNotEmpty)
       _Step(
-        'Add labels: ${suggestion.addedLabels.join(', ')}',
-        () => service.addLabels(n, suggestion.addedLabels),
+        'Add labels: ${analysis.addedLabels.join(', ')}',
+        () => service.addLabels(n, analysis.addedLabels),
       ),
-    if (suggestion.removedAssignees.isNotEmpty)
+    if (analysis.removedAssignees.isNotEmpty)
       _Step(
-        'Unassign: ${suggestion.removedAssignees.join(', ')}',
-        () => service.removeAssignees(n, suggestion.removedAssignees),
+        'Unassign: ${analysis.removedAssignees.join(', ')}',
+        () => service.removeAssignees(n, analysis.removedAssignees),
       ),
-    if (suggestion.newAssignees.isNotEmpty)
+    if (analysis.newAssignees.isNotEmpty)
       _Step(
-        'Assign: ${suggestion.newAssignees.join(', ')}',
-        () => service.addAssignees(n, suggestion.newAssignees),
+        'Assign: ${analysis.newAssignees.join(', ')}',
+        () => service.addAssignees(n, analysis.newAssignees),
       ),
     if (newMilestone != null)
       _Step('Set milestone: $newMilestone', () async {
@@ -147,8 +162,8 @@ Future<ApplyResult> applySuggestion(
           : _Step('Remove milestone: $removedMilestone: not on the item', null),
     if (closeAs != null)
       _Step(
-        'Close ${closeReason(item, suggestion)}'.trim(),
-        () => service.close(item, closeAs, duplicateOf: suggestion.duplicateOf),
+        'Close ${closeReason(item, analysis)}'.trim(),
+        () => service.close(item, closeAs, duplicateOf: analysis.duplicateOf),
       ),
   ];
 
@@ -169,6 +184,9 @@ Future<ApplyResult> applySuggestion(
       } on GitHubException catch (e) {
         failed = true;
         results.add(result(StepStatus.failed, error: e.message));
+      } on Object catch (e) {
+        failed = true;
+        results.add(result(StepStatus.failed, error: '$e'));
       }
     }
   }

@@ -16,8 +16,8 @@
 library;
 
 /// The fields of an issue or a pull request that the triage UI shows, and
-/// that tell whether its suggestion is current. See
-/// `blueprints/features/triage_bot/suggestion.blueprint.md`.
+/// that tell whether its analysis is current. See
+/// `blueprints/features/triage_bot/analysis.blueprint.md`.
 const String _itemFragments = r'''
 fragment Comments on IssueComment {
   author { login __typename }
@@ -36,7 +36,7 @@ fragment IssueFields on Issue {
   milestone { title }
   comments(last: 100) { nodes { ...Comments } }
   closedByPullRequestsReferences(first: 10, includeClosedPrs: false) {
-    nodes { number }
+    nodes { ...LinkedItem }
   }
   timelineItems(
     last: 100
@@ -50,13 +50,13 @@ fragment IssueFields on Issue {
 }
 
 fragment PullRequestFields on PullRequest {
-  id number title body url createdAt updatedAt lastEditedAt state
+  id number title body url createdAt updatedAt lastEditedAt state isDraft
   author { login }
   labels(first: 50) { nodes { name } }
   assignees(first: 20) { nodes { login } }
   milestone { title }
   comments(last: 100) { nodes { ...Comments } }
-  closingIssuesReferences(first: 10) { nodes { number } }
+  closingIssuesReferences(first: 10) { nodes { ...LinkedItem } }
   reviews(last: 50) { nodes { submittedAt } }
   timelineItems(
     last: 100
@@ -71,6 +71,11 @@ fragment PullRequestFields on PullRequest {
       ... on PullRequestCommit { commit { committedDate } }
     }
   }
+}
+
+fragment LinkedItem on IssueOrPullRequest {
+  ... on Issue { number state repository { nameWithOwner } }
+  ... on PullRequest { number state repository { nameWithOwner } }
 }
 
 fragment Events on IssueTimelineItems {

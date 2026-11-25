@@ -266,22 +266,22 @@ class _ItemTile extends StatelessWidget {
             controller.selectedGroup == group ||
         controller.isInMultiSelection(item.ref, group);
     final flags = <Widget>[
-      // Most items have a current suggestion, so only the others
+      // Most items have a current analysis, so only the others
       // are flagged.
-      ?switch (item.suggestionStatus) {
-        SuggestionStatus.current => null,
-        SuggestionStatus.outdated => const _Flag(
-          'outdated suggestion',
+      ?switch (item.analysisStatus) {
+        AnalysisStatus.current => null,
+        AnalysisStatus.outdated => const _Flag(
+          'outdated analysis',
           warning: true,
         ),
-        SuggestionStatus.invalid => const _Flag(
-          'invalid suggestion',
+        AnalysisStatus.invalid => const _Flag(
+          'invalid analysis',
           warning: true,
         ),
-        SuggestionStatus.none => const _Flag('no suggestion', warning: true),
+        AnalysisStatus.none => const _Flag('no analysis', warning: true),
       },
-      for (final int n in item.linkedAndTargetedItems)
-        _Flag(item.isPullRequest ? 'issue #$n' : 'PR #$n'),
+      for (final ItemRef r in item.linkedAndTargetedItems)
+        _Flag('${item.isPullRequest ? 'issue' : 'PR'} ${shortNameOf(r)}'),
       if (item.needsTeamInput && group != ItemGroup.teamInput)
         const _Flag('needs team input'),
     ];

@@ -19,8 +19,8 @@ import 'package:ui/src/model/triage_item.dart';
 import '../../support/fake_github.dart';
 
 void main() {
-  final String suggestion = suggestionComment(
-    'root = TriageSuggestion(summary="A crash.", suggestion="Set P1.", '
+  final String analysis = analysisComment(
+    'root = TriageAnalysis(summary="A crash.", suggestion="Set P1.", '
     'added_labels=["P1"])',
   );
 
@@ -47,10 +47,10 @@ void main() {
     expect(item.linkedItems, [13]);
     expect(item.author, 'author12');
     expect(item.name, 'Issue #12');
-    expect(item.suggestionStatus, SuggestionStatus.none);
+    expect(item.analysisStatus, AnalysisStatus.none);
   });
 
-  test('reads the description and the comments, without the suggestion '
+  test('reads the description and the comments, without the analysis '
       'comments', () {
     final TriageItem item = read(
       itemNode(
@@ -58,7 +58,7 @@ void main() {
         body: 'Line 1\r\nLine 2',
         comments: [
           commentNode('First', at: day(2), login: 'reporter'),
-          commentNode(suggestion, at: day(3)),
+          commentNode(analysis, at: day(3)),
           commentNode('Second\r\nline', at: day(4)),
         ],
       ),
@@ -80,8 +80,8 @@ void main() {
   });
 
   group('kind', () {
-    String targeting(String list, int number) => suggestionComment(
-      'root = TriageSuggestion(summary="A fix.", suggestion="Review it.", '
+    String targeting(String list, int number) => analysisComment(
+      'root = TriageAnalysis(summary="A fix.", suggestion="Review it.", '
       '$list=[$number])',
     );
 
@@ -95,7 +95,7 @@ void main() {
       expect(read(itemNode(13, pr: true)).kind, ItemKind.prWithoutIssues);
     });
 
-    test('counts the issues that the suggestion of a PR says it targets', () {
+    test('counts the issues that the analysis of a PR says it targets', () {
       final TriageItem item = read(
         itemNode(
           13,
@@ -109,7 +109,7 @@ void main() {
       expect(item.kind, ItemKind.prWithIssues);
     });
 
-    test('counts the PRs that the suggestion of an issue says target it', () {
+    test('counts the PRs that the analysis of an issue says target it', () {
       final TriageItem item = read(
         itemNode(
           12,
@@ -121,7 +121,7 @@ void main() {
       expect(item.kind, ItemKind.issueWithPrs);
     });
 
-    test('does not repeat a linked item that the suggestion lists', () {
+    test('does not repeat a linked item that the analysis lists', () {
       final TriageItem item = read(
         itemNode(
           13,
@@ -147,46 +147,46 @@ void main() {
     });
   });
 
-  test('reads a current suggestion', () {
+  test('reads a current analysis', () {
     final TriageItem item = read(
       itemNode(
         12,
         comments: [
           commentNode('I see this too.', at: day(2), association: 'NONE'),
-          commentNode(suggestion, at: day(3)),
+          commentNode(analysis, at: day(3)),
         ],
         timeline: [labeledEvent('type: bug', day(2))],
       ),
     );
 
-    expect(item.suggestionStatus, SuggestionStatus.current);
-    expect(item.suggestion!.suggestion.addedLabels, ['P1']);
-    expect(item.suggestionUrl, isNotNull);
+    expect(item.analysisStatus, AnalysisStatus.current);
+    expect(item.analysis!.analysis.addedLabels, ['P1']);
+    expect(item.analysisUrl, isNotNull);
   });
 
-  group('the suggestion is outdated after', () {
+  group('the analysis is outdated after', () {
     final cases = <String, Map<String, Object?>>{
       'a comment': itemNode(
         12,
         comments: [
-          commentNode(suggestion, at: day(3)),
+          commentNode(analysis, at: day(3)),
           commentNode('More details.', at: day(4), association: 'NONE'),
         ],
       ),
       'a label change': itemNode(
         12,
-        comments: [commentNode(suggestion, at: day(3))],
+        comments: [commentNode(analysis, at: day(3))],
         timeline: [labeledEvent('P2', day(4))],
       ),
       'a description edit': itemNode(
         12,
         lastEditedAt: day(4),
-        comments: [commentNode(suggestion, at: day(3))],
+        comments: [commentNode(analysis, at: day(3))],
       ),
       'a PR review': itemNode(
         12,
         pr: true,
-        comments: [commentNode(suggestion, at: day(3))],
+        comments: [commentNode(analysis, at: day(3))],
         reviews: [
           {'submittedAt': day(4).toIso8601String()},
         ],
@@ -194,7 +194,7 @@ void main() {
       'a commit': itemNode(
         12,
         pr: true,
-        comments: [commentNode(suggestion, at: day(3))],
+        comments: [commentNode(analysis, at: day(3))],
         timeline: [
           {
             '__typename': 'PullRequestCommit',
@@ -205,18 +205,18 @@ void main() {
     };
     cases.forEach((String what, Map<String, Object?> node) {
       test(what, () {
-        expect(read(node).suggestionStatus, SuggestionStatus.outdated);
+        expect(read(node).analysisStatus, AnalysisStatus.outdated);
       });
     });
   });
 
-  test('the suggestion stays current after changes of needs-triage, other '
+  test('the analysis stays current after changes of needs-triage, other '
       'triage bot comments, and its own edit', () {
     final TriageItem item = read(
       itemNode(
         12,
         comments: [
-          commentNode(suggestion, at: day(3), editedAt: day(6)),
+          commentNode(analysis, at: day(3), editedAt: day(6)),
           commentNode('**From triage bot, ping:** @a', at: day(5)),
         ],
         timeline: [
@@ -226,49 +226,49 @@ void main() {
       ),
     );
 
-    expect(item.suggestionStatus, SuggestionStatus.current);
+    expect(item.analysisStatus, AnalysisStatus.current);
   });
 
-  test('ignores a suggestion posted by someone outside the team', () {
+  test('ignores an analysis posted by someone outside the team', () {
     final TriageItem item = read(
       itemNode(
         12,
-        comments: [commentNode(suggestion, at: day(3), association: 'NONE')],
+        comments: [commentNode(analysis, at: day(3), association: 'NONE')],
       ),
     );
 
-    expect(item.suggestionStatus, SuggestionStatus.none);
+    expect(item.analysisStatus, AnalysisStatus.none);
   });
 
-  test('accepts a suggestion posted by a bot', () {
+  test('accepts an analysis posted by a bot', () {
     final TriageItem item = read(
       itemNode(
         12,
         comments: [
-          commentNode(suggestion, at: day(3), association: 'NONE', type: 'Bot'),
+          commentNode(analysis, at: day(3), association: 'NONE', type: 'Bot'),
         ],
       ),
     );
 
-    expect(item.suggestionStatus, SuggestionStatus.current);
+    expect(item.analysisStatus, AnalysisStatus.current);
   });
 
-  test('reports an invalid suggestion', () {
+  test('reports an invalid analysis', () {
     final TriageItem item = read(
       itemNode(
         12,
         comments: [
           commentNode(
-            suggestionComment('root = TriageSuggestion(summary="A")'),
+            analysisComment('root = TriageAnalysis(summary="A")'),
             at: day(3),
           ),
         ],
       ),
     );
 
-    expect(item.suggestionStatus, SuggestionStatus.invalid);
-    expect(item.suggestion, isNull);
-    expect(item.suggestionError, isNotEmpty);
+    expect(item.analysisStatus, AnalysisStatus.invalid);
+    expect(item.analysis, isNull);
+    expect(item.analysisError, isNotEmpty);
   });
 
   test('reads the latest comment for team discussion from a team member', () {
@@ -287,14 +287,14 @@ void main() {
             at: day(4),
             association: 'NONE',
           ),
-          commentNode(suggestion, at: day(5)),
+          commentNode(analysis, at: day(5)),
         ],
       ),
     );
 
     expect(item.teamNote?.text, 'Or a P1?');
     expect(item.teamNote?.author, 'hubot');
-    expect(item.suggestionStatus, SuggestionStatus.current);
+    expect(item.analysisStatus, AnalysisStatus.current);
   });
 
   test('has no comment for team discussion without the heading', () {

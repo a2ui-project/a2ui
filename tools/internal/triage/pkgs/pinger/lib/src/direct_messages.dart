@@ -62,15 +62,27 @@ final class JsonLinesOutbox implements Outbox {
 /// `{"octocat": "octocat@google.com"}`. An empty or missing [json] is an
 /// empty map.
 ///
-/// Throws a [FormatException] if [json] is not a JSON object of strings.
+/// The result has the logins in lowercase, since GitHub logins are not
+/// case-sensitive, so look them up with [String.toLowerCase].
+///
+/// Throws a [FormatException] if [json] is not a JSON object that maps
+/// strings to accounts with an `@`.
 Map<String, String> parseChatUsers(String? json) {
   if (json == null || json.trim().isEmpty) return const {};
   final Object? decoded = jsonDecode(json);
-  if (decoded is! Map<String, Object?> ||
-      decoded.values.any((Object? account) => account is! String)) {
+  if (decoded is! Map<String, Object?>) {
     throw const FormatException(
       'Expected a JSON object that maps GitHub logins to Google accounts.',
     );
   }
-  return decoded.cast<String, String>();
+  return {
+    for (final MapEntry(key: String login, value: Object? account)
+        in decoded.entries)
+      login.toLowerCase(): switch (account) {
+        final String account when account.contains('@') => account.trim(),
+        _ => throw FormatException(
+          "Expected a Google account for '$login', not ${jsonEncode(account)}.",
+        ),
+      },
+  };
 }

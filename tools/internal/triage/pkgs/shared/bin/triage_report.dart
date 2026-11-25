@@ -58,7 +58,7 @@
 
 import 'dart:io';
 
-import 'package:shared/src/triage_bot/report_command.dart';
+import 'package:shared/triage_report.dart';
 
 Future<void> main(List<String> args) async {
   exitCode = await runTriageReport(args);

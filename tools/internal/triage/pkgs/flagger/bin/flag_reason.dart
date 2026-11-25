@@ -14,7 +14,7 @@
 
 // Prints why the flagger flags each given issue or pull request, with the
 // same rules and data that the flagger uses. The triage bot copies the
-// reason into the `reason` property of its suggestion.
+// reason into the `reason` property of its analysis.
 //
 // Usage, from the repository root:
 //
@@ -25,6 +25,9 @@
 // entry per item, where `reason` is null when the item should not be
 // flagged. It reads GitHub with `GITHUB_TOKEN`, or else with the token of
 // the account that `gh` is logged in to.
+//
+// It exits with code 1, and prints no JSON, if it cannot read an item or the
+// whole history of one.
 
 import 'dart:convert';
 import 'dart:io';
@@ -72,6 +75,9 @@ Future<void> main(List<String> args) async {
           {'url': reason.url, 'reason': reason.reason},
       ]),
     );
+  } on GitHubException catch (e) {
+    stderr.writeln(e.message);
+    exitCode = 1;
   } finally {
     client.close();
   }

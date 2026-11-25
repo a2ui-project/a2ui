@@ -40,21 +40,33 @@ Future<void> reconcile(
 
   final List<Item> openItems = await github.openItems();
 
-  // The items whose labels the snapshot says to change.
-  final List<_Snapshot> updates = [
-    for (final _Snapshot entry in await inBatches(
-      openItems,
-      (Item item) async => (
-        item: item,
-        history: await fetchHistory(github, item, log: log, errorLog: errorLog),
-      ),
-    ))
-      if (decide(entry.item, entry.history, now) case final Decision decision
-          when decision.clearWaiting ||
-              (decision.reason != null) !=
-                  entry.item.labels.contains(needsTriageLabel))
-        entry,
-  ];
+  final List<_Snapshot> snapshots = await inBatches(
+    openItems,
+    (Item item) async => (
+      item: item,
+      history: await fetchHistory(github, item, log: log, errorLog: errorLog),
+    ),
+  );
+
+  // The items whose labels the snapshot says to change. Rules judged on a
+  // partly read history could flag or unflag an item wrongly, so such an
+  // item keeps its labels until a later run reads all of it.
+  final updates = <_Snapshot>[];
+  for (final entry in snapshots) {
+    if (!entry.history.complete) {
+      log.writeln(
+        'Skipped ${entry.item.htmlUrl} — its history could not be read in '
+        'full.',
+      );
+      continue;
+    }
+    if (decide(entry.item, entry.history, now) case final Decision decision
+        when decision.clearWaiting ||
+            (decision.reason != null) !=
+                entry.item.labels.contains(needsTriageLabel)) {
+      updates.add(entry);
+    }
+  }
 
   var added = 0;
   var removed = 0;

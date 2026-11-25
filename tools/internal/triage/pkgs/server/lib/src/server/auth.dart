@@ -104,21 +104,24 @@ final class Auth {
   Future<Response> _callback(Request request) async {
     final Map<String, String> query = request.url.queryParameters;
     final Map<String, Object?>? signIn = await _cookies.signIn(request);
-    if (query['error'] case final String error) {
-      return _errorPage(
-        'GitHub did not sign you in: ${query['error_description'] ?? error}',
-      );
-    }
     if (signIn == null) {
       return _errorPage(
         'The sign-in took more than ${Cookies.signInMaxAge.inMinutes} '
         'minutes, or started in another browser.',
       );
     }
-    final String? code = query['code'];
-    if (code == null || query['state'] != signIn['state']) {
+    // Checked first, so that a link from another site cannot show its own
+    // error text on this page.
+    if (query['state'] != signIn['state']) {
       return _errorPage('The sign-in did not start in this browser.');
     }
+    if (query['error'] case final String error) {
+      return _errorPage(
+        'GitHub did not sign you in: ${query['error_description'] ?? error}',
+      );
+    }
+    final String? code = query['code'];
+    if (code == null) return _errorPage('GitHub sent no code.');
 
     final http.Response response;
     final String? login;

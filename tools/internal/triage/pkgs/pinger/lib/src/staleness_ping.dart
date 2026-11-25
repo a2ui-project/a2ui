@@ -65,11 +65,17 @@ PingText pingText(Item item, Staleness staleness, DateTime now) {
   );
 }
 
-/// [text] with the characters that Google Chat reads as formatting escaped.
+/// [text] on one line, with the characters that Google Chat reads as
+/// formatting escaped, so that it cannot break out of the link it labels.
+///
+/// A `|` becomes the full-width `｜`, a plain character that looks the same,
+/// rather than an HTML entity that Google Chat may show as typed.
 String _escapeForChat(String text) => text
+    .replaceAll(RegExp(r'\s*[\r\n\u2028\u2029]+\s*'), ' ')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
+    .replaceAll('>', '&gt;')
+    .replaceAll('|', '｜');
 
 /// What a run of the staleness pinger did: how many stale items had no
 /// current ping, how many it pinged, and how many failed.
@@ -78,19 +84,23 @@ typedef PingRun = ({int due, int pinged, int failed});
 /// Pings the assignees of every stale item in [github] that has no current
 /// ping: posts a comment on the item, and, if [outbox] is given, adds a
 /// direct message to each assignee that [chatUsers] maps to a Google
-/// account. The triage bot sends the messages.
+/// account, by lowercase login, as [parseChatUsers] reads it. The triage bot
+/// sends the messages.
 ///
 /// With [dryRun], it writes each comment and message to [log] instead of
 /// posting or adding it.
 ///
-/// The comments must come from a team member's account, so that they are
-/// triage bot comments: otherwise the flagger counts a ping as a comment
-/// from outside the team, and the next run does not see it and pings
-/// again. So if the first ping comes from outside the team, it deletes the
+/// The comments must come from a team member's account or a bot's, so that
+/// they are triage bot comments: otherwise the flagger counts a ping as a
+/// comment from outside the team, and the next run does not see it and
+/// pings again. So if the first ping comes from anyone else, it deletes the
 /// ping and stops.
 ///
 /// It skips an item whose history does not load fully, and counts it as
 /// failed: with comments missing, the item can look stale, or unpinged.
+/// Right before it pings an item, it reads the item and its history again,
+/// and skips the item if it is no longer due, as when another run of the
+/// pinger has just pinged it.
 ///
 /// It writes what it does to [log], and errors to [errorLog].
 Future<PingRun> pingStaleItems(
@@ -124,27 +134,36 @@ Future<PingRun> pingStaleItems(
       failed += 1;
       continue;
     }
-    if (stalenessOf(
-          item,
-          history.contributions,
-          assignedForTriageSince: history.assignedForTriageSince,
-        )
-        case final Staleness staleness
-        when staleness.isStale(now) &&
-            staleness.currentPing(history.pings) == null) {
+    if (_dueStaleness(item, history, now) case final Staleness staleness) {
       due.add((item: item, staleness: staleness));
     }
   }
   due.sort((a, b) => a.item.number.compareTo(b.item.number));
 
-  for (final (:Item item, :Staleness staleness) in due) {
-    final StaleCase staleCase = staleness.staleCase;
+  for (final (:Item item, staleness: Staleness listed) in due) {
+    final StaleCase staleCase = listed.staleCase;
     final String url = item.htmlUrl;
     try {
-      // Ping the item as it is now, rather than as the listing has it.
+      // Ping the item as it is now, rather than as the listing has it: since
+      // the listing, the team may have answered, or another run may have
+      // pinged it.
       final Item fresh = await github.item(item.number);
-      if (staleCaseOf(fresh) != staleCase) {
-        log.writeln('Skipped $url — it changed since the listing.');
+      final ItemHistory history = await fetchHistory(
+        github,
+        fresh,
+        log: log,
+        errorLog: errorLog,
+      );
+      if (!history.complete) {
+        failed += 1;
+        continue;
+      }
+      final Staleness? staleness = _dueStaleness(fresh, history, now);
+      if (staleness == null || staleness.staleCase != staleCase) {
+        log.writeln(
+          'Skipped $url — it is no longer due for a ping, or the case '
+          'changed, since the listing.',
+        );
         continue;
       }
       final PingText text = pingText(fresh, staleness, now);
@@ -157,7 +176,7 @@ Future<PingRun> pingStaleItems(
           '${text.comment}',
         );
         for (final String login in fresh.assignees) {
-          if (chatUsers[login] case final String to) {
+          if (chatUsers[login.toLowerCase()] case final String to) {
             log.writeln('Would message $to:\n${text.chat}');
           }
         }
@@ -168,13 +187,17 @@ Future<PingRun> pingStaleItems(
         item.number,
         text.comment,
       );
-      if (!isTeamMember(posted.association)) {
+      if (!isTriageBotComment(
+        body: text.comment,
+        association: posted.association,
+        byBot: isBot(posted.user),
+      )) {
         failed += 1;
         errorLog.writeln(
-          'Stopped: the ping on $url was posted from an account outside the '
-          'team (author association ${posted.association}), so it would not '
-          "count as a triage bot comment. Run the pinger with a team member's "
-          'GitHub token.',
+          'Stopped: the ping on $url was posted from an account that is '
+          "neither a team member's nor a bot's (author association "
+          '${posted.association}), so it would not count as a triage bot '
+          "comment. Run the pinger with a team member's GitHub token.",
         );
         try {
           await github.deleteComment(posted.id);
@@ -192,7 +215,7 @@ Future<PingRun> pingStaleItems(
 
       if (outbox == null) continue;
       for (final String login in fresh.assignees) {
-        final String? to = chatUsers[login];
+        final String? to = chatUsers[login.toLowerCase()];
         if (to == null) {
           log.writeln(
             'No direct message to @$login: TRIAGE_CHAT_USERS has no Google '
@@ -220,3 +243,22 @@ Future<PingRun> pingStaleItems(
   );
   return (due: due.length, pinged: pinged, failed: failed);
 }
+
+/// The staleness of [item], with [history], if it is stale at [now] and has
+/// no current ping, or else null.
+///
+/// An overdue item is already back in triage, so a ping that gives the
+/// assignees a grace period would promise what the flagger does not keep.
+Staleness? _dueStaleness(Item item, ItemHistory history, DateTime now) =>
+    switch (stalenessOf(
+      item,
+      history.contributions,
+      assignedForTriageSince: history.assignedForTriageSince,
+    )) {
+      final Staleness staleness
+          when staleness.isStale(now) &&
+              !staleness.isOverdue(now) &&
+              staleness.currentPing(history.pings) == null =>
+        staleness,
+      _ => null,
+    };

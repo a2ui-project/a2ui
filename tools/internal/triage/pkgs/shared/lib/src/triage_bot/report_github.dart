@@ -111,41 +111,83 @@ int _totalCount(Object? result) =>
 /// GitHub search returns at most this many results for a query.
 const int _searchLimit = 1000;
 
-/// Returns the numbers of the items updated in [period].
-Future<List<int>> _updatedItems(GitHubClient github, Period period) async {
-  final q =
-      'repo:$a2uiRepository '
-      'updated:${searchTime(period.since)}..${searchTime(period.until)}';
+const int _pageSize = 100;
+
+/// GitHub search requires a query to name the kind of item, so each search
+/// runs once per kind. Draft PRs are not triage work, whatever their labels,
+/// so [_openItemQueries] leaves them out.
+List<String> _openItemQueries(String query) => [
+  '$query is:issue',
+  '$query is:pr -draft:true',
+];
+
+/// Returns the numbers of the items updated since [period] started.
+///
+/// An item that was triaged in [period] and updated again after it still
+/// counts, so the search runs up to [now] rather than to the end of
+/// [period]. [itemActions] keeps only what happened in [period].
+Future<List<int>> _updatedItems(
+  GitHubClient github,
+  Period period,
+  DateTime now,
+) async {
+  final int since = _seconds(period.since);
+  final int until = _seconds(period.until.isAfter(now) ? period.until : now);
+  final List<List<int>> kinds = await Future.wait([
+    for (final kind in ['is:issue', 'is:pr'])
+      _updatedBetween(github, kind, since, until),
+  ]);
+  return {for (final kind in kinds) ...kind}.toList();
+}
+
+/// Seconds since the epoch, which is the precision of GitHub search.
+int _seconds(DateTime time) => time.millisecondsSinceEpoch ~/ 1000;
+
+/// Returns the numbers of the items of [kind] updated from the second
+/// [since] to the second [until], both included.
+Future<List<int>> _updatedBetween(
+  GitHubClient github,
+  String kind,
+  int since,
+  int until,
+) async {
+  String time(int seconds) => searchTime(
+    DateTime.fromMillisecondsSinceEpoch(seconds * 1000, isUtc: true),
+  );
+  final q = 'repo:$a2uiRepository $kind updated:${time(since)}..${time(until)}';
   // Sorting by creation keeps the pages stable while items are updated, so no
   // item moves to a page that was already read.
-  final String search = _searchPath({
+  String page(int number) => _searchPath({
     'q': q,
     'sort': 'created',
     'order': 'asc',
-    'per_page': '100',
+    'per_page': '$_pageSize',
+    'page': '$number',
   });
-  if (_totalCount(await github.rest('GET', search)) > _searchLimit) {
-    // Split the period in two, so that each half fits in the search limit.
-    final middle = DateTime.fromMillisecondsSinceEpoch(
-      (period.since.millisecondsSinceEpoch +
-              period.until.millisecondsSinceEpoch) ~/
-          2,
-    );
+  final Object? first = await github.rest('GET', page(1));
+  final int total = _totalCount(first);
+  if (total > _searchLimit) {
+    if (since >= until) {
+      throw GitHubException(
+        'More than $_searchLimit items were updated at ${time(since)}, '
+        'more than GitHub search can list.',
+      );
+    }
+    // Split the range in two, so that each half fits in the search limit.
+    final int middle = since + (until - since) ~/ 2;
     final List<List<int>> halves = await Future.wait([
-      _updatedItems(github, Period(since: period.since, until: middle)),
-      _updatedItems(
-        github,
-        Period(
-          since: middle.add(const Duration(seconds: 1)),
-          until: period.until,
-        ),
-      ),
+      _updatedBetween(github, kind, since, middle),
+      _updatedBetween(github, kind, middle + 1, until),
     ]);
     return {for (final half in halves) ...half}.toList();
   }
+  final List<Object?> pages = [
+    first,
+    for (var number = 2; (number - 1) * _pageSize < total; number++)
+      await github.rest('GET', page(number)),
+  ];
   return {
-    for (final item in _searchItems(await github.restPages(search)))
-      item['number']! as int,
+    for (final item in _searchItems(pages)) item['number']! as int,
   }.toList();
 }
 
@@ -195,16 +237,14 @@ Future<List<RawItem>> _readItems(GitHubClient github, List<int> numbers) async {
 /// Returns the open items with `status: assigned-for-triage`, except draft
 /// PRs.
 Future<List<AssignedItem>> _assignedForTriage(GitHubClient github) async {
-  final List<Object?> pages = await github.restPages(
-    _searchPath({
-      'q':
-          'repo:$a2uiRepository is:open label:"$assignedForTriageLabel" '
-          '-draft:true',
-      'per_page': '100',
-    }),
-  );
+  final List<List<Object?>> results = await Future.wait([
+    for (final q in _openItemQueries(
+      'repo:$a2uiRepository is:open label:"$assignedForTriageLabel"',
+    ))
+      github.restPages(_searchPath({'q': q, 'per_page': '$_pageSize'})),
+  ]);
   return [
-    for (final item in _searchItems(pages))
+    for (final item in _searchItems([for (final pages in results) ...pages]))
       AssignedItem(
         number: item['number']! as int,
         url: item['html_url']! as String,
@@ -221,31 +261,31 @@ Future<List<AssignedItem>> _assignedForTriage(GitHubClient github) async {
 
 /// Returns how many open items have `status: needs-triage`, except draft
 /// PRs.
-Future<int> _stillNeedTriage(GitHubClient github) async => _totalCount(
-  await github.rest(
-    'GET',
-    _searchPath({
-      // Draft PRs are not triage work, whatever their labels.
-      'q':
-          'repo:$a2uiRepository is:open label:"$needsTriageLabel" '
-          '-draft:true',
-      'per_page': '1',
-    }),
-  ),
-);
+Future<int> _stillNeedTriage(GitHubClient github) async {
+  final List<Object?> counts = await Future.wait([
+    for (final q in _openItemQueries(
+      'repo:$a2uiRepository is:open label:"$needsTriageLabel"',
+    ))
+      github.rest('GET', _searchPath({'q': q, 'per_page': '1'})),
+  ]);
+  return counts.map(_totalCount).fold<int>(0, (a, b) => a + b);
+}
 
 /// Collects what [login] triaged in [period].
+///
+/// [now] is the current time, which tests set.
 Future<Report> collectReport(
   GitHubClient github,
   String login,
-  Period period,
-) async {
+  Period period, {
+  DateTime? now,
+}) async {
   final [
     Object? numbers,
     Object? stillNeedTriage,
     Object? assigned,
   ] = await Future.wait<Object?>([
-    _updatedItems(github, period),
+    _updatedItems(github, period, now ?? DateTime.now()),
     _stillNeedTriage(github),
     _assignedForTriage(github),
   ]);

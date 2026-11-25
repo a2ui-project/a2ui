@@ -1,6 +1,6 @@
 # Triage criteria for the triage bot
 
-This document says how to turn an issue or a PR into a [`TriageSuggestion`](../../../../tools/internal/triage/pkgs/shared/lib/src/triage_bot/triage_suggestion.dart), and what a [response comment](../SKILL.md#response-comment) suggests. It adds triage bot rules to the canonical sources; where they disagree, the canonical sources win:
+This document says how to turn an issue or a PR into a [`TriageAnalysis`](../../../../tools/internal/triage/pkgs/shared/lib/src/triage_bot/triage_analysis.dart), and what a [response comment](../SKILL.md#response-comment) suggests. It adds triage bot rules to the canonical sources; where they disagree, the canonical sources win:
 
 1. [triage.md](../../../../docs/contributing/triage/triage.md): goals of triage, priority definitions (`P0` to `P3`), and how to triage a PR.
 2. [labels.md](../../../../docs/contributing/triage/labels.md): triage labels and who manages each one.
@@ -20,7 +20,7 @@ Triage of an issue is done when the issue has a priority and no comment from an 
 8. If a team member agreed in a comment that a contributor works on the issue, but did not assign them, suggest assigning them in `new_assignees`.
 9. If the item cannot be triaged without more expertise, find an expert in the affected area from the commit history (see step 4 of the [skill](../SKILL.md#step-4-research-the-item)), and name them in `suggestion` with the evidence, such as "wrote 6 of the last 20 commits to `renderers/lit`". Then follow the [second-line triage](../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager) steps:
    1. If the item does not have `status: needs-team-input`, suggest adding it, and say which question the team needs to answer.
-   2. If it has `status: needs-team-input`, the team is discussing it. Write no suggestion, and answer only the requests to the triage bot, in a response comment.
+   2. If it has `status: needs-team-input`, the team is discussing it. Write no analysis, and answer only the requests to the triage bot, in a response comment.
 
    If you find no expert who can be assigned, say so, and suggest only `status: needs-team-input`.
 

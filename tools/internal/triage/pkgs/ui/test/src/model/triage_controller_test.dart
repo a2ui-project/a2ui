@@ -130,7 +130,7 @@ void main() {
       ..select(genui(10))
       ..draftFor(
         controller.item(genui(10))!,
-        const TriageSuggestion(addedLabels: ['P2'], reply: 'Thanks!'),
+        const TriageAnalysis(addedLabels: ['P2'], reply: 'Thanks!'),
       );
     await controller.apply(controller.item(genui(10))!);
 
@@ -151,14 +151,14 @@ void main() {
     expect(names(controller.opened), ['genui #12']);
   });
 
-  test('lists the items with a suggestion first', () async {
+  test('lists the items with an analysis first', () async {
     github.items[12] = itemNode(
       12,
       createdAt: day(9),
       comments: [
         commentNode(
-          suggestionComment(
-            'root = TriageSuggestion(summary="S", '
+          analysisComment(
+            'root = TriageAnalysis(summary="S", '
             'suggestion="T")',
           ),
           at: day(9),
@@ -169,7 +169,7 @@ void main() {
     await controller.start();
 
     // 12 is the most recently updated issue without open PRs, but the only one
-    // with a suggestion.
+    // with an analysis.
     expect(numbers(controller.newItems), [11, 12, 10, 20, 21]);
   });
 
@@ -237,7 +237,7 @@ void main() {
     await controller.start();
     controller.select(a2ui(10));
     final TriageItem item = controller.selected!;
-    controller.draftFor(item, const TriageSuggestion(addedLabels: ['P2']));
+    controller.draftFor(item, const TriageAnalysis(addedLabels: ['P2']));
 
     await controller.apply(item);
 
@@ -254,7 +254,7 @@ void main() {
     await controller.start();
     controller.select(a2ui(10));
     final TriageItem item = controller.selected!;
-    controller.draftFor(item, const TriageSuggestion(addedLabels: ['P2']));
+    controller.draftFor(item, const TriageAnalysis(addedLabels: ['P2']));
     final Completer<void> hold = github.hold = Completer<void>();
 
     final Future<void> applying = controller.apply(item);
@@ -317,8 +317,8 @@ void main() {
       ..toggleInSelection(a2ui(11), ItemGroup.newItems);
     final List<TriageItem> items = controller.multiSelection;
     controller
-      ..draftFor(items[0], const TriageSuggestion(addedLabels: ['P3']))
-      ..draftFor(items[1], const TriageSuggestion(addedLabels: ['P2']));
+      ..draftFor(items[0], const TriageAnalysis(addedLabels: ['P3']))
+      ..draftFor(items[1], const TriageAnalysis(addedLabels: ['P2']));
 
     await controller.applyAll(items);
 
@@ -348,7 +348,7 @@ void main() {
 
     controller.draftFor(
       controller.item(a2ui(10))!,
-      const TriageSuggestion(addedLabels: ['P2']),
+      const TriageAnalysis(addedLabels: ['P2']),
     );
     await controller.apply(controller.item(a2ui(10))!);
     controller
@@ -367,7 +367,7 @@ void main() {
     final TriageItem item = controller.selected!;
     controller.draftFor(
       item,
-      const TriageSuggestion(reply: 'Thanks!', newAssignees: ['stranger']),
+      const TriageAnalysis(reply: 'Thanks!', newAssignees: ['stranger']),
     );
 
     await controller.apply(item);
@@ -377,7 +377,7 @@ void main() {
 
     controller.select(a2ui(10));
 
-    controller.draftFor(item, const TriageSuggestion()).newAssignees = [];
+    controller.draftFor(item, const TriageAnalysis()).newAssignees = [];
     await controller.apply(controller.item(a2ui(10))!);
 
     expect(controller.lastResult(a2ui(10))!.succeeded, isTrue);
@@ -408,11 +408,8 @@ void main() {
       'items', () async {
     await controller.start();
     controller
-      ..draftFor(controller.item(a2ui(10))!, const TriageSuggestion(reply: 'A'))
-      ..draftFor(
-        controller.item(a2ui(11))!,
-        const TriageSuggestion(reply: 'B'),
-      );
+      ..draftFor(controller.item(a2ui(10))!, const TriageAnalysis(reply: 'A'))
+      ..draftFor(controller.item(a2ui(11))!, const TriageAnalysis(reply: 'B'));
     github
       ..change(10, (item) => item['title'] = 'Renamed')
       ..change(20, (item) => item['labels'] = {'nodes': <Object?>[]})
@@ -425,7 +422,7 @@ void main() {
     expect(controller.changedOnGitHub(a2ui(10)), isTrue);
     expect(controller.changedOnGitHub(a2ui(11)), isFalse);
     expect(controller.item(a2ui(10))!.title, 'Renamed');
-    const empty = TriageSuggestion();
+    const empty = TriageAnalysis();
     expect(
       controller.draftFor(controller.item(a2ui(10))!, empty).reply.text,
       '',
@@ -444,8 +441,8 @@ void main() {
     final TriageItem item10 = controller.item(a2ui(10))!;
     final TriageItem item11 = controller.item(a2ui(11))!;
     controller
-      ..draftFor(item10, const TriageSuggestion(reply: 'A'))
-      ..draftFor(item11, const TriageSuggestion(reply: 'B'));
+      ..draftFor(item10, const TriageAnalysis(reply: 'A'))
+      ..draftFor(item11, const TriageAnalysis(reply: 'B'));
     github
       ..change(10, (item) => item['labels'] = {'nodes': <Object?>[]})
       ..change(21, (item) => item['title'] = 'Renamed')
@@ -460,7 +457,7 @@ void main() {
     expect(controller.changedOnGitHub(a2ui(10)), isTrue);
     expect(controller.changedOnGitHub(a2ui(11)), isFalse);
     expect(controller.logOf(a2ui(10)).single.title, contains('changed on'));
-    const empty = TriageSuggestion();
+    const empty = TriageAnalysis();
     expect(
       controller.draftFor(controller.item(a2ui(10))!, empty).reply.text,
       '',
@@ -523,7 +520,7 @@ void main() {
     await controller.start();
     controller.draftFor(
       controller.item(a2ui(10))!,
-      const TriageSuggestion(addedLabels: ['P2']),
+      const TriageAnalysis(addedLabels: ['P2']),
     );
     await controller.apply(controller.item(a2ui(10))!);
 
@@ -537,7 +534,7 @@ void main() {
     await controller.start();
     controller.draftFor(
       controller.item(a2ui(40))!,
-      const TriageSuggestion(addedLabels: ['P2']),
+      const TriageAnalysis(addedLabels: ['P2']),
     );
 
     await controller.apply(controller.item(a2ui(40))!);
@@ -555,7 +552,7 @@ void main() {
     await controller.start();
     controller.draftFor(
       controller.item(a2ui(40))!,
-      const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
+      const TriageAnalysis(addedLabels: [needsTeamInputLabel]),
     );
 
     await controller.apply(controller.item(a2ui(40))!);
@@ -573,7 +570,7 @@ void main() {
     controller.select(a2ui(10));
     controller.draftFor(
       controller.item(a2ui(10))!,
-      const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
+      const TriageAnalysis(addedLabels: [needsTeamInputLabel]),
     );
 
     await controller.apply(controller.item(a2ui(10))!);
@@ -597,7 +594,7 @@ void main() {
       await controller.start();
       controller.draftFor(
         controller.item(a2ui(10))!,
-        const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
+        const TriageAnalysis(addedLabels: [needsTeamInputLabel]),
       );
       await controller.apply(controller.item(a2ui(10))!);
       // Listed in Needs triage and in Needs team input.
@@ -605,7 +602,7 @@ void main() {
       expect(controller.selectedGroup, ItemGroup.newItems);
       controller.select(a2ui(10), group: ItemGroup.teamInput);
       final TriageItem item = controller.selected!;
-      controller.draftFor(item, const TriageSuggestion(addedLabels: ['P2']));
+      controller.draftFor(item, const TriageAnalysis(addedLabels: ['P2']));
 
       await controller.apply(item);
 
@@ -621,7 +618,7 @@ void main() {
     await controller.open(url('issues/30'));
     controller.draftFor(
       controller.item(a2ui(30))!,
-      const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
+      const TriageAnalysis(addedLabels: [needsTeamInputLabel]),
     );
 
     await controller.apply(controller.item(a2ui(30))!);
@@ -642,20 +639,20 @@ void main() {
       controller
         ..draftFor(
           controller.item(a2ui(10))!,
-          const TriageSuggestion(addedLabels: ['P2']),
+          const TriageAnalysis(addedLabels: ['P2']),
         )
         ..draftFor(
           controller.item(a2ui(11))!,
-          const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
+          const TriageAnalysis(addedLabels: [needsTeamInputLabel]),
         )
         ..draftFor(
           controller.item(a2ui(40))!,
-          const TriageSuggestion(removedLabels: [needsTeamInputLabel]),
+          const TriageAnalysis(removedLabels: [needsTeamInputLabel]),
         )
         // Fails, so it is not triaged, though it loses "status: needs-triage".
         ..draftFor(
           controller.item(a2ui(21))!,
-          const TriageSuggestion(newAssignees: ['stranger']),
+          const TriageAnalysis(newAssignees: ['stranger']),
         );
       await controller.applyAll([
         for (final n in [10, 11, 40, 21]) controller.item(a2ui(n))!,
@@ -684,7 +681,7 @@ void main() {
     await controller.open(url('issues/30'));
     controller.draftFor(
       controller.item(a2ui(30))!,
-      const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
+      const TriageAnalysis(addedLabels: [needsTeamInputLabel]),
     );
     await controller.apply(controller.item(a2ui(30))!);
     controller.select(a2ui(30), group: ItemGroup.notInQueue);

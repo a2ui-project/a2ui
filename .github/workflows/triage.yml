@@ -75,6 +75,9 @@ jobs:
     # 2026-08-21. A standard runner starts in seconds, and this job only calls
     # the GitHub API, so it has no use for the larger pool.
     runs-on: ubuntu-latest
+    # Runs queue behind each other (see concurrency above), so a hung run
+    # must not hold up the next ones for hours.
+    timeout-minutes: 15
     # Requires issue and PR write permissions for automated labeling and comment management
     permissions:
       contents: read
@@ -116,6 +119,15 @@ jobs:
           dev_dependencies:
             lints: ^6.1.0
           EOF
+
+      # The flagger's dependencies include the A2UI packages, which the job
+      # would otherwise download on every issue event.
+      - name: Cache pub dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-triage-pub-${{ hashFiles('dart/a2ui_core/pubspec.yaml', 'dart/a2ui_agent/pubspec.yaml', 'tools/internal/triage/pkgs/shared/pubspec.yaml', 'tools/internal/triage/pkgs/flagger/pubspec.yaml') }}
+          restore-keys: ${{ runner.os }}-triage-pub-
 
       - name: Install dependencies
         working-directory: tools/internal/triage/pkgs/flagger

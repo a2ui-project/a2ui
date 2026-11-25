@@ -17,11 +17,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared/shared.dart';
 
+import 'analysis_draft.dart';
 import 'applier.dart';
 import 'github_item.dart';
 import 'log_entry.dart';
 import 'milestone_change.dart';
-import 'suggestion_draft.dart';
 import 'triage_item.dart';
 import 'triage_service.dart';
 import 'triage_session.dart';
@@ -102,10 +102,14 @@ class TriageController extends ChangeNotifier {
   RepositoryInfo repositoryInfo(String repository) =>
       _repositoryInfo[repository] ?? const RepositoryInfo();
 
-  bool _loading = false;
+  /// How many loads are running. [start], [refresh], [refreshItems] and
+  /// [open] can overlap.
+  int _loads = 0;
 
   /// Whether the items are being loaded.
-  bool get loading => _loading;
+  bool get loading => _loads > 0;
+
+  bool _disposed = false;
 
   String? _error;
 
@@ -129,7 +133,7 @@ class TriageController extends ChangeNotifier {
   GitHubItem? _pendingOpen;
 
   final Set<ItemRef> _changedOnGitHub = {};
-  final Map<ItemRef, SuggestionDraft> _drafts = {};
+  final Map<ItemRef, AnalysisDraft> _drafts = {};
   final Map<ItemRef, ApplyResult> _results = {};
   final Map<ItemRef, List<LogEntry>> _logs = {};
   final Set<ItemRef> _applying = {};
@@ -210,6 +214,7 @@ class TriageController extends ChangeNotifier {
   static bool _belongsTo(ItemGroup group, TriageItem item) {
     final bool queued =
         item.isOpen &&
+        !item.isDraft &&
         (item.isPullRequest || item.repository == a2uiRepository) &&
         (item.needsTriage || item.needsTeamInput);
     return switch (group) {
@@ -371,9 +376,7 @@ class TriageController extends ChangeNotifier {
   /// A linked item that is not loaded yet is left out, and loaded in the
   /// background; the group includes it once it is.
   List<TriageItem> group(TriageItem item) {
-    final List<ItemRef> linked = [
-      for (final n in item.linkedItems) item.refTo(n),
-    ];
+    final List<ItemRef> linked = item.linkedItems;
     if (linked.any((r) => this.item(r) == null && !_linked.containsKey(r))) {
       unawaited(loadLinked(item));
     }
@@ -387,9 +390,8 @@ class TriageController extends ChangeNotifier {
   /// Loads the items linked to [item] that are not loaded yet, and waits
   /// for the ones that are being loaded.
   Future<void> loadLinked(TriageItem item) => Future.wait([
-    for (final n in item.linkedItems)
-      if (item.refTo(n) case final ItemRef r when this.item(r) == null)
-        _linkedFetches.putIfAbsent(r, () => _fetch(r)),
+    for (final ItemRef r in item.linkedItems)
+      if (this.item(r) == null) _linkedFetches.putIfAbsent(r, () => _fetch(r)),
   ]);
 
   Future<void> _fetch(ItemRef ref) async {
@@ -398,8 +400,9 @@ class TriageController extends ChangeNotifier {
         _linked[ref] = linked;
         notifyListeners();
       }
-    } on GitHubException {
-      // Tried again after a refresh.
+    } on Object {
+      // Forgotten, so that the next refresh of the item's tab tries again.
+      unawaited(_linkedFetches.remove(ref));
     }
   }
 
@@ -408,6 +411,10 @@ class TriageController extends ChangeNotifier {
   bool changedOnGitHub(ItemRef item) => _changedOnGitHub.contains(item);
 
   bool isApplying(ItemRef item) => _applying.contains(item);
+
+  /// Whether changes to any item are being applied. A refresh then would
+  /// see the item changed by the apply, and drop its draft.
+  bool get isApplyingAny => _applying.isNotEmpty;
 
   ApplyResult? lastResult(ItemRef item) => _results[item];
 
@@ -418,15 +425,22 @@ class TriageController extends ChangeNotifier {
   void _log(ItemRef item, LogEntry entry) => (_logs[item] ??= []).add(entry);
 
   /// The draft for [item], which starts as [initial], or as the item's
-  /// suggestion if [initial] is null, and removes `status: needs-triage`
+  /// analysis if [initial] is null, and removes `status: needs-triage`
   /// if the item has it.
-  SuggestionDraft draftFor(TriageItem item, [TriageSuggestion? initial]) =>
+  ///
+  /// A linked item that is neither listed nor needs triage was triaged
+  /// already, so its draft starts empty rather than from its old analysis,
+  /// and a group apply changes it only if the triager edits it.
+  AnalysisDraft draftFor(TriageItem item, [TriageAnalysis? initial]) =>
       _drafts.putIfAbsent(
         item.ref,
-        () => SuggestionDraft(
-          _withoutNeedsTriage(
+        () => AnalysisDraft(
+          _startingDraft(
             item,
-            initial ?? item.suggestion?.suggestion ?? const TriageSuggestion(),
+            initial ??
+                (this.item(item.ref) == null && !item.needsTriage
+                    ? const TriageAnalysis()
+                    : item.analysis?.analysis ?? const TriageAnalysis()),
           ),
         ),
       );
@@ -463,10 +477,11 @@ class TriageController extends ChangeNotifier {
   /// triager sees their current state.
   Future<void> refresh() => _load(() async {
     final TriageService service = _service!;
+    final List<TriageItem> wereOpened = _opened;
     final List<TriageItem> queue = await service.fetchQueue();
     final Set<ItemRef> inQueue = {for (final i in queue) i.ref};
     final opened = <TriageItem>[];
-    for (final TriageItem i in _opened) {
+    for (final i in wereOpened) {
       if (inQueue.contains(i.ref)) continue;
       final TriageItem? fresh = await service.fetchItem(i.ref);
       if (fresh != null) opened.add(fresh);
@@ -480,7 +495,13 @@ class TriageController extends ChangeNotifier {
       if (old[i.ref] case final TriageItem before) _resetIfChanged(before, i);
     }
     _setQueue(queue);
-    _opened = opened;
+    // An item that [open] loaded while the refresh ran is current already.
+    final Set<ItemRef> refreshed = {for (final i in wereOpened) i.ref};
+    _opened = [
+      ...opened,
+      for (final i in _opened)
+        if (!refreshed.contains(i.ref) && !inQueue.contains(i.ref)) i,
+    ];
     // Keeps the selected items that are still listed in their groups.
     _setMultiSelection([
       for (final (ItemRef r, ItemGroup g) in _multiSelection)
@@ -522,17 +543,22 @@ class TriageController extends ChangeNotifier {
 
   /// If [fresh] was updated on GitHub since [before] loaded, resets its
   /// draft and last apply result, and logs that.
+  ///
+  /// An item that is being applied changes by the apply itself, so it keeps
+  /// its draft; the apply loads it again when it ends.
   void _resetIfChanged(TriageItem before, TriageItem fresh) {
     if (before.updatedAt == fresh.updatedAt) return;
     final ItemRef n = fresh.ref;
+    if (_applying.contains(n)) return;
     _changedOnGitHub.add(n);
+    session.forgetReply(n);
     _drafts.remove(n)?.dispose();
     _results.remove(n);
     _log(
       n,
       LogEntry(
         'A refresh found that the item changed on GitHub, and reset '
-        'its suggestion to the current state',
+        'its analysis to the current state',
       ),
     );
   }
@@ -554,6 +580,16 @@ class TriageController extends ChangeNotifier {
       });
     }
     if (this.item(item.ref) != null) {
+      // An item that the triager took out of the list comes back, so that
+      // the list can show it.
+      _removed = {
+        for (final r in _removed)
+          if (r != item.ref) r,
+      };
+      _hidden = {
+        for (final h in _hidden)
+          if (h.$2 != item.ref) h,
+      };
       _revealCount++;
       select(item.ref);
     }
@@ -595,12 +631,15 @@ class TriageController extends ChangeNotifier {
   /// triager can go on while the applies run. A failed item shows it in the
   /// list.
   Future<void> applyAll(List<TriageItem> items) async {
-    final List<TriageItem> changed = [
+    // What to apply is fixed now: a draft can change or go away while the
+    // earlier items are applied.
+    final List<(TriageItem, TriageAnalysis, MilestoneChange)> changed = [
       for (final i in items)
-        if (draftFor(i).hasChanges) i,
+        if (draftFor(i) case final AnalysisDraft d when d.hasChanges)
+          (i, d.toAnalysis(), d.milestoneChange),
     ];
     // Mark them all first, so that the next item is none of them.
-    _applying.addAll(changed.map((i) => i.ref));
+    _applying.addAll(changed.map((c) => c.$1.ref));
     final List<(ItemGroup, TriageItem)> order = _listed;
     if (_multiSelection.isNotEmpty) {
       _selectNextAfterMultiSelection(items, order);
@@ -608,71 +647,95 @@ class TriageController extends ChangeNotifier {
       _selectNextAfterGroup(items, selectedGroup, order);
     }
     notifyListeners();
-    for (final i in changed) {
-      await _applyOne(i);
+    for (final (TriageItem i, TriageAnalysis a, MilestoneChange m) in changed) {
+      await _applyOne(i, a, m);
     }
   }
 
-  /// Applies the draft for [item].
-  Future<void> _applyOne(TriageItem item) async {
+  /// Applies [analysis] and [milestone] to [item].
+  Future<void> _applyOne(
+    TriageItem item,
+    TriageAnalysis analysis,
+    MilestoneChange milestone,
+  ) async {
     final ItemRef n = item.ref;
-    final TriageSuggestion suggestion = _drafts[n]!.toSuggestion();
-    final MilestoneChange milestone = _drafts[n]!.milestoneChange;
     _applying.add(n);
     _results.remove(n);
     notifyListeners();
 
-    final ApplyResult result = await applySuggestion(
-      _service!,
-      item,
-      suggestion,
-      replyPosted: session.hasReplied(n),
-      onReplyPosted: () => session.recordReplied(n),
-      milestone: milestone,
-      milestones: repositoryInfo(item.repository).milestones,
-    );
-    _results[n] = result;
-    _log(
-      n,
-      LogEntry(
-        result.succeeded ? 'Applied the suggestion' : 'Some changes failed',
-        steps: result.steps,
-      ),
-    );
-    if (result.succeeded) {
-      session.recordApplied(item, suggestion);
-      if (suggestion.addedLabels.contains(needsTeamInputLabel)) {
-        _addToTeamInput(item);
+    try {
+      final String? reply = replyToPost(analysis);
+      final ApplyResult result = await applySuggestion(
+        _service!,
+        item,
+        analysis,
+        // A retry after a failure does not post the same reply twice. A
+        // different reply is a new one.
+        replyPosted: reply != null && session.postedReply(n) == reply,
+        onReplyPosted: () => session.recordReply(n, reply!),
+        milestone: milestone,
+        milestones: repositoryInfo(item.repository).milestones,
+      );
+      _results[n] = result;
+      _log(
+        n,
+        LogEntry(
+          result.succeeded ? 'Applied the suggestion' : 'Some changes failed',
+          steps: result.steps,
+        ),
+      );
+      if (result.succeeded) {
+        session.recordApplied(item, analysis);
+        if (analysis.addedLabels.contains(needsTeamInputLabel)) {
+          _addToTeamInput(item);
+        }
       }
+    } on Object catch (e) {
+      _results[n] = ApplyResult([
+        StepResult('Apply', StepStatus.failed, error: '$e'),
+      ]);
+      _log(n, LogEntry('The apply failed: $e'));
+    } finally {
+      await _finish(n);
     }
-    await _finish(n);
   }
 
-  /// Adds `status: needs-triage` to the labels that [suggestion] removes,
-  /// if [item] has the label.
-  static TriageSuggestion _withoutNeedsTriage(
+  /// [analysis] as a draft for [item] starts:
+  ///
+  /// 1. It removes `status: needs-triage`, if the item has it.
+  /// 2. Its reply has no heading. The apply adds the heading that fits:
+  ///    [replyHeading], or [teamNoteHeading] for a note to the team.
+  /// 3. A pull request has no close reason, so any `close_as` closes it, as
+  ///    `triage_bot/analysis.blueprint.md` says, and there is no item that
+  ///    it duplicates.
+  static TriageAnalysis _startingDraft(
     TriageItem item,
-    TriageSuggestion suggestion,
-  ) => item.needsTriage ? _removing(suggestion, needsTriageLabel) : suggestion;
-
-  /// [suggestion], removing [label] too.
-  static TriageSuggestion _removing(TriageSuggestion suggestion, String label) {
-    if (suggestion.removedLabels.contains(label)) return suggestion;
-    return TriageSuggestion(
-      tldr: suggestion.tldr,
-      summary: suggestion.summary,
-      reason: suggestion.reason,
-      suggestion: suggestion.suggestion,
-      reply: suggestion.reply,
-      closeAs: suggestion.closeAs,
-      duplicateOf: suggestion.duplicateOf,
-      addedLabels: suggestion.addedLabels,
-      removedLabels: [...suggestion.removedLabels, label],
-      newAssignees: suggestion.newAssignees,
-      removedAssignees: suggestion.removedAssignees,
-      targetingPrs: suggestion.targetingPrs,
-      targetedIssues: suggestion.targetedIssues,
-      relatedItems: suggestion.relatedItems,
+    TriageAnalysis analysis,
+  ) {
+    final bool closesPr = item.isPullRequest && analysis.closeAs != null;
+    return TriageAnalysis(
+      tldr: analysis.tldr,
+      summary: analysis.summary,
+      reason: analysis.reason,
+      suggestion: analysis.suggestion,
+      reply: switch (analysis.reply) {
+        final String reply => withoutReplyHeading(reply),
+        null => null,
+      },
+      closeAs: closesPr ? TriageCloseReason.completed : analysis.closeAs,
+      duplicateOf: closesPr ? null : analysis.duplicateOf,
+      addedLabels: analysis.addedLabels,
+      removedLabels: [
+        ...analysis.removedLabels,
+        if (item.needsTriage &&
+            !analysis.removedLabels.contains(needsTriageLabel))
+          needsTriageLabel,
+      ],
+      newAssignees: analysis.newAssignees,
+      removedAssignees: analysis.removedAssignees,
+      targetingPrs: analysis.targetingPrs,
+      targetedIssues: analysis.targetedIssues,
+      relatedItems: analysis.relatedItems,
     );
   }
 
@@ -691,11 +754,12 @@ class TriageController extends ChangeNotifier {
     try {
       final TriageItem? fresh = await _service!.fetchItem(item);
       if (fresh != null) _replace(fresh);
-    } on GitHubException {
+    } on Object {
       // The item keeps its old state until the next refresh.
+    } finally {
+      _applying.remove(item);
+      notifyListeners();
     }
-    _applying.remove(item);
-    notifyListeners();
   }
 
   void _setQueue(List<TriageItem> queue) {
@@ -726,10 +790,11 @@ class TriageController extends ChangeNotifier {
     final int index = order.indexWhere(
       (e) => e.$1 == group && e.$2.ref == selected,
     );
-    final Iterable<(ItemGroup, TriageItem)> candidates = [
-      ...order.skip(index + 1),
-      ...order.take(index),
-    ];
+    // An item that the list does not show, such as one opened by URL after
+    // it was hidden, has no place in [order].
+    final Iterable<(ItemGroup, TriageItem)> candidates = index < 0
+        ? order
+        : [...order.skip(index + 1), ...order.take(index)];
     for (final (ItemGroup g, TriageItem i) in candidates) {
       if (!isHandled(i.ref) && !isApplying(i.ref)) {
         _selected = i.ref;
@@ -783,36 +848,47 @@ class TriageController extends ChangeNotifier {
     Future<void> Function() body, {
     Future<void> Function()? then,
   }) async {
-    _loading = true;
+    _loads++;
     _error = null;
     notifyListeners();
     try {
       await body();
     } on GitHubException catch (e) {
       _error = e.message;
+    } on Object catch (e) {
+      _error = '$e';
+    } finally {
+      _loads--;
+      notifyListeners();
     }
-    _loading = false;
-    notifyListeners();
     await then?.call();
   }
 
   /// [items] in the order `ui.blueprint.md` lists them: by kind, then the
-  /// items with a suggestion first, then the least recently updated first.
+  /// items with an analysis first, then the least recently updated first.
   List<TriageItem> _sorted(Iterable<TriageItem> items) {
     DateTime updatedAt(TriageItem i) => _listedUpdatedAt[i.ref] ?? i.updatedAt;
-    int withoutSuggestion(TriageItem i) => i.suggestion == null ? 1 : 0;
+    int withoutAnalysis(TriageItem i) => i.analysis == null ? 1 : 0;
     return items.toList()..sort(
       (a, b) => a.kind != b.kind
           ? a.kind.index.compareTo(b.kind.index)
-          : withoutSuggestion(a) != withoutSuggestion(b)
-          ? withoutSuggestion(a).compareTo(withoutSuggestion(b))
+          : withoutAnalysis(a) != withoutAnalysis(b)
+          ? withoutAnalysis(a).compareTo(withoutAnalysis(b))
           : updatedAt(a).compareTo(updatedAt(b)),
     );
   }
 
+  /// Notifies the listeners, unless the controller is disposed: loads and
+  /// applies can end after that.
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
+
   @override
   void dispose() {
-    for (final SuggestionDraft draft in _drafts.values) {
+    _disposed = true;
+    for (final AnalysisDraft draft in _drafts.values) {
       draft.dispose();
     }
     super.dispose();

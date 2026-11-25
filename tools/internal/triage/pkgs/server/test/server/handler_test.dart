@@ -79,11 +79,11 @@ final class FakeGitHub {
       return http.Response(jsonEncode({'login': login}), 200);
     }
     apiRequests.add(request);
-    if (url.path == '/repos/old/name') {
+    if (url.path == '/repos/a2ui-project/a2ui/issues/301') {
       return http.Response(
         '',
         301,
-        headers: {'location': '${_githubApi}repositories/1'},
+        headers: {'location': '${_githubApi}repositories/1/issues/301'},
       );
     }
     return http.Response(
@@ -213,9 +213,14 @@ void main() {
       );
       final List<String> setCookies = callback.headersAll['set-cookie']!;
       expect(setCookies, hasLength(2));
+      expect(setCookies.first, startsWith('__Host-triage_session='));
+      expect(setCookies.first, contains('Path=/;'));
       expect(setCookies.first, contains('HttpOnly'));
       expect(setCookies.first, contains('Secure'));
       expect(setCookies.first, contains('SameSite=Lax'));
+      expect(setCookies.first, isNot(contains('Domain')));
+      expect(setCookies.last, startsWith('__Host-triage_sign_in=;'));
+      expect(setCookies.last, contains('Path=/;'));
       expect(setCookies.last, contains('Max-Age=0'));
 
       final Response status = await send(
@@ -289,15 +294,52 @@ void main() {
     });
 
     test('shows the reason when the triager declines', () async {
-      final (_, String signInCookie) = await startSignIn('/');
+      final (Uri authorize, String signInCookie) = await startSignIn('/');
       final Response callback = await send(
         'GET',
-        '/auth/callback?error=access_denied&error_description=Denied%3Cb%3E',
+        '/auth/callback?error=access_denied&error_description=Denied%3Cb%3E'
+            '&state=${authorize.queryParameters['state']}',
         cookie: signInCookie,
         header: false,
       );
       expect(callback.statusCode, 400);
       expect(await callback.readAsString(), contains('Denied&lt;b&gt;'));
+    });
+
+    test('does not show the error text of another state', () async {
+      final (_, String signInCookie) = await startSignIn('/');
+      final Response callback = await send(
+        'GET',
+        '/auth/callback?error=x&error_description=Call+us&state=other',
+        cookie: signInCookie,
+        header: false,
+      );
+      expect(callback.statusCode, 400);
+      final String page = await callback.readAsString();
+      expect(page, contains('did not start'));
+      expect(page, isNot(contains('Call us')));
+    });
+
+    test('does not show the error text without the sign-in cookie', () async {
+      final Response callback = await send(
+        'GET',
+        '/auth/callback?error=x&error_description=Call+us&state=s',
+        header: false,
+      );
+      expect(callback.statusCode, 400);
+      expect(await callback.readAsString(), isNot(contains('Call us')));
+    });
+
+    test('rejects a callback without a code', () async {
+      final (Uri authorize, String signInCookie) = await startSignIn('/');
+      final Response callback = await send(
+        'GET',
+        '/auth/callback?state=${authorize.queryParameters['state']}',
+        cookie: signInCookie,
+        header: false,
+      );
+      expect(callback.statusCode, 400);
+      expect(await callback.readAsString(), contains('no code'));
     });
 
     test('shows the reason when GitHub rejects the code', () async {
@@ -364,6 +406,17 @@ void main() {
       expect((await json(status))['login'], 'bob');
     });
 
+    test('reads the session cookie behind one of the same name', () async {
+      final String cookie = await signInWithToken();
+      final String name = cookie.substring(0, cookie.indexOf('='));
+      final Response status = await send(
+        'GET',
+        '/auth/status',
+        cookie: '$name=from-another-service; $cookie',
+      );
+      expect((await json(status))['login'], 'bob');
+    });
+
     test('requires the header', () async {
       final Response response = await send(
         'POST',
@@ -373,6 +426,30 @@ void main() {
       );
       expect(response.statusCode, 403);
     });
+  });
+
+  test('names the cookies without __Host- over HTTP', () async {
+    final Handler local = createHandler(
+      ServerConfig(
+        port: 8080,
+        publicUrl: Uri.parse('http://localhost:8080'),
+        webDir: web.path,
+        sessionKey: List.filled(32, 7),
+        githubApi: _githubApi,
+      ),
+      httpClient: github.client,
+    );
+    final Response response = await local(
+      Request(
+        'POST',
+        Uri.parse('http://localhost:8080/auth/token'),
+        headers: {'x-requested-with': 'triage-ui'},
+        body: jsonEncode({'token': 'ghp_pasted'}),
+      ),
+    );
+    final String setCookie = response.headers['set-cookie']!;
+    expect(setCookie, startsWith('triage_session='));
+    expect(setCookie, isNot(contains('Secure')));
   });
 
   test('sign out deletes the session, and keeps a pasted token', () async {
@@ -390,7 +467,7 @@ void main() {
     test('adds the token and passes the answer back', () async {
       final Response response = await send(
         'POST',
-        '/github/repos/o/r/issues/1/comments?x=1',
+        '/github/repos/a2ui-project/a2ui/issues/1/comments?x=1',
         cookie: await signInWithToken(),
         body: {'body': 'Hi'},
       );
@@ -399,7 +476,7 @@ void main() {
       final http.Request upstream = github.apiRequests.single;
       expect(
         upstream.url.toString(),
-        'https://api.github.test/repos/o/r/issues/1/comments?x=1',
+        'https://api.github.test/repos/a2ui-project/a2ui/issues/1/comments?x=1',
       );
       expect(upstream.method, 'POST');
       expect(upstream.headers['authorization'], 'Bearer ghp_pasted');
@@ -416,12 +493,128 @@ void main() {
     for (final path in [
       '/github/http://evil.test/steal',
       '/github///evil.test/steal',
+      '/github/foo:bar',
+      '/github/https:foo',
     ]) {
       test('sends the token only to GitHub: $path', () async {
         final Response response = await send(
-          'GET',
+          'POST',
           path,
           cookie: await signInWithToken(),
+          body: {'body': 'Hi'},
+        );
+        expect(response.statusCode, 400);
+        expect(github.apiRequests, isEmpty);
+      });
+    }
+
+    for (final (String method, String path) in [
+      ('POST', 'repos/a2ui-project/a2ui/issues/1/labels'),
+      ('DELETE', 'repos/a2ui-project/a2ui/issues/1/labels/P1'),
+      ('POST', 'repos/flutter/genui/issues/2/assignees'),
+      ('DELETE', 'repos/flutter/genui/issues/2/assignees'),
+      ('PATCH', 'repos/flutter/genui/issues/2'),
+    ]) {
+      test('passes on the call $method /$path', () async {
+        final Response response = await send(
+          method,
+          '/github/$path',
+          cookie: await signInWithToken(),
+          body: {},
+        );
+        expect(response.statusCode, 200);
+        expect(github.apiRequests.single.url.path, '/$path');
+      });
+    }
+
+    for (final (String method, String path) in [
+      ('GET', 'user'),
+      ('DELETE', 'repos/a2ui-project/a2ui'),
+      ('POST', 'repos/other/repo/issues/1/comments'),
+      ('PATCH', 'repos/a2ui-project/a2ui/issues/1/comments'),
+      ('GET', 'repos/a2ui-project/a2ui/issues/1'),
+      ('PATCH', 'repos/a2ui-project/a2ui/issues/1/../../../../user'),
+      ('POST', 'repos/a2ui-project%2Fa2ui/issues/1/comments'),
+    ]) {
+      test('rejects a call the app does not make: $method /$path', () async {
+        final Response response = await send(
+          method,
+          '/github/$path',
+          cookie: await signInWithToken(),
+          body: {},
+        );
+        expect(response.statusCode, 403);
+        expect(github.apiRequests, isEmpty);
+      });
+    }
+
+    for (final query in [
+      'query { viewer { login } }',
+      '{ viewer { login } }',
+      r'mutation($id: ID!) { closePullRequest(input: {pullRequestId: $id}) '
+          '{ pullRequest { state } } }',
+      'mutation { done: closeIssue(input: {issueId: "1"}) '
+          '{ issue { ...F } } } fragment F on Issue { state }',
+      'mutation @a { closeIssue(input: {}) @b(if: true) { issue { state } } }',
+    ]) {
+      test('passes on the GraphQL call: $query', () async {
+        final Response response = await send(
+          'POST',
+          '/github/graphql',
+          cookie: await signInWithToken(),
+          body: {'query': query, 'variables': <String, Object?>{}},
+        );
+        expect(response.statusCode, 200);
+        expect(github.apiRequests, hasLength(1));
+      });
+    }
+
+    for (final query in [
+      'mutation { deleteIssue(input: {issueId: "1"}) { clientMutationId } }',
+      'mutation { closeIssue(input: {}) { issue { state } } '
+          'addComment(input: {}) { clientMutationId } }',
+      'mutation { closeIssue: addComment(input: {}) { clientMutationId } }',
+      'mutation { ...F } fragment F on Mutation { addComment(input: {}) '
+          '{ clientMutationId } }',
+      'mutation { ... on Mutation { addComment(input: {}) '
+          '{ clientMutationId } } }',
+      'query Q { viewer { login } } mutation M { addComment(input: {}) '
+          '{ clientMutationId } }',
+      'subscription { issue { id } }',
+      'mutation { closeIssue(input: {body: "}"}) { issue { state } } '
+          'addComment(input: {}) { clientMutationId } }',
+      'mutation { closeIssue(input: {}) { issue { state } } # }\n'
+          'addComment(input: {}) { clientMutationId } }',
+      'mutation { ~ }',
+    ]) {
+      test('rejects a GraphQL call the app does not make: $query', () async {
+        final Response response = await send(
+          'POST',
+          '/github/graphql',
+          cookie: await signInWithToken(),
+          body: {'query': query},
+        );
+        expect(response.statusCode, 403);
+        expect(github.apiRequests, isEmpty);
+      });
+    }
+
+    for (final Object body in [
+      'not json',
+      ['query'],
+      {'variables': <String, Object?>{}},
+    ]) {
+      test('rejects a GraphQL request without a query: $body', () async {
+        final Response response = await handler(
+          Request(
+            'POST',
+            _server.resolve('/github/graphql'),
+            headers: {
+              'x-requested-with': 'triage-ui',
+              'cookie': await signInWithToken(),
+            },
+            body: body is String ? body : jsonEncode(body),
+          ),
         );
         expect(response.statusCode, 400);
         expect(github.apiRequests, isEmpty);
@@ -430,26 +623,32 @@ void main() {
 
     test('passes redirects on through the proxy', () async {
       final Response response = await send(
-        'GET',
-        '/github/repos/old/name',
+        'PATCH',
+        '/github/repos/a2ui-project/a2ui/issues/301',
         cookie: await signInWithToken(),
+        body: {},
       );
       expect(response.statusCode, 301);
-      expect(response.headers['location'], '/github/repositories/1');
+      expect(response.headers['location'], '/github/repositories/1/issues/301');
     });
 
     test('rejects requests without a session', () async {
-      final Response response = await send('GET', '/github/user');
+      final Response response = await send(
+        'POST',
+        '/github/graphql',
+        body: {'query': '{ viewer { login } }'},
+      );
       expect(response.statusCode, 401);
       expect(github.apiRequests, isEmpty);
     });
 
     test('requires the header', () async {
       final Response response = await send(
-        'GET',
-        '/github/repos/o/r',
+        'POST',
+        '/github/graphql',
         cookie: await signInWithToken(),
         header: false,
+        body: {'query': '{ viewer { login } }'},
       );
       expect(response.statusCode, 403);
       expect(github.apiRequests, isEmpty);
@@ -459,9 +658,10 @@ void main() {
       final String cookie = await signInWithToken();
       github.tokens.remove('ghp_pasted');
       final Response response = await send(
-        'GET',
-        '/github/repos/o/r',
+        'POST',
+        '/github/graphql',
         cookie: cookie,
+        body: {'query': '{ viewer { login } }'},
       );
       expect(response.statusCode, 401);
       expect(response.headers['set-cookie'], contains('Max-Age=0'));
@@ -470,9 +670,10 @@ void main() {
     test('rejects a changed session cookie', () async {
       final String cookie = await signInWithToken();
       final Response response = await send(
-        'GET',
-        '/github/repos/o/r',
+        'POST',
+        '/github/graphql',
         cookie: '${cookie.substring(0, cookie.length - 2)}xx',
+        body: {'query': '{ viewer { login } }'},
       );
       expect(response.statusCode, 401);
     });
@@ -527,6 +728,19 @@ void main() {
       expect(config.secureCookies, isFalse);
       expect(config.listenOnAllInterfaces, isFalse);
       expect(warnings, hasLength(2));
+    });
+
+    test('requires SESSION_SECRET on Cloud Run', () {
+      expect(
+        () => ServerConfig.fromEnvironment({'K_SERVICE': 'a2ui-triage'}),
+        throwsA(
+          isA<ConfigException>().having(
+            (e) => e.message,
+            'message',
+            contains('SESSION_SECRET'),
+          ),
+        ),
+      );
     });
 
     test('requires both OAuth settings', () {

@@ -16,18 +16,18 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:shared/shared.dart';
 
+import '../model/analysis_draft.dart';
 import '../model/item_context.dart';
-import '../model/suggestion_draft.dart';
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
+import 'analysis_editor.dart';
+import 'analysis_surface.dart';
 import 'column_divider.dart';
 import 'group_actions.dart';
 import 'item_info.dart';
 import 'item_list.dart';
 import 'item_log.dart';
 import 'multi_selection_view.dart';
-import 'suggestion_editor.dart';
-import 'suggestion_surface.dart';
 import 'triage_scope.dart';
 
 /// The selected item and the items linked to it, each in a tab of its own.
@@ -101,7 +101,10 @@ class _ItemDetailsState extends State<ItemDetails> {
                         isScrollable: true,
                         tabAlignment: TabAlignment.start,
                         dividerHeight: 0,
-                        tabs: [for (final i in items) _ItemTab(i)],
+                        tabs: [
+                          for (final i in items)
+                            _ItemTab(i, linked: i.ref != item.ref),
+                        ],
                       ),
                     ),
                     Padding(
@@ -203,16 +206,18 @@ class _CopyContextButton extends StatelessWidget {
 }
 
 /// The tab of [item]: its icon and short name, and a blue dot if the triager
-/// edited its suggestion.
+/// edited its analysis. The tab of a [linked] item says so, since it opens
+/// because GitHub links it to the selected item.
 class _ItemTab extends StatelessWidget {
-  const _ItemTab(this.item);
+  const _ItemTab(this.item, {this.linked = false});
 
   final TriageItem item;
+  final bool linked;
 
   @override
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
-    final SuggestionDraft draft = controller.draftFor(item);
+    final AnalysisDraft draft = controller.draftFor(item);
     final (String kind, IconData icon, Color color) = kindStyle(
       context,
       item.kind,
@@ -227,7 +232,12 @@ class _ItemTab extends StatelessWidget {
             spacing: 6,
             children: [
               Icon(icon, size: 18, color: color, semanticLabel: kind),
-              Text(item.shortName),
+              Text(
+                linked
+                    ? 'Linked ${item.isPullRequest ? 'PR' : 'issue'} · '
+                          '${item.shortName}'
+                    : item.shortName,
+              ),
               if (draft.isEdited)
                 const Tooltip(
                   message: 'Edited',
@@ -248,7 +258,7 @@ class _ItemTab extends StatelessWidget {
 }
 
 /// One item in two columns: on the left, what the triager should know about
-/// it; on the right, the tabs **Edit**, with its editable suggestion, and
+/// it; on the right, the tabs **Edit**, with its editable analysis, and
 /// **Log**, with what the tool did to it in this session, and below them
 /// **Apply**, which applies the suggestions of all the items in [group]. The
 /// triager drags the divider between the columns to resize them.
@@ -277,7 +287,7 @@ class ItemView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
-    final SuggestionPayload? payload = item.suggestion;
+    final AnalysisPayload? payload = item.analysis;
     final int logLength = controller.logOf(item.ref).length;
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -322,9 +332,9 @@ class ItemView extends StatelessWidget {
                             padding: const EdgeInsets.all(24),
                             children: [
                               if (payload != null)
-                                SuggestionSurface(item: item, payload: payload)
+                                AnalysisSurface(item: item, payload: payload)
                               else
-                                SuggestionEditor(item: item),
+                                AnalysisEditor(item: item),
                             ],
                           ),
                           ListView(

@@ -7,9 +7,9 @@ The staleness pinger asks the assignees of stale issues and PRs to act, before t
 
    ```sh
    dart run tools/internal/triage/pkgs/pinger/bin/staleness_ping.dart --dry-run
+   ```
 
    With `--messages <file>`, it writes the direct messages to the file, for the triage bot to send.
-   ```
 
 ## Testing
 
