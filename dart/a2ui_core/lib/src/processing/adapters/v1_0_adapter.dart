@@ -21,7 +21,10 @@ import 'version_adapter.dart';
 ///
 /// v1.0 adds inline `components`, `dataModel` and `metadata` to
 /// `createSurface`, makes its `catalogId` optional, drops `theme`, and adds
-/// the `callRendererFunction` and `agentFunctionResponse` messages.
+/// the `callRendererFunction` and `agentFunctionResponse` messages. A raw
+/// `createSurface` that carries `theme` is rejected unless unknown elements
+/// are allowed, in which case `theme` is dropped (see
+/// [preparePayloadForValidation]).
 ///
 /// Outbound bindings and function calls use the reserved `@path` and `@call`
 /// keys.
@@ -32,6 +35,27 @@ class V1_0Adapter extends VersionAdapter {
 
   @override
   A2uiProtocolVersion get version => A2uiProtocolVersion.v1_0;
+
+  /// Drops `theme` from a `createSurface` when [allowUnknownElements] is
+  /// set, as relaxed renderers do; otherwise `theme` is left in place and
+  /// rejected as a field v1.0 does not define. Other unknown fields are
+  /// rejected either way.
+  @override
+  Map<String, Object?> preparePayloadForValidation(
+    Map<String, Object?> rawMessage, {
+    required bool allowUnknownElements,
+  }) {
+    final Object? createSurface = rawMessage['createSurface'];
+    if (!allowUnknownElements ||
+        createSurface is! Map<Object?, Object?> ||
+        !createSurface.containsKey('theme')) {
+      return rawMessage;
+    }
+    return {
+      ...rawMessage,
+      'createSurface': {...createSurface}..remove('theme'),
+    };
+  }
 
   @override
   List<InternalOperation> operationsFor(AgentToRendererMessage message) {

@@ -1631,6 +1631,114 @@ void main() {
       );
     });
 
+    group('a v1.0 createSurface carrying theme', () {
+      Map<String, Object?> themed(String surfaceId) => {
+        'version': '1.0',
+        'createSurface': {
+          'surfaceId': surfaceId,
+          'catalogId': 'v10',
+          'theme': {'primaryColor': '#FF00AA'},
+        },
+      };
+
+      test('drops theme under a config that allows unknown elements', () {
+        final processor = MessageProcessor<ComponentApi>(
+          catalogs: [v10Catalog()],
+          validationConfig: ValidationConfig.relaxed,
+        );
+        processor.processMessages(themed('lone'));
+        processor.processMessages([themed('list')]);
+        processor.processMessages({
+          'messages': [themed('wrapped')],
+        });
+
+        expect(processor.model.allSurfaces.map((s) => s.id), [
+          'lone',
+          'list',
+          'wrapped',
+        ]);
+        expect(processor.model.getSurface('lone')!.theme, isEmpty);
+      });
+
+      test('drops theme when the processor has no config', () {
+        final processor = MessageProcessor<ComponentApi>(
+          catalogs: [v10Catalog()],
+        );
+        processor.processMessages(themed('s'));
+
+        expect(processor.model.getSurface('s'), isNotNull);
+      });
+
+      test('rejects theme under a strict config', () {
+        final processor = MessageProcessor<ComponentApi>(
+          catalogs: [v10Catalog()],
+          validationConfig: ValidationConfig.strict,
+        );
+
+        expect(
+          () => processor.processMessages([themed('s')]),
+          throwsA(
+            isA<A2uiValidationError>().having(
+              (e) => e.message,
+              'message',
+              contains('theme'),
+            ),
+          ),
+        );
+        expect(processor.model.getSurface('s'), isNull);
+      });
+
+      test('follows a per-call config', () {
+        final processor = MessageProcessor<ComponentApi>(
+          catalogs: [v10Catalog()],
+          validationConfig: ValidationConfig.relaxed,
+        );
+
+        expect(
+          () => processor.processMessages(
+            themed('strict'),
+            validationConfig: ValidationConfig.strict,
+          ),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          processor.processMessagesWithErrors(
+            themed('relaxed'),
+            validationConfig: ValidationConfig.relaxed,
+          ),
+          isEmpty,
+        );
+        expect(processor.model.allSurfaces.map((s) => s.id), ['relaxed']);
+      });
+
+      test('still rejects other unknown createSurface fields', () {
+        final processor = MessageProcessor<ComponentApi>(
+          catalogs: [v10Catalog()],
+          validationConfig: ValidationConfig.relaxed,
+        );
+
+        expect(
+          () => processor.processMessages({
+            'version': '1.0',
+            'createSurface': {
+              'surfaceId': 's',
+              'catalogId': 'v10',
+              'theme': {'primaryColor': '#FF00AA'},
+              'styles': <String, Object?>{},
+            },
+          }),
+          throwsA(
+            isA<A2uiValidationError>().having(
+              (e) => e.message,
+              'message',
+              contains('styles'),
+            ),
+          ),
+        );
+        expect(processor.model.getSurface('s'), isNull);
+      });
+    });
+
     test('processMessagesAsync applies the payload', () async {
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [TestCatalog()],

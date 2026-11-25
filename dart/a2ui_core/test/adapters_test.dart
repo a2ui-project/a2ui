@@ -292,6 +292,22 @@ void main() {
       );
     });
 
+    test('drops the theme when unknown elements are allowed', () {
+      final Map<String, Object?> raw = {
+        'version': '1.0',
+        'createSurface': {
+          'surfaceId': 's1',
+          'theme': {'primaryColor': '#FF0000'},
+        },
+      };
+      final op =
+          adapter.toOperations(raw, allowUnknownElements: true).single
+              as CreateSurfaceOp;
+      expect(op.surfaceId, 's1');
+      // The caller's envelope is left as it was.
+      expect((raw['createSurface']! as Map).containsKey('theme'), isTrue);
+    });
+
     test('rejects the v0.8 beginRendering action', () {
       expect(
         () => adapter.toOperations({

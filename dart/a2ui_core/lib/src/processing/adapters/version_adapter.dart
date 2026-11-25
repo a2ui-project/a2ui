@@ -39,18 +39,40 @@ abstract class VersionAdapter {
 
   /// Maps one raw agent-to-renderer envelope onto operations.
   ///
-  /// The envelope is parsed with [AgentToRendererMessage.fromJson], which
-  /// checks it against the shape its declared version defines, and the parsed
-  /// message is passed to [operationsFor].
+  /// The envelope is passed through [preparePayloadForValidation], parsed
+  /// with [AgentToRendererMessage.fromJson], which checks it against the
+  /// shape its declared version defines, and the parsed message is passed to
+  /// [operationsFor].
+  ///
+  /// [allowUnknownElements] is the caller's
+  /// `ValidationConfig.allowUnknownElements`; a version may let it relax the
+  /// envelope check (see [preparePayloadForValidation]).
   ///
   /// Throws [A2uiValidationError] if the envelope declares a version this
   /// adapter does not serve or is not a well-formed message of its version.
-  List<InternalOperation> toOperations(Map<String, Object?> rawMessage) {
+  List<InternalOperation> toOperations(
+    Map<String, Object?> rawMessage, {
+    bool allowUnknownElements = false,
+  }) {
     checkServes(A2uiProtocolVersion.fromJson(rawMessage['version']));
+    final Map<String, Object?> prepared = preparePayloadForValidation(
+      rawMessage,
+      allowUnknownElements: allowUnknownElements,
+    );
     return operationsFor(
-      AgentToRendererMessage.fromJson(Map<String, dynamic>.from(rawMessage)),
+      AgentToRendererMessage.fromJson(Map<String, dynamic>.from(prepared)),
     );
   }
+
+  /// Normalizes one raw envelope before [toOperations] parses it, such as by
+  /// dropping a property that relaxed renderers ignore.
+  ///
+  /// Returns [rawMessage] unchanged by default. An override must not modify
+  /// [rawMessage] in place; it returns a new map instead.
+  Map<String, Object?> preparePayloadForValidation(
+    Map<String, Object?> rawMessage, {
+    required bool allowUnknownElements,
+  }) => rawMessage;
 
   /// Maps one parsed agent-to-renderer message onto operations.
   ///
