@@ -44,7 +44,7 @@ export class DefaultTextPart implements RendererComponent {
   /** The UiMessageContent containing the a2a.v1.TextPart. */
   readonly uiMessageContent = input.required<UiMessageContent>();
 
-  /** Service used to render Markdown to SafeHtml. */
+  /** Service used to render Markdown to HTML or SafeHtml. */
   private readonly markdownRendererService = inject(MARKDOWN_RENDERER_SERVICE);
 
   /** The raw text content from the TextPart. */
@@ -66,9 +66,26 @@ export class DefaultTextPart implements RendererComponent {
    * Constructor sets up an effect to re-render the Markdown whenever the text input changes.
    */
   constructor() {
-    effect(async () => {
-      // Render the text content using the markdown service and update the signal.
-      this.renderedHtml.set(await this.markdownRendererService.render(this.text()));
+    effect(onCleanup => {
+      let cancelled = false;
+      onCleanup(() => {
+        cancelled = true;
+      });
+
+      const text = this.text();
+      void (async () => {
+        try {
+          const rendered = await this.markdownRendererService.render(text);
+          if (!cancelled) {
+            this.renderedHtml.set(rendered);
+          }
+        } catch {
+          if (!cancelled) {
+            console.error('[DefaultTextPart] Markdown rendering failed.');
+            this.renderedHtml.set('');
+          }
+        }
+      })();
     });
   }
 }

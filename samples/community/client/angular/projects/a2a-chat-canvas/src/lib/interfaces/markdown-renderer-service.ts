@@ -14,15 +14,23 @@
  * limitations under the License.
  */
 
-import {SanitizerMarkdownRendererService} from '@a2a_chat_canvas/services/sanitizer-markdown-renderer-service';
 import {InjectionToken} from '@angular/core';
 import {SafeHtml} from '@angular/platform-browser';
+
+import {SanitizerMarkdownRendererService} from '../services/sanitizer-markdown-renderer-service';
+
 /**
  * Interface for a markdown renderer service.
  */
 export interface MarkdownRendererService {
-  /** Assumes that the given string is markdown and converts it to HTML. */
-  render(markdown: string): Promise<SafeHtml>;
+  /**
+   * Assumes that the given string is Markdown and converts it to HTML.
+   *
+   * Return a plain string unless the implementation sanitizes its own output:
+   * Angular sanitizes strings bound to `innerHTML`, but inserts a `SafeHtml`
+   * value without further sanitization.
+   */
+  render(markdown: string): Promise<SafeHtml | string>;
 }
 
 /**

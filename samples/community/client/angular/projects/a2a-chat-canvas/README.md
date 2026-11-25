@@ -113,15 +113,23 @@ export const appConfig: ApplicationConfig = {
 
 ### `MarkdownFeature` (Recommended)
 
-This feature configures how Markdown is rendered. By default markdown is
-rendered using a sanitization-only implementation of the
+This feature configures how Markdown is rendered. By default, text parts are
+rendered with `SanitizerMarkdownRendererService`, an implementation of
 [`MarkdownRendererService`](src/lib/interfaces/markdown-renderer-service.ts)
-interface.
+that delegates to `@a2ui/angular/v0_9`'s `MarkdownRenderer` token (configured
+via `provideMarkdownRenderer` from `@a2ui/angular/v0_9`, falling back to
+`DefaultMarkdownRenderer` and `@a2ui/markdown-it` in the browser) and sanitizes
+HTML output through Angular's `DomSanitizer`. Note that the root `@a2ui/angular`
+entrypoint defines a separate v0.8 `MarkdownRenderer` token that this service
+does not inject.
 
 #### `usingMarkdownRenderer` (Advanced)
 
-A custom implementation of `MarkdownRenderer` can be provided to allow full
-control over how Markdown is converted to HTML.
+A custom implementation of `MarkdownRendererService` can be provided to allow
+full control over how Markdown is converted to HTML (`Promise<SafeHtml | string>`).
+Prefer returning a plain `string` so Angular's `innerHTML` binding sanitizes the
+markup; return `SafeHtml` only when the implementation has already sanitized its
+output, because Angular inserts `SafeHtml` values without further sanitization.
 
 ```ts
 @Injectable({providedIn: 'root'})
@@ -148,10 +156,9 @@ export const appConfig: ApplicationConfig = {
 
 #### `usingDefaultSanitizerMarkdownRenderer`
 
-To use the default markdown renderer which only sanitizes HTML content and makes
-no effort to convert markdown using the
-`usingDefaultSanitizerMarkdownRenderer()`. This is the default behavior if no
-markdown renderer is supplied.
+To explicitly configure the default sanitizing Markdown renderer, pass
+`usingDefaultSanitizerMarkdownRenderer()`. This is also the default behavior if
+no markdown renderer is supplied.
 
 ```ts
 // app.config.ts

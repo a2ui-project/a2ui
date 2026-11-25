@@ -96,8 +96,10 @@ export function usingMarkdownRenderer<T extends MarkdownRendererService>(
 }
 
 /**
- * Configures the Chat/Canvas to use the default markdown rendering parsing
- * markdown as HTML.
+ * Configures the Chat/Canvas to use the default Markdown renderer, which
+ * delegates to the `@a2ui/angular/v0_9` `MarkdownRenderer` token (or
+ * `DefaultMarkdownRenderer` in the browser) and sanitizes HTML output with
+ * Angular's `DomSanitizer`.
  */
 export function usingDefaultSanitizerMarkdownRenderer(): MarkdownFeature {
   return usingMarkdownRenderer(SanitizerMarkdownRendererService);
