@@ -78,7 +78,7 @@ void main() {
     ]);
     // Only the reply step posts a text, which the item's log shows.
     expect(result.steps.map((StepResult s) => s.text), [
-      'Thanks!',
+      '${replyHeading}Thanks!',
       null,
       null,
       null,
@@ -86,7 +86,7 @@ void main() {
       null,
     ]);
     expect(github.calls, [
-      'POST issues/12/comments {"body":"Thanks!"}',
+      'POST issues/12/comments ${jsonEncode({'body': '${replyHeading}Thanks!'})}',
       'DELETE issues/12/labels/status%3A%20needs-team-input',
       'DELETE issues/12/labels/not%20there',
       'POST issues/12/labels {"labels":["P1"]}',

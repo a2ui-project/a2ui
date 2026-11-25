@@ -44,7 +44,7 @@ void main() {
     expect(item.needsTriage, isTrue);
     expect(item.labels, [needsTriageLabel, 'type: bug']);
     expect(item.assignees, ['octocat']);
-    expect(item.linkedItems, [13]);
+    expect(item.linkedItems, [a2ui(13)]);
     expect(item.author, 'author12');
     expect(item.name, 'Issue #12');
     expect(item.analysisStatus, AnalysisStatus.none);
@@ -75,8 +75,29 @@ void main() {
     final TriageItem item = read(itemNode(13, pr: true, linked: [12]));
 
     expect(item.isPullRequest, isTrue);
+    expect(item.isDraft, isFalse);
     expect(item.name, 'PR #13');
-    expect(item.linkedItems, [12]);
+    expect(item.linkedItems, [a2ui(12)]);
+    expect(read(itemNode(14, pr: true, draft: true)).isDraft, isTrue);
+  });
+
+  // Regression: a PR in flutter/genui that fixes an issue in a2ui was read
+  // as the a2ui item with the same number.
+  test('reads linked items in other repositories by their repository', () {
+    final TriageItem item = read(itemNode(4378, crossLinked: [genui(1086)]));
+
+    expect(item.linkedItems, [genui(1086)]);
+    expect(item.linkedAndTargetedItems, [genui(1086)]);
+    expect(shortNameOf(item.linkedItems.single), 'genui #1086');
+  });
+
+  test('keeps the closed issues that a PR closes apart', () {
+    final TriageItem item = read(
+      itemNode(13, pr: true, linked: [12], closedLinked: [11]),
+    );
+
+    expect(item.linkedItems, [a2ui(12)]);
+    expect(item.closedLinkedItems, [a2ui(11)]);
   });
 
   group('kind', () {
@@ -105,7 +126,7 @@ void main() {
       );
 
       expect(item.linkedItems, isEmpty);
-      expect(item.linkedAndTargetedItems, [12]);
+      expect(item.linkedAndTargetedItems, [a2ui(12)]);
       expect(item.kind, ItemKind.prWithIssues);
     });
 
@@ -117,7 +138,7 @@ void main() {
         ),
       );
 
-      expect(item.linkedAndTargetedItems, [13]);
+      expect(item.linkedAndTargetedItems, [a2ui(13)]);
       expect(item.kind, ItemKind.issueWithPrs);
     });
 
@@ -131,7 +152,7 @@ void main() {
         ),
       );
 
-      expect(item.linkedAndTargetedItems, [12]);
+      expect(item.linkedAndTargetedItems, [a2ui(12)]);
     });
 
     test('ignores the list for the other kind of item', () {

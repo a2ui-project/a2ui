@@ -38,7 +38,8 @@ void main() {
         comments: [
           commentNode(
             analysisComment(
-              'root = TriageAnalysis(reply="""Thanks.""", '
+              'root = TriageAnalysis(summary="A crash.", '
+              'suggestion="Add area: docs.", reply="""Thanks.""", '
               'added_labels=["area: docs"])',
             ),
             at: day(2),

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared/shared.dart';
@@ -135,7 +136,8 @@ void main() {
     await controller.apply(controller.item(genui(10))!);
 
     expect(github.calls, [
-      'POST flutter/genui/issues/10/comments {"body":"Thanks!"}',
+      'POST flutter/genui/issues/10/comments '
+          '${jsonEncode({'body': '${replyHeading}Thanks!'})}',
       'DELETE flutter/genui/issues/10/labels/status%3A%20needs-triage',
       'POST flutter/genui/issues/10/labels {"labels":["P2"]}',
     ]);
@@ -396,7 +398,7 @@ void main() {
       StepStatus.done,
       StepStatus.failed,
     ]);
-    expect(log.first.steps.first.text, 'Thanks!');
+    expect(log.first.steps.first.text, '${replyHeading}Thanks!');
     expect(log.first.steps.last.description, 'Assign: stranger');
     expect(log.first.steps.last.error, isNotNull);
     expect(log.last.failed, isFalse);
