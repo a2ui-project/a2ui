@@ -65,6 +65,7 @@
 - name: test_action_event_with_data_binding
   features: [F-CORE-14, F-CORE-23]
   description: Verifies event action dynamically resolves bound context values from DataModel.
+  protocolVersion: "v0.9"
   action: dispatch_action
   dataModel:
     user:
@@ -86,9 +87,35 @@
       role: "admin"
       staticKey: "constant"
 
+- name: test_action_event_with_data_binding_v10
+  features: [F-CORE-14, F-CORE-23]
+  description: Verifies event action dynamically resolves bound context values from DataModel.
+  protocolVersion: "1.0"
+  action: dispatch_action
+  dataModel:
+    user:
+      id: "u_123"
+      role: "admin"
+  actionPayload:
+    event:
+      name: "user_action"
+      context:
+        userId:
+          "@path": "/user/id"
+        role:
+          "@path": "/user/role"
+        staticKey: "constant"
+  expectDispatched:
+    name: "user_action"
+    context:
+      userId: "u_123"
+      role: "admin"
+      staticKey: "constant"
+
 - name: test_action_event_with_relative_scope
   features: [F-CORE-15, F-CORE-23]
   description: Verifies event action resolves relative data bindings against the provided scope.
+  protocolVersion: "v0.9"
   action: dispatch_action
   scope: "/items/1"
   dataModel:
@@ -105,6 +132,32 @@
           path: "id"
         selectedTitle:
           path: "title"
+  expectDispatched:
+    name: "select_item"
+    context:
+      selectedId: "id_1"
+      selectedTitle: "Item 1"
+
+- name: test_action_event_with_relative_scope_v10
+  features: [F-CORE-15, F-CORE-23]
+  description: Verifies event action resolves relative data bindings against the provided scope.
+  protocolVersion: "1.0"
+  action: dispatch_action
+  scope: "/items/1"
+  dataModel:
+    items:
+      - title: "Item 0"
+        id: "id_0"
+      - title: "Item 1"
+        id: "id_1"
+  actionPayload:
+    event:
+      name: "select_item"
+      context:
+        selectedId:
+          "@path": "id"
+        selectedTitle:
+          "@path": "title"
   expectDispatched:
     name: "select_item"
     context:
