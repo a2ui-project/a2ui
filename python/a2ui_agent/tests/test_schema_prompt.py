@@ -112,6 +112,18 @@ def test_schema_to_prompt_uses_the_published_v0_9_schemas(version):
     assert sections[_COMMON_TYPES]["$defs"]
 
 
+def test_schema_to_prompt_accepts_v0_9_and_v0_9_1_catalogs_together():
+    inline = Catalog(
+        catalog_id="https://example.com/inline.json", protocol_version="v0.9.1"
+    )
+
+    sections = _section_list(
+        schema_to_prompt([BasicCatalog(ProtocolVersion.V0_9), inline])
+    )
+
+    assert inline.to_json() in [body for _, body in sections]
+
+
 def test_schema_to_prompt_uses_the_published_v1_0_schemas():
     sections = _sections(schema_to_prompt([BasicCatalog(ProtocolVersion.V1_0)]))
 
