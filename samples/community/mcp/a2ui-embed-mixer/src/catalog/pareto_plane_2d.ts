@@ -70,6 +70,10 @@ export const ParetoPlane2DApi = {
         sweetSpot: SweetSpotSchema.describe(
           'Optional shaded target band rectangle in (x, y) data coordinates.',
         ).optional(),
+        wide: z
+          .boolean()
+          .describe('True when rendered full-width as a hero Pareto stage.')
+          .optional(),
         presets: DynamicValueSchema.describe(
           'REF:#/$defs/DynamicValue|Array of Pareto-optimal presets plotted along the frontier.',
         ),
@@ -110,10 +114,10 @@ interface WritableParetoProps {
   setSelectedPresetId?: (next: string) => void;
 }
 
-function projectX(val: number, domain: readonly [number, number]): number {
+function projectX(val: number, domain: readonly [number, number], plotW = PLOT_W): number {
   const span = domain[1] - domain[0] || 1;
   const t = Math.min(1, Math.max(0, (val - domain[0]) / span));
-  return PAD_L + t * PLOT_W;
+  return PAD_L + t * plotW;
 }
 
 function projectY(val: number, domain: readonly [number, number]): number {
@@ -178,7 +182,7 @@ export class A2uiParetoPlane2DElement extends A2uiLitElement<typeof ParetoPlane2
     .pareto-plane__svg {
       width: 100%;
       height: auto;
-      max-height: 116px;
+      max-height: 132px;
       display: block;
       background: var(--color-background-primary, light-dark(#ffffff, #1e1f20));
       border-radius: 7px;
@@ -317,10 +321,14 @@ export class A2uiParetoPlane2DElement extends A2uiLitElement<typeof ParetoPlane2
       Number(rawYDomain[1] ?? 100),
     ];
 
+    const isWide = Boolean(props['wide']);
+    const svgW = isWide ? 620 : SVG_W;
+    const plotW = svgW - PAD_L - PAD_R;
+
     const presets = parsePresets(props['presets']);
     const sortedPresets = [...presets].sort((a, b) => a.x - b.x);
     const polylinePoints = sortedPresets
-      .map(p => `${projectX(p.x, xDomain).toFixed(1)},${projectY(p.y, yDomain).toFixed(1)}`)
+      .map(p => `${projectX(p.x, xDomain, plotW).toFixed(1)},${projectY(p.y, yDomain).toFixed(1)}`)
       .join(' ');
 
     const rawTotals =
@@ -335,10 +343,10 @@ export class A2uiParetoPlane2DElement extends A2uiLitElement<typeof ParetoPlane2
       typeof valuesByKey[xKey] === 'number' ? (valuesByKey[xKey] as number) : xDomain[0];
     const liveYVal =
       typeof valuesByKey[yKey] === 'number' ? (valuesByKey[yKey] as number) : yDomain[0];
-    const cx = projectX(liveXVal, xDomain);
+    const cx = projectX(liveXVal, xDomain, plotW);
     const cy = projectY(liveYVal, yDomain);
-    const tagX = cx > SVG_W - 92 ? cx - 7 : cx + 7;
-    const tagAnchor = cx > SVG_W - 92 ? 'end' : 'start';
+    const tagX = cx > svgW - 92 ? cx - 7 : cx + 7;
+    const tagAnchor = cx > svgW - 92 ? 'end' : 'start';
     const tagY = cy > SVG_H - PAD_B - 14 ? cy - 8 : cy + 12;
 
     const selectedPresetId =
@@ -350,9 +358,9 @@ export class A2uiParetoPlane2DElement extends A2uiLitElement<typeof ParetoPlane2
 
     const sweetRect = sweet
       ? {
-          x: Math.min(projectX(sweet.xMin, xDomain), projectX(sweet.xMax, xDomain)),
+          x: Math.min(projectX(sweet.xMin, xDomain, plotW), projectX(sweet.xMax, xDomain, plotW)),
           y: Math.min(projectY(sweet.yMin, yDomain), projectY(sweet.yMax, yDomain)),
-          w: Math.abs(projectX(sweet.xMax, xDomain) - projectX(sweet.xMin, xDomain)),
+          w: Math.abs(projectX(sweet.xMax, xDomain, plotW) - projectX(sweet.xMin, xDomain, plotW)),
           h: Math.abs(projectY(sweet.yMax, yDomain) - projectY(sweet.yMin, yDomain)),
         }
       : undefined;
@@ -364,26 +372,26 @@ export class A2uiParetoPlane2DElement extends A2uiLitElement<typeof ParetoPlane2
           <span class="pareto-plane__hint">Click dot</span>
         </div>
 
-        <svg class="pareto-plane__svg" viewBox=${`0 0 ${SVG_W} ${SVG_H}`}>
+        <svg class="pareto-plane__svg" viewBox=${`0 0 ${svgW} ${SVG_H}`}>
           <line
             class="pareto-plane__grid"
             x1=${PAD_L}
             y1=${PAD_T + PLOT_H / 2}
-            x2=${SVG_W - PAD_R}
+            x2=${svgW - PAD_R}
             y2=${PAD_T + PLOT_H / 2}
           />
           <line
             class="pareto-plane__grid"
-            x1=${PAD_L + PLOT_W / 2}
+            x1=${PAD_L + plotW / 2}
             y1=${PAD_T}
-            x2=${PAD_L + PLOT_W / 2}
+            x2=${PAD_L + plotW / 2}
             y2=${SVG_H - PAD_B}
           />
           <line
             class="pareto-plane__grid"
             x1=${PAD_L}
             y1=${SVG_H - PAD_B}
-            x2=${SVG_W - PAD_R}
+            x2=${svgW - PAD_R}
             y2=${SVG_H - PAD_B}
           />
           <line
@@ -412,7 +420,7 @@ export class A2uiParetoPlane2DElement extends A2uiLitElement<typeof ParetoPlane2
             class="pareto-plane__crosshair-line"
             x1=${PAD_L}
             y1=${cy.toFixed(1)}
-            x2=${SVG_W - PAD_R}
+            x2=${svgW - PAD_R}
             y2=${cy.toFixed(1)}
           />
           <line
@@ -424,7 +432,7 @@ export class A2uiParetoPlane2DElement extends A2uiLitElement<typeof ParetoPlane2
           />
 
           ${presets.map(preset => {
-            const px = projectX(preset.x, xDomain);
+            const px = projectX(preset.x, xDomain, plotW);
             const py = projectY(preset.y, yDomain);
             const isSelected = preset.id === selectedPresetId;
             return svg`
@@ -487,18 +495,13 @@ export class A2uiParetoPlane2DElement extends A2uiLitElement<typeof ParetoPlane2
           <text class="pareto-plane__axis-label" x=${PAD_L} y=${SVG_H - 6}>${xDomain[0]}</text>
           <text
             class="pareto-plane__axis-label"
-            x=${(PAD_L + PLOT_W / 2).toFixed(1)}
+            x=${(PAD_L + plotW / 2).toFixed(1)}
             y=${SVG_H - 6}
             text-anchor="middle"
           >
             ${xLabel}
           </text>
-          <text
-            class="pareto-plane__axis-label"
-            x=${SVG_W - PAD_R}
-            y=${SVG_H - 6}
-            text-anchor="end"
-          >
+          <text class="pareto-plane__axis-label" x=${svgW - PAD_R} y=${SVG_H - 6} text-anchor="end">
             ${xDomain[1]}
           </text>
           <text class="pareto-plane__axis-label" x="4" y=${PAD_T + 7}>${yDomain[1]}</text>

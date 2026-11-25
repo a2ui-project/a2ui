@@ -18,6 +18,7 @@
     "@a2ui/embed": "portal:../../../../typescript/embed",
     "@a2ui/lit": "portal:../../../../typescript/renderers/lit",
     "@a2ui/web_core": "*",
+    "@google/genai": "^2.8.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "lit": "^3.3.3",
     "zod": "^3.25.76"

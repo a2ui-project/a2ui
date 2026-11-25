@@ -52,9 +52,18 @@ export const PrepTrackGanttApi = {
         totalMinutes: z
           .number()
           .int()
-          .min(15)
-          .max(240)
-          .describe('Total timeline span in minutes (for example 45 for Sunday batch prep).'),
+          .min(4)
+          .max(600)
+          .describe('Total timeline span (minutes, hours, or phases).'),
+        unitSuffix: z
+          .string()
+          .max(12)
+          .describe('Axis tick unit suffix such as "m", "h", "mo", or "wk". Defaults to "m".')
+          .optional(),
+        wide: z
+          .boolean()
+          .describe('True when rendered full-width rather than in a 2-column split.')
+          .optional(),
         tracks: DynamicValueSchema.describe(
           'REF:#/$defs/DynamicValue|Parallel track definitions (Oven, Stovetop, Prep counter).',
         ),
@@ -230,10 +239,16 @@ export class A2uiPrepTrackGanttElement extends A2uiLitElement<typeof PrepTrackGa
     const title = typeof props['title'] === 'string' ? props['title'] : 'Parallel prep tracks';
     const subtitle = typeof props['subtitle'] === 'string' ? props['subtitle'] : '';
     const totalMinutes = typeof props['totalMinutes'] === 'number' ? props['totalMinutes'] : 45;
+    const unitSuffix = typeof props['unitSuffix'] === 'string' ? props['unitSuffix'] : 'm';
+    const isWide = Boolean(props['wide']);
+    const ganttW = isWide ? 620 : GANTT_W;
+    const labelW = isWide ? 96 : LABEL_W;
+    const timelineW = ganttW - labelW - RIGHT_PAD;
+    const rowH = isWide ? 26 : ROW_H;
     const tracks = parseTracks(props['tracks']);
     const itemsMap = parseItemsMap(props['items']);
     const resolvedByTrack = resolveBlocks(tracks, itemsMap, totalMinutes);
-    const svgHeight = HEADER_H + tracks.length * ROW_H + 6;
+    const svgHeight = HEADER_H + tracks.length * rowH + 6;
     const ticks = [
       0,
       Math.round(totalMinutes / 3),
@@ -245,12 +260,14 @@ export class A2uiPrepTrackGanttElement extends A2uiLitElement<typeof PrepTrackGa
       <div class="prep-gantt" role="group" aria-label=${title}>
         <div class="prep-gantt__head">
           <span class="prep-gantt__title">${title}</span>
-          <span class="prep-gantt__sub">${subtitle || `${totalMinutes}m parallel batch`}</span>
+          <span class="prep-gantt__sub"
+            >${subtitle || `${totalMinutes}${unitSuffix} parallel window`}</span
+          >
         </div>
 
-        <svg class="prep-gantt__svg" viewBox=${`0 0 ${GANTT_W} ${svgHeight}`}>
+        <svg class="prep-gantt__svg" viewBox=${`0 0 ${ganttW} ${svgHeight}`}>
           ${ticks.map(tick => {
-            const x = LABEL_W + (tick / totalMinutes) * TIMELINE_W;
+            const x = labelW + (tick / totalMinutes) * timelineW;
             const anchor = tick === 0 ? 'start' : tick === totalMinutes ? 'end' : 'middle';
             return svg`
               <line
@@ -266,45 +283,45 @@ export class A2uiPrepTrackGanttElement extends A2uiLitElement<typeof PrepTrackGa
                 y="12"
                 text-anchor=${anchor}
               >
-                ${tick}m
+                ${tick}${unitSuffix}
               </text>
             `;
           })}
           ${tracks.map((track, rowIdx) => {
-            const rowTop = HEADER_H + rowIdx * ROW_H;
+            const rowTop = HEADER_H + rowIdx * rowH;
             const blocks = resolvedByTrack.get(track.id) ?? [];
             return svg`
               <g data-track-id=${track.id}>
                 <rect
                   class="prep-gantt__lane"
-                  x=${LABEL_W}
+                  x=${labelW}
                   y=${rowTop + 3}
-                  width=${TIMELINE_W}
-                  height=${ROW_H - 6}
+                  width=${timelineW}
+                  height=${rowH - 6}
                   rx="5"
                 />
-                <text class="prep-gantt__track-label" x="6" y=${rowTop + ROW_H / 2 + 3}>
+                <text class="prep-gantt__track-label" x="6" y=${rowTop + rowH / 2 + 3}>
                   ${track.name}
                 </text>
                 ${blocks.map(block => {
-                  const bx = LABEL_W + (block.startMin / totalMinutes) * TIMELINE_W;
-                  const bw = Math.max(24, (block.durationMin / totalMinutes) * TIMELINE_W);
+                  const bx = labelW + (block.startMin / totalMinutes) * timelineW;
+                  const bw = Math.max(24, (block.durationMin / totalMinutes) * timelineW);
                   return svg`
                     <g data-block-id=${block.id}>
                       <rect
                         class="prep-gantt__bar"
                         data-accent=${block.accent}
                         x=${bx.toFixed(1)}
-                        y=${rowTop + 5}
+                        y=${rowTop + 4}
                         width=${bw.toFixed(1)}
-                        height=${ROW_H - 10}
+                        height=${rowH - 8}
                         rx="4"
                         stroke-width="1"
                       />
                       <text
                         class="prep-gantt__bar-text"
                         x=${(bx + 5).toFixed(1)}
-                        y=${rowTop + ROW_H / 2 + 3}
+                        y=${rowTop + rowH / 2 + 3}
                       >
                         ${block.label}
                       </text>

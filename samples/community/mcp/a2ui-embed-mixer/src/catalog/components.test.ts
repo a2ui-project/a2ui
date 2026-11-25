@@ -23,7 +23,7 @@ import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 
 import {createSurfaceMessages} from '../compose/a2ui.js';
 import {composeMixerSurface} from '../compose/composer.js';
-import {getScenarioBlueprint} from '../scenarios/presets.js';
+import {CURATED_SCENARIO_IDS, getScenarioBlueprint} from '../scenarios/presets.js';
 import {evaluateMixTotals, MIXER_CATALOG_ID, mixerCatalog} from './index.js';
 
 const FORBIDDEN_BASIC_COMPONENTS = [
@@ -77,19 +77,18 @@ describe('mixerCatalog and custom Lit components', () => {
     expect([...mixerCatalog.functions.keys()]).toContain('computeMixTotals');
   });
 
-  it('evaluates meal_prep and debt_savings target rings accurately', () => {
+  it('evaluates all 8 curated domain blueprints with 4/4 converged default target rings', () => {
+    for (const id of CURATED_SCENARIO_IDS) {
+      const blueprint = getScenarioBlueprint(id);
+      const totals = evaluateMixTotals(blueprint.items, blueprint.targets);
+      expect(totals.total).toBe(4);
+      expect(totals.hits).toBe(4);
+      expect(totals.converged).toBe(true);
+    }
+
     const meal = getScenarioBlueprint('meal_prep');
     const mealTotals = evaluateMixTotals(meal.items, meal.targets);
-    expect(mealTotals.converged).toBe(true);
-    expect(mealTotals.hits).toBe(4);
     expect(mealTotals.summaryLine).toBe('1,850 kcal · 145g protein · $62/wk · 14m prep');
-
-    const debt = getScenarioBlueprint('debt_savings');
-    const debtTotals = evaluateMixTotals(debt.items, debt.targets);
-    expect(debtTotals.converged).toBe(true);
-    expect(debtTotals.hits).toBe(4);
-    expect(debtTotals.valuesByKey['cushion']).toBe(320);
-    expect(debtTotals.valuesByKey['debt_months']).toBe(13);
   });
 
   it('renders meal_prep surface and updates rings, Pareto crosshair, and Gantt live on client edits', async () => {

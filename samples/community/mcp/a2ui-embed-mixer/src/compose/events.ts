@@ -18,8 +18,6 @@
 
 import {z} from 'zod';
 
-import {SCENARIO_IDS} from '../scenarios/presets.js';
-
 const MixOptionSchema = z.object({
   id: z.string().max(60),
   label: z.string().max(80),
@@ -41,12 +39,12 @@ export const RuntimeMixItemSchema = z.object({
 
 export const MIXER_ACTIONS = {
   lock_mix: {
-    scenario: z.enum(SCENARIO_IDS),
+    scenario: z.string().max(60),
     items: z.array(RuntimeMixItemSchema).min(1).max(8),
     selectedPresetId: z.string().max(60).optional(),
   },
   snap_to_targets: {
-    scenario: z.enum(SCENARIO_IDS),
+    scenario: z.string().max(60),
     items: z.array(RuntimeMixItemSchema).min(1).max(8),
   },
 } as const;

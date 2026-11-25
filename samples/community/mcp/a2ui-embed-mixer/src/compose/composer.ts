@@ -15,19 +15,21 @@
  */
 
 /**
- * Scenario-driven A2UI surface composer.
+ * Multi-layout A2UI v1.0 surface composer for `mixerCatalog`.
  *
- * Demonstrates genuine agent composability across scenarios:
- * - `meal_prep`: `TargetRingCluster` (strip) + `MixerGrid(ParetoPlane2D, PrepTrackGantt)` +
- *   2-column `PortionScrubTile` grid (with `MixMicroNote` `detailChild`) + `CommitBar`.
- * - `debt_savings`: 2-column `MixerGrid(TargetRingCluster(compact), ParetoPlane2D)` +
- *   3-column financial `PortionScrubTile` allocation grid + `CommitBar` (omits `PrepTrackGantt`).
- * - `training_week`: `TargetRingCluster` (strip) + full-width `PrepTrackGantt` +
- *   3-column `PortionScrubTile` session grid + `CommitBar` (omits `ParetoPlane2D`).
+ * Composes 4 distinct custom component architectures chosen per problem:
+ * 1. `rings_pareto_gantt`: `TargetRingCluster` (strip) + `MixerGrid(ParetoPlane2D, PrepTrackGantt)`
+ *    + `PortionScrubTile` grid + `CommitBar`.
+ * 2. `rings_pareto`: `MixerGrid(TargetRingCluster(compact), ParetoPlane2D)` + `PortionScrubTile`
+ *    grid + `CommitBar` (omits `PrepTrackGantt`).
+ * 3. `rings_gantt`: `TargetRingCluster` (strip) + full-width `PrepTrackGantt` + `PortionScrubTile`
+ *    grid + `CommitBar` (omits `ParetoPlane2D`).
+ * 4. `pareto_hero`: Hero full-width `ParetoPlane2D` + `TargetRingCluster` (strip) +
+ *    `PortionScrubTile` grid (with `MixMicroNote` child slot) + `CommitBar` (omits `PrepTrackGantt`).
  */
 
 import {evaluateMixTotals} from '../catalog/functions.js';
-import type {ScenarioBlueprint} from '../scenarios/presets.js';
+import type {LayoutMode, ScenarioBlueprint} from '../scenarios/presets.js';
 import {bind, call, component, event, type A2uiComponent, type SurfaceView} from './a2ui.js';
 
 function liveTotalsCall() {
@@ -59,6 +61,42 @@ function composeCommitBar(blueprint: ScenarioBlueprint): A2uiComponent {
       items: bind('/items'),
       selectedPresetId: bind('/selectedPresetId'),
     }),
+  });
+}
+
+function composeParetoComponent(
+  pareto: NonNullable<ScenarioBlueprint['pareto']>,
+  wide = false,
+): A2uiComponent {
+  return component('pareto_frontier', 'ParetoPlane2D', {
+    title: pareto.title,
+    xKey: pareto.xKey,
+    yKey: pareto.yKey,
+    xLabel: pareto.xLabel,
+    yLabel: pareto.yLabel,
+    xDomain: [...pareto.xDomain],
+    yDomain: [...pareto.yDomain],
+    sweetSpot: pareto.sweetSpot,
+    ...(wide ? {wide: true} : {}),
+    presets: bind('/presets'),
+    items: bind('/items'),
+    selectedPresetId: bind('/selectedPresetId'),
+    totals: liveTotalsCall(),
+  });
+}
+
+function composeGanttComponent(
+  gantt: NonNullable<ScenarioBlueprint['gantt']>,
+  wide = false,
+): A2uiComponent {
+  return component('prep_gantt', 'PrepTrackGantt', {
+    title: gantt.title,
+    subtitle: gantt.subtitle,
+    totalMinutes: gantt.totalMinutes,
+    ...(gantt.unitSuffix ? {unitSuffix: gantt.unitSuffix} : {}),
+    ...(wide ? {wide: true} : {}),
+    tracks: bind('/prepTracks'),
+    items: bind('/items'),
   });
 }
 
@@ -99,51 +137,75 @@ function composeScrubTiles(blueprint: ScenarioBlueprint): {
   return {tileIds, tileComponents};
 }
 
+export function describeLayoutMode(mode: LayoutMode): string {
+  switch (mode) {
+    case 'rings_pareto_gantt':
+      return 'TargetRingCluster + MixerGrid(ParetoPlane2D, PrepTrackGantt) + PortionScrubTile grid + CommitBar';
+    case 'rings_pareto':
+      return 'MixerGrid(compact TargetRingCluster, ParetoPlane2D) + PortionScrubTile grid + CommitBar (no PrepTrackGantt)';
+    case 'rings_gantt':
+      return 'TargetRingCluster + full-width PrepTrackGantt + PortionScrubTile grid + CommitBar (no ParetoPlane2D)';
+    case 'pareto_hero':
+      return 'Hero ParetoPlane2D + strip TargetRingCluster + PortionScrubTile grid + CommitBar (no PrepTrackGantt)';
+  }
+}
+
 export function composeMixerSurface(surfaceId: string, blueprint: ScenarioBlueprint): SurfaceView {
   const {tileIds, tileComponents} = composeScrubTiles(blueprint);
+  const tileCols = blueprint.items.length === 3 ? 3 : 2;
   const components: A2uiComponent[] = [];
+  const mode = blueprint.layoutMode;
 
-  if (blueprint.id === 'debt_savings' && blueprint.pareto) {
+  if (mode === 'rings_pareto' && blueprint.pareto) {
     components.push(
       component('root', 'MixerDeck', {
         title: bind('/title'),
         subtitle: bind('/subtitle'),
         scenarioBadge: bind('/badge'),
         totals: liveTotalsCall(),
-        children: ['financial_top_grid', 'tiles_grid'],
+        children: ['top_stage_grid', 'tiles_grid'],
         footer: 'commit_bar',
       }),
-      component('financial_top_grid', 'MixerGrid', {
+      component('top_stage_grid', 'MixerGrid', {
         columns: 2,
         children: ['rings_main', 'pareto_frontier'],
       }),
       component('rings_main', 'TargetRingCluster', {
         totals: liveTotalsCall(),
         layout: 'compact',
-        caption: 'Monthly surplus & payoff gauges ($1,500/mo pool)',
+        caption: `${blueprint.badge} · live target rings`,
       }),
-      component('pareto_frontier', 'ParetoPlane2D', {
-        title: blueprint.pareto.title,
-        xKey: blueprint.pareto.xKey,
-        yKey: blueprint.pareto.yKey,
-        xLabel: blueprint.pareto.xLabel,
-        yLabel: blueprint.pareto.yLabel,
-        xDomain: [...blueprint.pareto.xDomain],
-        yDomain: [...blueprint.pareto.yDomain],
-        sweetSpot: blueprint.pareto.sweetSpot,
-        presets: bind('/presets'),
-        items: bind('/items'),
-        selectedPresetId: bind('/selectedPresetId'),
-        totals: liveTotalsCall(),
-      }),
+      composeParetoComponent(blueprint.pareto),
       component('tiles_grid', 'MixerGrid', {
-        columns: 3,
+        columns: tileCols,
         children: tileIds,
       }),
       ...tileComponents,
       composeCommitBar(blueprint),
     );
-  } else if (blueprint.id === 'training_week' && blueprint.gantt) {
+  } else if (mode === 'pareto_hero' && blueprint.pareto) {
+    components.push(
+      component('root', 'MixerDeck', {
+        title: bind('/title'),
+        subtitle: bind('/subtitle'),
+        scenarioBadge: bind('/badge'),
+        totals: liveTotalsCall(),
+        children: ['pareto_frontier', 'rings_main', 'tiles_grid'],
+        footer: 'commit_bar',
+      }),
+      composeParetoComponent(blueprint.pareto, true),
+      component('rings_main', 'TargetRingCluster', {
+        totals: liveTotalsCall(),
+        layout: 'strip',
+      }),
+      component('tiles_grid', 'MixerGrid', {
+        columns: tileCols,
+        children: tileIds,
+      }),
+      ...tileComponents,
+      composeCommitBar(blueprint),
+    );
+  } else if (mode === 'rings_gantt' && blueprint.gantt) {
     components.push(
       component('root', 'MixerDeck', {
         title: bind('/title'),
@@ -157,15 +219,9 @@ export function composeMixerSurface(surfaceId: string, blueprint: ScenarioBluepr
         totals: liveTotalsCall(),
         layout: 'strip',
       }),
-      component('prep_gantt', 'PrepTrackGantt', {
-        title: blueprint.gantt.title,
-        subtitle: blueprint.gantt.subtitle,
-        totalMinutes: blueprint.gantt.totalMinutes,
-        tracks: bind('/prepTracks'),
-        items: bind('/items'),
-      }),
+      composeGanttComponent(blueprint.gantt, true),
       component('tiles_grid', 'MixerGrid', {
-        columns: 3,
+        columns: tileCols,
         children: tileIds,
       }),
       ...tileComponents,
@@ -189,29 +245,10 @@ export function composeMixerSurface(surfaceId: string, blueprint: ScenarioBluepr
         columns: 2,
         children: ['pareto_frontier', 'prep_gantt'],
       }),
-      component('pareto_frontier', 'ParetoPlane2D', {
-        title: blueprint.pareto!.title,
-        xKey: blueprint.pareto!.xKey,
-        yKey: blueprint.pareto!.yKey,
-        xLabel: blueprint.pareto!.xLabel,
-        yLabel: blueprint.pareto!.yLabel,
-        xDomain: [...blueprint.pareto!.xDomain],
-        yDomain: [...blueprint.pareto!.yDomain],
-        sweetSpot: blueprint.pareto!.sweetSpot,
-        presets: bind('/presets'),
-        items: bind('/items'),
-        selectedPresetId: bind('/selectedPresetId'),
-        totals: liveTotalsCall(),
-      }),
-      component('prep_gantt', 'PrepTrackGantt', {
-        title: blueprint.gantt!.title,
-        subtitle: blueprint.gantt!.subtitle,
-        totalMinutes: blueprint.gantt!.totalMinutes,
-        tracks: bind('/prepTracks'),
-        items: bind('/items'),
-      }),
+      composeParetoComponent(blueprint.pareto!),
+      composeGanttComponent(blueprint.gantt!),
       component('tiles_grid', 'MixerGrid', {
-        columns: 2,
+        columns: tileCols,
         children: tileIds,
       }),
       ...tileComponents,
@@ -250,6 +287,10 @@ export function composeMixerSurface(surfaceId: string, blueprint: ScenarioBluepr
 /** Human- and model-readable text summary of a composed Goal Mixer card (contains zero A2UI syntax). */
 export function summarizeMixerCard(prompt: string, blueprint: ScenarioBlueprint): string {
   const totals = evaluateMixTotals(blueprint.items, blueprint.targets);
+  const sourceLabel =
+    blueprint.source === 'gemini'
+      ? 'Gemini live synthesis (`gemini-flash-latest`)'
+      : `Curated domain blueprint (\`${blueprint.id}\`)`;
   const targetLines = totals.metrics
     .map(m => `- ${m.label}: ${m.formatted} (goal ${m.targetLabel}, ${m.deltaLabel})`)
     .join('\n');
@@ -269,18 +310,19 @@ export function summarizeMixerCard(prompt: string, blueprint: ScenarioBlueprint)
         .join(', ')}.`
     : '';
   const ganttLine = blueprint.gantt
-    ? `Parallel tracks (${blueprint.gantt.title}, ${blueprint.gantt.totalMinutes}m): ${blueprint.gantt.tracks
+    ? `Parallel tracks (${blueprint.gantt.title}, ${blueprint.gantt.totalMinutes}${blueprint.gantt.unitSuffix ?? 'm'}): ${blueprint.gantt.tracks
         .map(t => `${t.name} [${t.blocks.map(b => b.label).join(' + ')}]`)
         .join('; ')}.`
     : '';
 
   return [
     `Opened Goal Mixer (${blueprint.title}) inline for: "${prompt.slice(0, 140)}".`,
+    `Source: ${sourceLabel} | Layout: \`${blueprint.layoutMode}\` (${describeLayoutMode(blueprint.layoutMode)}).`,
     `Recommendation: ${blueprint.subtitle}`,
     `Initial converged mix (${totals.hits}/${totals.total} targets in band): ${totals.summaryLine}.`,
     'Target bands:',
     targetLines,
-    'Pre-selected items and 1-click swap options (all scrubbable 0.5x–2.0x client-side):',
+    'Pre-selected levers and 1-click swap options (all scrubbable 0.5x–2.0x client-side):',
     picks,
     ...(frontierLine ? [frontierLine] : []),
     ...(ganttLine ? [ganttLine] : []),

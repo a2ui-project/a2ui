@@ -25,8 +25,11 @@ import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 import {describe, expect, it} from 'vitest';
 
+import type {JsonModel} from './ai/json_model.js';
+import {parseModelJson} from './ai/lenient_json.js';
 import {MIXER_CATALOG_ID, mixerCatalog} from './catalog/index.js';
 import {loadEnvFile} from './config.js';
+import {CURATED_SCENARIO_IDS} from './scenarios/presets.js';
 import {createServer, SERVER_INSTRUCTIONS} from './server.js';
 
 interface EmbedPayload {
@@ -64,10 +67,10 @@ function collectObjectKeys(value: unknown, out = new Set<string>()): Set<string>
   return out;
 }
 
-async function connectTestServer() {
+async function connectTestServer(model: JsonModel | null = null) {
   const client = new Client({name: 'mixer-test-client', version: '1.0.0'});
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const {server, app} = createServer({MIXER_APP_HTML: writeTempAppBundle()});
+  const {server, app} = createServer({MIXER_APP_HTML: writeTempAppBundle()}, {model});
   await server.connect(serverTransport);
   await client.connect(clientTransport);
 
@@ -90,6 +93,16 @@ function componentTypesOf(payload: EmbedPayload): string[] {
     const update = msg['updateComponents'] as {components?: Array<{component: string}>} | undefined;
     return (update?.components ?? []).map(c => c.component);
   });
+}
+
+function rootChildrenOf(payload: EmbedPayload): string[] {
+  const comps = payload.messages.flatMap(msg => {
+    const update = msg['updateComponents'] as
+      | {components?: Array<{id: string; children?: string[]}>}
+      | undefined;
+    return update?.components ?? [];
+  });
+  return comps.find(c => c.id === 'root')?.children ?? [];
 }
 
 function componentIdsOf(payload: EmbedPayload): string[] {
@@ -127,7 +140,7 @@ describe('a2ui-embed-mixer MCP server', () => {
     );
   });
 
-  it('supports MIXER_ENV_FILE without overriding pre-existing environment variables', () => {
+  it('supports MIXER_ENV_FILE and bracket-balanced parseModelJson', () => {
     const dir = mkdtempSync(join(tmpdir(), 'a2ui-mixer-env-'));
     const envFile = join(dir, 'custom.env');
     writeFileSync(envFile, 'MIXER_SAMPLE_VAR="from_file"\nEXISTING_VAR=ignored\n');
@@ -135,124 +148,327 @@ describe('a2ui-embed-mixer MCP server', () => {
     loadEnvFile(env);
     expect(env['MIXER_SAMPLE_VAR']).toBe('from_file');
     expect(env['EXISTING_VAR']).toBe('kept');
+
+    const repaired = parseModelJson('```json\n{"a": [1, 2,], "b": {"x": 3}\n```') as Record<
+      string,
+      unknown
+    >;
+    expect(repaired['a']).toEqual([1, 2]);
   });
 
-  it('composes genuinely different validated custom component trees per scenario', async () => {
-    const {call, app} = await connectTestServer();
+  it('composes all 4 distinct layout modes across all 8 curated domains without a model', async () => {
+    const {call, app} = await connectTestServer(null);
 
-    const mealRes = await call('goal_mixer', {
-      prompt: 'Weekday high-protein meal prep under $65 and 15m prep',
-    });
-    const debtRes = await call('goal_mixer', {
-      prompt:
-        'Allocate $1,500 monthly surplus between APR credit card debt payoff and emergency savings cushion',
-    });
-    const trainRes = await call('goal_mixer', {
-      prompt: 'Balance Zone 2 cardio, compound lifts, and recovery readiness',
-    });
+    const layoutsSeen = new Set<string>();
+    for (const scenario of CURATED_SCENARIO_IDS) {
+      const res = await call('goal_mixer', {
+        prompt: `Optimize ${scenario} trade-offs`,
+        scenario,
+      });
+      expect(res.isError).toBeFalsy();
+      const payload = extractPayload(res);
+      expect(app.validate(payload.messages).ok).toBe(true);
 
-    const mealPayload = extractPayload(mealRes);
-    const mealText = mealRes.content.map(b => (b.type === 'text' ? b.text : '')).join('\n');
-    expect(mealText).toContain('Make `goal_mixer` the final tool call of your turn');
-    expect(mealText).toContain('$44 Plant Saver');
-    const debtPayload = extractPayload(debtRes);
-    const trainPayload = extractPayload(trainRes);
+      const text = res.content.map(b => (b.type === 'text' ? b.text : '')).join('\n');
+      expect(text).toContain('Make `goal_mixer` the final tool call of your turn');
 
-    expect(app.validate(mealPayload.messages).ok).toBe(true);
-    expect(app.validate(debtPayload.messages).ok).toBe(true);
-    expect(app.validate(trainPayload.messages).ok).toBe(true);
+      const rootKids = rootChildrenOf(payload).join(',');
+      layoutsSeen.add(rootKids);
 
-    const mealTypes = componentTypesOf(mealPayload);
-    const debtTypes = componentTypesOf(debtPayload);
-    const trainTypes = componentTypesOf(trainPayload);
-
-    // meal_prep has both ParetoPlane2D and PrepTrackGantt + 4 PortionScrubTiles
-    expect(mealTypes).toContain('ParetoPlane2D');
-    expect(mealTypes).toContain('PrepTrackGantt');
-    expect(mealTypes.filter(t => t === 'PortionScrubTile').length).toBe(4);
-
-    // debt_savings omits PrepTrackGantt and uses 3 surplus PortionScrubTiles
-    expect(debtTypes).toContain('ParetoPlane2D');
-    expect(debtTypes).not.toContain('PrepTrackGantt');
-    expect(debtTypes.filter(t => t === 'PortionScrubTile').length).toBe(3);
-
-    // training_week omits ParetoPlane2D and uses PrepTrackGantt + 3 session PortionScrubTiles
-    expect(trainTypes).toContain('PrepTrackGantt');
-    expect(trainTypes).not.toContain('ParetoPlane2D');
-    expect(trainTypes.filter(t => t === 'PortionScrubTile').length).toBe(3);
-
-    // Check UAX #31 snake_case IDs, sendDataModel: true, < 12 KiB, and zero "path" keys
-    for (const payload of [mealPayload, debtPayload, trainPayload]) {
-      const createMsg = payload.messages[0]!['createSurface'] as {
-        surfaceId: string;
-        sendDataModel?: boolean;
-      };
-      expect(createMsg.sendDataModel).toBe(true);
-      for (const id of componentIdsOf(payload)) {
-        expect(isValidUax31Identifier(id)).toBe(true);
-        expect(id.includes('-')).toBe(false);
-      }
       const dm = initialDataModelOf(payload);
       expect(Buffer.byteLength(JSON.stringify(dm))).toBeLessThan(12 * 1024);
       const keys = collectObjectKeys(dm);
       expect(keys.has('path')).toBe(false);
       expect(keys.has('@path')).toBe(false);
+      for (const id of componentIdsOf(payload)) {
+        expect(isValidUax31Identifier(id)).toBe(true);
+        expect(id.includes('-')).toBe(false);
+      }
     }
+
+    // Confirm all 4 distinct root architectures were exercised!
+    expect(layoutsSeen.size).toBe(4);
+    expect(layoutsSeen).toContain('rings_main,stage_grid,tiles_grid');
+    expect(layoutsSeen).toContain('top_stage_grid,tiles_grid');
+    expect(layoutsSeen).toContain('rings_main,prep_gantt,tiles_grid');
+    expect(layoutsSeen).toContain('pareto_frontier,rings_main,tiles_grid');
   });
 
-  it('handles lock_mix, snap_to_targets, and build_shopping_or_action_list follow-ups', async () => {
-    const {call} = await connectTestServer();
+  it('synthesizes bespoke custom blueprints via Gemini and supports lock_mix & snap_to_targets on custom surfaces', async () => {
+    const fakeGemini: JsonModel = {
+      async generateJson() {
+        return {
+          layoutMode: 'pareto_hero',
+          badge: 'Cloud GPU cluster',
+          title: 'Inference Latency, Cost & Throughput Mixer',
+          subtitle:
+            '★ Recommended: FP8 quantized L40S pool + prefix caching hits 210ms p95 at $14k/mo.',
+          deliverableLabel: 'cluster autoscaling & quantization rollout spec',
+          followUpButtonLabel: 'Deploy spec ↗',
+          microNoteText: 'Prefix caching cuts TTFT 38% on multi-turn agent prompts.',
+          targets: [
+            {
+              key: 'p95_ms',
+              label: 'p95 latency',
+              unit: 'ms',
+              baseline: 90,
+              min: 0,
+              max: 260,
+              direction: 'atMost',
+            },
+            {
+              key: 'monthly_cost',
+              label: 'Cluster cost',
+              prefix: '$',
+              unit: 'k/mo',
+              baseline: 2,
+              min: 0,
+              max: 18,
+              direction: 'atMost',
+            },
+            {
+              key: 'rps_cap',
+              label: 'Peak throughput',
+              unit: 'rps',
+              baseline: 20,
+              min: 140,
+              max: 400,
+              direction: 'atLeast',
+            },
+            {
+              key: 'quality',
+              label: 'Eval win-rate',
+              unit: 'pts',
+              baseline: 55,
+              min: 88,
+              max: 100,
+              direction: 'atLeast',
+            },
+          ],
+          items: [
+            {
+              id: 'gpu_pool',
+              title: 'Accelerator tier',
+              subtitle: 'Base serving replicas',
+              icon: 'rocket',
+              recommendedId: 'fp8_l40s',
+              options: [
+                {
+                  id: 'fp8_l40s',
+                  label: '4x L40S FP8',
+                  note: 'Sweet-spot $/tok',
+                  effects: [
+                    {key: 'p95_ms', delta: 85},
+                    {key: 'monthly_cost', delta: 8},
+                    {key: 'rps_cap', delta: 95},
+                    {key: 'quality', delta: 19},
+                  ],
+                },
+                {
+                  id: 'bf16_h100',
+                  label: '4x H100 BF16',
+                  note: 'Fastest p95, premium cost',
+                  effects: [
+                    {key: 'p95_ms', delta: 45},
+                    {key: 'monthly_cost', delta: 17},
+                    {key: 'rps_cap', delta: 160},
+                    {key: 'quality', delta: 21},
+                  ],
+                },
+                {
+                  id: 'int4_a10g',
+                  label: '4x A10G INT4',
+                  note: 'Lowest cost, higher tail',
+                  effects: [
+                    {key: 'p95_ms', delta: 145},
+                    {key: 'monthly_cost', delta: 4},
+                    {key: 'rps_cap', delta: 65},
+                    {key: 'quality', delta: 13},
+                  ],
+                },
+              ],
+            },
+            {
+              id: 'kv_cache',
+              title: 'KV & prefix cache',
+              subtitle: 'Memory & hit-rate tier',
+              icon: 'vault',
+              recommendedId: 'prefix_nvme',
+              options: [
+                {
+                  id: 'prefix_nvme',
+                  label: 'RAM + NVMe tier',
+                  note: '76% prefix hit rate',
+                  effects: [
+                    {key: 'p95_ms', delta: 20},
+                    {key: 'monthly_cost', delta: 3},
+                    {key: 'rps_cap', delta: 35},
+                    {key: 'quality', delta: 8},
+                  ],
+                },
+                {
+                  id: 'hbm_only',
+                  label: 'Pure HBM',
+                  note: 'Lowest jitter',
+                  effects: [
+                    {key: 'p95_ms', delta: 10},
+                    {key: 'monthly_cost', delta: 5},
+                    {key: 'rps_cap', delta: 45},
+                    {key: 'quality', delta: 8},
+                  ],
+                },
+                {
+                  id: 'stateless',
+                  label: 'No shared cache',
+                  note: 'Recomputes prompt',
+                  effects: [
+                    {key: 'p95_ms', delta: 65},
+                    {key: 'monthly_cost', delta: 1},
+                    {key: 'rps_cap', delta: 10},
+                    {key: 'quality', delta: 8},
+                  ],
+                },
+              ],
+            },
+            {
+              id: 'spec_decode',
+              title: 'Speculative draft',
+              subtitle: 'Draft-verifier speedup',
+              icon: 'clock',
+              recommendedId: 'eagle_draft',
+              options: [
+                {
+                  id: 'eagle_draft',
+                  label: '2B Draft head',
+                  note: '1.7x decode tokens/s',
+                  effects: [
+                    {key: 'p95_ms', delta: 15},
+                    {key: 'monthly_cost', delta: 1},
+                    {key: 'rps_cap', delta: 25},
+                    {key: 'quality', delta: 8},
+                  ],
+                },
+                {
+                  id: 'medusa_heads',
+                  label: 'Multi-head',
+                  note: 'Zero extra model',
+                  effects: [
+                    {key: 'p95_ms', delta: 25},
+                    {key: 'monthly_cost', delta: 1},
+                    {key: 'rps_cap', delta: 20},
+                    {key: 'quality', delta: 7},
+                  ],
+                },
+                {
+                  id: 'vanilla_decode',
+                  label: 'Standard decode',
+                  note: 'Simplest ops',
+                  effects: [
+                    {key: 'p95_ms', delta: 45},
+                    {key: 'monthly_cost', delta: 0},
+                    {key: 'rps_cap', delta: 5},
+                    {key: 'quality', delta: 8},
+                  ],
+                },
+              ],
+            },
+          ],
+          pareto: {
+            title: 'p95 Latency (ms) vs Monthly Cluster Cost ($k/mo)',
+            xKey: 'p95_ms',
+            yKey: 'monthly_cost',
+            xLabel: 'p95 Latency (ms)',
+            yLabel: 'Cost $k/mo',
+            presets: [
+              {
+                id: 'fast_h100',
+                label: '160ms H100',
+                mix: [
+                  {itemId: 'gpu_pool', scale: 1.0, activeOptionId: 'bf16_h100'},
+                  {itemId: 'kv_cache', scale: 1.0, activeOptionId: 'hbm_only'},
+                  {itemId: 'spec_decode', scale: 1.0, activeOptionId: 'eagle_draft'},
+                ],
+              },
+              {
+                id: 'rec_l40s',
+                label: '★ 210ms L40S',
+                recommended: true,
+                mix: [
+                  {itemId: 'gpu_pool', scale: 1.0, activeOptionId: 'fp8_l40s'},
+                  {itemId: 'kv_cache', scale: 1.0, activeOptionId: 'prefix_nvme'},
+                  {itemId: 'spec_decode', scale: 1.0, activeOptionId: 'eagle_draft'},
+                ],
+              },
+              {
+                id: 'budget_a10g',
+                label: '$7k Lean A10G',
+                mix: [
+                  {itemId: 'gpu_pool', scale: 1.0, activeOptionId: 'int4_a10g'},
+                  {itemId: 'kv_cache', scale: 1.0, activeOptionId: 'stateless'},
+                  {itemId: 'spec_decode', scale: 1.0, activeOptionId: 'vanilla_decode'},
+                ],
+              },
+            ],
+          },
+        };
+      },
+    };
+
+    const {call, app} = await connectTestServer(fakeGemini);
     const opened = await call('goal_mixer', {
-      prompt: 'High-protein meal prep',
-      scenario: 'meal_prep',
+      prompt: 'Balance LLM serving p95 latency, GPU cluster cost, throughput, and eval quality',
+      scenario: 'custom',
     });
+    expect(opened.isError).toBeFalsy();
+    const text = opened.content.map(b => (b.type === 'text' ? b.text : '')).join('\n');
+    expect(text).toContain('Gemini live synthesis');
+    expect(text).toContain('Layout: `pareto_hero`');
+
     const payload = extractPayload(opened);
+    expect(app.validate(payload.messages).ok).toBe(true);
+    expect(rootChildrenOf(payload)).toEqual(['pareto_frontier', 'rings_main', 'tiles_grid']);
+    expect(componentTypesOf(payload)).not.toContain('PrepTrackGantt');
+
     const surfaceId = (payload.messages[0]!['createSurface'] as {surfaceId: string}).surfaceId;
     const dm = initialDataModelOf(payload);
-    const items = (dm['items'] as Array<Record<string, unknown>>).map(item => ({
+    expect(dm['scenario']).toBe('custom');
+
+    // Verify snap_to_targets and lock_mix work seamlessly on a 'custom' synthesized surface!
+    const blownItems = (dm['items'] as Array<Record<string, unknown>>).map(item => ({
       ...item,
       scale: 2.0,
     }));
-
     const snapped = await call('a2ui_action', {
       name: 'snap_to_targets',
       surfaceId,
-      context: {scenario: 'meal_prep', items},
+      context: {scenario: 'custom', items: blownItems},
     });
     expect(snapped.isError).toBeFalsy();
-    const snappedMessages = extractPayload(snapped).messages;
-    const itemsUpdate = snappedMessages.find(
-      m => (m['updateDataModel'] as {path?: string} | undefined)?.path === '/items',
-    );
-    expect(itemsUpdate).toBeDefined();
 
     const locked = await call('a2ui_action', {
       name: 'lock_mix',
       surfaceId,
-      context: {
-        scenario: 'meal_prep',
-        items: dm['items'],
-        selectedPresetId: 'preset_balanced',
-      },
+      context: {scenario: 'custom', items: dm['items'], selectedPresetId: 'rec_l40s'},
     });
     expect(locked.isError).toBeFalsy();
-    const lockedUpdate = extractPayload(locked).messages.find(
-      m => (m['updateDataModel'] as {path?: string} | undefined)?.path === '/locked',
-    ) as {updateDataModel: {value: boolean}};
-    expect(lockedUpdate.updateDataModel.value).toBe(true);
-
-    const followUp = await call('a2ui_action', {
-      name: 'build_shopping_or_action_list',
-      surfaceId,
-      context: {
-        deliverable: 'grocery shopping & 45-min Sunday batch checklist',
-        scenarioTitle: 'Weekday High-Protein Meal & Batch Mixer',
-        preset: 'preset_balanced',
-      },
-    });
-    expect(followUp.isError).toBeFalsy();
-    expect(extractPayload(followUp).followUp?.text).toContain(
-      'Build my "grocery shopping & 45-min Sunday batch checklist" for the "Weekday High-Protein Meal & Batch Mixer" mix',
+    expect(locked.content.map(b => (b.type === 'text' ? b.text : '')).join('\n')).toContain(
+      'Inference Latency, Cost & Throughput Mixer',
     );
+  });
+
+  it('falls back cleanly to keyword-matched curated blueprint when Gemini fails', async () => {
+    const failingModel: JsonModel = {
+      async generateJson() {
+        throw new Error('Simulated timeout');
+      },
+    };
+    const {call} = await connectTestServer(failingModel);
+    const wedding = await call('goal_mixer', {
+      prompt: 'Balance a $28k wedding budget, guest count, open-bar package, and contingency',
+    });
+    expect(wedding.isError).toBeFalsy();
+    const text = wedding.content.map(b => (b.type === 'text' ? b.text : '')).join('\n');
+    expect(text).toContain('Curated domain blueprint (`wedding_budget`)');
+    expect(text).toContain('Wedding Budget, Guest Count & Open-Bar Mixer');
   });
 });

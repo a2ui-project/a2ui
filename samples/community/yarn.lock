@@ -4602,6 +4602,7 @@ __metadata:
     "@a2ui/embed": "portal:../../../../typescript/embed"
     "@a2ui/lit": "portal:../../../../typescript/renderers/lit"
     "@a2ui/web_core": "npm:*"
+    "@google/genai": "npm:^2.8.0"
     "@modelcontextprotocol/ext-apps": "npm:^1.7.4"
     "@modelcontextprotocol/sdk": "npm:^1.29.0"
     "@types/node": "npm:^25.9.3"

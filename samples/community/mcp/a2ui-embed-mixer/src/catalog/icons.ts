@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-/** Pure inline SVG icons for PortionScrubTile and headers (0 network requests). */
+/** Pure inline SVG icons across everyday, financial, hardware, home, and work domains. */
 
 import {svg, type SVGTemplateResult} from 'lit';
 
@@ -67,6 +67,32 @@ export function renderMixerIcon(kind: string): SVGTemplateResult {
     case 'weights':
       return svg`<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M2.5 10h15M5 6.5v7M15 6.5v7M3.2 8v4M16.8 8v4" />
+      </svg>`;
+    case 'sun':
+      return svg`<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="10" cy="10" r="3.6" />
+        <path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4" />
+      </svg>`;
+    case 'home':
+      return svg`<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 9.5L10 3.5l7 6" />
+        <path d="M5 8v8.5h10V8" />
+        <path d="M8.5 16.5v-4.5h3v4.5" />
+      </svg>`;
+    case 'rocket':
+      return svg`<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M11.5 13.5l-5-5C8.5 5 12.5 3.5 16.5 3.5c0 4-1.5 8-5 10Z" />
+        <path d="M6.5 8.5L3.5 10l2 2M11.5 13.5L10 16.5l-2-2" />
+        <circle cx="12.5" cy="7.5" r="1.2" />
+      </svg>`;
+    case 'heart':
+      return svg`<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 16.5s-6.5-4.1-6.5-8.6A3.6 3.6 0 0 1 10 5.6a3.6 3.6 0 0 1 6.5 2.3c0 4.5-6.5 8.6-6.5 8.6Z" />
+      </svg>`;
+    case 'clock':
+      return svg`<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="10" cy="10" r="7" />
+        <path d="M10 6v4.2l2.8 1.8" />
       </svg>`;
     case 'sleep':
     default:

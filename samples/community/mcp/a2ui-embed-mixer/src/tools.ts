@@ -14,31 +14,31 @@
  * limitations under the License.
  */
 
-/** Model-facing `goal_mixer` tool definition (`mcp_a2ui-mixer_mixer_goal_mixer` = 32 chars). */
+/** Model-facing `goal_mixer` tool definition (`mcp_a2ui-mixer_mixer_goal_mixer` = 31 chars). */
 
 import {z} from 'zod';
 
-import {SCENARIO_IDS} from './scenarios/presets.js';
+import {SCENARIO_MODES} from './scenarios/presets.js';
 
 export const GOAL_MIXER_TOOL = {
   name: 'goal_mixer',
   config: {
     title: 'Multi-Goal Trade-Off Mixer',
     description:
-      "Interactive Multi-Goal Mixer studio for balancing competing targets in one tactile A2UI v1.0 card: weekday high-protein meal prep (calories, protein, grocery budget, weekday prep mins, Sunday 45m batch tracks), monthly surplus debt payoff vs emergency savings (cash cushion, months to debt-free, interest saved, emergency fund), or weekly hybrid training & recovery. Make `goal_mixer` the final tool call of your turn: never call `read_file`, `run_command`, or any other tool in parallel after `goal_mixer` or after `goal_mixer` returns, because the interactive A2UI studio is already rendered inline for the user and any subsequent tool call collapses the app into the 'Worked for' block. Answer directly from this tool's text summary.",
+      "Interactive Multi-Goal Mixer studio for balancing any competing multi-variable targets in one tactile A2UI v1.0 card (for example wedding budget/guests/bar, home solar/battery/heat-pump sizing, half-marathon/strength/recovery, apartment commute/rent/space, startup seed runway/hiring, family weeknight routine, weekday meal prep, or debt payoff vs emergency cushion). Omit `scenario` (or pass `'auto'`) to synthesize a bespoke trade-off model for the user's exact problem. Make `goal_mixer` the final tool call of your turn: never call `read_file`, `run_command`, or any other tool in parallel after `goal_mixer` or after `goal_mixer` returns, because the interactive A2UI studio is already rendered inline for the user and any subsequent tool call collapses the app into the 'Worked for' block. Answer directly from this tool's text summary.",
     inputSchema: {
       prompt: z
         .string()
         .min(1)
         .max(2000)
         .describe(
-          "The user's multi-goal optimization request (for example weekday high-protein meal prep under budget/prep-time caps, or monthly surplus debt payoff vs emergency cash cushion).",
+          "The user's multi-variable optimization or trade-off request, including any target caps, budgets, hours, or constraints they care about.",
         ),
       scenario: z
-        .enum(SCENARIO_IDS)
+        .enum(SCENARIO_MODES)
         .optional()
         .describe(
-          'Optional explicit domain layout: meal_prep (rings + Pareto + Sunday batch Gantt + portion tiles), debt_savings (financial rings + payoff Pareto + surplus tiles), or training_week (readiness rings + block Gantt + session tiles).',
+          "Always leave omitted (or pass 'auto' / 'custom') for user prompts so Goal Mixer synthesizes a bespoke Gemini model tailored to the user's exact numbers and constraints. Pass a specific preset ID only when explicitly asked for a canned preset without AI synthesis.",
         ),
     },
     annotations: {readOnlyHint: true, openWorldHint: false},

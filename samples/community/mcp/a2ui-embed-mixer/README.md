@@ -2,7 +2,7 @@
 
 **Problem:** Multi-goal trade-off requests such as weekday meal prep (balancing calories, protein, grocery budget, weekday prep minutes, and Sunday batch tracks) or monthly surplus allocation (balancing debt payoff speed against emergency cash cushion) force users through repetitive chat recalculation turns when rendered as plain text tables.
 
-This sample packages a Multi-Goal Mixer MCP App built with [`@a2ui/embed`](../../../../typescript/embed) and a 100% custom A2UI v1.0 catalog (`https://a2ui.org/samples/mixer_studio/v1/catalog.json`, with zero `basicCatalog` components).
+This sample packages a Multi-Goal Mixer MCP App built with [`@a2ui/embed`](../../../../typescript/embed) and a 100% custom A2UI v1.0 catalog (`https://a2ui.org/samples/mixer_studio/v1/catalog.json`, with zero `basicCatalog` components). When `GEMINI_API_KEY` is configured (via `.env` or `MIXER_ENV_FILE`), `goal_mixer` synthesizes bespoke multi-variable models with `gemini-flash-latest` across four custom component layouts (`rings_pareto_gantt`, `rings_pareto`, `rings_gantt`, and `pareto_hero`), falling back to eight curated domain blueprints (`meal_prep`, `debt_savings`, `training_week`, `wedding_budget`, `solar_home`, `apartment_commute`, `startup_runway`, and `family_routine`) when offline.
 
 ## Custom catalog components
 

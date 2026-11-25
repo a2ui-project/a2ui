@@ -33,7 +33,12 @@ export type MixerIconKind =
   | 'shield'
   | 'run'
   | 'weights'
-  | 'sleep';
+  | 'sleep'
+  | 'sun'
+  | 'home'
+  | 'rocket'
+  | 'heart'
+  | 'clock';
 
 export interface MixOption {
   readonly id: string;

@@ -89,11 +89,12 @@ async function run() {
   };
 
   const client = new Client({name: 'a2ui-embed-mixer-e2e', version: '0.1.0'});
+  const useAi = process.env['A2UI_E2E_USE_AI'] === '1';
   await client.connect(
     new StdioClientTransport({
       command: process.execPath,
       args: ['--preserve-symlinks', join(packageRoot, 'dist', 'server.js')],
-      env: {...process.env},
+      env: {...process.env, ...(useAi ? {} : {A2UI_E2E_NO_AI: '1'})},
       stderr: 'inherit',
     }),
   );
@@ -323,7 +324,7 @@ async function run() {
   );
 
   await check(
-    'd. dark theme + multi-scenario composition (debt_savings & training_week)',
+    'd. dark theme + all 4 layoutMode compositions (rings_pareto, rings_gantt, pareto_hero) within <= 700 px',
     async () => {
       const debt = await render(
         'goal_mixer',
@@ -332,7 +333,7 @@ async function run() {
             'Balance $1,500 monthly surplus between high-APR debt payoff and emergency savings cushion',
         },
         'dark',
-        'Debt vs Savings (Dark)',
+        'Debt vs Savings (rings_pareto, Dark)',
       );
       await debt.frame.getByText('$320/mo', {exact: true}).waitFor({timeout: 15_000});
       await debt.frame.getByText('13 mos', {exact: true}).waitFor();
@@ -344,31 +345,56 @@ async function run() {
         );
       }
       const debtHeight = await recordNaturalHeight(debt.id, 'debt_savings_dark');
-      if (debtHeight > 800) throw new Error(`debt_savings height ${debtHeight}px > 800px`);
+      if (debtHeight > 700) throw new Error(`debt_savings height ${debtHeight}px > 700px`);
 
-      const train = await render(
+      const family = await render(
         'goal_mixer',
-        {prompt: 'Balance weekly Zone 2 endurance, strength lifts, and recovery readiness'},
+        {
+          prompt:
+            'Balance family weeknight dinner, homework, screen-time, and 8:30pm bedtime buffer',
+        },
         'light',
-        'Hybrid Training Week',
+        'Family Weeknight Routine (rings_gantt)',
       );
-      await train.frame.getByText('165m/wk', {exact: true}).waitFor({timeout: 15_000});
-      const trainGanttCount = await train.frame.locator('a2ui-prep-track-gantt').count();
-      const trainParetoCount = await train.frame.locator('a2ui-pareto-plane-2d').count();
-      if (trainGanttCount !== 1 || trainParetoCount !== 0) {
+      await family.frame.getByText('71m', {exact: true}).waitFor({timeout: 15_000});
+      const familyGanttCount = await family.frame.locator('a2ui-prep-track-gantt').count();
+      const familyParetoCount = await family.frame.locator('a2ui-pareto-plane-2d').count();
+      if (familyGanttCount !== 1 || familyParetoCount !== 0) {
         throw new Error(
-          `training_week composition mismatch: gantt=${trainGanttCount}, pareto=${trainParetoCount}`,
+          `family_routine composition mismatch: gantt=${familyGanttCount}, pareto=${familyParetoCount}`,
         );
       }
-      const trainHeight = await recordNaturalHeight(train.id, 'training_week_light');
-      if (trainHeight > 800) throw new Error(`training_week height ${trainHeight}px > 800px`);
+      const familyHeight = await recordNaturalHeight(family.id, 'family_routine_light');
+      if (familyHeight > 700) throw new Error(`family_routine height ${familyHeight}px > 700px`);
+
+      const apt = await render(
+        'goal_mixer',
+        {
+          prompt:
+            'Apartment hunt balancing door-to-desk commute minutes, monthly rent, sqft, and walkability',
+        },
+        'dark',
+        'Apartment Hunt (pareto_hero, Dark)',
+      );
+      await apt.frame.getByText('$2,770/mo', {exact: true}).waitFor({timeout: 15_000});
+      const aptGanttCount = await apt.frame.locator('a2ui-prep-track-gantt').count();
+      const aptParetoCount = await apt.frame.locator('a2ui-pareto-plane-2d').count();
+      if (aptGanttCount !== 0 || aptParetoCount !== 1) {
+        throw new Error(
+          `apartment_commute composition mismatch: gantt=${aptGanttCount}, pareto=${aptParetoCount}`,
+        );
+      }
+      const aptHeight = await recordNaturalHeight(apt.id, 'apartment_commute_dark');
+      if (aptHeight > 700) throw new Error(`apartment_commute height ${aptHeight}px > 700px`);
 
       return {
         debtHeight,
-        trainHeight,
+        familyHeight,
+        aptHeight,
         screenshot: [
           await screenshotFrame(debt.id, 'd-debt-savings-dark'),
-          await screenshotFrame(train.id, 'd-training-week-light'),
+          await screenshotFrame(family.id, 'd-family-routine-light'),
+          await screenshotFrame(apt.id, 'd-apartment-hero-dark'),
         ],
       };
     },

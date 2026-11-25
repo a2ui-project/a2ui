@@ -14,20 +14,27 @@
  * limitations under the License.
  */
 
-/** Stateful domain controller managing Goal Mixer surfaces and in-place actions. */
+/**
+ * Stateful domain controller managing Goal Mixer surfaces, live Gemini blueprint
+ * synthesis with curated fallback, and in-place `lock_mix` / `snap_to_targets` actions.
+ */
 
 import type {AgentToRendererMessage} from '@a2ui/web_core/v1_0';
 
+import type {JsonModel} from './ai/json_model.js';
+import {DEFAULT_SYNTHESIS_TIMEOUT_MS, synthesizeBlueprint} from './ai/synthesizer.js';
 import {evaluateMixTotals, type MixItem} from './catalog/functions.js';
 import {createSurfaceMessages, updateData} from './compose/a2ui.js';
 import {composeMixerSurface, summarizeMixerCard} from './compose/composer.js';
 import type {MixerActionArgs} from './compose/events.js';
 import {
+  CURATED_SCENARIO_IDS,
   getScenarioBlueprint,
   inferScenario,
   snapMixToTargets,
+  type CuratedScenarioId,
   type ScenarioBlueprint,
-  type ScenarioId,
+  type ScenarioMode,
 } from './scenarios/presets.js';
 
 export interface MixerToolResult {
@@ -41,14 +48,49 @@ interface SurfaceRecord {
   locked: boolean;
 }
 
+function isCuratedScenarioId(id: string): id is CuratedScenarioId {
+  return (CURATED_SCENARIO_IDS as readonly string[]).includes(id);
+}
+
 export class MixerService {
   private readonly surfaces = new Map<string, SurfaceRecord>();
   private surfaceCounter = 0;
 
-  openMixer(prompt: string, explicitScenario?: ScenarioId): MixerToolResult {
-    const scenario = inferScenario(prompt, explicitScenario);
-    const blueprint = getScenarioBlueprint(scenario);
+  constructor(
+    private readonly model?: JsonModel,
+    private readonly validateMessages?: (messages: AgentToRendererMessage[]) => boolean,
+    private readonly timeoutMs = DEFAULT_SYNTHESIS_TIMEOUT_MS,
+  ) {}
+
+  async openMixer(prompt: string, explicitScenario?: ScenarioMode): Promise<MixerToolResult> {
     const surfaceId = `mixer_${++this.surfaceCounter}`;
+    let blueprint: ScenarioBlueprint | undefined;
+
+    const wantsExplicitCurated =
+      explicitScenario !== undefined &&
+      explicitScenario !== 'auto' &&
+      explicitScenario !== 'custom' &&
+      isCuratedScenarioId(explicitScenario);
+
+    if (wantsExplicitCurated) {
+      blueprint = getScenarioBlueprint(explicitScenario);
+    } else if (this.model) {
+      try {
+        const candidate = await synthesizeBlueprint(prompt, this.model, this.timeoutMs);
+        const candidateMessages = createSurfaceMessages(composeMixerSurface(surfaceId, candidate));
+        const dmBytes = Buffer.byteLength(JSON.stringify(candidateMessages[2] ?? {}));
+        const valid =
+          dmBytes < 11_500 &&
+          (this.validateMessages ? this.validateMessages(candidateMessages) : true);
+        if (valid) {
+          blueprint = candidate;
+        }
+      } catch {
+        // Fall back cleanly to the best-matching curated domain blueprint.
+      }
+    }
+
+    blueprint ??= getScenarioBlueprint(inferScenario(prompt, explicitScenario));
     this.surfaces.set(surfaceId, {surfaceId, blueprint, locked: false});
 
     const view = composeMixerSurface(surfaceId, blueprint);
@@ -58,9 +100,14 @@ export class MixerService {
     };
   }
 
+  private resolveBlueprint(surfaceId: string, scenarioHint: string): ScenarioBlueprint {
+    const stored = this.surfaces.get(surfaceId)?.blueprint;
+    if (stored) return stored;
+    return getScenarioBlueprint(inferScenario(scenarioHint, scenarioHint));
+  }
+
   lockMix(args: MixerActionArgs<'lock_mix'>, surfaceId: string): MixerToolResult {
-    const blueprint =
-      this.surfaces.get(surfaceId)?.blueprint ?? getScenarioBlueprint(args.scenario);
+    const blueprint = this.resolveBlueprint(surfaceId, args.scenario);
     const record = this.surfaces.get(surfaceId);
     if (record) record.locked = true;
 
@@ -78,8 +125,7 @@ export class MixerService {
   }
 
   snapToTargets(args: MixerActionArgs<'snap_to_targets'>, surfaceId: string): MixerToolResult {
-    const blueprint =
-      this.surfaces.get(surfaceId)?.blueprint ?? getScenarioBlueprint(args.scenario);
+    const blueprint = this.resolveBlueprint(surfaceId, args.scenario);
     const record = this.surfaces.get(surfaceId);
     if (record) record.locked = false;
 
