@@ -214,7 +214,8 @@ abstract class FunctionImplementation extends FunctionApi {
     super.definition,
   });
 
-  /// Executes the function. Can return a static value or a [ReadonlySignal].
+  /// Executes the function. Can return a static value, a [Future], or a
+  /// [ReadonlySignal].
   Object? execute(
     Map<String, dynamic> args,
     DataContext context, [
