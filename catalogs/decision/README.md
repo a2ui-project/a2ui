@@ -2,7 +2,7 @@
 
 > [!NOTE]
 > These files are experimental and non-normative. The Python agent SDK
-> (`a2ui.inference_formats.decision`) is the reference implementation, and the
+> (`a2ui.inference_formats.experimental.decision`) is the reference implementation, and the
 > schemas may change between grammar versions. Cross-language parity is not a
 > goal yet.
 
@@ -153,7 +153,7 @@ id so a pattern can appear more than once on a surface. Headings use Markdown
 An installed package cannot read this repository. Each SDK bundles a copy of
 the grammar, the two schemas, and the pattern files for the catalogs it ships.
 The Python SDK copies them into
-`python/a2ui_agent/src/a2ui/inference_formats/decision/assets/` at build time
+`python/a2ui_agent/src/a2ui/inference_formats/experimental/decision/assets/` at build time
 (the `force-include` tables in `python/a2ui_agent/pyproject.toml`). Treat the
 files in `catalogs/` as the source of truth and the bundled copies as build
 artifacts.

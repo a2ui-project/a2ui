@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/inference_formats/experimental/decision/v1/archetype_definition.json",
   "title": "A2UI decision layout archetype grammar",
-  "description": "Catalog-agnostic grammar of layout archetypes, blocks, questions, slots, and rules consumed by the decision inference format. Experimental and non-normative: the Python agent SDK (a2ui.inference_formats.decision) is the reference implementation, and this schema may change between grammar versions.",
+  "description": "Catalog-agnostic grammar of layout archetypes, blocks, questions, slots, and rules consumed by the decision inference format. Experimental and non-normative: the Python agent SDK (a2ui.inference_formats.experimental.decision) is the reference implementation, and this schema may change between grammar versions.",
   "type": "object",
   "required": ["grammarVersion", "thresholds", "job", "archetypes", "blocks"],
   "additionalProperties": false,
