@@ -15,6 +15,7 @@
  */
 
 import {DataModel} from './data-model.js';
+import {assertFunctionReturnType} from '../catalog/return_type_validator.js';
 import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from '../catalog/types.js';
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {canonicalJsonKey, toJsonValue} from '../common/canonical_json.js';
@@ -30,6 +31,7 @@ import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
 import {A2uiExpressionError, A2uiRpcError, RpcErrorCode} from '../errors.js';
 import {computed, getValue, peekValue, setValue, signal, Signal} from '../reactivity/signals.js';
+import {SpecVersion} from '../spec_versions.js';
 import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
 
 /**
@@ -547,6 +549,18 @@ export class SurfaceModel<
       return caller(call).then(
         val => {
           release();
+          const declaredCatalog =
+            this.availableCatalogs.get(call.catalogId) ??
+            (this.defaultCatalog?.id === call.catalogId ? this.defaultCatalog : undefined);
+          if (
+            declaredCatalog &&
+            isAtLeastVersion(declaredCatalog.protocolVersion, SpecVersion.V1_0)
+          ) {
+            const declaredFn = declaredCatalog.functions.get(call['@call']);
+            if (declaredFn) {
+              assertFunctionReturnType(declaredFn.name, declaredFn.returnType, val);
+            }
+          }
           // An answer from a caller that has since been replaced or cleared
           // is not cached for the new one.
           if (key !== undefined && !this.isDisposed && this._agentFunctionCaller === caller) {

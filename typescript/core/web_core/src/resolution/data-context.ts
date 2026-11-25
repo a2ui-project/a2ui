@@ -808,21 +808,44 @@ export class DataContext {
       if (keepPending) {
         return scope.keepPendingResult(result, callName, abortController.signal) as V;
       }
-      return Promise.resolve(result).then(
-        value => {
+      return Promise.resolve(result)
+        .then(value => {
           if (value instanceof FailedArgument) {
             return undefined;
           }
-          return isSignal(value) ? peekValue(value) : value;
-        },
-        (e: unknown) => {
-          scope.dispatchExpressionError(e, callName);
-          return undefined;
-        },
-      ) as V;
+          if (isSignal(value)) {
+            try {
+              return peekValue(value);
+            } finally {
+              value.unsubscribe?.();
+            }
+          }
+          return value;
+        })
+        .then(
+          value => value,
+          (e: unknown) => {
+            scope.dispatchExpressionError(e, callName);
+            return undefined;
+          },
+        ) as V;
     }
 
-    return (isSignal(result) ? peekValue(result) : result) as V;
+    if (isSignal(result)) {
+      try {
+        return peekValue(result) as V;
+      } catch (e: unknown) {
+        if (scope.isAgentCaller && isInvalidFunctionCallError(e)) {
+          throw e;
+        }
+        scope.dispatchExpressionError(e, callName);
+        return (keepPending ? scope.failedArgument(e) : undefined) as unknown as V;
+      } finally {
+        result.unsubscribe?.();
+      }
+    }
+
+    return result as V;
   }
 
   /**
@@ -1092,23 +1115,29 @@ export class DataContext {
           );
 
           if (isSignal(res)) {
-            // Seed the result synchronously before wiring the forwarding
-            // effect. Some reactivity backends (e.g. Angular) defer effects
-            // until the next flush, so without this an enclosing function
-            // call would observe `undefined` for this argument and could fail
-            // argument validation (e.g. `not(areComponentsValid(...))`).
-            // `peekValue` is untracked so the outer effect does not subscribe
-            // to `res`; the forwarding effect owns that subscription.
-            setValue(resultSig, peekValue(res));
-            innerUnsubscribe = effect(() => {
-              setValue(resultSig, getValue(res));
-            });
+            innerUnsubscribe = scope.bindSignalToTarget(
+              resultSig,
+              res,
+              callName,
+              keepPending,
+              false,
+              markFailed,
+            );
           } else if (isThenable(res)) {
             if (keepPending) {
               setValue(
                 resultSig,
                 scope.keepPendingResult(res, callName, evaluation.signal, {
-                  onSignal: inner => scope.forwardSignal(resultSig, inner, evaluation.signal),
+                  onSignal: (inner, skipInitialError) =>
+                    scope.forwardSignal(
+                      resultSig,
+                      inner,
+                      evaluation.signal,
+                      callName,
+                      true,
+                      skipInitialError,
+                      markFailed,
+                    ),
                   onFailure: markFailed,
                 }) as V,
               );
@@ -1583,16 +1612,37 @@ export class DataContext {
     }
     if (isSignal(result)) {
       const inner = result;
-      const prevUnsubscribe = inner.unsubscribe?.bind(inner);
-      const wrapped = computed(() => getValue(inner));
-      wrapped.unsubscribe = () => {
+      if (!this.atLeastV10) {
+        const prevUnsubscribe = inner.unsubscribe?.bind(inner);
+        const wrapped = computed(() => getValue(inner));
+        wrapped.unsubscribe = () => {
+          abortController.abort();
+          prevUnsubscribe?.();
+          for (let i = 0; i < keys.length; i++) {
+            argSignals[keys[i]].unsubscribe?.();
+          }
+        };
+        return wrapped;
+      }
+      const outSig = signal<V | undefined>(undefined);
+      let stopInner: () => void;
+      try {
+        stopInner = this.bindSignalToTarget(outSig, inner, callName, keepPending);
+      } catch (e: unknown) {
         abortController.abort();
-        prevUnsubscribe?.();
+        for (let i = 0; i < keys.length; i++) {
+          argSignals[keys[i]].unsubscribe?.();
+        }
+        throw e;
+      }
+      outSig.unsubscribe = () => {
+        abortController.abort();
+        stopInner();
         for (let i = 0; i < keys.length; i++) {
           argSignals[keys[i]].unsubscribe?.();
         }
       };
-      return wrapped;
+      return outSig as unknown as Signal<V>;
     }
     let sig: Signal<V>;
     if (isThenable(result)) {
@@ -1601,7 +1651,15 @@ export class DataContext {
         setValue(
           pendingSig,
           this.keepPendingResult(result, callName, abortController.signal, {
-            onSignal: inner => this.forwardSignal(pendingSig, inner, abortController.signal),
+            onSignal: (inner, skipInitialError) =>
+              this.forwardSignal(
+                pendingSig,
+                inner,
+                abortController.signal,
+                callName,
+                true,
+                skipInitialError,
+              ),
           }) as V,
         );
       } else {
@@ -1676,16 +1734,41 @@ export class DataContext {
     pending: PromiseLike<unknown>,
     name: string,
     abortSignal?: AbortSignal,
-    handlers?: {onSignal?: (source: Signal<unknown>) => void; onFailure?: () => void},
+    handlers?: {
+      onSignal?: (source: Signal<unknown>, skipInitialError?: boolean) => void;
+      onFailure?: () => void;
+    },
   ): Promise<unknown> {
     const tracked: Promise<unknown> = Promise.resolve(pending).then(
       value => {
-        const unwrapped = isSignal(value) ? peekValue(value) : value;
-        recordSettledValue(tracked, unwrapped);
-        if (isSignal(value) && !abortSignal?.aborted) {
-          handlers?.onSignal?.(value);
+        if (isSignal(value)) {
+          let unwrapped: unknown;
+          try {
+            unwrapped = peekValue(value);
+          } catch (e: unknown) {
+            if (!abortSignal?.aborted) {
+              if (!isCancellation(e)) handlers?.onFailure?.();
+              this.dispatchExpressionError(e, name);
+            }
+            const failed = this.failedArgument(e);
+            recordSettledValue(tracked, failed);
+            if (!abortSignal?.aborted && handlers?.onSignal) {
+              handlers.onSignal(value, true);
+            } else {
+              value.unsubscribe?.();
+            }
+            return failed;
+          }
+          recordSettledValue(tracked, unwrapped);
+          if (!abortSignal?.aborted && handlers?.onSignal) {
+            handlers.onSignal(value, false);
+          } else {
+            value.unsubscribe?.();
+          }
+          return unwrapped;
         }
-        return unwrapped;
+        recordSettledValue(tracked, value);
+        return value;
       },
       (e: unknown) => {
         if (!abortSignal?.aborted) {
@@ -1726,13 +1809,29 @@ export class DataContext {
   ): void {
     Promise.resolve(pending).then(
       value => {
-        if (abortSignal?.aborted || this.surface?.disposed) return;
+        if (abortSignal?.aborted || this.surface?.disposed) {
+          if (isSignal(value)) {
+            value.unsubscribe?.();
+          }
+          return;
+        }
         if (value instanceof FailedArgument) {
           setValue(sig, (this.atLeastV10 ? null : undefined) as V | undefined);
         } else if (isSignal(value) && abortSignal) {
-          this.forwardSignal(sig, value, abortSignal);
+          this.forwardSignal(sig, value, abortSignal, name, false, false, onFailure);
+        } else if (isSignal(value)) {
+          try {
+            setValue(sig, peekValue(value) as V);
+          } catch (e: unknown) {
+            const cancelled = isCancellation(e);
+            if (!cancelled) onFailure?.();
+            this.dispatchExpressionError(e, name);
+            setValue(sig, (!cancelled && this.atLeastV10 ? null : undefined) as V | undefined);
+          } finally {
+            value.unsubscribe?.();
+          }
         } else {
-          setValue(sig, (isSignal(value) ? peekValue(value) : value) as V);
+          setValue(sig, value as V);
         }
       },
       (e: unknown) => {
@@ -1752,17 +1851,110 @@ export class DataContext {
    * @param target The signal that exposes the result.
    * @param source The signal a function returned.
    * @param abortSignal Signal that ends the forwarding.
+   * @param callName Name of the function that produced `source`.
+   * @param keepPending Whether the call is nested inside a function argument.
+   * @param skipInitialError Whether an initial read error was already reported.
+   * @param onFailure Optional callback invoked on read errors.
    */
   private forwardSignal<V>(
     target: Signal<V | undefined>,
     source: Signal<unknown>,
     abortSignal: AbortSignal,
+    callName: string,
+    keepPending: boolean,
+    skipInitialError = false,
+    onFailure?: () => void,
   ): void {
-    if (abortSignal.aborted) return;
-    const stop = effect(() => {
-      setValue(target, getValue(source) as V);
-    });
+    if (abortSignal.aborted) {
+      source.unsubscribe?.();
+      return;
+    }
+    const stop = this.bindSignalToTarget(
+      target,
+      source,
+      callName,
+      keepPending,
+      skipInitialError,
+      onFailure,
+    );
     abortSignal.addEventListener('abort', () => stop(), {once: true});
+  }
+
+  /**
+   * Binds `source` reactively into `target`, converting read-time validation or
+   * evaluation errors into native expression errors without breaking the
+   * subscription, and returns a cleanup callback that disposes both the effect
+   * and `source.unsubscribe`.
+   */
+  private bindSignalToTarget<V>(
+    target: Signal<V | undefined>,
+    source: Signal<unknown>,
+    callName: string,
+    keepPending: boolean,
+    skipInitialError = false,
+    onFailure?: () => void,
+  ): () => void {
+    const prevUnsubscribe = source.unsubscribe?.bind(source);
+    let suppressNextError = skipInitialError;
+    let seeded = false;
+    let disposed = false;
+
+    const handleError = (e: unknown): void => {
+      if (this.isAgentCaller && isInvalidFunctionCallError(e)) {
+        throw e;
+      }
+      if (suppressNextError) {
+        suppressNextError = false;
+      } else {
+        if (!isCancellation(e)) onFailure?.();
+        this.dispatchExpressionError(e, callName);
+      }
+      setValue(target, (keepPending ? this.failedArgument(e) : undefined) as V | undefined);
+    };
+
+    let stopEffect: () => void;
+    try {
+      stopEffect = effect(() => {
+        if (disposed) return;
+        try {
+          const val = getValue(source);
+          seeded = true;
+          suppressNextError = false;
+          setValue(target, val as V);
+        } catch (e: unknown) {
+          seeded = true;
+          handleError(e);
+        }
+      });
+    } catch (e: unknown) {
+      prevUnsubscribe?.();
+      throw e;
+    }
+
+    const cleanup = () => {
+      if (disposed) return;
+      disposed = true;
+      stopEffect();
+      prevUnsubscribe?.();
+    };
+
+    if (!seeded) {
+      // Some reactivity backends (e.g. Angular) defer effects until the next
+      // flush, so seed `target` synchronously before returning.
+      try {
+        setValue(target, peekValue(source) as V);
+      } catch (e: unknown) {
+        try {
+          handleError(e);
+          suppressNextError = true;
+        } catch (rethrown: unknown) {
+          cleanup();
+          throw rethrown;
+        }
+      }
+    }
+
+    return cleanup;
   }
 
   /**
