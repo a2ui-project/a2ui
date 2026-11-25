@@ -39,7 +39,7 @@ class TriageApp extends StatelessWidget {
         null => const TriagePage(),
         final GitHubAccess access => SignInGate(
           access: access,
-          child: TriagePage(onSignOut: access.signOut),
+          child: TriagePage(onSignOut: access.signOut, openFirstItem: true),
         ),
       },
     ),

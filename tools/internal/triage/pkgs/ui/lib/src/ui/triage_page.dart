@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../model/triage_controller.dart';
 import 'column_divider.dart';
+import 'group_actions.dart';
 import 'item_details.dart';
 import 'item_list.dart';
 import 'report_dialog.dart';
@@ -23,12 +25,17 @@ import 'triage_scope.dart';
 
 /// The triage UI's only page: the header, the items on the left and the
 /// details of the selected item on the right. See `ui.blueprint.md`.
+///
+/// Cmd+Enter, or Ctrl+Enter, does what **Apply** does.
 class TriagePage extends StatefulWidget {
-  const TriagePage({super.key, this.onSignOut});
+  const TriagePage({super.key, this.onSignOut, this.openFirstItem = false});
 
   /// Signs out of GitHub. Null hides **Sign out**, as when tests start the
   /// controller without a sign-in.
   final VoidCallback? onSignOut;
+
+  /// See [ItemList.openFirstItem].
+  final bool openFirstItem;
 
   @override
   State<TriagePage> createState() => _TriagePageState();
@@ -42,6 +49,19 @@ class _TriagePageState extends State<TriagePage> {
   @override
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
+    void apply() => applySelection(TriageScope.read(context));
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.enter, meta: true): apply,
+        const SingleActivator(LogicalKeyboardKey.enter, control: true): apply,
+      },
+      // Keeps the focus in the page, so that the shortcut works before the
+      // triager clicks anything.
+      child: Focus(autofocus: true, child: _scaffold(context, controller)),
+    );
+  }
+
+  Widget _scaffold(BuildContext context, TriageController controller) {
     final String? error = controller.error;
     final int total = controller.queueLength;
     final int remaining = controller.remaining;
@@ -157,7 +177,11 @@ class _TriagePageState extends State<TriagePage> {
                           // details from selecting.
                           SizedBox(
                             width: width,
-                            child: const SelectionArea(child: ItemList()),
+                            child: SelectionArea(
+                              child: ItemList(
+                                openFirstItem: widget.openFirstItem,
+                              ),
+                            ),
                           ),
                           ColumnDivider(
                             label: 'Resize the item list',

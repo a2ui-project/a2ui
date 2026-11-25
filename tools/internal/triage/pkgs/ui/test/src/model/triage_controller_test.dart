@@ -735,19 +735,20 @@ void main() {
     expect(controller.changedOnGitHub(a2ui(11)), isFalse);
     expect(github.calls, [
       contains('issues/10/labels/status'),
-      'POST issues/10/labels ["P2"]',
+      'POST issues/10/labels {"labels":["P2"]}',
       contains('issues/11/labels/status'),
-      'POST issues/11/labels ["P3"]',
+      'POST issues/11/labels {"labels":["P3"]}',
     ]);
   });
 
   test('an item opened while a refresh runs stays opened', () async {
     await controller.start();
-    final Completer<void> refreshed = Completer<void>();
-    final Future<void> refreshing = controller.refresh().then(
-      refreshed.complete,
-    );
+    final Completer<void> hold = github.holdSearch = Completer<void>();
+    final Future<void> refreshing = controller.refresh();
     await controller.open(url('issues/30'));
+    expect(controller.loading, isTrue);
+    hold.complete();
+    github.holdSearch = null;
     await refreshing;
 
     expect(numbers(controller.opened), [30]);
