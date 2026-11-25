@@ -232,6 +232,36 @@ caption Text, shows its text without common Markdown markers. A body Text
 that is one heading line, such as `## Summary`, also takes the style of that
 heading level.
 
+## Loading and Error States
+
+Until a component arrives, and in place of one with an unknown type or one
+that repeats an ancestor, a surface shows nothing. To show your own widgets
+there, give the surface `fallbacks`:
+
+```dart
+A2uiSurface(
+  surface: surface,
+  fallbacks: A2uiFallbacks(
+    pending: (context, info) => switch (info.parentComponentType) {
+      null => const Center(child: CircularProgressIndicator()),
+      'List' || 'Column' => const SkeletonRow(),
+      _ => null,
+    },
+    error: (context, info) => null,
+  ),
+);
+```
+
+`pending` covers a component that has not arrived yet, including the root,
+and the component replaces its fallback in place when it arrives. `error`
+covers one that will not render unless the agent changes it; `info.error.type`
+says why (`unknown-type` or `cyclic`). Each builder gets the component's id and
+the type of its parent, null for the root, and returns null to show nothing.
+Nothing takes no space, while a fallback takes a slot like any other child.
+The surface still reports unknown types and cycles to its error listeners, so
+the builders need not report them. A builder that throws is logged, and its
+component shows nothing.
+
 ## Defining Custom Components
 
 A v1.0 surface draws on several catalogs, so put your components in a catalog
@@ -306,6 +336,19 @@ a `ChildWidgetBuilder`:
 - Render children with `buildChild`. A builder that wraps each child puts
   `KeyedSubtree(key: NodeKey(child.instanceId), ...)` outermost, so children
   keep their state when the list changes.
+- Lay out a list of children with `buildChildOrNull`. It returns null for a
+  child that shows nothing, so that child gets no slot or gap, and the
+  child's widget or fallback otherwise:
+
+  ```dart
+  Column(
+    children: [
+      for (final child in props.children('children'))
+        ?buildChildOrNull(context, child, buildChild),
+    ],
+  )
+  ```
+
 - Expect an unbounded height or width, as in a scroll view. Give a widget
   that needs a bound, such as a `TextField`, one with a `LimitedBox`.
 

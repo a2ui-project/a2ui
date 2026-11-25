@@ -16,6 +16,8 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:flutter/widgets.dart';
 
 import 'component_implementation.dart';
+import 'fallbacks.dart';
+import 'fallbacks_scope.dart';
 import 'node_view.dart';
 import 'signal_state.dart';
 import 'surface_scope.dart';
@@ -25,7 +27,7 @@ import 'surface_scope.dart';
 /// While mounted, the widget owns a [NodeResolver] over [surface] and renders
 /// the resolver's root node. Until the root component arrives, and in place
 /// of a child that has not arrived, has an unknown type, or repeats one of its
-/// ancestors, it renders nothing.
+/// ancestors, it renders the matching builder of [fallbacks], or nothing.
 /// Diagnostics found while it builds reach error and warning listeners after
 /// that build, never during it, so a listener may call `setState`. Each
 /// mounted widget reports those diagnostics again.
@@ -33,10 +35,14 @@ import 'surface_scope.dart';
 /// The surface belongs to the caller. Remove this widget when the surface is
 /// deleted.
 class A2uiSurface extends StatefulWidget {
-  const A2uiSurface({super.key, required this.surface});
+  const A2uiSurface({super.key, required this.surface, this.fallbacks});
 
   /// The surface to render.
   final SurfaceModel<ComponentImplementation> surface;
+
+  /// What to show for the root before it arrives and for nodes that cannot
+  /// render; nothing when null.
+  final A2uiFallbacks? fallbacks;
 
   /// The surface rendered by the nearest enclosing [A2uiSurface], if any.
   static SurfaceModel<ComponentImplementation>? maybeOf(BuildContext context) =>
@@ -91,11 +97,30 @@ class _A2uiSurfaceState extends State<A2uiSurface> with SignalState {
         .peek();
     return SurfaceScope(
       surface: widget.surface,
-      // A new surface starts from fresh state, even under the same root id.
-      child: KeyedSubtree(
-        key: ObjectKey(widget.surface),
-        child: root == null ? const SizedBox.shrink() : NodeView(root),
+      child: FallbacksScope(
+        fallbacks: widget.fallbacks,
+        // A new surface starts from fresh state, even under the same root id.
+        child: KeyedSubtree(
+          key: ObjectKey(widget.surface),
+          child: root == null ? _RootPending(widget.surface) : NodeView(root),
+        ),
       ),
     );
   }
+}
+
+/// The pending fallback for the root of [surface], or nothing.
+class _RootPending extends StatelessWidget {
+  const _RootPending(this.surface);
+
+  final SurfaceModel<ComponentImplementation> surface;
+
+  @override
+  Widget build(BuildContext context) =>
+      runFallback(
+        context,
+        FallbacksScope.maybeOf(context)?.pending,
+        A2uiPendingInfo(componentId: surface.rootId),
+      ) ??
+      const SizedBox.shrink();
 }

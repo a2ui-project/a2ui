@@ -18,3 +18,4 @@ library;
 export 'src/a2ui_surface.dart';
 export 'src/component_implementation.dart';
 export 'src/component_props.dart';
+export 'src/fallbacks.dart';
