@@ -27,7 +27,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The comment job of the health workflow downloads every artifact of the run
+  # and then lists the download directory. A pull request labeled
+  # skip-changelog-check uploads no comment file, so without this artifact the
+  # directory does not exist and the comment job fails. The file is not
+  # Markdown, so it never becomes part of the comment.
+  artifact_placeholder:
+    name: Health artifact placeholder
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Write the placeholder file
+        run: echo "Keeps the artifact directory of the health comment job present." > placeholder.txt
+      - name: Upload the placeholder file
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: health-artifact-placeholder
+          path: placeholder.txt
+          if-no-files-found: error
+          retention-days: 1
+
   health:
+    needs: artifact_placeholder
     # Pinned to a commit, as required by the unpinned-uses policy. The workflow
     # itself installs package:firehose from the tip of main, so the checks stay
     # up to date; bump this hash to pick up changes to the workflow steps.
