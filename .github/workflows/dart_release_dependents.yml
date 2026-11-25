@@ -1,0 +1,54 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# On a pull request that releases a2ui_core, fails if a Dart package on pub.dev
+# that depends on a2ui_core is neither released with it nor accepts the new
+# version. See .github/scripts/check_dart_dependents.py.
+name: Dart Release Dependents
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "dart/a2ui_core/pubspec.yaml"
+      - ".github/scripts/check_dart_dependents.py"
+      - ".github/workflows/dart_release_dependents.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check-dependents:
+    name: Check Dart Release Dependents
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The merge commit and its first parent, the base branch.
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Check packages that depend on a2ui_core
+        run: python3 .github/scripts/check_dart_dependents.py --base HEAD^1
