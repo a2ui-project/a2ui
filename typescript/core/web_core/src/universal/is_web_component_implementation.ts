@@ -20,7 +20,7 @@ import type {WebComponentImplementation} from './web_component_implementation.js
  * Type guard to check if a component API or implementation is a WebComponentImplementation.
  *
  * @param api The object to check
- * @returns true if the object implements WebComponentImplementation
+ * @return true if the object implements WebComponentImplementation
  */
 export function isWebComponentImplementation(api: unknown): api is WebComponentImplementation {
   return (

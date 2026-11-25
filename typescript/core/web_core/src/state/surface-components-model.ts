@@ -70,7 +70,7 @@ export class SurfaceComponentsModel {
    * Retrieves a component by its ID.
    *
    * @param id The ID of the component to retrieve.
-   * @returns The component model, or undefined if not found.
+   * @return The component model, or undefined if not found.
    */
   get(id: string): ComponentModel | undefined {
     return this.components.get(id);
@@ -79,7 +79,7 @@ export class SurfaceComponentsModel {
   /**
    * Returns a copy of the internal component map.
    *
-   * @returns Map of component models keyed by component ID.
+   * @return Map of component models keyed by component ID.
    */
   getAll(): Map<string, ComponentModel> {
     return new Map(this.components);
@@ -89,7 +89,7 @@ export class SurfaceComponentsModel {
    * Checks whether a component with the specified ID exists in the model.
    *
    * @param id Component identifier to check.
-   * @returns Whether the component exists in the model.
+   * @return Whether the component exists in the model.
    */
   has(id: string): boolean {
     return this.components.has(id);
@@ -196,7 +196,7 @@ export class SurfaceComponentsModel {
    * Extracts child component references for a given component identifier.
    *
    * @param componentId The ID of the component whose children should be resolved.
-   * @returns Array of tuples containing `[referencedId, propertyPath]`.
+   * @return Array of tuples containing `[referencedId, propertyPath]`.
    */
   getChildReferences(componentId: string): Array<[referencedId: string, propertyPath: string]> {
     const comp = this.components.get(componentId);
@@ -212,7 +212,7 @@ export class SurfaceComponentsModel {
    * Returns array of referenced child component IDs for a given component identifier.
    *
    * @param componentId The ID of the component whose child IDs should be retrieved.
-   * @returns Array of unique child component IDs.
+   * @return Array of unique child component IDs.
    */
   getChildIds(componentId: string): string[] {
     return this.getChildReferences(componentId).map(([refId]) => refId);
@@ -222,7 +222,7 @@ export class SurfaceComponentsModel {
    * Detects self-references, circular dependencies, and exceeds depth limits via DFS.
    *
    * @param options Configuration specifying root node, max depth, or allowing missing root.
-   * @returns Set of visited component identifiers.
+   * @return Set of visited component identifiers.
    * @throws {A2uiRecursionError} When self-reference, cycle, or max depth limit is exceeded.
    */
   detectCycles(
@@ -345,7 +345,7 @@ export class SurfaceComponentsModel {
    * Returns an array containing the first validation error encountered, or an empty array if valid.
    *
    * @param options Validation options.
-   * @returns Array of validation error objects.
+   * @return Array of validation error objects.
    */
   validateReferences(options: ValidationConfig = {}): A2uiValidationError[] {
     const errors: A2uiValidationError[] = [];

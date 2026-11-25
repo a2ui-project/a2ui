@@ -27,7 +27,7 @@ let purify: any;
 /**
  * Sanitizes an HTML string.
  * @param {string} html the HTML string to sanitize.
- * @returns a sanitized HTML string.
+ * @return a sanitized HTML string.
  */
 export function sanitize(html: string): string {
   if (!purify) {

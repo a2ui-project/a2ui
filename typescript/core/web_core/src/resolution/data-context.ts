@@ -90,7 +90,7 @@ function getSystemFunctionCatalog(): Catalog<any> {
  * of allowed key names.
  *
  * @param schema Zod schema to inspect.
- * @returns Set of allowed property names, or `null` if arbitrary keys are permitted or undetermined.
+ * @return Set of allowed property names, or `null` if arbitrary keys are permitted or undetermined.
  */
 export function getKnownSchemaKeys(schema: z.ZodTypeAny): Set<string> | null {
   if (schemaKeysCache.has(schema)) {
@@ -235,7 +235,7 @@ export function validateFunctionArgs(
  * Matches property names conforming to `^@([^@]|$)`.
  *
  * @param key Object property key to test.
- * @returns True if the key starts with a single unescaped '@'.
+ * @return True if the key starts with a single unescaped '@'.
  */
 export function isSingleAtKey(key: string): boolean {
   return key.startsWith('@') && !key.startsWith('@@');
@@ -247,7 +247,7 @@ export function isSingleAtKey(key: string): boolean {
  * In A2UI v1.0, literal keys starting with '@' are escaped by prefix doubling ('@@path' -> '@path').
  *
  * @param key Object property key to unescape.
- * @returns The unescaped key without the leading '@' if it started with '@@', otherwise the key unchanged.
+ * @return The unescaped key without the leading '@' if it started with '@@', otherwise the key unchanged.
  */
 export function unescapeObjectKey(key: string): string {
   return key.startsWith('@@') ? key.slice(1) : key;
@@ -290,7 +290,7 @@ export function validateReservedDirectives(keys: Iterable<string>, protocolVersi
  * match is found.
  *
  * @param startCtx Initial context or context-like object to inspect.
- * @returns The resolved 0-based iteration index, or `undefined` if outside an iteration scope.
+ * @return The resolved 0-based iteration index, or `undefined` if outside an iteration scope.
  */
 export function resolveContextIndex(startCtx: unknown): number | undefined {
   let ctx = startCtx as
@@ -334,7 +334,7 @@ export function resolveContextIndex(startCtx: unknown): number | undefined {
  * Creates an abort controller that is aborted when `parent` is.
  *
  * @param parent Abort signal of the enclosing evaluation, if any.
- * @returns The new controller.
+ * @return The new controller.
  */
 function linkedAbortController(parent?: AbortSignal): AbortController {
   const controller = new AbortController();
@@ -493,7 +493,7 @@ export class DataContext {
    * Mirrors `DataContext.index` in Python: checks an explicit `explicitIndex` first,
    * then checks strictly the trailing segment of `ctx.path`, walking `ctx.parent`.
    *
-   * @returns The 0-based iteration index, or `undefined` if outside an iteration scope.
+   * @return The 0-based iteration index, or `undefined` if outside an iteration scope.
    */
   getIndex(): number | undefined {
     return resolveContextIndex(this);
@@ -550,7 +550,7 @@ export class DataContext {
    * In v1.0, data bindings must use `@path`. In v0.9, data bindings use `path`.
    *
    * @param val Candidate object to inspect.
-   * @returns Whether the object represents a valid data binding for this context's protocol version.
+   * @return Whether the object represents a valid data binding for this context's protocol version.
    */
   private isDataBindingObject(val: Record<string, unknown>): boolean {
     const hasPath = this.atLeastV10
@@ -565,7 +565,7 @@ export class DataContext {
    * In v1.0, function calls must use `@call`. In v0.9, function calls use `call`.
    *
    * @param val Candidate object to inspect.
-   * @returns Whether the object represents a valid function call for this context's protocol version.
+   * @return Whether the object represents a valid function call for this context's protocol version.
    */
   private isFunctionCallObject(val: Record<string, unknown>): boolean {
     return this.atLeastV10
@@ -578,7 +578,7 @@ export class DataContext {
    * function calls, or escaped/reserved directive keys) at any nesting depth.
    *
    * @param value The value or data structure to inspect.
-   * @returns Whether the value contains dynamic elements requiring resolution.
+   * @return Whether the value contains dynamic elements requiring resolution.
    */
   private containsDynamicValue(value: unknown): boolean {
     if (value === null || typeof value !== 'object' || isThenable(value)) {
@@ -633,7 +633,7 @@ export class DataContext {
    * @param value The DynamicValue object or raw value from the A2UI JSON payload.
    * @param depth The current recursion depth when evaluating nested arguments or expressions.
    * @param userActivated Whether the evaluation was initiated by an active user action.
-   * @returns The synchronously resolved value.
+   * @return The synchronously resolved value.
    */
   resolveDynamicValue<V>(value: unknown, depth = 0, userActivated = false): V {
     return this.resolveValue<V>(value, depth, userActivated, false);
@@ -653,7 +653,7 @@ export class DataContext {
    * @param keepPending Whether the value is (part of) a function argument.
    * @param parentSignal Abort signal of the enclosing call. Calls nested in
    *   `value` are aborted with it.
-   * @returns The resolved value.
+   * @return The resolved value.
    */
   private resolveValue<V>(
     value: unknown,
@@ -727,7 +727,7 @@ export class DataContext {
    * @param userActivated Whether the evaluation was initiated by an active user action.
    * @param keepPending Whether the call is nested inside a function argument.
    * @param parentSignal Abort signal of the enclosing call, if any.
-   * @returns The resolved function return value.
+   * @return The resolved function return value.
    */
   private resolveFunctionCallValue<V>(
     call: FunctionCall,
@@ -833,7 +833,7 @@ export class DataContext {
    * @param userActivated Whether the evaluation was initiated by an active user action.
    * @param keepPending Whether the object is nested inside a function argument.
    * @param parentSignal Abort signal of the enclosing call, if any.
-   * @returns A copy of the object with all nested dynamic values resolved.
+   * @return A copy of the object with all nested dynamic values resolved.
    */
   private resolvePlainObjectValue<V>(
     rec: Record<string, unknown>,
@@ -869,7 +869,7 @@ export class DataContext {
    * @template V Expected type of the resolved value.
    * @param value The DynamicValue or raw value to evaluate and observe.
    * @param onChange Callback fired whenever the evaluated result changes.
-   * @returns A subscription containing the current value and an `unsubscribe` method.
+   * @return A subscription containing the current value and an `unsubscribe` method.
    */
   subscribeDynamicValue<V>(
     value: unknown,
@@ -910,7 +910,7 @@ export class DataContext {
    * @template V Expected type of the signal value.
    * @param value The DynamicValue or raw value to evaluate and observe.
    * @param depth The current recursion depth when evaluating nested arguments or expressions.
-   * @returns A reactive Signal containing the result of the evaluation.
+   * @return A reactive Signal containing the result of the evaluation.
    */
   resolveSignal<V>(value: unknown, depth = 0): Signal<V> {
     return this.resolveSignalValue<V>(value, depth, false);
@@ -928,7 +928,7 @@ export class DataContext {
    * @param value The DynamicValue or raw value to evaluate and observe.
    * @param depth The current recursion depth.
    * @param keepPending Whether the value is (part of) a function argument.
-   * @returns A reactive Signal containing the result of the evaluation.
+   * @return A reactive Signal containing the result of the evaluation.
    */
   private resolveSignalValue<V>(value: unknown, depth: number, keepPending: boolean): Signal<V> {
     if (depth > MAX_DYNAMIC_VALUE_DEPTH) {
@@ -1195,7 +1195,7 @@ export class DataContext {
    *
    * @param ev The event to resolve.
    * @param options `userActivation` as passed to {@link resolveAction}.
-   * @returns The resolved event, a Promise of it when an entry waits on an
+   * @return The resolved event, a Promise of it when an entry waits on an
    *   asynchronous call, or `undefined` (or a Promise of it) when the event is
    *   invalid or an entry failed. Every failure has been reported by then.
    */
@@ -1342,7 +1342,7 @@ export class DataContext {
    *
    * @param action The Action object to resolve.
    * @param options Whether the action was initiated by an active user gesture.
-   * @returns For an event action, the action with its context and
+   * @return For an event action, the action with its context and
    *   `userMessage` resolved, or a Promise of it when an entry waits on an
    *   asynchronous call such as an agent function call. `undefined`, or a
    *   Promise of `undefined`, when the action is invalid or an entry failed;
@@ -1386,7 +1386,7 @@ export class DataContext {
    * @param catalogId Identifier of the catalog named by the call, if specified.
    * @param namesCatalog Whether the call carries a `catalogId` key, whatever
    *   its value.
-   * @returns The resolved Catalog instance, or the surface default catalog if omitted.
+   * @return The resolved Catalog instance, or the surface default catalog if omitted.
    * @throws {A2uiExpressionError} If, from v1.0, a call to a reserved `@`
    *   system function names a catalog: such a function belongs to no catalog,
    *   so the call is a malformed expression.
@@ -1433,7 +1433,7 @@ export class DataContext {
    *
    * @param name Name of the function being called.
    * @param call The function call, whose `catalogId` selects the catalog.
-   * @returns The resolved Catalog instance, or `undefined` if resolution failed.
+   * @return The resolved Catalog instance, or `undefined` if resolution failed.
    */
   private resolveCallCatalog(name: string, call: FunctionCall): Catalog<any> | undefined {
     try {
@@ -1464,7 +1464,7 @@ export class DataContext {
    * that were reset when the synchronous part returned.
    *
    * @param flags The flags to add to those of this context.
-   * @returns The view.
+   * @return The view.
    */
   private withFlags(flags: DataContextFlags): this {
     const view = Object.create(this) as this;
@@ -1534,7 +1534,7 @@ export class DataContext {
    * v1.0 it is `undefined`, as it always was.
    *
    * @param error The failure.
-   * @returns The value standing for the failed call.
+   * @return The value standing for the failed call.
    */
   private failedArgument(error: unknown): FailedArgument | undefined {
     return this.atLeastV10 ? new FailedArgument(error) : undefined;
@@ -1635,7 +1635,7 @@ export class DataContext {
    * @param invoker Invoker of the catalog the call resolved to.
    * @param abortSignal Optional abort signal to cancel asynchronous execution.
    * @param keepPending Whether the call is nested inside a function argument.
-   * @returns The evaluated result as a reactive `Signal` or static value, or `undefined` on failure.
+   * @return The evaluated result as a reactive `Signal` or static value, or `undefined` on failure.
    */
   private evaluateFunctionReactive<V>(
     name: string,
@@ -1670,7 +1670,7 @@ export class DataContext {
    * @param handlers `onSignal` receives a `Signal` the result settles to, so
    *   a binding can follow its later values; `onFailure` runs when the result
    *   rejects. Neither runs once `abortSignal` has fired.
-   * @returns A Promise resolving to the settled value or a `FailedArgument`.
+   * @return A Promise resolving to the settled value or a `FailedArgument`.
    */
   private keepPendingResult(
     pending: PromiseLike<unknown>,
@@ -1824,7 +1824,7 @@ export class DataContext {
    *
    * @param relativePath The path relative to the current context's path.
    * @param index Optional explicit iteration index for this nested scope.
-   * @returns A new DataContext instance pointing to the resolved absolute path.
+   * @return A new DataContext instance pointing to the resolved absolute path.
    */
   nested(relativePath: string, index?: number): DataContext {
     const newPath = this.resolvePath(relativePath);

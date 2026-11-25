@@ -86,7 +86,7 @@ export const OpenUrlImplementation = createOpenUrlImplementation(OpenUrlApi);
  * function, which the `@` namespace makes available to every catalog.
  *
  * @param options Configuration options containing an optional locale.
- * @returns Array of function implementations.
+ * @return Array of function implementations.
  */
 export function createBasicCatalogFunctions(options?: {locale?: string}): FunctionImplementation[] {
   const locale = options?.locale;

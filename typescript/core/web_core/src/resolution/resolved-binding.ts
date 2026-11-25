@@ -57,7 +57,7 @@ export class WritableBinding<T> extends ResolvedBinding<T> {
  * Narrows a `ResolvedBinding` to a `WritableBinding`.
  *
  * @param binding The binding to check.
- * @returns Whether the binding is writable.
+ * @return Whether the binding is writable.
  */
 export function isWritable<T>(binding: ResolvedBinding<T>): binding is WritableBinding<T> {
   return binding instanceof WritableBinding;
@@ -71,7 +71,7 @@ export function isWritable<T>(binding: ResolvedBinding<T>): binding is WritableB
  *
  * @param a First binding.
  * @param b Second binding.
- * @returns Whether the two bindings are equivalent.
+ * @return Whether the two bindings are equivalent.
  */
 export function sameBinding(a: ResolvedBinding<unknown>, b: ResolvedBinding<unknown>): boolean {
   if (isWritable(a) !== isWritable(b)) {

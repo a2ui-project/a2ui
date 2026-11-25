@@ -68,7 +68,7 @@ export class ExpressionParser {
    *
    * @param input Raw string to parse.
    * @param depth Current recursion depth.
-   * @returns An array of parsed dynamic values and literals.
+   * @return An array of parsed dynamic values and literals.
    */
   public parse(input: string, depth = 0): DynamicValue[] {
     if (depth > ExpressionParser.MAX_DEPTH) {
@@ -161,7 +161,7 @@ export class ExpressionParser {
    *
    * @param expr The expression string to parse.
    * @param depth The current recursion depth.
-   * @returns The resolved DynamicValue.
+   * @return The resolved DynamicValue.
    */
   public parseExpression(expr: string, depth = 0): DynamicValue {
     expr = expr.trim();

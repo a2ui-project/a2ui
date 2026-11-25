@@ -36,7 +36,7 @@ export class NonJsonValueError extends Error {
  *
  * @param value The value to copy.
  * @param sortKeys Whether to sort object keys recursively. Array order is kept.
- * @returns The JSON copy.
+ * @return The JSON copy.
  * @throws {NonJsonValueError} If `value` contains something JSON cannot
  *   represent: `NaN` or `±Infinity`, an `undefined` array element, a function,
  *   a symbol, a bigint, a circular reference, or an object that is not a plain
@@ -50,7 +50,7 @@ export function toJsonValue(value: unknown, sortKeys = false): unknown {
  * Builds a key that identifies `value` up to the order of object keys.
  *
  * @param value The value to identify.
- * @returns The key, or `undefined` if `value` cannot be represented as JSON.
+ * @return The key, or `undefined` if `value` cannot be represented as JSON.
  */
 export function canonicalJsonKey(value: unknown): string | undefined {
   try {

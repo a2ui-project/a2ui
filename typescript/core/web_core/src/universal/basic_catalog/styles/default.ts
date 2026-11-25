@@ -104,7 +104,7 @@ let defaultStyleSheet: CSSStyleSheet | undefined;
  * If the stylesheet doesn't exist, it creates and initializes one with default
  * theme variables from the DEFAULT_CSS string.
  *
- * @returns The default CSSStyleSheet used by A2UI.
+ * @return The default CSSStyleSheet used by A2UI.
  */
 function getDefaultStyleSheet(): CSSStyleSheet {
   if (!defaultStyleSheet) {
@@ -183,7 +183,7 @@ export interface ColorVariantHoverOptions {
  *
  * @param type The variant type ('light' | 'dark').
  * @param options Options containing base color variable and optional percentage.
- * @returns CSS `color-mix` formula string.
+ * @return CSS `color-mix` formula string.
  */
 export function computeColorVariant(
   type: 'light' | 'dark',
@@ -195,7 +195,7 @@ export function computeColorVariant(
  *
  * @param type The variant type ('hover').
  * @param options Options containing dark and light variant variable names.
- * @returns CSS `light-dark` formula string.
+ * @return CSS `light-dark` formula string.
  */
 export function computeColorVariant(type: 'hover', options: ColorVariantHoverOptions): string;
 
@@ -204,7 +204,7 @@ export function computeColorVariant(type: 'hover', options: ColorVariantHoverOpt
  *
  * @param type The variant type ('light', 'dark', 'hover').
  * @param options Options containing variable names, percentages, and optional mix color.
- * @returns The CSS formula string.
+ * @return The CSS formula string.
  */
 export function computeColorVariant(
   type: 'light' | 'dark' | 'hover',

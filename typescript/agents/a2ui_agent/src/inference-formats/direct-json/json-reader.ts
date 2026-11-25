@@ -126,7 +126,7 @@ class ReadState {
  * @param progressiveKeys Keys whose string values are closed where they stand while they
  *     arrive.
  * @param options What to read and what earlier reads found.
- * @returns The messages read, after those earlier reads saw close. When the text is not
+ * @return The messages read, after those earlier reads saw close. When the text is not
  *     JSON, no messages.
  */
 export function readPartialMessages(

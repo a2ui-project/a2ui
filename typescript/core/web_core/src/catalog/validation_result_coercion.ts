@@ -129,7 +129,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *
  * @param schema The schema of `value`, such as a function's argument schema.
  * @param value The resolved value to coerce.
- * @returns `value`, with every `DynamicBoolean` position coerced to a boolean.
+ * @return `value`, with every `DynamicBoolean` position coerced to a boolean.
  */
 export function coerceDynamicBooleans(schema: z.ZodTypeAny, value: unknown): unknown {
   if (isDynamicBooleanSchema(schema)) {
@@ -170,7 +170,7 @@ export function coerceDynamicBooleans(schema: z.ZodTypeAny, value: unknown): unk
  *
  * @param schema The schema of `value`, such as a function's argument schema.
  * @param value The resolved value to coerce.
- * @returns `value`, with every `DynamicBoolean` position coerced to a boolean.
+ * @return `value`, with every `DynamicBoolean` position coerced to a boolean.
  */
 export function coerceValidationResults(schema: z.ZodTypeAny, value: unknown): unknown {
   return coerceDynamicBooleans(schema, value);

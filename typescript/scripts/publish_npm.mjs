@@ -56,7 +56,7 @@ Examples:
  * Topologically sorts package objects based on their internal dependencies.
  *
  * @param {Object[]} packageObjects - The package objects to sort.
- * @returns {Object[]} The incoming package objects topologically sorted.
+ * @return {Object[]} The incoming package objects topologically sorted.
  */
 function topologicalSort(packageObjects) {
   const sorted = [];
@@ -93,7 +93,7 @@ function topologicalSort(packageObjects) {
  *
  * @param {string | null} oldV - The old version string.
  * @param {string} newV - The new version string.
- * @returns {string} The diff type (e.g., 'MAJOR', 'MINOR', 'PATCH', 'SAME', etc.)
+ * @return {string} The diff type (e.g., 'MAJOR', 'MINOR', 'PATCH', 'SAME', etc.)
  */
 function getVersionDiff(oldV, newV) {
   if (oldV == null) return 'NEW';
@@ -125,7 +125,7 @@ function getVersionDiff(oldV, newV) {
  * It also prints the current branch and commit hash. It returns the current commit hash.
  *
  * @param {Function} exec - The execSync function to use.
- * @returns {string} The current commit hash.
+ * @return {string} The current commit hash.
  */
 function checkGitProvenance(exec) {
   console.log(`\n${bold}Checking Git provenance${reset}\n`);
@@ -169,7 +169,7 @@ function checkGitProvenance(exec) {
  *
  * @param {Object[]} packageObjects - The list of starting package objects.
  * @param {Object} graph - The package graph.
- * @returns {Object[]} The list of package objects including all transitively required workspace dependencies.
+ * @return {Object[]} The list of package objects including all transitively required workspace dependencies.
  */
 function ensureWorkspaceDependencies(packageObjects, graph) {
   console.log(`\n${bold}Checking package dependencies${reset}\n`);
@@ -208,7 +208,7 @@ function ensureWorkspaceDependencies(packageObjects, graph) {
  * @param {Object} options - Options.
  * @param {string|null} options.npmToken - The NPM token to use.
  * @param {Function} options.exec - The execSync function to use.
- * @returns {string|null} The version of the package on npm, or null if it does not exist.
+ * @return {string|null} The version of the package on npm, or null if it does not exist.
  */
 function getNpmVersion(pkg, {npmToken, exec}) {
   try {
@@ -230,7 +230,7 @@ function getNpmVersion(pkg, {npmToken, exec}) {
  * This function throws if the token cannot be retrieved from the gcloud CLI.
  *
  * @param {Function} exec - The execSync function to use.
- * @returns {string|null} The token string, or null if it could not be obtained.
+ * @return {string|null} The token string, or null if it could not be obtained.
  */
 function getAccessToken(exec) {
   let npmToken = process.env.NPM_TOKEN;

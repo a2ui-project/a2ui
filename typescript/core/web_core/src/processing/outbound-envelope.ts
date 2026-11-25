@@ -24,7 +24,7 @@ import type {ActionPayload} from '../state/surface-model.js';
  *
  * @param action Emitted surface action payload.
  * @param version Surface or fallback protocol version string.
- * @returns The wire envelope for v0.9, v0.9.1, or v1.0+, or `undefined` when
+ * @return The wire envelope for v0.9, v0.9.1, or v1.0+, or `undefined` when
  *   the version is v0.8 or cannot be parsed.
  */
 export function toOutboundActionMessage(

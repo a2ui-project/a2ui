@@ -36,7 +36,7 @@ export function markChildRef<T extends z.ZodTypeAny>(schema: T, ref: ChildRefKin
  * Extracts the child reference kind associated with a Zod schema, if present.
  *
  * @param schema Zod schema to inspect.
- * @returns The child reference kind or undefined if not marked.
+ * @return The child reference kind or undefined if not marked.
  */
 export function childRefKindOf(schema: z.ZodTypeAny): ChildRefKind | undefined {
   return (schema?._def as {a2uiChildRef?: ChildRefKind} | undefined)?.a2uiChildRef;

@@ -284,7 +284,7 @@ function analyzeIntersectedSchemas(
  *
  * @param schema Zod schema, JSON Schema object, or property schema definition.
  * @param options Required configuration specifying recognized child definition names.
- * @returns ChildRefAnalysis containing `isChild` and `isChildList` booleans.
+ * @return ChildRefAnalysis containing `isChild` and `isChildList` booleans.
  */
 export function analyzeChildRefSchema(
   schema: unknown,
@@ -429,7 +429,7 @@ function analyzeSchemaNode(
  *
  * @param schema The schema to evaluate.
  * @param options The child reference analysis options.
- * @returns Whether the schema is a single child reference.
+ * @return Whether the schema is a single child reference.
  */
 export function isChildSchema(schema: unknown, options: ChildRefAnalysisOptions): boolean {
   return analyzeChildRefSchema(schema, options).isChild;
@@ -440,7 +440,7 @@ export function isChildSchema(schema: unknown, options: ChildRefAnalysisOptions)
  *
  * @param schema The schema to evaluate.
  * @param options The child reference analysis options.
- * @returns Whether the schema is a child list reference.
+ * @return Whether the schema is a child list reference.
  */
 export function isChildListSchema(schema: unknown, options: ChildRefAnalysisOptions): boolean {
   return analyzeChildRefSchema(schema, options).isChildList;
@@ -451,7 +451,7 @@ export function isChildListSchema(schema: unknown, options: ChildRefAnalysisOpti
  *
  * @param schema The schema to evaluate.
  * @param options The child reference analysis options.
- * @returns Whether the schema is any child or child list reference.
+ * @return Whether the schema is any child or child list reference.
  */
 export function isChildOrChildListSchema(
   schema: unknown,
@@ -639,7 +639,7 @@ function inspectComponentSchema(
  *
  * @param catalogOrComponents Catalog instance, array of ComponentApi objects, or Map of ComponentApis.
  * @param options Required configuration specifying recognized child definition names.
- * @returns ComponentRefMap containing single, list, and nested reference properties.
+ * @return ComponentRefMap containing single, list, and nested reference properties.
  */
 export function buildComponentRefMap<
   T extends ComponentApi = ComponentApi,

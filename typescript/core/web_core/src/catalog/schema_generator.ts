@@ -1009,7 +1009,7 @@ function collectReferencedDefs(
  *
  * @param catalog The catalog instance to serialize.
  * @param options Optional configuration options such as component envelope wrapping.
- * @returns Specification-compliant A2UI Catalog JSON Schema object.
+ * @return Specification-compliant A2UI Catalog JSON Schema object.
  */
 export function generateValidationSchema<
   T extends ComponentApi = ComponentApi,

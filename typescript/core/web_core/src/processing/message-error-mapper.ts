@@ -96,7 +96,7 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
  *
  * @param rawMessage Raw unvalidated message object.
  * @param fallbackVersion Optional fallback protocol version string.
- * @returns Extracted envelope error correlation context.
+ * @return Extracted envelope error correlation context.
  */
 export function extractEnvelopeErrorContext(
   rawMessage: unknown,
@@ -143,7 +143,7 @@ function stripActionPrefix(segments: string[]): string[] {
  * stripping any leading action envelope prefix.
  *
  * @param rawPath Raw path or JSON Pointer string.
- * @returns Normalized RFC 6901 JSON Pointer, or `undefined` if empty.
+ * @return Normalized RFC 6901 JSON Pointer, or `undefined` if empty.
  */
 export function normalizeJsonPointer(rawPath: string | undefined): string | undefined {
   if (!rawPath) return undefined;
@@ -235,7 +235,7 @@ function resolveErrorCode(err: unknown, isV1: boolean): string {
  *
  * @param err Thrown error instance.
  * @param context Extracted envelope correlation context.
- * @returns Spec-compliant outbound `RendererErrorMessage`.
+ * @return Spec-compliant outbound `RendererErrorMessage`.
  */
 export function mapErrorToRendererMessage(
   err: unknown,

@@ -333,7 +333,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param surfaceId The ID of the surface requesting execution.
    * @param call The function call details.
    * @param options Optional invocation options (custom functionCallId, timeoutMs).
-   * @returns A promise resolving to the agent function return value.
+   * @return A promise resolving to the agent function return value.
    */
   callAgentFunction<TRes = unknown>(
     surfaceId: string,
@@ -356,7 +356,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Generates the renderer capabilities object for the current processor.
    *
    * @param options Configuration for capability generation.
-   * @returns The capabilities object.
+   * @return The capabilities object.
    */
   getRendererCapabilities(options: CapabilitiesOptions): RendererCapabilities {
     const versions = options?.versions ?? (options?.version ? [options.version] : undefined);
@@ -400,7 +400,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @deprecated Use `getRendererCapabilities` instead.
    * @param options Configuration for capability generation. Defaults to
    *   `{versions: ['v0.9']}`, the only version the pre-1.0 method knew.
-   * @returns The capabilities object.
+   * @return The capabilities object.
    */
   getClientCapabilities(options?: CapabilitiesOptions): RendererCapabilities {
     const versions =
@@ -416,7 +416,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * `catalog_definition.json` requires, whatever the source document declared.
    *
    * @param catalog The catalog instance to serialize.
-   * @returns The inline catalog document.
+   * @return The inline catalog document.
    */
   private generateInlineCatalog(catalog: Catalog<T>): Record<string, unknown> {
     const doc = catalog.toJson();
@@ -434,7 +434,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    *
    * @param catalog The catalog instance to serialize.
    * @param componentEnvelopeRef Reference URI for the component base envelope.
-   * @returns Pre-1.0 inline catalog object with array-based functions and flat theme properties.
+   * @return Pre-1.0 inline catalog object with array-based functions and flat theme properties.
    */
   private generateV09InlineCatalog(
     catalog: Catalog<T>,
@@ -519,7 +519,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    *   - If active surfaces have conflicting protocol versions, throws A2uiValidationError.
    *
    * @param version Optional target protocol version to filter surfaces.
-   * @returns Serialized data model payload, or undefined if no matching surfaces exist.
+   * @return Serialized data model payload, or undefined if no matching surfaces exist.
    */
   getRendererDataModel(version?: ProtocolVersion): Record<string, unknown> | undefined {
     const enabledSurfaces = Array.from(this.model.surfacesMap.values()).filter(
@@ -585,7 +585,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    *
    * @deprecated Use `getRendererDataModel` instead.
    * @param version Optional target protocol version to format data models for.
-   * @returns Serialized data model payload, or undefined if no matching surfaces exist.
+   * @return Serialized data model payload, or undefined if no matching surfaces exist.
    */
   getClientDataModel(version?: ProtocolVersion): Record<string, unknown> | undefined {
     return this.getRendererDataModel(version);
@@ -597,7 +597,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @deprecated Use `DataModel.resolvePath` instead.
    * @param path The path to resolve.
    * @param contextPath The base path (optional).
-   * @returns The resolved absolute path.
+   * @return The resolved absolute path.
    */
   resolvePath(path: string, contextPath?: string): string {
     return DataModel.resolvePath(path, contextPath);
@@ -606,7 +606,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   /**
    * Gets a read-only map of active surfaces managed by this processor.
    *
-   * @returns Map of surface models keyed by surface identifier.
+   * @return Map of surface models keyed by surface identifier.
    */
   getSurfaces(): ReadonlyMap<string, SurfaceModel<T>> {
     return this.model.surfacesMap;
@@ -616,7 +616,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Retrieves an active surface by its ID.
    *
    * @param id The surface ID.
-   * @returns The matching surface model, or undefined if not found.
+   * @return The matching surface model, or undefined if not found.
    */
   getSurface(id: string): SurfaceModel<T> | undefined {
     return this.model.getSurface(id);
@@ -626,7 +626,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Subscribes to surface creation events.
    *
    * @param handler Callback invoked when a surface is created.
-   * @returns A subscription object to unsubscribe.
+   * @return A subscription object to unsubscribe.
    */
   onSurfaceCreated(handler: (surface: SurfaceModel<T>) => void): Subscription {
     return this.model.onSurfaceCreated.subscribe(handler);
@@ -636,7 +636,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Subscribes to surface deletion events.
    *
    * @param handler Callback invoked when a surface is deleted.
-   * @returns A subscription object to unsubscribe.
+   * @return A subscription object to unsubscribe.
    */
   onSurfaceDeleted(handler: (id: string) => void): Subscription {
     return this.model.onSurfaceDeleted.subscribe(handler);
@@ -679,7 +679,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    *
    * @param messages Array of messages or single message payload to process.
    * @param context Optional execution context.
-   * @returns Array of `RendererErrorMessage` envelopes produced by failed messages.
+   * @return Array of `RendererErrorMessage` envelopes produced by failed messages.
    */
   processMessagesWithErrors(messages: unknown, context?: ExecutionContext): RendererErrorMessage[] {
     return this.withValidationConfig(context, () => {
@@ -715,7 +715,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    *
    * @param messages The messages or operations to process.
    * @param context Contextual execution options.
-   * @returns Array of rendererFunctionResponse messages produced during execution.
+   * @return Array of rendererFunctionResponse messages produced during execution.
    */
   async processMessagesAsync(
     messages: ProcessableMessagePayload,
@@ -1083,7 +1083,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Resolves the DataContext for an inbound RPC callRendererFunction operation.
    *
    * @param op Operation containing optional surface, catalog, and function call identifiers.
-   * @returns A DataContext attached to the requested surface, an isolated fallback surface when surfaceId is omitted, or undefined if surfaceId is not found.
+   * @return A DataContext attached to the requested surface, an isolated fallback surface when surfaceId is omitted, or undefined if surfaceId is not found.
    */
   private resolveRpcDataContext(op: {
     surfaceId?: string;
@@ -1412,7 +1412,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param comp Raw component payload.
    * @param surface Surface the component belongs to.
    * @param componentCatalog Catalog the component resolved to.
-   * @returns The payload to validate.
+   * @return The payload to validate.
    */
   private componentPayloadForValidation(
     comp: Record<string, unknown>,
@@ -1445,7 +1445,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    *
    * @param comp Raw component payload.
    * @param surface Surface the component belongs to.
-   * @returns The catalog the component names, or `undefined` if it names
+   * @return The catalog the component names, or `undefined` if it names
    *   none or the surface is below v1.0, which has no per-component catalog.
    */
   private componentCatalogId(comp: Record<string, unknown>, surface: SurfaceModel<T>): unknown {
@@ -1468,7 +1468,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param comp Raw component payload.
    * @param surface Surface the component belongs to.
    * @param catalog Catalog the component resolves to, if known.
-   * @returns The component's mixin layout.
+   * @return The component's mixin layout.
    */
   private componentLayout(
     comp: Record<string, unknown>,
@@ -1510,7 +1510,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    *
    * @param comp Raw component payload.
    * @param surface Surface the component belongs to.
-   * @returns The catalog that defines the component.
+   * @return The catalog that defines the component.
    * @throws {A2uiCatalogError} If the named catalog is unknown or speaks an
    *   incompatible protocol version, or if the component names no catalog and
    *   the surface has no default catalog.
@@ -1560,9 +1560,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Catalog resolution runs even without a `validationConfig`, so a call no
    * catalog on the surface can run is always rejected before state changes.
    *
-   * @param comp Raw component payload.
+   * @param record Raw nested call payload.
+   * @param name Name of the function being called.
    * @param surface Surface the component belongs to.
    * @param componentCatalog Catalog the component resolved to.
+   * @param currentPath Path of the component in the surface.
    * @throws {A2uiCatalogError} If a call's catalog cannot be resolved.
    * @throws {A2uiValidationError} If a call fails validation against the
    *   catalog it resolves to.
@@ -1688,7 +1690,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param surface Surface the item belongs to.
    * @param catalogId Catalog the item names, if any.
    * @param subject Description of the item for error messages.
-   * @returns The catalog the item resolves to.
+   * @return The catalog the item resolves to.
    * @throws {A2uiCatalogError} If the item's catalog cannot be resolved.
    */
   private resolveSurfaceItemCatalog(

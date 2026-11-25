@@ -388,7 +388,7 @@ export class LocalGallery extends LitElement {
    * Applies the user-selected primary color to `createSurface` messages.
    *
    * @param messages The list of messages to process.
-   * @returns A new list of messages with the primary color applied to `createSurface` messages.
+   * @return A new list of messages with the primary color applied to `createSurface` messages.
    */
   private applyPrimaryColorToMessages(messages: ExplorerMessage[]): ExplorerMessage[] {
     return messages.map(msg => {

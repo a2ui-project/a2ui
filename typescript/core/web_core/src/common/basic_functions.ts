@@ -54,7 +54,7 @@ export const DEFAULT_LOCALE = 'en-US';
  *   module promises never to depend on.
  *
  * @param locale Optional BCP 47 language tag.
- * @returns A tag `Intl` both accepts and has data for.
+ * @return A tag `Intl` both accepts and has data for.
  */
 export function resolveLocale(locale?: string): string {
   if (!locale) return DEFAULT_LOCALE;
@@ -85,7 +85,7 @@ export interface ValidationResult {
  * - Objects and arrays: stringified as compact JSON.
  *
  * @param value The value to coerce.
- * @returns The string representation.
+ * @return The string representation.
  */
 export function coerceToString(value: unknown): string {
   if (value === null || value === undefined) return '';

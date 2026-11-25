@@ -39,7 +39,7 @@ import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
  * Unparseable versions are kept as is.
  *
  * @param version Protocol version to normalize.
- * @returns The canonical version, or `undefined` when none was given.
+ * @return The canonical version, or `undefined` when none was given.
  */
 function canonicalProtocolVersion(version: string | undefined): string | undefined {
   if (!version) return undefined;
@@ -439,7 +439,7 @@ export class SurfaceModel<
    * @param catalogId Catalog the item names, or `undefined` when it names none.
    * @param subject Description of the item for error messages, such as
    *   `Function call 'formatDate'`.
-   * @returns The catalog the item resolves to.
+   * @return The catalog the item resolves to.
    * @throws {A2uiCatalogError} If the named catalog is not available on this
    *   surface, or if the item names none and the surface has no default
    *   catalog.
@@ -466,7 +466,7 @@ export class SurfaceModel<
    * @param call The call to send, naming the catalog it resolved to.
    * @param options Optional settings: an `abortSignal`, and `bypassCache` for
    *   imperative action calls.
-   * @returns A promise resolving to the agent's result.
+   * @return A promise resolving to the agent's result.
    * @throws {A2uiRpcError} Through the returned promise, with code
    *   `CANCELLED`, if the surface is disposed, or is disposed or given another
    *   caller before the call is sent.
@@ -671,7 +671,7 @@ export class SurfaceModel<
    * @param payload Action payload (name and context) to dispatch.
    * @param sourceComponentId Identifier of the component that triggered the action.
    * @param metadata Optional metadata envelope to attach to the outbound action.
-   * @returns A promise that resolves once all registered listeners have processed the action.
+   * @return A promise that resolves once all registered listeners have processed the action.
    */
   async dispatchAction(
     payload: any,
@@ -771,7 +771,7 @@ export class SurfaceModel<
    * Dispatches an error from this surface to registered listeners.
    *
    * @param error Error payload to dispatch, conforming to the renderer-to-agent schema.
-   * @returns A promise that resolves once all registered listeners have processed the error.
+   * @return A promise that resolves once all registered listeners have processed the error.
    */
   async dispatchError(error: A2uiErrorPayload): Promise<void> {
     await this._onError.emit({
@@ -784,7 +784,7 @@ export class SurfaceModel<
    * Dispatches a non-fatal warning from this surface to registered listeners.
    *
    * @param warning The warning payload to dispatch.
-   * @returns Promise that resolves once listeners have handled the warning.
+   * @return Promise that resolves once listeners have handled the warning.
    */
   async dispatchWarning(warning: A2uiWarningPayload): Promise<void> {
     await this._onWarning.emit({
@@ -848,7 +848,7 @@ function isCancellation(e: unknown): boolean {
  * Extracts the inner action target payload (`event` or direct action payload).
  *
  * @param payload Raw action payload object.
- * @returns The unwrapped action object, or `null` if none is present.
+ * @return The unwrapped action object, or `null` if none is present.
  */
 function extractActionTarget(payload: Record<string, any>): Record<string, any> | null {
   if ('event' in payload && payload.event && typeof payload.event === 'object') {

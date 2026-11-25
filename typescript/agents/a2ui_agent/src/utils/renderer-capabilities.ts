@@ -143,7 +143,7 @@ function validateCapabilitiesEntry(
  *
  * @param metadata The transport message metadata object, or `null`/`undefined`.
  * @param version The A2UI protocol version to read capabilities for.
- * @returns A version-keyed capabilities object accepted unchanged by `resolveCatalogs`,
+ * @return A version-keyed capabilities object accepted unchanged by `resolveCatalogs`,
  *     or `undefined` when absent.
  */
 export function readRendererCapabilities(

@@ -137,7 +137,7 @@ export interface VersionAdapter {
    *
    * @param payload The raw JSON message payload or message array.
    * @param options Optional validation configuration options.
-   * @returns Array of canonical internal operations.
+   * @return Array of canonical internal operations.
    */
   extractOperations(
     payload: unknown,
@@ -324,7 +324,7 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
    *
    * @param msgObj Raw message object.
    * @param _options Optional validation configuration options.
-   * @returns Normalized message payload for schema validation.
+   * @return Normalized message payload for schema validation.
    */
   protected preparePayloadForValidation(
     msgObj: Record<string, unknown>,
@@ -337,7 +337,7 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
    * Converts a validated message object into canonical internal operations.
    *
    * @param msgObj Validated message payload.
-   * @returns Array of canonical internal operations.
+   * @return Array of canonical internal operations.
    */
   protected abstract extractOperationsFromObject(
     msgObj: Record<string, unknown>,

@@ -28,7 +28,7 @@ export type {MarkdownRenderer, MarkdownRendererOptions, MarkdownRendererTagClass
  * A Markdown to HTML renderer using markdown-it and dompurify.
  * @param value The markdown code to render.
  * @param options Options for the markdown renderer.
- * @returns A promise that resolves to the rendered HTML as a string.
+ * @return A promise that resolves to the rendered HTML as a string.
  */
 export async function renderMarkdown(
   value: string,

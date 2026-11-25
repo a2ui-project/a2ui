@@ -46,7 +46,7 @@ const COMMON_DEF_NAMES: ReadonlySet<string> = new Set([
  * `$defs` or the older `definitions`.
  *
  * @param ref The `$ref` string to inspect.
- * @returns The def name if pointing to a protocol common type, or undefined.
+ * @return The def name if pointing to a protocol common type, or undefined.
  */
 export function commonDefName(ref: unknown): string | undefined {
   if (typeof ref !== 'string') {
@@ -213,7 +213,7 @@ function isFlattenedAction(s: Record<string, unknown>): boolean {
  * @param schema The property JSON schema to inspect.
  * @param helper Optional helper used to dereference local `#/...` `$ref`s in union branches.
  * @param visited Seen schema objects for cycle and diamond-DAG deduplication.
- * @returns True if the schema references or matches an `Action` slot.
+ * @return True if the schema references or matches an `Action` slot.
  */
 export function isActionSlot(
   schema: unknown,
@@ -244,7 +244,7 @@ export function isActionSlot(
  * Sanctioned exception: plan §5.2 item 2.
  *
  * @param schema The property JSON schema to inspect.
- * @returns True if schema expects option objects.
+ * @return True if schema expects option objects.
  */
 export function expectsOptionObjects(
   schema: unknown,
@@ -306,7 +306,7 @@ export function expectsOptionObjects(
  * Returns the `$ref` of a schema when it points inside the same document (`#/...`).
  *
  * @param sub The schema to inspect.
- * @returns The local reference, or undefined.
+ * @return The local reference, or undefined.
  */
 function localRef(sub: unknown): string | undefined {
   if (!sub || typeof sub !== 'object') {
@@ -341,7 +341,7 @@ function standardDefsFor(protocolVersion: string): Record<string, unknown> {
  * catalog function, so the same code reads its arguments.
  *
  * @param defs The common types `$defs` of a protocol version.
- * @returns The system function schemas keyed by their `@` name, which is empty
+ * @return The system function schemas keyed by their `@` name, which is empty
  *   for a version that defines none.
  */
 export function systemFunctionSchemas(
@@ -475,7 +475,7 @@ export class CatalogSchemaHelper {
    * Resolves a schema that is a local `#/...` reference against the catalog.
    *
    * @param sub The schema that may be a reference.
-   * @returns The referenced schema, or undefined if `sub` is not a local reference.
+   * @return The referenced schema, or undefined if `sub` is not a local reference.
    */
   private resolveLocalRef(sub: unknown): unknown {
     const ref = localRef(sub);
@@ -493,7 +493,7 @@ export class CatalogSchemaHelper {
    * allOf follow it. References into `common_types.json` are kept as is.
    *
    * @param schema The component schema.
-   * @returns The ordered sub-schemas.
+   * @return The ordered sub-schemas.
    */
   private orderedComponentSubSchemas(schema: Record<string, unknown>): Record<string, unknown>[] {
     const specific: Record<string, unknown>[] = [];
@@ -1047,7 +1047,7 @@ export class CatalogSchemaHelper {
    * `description`) win.
    *
    * @param schema The schema object to dereference.
-   * @returns The dereferenced schema object, or undefined if `schema` is not an object.
+   * @return The dereferenced schema object, or undefined if `schema` is not an object.
    */
   dereferenceLocalSchema(schema: unknown): Record<string, unknown> | undefined {
     if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
@@ -1306,7 +1306,7 @@ export class CatalogSchemaHelper {
    * to find the declared schema at that position.
    *
    * @param schema The array's JSON schema.
-   * @returns The resolved item schema, or undefined if not declared.
+   * @return The resolved item schema, or undefined if not declared.
    */
   resolveItemSchema(schema: unknown): Record<string, unknown> | undefined {
     return this.resolveAt(schema, undefined);
@@ -1322,13 +1322,14 @@ export class CatalogSchemaHelper {
    *
    * @param schema The object's JSON schema.
    * @param name The property name.
-   * @returns The resolved property schema, or undefined if not declared.
+   * @return The resolved property schema, or undefined if not declared.
    */
   resolvePropertySchema(schema: unknown, name: string): Record<string, unknown> | undefined {
     return this.resolveAt(schema, name);
   }
 
   /**
+   * @param schema The schema to resolve against.
    * @param property The property to resolve, or undefined for the array items.
    */
   private resolveAt(

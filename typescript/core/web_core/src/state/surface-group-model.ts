@@ -110,7 +110,7 @@ export class SurfaceGroupModel<T extends ComponentApi> {
    * Retrieves a surface by its ID.
    *
    * @param id The ID of the surface to retrieve.
-   * @returns The surface model, or undefined if not found.
+   * @return The surface model, or undefined if not found.
    */
   getSurface(id: string): SurfaceModel<T> | undefined {
     return this.surfaces.get(id);

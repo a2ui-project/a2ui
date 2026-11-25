@@ -256,7 +256,7 @@ function extractCapabilitiesEntry(
  *     capabilities the renderer stated no preference, so every registered catalog is
  *     active, which is none when nothing is registered.
  * @param acceptsInlineCatalogs Whether the agent accepts inline catalogs from the client.
- * @returns Array of active CatalogApi instances.
+ * @return Array of active CatalogApi instances.
  * @throws {A2uiCatalogError} If capabilities are given and the agent has no catalogs, if
  *     registered catalogs read different capabilities keys, if `inlineCatalogs` is not an
  *     array of valid catalogs, or if negotiation leaves no active catalog.

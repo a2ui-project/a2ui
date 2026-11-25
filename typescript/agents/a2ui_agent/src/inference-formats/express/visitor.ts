@@ -211,7 +211,7 @@ function isArgPositional(val: unknown): val is ExpressArgPositional {
  * ±(2^53 − 1) lose precision, as they do in JSON.
  *
  * @param text The matched token text.
- * @returns The value of the literal.
+ * @return The value of the literal.
  * @throws {ExpressParseError} When the value is outside the double range (such
  *   as `1e999`), so that every SDK rejects the same literals.
  */
