@@ -207,6 +207,69 @@ Each instance keeps its pending calls in memory, so a response must reach the sa
 
 A call fails with `CANCELLED` when it is cancelled or the instance disposed, and with the renderer's error code when the renderer reports one.
 
+## Macros
+
+A macro is a component the model can use that the agent lowers to catalog components before the messages reach the renderer, so the renderer needs only the catalogs it already has. Macros target v1.0.
+
+Define a macro with `defineMacro`. Its parameters come from `param`, which has the parameter types of the shared macro conformance suite, and `render` returns a tree of nested component objects:
+
+```ts
+import {defineMacro, param} from '@a2ui/agent';
+
+const FlightCard = defineMacro({
+  name: 'FlightCard',
+  description: 'A card with one flight.',
+  parameters: {
+    from: param.string({description: 'Departure city'}),
+    to: param.string({description: 'Destination city'}),
+    status: param.string({enum: ['onTime', 'delayed'], default: 'onTime'}),
+    onBook: param.action({required: false}),
+  },
+  render: ({from, to, status, onBook}) => ({
+    component: 'Card',
+    child: {
+      component: 'Column',
+      children: [
+        {component: 'Text', text: `${from} to ${to}`},
+        {component: 'Text', text: status === 'delayed' ? 'Delayed' : 'On time', variant: 'caption'},
+        ...(onBook
+          ? [{component: 'Button', child: {component: 'Text', text: 'Book'}, action: onBook}]
+          : []),
+      ],
+    },
+  }),
+});
+```
+
+The arguments of `render` are typed from the parameters: `from` and `to` are strings, `status` is `'onTime' | 'delayed'`, and `onBook` is an `Action` or `undefined`. Before `render` runs, the expander checks each argument against its parameter and turns the shorthands a model writes into full values, such as an event name into `{event: {name}}`.
+
+The nested components need no IDs. When an invocation is lowered, the root of its tree takes the invocation's ID and the other components get IDs under it, such as `flight_1__text_1`, so a macro can be used more than once on a surface. A slot can also hold the ID of a component already on the surface. For trees built without macros, `flattenComponentTree` does this flattening on its own.
+
+Add the macros to the catalog the model sees, and lower each response before you send it:
+
+```ts
+import {A2uiGenerator, CatalogConfig, MacroExpander} from '@a2ui/agent';
+
+const expander = new MacroExpander([FlightCard], {onError: 'raise'});
+const generator = new A2uiGenerator([
+  new CatalogConfig(expander.transformToInferenceCatalog(basicCatalog)),
+]);
+
+const processor = generator.createProcessor(capabilities);
+for (const part of processor.parseResponse(llmResponse)) {
+  if (part.type === 'a2ui') send(expander.transformToTransport(part.a2ui));
+}
+```
+
+`transformToInferenceCatalog` adds the macros to a copy of one catalog that keeps its ID, so it still matches the catalog the client supports. For a surface that mixes catalogs, use `transformCatalogs`, which returns the base catalogs followed by a standalone catalog of the macros. The expander then decides by `@catalogId` which components are macros, and stamps the owning `@catalogId` on lowered components where the surface needs it. `passthroughComponents` limits the catalog components the model sees next to the macros.
+
+A few things to keep in mind:
+
+1. With `onError: 'raise'`, an invocation that doesn't match its macro throws an `A2uiValidationError` that an agent can hand back to the model. By default the expander logs it and leaves the invocation unexpanded.
+2. The response is checked against the catalog with the macros, so a `RendererState` holds the macro invocations, not their lowered components.
+3. The expander remembers the default catalog of the surfaces it sees created. Use one expander per session, or pass `surfaceCatalogs` to `transformToTransport`.
+4. A macro's `render` can call another macro's `render` to inline its tree, or use another macro by name in its tree, which the expander lowers too.
+
 ## Development
 
 ```sh
