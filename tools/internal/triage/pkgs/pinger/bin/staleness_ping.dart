@@ -18,17 +18,21 @@
 //
 // Usage, from the repository root:
 //
-//   dart run tools/internal/triage/pkgs/pinger/bin/staleness_ping.dart [--dry-run]
+//   dart run tools/internal/triage/pkgs/pinger/bin/staleness_ping.dart \
+//     [--dry-run] [--messages <file>]
 //
 // The triage bot runs it hourly. With `--dry-run`, it prints the comments
-// instead of posting them, and sends no Google Chat messages.
+// and the direct messages instead of posting or writing them.
 //
 // It reads the repository from `GITHUB_REPOSITORY`, which defaults to
 // a2ui-project/a2ui, and the token from `GITHUB_TOKEN`, `GH_TOKEN` or
-// `gh auth token`. The token must be a team member's. It sends the Google
-// Chat messages to the incoming webhook in `TRIAGE_CHAT_WEBHOOK_URL`, and
-// reads the Google Chat user IDs of the assignees from `TRIAGE_CHAT_USERS`,
-// a JSON object that maps GitHub logins to user IDs.
+// `gh auth token`. The token must be a team member's.
+//
+// With `--messages`, it writes a direct message to each assignee to
+// <file>, as lines of JSON with the keys `login`, `to` and `text`, for the
+// triage bot to send from the triager's Google account. It reads the
+// assignees' Google accounts from `TRIAGE_CHAT_USERS`, a JSON object that
+// maps GitHub logins to Google accounts.
 //
 // It exits with 1 if a ping or a message fails, and with 2 for wrong
 // arguments or settings.
@@ -40,15 +44,23 @@ import 'package:shared/shared.dart';
 
 const String _usage =
     'Usage: dart run tools/internal/triage/pkgs/pinger/bin/staleness_ping.dart '
-    '[--dry-run]';
+    '[--dry-run] [--messages <file>]';
 
 Future<void> main(List<String> args) async {
-  if (args.any((arg) => arg != '--dry-run')) {
-    stderr.writeln(_usage);
-    exitCode = 2;
-    return;
+  var dryRun = false;
+  String? messagesPath;
+  for (var i = 0; i < args.length; i++) {
+    switch (args[i]) {
+      case '--dry-run':
+        dryRun = true;
+      case '--messages' when i + 1 < args.length:
+        messagesPath = args[++i];
+      default:
+        stderr.writeln(_usage);
+        exitCode = 2;
+        return;
+    }
   }
-  final bool dryRun = args.contains('--dry-run');
   final Map<String, String> env = Platform.environment;
 
   final Map<String, String> chatUsers;
@@ -60,15 +72,17 @@ Future<void> main(List<String> args) async {
     return;
   }
 
-  final String webhook = env['TRIAGE_CHAT_WEBHOOK_URL']?.trim() ?? '';
-  final WebhookTeamChat? chat = webhook.isEmpty || dryRun
+  final JsonLinesOutbox? outbox = messagesPath == null || dryRun
       ? null
-      : WebhookTeamChat(Uri.parse(webhook));
-  if (webhook.isEmpty && !dryRun) {
-    stdout.writeln(
-      'TRIAGE_CHAT_WEBHOOK_URL is not set, so no Google Chat messages are '
-      'sent.',
-    );
+      : JsonLinesOutbox(File(messagesPath));
+  if (!dryRun) {
+    if (messagesPath == null) {
+      stdout.writeln('No --messages file, so no direct messages are written.');
+    } else if (chatUsers.isEmpty) {
+      stdout.writeln(
+        'TRIAGE_CHAT_USERS is not set, so no direct messages are written.',
+      );
+    }
   }
 
   final String repository = env['GITHUB_REPOSITORY'] ?? a2uiRepository;
@@ -79,13 +93,12 @@ Future<void> main(List<String> args) async {
       now: DateTime.now().toUtc(),
       log: stdout,
       errorLog: stderr,
-      chat: chat,
+      outbox: outbox,
       chatUsers: chatUsers,
       dryRun: dryRun,
     );
     if (run.failed > 0) exitCode = 1;
   } finally {
     client.close();
-    chat?.close();
   }
 }

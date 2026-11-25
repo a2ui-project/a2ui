@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -150,17 +151,17 @@ final class FakeGitHub implements PingerGitHub {
   }
 }
 
-/// A [TeamChat] that records the messages.
-final class FakeChat implements TeamChat {
-  FakeChat({this.fails = false});
+/// An [Outbox] that records the messages.
+final class FakeOutbox implements Outbox {
+  FakeOutbox({this.fails = false});
 
   final bool fails;
-  final List<String> messages = [];
+  final List<DirectMessage> messages = [];
 
   @override
-  Future<void> send(String text) async {
-    if (fails) throw Exception('Chat is down');
-    messages.add(text);
+  Future<void> add(DirectMessage message) async {
+    if (fails) throw Exception('Disk is full');
+    messages.add(message);
   }
 }
 
@@ -168,7 +169,7 @@ typedef Run = ({PingRun result, String log, String errors});
 
 Future<Run> run(
   FakeGitHub github, {
-  TeamChat? chat,
+  Outbox? outbox,
   Map<String, String> chatUsers = const {},
   bool dryRun = false,
 }) async {
@@ -179,7 +180,7 @@ Future<Run> run(
     now: now,
     log: log,
     errorLog: errors,
-    chat: chat,
+    outbox: outbox,
     chatUsers: chatUsers,
     dryRun: dryRun,
   );
@@ -188,15 +189,15 @@ Future<Run> run(
 
 void main() {
   group('pingStaleItems', () {
-    test('pings a stale item on GitHub and in Google Chat', () async {
+    test('pings a stale item on GitHub and by direct message', () async {
       final github = FakeGitHub([
         issue(number: 7, assignees: ['dev', 'lead'], title: 'A <b> & c'),
       ]);
-      final chat = FakeChat();
+      final outbox = FakeOutbox();
       final Run r = await run(
         github,
-        chat: chat,
-        chatUsers: {'dev': '123', 'other': 'users/9'},
+        outbox: outbox,
+        chatUsers: {'dev': 'dev@google.com', 'other': 'other@google.com'},
       );
 
       expect(github.posted.single.number, 7);
@@ -209,15 +210,25 @@ void main() {
         'back to the weekly triage.\n'
         '<!-- a2ui-triage-ping: p1-inactive -->\n',
       );
+      expect(outbox.messages, [
+        (
+          login: 'dev',
+          to: 'dev@google.com',
+          text:
+              '*From triage bot, ping:* '
+              '<https://github.com/a2ui-project/a2ui/issues/7|A &lt;b&gt; &amp; c>\n'
+              'This `P1` issue has had no update from the team for 31 days. '
+              'Please post an update, or change the priority or assignee if '
+              'the plan has changed. If nothing changes in 7 days, the issue '
+              'gets `status: needs-triage` and goes back to the weekly triage.',
+        ),
+      ]);
       expect(
-        chat.messages.single,
-        '*From triage bot, ping:* '
-        '<https://github.com/a2ui-project/a2ui/issues/7|A &lt;b&gt; &amp; c>\n'
-        '<users/123> lead this `P1` issue has had no update from the team '
-        'for 31 days. Please post an update, or change the priority or '
-        'assignee if the plan has changed. If nothing changes in 7 days, the '
-        'issue gets `status: needs-triage` and goes back to the weekly '
-        'triage.',
+        r.log,
+        contains(
+          'No direct message to @lead: TRIAGE_CHAT_USERS has no Google '
+          'account for them.',
+        ),
       );
       expect(
         r.log,
@@ -358,12 +369,18 @@ void main() {
 
     test('prints the comments and posts nothing in a dry run', () async {
       final github = FakeGitHub([issue()]);
-      final chat = FakeChat();
-      final Run r = await run(github, chat: chat, dryRun: true);
+      final outbox = FakeOutbox();
+      final Run r = await run(
+        github,
+        outbox: outbox,
+        chatUsers: {'dev': 'dev@google.com'},
+        dryRun: true,
+      );
 
       expect(github.posted, isEmpty);
-      expect(chat.messages, isEmpty);
+      expect(outbox.messages, isEmpty);
       expect(r.log, contains('Would ping'));
+      expect(r.log, contains('Would message dev@google.com:'));
       expect(r.log, contains('<!-- a2ui-triage-ping: p1-inactive -->'));
       expect(r.result, (due: 1, pinged: 1, failed: 0));
     });
@@ -380,12 +397,16 @@ void main() {
       expect(r.result, (due: 2, pinged: 1, failed: 1));
     });
 
-    test('logs a failed Chat message and keeps the comment', () async {
+    test('logs a failed direct message and keeps the comment', () async {
       final github = FakeGitHub([issue()]);
-      final Run r = await run(github, chat: FakeChat(fails: true));
+      final Run r = await run(
+        github,
+        outbox: FakeOutbox(fails: true),
+        chatUsers: {'dev': 'dev@google.com'},
+      );
 
       expect(github.posted, hasLength(1));
-      expect(r.errors, contains('Failed to send the Google Chat message'));
+      expect(r.errors, contains('Failed to add the direct message'));
       expect(r.result, (due: 1, pinged: 1, failed: 1));
     });
 
@@ -475,9 +496,8 @@ void main() {
 
   group('parseChatUsers', () {
     test('reads a JSON object of strings', () {
-      expect(parseChatUsers('{"dev": "123", "lead": "users/4"}'), {
-        'dev': '123',
-        'lead': 'users/4',
+      expect(parseChatUsers('{"dev": "dev@google.com"}'), {
+        'dev': 'dev@google.com',
       });
     });
 
@@ -493,31 +513,20 @@ void main() {
     });
   });
 
-  group('WebhookTeamChat', () {
-    test('posts the text as JSON', () async {
-      final requests = <http.Request>[];
-      final chat = WebhookTeamChat(
-        Uri.parse('https://chat.googleapis.com/v1/spaces/x/messages?key=k'),
-        httpClient: MockClient((request) async {
-          requests.add(request);
-          return http.Response('{}', 200);
-        }),
-      );
-      await chat.send('Hello');
+  group('JsonLinesOutbox', () {
+    test('writes each message as a line of JSON', () async {
+      final Directory dir = Directory.systemTemp.createTempSync('pinger_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final file = File('${dir.path}/messages.jsonl')
+        ..writeAsStringSync('old\n');
+      final outbox = JsonLinesOutbox(file);
+      await outbox.add((login: 'dev', to: 'dev@google.com', text: 'A\nB'));
+      await outbox.add((login: 'lead', to: 'lead@google.com', text: 'C'));
 
-      expect(requests.single.method, 'POST');
-      expect(jsonDecode(requests.single.body), {'text': 'Hello'});
-    });
-
-    test('throws when Google Chat refuses the message', () async {
-      final chat = WebhookTeamChat(
-        Uri.parse('https://chat.googleapis.com/v1/spaces/x/messages?key=k'),
-        httpClient: MockClient((_) async => http.Response('Bad', 400)),
-      );
-      await expectLater(
-        chat.send('Hello'),
-        throwsA(isA<http.ClientException>()),
-      );
+      expect(file.readAsLinesSync().map(jsonDecode), [
+        {'login': 'dev', 'to': 'dev@google.com', 'text': 'A\nB'},
+        {'login': 'lead', 'to': 'lead@google.com', 'text': 'C'},
+      ]);
     });
   });
 }

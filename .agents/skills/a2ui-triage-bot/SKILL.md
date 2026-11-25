@@ -23,7 +23,7 @@ The triage bot runs four triage jobs (see [Triage jobs](../../../tools/internal/
 
 Once [started](#start-the-triage-bot), the triage bot runs the first three jobs every hour. The jobs are described in the blueprints in [`features/triage_bot/`](../../../tools/internal/triage/blueprints/features/triage_bot/).
 
-The triage bot only comments on items, and the staleness pinger also messages the team's chat space. The triage bot never adds or removes labels, assigns people, closes items, or changes milestones: those are the triager's decisions.
+The triage bot only comments on items, and the staleness pinger also sends direct messages to the assignees of stale items. The triage bot never adds or removes labels, assigns people, closes items, or changes milestones: those are the triager's decisions.
 
 Before you start, read:
 
@@ -55,7 +55,7 @@ When asked to start the triage bot, as in "start triage bot":
    ```
 
 5. Do the first [hourly run](#hourly-run).
-6. Tell the user that the triage bot is started, with the job ID, when the next run starts, and when the job expires, as the scheduler reports them. If `TRIAGE_../../../tools/internal/triage/blueprints/features/triage_bot/staleness_ping.blueprint.md#the-google-chat-message_WEBHOOK_URL` is not set, also say that the pings do not go to the team's chat space (see [The Google Chat message](../../../tools/internal/triage/blueprints/features/triage_bot/staleness_ping.blueprint.md#the-google-chat-message)).
+6. Tell the user that the triage bot is started, with the job ID, when the next run starts, and when the job expires, as the scheduler reports them. If the first run could not find the Google account of an assignee it pinged (see [Find the assignees' Google accounts](#find-the-assignees-google-accounts)), also say which assignees get the pings only on GitHub, without direct messages.
 
 When asked to stop the triage bot, find its job as in step 3, delete it, and say that the triage bot is stopped.
 
@@ -118,7 +118,7 @@ A triage bot comment is posted by a team member or a bot, and starts with `**Fro
 
 1. `**From triage bot, suggestion:**`: a suggestion comment, with an `<a2ui>` block.
 2. `**From triage bot, response:**`: a response comment, which answers requests to the triage bot.
-3. Anything else: other triage bot comments, such as the staleness pinger's `**From triage bot, ping:**`. The pinger also starts its Google Chat message with this prefix, in bold, written `*From triage bot, ping:*` in the Google Chat format.
+3. Anything else: other triage bot comments, such as the staleness pinger's `**From triage bot, ping:**`. The pinger also starts its direct messages with this prefix, in bold, written `*From triage bot, ping:*` in the Google Chat format.
 
 Earlier triage bot comments start with `**From triage bot:**`, and the line after it names the kind: "Triage suggestion:" or "Response to requests:".
 
@@ -470,13 +470,43 @@ List every item with its outcome and a link: suggestion posted, response posted,
 
 ## Staleness pings
 
-[staleness_ping.dart](../../../tools/internal/triage/pkgs/pinger/bin/staleness_ping.dart) finds the [stale items](../../../tools/internal/triage/blueprints/features/triage_bot/staleness_ping.blueprint.md#stale-items) that have no current ping, posts a ping on each one, and sends each ping to the team's chat space when `TRIAGE_CHAT_WEBHOOK_URL` is set. Do not find the stale items or write the pings yourself: the flagger reads the same definitions to flag the items whose pings expired, so the two always agree.
+[staleness_ping.dart](../../../tools/internal/triage/pkgs/pinger/bin/staleness_ping.dart) finds the [stale items](../../../tools/internal/triage/blueprints/features/triage_bot/staleness_ping.blueprint.md#stale-items) that have no current ping, posts a ping on each one, and writes a [direct message](../../../tools/internal/triage/blueprints/features/triage_bot/staleness_ping.blueprint.md#the-direct-message) to each assignee whose Google account `TRIAGE_CHAT_USERS` gives. Do not find the stale items or write the pings yourself: the flagger reads the same definitions to flag the items whose pings expired, so the two always agree.
 
-```bash
-dart run tools/internal/triage/pkgs/pinger/bin/staleness_ping.dart
-```
+Nobody gives you `TRIAGE_CHAT_USERS`: build it in each run, as below.
 
-For a dry run, add `--dry-run`: the script prints each ping instead of posting it. Report each item the script pinged, with its link and case, from its lines that start with `Pinged` or `Would ping`. If the script exits with an error, report the errors it printed, and do not post the failed pings yourself: the next run tries again.
+1. Find whom the run will ping. Run the script with `--dry-run`, which posts nothing, and collect the GitHub logins from its lines that start with `Would ping`, after `mentioning`:
+
+   ```bash
+   dart run tools/internal/triage/pkgs/pinger/bin/staleness_ping.dart --dry-run
+   ```
+
+   If there are no such lines, nothing is stale: skip the rest of this section.
+
+2. [Find the Google accounts](#find-the-assignees-google-accounts) of those logins, and put them in `TRIAGE_CHAT_USERS`, a JSON object that maps GitHub logins to Google accounts, such as `{"octocat": "octocat@google.com"}`.
+
+3. Ping:
+
+   ```bash
+   messages="$(mktemp)"
+   TRIAGE_CHAT_USERS="$(cat ~/.config/a2ui-triage/chat_users.json)" \
+     dart run tools/internal/triage/pkgs/pinger/bin/staleness_ping.dart --messages "$messages"
+   ```
+
+4. Send the direct messages. Each line of the `$messages` file is a JSON object with the assignee's GitHub login in `login`, their Google account in `to`, and the message in `text`. Send each `text`, as it is, as a direct message to `to` with your Google Chat tool, from the triager's account, in the Google Chat format: `*From triage bot, ping:*` is bold, and `<url|title>` is a link. Do not add anything to the message. If you have no Google Chat tool, or a message fails, report each message you did not send, with its recipient and text, and do not retry: the GitHub comment already asks the assignee. Delete the file afterwards.
+
+Report each item the script pinged, with its link and case, from its lines that start with `Pinged`, the direct messages you sent, and the assignees it could not message, from its lines that start with `No direct message`. If the script exits with an error, report the errors it printed, and do not post the failed pings yourself: the next run tries again.
+
+For a dry run of the triage bot, do only step 1, and report the pings and direct messages that the script printed.
+
+### Find the assignees' Google accounts
+
+Keep the accounts you found in `~/.config/a2ui-triage/chat_users.json`, the same JSON object as `TRIAGE_CHAT_USERS`, so that later runs do not look them up again. Create the file, with `{}`, if it does not exist. For each login that is not in it:
+
+1. Look the login up in the go/github registry, where Googlers link their GitHub accounts to their Google accounts, as its internal docs describe.
+
+   The answer has the Google account in `email`, and the GitHub login in `github_login`. Use `email` only if `github_login` is the login you looked up, ignoring case, since GitHub logins are not case-sensitive. Key the file by the login as the script printed it.
+
+2. If the registry has no such login, or the lookup fails, leave the login out of the file. That assignee gets the ping only on GitHub. Do not guess an account from a name or an email on the GitHub profile: a direct message to the wrong person leaks the item to them, and the GitHub comment reaches the assignee anyway.
 
 ## Triage report
 

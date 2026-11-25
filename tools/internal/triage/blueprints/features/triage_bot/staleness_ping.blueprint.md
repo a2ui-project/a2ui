@@ -5,7 +5,7 @@ The staleness pinger asks the assignees of [stale items](#stale-items) to act be
 The [triage bot](../../../../../../.agents/skills/a2ui-triage-bot/SKILL.md) runs the pinger hourly. For each stale item without a [current ping](#staleness-pings), the pinger:
 
 1. Posts a [triage bot](../../core.blueprint.md#contributors) comment on the issue or PR.
-2. Sends a message to the team's Google Chat space.
+2. Sends each assignee a [direct message](#the-direct-message) in Google Chat.
 
 The pinger keeps no state between runs. It finds its earlier pings by the marker in its comments, and uses the comment's creation time as the time of the ping.
 
@@ -49,20 +49,24 @@ The marker and the first sentence for each case, where `{days}` is the age of th
 3. `p1-inactive`: as in the example above.
 4. `external-pr-inactive`: "this PR from an out-of-team contributor has had no response from the team for {days}. Please review it, or tell the author what is next."
 
-## The Google Chat message
+## The direct message
 
-The pinger sends the message through an incoming webhook. The message starts with `From triage bot, ping:` in bold, written `*From triage bot, ping:*` in the Google Chat format, so that readers can tell it from messages that people write. After that, it has the item's title and link, and the text of the comment without its prefix and marker, where each assignee is mentioned in Google Chat.
+Each assignee gets a direct message in Google Chat from the triager's Google account, so that the ping reaches them even when they miss GitHub's notifications. The message starts with `From triage bot, ping:` in bold, written `*From triage bot, ping:*` in the Google Chat format, so that readers can tell it from messages that people write. After that, it has the item's title and link, and the text of the comment without its prefix, mentions and marker, starting with a capital letter:
 
-The pinger reads two environment variables:
+```text
+*From triage bot, ping:* <https://github.com/a2ui-project/a2ui/issues/123|Row with no children crashes the surface>
+This `P1` issue has had no update from the team for 30 days. Please post an update, or change the priority or assignee if the plan has changed. If nothing changes in 7 days, the issue gets `status: needs-triage` and goes back to the weekly triage.
+```
 
-1. `TRIAGE_CHAT_WEBHOOK_URL`: the webhook URL of the space. If it is not set, the pinger skips the messages and says so.
-2. `TRIAGE_CHAT_USERS`: a JSON object that maps GitHub logins to Google Chat user IDs. An assignee missing from the map is named by their GitHub login, without a mention.
+The pinger has no Google credentials, so it does not send the messages itself. With `--messages <file>`, it writes them to the file, one JSON object per line with the assignee's GitHub login in `login`, their Google account in `to`, and the message in `text`. The triage bot then sends each message with its Google Chat tool.
+
+The pinger reads the assignees' Google accounts from `TRIAGE_CHAT_USERS`, a JSON object that maps GitHub logins to Google accounts, such as `{"octocat": "octocat@google.com"}`. Nobody sets it up front: before each run, the triage bot finds the accounts of the assignees that the run pings in the go/github registry, where Googlers link their GitHub accounts, and keeps the accounts it found for later runs. An assignee missing from the map, such as one who has not linked their accounts, gets only the GitHub comment, and the pinger says so.
 
 ## Failures
 
 1. If an item's comments, reviews or history fail to load, the pinger skips the item: without them, it could ping an item that is not stale, or ping it twice.
 2. If a GitHub comment fails, the pinger logs the error and goes on with the next item. The next run tries again, since the item still has no current ping.
-3. If a Chat message fails, the pinger logs the error and does not retry.
+3. If a direct message fails, the triage bot reports it, with its recipient and text, and does not retry: the GitHub comment already asks the assignee, and the next run does not message them again.
 4. If the first comment turns out to come from an account outside the team, the pinger deletes it and stops. Such a comment is not a triage bot comment, so the next run would not see it and would ping again.
 
 The pinger exits with an error when anything fails, and the triage bot reports the errors. It prints each item it pings, the case, and the assignees it mentioned.

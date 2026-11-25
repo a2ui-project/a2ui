@@ -18,23 +18,18 @@ library;
 
 import 'package:shared/shared.dart';
 
+import 'direct_messages.dart';
 import 'github.dart';
-import 'team_chat.dart';
 
-/// A staleness ping, as a GitHub comment and as a Google Chat message.
+/// A staleness ping, as a GitHub comment and as the text of the direct
+/// message to each assignee.
 typedef PingText = ({String comment, String chat});
 
 /// The ping on [item], which is stale as [staleness] says at [now].
 ///
-/// The comment mentions every assignee on GitHub. The Chat message mentions
-/// each assignee that [chatUsers] maps to a Google Chat user ID, and names
-/// the others by their GitHub login.
-PingText pingText(
-  Item item,
-  Staleness staleness,
-  DateTime now, {
-  Map<String, String> chatUsers = const {},
-}) {
+/// The comment mentions every assignee on GitHub. The direct message has
+/// the item's title and link, and asks the assignee in the same words.
+PingText pingText(Item item, Staleness staleness, DateTime now) {
   final StaleCase staleCase = staleness.staleCase;
   final kind = item.isPullRequest ? 'PR' : 'issue';
   final String days = daysText(now.difference(staleness.since).inDays);
@@ -59,13 +54,6 @@ PingText pingText(
       'gets `$needsTriageLabel` and goes back to the weekly triage.';
 
   final String gitHubMentions = item.assignees.map((a) => '@$a').join(' ');
-  final String chatMentions = item.assignees
-      .map((login) {
-        final String? id = chatUsers[login];
-        if (id == null) return login;
-        return id.startsWith('users/') ? '<$id>' : '<users/$id>';
-      })
-      .join(' ');
   return (
     comment:
         '**From triage bot, ping:** $gitHubMentions $message\n'
@@ -73,7 +61,7 @@ PingText pingText(
     chat:
         '*From triage bot, ping:* '
         '<${item.htmlUrl}|${_escapeForChat(item.title)}>\n'
-        '$chatMentions $message',
+        '${message[0].toUpperCase()}${message.substring(1)}',
   );
 }
 
@@ -88,11 +76,12 @@ String _escapeForChat(String text) => text
 typedef PingRun = ({int due, int pinged, int failed});
 
 /// Pings the assignees of every stale item in [github] that has no current
-/// ping: posts a comment on the item, and sends a message to [chat] if it is
-/// given.
+/// ping: posts a comment on the item, and, if [outbox] is given, adds a
+/// direct message to each assignee that [chatUsers] maps to a Google
+/// account. The triage bot sends the messages.
 ///
-/// With [dryRun], it writes each comment to [log] instead of posting it,
-/// and sends no messages.
+/// With [dryRun], it writes each comment and message to [log] instead of
+/// posting or adding it.
 ///
 /// The comments must come from a team member's account, so that they are
 /// triage bot comments: otherwise the flagger counts a ping as a comment
@@ -109,7 +98,7 @@ Future<PingRun> pingStaleItems(
   required DateTime now,
   required StringSink log,
   required StringSink errorLog,
-  TeamChat? chat,
+  Outbox? outbox,
   Map<String, String> chatUsers = const {},
   bool dryRun = false,
 }) async {
@@ -158,12 +147,7 @@ Future<PingRun> pingStaleItems(
         log.writeln('Skipped $url — it changed since the listing.');
         continue;
       }
-      final PingText text = pingText(
-        fresh,
-        staleness,
-        now,
-        chatUsers: chatUsers,
-      );
+      final PingText text = pingText(fresh, staleness, now);
       final String mentioned = fresh.assignees.map((a) => '@$a').join(', ');
 
       if (dryRun) {
@@ -172,6 +156,11 @@ Future<PingRun> pingStaleItems(
           'Would ping $url — ${staleCase.marker}, mentioning $mentioned:\n'
           '${text.comment}',
         );
+        for (final String login in fresh.assignees) {
+          if (chatUsers[login] case final String to) {
+            log.writeln('Would message $to:\n${text.chat}');
+          }
+        }
         continue;
       }
 
@@ -201,12 +190,22 @@ Future<PingRun> pingStaleItems(
         '$mentioned.',
       );
 
-      if (chat == null) continue;
-      try {
-        await chat.send(text.chat);
-      } on Object catch (e) {
-        failed += 1;
-        errorLog.writeln('Failed to send the Google Chat message for $url: $e');
+      if (outbox == null) continue;
+      for (final String login in fresh.assignees) {
+        final String? to = chatUsers[login];
+        if (to == null) {
+          log.writeln(
+            'No direct message to @$login: TRIAGE_CHAT_USERS has no Google '
+            'account for them.',
+          );
+          continue;
+        }
+        try {
+          await outbox.add((login: login, to: to, text: text.chat));
+        } on Object catch (e) {
+          failed += 1;
+          errorLog.writeln('Failed to add the direct message to $to: $e');
+        }
       }
     } on Object catch (e) {
       failed += 1;
