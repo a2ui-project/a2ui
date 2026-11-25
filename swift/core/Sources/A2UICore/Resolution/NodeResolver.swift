@@ -1813,11 +1813,7 @@ public final class NodeResolver: Sendable {
     case .integer(let i):
       return String(i)
     case .number(let d):
-      if let exactInt = Int(exactly: d) {
-        return String(exactInt)
-      } else {
-        return String(d)
-      }
+      return d.ecmaScriptString
     case .boolean(let b):
       return b ? "true" : "false"
     default:

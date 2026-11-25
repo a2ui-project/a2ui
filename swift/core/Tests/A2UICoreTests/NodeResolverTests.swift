@@ -126,6 +126,35 @@ struct NodeResolverTests {
     #expect(children[0].string(for: "text") == "Hello World")
   }
 
+  @Test func stringBoundToNumberIsWrittenLikeJavaScript() throws {
+    let catalog = try makeCatalog()
+    let components: [String: ComponentModel] = [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("small"), .string("large")])]
+      ),
+      "small": ComponentModel(
+        id: "small", type: "Text", properties: ["text": .object(["path": .string("/small")])]),
+      "large": ComponentModel(
+        id: "large", type: "Text", properties: ["text": .object(["path": .string("/large")])]),
+    ]
+    let dataModel = DataModel()
+    dataModel.set("/small", value: .number(0.00001))
+    dataModel.set("/large", value: .number(1e20))
+
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: components),
+      dataModel: dataModel
+    )
+
+    let children = try #require(resolver.resolveTree()).children(for: "children")
+    #expect(children.map { $0.string(for: "text") } == ["0.00001", "100000000000000000000"])
+  }
+
   @Test func childListMaterializesPendingPlaceholderForUnarrivedComponents() throws {
     let catalog = try makeCatalog()
     // child1 not in components dictionary yet
