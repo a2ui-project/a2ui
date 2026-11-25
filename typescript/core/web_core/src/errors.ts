@@ -209,7 +209,7 @@ export class A2uiIntegrityError extends A2uiValidationError {
 }
 
 /**
- * Error thrown when global or function call recursion depth limits are exceeded.
+ * Error thrown when the global recursion depth limit is exceeded.
  */
 export class A2uiRecursionError extends A2uiValidationError {
   /**

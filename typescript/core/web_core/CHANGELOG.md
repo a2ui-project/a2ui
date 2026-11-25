@@ -1,8 +1,14 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) `RpcHandler` evaluates nested `@call` objects and `${...}` template expressions inside `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions and unactivated `requiresUserActivation` functions with `INVALID_FUNCTION_CALL` while permitting `agentOnly` and `rendererOrAgent` functions, and checking nested `@call` objects before any sibling argument executes. Recommended migration: set `allowedCallers` to `'rendererOrAgent'` or `'agentOnly'` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774), [#4336](https://github.com/a2ui-project/a2ui/pull/4336)).
+- **BREAKING CHANGE**: Remove the limit of 5 on nested function calls from `validateRecursionAndPaths`, and remove the `MAX_FUNC_CALL_DEPTH` export. Function call nesting is bounded only by the global depth limit (`MAX_GLOBAL_DEPTH`), so payloads that failed with `functionCall depth > 5` are now accepted. Recommended migration: drop references to `MAX_FUNC_CALL_DEPTH` ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
+- **BREAKING CHANGE**: `MessageProcessor` rejects a payload whose batch arrays and `{"messages": [...]}` wrappers nest deeper than `MAX_GLOBAL_DEPTH` with `A2uiRecursionError`, with or without a `validationConfig`. With a `validationConfig`, each message's depth counts from `0` inside those containers, and keys beside `messages` on a wrapper are checked for depth and `path` syntax. Recommended migration: send messages in one array or wrapper, and remove invalid values beside `messages` ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
+- Add an optional `startDepth` parameter to `validateRecursionAndPaths`, a non-negative integer that defaults to `0`, for checking a value held by a container whose depth is already counted ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
+
 ## 0.16.1
 
 - Add `MessageProcessor.addCatalog(catalog)`, which adds a catalog to a processor after it is built. `createSurface` messages, renderer function calls and `getRendererCapabilities` see the catalog from then on; surfaces created before the call keep the catalogs they were created with. A catalog whose id the processor already holds is rejected with `A2uiCatalogError`. The processor keeps its own copy of the array passed to its constructor, which `addCatalog` adds to, and `MessageProcessor.catalogs` lists the added catalog too ([#3303](https://github.com/a2ui-project/a2ui/issues/3303), [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
+- (v0_8) Make the `h1` through `h5`, `body`, and `caption` keys optional on the hinted style branch of `Theme.additionalStyles.Text` so themes can define styles for a subset of text usage hints ([#602](https://github.com/a2ui-project/a2ui/issues/602), [#4355](https://github.com/a2ui-project/a2ui/pull/4355)).
 
 ## 0.16.0
 

@@ -20,7 +20,13 @@ import 'conformance_harness.dart';
 
 class _TestActionFunction extends FunctionImplementation {
   _TestActionFunction(String name)
-    : super(name: name, argumentSchema: Schema.fromMap({'type': 'object'}));
+    : super(
+        name: name,
+        argumentSchema: Schema.fromMap(const {
+          'type': 'object',
+          'additionalProperties': true,
+        }),
+      );
 
   @override
   Object? execute(
