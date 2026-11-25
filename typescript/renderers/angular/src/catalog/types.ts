@@ -177,9 +177,11 @@ function isAngularComponentImplementation(api: unknown): api is AngularComponent
  *
  * The entry also carries a Custom Element (`tagName`, `element`): the one of `componentApi` when
  * it is a `WebComponentImplementation` (for example a `@a2ui/web_core` basic catalog component),
- * otherwise `component` wrapped with {@link toWebComponent}. Universal container components can
- * therefore render the entry by tag, and the renderer mounts the element instead of `component`
- * when `RendererConfiguration.useUniversalComponents` is enabled.
+ * otherwise `component` wrapped with {@link toWebComponent}. Universal container components render
+ * the entry by tag in both cases. When `RendererConfiguration.useUniversalComponents` is enabled,
+ * `ComponentHostComponent` mounts the Custom Element for entries backed by a universal Web
+ * Component (`componentApi`), and mounts `component` directly via `NgComponentOutlet` for entries
+ * wrapped with {@link toWebComponent}.
  *
  * @param componentApi The ComponentApi or WebComponentImplementation defining the schema and name.
  * @param component The Angular Component class.

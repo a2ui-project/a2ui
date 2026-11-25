@@ -75,6 +75,18 @@ describe('DirectJsonPromptGenerator', () => {
     expect(twoCatalogs.generate().split('### Agent to Renderer Schema:').length).toBe(2);
   });
 
+  it('gives a v0.9.1 catalog the v0.9.1 message schema', () => {
+    const v091Catalog = Catalog.fromJson(
+      {catalogId: 'https://example.com/v0_9_1.json', components: {}},
+      '0.9.1',
+    );
+    const baseRules = new DirectJsonPromptGenerator([v091Catalog]).generateBaseRules();
+    expect(baseRules).toContain(
+      '"$id":"https://a2ui.org/specification/v0_9_1/server_to_client.json"',
+    );
+    expect(baseRules).toContain('"version":{"enum":["v0.9","v0.9.1"]}');
+  });
+
   it('describes multiple v0.9 catalogs and their examples in the prompt', () => {
     const catalogs = ['a', 'b'].map(catalogId =>
       Catalog.fromJson({catalogId, components: {}}, '0.9'),

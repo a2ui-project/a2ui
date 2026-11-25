@@ -50,13 +50,15 @@ export interface RendererConfiguration {
   /** The catalogs containing the available components and functions. */
   catalogs: AngularCatalog[];
   /**
-   * When true, catalog entries that are both an Angular component and a Web Component (see
-   * `createComponentImplementation`) render as W3C universal Web Components application-wide.
-   * When false (default), they render as native Angular components.
+   * When true, `ComponentHostComponent` mounts catalog entries backed by a universal Web Component
+   * (plain `WebComponentImplementation` entries, and `createComponentImplementation` entries whose
+   * `componentApi` is a universal Web Component such as `@a2ui/web_core`'s basic catalog) as W3C
+   * Custom Elements. When false (default), dual entries render as native Angular components.
    *
-   * This only affects components rendered directly by the Angular renderer. Children of a
-   * universal container component are always rendered as Web Components, because the container
-   * resolves them by tag name.
+   * Angular-backed entries wrapped with `toWebComponent` (`<a2ui-ng-*>`) always mount natively via
+   * `NgComponentOutlet` at `ComponentHostComponent`. Children of a universal container component
+   * are always rendered as Web Components (including `<a2ui-ng-*>` wrappers), because the
+   * container resolves them by tag name.
    */
   useUniversalComponents?: boolean;
   /**
