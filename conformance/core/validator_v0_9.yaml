@@ -179,46 +179,6 @@
           - path: "/component"
             code: "invalid_value"
 
-- name: test_recursion_limit_function_call_depth_exceeded_error
-  features: [F-CORE-38]
-  description: Tests that nested functionCall expressions exceeding maximum depth (5) raise a RecursionError.
-  action: validate
-  protocolVersion: "v0.9"
-  catalogPaths:
-    - "catalogs/basic/v0_9/catalog.json"
-  strictMode: true
-  steps:
-    - messages:
-        - version: "v0.9"
-          createSurface:
-            surfaceId: "s1"
-            catalogId: "test-catalog"
-        - version: "v0.9"
-          updateComponents:
-            surfaceId: "s1"
-            components:
-              - id: "root"
-                component: "Text"
-                text:
-                  call: "f1"
-                  args:
-                    v:
-                      call: "f2"
-                      args:
-                        v:
-                          call: "f3"
-                          args:
-                            v:
-                              call: "f4"
-                              args:
-                                v:
-                                  call: "f5"
-                                  args:
-                                    v:
-                                      call: "f6"
-                                      args: {}
-      expectError: "functionCall depth"
-
 - name: test_v09_topology_circular_reference_error
   features: [F-CORE-12]
   description: Tests that circular component references fail validation in v0.9 strict mode.
@@ -566,6 +526,7 @@
         message: Invalid path syntax
 
 - name: test_v09_component_nesting_depth_limit_exceeded_error
+  features: [F-CORE-38]
   description: Tests that a chain of nested components deeper than the global limit (50) fails validation in v0.9 strict mode.
   action: validate
   protocolVersion: v0.9
@@ -1039,6 +1000,233 @@
                                                                                                                             level: 55
       expectError:
         category: ValidationError
+        message: Global recursion limit exceeded
+
+- name: test_v09_nested_function_calls_within_global_depth
+  description: Tests that six nested function calls pass validation in v0.9 strict mode. Function call nesting has no limit of its own and is bounded only by the global depth limit (50).
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - catalogs/basic/v0_9/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text:
+                  call: formatString
+                  args:
+                    value:
+                      call: formatString
+                      args:
+                        value:
+                          call: formatString
+                          args:
+                            value:
+                              call: formatString
+                              args:
+                                value:
+                                  call: formatString
+                                  args:
+                                    value:
+                                      call: formatString
+                                      args:
+                                        value: "Six calls deep"
+
+- name: test_v09_nested_function_calls_at_global_depth_limit
+  features: [F-CORE-38]
+  description: Tests that 23 nested function calls pass validation at the exact per-message global depth limit (50) in v0.9 strict mode. Each call adds two JSON levels (the call and its args), placing the innermost leaf value at JSON nesting depth 50 from the message.
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - catalogs/basic/v0_9/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text:
+                  call: formatString
+                  args:
+                    value:
+                      call: formatString
+                      args:
+                        value:
+                          call: formatString
+                          args:
+                            value:
+                              call: formatString
+                              args:
+                                value:
+                                  call: formatString
+                                  args:
+                                    value:
+                                      call: formatString
+                                      args:
+                                        value:
+                                          call: formatString
+                                          args:
+                                            value:
+                                              call: formatString
+                                              args:
+                                                value:
+                                                  call: formatString
+                                                  args:
+                                                    value:
+                                                      call: formatString
+                                                      args:
+                                                        value:
+                                                          call: formatString
+                                                          args:
+                                                            value:
+                                                              call: formatString
+                                                              args:
+                                                                value:
+                                                                  call: formatString
+                                                                  args:
+                                                                    value:
+                                                                      call: formatString
+                                                                      args:
+                                                                        value:
+                                                                          call: formatString
+                                                                          args:
+                                                                            value:
+                                                                              call: formatString
+                                                                              args:
+                                                                                value:
+                                                                                  call: formatString
+                                                                                  args:
+                                                                                    value:
+                                                                                      call: formatString
+                                                                                      args:
+                                                                                        value:
+                                                                                          call: formatString
+                                                                                          args:
+                                                                                            value:
+                                                                                              call: formatString
+                                                                                              args:
+                                                                                                value:
+                                                                                                  call: formatString
+                                                                                                  args:
+                                                                                                    value:
+                                                                                                      call: formatString
+                                                                                                      args:
+                                                                                                        value:
+                                                                                                          call: formatString
+                                                                                                          args:
+                                                                                                            value: "Twenty-three calls deep"
+
+- name: test_v09_nested_function_calls_past_global_depth_error
+  features: [F-CORE-38]
+  description: Tests that 24 nested function calls fail validation with RecursionError in v0.9 strict mode. Each call adds two JSON levels (the call and its args), placing the innermost args at depth 51 and leaf value at depth 52 from the message, past the global depth limit (50).
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - catalogs/basic/v0_9/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text:
+                  call: formatString
+                  args:
+                    value:
+                      call: formatString
+                      args:
+                        value:
+                          call: formatString
+                          args:
+                            value:
+                              call: formatString
+                              args:
+                                value:
+                                  call: formatString
+                                  args:
+                                    value:
+                                      call: formatString
+                                      args:
+                                        value:
+                                          call: formatString
+                                          args:
+                                            value:
+                                              call: formatString
+                                              args:
+                                                value:
+                                                  call: formatString
+                                                  args:
+                                                    value:
+                                                      call: formatString
+                                                      args:
+                                                        value:
+                                                          call: formatString
+                                                          args:
+                                                            value:
+                                                              call: formatString
+                                                              args:
+                                                                value:
+                                                                  call: formatString
+                                                                  args:
+                                                                    value:
+                                                                      call: formatString
+                                                                      args:
+                                                                        value:
+                                                                          call: formatString
+                                                                          args:
+                                                                            value:
+                                                                              call: formatString
+                                                                              args:
+                                                                                value:
+                                                                                  call: formatString
+                                                                                  args:
+                                                                                    value:
+                                                                                      call: formatString
+                                                                                      args:
+                                                                                        value:
+                                                                                          call: formatString
+                                                                                          args:
+                                                                                            value:
+                                                                                              call: formatString
+                                                                                              args:
+                                                                                                value:
+                                                                                                  call: formatString
+                                                                                                  args:
+                                                                                                    value:
+                                                                                                      call: formatString
+                                                                                                      args:
+                                                                                                        value:
+                                                                                                          call: formatString
+                                                                                                          args:
+                                                                                                            value:
+                                                                                                              call: formatString
+                                                                                                              args:
+                                                                                                                value: "Twenty-four calls deep"
+      expectError:
+        category: RecursionError
         message: Global recursion limit exceeded
 
 - name: test_v09_multi_surface_independent_roots

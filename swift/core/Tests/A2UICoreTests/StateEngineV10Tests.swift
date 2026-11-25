@@ -548,7 +548,7 @@ struct StateEngineV10Tests {
       _ = try v10Adapter.extractOperations(from: invalidAtCallMsg)
     }
 
-    // 3. Excessive @call nesting depth (> 5) in v1.0 components should throw A2UIRecursionError
+    // 3. Six nested @call levels are accepted: only the global depth limit bounds call nesting
     let deepAtCallMsg: JSONValue = .object([
       "version": .string("1.0"),
       "updateComponents": .object([
@@ -590,8 +590,34 @@ struct StateEngineV10Tests {
         ]),
       ]),
     ])
-    #expect(throws: A2UIRecursionError.self) {
+    #expect(throws: Never.self) {
       _ = try v10Adapter.extractOperations(from: deepAtCallMsg)
+    }
+
+    //    25 nested @call levels are rejected: each call adds two JSON levels, the call and its
+    //    args, so the innermost call is at depth 52 from the message, past the global limit (50)
+    var nestedAtCall: JSONValue = .object(["@call": .string("leaf"), "args": .object([:])])
+    for index in 1..<25 {
+      nestedAtCall = .object([
+        "@call": .string("f\(index)"),
+        "args": .object(["v": nestedAtCall]),
+      ])
+    }
+    let tooDeepAtCallMsg: JSONValue = .object([
+      "version": .string("1.0"),
+      "updateComponents": .object([
+        "surfaceId": .string("s1"),
+        "components": .array([
+          .object([
+            "id": .string("root"),
+            "component": .string("Text"),
+            "text": nestedAtCall,
+          ])
+        ]),
+      ]),
+    ])
+    #expect(throws: A2UIRecursionError.self) {
+      _ = try v10Adapter.extractOperations(from: tooDeepAtCallMsg)
     }
 
     // 4. Raw user data with "path"/"@path"/"call"/"@call" in createSurface.dataModel
