@@ -1632,7 +1632,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// `common_types.json#/$defs/...`; and leaves out the `id`, `component`
   /// and `catalogId` envelope properties. Other keywords are kept as
   /// written, and so is an `allOf` member whose reference the catalog cannot
-  /// follow.
+  /// follow. The `anyOf` and `oneOf` of a merged `allOf` member stay `allOf`
+  /// members of the flattened schema.
   ///
   /// Each component is flattened from [ComponentApi.schema] and
   /// [definitions] when first needed, and the result is cached for that
@@ -2126,8 +2127,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             final Object? target = _resolveJsonPointer(rootDoc, ref);
             if (target is Map) {
               if (visited.add(ref)) {
+                final Map<String, Object?> targetMap = target
+                    .cast<String, Object?>();
                 _collectComponentSubSchemas(
-                  target.cast<String, Object?>(),
+                  targetMap,
                   rootDoc,
                   keyOrder ? inlineSubs : localRefSubs,
                   visited,
@@ -2135,7 +2138,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                   keyOrder: keyOrder,
                   unmerged: unmerged,
                 );
+                _keepBranchCombiners(targetMap, unmerged);
               }
+              // Combiners written next to the reference apply as well.
+              _keepBranchCombiners(subMap, unmerged);
             } else {
               unmerged?.add(subMap);
             }
@@ -2155,6 +2161,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           keyOrder: keyOrder,
           unmerged: unmerged,
         );
+        _keepBranchCombiners(subMap, unmerged);
       }
       if (keyOrder) {
         // [schema] first, then its `allOf` branches in authored order with
@@ -2171,6 +2178,21 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       }
     }
     if (contributes && !keyOrder) result.add(schema);
+  }
+
+  /// Adds the `anyOf` and `oneOf` of [branch], an `allOf` member whose
+  /// properties are merged into the flat schema, to [unmerged], so they stay
+  /// `allOf` members there instead of being dropped with the member.
+  static void _keepBranchCombiners(
+    Map<String, Object?> branch,
+    List<Map<String, Object?>>? unmerged,
+  ) {
+    if (unmerged == null) return;
+    final combiners = <String, Object?>{
+      for (final key in const ['anyOf', 'oneOf'])
+        if (branch.containsKey(key)) key: branch[key],
+    };
+    if (combiners.isNotEmpty) unmerged.add(combiners);
   }
 
   static bool _isComponentCommonRef(String ref) =>
