@@ -229,8 +229,8 @@ export class AngularWcHost extends HTMLElement {
           providers: [{provide: A2UI_ACCESSIBILITY_TARGETS, useValue: this.accessibilityTargets}],
           parent: injector,
         }),
-        hostElement: this,
       });
+      this.appendChild(this.componentRef.location.nativeElement);
       this.appRef.attachView(this.componentRef.hostView);
     }
 
@@ -384,13 +384,20 @@ export class AngularWcHost extends HTMLElement {
     this.contextSubscription = undefined;
     this.binder?.unbind(this.boundProps);
     this.boundProps = undefined;
-    if (this.componentRef) {
-      this.appRef?.detachView(this.componentRef.hostView);
-      this.componentRef.destroy();
-      this.componentRef = undefined;
-      this.appRef = undefined;
-      this.binder = undefined;
-      this.ngZone = undefined;
+    const ref = this.componentRef;
+    const appRef = this.appRef;
+    this.componentRef = undefined;
+    this.appRef = undefined;
+    this.binder = undefined;
+    this.ngZone = undefined;
+    if (ref) {
+      const nativeElement = ref.location.nativeElement;
+      try {
+        appRef?.detachView(ref.hostView);
+        ref.destroy();
+      } finally {
+        nativeElement.remove();
+      }
     }
   }
 }

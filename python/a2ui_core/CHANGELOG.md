@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v0_9_1) `get_agent_to_renderer_schema_map` and
+  `get_agent_to_renderer_schema_json` give the v0.9.1 schema the `$id`
+  `https://a2ui.org/specification/v0_9_1/server_to_client.json`, which
+  `specification/v0_9_1/json/server_to_client.json` now declares. They gave it
+  v0.9's `$id`, which names v0.9's schema, a different document that accepts
+  only `"v0.9"` messages. Recommended migration: register the active catalog
+  under `https://a2ui.org/specification/v0_9_1/catalog.json` alongside
+  `https://a2ui.org/specification/v0_9/catalog.json` when validating v0.9.1
+  messages with a JSON Schema registry
+  ([#3974](https://github.com/a2ui-project/a2ui/issues/3974),
+  [#3975](https://github.com/a2ui-project/a2ui/pull/3975)).
 - **BREAKING CHANGE**: (v1_0) `RpcHandler` evaluates nested `@call` objects and `${...}` template expressions inside `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions and unactivated `requiresUserActivation` functions with `INVALID_FUNCTION_CALL` while permitting `agentOnly` and `rendererOrAgent` functions, and checking nested `@call` objects before any sibling argument executes. Recommended migration: set `allowedCallers` to `"rendererOrAgent"` or `"agentOnly"` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774), [#4336](https://github.com/a2ui-project/a2ui/pull/4336)).
 - **BREAKING CHANGE**: Remove the limit of 5 on nested function calls from `validate_recursion_and_paths`, and remove `MAX_FUNC_CALL_DEPTH`. Function call nesting is bounded only by the global depth limit (`MAX_GLOBAL_DEPTH`), so payloads that failed with `functionCall depth > 5` are now accepted. Recommended migration: drop references to `MAX_FUNC_CALL_DEPTH` ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
 - **BREAKING CHANGE**: `BaseVersionAdapter.extract_operations` counts each message's depth from `0` inside batch lists and `{"messages": [...]}` wrappers, rejects containers nested deeper than `MAX_GLOBAL_DEPTH` with `A2uiRecursionError`, and checks keys beside `messages` on a wrapper for depth and `path` syntax. Recommended migration: remove invalid values beside `messages` ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
