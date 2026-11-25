@@ -33,17 +33,26 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<TextFi
    * CSS variables:
    *
    * - `--a2ui-textfield-width`: Width of the component. Defaults to `100%`.
-   * - `--a2ui-textfield-border`: The styling for the text field border. Defaults to `--a2ui-border-width` width and `--a2ui-color-border` color.
-   * - `--a2ui-textfield-border-radius`: The border radius of the text field. Defaults to `--a2ui-spacing-m`.
-   * - `--a2ui-textfield-padding`: The padding of the text field. Defaults to `--a2ui-spacing-m`.
-   * - `--a2ui-textfield-color-border-focus`: The border color on focus. Defaults to `--a2ui-color-primary`.
-   * - `--a2ui-textfield-color-error`: The color for both invalid border and error text. Defaults to red.
-   * - `--a2ui-textfield-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
-   * - `--a2ui-textfield-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
+   * - `--a2ui-textfield-border`: Border of the input or textarea. Defaults to `--a2ui-border`.
+   * - `--a2ui-textfield-border-radius`: Border radius of the input or textarea. Defaults to `--a2ui-spacing-m`.
+   * - `--a2ui-textfield-padding`: Padding of the input or textarea. Defaults to `--a2ui-spacing-m`.
+   * - `--a2ui-textfield-color-border-focus`: Border color on focus. Defaults to `--a2ui-color-primary`.
+   * - `--a2ui-textfield-color-error`: Border and message color in the invalid state. Defaults to `red`.
+   * - `--a2ui-textfield-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size`, then `--a2ui-font-size-s`.
+   * - `--a2ui-textfield-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight`, then `bold`.
    *
-   * It also inherits global input variables:
-   * - `--a2ui-color-input`: Background color.
-   * - `--a2ui-color-on-input`: Text color.
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-color-input`: Background color of the input or textarea.
+   * - `--a2ui-color-on-input`: Text color of the input or textarea.
+   * - `--a2ui-border`: Fallback border shorthand of the input or textarea.
+   * - `--a2ui-color-primary`: Fallback border color on focus.
+   * - `--a2ui-spacing-xs`: Gap between the label, input, and validation errors.
+   * - `--a2ui-spacing-m`: Fallback border radius and padding of the input or textarea.
+   * - `--a2ui-label-font-size`: Fallback font size of the label. Defaults to `--a2ui-font-size-s`.
+   * - `--a2ui-label-font-weight`: Fallback font weight of the label. Defaults to `bold`.
+   * - `--a2ui-font-size-s`: Fallback label font size when `--a2ui-label-font-size` is unset.
+   * - `--a2ui-font-size-xs`: Font size of validation error messages.
    *
    * @nocollapse
    */

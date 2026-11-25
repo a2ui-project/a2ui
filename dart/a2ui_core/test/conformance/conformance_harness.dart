@@ -147,8 +147,9 @@ Map<String, Object?> readConformanceJson(String path) {
 bool isAtLeastV1CatalogDocument(Map<String, Object?> document) {
   final Object? declared = document['protocolVersion'];
   if (declared is! String) return false;
-  final String version =
-      declared.startsWith('v') ? declared.substring(1) : declared;
+  final String version = declared.startsWith('v')
+      ? declared.substring(1)
+      : declared;
   return version.split('.').first == '1';
 }
 
@@ -344,25 +345,22 @@ void runConformanceSuite(
   for (final testCase in cases) {
     final name = testCase['name']! as String;
     final String? skip = skipReason?.call(testCase);
-    test(
-      name,
-      () {
-        if (skip != null) {
-          _recordIfSuite(suite, name, 'skipped', skip, manifestDir);
-          markTestSkipped(skip);
-          return null;
-        }
-        return runConformanceCase(
-          testCase,
-          () => runCase(testCase),
-          suite: suite,
-          expectedFailures: expectedFailures,
-          unsupported: unsupported,
-          onSkip: onSkip,
-          manifestDir: manifestDir,
-        );
-      },
-    );
+    test(name, () {
+      if (skip != null) {
+        _recordIfSuite(suite, name, 'skipped', skip, manifestDir);
+        markTestSkipped(skip);
+        return null;
+      }
+      return runConformanceCase(
+        testCase,
+        () => runCase(testCase),
+        suite: suite,
+        expectedFailures: expectedFailures,
+        unsupported: unsupported,
+        onSkip: onSkip,
+        manifestDir: manifestDir,
+      );
+    });
   }
 }
 
@@ -377,10 +375,12 @@ void _verifyNoUnusedEntries(
     for (final ConformanceTestCase testCase in cases)
       testCase['name']! as String,
   };
-  final List<String> unusedExpected =
-      expectedFailures.keys.where((k) => !caseNames.contains(k)).toList();
-  final List<String> unusedUnsupported =
-      unsupported.keys.where((k) => !caseNames.contains(k)).toList();
+  final List<String> unusedExpected = expectedFailures.keys
+      .where((k) => !caseNames.contains(k))
+      .toList();
+  final List<String> unusedUnsupported = unsupported.keys
+      .where((k) => !caseNames.contains(k))
+      .toList();
   if (unusedExpected.isNotEmpty || unusedUnsupported.isNotEmpty) {
     test('$suite: no unused expectedFailures or unsupported entries', () {
       fail(
@@ -424,27 +424,27 @@ String? extractErrorCode(A2uiError error) {
 /// and `RecursionError` accept the sibling types the SDKs raise for the same
 /// condition.
 Matcher categoryMatches(String? category) => switch (category) {
-      null => isA<A2uiError>(),
-      'ParseError' => isA<A2uiParseError>(),
-      'ValidationError' => anyOf(
-          isA<A2uiValidationError>(),
-          isA<A2uiIntegrityError>(),
-          isA<A2uiRecursionError>(),
-          isA<A2uiCatalogError>(),
-        ),
-      'CatalogError' => isA<A2uiCatalogError>(),
-      'IntegrityError' => isA<A2uiIntegrityError>(),
-      'RecursionError' => anyOf(
-          isA<A2uiRecursionError>(),
-          isA<A2uiIntegrityError>(),
-        ),
-      'DataError' => isA<A2uiDataError>(),
-      'StateError' => isA<A2uiStateError>(),
-      'ExpressionError' => isA<A2uiExpressionError>(),
-      _ => throw UnknownConformanceKeyError(
-          'Unknown expectError.category "$category".',
-        ),
-    };
+  null => isA<A2uiError>(),
+  'ParseError' => isA<A2uiParseError>(),
+  'ValidationError' => anyOf(
+    isA<A2uiValidationError>(),
+    isA<A2uiIntegrityError>(),
+    isA<A2uiRecursionError>(),
+    isA<A2uiCatalogError>(),
+  ),
+  'CatalogError' => isA<A2uiCatalogError>(),
+  'IntegrityError' => isA<A2uiIntegrityError>(),
+  'RecursionError' => anyOf(
+    isA<A2uiRecursionError>(),
+    isA<A2uiIntegrityError>(),
+  ),
+  'DataError' => isA<A2uiDataError>(),
+  'StateError' => isA<A2uiStateError>(),
+  'ExpressionError' => isA<A2uiExpressionError>(),
+  _ => throw UnknownConformanceKeyError(
+    'Unknown expectError.category "$category".',
+  ),
+};
 
 /// Matches `code` and `path` expectations declared in an `expectError` block
 /// against a thrown [A2uiError].
@@ -531,7 +531,8 @@ class _ErrorFieldsMatcher extends Matcher {
 
     // Without an emitted message, the mapped form only backs the `code` and
     // `path` checks, which read the thrown error itself.
-    final ErrorMessage mapped = emitted ??
+    final ErrorMessage mapped =
+        emitted ??
         MessageErrorMapper.map(
           item,
           rawMessage: rawMessage,
@@ -576,7 +577,8 @@ class _ErrorFieldsMatcher extends Matcher {
       if (actualCode == null) {
         unasserted.add('code "$expectedCode"');
       } else if (actualCode != expectedCode && wireCode != expectedCode) {
-        matchState['reason'] = 'has code "$actualCode" (wire "$wireCode") '
+        matchState['reason'] =
+            'has code "$actualCode" (wire "$wireCode") '
             'instead of "$expectedCode"';
         return false;
       }
@@ -614,7 +616,8 @@ class _ErrorFieldsMatcher extends Matcher {
       final String? actualCallId =
           item.functionCallId ?? mapped.error.functionCallId;
       if (actualCallId != expectedFunctionCallId) {
-        matchState['reason'] = 'has functionCallId "$actualCallId" instead of '
+        matchState['reason'] =
+            'has functionCallId "$actualCallId" instead of '
             '"$expectedFunctionCallId"';
         return false;
       }
@@ -673,7 +676,8 @@ class _ErrorFieldsMatcher extends Matcher {
   ) {
     final expVersion = expectedEnvelope['version'] as String?;
     if (expVersion != null && actualMessage.version != expVersion) {
-      matchState['reason'] = 'rendererError.version was '
+      matchState['reason'] =
+          'rendererError.version was '
           '"${actualMessage.version}" instead of "$expVersion"';
       return false;
     }
@@ -692,20 +696,23 @@ class _ErrorFieldsMatcher extends Matcher {
     if (expErr.containsKey('surfaceId')) {
       final expSurface = expErr['surfaceId'] as String?;
       if (actual.surfaceId != expSurface) {
-        matchState['reason'] = 'rendererError.error.surfaceId was '
+        matchState['reason'] =
+            'rendererError.error.surfaceId was '
             '"${actual.surfaceId}" instead of "$expSurface"';
         return false;
       }
     } else if (expErr.containsKey('functionCallId') &&
         actual.surfaceId != null) {
-      matchState['reason'] = 'rendererError.error.surfaceId was '
+      matchState['reason'] =
+          'rendererError.error.surfaceId was '
           '"${actual.surfaceId}" instead of null';
       return false;
     }
     if (expErr.containsKey('functionCallId')) {
       final expCallId = expErr['functionCallId'] as String?;
       if (actual.functionCallId != expCallId) {
-        matchState['reason'] = 'rendererError.error.functionCallId was '
+        matchState['reason'] =
+            'rendererError.error.functionCallId was '
             '"${actual.functionCallId}" instead of "$expCallId"';
         return false;
       }
@@ -726,14 +733,16 @@ class _ErrorFieldsMatcher extends Matcher {
     if (expErr.containsKey('path')) {
       final expPath = expErr['path'] as String?;
       if (actual.path != expPath) {
-        matchState['reason'] = 'rendererError.error.path was "${actual.path}" '
+        matchState['reason'] =
+            'rendererError.error.path was "${actual.path}" '
             'instead of "$expPath"';
         return false;
       }
     }
     if (expErr['message'] case final String expMsg
         when !_textMatches(actual.message, expMsg)) {
-      matchState['reason'] = 'rendererError.error.message '
+      matchState['reason'] =
+          'rendererError.error.message '
           '"${actual.message}" did not match "$expMsg"';
       return false;
     }
@@ -829,8 +838,8 @@ Catalog<ComponentApi, FunctionImplementation> basicCatalogFor(
 }) {
   final Catalog<ComponentApi, FunctionImplementation> basic =
       compareVersions(version, '1.0') >= 0
-          ? BasicCatalog.v1_0()
-          : BasicCatalog.v0_9();
+      ? BasicCatalog.v1_0()
+      : BasicCatalog.v0_9();
   if (asCatalogId == null || asCatalogId == basic.id) return basic;
   return Catalog<ComponentApi, FunctionImplementation>(
     id: asCatalogId,

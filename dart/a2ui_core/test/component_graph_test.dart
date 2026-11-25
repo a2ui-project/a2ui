@@ -18,47 +18,44 @@ import 'package:test/test.dart';
 
 void main() {
   group('checkPathsAndRecursion', () {
-    test(
-      'skips binding path and call-depth checks inside updateDataModel.value',
-      () {
-        Map<String, Object?> deepCallValue = {'leaf': true};
-        for (var i = 0; i < maxFunctionCallDepth + 3; i++) {
-          deepCallValue = {
-            'call': 'fn_$i',
-            '@call': 'fn_$i',
-            'path': 'invalid~tilde~path',
-            '@path': 'invalid~tilde~path',
-            'args': deepCallValue,
-          };
-        }
-
-        final messageJson = <String, Object?>{
-          'version': 'v0.9',
-          'updateDataModel': {
-            'surfaceId': 's1',
-            'path': '/valid/path',
-            'value': deepCallValue,
-          },
+    test('skips binding path checks inside updateDataModel.value', () {
+      Map<String, Object?> deepCallValue = {'leaf': true};
+      for (var i = 0; i < 8; i++) {
+        deepCallValue = {
+          'call': 'fn_$i',
+          '@call': 'fn_$i',
+          'path': 'invalid~tilde~path',
+          '@path': 'invalid~tilde~path',
+          'args': deepCallValue,
         };
+      }
 
-        expect(() => checkPathsAndRecursion(messageJson), returnsNormally);
-        expect(
-          () => checkPathsAndRecursion(
-            messageJson,
-            version: A2uiProtocolVersion.v1_0,
-          ),
-          returnsNormally,
-        );
+      final messageJson = <String, Object?>{
+        'version': 'v0.9',
+        'updateDataModel': {
+          'surfaceId': 's1',
+          'path': '/valid/path',
+          'value': deepCallValue,
+        },
+      };
 
-        final typedMessage = UpdateDataModelMessage(
-          version: 'v0.9',
-          surfaceId: 's1',
-          path: '/valid/path',
-          value: deepCallValue,
-        );
-        expect(() => checkPathsAndRecursion(typedMessage), returnsNormally);
-      },
-    );
+      expect(() => checkPathsAndRecursion(messageJson), returnsNormally);
+      expect(
+        () => checkPathsAndRecursion(
+          messageJson,
+          version: A2uiProtocolVersion.v1_0,
+        ),
+        returnsNormally,
+      );
+
+      final typedMessage = UpdateDataModelMessage(
+        version: 'v0.9',
+        surfaceId: 's1',
+        path: '/valid/path',
+        value: deepCallValue,
+      );
+      expect(() => checkPathsAndRecursion(typedMessage), returnsNormally);
+    });
 
     test('validates updateDataModel.path syntax', () {
       final invalidJson = <String, Object?>{
@@ -95,11 +92,7 @@ void main() {
 
       final messageJson = <String, Object?>{
         'version': 'v0.9',
-        'updateDataModel': {
-          'surfaceId': 's1',
-          'path': '/',
-          'value': deepData,
-        },
+        'updateDataModel': {'surfaceId': 's1', 'path': '/', 'value': deepData},
       };
 
       expect(
@@ -126,153 +119,146 @@ void main() {
 
     test('v0.9 mode validates path bindings, templates, and call depth', () {
       expect(
-        () => checkPathsAndRecursion(
-          {
-            'version': 'v0.9',
-            'updateComponents': {
-              'surfaceId': 's1',
-              'components': [
-                {
-                  'id': 'root',
-                  'component': 'Text',
-                  'text': {'path': '/bad~path'},
-                },
-              ],
-            },
+        () => checkPathsAndRecursion({
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Text',
+                'text': {'path': '/bad~path'},
+              },
+            ],
           },
-          version: A2uiProtocolVersion.v0_9,
-        ),
+        }, version: A2uiProtocolVersion.v0_9),
         throwsA(isA<A2uiValidationError>()),
       );
 
       expect(
-        () => checkPathsAndRecursion(
-          {
-            'version': 'v0.9',
-            'updateComponents': {
-              'surfaceId': 's1',
-              'components': [
-                {
-                  'id': 'root',
-                  'component': 'Column',
-                  'children': {'path': '/bad~path', 'componentId': 'item'},
-                },
-              ],
-            },
+        () => checkPathsAndRecursion({
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Column',
+                'children': {'path': '/bad~path', 'componentId': 'item'},
+              },
+            ],
           },
-          version: A2uiProtocolVersion.v0_9,
-        ),
+        }, version: A2uiProtocolVersion.v0_9),
         throwsA(isA<A2uiValidationError>()),
       );
 
       // @path is literal in v0.9 and should not be validated as a data binding.
       expect(
-        () => checkPathsAndRecursion(
-          {
-            'version': 'v0.9',
-            'updateComponents': {
-              'surfaceId': 's1',
-              'components': [
-                {
-                  'id': 'root',
-                  'component': 'Text',
-                  'meta': {'@path': 'not~a~pointer'},
-                },
-              ],
-            },
+        () => checkPathsAndRecursion({
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Text',
+                'meta': {'@path': 'not~a~pointer'},
+              },
+            ],
           },
-          version: A2uiProtocolVersion.v0_9,
-        ),
+        }, version: A2uiProtocolVersion.v0_9),
         returnsNormally,
       );
 
       Map<String, Object?> nestedCall = {
         'call': 'leaf',
-        'args': <String, Object?>{}
+        'args': <String, Object?>{},
       };
-      for (var i = 0; i < maxFunctionCallDepth; i++) {
+      for (var i = 0; i < 10; i++) {
+        nestedCall = {
+          'call': 'fn_$i',
+          'args': {'inner': nestedCall},
+        };
+      }
+      // Nested function calls are bounded only by the global depth limit.
+      expect(
+        () => checkPathsAndRecursion(
+          nestedCall,
+          version: A2uiProtocolVersion.v0_9,
+        ),
+        returnsNormally,
+      );
+      for (var i = 0; i < maxComponentDepth; i++) {
         nestedCall = {
           'call': 'fn_$i',
           'args': {'inner': nestedCall},
         };
       }
       expect(
-        () => checkPathsAndRecursion(nestedCall,
-            version: A2uiProtocolVersion.v0_9),
+        () => checkPathsAndRecursion(
+          nestedCall,
+          version: A2uiProtocolVersion.v0_9,
+        ),
         throwsA(isA<A2uiRecursionError>()),
-      );
-      // In v1.0 mode, plain 'call' is not a function call object.
-      expect(
-        () => checkPathsAndRecursion(nestedCall,
-            version: A2uiProtocolVersion.v1_0),
-        returnsNormally,
       );
     });
 
-    test(
-        'v1.0 mode validates @path, templates, and @call while ignoring path/call',
-        () {
+    test('v1.0 mode validates @path, templates, and @call while ignoring path/call', () {
       expect(
-        () => checkPathsAndRecursion(
-          {
-            'version': '1.0',
-            'updateComponents': {
-              'surfaceId': 's1',
-              'components': [
-                {
-                  'id': 'root',
-                  'component': 'Text',
-                  'text': {'@path': '/bad~path'},
-                },
-              ],
-            },
+        () => checkPathsAndRecursion({
+          'version': '1.0',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Text',
+                'text': {'@path': '/bad~path'},
+              },
+            ],
           },
-        ),
+        }),
         throwsA(isA<A2uiValidationError>()),
       );
 
       // ChildListTemplate still uses {path, componentId} in v1.0.
       expect(
-        () => checkPathsAndRecursion(
-          {
-            'version': '1.0',
-            'updateComponents': {
-              'surfaceId': 's1',
-              'components': [
-                {
-                  'id': 'root',
-                  'component': 'Column',
-                  'children': {'path': '/bad~path', 'componentId': 'item'},
-                },
-              ],
-            },
+        () => checkPathsAndRecursion({
+          'version': '1.0',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Column',
+                'children': {'path': '/bad~path', 'componentId': 'item'},
+              },
+            ],
           },
-        ),
+        }),
         throwsA(isA<A2uiValidationError>()),
       );
 
       // Plain {'path': 'not~a~pointer'} without componentId is literal in v1.0.
       expect(
-        () => checkPathsAndRecursion(
-          {
-            'version': '1.0',
-            'updateComponents': {
-              'surfaceId': 's1',
-              'components': [
-                {
-                  'id': 'root',
-                  'component': 'Button',
-                  'action': {
-                    'event': {
-                      'name': 'open',
-                      'context': {'path': 'not~a~pointer'},
-                    },
+        () => checkPathsAndRecursion({
+          'version': '1.0',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Button',
+                'action': {
+                  'event': {
+                    'name': 'open',
+                    'context': {'path': 'not~a~pointer'},
                   },
                 },
-              ],
-            },
+              },
+            ],
           },
-        ),
+        }),
         returnsNormally,
       );
 
@@ -280,7 +266,21 @@ void main() {
         '@call': 'leaf',
         'args': <String, Object?>{},
       };
-      for (var i = 0; i < maxFunctionCallDepth; i++) {
+      for (var i = 0; i < 10; i++) {
+        nestedAtCall = {
+          '@call': 'fn_$i',
+          'args': {'inner': nestedAtCall},
+        };
+      }
+      // Nested function calls are bounded only by the global depth limit.
+      expect(
+        () => checkPathsAndRecursion(
+          nestedAtCall,
+          version: A2uiProtocolVersion.v1_0,
+        ),
+        returnsNormally,
+      );
+      for (var i = 0; i < maxComponentDepth; i++) {
         nestedAtCall = {
           '@call': 'fn_$i',
           'args': {'inner': nestedAtCall},
@@ -292,13 +292,6 @@ void main() {
           version: A2uiProtocolVersion.v1_0,
         ),
         throwsA(isA<A2uiRecursionError>()),
-      );
-      expect(
-        () => checkPathsAndRecursion(
-          nestedAtCall,
-          version: A2uiProtocolVersion.v0_9,
-        ),
-        returnsNormally,
       );
     });
 
@@ -341,18 +334,16 @@ void main() {
       test('skips the same way in a message written as JSON', () {
         final List<Object?> deep = tooDeep();
         Map<String, Object?> json(List<Object?> value) => {
-              'version': '1.0',
-              'updateDataModel': {
-                'surfaceId': 's1',
-                'path': '/items',
-                'value': value,
-              },
-            };
+          'version': '1.0',
+          'updateDataModel': {
+            'surfaceId': 's1',
+            'path': '/items',
+            'value': value,
+          },
+        };
         expect(
-          () => checkPathsAndRecursion(
-            json([deep, 1]),
-            grownFrom: json([deep]),
-          ),
+          () =>
+              checkPathsAndRecursion(json([deep, 1]), grownFrom: json([deep])),
           returnsNormally,
         );
       });

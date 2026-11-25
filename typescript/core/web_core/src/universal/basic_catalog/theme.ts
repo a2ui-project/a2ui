@@ -45,7 +45,7 @@ export function isValidCssColor(color: unknown): boolean {
 
 /**
  * Zod schema defining the theme configuration for the basic catalog.
- * Conforms to `specification/v0_9/catalogs/basic/catalog.json#/$defs/theme`.
+ * Conforms to `catalogs/basic/v0_9/catalog.json#/$defs/theme`.
  */
 export const BasicCatalogThemeSchema = z
   .object({

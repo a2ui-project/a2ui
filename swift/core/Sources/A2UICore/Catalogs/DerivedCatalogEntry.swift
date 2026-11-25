@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// A component or function of a catalog made with ``Catalog/derive(id:components:functions:)``.
+/// A component or function of a catalog made with
+/// ``Catalog/derive(id:components:functions:instructions:)``.
 ///
 /// A string literal names an entry of the source catalog to keep, so a list of entries reads
 /// `["Text", "Image", .add(MyCarousel())]`.

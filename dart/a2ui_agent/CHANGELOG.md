@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+- **Breaking:** (v1_0) With the updated `a2ui_core`, `validatePayload`, `RendererState.apply`, and the inference format parsers check function calls nested in `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions while accepting `agentOnly` and `rendererOrAgent` functions. Set `allowedCallers` to `rendererOrAgent` or `agentOnly` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774), [#4336](https://github.com/a2ui-project/a2ui/pull/4336)).
+- **Breaking:** `resolveCatalogs` and `readRendererCapabilities` reject inline catalogs whose local `#...` `$ref` pointers do not resolve against the inline catalog document or the protocol version's `common_types.json`, throwing `A2uiCatalogError` naming the inline `catalogId` and `$ref` even when `acceptsInlineCatalogs` is `false`. `resolveCatalogs` also emits a `dart:developer` warning log when an accepted inline catalog is dropped because its `catalogId` is already active. Recommended migration: point each local `$ref` in an inline catalog to a definition declared in that inline catalog or in the target protocol version's `common_types.json` ([#3165](https://github.com/a2ui-project/a2ui/issues/3165), [#4367](https://github.com/a2ui-project/a2ui/pull/4367)).
+- `ExpressPromptGenerator` (`promptSnippet`) now traverses `oneOf`, `anyOf`,
+  `allOf`, and locally flattened `DataBinding`, `FunctionCall`, `ChildList`, and
+  `Action` wire envelopes when generating property map-key instructions and
+  `(static)` / `(component ID)` / `(action)` annotations, and aligns
+  post-description indented headings to `Map keys:` and `List of maps keys:`
+  ([#3400](https://github.com/a2ui-project/a2ui/issues/3400),
+  [#4184](https://github.com/a2ui-project/a2ui/pull/4184)).
+- (v0_9_1) `DirectJsonPromptGenerator` gives the v0.9.1 agent-to-renderer schema the `$id` `https://a2ui.org/specification/v0_9_1/server_to_client.json`, which `specification/v0_9_1/json/server_to_client.json` declares. It gave it v0.9's `$id` ([#3974](https://github.com/a2ui-project/a2ui/issues/3974), [#3975](https://github.com/a2ui-project/a2ui/pull/3975)).
+
+## 0.5.0
+
+- **Breaking:** Requires `a2ui_core` `^0.9.0`, whose types this library
+  re-exports.
+
+- **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.10.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
+- Express format rejects binding multiple catalogs targeting a protocol version
+  before v1.0 with an `A2uiCatalogError`, matching the v1.0 multi-catalog
+  specification ([#3341](https://github.com/a2ui-project/a2ui/issues/3341),
+  [#4277](https://github.com/a2ui-project/a2ui/pull/4277)).
+
+## 0.4.0
+
+- **Breaking:** Requires `a2ui_core` `^0.8.0`, whose types this library
+  re-exports.
+
 - **Breaking:** (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`, and
   `@checks` on v1.0 components in `ExpressCompiler`, `DirectJsonResponseStream`,
   `MessageReader`, and `RendererState`, while keeping v0.9 component output

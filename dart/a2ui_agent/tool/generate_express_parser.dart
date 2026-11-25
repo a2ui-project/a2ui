@@ -184,13 +184,9 @@ Map<String, String> _readGeneratedDir() {
 /// The language version of this package: the lower bound of its SDK
 /// constraint, such as `3.10` for `>=3.10.0 <4.0.0`.
 String _languageVersion() {
-  final pubspec =
-      loadYaml(
-            File.fromUri(
-              _packageDir.uri.resolve('pubspec.yaml'),
-            ).readAsStringSync(),
-          )
-          as YamlMap;
+  final pubspec = loadYaml(
+    File.fromUri(_packageDir.uri.resolve('pubspec.yaml')).readAsStringSync(),
+  ) as YamlMap;
   final constraint = (pubspec['environment'] as YamlMap)['sdk'] as String;
   final Match match = RegExp(r'(\d+)\.(\d+)').firstMatch(constraint)!;
   return '${match[1]}.${match[2]}';

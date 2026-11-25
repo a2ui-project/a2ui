@@ -1243,7 +1243,7 @@ def get_custom_envelope_properties(
         else None
     )
     if raw_schema is None:
-        val_schema = getattr(catalog, "validation_schema", None)
+        val_schema = _get_readonly_validation_schema(catalog)
         if isinstance(val_schema, Mapping):
             comps = val_schema.get("components")
             if isinstance(comps, Mapping) and isinstance(comps.get(comp_type), Mapping):
@@ -1359,7 +1359,7 @@ def is_component_checkable(catalog: Any, comp_type: str | None) -> bool:
         else None
     )
     if raw_schema is None:
-        val_schema = getattr(catalog, "validation_schema", None)
+        val_schema = _get_readonly_validation_schema(catalog)
         if isinstance(val_schema, Mapping):
             comps = val_schema.get("components")
             if isinstance(comps, Mapping) and isinstance(comps.get(comp_type), Mapping):
@@ -1403,7 +1403,7 @@ def get_declared_component_properties(
         return frozenset(declared)
 
     declared_props: set[str] = set()
-    val_schema = getattr(catalog, "validation_schema", None)
+    val_schema = _get_readonly_validation_schema(catalog)
     if isinstance(val_schema, Mapping):
         comps = val_schema.get("components")
         if isinstance(comps, Mapping) and isinstance(comps.get(comp_type), Mapping):
@@ -2306,9 +2306,13 @@ class Catalog(Generic[TComponent, TFunction]):
         Raises:
             A2uiCatalogError: If the catalog's protocol version is unknown.
         """
+        return copy.deepcopy(self._validation_schema_readonly())
+
+    def _validation_schema_readonly(self) -> dict[str, Any]:
+        """Returns the cached bundled validation schema without copying; do not mutate."""
         cached = getattr(self, "_cached_catalog_schema", None)
-        if cached is not None:
-            return copy.deepcopy(cached)
+        if isinstance(cached, dict):
+            return cached
         cleaned_schema, referenced_dynamics, _, protocol_version = (
             self._assemble_schema()
         )
@@ -2516,7 +2520,7 @@ class Catalog(Generic[TComponent, TFunction]):
                 if fn is not None:
                     _close_function_call(entry, fn.return_type)
             _normalize_function_args_closure(entry)
-        self._cached_catalog_schema = copy.deepcopy(schema)
+        self._cached_catalog_schema = schema
         return schema
 
     def _common_types_defs_for(
@@ -3620,3 +3624,24 @@ validate against signatures but never evaluate a function. A renderer that
 evaluates functions needs a catalog of ``FunctionImplementation`` instances
 instead.
 """
+
+
+def _get_readonly_validation_schema(catalog: Any, default: Any = None) -> Any:
+    """Returns a read-only view of a catalog's bundled validation schema without copying."""
+    if catalog is None:
+        return default
+    if (
+        issubclass(type(catalog), Catalog)
+        and "validation_schema" not in getattr(catalog, "__dict__", ())
+        and not any(
+            "validation_schema" in base.__dict__
+            for base in type(catalog).__mro__
+            if base is not Catalog
+        )
+    ):
+        try:
+            return catalog._validation_schema_readonly()
+        except AttributeError:
+            return default
+    val_schema = getattr(catalog, "validation_schema", None)
+    return default if val_schema is None else val_schema

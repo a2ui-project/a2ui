@@ -146,6 +146,8 @@ Map<String, Object?> _loadAgentToRendererSchema(A2uiProtocolVersion version) {
       return jsonDecode(serverToClientV0_9Json) as Map<String, Object?>;
     case A2uiProtocolVersion.v0_9_1:
       final schema = jsonDecode(serverToClientV0_9Json) as Map<String, Object?>;
+      schema[r'$id'] =
+          'https://a2ui.org/specification/v0_9_1/server_to_client.json';
       final Object? defs = schema[r'$defs'];
       if (defs is Map) {
         for (final Object? defSchema in defs.values) {
@@ -215,9 +217,8 @@ Map<String, Object?> _pruneMessagesSchema(
   final messageDefNames = <String>{
     if (a2rSchema['oneOf'] case final List<Object?> oneOf)
       for (final Object? item in oneOf)
-        if (item case {
-          r'$ref': final String ref,
-        } when ref.startsWith(_defsRefPrefix))
+        if (item case {r'$ref': final String ref}
+            when ref.startsWith(_defsRefPrefix))
           ref.substring(_defsRefPrefix.length),
   };
   final validMessageTypes = <String>{};

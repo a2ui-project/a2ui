@@ -35,9 +35,8 @@ RefFields extractRefFields(
   Schema schema, {
   Map<String, Object?> document = const {},
   Map<String, Object?>? commonTypes,
-}) =>
-    ReferenceSchemaReader(
-      schema.value,
-      document: document,
-      commonTypes: commonTypes,
-    ).fields();
+}) => ReferenceSchemaReader(
+  schema.value,
+  document: document,
+  commonTypes: commonTypes,
+).fields();

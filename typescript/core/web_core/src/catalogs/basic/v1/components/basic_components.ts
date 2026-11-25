@@ -523,15 +523,14 @@ export const SliderApi = {
         'value': DynamicNumberSchema.describe(
           'REF:#/$defs/DynamicNumber|The current value of the slider.',
         ),
-        'steps': spec(
-          z
-            .number()
-            .int()
-            .describe(
-              'The number of discrete divisions in the slider range. If specified, the slider will snap to discrete values.',
-            ),
-          {keywords: {minimum: 1}},
-        ).optional(),
+        'steps': z
+          .number()
+          .int()
+          .min(1)
+          .describe(
+            'The number of discrete divisions in the slider range. If specified, the slider will snap to discrete values.',
+          )
+          .optional(),
         'weight': WeightSchema.optional(),
       })
       .strict(),

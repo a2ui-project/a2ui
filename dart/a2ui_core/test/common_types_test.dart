@@ -31,7 +31,8 @@ void main() {
       expect(
         commonTypesV0_9Json,
         specification,
-        reason: 'lib/src/validation/common_types.g.dart has drifted from the '
+        reason:
+            'lib/src/validation/common_types.g.dart has drifted from the '
             'specification. Run `dart run tool/generate_common_types.dart`.',
       );
     });
@@ -44,7 +45,8 @@ void main() {
       expect(
         commonTypesV1_0Json,
         specification,
-        reason: 'lib/src/validation/common_types.g.dart has drifted from the '
+        reason:
+            'lib/src/validation/common_types.g.dart has drifted from the '
             'specification. Run `dart run tool/generate_common_types.dart`.',
       );
     });
@@ -139,12 +141,11 @@ void main() {
         expect(schema.value, isNotEmpty);
       }
       expect(CommonSchemas.dynamicNumber.validateSync(3), isEmpty);
+      expect(CommonSchemas.dynamicNumber.validateSync({'path': '/n'}), isEmpty);
       expect(
-        CommonSchemas.dynamicNumber.validateSync({'path': '/n'}),
-        isEmpty,
+        CommonSchemas.componentCommon.validateSync(<String, Object?>{}),
+        isNotEmpty,
       );
-      expect(CommonSchemas.componentCommon.validateSync(<String, Object?>{}),
-          isNotEmpty);
     });
 
     test('carries the v1.0 definitions keyed on @path and @call', () {
@@ -239,15 +240,19 @@ void main() {
       final Map<String, Object?> document = PayloadValidator.commonTypesFor(
         A2uiProtocolVersion.v0_9,
       );
-      final specEnum = (((document[r'$defs']! as Map)['FunctionCall']
-          as Map)['properties'] as Map)['returnType'] as Map;
-      final dartEnum = (CommonSchemas.functionCall.value['properties']!
-          as Map)['returnType'] as Map;
+      final specEnum =
+          (((document[r'$defs']! as Map)['FunctionCall'] as Map)['properties']
+                  as Map)['returnType']
+              as Map;
+      final dartEnum =
+          (CommonSchemas.functionCall.value['properties']! as Map)['returnType']
+              as Map;
 
       expect(
         dartEnum['enum'],
         specEnum['enum'],
-        reason: 'CommonSchemas is the v0.9 wire shape; its returnType enum '
+        reason:
+            'CommonSchemas is the v0.9 wire shape; its returnType enum '
             'must stay identical to the v0.9 common_types.json document.',
       );
     });
@@ -257,10 +262,7 @@ void main() {
         A2uiReturnType.fromJson('validationResult'),
         A2uiReturnType.validationResult,
       );
-      expect(
-        A2uiReturnType.validationResult.jsonValue,
-        'validationResult',
-      );
+      expect(A2uiReturnType.validationResult.jsonValue, 'validationResult');
     });
 
     test('the v1.0 wire FunctionCall carries no returnType', () {

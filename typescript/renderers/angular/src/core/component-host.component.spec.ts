@@ -389,6 +389,82 @@ describe('ComponentHostComponent', () => {
 
       expect(runSpy).toHaveBeenCalled();
     });
+
+    it('should render components constructed with the 3-argument ComponentModel overload', () => {
+      surface.componentsModel.removeComponent('root');
+      surface.componentsModel.addComponent(
+        new ComponentModel('root', 'TestType', {text: 'Legacy'}),
+      );
+
+      fixture.detectChanges();
+
+      const childDebugElement = fixture.debugElement.query(By.directive(TestChildComponent));
+      expect(childDebugElement).toBeTruthy();
+      expect((childDebugElement.componentInstance as TestChildComponent).props.text.value()).toBe(
+        'Legacy',
+      );
+    });
+
+    it('should tolerate partial surface and component mocks that omit defaultCatalog and event emitters', () => {
+      const partialSurface = {
+        id: 'partial-surf',
+        catalog,
+        componentsModel: new Map([
+          [
+            'root',
+            {
+              id: 'root',
+              type: 'TestType',
+              properties: {text: 'Partial mock'},
+            },
+          ],
+        ]),
+      };
+      mockSurfaceGroup.getSurface.and.returnValue(partialSurface);
+
+      const testFixture = TestBed.createComponent(ComponentHostComponent);
+      testFixture.componentRef.setInput('componentKey', 'root');
+      testFixture.componentRef.setInput('surfaceId', 'partial-surf');
+      expect(() => testFixture.detectChanges()).not.toThrow();
+
+      const childDebugElement = testFixture.debugElement.query(By.directive(TestChildComponent));
+      expect(childDebugElement).toBeTruthy();
+      expect((childDebugElement.componentInstance as TestChildComponent).props.text.value()).toBe(
+        'Partial mock',
+      );
+      testFixture.destroy();
+    });
+
+    it('should tolerate partial surface mocks with an empty catalog map without throwing', () => {
+      const consoleErrorSpy = spyOn(console, 'error');
+      const partialSurface = {
+        id: 'empty-mock-surf',
+        catalog: {
+          id: 'mock-catalog',
+          components: new Map(),
+        },
+        componentsModel: new Map([
+          [
+            'root',
+            {
+              id: 'root',
+              type: 'MissingType',
+              properties: {},
+            },
+          ],
+        ]),
+      };
+      mockSurfaceGroup.getSurface.and.returnValue(partialSurface);
+
+      const testFixture = TestBed.createComponent(ComponentHostComponent);
+      testFixture.componentRef.setInput('componentKey', 'root');
+      testFixture.componentRef.setInput('surfaceId', 'empty-mock-surf');
+      expect(() => testFixture.detectChanges()).not.toThrow();
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Component type "MissingType" not found in catalog "mock-catalog"',
+      );
+      testFixture.destroy();
+    });
   });
 
   describe('Node resolution', () => {
@@ -573,17 +649,102 @@ describe('ComponentHostComponent', () => {
       expect(fixture.debugElement.query(By.directive(UniversalOnlyComponent))).toBeTruthy();
     });
 
-    it('should render the wrapped Web Component when useUniversalComponents is true', () => {
+    it('should render Angular-backed entries natively at the host when useUniversalComponents is true', () => {
       mockRendererConfig.useUniversalComponents = true;
       const testFixture = TestBed.createComponent(ComponentHostComponent);
       testFixture.componentRef.setInput('componentKey', 'root');
       testFixture.componentRef.setInput('surfaceId', 'surf1');
       testFixture.detectChanges();
 
-      const wcEl = testFixture.nativeElement.querySelector('a2ui-ng-testtype');
-      expect(wcEl).toBeTruthy();
-      expect(customElements.get('a2ui-ng-testtype')).toBeDefined();
+      expect(testFixture.debugElement.query(By.directive(TestChildComponent))).toBeTruthy();
+      expect(testFixture.nativeElement.querySelector('test-child')).toBeTruthy();
+      expect(testFixture.nativeElement.querySelector('a2ui-ng-testtype')).toBeNull();
       testFixture.destroy();
+    });
+
+    it('mounts plain Angular catalog entries via NgComponentOutlet at the host while universal containers render <a2ui-ng-*>', async () => {
+      @Component({
+        selector: 'test-plain-hosted',
+        template: '<span class="plain-hosted">{{ props()?.text?.value() }}</span>',
+      })
+      class PlainHostedComponent extends CatalogComponent<typeof TestTypeApi> {}
+
+      const plainEntry = {
+        name: 'PlainHosted',
+        schema: TestTypeApi.schema,
+        component: PlainHostedComponent,
+      };
+      const mixedCatalog = new AngularCatalog('mixed-catalog', '0.9', [A2uiColumn, plainEntry]);
+
+      @Component({
+        selector: 'test-mixed-host',
+        imports: [SurfaceComponent],
+        providers: [
+          {
+            provide: A2UI_RENDERER_CONFIG,
+            useValue: {catalogs: [mixedCatalog], useUniversalComponents: true},
+          },
+          A2uiRendererService,
+        ],
+        template:
+          '<a2ui-v09-surface class="direct-surface" surfaceId="s-direct" />' +
+          '<a2ui-v09-surface class="nested-surface" surfaceId="s-nested" />',
+      })
+      class TestMixedHostComponent {
+        readonly renderer = inject(A2uiRendererService);
+      }
+
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({imports: [TestMixedHostComponent]});
+
+      const mixedFixture = TestBed.createComponent(TestMixedHostComponent);
+      document.body.appendChild(mixedFixture.nativeElement);
+
+      mixedFixture.componentInstance.renderer.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 's-direct', catalogId: 'mixed-catalog'}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's-direct',
+            components: [{id: 'root', component: 'PlainHosted', text: 'Direct'}],
+          },
+        },
+        {version: 'v0.9', createSurface: {surfaceId: 's-nested', catalogId: 'mixed-catalog'}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's-nested',
+            components: [
+              {id: 'root', component: 'Column', children: ['leaf']},
+              {id: 'leaf', component: 'PlainHosted', text: 'Nested'},
+            ],
+          },
+        },
+      ]);
+
+      flush(mixedFixture);
+      await settle();
+      flush(mixedFixture);
+
+      const directSurface = mixedFixture.nativeElement.querySelector(
+        '.direct-surface',
+      ) as HTMLElement;
+      const nestedSurface = mixedFixture.nativeElement.querySelector(
+        '.nested-surface',
+      ) as HTMLElement;
+
+      expect(mixedFixture.debugElement.query(By.directive(PlainHostedComponent))).toBeTruthy();
+      expect(directSurface.querySelector('a2ui-ng-plainhosted')).toBeNull();
+      expect(directSurface.querySelector('test-plain-hosted .plain-hosted')?.textContent).toBe(
+        'Direct',
+      );
+      expect(
+        nestedSurface.querySelector('a2ui-ng-plainhosted > test-plain-hosted .plain-hosted')
+          ?.textContent,
+      ).toBe('Nested');
+
+      mixedFixture.destroy();
+      mixedFixture.nativeElement.remove();
     });
 
     it('should render the native Angular component when useUniversalComponents is false', () => {

@@ -34,6 +34,9 @@ SCHEMAS = {
     "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
     "catalog.json": TEMP_CATALOG_FILE,
     "client_to_server.json": os.path.join(SCHEMA_DIR, "client_to_server.json"),
+    "client_to_server_list.json": os.path.join(
+        SCHEMA_DIR, "client_to_server_list.json"
+    ),
 }
 
 
@@ -43,7 +46,7 @@ def setup_catalog_alias():
     with the $id modified to match what server_to_client.json expects.
     """
     basic_catalog_path = os.path.abspath(
-        os.path.join(TEST_DIR, "../catalogs/basic/catalog.json")
+        os.path.join(TEST_DIR, "../../../catalogs/basic/v0_9/catalog.json")
     )
     if not os.path.exists(basic_catalog_path):
         print(f"Error: catalog.json not found at {basic_catalog_path}")

@@ -39,7 +39,21 @@ function getChildKey(child: any): string {
 export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApis> {
   /** @nocollapse */
   static readonly tagName = 'a2ui-list';
-  /** @nocollapse */
+  /**
+   * The styles of the list can be customized by redefining the following
+   * CSS variables:
+   *
+   * - `--a2ui-list-padding`: Inline-start padding of the list. Defaults to `--a2ui-spacing-l`.
+   * - `--a2ui-list-gap`: Gap between list items. Defaults to `--a2ui-spacing-s` vertically and `--a2ui-spacing-m` horizontally.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-spacing-s`: Fallback gap between vertical list items.
+   * - `--a2ui-spacing-m`: Fallback gap between horizontal list items.
+   * - `--a2ui-spacing-l`: Fallback inline-start padding of the list.
+   *
+   * @nocollapse
+   */
   static override styles = css`
     .a2ui-list {
       display: flex;

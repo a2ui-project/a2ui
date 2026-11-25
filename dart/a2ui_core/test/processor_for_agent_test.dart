@@ -22,9 +22,8 @@ import 'package:test/test.dart';
 /// over the schema-only catalog it negotiated.
 void main() {
   final document = jsonDecode(
-    File(
-      '../../conformance/test_data/catalogs/simplified_catalog_v1_0.json',
-    ).readAsStringSync(),
+    File('../../conformance/test_data/catalogs/simplified_catalog_v1_0.json')
+        .readAsStringSync(),
   ) as Map<String, Object?>;
   final CatalogApi catalog = Catalog.fromJson(document);
 
@@ -41,21 +40,21 @@ void main() {
   }
 
   Map<String, Object?> createSurface(List<Map<String, Object?>> components) => {
-        'version': '1.0',
-        'createSurface': {
-          'surfaceId': 's',
-          'catalogId': catalog.id,
-          'components': components,
-        },
-      };
+    'version': '1.0',
+    'createSurface': {
+      'surfaceId': 's',
+      'catalogId': catalog.id,
+      'components': components,
+    },
+  };
 
   Map<String, Object?> callRendererFunction(Map<String, Object?> call) => {
-        'version': '1.0',
-        'callRendererFunction': {
-          'functionCallId': 'call_1',
-          'callFunction': {'catalogId': catalog.id, ...call},
-        },
-      };
+    'version': '1.0',
+    'callRendererFunction': {
+      'functionCallId': 'call_1',
+      'callFunction': {'catalogId': catalog.id, ...call},
+    },
+  };
 
   test('holds every function of the catalog as its signature', () {
     final MessageProcessor<ComponentApi> processor = forAgent();
@@ -306,10 +305,10 @@ void main() {
 
     group('checkRendererFunctionCall', () {
       CallRendererFunctionMessage message(Map<String, Object?> json) =>
-          AgentToRendererMessage.parseAll(
-            [json],
-            protocolVersion: A2uiProtocolVersion.v1_0,
-          ).messages.single as CallRendererFunctionMessage;
+          AgentToRendererMessage.parseAll([
+                json,
+              ], protocolVersion: A2uiProtocolVersion.v1_0).messages.single
+              as CallRendererFunctionMessage;
 
       test('accepts a call on a surface the processor does not hold', () {
         forAgent(catalogs: [callable]).checkRendererFunctionCall(
@@ -373,9 +372,21 @@ void main() {
     });
 
     group('with a call nested in the arguments', () {
+      final functions = document['functions']! as Map<String, Object?>;
       final CatalogApi other = Catalog.fromJson({
         ...document,
         'catalogId': 'example/other',
+        'functions': {
+          ...functions,
+          'formatString': {
+            ...functions['formatString']! as Map<String, Object?>,
+            'allowedCallers': 'rendererOrAgent',
+          },
+        },
+      });
+      final CatalogApi otherRendererOnly = Catalog.fromJson({
+        ...document,
+        'catalogId': 'example/other_renderer_only',
       });
 
       Map<String, Object?> nesting(Map<String, Object?> nested) =>
@@ -392,6 +403,27 @@ void main() {
             'args': {'value': 'Hello'},
           }),
         ]);
+      });
+
+      test('rejects one to a function only the renderer may call', () {
+        expect(
+          () =>
+              forAgent(catalogs: [callable, otherRendererOnly])
+                  .processMessages([
+                    nesting({
+                      '@call': 'formatString',
+                      'catalogId': otherRendererOnly.id,
+                      'args': {'value': 'Hello'},
+                    }),
+                  ]),
+          throwsA(
+            isA<A2uiValidationError>().having(
+              (e) => e.message,
+              'message',
+              contains('rendererOnly'),
+            ),
+          ),
+        );
       });
 
       test('checks it against the catalog it names', () {
@@ -436,7 +468,7 @@ void main() {
                   'type': 'object',
                   'properties': {
                     'value': {
-                      r'$ref': r'common_types.json#/$defs/DynamicString'
+                      r'$ref': r'common_types.json#/$defs/DynamicString',
                     },
                   },
                   'required': ['value'],
@@ -456,16 +488,16 @@ void main() {
           },
         });
         Map<String, Object?> shoutingNested(Map<String, Object?> nested) => {
-              'version': '1.0',
-              'callRendererFunction': {
-                'functionCallId': 'call_1',
-                'callFunction': {
-                  'catalogId': shouting.id,
-                  '@call': 'shout',
-                  'args': {'value': nested},
-                },
-              },
-            };
+          'version': '1.0',
+          'callRendererFunction': {
+            'functionCallId': 'call_1',
+            'callFunction': {
+              'catalogId': shouting.id,
+              '@call': 'shout',
+              'args': {'value': nested},
+            },
+          },
+        };
         final MessageProcessor<ComponentApi> processor = forAgent(
           catalogs: [callable, shouting],
         );

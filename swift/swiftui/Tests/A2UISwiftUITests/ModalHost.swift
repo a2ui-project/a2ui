@@ -17,6 +17,7 @@
   import A2UISwiftUI
   import AppKit
   import BasicCatalogSwiftUI
+  import JSONSchema
   import SwiftUI
   import Testing
 
@@ -47,19 +48,31 @@
     }
 
     private init(trigger: Node, content: Node) throws {
-      let catalog = BasicCatalogImplementation.makeCatalog(version: .v091)
+      let baseCatalog = BasicCatalogImplementation.makeCatalog(version: .v091)
       let modal = Node(
         id: "modal",
         type: "Modal",
-        catalogID: catalog.id,
+        catalogID: baseCatalog.id,
         properties: ["trigger": trigger, "content": content]
       )
-      let rendered = try #require(Surface.render(node: modal, using: [catalog.id: catalog]))
+      let hostSchema = try Schema(instance: #"{"type": "object"}"#)
+      let hostComponent = ComponentImplementation(name: "ModalHostRoot", schema: hostSchema) { _ in
+        ComponentNodeView(node: modal)
+      }
+      let catalog = Catalog(
+        id: baseCatalog.id,
+        protocolVersion: .v091,
+        components: Array(baseCatalog.components.values) + [hostComponent],
+        functions: Array(baseCatalog.functions.values),
+        themeSchema: baseCatalog.themeSchema
+      )
+      let viewModel = SurfaceViewModel(surfaceID: "modal-host", catalog: catalog)
+      viewModel.componentsModel.addComponent(
+        ComponentModel(id: "root", type: "ModalHostRoot", properties: [:])
+      )
       let rootView =
-        rendered
+        Surface(viewModel: viewModel, catalog: catalog)
         .frame(width: 320, height: 240)
-        .environment(\.a2uiCatalogs, [catalog.id: catalog])
-        .environment(\.a2uiDefaultCatalogID, catalog.id)
 
       hostingView = NSHostingView(rootView: rootView)
       window = NSWindow(

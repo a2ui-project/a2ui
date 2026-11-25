@@ -361,7 +361,7 @@ When building libraries that provide the Basic Catalog, it is **crucial** to sep
 - **Multi-Framework Code Reuse**: In ecosystems like the Web, this allows a shared `web_core` library to define the Basic Catalog API and Binders once, while separate packages (`react_renderer`, `angular_renderer`) provide the native view implementations.
 - **Developer Overrides**: By exposing the standard API definitions, developers adopting A2UI can easily swap in custom UI implementations (e.g., replacing the default `Button` with their company's internal Design System `Button`) without having to rewrite the complex A2UI validation, data binding, and capability generation logic.
 
-For a detailed walkthrough on how to visually and functionally implement each basic component and function, refer to the [Basic Catalog Implementation Guide](../../specification/v0_9_1/docs/basic_catalog_implementation_guide.md).
+For a detailed walkthrough on how to visually and functionally implement each basic component and function, refer to the [Basic Catalog Implementation Guide](../../catalogs/basic/v0_9_1/basic_catalog_implementation_guide.md).
 
 ##### Strongly-Typed Catalog Implementations
 
@@ -535,6 +535,14 @@ class MessageProcessor<T extends ComponentApi> {
     actionHandler?: ActionListener,
     options?: MessageProcessorOptions,
   );
+
+  /**
+   * Adds a catalog after construction. Surfaces created afterwards can use
+   * it, callRendererFunction resolves it, and getRendererCapabilities lists
+   * it. Surfaces created before the call keep the catalogs they were created
+   * with. Throws A2uiCatalogError for an id the processor already holds.
+   */
+  addCatalog(catalog: Catalog<T>): void;
 
   // Synchronous and asynchronous message processing
   processMessages(messages: AgentToRendererMessagePayload, context?: ExecutionContext): void;
@@ -1001,8 +1009,20 @@ The matrix below details the specific validation checks, their responsible compo
 | **Graph Topology**       | Unreachable / orphan component detection                                                             | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`                       |
 | **Graph Topology**       | Composition constraints (`allowedParents` / `allowedChildren`)                                       | `SurfaceComponentsModel.validateComponentsUpdate()`                       | `A2uiValidationError`                      |
 | **State Invariant**      | Duplicate component ID against the live surface (mutation guard, not a validation pass)              | `SurfaceComponentsModel.addComponent()`                                   | `A2uiStateError`                           |
-| **Depth & Syntax**       | Global recursion depth limit (>50) & function nesting (>5)                                           | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiRecursionError`                       |
+| **Graph Topology**       | Component graph logical depth limit (>50)                                                            | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiRecursionError`                       |
+| **Depth & Syntax**       | Per-message JSON nesting depth limit (>50, depth 0 per message), which also bounds call nesting      | `MessageProcessor.processMessages()` (`validateRecursionAndPaths()`)      | `A2uiRecursionError`                       |
 | **Depth & Syntax**       | JSON Pointer path syntax validation                                                                  | `MessageProcessor.processMessages()`                                      | `A2uiValidationError`                      |
+
+##### Per-Message Depth, Wrapper Bounds & `ValidationConfig` Gating
+
+Implementations MUST start each individual message's `validateRecursionAndPaths()` traversal at depth `0`, and MUST bound the containers around messages by `MAX_GLOBAL_DEPTH` (`50`): a nested batch array (`[...]`) adds 1 level, and a `{"messages": [...]}` envelope adds 2 (the wrapper object and its `messages` array). Wrapper nesting depth MUST be enforced unconditionally.
+
+Sibling keys beside `messages` on a `{"messages": [...]}` wrapper carry no operations and MUST be ignored when extracting them. Implementations MUST still check those keys with `validateRecursionAndPaths()`, for depth and for `path`/`@path` syntax, by passing the wrapper object without its `messages` key and starting at the wrapper's depth.
+
+Whether the per-message and wrapper sibling-key `validateRecursionAndPaths()` checks are gated on an active `ValidationConfig` on `MessageProcessor` (as in TypeScript and Dart) or run unconditionally in version adapters during envelope extraction (as in Python and Swift) is implementation-defined.
+
+> [!NOTE]
+> **Current SDK Deviations**: Dart `MessageProcessor` and Swift `BaseVersionAdapter` unwrap one container level, check depth after envelope parsing, and leave wrapper sibling keys unchecked. Python `VersionAdapterFactory.resolve_from_payload` reads the version through one container level, so `MessageProcessor` rejects a payload that nests containers deeper before `BaseVersionAdapter` unwraps it. TypeScript `BaseVersionAdapter.extractOperations` unwraps nested containers without a depth bound or sibling-key check of its own; `MessageProcessor` applies both before calling it.
 
 ---
 

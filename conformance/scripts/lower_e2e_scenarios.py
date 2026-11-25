@@ -43,7 +43,7 @@ import lower_adapter_suite  # type: ignore[import-not-found]  # pylint: disable=
 REPO_ROOT = SCRIPT_DIR.parent.parent
 E2E_DIR = REPO_ROOT / "conformance" / "e2e"
 OUTPUT_DIR = E2E_DIR / "v0_9_1"
-V091_CATALOG_REL = "specification/v0_9_1/catalogs/basic/catalog.json"
+V091_CATALOG_REL = "catalogs/basic/v0_9_1/catalog.json"
 V091_CATALOG_PATH = REPO_ROOT / V091_CATALOG_REL
 
 _A2UI_JSON_BLOCK_RE = re.compile(

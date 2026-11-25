@@ -11,7 +11,7 @@ Every agent authoring or editing pages under `docs/site/` must follow these glob
 
 1. **Mandatory Skills & Version Focus (`v1.0` Primary + `v0.9` / `v0.9.1` Parity)**:
     - Load and follow [`.agents/skills/public-documentation/SKILL.md`](../../.agents/skills/public-documentation/SKILL.md) for `v1.0` (primary) + `v0.9.1` (`syncKey="protocol-version"`) tabbing, concrete `v0.9` / `v0.9.1` samples alongside `v1.0` samples, multi-SDK tab ordering (`TypeScript` | `Python` | `Dart` | `Swift` | `Kotlin` with `syncKey="sdk-lang"`), multi-renderer tab ordering (`Flutter` | `Web` | `SwiftUI` | `Jetpack Compose`), single-source `--8<--` spec includes, and the hybrid diagram pattern (themed Mermaid for sequence/lifecycle flows; Astro/Tailwind components for structural/taxonomy visuals).
-    - **Protocol Version Strings & Metadata Keys**: In `v1.0`, wire payloads use `"version": "1.0"` (no `"v"` prefix) and transport metadata keys `a2uiRendererCapabilities` / `a2uiRendererDataModel` nested under `"1.0"`. In `v0.9.1` (`specification/v0_9_1/`), wire payloads accept `"version": "v0.9"` or `"v0.9.1"` (standard examples, `$id` URIs, and basic `catalogId` paths use `v0.9` / `v0_9`) and transport metadata keys `a2uiClientCapabilities` / `a2uiClientDataModel` nested under `"v0.9"`.
+    - **Protocol Version Strings & Metadata Keys**: In `v1.0`, wire payloads use `"version": "1.0"` (no `"v"` prefix) and transport metadata keys `a2uiRendererCapabilities` / `a2uiRendererDataModel` nested under `"1.0"`. In `v0.9.1` (`specification/v0_9_1/`), wire payloads accept `"version": "v0.9"` or `"v0.9.1"` (standard examples and basic `catalogId` paths use `v0.9` / `v0_9`; each v0.9.1 schema declares its own `$id` under `https://a2ui.org/specification/v0_9_1/`, except `common_types.json`, which v0.9.1 shares unchanged with v0.9 and which keeps its `v0_9` `$id`) and transport metadata keys `a2uiClientCapabilities` / `a2uiClientDataModel` nested under `"v0.9"`.
     - Load and follow [`.agents/skills/natural-writing/SKILL.md`](../../.agents/skills/natural-writing/SKILL.md) for direct, neutral technical prose free of promotional buzzwords and AI-isms.
 2. **Derive Code & Payloads from Live Sources of Truth**:
     - Never invent API signatures, package names, CLI commands, or JSON properties from memory, and match each language's actual casing/exports (e.g., camelCase in TypeScript/Dart/Swift/Kotlin vs. snake_case in Python). Inspect live schemas under [`specification/`](../../specification/) and [`catalogs/`](../../catalogs/), [`Package.swift`](../../Package.swift), SDK manifests and public exports under [`python/`](../../python/), [`typescript/`](../../typescript/), [`dart/`](../../dart/), and [`swift/`](../../swift/), the AndroidX repository (`https://android.googlesource.com/platform/frameworks/support` branch `androidx-main`, paths `a2ui` and `compose/material3/material3-a2ui`) for Kotlin and Jetpack Compose, runnable apps under [`samples/`](../../samples/), conformance suites under [`conformance/`](../../conformance/), and evaluation harnesses under [`eval/`](../../eval/).
@@ -179,7 +179,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### Data Model and Data Binding (`/concepts/data-binding/`) [P0]
 
-- **Sources**: [`specification/v1_0/json/common_types.json`](../../specification/v1_0/json/common_types.json), [`specification/v0_9_1/json/common_types.json`](../../specification/v0_9_1/json/common_types.json), [`catalogs/basic/v1/examples/`](../../catalogs/basic/v1/examples/), and [`specification/v0_9_1/catalogs/basic/examples/`](../../specification/v0_9_1/catalogs/basic/examples/).
+- **Sources**: [`specification/v1_0/json/common_types.json`](../../specification/v1_0/json/common_types.json), [`specification/v0_9_1/json/common_types.json`](../../specification/v0_9_1/json/common_types.json), [`catalogs/basic/v1/examples/`](../../catalogs/basic/v1/examples/), and [`catalogs/basic/v0_9_1/examples/`](../../catalogs/basic/v0_9_1/examples/).
 - **Content Outline**:
     1. **What is the Data Model?**: Per-surface reactive JSON state scoped to `surfaceId`, updated independently of the UI tree via `updateDataModel` JSON Pointers.
     2. **Populating the Data Model**: Contrast deterministic backend/tool data injection with LLM-generated initial `dataModel` or `updateDataModel` messages.
@@ -304,7 +304,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### How to Define a Catalog (`/guides/defining-a-catalog/`) [P1]
 
-- **Sources**: `/specification/v1.0/schemas/#catalog_definition.json`, [`catalogs/basic/v1/catalog.json`](../../catalogs/basic/v1/catalog.json), and [`specification/v0_9_1/catalogs/basic/catalog.json`](../../specification/v0_9_1/catalogs/basic/catalog.json).
+- **Sources**: `/specification/v1.0/schemas/#catalog_definition.json`, [`catalogs/basic/v1/catalog.json`](../../catalogs/basic/v1/catalog.json), and [`catalogs/basic/v0_9_1/catalog.json`](../../catalogs/basic/v0_9_1/catalog.json).
 - **Content Outline**:
     1. **When You Need a Standalone `catalog.json`**: Sharing a language-agnostic contract across separate agent and client runtimes.
     2. **Catalog Schema Anatomy (`v1.0` vs. `v0.9.1` Tabs)**: Envelope metadata (`$schema`, `$id`, `catalogId` URI, `title`, `description`, plus v1.0-only `protocolVersion`, `metadata`, and `instructions`), top-level `components` and `functions` maps (direct component properties + `allowedParents`/`allowedChildren` + `Checkable` `checks` support and function `returnType`/`allowedCallers`/`requiresUserActivation` in v1.0 vs. `allOf` `ComponentCommon` wrappers in v0.9.1), and `$defs` (`anyComponent`, `anyFunction`).
@@ -436,7 +436,7 @@ Single-source specification markdown files directly from `specification/` and `c
     - `v0.9.1 JSON Schemas Explorer`: `/specification/v0.9.1/schemas/`
     - `v0.9.1 A2A Extension`: [`specification/v0_9_1/docs/a2ui_extension_specification.md`](../../specification/v0_9_1/docs/a2ui_extension_specification.md)
     - `v0.9.1 Evolution Guide`: [`specification/v0_9_1/docs/evolution_guide.md`](../../specification/v0_9_1/docs/evolution_guide.md)
-    - `v0.9.1 Basic Catalog Guide`: [`specification/v0_9_1/docs/basic_catalog_implementation_guide.md`](../../specification/v0_9_1/docs/basic_catalog_implementation_guide.md)
+    - `v0.9.1 Basic Catalog Guide`: [`catalogs/basic/v0_9_1/basic_catalog_implementation_guide.md`](../../catalogs/basic/v0_9_1/basic_catalog_implementation_guide.md)
 
 ---
 
@@ -461,9 +461,9 @@ Each version's **JSON Schemas Explorer** (`/specification/<ver>/schemas/`, imple
         - _Data Model_: `client_data_model.json`
         - _Capabilities_: `server_capabilities.json`, `client_capabilities.json`
         - _Batching & Wrappers_: `server_to_client_list.json`, `client_to_server_list.json`, `server_to_client_list_wrapper.json`, `client_to_server_list_wrapper.json`
-        - _Basic Catalog Schema_: Rendered at the end of the [`v0.9.1` Basic Catalog Guide](src/content/docs/specification/v0.9.1-basic-catalog-implementation-guide.mdx) (`/specification/v0.9.1-basic-catalog-implementation-guide/#basic_catalog.json`, sourced from [`specification/v0_9_1/catalogs/basic/catalog.json`](../../specification/v0_9_1/catalogs/basic/catalog.json)).
+        - _Basic Catalog Schema_: Rendered at the end of the [`v0.9.1` Basic Catalog Guide](src/content/docs/specification/v0.9.1-basic-catalog-implementation-guide.mdx) (`/specification/v0.9.1-basic-catalog-implementation-guide/#basic_catalog.json`, sourced from [`catalogs/basic/v0_9_1/catalog.json`](../../catalogs/basic/v0_9_1/catalog.json)).
 2. **Utility Bar per Schema**:
-    - Displays the canonical `$id` URI with a 1-click **Copy `$id`** button when `$id` is present (omitted on schemas without `$id`, such as v0.9.1 `client_to_server.json`), a **Raw JSON** link pointing to the exact versioned static file staged in `public/specification/<version_dir>/` by [`prepare-spec-assets.mjs`](scripts/prepare-spec-assets.mjs), and a **Jump to Definition / Copy Permalink** dropdown.
+    - Displays the canonical `$id` URI with a 1-click **Copy `$id`** button when `$id` is present (omitted when a schema has no `$id`), a **Raw JSON** link pointing to the exact versioned static file staged in `public/specification/<version_dir>/` by [`prepare-spec-assets.mjs`](scripts/prepare-spec-assets.mjs), and a **Jump to Definition / Copy Permalink** dropdown.
 3. **Permalink Contract Implementation**:
     - **Build-Time Pointer-to-Line Index**: At Astro build time, `<SchemaExplorer />` reads each canonical JSON file directly from disk (zero duplication) and parses a JSON AST to emit a `{ "<json-pointer>": [startLine, endLine] }` map indexing top-level keys plus `$defs/*`, `components/*`, `functions/*`, and `properties/*` alongside the Expressive Code block.
     - **Client-Side Fragment Resolution**: On `DOMContentLoaded` and `hashchange`, a client script parses `location.hash` (`#<schema-file>` or `#<schema-file>/<json-pointer>`), activates the matching schema panel, highlights lines `startLine..endLine` in Expressive Code, and scrolls the definition into view.

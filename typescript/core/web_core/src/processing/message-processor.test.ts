@@ -32,7 +32,12 @@ import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_c
 import {BasicCatalogThemeSchema} from '../universal/basic_catalog/theme.js';
 import {BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components.js';
 import {BASIC_FUNCTIONS} from '../catalogs/basic/v1/functions/basic_functions.js';
-import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
+import {
+  A2uiCatalogError,
+  A2uiIntegrityError,
+  A2uiRecursionError,
+  A2uiValidationError,
+} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
 import {NodeResolver} from '../resolution/node-resolver.js';
 import {ResolvedBinding} from '../resolution/resolved-binding.js';
@@ -712,6 +717,92 @@ describe('MessageProcessor', () => {
 
       assert.strictEqual(responses.length, 1);
       assert.strictEqual(responses[0].rendererFunctionResponse.value, 'Hi Alice');
+    });
+  });
+
+  describe('addCatalog', () => {
+    it('resolves a later createSurface naming the added catalog', () => {
+      const createSurface = {
+        version: 'v0.9' as const,
+        createSurface: {surfaceId: 's1', catalogId: 'late-catalog'},
+      };
+      assert.throws(() => processor.processMessages([createSurface]), A2uiCatalogError);
+
+      processor.addCatalog(new Catalog('late-catalog', '0.9', []));
+      processor.processMessages([createSurface]);
+
+      assert.strictEqual(processor.getSurface('s1')?.defaultCatalog?.id, 'late-catalog');
+    });
+
+    it('rejects a catalog whose id the processor already holds', () => {
+      assert.throws(
+        () => processor.addCatalog(new Catalog('test-catalog', '0.9', [])),
+        A2uiCatalogError,
+      );
+    });
+
+    it('lists the added catalog in the renderer capabilities', () => {
+      processor.addCatalog(new Catalog('late-catalog', '0.9', []));
+
+      const caps = processor.getRendererCapabilities({versions: ['v0.9']});
+
+      assert.deepStrictEqual((caps['v0.9'] as any).supportedCatalogIds, [
+        'test-catalog',
+        'late-catalog',
+      ]);
+    });
+
+    it('resolves callRendererFunction against the added catalog', async () => {
+      const processor = new MessageProcessor([new Catalog('cat-basic', '1.0', [])]);
+      processor.addCatalog(
+        new Catalog(
+          'cat-fn',
+          '1.0',
+          [],
+          [
+            {
+              name: 'computeGreeting',
+              returnType: 'string',
+              allowedCallers: 'rendererOrAgent',
+              schema: z.object({user: z.string()}),
+              execute: args => `Hi ${args.user}`,
+            },
+          ],
+        ),
+      );
+
+      const responses = await processor.processMessagesAsync({
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-1',
+          callFunction: {'@call': 'computeGreeting', catalogId: 'cat-fn', args: {user: 'Alice'}},
+        },
+      });
+
+      assert.strictEqual(responses.length, 1);
+      assert.strictEqual(responses[0].rendererFunctionResponse.value, 'Hi Alice');
+    });
+
+    it('reports an added catalog a surface created before it does not have as not found', () => {
+      const processor = new MessageProcessor([new Catalog('cat-basic', '1.0', [])]);
+      processor.processMessages([
+        {version: '1.0', createSurface: {surfaceId: 's1', catalogId: 'cat-basic'}},
+      ]);
+      processor.addCatalog(new Catalog('cat-late', '1.0', []));
+
+      assert.throws(
+        () =>
+          processor.processMessages([
+            {
+              version: '1.0',
+              updateComponents: {
+                surfaceId: 's1',
+                components: [{id: 'root', component: 'Text', catalogId: 'cat-late'}],
+              },
+            },
+          ]),
+        {name: 'A2uiCatalogError', message: 'Catalog not found: cat-late'},
+      );
     });
   });
 
@@ -3307,6 +3398,172 @@ describe('MessageProcessor component envelope mixins', () => {
       assert.strictEqual(label instanceof ResolvedBinding ? label.value : label, 'Email address');
       resolver?.dispose();
       proc.dispose();
+    });
+
+    it('starts per-message recursion depth at 0 across standalone, array, and {messages} envelopes', () => {
+      const catId = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
+      const cat = new Catalog(catId, '1.0', BASIC_COMPONENTS, BASIC_FUNCTIONS);
+      const buildUpdate = (calls: number) => {
+        let value: unknown = 'leaf';
+        for (let i = 0; i < calls; i++) {
+          value = {'@call': 'formatString', 'args': {value}};
+        }
+        return {
+          version: '1.0',
+          updateComponents: {
+            surfaceId: 's',
+            components: [{id: 'root', component: 'Text', text: value}],
+          },
+        };
+      };
+
+      const createMsg = {version: '1.0', createSurface: {surfaceId: 's', catalogId: catId}};
+      const atLimit = buildUpdate(23);
+      const pastLimit = buildUpdate(24);
+      const strictConfig = STRICT_VALIDATION;
+
+      // Standalone message, array batch, and `{messages: [...]}` wrapper all accept exact depth 50 (23 calls).
+      for (const makeBatch of [
+        () => [createMsg, atLimit],
+        () => ({messages: [createMsg, atLimit]}),
+      ]) {
+        const proc = new MessageProcessor<ComponentApi>([cat], undefined, {
+          validationConfig: strictConfig,
+        });
+        assert.doesNotThrow(() => proc.processMessages(makeBatch() as never));
+        proc.dispose();
+      }
+
+      const standaloneProc = new MessageProcessor<ComponentApi>([cat], undefined, {
+        validationConfig: strictConfig,
+      });
+      standaloneProc.processMessages(createMsg as never);
+      assert.doesNotThrow(() => standaloneProc.processMessages(atLimit as never));
+
+      // 24 nested calls exceed depth 50 in every envelope shape.
+      for (const failing of [pastLimit, [pastLimit], {messages: [pastLimit]}]) {
+        assert.throws(
+          () => standaloneProc.processMessages(failing as never),
+          (err: unknown) =>
+            err instanceof A2uiRecursionError &&
+            err.message.includes('Global recursion limit exceeded'),
+        );
+      }
+
+      // Keys beside `messages` on a wrapper carry no operations: its messages apply.
+      for (const validationConfig of [strictConfig, undefined]) {
+        const proc = new MessageProcessor<ComponentApi>([cat], undefined, {validationConfig});
+        proc.processMessages({version: '1.0', messages: [createMsg, atLimit]} as never);
+        assert.ok(proc.model.getSurface('s')?.componentsModel.get('root'));
+        assert.doesNotThrow(() =>
+          proc.processMessages({
+            messages: [atLimit],
+            updateComponents: {surfaceId: 'other', components: []},
+          } as never),
+        );
+        assert.strictEqual(proc.model.getSurface('other'), undefined);
+        proc.dispose();
+      }
+
+      // A value beside `messages` counts its depth from the wrapper that holds it. Ten arrays put
+      // the wrapper at depth 10, so 40 arrays nested beside `messages` end at depth 50, and 41 at 51.
+      const nestedArrays = (count: number) => {
+        let value: unknown = [];
+        for (let i = 1; i < count; i++) {
+          value = [value];
+        }
+        return value;
+      };
+      const wrapperAtDepth10 = (extra: unknown) => {
+        let payload: unknown = {messages: [atLimit], extra};
+        for (let i = 0; i < 10; i++) {
+          payload = [payload];
+        }
+        return payload;
+      };
+      const badPath = {messages: [atLimit], meta: {path: '/invalid/escape/~2'}};
+      const defaultProc = new MessageProcessor<ComponentApi>([cat]);
+      defaultProc.processMessages(createMsg as never);
+
+      assert.doesNotThrow(() =>
+        standaloneProc.processMessages(wrapperAtDepth10(nestedArrays(40)) as never),
+      );
+      assert.throws(
+        () => standaloneProc.processMessages(wrapperAtDepth10(nestedArrays(41)) as never),
+        (err: unknown) =>
+          err instanceof A2uiRecursionError &&
+          err.message.includes('Global recursion limit exceeded'),
+      );
+      assert.throws(
+        () => standaloneProc.processMessages(badPath as never),
+        (err: unknown) =>
+          err instanceof A2uiValidationError && err.message.includes('Invalid path syntax'),
+      );
+      // `JSON.parse` makes `__proto__` an own key, and its value is checked like any other.
+      const protoKeyWrapper = (extra: unknown) =>
+        JSON.parse(`{"messages": [], "__proto__": ${JSON.stringify(extra)}}`) as never;
+      assert.throws(
+        () => standaloneProc.processMessages(protoKeyWrapper({path: '/invalid/escape/~2'})),
+        (err: unknown) =>
+          err instanceof A2uiValidationError && err.message.includes('Invalid path syntax'),
+      );
+      assert.throws(
+        () => standaloneProc.processMessages(protoKeyWrapper(nestedArrays(51))),
+        (err: unknown) =>
+          err instanceof A2uiRecursionError &&
+          err.message.includes('Global recursion limit exceeded'),
+      );
+      // Without a validationConfig the keys are ignored unchecked, as messages are.
+      assert.doesNotThrow(() =>
+        defaultProc.processMessages(wrapperAtDepth10(nestedArrays(41)) as never),
+      );
+      assert.doesNotThrow(() => defaultProc.processMessages(badPath as never));
+
+      // Exact wrapper depth boundaries apply both with strictConfig and without validationConfig:
+      // 50 nested arrays pass, 51 fail; 25 `{messages}` wrappers pass, 26 fail (including empty `[]` leaves).
+      let nestedArrays50: unknown = atLimit;
+      for (let i = 0; i < 50; i++) {
+        nestedArrays50 = [nestedArrays50];
+      }
+      const nestedArrays51: unknown = [nestedArrays50];
+
+      let wrapped25: unknown = atLimit;
+      for (let i = 0; i < 25; i++) {
+        wrapped25 = {messages: [wrapped25]};
+      }
+      const wrapped26: unknown = {messages: [wrapped25]};
+
+      let emptyWrapped25: unknown = {messages: []};
+      for (let i = 0; i < 24; i++) {
+        emptyWrapped25 = {messages: [emptyWrapped25]};
+      }
+      const emptyWrapped26: unknown = {messages: [emptyWrapped25]};
+
+      for (const proc of [standaloneProc, defaultProc]) {
+        assert.doesNotThrow(() => proc.processMessages(nestedArrays50 as never));
+        assert.doesNotThrow(() => proc.processMessages(wrapped25 as never));
+        assert.doesNotThrow(() => proc.processMessages(emptyWrapped25 as never));
+
+        for (const overLimit of [nestedArrays51, wrapped26, emptyWrapped26]) {
+          assert.throws(
+            () => proc.processMessages(overLimit as never),
+            (err: unknown) =>
+              err instanceof A2uiRecursionError &&
+              err.message.includes('Global recursion limit exceeded'),
+          );
+        }
+
+        // `processMessagesWithErrors` counts wrapper depth as `processMessages` does.
+        assert.deepStrictEqual(proc.processMessagesWithErrors(nestedArrays50), []);
+        for (const overLimit of [nestedArrays51, wrapped26, emptyWrapped26]) {
+          assert.deepStrictEqual(
+            proc.processMessagesWithErrors(overLimit).map(e => e.error.code),
+            ['RECURSION_LIMIT_EXCEEDED'],
+          );
+        }
+      }
+      defaultProc.dispose();
+      standaloneProc.dispose();
     });
   });
 });
