@@ -328,6 +328,7 @@ The Flutter renderer throws an exception when a `Row` has an empty `children` li
 This issue has no priority label.
 
 **Suggestion:**
+
 - P1: any agent that streams an empty `Row` crashes the surface, and there is no workaround.
 - `flutter-owner` wrote the [most recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`.
 - [#1234](https://github.com/a2ui-project/a2ui/issues/1234) reports the same crash for `Column` and probably has the same cause.
@@ -395,6 +396,7 @@ The issue asks for a `Slider` component in the basic catalog.
 This issue has no priority label.
 
 **Suggestion:**
+
 - [#1100](https://github.com/a2ui-project/a2ui/issues/1100) asks for the same component and already has P2.
 - This issue adds no new use case.
 
