@@ -12882,9 +12882,9 @@ This message is sent by the agent to execute a function registered on the render
 Execution boundary verification (`"rendererOnly"`, `"agentOnly"`, or `"rendererOrAgent"`) and user activation checks (`requiresUserActivation`) are enforced at runtime by the renderer application:
 
 - When a renderer receives a `callRendererFunction` message, it determines the function's execution boundary (`allowedCallers`) and activation policy (`requiresUserActivation`) at runtime from the active catalog definition.
-- If the requested function is configured in the catalog as `"rendererOnly"`, requires an active user gesture (`requiresUserActivation: true`) when none is present, fails argument schema validation, or is not registered at all, the renderer MUST immediately reject the call and return a `rendererFunctionResponse` message containing an `error` object with `code: "INVALID_FUNCTION_CALL"`.
+- If the requested function is configured in the catalog as `"rendererOnly"`, requires an active user gesture (`requiresUserActivation: true`) when none is present, fails argument schema validation, or is not registered at all, the renderer MUST immediately reject the call and return a `rendererFunctionResponse` message containing an `error` object with `code: "INVALID_FUNCTION_CALL"`. The renderer MUST also reject the call with `code: "INVALID_FUNCTION_CALL"` if any nested `@call` or `${...}` template function evaluated while resolving `callFunction.args` or executing the requested function is configured as `"rendererOnly"` or requires an active user gesture (`requiresUserActivation: true`) when none is present. Static `@call` objects nested in `callFunction.args` MUST be checked before any argument expression executes (failing closed with `code: "EXECUTION_ERROR"` if argument nesting exceeds the renderer's maximum evaluation depth), whereas `${...}` template expressions and values read via `@path` check these boundaries when evaluated.
 - Note that `catalog_definition.json` requires functions declaring `requiresUserActivation: true` (such as `openUrl`) to set `allowedCallers: "rendererOnly"`, preventing agent-initiated remote invocation. Within the renderer, functions with `requiresUserActivation: true` MUST only execute when triggered by an active user gesture (such as a component `Action`). If referenced in a passive property binding or `CheckRule.condition`, the renderer MUST block execution and report a local evaluation error (`code: "EXPRESSION_ERROR"`).
-- Functions marked as `"agentOnly"` or `"rendererOrAgent"` are authorized for agent invocation via `callRendererFunction`. Functions configured as `"agentOnly"` CANNOT be bound to UI component properties or executed by renderer UI actions; they are restricted exclusively to agent-initiated `callRendererFunction` execution.
+- Functions marked as `"agentOnly"` or `"rendererOrAgent"` are authorized for agent invocation via `callRendererFunction` (as the outer `callFunction` target, as nested `@call` objects inside `callFunction.args`, and in `${...}` template expressions evaluated during the request). Functions configured as `"agentOnly"` CANNOT be bound to UI component properties or executed by renderer UI actions; they are restricted exclusively to agent-initiated `callRendererFunction` execution.
 
 **Example:**
 
@@ -14862,8 +14862,7 @@ Our goal is for your agent to know when and how to use each component.
 
 1. Official Agent SDK support for decision models, such as [Jev](https://docs.typesafe.ai/) from TypeSafe, as an inference format. A decision model answers typed questions about layouts you define in advance instead of generating the component tree token by token, which makes layout decisions up to 80x faster. [Fast, reliable A2UI](https://developers.googleblog.com/fast-reliable-a2ui/) describes the approach, and [jev2ui](https://github.com/dglazkov/jev2ui) is an open-source example that builds A2UI screens from Jev decisions (try it hosted as [Apparite](https://apparite.cnfg.ai/)).
 2. Clearer error handling and diagnostics in the skill generator when a catalog or inference format cannot be compiled.
-3. Skill generation in the Dart Agent SDK, which does not support it yet.
-4. Integrations with more agent frameworks.
+3. Integrations with more agent frameworks.
 
 ## Evaluate gen-UI quality
 
@@ -15060,7 +15059,7 @@ To report security vulnerabilities, do not open a public issue. Follow the instr
 Canonical URL: https://a2ui.org/specification/v0.9.1-a2ui/
 
 > [!NOTE] Supersedes v0.9
-> **A2UI v0.9.1** supersedes `v0.9` with minor schema and patch refinements while retaining `v0.9` / `v0_9` in wire `"version"` examples and `$id` URIs for compatibility. See the [v0.9.1 Evolution Guide](/specification/v0.9.1-a2ui/v0.9.1-evolution-guide.md), [v0.9.1 JSON Schemas](/specification/v0.9.1-a2ui/v0.9.1-schemas.mdx), and [v1.0 Protocol Specification](/specification/v0.9.1-a2ui/v1.0-a2ui.md). New projects should target v1.0, the current version.
+> **A2UI v0.9.1** supersedes `v0.9` with minor schema and patch refinements while retaining `v0.9` / `v0_9` in wire `"version"` examples for compatibility. Each v0.9.1 schema declares its own `$id` under `https://a2ui.org/specification/v0_9_1/`, except `common_types.json`, which v0.9.1 shares unchanged with v0.9 and which keeps its `v0_9` `$id`. See the [v0.9.1 Evolution Guide](/specification/v0.9.1-a2ui/v0.9.1-evolution-guide.md), [v0.9.1 JSON Schemas](/specification/v0.9.1-a2ui/v0.9.1-schemas.mdx), and [v1.0 Protocol Specification](/specification/v0.9.1-a2ui/v1.0-a2ui.md). New projects should target v1.0, the current version.
 
 A Specification for a JSON-Based, Streaming UI Protocol.
 
@@ -16218,6 +16217,7 @@ Version 0.9.1 is a minor refinement of the v0.9 specification. The key changes a
 
 1. **MIME Type Standardization**: Standardized all references to the A2UI message payload MIME type to `application/a2ui+json` (replacing the legacy `application/json+a2ui`).
 2. **Surface ID Uniqueness Relaxation**: Relaxed the requirement for `surfaceId` to be globally unique for the renderer's lifetime. It must still be unique among currently active surfaces, and it remains an error to call `createSurface` on an existing surface without first deleting it, but the explicit lifetime uniqueness constraint is removed.
+3. **Capabilities Key**: The client and server capabilities objects carry their v0.9.1 entry under the `v0.9.1` key instead of `v0.9`.
 
 ## 2. Detailed Changes
 
@@ -16232,11 +16232,26 @@ In `a2ui_protocol.md`, the definition and requirements for `surfaceId` were upda
 - The restriction that `surfaceId` "must be globally unique for the renderer's lifetime" is removed.
 - Instead, the uniqueness constraint is limited to active surfaces: it remains an error to send `createSurface` for a `surfaceId` that already exists without first deleting it.
 
+### 2.3. Capabilities Key
+
+In `client_capabilities.json` and `server_capabilities.json`, the capabilities entry is keyed `v0.9.1` instead of `v0.9`. The entry itself is unchanged:
+
+```json
+{
+  "v0.9.1": {
+    "supportedCatalogIds": ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
+  }
+}
+```
+
+A client that supports both versions can send a `v0.9` entry and a `v0.9.1` entry side by side, and `client_capabilities.json` checks both.
+
 ## 3. Migration Guide
 
-Since v0.9.1 is fully compatible with v0.9 payloads (the version fields in schemas accept both `"v0.9"` and `"v0.9.1"`), clients and servers can upgrade seamlessly.
+Since v0.9.1 is fully compatible with v0.9 messages (the version fields in the message schemas accept both `"v0.9"` and `"v0.9.1"`), clients and servers can upgrade seamlessly.
 
 - **Action for Implementers**: Update any hardcoded MIME type references from `application/json+a2ui` to `application/a2ui+json`.
+- **Action for Implementers**: Send and read v0.9.1 capabilities under the `v0.9.1` key. An agent that also serves v0.9 clients can fall back to the `v0.9` entry when there is no `v0.9.1` entry, or when the `v0.9.1` entry names none of its catalogs.
 
 ---
 
@@ -16246,7 +16261,7 @@ Since v0.9.1 is fully compatible with v0.9 payloads (the version fields in schem
 
 Canonical URL: https://a2ui.org/specification/v0.9.1/schemas/
 
-A2UI v0.9.1 defines wire messages, shared types, data models, and capability negotiation payloads across 10 canonical JSON Schemas included from `specification/v0_9_1/json/`. Version `v0.9.1` supersedes `v0.9` while retaining `v0_9` in `$id` URIs for backward compatibility. For the reference component catalog schema, see the [v0.9.1 Basic Catalog Guide](https://a2ui.org/specification/v0.9.1-basic-catalog-implementation-guide/#basic_catalog.json). For the current version, see the [v1.0 JSON Schemas](https://a2ui.org/specification/v1.0/schemas/).
+A2UI v0.9.1 defines wire messages, shared types, data models, and capability negotiation payloads across 10 canonical JSON Schemas included from `specification/v0_9_1/json/`. Version `v0.9.1` supersedes `v0.9`. Each schema declares its own `$id` under `https://a2ui.org/specification/v0_9_1/`, except `common_types.json`, which v0.9.1 shares unchanged with v0.9 and which keeps its `v0_9` `$id`; validators resolving relative `catalog.json` references should therefore register the active catalog at both `https://a2ui.org/specification/v0_9_1/catalog.json` and `https://a2ui.org/specification/v0_9/catalog.json`. For the reference component catalog schema, see the [v0.9.1 Basic Catalog Guide](https://a2ui.org/specification/v0.9.1-basic-catalog-implementation-guide/#basic_catalog.json). For the current version, see the [v1.0 JSON Schemas](https://a2ui.org/specification/v1.0/schemas/).
 
 ## Wire messages
 
