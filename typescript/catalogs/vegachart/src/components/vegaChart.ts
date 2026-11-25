@@ -86,8 +86,24 @@ export interface VegaEmbedResult {
 export interface VegaEmbedOptions {
   actions?: boolean | Record<string, boolean>;
   renderer?: 'canvas' | 'svg';
+  /**
+   * When true, Vega keeps expressions as syntax trees and evaluates them with
+   * `vega-interpreter` instead of compiling them with `Function`, so charts
+   * render under a Content Security Policy without `'unsafe-eval'`.
+   */
+  ast?: boolean;
   [key: string]: unknown;
 }
+
+/**
+ * Options the element passes to every embed call. `ast: true` keeps rendering
+ * free of `eval` and `Function`, which strict Content Security Policies block.
+ */
+const EMBED_OPTIONS: Readonly<VegaEmbedOptions> = {
+  actions: false,
+  renderer: 'svg',
+  ast: true,
+};
 
 /**
  * Renders a Vega or Vega-Lite specification into a DOM element. `vega-embed`
@@ -658,7 +674,7 @@ export class A2uiVegaChartElement extends A2uiLitElement<
       container.appendChild(wrapper);
 
       const embed = this.embedFn ?? A2uiVegaChartElement.defaultEmbedFn;
-      const result = await embed(wrapper, transformedSpec, {actions: false, renderer: 'svg'});
+      const result = await embed(wrapper, transformedSpec, {...EMBED_OPTIONS});
 
       if (abortController.signal.aborted) {
         result?.finalize?.();
