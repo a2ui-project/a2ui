@@ -61,6 +61,11 @@
 - Package dependency updated to require `a2ui-core>=0.7.0,<0.8.0`.
   [#4258](https://github.com/a2ui-project/a2ui/pull/4258)
 
+- Fix `flatten_component_tree` dropping required nullable fields from components
+  and nested builder models. Required `None` values now emit as `null`; optional
+  `None` values remain omitted.
+  [#4190](https://github.com/a2ui-project/a2ui/pull/4190)
+
 ## 0.11.0 (2026-11-10)
 
 - **BREAKING CHANGE**: (v1_0) `validate_payload` and `RendererState.apply`
