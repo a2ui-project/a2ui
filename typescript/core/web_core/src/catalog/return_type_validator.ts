@@ -164,8 +164,14 @@ export function validateFunctionResult(
   }
   if (isThenable(result)) {
     return Promise.resolve(result).then(resolved => {
-      if (abortSignal?.aborted || resolved instanceof FailedArgument) {
+      if (resolved instanceof FailedArgument) {
         return resolved;
+      }
+      if (abortSignal?.aborted) {
+        if (isSignal(resolved)) {
+          resolved.unsubscribe?.();
+        }
+        return undefined;
       }
       return validateFunctionResult(name, returnType, resolved, abortSignal);
     });

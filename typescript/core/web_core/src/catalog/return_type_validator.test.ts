@@ -334,6 +334,62 @@ describe('Function returnType runtime validation (Issue #4400)', () => {
       assert.strictEqual(errors.length, 1);
     });
 
+    it('unsubscribes a Promise-of-Signal result exactly once when resolved after abort', async () => {
+      let directResolve!: (val: unknown) => void;
+      let directCleanups = 0;
+      let reactiveResolve!: (val: unknown) => void;
+      let reactiveCleanups = 0;
+
+      const deferredDirect = makeFn(
+        'deferredDirect',
+        'number',
+        () =>
+          new Promise(resolve => {
+            directResolve = resolve;
+          }),
+      );
+      const deferredReactive = makeFn(
+        'deferredReactive',
+        'number',
+        () =>
+          new Promise(resolve => {
+            reactiveResolve = resolve;
+          }),
+      );
+      const catalog = new Catalog(CATALOG_ID, '1.0', [], [deferredDirect, deferredReactive]);
+      const surface = new SurfaceModel('s-abort-sig', catalog);
+      const errors: A2uiErrorPayload[] = [];
+      surface.onError.subscribe(err => {
+        errors.push(err);
+      });
+      const ctx = new DataContext(surface, '/');
+
+      // Direct Catalog.invoker call aborted before Promise resolves to a Signal
+      const controller = new AbortController();
+      const pending = catalog.invoker('deferredDirect', {}, ctx, controller.signal);
+      controller.abort();
+      const lateDirectSignal = signal<unknown>(42);
+      lateDirectSignal.unsubscribe = () => {
+        directCleanups++;
+      };
+      directResolve(lateDirectSignal);
+      const resolvedDirect = await pending;
+      assert.strictEqual(resolvedDirect, undefined);
+      assert.strictEqual(directCleanups, 1);
+
+      // Reactive DataContext binding unsubscribed before Promise resolves to a Signal
+      const sig = ctx.resolveSignal({'@call': 'deferredReactive', args: {}});
+      sig.unsubscribe?.();
+      const lateReactiveSignal = signal<unknown>('bad-after-abort');
+      lateReactiveSignal.unsubscribe = () => {
+        reactiveCleanups++;
+      };
+      reactiveResolve(lateReactiveSignal);
+      await flush();
+      assert.strictEqual(reactiveCleanups, 1);
+      assert.strictEqual(errors.length, 0);
+    });
+
     it('stops enclosing calls when a nested call fails returnType validation without duplicate errors', async () => {
       let outerCalls = 0;
       const badInner = makeFn('badInner', 'number', () => 'wrong');
