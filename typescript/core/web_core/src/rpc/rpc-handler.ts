@@ -14,7 +14,14 @@
  * limitations under the License.
  */
 
+import {assertFunctionReturnType} from '../catalog/return_type_validator.js';
 import {Catalog, type FunctionApi, FunctionImplementation} from '../catalog/types.js';
+import {isAtLeastVersion} from '../common/semver.js';
+import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
+import {A2uiRpcError, RpcErrorCode} from '../errors.js';
+import {isCatalogVersionCompatible} from '../processing/adapters/base.js';
+import type {RendererErrorMessage} from '../processing/message-error-mapper.js';
+import {getValue, isSignal, type Signal} from '../reactivity/signals.js';
 import {DataContext, MAX_DYNAMIC_VALUE_DEPTH} from '../resolution/data-context.js';
 import {
   isInvalidFunctionCallError,
@@ -22,24 +29,20 @@ import {
   withActiveCallCatalogId,
   withAgentCaller,
 } from '../resolution/data-context-internal.js';
-import {isSignal, getValue} from '../reactivity/signals.js';
+import {SpecVersion} from '../spec_versions.js';
 import {SurfaceModel} from '../state/surface-model.js';
-import {FunctionCall} from '../v1_0/schema/common-types.js';
+import type {A2uiClientAction} from '../v0_9/schema/client-to-server.js';
 import {
-  CallRendererFunctionMessage,
   AgentFunctionResponseMessage,
+  CallRendererFunctionMessage,
 } from '../v1_0/schema/agent-to-renderer.js';
+import {FunctionCall} from '../v1_0/schema/common-types.js';
 import {
   type ActionMessage,
   CallAgentFunctionMessage,
   RendererFunctionResponseMessage,
 } from '../v1_0/schema/renderer-to-agent.js';
-import type {A2uiClientAction} from '../v0_9/schema/client-to-server.js';
-import type {RendererErrorMessage} from '../processing/message-error-mapper.js';
-import {isCatalogVersionCompatible} from '../processing/adapters/base.js';
-import {findFailedArgument, settleDeep} from '../common/settle_deep.js';
 import {PayloadValidator} from '../validation/payload-validator.js';
-import {A2uiRpcError, RpcErrorCode} from '../errors.js';
 
 export {A2uiRpcError, RpcErrorCode};
 
@@ -812,7 +815,36 @@ export class RpcHandler {
     const respVersion = (version || '1.0') as RendererFunctionResponseMessage['version'];
     try {
       const rawResult = await Promise.resolve(funcImpl.execute(args, context));
-      const unwrapped = isSignal(rawResult) ? getValue(rawResult) : rawResult;
+      const signalsToCleanup: Signal<unknown>[] = [];
+      const seenSignals = new Set<Signal<unknown>>();
+      let unwrapped: unknown = rawResult;
+      let unwrapDepth = 0;
+      try {
+        while (isSignal(unwrapped) || isThenable(unwrapped)) {
+          if (++unwrapDepth > MAX_DYNAMIC_VALUE_DEPTH) {
+            throw new Error(
+              `Maximum return value unwrapping depth exceeded (${MAX_DYNAMIC_VALUE_DEPTH}).`,
+            );
+          }
+          if (isSignal(unwrapped)) {
+            if (seenSignals.has(unwrapped)) {
+              throw new Error(`Circular signal returned by function '${funcImpl.name}'.`);
+            }
+            seenSignals.add(unwrapped);
+            signalsToCleanup.push(unwrapped);
+            unwrapped = getValue(unwrapped);
+          } else {
+            unwrapped = await Promise.resolve(unwrapped);
+          }
+        }
+        if (isAtLeastVersion(respVersion, SpecVersion.V1_0)) {
+          assertFunctionReturnType(funcImpl.name, funcImpl.returnType, unwrapped);
+        }
+      } finally {
+        for (let i = signalsToCleanup.length - 1; i >= 0; i--) {
+          signalsToCleanup[i].unsubscribe?.();
+        }
+      }
       const value = unwrapped !== undefined ? unwrapped : null;
       return {
         version: respVersion,

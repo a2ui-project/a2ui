@@ -1424,3 +1424,224 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     assert.strictEqual(innerUnsubscribed, true);
   });
 });
+
+describe('v1.0 returnType runtime validation on callRendererFunction (Issue #4400)', () => {
+  const catalogId = 'https://example.com/catalog';
+
+  it('returns EXECUTION_ERROR preserving functionCallId when sync result violates returnType', async () => {
+    const readCount = {
+      name: 'readCount',
+      returnType: 'number' as const,
+      schema: z.object({}),
+      allowedCallers: 'rendererOrAgent' as const,
+      execute: () => 'hello',
+    };
+    const cat = new Catalog(catalogId, '1.0', [], [readCount]);
+    const handler = new RpcHandler([cat]);
+    const surface = new SurfaceModel('s1', cat);
+    const ctx = new DataContext(surface, '/');
+
+    const res = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'example-call',
+          callFunction: {
+            '@call': 'readCount',
+            catalogId,
+            args: {},
+          },
+        },
+      },
+      ctx,
+    );
+
+    assert.strictEqual(res.version, '1.0');
+    assert.strictEqual(res.rendererFunctionResponse.functionCallId, 'example-call');
+    assert.strictEqual(res.rendererFunctionResponse.value, undefined);
+    assert.strictEqual(res.rendererFunctionResponse.error?.code, RpcErrorCode.EXECUTION_ERROR);
+    assert.match(res.rendererFunctionResponse.error?.message ?? '', /readCount.*string.*number/);
+  });
+
+  it('validates async Promise and Signal results and cleans up returned Signal subscriptions', async () => {
+    let signalCleanups = 0;
+    let asyncSignalCleanups = 0;
+
+    const asyncMismatch = {
+      name: 'asyncMismatch',
+      returnType: 'boolean' as const,
+      schema: z.object({}),
+      allowedCallers: 'rendererOrAgent' as const,
+      execute: async () => 'true',
+    };
+    const signalMismatch = {
+      name: 'signalMismatch',
+      returnType: 'number' as const,
+      schema: z.object({}),
+      allowedCallers: 'rendererOrAgent' as const,
+      execute: () => {
+        const s = signal<unknown>('bad-signal');
+        s.unsubscribe = () => {
+          signalCleanups++;
+        };
+        return s;
+      },
+    };
+    const asyncSignalMismatch = {
+      name: 'asyncSignalMismatch',
+      returnType: 'array' as const,
+      schema: z.object({}),
+      allowedCallers: 'rendererOrAgent' as const,
+      execute: async () => {
+        const s = signal<unknown>({notAnArray: true});
+        s.unsubscribe = () => {
+          asyncSignalCleanups++;
+        };
+        return s;
+      },
+    };
+    const voidMismatch = {
+      name: 'voidMismatch',
+      returnType: 'void' as const,
+      schema: z.object({}),
+      allowedCallers: 'rendererOrAgent' as const,
+      execute: () => 'unexpected',
+    };
+    const voidOk = {
+      name: 'voidOk',
+      returnType: 'void' as const,
+      schema: z.object({}),
+      allowedCallers: 'rendererOrAgent' as const,
+      execute: () => undefined,
+    };
+    const validationBad = {
+      name: 'validationBad',
+      returnType: 'validationResult' as const,
+      schema: z.object({}),
+      allowedCallers: 'rendererOrAgent' as const,
+      execute: () => ({valid: false, severity: 'critical'}),
+    };
+    const validationGood = {
+      name: 'validationGood',
+      returnType: 'validationResult' as const,
+      schema: z.object({}),
+      allowedCallers: 'rendererOrAgent' as const,
+      execute: () => ({valid: true, severity: 'info'}),
+    };
+
+    const cat = new Catalog(
+      catalogId,
+      '1.0',
+      [],
+      [
+        asyncMismatch,
+        signalMismatch,
+        asyncSignalMismatch,
+        voidMismatch,
+        voidOk,
+        validationBad,
+        validationGood,
+      ],
+    );
+    const handler = new RpcHandler([cat]);
+    const surface = new SurfaceModel('s-rpc-rt', cat);
+    const ctx = new DataContext(surface, '/');
+
+    const call = (name: string, id: string) =>
+      handler.handleCallRendererFunction(
+        {
+          version: '1.0',
+          callRendererFunction: {
+            functionCallId: id,
+            callFunction: {'@call': name, catalogId, args: {}},
+          },
+        },
+        ctx,
+      );
+
+    const asyncRes = await call('asyncMismatch', 'id-async');
+    assert.strictEqual(asyncRes.rendererFunctionResponse.functionCallId, 'id-async');
+    assert.strictEqual(asyncRes.rendererFunctionResponse.error?.code, RpcErrorCode.EXECUTION_ERROR);
+
+    const sigRes = await call('signalMismatch', 'id-sig');
+    assert.strictEqual(sigRes.rendererFunctionResponse.functionCallId, 'id-sig');
+    assert.strictEqual(sigRes.rendererFunctionResponse.error?.code, RpcErrorCode.EXECUTION_ERROR);
+    assert.strictEqual(signalCleanups, 1);
+
+    const asyncSigRes = await call('asyncSignalMismatch', 'id-async-sig');
+    assert.strictEqual(asyncSigRes.rendererFunctionResponse.functionCallId, 'id-async-sig');
+    assert.strictEqual(
+      asyncSigRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.EXECUTION_ERROR,
+    );
+    assert.strictEqual(asyncSignalCleanups, 1);
+
+    const voidBadRes = await call('voidMismatch', 'id-void-bad');
+    assert.strictEqual(voidBadRes.rendererFunctionResponse.functionCallId, 'id-void-bad');
+    assert.strictEqual(
+      voidBadRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.EXECUTION_ERROR,
+    );
+
+    const voidOkRes = await call('voidOk', 'id-void-ok');
+    assert.strictEqual(voidOkRes.rendererFunctionResponse.functionCallId, 'id-void-ok');
+    assert.strictEqual(voidOkRes.rendererFunctionResponse.error, undefined);
+    assert.strictEqual(voidOkRes.rendererFunctionResponse.value, null);
+
+    const valBadRes = await call('validationBad', 'id-val-bad');
+    assert.strictEqual(valBadRes.rendererFunctionResponse.functionCallId, 'id-val-bad');
+    assert.strictEqual(
+      valBadRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.EXECUTION_ERROR,
+    );
+
+    const valGoodRes = await call('validationGood', 'id-val-good');
+    assert.strictEqual(valGoodRes.rendererFunctionResponse.functionCallId, 'id-val-good');
+    assert.strictEqual(valGoodRes.rendererFunctionResponse.error, undefined);
+    assert.deepStrictEqual(valGoodRes.rendererFunctionResponse.value, {
+      valid: true,
+      severity: 'info',
+    });
+  });
+
+  it('returns EXECUTION_ERROR with original functionCallId when nested arg call violates returnType', async () => {
+    const badNested = {
+      name: 'badNested',
+      returnType: 'number' as const,
+      schema: z.object({}),
+      allowedCallers: 'rendererOrAgent' as const,
+      execute: () => 'not-a-number',
+    };
+    const consumer = {
+      name: 'consumer',
+      returnType: 'string' as const,
+      schema: z.object({value: z.any()}),
+      allowedCallers: 'rendererOrAgent' as const,
+      execute: (args: Record<string, unknown>) => String(args['value']),
+    };
+    const cat = new Catalog(catalogId, '1.0', [], [badNested, consumer]);
+    const handler = new RpcHandler([cat]);
+    const surface = new SurfaceModel('s-nested-rpc', cat);
+    const ctx = new DataContext(surface, '/');
+
+    const res = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-err-42',
+          callFunction: {
+            '@call': 'consumer',
+            catalogId,
+            args: {
+              value: {'@call': 'badNested', catalogId, args: {}},
+            },
+          },
+        },
+      },
+      ctx,
+    );
+
+    assert.strictEqual(res.rendererFunctionResponse.functionCallId, 'nested-err-42');
+    assert.strictEqual(res.rendererFunctionResponse.error?.code, RpcErrorCode.EXECUTION_ERROR);
+  });
+});

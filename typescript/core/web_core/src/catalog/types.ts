@@ -49,6 +49,7 @@ import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import {IndexImplementation} from '../v1_0/functions/system_functions.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
+import {validateFunctionResult} from './return_type_validator.js';
 import {coerceDynamicBooleans} from './validation_result_coercion.js';
 
 export type {ComponentChildRefs};
@@ -1229,7 +1230,10 @@ function createCatalogInvoker<F extends FunctionApi>(
       try {
         const args = coerceDynamicBooleans(fn.schema, resolvedArgs);
         const safeArgs = fn.schema.parse(args);
-        return execute.call(fn, safeArgs, callCtx, abortSignal);
+        const result = execute.call(fn, safeArgs, callCtx, abortSignal);
+        return atLeastV10
+          ? validateFunctionResult(fn.name, fn.returnType, result, abortSignal)
+          : result;
       } catch (e: any) {
         if (e?.name === 'ZodError' || e instanceof z.ZodError) {
           throw new A2uiExpressionError(
@@ -1311,7 +1315,11 @@ function routeToAgent(
       }
       args = parsed.data as Record<string, unknown>;
     }
-    return surface.callAgentFunction({'@call': name, catalogId, args}, {abortSignal, bypassCache});
+    const result = surface.callAgentFunction(
+      {'@call': name, catalogId, args},
+      {abortSignal, bypassCache},
+    );
+    return fn ? validateFunctionResult(fn.name, fn.returnType, result, abortSignal) : result;
   });
 }
 
