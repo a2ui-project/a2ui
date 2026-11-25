@@ -138,6 +138,7 @@ class Skill {
 - Serializes a YAML header enclosed within `---` delimiters, followed by two newlines and the stripped content ending with a newline.
 - The YAML header MUST include `name` and `description`.
 - If `metadata` is provided and non-empty, it is serialized under the `metadata:` key.
+- A YAML parser MUST read every string in the header back as the same string, never as a key, a number, a date or a boolean, whether it follows YAML 1.1, as PyYAML does, or YAML 1.2. An SDK that writes the header itself double-quotes every string value and every key below the top level, rather than deciding case by case; one that writes it with a YAML library lets the library quote what needs it.
 - SDK-internal properties MUST NOT be included in frontmatter.
 
 ```markdown
@@ -290,9 +291,9 @@ description: UI component catalog signatures for basic. Use when building basic 
 
 All implementations MUST pass the language-agnostic conformance suite in `conformance/agent/skill.yaml`. It checks the skill API, not the wording of a format's prompt, which the prompt suites cover, so each case compares a generated skill against the sections of the same SDK's prompt generator. A case calls the generator the way an agent does and passes an argument only when the case gives it, so the cases that leave arguments out check the defaults:
 
-1. **`from_format`**: The monolithic skill's frontmatter matches `expected_frontmatter` byte for byte, its filename matches `expected_filename`, and its body is the format's prompt snippet. A skill for catalogs it is given describes only those catalogs and leaves the format's prompt as it was. Other cases set the name and description.
+1. **`from_format`**: The monolithic skill's frontmatter parses to `expected_frontmatter`, its filename matches `expected_filename`, and its body is the format's prompt snippet. A skill for catalogs it is given describes only those catalogs and leaves the format's prompt as it was. Other cases set the name and description, including descriptions that end with a colon or look like a date.
 2. **`core_syntax`**: The core skill's frontmatter and filename match, with the default name and description and with given ones, and its body is `generate_base_rules()`.
-3. **`from_catalog`**: The catalog skill's frontmatter and filename match, including PyYAML's wrapping of a long description after column 80, and its body is the catalog's instructions followed by its examples. Other cases cover the default to the format's first catalog, the name taken from the catalog id (`vegachart`, `simplified`), examples a format is built with, and `include_examples` set to false.
+3. **`from_catalog`**: The catalog skill's frontmatter and filename match, and its body is the catalog's instructions followed by its examples. Other cases cover the default to the format's first catalog, the name taken from the catalog id (`vegachart`, `simplified`), examples a format is built with, and `include_examples` set to false.
 4. **`skill_set`**: The skillset holds the core skill and one skill per catalog, in order, equal to the core and catalog skills, for one catalog, two catalogs, catalogs it is given with a given `core_name`, and the Direct JSON format. `SkillSet.get` finds its skills by filename, by name, and by part of a filename of at least three characters.
 5. **`monolithic_skill_equals_prompt_snippet`**: For Express and Direct JSON, with one catalog and with two, the monolithic skill's body equals the prompt snippet.
 6. **`export_to_directory`**: Export removes only each skill's own directory, rejects filenames that leave the output directory, writes each skill's Markdown and returns it keyed by filename.

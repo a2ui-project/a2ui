@@ -20,6 +20,7 @@ import 'dart:io';
 import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 /// A prompt whose sections name what they were asked for, so a test can see
 /// how they were assembled.
@@ -105,11 +106,11 @@ void main() {
           description: 'Core rules.',
           content: '\n# Core\n\n',
         ).toMarkdown(),
-        '---\nname: a2ui-core\ndescription: Core rules.\n---\n\n# Core\n',
+        '---\nname: "a2ui-core"\ndescription: "Core rules."\n---\n\n# Core\n',
       );
     });
 
-    test('writes metadata as nested YAML', () {
+    test('writes metadata as nested YAML with quoted keys and strings', () {
       final skill = Skill(
         name: 'a2ui',
         description: 'All of it.',
@@ -123,21 +124,21 @@ void main() {
       expect(
         skill.toMarkdown(),
         '---\n'
-        'name: a2ui\n'
-        'description: All of it.\n'
+        'name: "a2ui"\n'
+        'description: "All of it."\n'
         'metadata:\n'
-        '  internal: true\n'
-        '  tags:\n'
-        '  - ui\n'
-        '  - a2ui express\n'
-        '  owner:\n'
-        '    team: ui\n'
-        '    size: 3\n'
+        '  "internal": true\n'
+        '  "tags":\n'
+        '  - "ui"\n'
+        '  - "a2ui express"\n'
+        '  "owner":\n'
+        '    "team": "ui"\n'
+        '    "size": 3\n'
         '---\n\nBody\n',
       );
     });
 
-    test('wraps a long description after column 80, as PyYAML does', () {
+    test('writes a long description on one line', () {
       final skill = Skill(
         name: 'a2ui-basic',
         description:
@@ -148,29 +149,62 @@ void main() {
       expect(
         skill.toMarkdown(),
         startsWith(
-          '---\nname: a2ui-basic\n'
-          'description: UI component catalog signatures for basic. Use when '
-          'building basic user\n'
-          '  interface components.\n---\n',
+          '---\nname: "a2ui-basic"\n'
+          'description: "UI component catalog signatures for basic. Use when '
+          'building basic user interface components."\n---\n',
         ),
       );
     });
 
-    test('quotes a value that YAML would read as something else', () {
-      for (final (String description, String written) in [
-        ('Use when: building', '"Use when: building"'),
-        ('true', '"true"'),
-        ('42', '"42"'),
-        ('- a list item', '"- a list item"'),
-        ('Has # a comment', '"Has # a comment"'),
-        ('Two\nlines', r'"Two\nlines"'),
-      ]) {
-        expect(
-          Skill(name: 'a', description: description, content: '').toMarkdown(),
-          contains('\ndescription: $written\n'),
-          reason: description,
-        );
-      }
+    test('escapes what YAML reads as a line break in a quoted string', () {
+      expect(
+        Skill(
+          name: 'a',
+          description: 'Two\nlines\u2028and\u0085more',
+          content: '',
+        ).toMarkdown(),
+        contains(r'description: "Two\nlines\u2028and\u0085more"'),
+      );
+    });
+
+    test('writes strings that YAML reads back unchanged', () {
+      const values = [
+        'Use when building:',
+        'Use when: building',
+        '2026-01-01',
+        '0x1F',
+        'true',
+        'no',
+        '42',
+        '~',
+        '- a list item',
+        'Has # a comment',
+        "It's \"quoted\"",
+        ' padded ',
+        '',
+        'Two\nlines\u2028and\u0085more',
+      ];
+      final skill = Skill(
+        name: 'a',
+        description: values.first,
+        content: '',
+        metadata: {
+          for (final String value in values) 'key $value': value,
+          'a: b': [...values],
+        },
+      );
+      final String markdown = skill.toMarkdown();
+      final Object? parsed = loadYaml(
+        markdown.substring('---\n'.length, markdown.indexOf('\n---\n')),
+      );
+      expect(parsed, {
+        'name': 'a',
+        'description': values.first,
+        'metadata': {
+          for (final String value in values) 'key $value': value,
+          'a: b': values,
+        },
+      });
     });
 
     test('defaults the filename to <name>/SKILL.md', () {

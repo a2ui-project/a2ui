@@ -25,8 +25,6 @@ import {A2uiValidationError} from '../errors.js';
 import {InferenceFormat} from '../inference-format.js';
 import {CatalogApi} from '../internal/web-core.js';
 
-const YAML_LINE_WIDTH = 80;
-
 /** A version segment of a catalog id, such as `v1`, `v1_0` or `v0.9`. */
 const VERSION_SEGMENT = /^v\d+([._]\d+)*$/;
 
@@ -65,71 +63,37 @@ export function resolveCatalogsList(
 }
 
 /**
- * Whether a string can be emitted as an unquoted YAML plain scalar.
+ * Writes a string as a YAML double-quoted scalar, so a YAML parser reads it back as the
+ * same string rather than as a key, a number, a date or a boolean.
+ *
+ * A JSON string is one, apart from the characters YAML reads as a line break or does not
+ * accept in a document, which are escaped too.
  */
-function isPlainYamlString(value: string): boolean {
-  if (value.length === 0) return false;
-  if (/^\s|\s$/.test(value)) return false;
-  if (/[\n\r\t]/.test(value)) return false;
-  if (/^[-?:,[\]{}#&*!|>'"%@`]/.test(value)) return false;
-  if (/^(true|false|null|yes|no|on|off|~)$/i.test(value)) return false;
-  if (/^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(value)) return false;
-  if (value.includes(': ') || value.includes(' #')) return false;
-  return true;
+function quoteYamlString(text: string): string {
+  return JSON.stringify(text).replace(
+    /[\u007f-\u009f\u2028\u2029]/g,
+    ch => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`,
+  );
 }
 
 /**
- * Wraps a plain YAML scalar following PyYAML's `Emitter.write_plain` column rules.
+ * Writes a value as a YAML flow scalar: a string double-quoted, anything else as JSON,
+ * which YAML reads as flow collections and scalars.
  */
-function formatPlainYamlScalar(keyPrefix: string, text: string, indent: number): string {
-  if (!isPlainYamlString(text)) {
-    return `${keyPrefix} ${JSON.stringify(text)}`;
-  }
-  let out = `${keyPrefix} `;
-  let column = keyPrefix.length + 1;
-  const continuationIndent = ' '.repeat(indent + 2);
-  let spaces = false;
-  let start = 0;
-  let end = 0;
-
-  while (end <= text.length) {
-    const ch = end < text.length ? text[end] : undefined;
-    if (spaces) {
-      if (ch !== ' ') {
-        if (start + 1 === end && column > YAML_LINE_WIDTH) {
-          out += `\n${continuationIndent}`;
-          column = continuationIndent.length;
-        } else {
-          const slice = text.slice(start, end);
-          out += slice;
-          column += slice.length;
-        }
-        start = end;
-      }
-    } else if (ch === undefined || ch === ' ') {
-      const slice = text.slice(start, end);
-      out += slice;
-      column += slice.length;
-      start = end;
-    }
-    if (ch !== undefined) {
-      spaces = ch === ' ';
-    }
-    end += 1;
-  }
-  return out;
+function yamlScalar(value: unknown): string {
+  return typeof value === 'string' ? quoteYamlString(value) : JSON.stringify(value);
 }
 
 /**
  * Serializes a frontmatter value as YAML.
+ *
+ * Every string, including each key below the top level, is written double-quoted. The
+ * top-level keys are the fixed field names of a skill.
  */
 function serializeYamlValue(key: string, value: unknown, indent = 0): string {
   const pad = ' '.repeat(indent);
   const keyPrefix = `${pad}${key}:`;
 
-  if (typeof value === 'string') {
-    return formatPlainYamlScalar(keyPrefix, value, indent);
-  }
   if (typeof value === 'number' || typeof value === 'boolean') {
     return `${keyPrefix} ${String(value)}`;
   }
@@ -140,12 +104,7 @@ function serializeYamlValue(key: string, value: unknown, indent = 0): string {
     if (value.length === 0) {
       return `${keyPrefix} []`;
     }
-    const items = value.map(item => {
-      if (typeof item === 'string' && isPlainYamlString(item)) {
-        return `${pad}- ${item}`;
-      }
-      return `${pad}- ${JSON.stringify(item)}`;
-    });
+    const items = value.map(item => `${pad}- ${yamlScalar(item)}`);
     return `${keyPrefix}\n${items.join('\n')}`;
   }
   if (typeof value === 'object') {
@@ -153,10 +112,10 @@ function serializeYamlValue(key: string, value: unknown, indent = 0): string {
     if (entries.length === 0) {
       return `${keyPrefix} {}`;
     }
-    const lines = entries.map(([k, v]) => serializeYamlValue(k, v, indent + 2));
+    const lines = entries.map(([k, v]) => serializeYamlValue(quoteYamlString(k), v, indent + 2));
     return `${keyPrefix}\n${lines.join('\n')}`;
   }
-  return `${keyPrefix} ${JSON.stringify(value)}`;
+  return `${keyPrefix} ${quoteYamlString(String(value))}`;
 }
 
 /**

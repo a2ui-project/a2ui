@@ -22,6 +22,7 @@ import tempfile
 from typing import Any
 
 import pytest
+import yaml
 
 from a2ui.constants import EXAMPLES_HEADING
 from a2ui.core import A2uiValidationError
@@ -237,9 +238,13 @@ def test_skill_yaml_conformance_cases(suite: str, case: dict[str, Any]) -> None:
 
     def expect_skill(skill_obj: Skill, body: str) -> None:
         """Checks the skill against the case, and its body against `body`."""
-        assert skill_obj.to_markdown() == (
-            f"---\n{case['expected_frontmatter']}---\n\n{body.strip()}\n"
-        )
+        markdown = skill_obj.to_markdown()
+        # The frontmatter is compared parsed, since SDKs may quote and wrap the
+        # same values differently.
+        assert markdown.startswith("---\n")
+        header, rest = markdown[len("---\n") :].split("\n---\n\n", 1)
+        assert yaml.safe_load(header) == case["expected_frontmatter"]
+        assert rest == f"{body.strip()}\n"
         if "expected_filename" in case:
             assert skill_obj.filename == case["expected_filename"]
         for text in case.get("expect_contains", []):

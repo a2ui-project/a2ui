@@ -18,6 +18,7 @@ import 'dart:io';
 import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 import 'suites.dart';
 
@@ -132,10 +133,17 @@ void _runCase(Map<String, Object?> testCase) {
   /// Checks [skill] against the case, and its body against [body], built
   /// from the sections of the format's own prompt.
   void expectSkill(Skill skill, String body) {
+    // The frontmatter is compared parsed, since SDKs may quote and wrap the
+    // same values differently.
+    final String markdown = skill.toMarkdown();
+    expect(markdown, startsWith('---\n'));
+    const closing = '\n---\n\n';
+    final int end = markdown.indexOf(closing);
     expect(
-      skill.toMarkdown(),
-      '---\n${testCase['expected_frontmatter']}---\n\n${body.trim()}\n',
+      loadYaml(markdown.substring('---\n'.length, end)),
+      testCase['expected_frontmatter'],
     );
+    expect(markdown.substring(end + closing.length), '${body.trim()}\n');
     if (testCase['expected_filename'] case final String filename) {
       expect(skill.filename, filename);
     }

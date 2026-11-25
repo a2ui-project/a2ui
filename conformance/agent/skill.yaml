@@ -29,8 +29,9 @@
 # - `include_examples`: whether `generate_catalog_skill` adds the examples.
 # - `core_name`: the name of the core skill `generate_skillset` builds.
 #
-# A case checks the skill's frontmatter against `expected_frontmatter`, the
-# YAML between the `---` lines, byte for byte, its filename against
+# A case parses the skill's frontmatter, the YAML between the `---` lines, and
+# checks it against the `expected_frontmatter` mapping; SDKs may quote and wrap
+# the same values differently. It checks the skill's filename against
 # `expected_filename`, and its body against the sections of that SDK's own
 # prompt generator, so the cases hold for every SDK whatever its prompt says
 # (the prompt suites check the wording):
@@ -47,10 +48,10 @@
 #   `generate_examples(catalog)` renders anything, by a blank line,
 #   `### Examples:`, a blank line and the examples, all trimmed.
 #
-# The serialized skill is `---`, a newline, `expected_frontmatter` (which ends
-# with a newline), `---`, a blank line, and the body ending with a newline. A
-# case may also list substrings the body must carry (`expect_contains`) or
-# must not carry (`expect_absent`), which pin examples across SDKs.
+# The serialized skill is `---`, a newline, the frontmatter, a newline, `---`,
+# a blank line, and the body ending with a newline. A case may also list
+# substrings the body must carry (`expect_contains`) or must not carry
+# (`expect_absent`), which pin examples across SDKs.
 
 - name: test_express_monolithic_skill
   features: [F-AGT-06]
@@ -59,7 +60,7 @@
   args:
     format: express
     catalog: catalogs/basic/v1/catalog.json
-  expected_frontmatter: |
+  expected_frontmatter:
     name: a2ui
     description: Generates interactive user interface components for user requests.
   expected_filename: a2ui/SKILL.md
@@ -73,10 +74,39 @@
     catalog: catalogs/basic/v1/catalog.json
     name: travel-ui
     description: Builds flight search and booking screens.
-  expected_frontmatter: |
+  expected_frontmatter:
     name: travel-ui
     description: Builds flight search and booking screens.
   expected_filename: travel-ui/SKILL.md
+
+- name: test_express_monolithic_skill_with_description_ending_in_colon
+  features: [F-AGT-06]
+  description: >-
+    A description that ends with a colon reads back as the same string. Written
+    without quotes, the colon would make the line an invalid YAML mapping.
+  action: from_format
+  args:
+    format: express
+    catalog: catalogs/basic/v1/catalog.json
+    description: "Use when building:"
+  expected_frontmatter:
+    name: a2ui
+    description: "Use when building:"
+  expected_filename: a2ui/SKILL.md
+
+- name: test_express_monolithic_skill_with_description_that_looks_like_a_date
+  features: [F-AGT-06]
+  description: >-
+    A description that looks like a date reads back as a string, not as a date.
+  action: from_format
+  args:
+    format: express
+    catalog: catalogs/basic/v1/catalog.json
+    description: "2026-01-01"
+  expected_frontmatter:
+    name: a2ui
+    description: "2026-01-01"
+  expected_filename: a2ui/SKILL.md
 
 - name: test_express_monolithic_skill_for_given_catalogs
   features: [F-AGT-05, F-AGT-06]
@@ -92,7 +122,7 @@
       - catalogs/vegachart/v1/catalog.json
     skill_catalogs:
       - catalogs/vegachart/v1/catalog.json
-  expected_frontmatter: |
+  expected_frontmatter:
     name: a2ui
     description: Generates interactive user interface components for user requests.
   expected_filename: a2ui/SKILL.md
@@ -104,7 +134,7 @@
   args:
     format: express
     catalog: catalogs/basic/v1/catalog.json
-  expected_frontmatter: |
+  expected_frontmatter:
     name: a2ui-core
     description: Core A2UI protocol instructions and syntax rules for UI generation.
   expected_filename: a2ui-core/SKILL.md
@@ -118,7 +148,7 @@
     catalog: catalogs/basic/v1/catalog.json
     name: ui-rules
     description: Rules for writing A2UI Express.
-  expected_frontmatter: |
+  expected_frontmatter:
     name: ui-rules
     description: Rules for writing A2UI Express.
   expected_filename: ui-rules/SKILL.md
@@ -126,18 +156,16 @@
 - name: test_express_catalog_skill
   features: [F-AGT-06]
   description: >-
-    Generates a catalog skill for the basic catalog in the Express format. Its
-    default description is longer than a line, so it wraps after column 80 as
-    PyYAML wraps it.
+    Generates a catalog skill for the basic catalog in the Express format, with
+    the default name and description.
   action: from_catalog
   args:
     format: express
     catalog: catalogs/basic/v1/catalog.json
     skill_catalog: catalogs/basic/v1/catalog.json
-  expected_frontmatter: |
+  expected_frontmatter:
     name: a2ui-basic
-    description: UI component catalog signatures for basic. Use when building basic user
-      interface components.
+    description: UI component catalog signatures for basic. Use when building basic user interface components.
   expected_filename: a2ui-basic/SKILL.md
 
 - name: test_express_catalog_skill_defaults_to_first_catalog
@@ -152,10 +180,9 @@
     catalogs:
       - catalogs/vegachart/v1/catalog.json
       - catalogs/basic/v1/catalog.json
-  expected_frontmatter: |
+  expected_frontmatter:
     name: a2ui-vegachart
-    description: UI component catalog signatures for vegachart. Use when building vegachart
-      user interface components.
+    description: UI component catalog signatures for vegachart. Use when building vegachart user interface components.
   expected_filename: a2ui-vegachart/SKILL.md
 
 - name: test_express_catalog_skill_with_examples
@@ -170,10 +197,9 @@
     catalog: conformance/test_data/catalogs/simplified_catalog_v1_0.json
     examples:
       - conformance/test_data/examples/greeting_surface.json
-  expected_frontmatter: |
+  expected_frontmatter:
     name: a2ui-simplified
-    description: UI component catalog signatures for simplified. Use when building simplified
-      user interface components.
+    description: UI component catalog signatures for simplified. Use when building simplified user interface components.
   expected_filename: a2ui-simplified/SKILL.md
   expect_contains:
     - "### Examples:"
@@ -193,7 +219,7 @@
     name: greetings
     description: Components for greeting cards.
     include_examples: false
-  expected_frontmatter: |
+  expected_frontmatter:
     name: greetings
     description: Components for greeting cards.
   expected_filename: greetings/SKILL.md

@@ -278,8 +278,8 @@
           "description": "Paths observed for the duration of the case. A path may repeat to attach more than one observer."
         },
         "expected_frontmatter": {
-          "type": "string",
-          "description": "The YAML a generated skill writes between its `---` lines, ending with a newline."
+          "$ref": "#/$defs/SkillFrontmatter",
+          "description": "What the YAML a generated skill writes between its `---` lines parses to."
         },
         "expected_skills": {
           "type": "array",
@@ -1408,6 +1408,17 @@
       ],
       "unevaluatedProperties": false
     },
+    "SkillFrontmatter": {
+      "type": "object",
+      "description": "A skill's frontmatter fields, compared with what the YAML the skill writes parses to, so that SDKs may quote and wrap the same values differently.",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "metadata": {"type": "object"}
+      },
+      "required": ["name", "description"],
+      "additionalProperties": false
+    },
     "FromFormatTest": {
       "type": "object",
       "properties": {
@@ -1417,8 +1428,8 @@
         },
         "args": {"$ref": "#/$defs/FromFormatArgs"},
         "expected_frontmatter": {
-          "type": "string",
-          "description": "The skill's frontmatter, byte for byte. Without `args.skill_catalogs`, its body must be the format's prompt snippet, trimmed; with them, the base rules, those catalogs' instructions and their distinct examples."
+          "$ref": "#/$defs/SkillFrontmatter",
+          "description": "What the skill's frontmatter parses to. Without `args.skill_catalogs`, its body must be the format's prompt snippet, trimmed; with them, the base rules, those catalogs' instructions and their distinct examples."
         },
         "expected_filename": {
           "type": "string",
@@ -1446,8 +1457,8 @@
         },
         "args": {"$ref": "#/$defs/CoreSyntaxArgs"},
         "expected_frontmatter": {
-          "type": "string",
-          "description": "The skill's frontmatter, byte for byte. Its body must be `generate_base_rules()`, trimmed."
+          "$ref": "#/$defs/SkillFrontmatter",
+          "description": "What the skill's frontmatter parses to. Its body must be `generate_base_rules()`, trimmed."
         },
         "expected_filename": {
           "type": "string",
@@ -1475,8 +1486,8 @@
         },
         "args": {"$ref": "#/$defs/FromCatalogArgs"},
         "expected_frontmatter": {
-          "type": "string",
-          "description": "The skill's frontmatter, byte for byte. Its body must be `generate_catalog_instructions(catalog)`, followed by `### Examples:` and `generate_examples(catalog)` when `include_examples` is not false and that renders anything, trimmed."
+          "$ref": "#/$defs/SkillFrontmatter",
+          "description": "What the skill's frontmatter parses to. Its body must be `generate_catalog_instructions(catalog)`, followed by `### Examples:` and `generate_examples(catalog)` when `include_examples` is not false and that renders anything, trimmed."
         },
         "expected_filename": {
           "type": "string",

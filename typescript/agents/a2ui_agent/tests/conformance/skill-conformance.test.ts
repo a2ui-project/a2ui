@@ -18,6 +18,7 @@ import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync}
 import {tmpdir} from 'os';
 import {dirname, join, resolve} from 'path';
 
+import {load} from 'js-yaml';
 import {expect} from 'vitest';
 
 import {
@@ -150,8 +151,14 @@ function buildSkillContext(testCase: LoadedCase): SkillCaseContext {
  * sections of the format's own prompt.
  */
 function expectSkill(testCase: LoadedCase, skill: Skill, body: string): void {
-  const frontmatter = testCase.expected_frontmatter as string;
-  expect(skill.toMarkdown()).toBe(`---\n${frontmatter}---\n\n${body.trim()}\n`);
+  // The frontmatter is compared parsed, since SDKs may quote and wrap the same values
+  // differently.
+  const markdown = skill.toMarkdown();
+  expect(markdown.startsWith('---\n')).toBe(true);
+  const closing = '\n---\n\n';
+  const end = markdown.indexOf(closing);
+  expect(load(markdown.slice('---\n'.length, end))).toEqual(testCase.expected_frontmatter);
+  expect(markdown.slice(end + closing.length)).toBe(`${body.trim()}\n`);
   if (testCase.expected_filename !== undefined) {
     expect(skill.filename).toBe(testCase.expected_filename);
   }

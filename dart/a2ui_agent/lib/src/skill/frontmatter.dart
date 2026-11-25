@@ -14,14 +14,13 @@
 
 import 'dart:convert';
 
-/// The column after which a plain scalar wraps, as PyYAML's default `width`.
-///
-/// The Python SDK writes the shared skill golden files with PyYAML, so a long
-/// description wraps where it does there.
-const int _lineWidth = 80;
-
 /// [fields] as YAML block mappings, one top-level key per entry, without the
 /// `---` lines around them.
+///
+/// Every string, including each key below the top level, is written
+/// double-quoted, so a YAML parser reads it back as the same string rather
+/// than as a key, a number, a date or a boolean. The top-level keys are the
+/// fixed field names of a skill.
 String yamlFrontmatter(Map<String, Object?> fields) => [
   for (final MapEntry(:String key, :Object? value) in fields.entries)
     _entry(key, value, 0),
@@ -30,64 +29,40 @@ String yamlFrontmatter(Map<String, Object?> fields) => [
 String _entry(String key, Object? value, int indent) {
   final prefix = '${' ' * indent}$key:';
   return switch (value) {
-    final String text => _string(prefix, text, indent),
     num() || bool() => '$prefix $value',
     null => '$prefix null',
     List<Object?>(isEmpty: true) => '$prefix []',
     final List<Object?> items => [
       prefix,
-      for (final Object? item in items) '${' ' * indent}- ${_item(item)}',
+      for (final Object? item in items) '${' ' * indent}- ${_scalar(item)}',
     ].join('\n'),
     Map<Object?, Object?>(isEmpty: true) => '$prefix {}',
     final Map<Object?, Object?> map => [
       prefix,
       for (final MapEntry(:Object? key, :Object? value) in map.entries)
-        _entry('$key', value, indent + 2),
+        _entry(_quote('$key'), value, indent + 2),
     ].join('\n'),
-    _ => '$prefix ${jsonEncode('$value')}',
+    _ => '$prefix ${_scalar(value)}',
   };
 }
 
-String _item(Object? item) =>
-    item is String && _isPlain(item) ? item : jsonEncode(item);
+/// [value] as a flow scalar: a string double-quoted, anything else as JSON,
+/// which YAML reads as flow collections and scalars.
+String _scalar(Object? value) => switch (value) {
+  final String text => _quote(text),
+  num() ||
+  bool() ||
+  null ||
+  List<Object?>() ||
+  Map<Object?, Object?>() => jsonEncode(value),
+  _ => _quote('$value'),
+};
 
-/// Whether [value] can be written as an unquoted YAML plain scalar that reads
-/// back as the same string.
-bool _isPlain(String value) =>
-    value.isNotEmpty &&
-    value.trim() == value &&
-    !value.contains(RegExp(r'[\n\r\t]')) &&
-    !value.startsWith(RegExp(r'''[-?:,\[\]{}#&*!|>'"%@`]''')) &&
-    !RegExp(
-      r'^(true|false|null|yes|no|on|off|~)$',
-      caseSensitive: false,
-    ).hasMatch(value) &&
-    !RegExp(r'^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$').hasMatch(value) &&
-    !value.contains(': ') &&
-    !value.contains(' #');
-
-/// [text] after [prefix], as a plain scalar wrapped at a space once the line
-/// passes [_lineWidth], or as a double-quoted one when it cannot be plain.
-String _string(String prefix, String text, int indent) {
-  if (!_isPlain(text)) return '$prefix ${jsonEncode(text)}';
-  final out = StringBuffer('$prefix ');
-  int column = prefix.length + 1;
-  final String continuation = ' ' * (indent + 2);
-  String? previous;
-  for (final String word in text.split(' ')) {
-    if (previous != null) {
-      // PyYAML breaks only at a single space, and keeps a run of them.
-      if (word.isNotEmpty && previous.isNotEmpty && column > _lineWidth) {
-        out.write('\n$continuation');
-        column = continuation.length;
-      } else {
-        out.write(' ');
-        column++;
-      }
-    }
-    out.write(word);
-    column += word.length;
-    previous = word;
-  }
-  return out.toString();
-}
+/// [text] as a YAML double-quoted scalar.
+///
+/// A JSON string is one, apart from the characters YAML reads as a line break
+/// or does not accept in a document, which are escaped too.
+String _quote(String text) => jsonEncode(text).replaceAllMapped(
+  RegExp('[\u007f-\u009f\u2028\u2029]'),
+  (match) => '\\u${match[0]!.codeUnitAt(0).toRadixString(16).padLeft(4, '0')}',
+);
