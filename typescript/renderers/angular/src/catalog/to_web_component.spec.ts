@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {Component, InjectionToken, Injector, inject} from '@angular/core';
+import {Component, InjectionToken, Injector, OnDestroy, inject} from '@angular/core';
 
 import {TestBed} from '@angular/core/testing';
 import {z} from 'zod';
@@ -205,7 +205,7 @@ describe('toWebComponent', () => {
     expect(impl1).toBe(impl2);
   });
 
-  it('instantiates custom element and sets up display: contents', () => {
+  it('instantiates custom element, sets up display: contents, and mounts the selector element as a child', () => {
     const impl = createUniversalImplementation(
       {name: 'DisplayContentsTest', schema: z.object({})},
       TestDisplayContentsComponent,
@@ -223,7 +223,11 @@ describe('toWebComponent', () => {
     el.context = new ComponentContext(surface, 'comp-0', '/');
     document.body.appendChild(el);
     expect(el.style.display).toBe('contents');
+    expect(el.children.length).toBe(1);
+    expect(el.firstElementChild?.localName).toBe('test-display-wc');
+    expect(el.querySelector('test-display-wc')?.textContent).toBe('Display');
     document.body.removeChild(el);
+    expect(el.children.length).toBe(0);
   });
 
   it('binds component context, props, and metadata to the underlying Angular component', () => {
@@ -346,17 +350,103 @@ describe('toWebComponent', () => {
     el.context = context;
 
     document.body.appendChild(el);
+    expect(el.querySelectorAll('test-lifecycle-wc').length).toBe(1);
     expect(el.querySelector('.test-text')!.textContent).toBe('First Attach');
 
     // Disconnect
     document.body.removeChild(el);
+    expect(el.querySelectorAll('test-lifecycle-wc').length).toBe(0);
 
     // Reconnect
     document.body.appendChild(el);
     componentModel.properties = {text: 'Second Attach'};
 
+    expect(el.querySelectorAll('test-lifecycle-wc').length).toBe(1);
     expect(el.querySelector('.test-text')!.textContent).toBe('Second Attach');
     document.body.removeChild(el);
+  });
+
+  it('survives re-entrant disconnectedCallback during component destroy without throwing', () => {
+    let destroyCount = 0;
+    const hostRef: {el?: AngularWcHost} = {};
+
+    @Component({
+      selector: 'test-reentrant-destroy-wc',
+      template: '<span>Reentrant</span>',
+      standalone: true,
+    })
+    class TestReentrantDestroyComponent
+      extends CatalogComponent<ComponentApi>
+      implements OnDestroy
+    {
+      ngOnDestroy(): void {
+        destroyCount += 1;
+        hostRef.el!.disconnectedCallback();
+      }
+    }
+
+    const impl = createUniversalImplementation(
+      {name: 'ReentrantDestroyTest', schema: z.object({})},
+      TestReentrantDestroyComponent,
+    );
+    const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
+    const surface = new SurfaceModel('surface-reentrant', catalog);
+    surface.componentsModel.addComponent(
+      new ComponentModel('comp-reentrant', 'ReentrantDestroyTest', {}, catalog),
+    );
+
+    registerUniversalElement(impl);
+    const hostEl = document.createElement(impl.tagName) as AngularWcHost;
+    hostRef.el = hostEl;
+    hostEl.injector = injector;
+    hostEl.context = new ComponentContext(surface, 'comp-reentrant', '/');
+    document.body.appendChild(hostEl);
+    expect(hostEl.querySelectorAll('test-reentrant-destroy-wc').length).toBe(1);
+
+    expect(() => hostEl.disconnectedCallback()).not.toThrow();
+    expect(destroyCount).toBe(1);
+    expect(hostEl.querySelectorAll('test-reentrant-destroy-wc').length).toBe(0);
+    document.body.removeChild(hostEl);
+  });
+
+  it('removes the child element on disconnect even if ngOnDestroy throws', () => {
+    @Component({
+      selector: 'test-throwing-destroy-wc',
+      template: '<span>Throwing</span>',
+      standalone: true,
+    })
+    class TestThrowingDestroyComponent extends CatalogComponent<ComponentApi> implements OnDestroy {
+      ngOnDestroy(): void {
+        throw new Error('destroy failed');
+      }
+    }
+
+    const impl = createUniversalImplementation(
+      {name: 'ThrowingDestroyTest', schema: z.object({})},
+      TestThrowingDestroyComponent,
+    );
+    const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
+    const surface = new SurfaceModel('surface-throwing-destroy', catalog);
+    surface.componentsModel.addComponent(
+      new ComponentModel('comp-throwing-destroy', 'ThrowingDestroyTest', {}, catalog),
+    );
+
+    registerUniversalElement(impl);
+    const hostEl = document.createElement(impl.tagName) as AngularWcHost;
+    hostEl.injector = injector;
+    hostEl.context = new ComponentContext(surface, 'comp-throwing-destroy', '/');
+    document.body.appendChild(hostEl);
+    expect(hostEl.querySelectorAll('test-throwing-destroy-wc').length).toBe(1);
+
+    expect(() => hostEl.disconnectedCallback()).toThrowError('destroy failed');
+    expect(hostEl.querySelectorAll('test-throwing-destroy-wc').length).toBe(0);
+
+    document.body.removeChild(hostEl);
+    document.body.appendChild(hostEl);
+    expect(hostEl.querySelectorAll('test-throwing-destroy-wc').length).toBe(1);
+    expect(() => hostEl.disconnectedCallback()).toThrowError('destroy failed');
+    expect(hostEl.querySelectorAll('test-throwing-destroy-wc').length).toBe(0);
+    document.body.removeChild(hostEl);
   });
 
   it('disambiguates tag names when two different component classes share the same name', () => {

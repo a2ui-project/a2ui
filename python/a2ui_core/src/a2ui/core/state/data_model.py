@@ -15,7 +15,7 @@
 import copy
 import re
 from typing import Any, Callable, Final
-from ..common.events import Subscription
+from ..common.events import Subscription, batch
 from ..exceptions import A2uiDataError
 
 # Regex to check if path segment is numeric (representing array index)
@@ -317,6 +317,24 @@ class DataModel:
             if not self._listeners[norm_path]:
                 del self._listeners[norm_path]
 
+    @staticmethod
+    def _is_cascade_relevant(p_tokens: list[str], tokens: list[str]) -> bool:
+        return (
+            p_tokens == tokens
+            or (len(p_tokens) < len(tokens) and tokens[: len(p_tokens)] == p_tokens)
+            or (len(p_tokens) > len(tokens) and p_tokens[: len(tokens)] == tokens)
+        )
+
+    @staticmethod
+    def _notify_listeners(
+        listener_list: list[Callable[[Any], None]], new_val: Any
+    ) -> None:
+        for listener in list(listener_list):
+            try:
+                listener(new_val)
+            except Exception:
+                pass
+
     def _trigger_cascade(self, tokens: list[str], old_values: dict[str, Any]) -> None:
         """Notifies listeners for both parent and descendant path changes.
 
@@ -328,22 +346,14 @@ class DataModel:
             tokens: Parsed JSON pointer tokens of the mutated path.
             old_values: Snapshot of values at watched paths prior to mutation.
         """
-        for registered_path, listener_list in list(self._listeners.items()):
-            p_tokens = self._parse_pointer(registered_path)
-            is_relevant = (
-                p_tokens == tokens
-                or (len(p_tokens) < len(tokens) and tokens[: len(p_tokens)] == p_tokens)
-                or (len(p_tokens) > len(tokens) and p_tokens[: len(tokens)] == tokens)
-            )
-            if is_relevant:
+        with batch():
+            for registered_path, listener_list in list(self._listeners.items()):
+                p_tokens = self._parse_pointer(registered_path)
+                if not self._is_cascade_relevant(p_tokens, tokens):
+                    continue
                 new_val = self.get(registered_path)
-                old_val = old_values.get(registered_path)
-                if old_val != new_val:
-                    for listener in list(listener_list):
-                        try:
-                            listener(new_val)
-                        except Exception:
-                            pass
+                if old_values.get(registered_path) != new_val:
+                    self._notify_listeners(listener_list, new_val)
 
     def dispose(self) -> None:
         """Disposes of the data model and all its listeners."""
