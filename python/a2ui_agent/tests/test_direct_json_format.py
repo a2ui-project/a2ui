@@ -14,7 +14,7 @@
 
 import pytest
 
-from a2ui.core import A2uiCatalogError
+from a2ui.core import A2uiCatalogError, Catalog
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
@@ -31,6 +31,16 @@ def test_direct_json_format_holds_its_catalogs():
 def test_direct_json_format_without_catalogs_is_an_error():
     with pytest.raises(A2uiCatalogError, match="At least one catalog"):
         DirectJsonFormat([])
+
+
+def test_direct_json_format_accepts_v0_9_and_v0_9_1_catalogs_together():
+    catalogs = [
+        BasicCatalog(ProtocolVersion.V0_9),
+        Catalog(
+            catalog_id="https://example.com/inline.json", protocol_version="v0.9.1"
+        ),
+    ]
+    assert DirectJsonFormat(catalogs).catalogs == catalogs
 
 
 def test_direct_json_format_with_mixed_versions_is_an_error():

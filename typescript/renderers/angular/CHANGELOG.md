@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: With `useUniversalComponents: true`, `ComponentHostComponent` mounts Angular-backed catalog entries directly via `NgComponentOutlet` instead of wrapping them in `<a2ui-ng-<name>>`, and `AngularWcHost` (`<a2ui-ng-<name>>`) appends the Angular component's own selector element as a child when hosted inside a universal Web Component container instead of replacing it with `<a2ui-ng-<name>>`. Recommended migration: query custom Angular components by their `@Component` selector rather than `a2ui-ng-<name>` unless targeting the universal container wrapper. [#4396](https://github.com/a2ui-project/a2ui/pull/4396)
+- Prevent `AngularWcHost` (`<a2ui-ng-<name>>`) from throwing on re-entrant `disconnectedCallback` calls during DOM moves, and remove its child selector element on disconnect. [#4396](https://github.com/a2ui-project/a2ui/pull/4396)
+- (v0_8) Fix `Text` `additionalStyles` detection so complete 7-key and partial hinted style maps apply without requiring `h6`. A partial map that omits the active `usageHint` applies no inline styles ([#602](https://github.com/a2ui-project/a2ui/issues/602), [#4355](https://github.com/a2ui-project/a2ui/pull/4355)).
+
+## 0.16.0
+
+- Migrate the Angular renderer stack to Angular 22. [#3405](https://github.com/a2ui-project/a2ui/issues/3405), [#3406](https://github.com/a2ui-project/a2ui/pull/3406)
+  - **BREAKING CHANGE**: `peerDependencies` on `@angular/common`, `@angular/core`, and `@angular/platform-browser` move from `^21.2.5` to `^22.2.3`. Consumers must be on Angular 22.
+  - Requires TypeScript `>=6.0 <6.1` (pulled in transitively by Angular 22's `@angular/compiler-cli`).
+
 ## 0.15.0
 
 - **BREAKING CHANGE**: `ComponentBinder.bindNode` now extracts `BoundProperty.template` on `ChildList` properties strictly from the specification's `path` key (`{componentId, path}`) and ignores non-spec `'@path'` keys. Recommended migration: pass `{componentId, path}` on `ChildList` template objects. [#4274](https://github.com/a2ui-project/a2ui/pull/4274)
@@ -20,9 +30,6 @@
 - `new AngularCatalog(id, components?, functions?, themeSchema?, instructions?)` without a `protocolVersion` constructs a `'0.9'` catalog (deprecated overload), so catalogs written against 0.9.x keep constructing. `new AngularCatalog(id, protocolVersion, ...)` is unchanged ([#3658](https://github.com/a2ui-project/a2ui/pull/3658)).
 - (v0_9) Re-export `DefaultMarkdownRenderer` from `@a2ui/angular/v0_9` ([#3658](https://github.com/a2ui-project/a2ui/pull/3658)).
 - Hosted components bind from the resolved `ComponentNode` instead of re-resolving each property through the `DataContext`: child references (`Child`) now carry their `node`, `ComponentBinder.bindNode` and `ComponentBinder.unbind` are new public methods, `ComponentBinder.bind(context)` is deprecated, and `CheckProps.validationResults` (`CheckValidationResult`) is available on components with `checks`. `provideA2Ui` now initializes Angular reactivity before any surface or resolver signal is created. [#3706](https://github.com/a2ui-project/a2ui/pull/3706)
-- Migrate the Angular renderer stack to Angular 22. [#3405](https://github.com/a2ui-project/a2ui/issues/3405)
-  - **BREAKING CHANGE**: `peerDependencies` on `@angular/common`, `@angular/core`, and `@angular/platform-browser` move from `^21.2.5` to `^22.2.3`. Consumers must be on Angular 22.
-  - Requires TypeScript `>=6.0 <6.1` (pulled in transitively by Angular 22's `@angular/compiler-cli`).
 
 ## 0.13.0
 

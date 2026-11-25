@@ -282,6 +282,11 @@ def test_check_catalogs_rejects_mixed_protocol_versions():
         check_catalogs([_catalog(PRIMARY, "1.0"), _catalog(SECONDARY, "v0.9")])
 
 
+def test_check_catalogs_accepts_v0_9_and_v0_9_1_catalogs_together():
+    catalogs = [_catalog(PRIMARY, "v0.9"), _catalog(SECONDARY, "v0.9.1")]
+    assert check_catalogs(catalogs) == catalogs
+
+
 def test_check_catalogs_requires_a_catalog():
     with pytest.raises(A2uiCatalogError, match="At least one catalog"):
         check_catalogs([])
