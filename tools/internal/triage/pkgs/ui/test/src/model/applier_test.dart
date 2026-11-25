@@ -96,6 +96,33 @@ void main() {
     ]);
   });
 
+  // Regression: a reply that the triage bot wrote with its own heading got
+  // a second heading.
+  test('posts the reply under one heading, whatever heading it had', () {
+    for (final String reply in [
+      'Is this a P0?',
+      '**From triage:**\n\nIs this a P0?',
+      '**From triage:** Is this a P0?',
+      '${teamNoteHeading}Is this a P0?',
+    ]) {
+      expect(
+        replyToPost(TriageAnalysis(reply: reply)),
+        '${replyHeading}Is this a P0?',
+        reason: reply,
+      );
+      expect(
+        replyToPost(
+          TriageAnalysis(
+            reply: reply,
+            addedLabels: const [needsTeamInputLabel],
+          ),
+        ),
+        '${teamNoteHeading}Is this a P0?',
+        reason: reply,
+      );
+    }
+  });
+
   test('posts the reply under the team note heading when it adds '
       '"status: needs-team-input"', () async {
     final ApplyResult result = await apply(

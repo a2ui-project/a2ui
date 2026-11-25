@@ -96,8 +96,10 @@ void main() {
     expect(find.byTooltip('Keep $needsTriageLabel'), findsNothing);
 
     // Removing a label strikes it through; clicking it keeps it again.
+    // The draft removes `status: needs-triage` from the start.
+    expect(draft().removedLabels, [needsTriageLabel]);
     await tap(tester, find.byTooltip('Remove type: bug'));
-    expect(draft().removedLabels, ['type: bug']);
+    expect(draft().removedLabels, [needsTriageLabel, 'type: bug']);
     expect(find.byTooltip('Remove type: bug'), findsNothing);
     final Text struck = tester.widget(
       find.descendant(
@@ -107,7 +109,7 @@ void main() {
     );
     expect(struck.style!.decoration, TextDecoration.lineThrough);
     await tap(tester, find.byTooltip('Keep type: bug'));
-    expect(draft().removedLabels, isEmpty);
+    expect(draft().removedLabels, [needsTriageLabel]);
     expect(find.byTooltip('Remove type: bug'), findsOneWidget);
 
     // Removing an added label drops it.
@@ -142,9 +144,10 @@ void main() {
     expect(find.widgetWithText(MenuItemButton, needsTriageLabel), findsNothing);
 
     await tester.tap(find.widgetWithText(MenuItemButton, 'type: bug'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(MenuItemButton, needsTeamInputLabel));
     await tester.pumpAndSettle();
-    expect(draft().removedLabels, ['type: bug']);
+    expect(draft().removedLabels, [needsTriageLabel, 'type: bug']);
     expect(draft().addedLabels, ['area: docs', needsTeamInputLabel]);
     await closeMenu(tester);
     expect(find.byTooltip('Keep type: bug'), findsOneWidget);
@@ -227,6 +230,9 @@ void main() {
     await pumpEditor(tester);
     final Completer<void> hold = github.hold = Completer<void>();
     final Future<void> applied = controller.apply(item());
+    // Long enough for the delete buttons of the chips to fade out, and a
+    // frame to remove them.
+    await tester.pump(const Duration(seconds: 1));
     await tester.pump();
     expect(controller.isApplying(a2ui(10)), isTrue);
 
@@ -253,15 +259,6 @@ void main() {
       expect(button.onPressed, isNull, reason: tooltip);
     }
     expect(find.byTooltip('Remove type: bug'), findsNothing);
-    for (final e in find.byTooltip('Remove hubot').evaluate()) {
-      final chain = <String>[];
-      e.visitAncestorElements((a) {
-        chain.add(a.widget.runtimeType.toString());
-        return chain.length < 25;
-      });
-      // ignore: avoid_print
-      print('DEBUG ${chain.join(' < ')}');
-    }
     expect(find.byTooltip('Remove hubot'), findsNothing);
 
     hold.complete();

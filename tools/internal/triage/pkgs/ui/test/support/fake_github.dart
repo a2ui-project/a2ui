@@ -185,6 +185,10 @@ class FakeGitHub {
   /// going.
   Completer<void>? hold;
 
+  /// While set, the searches wait for it to complete, to keep a load of the
+  /// queue going.
+  Completer<void>? holdSearch;
+
   // Sorted by name, as GitHub returns them, so the priorities are not first.
   List<String> labels = [
     'area: docs',
@@ -226,6 +230,9 @@ class FakeGitHub {
     final Object? body = request.body.isEmpty ? null : jsonDecode(request.body);
     if (path == 'graphql') {
       final json = body! as Map<String, Object?>;
+      if ((json['query']! as String).contains('search(')) {
+        await holdSearch?.future;
+      }
       return _graphql(
         json['query']! as String,
         json['variables']! as Map<String, Object?>,
