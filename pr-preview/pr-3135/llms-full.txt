@@ -15060,7 +15060,7 @@ To report security vulnerabilities, do not open a public issue. Follow the instr
 Canonical URL: https://a2ui.org/specification/v0.9.1-a2ui/
 
 > [!NOTE] Supersedes v0.9
-> **A2UI v0.9.1** supersedes `v0.9` with minor schema and patch refinements while retaining `v0.9` / `v0_9` in wire `"version"` examples and `$id` URIs for compatibility. See the [v0.9.1 Evolution Guide](/specification/v0.9.1-a2ui/v0.9.1-evolution-guide.md), [v0.9.1 JSON Schemas](/specification/v0.9.1-a2ui/v0.9.1-schemas.mdx), and [v1.0 Protocol Specification](/specification/v0.9.1-a2ui/v1.0-a2ui.md). New projects should target v1.0, the current version.
+> **A2UI v0.9.1** supersedes `v0.9` with minor schema and patch refinements while retaining `v0.9` / `v0_9` in wire `"version"` examples for compatibility. Each v0.9.1 schema declares its own `$id` under `https://a2ui.org/specification/v0_9_1/`, except `common_types.json`, which v0.9.1 shares unchanged with v0.9 and which keeps its `v0_9` `$id`. See the [v0.9.1 Evolution Guide](/specification/v0.9.1-a2ui/v0.9.1-evolution-guide.md), [v0.9.1 JSON Schemas](/specification/v0.9.1-a2ui/v0.9.1-schemas.mdx), and [v1.0 Protocol Specification](/specification/v0.9.1-a2ui/v1.0-a2ui.md). New projects should target v1.0, the current version.
 
 A Specification for a JSON-Based, Streaming UI Protocol.
 
@@ -16262,7 +16262,7 @@ Since v0.9.1 is fully compatible with v0.9 messages (the version fields in the m
 
 Canonical URL: https://a2ui.org/specification/v0.9.1/schemas/
 
-A2UI v0.9.1 defines wire messages, shared types, data models, and capability negotiation payloads across 10 canonical JSON Schemas included from `specification/v0_9_1/json/`. Version `v0.9.1` supersedes `v0.9` while retaining `v0_9` in `$id` URIs for backward compatibility. For the reference component catalog schema, see the [v0.9.1 Basic Catalog Guide](https://a2ui.org/specification/v0.9.1-basic-catalog-implementation-guide/#basic_catalog.json). For the current version, see the [v1.0 JSON Schemas](https://a2ui.org/specification/v1.0/schemas/).
+A2UI v0.9.1 defines wire messages, shared types, data models, and capability negotiation payloads across 10 canonical JSON Schemas included from `specification/v0_9_1/json/`. Version `v0.9.1` supersedes `v0.9`. Each schema declares its own `$id` under `https://a2ui.org/specification/v0_9_1/`, except `common_types.json`, which v0.9.1 shares unchanged with v0.9 and which keeps its `v0_9` `$id`; validators resolving relative `catalog.json` references should therefore register the active catalog at both `https://a2ui.org/specification/v0_9_1/catalog.json` and `https://a2ui.org/specification/v0_9/catalog.json`. For the reference component catalog schema, see the [v0.9.1 Basic Catalog Guide](https://a2ui.org/specification/v0.9.1-basic-catalog-implementation-guide/#basic_catalog.json). For the current version, see the [v1.0 JSON Schemas](https://a2ui.org/specification/v1.0/schemas/).
 
 ## Wire messages
 
