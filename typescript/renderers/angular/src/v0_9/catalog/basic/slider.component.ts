@@ -50,7 +50,7 @@ import {
         type="range"
         [min]="min()"
         [max]="max()"
-        [attr.step]="stepAttr()"
+        [step]="stepAttr() ?? ''"
         [value]="value()"
         (input)="handleInput($event)"
         class="a2ui-slider"
@@ -110,6 +110,8 @@ export class SliderComponent extends BasicCatalogComponent<typeof SliderApi> {
   );
   readonly stepAttr = computed(() => {
     const s = this.steps();
+    // Without steps the slider is continuous; the browser's default step is 1.
+    if (s === undefined) return 'any';
     return typeof s === 'number' && s > 0 ? (this.max() - this.min()) / s : null;
   });
 
