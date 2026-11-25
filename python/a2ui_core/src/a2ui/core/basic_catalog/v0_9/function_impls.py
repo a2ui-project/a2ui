@@ -277,7 +277,13 @@ def create_format_currency_implementation(
 
 FormatCurrencyImplementation = create_format_currency_implementation(None)
 
-_DATE_TOKENS = re.compile(r"yyyy|yy|MMMM|MMM|MM|M|EEEE|E|dd|d|HH|H|hh|h|mm|ss|a|%")
+# TR35 pattern tokens, plus quoted literals: `''` is an apostrophe, and text in
+# single quotes (with `''` inside it standing for an apostrophe) is copied
+# through. An unclosed quote runs to the end of the pattern, as in web_core.
+_DATE_TOKENS = re.compile(
+    r"''|'((?:''|[^'])+)(?:'|$)"
+    r"|yyyy|yy|MMMM|MMM|MM|M|EEEE|EEE|EE|E|dd|d|HH|H|hh|h|mm|ss|a|%"
+)
 
 
 def create_format_date_implementation(
@@ -306,7 +312,12 @@ def create_format_date_implementation(
             loc = get_locale(locale)
 
             def _sub(m: re.Match[str]) -> str:
+                literal = m.group(1)
+                if literal is not None:
+                    return literal.replace("''", "'")
                 tok = m.group(0)
+                if tok == "''":
+                    return "'"
                 if tok == "yyyy":
                     return str(dt.year)
                 if tok == "yy":
@@ -321,7 +332,7 @@ def create_format_date_implementation(
                     return str(dt.month)
                 if tok == "EEEE":
                     return str(loc.days["format"]["wide"][dt.weekday()])
-                if tok == "E":
+                if tok in ("EEE", "EE", "E"):
                     return str(loc.days["format"]["abbreviated"][dt.weekday()])
                 if tok == "dd":
                     return f"{dt.day:02d}"

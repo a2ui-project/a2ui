@@ -5,6 +5,7 @@
 - **BREAKING CHANGE**: `MessageProcessor` rejects a payload whose batch arrays and `{"messages": [...]}` wrappers nest deeper than `MAX_GLOBAL_DEPTH` with `A2uiRecursionError`, with or without a `validationConfig`. With a `validationConfig`, each message's depth counts from `0` inside those containers, and keys beside `messages` on a wrapper are checked for depth and `path` syntax. Recommended migration: send messages in one array or wrapper, and remove invalid values beside `messages` ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
 - Treat an already-registered subclass of `component.element` as idempotent in `registerUniversalElement` instead of throwing a tag-name collision error. [#4396](https://github.com/a2ui-project/a2ui/pull/4396)
 - Add an optional `startDepth` parameter to `validateRecursionAndPaths`, a non-negative integer that defaults to `0`, for checking a value held by a container whose depth is already counted ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
+- `formatDate` copies text in single quotes through as a literal and renders `''` as an apostrophe, so `"MMM d 'at' h:mm a"` gives `Feb 2 at 3:17 PM` instead of `Feb 2 'PMt' 3:17 PM`, and reads `EEE` and `EE` as the abbreviated weekday instead of repeating it. [#2937](https://github.com/a2ui-project/a2ui/issues/2937), [#3787](https://github.com/a2ui-project/a2ui/pull/3787)
 
 ## 0.16.1
 

@@ -16,6 +16,11 @@
 - **BREAKING CHANGE**: `BaseVersionAdapter.extract_operations` counts each message's depth from `0` inside batch lists and `{"messages": [...]}` wrappers, rejects containers nested deeper than `MAX_GLOBAL_DEPTH` with `A2uiRecursionError`, and checks keys beside `messages` on a wrapper for depth and `path` syntax. Recommended migration: remove invalid values beside `messages` ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
 - Add an optional `start_depth` parameter to `validate_recursion_and_paths`, a non-negative integer that defaults to `0`, for checking a value held by a container whose depth is already counted ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
 - Emit `ComponentNode.on_updated` when check-only validation attributes (`is_valid`, `validation_errors`, or `validation_results`) change in `NodeResolver`, including asynchronous `callAgentFunction` check settlement ([#4307](https://github.com/a2ui-project/a2ui/issues/4307), [#4308](https://github.com/a2ui-project/a2ui/pull/4308)).
+- `formatDate` (v0.9 and v1.0) copies text in single quotes through as a
+  literal and renders `''` as an apostrophe, so `"MMM d 'at' h:mm a"` gives
+  `Feb 2 at 3:17 PM` instead of `Feb 2 'PMt' 3:17 PM`, and reads `EEE` and
+  `EE` as the abbreviated weekday instead of repeating it.
+  [#2937](https://github.com/a2ui-project/a2ui/issues/2937), [#3787](https://github.com/a2ui-project/a2ui/pull/3787)
 
 ## 0.7.1 (2026-11-23)
 
