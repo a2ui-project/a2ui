@@ -970,6 +970,7 @@
         "@call": "fetchFxRate"
         args:
           amount: .nan
+      jsonOnlyInput: '{"@call":"fetchFxRate","args":{"amount":NaN}}'
       expectValues: [null]
       expectErrors:
         - code: "EXPRESSION_ERROR"
@@ -978,6 +979,7 @@
         "@call": "fetchFxRate"
         args:
           amount: .inf
+      jsonOnlyInput: '{"@call":"fetchFxRate","args":{"amount":Infinity}}'
       as: action
       expectErrors:
         - code: "EXPRESSION_ERROR"

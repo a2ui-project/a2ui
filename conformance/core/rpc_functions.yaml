@@ -70,14 +70,14 @@
           code: "INVALID_FUNCTION_CALL"
           message: "Function 'internalStateReset' cannot be called by agent (allowedCallers is rendererOnly)."
 
-- name: test_rpc_call_renderer_function_requires_user_activation
+- name: test_rpc_call_renderer_function_agent_callable_without_activation
   features: [F-CORE-05, F-CORE-39]
-  description: Verifies callRendererFunction execution when requiresUserActivation is true and user gesture is present.
+  description: Verifies that an agent can call a rendererOrAgent function that does not require user activation.
   catalog:
     protocolVersion: "1.0"
   action: handle_rpc
   args:
-    userActivationPresent: true
+    userActivationPresent: false
     message:
       version: "1.0"
       callRendererFunction:
@@ -90,7 +90,7 @@
     functionMetadata:
       openExternalUrl:
         allowedCallers: "rendererOrAgent"
-        requiresUserActivation: true
+        requiresUserActivation: false
   expect:
     response:
       version: "1.0"
@@ -127,14 +127,14 @@
       inStock: 12
       price: "$29.99"
 
-- name: test_rpc_call_renderer_function_user_activation_denied
+- name: test_rpc_call_renderer_function_gesture_does_not_grant_agent_access
   features: [F-CORE-05, F-CORE-39]
-  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when requiresUserActivation is true but user gesture context is absent.
+  description: Verifies that an active user gesture does not let the agent call a rendererOnly function.
   catalog:
     protocolVersion: "1.0"
   action: handle_rpc
   args:
-    userActivationPresent: false
+    userActivationPresent: true
     message:
       version: "1.0"
       callRendererFunction:
@@ -146,7 +146,7 @@
             url: "https://example.com/details"
     functionMetadata:
       openExternalUrl:
-        allowedCallers: "rendererOrAgent"
+        allowedCallers: "rendererOnly"
         requiresUserActivation: true
   expect:
     response:
@@ -155,7 +155,7 @@
         functionCallId: "call-104"
         error:
           code: "INVALID_FUNCTION_CALL"
-          message: "Function 'openExternalUrl' requires user activation context to execute."
+          message: "Function 'openExternalUrl' cannot be called by agent (allowedCallers is rendererOnly)."
 
 - name: test_rpc_call_renderer_function_execution_exception
   features: [F-CORE-05, F-CORE-25]

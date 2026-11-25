@@ -1076,6 +1076,10 @@
           "type": "object",
           "description": "A FunctionCall to evaluate on the surface's root data context or, when `as` is `event`, the `event` object of an action."
         },
+        "jsonOnlyInput": {
+          "type": "string",
+          "description": "Raw input for SDKs that can represent only JSON values. The SDK must reject this input during JSON parsing and send no callAgentFunction. The evaluation expectations apply to evaluate."
+        },
         "as": {
           "enum": ["binding", "check", "action", "event"],
           "default": "binding",
@@ -1190,7 +1194,8 @@
         }
       },
       "dependentRequired": {
-        "as": ["evaluate"]
+        "as": ["evaluate"],
+        "jsonOnlyInput": ["evaluate"]
       },
       "oneOf": [
         {
