@@ -30,6 +30,7 @@ from .catalogs import (
     catalogs_protocol_version,
     check_catalogs,
     check_mixed_catalogs,
+    release_line,
     surface_catalog_id,
 )
 from .coalesce import CoalescedMessage, coalesce_surface_messages
@@ -48,6 +49,7 @@ __all__ = [
     "catalogs_protocol_version",
     "check_catalogs",
     "check_mixed_catalogs",
+    "release_line",
     "coalesce_surface_messages",
     "combinator_subschemas",
     "common_def_name",
