@@ -34,6 +34,9 @@ SCHEMAS = {
     "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
     "catalog.json": TEMP_CATALOG_FILE,
     "client_to_server.json": os.path.join(SCHEMA_DIR, "client_to_server.json"),
+    "client_to_server_list.json": os.path.join(
+        SCHEMA_DIR, "client_to_server_list.json"
+    ),
 }
 
 
