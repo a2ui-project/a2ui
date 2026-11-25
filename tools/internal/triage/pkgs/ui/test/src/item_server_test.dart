@@ -121,7 +121,7 @@ void main() {
   });
 
   test('rejects a body that is too long or not UTF-8', () async {
-    final String url = 'https://github.com/a2ui-project/a2ui/issues/1';
+    const url = 'https://github.com/a2ui-project/a2ui/issues/1';
     expect(
       await send(
         'POST',

@@ -15,7 +15,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared/shared.dart';
 import 'package:ui/src/model/analysis_draft.dart';
-import 'package:ui/src/model/applier.dart';
 import 'package:ui/src/model/draft_changes.dart';
 import 'package:ui/src/model/triage_item.dart';
 
@@ -46,7 +45,7 @@ void main() {
     addTearDown(draft.dispose);
 
     expect(draftChanges(issue, draft), [
-      (kind: 'Reply', value: '${replyHeading}Thanks.'),
+      (kind: 'Reply', value: 'Thanks.'),
       (kind: 'Remove label', value: needsTriageLabel),
       (kind: 'Add label', value: 'P2'),
       (kind: 'Add label', value: 'type: bug'),

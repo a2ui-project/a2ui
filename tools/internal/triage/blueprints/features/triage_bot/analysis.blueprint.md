@@ -29,6 +29,8 @@ An analysis is **current** when nothing happened on the item after the latest an
 4. A commit pushed to a PR.
 5. A change of labels, assignees or state, except adding or removing `status: needs-triage`. The flagger manages that label, so its changes say nothing new about the item.
 
+A mention of the item in another item does not count: the triage bot's analyses of related items make many of them.
+
 ## The analysis comment
 
 The analysis comment is a [triage bot](../../core.blueprint.md#contributors) comment with an `<a2ui>` block. It follows the template below: the line `**From triage bot, analysis:**`, two collapsed sections, and a disclaimer. **For humans** has the analysis in plain English and the command that opens the item in the triage UI, and **For software** has the analysis as a component for the triage UI. Both sections say the same thing.

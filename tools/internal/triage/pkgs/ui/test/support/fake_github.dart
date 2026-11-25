@@ -221,9 +221,11 @@ class FakeGitHub {
 
   var _clock = 100;
 
-  TriageService service() => TriageService(
-    GitHubClient(token: 'token', httpClient: MockClient(_handle)),
-  );
+  TriageService service() =>
+      TriageService(GitHubClient(token: 'token', httpClient: httpClient()));
+
+  /// A client that answers like GitHub, for a client of the app's own.
+  http.Client httpClient() => MockClient(_handle);
 
   Future<http.Response> _handle(http.Request request) async {
     final String path = request.url.path.substring(1);

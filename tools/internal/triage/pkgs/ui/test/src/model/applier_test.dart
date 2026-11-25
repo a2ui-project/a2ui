@@ -99,7 +99,7 @@ void main() {
   // Regression: a reply that the triage bot wrote with its own heading got
   // a second heading.
   test('posts the reply under one heading, whatever heading it had', () {
-    for (final String reply in [
+    for (final reply in [
       'Is this a P0?',
       '**From triage:**\n\nIs this a P0?',
       '**From triage:** Is this a P0?',

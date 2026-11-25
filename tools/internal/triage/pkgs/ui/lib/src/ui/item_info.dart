@@ -197,43 +197,64 @@ class _AnalysisCard extends StatelessWidget {
 }
 
 /// The item's description and comments, oldest first, as GitHub shows
-/// them, without the triage bot's analysis comments.
-class _Discussion extends StatelessWidget {
+/// them, without the triage bot's analysis comments. The triager can
+/// collapse them.
+class _Discussion extends StatefulWidget {
   const _Discussion({required this.item});
 
   final TriageItem item;
 
   @override
+  State<_Discussion> createState() => _DiscussionState();
+}
+
+class _DiscussionState extends State<_Discussion> {
+  var _expanded = true;
+
+  @override
   Widget build(BuildContext context) {
+    final TriageItem item = widget.item;
     final int count = item.comments.length;
-    return ExpansionTile(
-      title: Text(
-        count == 1
-            ? 'Description and 1 comment'
-            : 'Description and $count comments',
-        style: Theme.of(context).textTheme.titleSmall,
-      ),
-      tilePadding: EdgeInsets.zero,
-      childrenPadding: const EdgeInsets.only(bottom: 8),
-      expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-      initiallyExpanded: true,
-      shape: const Border(),
-      collapsedShape: const Border(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _Post(
-          author: item.author,
-          createdAt: item.createdAt,
-          body: item.body,
-          url: item.url,
-          emptyText: 'No description provided.',
-        ),
-        for (final ItemComment c in item.comments)
-          _Post(
-            author: c.author,
-            createdAt: c.createdAt,
-            body: c.body,
-            url: c.url,
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              spacing: 4,
+              children: [
+                Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                Flexible(
+                  child: Text(
+                    count == 1
+                        ? 'Description and 1 comment'
+                        : 'Description and $count comments',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+              ],
+            ),
           ),
+        ),
+        if (_expanded) ...[
+          const SizedBox(height: 8),
+          _Post(
+            author: item.author,
+            createdAt: item.createdAt,
+            body: item.body,
+            url: item.url,
+            emptyText: 'No description provided.',
+          ),
+          for (final ItemComment c in item.comments)
+            _Post(
+              author: c.author,
+              createdAt: c.createdAt,
+              body: c.body,
+              url: c.url,
+            ),
+        ],
       ],
     );
   }

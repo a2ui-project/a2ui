@@ -132,6 +132,16 @@ void main() {
   Finder inList(String text) =>
       find.descendant(of: find.byType(ListTile), matching: find.text(text));
 
+  /// The tab of the item with [name], such as "#20", whether it is the
+  /// selected item's tab or a linked item's, such as "Linked PR · #20".
+  Finder tab(String name) => find.ancestor(
+    of: find.byWidgetPredicate(
+      (w) =>
+          w is Text && (w.data == name || (w.data ?? '').endsWith(' · $name')),
+    ),
+    matching: find.byType(Tab),
+  );
+
   testWidgets('shows the queue, and the analysis of the first item', (
     tester,
   ) async {
@@ -235,8 +245,8 @@ void main() {
     );
 
     // The linked PR needs triage too, so it has a tab next to the issue's.
-    expect(find.widgetWithText(Tab, '#10'), findsOneWidget);
-    await tester.tap(find.widgetWithText(Tab, '#20'));
+    expect(tab('#10'), findsOneWidget);
+    await tester.tap(tab('#20'));
     await tester.pumpAndSettle();
     expect(find.text('PR #20: Fix the Row crash'), findsOneWidget);
   });
@@ -283,7 +293,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(github.calls, [
-      'POST issues/10/comments {"body":"Thanks for the report."}',
+      'POST issues/10/comments '
+          '{"body":"**From triage:**\\n\\nThanks for the report."}',
       'DELETE issues/10/labels/status%3A%20needs-triage',
       'POST issues/10/labels {"labels":["P2"]}',
       'POST issues/10/assignees {"assignees":["octocat"]}',
@@ -396,7 +407,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(github.calls, [
-      'POST issues/10/comments {"body":"Thanks for the report."}',
+      'POST issues/10/comments '
+          '{"body":"**From triage:**\\n\\nThanks for the report."}',
       'DELETE issues/10/labels/status%3A%20needs-triage',
       'DELETE issues/10/labels/type%3A%20bug',
       'DELETE issues/10/labels/P2',
@@ -624,12 +636,13 @@ void main() {
     expect(sent, findsNWidgets(2));
     expect(controller.selectedGroup, ItemGroup.teamInput);
     expect(find.text('From @octocat for team discussion'), findsOneWidget);
+    // As the note for the team, and as the comment it is.
     expect(
       find.descendant(
         of: find.byType(ItemInfo),
         matching: find.text('Is this a P0?'),
       ),
-      findsOneWidget,
+      findsNWidgets(2),
     );
   });
 
@@ -642,7 +655,7 @@ void main() {
     expect(tester.widget<TextButton>(revert).onPressed, isNull);
 
     Future<void> addBugLabelToThePr() async {
-      await tester.tap(find.widgetWithText(Tab, '#20'));
+      await tester.tap(tab('#20'));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Choose labels'));
       await tester.pumpAndSettle();
@@ -656,10 +669,10 @@ void main() {
     expect(find.widgetWithText(InputChip, 'type: bug'), findsOneWidget);
 
     // Each Edit tab has its own Revert, for its own analysis.
-    await tester.tap(find.widgetWithText(Tab, '#10'));
+    await tester.tap(tab('#10'));
     await tester.pumpAndSettle();
     expect(tester.widget<TextButton>(revert).onPressed, isNull);
-    await tester.tap(find.widgetWithText(Tab, '#20'));
+    await tester.tap(tab('#20'));
     await tester.pumpAndSettle();
     await tester.tap(revert);
     await tester.pumpAndSettle();
@@ -681,7 +694,8 @@ void main() {
 
     // The issue's analysis and the PR's edits, in one click.
     expect(github.calls, [
-      'POST issues/10/comments {"body":"Thanks for the report."}',
+      'POST issues/10/comments '
+          '{"body":"**From triage:**\\n\\nThanks for the report."}',
       'DELETE issues/10/labels/status%3A%20needs-triage',
       'POST issues/10/labels {"labels":["P1"]}',
       'POST issues/10/assignees {"assignees":["octocat"]}',
@@ -742,7 +756,7 @@ void main() {
     expect(find.byIcon(Icons.error_outline), findsOneWidget);
 
     // The PR's apply succeeded, and its log says so.
-    await tester.tap(find.widgetWithText(Tab, '#20'));
+    await tester.tap(tab('#20'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(Tab, 'Log (1)'));
     await tester.pumpAndSettle();
@@ -925,7 +939,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(github.calls, [
-      'POST issues/10/comments {"body":"Thanks for the report."}',
+      'POST issues/10/comments '
+          '{"body":"**From triage:**\\n\\nThanks for the report."}',
       'DELETE issues/10/labels/status%3A%20needs-triage',
       'POST issues/10/labels {"labels":["P1"]}',
       'POST issues/10/assignees {"assignees":["octocat"]}',
@@ -1145,7 +1160,7 @@ void main() {
     expect(after, greaterThan(before + 100));
 
     // The linked item's tab has the same columns.
-    await tester.tap(find.widgetWithText(Tab, '#20'));
+    await tester.tap(tab('#20'));
     await tester.pumpAndSettle();
     expect(tester.getSize(find.byType(ItemInfo).first).width, after);
 
@@ -1181,7 +1196,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final Finder heading = find.ancestor(
-      of: find.text('Suggestion'),
+      of: find.text('Triage bot analysis'),
       matching: find.byType(Wrap),
     );
     expect(
@@ -1193,7 +1208,7 @@ void main() {
   });
 
   testWidgets('an item without an analysis removes only '
-      '"$needsTriageLabel", without showing it', (tester) async {
+      '"$needsTriageLabel"', (tester) async {
     await pumpApp(tester);
     await expand(tester, 'Needs triage (3/3)');
     await expand(tester, 'Issues without open PRs (1/1)');
@@ -1201,7 +1216,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('no analysis yet'), findsNothing);
-    expect(find.text('Remove labels'), findsNothing);
+    expect(find.byTooltip('Apply removes $needsTriageLabel'), findsOneWidget);
+    expect(find.byType(InputChip), findsNothing);
     final Finder apply = find.widgetWithText(FilledButton, 'Apply');
     expect(tester.widget<FilledButton>(apply).onPressed, isNotNull);
 

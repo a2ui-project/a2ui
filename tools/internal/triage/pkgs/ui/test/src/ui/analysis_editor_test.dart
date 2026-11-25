@@ -76,7 +76,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  bool isChecked(WidgetTester tester, String choice) => find
+  bool isChecked(String choice) => find
       .descendant(
         of: find.widgetWithText(MenuItemButton, choice),
         matching: find.byIcon(Icons.check_box),
@@ -96,7 +96,6 @@ void main() {
     expect(find.byTooltip('Keep $needsTriageLabel'), findsNothing);
 
     // Removing a label strikes it through; clicking it keeps it again.
-    // The draft removes `status: needs-triage` from the start.
     expect(draft().removedLabels, [needsTriageLabel]);
     await tap(tester, find.byTooltip('Remove type: bug'));
     expect(draft().removedLabels, [needsTriageLabel, 'type: bug']);
@@ -121,23 +120,16 @@ void main() {
   testWidgets('opens the dropdown from anywhere in the field, with the '
       'labels the item will have checked', (tester) async {
     await pumpEditor(tester);
-
-    final Rect field = tester.getRect(
-      find.widgetWithText(InputDecorator, 'Labels'),
-    );
-    await tester.ensureVisible(find.widgetWithText(InputDecorator, 'Labels'));
+    final Finder field = find.widgetWithText(InputDecorator, 'Labels');
+    await tester.ensureVisible(field);
     await tester.pumpAndSettle();
-    await tester.tapAt(
-      tester
-          .getRect(find.widgetWithText(InputDecorator, 'Labels'))
-          .centerLeft
-          .translate(field.width * 0.75, 0),
-    );
+    final Rect rect = tester.getRect(field);
+    await tester.tapAt(rect.centerLeft.translate(rect.width * 0.75, 0));
     await tester.pumpAndSettle();
 
-    expect(isChecked(tester, 'type: bug'), isTrue);
-    expect(isChecked(tester, 'area: docs'), isTrue);
-    expect(isChecked(tester, needsTeamInputLabel), isFalse);
+    expect(isChecked('type: bug'), isTrue);
+    expect(isChecked('area: docs'), isTrue);
+    expect(isChecked(needsTeamInputLabel), isFalse);
     // The priorities have a field of their own, and
     // `status: needs-triage` cannot be kept.
     expect(find.widgetWithText(MenuItemButton, 'P1'), findsNothing);
@@ -158,7 +150,7 @@ void main() {
     await pumpEditor(tester);
 
     await tap(tester, find.byTooltip('Choose assignees'));
-    expect(isChecked(tester, 'hubot'), isTrue);
+    expect(isChecked('hubot'), isTrue);
     await tester.tap(find.widgetWithText(MenuItemButton, 'octocat'));
     await tester.pumpAndSettle();
     await closeMenu(tester);
@@ -175,11 +167,11 @@ void main() {
     await pumpEditor(tester);
 
     await tap(tester, find.byTooltip('Choose the milestone'));
-    expect(isChecked(tester, 'November launch'), isTrue);
+    expect(isChecked('November launch'), isTrue);
     await tester.tap(find.widgetWithText(MenuItemButton, 'December launch'));
     await tester.pumpAndSettle();
     // At most one is checked.
-    expect(isChecked(tester, 'November launch'), isFalse);
+    expect(isChecked('November launch'), isFalse);
     await closeMenu(tester);
     expect(draft().milestoneChange.set, 'December launch');
     expect(find.byTooltip('Apply adds December launch'), findsOneWidget);
@@ -213,8 +205,7 @@ void main() {
     await tap(tester, find.text('Write'));
     expect(
       tester.widget<TextField>(reply).controller!.text,
-      'See **this** '
-      'first.',
+      'See **this** first.',
     );
 
     // A reply for the team is posted under the note for the team.
@@ -230,8 +221,9 @@ void main() {
     await pumpEditor(tester);
     final Completer<void> hold = github.hold = Completer<void>();
     final Future<void> applied = controller.apply(item());
-    // Long enough for the delete buttons of the chips to fade out, and a
-    // frame to remove them.
+    // A frame to lock the editor, the time for the delete buttons of the
+    // chips to fade out, and a frame to remove them.
+    await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
     expect(controller.isApplying(a2ui(10)), isTrue);

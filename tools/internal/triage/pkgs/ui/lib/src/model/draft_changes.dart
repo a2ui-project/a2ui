@@ -33,7 +33,8 @@ List<DraftChange> draftChanges(TriageItem item, AnalysisDraft draft) {
   final TriageAnalysis s = draft.toAnalysis();
   final MilestoneChange milestone = draft.milestoneChange;
   return [
-    if (replyToPost(s) case final String reply) (kind: 'Reply', value: reply),
+    if (replyToPost(s) case final String reply)
+      (kind: 'Reply', value: _shownReply(reply)),
     for (final String label in s.removedLabels)
       (kind: 'Remove label', value: label),
     for (final String label in s.addedLabels) (kind: 'Add label', value: label),
@@ -47,6 +48,12 @@ List<DraftChange> draftChanges(TriageItem item, AnalysisDraft draft) {
     if (s.closeAs != null) (kind: 'Close', value: closeReason(item, s)),
   ];
 }
+
+/// [reply], as [replyToPost] returns it, without [replyHeading]: every
+/// reply has a heading, so only [teamNoteHeading] says something.
+String _shownReply(String reply) => reply.startsWith(replyHeading)
+    ? reply.substring(replyHeading.length)
+    : reply;
 
 /// The changes that every list in [changes] has, in the order of the first
 /// list.

@@ -17,6 +17,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared/shared.dart';
+import 'package:ui/src/model/analysis_draft.dart';
 import 'package:ui/src/model/applier.dart';
 import 'package:ui/src/model/github_item.dart';
 import 'package:ui/src/model/log_entry.dart';
@@ -867,7 +868,7 @@ void main() {
       await controller.start();
       final TriageItem pr = controller.item(a2ui(21))!;
 
-      final draft = controller.draftFor(
+      final AnalysisDraft draft = controller.draftFor(
         pr,
         const TriageAnalysis(closeAs: TriageCloseReason.duplicate),
       );
@@ -881,7 +882,7 @@ void main() {
     await controller.start();
     final TriageItem item = controller.item(a2ui(10))!;
 
-    final draft = controller.draftFor(
+    final AnalysisDraft draft = controller.draftFor(
       item,
       const TriageAnalysis(reply: '**From triage:**\n\nThanks!'),
     );
