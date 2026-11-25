@@ -670,7 +670,7 @@ class DataContext {
       lastAsyncArgs = null;
     }
 
-    return computed(() {
+    final ReadonlySignal<Object?> invocation = computed(() {
       if (_isAgentCall && !call.call.startsWith('@')) {
         _precheckFunction?.call(
           call.call,
@@ -726,10 +726,21 @@ class DataContext {
           keepPending: propagatePending,
         );
       }
-      if (result is ReadonlySignal) {
-        return result.value;
-      }
       return result;
+    });
+    // Read any returned ReadonlySignal in a separate computed so updates to it
+    // do not re-invoke the function (e.g. formatString with an async part).
+    return computed(() {
+      final Object? result;
+      try {
+        result = invocation.value;
+      } on SignalEffectException catch (wrapped) {
+        Error.throwWithStackTrace(
+          wrapped.error as Object,
+          wrapped.stackTrace ?? StackTrace.current,
+        );
+      }
+      return result is ReadonlySignal ? result.value : result;
     });
   }
 
@@ -1943,12 +1954,13 @@ class DataContext {
   }
 }
 
-/// Sentinel marking a function argument whose synchronous evaluation failed and
-/// was already reported on the surface.
+/// Sentinel marking a function argument whose evaluation failed and was already
+/// reported on the surface.
 const Object _failedArg = _Marker('failed');
 
-/// Sentinel marking a function argument that reads an agent call still
-/// awaiting its answer, so the enclosing call waits instead of running.
+/// Sentinel marking a function argument that reads an agent call or a local
+/// function's `Future` that has not settled, so the enclosing call waits
+/// instead of running.
 const Object _pendingArg = _Marker('pending');
 
 /// A distinct marker object. Two `const Object()` are the same instance.

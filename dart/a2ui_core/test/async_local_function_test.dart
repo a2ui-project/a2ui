@@ -547,6 +547,37 @@ void main() {
         expect(mutating.calls, hasLength(1));
       },
     );
+
+    test('formatString with an async local part calls it once', () async {
+      final Catalog<ComponentApi, FunctionImplementation> basic =
+          BasicCatalog.v1_0();
+      final withFormat = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'fmt',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: const [],
+        functions: [...basic.functions.values, lookup],
+      );
+      final ctx = DataContext(
+        DataModel(),
+        withFormat.invoke,
+        '/',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+      );
+
+      final ReadonlySignal<Object?> sig = ctx.resolveSignal({
+        '@call': 'formatString',
+        'args': {'value': r"Hi ${lookup(value: 'x')}!"},
+      });
+
+      expect(sig.value, 'Hi !');
+      expect(lookup.calls, hasLength(1));
+
+      lookup.calls.single.completer.complete('Bob');
+      await _flush();
+
+      expect(sig.value, 'Hi Bob!');
+      expect(lookup.calls, hasLength(1));
+    });
   });
 }
 
