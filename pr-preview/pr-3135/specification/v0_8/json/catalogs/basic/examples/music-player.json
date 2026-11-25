@@ -1,0 +1,238 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-music-player",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-column"
+            }
+          }
+        },
+        {
+          "id": "main-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["album-art", "track-info", "progress", "time-row", "controls"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "album-art",
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/albumArt"
+              },
+              "fit": "cover"
+            }
+          }
+        },
+        {
+          "id": "track-info",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["song-title", "artist"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "song-title",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/title"
+              },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "artist",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/artist"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "progress",
+          "component": {
+            "Slider": {
+              "value": {
+                "path": "/progress"
+              },
+              "maxValue": 1
+            }
+          }
+        },
+        {
+          "id": "time-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["current-time", "total-time"]
+              },
+              "distribution": "spaceBetween"
+            }
+          }
+        },
+        {
+          "id": "current-time",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/currentTime"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "total-time",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/totalTime"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "controls",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["prev-btn", "play-btn", "next-btn"]
+              },
+              "distribution": "center"
+            }
+          }
+        },
+        {
+          "id": "prev-btn-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "arrowBack"
+              }
+            }
+          }
+        },
+        {
+          "id": "prev-btn",
+          "component": {
+            "Button": {
+              "child": "prev-btn-icon",
+              "action": {
+                "name": "previous",
+                "context": []
+              }
+            }
+          }
+        },
+        {
+          "id": "play-btn-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "path": "/playIcon"
+              }
+            }
+          }
+        },
+        {
+          "id": "play-btn",
+          "component": {
+            "Button": {
+              "child": "play-btn-icon",
+              "action": {
+                "name": "playPause",
+                "context": []
+              }
+            }
+          }
+        },
+        {
+          "id": "next-btn-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "arrowForward"
+              }
+            }
+          }
+        },
+        {
+          "id": "next-btn",
+          "component": {
+            "Button": {
+              "child": "next-btn-icon",
+              "action": {
+                "name": "next",
+                "context": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-music-player",
+      "contents": [
+        {
+          "key": "albumArt",
+          "valueString": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop"
+        },
+        {
+          "key": "title",
+          "valueString": "Blinding Lights"
+        },
+        {
+          "key": "artist",
+          "valueString": "The Weeknd"
+        },
+        {
+          "key": "album",
+          "valueString": "After Hours"
+        },
+        {
+          "key": "progress",
+          "valueNumber": 0.45
+        },
+        {
+          "key": "currentTime",
+          "valueString": "1:48"
+        },
+        {
+          "key": "totalTime",
+          "valueString": "4:22"
+        },
+        {
+          "key": "playIcon",
+          "valueString": "pause"
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-music-player",
+      "root": "root"
+    }
+  }
+]
