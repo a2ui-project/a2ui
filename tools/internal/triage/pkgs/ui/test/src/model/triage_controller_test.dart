@@ -696,4 +696,215 @@ void main() {
     expect(controller.selected!.number, 30);
     expect(controller.selectedGroup, ItemGroup.teamInput);
   });
+
+  test('posts a new reply to an item it posted a reply to before', () async {
+    await controller.start();
+    final TriageItem item = controller.item(a2ui(10))!;
+    controller.draftFor(item, const TriageAnalysis(reply: 'A question?'));
+    await controller.apply(item);
+
+    controller.draftFor(item).reply.text = 'Thanks for the answer.';
+    await controller.apply(controller.item(a2ui(10))!);
+
+    expect(github.calls.where((c) => c.contains('comments')), [
+      contains('A question?'),
+      contains('Thanks for the answer.'),
+    ]);
+  });
+
+  test('a refresh while an item is applied keeps its draft, and the '
+      'items after it are applied too', () async {
+    await controller.start();
+    final TriageItem item10 = controller.item(a2ui(10))!;
+    final TriageItem item11 = controller.item(a2ui(11))!;
+    controller
+      ..draftFor(item10, const TriageAnalysis(addedLabels: ['P2']))
+      ..draftFor(item11, const TriageAnalysis(addedLabels: ['P3']));
+    final Completer<void> hold = github.hold = Completer<void>();
+
+    final Future<void> applying = controller.applyAll([item10, item11]);
+    expect(controller.isApplyingAny, isTrue);
+    // Another change on GitHub, which a refresh sees.
+    github.change(11, (item) => item['title'] = 'Renamed');
+    await controller.refresh();
+    hold.complete();
+    github.hold = null;
+    await applying;
+
+    expect(controller.isApplyingAny, isFalse);
+    expect(controller.changedOnGitHub(a2ui(11)), isFalse);
+    expect(github.calls, [
+      contains('issues/10/labels/status'),
+      'POST issues/10/labels ["P2"]',
+      contains('issues/11/labels/status'),
+      'POST issues/11/labels ["P3"]',
+    ]);
+  });
+
+  test('an item opened while a refresh runs stays opened', () async {
+    await controller.start();
+    final Completer<void> refreshed = Completer<void>();
+    final Future<void> refreshing = controller.refresh().then(
+      refreshed.complete,
+    );
+    await controller.open(url('issues/30'));
+    await refreshing;
+
+    expect(numbers(controller.opened), [30]);
+    expect(controller.loading, isFalse);
+  });
+
+  test('an item removed from the list comes back when it is opened by URL, '
+      'and applying it selects the next item', () async {
+    await controller.start();
+    controller.removeFromList(controller.item(a2ui(10))!);
+
+    await controller.open(url('issues/10'));
+    expect(controller.selected!.number, 10);
+    expect(numbers(controller.newItems), contains(10));
+
+    controller.draftFor(
+      controller.selected!,
+      const TriageAnalysis(addedLabels: ['P2']),
+    );
+    await controller.apply(controller.selected!);
+
+    expect(controller.lastResult(a2ui(10))!.succeeded, isTrue);
+    expect(controller.isApplyingAny, isFalse);
+  });
+
+  test('an unexpected error in a load ends the load and shows it', () async {
+    await controller.start();
+    github.change(30, (item) => item.remove('title'));
+
+    await controller.open(url('issues/30'));
+
+    expect(controller.loading, isFalse);
+    expect(controller.error, isNotNull);
+  });
+
+  test('an unexpected error after an apply ends the apply', () async {
+    await controller.start();
+    final TriageItem item = controller.item(a2ui(10))!;
+    controller.draftFor(item, const TriageAnalysis(addedLabels: ['P2']));
+    // The item cannot be read again after the apply.
+    github.change(10, (item) => item.remove('title'));
+
+    await controller.apply(item);
+
+    expect(controller.isApplyingAny, isFalse);
+    expect(controller.lastResult(a2ui(10))!.succeeded, isTrue);
+  });
+
+  test(
+    'loads a linked PR in another repository from that repository',
+    () async {
+      github
+        ..genuiItems[1086] = itemNode(
+          1086,
+          repository: genuiRepository,
+          pr: true,
+          labels: const [],
+        )
+        ..items[1086] = itemNode(
+          1086,
+          pr: true,
+          state: 'MERGED',
+          labels: const [],
+        )
+        ..items[4378] = itemNode(4378, crossLinked: [genui(1086)]);
+      await controller.start();
+      final TriageItem issue = controller.item(a2ui(4378))!;
+
+      await controller.loadLinked(issue);
+
+      expect(names(controller.group(issue)), ['#4378', 'genui #1086']);
+    },
+  );
+
+  test('starts the draft of a linked item that was triaged already empty, '
+      'so that a group apply leaves it as it is', () async {
+    github.items[12] = itemNode(
+      12,
+      pr: true,
+      labels: const ['P2'],
+      linked: [11],
+      comments: [
+        commentNode(
+          analysisComment(
+            'root = TriageAnalysis(summary="A", suggestion="B", '
+            'added_labels=["P1"])',
+          ),
+          at: day(1),
+        ),
+      ],
+    );
+    github.change(11, (item) {
+      item['closedByPullRequestsReferences'] = {
+        'nodes': [
+          for (final n in [20, 12])
+            {
+              'number': n,
+              'state': 'OPEN',
+              'repository': {'nameWithOwner': a2uiRepository},
+            },
+        ],
+      };
+    });
+    await controller.start();
+    final TriageItem issue = controller.item(a2ui(11))!;
+    await controller.loadLinked(issue);
+    final TriageItem pr = controller.group(issue).last;
+    expect(pr.number, 12);
+
+    expect(controller.draftFor(pr).hasChanges, isFalse);
+  });
+
+  test(
+    'a PR draft closes it without a reason, whatever the analysis says',
+    () async {
+      await controller.start();
+      final TriageItem pr = controller.item(a2ui(21))!;
+
+      final draft = controller.draftFor(
+        pr,
+        const TriageAnalysis(closeAs: TriageCloseReason.duplicate),
+      );
+
+      expect(draft.closeAs, TriageCloseReason.completed);
+      expect(draft.problem, isNull);
+    },
+  );
+
+  test("a draft's reply has no heading, which the apply adds", () async {
+    await controller.start();
+    final TriageItem item = controller.item(a2ui(10))!;
+
+    final draft = controller.draftFor(
+      item,
+      const TriageAnalysis(reply: '**From triage:**\n\nThanks!'),
+    );
+    expect(draft.reply.text, 'Thanks!');
+
+    await controller.apply(item);
+    expect(
+      github.calls.first,
+      'POST issues/10/comments ${jsonEncode({'body': '${replyHeading}Thanks!'})}',
+    );
+  });
+
+  test('a PR that becomes a draft leaves the queue, and a draft PR opened by '
+      'URL stays out of it', () async {
+    await controller.start();
+    await controller.open(url('pull/50'));
+    github.change(21, (item) => item['isDraft'] = true);
+
+    await controller.refreshItems([
+      controller.item(a2ui(21))!,
+      controller.item(a2ui(50))!,
+    ]);
+
+    expect(controller.leftOnGitHub(a2ui(21)), isTrue);
+    expect(controller.leftOnGitHub(a2ui(50)), isFalse);
+  });
 }
