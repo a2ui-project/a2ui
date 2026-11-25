@@ -253,6 +253,15 @@ void main() {
       expect(button.onPressed, isNull, reason: tooltip);
     }
     expect(find.byTooltip('Remove type: bug'), findsNothing);
+    for (final e in find.byTooltip('Remove hubot').evaluate()) {
+      final chain = <String>[];
+      e.visitAncestorElements((a) {
+        chain.add(a.widget.runtimeType.toString());
+        return chain.length < 25;
+      });
+      // ignore: avoid_print
+      print('DEBUG ${chain.join(' < ')}');
+    }
     expect(find.byTooltip('Remove hubot'), findsNothing);
 
     hold.complete();
