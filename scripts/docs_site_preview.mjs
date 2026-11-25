@@ -115,31 +115,201 @@ export function validateSiteDirectory(siteDir, {maxBytes = MAX_BUNDLE_BYTES} = {
   return totalBytes;
 }
 
-/**
- * Inserts `<meta name="robots" content="noindex, nofollow">` into an HTML
- * document's `<head>` if no `robots` meta tag is already present.
- */
-export function injectNoindexMeta(html) {
-  if (/<meta\b[^>]*\bname\s*=\s*["']robots["']/i.test(html)) {
-    return html;
+const RAW_HTML_TEXT_TAGS = new Set(['script', 'style', 'textarea', 'title']);
+const PREVIEW_CRAWLER_FILE_RE = /^(?:robots\.txt|sitemap(?:-index|-.*)?\.xml(?:\.gz)?)$/i;
+
+function parseHtmlTagAttributes(rawAttrs) {
+  const attrs = new Map();
+  const attrRegex =
+    /([a-zA-Z_:][a-zA-Z0-9_.:-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+  for (const match of rawAttrs.matchAll(attrRegex)) {
+    const name = match[1].toLowerCase();
+    const val = match[2] ?? match[3] ?? match[4] ?? '';
+    if (!attrs.has(name)) {
+      attrs.set(name, val);
+    }
   }
-  if (/<\/head>/i.test(html)) {
-    return html.replace(/<\/head>/i, `${NOINDEX_META_TAG}\n</head>`);
-  }
-  if (/<head\b[^>]*>/i.test(html)) {
-    return html.replace(/<head\b[^>]*>/i, match => `${match}\n${NOINDEX_META_TAG}`);
-  }
-  return html;
+  return attrs;
 }
 
-function applyNoindexToHtmlTree(dir) {
+/**
+ * Removes HTML opening/self-closing tags matching `shouldRemove(tagName, attrs)`
+ * outside HTML comments, CDATA blocks, `<template>` subtrees, and raw-text elements.
+ */
+function stripHtmlTags(html, shouldRemove) {
+  const removals = [];
+  let templateDepth = 0;
+  let i = 0;
+  const len = html.length;
+
+  while (i < len) {
+    const lt = html.indexOf('<', i);
+    if (lt === -1) break;
+
+    if (html.startsWith('<!--', lt)) {
+      const commentEnd = html.indexOf('-->', lt + 4);
+      i = commentEnd === -1 ? len : commentEnd + 3;
+      continue;
+    }
+
+    if (html.startsWith('<![CDATA[', lt)) {
+      const cdataEnd = html.indexOf(']]>', lt + 9);
+      i = cdataEnd === -1 ? len : cdataEnd + 3;
+      continue;
+    }
+
+    const nextCh = html[lt + 1];
+    if (!nextCh) break;
+
+    if (nextCh === '!' || nextCh === '?') {
+      const declEnd = html.indexOf('>', lt + 2);
+      i = declEnd === -1 ? len : declEnd + 1;
+      continue;
+    }
+
+    if (nextCh === '/') {
+      if (!/[a-zA-Z]/.test(html[lt + 2] || '')) {
+        i = lt + 1;
+        continue;
+      }
+      const closeEnd = html.indexOf('>', lt + 2);
+      if (closeEnd === -1) break;
+      const closeNameMatch = /^\/\s*([a-zA-Z][a-zA-Z0-9:-]*)/.exec(html.slice(lt + 1, closeEnd));
+      if (closeNameMatch && closeNameMatch[1].toLowerCase() === 'template' && templateDepth > 0) {
+        templateDepth--;
+      }
+      i = closeEnd + 1;
+      continue;
+    }
+
+    if (!/[a-zA-Z]/.test(nextCh)) {
+      i = lt + 1;
+      continue;
+    }
+
+    let cursor = lt + 1;
+    let quote = null;
+    while (cursor < len) {
+      const ch = html[cursor];
+      if (quote) {
+        if (ch === quote) quote = null;
+      } else if (ch === '"' || ch === "'") {
+        quote = ch;
+      } else if (ch === '>') {
+        break;
+      }
+      cursor++;
+    }
+    if (cursor >= len) break;
+
+    const tagInner = html.slice(lt + 1, cursor);
+    const selfClosing = /^(?:[a-zA-Z][a-zA-Z0-9:-]*|[\s\S]*[\s"'])\/\s*$/.test(tagInner);
+    const cleanedInner = selfClosing ? tagInner.replace(/\/\s*$/, '') : tagInner;
+    const nameMatch = /^([a-zA-Z][a-zA-Z0-9:-]*)([\s\S]*)$/.exec(cleanedInner);
+    const tagEnd = cursor + 1;
+    i = tagEnd;
+    if (!nameMatch) continue;
+
+    const tagName = nameMatch[1].toLowerCase();
+    if (tagName === 'template') {
+      if (!selfClosing) {
+        templateDepth++;
+      }
+      continue;
+    }
+
+    const attrs = parseHtmlTagAttributes(nameMatch[2]);
+    if (templateDepth === 0 && shouldRemove(tagName, attrs)) {
+      let start = lt;
+      let end = tagEnd;
+      const prevNewline = html.lastIndexOf('\n', lt - 1);
+      const linePrefix = html.slice(prevNewline + 1, lt);
+      if (/^[ \t]*$/.test(linePrefix)) {
+        if (html.startsWith('\r\n', end)) {
+          start = prevNewline + 1;
+          end += 2;
+        } else if (html[end] === '\n') {
+          start = prevNewline + 1;
+          end += 1;
+        }
+      }
+      removals.push([start, end]);
+    }
+
+    if (RAW_HTML_TEXT_TAGS.has(tagName) && !selfClosing) {
+      const closeRegex = new RegExp(`<\\/\\s*${tagName}\\b[^>]*>`, 'gi');
+      closeRegex.lastIndex = i;
+      const closeMatch = closeRegex.exec(html);
+      i = closeMatch ? closeMatch.index + closeMatch[0].length : len;
+    }
+  }
+
+  if (removals.length === 0) {
+    return html;
+  }
+
+  let out = '';
+  let lastIdx = 0;
+  for (const [start, end] of removals) {
+    if (start > lastIdx) {
+      out += html.slice(lastIdx, start);
+    }
+    lastIdx = Math.max(lastIdx, end);
+  }
+  out += html.slice(lastIdx);
+  return out;
+}
+
+/**
+ * Replaces any existing `robots` meta tags with
+ * `<meta name="robots" content="noindex, nofollow">`.
+ */
+export function injectNoindexMeta(html) {
+  const withoutRobots = stripHtmlTags(
+    html,
+    (tagName, attrs) =>
+      tagName === 'meta' && (attrs.get('name') || '').trim().toLowerCase() === 'robots',
+  );
+
+  if (/<\/head>/i.test(withoutRobots)) {
+    return withoutRobots.replace(/<\/head>/i, `${NOINDEX_META_TAG}\n</head>`);
+  }
+  if (/<head\b[^>]*>/i.test(withoutRobots)) {
+    return withoutRobots.replace(/<head\b[^>]*>/i, match => `${match}\n${NOINDEX_META_TAG}`);
+  }
+  if (/<body\b[^>]*>/i.test(withoutRobots)) {
+    return withoutRobots.replace(/<body\b[^>]*>/i, match => `${NOINDEX_META_TAG}${match}`);
+  }
+  if (/<html\b[^>]*>/i.test(withoutRobots)) {
+    return withoutRobots.replace(/<html\b[^>]*>/i, match => `${match}${NOINDEX_META_TAG}`);
+  }
+  if (/<!doctype\b[^>]*>/i.test(withoutRobots)) {
+    return withoutRobots.replace(/<!doctype\b[^>]*>/i, match => `${match}\n${NOINDEX_META_TAG}`);
+  }
+  return withoutRobots ? `${NOINDEX_META_TAG}\n${withoutRobots}` : NOINDEX_META_TAG;
+}
+
+/**
+ * Strips `<link rel="canonical">` and `<link rel="sitemap">` tags and enforces
+ * `<meta name="robots" content="noindex, nofollow">` on a PR preview HTML page.
+ */
+export function sanitizePreviewHtml(html) {
+  const withoutCanonicalOrSitemap = stripHtmlTags(html, (tagName, attrs) => {
+    if (tagName !== 'link') return false;
+    const relTokens = (attrs.get('rel') || '').toLowerCase().split(/\s+/).filter(Boolean);
+    return relTokens.includes('canonical') || relTokens.includes('sitemap');
+  });
+  return injectNoindexMeta(withoutCanonicalOrSitemap);
+}
+
+function sanitizePreviewHtmlTree(dir) {
   for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      applyNoindexToHtmlTree(fullPath);
+      sanitizePreviewHtmlTree(fullPath);
     } else if (entry.isFile() && entry.name.endsWith('.html')) {
       const original = fs.readFileSync(fullPath, 'utf8');
-      const updated = injectNoindexMeta(original);
+      const updated = sanitizePreviewHtml(original);
       if (updated !== original) {
         fs.writeFileSync(fullPath, updated, 'utf8');
       }
@@ -147,9 +317,22 @@ function applyNoindexToHtmlTree(dir) {
   }
 }
 
+function stripPreviewCrawlerFiles(dir) {
+  for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      stripPreviewCrawlerFiles(fullPath);
+    } else if (entry.isFile() && PREVIEW_CRAWLER_FILE_RE.test(entry.name)) {
+      fs.rmSync(fullPath, {force: true});
+    }
+  }
+}
+
 /**
- * Stages `distDir` into `outDir/site` (stripping root `CNAME`/`.nojekyll` and
- * marking all HTML pages `noindex, nofollow`) alongside `outDir/pr-metadata.json`.
+ * Stages `distDir` into `outDir/site` (stripping `CNAME`, `.nojekyll`,
+ * `robots.txt`, and `sitemap*.xml`, and sanitizing all HTML pages with
+ * `noindex, nofollow` and no canonical/sitemap links) alongside
+ * `outDir/pr-metadata.json`.
  */
 export function stagePreviewBundle({
   distDir,
@@ -192,7 +375,8 @@ export function stagePreviewBundle({
 
   fs.rmSync(path.join(stagedSiteDir, 'CNAME'), {force: true});
   fs.rmSync(path.join(stagedSiteDir, '.nojekyll'), {force: true});
-  applyNoindexToHtmlTree(stagedSiteDir);
+  stripPreviewCrawlerFiles(stagedSiteDir);
+  sanitizePreviewHtmlTree(stagedSiteDir);
 
   validateSiteDirectory(stagedSiteDir, {maxBytes});
 
@@ -393,6 +577,8 @@ export function syncGhPagesPreviewTree({
     fs.cpSync(deploy.siteDir, destDir, {recursive: true, verbatimSymlinks: true});
     fs.rmSync(path.join(destDir, 'CNAME'), {force: true});
     fs.rmSync(path.join(destDir, '.nojekyll'), {force: true});
+    stripPreviewCrawlerFiles(destDir);
+    sanitizePreviewHtmlTree(destDir);
     deployedPrNumber = parsedPr;
     openSet.add(parsedPr);
   }

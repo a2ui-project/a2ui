@@ -26,13 +26,37 @@ function validateMeasurementId(measurementId) {
 
 export function buildGoogleAnalyticsSnippet(measurementId = DEFAULT_GA_MEASUREMENT_ID) {
   validateMeasurementId(measurementId);
+  const scriptSrc = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`;
   return [
-    `<script async src="https://www.googletagmanager.com/gtag/js?id=${measurementId}"></script>`,
     '<script>',
     'window.dataLayer = window.dataLayer || [];',
     'function gtag(){dataLayer.push(arguments);}',
     "gtag('js', new Date());",
     `gtag('config', '${measurementId}');`,
+    '(() => {',
+    `  const src = '${scriptSrc}';`,
+    '  let loaded = false;',
+    '  const loadGtag = () => {',
+    '    if (loaded) return;',
+    '    loaded = true;',
+    "    const s = document.createElement('script');",
+    '    s.async = true;',
+    '    s.src = src;',
+    '    document.head.appendChild(s);',
+    '  };',
+    '  const schedule = () => {',
+    "    if ('requestIdleCallback' in window) {",
+    '      window.requestIdleCallback(loadGtag, {timeout: 2500});',
+    '    } else {',
+    '      window.setTimeout(loadGtag, 1500);',
+    '    }',
+    '  };',
+    "  if (document.readyState === 'complete') {",
+    '    schedule();',
+    '  } else {',
+    "    window.addEventListener('load', schedule, {once: true});",
+    '  }',
+    '})();',
     '</script>',
   ].join('\n');
 }

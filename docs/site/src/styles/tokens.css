@@ -19,17 +19,41 @@
    Shared across the Overview experience, Starlight docs, and diagrams.
    ========================================================================== */
 
+@font-face {
+  font-family: 'Manrope Fallback';
+  src:
+    local('Arial'), local('Liberation Sans'), local('Arimo'), local('Helvetica Neue'),
+    local('DejaVu Sans');
+  font-weight: 100 699;
+  size-adjust: 103.5%;
+  ascent-override: 103%;
+  descent-override: 29%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Manrope Fallback';
+  src:
+    local('Arial Bold'), local('Liberation Sans Bold'), local('Arimo Bold'),
+    local('Helvetica Neue Bold'), local('DejaVu Sans Bold'), local('Arial');
+  font-weight: 700 900;
+  size-adjust: 102.5%;
+  ascent-override: 101%;
+  descent-override: 28%;
+  line-gap-override: 0%;
+}
+
 :root,
 :root[data-theme='dark'] {
   /* --- Font Topology ---
-     1. Display: Manrope (geometric grotesque, 600-800 weight, tight tracking)
-     2. Serif: Playfair Display — only inside the "Editorial Luxury" brand mock (§ 02 morph);
+     1. Display: Manrope (geometric grotesque, 600-800 weight, tight tracking);
         headline emphasis is carried by colour (--a2-heading-accent), never italics
-     3. Body: Manrope 400-500 (calm measure & leading)
-     4. Technical: IBM Plex Mono for micro-labels, metrics & code */
-  --a2-font-display: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --a2-font-serif: 'Playfair Display', Georgia, Cambria, 'Times New Roman', serif;
-  --a2-font-sans: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+     2. Body: Manrope 400-500 (calm measure & leading)
+     3. Technical: IBM Plex Mono for micro-labels, metrics & code */
+  --a2-font-display:
+    'Manrope', 'Manrope Fallback', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --a2-font-sans:
+    'Manrope', 'Manrope Fallback', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --a2-font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   /* --- Typographic Scale & Tracking --- */

@@ -127,6 +127,8 @@ test('rehypeLocalDocAssets rewrites Markdown images and MDX <img> elements', () 
   assert.equal(tree.children[0].properties.src, '/preview/docs-assets/page--shot.abcd1234.webp');
   assert.equal(tree.children[0].properties.width, 800);
   assert.equal(tree.children[0].properties.height, 600);
+  assert.equal(tree.children[0].properties.loading, 'lazy');
+  assert.equal(tree.children[0].properties.decoding, 'async');
   assert.equal(
     tree.children[1].value,
     '<p><img src="/preview/docs-assets/page--shot.abcd1234.webp" alt="raw shot"></p>',
@@ -137,6 +139,8 @@ test('rehypeLocalDocAssets rewrites Markdown images and MDX <img> elements', () 
   );
   assert.equal(tree.children[2].attributes.find(a => a.name === 'width').value, '800');
   assert.equal(tree.children[2].attributes.find(a => a.name === 'height').value, '600');
+  assert.equal(tree.children[2].attributes.find(a => a.name === 'loading').value, 'lazy');
+  assert.equal(tree.children[2].attributes.find(a => a.name === 'decoding').value, 'async');
 });
 
 test('downloadVerified retries gateway timeouts and returns bytes that match the hash', async () => {

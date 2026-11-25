@@ -17,6 +17,7 @@
 import '../styles/tokens.css';
 
 import assetsManifest from '../../assets-manifest.json';
+import MarketingHead from '../components/MarketingHead.astro';
 import StarlightHeader from '../components/StarlightHeader.astro';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -36,6 +37,8 @@ interface ConsultantEntry {
   domain: string;
   logoLight: string;
   logoDark: string;
+  logoWidth: number;
+  logoNaturalHeight: number;
   logoHeight: number;
   appName: string;
   appTagline: string;
@@ -65,6 +68,8 @@ const consultants: ConsultantEntry[] = [
     domain: 'Developer tools',
     logoLight: releaseAsset('get-help/copilotkit/logo-light'),
     logoDark: releaseAsset('get-help/copilotkit/logo-dark'),
+    logoWidth: 120,
+    logoNaturalHeight: 28,
     logoHeight: 25,
     appName: 'A2UI Playground',
     appTagline: 'Live multi-catalog generative UI',
@@ -95,6 +100,8 @@ const consultants: ConsultantEntry[] = [
     domain: 'E-commerce',
     logoLight: `${base}/assets/consultants/logos/lr-light.svg`,
     logoDark: `${base}/assets/consultants/logos/lr-dark.svg`,
+    logoWidth: 36,
+    logoNaturalHeight: 16,
     logoHeight: 20,
     appName: 'Alder',
     appTagline: 'Conversational stylist for fashion retail',
@@ -124,6 +131,8 @@ const consultants: ConsultantEntry[] = [
     domain: 'Finance',
     logoLight: `${base}/assets/consultants/logos/moonwise-light.svg`,
     logoDark: `${base}/assets/consultants/logos/moonwise-dark.svg`,
+    logoWidth: 261,
+    logoNaturalHeight: 45,
     logoHeight: 22,
     appName: 'Homeward',
     appTagline: 'Conversational home-buying planner',
@@ -155,6 +164,8 @@ const consultants: ConsultantEntry[] = [
     domain: 'Healthcare',
     logoLight: `${base}/assets/consultants/logos/oaktree-light.svg`,
     logoDark: `${base}/assets/consultants/logos/oaktree-dark.svg`,
+    logoWidth: 340,
+    logoNaturalHeight: 88,
     logoHeight: 28,
     appName: 'VitalLoop',
     appTagline: 'Personal health and vital-sign tracker',
@@ -188,6 +199,8 @@ const consultants: ConsultantEntry[] = [
     domain: 'Healthcare',
     logoLight: `${base}/assets/consultants/logos/solid-light.webp`,
     logoDark: `${base}/assets/consultants/logos/solid-dark.webp`,
+    logoWidth: 393,
+    logoNaturalHeight: 160,
     logoHeight: 26,
     appName: 'GenUI Clinic',
     appTagline: 'Pre-consultation physician workspace',
@@ -219,6 +232,8 @@ const consultants: ConsultantEntry[] = [
     domain: 'Finance',
     logoLight: `${base}/assets/consultants/logos/somnio-light.svg`,
     logoDark: `${base}/assets/consultants/logos/somnio-dark.svg`,
+    logoWidth: 156,
+    logoNaturalHeight: 48,
     logoHeight: 27,
     appName: 'Investing Companion',
     appTagline: 'Multi-state portfolio assistant',
@@ -249,6 +264,8 @@ const consultants: ConsultantEntry[] = [
     domain: 'AI Engineering',
     logoLight: releaseAsset('get-help/soverius/logo-light'),
     logoDark: releaseAsset('get-help/soverius/logo-dark'),
+    logoWidth: 3111,
+    logoNaturalHeight: 894,
     logoHeight: 28,
     appName: 'A2UI Express Browser Demo',
     appTagline: 'Local Gemma 4 UI with error recovery',
@@ -279,6 +296,8 @@ const consultants: ConsultantEntry[] = [
     domain: 'Smart home',
     logoLight: `${base}/assets/consultants/logos/vgv-light.svg`,
     logoDark: `${base}/assets/consultants/logos/vgv-dark.svg`,
+    logoWidth: 302,
+    logoNaturalHeight: 57,
     logoHeight: 24,
     appName: 'Riviera Home',
     appTagline: 'Shared kitchen wall display',
@@ -312,34 +331,11 @@ const sortedConsultants = [...consultants].sort((a, b) => a.agency.localeCompare
 <!doctype html>
 <html lang="en" data-theme="light">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Get Help | A2UI</title>
-    <meta
-      name="description"
-      content="Add the officially supported A2UI skill to your coding agent, or work with independent companies offering consulting services on A2UI."
+    <MarketingHead
+      title="Get Help | A2UI"
+      description="Add the officially supported A2UI skill to your coding agent, or work with independent companies offering consulting services on A2UI."
+      preloadImageHref={sortedConsultants[0]?.primaryImg}
     />
-    <link rel="icon" type="image/svg+xml" href={`${base}/assets/favicon.svg`} />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap"
-      rel="stylesheet"
-    />
-    <script is:inline>
-      (() => {
-        try {
-          const saved =
-            localStorage.getItem('starlight-theme') || localStorage.getItem('a2ui-theme');
-          document.documentElement.setAttribute(
-            'data-theme',
-            saved === 'dark' || saved === 'light' ? saved : 'light'
-          );
-        } catch (e) {
-          document.documentElement.setAttribute('data-theme', 'light');
-        }
-      })();
-    </script>
   </head>
 
   <body class="a2-page">
@@ -404,7 +400,7 @@ const sortedConsultants = [...consultants].sort((a, b) => a.agency.localeCompare
 
           <div class="c-grid" id="c-grid">
             {
-              sortedConsultants.map((item) => (
+              sortedConsultants.map((item, cardIndex) => (
                 <article
                   class="c-card"
                   data-card
@@ -432,15 +428,21 @@ const sortedConsultants = [...consultants].sort((a, b) => a.agency.localeCompare
                       <img
                         src={item.logoLight}
                         alt={item.agency}
+                        width={item.logoWidth}
+                        height={item.logoNaturalHeight}
                         class="c-agency-logo c-agency-logo--light"
                         style={`height: ${item.logoHeight}px;`}
+                        loading={cardIndex < 2 ? undefined : 'lazy'}
                         decoding="async"
                       />
                       <img
                         src={item.logoDark}
                         alt={item.agency}
+                        width={item.logoWidth}
+                        height={item.logoNaturalHeight}
                         class="c-agency-logo c-agency-logo--dark"
                         style={`height: ${item.logoHeight}px;`}
+                        loading="lazy"
                         decoding="async"
                       />
                     </a>
@@ -556,7 +558,8 @@ const sortedConsultants = [...consultants].sort((a, b) => a.agency.localeCompare
                       >
                         <video
                           src={item.videoSrc}
-                          poster={item.primaryImg}
+                          poster={cardIndex < 2 ? item.primaryImg : undefined}
+                          data-poster={cardIndex >= 2 ? item.primaryImg : undefined}
                           width="1280"
                           height="800"
                           muted
@@ -564,7 +567,7 @@ const sortedConsultants = [...consultants].sort((a, b) => a.agency.localeCompare
                           playsinline
                           disablepictureinpicture
                           disableremoteplayback
-                          preload="metadata"
+                          preload="none"
                         />
                       </div>
                       <div
@@ -748,7 +751,7 @@ const sortedConsultants = [...consultants].sort((a, b) => a.agency.localeCompare
         <span id="c-lb-caption"></span>
         <a
           id="c-lb-agency-link"
-          href="https://a2ui.org"
+          href="https://a2ui.org/"
           target="_blank"
           rel="noopener noreferrer"
           class="c-text-link"
@@ -791,6 +794,15 @@ const sortedConsultants = [...consultants].sort((a, b) => a.agency.localeCompare
           toggle.setAttribute('aria-label', `${paused ? 'Play' : 'Pause'} ${app} video`);
         }
 
+        function ensureVideoPoster(vid) {
+          if (!vid) return;
+          const deferredPoster = vid.getAttribute('data-poster');
+          if (deferredPoster && !vid.getAttribute('poster')) {
+            vid.setAttribute('poster', deferredPoster);
+            vid.removeAttribute('data-poster');
+          }
+        }
+
         function syncVisibleVideos() {
           const vh = window.innerHeight || document.documentElement.clientHeight;
           cards.forEach((card) => {
@@ -801,6 +813,9 @@ const sortedConsultants = [...consultants].sort((a, b) => a.agency.localeCompare
             const userPaused = card.getAttribute('data-user-paused') === 'true';
             const rect = card.getBoundingClientRect();
             const inView = rect.bottom > 40 && rect.top < vh - 40;
+            if (inView) {
+              ensureVideoPoster(vid);
+            }
             if (!prefersReducedMotion && inView && onVideoTab && !userPaused) {
               vid.play().catch(() => {});
               syncToggleIcon(card, false);
@@ -811,6 +826,23 @@ const sortedConsultants = [...consultants].sort((a, b) => a.agency.localeCompare
           });
         }
 
+        if ('IntersectionObserver' in window) {
+          const posterObserver = new IntersectionObserver(
+            (entries, observer) => {
+              entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                const card = entry.target;
+                ensureVideoPoster(card.querySelector('video'));
+                observer.unobserve(card);
+              });
+            },
+            { rootMargin: '400px 0px' }
+          );
+          cards.forEach((card) => posterObserver.observe(card));
+        } else {
+          cards.forEach((card) => ensureVideoPoster(card.querySelector('video')));
+        }
+
         if (prefersReducedMotion) {
           cards.forEach((card) => {
             card.setAttribute('data-user-paused', 'true');
@@ -819,29 +851,46 @@ const sortedConsultants = [...consultants].sort((a, b) => a.agency.localeCompare
             syncToggleIcon(card, true);
           });
         } else {
-          syncVisibleVideos();
-          if ('IntersectionObserver' in window) {
-            const observer = new IntersectionObserver(
-              (entries) => {
-                entries.forEach((entry) => {
-                  const card = entry.target;
-                  const vid = card.querySelector('video');
-                  if (!vid) return;
-                  const activeTab = card.querySelector('.c-tab.is-active');
-                  const onVideoTab =
-                    !activeTab || activeTab.getAttribute('data-media-tab') === 'video';
-                  const userPaused = card.getAttribute('data-user-paused') === 'true';
-                  if (entry.isIntersecting && onVideoTab && !userPaused) {
-                    vid.play().catch(() => {});
-                    syncToggleIcon(card, false);
-                  } else if (!entry.isIntersecting && !vid.paused) {
-                    vid.pause();
-                  }
-                });
-              },
-              { threshold: 0.25 }
-            );
-            cards.forEach((card) => observer.observe(card));
+          const startVideoPlayback = () => {
+            syncVisibleVideos();
+            if ('IntersectionObserver' in window) {
+              const observer = new IntersectionObserver(
+                (entries) => {
+                  entries.forEach((entry) => {
+                    const card = entry.target;
+                    const vid = card.querySelector('video');
+                    if (!vid) return;
+                    const activeTab = card.querySelector('.c-tab.is-active');
+                    const onVideoTab =
+                      !activeTab || activeTab.getAttribute('data-media-tab') === 'video';
+                    const userPaused = card.getAttribute('data-user-paused') === 'true';
+                    if (entry.isIntersecting && onVideoTab && !userPaused) {
+                      ensureVideoPoster(vid);
+                      vid.play().catch(() => {});
+                      syncToggleIcon(card, false);
+                    } else if (!entry.isIntersecting && !vid.paused) {
+                      vid.pause();
+                    }
+                  });
+                },
+                { threshold: 0.25 }
+              );
+              cards.forEach((card) => observer.observe(card));
+            }
+          };
+
+          const scheduleVideoPlayback = () => {
+            if ('requestIdleCallback' in window) {
+              window.requestIdleCallback(startVideoPlayback, { timeout: 1500 });
+            } else {
+              window.setTimeout(startVideoPlayback, 250);
+            }
+          };
+
+          if (document.readyState === 'complete') {
+            scheduleVideoPlayback();
+          } else {
+            window.addEventListener('load', scheduleVideoPlayback, { once: true });
           }
         }
 
@@ -955,7 +1004,7 @@ const sortedConsultants = [...consultants].sort((a, b) => a.agency.localeCompare
           const mode = activeTab ? activeTab.getAttribute('data-media-tab') : 'video';
           const agencyName = card.getAttribute('data-agency-name') || '';
           const appName = card.getAttribute('data-app-name') || '';
-          const agencyUrl = card.getAttribute('data-agency-url') || 'https://a2ui.org';
+          const agencyUrl = card.getAttribute('data-agency-url') || 'https://a2ui.org/';
 
           lbTitle.textContent = `${agencyName} · ${appName}`;
           lbAgencyLink.textContent = `Visit ${agencyName} ↗`;
