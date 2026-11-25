@@ -16,9 +16,10 @@ _Examples of UI compositions that A2UI can express._
 
 - [Main website](https://a2ui.org).
 - Try it in your browser using [A2UI Composer](https://a2ui-project.github.io/composer/).
-- [Supported renderers](https://a2ui.org/reference/renderers/).
-- [Supported agents](https://a2ui.org/reference/agents/).
+- [Supported renderers](https://a2ui.org/concepts/sdks/#renderer-sdk).
+- [Supported agents](https://a2ui.org/concepts/sdks/#agent-sdk).
 - [Protocol specification](https://a2ui.org/specification/v1.0-a2ui/).
+- [Roadmap](https://a2ui.org/roadmap/).
 
 ## Introduction
 
@@ -104,11 +105,11 @@ connects the agent to the application:
 
 Pick the path that matches where you want to start:
 
-| Path                                                             | What you get                                                                                                    | Time   |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------ |
-| 🍜 **[Quickstart](https://a2ui.org/quickstart/)**                | A full-stack A2UI app with a backend and frontend. Learn A2UI end-to-end and customize to your use case.        | ~5 min |
-| 🎨 **[A2UI Composer](https://a2ui-project.github.io/composer/)** | Generate A2UI JSON from a visual editor and paste it into any agent prompt — no install required.               | ~1 min |
-| 🎬 **[A2UI Theater](https://a2ui-composer.ag-ui.com/theater)**   | Step through pre-built A2UI streaming scenarios across Lit, React, and Angular renderers — no install required. | ~1 min |
+| Path                                                             | What you get                                                                                                        | Time   |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------ |
+| 🍜 **[Quickstart](https://a2ui.org/quickstart/)**                | A full-stack A2UI app with a backend and frontend. Learn A2UI end-to-end and customize to your use case.            | ~5 min |
+| 🎨 **[A2UI Composer](https://a2ui-project.github.io/composer/)** | Generate A2UI JSON from a visual editor and paste it into any agent prompt, with no install required.               | ~1 min |
+| 🎬 **[A2UI Theater](https://a2ui-composer.ag-ui.com/theater)**   | Step through pre-built A2UI streaming scenarios across Lit, React, and Angular renderers, with no install required. | ~1 min |
 
 ## Packages
 
@@ -139,12 +140,12 @@ yet" can be used from source.
 
 ### Dart and Flutter
 
-| Package                            | Description                                                                                        | Version                                                                                        |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| [a2ui_core](dart/a2ui_core/)       | Protocol messages, data model, data binding, and expressions for renderers and agents.             | [![pub](https://img.shields.io/pub/v/a2ui_core.svg)](https://pub.dev/packages/a2ui_core)       |
-| [a2ui_agent](dart/a2ui_agent/)     | Agent SDK: negotiates catalogs, generates prompts and skills, and compiles model output into A2UI. | [![pub](https://img.shields.io/pub/v/a2ui_agent.svg)](https://pub.dev/packages/a2ui_agent)     |
-| [a2ui_flutter](dart/a2ui_flutter/) | Flutter renderer.                                                                                  | [![pub](https://img.shields.io/pub/v/a2ui_flutter.svg)](https://pub.dev/packages/a2ui_flutter) |
-| [a2ui_cli](dart/a2ui_cli/)         | Developer tool that generates typesafe component code from a catalog.                              | [GitHub Releases](https://github.com/a2ui-project/a2ui/releases)                               |
+| Package                            | Description                                                                             | Version                                                                                        |
+| ---------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [a2ui_core](dart/a2ui_core/)       | Protocol messages, data model, data binding, and expressions for renderers and agents.  | [![pub](https://img.shields.io/pub/v/a2ui_core.svg)](https://pub.dev/packages/a2ui_core)       |
+| [a2ui_agent](dart/a2ui_agent/)     | Agent SDK: negotiates catalogs, generates prompts, and compiles model output into A2UI. | [![pub](https://img.shields.io/pub/v/a2ui_agent.svg)](https://pub.dev/packages/a2ui_agent)     |
+| [a2ui_flutter](dart/a2ui_flutter/) | Flutter renderer.                                                                       | [![pub](https://img.shields.io/pub/v/a2ui_flutter.svg)](https://pub.dev/packages/a2ui_flutter) |
+| [a2ui_cli](dart/a2ui_cli/)         | Developer tool that validates catalog schemas and generates typesafe component code.    | [GitHub Releases](https://github.com/a2ui-project/a2ui/releases)                               |
 
 ### Swift
 
@@ -158,19 +159,23 @@ The Swift libraries are distributed via Swift Package Manager from
 
 ## Roadmap
 
-- **Protocol v1.1**: We are collecting requirements for the next iteration of
-  the A2UI protocol.
-- **Inference**: Support for decision models (e.g. Jev).
-- **Templates**: A cross-framework templating engine and a set of standard
-  primitives for rendering reusable rich UI widgets.
-- **Sandboxed logic**: A way to securely attach logic to A2UI components.
-- **Agent SDK**: Skill generation, better diagnostics, and integrations with
-  more agent frameworks.
-- **Evals**: A set of tools for evaluating generated UI quality.
-- **MCP Apps**: Embedding MCP Apps inside A2UI, and embedding A2UI experiences
-  into MCP Apps.
-- **CLI**: Schema validation, codegen, local preview, and integration with
-  coding agents.
+The [A2UI roadmap](https://a2ui.org/roadmap/) tracks the five-stage workflow for
+shipping and improving an agentic UI:
+
+| Stage                                                               | Available today                                                                                                                                                                              | On the roadmap                                                                                                                                                                      |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Build](https://a2ui.org/roadmap/#build-cross-platform-components)  | JSON Schema catalogs, Basic Catalog, official renderers, Universal Web Components, [`a2ui codegen` and `a2ui lint`](dart/a2ui_cli/), and Composer.                                           | Declarative design-system primitives, a cross-platform runtime templating engine, and a sandbox for shared component logic.                                                         |
+| [Configure](https://a2ui.org/roadmap/#configure-your-agents)        | Skill generation (`SkillGenerator`) in Python and TypeScript, catalog negotiation, swappable inference formats (such as Express), live surface validation, and ADK and A2A integrations.     | Official support for decision models (such as [Jev](https://docs.typesafe.ai/)), clearer skill-generator diagnostics, Dart skill generation, and more agent framework integrations. |
+| [Evaluate](https://a2ui.org/roadmap/#evaluate-gen-ui-quality)       | Inspect AI [`eval/`](eval/) suite (schema checks, assertions, and an LLM judge) plus inference format benchmarks.                                                                            | Guidance and tooling to evaluate your own agents and catalogs with deterministic rules, configurable LLM judges, and tool-usage judges.                                             |
+| [Distribute](https://a2ui.org/roadmap/#distribute-across-platforms) | Web, desktop, and mobile renderers, [rendering A2UI inside MCP Apps](https://a2ui.org/guides/a2ui-in-mcp-apps/), and embedding MCP Apps via [`@a2ui/catalog-mcp`](typescript/catalogs/mcp/). | Shared state between A2UI and the MCP host when A2UI runs inside an MCP App, plus guides for AI assistants and messaging apps.                                                      |
+| [Monitor](https://a2ui.org/roadmap/#monitor-and-evolve)             | Renderer-to-agent user action and function result messages.                                                                                                                                  | Logging guidance and feedback loops that turn usage signals into component updates.                                                                                                 |
+
+The [A2UI CLI](dart/a2ui_cli/) covers the Build stage today. Support is planned
+for every stage so you or a coding agent can run the workflow from a terminal.
+The [A2UI coding-agent skill](skills/a2ui/SKILL.md) teaches coding agents to
+work with A2UI. The protocol evolves alongside this tooling, with version status
+in [`specification/versions.json`](specification/versions.json) and feature
+proposals in [GitHub Discussions](https://github.com/a2ui-project/a2ui/discussions).
 
 ## Contribute
 

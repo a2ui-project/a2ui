@@ -86,6 +86,7 @@ export function loadAgentToRendererSchema(protocolVersion: string): Record<strin
   }
   if (normalized.startsWith('0.9.')) {
     const schema = structuredClone(V09Schemas.A2uiMessageSchemaRaw) as Record<string, unknown>;
+    schema.$id = 'https://a2ui.org/specification/v0_9_1/server_to_client.json';
     const defs = schema.$defs as Record<string, Record<string, unknown>> | undefined;
     if (defs) {
       for (const defSchema of Object.values(defs)) {
