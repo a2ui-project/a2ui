@@ -29,10 +29,6 @@ const String _rootComponentId = 'root';
 @internal
 const int maxComponentDepth = 50;
 
-/// The deepest chain of nested function calls a component property may hold.
-@visibleForTesting
-const int maxFunctionCallDepth = 5;
-
 /// The most arguments a single function call may pass.
 ///
 /// Checked when a payload is validated and again when a call is evaluated,
@@ -508,13 +504,6 @@ bool _isDataBinding(
     ? value['@path'] is String
     : value['path'] is String && !value.containsKey('componentId');
 
-/// Whether [value] is a function-call object in the v1.0 (`@call`) or
-/// unprefixed (`call`) shape. See [_isDataBinding].
-bool _isFunctionCall(
-  Map<Object?, Object?> value, {
-  required bool usesDirectives,
-}) => usesDirectives ? value['@call'] is String : value['call'] is String;
-
 /// Checks data-model paths and nesting depth anywhere inside a message body.
 ///
 /// [grownFrom], if given, is an earlier form of [data] that passed this
@@ -524,7 +513,7 @@ bool _isFunctionCall(
 /// gained. Neither may have been changed since [grownFrom] was checked.
 ///
 /// Throws [A2uiValidationError] for a malformed path and [A2uiRecursionError]
-/// when nesting or chained function calls run past their caps.
+/// when nesting runs past its cap.
 void checkPathsAndRecursion(
   Object? data, {
   A2uiProtocolVersion? version,
@@ -538,8 +527,7 @@ void checkPathsAndRecursion(
   void traverse(
     Object? node,
     Object? before,
-    int depth,
-    int callDepth, {
+    int depth, {
     required bool inDataValue,
   }) {
     if (depth > maxComponentDepth) {
@@ -556,7 +544,6 @@ void checkPathsAndRecursion(
           node[i],
           items != null && i < items.length ? items[i] : null,
           depth + 1,
-          callDepth,
           inDataValue: inDataValue,
         );
       }
@@ -572,7 +559,6 @@ void checkPathsAndRecursion(
           entry.value,
           entries?[entry.key],
           depth + 1,
-          callDepth,
           inDataValue: true,
         );
       }
@@ -600,7 +586,6 @@ void checkPathsAndRecursion(
           entry.value,
           udmBefore is Map ? udmBefore[entry.key] : null,
           depth + 2,
-          callDepth,
           inDataValue: entry.key == 'value',
         );
       }
@@ -616,37 +601,8 @@ void checkPathsAndRecursion(
       throw A2uiValidationError("Invalid path syntax: '$path'");
     }
 
-    if (_isFunctionCall(object, usesDirectives: usesDirectives)) {
-      if (callDepth >= maxFunctionCallDepth) {
-        throw A2uiRecursionError(
-          'Recursion limit exceeded: functionCall depth > '
-          '$maxFunctionCallDepth',
-        );
-      }
-      for (final MapEntry<Object?, Object?> entry in object.entries) {
-        traverse(
-          entry.value,
-          entries != null &&
-                  (entry.key != 'args' ||
-                      _isFunctionCall(entries, usesDirectives: usesDirectives))
-              ? entries[entry.key]
-              : null,
-          depth + 1,
-          entry.key == 'args' ? callDepth + 1 : callDepth,
-          inDataValue: false,
-        );
-      }
-      return;
-    }
-
     for (final MapEntry<Object?, Object?> entry in object.entries) {
-      traverse(
-        entry.value,
-        entries?[entry.key],
-        depth + 1,
-        callDepth,
-        inDataValue: false,
-      );
+      traverse(entry.value, entries?[entry.key], depth + 1, inDataValue: false);
     }
   }
 
@@ -666,7 +622,6 @@ void checkPathsAndRecursion(
       data.value,
       grownFrom is UpdateDataModelMessage ? grownFrom.value : null,
       2,
-      0,
       inDataValue: true,
     );
     return;
@@ -677,13 +632,12 @@ void checkPathsAndRecursion(
       data.toJson(),
       grownFrom is AgentToRendererMessage ? grownFrom.toJson() : grownFrom,
       0,
-      0,
       inDataValue: false,
     );
     return;
   }
 
-  traverse(data, grownFrom, 0, 0, inDataValue: false);
+  traverse(data, grownFrom, 0, inDataValue: false);
 }
 
 bool _inferUsesDirectives(Object? data) {

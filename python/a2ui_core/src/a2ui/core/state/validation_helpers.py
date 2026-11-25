@@ -34,7 +34,6 @@ if TYPE_CHECKING:
 
 ROOT_ID = "root"
 MAX_GLOBAL_DEPTH = 50
-MAX_FUNC_CALL_DEPTH = 5
 RELAXED_PATH_PATTERN = re.compile(
     r"^(?:(?:\/(?:[^~\/]|~[01])*)*|(?:[^~\/]|~[01])+(?:\/(?:[^~\/]|~[01])*)*)$"
 )
@@ -42,7 +41,6 @@ RELAXED_PATH_PATTERN = re.compile(
 __all__ = [
     "ROOT_ID",
     "MAX_GLOBAL_DEPTH",
-    "MAX_FUNC_CALL_DEPTH",
     "RELAXED_PATH_PATTERN",
     "validate_component_integrity",
     "validate_recursion_and_paths",
@@ -81,67 +79,55 @@ def validate_component_integrity(
                 )
 
 
-def validate_recursion_and_paths(data: Any) -> None:
-    """Traverses message payload structures verifying recursion depth and data pointer path syntax."""
+def _traverse_recursion_and_paths(item: Any, global_depth: int) -> None:
+    if global_depth > MAX_GLOBAL_DEPTH:
+        raise A2uiRecursionError(
+            f"Global recursion limit exceeded: Depth > {MAX_GLOBAL_DEPTH}"
+        )
 
-    def traverse(item: Any, global_depth: int, func_depth: int) -> None:
-        if global_depth > MAX_GLOBAL_DEPTH:
-            raise A2uiRecursionError(
-                f"Global recursion limit exceeded: Depth > {MAX_GLOBAL_DEPTH}"
-            )
+    if isinstance(item, list):
+        for x in item:
+            _traverse_recursion_and_paths(x, global_depth + 1)
+        return
 
-        if isinstance(item, list):
-            for x in item:
-                traverse(x, global_depth + 1, func_depth)
-            return
+    if isinstance(item, dict):
+        # v1.0 binds data with "@path"; v0.9 and templates use "path".
+        for path_key in ("path", "@path"):
+            path = item.get(path_key)
+            if isinstance(path, str) and not re.fullmatch(RELAXED_PATH_PATTERN, path):
+                raise A2uiValidationError(
+                    f"Invalid path syntax: '{path}'",
+                    details=[
+                        A2uiErrorDetail(
+                            path=path_key,
+                            code="invalid_pointer",
+                            message=f"Invalid path syntax: '{path}'",
+                        )
+                    ],
+                    path=f"/{path_key}",
+                )
 
-        if isinstance(item, dict):
-            # v1.0 binds data with "@path"; v0.9 and templates use "path".
-            for path_key in ("path", "@path"):
-                path = item.get(path_key)
-                if isinstance(path, str) and not re.fullmatch(
-                    RELAXED_PATH_PATTERN, path
-                ):
-                    raise A2uiValidationError(
-                        f"Invalid path syntax: '{path}'",
-                        details=[
-                            A2uiErrorDetail(
-                                path=path_key,
-                                code="invalid_pointer",
-                                message=f"Invalid path syntax: '{path}'",
-                            )
-                        ],
-                        path=f"/{path_key}",
-                    )
+        for v in item.values():
+            _traverse_recursion_and_paths(v, global_depth + 1)
 
-            is_func_v08 = "functionCall" in item and isinstance(
-                item["functionCall"], dict
-            )
-            is_func_v09 = ("call" in item or "@call" in item) and "args" in item
 
-            if is_func_v08:
-                if func_depth >= MAX_FUNC_CALL_DEPTH:
-                    raise A2uiRecursionError(
-                        "Recursion limit exceeded: functionCall depth >"
-                        f" {MAX_FUNC_CALL_DEPTH}"
-                    )
-                traverse(item["functionCall"], global_depth + 1, func_depth + 1)
-            elif is_func_v09:
-                if func_depth >= MAX_FUNC_CALL_DEPTH:
-                    raise A2uiRecursionError(
-                        "Recursion limit exceeded: functionCall depth >"
-                        f" {MAX_FUNC_CALL_DEPTH}"
-                    )
-                for k, v in item.items():
-                    if k == "args":
-                        traverse(v, global_depth + 1, func_depth + 1)
-                    else:
-                        traverse(v, global_depth + 1, func_depth)
-            else:
-                for v in item.values():
-                    traverse(v, global_depth + 1, func_depth)
+def validate_recursion_and_paths(data: Any, start_depth: int = 0) -> None:
+    """Traverses message payload structures verifying recursion depth and data pointer path syntax.
 
-    traverse(data, 0, 0)
+    Args:
+      data: The payload or component hierarchy to check.
+      start_depth: The depth that `data` itself sits at, for a value held by a
+        container whose depth has already been counted.
+    """
+    if (
+        isinstance(start_depth, bool)
+        or not isinstance(start_depth, int)
+        or start_depth < 0
+    ):
+        raise ValueError(
+            f"start_depth must be a non-negative integer, got {start_depth!r}"
+        )
+    _traverse_recursion_and_paths(data, start_depth)
 
 
 def analyze_topology(
