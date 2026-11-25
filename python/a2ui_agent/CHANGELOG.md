@@ -28,6 +28,11 @@
   bindings
   ([#3400](https://github.com/a2ui-project/a2ui/issues/3400),
   [#4184](https://github.com/a2ui-project/a2ui/pull/4184)).
+- `SkillGenerator` names a catalog skill after the last segment of the catalog
+  id even when that segment starts with `v`, such as `vegachart`, and skips
+  only a version segment such as `v1` or `v0_9`. The vegachart catalog's skill
+  was named `a2ui-catalogs` and is now `a2ui-vegachart`
+  ([#4217](https://github.com/a2ui-project/a2ui/pull/4217)).
 
 ## 0.12.1 (2026-11-23)
 

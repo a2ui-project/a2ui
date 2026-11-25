@@ -65,6 +65,8 @@ export 'src/processor/streamed_answer.dart';
 export 'src/prompt/generator.dart';
 export 'src/rpc/renderer_function_calls.dart';
 export 'src/rpc/renderer_to_agent_message_processor.dart';
+export 'src/skill/generator.dart';
+export 'src/skill/skill.dart';
 export 'src/utils/catalog_resolver.dart';
 export 'src/utils/catalogs.dart' show agentCallableFunctions;
 export 'src/utils/renderer_capabilities.dart';

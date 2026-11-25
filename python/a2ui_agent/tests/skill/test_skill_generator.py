@@ -66,6 +66,24 @@ class TestSkillGenerator(unittest.TestCase):
         content = skill_obj.to_markdown()
         self.assertIn("Positional Component Signatures", content)
 
+    def test_generate_catalog_skill_names_catalog_from_id(self):
+        """A last id segment is skipped only when it is a version, such as `v1`."""
+        for catalog_id, name in [
+            (
+                "https://a2ui.org/specification/v1_0/catalogs/vegachart/catalog.json",
+                "a2ui-vegachart",
+            ),
+            ("catalogs/video/v0_9/catalog.json", "a2ui-video"),
+            ("https://example.com/forms/v1.0", "a2ui-forms"),
+            ("https://example.com/forms/v2", "a2ui-forms"),
+        ]:
+            with self.subTest(catalog_id=catalog_id):
+                catalog = Catalog(catalog_id=catalog_id, protocol_version="1.0")
+                skill_obj = SkillGenerator(
+                    ExpressFormat([catalog])
+                ).generate_catalog_skill()
+                self.assertEqual(skill_obj.name, name)
+
     def test_generate_core_skill(self):
         """Verifies SkillGenerator.generate_core_skill() creating base grammar skill."""
         core_skill = self.generator.generate_core_skill(name="a2ui-base-core")

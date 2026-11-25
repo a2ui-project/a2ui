@@ -4,6 +4,14 @@
 
 - **Breaking:** (v1_0) With the updated `a2ui_core`, `validatePayload`, `RendererState.apply`, and the inference format parsers check function calls nested in `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions while accepting `agentOnly` and `rendererOrAgent` functions. Set `allowedCallers` to `rendererOrAgent` or `agentOnly` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774), [#4336](https://github.com/a2ui-project/a2ui/pull/4336)).
 - **Breaking:** `resolveCatalogs` and `readRendererCapabilities` reject inline catalogs whose local `#...` `$ref` pointers do not resolve against the inline catalog document or the protocol version's `common_types.json`, throwing `A2uiCatalogError` naming the inline `catalogId` and `$ref` even when `acceptsInlineCatalogs` is `false`. `resolveCatalogs` also emits a `dart:developer` warning log when an accepted inline catalog is dropped because its `catalogId` is already active. Recommended migration: point each local `$ref` in an inline catalog to a definition declared in that inline catalog or in the target protocol version's `common_types.json` ([#3165](https://github.com/a2ui-project/a2ui/issues/3165), [#4367](https://github.com/a2ui-project/a2ui/pull/4367)).
+- **Breaking:** `PromptGenerator` declares `catalogs` and renders its snippet
+  from three sections, `generateBaseRules()`,
+  `generateCatalogInstructions({catalog})` and `generateExamples({catalog})`,
+  which `generate()` joins with the new `assembleInstructions`. `generate()`
+  is `@nonVirtual`, so a custom format implements `catalogs` and the sections
+  instead of overriding it. The Express prompt now introduces its examples
+  with `### Examples:`, like the direct JSON prompt, instead of `## Examples`
+  ([#4217](https://github.com/a2ui-project/a2ui/pull/4217)).
 - `ExpressPromptGenerator` (`promptSnippet`) now traverses `oneOf`, `anyOf`,
   `allOf`, and locally flattened `DataBinding`, `FunctionCall`, `ChildList`, and
   `Action` wire envelopes when generating property map-key instructions and
@@ -12,6 +20,11 @@
   ([#3400](https://github.com/a2ui-project/a2ui/issues/3400),
   [#4184](https://github.com/a2ui-project/a2ui/pull/4184)).
 - (v0_9_1) `DirectJsonPromptGenerator` gives the v0.9.1 agent-to-renderer schema the `$id` `https://a2ui.org/specification/v0_9_1/server_to_client.json`, which `specification/v0_9_1/json/server_to_client.json` declares. It gave it v0.9's `$id` ([#3974](https://github.com/a2ui-project/a2ui/issues/3974), [#3975](https://github.com/a2ui-project/a2ui/pull/3975)).
+- Add `Skill`, `SkillSet` and `SkillGenerator`, which build `SKILL.md` skill
+  packages from an inference format and its catalogs: one monolithic skill, a
+  core skill with the format's rules, a skill per catalog, or a `SkillSet` of
+  all of them that `exportToDirectory` writes to disk
+  ([#4217](https://github.com/a2ui-project/a2ui/pull/4217)).
 
 ## 0.5.0
 

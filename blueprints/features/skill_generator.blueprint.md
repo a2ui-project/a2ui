@@ -138,6 +138,7 @@ class Skill {
 - Serializes a YAML header enclosed within `---` delimiters, followed by two newlines and the stripped content ending with a newline.
 - The YAML header MUST include `name` and `description`.
 - If `metadata` is provided and non-empty, it is serialized under the `metadata:` key.
+- A YAML parser MUST read every string in the header back as the same string, never as a key, a number, a date or a boolean, whether it follows YAML 1.1, as PyYAML does, or YAML 1.2. An SDK that writes the header itself double-quotes every string value and every key below the top level, rather than deciding case by case; one that writes it with a YAML library lets the library quote what needs it.
 - SDK-internal properties MUST NOT be included in frontmatter.
 
 ```markdown
@@ -207,7 +208,8 @@ class SkillGenerator {
     // Defaults to the format's bound catalog if catalog is omitted (raises error if format is unbound).
     // Derives clean catalog name via clean_catalog_name(catalog).
     // Default name: "a2ui-{clean_name}"
-    // Default description: catalog.description or "UI component catalog signatures for {clean_name}. Use when building {clean_name} user interface components."
+    // Default description: "UI component catalog signatures for {clean_name}. Use when building {clean_name} user interface components."
+    // The catalog's own description says what the catalog holds, not when to use the skill, so it is not used.
     generate_catalog_skill(
         catalog: Catalog? = null,
         name: String? = null,
@@ -245,7 +247,7 @@ Derives a clean, LLM-friendly catalog name from a catalog ID, URL, or file path:
 1. Retrieves `catalog.id` or `catalog.catalog_id` (fallback to `"basic"` if missing/empty).
 2. Normalizes path separators (`\` -> `/`).
 3. Strips `.json` extension and splits path by `/`.
-4. Extracts terminal component. If the terminal component starts with `"v"` (version segment like `v0_9`) and has a preceding segment, uses the preceding segment.
+4. Extracts terminal component. If the terminal component is a version segment (`v` followed by numbers separated by `_` or `.`, such as `v1`, `v0_9` or `v1.0`) and has a preceding segment, uses the preceding segment. Any other segment is kept, even one that starts with `v`, such as `vegachart`.
 5. Converts string to lowercase and returns the result (e.g. `"catalogs/basic/v1/catalog.json"` -> `"basic"`).
 
 #### **`resolve_catalogs_list(catalogs, format) -> List<Catalog>`**
@@ -287,12 +289,14 @@ description: UI component catalog signatures for basic. Use when building basic 
 
 ## **Language Conformance Verification Protocol**
 
-To guarantee 100% behavioral parity across multi-language SDKs, all implementations MUST pass the language-agnostic conformance test suite specified in `conformance/agent/skill.yaml` against shared golden test vectors under `conformance/test_data/skills/`:
+All implementations MUST pass the language-agnostic conformance suite in `conformance/agent/skill.yaml`. It checks the skill API, not the wording of a format's prompt, which the prompt suites cover, so each case compares a generated skill against the sections of the same SDK's prompt generator. A case calls the generator the way an agent does and passes an argument only when the case gives it, so the cases that leave arguments out check the defaults:
 
-1. **`express_core.skill.md`**: Validates base grammar and sentinel tag instructions.
-2. **`express_basic_catalog.skill.md`**: Validates basic catalog component signatures.
-3. **`express_basic_monolithic.skill.md`**: Validates monolithic bundled skill output.
-4. **`skill_set` modular test**: Validates that generating a skillset produces `a2ui-core/SKILL.md` and `a2ui-basic/SKILL.md`.
+1. **`from_format`**: The monolithic skill's frontmatter parses to `expected_frontmatter`, its filename matches `expected_filename`, and its body is the format's prompt snippet. A skill for catalogs it is given describes only those catalogs and leaves the format's prompt as it was. Other cases set the name and description, including descriptions that end with a colon or look like a date.
+2. **`core_syntax`**: The core skill's frontmatter and filename match, with the default name and description and with given ones, and its body is `generate_base_rules()`.
+3. **`from_catalog`**: The catalog skill's frontmatter and filename match, and its body is the catalog's instructions followed by its examples. Other cases cover the default to the format's first catalog, the name taken from the catalog id (`vegachart`, `simplified`), examples a format is built with, and `include_examples` set to false.
+4. **`skill_set`**: The skillset holds the core skill and one skill per catalog, in order, equal to the core and catalog skills, for one catalog, two catalogs, catalogs it is given with a given `core_name`, and the Direct JSON format. `SkillSet.get` finds its skills by filename, by name, and by part of a filename of at least three characters.
+5. **`monolithic_skill_equals_prompt_snippet`**: For Express and Direct JSON, with one catalog and with two, the monolithic skill's body equals the prompt snippet.
+6. **`export_to_directory`**: Export removes only each skill's own directory, rejects filenames that leave the output directory, writes each skill's Markdown and returns it keyed by filename.
 
 ---
 
@@ -309,4 +313,4 @@ When implementing this feature in a client language SDK:
    - Implement `generate_core_skill()`, `generate_catalog_skill()`, `generate_skill()`, and `generate_skillset()` adhering to catalog defaulting semantics.
    - Implement `clean_catalog_name()` helper.
 4. **Wire Format Implementations**: Ensure specific format prompt generators (e.g. `ExpressPromptGenerator`, `DirectJsonPromptGenerator`) implement the `catalogs` property and the decomposed sub-methods without overriding `generate()`, and keep them internal to their format packages.
-5. **Verify Conformance**: Run unit tests and execute the shared test suite in `conformance/agent/skill.yaml` against `conformance/test_data/skills/` golden files.
+5. **Verify Conformance**: Run unit tests and execute the shared test suite in `conformance/agent/skill.yaml`.

@@ -26,6 +26,9 @@ import yaml
 from a2ui.core import A2uiValidationError, CatalogApi
 from a2ui.inference_format import InferenceFormat
 
+# A version segment of a catalog id, such as `v1`, `v1_0` or `v0.9`.
+_VERSION_SEGMENT = re.compile(r"v\d+([._]\d+)*")
+
 
 def _clean_catalog_name(catalog: Any) -> str:
     """Derives a clean, LLM-friendly catalog name from a catalog ID or URL."""
@@ -37,7 +40,7 @@ def _clean_catalog_name(catalog: Any) -> str:
         parts = [p for p in raw_id.split("/") if p and not p.endswith(".json")]
         if parts:
             cand = parts[-1]
-            if cand.startswith("v") and len(parts) > 1:
+            if _VERSION_SEGMENT.fullmatch(cand) and len(parts) > 1:
                 cand = parts[-2]
             raw_id = cand
     return raw_id.lower()

@@ -18,6 +18,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
+import {load} from 'js-yaml';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {
@@ -33,6 +34,7 @@ import {
   SkillSet,
 } from '../../../src/index.js';
 import {CatalogApi} from '../../../src/internal/web-core.js';
+import {cleanCatalogName} from '../../../src/skill/skill.js';
 import {REPO_ROOT} from '../../helpers/basic-catalogs.js';
 
 const SPEC_DIR = path.join(REPO_ROOT, 'specification', 'v1_0');
@@ -73,6 +75,17 @@ describe('SkillGenerator', () => {
     expect(skillObj.filename).toContain('a2ui-basic/SKILL.md');
     const content = skillObj.toMarkdown();
     expect(content).toContain('Positional Component Signatures');
+  });
+
+  it('skips a last catalog id segment only when it is a version', () => {
+    for (const [id, name] of [
+      ['https://a2ui.org/specification/v1_0/catalogs/vegachart/catalog.json', 'vegachart'],
+      ['catalogs/video/v0_9/catalog.json', 'video'],
+      ['https://example.com/forms/v1.0', 'forms'],
+      ['https://example.com/forms/v2', 'forms'],
+    ]) {
+      expect(cleanCatalogName({id}), id).toBe(name);
+    }
   });
 
   it('generates a base grammar skill via generateCoreSkill()', () => {
@@ -389,8 +402,10 @@ describe('SkillGenerator', () => {
     });
     expect(skill.filename).toBe('a2ui-test/SKILL.md');
     expect(Object.hasOwn(Skill.prototype, 'toString')).toBe(false);
-    expect(skill.toMarkdown()).toContain(
-      'metadata:\n  version: "1.0"\n  tags:\n  - ui\n  - express',
+    expect(skill.toMarkdown()).toBe(
+      '---\nname: "a2ui-test"\ndescription: "Test skill"\n' +
+        'metadata:\n  "version": "1.0"\n  "tags":\n  - "ui"\n  - "express"\n' +
+        '---\n\nBody content\n',
     );
 
     const skillSet = new SkillSet({[skill.filename]: skill});
@@ -401,5 +416,39 @@ describe('SkillGenerator', () => {
     expect([...skillSet.entries()]).toEqual([[skill.filename, skill]]);
     expect(skillSet.size).toBe(1);
     expect(skillSet.toDict()).toEqual({[skill.filename]: skill.toMarkdown()});
+  });
+
+  it('writes frontmatter strings that YAML reads back unchanged', () => {
+    const values = [
+      'Use when building:',
+      'Use when: building',
+      '2026-01-01',
+      '0x1F',
+      'true',
+      'no',
+      '42',
+      '~',
+      '- a list item',
+      'Has # a comment',
+      'It\'s "quoted"',
+      ' padded ',
+      '',
+      `Two\nlines${String.fromCharCode(0x2028)}and${String.fromCharCode(0x85)}more`,
+    ];
+    const metadata: Record<string, unknown> = {'a: b': values};
+    for (const value of values) metadata[`key ${value}`] = value;
+    const markdown = new Skill({
+      name: 'a',
+      description: values[0],
+      content: '',
+      metadata,
+    }).toMarkdown();
+    expect(markdown).toContain('description: "Use when building:"\n');
+    expect(markdown).toContain('"key Two\\nlines\\u2028and\\u0085more": ');
+    expect(load(markdown.slice('---\n'.length, markdown.indexOf('\n---\n')))).toEqual({
+      name: 'a',
+      description: values[0],
+      metadata,
+    });
   });
 });
