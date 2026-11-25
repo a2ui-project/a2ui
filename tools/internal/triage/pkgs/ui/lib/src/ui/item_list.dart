@@ -65,32 +65,140 @@ Color kindBackground(Color color) => color.withValues(alpha: 0.08);
 /// in **Needs team input**. The triager selects an item in one of its groups,
 /// and only that tile shows as selected.
 ///
-/// The groups start collapsed. When the controller selects an item on its
-/// own, such as an item opened by URL, the list expands the item's group
-/// and scrolls to the item.
+/// The groups start collapsed, unless [openFirstItem]. When the controller
+/// selects an item on its own, such as an item opened by URL, the list
+/// expands the item's group and scrolls to the item.
+///
+/// Once the triager clicks an item, Down or J selects the next item in the
+/// list, and Up or K the one before, expanding its group as needed.
 class ItemList extends StatefulWidget {
-  const ItemList({super.key});
+  const ItemList({super.key, this.openFirstItem = false});
+
+  /// Whether the list starts with **Needs triage** and its subgroups
+  /// expanded, and the first item that the triager has not handled yet
+  /// selected. The app does this when it loads the items after the sign-in.
+  final bool openFirstItem;
 
   @override
   State<ItemList> createState() => _ItemListState();
 }
 
+const String _needsTriage = 'Needs triage';
+
+/// The groups of the list, with their titles and items.
+List<(ItemGroup, String, List<TriageItem>)> _sections(
+  TriageController controller,
+) => [
+  (ItemGroup.newItems, _needsTriage, controller.newItems),
+  (ItemGroup.teamInput, 'Needs team input', controller.teamInputItems),
+  if (controller.opened.isNotEmpty)
+    (ItemGroup.notInQueue, 'Not in the queue', controller.opened),
+];
+
+/// [items] in the order of the list, subgroup by subgroup.
+List<TriageItem> _inListOrder(List<TriageItem> items) => [
+  for (final ItemKind kind in ItemKind.values)
+    for (final i in items)
+      if (i.kind == kind) i,
+];
+
 class _ItemListState extends State<ItemList> {
   final Set<String> _expanded = {};
-  final GlobalKey _selectedKey = GlobalKey();
+
+  /// The key of each tile, by group and item, to scroll to the selected one.
+  final Map<(ItemGroup, ItemRef), GlobalKey> _tileKeys = {};
+
+  final FocusNode _focus = FocusNode(debugLabel: 'Item list');
   var _revealCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.openFirstItem) return;
+    _expanded.addAll([
+      _needsTriage,
+      for (final ItemKind kind in ItemKind.values)
+        _subgroupKey(_needsTriage, kind),
+    ]);
+    // Selecting notifies the controller's listeners, which must wait until
+    // the frame is built.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final TriageController controller = TriageScope.read(context);
+      if (controller.selected == null) {
+        final TriageItem? first = _inListOrder(
+          controller.newItems,
+        ).where((i) => !controller.isHandled(i.ref)).firstOrNull;
+        if (first != null) {
+          controller.select(first.ref, group: ItemGroup.newItems);
+        }
+      }
+      _focus.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final HardwareKeyboard keyboard = HardwareKeyboard.instance;
+    if (keyboard.isShiftPressed ||
+        keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isAltPressed) {
+      return KeyEventResult.ignored;
+    }
+    final int? step = switch (event.logicalKey) {
+      LogicalKeyboardKey.arrowDown || LogicalKeyboardKey.keyJ => 1,
+      LogicalKeyboardKey.arrowUp || LogicalKeyboardKey.keyK => -1,
+      _ => null,
+    };
+    if (step == null) return KeyEventResult.ignored;
+    _move(step);
+    return KeyEventResult.handled;
+  }
+
+  /// Selects the item [step] places after the selected one in the list, or
+  /// the first or the last item if none is selected.
+  void _move(int step) {
+    final TriageController controller = TriageScope.read(context);
+    final List<(ItemGroup, TriageItem)> order = [
+      for (final (ItemGroup group, _, List<TriageItem> items) in _sections(
+        controller,
+      ))
+        for (final i in _inListOrder(items)) (group, i),
+    ];
+    if (order.isEmpty) return;
+    final ItemGroup? group = controller.selectedGroup;
+    final int current = order.indexWhere(
+      (e) =>
+          e.$2.ref == controller.selected?.ref &&
+          (group == null || e.$1 == group),
+    );
+    final int next = current < 0
+        ? (step > 0 ? 0 : order.length - 1)
+        : (current + step).clamp(0, order.length - 1);
+    if (next == current) return;
+    final (ItemGroup nextGroup, TriageItem item) = order[next];
+    controller
+      ..select(item.ref, group: nextGroup)
+      ..reveal();
+  }
 
   @override
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
     final ItemRef? selected = controller.selected?.ref;
     final ItemGroup? selectedGroup = controller.selectedGroup;
-    final sections = <(ItemGroup, String, List<TriageItem>)>[
-      (ItemGroup.newItems, 'Needs triage', controller.newItems),
-      (ItemGroup.teamInput, 'Needs team input', controller.teamInputItems),
-      if (controller.opened.isNotEmpty)
-        (ItemGroup.notInQueue, 'Not in the queue', controller.opened),
-    ];
+    final List<(ItemGroup, String, List<TriageItem>)> sections = _sections(
+      controller,
+    );
     if (controller.revealCount != _revealCount) {
       _revealCount = controller.revealCount;
       for (final (ItemGroup group, String title, List<TriageItem> items)
@@ -103,7 +211,9 @@ class _ItemListState extends State<ItemList> {
         }
       }
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        final BuildContext? tile = _selectedKey.currentContext;
+        final BuildContext? tile = selectedGroup == null || selected == null
+            ? null
+            : _tileKeys[(selectedGroup, selected)]?.currentContext;
         if (tile != null && tile.mounted) {
           Scrollable.ensureVisible(
             tile,
@@ -115,42 +225,43 @@ class _ItemListState extends State<ItemList> {
     }
 
     // Not a lazy list, so that every tile exists to scroll to.
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final (ItemGroup group, String title, List<TriageItem> items)
-              in sections) ...[
-            _GroupHeader(
-              '$title (${_progress(controller, items)})',
-              expanded: _expanded.contains(title),
-              onTap: () => setState(() {
-                if (!_expanded.remove(title)) _expanded.add(title);
-              }),
-            ),
-            if (_expanded.contains(title))
-              for (final ItemKind kind in ItemKind.values)
-                ..._subgroup(group, title, kind, [
-                  for (final i in items)
-                    if (i.kind == kind) i,
-                ], selected: group == selectedGroup ? selected : null),
+    return Focus(
+      focusNode: _focus,
+      onKeyEvent: _onKey,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final (ItemGroup group, String title, List<TriageItem> items)
+                in sections) ...[
+              _GroupHeader(
+                '$title (${_progress(controller, items)})',
+                expanded: _expanded.contains(title),
+                onTap: () => setState(() {
+                  if (!_expanded.remove(title)) _expanded.add(title);
+                }),
+              ),
+              if (_expanded.contains(title))
+                for (final ItemKind kind in ItemKind.values)
+                  ..._subgroup(group, title, kind, [
+                    for (final i in items)
+                      if (i.kind == kind) i,
+                  ]),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
 
   /// The header of the subgroup of [kind] in [group], titled [title], and
   /// its [items] if it is expanded. Nothing if there are no [items].
-  ///
-  /// The tile of [selected] gets the key to scroll to.
   List<Widget> _subgroup(
     ItemGroup group,
     String title,
     ItemKind kind,
-    List<TriageItem> items, {
-    required ItemRef? selected,
-  }) {
+    List<TriageItem> items,
+  ) {
     if (items.isEmpty) return const [];
     final String key = _subgroupKey(title, kind);
     final bool expanded = _expanded.contains(key);
@@ -175,9 +286,8 @@ class _ItemListState extends State<ItemList> {
           _ItemTile(
             item,
             group,
-            key: item.ref == selected
-                ? _selectedKey
-                : ValueKey((group, item.ref)),
+            listFocus: _focus,
+            key: _tileKeys.putIfAbsent((group, item.ref), GlobalKey.new),
           ),
     ];
   }
@@ -242,12 +352,16 @@ class _GroupHeader extends StatelessWidget {
 }
 
 class _ItemTile extends StatelessWidget {
-  const _ItemTile(this.item, this.group, {super.key});
+  const _ItemTile(this.item, this.group, {required this.listFocus, super.key});
 
   final TriageItem item;
 
   /// The group that lists this tile.
   final ItemGroup group;
+
+  /// The focus of the list, which a click moves to the list, so that the
+  /// arrow keys move through it.
+  final FocusNode listFocus;
 
   @override
   Widget build(BuildContext context) {
@@ -287,13 +401,16 @@ class _ItemTile extends StatelessWidget {
     ];
     // The selected item has a border. Its colors stay the same, so that the
     // kind's background still shows; ListTile.selected would change them.
+    // Every tile has the border's width, so that the text does not move when
+    // the selection does.
     final tile = ListTile(
       tileColor: kindBackground(color),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(6),
-        side: selected
-            ? BorderSide(color: theme.colorScheme.primary, width: 2)
-            : BorderSide.none,
+        side: BorderSide(
+          color: selected ? theme.colorScheme.primary : Colors.transparent,
+          width: 2,
+        ),
       ),
       leading: Tooltip(
         message: kind,
@@ -360,6 +477,7 @@ class _ItemTile extends StatelessWidget {
             )
           : null,
       onTap: () {
+        listFocus.requestFocus();
         if (HardwareKeyboard.instance.isShiftPressed) {
           controller.toggleInSelection(item.ref, group);
           _clearTextSelection(context);
@@ -371,7 +489,13 @@ class _ItemTile extends StatelessWidget {
         }
       },
     );
-    return Semantics(selected: selected, child: tile);
+    return Semantics(
+      selected: selected,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: tile,
+      ),
+    );
   }
 
   /// Clears the text that a Shift-click selected in the list's
