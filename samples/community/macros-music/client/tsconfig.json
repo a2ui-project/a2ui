@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    // Mirrors the monorepo aliases in vite.config.ts. See the TODO there.
+    "paths": {
+      "@a2ui/markdown-it": ["../../../../typescript/renderers/markdown-it/dist/src/markdown.d.ts"],
+      "@a2ui/react": ["../../../../typescript/renderers/react/dist/index.d.ts"],
+      "@a2ui/web_core": ["../../../../typescript/core/web_core/dist/src/index.d.ts"],
+      "@a2ui/web_core/catalogs/basic/v1": [
+        "../../../../typescript/core/web_core/dist/src/catalogs/basic/v1/index.d.ts"
+      ],
+      "@a2ui/web_core/v1_0": ["../../../../typescript/core/web_core/dist/src/v1_0/index.d.ts"]
+    }
+  },
+  "include": ["src", "e2e", "*.ts"]
+}
