@@ -156,6 +156,29 @@ export default {catalogs: [greetingCatalog], output: 'app.html'};
     assert.match(warnings[0], /above 5\.00 MiB/);
   });
 
+  it('passes the markdown renderer to the runtime, unless markdown is false', async () => {
+    await project.write({
+      'with.mjs': `
+import {greetingCatalog} from './src/catalog.ts';
+export default {catalogs: [greetingCatalog], output: 'with.html'};
+`,
+      'without.mjs': `
+import {greetingCatalog} from './src/catalog.ts';
+export default {catalogs: [greetingCatalog], output: 'without.html', markdown: false};
+`,
+    });
+
+    const withMarkdown = await build('with.mjs');
+    const withoutMarkdown = await build('without.mjs');
+
+    // markdown-it names its token types in strings that survive minification.
+    const bundlesMarkdownIt = async (htmlPath: string) =>
+      (await readFile(htmlPath, 'utf8')).includes('heading_open');
+    assert.equal(await bundlesMarkdownIt(withMarkdown.htmlPath), true);
+    assert.equal(await bundlesMarkdownIt(withoutMarkdown.htmlPath), false);
+    assert.ok(withMarkdown.htmlBytes > withoutMarkdown.htmlBytes);
+  });
+
   describe('errors', () => {
     const writeConfig = (body: string) =>
       project.write({
@@ -200,6 +223,13 @@ export default {catalogs: [greetingCatalog], output: 'app.html'};
         "export default {catalogs: [greetingCatalog], renderer: 'react', output: 'app.html'};",
       );
       await assert.rejects(build(), /unknown renderer "react"/);
+    });
+
+    it('reports a markdown option that is not a boolean', async () => {
+      await writeConfig(
+        "export default {catalogs: [greetingCatalog], output: 'app.html', markdown: 'yes'};",
+      );
+      await assert.rejects(build(), /`markdown` must be `true` or `false`/);
     });
 
     it('reports a config importing a module that does not exist', async () => {
