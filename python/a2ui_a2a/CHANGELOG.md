@@ -6,7 +6,7 @@
   `"version": "v0.9"`. A message's own `version` is kept, and the dictionary
   passed in isn't modified. The helpers that take a `version` and build parts
   with it, such as `create_a2ui_parts` and `to_a2a_parts`, do the same.
-  [#PRNUM](https://github.com/a2ui-project/a2ui/pull/PRNUM)
+  [#4416](https://github.com/a2ui-project/a2ui/pull/4416)
 
 ## 0.4.0 (2026-11-17)
 
