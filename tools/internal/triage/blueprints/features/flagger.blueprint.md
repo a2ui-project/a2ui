@@ -18,9 +18,9 @@ The flagger uses the following rules to decide if a PR or issue should get **the
    - If yes: **NO LABEL**.
    - If no: continue processing.
 
-2. Is the item [stale](triage_bot/staleness_ping.blueprint.md#stale-items), with an [expired staleness ping](triage_bot/staleness_ping.blueprint.md#staleness-pings)? The staleness pinger asked its assignees to act, and the grace period passed.
+2. Is the item [stale](triage_bot/staleness_ping.blueprint.md#stale-items), and either has an [expired staleness ping](triage_bot/staleness_ping.blueprint.md#staleness-pings), or is [overdue](triage_bot/staleness_ping.blueprint.md#staleness-pings) with no current ping? The staleness pinger asked its assignees to act and the grace period passed, or nobody pinged them while they could.
 
-   - If yes: **LABEL**, whoever opened the item, since the ping said that the item goes back to triage. Stale items get pings only while someone runs the [triage bot](../../../../../.agents/skills/a2ui-triage-bot/SKILL.md), so until then they stay unflagged.
+   - If yes: **LABEL**, whoever opened the item, since a ping says that the item goes back to triage. Stale items get pings only while someone runs the [triage bot](../../../../../.agents/skills/a2ui-triage-bot/SKILL.md), so an overdue item, such as a stale `P0`, goes back without a ping in weeks when nobody runs it.
    - If no: continue processing.
 
 3. Does the item have `status: assigned-for-triage`?

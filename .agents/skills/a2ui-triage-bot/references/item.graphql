@@ -10,7 +10,9 @@ query ($owner: String!, $repo: String!, $number: Int!) {
         state
         createdAt
         lastEditedAt
+        locked
         author {
+          __typename
           login
         }
         authorAssociation
@@ -29,6 +31,7 @@ query ($owner: String!, $repo: String!, $number: Int!) {
             databaseId
             url
             author {
+              __typename
               login
             }
             authorAssociation
@@ -102,9 +105,11 @@ query ($owner: String!, $repo: String!, $number: Int!) {
         state
         createdAt
         lastEditedAt
+        locked
         isDraft
         mergeable
         author {
+          __typename
           login
         }
         authorAssociation
@@ -126,6 +131,10 @@ query ($owner: String!, $repo: String!, $number: Int!) {
         closingIssuesReferences(first: 10) {
           nodes {
             number
+            state
+            repository {
+              nameWithOwner
+            }
           }
         }
         comments(last: 100) {
@@ -133,6 +142,7 @@ query ($owner: String!, $repo: String!, $number: Int!) {
             databaseId
             url
             author {
+              __typename
               login
             }
             authorAssociation
@@ -145,12 +155,27 @@ query ($owner: String!, $repo: String!, $number: Int!) {
           nodes {
             url
             author {
+              __typename
               login
             }
             authorAssociation
             body
             state
             submittedAt
+            comments(first: 50) {
+              nodes {
+                databaseId
+                url
+                author {
+                  __typename
+                  login
+                }
+                authorAssociation
+                body
+                path
+                createdAt
+              }
+            }
           }
         }
         timelineItems(
@@ -164,6 +189,8 @@ query ($owner: String!, $repo: String!, $number: Int!) {
             REOPENED_EVENT
             CROSS_REFERENCED_EVENT
             RENAMED_TITLE_EVENT
+            READY_FOR_REVIEW_EVENT
+            HEAD_REF_FORCE_PUSHED_EVENT
             PULL_REQUEST_COMMIT
           ]
         ) {
@@ -207,6 +234,12 @@ query ($owner: String!, $repo: String!, $number: Int!) {
                   number
                 }
               }
+            }
+            ... on ReadyForReviewEvent {
+              createdAt
+            }
+            ... on HeadRefForcePushedEvent {
+              createdAt
             }
             ... on PullRequestCommit {
               commit {

@@ -99,14 +99,14 @@ An item with `status: needs-team-input` gets a response comment only if it has r
 
 ## Step 2: Fetch each item
 
-[item.graphql](references/item.graphql) fetches an issue or a PR with its labels, assignees, comments, reviews, changed files and timeline events:
+[item.graphql](references/item.graphql) fetches an issue or a PR with its labels, assignees, comments, reviews with their inline comments, changed files and timeline events:
 
 ```bash
 gh api graphql -F owner=a2ui-project -F repo=a2ui -F number=<number> \
   -F query=@.agents/skills/a2ui-triage-bot/references/item.graphql
 ```
 
-Skip locked items: a comment cannot be posted on them. Skip draft PRs too, where `isDraft` is true: an item named in the prompt can be one.
+Skip locked items, where `locked` is true: a comment cannot be posted on them. Skip draft PRs too, where `isDraft` is true: an item named in the prompt can be one.
 
 Then get why the flagger flags each item. [flag_reason.dart](../../../tools/internal/triage/pkgs/flagger/bin/flag_reason.dart) applies the [flagger](../../../tools/internal/triage/blueprints/features/flagger.blueprint.md)'s rules to the items you pass, as numbers or URLs, and prints a JSON array with one `{"url", "reason"}` entry per item. The `reason` is `null` for an item that the flagger does not flag. Pass all the items in one call:
 
@@ -116,7 +116,7 @@ dart run tools/internal/triage/pkgs/flagger/bin/flag_reason.dart <number> <numbe
 
 ## Step 3: Decide what to post
 
-A triage bot comment is posted by a team member or a bot, and starts with `**From triage bot`. The [flagger](../../../tools/internal/triage/blueprints/features/flagger.blueprint.md) recognizes triage bot comments by this prefix and ignores them, so that they do not count as a team reply. Never start a triage bot comment any other way. The first line names the kind of comment:
+A triage bot comment is posted by a team member or a bot, and starts with `**From triage bot`. A bot's `author.__typename` is `Bot`; its `authorAssociation` can be `NONE`, like an out-of-team contributor's. The [flagger](../../../tools/internal/triage/blueprints/features/flagger.blueprint.md) recognizes triage bot comments by this prefix and ignores them, so that they do not count as a team reply. Never start a triage bot comment any other way. The first line names the kind of comment:
 
 1. `**From triage bot, analysis:**`: an analysis comment, with an `<a2ui>` block.
 2. `**From triage bot, response:**`: a response comment, which answers requests to the triage bot.
@@ -134,7 +134,7 @@ What to post depends on the item's labels:
 [Current and outdated analyses](../../../tools/internal/triage/blueprints/features/triage_bot/analysis.blueprint.md#current-and-outdated-analyses) defines when an analysis is current. In the fields that [item.graphql](references/item.graphql) returns, the analysis is current when the `updatedAt` of the latest analysis comment is later than all of the following:
 
 1. The `createdAt` of every other comment, excluding other triage bot comments.
-2. The `submittedAt` of every PR review.
+2. The `submittedAt` of every PR review, and the `createdAt` of every inline review comment.
 3. The item's `lastEditedAt`.
 4. The `createdAt` of every timeline event, excluding cross-references and events that add or remove `status: needs-triage`. A cross-reference only says that another item mentions this one, and the triage bot's own comments on related items make many of them.
 5. The `committedDate` of every PR commit.
@@ -143,7 +143,7 @@ Otherwise the analysis is outdated. A request to the triage bot is a comment, so
 
 ## Step 4: Research the item
 
-1. Read the title, body, every comment and every review. Note questions from out-of-team contributors that no team member has answered (see [Contributors](../../../tools/internal/triage/blueprints/core.blueprint.md#contributors) for who is in the team), and [requests to the triage bot](#requests-to-the-triage-bot) from team members.
+1. Read the title, body, every comment, and every review with its inline comments. A comment whose `author.__typename` is `Bot` is from a bot, not from an out-of-team contributor. Note questions from out-of-team contributors that no team member has answered (see [Contributors](../../../tools/internal/triage/blueprints/core.blueprint.md#contributors) for who is in the team), and [requests to the triage bot](#requests-to-the-triage-bot) from team members.
 2. For a bug, diagnose it from the logs, stack traces, specification (`specification/`) and code. Reproduce it only when the steps are short and clear. Do it in a temporary clone or worktree in your scratch directory, and delete it when you finish.
 3. For a PR, read the changed files and the issues it closes. Note which team members reviewed it: a review by a team member decides the assignee (see [Pull requests](references/triage_criteria.md#pull-requests)). Check whether a closed issue is assigned to the PR author, and whether open PRs touch the same files. Note whether the PR has merge conflicts: `mergeable` is `CONFLICTING`. GitHub computes `mergeable` when it is asked, so if it is `UNKNOWN`, run the query again a few seconds later.
 4. Look for related items. Start with the cross-referenced items in the timeline, then run at most three searches, such as `gh search issues --repo a2ui-project/a2ui "<keywords>"` and `gh search prs --repo a2ui-project/a2ui "<keywords>"`. Open each candidate before you call it related or a duplicate.

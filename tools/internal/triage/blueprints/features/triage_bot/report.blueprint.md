@@ -8,9 +8,11 @@ An item is in the report when the person changed its labels, assignees or state 
 
 1. Triage bot comments, which the triage bot posts from the person's account.
 2. Adding or removing `status: needs-triage`, which the [flagger](../flagger.blueprint.md) manages.
-3. Closes by a commit or a merged PR, and the close that merges a PR.
+3. Closes by a commit or a merged PR, and the close that merges a PR. An earlier close of a PR that was merged later still counts.
 
-Label and assignee changes are net: adding a label and removing it in the period cancel out.
+Changes are net: adding a label and removing it in the period cancel out, and so do closing an item and reopening it.
+
+The script finds the items through GitHub search, which requires a query to name the kind of item, so it searches issues and PRs apart. It searches for the items updated from the start of the period until now, not until the end of the period: an item that the person triaged in the period and that someone updated after it would be missed otherwise.
 
 The report starts with the period and the numbers: how many items the person triaged, how many of them were issues and PRs, how many items they sent to the team by adding `status: needs-team-input`, and, as "Remaining", how many open items still need triage.
 

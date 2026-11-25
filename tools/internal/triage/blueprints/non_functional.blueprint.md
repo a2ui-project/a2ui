@@ -8,7 +8,8 @@ The triage automation consists of:
    1. [`shared`](../pkgs/shared/): Dart-only code that the other packages and the triage bot use, such as the [`TriageAnalysis`](features/triage_bot/analysis.blueprint.md#the-triageanalysis-component) component, the labels, and the GitHub client.
    2. [`flagger`](../pkgs/flagger/): the [flagger](features/flagger.blueprint.md), and the command that prints why it flags an item.
    3. [`ui`](../pkgs/ui/): the Flutter application of the [triage UI](features/ui.blueprint.md).
-   4. [`server`](../pkgs/server/): the server of the hosted triage UI. It serves the web build of `ui`, signs the triager in to GitHub, and passes the UI's GitHub calls through with the triager's token.
+   4. [`pinger`](../pkgs/pinger/): the [staleness pinger](features/triage_bot/staleness_ping.blueprint.md).
+   5. [`server`](../pkgs/server/): the server of the hosted triage UI. It serves the web build of `ui`, signs the triager in to GitHub, and passes the UI's GitHub calls through with the triager's token.
 
 ## Dart packages
 
