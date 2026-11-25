@@ -49,6 +49,7 @@ from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat
 from a2ui.inference_formats import (
+    A2uiXmlFormat,
     AtomFormat,
     DirectJsonFormat,
     ElementalFormat,
@@ -74,6 +75,7 @@ SUPPORTED_STRATEGIES: tuple[str, ...] = (
     "direct",
     "subagent_tool",
     "express",
+    "a2ui_xml",
     "skill_mode",
     "elemental",
     "atom",
@@ -87,6 +89,8 @@ DEFAULT_STRATEGIES: tuple[str, ...] = ("direct", "subagent_tool", "express")
 SUPPORTED_FORMATS: frozenset[str] = frozenset({
     "direct_json",
     "express",
+    "a2ui_xml",
+    "a2ui-xml",
     "elemental",
     "atom",
 })
@@ -448,6 +452,14 @@ def get_python_strategy(
         )
 
     formatted_version = _prefixed_version(version)
+    if format_name in ("a2ui_xml", "a2ui-xml", "xml"):
+        return A2uiXmlFormat(
+            catalogs,
+            examples=examples,
+            allowed_messages=allowed_messages,
+            surface_id=surface_id,
+            version=formatted_version,
+        )
     if format_name == "express":
         return ExpressFormat(
             catalogs,

@@ -193,6 +193,10 @@ V1_ONLY_CASES: dict[str, str] = {
         "Protocol v0.9 has no callRendererFunction message."
     ),
     "test_decompile_json_catalog_qualified_components": _ONE_CATALOG_PER_SURFACE,
+    # A2UI XML cases
+    "test_compile_xml_v10_single_catalog_preserves_explicit_catalog_id": (
+        _ONE_CATALOG_PER_SURFACE
+    ),
 }
 
 
@@ -590,7 +594,11 @@ def v09_skip_reason(suite: str, case: Mapping[str, Any]) -> str | None:
                 f"Experimental format {fmt_name} does not target lowered v0.9 suites."
             )
 
-    if isinstance(catalogs, list) and len(catalogs) > 1 and "express" in formats:
+    if (
+        isinstance(catalogs, list)
+        and len(catalogs) > 1
+        and any(f in ("express", "a2ui-xml", "a2ui_xml", "xml") for f in formats)
+    ):
         return _ONE_CATALOG_PER_SURFACE
 
     if (

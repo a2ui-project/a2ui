@@ -54,6 +54,21 @@ const Set<String> performanceAgentSuites = {
 /// `agent/**/*.yaml` suites not implemented by `a2ui_agent` for Dart,
 /// paired with the reason recorded in the executed-case manifest.
 const Map<String, String> unsupportedAgentSuites = {
+  'agent/a2ui_xml/compiler.yaml':
+      'The a2ui-xml format is an experimental Python agent inference format '
+      'not implemented in Dart.',
+  'agent/a2ui_xml/decompiler.yaml':
+      'The a2ui-xml format is an experimental Python agent inference format '
+      'not implemented in Dart.',
+  'agent/a2ui_xml/prompt_generator.yaml':
+      'The a2ui-xml format is an experimental Python agent inference format '
+      'not implemented in Dart.',
+  'agent/a2ui_xml/response_parser.yaml':
+      'The a2ui-xml format is an experimental Python agent inference format '
+      'not implemented in Dart.',
+  'agent/a2ui_xml/response_streaming.yaml':
+      'The a2ui-xml format is an experimental Python agent inference format '
+      'not implemented in Dart.',
   'agent/atom/compiler.yaml':
       'Elemental and Atom are experimental and Python-only',
   'agent/builder/builder.yaml':
