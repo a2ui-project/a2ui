@@ -15,6 +15,13 @@
   `A2UICore`. Function call nesting is bounded only by the global depth limit of 50, so payloads
   that failed with `functionCall depth > 5` are now accepted
   ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
+- Add `A2UITextFieldStyle` (`.automatic`), `A2UITextFieldStyleConfiguration`, and
+  `View.a2uiTextFieldStyle(_:)` in `BasicCatalogSwiftUI` to restyle the Basic Catalog `TextField`.
+  The configuration has the label, the input control, the variant, the first failing error check
+  message, and whether the field is disabled. `A2UITextField` still shows the check message below
+  the styled field, and the input keeps its data binding and accessibility properties under any
+  style. [#3257](https://github.com/a2ui-project/a2ui/issues/3257),
+  [#4361](https://github.com/a2ui-project/a2ui/pull/4361)
 
 ## 0.12.0
 

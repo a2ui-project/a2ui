@@ -31,6 +31,24 @@ private final class StyleInvocationTracker: @unchecked Sendable {
   var cardColorSchemes: [ColorScheme] = []
   var buttonVariants: [A2UIButtonStyleConfiguration.Variant] = []
   var buttonColorSchemes: [ColorScheme] = []
+  var textFieldConfigurations: [TextFieldSnapshot] = []
+  var textFieldColorSchemes: [ColorScheme] = []
+}
+
+private struct TextFieldSnapshot: Equatable {
+  let hasLabel: Bool
+  let variant: A2UITextFieldStyleConfiguration.Variant
+  let errorMessage: String?
+  let hasError: Bool
+  let isDisabled: Bool
+  let nodeID: String
+}
+
+/// The accessibility label and hint a hosted element exposes, read from the platform
+/// accessibility tree with no fallback to the node's values.
+struct ExposedAccessibility: Equatable, Sendable {
+  let label: String?
+  let hint: String?
 }
 
 private struct ProbeCardStyle: A2UICardStyle {
@@ -57,6 +75,29 @@ private struct ProbeButtonStyle: A2UIButtonStyle {
     }()
     configuration.label
       .padding(4)
+  }
+}
+
+private struct ProbeTextFieldStyle: A2UITextFieldStyle {
+  @Environment(\.colorScheme) private var colorScheme
+  let tracker: StyleInvocationTracker
+
+  func makeBody(configuration: Configuration) -> some View {
+    let _ = {
+      tracker.textFieldConfigurations.append(
+        TextFieldSnapshot(
+          hasLabel: configuration.label != nil,
+          variant: configuration.variant,
+          errorMessage: configuration.errorMessage,
+          hasError: configuration.hasError,
+          isDisabled: configuration.isDisabled,
+          nodeID: configuration.node.id
+        )
+      )
+      tracker.textFieldColorSchemes.append(colorScheme)
+    }()
+    configuration.field
+      .padding(2)
   }
 }
 
@@ -204,5 +245,213 @@ struct ComponentStyleTests {
       w4.close()
     }
     withExtendedLifetime((w1, w2, w3, w4)) {}
+  }
+
+  private func failingCheck(_ message: String) -> ResolvedCheck {
+    ResolvedCheck(
+      condition: DataBinding<Bool>(identity: .literal(.boolean(false)), value: false),
+      message: message,
+      validationResult: ValidationResult(valid: false, message: message, severity: .error)
+    )
+  }
+
+  @Test func customTextFieldStyleReceivesConfiguration() {
+    let tracker = StyleInvocationTracker()
+    let node = Node(
+      id: "pin",
+      type: "TextField",
+      properties: [
+        "label": "PIN",
+        "variant": "obscured",
+        "checks": [failingCheck("Required")],
+      ]
+    )
+
+    let window = host(
+      A2UITextField(node: node).a2uiTextFieldStyle(ProbeTextFieldStyle(tracker: tracker)))
+    defer { window.close() }
+    withExtendedLifetime(window) {
+      let snapshot = TextFieldSnapshot(
+        hasLabel: true,
+        variant: .obscured,
+        errorMessage: "Required",
+        hasError: true,
+        isDisabled: false,
+        nodeID: "pin"
+      )
+      #expect(tracker.textFieldConfigurations.last == snapshot)
+    }
+  }
+
+  @Test func customTextFieldStyleSeesDisabledStateAndUnknownVariant() {
+    let tracker = StyleInvocationTracker()
+    let node = Node(id: "note", type: "TextField", properties: ["variant": "unknown"])
+
+    let rootView = A2UITextField(node: node)
+      .a2uiTextFieldStyle(ProbeTextFieldStyle(tracker: tracker))
+      .disabled(true)
+
+    let window = host(rootView)
+    defer { window.close() }
+    withExtendedLifetime(window) {
+      let snapshot = TextFieldSnapshot(
+        hasLabel: false,
+        variant: .shortText,
+        errorMessage: nil,
+        hasError: false,
+        isDisabled: true,
+        nodeID: "note"
+      )
+      #expect(tracker.textFieldConfigurations.last == snapshot)
+    }
+  }
+
+  @Test func customTextFieldStyleResolvesEnvironmentInDarkMode() {
+    let tracker = StyleInvocationTracker()
+    let coreCatalog = BasicCatalog.makeCatalog(version: .v091)
+    let viewModel = SurfaceViewModel(surfaceID: "text-field-dark", catalog: coreCatalog)
+    viewModel.componentsModel.applyBatch(adding: [
+      ComponentModel(
+        id: "root",
+        type: "TextField",
+        properties: [
+          "label": .string("Notes"),
+          "variant": .string("longText"),
+          "value": .string(""),
+        ]
+      )
+    ])
+
+    let rootView = Surface.makeWithBasicCatalogs(viewModel: viewModel)
+      .a2uiTextFieldStyle(ProbeTextFieldStyle(tracker: tracker))
+      .environment(\.colorScheme, .dark)
+
+    let window = host(rootView)
+    defer { window.close() }
+    withExtendedLifetime(window) {
+      #expect(tracker.textFieldColorSchemes.contains(.dark))
+      #expect(tracker.textFieldConfigurations.map(\.variant).contains(.longText))
+    }
+  }
+
+  @Test(arguments: ["shortText", "longText", "number", "obscured"])
+  func builtInTextFieldStyleRendersEveryVariant(variant: String) {
+    let node = Node(
+      id: "tf_\(variant)",
+      type: "TextField",
+      properties: [
+        "label": "Field",
+        "variant": variant,
+        "checks": [failingCheck("Required")],
+      ]
+    )
+
+    let window = host(A2UITextField(node: node).a2uiTextFieldStyle(.automatic))
+    defer { window.close() }
+    withExtendedLifetime(window) {}
+  }
+
+  #if canImport(AppKit)
+    private func exposedAccessibility(
+      identifier: String,
+      in window: NSWindow
+    ) -> ExposedAccessibility? {
+      let application = NSApplication.shared
+      let key = "accessibilityEnhancedUserInterface"
+      let wasEnhanced = (application.value(forKey: key) as? Bool) ?? false
+      application.setValue(true, forKey: key)
+      defer { application.setValue(wasEnhanced, forKey: key) }
+      for _ in 0..<5 {
+        RunLoop.main.run(until: Date())
+        window.contentView?.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+      }
+
+      var visited: Set<ObjectIdentifier> = []
+      func find(_ element: AnyObject) -> (any NSAccessibilityProtocol)? {
+        guard visited.count < 2000, visited.insert(ObjectIdentifier(element)).inserted else {
+          return nil
+        }
+        if let axElement = element as? any NSAccessibilityProtocol,
+          axElement.accessibilityIdentifier() == identifier
+        {
+          return axElement
+        }
+        var children: [Any] =
+          (element as? any NSAccessibilityProtocol)?.accessibilityChildren() ?? []
+        if let view = element as? NSView {
+          children += view.subviews
+        }
+        for child in children {
+          if let found = find(child as AnyObject) {
+            return found
+          }
+        }
+        return nil
+      }
+
+      guard let contentView = window.contentView, let element = find(contentView) else {
+        return nil
+      }
+      return ExposedAccessibility(
+        label: element.accessibilityLabel(),
+        hint: element.accessibilityHelp()
+      )
+    }
+  #elseif canImport(UIKit)
+    private func exposedAccessibility(
+      identifier: String,
+      in window: UIWindow
+    ) -> ExposedAccessibility? {
+      func find(_ view: UIView) -> UIView? {
+        if view.accessibilityIdentifier == identifier {
+          return view
+        }
+        for subview in view.subviews {
+          if let found = find(subview) {
+            return found
+          }
+        }
+        return nil
+      }
+
+      guard let element = find(window) else { return nil }
+      return ExposedAccessibility(
+        label: element.accessibilityLabel, hint: element.accessibilityHint)
+    }
+  #endif
+
+  @Test(arguments: [
+    (
+      JSONValue.object(["label": .string("Full name"), "description": .string("As on your ID")]),
+      ExposedAccessibility(label: "Full name", hint: "As on your ID")
+    ),
+    (nil, ExposedAccessibility(label: "Name", hint: nil)),
+  ])
+  func customTextFieldStyleKeepsInputAccessibility(
+    accessibility: JSONValue?,
+    expected: ExposedAccessibility
+  ) {
+    let tracker = StyleInvocationTracker()
+    let coreCatalog = BasicCatalog.makeCatalog(version: .v10)
+    let viewModel = SurfaceViewModel(surfaceID: "text-field-a11y", catalog: coreCatalog)
+    var properties: [String: JSONValue] = [
+      "label": .string("Name"),
+      "value": .string(""),
+    ]
+    properties["accessibility"] = accessibility
+    viewModel.componentsModel.applyBatch(adding: [
+      ComponentModel(id: "root", type: "TextField", properties: properties)
+    ])
+
+    let rootView = Surface.makeWithBasicCatalogs(viewModel: viewModel)
+      .a2uiTextFieldStyle(ProbeTextFieldStyle(tracker: tracker))
+
+    let window = host(rootView)
+    defer { window.close() }
+    withExtendedLifetime(window) {
+      #expect(!tracker.textFieldConfigurations.isEmpty)
+      #expect(exposedAccessibility(identifier: "a2ui-root", in: window) == expected)
+    }
   }
 }

@@ -15,7 +15,6 @@
 import A2UICore
 import A2UISwiftUI
 import BasicCatalog
-import OrderedJSON
 import SwiftUI
 
 // MARK: - Component Implementation
@@ -39,22 +38,9 @@ public struct A2UITextField: View {
     self.node = node
   }
 
-  private var labelText: String {
-    node.string(for: "label") ?? ""
-  }
-
   /// The optional hint text resolved from the v1.0 `placeholder` property.
   public var placeholderText: String? {
     node.string(for: "placeholder")
-  }
-
-  /// The prompt shown inside fields; when `nil`, SwiftUI falls back to the label.
-  private var prompt: Text? {
-    placeholderText.map { Text($0) }
-  }
-
-  private var variant: String {
-    node.string(for: "variant") ?? "shortText"
   }
 
   /// Two-way binding for the text field's `value` property.
@@ -77,57 +63,35 @@ public struct A2UITextField: View {
     node.validationResults
   }
 
-  private var hasError: Bool {
-    !validationErrors.isEmpty
-  }
-
   public var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      if !labelText.isEmpty {
-        Text(labelText)
-          .font(.subheadline.weight(.medium))
-          .foregroundStyle(hasError ? Color.red : Color.secondary)
-          .accessibilityHidden(true)
-      }
-
-      inputFieldForVariant
-        .padding(10)
-        .background(Color.gray.opacity(0.12))
-        .clipShape(.rect(cornerRadius: 8))
-        .overlay(
-          RoundedRectangle(cornerRadius: 8)
-            .stroke(
-              hasError ? Color.red : Color.primary.opacity(0.1), lineWidth: hasError ? 1.5 : 1)
-        )
-        .accessibilityIdentifier("a2ui-\(node.id)")
-        .a2uiAccessibilityControl(for: node, defaultLabel: labelText)
-
+      A2UITextFieldStyleHost(node: node)
       A2UICheckMessage(node: node, identifierPrefix: "A2UITextField")
     }
   }
+}
 
-  @ViewBuilder
-  private var inputFieldForVariant: some View {
-    switch variant {
-    case "obscured":
-      SecureField(labelText, text: valueBinding, prompt: prompt)
-        .accessibilityIdentifier("a2ui-\(node.id)")
-    case "longText":
-      TextField(labelText, text: valueBinding, prompt: prompt, axis: .vertical)
-        .lineLimit(3...8)
-        .accessibilityIdentifier("a2ui-\(node.id)")
-    case "number":
-      #if os(iOS)
-        TextField(labelText, text: valueBinding, prompt: prompt)
-          .keyboardType(.decimalPad)
-          .accessibilityIdentifier("a2ui-\(node.id)")
-      #else
-        TextField(labelText, text: valueBinding, prompt: prompt)
-          .accessibilityIdentifier("a2ui-\(node.id)")
-      #endif
-    default:
-      TextField(labelText, text: valueBinding, prompt: prompt)
-        .accessibilityIdentifier("a2ui-\(node.id)")
-    }
+/// Resolves the environment's ``A2UITextFieldStyle`` inside the view tree, so reading
+/// `A2UITextField.body` outside a hosted view doesn't read the environment.
+private struct A2UITextFieldStyleHost: View {
+  @Environment(\.a2uiTextFieldStyle) private var style
+  @Environment(\.isEnabled) private var isEnabled
+
+  let node: Node
+
+  var body: some View {
+    let labelText = node.string(for: "label") ?? ""
+    let variant =
+      A2UITextFieldStyleConfiguration.Variant(rawValue: node.string(for: "variant") ?? "")
+      ?? .shortText
+    let configuration = A2UITextFieldStyleConfiguration(
+      label: labelText.isEmpty ? nil : A2UITextFieldStyleConfiguration.Label(labelText),
+      field: A2UITextFieldStyleConfiguration.Field(node: node, variant: variant),
+      variant: variant,
+      errorMessage: node.validationErrors.first,
+      isDisabled: !isEnabled,
+      node: node
+    )
+    style.resolve(configuration: configuration)
   }
 }
