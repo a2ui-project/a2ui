@@ -58,12 +58,31 @@ public final class FormatDateFunction: FunctionImplementation, Sendable {
     guard let timeZone = TimeZone(secondsFromGMT: timestamp.offsetSeconds) else {
       return .string("")
     }
+    return .string(formatPattern(format, instant: timestamp.instant, timeZone: timeZone))
+  }
+
+  /// Expands only the Basic Catalog `formatDate` tokens (plus TR35 quoted literals and
+  /// `EEE`/`EE`), leaving any other letter untouched as literal text to match web_core,
+  /// Python, and Dart.
+  nonisolated(unsafe) private static let tokenPattern =
+    /''|'((?:[^']|'')*)'?|yyyy|yy|MMMM|MMM|MM|M|EEEE|EEE|EE|E|dd|d|HH|H|hh|h|mm|ss|a/
+
+  private func formatPattern(_ pattern: String, instant: Date, timeZone: TimeZone) -> String {
     let formatter = DateFormatter()
-    formatter.dateFormat = format
     formatter.locale = Locale(identifier: "en_US_POSIX")
     formatter.timeZone = timeZone
 
-    return .string(formatter.string(from: timestamp.instant))
+    return pattern.replacing(Self.tokenPattern) { match in
+      let token = match.output.0
+      if token == "''" {
+        return "'"
+      }
+      if let quoted = match.output.1 {
+        return quoted.replacingOccurrences(of: "''", with: "'")
+      }
+      formatter.dateFormat = String(token)
+      return formatter.string(from: instant)
+    }
   }
 }
 
