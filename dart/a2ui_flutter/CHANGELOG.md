@@ -32,6 +32,13 @@
 - **Breaking:** Requires `a2ui_core` `^0.8.0`, whose types this library
   re-exports.
 
+- The basic `Text` component marks the `h1`–`h5` variants, and a Text that
+  is one Markdown heading line, as headings of their level in the semantics
+  tree, so screen readers announce them as headings and can navigate by them.
+  A `Button` merges the semantics of its child, so a labelled component as
+  its child still gives the button its name, and keeps a heading Text in its
+  child from being marked as a heading, so the button is not announced as one
+  ([#3788](https://github.com/a2ui-project/a2ui/pull/3788)).
 - `NodeView` reads `@accessibility` with a fallback to `accessibility` so v1.0 surfaces resolve `@`-prefixed accessibility attributes alongside custom `accessibility` component properties ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#4037](https://github.com/a2ui-project/a2ui/pull/4037)).
 - Add explicit type annotation in `example/lib/chat_session.dart` to satisfy the `specify_nonobvious_local_variable_types` analyzer lint on Dart 3.15+ ([#4233](https://github.com/a2ui-project/a2ui/pull/4233)).
 
