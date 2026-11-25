@@ -372,9 +372,21 @@ void main() {
     });
 
     group('with a call nested in the arguments', () {
+      final functions = document['functions']! as Map<String, Object?>;
       final CatalogApi other = Catalog.fromJson({
         ...document,
         'catalogId': 'example/other',
+        'functions': {
+          ...functions,
+          'formatString': {
+            ...functions['formatString']! as Map<String, Object?>,
+            'allowedCallers': 'rendererOrAgent',
+          },
+        },
+      });
+      final CatalogApi otherRendererOnly = Catalog.fromJson({
+        ...document,
+        'catalogId': 'example/other_renderer_only',
       });
 
       Map<String, Object?> nesting(Map<String, Object?> nested) =>
@@ -391,6 +403,27 @@ void main() {
             'args': {'value': 'Hello'},
           }),
         ]);
+      });
+
+      test('rejects one to a function only the renderer may call', () {
+        expect(
+          () =>
+              forAgent(catalogs: [callable, otherRendererOnly])
+                  .processMessages([
+                    nesting({
+                      '@call': 'formatString',
+                      'catalogId': otherRendererOnly.id,
+                      'args': {'value': 'Hello'},
+                    }),
+                  ]),
+          throwsA(
+            isA<A2uiValidationError>().having(
+              (e) => e.message,
+              'message',
+              contains('rendererOnly'),
+            ),
+          ),
+        );
       });
 
       test('checks it against the catalog it names', () {
