@@ -1511,7 +1511,7 @@ export class GenericBinder<T> {
             ? String(customMessage)
             : fallbackMessage;
       return {
-        valid: Boolean(rec.valid),
+        valid: rec.valid === true,
         message,
         ...(code !== undefined ? {code} : {}),
         severity,

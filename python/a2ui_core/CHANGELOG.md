@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: A check rule whose condition resolves to a dict with a non-boolean `valid` member, such as `{"valid": "yes"}`, now fails in `GenericBinder`, matching Dart and Swift. Before, pydantic read strings such as `"true"` and `"yes"` as `True`. Recommended migration: give check results a boolean `valid` ([#3175](https://github.com/a2ui-project/a2ui/issues/3175), [#4395](https://github.com/a2ui-project/a2ui/pull/4395)).
 - **BREAKING CHANGE**: (v0_9_1) `get_agent_to_renderer_schema_map` and
   `get_agent_to_renderer_schema_json` give the v0.9.1 schema the `$id`
   `https://a2ui.org/specification/v0_9_1/server_to_client.json`, which

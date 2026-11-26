@@ -1238,6 +1238,40 @@ describe('GenericBinder Checkable Trait', () => {
     assert.deepStrictEqual(binder.snapshot.validationErrors, ['Rule fallback message']);
   });
 
+  it('should fail a check whose result has a non-boolean valid', async () => {
+    const mockCatalog = new Catalog('test', '1.0', [], []);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    surface.dataModel.set('/check', {valid: 'true'});
+
+    const schema = z.object({
+      field: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+    const compModel = new ComponentModel(
+      'c_non_boolean_valid',
+      'Input',
+      {
+        field: 'val',
+        checks: [{condition: {'@path': '/check'}, message: 'Rule fallback message'}],
+      },
+      mockCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<any>(
+      new ComponentContext(surface, 'c_non_boolean_valid'),
+      schema,
+    );
+    binder.subscribe(() => {});
+
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Rule fallback message']);
+
+    surface.dataModel.set('/check', {valid: 'false'});
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(binder.snapshot.isValid, false);
+  });
+
   it('should not treat primitive fields or unannotated condition arrays as CHECKABLE', () => {
     const {catalog, surface} = setupSurfaceAndMocks();
 

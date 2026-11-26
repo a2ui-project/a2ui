@@ -755,6 +755,10 @@ class GenericBinder:
         else:
             raw = {"valid": bool(val)}
 
+        if "valid" in raw:
+            # Only `True` passes; pydantic would read "true" or "yes" as True.
+            raw["valid"] = raw["valid"] is True
+
         if explicit_rule_msg is not None:
             raw["message"] = explicit_rule_msg
         elif not raw.get("message"):

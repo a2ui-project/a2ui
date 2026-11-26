@@ -939,6 +939,38 @@
       valid: false
   expect: true
 
+- name: test_evaluate_function_and_non_boolean_valid_operand
+  description: Verifies and reads an object whose valid member is not a boolean as false in v1.0.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: and
+  args:
+    values:
+      - valid: "true"
+      - true
+  expect: false
+
+- name: test_evaluate_function_or_non_boolean_valid_operand
+  description: Verifies or reads an object whose valid member is not a boolean as false in v1.0.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: or
+  args:
+    values:
+      - valid: "yes"
+      - false
+  expect: false
+
+- name: test_evaluate_function_not_non_boolean_valid_operand
+  description: Verifies not reads an object whose valid member is not a boolean as false in v1.0.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: not
+  args:
+    value:
+      valid: "true"
+  expect: true
+
 # --- PluralizeFunction (D27) ---
 - name: test_evaluate_function_pluralize_explicit_zero
   description: Verifies pluralize selects explicit zero category over CLDR (D27).

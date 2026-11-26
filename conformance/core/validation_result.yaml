@@ -105,6 +105,41 @@
             valid: false
             message: "Must be 18 or older."
 
+- name: test_validation_result_non_boolean_valid_fails
+  features: [F-CORE-27]
+  description: Verifies that a CheckRule fails when its condition resolves to an object whose valid member is not a boolean, falling back to the CheckRule message.
+  catalog:
+    protocolVersion: "1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "form_surface"
+            catalogId: "basic"
+            dataModel:
+              name: "Ada"
+              check:
+                valid: "true"
+            components:
+              - id: root
+                component: TextField
+                label: "Name"
+                value:
+                  "@path": "/name"
+                "@checks":
+                  - condition:
+                      "@path": "/check"
+                    message: "Check failed."
+  expect:
+    surfaces:
+      form_surface:
+        isValid:
+          root: false
+        validationErrors:
+          root:
+            - "Check failed."
+
 - name: test_validation_result_warning_and_info_non_blocking
   features: [F-CORE-27]
   description: Verifies that CheckRules returning severity warning or info populate validationResults while keeping isValid true and validationErrors empty.
