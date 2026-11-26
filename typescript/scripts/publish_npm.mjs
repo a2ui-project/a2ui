@@ -20,6 +20,7 @@ import {
   getPackageGraph,
   maybeRunCommand,
   runCommand as defaultRunCommand,
+  satisfiesCaretRange,
 } from './lib/workspace.mjs';
 import {execSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
@@ -202,25 +203,35 @@ function ensureWorkspaceDependencies(packageObjects, graph) {
 }
 
 /**
- * Gets the version of a package on npm.
+ * Gets the version and dependency metadata of a package on npm.
  *
  * @param {Object} pkg - The package to check.
  * @param {Object} options - Options.
  * @param {string|null} options.npmToken - The NPM token to use.
  * @param {Function} options.exec - The execSync function to use.
- * @returns {string|null} The version of the package on npm, or null if it does not exist.
+ * @returns {{version: string|null, dependencies: Map<string, string>, peerDependencies: Map<string, string>}} The package metadata on npm.
  */
-function getNpmVersion(pkg, {npmToken, exec}) {
+export function getNpmPackageInfo(pkg, {npmToken, exec}) {
+  if (pkg.private) {
+    return {version: null, dependencies: new Map(), peerDependencies: new Map()};
+  }
   try {
-    const remoteVersionJson = exec(`yarn npm info ${pkg.name} --fields version --json`, {
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'ignore'],
-      env: {...process.env, NPM_TOKEN: npmToken},
-    }).trim();
-    const remoteVersion = JSON.parse(remoteVersionJson)?.version;
-    return remoteVersion;
+    const remoteJson = exec(
+      `yarn npm info ${pkg.name} --fields version,dependencies,peerDependencies --json`,
+      {
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'ignore'],
+        env: {...process.env, NPM_TOKEN: npmToken},
+      },
+    ).trim();
+    const parsed = JSON.parse(remoteJson);
+    return {
+      version: parsed?.version ?? null,
+      dependencies: new Map(Object.entries(parsed?.dependencies ?? {})),
+      peerDependencies: new Map(Object.entries(parsed?.peerDependencies ?? {})),
+    };
   } catch {
-    return null;
+    return {version: null, dependencies: new Map(), peerDependencies: new Map()};
   }
 }
 
@@ -265,10 +276,16 @@ function getAccessToken(exec) {
 function filterPublishablePackages(packages, {npmToken, exec}) {
   console.log(`\n${bold}Checking package versions${reset}\n`);
 
+  const packageMap = new Map(packages.map(pkg => [pkg.name, pkg]));
+  const remoteInfoMap = new Map(
+    packages.map(pkg => [pkg.name, getNpmPackageInfo(pkg, {npmToken, exec})]),
+  );
+
   const packagesToPublish = [];
   for (const pkg of packages) {
     const localVersion = pkg.version;
-    const remoteVersion = getNpmVersion(pkg, {npmToken, exec});
+    const remoteInfo = remoteInfoMap.get(pkg.name);
+    const remoteVersion = remoteInfo?.version ?? null;
     const diff = getVersionDiff(remoteVersion, localVersion);
     switch (diff) {
       case 'NEW':
@@ -277,11 +294,46 @@ function filterPublishablePackages(packages, {npmToken, exec}) {
         );
         packagesToPublish.push(pkg);
         break;
-      case 'SAME':
+      case 'SAME': {
+        const runtimeAndPeerDeps = {...pkg.dependencies, ...pkg.peerDependencies};
+        const remoteDeps = new Map([
+          ...(remoteInfo?.dependencies ?? new Map()),
+          ...(remoteInfo?.peerDependencies ?? new Map()),
+        ]);
+        for (const [depName, depSpec] of Object.entries(runtimeAndPeerDeps)) {
+          if (
+            typeof depSpec !== 'string' ||
+            (!depSpec.startsWith('workspace:') && !depSpec.startsWith('file:'))
+          ) {
+            continue;
+          }
+          const depPkg = packageMap.get(depName);
+          if (!depPkg) continue;
+
+          const publishedRange = remoteDeps.get(depName);
+          if (!publishedRange) {
+            console.error(
+              `❌ ERROR: ${pkg.name} (${localVersion}) declares workspace dependency ${depName} locally, but ${depName} is missing from the published ${pkg.name}@${localVersion} on npm!`,
+            );
+            throw new Error(
+              `Missing published dependency ${depName} for ${pkg.name}: bump ${pkg.name} version to publish against ${depName}@${depPkg.version}.`,
+            );
+          }
+
+          if (!satisfiesCaretRange(publishedRange, depPkg.version)) {
+            console.error(
+              `❌ ERROR: ${pkg.name} (${localVersion}) is already published on npm with ${depName}@${publishedRange}, which conflicts with local ${depName}@${depPkg.version}!`,
+            );
+            throw new Error(
+              `Incompatible dependency version for ${pkg.name}: bump ${pkg.name} version to publish against ${depName}@${depPkg.version}.`,
+            );
+          }
+        }
         console.warn(
           `⚠️ WARNING: ${pkg.name} version ${localVersion} is already published on npm. Skipping.`,
         );
         break;
+      }
       case 'OLDER_OR_UNKNOWN':
         console.error(
           `❌ ERROR: ${pkg.name} local version (${localVersion}) appears older or invalid compared to npm version (${remoteVersion})!`,
