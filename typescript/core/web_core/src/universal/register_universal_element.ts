@@ -22,8 +22,8 @@ let missingCustomElementsReported = false;
  * Registers a Web Component's custom element in the browser's `customElements` registry.
  *
  * This operation is idempotent: if the custom element is already registered with the
- * identical constructor, this function safely no-ops. If a different constructor is
- * already registered for the same tag name, this function throws an error.
+ * identical constructor or a subclass of it, this function safely no-ops. If an unrelated
+ * constructor is already registered for the same tag name, this function throws an error.
  *
  * In environments without `customElements` (for example SSR) it returns without registering
  * and reports the problem once via `console.error`.
@@ -48,7 +48,7 @@ export function registerUniversalElement(component: WebComponentImplementation):
     return;
   }
 
-  if (existing !== component.element) {
+  if (existing !== component.element && !(existing.prototype instanceof component.element)) {
     throw new Error(
       `Custom element tag name collision for "${component.tagName}": ` +
         `attempted to register ${component.element.name || 'anonymous constructor'}, ` +

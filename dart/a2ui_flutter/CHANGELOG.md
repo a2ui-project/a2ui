@@ -18,11 +18,21 @@
 
 ## Unreleased
 
-- **Breaking:** Raises the minimum Dart/Flutter SDK bounds from `sdk: ">=3.10.0 <4.0.0"` and `flutter: ">=3.38.0"` to `sdk: ">=3.13.0 <4.0.0"` and `flutter: ">=3.47.0"`. Upgrade to Flutter 3.47.0+ (Dart 3.13.0+) before updating to this release ([#4303](https://github.com/a2ui-project/a2ui/pull/4303)).
 - `Slider` treats an infinite `min` or `max`, which a JSON number such as
   `-1e400` decodes to, as absent, as an HTML range input does. A `min` of
   negative infinity failed a Material `Slider` assertion
   ([#4108](https://github.com/a2ui-project/a2ui/pull/4108)).
+
+## 0.5.0
+
+- **Breaking:** Requires `a2ui_core` `^0.9.0`, whose types this library
+  re-exports.
+
+- **Breaking:** Raises the minimum Dart/Flutter SDK bounds from `sdk: ">=3.10.0 <4.0.0"` and `flutter: ">=3.38.0"` to `sdk: ">=3.13.0 <4.0.0"` and `flutter: ">=3.47.0"`. Upgrade to Flutter 3.47.0+ (Dart 3.13.0+) before updating to this release ([#4303](https://github.com/a2ui-project/a2ui/pull/4303)).
+- `Slider` is named by its `label` and reads the value it shows, instead of a
+  percentage. The value bubble is gone, since Flutter reads its text as the
+  slider's name; the value stays on screen above the track
+  ([#3411](https://github.com/a2ui-project/a2ui/pull/3411)).
 
 ## 0.4.0
 

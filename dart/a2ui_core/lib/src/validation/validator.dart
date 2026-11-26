@@ -1203,8 +1203,28 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
 
   Map<String, Schema> get _resolvedFunctionSchemas => _resolvedFunctions ??= {
     for (final MapEntry<String, F> entry in catalog.functions.entries)
-      entry.key: _resolve(entry.value.argumentSchema.value),
+      entry.key: _resolve(
+        _v1
+            ? entry.value.argumentSchema.value
+            : _closePreV1ArgumentSchema(entry.value.argumentSchema.value),
+      ),
   };
+
+  /// Mirrors `Catalog._serializeFunction`'s `unevaluatedProperties` closure on
+  /// pre-v1.0 object argument schemas so v0.9 functions, whether defined in
+  /// code or read by `Catalog.fromJson`, reject undeclared arguments unless
+  /// `additionalProperties` or `unevaluatedProperties` explicitly permits
+  /// them.
+  static Map<String, Object?> _closePreV1ArgumentSchema(
+    Map<String, Object?> schema,
+  ) {
+    if (schema['type'] != 'object') return schema;
+    final copy = <String, Object?>{...schema};
+    final Object? additional = copy.remove('additionalProperties');
+    copy['unevaluatedProperties'] =
+        copy['unevaluatedProperties'] ?? additional ?? false;
+    return copy;
+  }
 
   Map<String, Schema> get _resolvedEnvelopeSchemas => _resolvedEnvelope ??= {
     for (final MapEntry<String, Map<String, Object?>> entry
@@ -1213,22 +1233,91 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   };
 
   /// The document local references resolve against: the catalog's
-  /// [Catalog.validationSchema], except that from v1.0 its function union
-  /// matches any call but `@index`, which `IndexSystemFunction` matches. A
-  /// call may name another catalog, or be forwarded to the agent, so the
-  /// schema can't tell which function definition applies; [_validateNested]
-  /// checks the arguments of each call that runs in this catalog instead.
+  /// [Catalog.validationSchema], except for its function union.
+  ///
+  /// From v1.0 the union matches any call but `@index`, which
+  /// `IndexSystemFunction` matches. A call may name another catalog, or be
+  /// forwarded to the agent, so the schema can't tell which function
+  /// definition applies; [_validateNested] checks the arguments of each call
+  /// that runs in this catalog instead.
+  ///
+  /// Before v1.0 the union still lists the catalog's functions, so a call
+  /// must name one of them and match its fields, but each function takes any
+  /// object for `args`; see [_withoutArgumentSchemas]. [_validateNested]
+  /// checks the arguments of every call, so the union need not check them
+  /// again.
   late final Map<String, Object?> _resolutionDocument = () {
     final Map<String, Object?> document = catalog.validationSchema;
-    if (!_v1) return document;
+    final Map<String, Object?>? defs = (document[r'$defs'] as Map?)
+        ?.cast<String, Object?>();
+    final Object? union = _v1
+        ? _anyV1FunctionCall
+        : _withoutArgumentSchemas(defs?['anyFunction'], document);
+    if (union == null) return document;
     return {
       ...document,
-      r'$defs': {
-        ...?(document[r'$defs'] as Map?)?.cast<String, Object?>(),
-        'anyFunction': _anyV1FunctionCall,
-      },
+      r'$defs': {...?defs, 'anyFunction': union},
     };
   }();
+
+  /// The function [union] of a catalog [document], with the argument schema
+  /// of each function it lists replaced by one that matches any object, or
+  /// null if [union] is not a `oneOf`.
+  ///
+  /// A function's arguments may hold calls, which the argument schema checks
+  /// against the union again. The union has a branch for each function, and
+  /// a schema validator tries every branch of a `oneOf`, so checking a call
+  /// against the union as the catalog writes it takes time that multiplies
+  /// with each level of nesting. Without the argument schemas a branch
+  /// checks the fields of one call and nothing below it.
+  ///
+  /// A branch that is not a reference to an object schema in [document] is
+  /// kept as written.
+  static Map<String, Object?>? _withoutArgumentSchemas(
+    Object? union,
+    Map<String, Object?> document,
+  ) {
+    if (union is! Map) return null;
+    final Object? branches = union['oneOf'];
+    if (branches is! List) return null;
+    return {
+      ...union.cast<String, Object?>(),
+      'oneOf': [
+        for (final Object? branch in branches)
+          _withoutArgumentSchema(
+                _localReferenceTarget(branch, document) ?? branch,
+              ) ??
+              branch,
+      ],
+    };
+  }
+
+  /// The function [definition] with any object allowed for `args`, or null if
+  /// it is not an object schema that gives `args` a schema object.
+  static Map<String, Object?>? _withoutArgumentSchema(Object? definition) {
+    if (definition is! Map) return null;
+    final Object? properties = definition['properties'];
+    if (properties is! Map || properties['args'] is! Map) return null;
+    return {
+      ...definition.cast<String, Object?>(),
+      'properties': {
+        ...properties.cast<String, Object?>(),
+        'args': {'type': 'object'},
+      },
+    };
+  }
+
+  /// What [schema] refers to in [document], if it is only a `$ref` to a JSON
+  /// Pointer into [document] that names something; null otherwise.
+  static Object? _localReferenceTarget(
+    Object? schema,
+    Map<String, Object?> document,
+  ) {
+    if (schema is! Map || schema.length != 1) return null;
+    final Object? ref = schema[r'$ref'];
+    if (ref is! String || !ref.startsWith('#/')) return null;
+    return followJsonPointer(document, ref.substring(1));
+  }
 
   Schema _resolve(Map<String, Object?> schema) => Schema.fromMap(
     _enforceStrictUriFormat(

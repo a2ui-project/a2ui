@@ -39,7 +39,7 @@ Issues = "https://github.com/a2ui-project/a2ui/issues"
 # The ADK-to-A2A converters (`a2ui.adk.a2a`) and the A2A subagent orchestration
 # helpers (`a2ui.adk.orchestration`) need the A2A extension.
 a2a = [
-  "a2ui-a2a>0.2.0",
+  "a2ui-a2a>0.4.0",
   "google-adk[a2a]>=1.28.1",
 ]
 

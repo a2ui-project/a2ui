@@ -254,11 +254,8 @@ jobs:
       - name: Test Samples
         run: eval "yarn workspaces foreach -A $SAMPLES_INC -p run test"
 
-  # Repo automation under scripts/ and tools/internal/triage/ runs on plain
-  # Node with no workspace deps, so it only needs the built-in test runner. The
-  # triage bot also installs its own TypeScript to check its types. Node 24
-  # matches the runtime of actions/github-script, which runs the bot and strips
-  # its types on import.
+  # Repo automation under scripts/ runs on plain Node with no workspace deps,
+  # so it only needs the built-in test runner.
   ci-scripts:
     # Runs on every event: the tests under `scripts/` read files outside
     # `scripts/` (for example `typescript/renderers/*/eslint.boundary.mjs`),
@@ -274,12 +271,7 @@ jobs:
           node-version: "24"
           install: "false"
       - name: Test Scripts
-        run: node --test scripts/*.test.mjs tools/internal/triage/flagging/*.test.mts
-      - name: Type-check the triage bot
-        working-directory: tools/internal/triage
-        run: |
-          npm ci
-          npm run typecheck
+        run: node --test scripts/*.test.mjs
 
   ci-other:
     needs: changes
