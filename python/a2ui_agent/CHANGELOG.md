@@ -28,6 +28,15 @@
   bindings
   ([#3400](https://github.com/a2ui-project/a2ui/issues/3400),
   [#4184](https://github.com/a2ui-project/a2ui/pull/4184)).
+- Add `allowed_parents` and `allowed_children` parameters to the `@macro`
+  decorator (`a2ui.transformers.macros`), emitting `allowedParents` and
+  `allowedChildren` metadata on generated macro component schemas.
+- Add the shared experimental decision-model kernel in
+  `a2ui.inference_formats.experimental.decision` (gated behind the optional
+  `a2ui-agent-sdk[decision]` `httpx` extra and isolated from public barrels):
+  `DecisionBackend`, `JevHttpBackend`, `StepZeroLogprobBackend`,
+  `DeterministicMockBackend`, `CatalogDecisionGraph`, payload pointer
+  inspection, `ExpressSurfaceSpec`, and stateless `lower_for_transport`.
 
 ## 0.12.1 (2026-11-23)
 

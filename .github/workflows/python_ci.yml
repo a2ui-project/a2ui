@@ -93,10 +93,19 @@ jobs:
           uv run --isolated --no-project \
             --with ./python/a2ui_core --with ./python/a2ui_agent \
             python -c "
-          import importlib.util
-          import a2ui.inference_formats, a2ui.parser, a2ui.processor
+          import importlib.util, sys
+          import a2ui.inference_formats, a2ui.parser, a2ui.processor, a2ui.rpc
           leaked = [m for m in ('a2a', 'google.adk', 'google.genai') if importlib.util.find_spec(m.split('.')[0]) and importlib.util.find_spec(m)]
           assert not leaked, f'a2ui-agent-sdk pulls in agent frameworks: {leaked}'
+          exp_leaked = [
+              m for m in sys.modules
+              if m.startswith((
+                  'a2ui.inference_formats.experimental.decision',
+                  'a2ui.rpc.experimental',
+              ))
+          ]
+          assert not exp_leaked, f'public barrels eagerly imported experimental decision/rpc modules: {exp_leaked}'
+          assert 'httpx' not in sys.modules, 'public barrels eagerly imported optional httpx dependency'
           "
       - name: Set Up Java
         uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5.3.0
