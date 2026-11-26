@@ -52,6 +52,7 @@ from google.genai import types as genai_types
 
 from a2ui.a2a import to_a2a_parts
 from a2ui.parser import ResponsePart
+from a2ui.parser import TextPart
 from a2ui.parser import ResponseStream
 from a2ui.processor import A2uiRequestProcessor
 
@@ -317,4 +318,4 @@ class A2uiEventConverter:
         """The fallback text as a part, or no parts when there is none."""
         if not self._fallback_text:
             return []
-        return [a2a_types.Part(root=a2a_types.TextPart(text=self._fallback_text))]
+        return to_a2a_parts([TextPart(text=self._fallback_text)])

@@ -21,6 +21,7 @@ from functools import cache
 from typing import Any, Callable, Final
 
 from ..common import Subscription
+from ..common.events import enqueue_or_run
 from ..schema._dynamic_types import (
     dynamic_literal_kinds,
     is_function_call_branch,
@@ -891,6 +892,9 @@ class GenericBinder:
         return isinstance(condition.get("path"), str) and "call" not in condition
 
     def _notify(self) -> None:
+        enqueue_or_run(self._flush_notify)
+
+    def _flush_notify(self) -> None:
         for listener in list(self.listeners):
             try:
                 listener(self.current_props)

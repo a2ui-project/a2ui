@@ -40,6 +40,7 @@ import {
   A2uiDataError,
   A2uiError,
   A2uiIntegrityError,
+  A2uiRecursionError,
   A2uiValidationError,
 } from '../errors.js';
 import {
@@ -93,6 +94,7 @@ import {
 import {toOutboundActionMessage} from './outbound-envelope.js';
 import {DataContext} from '../resolution/data-context.js';
 import {
+  MAX_GLOBAL_DEPTH,
   RELAXED_PATH_PATTERN,
   RELAXED_VALIDATION,
   STRICT_VALIDATION,
@@ -682,14 +684,20 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   processMessagesWithErrors(messages: unknown, context?: ExecutionContext): RendererErrorMessage[] {
     return this.withValidationConfig(context, () => {
       const items = Array.isArray(messages) ? messages : [messages];
+      // An item of a top-level array is one wrapper deep, as it is in `processMessages`.
+      const wrapperDepth = Array.isArray(messages) ? 1 : 0;
       const errors: RendererErrorMessage[] = [];
       for (const item of items) {
         const itemEnvelopeContext = extractEnvelopeErrorContext(item, this.defaultVersion);
         let currentContext = itemEnvelopeContext;
         try {
-          const operations = this.prepareOperations(item as ProcessableMessagePayload, ctx => {
-            currentContext = ctx;
-          });
+          const operations = this.prepareOperations(
+            item as ProcessableMessagePayload,
+            ctx => {
+              currentContext = ctx;
+            },
+            wrapperDepth,
+          );
           for (const op of operations) {
             currentContext = this.contextFromOperation(op, itemEnvelopeContext);
             this.processOperation(op, context);
@@ -886,7 +894,21 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private prepareSingleItem(
     item: ProcessableMessagePayload,
     onItemContext?: (ctx: ErrorEnvelopeContext) => void,
+    wrapperDepth = 0,
   ): InternalOperation[] {
+    if (wrapperDepth > MAX_GLOBAL_DEPTH) {
+      throw new A2uiRecursionError(`Global recursion limit exceeded: Depth > ${MAX_GLOBAL_DEPTH}`);
+    }
+
+    if (Array.isArray(item)) {
+      return this.prepareOperations(item, onItemContext, wrapperDepth);
+    }
+
+    const wrappedMessages = this.unwrapMessagesEnvelope(item, wrapperDepth);
+    if (wrappedMessages !== undefined) {
+      return this.prepareOperations(wrappedMessages, onItemContext, wrapperDepth + 1);
+    }
+
     onItemContext?.(extractEnvelopeErrorContext(item, this.defaultVersion));
 
     if (this.validationConfig) {
@@ -904,19 +926,58 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     return this.extractSingleMessageOperations(item);
   }
 
+  private unwrapMessagesEnvelope(
+    item: ProcessableMessagePayload,
+    wrapperDepth: number,
+  ): ProcessableMessagePayload | undefined {
+    if (typeof item !== 'object' || item === null || isInternalOperation(item)) {
+      return undefined;
+    }
+    const candidate = (item as {messages?: unknown}).messages;
+    if (!Array.isArray(candidate)) return undefined;
+    if (this.validationConfig) {
+      this.validateWrapperSiblingKeys(item as Record<string, unknown>, wrapperDepth);
+    }
+    return candidate as ProcessableMessagePayload;
+  }
+
+  /**
+   * Checks the keys beside `messages` on a wrapper for depth and path syntax.
+   *
+   * Those keys carry no operations and are otherwise ignored. Their depth
+   * counts from the wrapper that holds them, so that a value beside
+   * `messages` nests no deeper than a message inside it may.
+   */
+  private validateWrapperSiblingKeys(
+    wrapperObj: Record<string, unknown>,
+    wrapperDepth: number,
+  ): void {
+    // A null prototype keeps an own `__proto__` key as an ordinary property.
+    const siblings: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+    for (const [key, value] of Object.entries(wrapperObj)) {
+      if (key !== 'messages') siblings[key] = value;
+    }
+    validateRecursionAndPaths(siblings, wrapperDepth);
+  }
+
   private prepareOperations(
     messages: ProcessableMessagePayload,
     onItemContext?: (ctx: ErrorEnvelopeContext) => void,
+    wrapperDepth = 0,
   ): InternalOperation[] {
+    if (wrapperDepth > MAX_GLOBAL_DEPTH) {
+      throw new A2uiRecursionError(`Global recursion limit exceeded: Depth > ${MAX_GLOBAL_DEPTH}`);
+    }
+
     if (!messages || (Array.isArray(messages) && messages.length === 0)) return [];
 
     if (Array.isArray(messages)) {
       return messages.flatMap(item =>
-        this.prepareSingleItem(item as ProcessableMessagePayload, onItemContext),
+        this.prepareSingleItem(item as ProcessableMessagePayload, onItemContext, wrapperDepth + 1),
       );
     }
 
-    return this.prepareSingleItem(messages, onItemContext);
+    return this.prepareSingleItem(messages, onItemContext, wrapperDepth);
   }
 
   /**

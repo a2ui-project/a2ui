@@ -22,8 +22,10 @@
  * both catalog packages. `sandbox.html` (inline HTML content) and `sandbox-url.html` (external
  * URLs) load it inside an iframe that the host page embeds without a `sandbox` attribute, because
  * the proxy checks who embeds it (`document.referrer`) and exchanges messages with the host by
- * origin. The proxy creates the inner iframe that holds the untrusted content, with `sandbox`
- * flags that exclude `allow-same-origin`, and relays messages between the host and that frame.
+ * origin. The proxy creates the inner iframe that holds the untrusted content, omitting
+ * `allow-same-origin` by default and always stripping it for inline HTML while allowing external
+ * `url` frames to opt in when configured by the host, and relays messages between the host and
+ * that frame.
  *
  * By default the proxy is served from the host's own origin (`/a2ui-sandbox/`). That is
  * convenient but gives no origin isolation beyond the sandboxed inner frame itself and disables
@@ -225,7 +227,7 @@ export function injectCspMeta(html: string, csp?: SandboxCsp): string {
 
 /** Treats `127.0.0.1` and `localhost` as the same host so local development works with either. */
 export function normalizeOrigin(origin: string): string {
-  return origin.replace('://127.0.0.1', '://localhost');
+  return origin.replace(/:\/\/127\.0\.0\.1(?=$|[:/])/, '://localhost');
 }
 
 /**
@@ -353,6 +355,55 @@ function readResourcePayload(raw: unknown): SandboxResourcePayload {
   };
 }
 
+// HTML tokenizes `<iframe sandbox>` on ASCII whitespace only; matching that delimiter set avoids
+// granting a cross-origin sender on non-ASCII whitespace (such as `\u00a0`) that browsers ignore.
+const ASCII_WHITESPACE = /[\t\n\f\r ]+/;
+
+function hasAllowSameOriginFlag(sandbox: string): boolean {
+  return sandbox.split(ASCII_WHITESPACE).some(flag => flag.toLowerCase() === 'allow-same-origin');
+}
+
+function resolveAllowedInnerUrlOrigin(
+  html: string | undefined,
+  url: string | undefined,
+  resolvedSandbox: string,
+  baseHref: string,
+): string | null {
+  if (html !== undefined || url === undefined || !url.trim()) {
+    return null;
+  }
+  if (!hasAllowSameOriginFlag(resolvedSandbox)) {
+    return null;
+  }
+  let origin: string;
+  try {
+    origin = new URL(url, baseHref).origin;
+  } catch {
+    return null;
+  }
+  return origin === 'null' ? null : origin;
+}
+
+function isAllowedInnerOrigin(eventOrigin: string, allowedInnerUrlOrigin: string | null): boolean {
+  if (eventOrigin === 'null') {
+    return true;
+  }
+  return (
+    allowedInnerUrlOrigin !== null &&
+    normalizeOrigin(eventOrigin) === normalizeOrigin(allowedInnerUrlOrigin)
+  );
+}
+
+function logRejectedInnerOrigin(eventOrigin: string, allowedInnerUrlOrigin: string | null): void {
+  const expected = allowedInnerUrlOrigin ? `${allowedInnerUrlOrigin} or null` : 'null';
+  console.error(
+    '[Sandbox] Rejecting message from inner iframe with unexpected origin:',
+    eventOrigin,
+    'expected:',
+    expected,
+  );
+}
+
 /**
  * Runs the proxy: validates the embedding context, creates the sandboxed inner iframe, relays
  * messages between the host and the inner frame, and tells the host it is ready.
@@ -423,6 +474,8 @@ export function startSandboxProxy(env: SandboxProxyEnvironment): void {
   inner.setAttribute('allow', buildPermissionsPolicy());
   doc.body.appendChild(inner);
 
+  let allowedInnerUrlOrigin: string | null = null;
+
   win.addEventListener('message', event => {
     if (event.source === parent) {
       if (normalizeOrigin(event.origin) !== normalizeOrigin(expectedHostOrigin)) {
@@ -444,7 +497,14 @@ export function startSandboxProxy(env: SandboxProxyEnvironment): void {
         const {html, url, sandbox, permissions, csp} = readResourcePayload(
           isMcpResourceReady ? data['params'] : data,
         );
-        inner.setAttribute('sandbox', resolveInnerSandbox(sandbox, html !== undefined));
+        const resolvedSandbox = resolveInnerSandbox(sandbox, html !== undefined);
+        allowedInnerUrlOrigin = resolveAllowedInnerUrlOrigin(
+          html,
+          url,
+          resolvedSandbox,
+          win.location.href,
+        );
+        inner.setAttribute('sandbox', resolvedSandbox);
         inner.setAttribute('allow', buildPermissionsPolicy(buildAllowAttribute(permissions)));
 
         const sendInit = () => {
@@ -468,16 +528,11 @@ export function startSandboxProxy(env: SandboxProxyEnvironment): void {
       }
     } else if (event.source === inner.contentWindow) {
       // Without 'allow-same-origin' the inner frame's origin serializes to the string "null", so
-      // that value must be accepted; the identity check on `event.source` above is what
-      // authenticates the inner frame.
-      if (event.origin !== ownOrigin && event.origin !== 'null') {
-        console.error(
-          '[Sandbox] Rejecting message from inner iframe with unexpected origin:',
-          event.origin,
-          'expected:',
-          ownOrigin,
-          'or null',
-        );
+      // that value must be accepted; when an external `url` frame opts into 'allow-same-origin',
+      // its configured origin is accepted as well. The identity check on `event.source` above is
+      // what authenticates the inner frame.
+      if (!isAllowedInnerOrigin(event.origin, allowedInnerUrlOrigin)) {
+        logRejectedInnerOrigin(event.origin, allowedInnerUrlOrigin);
         return;
       }
       parent.postMessage(event.data, expectedHostOrigin);
