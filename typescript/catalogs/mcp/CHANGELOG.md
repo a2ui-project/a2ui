@@ -2,6 +2,10 @@
 
 - `transformData`, `split` and `regexCapture` refuse an expression, separator or pattern that is not a string with an `A2uiExpressionError` naming the function, instead of evaluating the text `String()` gives it. `@a2ui/web_core` now leaves an argument that settled to `undefined`, such as a binding to data that is not there yet, to the function, so such an argument reaches them. An unresolved `updates` is refused by `updateDataModel`'s own check instead of at validation. `transformData` evaluates an expression against unresolved data as `null`, and `split` and `regexCapture` read an unresolved value as `''`. [#4240](https://github.com/a2ui-project/a2ui/issues/4240)
 
+## 0.1.1
+
+- The shared sandbox proxy accepts messages from external `url` frames configured with `allow-same-origin` when `event.origin` matches the resolved URL origin, revokes prior cross-origin and same-origin URL allowances on later resource updates, and anchors `normalizeOrigin` to a hostname boundary. [#4329](https://github.com/a2ui-project/a2ui/pull/4329)
+
 ## 0.1.0
 
 - **BREAKING CHANGE**: `regexCapture` now validates patterns with `analyzeRegex` from `@a2ui/web_core` and compiles them in Unicode mode (`new RegExp(pattern, 'u')`), converging on the A2UI regex dialect and static safety guard (allowing lookahead assertions while rejecting lookbehind, backreferences, named groups, `\p{...}`, inline flags, and patterns that risk catastrophic backtracking) and removing the `redos-detector` dependency. Recommended migration: rewrite `regexCapture` patterns that use constructs outside the A2UI portable regex subset or exceed 256 code points. [#3854](https://github.com/a2ui-project/a2ui/pull/3854)

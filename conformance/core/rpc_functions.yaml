@@ -635,11 +635,12 @@
           args:
             mediaId:
               "@path": "/media/id"
-            formatted:
-              "@call": "formatString"
-              catalogId: "basic"
+            nested:
+              "@call": "echoArgs"
+              catalogId: "media_catalog"
               args:
-                value: "${/prefix}${/media/id}"
+                prefix:
+                  "@path": "/prefix"
     functionMetadata:
       echoArgs:
         allowedCallers: "rendererOrAgent"
@@ -651,10 +652,11 @@
         functionCallId: "call-401"
         value:
           mediaId: "video-456"
-          formatted: "now-video-456"
+          nested:
+            prefix: "now-"
 
 - name: test_rpc_call_renderer_function_format_string_arg_inherits_catalog
-  description: Verifies that a formatString call inside callRendererFunction arguments scopes nested ${...} template calls to formatString's catalogId rather than the surface default catalog or outer RPC catalog.
+  description: Verifies that a template function call inside callRendererFunction arguments scopes nested ${...} template calls to that function's catalogId rather than the surface default catalog or outer RPC catalog.
   catalog:
     protocolVersion: "1.0"
   action: handle_rpc
@@ -672,12 +674,20 @@
           catalogId: "media_catalog"
           args:
             formatted:
-              "@call": "formatString"
-              catalogId: "basic"
+              "@call": "renderTemplate"
+              catalogId: "helper_catalog"
               args:
-                value: "Clips: ${pluralize(value: /count, one: 'clip', other: 'clips')}"
+                value: "Clips: ${tagValue(value: /count)}"
     functionMetadata:
       echoArgs:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+      renderTemplate:
+        catalogId: "helper_catalog"
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+      tagValue:
+        catalogId: "helper_catalog"
         allowedCallers: "rendererOrAgent"
         requiresUserActivation: false
   expect:
@@ -686,7 +696,241 @@
       rendererFunctionResponse:
         functionCallId: "call-401b"
         value:
-          formatted: "Clips: clips"
+          formatted: "Clips: tagged:2"
+
+- name: test_rpc_call_renderer_function_nested_renderer_only_rejected
+  features: [F-CORE-05, F-CORE-39]
+  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when a nested @call in callFunction.args targets a rendererOnly function.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "1.0"
+      callRendererFunction:
+        functionCallId: "call-401c"
+        callFunction:
+          "@call": "echoArgs"
+          catalogId: "media_catalog"
+          args:
+            leaked:
+              "@call": "secretRendererOnly"
+              catalogId: "media_catalog"
+              args: {}
+    functionMetadata:
+      echoArgs:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+      secretRendererOnly:
+        allowedCallers: "rendererOnly"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-401c"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "Function 'secretRendererOnly' cannot be called by agent (allowedCallers is rendererOnly)."
+
+- name: test_rpc_call_renderer_function_nested_template_renderer_only_rejected
+  features: [F-CORE-05, F-CORE-39]
+  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when a ${...} template expression evaluated during the call targets a rendererOnly function.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "1.0"
+      callRendererFunction:
+        functionCallId: "call-401d"
+        callFunction:
+          "@call": "renderTemplate"
+          catalogId: "media_catalog"
+          args:
+            value: "Leak: ${secretRendererOnly()}"
+    functionMetadata:
+      renderTemplate:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+      secretRendererOnly:
+        allowedCallers: "rendererOnly"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-401d"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "Function 'secretRendererOnly' cannot be called by agent (allowedCallers is rendererOnly)."
+
+- name: test_rpc_call_renderer_function_nested_user_activation_denied
+  features: [F-CORE-05, F-CORE-39]
+  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when a nested @call in callFunction.args requires user activation and none is present.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    userActivationPresent: false
+    message:
+      version: "1.0"
+      callRendererFunction:
+        functionCallId: "call-401e"
+        callFunction:
+          "@call": "echoArgs"
+          catalogId: "media_catalog"
+          args:
+            opened:
+              "@call": "openExternalUrl"
+              catalogId: "media_catalog"
+              args:
+                url: "https://example.com"
+    functionMetadata:
+      echoArgs:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+      openExternalUrl:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: true
+  expect:
+    response:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-401e"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "requires user activation"
+
+- name: test_rpc_call_renderer_function_nested_agent_only_allowed
+  features: [F-CORE-05, F-CORE-39]
+  description: Verifies callRendererFunction allows a nested @call in callFunction.args targeting a function with allowedCallers=agentOnly.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "1.0"
+      callRendererFunction:
+        functionCallId: "call-401f"
+        callFunction:
+          "@call": "echoArgs"
+          catalogId: "media_catalog"
+          args:
+            token:
+              "@call": "agentSecret"
+              catalogId: "media_catalog"
+              args: {}
+    functionMetadata:
+      echoArgs:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+      agentSecret:
+        allowedCallers: "agentOnly"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-401f"
+        value:
+          token: "AGENT_OK"
+
+- name: test_rpc_call_renderer_function_nested_template_user_activation_denied
+  features: [F-CORE-05, F-CORE-39]
+  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when a ${...} template expression targets a requiresUserActivation function without user activation.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    userActivationPresent: false
+    message:
+      version: "1.0"
+      callRendererFunction:
+        functionCallId: "call-401g"
+        callFunction:
+          "@call": "renderTemplate"
+          catalogId: "media_catalog"
+          args:
+            value: "Activated: ${agentSecret()}"
+    functionMetadata:
+      renderTemplate:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+      agentSecret:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: true
+  expect:
+    response:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-401g"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "requires user activation"
+
+- name: test_rpc_call_renderer_function_nested_template_user_activation_allowed
+  features: [F-CORE-05, F-CORE-39]
+  description: Verifies callRendererFunction succeeds when a ${...} template expression targets a requiresUserActivation function and user activation is present.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    userActivationPresent: true
+    message:
+      version: "1.0"
+      callRendererFunction:
+        functionCallId: "call-401h"
+        callFunction:
+          "@call": "renderTemplate"
+          catalogId: "media_catalog"
+          args:
+            value: "Activated: ${agentSecret()}"
+    functionMetadata:
+      renderTemplate:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+      agentSecret:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: true
+  expect:
+    response:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-401h"
+        value: "Activated: AGENT_OK"
+
+- name: test_rpc_call_renderer_function_nested_template_mixed_error_prioritizes_boundary
+  features: [F-CORE-05, F-CORE-39]
+  description: Verifies INVALID_FUNCTION_CALL takes precedence over an earlier unknown-function error in the same ${...} template.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "1.0"
+      callRendererFunction:
+        functionCallId: "call-401i"
+        callFunction:
+          "@call": "renderTemplate"
+          catalogId: "media_catalog"
+          args:
+            value: "${noSuchFn()}${secretRendererOnly()}"
+    functionMetadata:
+      renderTemplate:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+      secretRendererOnly:
+        allowedCallers: "rendererOnly"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-401i"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "Function 'secretRendererOnly' cannot be called by agent (allowedCallers is rendererOnly)."
 
 - name: test_rpc_call_renderer_function_without_surface_id_isolated_data_model
   description: Verifies that when surfaceId is omitted on callRendererFunction, @path in callFunction.args resolves against an isolated empty {} data model even when a surface with data exists.

@@ -17,7 +17,11 @@
 import {z} from 'zod';
 import type {ProtocolVersion} from '../processing/adapters/base.js';
 import {DataContext} from '../resolution/data-context.js';
-import {allowsAgentRouting, withActiveCallCatalogId} from '../resolution/data-context-internal.js';
+import {
+  allowsAgentRouting,
+  isAgentCaller,
+  withActiveCallCatalogId,
+} from '../resolution/data-context-internal.js';
 import type {SurfaceModel} from '../state/surface-model.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
@@ -1207,7 +1211,7 @@ function createCatalogInvoker<F extends FunctionApi>(
     if (!fn) {
       throw new A2uiExpressionError(`Function not found in catalog '${catalogId}': ${name}`, name);
     }
-    assertRendererCaller(fn);
+    assertCallerBoundary(fn, ctx);
     assertUserActivation(fn, ctx);
     if (typeof execute !== 'function') {
       throw new A2uiExpressionError(
@@ -1353,7 +1357,7 @@ function routeToAgent(
   abortSignal: AbortSignal | undefined,
 ): unknown {
   if (fn) {
-    assertRendererCaller(fn);
+    assertCallerBoundary(fn, ctx);
     assertUserActivation(fn, ctx);
   }
   const bypassCache = Boolean(ctx.isActionExecution);
@@ -1376,12 +1380,35 @@ function routeToAgent(
 }
 
 /**
- * Refuses a function the catalog restricts to agent-initiated
- * `callRendererFunction` calls. The invoker runs the renderer's own calls
- * (bindings, checks and actions); `RpcHandler` runs agent calls without it.
+ * Package-internal helper that enforces `allowedCallers` and
+ * `requiresUserActivation` for a catalog function before argument validation
+ * or evaluation.
+ *
+ * @internal
  */
-function assertRendererCaller(fn: FunctionApi): void {
-  if (fn.allowedCallers === 'agentOnly') {
+export function assertFunctionPermissions(fn: FunctionApi, ctx: DataContext | undefined): void {
+  assertCallerBoundary(fn, ctx);
+  assertUserActivation(fn, ctx);
+}
+
+/**
+ * Enforces `allowedCallers` against the active caller (`agent` when `ctx` was
+ * initiated by `callRendererFunction`, `renderer` otherwise).
+ */
+function assertCallerBoundary(fn: FunctionApi, ctx: DataContext | undefined): void {
+  if (fn.name?.startsWith('@')) return;
+  const boundary = fn.allowedCallers ?? 'rendererOnly';
+  if (ctx instanceof DataContext && isAgentCaller(ctx)) {
+    if (boundary !== 'rendererOrAgent' && boundary !== 'agentOnly') {
+      throw new A2uiExpressionError(
+        `Function '${fn.name}' cannot be called by agent (allowedCallers is ${boundary}).`,
+        fn.name,
+        {invalidFunctionCall: true},
+      );
+    }
+    return;
+  }
+  if (boundary === 'agentOnly') {
     throw new A2uiExpressionError(
       `Function '${fn.name}' cannot be called by renderer (allowedCallers is agentOnly).`,
       fn.name,
@@ -1391,18 +1418,19 @@ function assertRendererCaller(fn: FunctionApi): void {
 
 function assertUserActivation(fn: FunctionApi, ctx: DataContext | undefined): void {
   if (!fn.requiresUserActivation) return;
-  const isPassive = Boolean(
-    (ctx as {isPassiveEvaluation?: boolean} | undefined)?.isPassiveEvaluation,
-  );
+  const isAgent = Boolean(ctx instanceof DataContext && isAgentCaller(ctx));
+  const isPassive =
+    !isAgent && Boolean((ctx as {isPassiveEvaluation?: boolean} | undefined)?.isPassiveEvaluation);
   const isActivated = Boolean((ctx as {isUserActivated?: boolean} | undefined)?.isUserActivated);
   const browserUnactivated =
     !isActivated &&
     typeof navigator !== 'undefined' &&
     !(navigator.userActivation?.isActive ?? true);
-  if (isPassive || browserUnactivated) {
+  if (isPassive || (isAgent && !isActivated) || browserUnactivated) {
     throw new A2uiExpressionError(
       `Function '${fn.name}' requires user activation and cannot be evaluated without an active user gesture.`,
       fn.name,
+      isAgent ? {invalidFunctionCall: true} : undefined,
     );
   }
 }

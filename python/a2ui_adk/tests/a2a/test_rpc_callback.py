@@ -29,17 +29,20 @@ import uuid
 from a2a.server.agent_execution import RequestContext
 from a2a.server.events import EventQueue
 from a2a.types import (
-    DataPart,
     Message,
-    MessageSendParams,
     Part,
     Role,
     TaskArtifactUpdateEvent,
     TaskState,
     TaskStatus,
     TaskStatusUpdateEvent,
-    TextPart,
 )
+
+try:
+    from a2a.types import MessageSendParams
+except ImportError:  # a2a-sdk 1.x
+    MessageSendParams = None  # type: ignore[misc,assignment]
+
 from google.adk.a2a.converters import part_converter
 from google.adk.a2a.executor.a2a_agent_executor import (
     A2aAgentExecutor,
@@ -67,6 +70,20 @@ from a2ui.core import A2uiRpcError, AgentFunction, AgentFunctionContext, Catalog
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiRequestProcessor
+
+from ..a2a_test_helpers import (
+    agent_role,
+    data_part_dict,
+    is_data_part,
+    is_text_part,
+    make_text_part,
+    part_metadata,
+    part_text,
+    state_name,
+    task_state,
+    user_role,
+)
+
 
 CATALOG_ID = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
 AGENT_TEXT = "the agent ran"
@@ -245,9 +262,9 @@ async def test_answers_call_agent_function_as_a2ui_data() -> None:
     (part,) = content.parts or []
     a2a_part = part_converter.convert_genai_part_to_a2a_part(part)
     assert a2a_part is not None
-    assert isinstance(a2a_part.root, DataPart)
-    assert a2a_part.root.metadata == {"mimeType": A2UI_MIME_TYPE}
-    assert a2a_part.root.data == _reply()
+    assert is_data_part(a2a_part)
+    assert part_metadata(a2a_part) == {"mimeType": A2UI_MIME_TYPE}
+    assert data_part_dict(a2a_part) == _reply()
 
 
 @pytest.mark.asyncio
@@ -384,6 +401,15 @@ async def test_does_not_resolve_catalogs_for_other_content() -> None:
             ),
             _genai_part(_call()),
         ),
+        _content(
+            # Valid JSON that isn't an object: a ValidationError on a2a-sdk
+            # 0.3, a protobuf ParseError on 1.x.
+            genai_types.Part.from_bytes(
+                data=b'<a2a_datapart_json>["x"]</a2a_datapart_json>',
+                mime_type="text/plain",
+            ),
+            _genai_part(_call()),
+        ),
     ],
     ids=[
         "none",
@@ -398,6 +424,7 @@ async def test_does_not_resolve_catalogs_for_other_content() -> None:
         "media-and-call",
         "blob-without-data-and-call",
         "malformed-tagged-data-and-call",
+        "non-object-tagged-data-and-call",
     ],
 )
 async def test_lets_the_agent_run_for_other_content(
@@ -584,23 +611,37 @@ async def _execute(
             execute_interceptors=interceptors,
         ),
     )
-    request = RequestContext(
-        request=MessageSendParams(
-            message=Message(
-                message_id=str(uuid.uuid4()),
-                role=Role.user,
-                parts=request_parts,
-                context_id=session_id,
-            )
-        ),
-        task_id=str(uuid.uuid4()),
+    message = Message(
+        message_id=str(uuid.uuid4()),
+        role=user_role(),
+        parts=request_parts,
         context_id=session_id,
     )
+    if MessageSendParams is not None:
+        request = RequestContext(
+            request=MessageSendParams(message=message),
+            task_id=str(uuid.uuid4()),
+            context_id=session_id,
+        )
+    else:
+        from a2a.server.context import ServerCallContext
+        from a2a.types import SendMessageRequest
+
+        request = RequestContext(
+            call_context=ServerCallContext(),
+            request=SendMessageRequest(message=message),
+            task_id=str(uuid.uuid4()),
+            context_id=session_id,
+        )
     queue = EventQueue()
     await executor.execute(request, queue)
     events = []
     while not queue.queue.empty():
-        events.append(await queue.dequeue_event(no_wait=True))
+        try:
+            events.append(await queue.dequeue_event(no_wait=True))
+        except TypeError:
+            # a2a-sdk 1.x dropped the no_wait argument.
+            events.append(await queue.dequeue_event())
     return events
 
 
@@ -610,7 +651,7 @@ def _agent_status_parts(events: list[Any]) -> list[Any]:
         for event in events
         if isinstance(event, TaskStatusUpdateEvent)
         and event.status.message is not None
-        and event.status.message.role == Role.agent
+        and event.status.message.role == agent_role()
         for part in event.status.message.parts
     ]
 
@@ -618,8 +659,8 @@ def _agent_status_parts(events: list[Any]) -> list[Any]:
 def _assert_completed(events: list[Any]) -> None:
     final = events[-1]
     assert isinstance(final, TaskStatusUpdateEvent)
-    assert final.final
-    assert final.status.state == "completed"
+    assert _is_final(final)
+    assert state_name(final.status.state) == "completed"
 
 
 @pytest.mark.asyncio
@@ -641,9 +682,7 @@ async def test_a2a_agent_executor_sends_the_reply_as_an_a2ui_part() -> None:
     ]
     assert get_a2ui_messages(status_parts) == [_reply()]
     assert get_a2ui_messages(artifact_parts) == [_reply()]
-    assert all(
-        not isinstance(part.root, TextPart) for part in status_parts + artifact_parts
-    )
+    assert all(not is_text_part(part) for part in status_parts + artifact_parts)
     _assert_completed(events)
 
 
@@ -660,9 +699,7 @@ async def test_a2a_agent_executor_passes_a_renderer_function_response_to_the_age
     )
 
     assert [
-        part.root.text
-        for part in _agent_status_parts(events)
-        if isinstance(part.root, TextPart)
+        part_text(part) for part in _agent_status_parts(events) if is_text_part(part)
     ] == [AGENT_TEXT]
     _assert_completed(events)
 
@@ -684,11 +721,20 @@ def _renderer_response(call_id: str, value: Any = "Paris") -> dict[str, Any]:
     }
 
 
+def _is_final(event: Any) -> bool:
+    """0.3 events have ``final``. 1.x dropped the field; the last event is final."""
+    try:
+        final = event.final
+    except (AttributeError, ValueError):
+        return True
+    return bool(final)
+
+
 def _final_state(events: list[Any]) -> str:
     final = events[-1]
     assert isinstance(final, TaskStatusUpdateEvent)
-    assert final.final
-    return final.status.state
+    assert _is_final(final)
+    return state_name(final.status.state)
 
 
 @pytest.mark.asyncio
@@ -872,7 +918,7 @@ async def test_a2a_agent_executor_settles_a_renderer_function_call() -> None:
     # for any turn whose agent sends nothing.
     final = events[-1]
     assert isinstance(final, TaskStatusUpdateEvent)
-    assert final.final
+    assert _is_final(final)
 
 
 @pytest.mark.asyncio
@@ -919,37 +965,39 @@ async def test_interceptor_leaves_other_requests_unchanged() -> None:
     interceptor = a2ui_rpc_interceptor()
     callback = a2ui_rpc_callback(renderer_calls=A2uiRendererCallsStore().get)
 
-    # A text request whose agent sends nothing stays `working`, as ADK reports.
+    # A text request whose agent sends nothing stays in the state ADK reports
+    # for an empty turn: `working` on a2a-sdk 0.3, `completed` on 1.x.
+    empty_turn = "working" if hasattr(TaskState, "working") else "completed"
     text_events = await _execute(
         _SilentAgent(name="agent", before_agent_callback=callback),
-        [Part(root=TextPart(text="hi"))],
+        [make_text_part("hi")],
         str(uuid.uuid4()),
         [interceptor],
     )
-    assert _final_state(text_events) == "working"
+    assert _final_state(text_events) == empty_turn
 
     # So does a request that mixes text and an RPC message, which the agent
     # handles.
     mixed_events = await _execute(
         _SilentAgent(name="agent", before_agent_callback=callback),
-        [Part(root=TextPart(text="hi")), create_a2ui_part(_renderer_response("c1"))],
+        [make_text_part("hi"), create_a2ui_part(_renderer_response("c1"))],
         str(uuid.uuid4()),
         [interceptor],
     )
-    assert _final_state(mixed_events) == "working"
+    assert _final_state(mixed_events) == empty_turn
 
     # A normal turn with a reply completes as usual.
     normal_events = await _execute(
         _StubAgent(name="agent", before_agent_callback=callback),
-        [Part(root=TextPart(text="hi"))],
+        [make_text_part("hi")],
         str(uuid.uuid4()),
         [interceptor],
     )
     assert _final_state(normal_events) == "completed"
     assert [
-        part.root.text
+        part_text(part)
         for part in _agent_status_parts(normal_events)
-        if isinstance(part.root, TextPart)
+        if is_text_part(part)
     ] == [AGENT_TEXT]
 
 
@@ -979,18 +1027,21 @@ def _request_context(task_id: str, *parts: Part) -> MagicMock:
     context = MagicMock(spec=RequestContext)
     context.task_id = task_id
     context.message = Message(
-        message_id=str(uuid.uuid4()), role=Role.user, parts=list(parts)
+        message_id=str(uuid.uuid4()), role=user_role(), parts=list(parts)
     )
     return context
 
 
 def _working_event(task_id: str) -> TaskStatusUpdateEvent:
-    return TaskStatusUpdateEvent(
-        task_id=task_id,
-        context_id="ctx",
-        status=TaskStatus(state=TaskState.working),
-        final=True,
-    )
+    kwargs: dict[str, Any] = {
+        "task_id": task_id,
+        "context_id": "ctx",
+        "status": TaskStatus(state=task_state("working")),
+    }
+    # a2a-sdk 1.x removed the final field; finality is the end of the stream.
+    if hasattr(TaskState, "working"):
+        kwargs["final"] = True
+    return TaskStatusUpdateEvent(**kwargs)
 
 
 @pytest.mark.asyncio
@@ -1003,12 +1054,10 @@ async def test_interceptor_forgets_an_rpc_request_that_never_finished() -> None:
     # The RPC-only request fails before `after_agent` runs.
     await interceptor.before_agent(_request_context("t1", rpc_part))
     # A later request on the task that isn't RPC-only keeps its `working`.
-    await interceptor.before_agent(
-        _request_context("t1", Part(root=TextPart(text="hi")))
-    )
+    await interceptor.before_agent(_request_context("t1", make_text_part("hi")))
     event = await interceptor.after_agent(MagicMock(), _working_event("t1"))
 
-    assert event.status.state == TaskState.working
+    assert event.status.state == task_state("working")
 
 
 @pytest.mark.asyncio
@@ -1027,7 +1076,7 @@ async def test_interceptor_keeps_a_task_it_sees_again_past_older_ones() -> None:
         await interceptor.before_agent(_request_context(f"t{index}", rpc_part))
     event = await interceptor.after_agent(MagicMock(), _working_event("again"))
 
-    assert event.status.state == TaskState.completed
+    assert event.status.state == task_state("completed")
 
 
 @pytest.mark.asyncio

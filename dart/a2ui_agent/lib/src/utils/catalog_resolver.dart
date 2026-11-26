@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:developer' as developer;
+
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../processor/catalog_config.dart';
@@ -44,19 +46,21 @@ import 'catalogs.dart';
 /// The catalogs returned are the transformed ones, so a pruning transformer is
 /// visible both in the prompt and in what the processor accepts.
 ///
-/// Inline catalogs the renderer declares are ignored unless
-/// [acceptsInlineCatalogs] is true. An accepted inline catalog is active as
-/// the renderer declared it, after the registered ones: no transformer
-/// applies to it, since transformers belong to a registration. One whose id
-/// is already active is dropped, so a renderer that names a catalog and also
+/// Inline catalogs the renderer declares are checked for local `$ref`
+/// integrity and then ignored unless [acceptsInlineCatalogs] is true. An
+/// accepted inline catalog is active as the renderer declared it, after the
+/// registered ones: no transformer applies to it, since transformers belong to
+/// a registration. One whose id is already active is dropped with a
+/// `dart:developer` warning log, so a renderer that names a catalog and also
 /// redefines it gets the agent's registration.
 ///
 /// Without capabilities, throws [A2uiCatalogError] if the registered
 /// catalogs target different versions. Given capabilities, throws
 /// [A2uiValidationError] if they declare nothing for any version of the
-/// registered catalogs, and [A2uiCatalogError] if no catalog is registered
-/// or none is active: in no version both declare does the renderer support a
-/// registered catalog or declare an inline catalog the agent accepts.
+/// registered catalogs, and [A2uiCatalogError] if an inline catalog contains
+/// an unresolvable local `$ref`, or if no catalog is registered or none is
+/// active: in no version both declare does the renderer support a registered
+/// catalog or declare an inline catalog the agent accepts.
 List<CatalogApi> resolveCatalogs(
   List<CatalogConfig> catalogs,
   A2uiRendererCapabilities? rendererCapabilities, {
@@ -90,6 +94,7 @@ List<CatalogApi> resolveCatalogs(
     final List<CatalogApi> active = _activate(
       configs,
       capabilities,
+      version: version,
       acceptsInlineCatalogs: acceptsInlineCatalogs,
     );
     if (active.isNotEmpty) return active;
@@ -147,8 +152,16 @@ Map<A2uiProtocolVersion, List<CatalogConfig>> _byVersion(
 List<CatalogApi> _activate(
   List<CatalogConfig> catalogs,
   A2uiVersionCapabilities capabilities, {
+  required A2uiProtocolVersion version,
   required bool acceptsInlineCatalogs,
 }) {
+  for (final CatalogApi inline in capabilities.inlineCatalogs) {
+    validateInlineCatalogLocalRefs(
+      inline.toJson(),
+      inline.id,
+      protocolVersion: inline.protocolVersion ?? version,
+    );
+  }
   final Map<String, CatalogConfig> registered = {
     for (final CatalogConfig config in catalogs) config.catalog.id: config,
   };
@@ -160,9 +173,16 @@ List<CatalogApi> _activate(
   ];
   if (acceptsInlineCatalogs) {
     for (final CatalogApi inline in capabilities.inlineCatalogs) {
-      if (active.every((CatalogApi c) => c.id != inline.id)) {
-        active.add(inline);
+      if (active.any((CatalogApi c) => c.id == inline.id)) {
+        developer.log(
+          "Dropping inline catalog '${inline.id}': a catalog with this ID is "
+          'already active.',
+          name: 'a2ui_agent',
+          level: 900,
+        );
+        continue;
       }
+      active.add(inline);
     }
   }
   return active;
