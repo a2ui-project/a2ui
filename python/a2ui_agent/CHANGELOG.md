@@ -1,14 +1,5 @@
 ## Unreleased
 
-- `resolve_catalogs` reads the capabilities of v0.9 and v0.9.1 catalogs from
-  the `v0.9.1` entry, falling back to `v0.9` when `v0.9.1` is absent or
-  activates no catalog. When a renderer sends both entries, both are validated,
-  and each inline catalog targets the protocol version of its declaring entry.
-  `read_renderer_capabilities` returns each of the two entries present.
-  [#3135](https://github.com/a2ui-project/a2ui/pull/3135)
-- `DirectJsonFormat`, `DirectJsonParser` and `schema_to_prompt` accept v0.9 and
-  v0.9.1 catalogs together, as `RendererState` does.
-  [#3135](https://github.com/a2ui-project/a2ui/pull/3135)
 - **BREAKING CHANGE**: (v1_0) `validate_payload`, `RendererState.apply`, and inference format parsers check function calls nested in `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions while accepting `agentOnly` and `rendererOrAgent` functions. Recommended migration: set `allowedCallers` to `"rendererOrAgent"` or `"agentOnly"` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774), [#4336](https://github.com/a2ui-project/a2ui/pull/4336)).
 - **BREAKING CHANGE**: `resolve_catalogs` and `read_renderer_capabilities`
   reject inline catalogs whose local `#...` `$ref` pointers do not resolve
@@ -21,6 +12,20 @@
   target protocol version's `common_types.json`
   ([#3165](https://github.com/a2ui-project/a2ui/issues/3165),
   [#4367](https://github.com/a2ui-project/a2ui/pull/4367)).
+- `ExpressPromptGenerator` now documents component property descriptions shared
+  by a strict majority of a catalog's components once in a
+  `Common Component Properties` section while keeping full positional component
+  signatures and preserving per-component description overrides
+  ([#3403](https://github.com/a2ui-project/a2ui/issues/3403), [#4421](https://github.com/a2ui-project/a2ui/pull/4421)).
+- `resolve_catalogs` reads the capabilities of v0.9 and v0.9.1 catalogs from
+  the `v0.9.1` entry, falling back to `v0.9` when `v0.9.1` is absent or
+  activates no catalog. When a renderer sends both entries, both are validated,
+  and each inline catalog targets the protocol version of its declaring entry.
+  `read_renderer_capabilities` returns each of the two entries present.
+  [#3135](https://github.com/a2ui-project/a2ui/pull/3135)
+- `DirectJsonFormat`, `DirectJsonParser` and `schema_to_prompt` accept v0.9 and
+  v0.9.1 catalogs together, as `RendererState` does.
+  [#3135](https://github.com/a2ui-project/a2ui/pull/3135)
 - `ExpressPromptGenerator` now traverses `oneOf`, `anyOf`, `allOf`, and locally
   flattened wire envelopes when extracting structured map-key instructions and
   enum constraints, and `ExpressCompiler` now coerces literal string arrays into

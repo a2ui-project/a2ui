@@ -220,16 +220,70 @@ String? _express(
   }
 }
 
+const String _commonPropertiesIntro =
+    'Properties shared across components (listed in component signatures '
+    'below when supported; component-specific notes override these):';
+
+typedef _ComponentSignatureEntry = ({
+  String name,
+  String? description,
+  List<String> arguments,
+  List<(String, String)> propDetails,
+  Set<String> undocumentedProps,
+  bool isCheckable,
+});
+
+Map<String, String> _selectCommonPropertyDetails(
+  List<_ComponentSignatureEntry> entries,
+) {
+  final int total = entries.length;
+  if (total < 2) return const {};
+  final countsByProp = <String, Map<String, int>>{};
+  final undocumentedProps = <String>{};
+  for (final entry in entries) {
+    undocumentedProps.addAll(entry.undocumentedProps);
+    for (final (String propName, String detail) in entry.propDetails) {
+      final Map<String, int> detailCounts = countsByProp.putIfAbsent(
+        propName,
+        () => <String, int>{},
+      );
+      detailCounts[detail] = (detailCounts[detail] ?? 0) + 1;
+    }
+  }
+  final promoted = <String, String>{};
+  final List<String> sortedNames = countsByProp.keys.toList()..sort();
+  for (final propName in sortedNames) {
+    if (undocumentedProps.contains(propName)) continue;
+    for (final MapEntry<String, int> item in countsByProp[propName]!.entries) {
+      if (item.value * 2 > total) {
+        promoted[propName] = item.key;
+        break;
+      }
+    }
+  }
+  return promoted;
+}
+
 String _catalogSection(
   CatalogSchemaHelper helper,
   String heading, {
   String? instructions,
 }) {
-  final buffer = StringBuffer(
+  final ({List<String> commonDetails, String signatures}) components =
+      _componentSignatures(helper);
+  final buffer = StringBuffer();
+  if (components.commonDetails.isNotEmpty) {
+    buffer.write(
+      '$heading Common Component Properties\n\n'
+      '$_commonPropertiesIntro\n'
+      '${components.commonDetails.join('\n')}\n\n',
+    );
+  }
+  buffer.write(
     '$heading Positional Component Signatures\n\n'
     'Use these exact positional signatures to instantiate components. Do not '
     'output property keys:\n'
-    '${_componentSignatures(helper)}\n\n'
+    '${components.signatures}\n\n'
     '$heading Positional Function Signatures\n\n'
     'Use these exact positional signatures to instantiate check rules or '
     'logic functions:\n'
@@ -241,17 +295,20 @@ String _catalogSection(
   return buffer.toString();
 }
 
-String _componentSignatures(CatalogSchemaHelper helper) {
+({List<String> commonDetails, String signatures}) _componentSignatures(
+  CatalogSchemaHelper helper,
+) {
   final bool isV1 =
       helper.catalog.protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ??
       false;
   final pathKey = isV1 ? '@path' : 'path';
   final callKey = isV1 ? '@call' : 'call';
-  final signatures = <String>[];
+  final entries = <_ComponentSignatureEntry>[];
   for (final String name in helper.catalog.components.keys.toList()..sort()) {
     final List<String> required = helper.requiredProperties(name);
     final arguments = <String>[];
-    final details = <String>[];
+    final propDetails = <(String, String)>[];
+    final undocumentedProps = <String>{};
     for (final String property in helper.properties(name)) {
       final Map<String, Object?>? schema = helper.propertySchema(
         name,
@@ -268,25 +325,51 @@ String _componentSignatures(CatalogSchemaHelper helper) {
       arguments.add('$property$optional$annotation');
       if (_propertyDetail(property, schema, pathKey: pathKey, callKey: callKey)
           case final String detail) {
-        details.add(detail);
+        propDetails.add((property, detail));
+      } else {
+        undocumentedProps.add(property);
       }
     }
-    if (helper.isCheckable(name)) {
+    final bool checkable = helper.isCheckable(name);
+    if (checkable) {
       arguments.add('checks?');
-      details.add(
-        '  - checks: Validation checks on the value, e.g. [?required, ?email].',
-      );
     }
-    final signature = StringBuffer('• $name(${arguments.join(', ')})');
-    if (helper.componentDescription(name) case final String description) {
+    entries.add((
+      name: name,
+      description: helper.componentDescription(name),
+      arguments: arguments,
+      propDetails: propDetails,
+      undocumentedProps: undocumentedProps,
+      isCheckable: checkable,
+    ));
+  }
+
+  final Map<String, String> commonMap = _selectCommonPropertyDetails(entries);
+  final signatures = <String>[];
+  for (final entry in entries) {
+    final signature = StringBuffer(
+      '• ${entry.name}(${entry.arguments.join(', ')})',
+    );
+    if (entry.description case final String description) {
       signature.write('\n  - Description: ${_indent(description)}');
     }
-    for (final detail in details) {
-      signature.write('\n$detail');
+    for (final (String propName, String detail) in entry.propDetails) {
+      if (commonMap[propName] != detail) {
+        signature.write('\n$detail');
+      }
+    }
+    if (entry.isCheckable) {
+      signature.write(
+        '\n  - checks: Validation checks on the value, '
+        'e.g. [?required, ?email].',
+      );
     }
     signatures.add(signature.toString());
   }
-  return signatures.join('\n');
+  return (
+    commonDetails: commonMap.values.toList(),
+    signatures: signatures.join('\n'),
+  );
 }
 
 const Set<String> _commonTypeDefNames = {
