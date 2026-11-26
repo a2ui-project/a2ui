@@ -236,6 +236,26 @@ export function validateEmail(val: unknown): ValidationResult {
 // Formatting Caching & Helpers
 // ---------------------------------------------------------------------------
 
+const MAX_FORMAT_CACHE_ENTRIES = 256;
+
+/**
+ * Caches `formatter`, evicting the oldest entry once `cache` is full. The keys
+ * include agent-supplied arguments, so the caches must stay bounded.
+ */
+function cacheFormat(
+  cache: Map<string, Intl.NumberFormat>,
+  key: string,
+  formatter: Intl.NumberFormat,
+): void {
+  if (cache.size >= MAX_FORMAT_CACHE_ENTRIES) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey !== undefined) {
+      cache.delete(oldestKey);
+    }
+  }
+  cache.set(key, formatter);
+}
+
 const numberFormatCache = new Map<string, Intl.NumberFormat>();
 
 export function getNumberFormat(
@@ -251,7 +271,7 @@ export function getNumberFormat(
       maximumFractionDigits: decimals,
       useGrouping: grouping,
     });
-    numberFormatCache.set(key, formatter);
+    cacheFormat(numberFormatCache, key, formatter);
   }
   return formatter;
 }
@@ -274,7 +294,7 @@ export function getCurrencyFormat(
       maximumFractionDigits: decimals,
       useGrouping: grouping,
     });
-    currencyFormatCache.set(key, formatter);
+    cacheFormat(currencyFormatCache, key, formatter);
   }
   return formatter;
 }
@@ -308,7 +328,7 @@ export function getCurrencyCodeFormat(
       maximumFractionDigits: decimals,
       useGrouping: grouping,
     });
-    currencyCodeFormatCache.set(key, formatter);
+    cacheFormat(currencyCodeFormatCache, key, formatter);
   }
   return formatter;
 }
