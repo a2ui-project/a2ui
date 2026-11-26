@@ -36,16 +36,18 @@ tools/internal/triage/triage_ui.sh https://github.com/a2ui-project/a2ui/issues/1
 ```
 
 The script opens the item in the running app, or starts the app with it. While
-it runs, the app listens on `127.0.0.1:47123` for the items the script sends.
+it runs, the app listens on `127.0.0.1:47123` for the items the script sends,
+and refuses requests from web pages.
 
 ### On the web
 
 From VS Code, select **Chrome** as the device and run the `triage_ui`
 launch configuration, which passes your token (`GITHUB_TOKEN`, `GH_TOKEN` or
-`gh auth token`) to the app. From a terminal, in this folder:
+`gh auth token`) to the app in a file that only you can read. From a terminal,
+in this folder, the same script does it:
 
 ```bash
-flutter run -d chrome --dart-define=GITHUB_TOKEN="$(gh auth token)"
+tool/flutter_with_github_token.sh run -d chrome
 ```
 
 To open an item when the app starts, add it to the page's URL, as in
@@ -55,11 +57,12 @@ items to it.
 
 ## Code
 
-- `lib/src/github/`: the GitHub client, the queries, the service that
-  reads and changes items, and the sign-in on the web (`github_access.dart`).
-- `lib/src/model/`: the items, the triager's drafts, applying a suggestion,
-  what the triager did in the session, and the controller that holds the
-  app's state.
+- `lib/src/github/`: the queries, and the sign-in (`github_access.dart`),
+  which gives the GitHub client the triager's token and signs the triager out
+  when GitHub refuses it.
+- `lib/src/model/`: the items, the service that reads and changes them, the
+  triager's drafts, applying a suggestion, what the triager did in the
+  session, and the controller that holds the app's state.
 - `lib/src/ui/`: the widgets. `analysis_surface.dart` renders the
   analysis comment as an A2UI surface, whose `TriageAnalysis` component
   is the editor in `analysis_editor.dart`.

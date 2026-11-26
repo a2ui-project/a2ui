@@ -26,12 +26,12 @@ container image
 
 The **Server** listens on port 8080 and routes by path:
 
-| Path                              | What the Server does                                               |
-| --------------------------------- | ------------------------------------------------------------------ |
-| `/`, `/main.dart.js`, `/assets/…` | Returns the file from `/app/web/` (the **App**)                    |
-| `/auth/…`                         | Sign-in with GitHub, a pasted token, sign-out, status              |
+| Path                              | What the Server does                                                                           |
+| --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `/`, `/main.dart.js`, `/assets/…` | Returns the file from `/app/web/` (the **App**)                                                |
+| `/auth/…`                         | Sign-in with GitHub, a pasted token, sign-out, status                                          |
 | `/github/…`                       | Adds the triager's token and forwards [the App's calls](#the-github-proxy) to `api.github.com` |
-| `/healthz`                        | Answers `ok`                                                       |
+| `/healthz`                        | Answers `ok`                                                                                   |
 
 Once the **Browser** has the App's files, the **App** runs in the **Browser**,
 not in the container. After that, the container only answers `/auth/…` and
@@ -174,13 +174,13 @@ follows A and B, without **UberProxy**.
 
 The Server reads its settings from environment variables:
 
-| Variable                                               | Meaning                                                                                        | Default                                     |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| `PORT`                                                 | The port to listen on                                                                          | `8080`                                      |
-| `PUBLIC_URL`                                           | The URL the **Browser** opens. GitHub sends the triager back to `<PUBLIC_URL>/auth/callback`   | `http://localhost:<PORT>`                   |
-| `WEB_DIR`                                              | The folder with the output of `flutter build web`                                              | `../ui/build/web` (`/app/web` in the image) |
+| Variable                                               | Meaning                                                                                                                                               | Default                                     |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `PORT`                                                 | The port to listen on                                                                                                                                 | `8080`                                      |
+| `PUBLIC_URL`                                           | The URL the **Browser** opens. GitHub sends the triager back to `<PUBLIC_URL>/auth/callback`                                                          | `http://localhost:<PORT>`                   |
+| `WEB_DIR`                                              | The folder with the output of `flutter build web`                                                                                                     | `../ui/build/web` (`/app/web` in the image) |
 | `SESSION_SECRET`                                       | The secret that the cookie encryption key is made from. Changing it signs everyone out. Required on Cloud Run, where each instance would make its own | Random, so a restart signs everyone out     |
-| `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` | The **OAuth App**. Without them, **Sign in with GitHub** is off and only **Use a token** works | Not set                                     |
+| `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` | The **OAuth App**. Without them, **Sign in with GitHub** is off and only **Use a token** works                                                        | Not set                                     |
 
 The Server listens on all network interfaces on Cloud Run, which sets
 `K_SERVICE`, and only on localhost elsewhere. Cookies are `Secure` when
