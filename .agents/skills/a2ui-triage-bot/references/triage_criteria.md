@@ -75,7 +75,7 @@ Otherwise, the PR is a good candidate for review when all of the following are t
 2. It does not overlap with open PRs or work in progress. List overlapping PRs in `related_items`.
 3. The team can maintain the change long term.
 
-If the PR is a good candidate, suggest assigning it to an expert in the changed files (see step 4 of the [skill](../SKILL.md#step-4-research-the-item)) and adding `status: assigned-for-triage`. The expert decides whether the team reviews the PR. If the expert is already assigned but has not reviewed the PR, suggest only the label. Name the expert in `suggestion` with the evidence, such as "wrote 9 of the 15 commits to `generic-binder.ts`", and list the issues the PR targets in `targeted_issues`.
+If the PR is a good candidate, suggest assigning it to an expert in the changed files (see step 4 of the [skill](../SKILL.md#step-4-research-the-item)) and adding `status: assigned-for-triage`. The expert decides whether the team reviews the PR. When the triager applies the label, the triage UI also requests the expert's review, so do not suggest it separately. If the expert is already assigned but has not reviewed the PR, suggest only the label. Name the expert in `suggestion` with the evidence, such as "wrote 9 of the 15 commits to `generic-binder.ts`", and list the issues the PR targets in `targeted_issues`.
 
 If the PR meets the other criteria but overlaps with open PRs or work in progress, do the same: suggest assigning an expert and adding `status: assigned-for-triage`. List the overlapping PRs in `related_items`, and say in `suggestion` what the expert needs to decide, such as which of the PRs to take. Do not suggest `status: needs-team-input` for it.
 

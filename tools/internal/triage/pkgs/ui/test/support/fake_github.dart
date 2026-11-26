@@ -272,6 +272,11 @@ class FakeGitHub {
       return _json({}, status: 200);
     }
 
+    if (RegExp(r'^pulls/(\d+)/requested_reviewers$').hasMatch(issuePath) &&
+        request.method == 'POST') {
+      return _json({}, status: 201);
+    }
+
     final RegExpMatch match = RegExp(
       r'^issues/(\d+)/(\w+)(?:/(.*))?$',
     ).firstMatch(issuePath)!;

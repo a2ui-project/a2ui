@@ -200,6 +200,7 @@ and answers 403 to others:
 | `POST /repos/<repository>/issues/<number>/labels`              | Adds labels                   |
 | `DELETE /repos/<repository>/issues/<number>/labels/<label>`    | Removes a label               |
 | `POST`, `DELETE /repos/<repository>/issues/<number>/assignees` | Assigns and unassigns people  |
+| `POST /repos/<repository>/pulls/<number>/requested_reviewers`  | Requests reviews of a PR      |
 
 `<repository>` is `a2ui-project/a2ui` or `flutter/genui`. GraphQL queries
 change nothing, and the only mutations it passes on are `closeIssue` and

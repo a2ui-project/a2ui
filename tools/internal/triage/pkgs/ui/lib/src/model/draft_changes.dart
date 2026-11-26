@@ -28,7 +28,8 @@ import 'triage_item.dart';
 typedef DraftChange = ({String kind, String value});
 
 /// The changes that [applySuggestion] makes to [item] with [draft], in the
-/// order it makes them, with one change per label, assignee and milestone.
+/// order it makes them, with one change per label, assignee, reviewer and
+/// milestone.
 List<DraftChange> draftChanges(TriageItem item, AnalysisDraft draft) {
   final TriageAnalysis s = draft.toAnalysis();
   final MilestoneChange milestone = draft.milestoneChange;
@@ -41,6 +42,8 @@ List<DraftChange> draftChanges(TriageItem item, AnalysisDraft draft) {
     for (final String login in s.removedAssignees)
       (kind: 'Unassign', value: login),
     for (final String login in s.newAssignees) (kind: 'Assign', value: login),
+    for (final String login in reviewersToRequest(item, s))
+      (kind: 'Request review', value: login),
     if (milestone.set case final String title)
       (kind: 'Set milestone', value: title)
     else if (milestone.remove case final String title)

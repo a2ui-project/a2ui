@@ -195,6 +195,14 @@ class TriageService {
     }
   }
 
+  /// Requests a review of the pull request [item] from [logins].
+  Future<void> requestReviewers(ItemRef item, List<String> logins) =>
+      _client.rest(
+        'POST',
+        'repos/${item.repository}/pulls/${item.number}/requested_reviewers',
+        {'reviewers': logins},
+      );
+
   /// Closes [item]: an issue with [closeAs], one of
   /// [TriageCloseReason.values], and a pull request without a reason.
   Future<void> close(

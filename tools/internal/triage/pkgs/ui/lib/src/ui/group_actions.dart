@@ -160,6 +160,7 @@ String _summary(DraftChange change) => switch (change) {
   (kind: 'Remove label', :final String value) => '−$value',
   (kind: 'Assign', :final String value) => '+@$value',
   (kind: 'Unassign', :final String value) => '−@$value',
+  (kind: 'Request review', :final String value) => 'review @$value',
   (kind: 'Set milestone', :final String value) => 'milestone $value',
   (kind: 'Remove milestone', :final String value) => '−milestone $value',
   (kind: 'Close', value: '') => 'close',

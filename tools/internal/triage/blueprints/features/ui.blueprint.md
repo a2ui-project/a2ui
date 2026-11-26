@@ -123,7 +123,7 @@ The `tldr`, the `summary`, the `reason` and the `suggestion` are shown in the le
 
 Labels have their colors from the repository, as on GitHub. The related items are links: the PRs or issues that GitHub links to the item, the duplicated issue, and the analysis's `targeting_prs`, `targeted_issues` and `related_items`. A PR or issue that GitHub links is not repeated from `targeting_prs` or `targeted_issues`. Each link has an icon for its type, PR or issue, in the color GitHub gives its state: green while it is open, purple once it is merged or, for an issue, closed, and red for a PR closed without merging. Every link outside that text, and every button that opens a link, has a small **Copy link** button on its right.
 
-**Apply**, in the right column of every tab, applies the suggestion of each item in the tabs to it on GitHub, skipping the suggestions that change nothing. When more than one item has changes, the button says how many, as in "Apply to 2 items", since **Revert** acts on one tab and **Apply** on all of them. `status: needs-team-input` is an ordinary label: the triager adds or removes it with the other labels, and **Apply** applies that. Next to **Apply**, a line for each item with changes says what **Apply** will change on it, as in "#12: reply, +P2, −status: needs-triage". **Apply** has a color of its own, since it is the one button that changes GitHub.
+**Apply**, in the right column of every tab, applies the suggestion of each item in the tabs to it on GitHub, skipping the suggestions that change nothing. When more than one item has changes, the button says how many, as in "Apply to 2 items", since **Revert** acts on one tab and **Apply** on all of them. `status: needs-team-input` is an ordinary label: the triager adds or removes it with the other labels, and **Apply** applies that. When **Apply** adds `status: assigned-for-triage` to a PR, it also requests a review from the PR's assignees, as they are once the suggestion is applied, except the PR's author, so that the PR is in their review queue. Next to **Apply**, a line for each item with changes says what **Apply** will change on it, as in "#12: reply, +P2, −status: needs-triage". **Apply** has a color of its own, since it is the one button that changes GitHub.
 
 ## CUJ
 
@@ -171,7 +171,7 @@ Ann cannot triage an item in a couple of minutes, or the analysis says that the 
 Ann goes through the **Needs team input** group with other team members. For each item, the details show Ann's comment for the team below the triage bot's analysis. Then:
 
 1. If they can triage it in a couple of minutes, Ann adjusts the suggestion and clicks **Apply**.
-2. Otherwise, they pick an expert in the area. The triage bot suggests one from the commit history of the affected area (see [Triage analyses](triage_bot/analysis.blueprint.md)). Ann adds `status: assigned-for-triage` to the labels, adds the expert to the assignees, and clicks **Apply**.
+2. Otherwise, they pick an expert in the area. The triage bot suggests one from the commit history of the affected area (see [Triage analyses](triage_bot/analysis.blueprint.md)). Ann adds `status: assigned-for-triage` to the labels, adds the expert to the assignees, and clicks **Apply**. For a PR, **Apply** also requests the expert's review (see [Editable analysis](#editable-analysis)).
 
 In both cases, Ann also removes `status: needs-team-input` from the labels.
 

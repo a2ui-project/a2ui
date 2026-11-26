@@ -75,6 +75,27 @@ void main() {
     );
   });
 
+  test('lists the review requests of a PR assigned for triage', () {
+    final assignedPr = TriageItem.fromGraphQL(
+      itemNode(14, pr: true, assignees: ['hubot']),
+    );
+    expect(
+      changesOf(
+        assignedPr,
+        const TriageAnalysis(
+          addedLabels: [assignedForTriageLabel],
+          newAssignees: ['octocat'],
+        ),
+      ),
+      [
+        (kind: 'Add label', value: assignedForTriageLabel),
+        (kind: 'Assign', value: 'octocat'),
+        (kind: 'Request review', value: 'hubot'),
+        (kind: 'Request review', value: 'octocat'),
+      ],
+    );
+  });
+
   test('removes a milestone only when it sets none', () {
     final draft = AnalysisDraft(const TriageAnalysis())
       ..removedMilestone = 'October';

@@ -29,6 +29,7 @@ void main() {
       itemNode(12, labels: [needsTriageLabel, 'status: needs-team-input']),
       itemNode(13, pr: true),
       itemNode(14, milestone: 'November launch'),
+      itemNode(15, pr: true, assignees: ['hubot', 'monalisa', 'author15']),
     ]);
   });
 
@@ -151,6 +152,63 @@ void main() {
 
     expect(result.steps.single.description, 'Close');
     expect(github.calls, ['close {"id":"PR_13"}']);
+  });
+
+  test('assigning a PR for triage requests a review from its assignees, '
+      'except the author', () async {
+    final ApplyResult result = await apply(
+      15,
+      const TriageAnalysis(
+        addedLabels: [assignedForTriageLabel],
+        newAssignees: ['octocat'],
+        removedAssignees: ['hubot'],
+      ),
+    );
+
+    expect(result.succeeded, isTrue);
+    expect(result.steps.map((StepResult s) => s.description), [
+      'Add labels: $assignedForTriageLabel',
+      'Unassign: hubot',
+      'Assign: octocat',
+      'Request review: monalisa, octocat',
+    ]);
+    expect(
+      github.calls.last,
+      'POST pulls/15/requested_reviewers '
+      '{"reviewers":["monalisa","octocat"]}',
+    );
+  });
+
+  test('requests no review for an issue, or for a PR that is not assigned '
+      'for triage', () {
+    expect(
+      reviewersToRequest(
+        item(12),
+        const TriageAnalysis(
+          addedLabels: [assignedForTriageLabel],
+          newAssignees: ['octocat'],
+        ),
+      ),
+      isEmpty,
+    );
+    expect(
+      reviewersToRequest(
+        item(15),
+        const TriageAnalysis(newAssignees: ['octocat']),
+      ),
+      isEmpty,
+    );
+    // Only the PR author would be asked.
+    expect(
+      reviewersToRequest(
+        item(15),
+        const TriageAnalysis(
+          addedLabels: [assignedForTriageLabel],
+          removedAssignees: ['hubot', 'MonaLisa'],
+        ),
+      ),
+      isEmpty,
+    );
   });
 
   test('stops at a person GitHub does not assign, and says so', () async {

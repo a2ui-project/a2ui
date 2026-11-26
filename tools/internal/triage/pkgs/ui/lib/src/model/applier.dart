@@ -93,10 +93,36 @@ String? replyToPost(TriageAnalysis analysis) {
   return '$heading${withoutReplyHeading(reply)}';
 }
 
+/// The people whose review applying [analysis] requests on [item]: when
+/// [analysis] assigns a pull request for triage, by adding
+/// [assignedForTriageLabel], its assignees once [analysis] is applied, so
+/// that the pull request is also in their review queue. Empty for an issue,
+/// and for any other change.
+///
+/// The pull request's author is left out, since GitHub does not request a
+/// review from the author.
+List<String> reviewersToRequest(TriageItem item, TriageAnalysis analysis) {
+  if (!item.isPullRequest ||
+      !analysis.addedLabels.contains(assignedForTriageLabel)) {
+    return const [];
+  }
+  final Set<String> removed = {
+    for (final login in analysis.removedAssignees) login.toLowerCase(),
+  };
+  final seen = <String>{?item.author?.toLowerCase()};
+  return [
+    for (final login in [...item.assignees, ...analysis.newAssignees])
+      if (!removed.contains(login.toLowerCase()) &&
+          seen.add(login.toLowerCase()))
+        login,
+  ];
+}
+
 /// Applies the suggestion of [analysis] to [item] on GitHub: posts the
-/// [replyToPost], changes the labels, assignees and, with [milestone], the
-/// milestone, and closes the item, in this order. [milestones] gives the
-/// numbers of the open milestones by title.
+/// [replyToPost], changes the labels and assignees, requests the
+/// [reviewersToRequest], changes the milestone with [milestone], and closes
+/// the item, in this order. [milestones] gives the numbers of the open
+/// milestones by title.
 ///
 /// Stops at the first step that fails. Skips the reply if [replyPosted],
 /// so that retrying after a failure does not post it twice, and calls
@@ -115,6 +141,7 @@ Future<ApplyResult> applySuggestion(
   final String? closeAs = analysis.closeAs;
   final String? newMilestone = milestone.set;
   final String? removedMilestone = milestone.remove;
+  final List<String> reviewers = reviewersToRequest(item, analysis);
   final steps = <_Step>[
     if (reply != null)
       replyPosted
@@ -142,6 +169,11 @@ Future<ApplyResult> applySuggestion(
       _Step(
         'Assign: ${analysis.newAssignees.join(', ')}',
         () => service.addAssignees(n, analysis.newAssignees),
+      ),
+    if (reviewers.isNotEmpty)
+      _Step(
+        'Request review: ${reviewers.join(', ')}',
+        () => service.requestReviewers(n, reviewers),
       ),
     if (newMilestone != null)
       _Step('Set milestone: $newMilestone', () async {

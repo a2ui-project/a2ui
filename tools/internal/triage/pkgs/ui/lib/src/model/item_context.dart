@@ -15,6 +15,7 @@
 import 'package:shared/shared.dart';
 
 import 'analysis_draft.dart';
+import 'applier.dart';
 import 'milestone_change.dart';
 import 'triage_controller.dart';
 import 'triage_item.dart';
@@ -150,13 +151,19 @@ void _writeItem(StringBuffer out, TriageController controller, TriageItem i) {
     )
     ..writeln();
   final List<String> changes = _changes(
+    i,
     draft.toAnalysis(),
     draft.milestoneChange,
   );
   out.writeln(changes.isEmpty ? 'None.' : changes.join('\n'));
 }
 
-List<String> _changes(TriageAnalysis s, MilestoneChange milestone) {
+List<String> _changes(
+  TriageItem item,
+  TriageAnalysis s,
+  MilestoneChange milestone,
+) {
+  final List<String> reviewers = reviewersToRequest(item, s);
   return [
     if (s.closeAs case final String reason)
       '- Close as ${reason.replaceAll('_', ' ')}'
@@ -167,6 +174,7 @@ List<String> _changes(TriageAnalysis s, MilestoneChange milestone) {
     if (s.newAssignees.isNotEmpty) '- Assign: ${s.newAssignees.join(', ')}',
     if (s.removedAssignees.isNotEmpty)
       '- Unassign: ${s.removedAssignees.join(', ')}',
+    if (reviewers.isNotEmpty) '- Request review: ${reviewers.join(', ')}',
     if (milestone.set case final String title) '- Set milestone: $title',
     if (milestone.set == null && milestone.remove != null)
       '- Remove milestone: ${milestone.remove}',

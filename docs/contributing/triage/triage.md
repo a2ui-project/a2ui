@@ -31,7 +31,7 @@ For each issue in the [first-line triage queue][not-first-line-handled]:
 2. Go through [status: needs-team-input][needs-team-input] with other team members. For each item:
 
     - If you can triage it in a couple of minutes, [triage it](#triage-an-item) and remove `status: needs-team-input`.
-    - Otherwise, assign it to an expert in the area, add [status: assigned-for-triage][assigned-for-triage], and remove `status: needs-team-input`.
+    - Otherwise, assign it to an expert in the area, add [status: assigned-for-triage][assigned-for-triage], and remove `status: needs-team-input`. For a PR, also request the expert's review, so that the PR is in their review queue. The triage UI does this when it applies the label.
 
 ## Triage an item
 

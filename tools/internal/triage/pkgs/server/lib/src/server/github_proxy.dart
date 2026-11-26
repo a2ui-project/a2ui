@@ -48,8 +48,9 @@ final class GitHubProxy {
   /// the GitHub API. The proxy passes on no others, so that a token that
   /// allows more, such as the one of `gh`, is only used for triage.
   static final List<(String, RegExp)> _allowedCalls = () {
-    final issue =
-        'repos/(?:${_repositories.map(RegExp.escape).join('|')})/issues/[0-9]+';
+    final repository =
+        'repos/(?:${_repositories.map(RegExp.escape).join('|')})';
+    final issue = '$repository/issues/[0-9]+';
     return [
       ('POST', RegExp(r'^graphql$')),
       ('PATCH', RegExp('^$issue\$')),
@@ -58,6 +59,7 @@ final class GitHubProxy {
       ('DELETE', RegExp('^$issue/labels/[^/]+\$')),
       ('POST', RegExp('^$issue/assignees\$')),
       ('DELETE', RegExp('^$issue/assignees\$')),
+      ('POST', RegExp('^$repository/pulls/[0-9]+/requested_reviewers\$')),
     ];
   }();
 

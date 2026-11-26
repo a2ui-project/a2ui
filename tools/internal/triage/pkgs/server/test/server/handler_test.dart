@@ -513,6 +513,7 @@ void main() {
       ('DELETE', 'repos/a2ui-project/a2ui/issues/1/labels/P1'),
       ('POST', 'repos/flutter/genui/issues/2/assignees'),
       ('DELETE', 'repos/flutter/genui/issues/2/assignees'),
+      ('POST', 'repos/a2ui-project/a2ui/pulls/3/requested_reviewers'),
       ('PATCH', 'repos/flutter/genui/issues/2'),
     ]) {
       test('passes on the call $method /$path', () async {
@@ -535,6 +536,8 @@ void main() {
       ('GET', 'repos/a2ui-project/a2ui/issues/1'),
       ('PATCH', 'repos/a2ui-project/a2ui/issues/1/../../../../user'),
       ('POST', 'repos/a2ui-project%2Fa2ui/issues/1/comments'),
+      ('DELETE', 'repos/a2ui-project/a2ui/pulls/3/requested_reviewers'),
+      ('POST', 'repos/other/repo/pulls/3/requested_reviewers'),
     ]) {
       test('rejects a call the app does not make: $method /$path', () async {
         final Response response = await send(
