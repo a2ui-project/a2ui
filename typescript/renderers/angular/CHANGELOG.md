@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: With `useUniversalComponents: true`, `ComponentHostComponent` mounts Angular-backed catalog entries directly via `NgComponentOutlet` instead of wrapping them in `<a2ui-ng-<name>>`, and `AngularWcHost` (`<a2ui-ng-<name>>`) appends the Angular component's own selector element as a child when hosted inside a universal Web Component container instead of replacing it with `<a2ui-ng-<name>>`. Recommended migration: query custom Angular components by their `@Component` selector rather than `a2ui-ng-<name>` unless targeting the universal container wrapper. [#4396](https://github.com/a2ui-project/a2ui/pull/4396)
+- Prevent `AngularWcHost` (`<a2ui-ng-<name>>`) from throwing on re-entrant `disconnectedCallback` calls during DOM moves, and remove its child selector element on disconnect. [#4396](https://github.com/a2ui-project/a2ui/pull/4396)
+- (v0_8) Fix `Text` `additionalStyles` detection so complete 7-key and partial hinted style maps apply without requiring `h6`. A partial map that omits the active `usageHint` applies no inline styles ([#602](https://github.com/a2ui-project/a2ui/issues/602), [#4355](https://github.com/a2ui-project/a2ui/pull/4355)).
+
+## 0.16.0
+
+- Migrate the Angular renderer stack to Angular 22. [#3405](https://github.com/a2ui-project/a2ui/issues/3405), [#3406](https://github.com/a2ui-project/a2ui/pull/3406)
+  - **BREAKING CHANGE**: `peerDependencies` on `@angular/common`, `@angular/core`, and `@angular/platform-browser` move from `^21.2.5` to `^22.2.3`. Consumers must be on Angular 22.
+  - Requires TypeScript `>=6.0 <6.1` (pulled in transitively by Angular 22's `@angular/compiler-cli`).
+
 ## 0.15.0
 
 - **BREAKING CHANGE**: `ComponentBinder.bindNode` now extracts `BoundProperty.template` on `ChildList` properties strictly from the specification's `path` key (`{componentId, path}`) and ignores non-spec `'@path'` keys. Recommended migration: pass `{componentId, path}` on `ChildList` template objects. [#4274](https://github.com/a2ui-project/a2ui/pull/4274)
@@ -11,6 +21,7 @@
 - `AngularCatalog` adds `tagName` and `element` to plain `{...api, component}` entries in place, keeping entry identity. Universal elements now resolve their Angular `Injector` from the nearest `ComponentHostComponent`, then from the `A2uiRendererService` owning their surface, so several renderers can share a page. [#4129](https://github.com/a2ui-project/a2ui/pull/4129)
 - `provideA2Ui`, `A2uiRendererService`, and `ComponentBinder` now keep effects on the earliest live `EnvironmentInjector` and promote the next live injector when the current host is destroyed or throws `NG0205`, preventing destroyed-injector errors across multi-spec `TestBed` runs and multi-injector applications. [#3949](https://github.com/a2ui-project/a2ui/issues/3949), [#4244](https://github.com/a2ui-project/a2ui/pull/4244)
 - Add the optional `onElementConnected(element, context, injector)` field to `AngularComponentImplementation`. The nearest `ComponentHostComponent` calls it once when a universal element rendering that entry first connects, whatever the element's base class, so hosts can decorate elements they do not own. [#4143](https://github.com/a2ui-project/a2ui/pull/4143)
+- (v0_9) `Modal` shows its overlay in a native `<dialog>` opened with `showModal()`, so it renders in the browser's top layer: it is no longer covered by host UI when an ancestor of the surface creates a stacking context, and it closes on Escape and keeps focus inside the modal. The overlay's classes and `--a2ui-modal-*` variables are unchanged; the content element no longer carries `role="dialog"`/`aria-modal`, which the `<dialog>` now provides. [#3807](https://github.com/a2ui-project/a2ui/issues/3807)
 - Fall back to `surface.defaultCatalog ?? surface.catalog` when reporting unresolved component types in `ComponentHostComponent`, allowing unit tests with partial `SurfaceModel` and `ComponentModel` stand-ins to mount without throwing. [#3829](https://github.com/a2ui-project/a2ui/pull/3829)
 
 ## 0.14.0

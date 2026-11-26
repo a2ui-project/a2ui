@@ -105,7 +105,8 @@ struct AgentFunctionRoutingTests {
     let api = FunctionAPI(
       name: "silentFailure",
       returnType: .string,
-      schema: try! Schema(instance: "{\"type\": \"object\"}")
+      schema: try! Schema(instance: "{\"type\": \"object\"}"),
+      allowedCallers: .rendererOrAgent
     )
 
     func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {

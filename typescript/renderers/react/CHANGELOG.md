@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 0.16.1
+
+- (v0_9) Fix `@a2ui/react` throwing `ReferenceError: HTMLElement is not defined` when imported without a DOM (server-side rendering, plain Node). The host element base class is now chosen when the module loads, so the import no longer needs `HTMLElement`. Regression in 0.13.0. [#3158](https://github.com/a2ui-project/a2ui/issues/3158), [#3197](https://github.com/a2ui-project/a2ui/pull/3197)
+
 ## 0.16.0
 
 - **BREAKING CHANGE**: Stop assigning `element.context` in `WebComponentNode`, and deprecate `ReactComponentImplementation.render`, `ReactRenderProps`, `ReactRenderProps.context`, `ReactA2uiComponentProps.context`, and `ReactWcHost.context`. Recommended migration: accept `node` on custom `A2uiWebComponentElement` classes, implement `view({node, buildChild})` (or read resolved `props` and `metadata` in `createComponentImplementation`), and obtain the `SurfaceModel` via `useA2uiSurface()`. [#3841](https://github.com/a2ui-project/a2ui/pull/3841)

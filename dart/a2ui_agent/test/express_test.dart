@@ -44,6 +44,25 @@ void main() {
       },
     },
   });
+  final CatalogApi v1Basic = Catalog.fromJson(
+    jsonDecode(File('../../catalogs/basic/v1/catalog.json').readAsStringSync())
+        as Map<String, Object?>,
+    protocolVersion: A2uiProtocolVersion.v1_0,
+  );
+  final CatalogApi v1Custom = Catalog.fromJson({
+    'catalogId': 'https://example.com/custom.json',
+    'protocolVersion': '1.0',
+    'components': {
+      'Gauge': {
+        'type': 'object',
+        'properties': {
+          'component': {'const': 'Gauge'},
+          'value': {'type': 'number'},
+        },
+        'required': ['component', 'value'],
+      },
+    },
+  });
 
   A2uiRequestProcessor processor([List<CatalogApi>? catalogs]) =>
       A2uiRequestProcessor(activeCatalogs: catalogs ?? [basic]);
@@ -343,13 +362,84 @@ root = Text($/user/name)
       ]);
     });
 
+    test(
+      'coerces string option literals when options uses oneOf with DataBinding '
+      r'and local $defs item ref',
+      () {
+        final CatalogApi unionOptionsCatalog = Catalog.fromJson({
+          r'$schema': 'https://json-schema.org/draft/2020-12/schema',
+          'catalogId': 'test/union_options',
+          'protocolVersion': '1.0',
+          'components': {
+            'ToggleGroup': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'ToggleGroup'},
+                'options': {
+                  'oneOf': [
+                    {
+                      'type': 'array',
+                      'items': {r'$ref': r'#/$defs/SelectOption'},
+                    },
+                    {r'$ref': r'common_types.json#/$defs/DataBinding'},
+                  ],
+                },
+              },
+              'required': ['component', 'options'],
+            },
+          },
+          r'$defs': {
+            'SelectOption': {
+              'type': 'object',
+              'properties': {
+                'label': {r'$ref': r'common_types.json#/$defs/DynamicString'},
+                'value': {'type': 'string'},
+              },
+              'required': ['label', 'value'],
+            },
+          },
+        });
+        final compiler = ExpressCompiler([unionOptionsCatalog]);
+        final List<AgentToRendererMessage> inlineMessages = compiler.compile(
+          'root = ToggleGroup(["Day", "Week"])',
+        );
+        expect(
+          (inlineMessages.single.toJson()['createSurface']!
+              as Map)['components'],
+          [
+            {
+              'id': 'root',
+              'component': 'ToggleGroup',
+              'options': [
+                {'label': 'Day', 'value': 'Day'},
+                {'label': 'Week', 'value': 'Week'},
+              ],
+            },
+          ],
+        );
+
+        final List<AgentToRendererMessage> boundMessages = compiler.compile(
+          r'root = ToggleGroup($/choices)',
+        );
+        expect(
+          (boundMessages.single.toJson()['createSurface']!
+              as Map)['components'],
+          [
+            {
+              'id': 'root',
+              'component': 'ToggleGroup',
+              'options': {'@path': '/choices'},
+            },
+          ],
+        );
+      },
+    );
+
     group('number literals', () {
       /// The `value` of a `Gauge` written with [literal].
       Object? gauge(String literal) {
-        final List<ResponsePart>
-        parts = processor([basic, custom]).parseResponse(
-          '<a2ui>surface("g", "${custom.id}"); root = Gauge($literal)</a2ui>',
-        );
+        final List<ResponsePart> parts = processor([custom])
+            .parseResponse('<a2ui>surface("g"); root = Gauge($literal)</a2ui>');
         final AgentToRendererMessage last =
             (parts.single as A2uiPart).a2ui.last;
         return (last as UpdateComponentsMessage).components.single['value'];
@@ -413,25 +503,14 @@ surface("s1")
       expect((parts[4] as A2uiPart).a2ui.single, isA<DeleteSurfaceMessage>());
     });
 
-    test('with a surface built from another catalog', () {
-      final List<ResponsePart> parts = processor([basic, custom]).parseResponse(
-        '<a2ui>surface("g", "${custom.id}"); root = Gauge(0.5)</a2ui>',
+    test('rejects several v0.9 catalogs', () {
+      expect(
+        () => processor([basic, custom]),
+        throwsA(isA<A2uiCatalogError>()),
       );
-      final List<AgentToRendererMessage> messages =
-          (parts.single as A2uiPart).a2ui;
-      expect((messages.first as CreateSurfaceMessage).catalogId, custom.id);
-      expect((messages.last as UpdateComponentsMessage).components, [
-        {'id': 'root', 'component': 'Gauge', 'value': 0.5},
-      ]);
     });
 
     test('v1.0 surface and component extensions kwargs', () {
-      final CatalogApi v1Basic = Catalog.fromJson(
-        jsonDecode(
-          File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
-        ) as Map<String, Object?>,
-        protocolVersion: A2uiProtocolVersion.v1_0,
-      );
       final List<AgentToRendererMessage> compiled = ExpressCompiler([v1Basic])
           .compile(
             'surface("s", extensions={surf_ext: {version: 1}})\n'
@@ -683,9 +762,9 @@ surface("s1")
     });
 
     test('names each catalog when there are several', () {
-      final String snippet = processor([basic, custom]).promptSnippet;
-      expect(snippet, contains('## Catalog `${basic.id}`'));
-      expect(snippet, contains('## Catalog `${custom.id}`'));
+      final String snippet = processor([v1Basic, v1Custom]).promptSnippet;
+      expect(snippet, contains('## Catalog `${v1Basic.id}`'));
+      expect(snippet, contains('## Catalog `${v1Custom.id}`'));
       expect(snippet, contains('• Gauge(value (static))'));
     });
 
@@ -700,6 +779,288 @@ surface("s1")
         ),
       );
       expect(snippet, isNot(contains('userMessage=')));
+    });
+
+    test('introspects oneOf and anyOf unions for object and array-of-objects '
+        'property details', () {
+      final CatalogApi charts = Catalog.fromJson({
+        'catalogId': 'https://example.com/charts.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'LineChart': {
+            'type': 'object',
+            'description': 'Renders a line chart.',
+            'properties': {
+              'component': {'const': 'LineChart'},
+              'series': {
+                'description':
+                    'Array of data series, where each series represents a '
+                    'package or metric line.',
+                'oneOf': [
+                  {
+                    'type': 'array',
+                    'items': {
+                      'type': 'object',
+                      'properties': {
+                        'name': {
+                          'type': 'string',
+                          'description': 'Name of the series',
+                        },
+                        'color': {
+                          'type': 'string',
+                          'description': 'Hex color code',
+                        },
+                        'data': {
+                          'type': 'array',
+                          'description': 'Points along the line',
+                          'items': {
+                            'type': 'object',
+                            'properties': {
+                              'date': {'type': 'string'},
+                              'value': {'type': 'number'},
+                            },
+                            'required': ['value'],
+                          },
+                        },
+                      },
+                      'required': ['name', 'data'],
+                    },
+                  },
+                  {r'$ref': r'common_types.json#/$defs/DataBinding'},
+                ],
+              },
+              'points': {
+                'anyOf': [
+                  {r'$ref': r'common_types.json#/$defs/DataBinding'},
+                  {
+                    'type': 'array',
+                    'items': {r'$ref': r'#/$defs/PointItem'},
+                  },
+                ],
+              },
+              'config': {
+                'description': 'Chart configuration object.',
+                'oneOf': [
+                  {
+                    'type': 'object',
+                    'properties': {
+                      'showLegend': {
+                        'type': 'boolean',
+                        'description': 'Whether to show the legend',
+                      },
+                      'yAxisLabel': {'type': 'string'},
+                    },
+                  },
+                  {r'$ref': r'common_types.json#/$defs/DataBinding'},
+                ],
+              },
+              'center': {
+                'anyOf': [
+                  {
+                    'type': 'object',
+                    'properties': {
+                      'lat': {'type': 'number'},
+                      'lng': {'type': 'number'},
+                    },
+                  },
+                  {r'$ref': r'common_types.json#/$defs/DataBinding'},
+                ],
+              },
+            },
+            'required': ['component', 'series'],
+          },
+        },
+        r'$defs': {
+          'PointItem': {
+            'type': 'object',
+            'properties': {
+              'x': {'type': 'number', 'description': 'X coordinate'},
+              'y': {'type': 'number', 'description': 'Y coordinate'},
+            },
+            'required': ['x', 'y'],
+          },
+        },
+      });
+
+      final String snippet = processor([charts]).promptSnippet;
+      expect(
+        snippet,
+        contains(
+          '• LineChart(series, points?, config?, center?)\n'
+          '  - Description: Renders a line chart.\n'
+          '  - series: Array of data series, where each series represents a '
+          'package or metric line.\n'
+          '    List of maps keys:\n'
+          '    * name - Name of the series\n'
+          '    * color - Hex color code\n'
+          '    * data - Points along the line\n'
+          '  - points: List of maps with keys:\n'
+          '    * x - X coordinate\n'
+          '    * y - Y coordinate\n'
+          '  - config: Chart configuration object.\n'
+          '    Map keys:\n'
+          '    * showLegend - Whether to show the legend\n'
+          '    * yAxisLabel\n'
+          '  - center: Map with keys:\n'
+          '    * lat\n'
+          '    * lng',
+        ),
+      );
+    });
+
+    test('handles locally flattened wire envelopes, allOf composition, local '
+        r'enum $defs, and local $ref aliases to common_types', () {
+      final CatalogApi flattened = Catalog.fromJson({
+        'catalogId': 'https://example.com/flattened.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'CompositeWidget': {
+            'type': 'object',
+            'description':
+                'Widget exercising flattened common_types and allOf schemas.',
+            'properties': {
+              'component': {'const': 'CompositeWidget'},
+              'title': {
+                'description': 'Display title.',
+                r'$ref': r'#/$defs/common_types_DynamicString',
+              },
+              'iconName': {
+                'description': 'Icon identifier.',
+                'oneOf': [
+                  {r'$ref': r'#/$defs/StandardIconEnum'},
+                  {
+                    'type': 'object',
+                    'properties': {
+                      'svgPath': {'type': 'string'},
+                    },
+                  },
+                ],
+              },
+              'settings': {
+                'description': 'Merged settings object.',
+                'allOf': [
+                  {r'$ref': r'#/$defs/BaseSettings'},
+                  {
+                    'type': 'object',
+                    'properties': {
+                      'theme': {'type': 'string', 'description': 'Color theme'},
+                    },
+                  },
+                ],
+              },
+              'rows': {
+                'type': 'array',
+                'items': {
+                  'allOf': [
+                    {r'$ref': r'#/$defs/BaseRow'},
+                    {
+                      'properties': {
+                        'badge': {
+                          'type': 'string',
+                          'description': 'Optional row badge',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+              'onTap': {r'$ref': r'#/$defs/LocalActionAlias'},
+              'content': {r'$ref': r'#/$defs/LocalChildAlias'},
+            },
+            'required': ['component', 'title'],
+          },
+        },
+        r'$defs': {
+          'common_types_DataBinding': {
+            'type': 'object',
+            'properties': {
+              '@path': {'type': 'string'},
+            },
+            'required': ['@path'],
+          },
+          'common_types_FunctionCall': {
+            'type': 'object',
+            'properties': {
+              '@call': {'type': 'string'},
+              'args': {'type': 'object'},
+              'returnType': {'type': 'string'},
+            },
+            'required': ['@call'],
+          },
+          'common_types_DynamicString': {
+            'oneOf': [
+              {r'$ref': r'#/$defs/common_types_DataBinding'},
+              {
+                'allOf': [
+                  {r'$ref': r'#/$defs/common_types_FunctionCall'},
+                  {
+                    'properties': {
+                      'returnType': {'const': 'string'},
+                    },
+                  },
+                ],
+              },
+              {
+                'allOf': [
+                  {r'$ref': r'common_types.json#/$defs/FunctionCall'},
+                  {
+                    'properties': {
+                      'returnType': {'const': 'string'},
+                    },
+                  },
+                ],
+              },
+              {'type': 'string'},
+            ],
+          },
+          'StandardIconEnum': {
+            'type': 'string',
+            'enum': ['home', 'search', 'settings'],
+          },
+          'BaseSettings': {
+            'type': 'object',
+            'properties': {
+              'compact': {
+                'type': 'boolean',
+                'description': 'Use compact spacing',
+              },
+            },
+          },
+          'BaseRow': {
+            'type': 'object',
+            'properties': {
+              'id': {'type': 'string', 'description': 'Row identifier'},
+            },
+          },
+          'LocalActionAlias': {r'$ref': r'common_types.json#/$defs/Action'},
+          'LocalChildAlias': {r'$ref': r'common_types.json#/$defs/ComponentId'},
+        },
+      });
+
+      final String snippet = processor([flattened]).promptSnippet;
+      expect(
+        snippet,
+        contains(
+          '• CompositeWidget(title, iconName? (static), settings? (static), '
+          'rows? (static), onTap? (action), content? (component ID))\n'
+          '  - Description: Widget exercising flattened common_types and '
+          'allOf schemas.\n'
+          '  - title: Display title.\n'
+          "  - iconName: Icon identifier. Must be one of: 'home', 'search', "
+          "'settings'\n"
+          '  - settings: Merged settings object.\n'
+          '    Map keys:\n'
+          '    * compact - Use compact spacing\n'
+          '    * theme - Color theme\n'
+          '  - rows: List of maps with keys:\n'
+          '    * id - Row identifier\n'
+          '    * badge - Optional row badge',
+        ),
+      );
+      expect(snippet, isNot(contains('@path')));
+      expect(snippet, isNot(contains('@call')));
+      expect(snippet, isNot(contains('returnType')));
+      expect(snippet, isNot(contains('svgPath')));
     });
   });
 
@@ -1617,6 +1978,231 @@ surface("s1")
           },
         ],
       );
+    });
+  });
+
+  group('cyclic schema traversal guards', () {
+    test('terminates on self-referential combinator definitions', () {
+      final CatalogApi cyclic = Catalog.fromJson({
+        'catalogId': 'https://example.com/cyclic.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'TreeWidget': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'TreeWidget'},
+              'node': {r'$ref': r'#/$defs/CycleNode'},
+            },
+            'required': ['component', 'node'],
+          },
+        },
+        r'$defs': {
+          'CycleNode': {
+            'oneOf': [
+              {r'$ref': r'#/$defs/CycleNode'},
+              {'type': 'string'},
+            ],
+          },
+        },
+      });
+      final String snippet = processor([cyclic]).promptSnippet;
+      expect(snippet, contains('• TreeWidget(node (static))'));
+    });
+
+    test('ignores non-list combinator values without throwing TypeError', () {
+      final CatalogApi malformed = Catalog.fromJson({
+        'catalogId': 'https://example.com/malformed.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'SafeWidget': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'SafeWidget'},
+              'badUnion': {'oneOf': 'not-a-list', 'anyOf': 42},
+            },
+            'required': ['component', 'badUnion'],
+          },
+        },
+      });
+      final String snippet = processor([malformed]).promptSnippet;
+      expect(snippet, contains('• SafeWidget(badUnion (static))'));
+    });
+
+    test('preserves domain maps, annotates flattened actions, and enforces '
+        'version-strict path keys', () {
+      final CatalogApi v1Cat = Catalog.fromJson({
+        'catalogId': 'https://example.com/domain_v1.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'DomainWidget': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'DomainWidget'},
+              'file': {
+                'type': 'object',
+                'properties': {
+                  'path': {'type': 'string', 'description': 'File path'},
+                },
+              },
+              'log': {
+                'type': 'object',
+                'properties': {
+                  'event': {'type': 'string', 'description': 'Event name'},
+                },
+                'required': ['event'],
+              },
+              'flatAction': {
+                'oneOf': [
+                  {
+                    'type': 'object',
+                    'properties': {
+                      'event': {
+                        'type': 'object',
+                        'properties': {
+                          'name': {'type': 'string'},
+                        },
+                        'required': ['name'],
+                      },
+                    },
+                    'required': ['event'],
+                  },
+                  {
+                    'type': 'object',
+                    'properties': {
+                      'functionCall': {
+                        'type': 'object',
+                        'properties': {
+                          '@call': {'type': 'string'},
+                          'args': {'type': 'object'},
+                        },
+                        'required': ['@call'],
+                      },
+                    },
+                    'required': ['functionCall'],
+                  },
+                ],
+              },
+              'barePath': {
+                'type': 'object',
+                'properties': {
+                  'path': {'type': 'string'},
+                },
+                'required': ['path'],
+              },
+              'atPath': {
+                'type': 'object',
+                'properties': {
+                  '@path': {'type': 'string'},
+                },
+                'required': ['@path'],
+              },
+            },
+            'required': ['component'],
+          },
+        },
+        'functions': {
+          'openUrl': {
+            'type': 'object',
+            'returnType': 'void',
+            'properties': {
+              '@call': {'const': 'openUrl'},
+              'args': {
+                'type': 'object',
+                'properties': {
+                  'url': {'type': 'string'},
+                },
+                'required': ['url'],
+              },
+            },
+            'required': ['@call', 'args'],
+          },
+        },
+      });
+      final String v1Snippet = processor([v1Cat]).promptSnippet;
+      expect(
+        v1Snippet,
+        contains(
+          '• DomainWidget(file? (static), log? (static), '
+          'flatAction? (action), barePath? (static), atPath?)',
+        ),
+      );
+      expect(v1Snippet, contains('* path - File path'));
+      expect(v1Snippet, contains('* event - Event name'));
+
+      final List<AgentToRendererMessage> compiled = ExpressCompiler([
+        v1Cat,
+      ]).compile('root = DomainWidget(flatAction=openUrl("https://a2ui.org"))');
+      final Map<String, Object?> rootComp = compiled
+          .whereType<CreateSurfaceMessage>()
+          .single
+          .components!
+          .single;
+      expect(rootComp['flatAction'], {
+        'functionCall': {
+          '@call': 'openUrl',
+          'args': {'url': 'https://a2ui.org'},
+        },
+      });
+
+      final CatalogApi v09Cat = Catalog.fromJson({
+        'catalogId': 'https://example.com/domain_v09.json',
+        'protocolVersion': '0.9',
+        'components': {
+          'V09Widget': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'V09Widget'},
+              'barePath': {
+                'type': 'object',
+                'properties': {
+                  'path': {'type': 'string'},
+                },
+                'required': ['path'],
+              },
+              'atPath': {
+                'type': 'object',
+                'properties': {
+                  '@path': {'type': 'string'},
+                },
+                'required': ['@path'],
+              },
+            },
+            'required': ['component'],
+          },
+        },
+      });
+      final String v09Snippet = processor([v09Cat]).promptSnippet;
+      expect(v09Snippet, contains('• V09Widget(barePath?, atPath? (static))'));
+    });
+
+    test('handles in-memory cyclic Map<Object?, Object?> schemas', () {
+      final cycleBranch = <Object?, Object?>{
+        'oneOf': <Object?>[
+          <Object?, Object?>{
+            'type': 'object',
+            'properties': <Object?, Object?>{
+              'label': <Object?, Object?>{'type': 'string'},
+            },
+          },
+        ],
+      };
+      final CatalogApi cyclicRaw = Catalog.fromJson({
+        'catalogId': 'https://example.com/cyclic_raw.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'RawCycleWidget': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'RawCycleWidget'},
+              'node': cycleBranch,
+            },
+            'required': ['component', 'node'],
+          },
+        },
+      });
+      (cycleBranch['oneOf']! as List<Object?>).insert(0, cycleBranch);
+      final String snippet = processor([cyclicRaw]).promptSnippet;
+      expect(snippet, contains('• RawCycleWidget(node (static))'));
     });
   });
 }

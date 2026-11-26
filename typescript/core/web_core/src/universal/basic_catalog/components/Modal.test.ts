@@ -182,7 +182,7 @@ describe('Modal Component', () => {
     assert.notStrictEqual(el.querySelector('.a2ui-modal-overlay'), null);
   });
 
-  it('places aria-label and aria-description onto the role="dialog" container when open', async () => {
+  it('places aria-label and aria-description onto the <dialog> when open', async () => {
     processor.processMessages([
       {
         version: 'v0.9',
@@ -217,14 +217,59 @@ describe('Modal Component', () => {
     trigger.click();
     await asyncUpdate(el, () => {});
 
-    const dialog = el.querySelector('.a2ui-modal-content');
+    // The native <dialog> provides the dialog role and, with showModal(), modality.
+    const dialog = el.querySelector('dialog.a2ui-modal-dialog');
     assert.notStrictEqual(dialog, null);
-    assert.strictEqual(dialog?.getAttribute('role'), 'dialog');
-    assert.strictEqual(dialog?.getAttribute('aria-modal'), 'true');
+    assert.strictEqual(el.querySelector('.a2ui-modal-content')?.hasAttribute('role'), false);
     assert.strictEqual(dialog?.getAttribute('aria-label'), 'Confirm Reservation');
     assert.strictEqual(
       dialog?.getAttribute('aria-description'),
       'Review party size and date before booking',
     );
+  });
+
+  it('should show the overlay in an open dialog', async () => {
+    const el = document.createElement('a2ui-modal') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'comp1');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const trigger = el.querySelector('.a2ui-modal-trigger') as HTMLElement;
+    trigger.click();
+    await asyncUpdate(el, () => {});
+
+    // Browsers open it with showModal() (top layer); jsdom has no showModal()
+    // and gets the plain `open` fallback.
+    const dialog = el.querySelector('dialog.a2ui-modal-dialog') as HTMLDialogElement;
+    assert.notStrictEqual(dialog, null);
+    assert.strictEqual(dialog.hasAttribute('open'), true);
+    assert.notStrictEqual(dialog.querySelector('.a2ui-modal-overlay'), null);
+  });
+
+  it('should close when the dialog closes (e.g. Escape)', async () => {
+    const el = document.createElement('a2ui-modal') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'comp1');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const trigger = el.querySelector('.a2ui-modal-trigger') as HTMLElement;
+    trigger.click();
+    await asyncUpdate(el, () => {});
+    const dialog = el.querySelector('dialog.a2ui-modal-dialog') as HTMLDialogElement;
+    assert.notStrictEqual(dialog, null);
+
+    // Escape cancels a modal dialog, which then fires `close`.
+    dialog.dispatchEvent(new Event('close'));
+    await asyncUpdate(el, () => {});
+
+    assert.strictEqual(el.querySelector('.a2ui-modal-overlay'), null);
   });
 });

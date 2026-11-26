@@ -27,9 +27,24 @@ import 'test_infra/api_key.dart';
 import 'test_infra/pump.dart';
 import 'test_infra/recording_client.dart';
 
+/// The request for a login form and for the reply to its button, in the
+/// layout of the golden scenario.
+///
+/// The nightly drift check in `scripts/e2e_test.sh` compares the components
+/// the recorded replies render with `conformance/e2e/login_form_action.yaml`,
+/// type by type and in order. The request therefore names every component
+/// of both turns. Asked only for a login form, the model adds an icon or a
+/// second button, or answers the button with a new surface, and the check
+/// reports each of those as drift.
 const String loginFormRequest =
-    'Show a login form with email and password fields and a "Sign in" '
-    'button.';
+    'Show a login form as one surface. Its root is a Card whose child is a '
+    'Column of exactly four components, in this order: a Text heading, a '
+    'TextField for the email, a TextField for the password, and a "Sign in" '
+    'Button whose child is one Text. Use no other components: no icons, '
+    'images, dividers, rows, links or other buttons. When I press the '
+    'button, answer by updating that same surface. Do not create or delete '
+    'a surface. Make its root a Card whose child is a Column of exactly two '
+    'Text components and nothing else: no icons, images or buttons.';
 
 const String productCardRequest =
     'Show a product card for a coffee grinder that costs 129.99 USD and was '

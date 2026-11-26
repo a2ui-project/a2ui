@@ -1,10 +1,45 @@
 ## Unreleased
 
+- `resolve_catalogs` reads the capabilities of v0.9 and v0.9.1 catalogs from
+  the `v0.9.1` entry, falling back to `v0.9` when `v0.9.1` is absent or
+  activates no catalog. When a renderer sends both entries, both are validated,
+  and each inline catalog targets the protocol version of its declaring entry.
+  `read_renderer_capabilities` returns each of the two entries present.
+  [#3135](https://github.com/a2ui-project/a2ui/pull/3135)
+- `DirectJsonFormat`, `DirectJsonParser` and `schema_to_prompt` accept v0.9 and
+  v0.9.1 catalogs together, as `RendererState` does.
+  [#3135](https://github.com/a2ui-project/a2ui/pull/3135)
+- **BREAKING CHANGE**: (v1_0) `validate_payload`, `RendererState.apply`, and inference format parsers check function calls nested in `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions while accepting `agentOnly` and `rendererOrAgent` functions. Recommended migration: set `allowedCallers` to `"rendererOrAgent"` or `"agentOnly"` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774), [#4336](https://github.com/a2ui-project/a2ui/pull/4336)).
+- **BREAKING CHANGE**: `resolve_catalogs` and `read_renderer_capabilities`
+  reject inline catalogs whose local `#...` `$ref` pointers do not resolve
+  against the inline catalog document or the protocol version's
+  `common_types.json`, raising `A2uiCatalogError` naming the inline `catalogId`
+  and `$ref` even when `accepts_inline_catalogs` is `False`. `resolve_catalogs`
+  also logs a warning when an accepted inline catalog is dropped because its
+  `catalogId` is already active. Recommended migration: point each local `$ref`
+  in an inline catalog to a definition declared in that inline catalog or in the
+  target protocol version's `common_types.json`
+  ([#3165](https://github.com/a2ui-project/a2ui/issues/3165),
+  [#4367](https://github.com/a2ui-project/a2ui/pull/4367)).
+- `ExpressPromptGenerator` now traverses `oneOf`, `anyOf`, `allOf`, and locally
+  flattened wire envelopes when extracting structured map-key instructions and
+  enum constraints, and `ExpressCompiler` now coerces literal string arrays into
+  `{label, value}` option objects on union properties that also admit data
+  bindings
+  ([#3400](https://github.com/a2ui-project/a2ui/issues/3400),
+  [#4184](https://github.com/a2ui-project/a2ui/pull/4184)).
 - `RendererState(catalogs, assume_unknown_surfaces=True)` accepts an update to
   a surface it never saw created, such as one a sub-agent sends to a surface
   another agent created
   ([#3318](https://github.com/a2ui-project/a2ui/issues/3318),
   [#4331](https://github.com/a2ui-project/a2ui/pull/4331)).
+
+## 0.12.1 (2026-11-23)
+
+- `DirectJsonParser` rejects a number out of the range of a double, such as
+  `1e400`, with `A2uiParseError`, as the Dart SDK does. It used to read it as
+  `inf`, which `json.dumps` writes as `Infinity`, a token JSON does not have
+  ([#3847](https://github.com/a2ui-project/a2ui/pull/3847)).
 
 ## 0.12.0 (2026-11-17)
 

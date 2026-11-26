@@ -1,5 +1,16 @@
 ## Unreleased
 
+- `A2uiEventConverter`, `A2uiSubagentMap`, `a2ui_rpc_callback` and
+  `a2ui_rpc_interceptor` work with `a2a-sdk` 1.x as well as 0.3. The `a2a`
+  extra now needs `a2ui-a2a>0.4.0`; with `a2a-sdk` 1.x, use
+  `google-adk>=2.14.0`.
+  [#4418](https://github.com/a2ui-project/a2ui/pull/4418)
+- `A2uiSubagentMap.update_from_server_event` accepts a surface that its owner
+  creates again, as ADK's `RemoteA2aAgent` with `a2a-sdk` 1.x delivers a part
+  in both a status update and the final artifact. Creating a surface that
+  another agent owns still raises `SurfaceIdAlreadyExistsError`.
+  [#4418](https://github.com/a2ui-project/a2ui/pull/4418)
+
 ## 0.3.0 (2026-11-10)
 
 - `a2ui_rpc_callback` takes `renderer_calls`, a provider of the session's

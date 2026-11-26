@@ -1033,11 +1033,11 @@ def validate_payload(
     allowed to call the function, and its arguments must match the function's
     schema. A surface it names must exist when it arrives, or be one the
     payload never named before, which an earlier payload may have created.
-    A call nested in its arguments must be one the renderer may make. One that
-    names no catalog runs in the default catalog of the surface the call
+    A call nested in its arguments must also be one the agent may make. One
+    that names no catalog runs in the default catalog of the surface the call
     names, or in the call's catalog if it names none. On a surface the payload
     never named, it runs in the catalog `surface_catalog_ids` gives the
-    surface, or else is accepted if any active catalog lets the renderer make
+    surface, or else is accepted if any active catalog lets the agent make
     it.
 
     To check a payload against what earlier payloads sent, keep a
@@ -1085,7 +1085,7 @@ class _NestedCallHome:
       surface_id: When `catalog` is None, the known surface that has no
         default catalog, so such a nested call has nowhere to run. None when
         the surface is only assumed to exist, so its catalog isn't known: such
-        a nested call is accepted if an active catalog lets the renderer make
+        a nested call is accepted if an active catalog lets the agent make
         it.
     """
 
@@ -1235,11 +1235,11 @@ def _check_nested_call(
 ) -> None:
     """Checks one call nested in a `callRendererFunction`'s arguments.
 
-    The renderer resolves it as a renderer call: one that names a catalog
-    runs in it, which must be one of the catalogs, and one that names none
-    runs in the catalog of `home`. When `home` knows no catalog, the call is
-    accepted if some active catalog lets the renderer make it. The renderer
-    can't run an `agentOnly` function there, nor one that requires a user
+    The renderer resolves it under the agent's caller boundary: one that names
+    a catalog runs in it, which must be one of the catalogs, and one that names
+    none runs in the catalog of `home`. When `home` knows no catalog, the call
+    is accepted if some active catalog lets the agent make it. The agent can't
+    run a `rendererOnly` function there, nor one that requires a user
     activation, since the agent's call has none. A reserved `@` system
     function belongs to no catalog, so it must not name one, and the
     renderer resolves the arguments outside any list template, where
@@ -1247,7 +1247,7 @@ def _check_nested_call(
     none of them null.
 
     Raises:
-      A2uiValidationError: If the nested call is one the renderer can't make.
+      A2uiValidationError: If the nested call is one the agent can't make.
     """
     where = f"{subject} holds a call to '{name}'"
     for key in call:
@@ -1293,7 +1293,7 @@ def _check_nested_call(
     errors: list[A2uiValidationError] = []
     for catalog in candidates:
         try:
-            _check_renderer_may_make(catalog, name, where)
+            _check_agent_may_make(catalog, name, where)
             _check_args(catalog, name, args, f"{where} that")
         except A2uiValidationError as e:
             errors.append(e)
@@ -1302,17 +1302,20 @@ def _check_nested_call(
     raise errors[0]
 
 
-def _check_renderer_may_make(catalog: CatalogApi, name: str, where: str) -> None:
-    """Raises if the renderer can't make a nested call to a catalog function."""
+def _check_agent_may_make(catalog: CatalogApi, name: str, where: str) -> None:
+    """Raises if the agent can't make a nested call to a catalog function."""
     function = catalog.functions.get(name)
-    if getattr(function, "allowed_callers", None) == "agentOnly":
+    if function is None:
+        return
+    allowed_callers = getattr(function, "allowed_callers", None) or "rendererOnly"
+    if allowed_callers not in ("agentOnly", "rendererOrAgent"):
         raise A2uiValidationError(
-            f"{where} that the renderer can't make: Function '{name}' cannot"
-            " be called by renderer (allowedCallers is agentOnly)."
+            f"{where} that the agent can't make: Function '{name}' cannot"
+            f" be called by agent (allowedCallers is {allowed_callers})."
         )
     if getattr(function, "requires_user_activation", False):
         raise A2uiValidationError(
-            f"{where} that the renderer can't make: Function '{name}' requires"
+            f"{where} that the agent can't make: Function '{name}' requires"
             " a user activation, and a call from the agent has none."
         )
 
