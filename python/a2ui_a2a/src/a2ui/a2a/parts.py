@@ -24,6 +24,7 @@ from pydantic import BaseModel
 
 from a2ui.constants import A2UI_CLOSE_TAG
 from a2ui.constants import A2UI_OPEN_TAG
+from a2ui.core import to_protocol_version
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.direct_json import read_json
@@ -59,17 +60,34 @@ _BLOCK_LEXER = BlockLexer(
 )
 
 
+def _wire_version(version: ProtocolVersion | str) -> str | None:
+    """Returns the `version` a message of a protocol version carries, if any.
+
+    v0.8 messages carry no `version`, and a version this SDK doesn't define
+    has no known wire form, so both give `None`.
+    """
+    try:
+        protocol_version = to_protocol_version(version)
+    except ValueError:
+        return None
+    if protocol_version is ProtocolVersion.V0_8:
+        return None
+    return str(protocol_version.value)
+
+
 def create_a2ui_part(
     a2ui_data: dict[str, Any], version: ProtocolVersion | str | None = None
 ) -> Part:
     """Creates an A2A Part containing A2UI data.
 
     Args:
-        a2ui_data: The A2UI data dictionary.
+        a2ui_data: The A2UI data dictionary. It isn't modified.
         version: The A2UI version: a `ProtocolVersion`, or a version string with
             or without a leading "v". Defaults to the message's own `version`
             field. Without either, or for v0.8 and v0.9, the part uses the
-            deprecated MIME type.
+            deprecated MIME type. For v0.9 and later, a message without a
+            `version` field gets the one this version requires, such as
+            `"v0.9"` or `"1.0"`. A message's own `version` field is kept.
 
     Returns:
         An A2A Part with a DataPart containing the A2UI data.
@@ -79,6 +97,11 @@ def create_a2ui_part(
     mime_type = A2UI_MIME_TYPE
     if version is None or to_version_number(version) in ("0.8", "0.9"):
         mime_type = DEPRECATED_A2UI_MIME_TYPE
+
+    if version is not None and "version" not in a2ui_data:
+        wire_version = _wire_version(version)
+        if wire_version is not None:
+            a2ui_data = {"version": wire_version, **a2ui_data}
 
     return _compat.make_data_part(
         a2ui_data,

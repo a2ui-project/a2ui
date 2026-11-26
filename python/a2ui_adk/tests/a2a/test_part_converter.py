@@ -68,7 +68,8 @@ def test_converter_class_convert_valid_tool_response():
 
     a2a_parts = converter.convert(part)
     assert len(a2a_parts) == 1
-    assert a2a_parts[0] == create_a2ui_part(valid_a2ui, version=ProtocolVersion.V0_9)
+    # The converter passes the validated message through as it is.
+    assert a2a_parts[0] == create_a2ui_part(valid_a2ui)
 
 
 def test_converter_class_convert_valid_tool_response_v0_9_1():
