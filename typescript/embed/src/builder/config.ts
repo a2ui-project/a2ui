@@ -36,4 +36,10 @@ export interface EmbedBuildConfig {
   output: string;
   /** The document title of the app. Optional (default: `'A2UI app'`). */
   title?: string;
+  /**
+   * Whether the basic catalog's body Text renders markdown, with `@a2ui/markdown-it`. Set it to
+   * `false` to show the text as typed and leave the markdown renderer out of the app. Optional
+   * (default: `true`).
+   */
+  markdown?: boolean;
 }
