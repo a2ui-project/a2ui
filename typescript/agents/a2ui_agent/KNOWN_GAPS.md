@@ -43,10 +43,24 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Some blueprint conformance suites are not run
 
-- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness still reads `legacy/parser.yaml` and `legacy/inference_format.yaml` there, skipping the cases the newer suites replaced. The blueprint suites `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml`, `agent/catalog_transformer.yaml`, `agent/multi_catalog_formats.yaml`, `agent/request_processor.yaml`, `agent/skill.yaml`, every `agent/direct_json/*.yaml` file and every `agent/express/*.yaml` file run. The timing suites among them, `agent/direct_json/scaling.yaml` and `agent/express/scaling.yaml`, run with `yarn test:timing` rather than `yarn test`. `agent/builder/` and `agent/macros/` do not run.
+- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness still reads `legacy/parser.yaml` and `legacy/inference_format.yaml` there, skipping the cases the newer suites replaced. The blueprint suites `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml`, `agent/catalog_transformer.yaml`, `agent/multi_catalog_formats.yaml`, `agent/request_processor.yaml`, `agent/skill.yaml`, every `agent/direct_json/*.yaml` file, every `agent/express/*.yaml` file, `agent/builder/builder.yaml` and `agent/macros/macros.yaml` run. The timing suites among them, `agent/direct_json/scaling.yaml` and `agent/express/scaling.yaml`, run with `yarn test:timing` rather than `yarn test`.
 - **Why it exists:** Those suites exercise blueprint APIs this package does not implement yet.
 - **What it risks:** Behaviour they pin can drift in this package without a failing test.
 - **Done looks like:** The harness runs every blueprint suite and stops reading `agent/legacy/`, which the conformance README keeps for the earlier agent interface.
+
+### Macros support v1.0 only
+
+- **What it is:** `defineMacro`, `param` and `MacroExpander` target v1.0, and the expander rejects catalogs and messages of other versions. The cases of `conformance/agent/macros/macros.yaml` that need v0.9 macros are skipped: the v0.9 cases, and `40a`, `40b` and `40d`, which combine v0.9 macros with v1.0. Python's macros support v0.9 too.
+- **Why it exists:** A scope decision for the first port, which follows the current protocol.
+- **What it blocks:** Agents on v0.9 can't use macros.
+- **Done looks like:** A v0.9 mode with `ComponentId` schemas, bare envelope keys and `path`/`call` bindings in argument coercion, and the skipped cases running.
+
+### Component trees carry no catalog defaults
+
+- **What it is:** `flattenComponentTree` and the trees macros render emit only the properties their author wrote. Python's typed builder also fills in catalog defaults, such as `Text.variant: "body"` and `Column.justify: "start"`. Of `conformance/agent/builder/builder.yaml`, only `01_primitive_components_v1_0` runs: the goldens of the other v1.0 cases hold those defaults, and the v0.9 cases are skipped.
+- **Why it exists:** The plain-object tree has no knowledge of each component; a typed builder is out of scope for the first port.
+- **What it risks:** A macro that leaves out a property with a default lowers to different messages than its Python twin.
+- **Done looks like:** A typed builder on top of the tree, for example generated from the catalogs, and the skipped builder cases running.
 
 ### `no-explicit-any` lint warnings
 
@@ -91,7 +105,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Behaviours TypeScript enforces that no conformance case pins
 
-- **What it is:** TypeScript's Express throws in several places where no conformance case says what should happen: an inline component id that collides with a declared variable (`ExpressIdCollisionError`); decompiling messages for a catalog the decompiler was not given (`A2uiCatalogError`); and catalogs, or a requested version, from different release lines such as v0.9 and v1.0 (`A2uiCatalogError`).
+- **What it is:** TypeScript's Express throws in several places where no conformance case says what should happen: an inline component id that collides with a declared variable (`ExpressIdCollisionError`); decompiling messages for a catalog the decompiler was not given (`A2uiCatalogError`); and catalogs, or a requested version, from different release lines such as v0.9 and v1.0 (`A2uiCatalogError`). `MacroExpander` checks that a primitive or enum argument matches its parameter's type and values, where Python passes it to the macro unchecked (`A2uiValidationError`).
 - **Why it exists:** Each was decided while making TypeScript follow the suite: throwing is preferred to silently producing wrong output.
 - **What it risks:** Python may choose differently, and nothing would catch the drift.
 - **Done looks like:** Conformance cases pin each behaviour, so both SDKs are held to it.

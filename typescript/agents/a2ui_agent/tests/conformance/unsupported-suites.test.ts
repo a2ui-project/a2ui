@@ -34,6 +34,7 @@ import {
 
 export const ACTIVE_SUITES: ReadonlySet<string> = new Set([
   'agent/agent_functions.yaml',
+  'agent/builder/builder.yaml',
   'agent/catalog_provider.yaml',
   'agent/catalog_resolution.yaml',
   'agent/catalog_transformer.yaml',
@@ -49,6 +50,7 @@ export const ACTIVE_SUITES: ReadonlySet<string> = new Set([
   'agent/express/response_streaming.yaml',
   'agent/legacy/inference_format.yaml',
   'agent/legacy/parser.yaml',
+  'agent/macros/macros.yaml',
   'agent/multi_catalog_formats.yaml',
   'agent/renderer_capabilities.yaml',
   'agent/renderer_function_calls.yaml',
@@ -65,11 +67,7 @@ export const PERFORMANCE_SUITES: ReadonlySet<string> = new Set([
 
 export const UNSUPPORTED_SUITES: Readonly<Record<string, string>> = {
   'agent/atom/compiler.yaml': 'Elemental and Atom are experimental and Python-only',
-  'agent/builder/builder.yaml':
-    'the fluent builder API is a Python-only helper not implemented in TypeScript',
   'agent/elemental/compiler.yaml': 'Elemental and Atom are experimental and Python-only',
-  'agent/macros/macros.yaml':
-    'the composite macro API is a Python-only helper not implemented in TypeScript',
   'agent/legacy/streaming_parser.yaml':
     'superseded by direct_json/response_streaming.yaml and express/response_streaming.yaml',
 };
