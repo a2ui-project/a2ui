@@ -1,461 +1,216 @@
 ---
 title: 'Render A2UI Inside an MCP App'
-description: 'Bundle an A2UI renderer inside an MCP App ui:// resource so existing MCP hosts can display interactive A2UI surfaces without native host code.'
+description: 'Build an MCP App ui:// bundle with @a2ui/embed so MCP hosts render interactive A2UI v1.0 surfaces without native A2UI code.'
 ---
 
-import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
+import {Aside} from '@astrojs/starlight/components';
 
 export const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, '');
 
-An **[MCP App](https://modelcontextprotocol.io/extensions/apps/overview)** can bundle an embedded A2UI web renderer inside its `ui://` HTML resource (`text/html;profile=mcp-app`) so existing [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) hosts display interactive A2UI surfaces without adding A2UI renderer code to the host application.
+The `@a2ui/embed` library packages an A2UI v1.0 [renderer](../../concepts/glossary/#renderer) and your [catalogs](../../concepts/glossary/#catalog) into a single-file **[MCP App](https://modelcontextprotocol.io/extensions/apps/overview)** (`ui://` HTML resource with MIME type `text/html;profile=mcp-app`), so any [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) Apps host such as Claude Desktop or Antigravity displays interactive A2UI [surfaces](../../concepts/glossary/#surface) without adding A2UI code to the host.
 
-Instead of requiring every MCP client (such as Claude Desktop, the MCP Inspector, or an IDE) to install an A2UI SDK, your MCP server ships a self-contained HTML bundle that mounts `<a2ui-surface>` inside the host's isolated iframe. When tools on the server return `application/a2ui+json` payloads, the embedded app feeds those messages into its own [`MessageProcessor`](/concepts/sdks/#core-sdk) and forwards user actions back through the MCP Apps `tools/call` channel.
+Each tool returns a concise text summary in `content` for the language model and places A2UI v1.0 messages in `structuredContent.a2ui` for the app iframe, keeping UI markup out of the model's context window while routing button clicks and form edits back to your server.
 
 <Aside type="tip" title="Choosing an MCP integration pattern">
   See the [MCP Integration Overview](../mcp-overview/) to compare all four MCP patterns. Use this
-  pattern when the outer host supports MCP Apps (`ui://` HTML iframes) rather than A2UI natively.
-  For the inverse architecture (embedding third-party MCP App widgets inside your own A2UI host),
-  see [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/). If both the host and server support
-  A2UI natively and you want to serve reusable A2UI layout templates over MCP without an iframe, see
-  [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/) and [Call MCP Tools from
+  guide when an external host supports MCP Apps (`ui://` HTML iframes) rather than A2UI natively.
+  For the inverse pattern (embedding third-party MCP App widgets inside your own A2UI host), see
+  [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/). When both host and server support A2UI
+  natively, see [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/) and [Call MCP Tools from
   A2UI](../mcp-catalog/).
 </Aside>
 
-<img
-  src={`${baseUrl}/assets/editor.gif`}
-  alt="Generative document editor demo showing selected text in an MCP App triggering contextual A2UI controls to revise content"
-/>
+## Step 1: Install dependencies
 
----
-
-<span id="quick-start-run-the-sample"></span>
-
-## Quick start: run the community sample
-
-The [`samples/community/mcp/a2ui-in-mcpapps/`](https://github.com/a2ui-project/a2ui/blob/main/samples/community/mcp/a2ui-in-mcpapps/README.md) directory contains a runnable end-to-end sample with a Python MCP server (`server/server.py`), two single-file Angular micro-apps (`ui://editor/app` for a generative document editor and `ui://basic/app` for a counter), and a sample Angular MCP Apps host (`client/`) that runs a double-iframe sandbox on `http://localhost:4200`.
-
-<Aside type="note" title="Sample protocol version">
-  The community sample currently emits A2UI `v0.8` messages (`surfaceUpdate`, `dataModelUpdate`, and
-  `beginRendering`) rendered by `@a2ui/angular` `0.10.x` inside the micro-apps. The implementation
-  walkthrough below updates this pattern to `v1.0` and `v0.9.1` wire payloads with `@a2ui/lit` and
-  `@a2ui/web_core`.
-</Aside>
-
-### Prerequisites
-
-Install these tools before building and running the sample from a clone of the A2UI repository:
-
-1. Python 3.10 or later and [`uv`](https://docs.astral.sh/uv/) for the Python MCP server (`server/.python-version` targets Python 3.13 when managed by `uv`).
-2. Node.js 22.12 or later with Corepack enabled (`corepack enable`) so `yarn` resolves the standalone Yarn workspace under `samples/community/`.
-3. A `GOOGLE_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey) so `server/smart_editor_agent.py` can initialize its Gemini client at startup and generate contextual editor controls (if a Gemini call fails at runtime, the editor falls back to preset slider controls).
-
-### Build the sandbox relay and micro-apps
-
-The server serves single-file HTML bundles from `server/apps/public/`, which are git-ignored in a fresh checkout. Install the `samples/community` workspace dependencies, build the host's outer sandbox relay, and build both micro-apps from the repository root:
+In a Node.js TypeScript project (`"type": "module"`), install `@a2ui/embed` alongside the A2UI web renderer, the MCP TypeScript SDK, and Zod:
 
 ```bash
-cd samples/community
-yarn install
-
-# Build the host's outer sandbox relay (client/public/sandbox_iframe/)
-yarn workspace a2ui-in-mcpapps-client run build:sandbox
-
-# Build and inline the Editor micro-app (server/apps/public/editor.html)
-yarn workspace basic-mcp-app-angular-editor run build:all
-
-# Build and inline the Basic Counter micro-app (server/apps/public/app.html)
-yarn workspace basic-mcp-app-angular run build:all
+npm install @a2ui/embed @a2ui/web_core @a2ui/lit lit @modelcontextprotocol/sdk zod
 ```
 
-When iterating on a single micro-app, you can run `yarn build:all` directly inside `samples/community/mcp/a2ui-in-mcpapps/server/apps/editor` or `samples/community/mcp/a2ui-in-mcpapps/server/apps/src`.
+`@a2ui/embed` provides the server helper (`@a2ui/embed/mcp/server`), the iframe runtime (`@a2ui/embed/mcp`), the single-file HTML builder (`@a2ui/embed/build`), and the versioned wire contract (`@a2ui/embed/contract`). It includes `@a2ui/markdown-it` out of the box, so Basic Catalog body `Text` components render sanitized Markdown without extra setup.
 
-### Start the MCP server and host client
+## Step 2: Configure and build the app HTML
 
-Open two terminals starting from the repository root.
-
-1. In the first terminal, start the Python MCP server over Server-Sent Events (SSE) on `http://127.0.0.1:8000/sse` (pass `--transport stdio` instead when connecting a desktop MCP host over standard input/output):
-
-   ```bash
-   cd samples/community/mcp/a2ui-in-mcpapps/server
-   export GOOGLE_API_KEY="your-api-key"  # Required at startup by smart_editor_agent.py
-   uv sync
-   uv run python server.py --transport sse --port 8000
-   ```
-
-2. In the second terminal, start the sample Angular MCP Apps host on `http://localhost:4200`:
-
-   ```bash
-   cd samples/community/mcp/a2ui-in-mcpapps/client
-   yarn start
-   ```
-
-### Try both views in the browser
-
-Open `http://localhost:4200` to test how the sandboxed micro-apps render A2UI payloads returned by the MCP server:
-
-1. Keep **Generative Editor App** selected and click **Load Selected App**. The host calls `get_editor_app` and loads `ui://editor/app` (`editor.html`). Select more than 10 characters of text inside any Editor.js paragraph; the app calls `smart_editor_get_controls`, renders generated A2UI controls (`Slider`, `CheckBox`, or `MultipleChoice`) in the right-hand panel, and calls `smart_editor_apply` when you click **Generate Revision** to rewrite the passage and swap in **Accept** and **Reject** A2UI buttons.
-2. Switch the selector to **Basic Counter App** and click **Load Selected App**. The host calls `get_basic_app`, mounts `ui://basic/app` (`app.html`), and delivers the initial A2UI counter surface via `ui/notifications/tool-result`. Clicking **Increase counter** inside the rendered A2UI card calls `increase_counter` on the MCP server and updates `/counter` in place.
-
----
-
-## Architecture and end-to-end flow
-
-In a native A2UI client integration, the outer host application owns `MessageProcessor` and renders A2UI components directly in its DOM. Embedding A2UI inside an MCP App moves the A2UI runtime across the iframe boundary so any standards-compliant [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) host can render A2UI surfaces unchanged:
-
-1. The **MCP server** publishes one or more self-contained HTML bundles under `ui://` URIs (`mimeType: "text/html;profile=mcp-app"`), alongside entry tools and UI callback tools that return `EmbeddedResource` items carrying `application/a2ui+json` messages.
-2. The **MCP host application** connects to the MCP server, inspects `_meta.ui.resourceUri` on the invoked tool, fetches the `ui://` HTML via `resources/read`, and mounts an outer sandbox proxy iframe (`sandbox.html`) that injects the HTML into an inner `srcdoc` iframe with `sandbox="allow-scripts"`.
-3. The **embedded MCP App** runs inside that opaque-origin `srcdoc` frame. It bundles its own A2UI web renderer (`MessageProcessor`, component catalogs, and `<a2ui-surface>`), renders `application/a2ui+json` payloads alongside any custom web views (such as the Editor.js canvas in `ui://editor/app`), and translates A2UI action events into JSON-RPC 2.0 `tools/call` requests relayed through the host.
-
-MCP Apps tool descriptors also scope which actor can invoke each tool via `_meta.ui.visibility` (as shown in [`server/server.py`](https://github.com/a2ui-project/a2ui/blob/main/samples/community/mcp/a2ui-in-mcpapps/server/server.py)):
-
-1. Entry tools such as `get_editor_app` and `get_basic_app` declare `_meta.ui.resourceUri` and `visibility: ["model"]`, exposing a single launcher tool to the language model.
-2. Fine-grained UI interaction tools such as `increase_counter`, `smart_editor_get_controls`, and `smart_editor_apply` declare `visibility: ["app"]`, allowing the sandboxed view to call them via `tools/call` without adding UI callback noise to the model's tool list.
-
-The sequence diagram below traces the full message lifecycle across the MCP server, the outer MCP host application, the sandbox proxy iframe, and the embedded MCP App running the A2UI renderer. During startup, the host lists tools to discover `_meta.ui.resourceUri` and `_meta.ui.visibility`, invokes the entry tool via `tools/call`, fetches the `ui://` HTML document via `resources/read`, and injects it through the sandbox proxy into the isolated `srcdoc` iframe. Once the embedded app completes the `ui/initialize` and `ui/notifications/initialized` handshake, the host forwards the entry tool's result via `ui/notifications/tool-result`, and the app feeds the embedded `application/a2ui+json` messages into `MessageProcessor` to mount the A2UI surface. When the user clicks a button or submits a form on that surface, `MessageProcessor` dispatches an action, the app sends a JSON-RPC `tools/call` request through the proxy to the host, and the server returns a new `application/a2ui+json` payload (such as `updateDataModel`) that updates the rendered surface in place.
-
-```mermaid
-sequenceDiagram
-  participant Server as MCP Server
-  participant Host as MCP Host Application
-  participant Proxy as Sandbox Proxy Iframe
-  participant App as Embedded MCP App + A2UI Renderer
-
-  Host->>Server: tools/list (discover _meta.ui.resourceUri & visibility)
-  Server-->>Host: Tool definitions
-  Host->>Server: tools/call (open_counter_app)
-  Server-->>Host: CallToolResult (EmbeddedResource application/a2ui+json)
-  Host->>Server: resources/read (ui://counter/app)
-  Server-->>Host: TextResourceContents (HTML MCP App bundle)
-  Host->>Proxy: Load sandbox proxy and send ui/notifications/sandbox-resource-ready
-  Proxy->>App: Inject self-contained HTML into srcdoc (allow-scripts)
-  App->>Host: ui/initialize (relayed via Proxy)
-  Host-->>App: InitializeResult (hostCapabilities, hostContext)
-  App->>Host: ui/notifications/initialized
-  Host->>App: ui/notifications/tool-result (initial CallToolResult)
-  Note over App: Extract application/a2ui+json and run MessageProcessor.processMessages
-  Note over App: User clicks Button on a2ui-surface
-  App->>Host: tools/call (increase_counter, arguments from action.context)
-  Host->>Server: tools/call (increase_counter)
-  Server-->>Host: CallToolResult (updateDataModel in application/a2ui+json)
-  Host-->>App: CallToolResult response
-  Note over App: Apply updateDataModel to MessageProcessor
-```
-
----
-
-## Build an MCP App with an embedded A2UI renderer
-
-The three steps below build a minimal MCP App using `@modelcontextprotocol/ext-apps`, `@a2ui/lit`, `@a2ui/web_core`, and Vite.
-
-### Step 1: Register the ui:// resource and MCP tools
-
-Start by defining the A2UI messages that your server tools return inside `EmbeddedResource` items (`mimeType: "application/a2ui+json"`). The example below uses the Basic Catalog, though A2UI catalogs are domain-specific and your embedded bundle can register any custom catalog (see [How to Define a Catalog](../defining-a-catalog/)).
-
-In `v1.0`, protocol messages set `"version": "1.0"`, expressions use `@path` and `@call`, component IDs follow UAX #31 identifier syntax (such as `main_column`), and `Text` supports Markdown headings. In `v0.9.1`, messages set `"version": "v0.9"`, expressions use `path` and `call` (with `"returnType": "string"` on string-valued function calls), and `Text.variant` includes `"h3"`.
-
-Here is the initial surface payload returned by `open_counter_app`:
-
-<Tabs syncKey="protocol-version">
-  <TabItem label="v1.0">
-
-```json
-[
-  {
-    "version": "1.0",
-    "createSurface": {
-      "surfaceId": "counter_card",
-      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    }
-  },
-  {
-    "version": "1.0",
-    "updateComponents": {
-      "surfaceId": "counter_card",
-      "components": [
-        {
-          "id": "root",
-          "component": "Card",
-          "child": "main_column"
-        },
-        {
-          "id": "main_column",
-          "component": "Column",
-          "children": ["title_text", "count_text", "increment_button"]
-        },
-        {
-          "id": "title_text",
-          "component": "Text",
-          "text": "### Live counter"
-        },
-        {
-          "id": "count_text",
-          "component": "Text",
-          "text": {
-            "@call": "formatString",
-            "args": {
-              "value": "Count: ${/count}"
-            }
-          }
-        },
-        {
-          "id": "increment_button_text",
-          "component": "Text",
-          "text": "Increase counter"
-        },
-        {
-          "id": "increment_button",
-          "component": "Button",
-          "child": "increment_button_text",
-          "variant": "primary",
-          "action": {
-            "event": {
-              "name": "increase_counter",
-              "context": {
-                "step": 1
-              }
-            }
-          }
-        }
-      ]
-    }
-  },
-  {
-    "version": "1.0",
-    "updateDataModel": {
-      "surfaceId": "counter_card",
-      "path": "/",
-      "value": {
-        "count": 0
-      }
-    }
-  }
-]
-```
-
-  </TabItem>
-  <TabItem label="v0.9.1">
-
-```json
-[
-  {
-    "version": "v0.9",
-    "createSurface": {
-      "surfaceId": "counter_card",
-      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateComponents": {
-      "surfaceId": "counter_card",
-      "components": [
-        {
-          "id": "root",
-          "component": "Card",
-          "child": "main_column"
-        },
-        {
-          "id": "main_column",
-          "component": "Column",
-          "children": ["title_text", "count_text", "increment_button"]
-        },
-        {
-          "id": "title_text",
-          "component": "Text",
-          "text": "Live counter",
-          "variant": "h3"
-        },
-        {
-          "id": "count_text",
-          "component": "Text",
-          "text": {
-            "call": "formatString",
-            "args": {
-              "value": "Count: ${/count}"
-            },
-            "returnType": "string"
-          }
-        },
-        {
-          "id": "increment_button_text",
-          "component": "Text",
-          "text": "Increase counter"
-        },
-        {
-          "id": "increment_button",
-          "component": "Button",
-          "child": "increment_button_text",
-          "variant": "primary",
-          "action": {
-            "event": {
-              "name": "increase_counter",
-              "context": {
-                "step": 1
-              }
-            }
-          }
-        }
-      ]
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateDataModel": {
-      "surfaceId": "counter_card",
-      "path": "/",
-      "value": {
-        "count": 0
-      }
-    }
-  }
-]
-```
-
-  </TabItem>
-</Tabs>
-
-When the embedded app invokes `increase_counter`, the tool returns only an [`updateDataModel`](../../specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) message (`server_to_client.json` in `v0.9.1`) so the existing surface updates `/count` without rebuilding its component tree:
-
-<Tabs syncKey="protocol-version">
-  <TabItem label="v1.0">
-
-```json
-[
-  {
-    "version": "1.0",
-    "updateDataModel": {
-      "surfaceId": "counter_card",
-      "path": "/count",
-      "value": 1
-    }
-  }
-]
-```
-
-  </TabItem>
-  <TabItem label="v0.9.1">
-
-```json
-[
-  {
-    "version": "v0.9",
-    "updateDataModel": {
-      "surfaceId": "counter_card",
-      "path": "/count",
-      "value": 1
-    }
-  }
-]
-```
-
-  </TabItem>
-</Tabs>
-
-Register the `ui://counter/app` HTML resource (`text/html;profile=mcp-app`), the model-facing `open_counter_app` entry tool, and the app-only `increase_counter` callback tool on your MCP server:
-
-<Tabs syncKey="sdk-lang">
-  <TabItem label="TypeScript">
+Create `a2ui-embed.config.ts` next to `package.json` to declare which catalogs to inline into the MCP App bundle:
 
 ```typescript
-import fs from 'node:fs';
-import {
-  RESOURCE_MIME_TYPE,
-  registerAppResource,
-  registerAppTool,
-} from '@modelcontextprotocol/ext-apps/server';
+// a2ui-embed.config.ts
+import {basicCatalog, defineConfig} from '@a2ui/embed/build';
+
+export default defineConfig({
+  catalogs: [basicCatalog],
+  output: 'dist/a2ui-app.html',
+  renderer: 'lit', // Optional (default: 'lit')
+  title: 'Release tracker', // Optional (default: 'A2UI app')
+  markdown: true, // Optional (default: true)
+});
+```
+
+Build the app bundle before starting your server:
+
+```bash
+npx a2ui-embed build
+```
+
+The command writes two files relative to `a2ui-embed.config.ts`:
+
+- `dist/a2ui-app.html`, a self-contained HTML file with the Lit renderer, `basicCatalog`, and Markdown support inlined so the app loads nothing from the network under the default MCP Apps Content Security Policy.
+- `dist/a2ui-app.catalog.json`, the JSON Schemas, `protocolVersion`, and optional `instructions` of your bundled catalogs keyed by catalog ID, used by the server to validate outgoing components and configure model prompts.
+
+Set `markdown: false` if your surfaces show plain text only; omitting the Markdown parser trims roughly 150 KiB from the HTML file.
+
+## Step 3: Register tools, actions, and follow-ups
+
+Create `src/server.ts` and call `createA2uiApp` to register the `ui://a2ui/app.html` resource and wire tools, in-place UI actions, and conversation follow-ups on an `McpServer` (`getRelease` below represents your application's own domain logic):
+
+```typescript
+// src/server.ts
+import {createA2uiApp} from '@a2ui/embed/mcp/server';
+import type {AgentToRendererMessage} from '@a2ui/web_core/v1_0';
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {z} from 'zod';
 
-const A2UI_MIME_TYPE = 'application/a2ui+json';
-const APP_URI = 'ui://counter/app';
-let count = 0;
+const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
 
-export function createCounterMcpServer(bundlePath: string): McpServer {
-  const server = new McpServer({name: 'a2ui-counter-mcp-app', version: '1.0.0'});
+interface ReleaseState {
+  version: string;
+  approvals: number;
+  status: string;
+}
 
-  registerAppResource(
-    server,
-    'Counter MCP App',
-    APP_URI,
+const releases = new Map<string, ReleaseState>([
+  ['checkout-api', {version: '2.4.0', approvals: 1, status: 'Awaiting sign-off'}],
+]);
+
+function getRelease(service: string): ReleaseState {
+  return releases.get(service) ?? {version: '1.0.0', approvals: 0, status: 'Draft'};
+}
+
+function releaseCardMessages(service: string, state: ReleaseState): AgentToRendererMessage[] {
+  return [
     {
-      description: 'Self-contained MCP App with an embedded A2UI renderer.',
-      mimeType: RESOURCE_MIME_TYPE,
-    },
-    async () => ({
-      contents: [
-        {
-          uri: APP_URI,
-          mimeType: RESOURCE_MIME_TYPE,
-          text: fs.readFileSync(bundlePath, 'utf8'),
-        },
-      ],
-    }),
-  );
-
-  registerAppTool(
-    server,
-    'open_counter_app',
-    {
-      title: 'Open Counter App',
-      description: 'Opens the counter view and returns its initial A2UI surface.',
-      inputSchema: {},
-      _meta: {
-        ui: {
-          resourceUri: APP_URI,
-          visibility: ['model'],
-        },
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'release_card',
+        catalogId: BASIC_CATALOG_ID,
       },
     },
-    async () => ({
-      content: [
-        {type: 'text', text: `Counter opened at ${count}.`},
-        {
-          type: 'resource',
-          resource: {
-            uri: 'a2ui://counter-card',
-            mimeType: A2UI_MIME_TYPE,
-            text: JSON.stringify(buildInitialSurfacePayload(count)),
-          },
-        },
-      ],
-    }),
-  );
-
-  server.registerTool(
-    'increase_counter',
     {
-      title: 'Increase Counter',
-      description: 'Increments the counter and returns an A2UI updateDataModel payload.',
-      inputSchema: {
-        step: z.number().int().default(1),
-      },
-      _meta: {
-        ui: {
-          visibility: ['app'],
-        },
-      },
-    },
-    async ({step}) => {
-      count += step;
-      const update = [
-        {
-          version: '1.0',
-          updateDataModel: {
-            surfaceId: 'counter_card',
-            path: '/count',
-            value: count,
-          },
-        },
-      ];
-      return {
-        content: [
-          {type: 'text', text: `Count is now ${count}.`},
+      version: '1.0',
+      updateComponents: {
+        surfaceId: 'release_card',
+        components: [
+          {id: 'root', component: 'Card', child: 'layout'},
           {
-            type: 'resource',
-            resource: {
-              uri: 'a2ui://counter-card/data',
-              mimeType: A2UI_MIME_TYPE,
-              text: JSON.stringify(update),
+            id: 'layout',
+            component: 'Column',
+            children: ['heading', 'summary', 'actions'],
+          },
+          {
+            id: 'heading',
+            component: 'Text',
+            text: `### ${service} ${state.version}`,
+          },
+          {
+            id: 'summary',
+            component: 'Text',
+            text: {
+              '@call': 'formatString',
+              args: {value: '**Status:** ${/status} (${/approvals} approvals)'},
+            },
+          },
+          {
+            id: 'actions',
+            component: 'Row',
+            children: ['approve_btn', 'notes_btn'],
+          },
+          {id: 'approve_label', component: 'Text', text: 'Approve release'},
+          {
+            id: 'approve_btn',
+            component: 'Button',
+            variant: 'primary',
+            child: 'approve_label',
+            action: {
+              event: {
+                name: 'approve_release',
+                context: {service},
+              },
+            },
+          },
+          {id: 'notes_label', component: 'Text', text: 'Draft release notes'},
+          {
+            id: 'notes_btn',
+            component: 'Button',
+            child: 'notes_label',
+            action: {
+              event: {
+                name: 'draft_release_notes',
+                context: {service, version: state.version},
+              },
+            },
+          },
+        ],
+      },
+    },
+    {
+      version: '1.0',
+      updateDataModel: {
+        surfaceId: 'release_card',
+        path: '/',
+        value: {
+          approvals: state.approvals,
+          status: state.status,
+        },
+      },
+    },
+  ];
+}
+
+export function createReleaseServer(): McpServer {
+  const server = new McpServer({name: 'release-tracker', version: '1.0.0'});
+
+  const app = createA2uiApp(server, {
+    html: new URL('../dist/a2ui-app.html', import.meta.url),
+    catalogSchema: new URL('../dist/a2ui-app.catalog.json', import.meta.url),
+  });
+
+  app.tool(
+    'release_status',
+    {
+      title: 'Release status',
+      description: 'Shows approval status and release controls for a service.',
+      inputSchema: {service: z.string()},
+    },
+    async ({service}) => {
+      const state = getRelease(service);
+      return {
+        text: `${service} ${state.version}: ${state.status} (${state.approvals} approvals).`,
+        a2ui: releaseCardMessages(service, state),
+      };
+    },
+  );
+
+  app.action(
+    'approve_release',
+    {
+      description: 'Records an approval and updates the release card in place.',
+      argsSchema: {service: z.string()},
+    },
+    async ({service}, {surfaceId}) => {
+      const state = getRelease(service);
+      state.approvals += 1;
+      state.status = 'Approved for rollout';
+      releases.set(service, state);
+      return {
+        text: `Approved ${service} ${state.version} (${state.approvals} approvals).`,
+        a2ui: [
+          {
+            version: '1.0',
+            updateDataModel: {
+              surfaceId,
+              path: '/',
+              value: {approvals: state.approvals, status: state.status},
             },
           },
         ],
@@ -463,419 +218,689 @@ export function createCounterMcpServer(bundlePath: string): McpServer {
     },
   );
 
+  app.followUp('draft_release_notes', {
+    description: 'Asks the assistant to draft customer release notes.', // Optional
+    template: 'Draft concise customer release notes for {service} version {version}.',
+    argsSchema: {service: z.string(), version: z.string()},
+    maxValueLength: 60, // Optional (default: 80)
+  });
+
   return server;
 }
 ```
 
-  </TabItem>
-  <TabItem label="Python">
+<details>
+<summary>View wire payload</summary>
+
+`releaseCardMessages` produces the following A2UI v1.0 message array:
+
+```json
+[
+  {
+    "version": "1.0",
+    "createSurface": {
+      "surfaceId": "release_card",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "1.0",
+    "updateComponents": {
+      "surfaceId": "release_card",
+      "components": [
+        {"id": "root", "component": "Card", "child": "layout"},
+        {"id": "layout", "component": "Column", "children": ["heading", "summary", "actions"]},
+        {"id": "heading", "component": "Text", "text": "### checkout-api 2.4.0"},
+        {
+          "id": "summary",
+          "component": "Text",
+          "text": {
+            "@call": "formatString",
+            "args": {"value": "**Status:** ${/status} (${/approvals} approvals)"}
+          }
+        },
+        {"id": "actions", "component": "Row", "children": ["approve_btn", "notes_btn"]},
+        {"id": "approve_label", "component": "Text", "text": "Approve release"},
+        {
+          "id": "approve_btn",
+          "component": "Button",
+          "variant": "primary",
+          "child": "approve_label",
+          "action": {"event": {"name": "approve_release", "context": {"service": "checkout-api"}}}
+        },
+        {"id": "notes_label", "component": "Text", "text": "Draft release notes"},
+        {
+          "id": "notes_btn",
+          "component": "Button",
+          "child": "notes_label",
+          "action": {
+            "event": {
+              "name": "draft_release_notes",
+              "context": {"service": "checkout-api", "version": "2.4.0"}
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "1.0",
+    "updateDataModel": {
+      "surfaceId": "release_card",
+      "path": "/",
+      "value": {"approvals": 1, "status": "Awaiting sign-off"}
+    }
+  }
+]
+```
+
+`app.tool` validates that array against A2UI v1.0 and `dist/a2ui-app.catalog.json`, then wraps it in an MCP `CallToolResult` where `content` holds the model-facing text summary and `structuredContent.a2ui.messages` holds the A2UI messages shown above:
+
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "checkout-api 2.4.0: Awaiting sign-off (1 approvals)."
+    }
+  ],
+  "structuredContent": {
+    "a2ui": {
+      "contractVersion": "1.0",
+      "messages": []
+    }
+  }
+}
+```
+
+</details>
+
+Pass `new URL(..., import.meta.url)` rather than relative file paths so the server finds `dist/` regardless of the working directory chosen by the MCP host. `createA2uiApp` re-reads `html` on every `resources/read` request, so running `npx a2ui-embed build` updates the rendered app without restarting your server.
+
+Each registration method handles one interaction path:
+
+- `app.tool` links the tool to `ui://a2ui/app.html` and validates outgoing messages before anything reaches the host. If a component property or ID is invalid, the server returns an MCP `isError: true` message naming the component ID, type, and property. Omitting `a2ui` returns a text-only result and collapses the app frame to height `0`.
+- `app.action` handles interactive [actions](../../concepts/actions-and-functions/) routed through the app-only `a2ui_action` tool (`_meta.ui.visibility: ['app']`), validating `event.context` against `argsSchema` and applying returned [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) or `updateComponents` messages in place without starting a model turn.
+- `app.followUp` turns a button click into a user chat message via `ui/message`. Each `{placeholder}` token in `template` is replaced with a sanitized, truncated, JSON-quoted string (for example, `Draft concise customer release notes for "checkout-api" version "2.4.0".`) so untrusted values cannot inject instructions into the template. Pass an optional `description` to document when a model should bind an action to this follow-up.
+- `app.describeActions()` returns a Markdown contract of every registered `action` and `followUp` (including its `description` or `template` summary and inferred `context` field types), or `''` when none are registered. Append it to your catalog instructions when a model composes surfaces at runtime so interactive controls only emit event names the server handles.
+
+## Step 4: Connect the server transport
+
+Create `src/index.ts` to connect `createReleaseServer()` over stdio, which desktop and IDE MCP hosts spawn directly:
+
+```typescript
+// src/index.ts
+import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
+import {createReleaseServer} from './server.js';
+
+const server = createReleaseServer();
+const transport = new StdioServerTransport();
+await server.connect(transport);
+```
+
+Add a `build` script in `package.json` that builds the HTML bundle before compiling TypeScript:
+
+```json
+{
+  "name": "release-tracker-mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "a2ui-embed build && tsc"
+  }
+}
+```
+
+Compile the project (`npm run build`) and register the server in your MCP Apps host configuration (such as Claude Desktop or Antigravity):
+
+```json
+{
+  "mcpServers": {
+    "release-tracker": {
+      "command": "node",
+      "args": ["/absolute/path/to/release-tracker-mcp/dist/index.js"]
+    }
+  }
+}
+```
+
+Ask the host to check the release status for `checkout-api`. The host calls `release_status`, passes the short text summary to the model, mounts `dist/a2ui-app.html` in a sandboxed iframe, and renders the interactive A2UI card.
+
+---
+
+## Register a custom catalog
+
+When a workflow needs domain-specific controls alongside `basicCatalog`, author your custom Web Components first (see [Authoring Universal Web Components](../authoring-universal-components/) and [How to Define a Catalog](../defining-a-catalog/)), group them into a `Catalog`, and register that catalog in `a2ui-embed.config.ts`.
+
+Define a catalog containing only your custom components (for example, a `StatCard` component from `./stat_card.js`):
+
+```typescript
+// src/release_catalog.ts
+import type {WebComponentImplementation} from '@a2ui/web_core/universal';
+import {Catalog} from '@a2ui/web_core/v1_0';
+import {StatCard} from './stat_card.js';
+
+export const RELEASE_CATALOG_ID = 'https://example.com/catalogs/release/v1/catalog.json';
+
+export const releaseCatalog = new Catalog<WebComponentImplementation>(RELEASE_CATALOG_ID, '1.0', [
+  StatCard,
+]);
+```
+
+List `releaseCatalog` alongside `basicCatalog` in `a2ui-embed.config.ts` and rerun `npx a2ui-embed build`:
+
+```typescript
+// a2ui-embed.config.ts
+import {basicCatalog, defineConfig} from '@a2ui/embed/build';
+import {releaseCatalog} from './src/release_catalog.js';
+
+export default defineConfig({
+  catalogs: [basicCatalog, releaseCatalog],
+  output: 'dist/a2ui-app.html',
+});
+```
+
+`a2ui-embed build` bundles both catalogs into `dist/a2ui-app.html` and writes both schemas into `dist/a2ui-app.catalog.json` keyed by catalog ID. On a surface created with `catalogId: BASIC_CATALOG_ID`, reference components from `releaseCatalog` by setting `'@catalogId': RELEASE_CATALOG_ID` on those component entries (or set `catalogId: RELEASE_CATALOG_ID` on `createSurface` when the surface uses `releaseCatalog` as its default):
+
+```typescript
+{
+  id: 'approvals_tile',
+  '@catalogId': RELEASE_CATALOG_ID,
+  component: 'StatCard',
+  label: 'Approvals',
+  value: String(state.approvals),
+}
+```
+
+Keep two rules in mind when building custom catalogs with `a2ui-embed build`:
+
+- Component `id` values, function names, and function argument names in A2UI v1.0 must be valid Unicode UAX #31 identifiers (`stat_card`, not `stat-card`), whereas browser custom element tag names require a hyphen (`a2ui-stat-card`).
+- `a2ui-embed build` evaluates `a2ui-embed.config.ts` in Node.js to write each catalog's validation schema, `protocolVersion`, and optional `instructions` into `dist/a2ui-app.catalog.json`, then bundles the same module graph for the browser. Keep DOM globals (`document`, `window`) inside component lifecycle or `render()` methods, and keep Node-only imports (`node:fs`) out of the config file and catalog modules.
+
+---
+
+## Additional steps
+
+### Share surface state with the model
+
+Set `sendDataModel: true` on [`createSurface`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage) when the model should see values the user enters or selects in the UI (such as form fields, filter chips, or a selected table row):
+
+```json
+[
+  {
+    "version": "1.0",
+    "createSurface": {
+      "surfaceId": "release_card",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+      "sendDataModel": true
+    }
+  }
+]
+```
+
+Whenever the user edits a bound input or triggers an action whose response mutates the surface [Data Model](../../concepts/data-binding/), `@a2ui/embed` waits for 300 ms of inactivity and sends `ui/update-model-context` to the host. Supporting hosts attach that JSON snapshot to the user's next chat message without starting a new turn, so the user can ask follow-up questions about their current selection without calling another tool. Initial renders and new tool results do not trigger context updates, and updates default to a 16 KiB size cap (`modelContext.maxBytes`), omitting the largest surface data models by name if exceeded so the model never receives truncated JSON.
+
+### Compose surfaces dynamically with @a2ui/agent
+
+When a tool adapts its layout to the user's request instead of returning a fixed component array, pair `@a2ui/embed` with `@a2ui/agent` (`npm install @a2ui/agent`). Let the model compose the component hierarchy in A2UI Express (`<a2ui>...</a2ui>`), merge authoritative domain records on the server so numbers and URLs never drift, and validate the resulting messages with `app.validate(messages)` before returning (`generateExpress` below represents your model API call):
+
+```typescript
+// src/compose_release_surface.ts
+import {readFile} from 'node:fs/promises';
+
+import {
+  A2uiGenerator,
+  CatalogConfig,
+  ExpressFormatFactory,
+  InMemoryCatalogProvider,
+} from '@a2ui/agent';
+import type {CatalogSchemaFile} from '@a2ui/embed/contract';
+import type {A2uiApp} from '@a2ui/embed/mcp/server';
+import type {AgentToRendererMessage} from '@a2ui/web_core/v1_0';
+
+const RELEASE_CATALOG_ID = 'https://example.com/catalogs/release/v1/catalog.json';
+
+export async function createReleaseComposer(
+  app: A2uiApp,
+  generateExpress: (systemInstruction: string, userPrompt: string) => Promise<string>,
+) {
+  const rawSchema = await readFile(
+    new URL('../dist/a2ui-app.catalog.json', import.meta.url),
+    'utf8',
+  );
+  const catalogSchema = JSON.parse(rawSchema) as CatalogSchemaFile;
+
+  // Load the schema, protocolVersion, and instructions emitted by a2ui-embed build.
+  const baseCatalog = new InMemoryCatalogProvider(
+    catalogSchema.catalogs[RELEASE_CATALOG_ID],
+  ).load();
+
+  const catalog = baseCatalog.copyWith({
+    instructions: [
+      baseCatalog.instructions,
+      app.describeActions(),
+      'Always start <a2ui> with surface("release_card", sendDataModel=true) so host model-context sync stays active. Bind read-only values to paths under $/release and never hardcode release counts.',
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+  });
+
+  const generator = new A2uiGenerator(
+    [new CatalogConfig(catalog)],
+    undefined,
+    new ExpressFormatFactory({surfaceId: 'release_card'}),
+  );
+  const processor = generator.createProcessor({
+    '1.0': {supportedCatalogIds: [RELEASE_CATALOG_ID]},
+  });
+
+  return async function composeReleaseSurface(
+    prompt: string,
+    authoritativeData: Record<string, unknown>,
+    fallbackMessages: AgentToRendererMessage[],
+  ): Promise<AgentToRendererMessage[]> {
+    let nextPrompt = prompt;
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const rawOutput = await generateExpress(processor.promptSnippet, nextPrompt);
+        const compiled = processor
+          .parseResponse(rawOutput)
+          .flatMap(part => (part.type === 'a2ui' ? part.a2ui : []));
+
+        const candidate = mergeAuthoritativeData(compiled, 'release_card', authoritativeData);
+        const check = app.validate(candidate);
+        if (check.ok) {
+          return candidate;
+        }
+        const problems = check.errors.map(err => `- ${err.message}`).join('\n');
+        nextPrompt = `${prompt}\n\nFix these A2UI validation errors:\n${problems}`;
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        nextPrompt = `${prompt}\n\nFix this A2UI Express compilation error:\n${reason}`;
+      }
+    }
+
+    return fallbackMessages;
+  };
+}
+
+function mergeAuthoritativeData(
+  messages: AgentToRendererMessage[],
+  surfaceId: string,
+  authoritativeData: Record<string, unknown>,
+): AgentToRendererMessage[] {
+  const merged = messages.map((msg): AgentToRendererMessage => {
+    if ('createSurface' in msg && msg.createSurface.surfaceId === surfaceId) {
+      return {
+        ...msg,
+        createSurface: {
+          ...msg.createSurface,
+          sendDataModel: true,
+          dataModel: {
+            ...(msg.createSurface.dataModel ?? {}),
+            ...authoritativeData,
+          },
+        },
+      };
+    }
+    if (
+      'updateDataModel' in msg &&
+      msg.updateDataModel.surfaceId === surfaceId &&
+      (!msg.updateDataModel.path || msg.updateDataModel.path === '/') &&
+      !Array.isArray(msg.updateDataModel.value) &&
+      typeof msg.updateDataModel.value === 'object' &&
+      msg.updateDataModel.value !== null
+    ) {
+      return {
+        ...msg,
+        updateDataModel: {
+          ...msg.updateDataModel,
+          value: {
+            ...(msg.updateDataModel.value as Record<string, unknown>),
+            ...authoritativeData,
+          },
+        },
+      };
+    }
+    return msg;
+  });
+
+  const hasRootData = merged.some(
+    msg =>
+      ('createSurface' in msg &&
+        msg.createSurface.surfaceId === surfaceId &&
+        msg.createSurface.dataModel !== undefined) ||
+      ('updateDataModel' in msg &&
+        msg.updateDataModel.surfaceId === surfaceId &&
+        (!msg.updateDataModel.path || msg.updateDataModel.path === '/')),
+  );
+  if (!hasRootData) {
+    merged.push({
+      version: '1.0',
+      updateDataModel: {surfaceId, path: '/', value: authoritativeData},
+    });
+  }
+  return merged;
+}
+```
+
+Four details keep server-side composition reliable inside an MCP App:
+
+- `InMemoryCatalogProvider` reads `catalogId`, `protocolVersion`, and `instructions` directly from `dist/a2ui-app.catalog.json`, so `@a2ui/agent` and the bundled iframe always share the same component schemas.
+- Appending `app.describeActions()` via `.copyWith({instructions})` overrides the generic Express fallback rule so the model binds `Event("<name>", ...)` only to registered server actions and follow-ups rather than inventing unregistered names such as `Event("click")`.
+- Instructing the model to emit `surface("release_card", sendDataModel=true)` (and setting `sendDataModel: true` during merge) keeps `@a2ui/embed`'s `ui/update-model-context` synchronization active for bound inputs and client filters.
+- Merging `authoritativeData` onto `createSurface.dataModel` and root `updateDataModel` messages lets the model choose layout components and UI filter defaults while your server supplies verified domain data, with `app.validate(candidate)` catching schema errors before `fallbackMessages` takes over.
+
+### Serve the app bundle from Python or other languages
+
+Any MCP server in Python, Go, Rust, or Java can serve an HTML file built by `a2ui-embed build` by following the [server and app contract](#server-and-app-contract-reference). Run `npx a2ui-embed build` during your build step to produce `dist/a2ui-app.html` (and `dist/a2ui-app.catalog.json` if you validate schemas on the server), then:
+
+1. Register `ui://a2ui/app.html` as an MCP resource with MIME type `text/html;profile=mcp-app`.
+2. Attach `_meta: {"ui": {"resourceUri": "ui://a2ui/app.html"}}` to model-facing tools, and return a text summary in `content` plus `{"a2ui": {"contractVersion": "1.0", "messages": [...]}}` in `structuredContent`.
+3. Register an app-only `a2ui_action` tool (`_meta: {"ui": {"visibility": ["app"]}}`) accepting `{name, surfaceId, sourceComponentId?, context}` to handle button clicks and follow-ups.
 
 ```python
-import json
+# server.py (requires pip install "mcp>=1.20,<2")
 from pathlib import Path
 from typing import Any
 from mcp import types
 from mcp.server.lowlevel import Server
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 
-A2UI_MIME_TYPE = "application/a2ui+json"
-MCP_APP_MIME_TYPE = "text/html;profile=mcp-app"
-APP_URI = "ui://counter/app"
-BUNDLE_PATH = Path(__file__).parent / "dist" / "index.html"
+APP_URI = "ui://a2ui/app.html"
+APP_MIME_TYPE = "text/html;profile=mcp-app"
+BASIC_CATALOG_ID = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+HTML_PATH = Path(__file__).parent / "dist" / "a2ui-app.html"
 
-app = Server("a2ui-counter-mcp-app")
-count = 0
+server = Server("release-tracker")
+approvals = 1
 
 
-# Requires mcp<2 (pip install "mcp>=1.20,<2") for the 1.x low-level Server decorators.
-@app.list_resources()
+@server.list_resources()
 async def list_resources() -> list[types.Resource]:
     return [
         types.Resource(
             uri=APP_URI,
-            name="Counter MCP App",
-            mimeType=MCP_APP_MIME_TYPE,
-            description="Self-contained MCP App with an embedded A2UI renderer.",
+            name="Release tracker",
+            mimeType=APP_MIME_TYPE,
         )
     ]
 
 
-@app.read_resource()
+@server.read_resource()
 async def read_resource(uri: str) -> list[ReadResourceContents]:
     if str(uri) != APP_URI:
         raise ValueError(f"Unknown resource: {uri}")
     return [
         ReadResourceContents(
-            content=BUNDLE_PATH.read_text(encoding="utf-8"),
-            mime_type=MCP_APP_MIME_TYPE,
+            content=HTML_PATH.read_text(encoding="utf-8"),
+            mime_type=APP_MIME_TYPE,
         )
     ]
 
 
-@app.list_tools()
+@server.list_tools()
 async def list_tools() -> list[types.Tool]:
     return [
         types.Tool(
-            name="open_counter_app",
-            title="Open Counter App",
-            description="Opens the counter view and returns its initial A2UI surface.",
-            inputSchema={"type": "object", "properties": {}},
-            _meta={"ui": {"resourceUri": APP_URI, "visibility": ["model"]}},
-        ),
-        types.Tool(
-            name="increase_counter",
-            title="Increase Counter",
-            description="Increments the counter and returns an A2UI updateDataModel payload.",
+            name="release_status",
+            description="Shows approval status and release controls for a service.",
             inputSchema={
                 "type": "object",
-                "properties": {"step": {"type": "integer", "default": 1}},
+                "properties": {"service": {"type": "string"}},
+                "required": ["service"],
+            },
+            _meta={"ui": {"resourceUri": APP_URI}},
+        ),
+        types.Tool(
+            name="a2ui_action",
+            description="Routes A2UI surface events from the embedded app.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "surfaceId": {"type": "string"},
+                    "sourceComponentId": {"type": "string"},
+                    "context": {"type": "object"},
+                },
+                "required": ["name", "surfaceId", "context"],
             },
             _meta={"ui": {"visibility": ["app"]}},
         ),
     ]
 
 
-@app.call_tool()
-async def handle_call_tool(
-    name: str, arguments: dict[str, Any]
-) -> types.CallToolResult:
-    global count
-    if name == "open_counter_app":
-        payload = build_initial_surface_payload(count)
-        return types.CallToolResult(
-            content=[
-                types.TextContent(type="text", text=f"Counter opened at {count}."),
-                types.EmbeddedResource(
-                    type="resource",
-                    resource=types.TextResourceContents(
-                        uri="a2ui://counter-card",
-                        mimeType=A2UI_MIME_TYPE,
-                        text=json.dumps(payload),
-                    ),
-                ),
-            ]
-        )
-
-    if name == "increase_counter":
-        count += int(arguments.get("step", 1))
-        update = [
+@server.call_tool()
+async def call_tool(name: str, arguments: dict[str, Any]) -> types.CallToolResult:
+    global approvals
+    if name == "release_status":
+        service = str(arguments["service"])
+        messages = [
+            {
+                "version": "1.0",
+                "createSurface": {"surfaceId": "release_card", "catalogId": BASIC_CATALOG_ID},
+            },
+            {
+                "version": "1.0",
+                "updateComponents": {
+                    "surfaceId": "release_card",
+                    "components": [
+                        {"id": "root", "component": "Card", "child": "col"},
+                        {"id": "col", "component": "Column", "children": ["title", "btn"]},
+                        {
+                            "id": "title",
+                            "component": "Text",
+                            "text": {
+                                "@call": "formatString",
+                                "args": {"value": f"{service}: ${{/approvals}} approvals"},
+                            },
+                        },
+                        {"id": "btn_label", "component": "Text", "text": "Approve"},
+                        {
+                            "id": "btn",
+                            "component": "Button",
+                            "variant": "primary",
+                            "child": "btn_label",
+                            "action": {"event": {"name": "approve", "context": {"service": service}}},
+                        },
+                    ],
+                },
+            },
             {
                 "version": "1.0",
                 "updateDataModel": {
-                    "surfaceId": "counter_card",
-                    "path": "/count",
-                    "value": count,
+                    "surfaceId": "release_card",
+                    "path": "/",
+                    "value": {"approvals": approvals},
                 },
-            }
+            },
         ]
         return types.CallToolResult(
-            content=[
-                types.TextContent(type="text", text=f"Count is now {count}."),
-                types.EmbeddedResource(
-                    type="resource",
-                    resource=types.TextResourceContents(
-                        uri="a2ui://counter-card/data",
-                        mimeType=A2UI_MIME_TYPE,
-                        text=json.dumps(update),
-                    ),
-                ),
-            ]
+            content=[types.TextContent(type="text", text=f"{service}: {approvals} approvals.")],
+            structuredContent={"a2ui": {"contractVersion": "1.0", "messages": messages}},
         )
 
-    raise ValueError(f"Unknown tool: {name}")
+    if name == "a2ui_action" and arguments.get("name") == "approve":
+        approvals += 1
+        surface_id = str(arguments["surfaceId"])
+        return types.CallToolResult(
+            content=[types.TextContent(type="text", text=f"Approvals: {approvals}.")],
+            structuredContent={
+                "a2ui": {
+                    "contractVersion": "1.0",
+                    "messages": [
+                        {
+                            "version": "1.0",
+                            "updateDataModel": {
+                                "surfaceId": surface_id,
+                                "path": "/approvals",
+                                "value": approvals,
+                            },
+                        }
+                    ],
+                }
+            },
+        )
+
+    raise ValueError(f"Unknown tool or action: {name}")
 ```
 
-  </TabItem>
-</Tabs>
+### Configure Content Security Policy, theming, and tool names
 
-### Step 2: Embed the A2UI renderer and forward actions in the MCP App
-
-Inside the MCP App project, install `@a2ui/lit`, `@a2ui/markdown-it`, `@a2ui/web_core`, `lit`, and `@modelcontextprotocol/ext-apps`:
-
-```bash
-npm install @a2ui/lit @a2ui/markdown-it @a2ui/web_core lit @modelcontextprotocol/ext-apps
-```
-
-Create an `index.html` entry point with a mount element for your surface:
-
-```html
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Counter MCP App</title>
-  </head>
-  <body>
-    <main id="surface-root"></main>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
-</html>
-```
-
-In `src/main.ts`, register `renderMarkdown` via `setMarkdownRenderer`, initialize `MessageProcessor` with `basicCatalog` (or your custom catalog), mount `<a2ui-surface>` when a surface is created, and use `App` from `@modelcontextprotocol/ext-apps` to handle the `ui/initialize` handshake, incoming `ui/notifications/tool-result` payloads, automatic iframe resizing (`autoResize: true`), and outbound `tools/call` requests whenever a component dispatches an [action](../../concepts/actions-and-functions/):
-
-<Tabs syncKey="protocol-version">
-  <TabItem label="v1.0">
+`createA2uiApp` accepts optional resource metadata and Content Security Policy (CSP) origins:
 
 ```typescript
-import {html, render} from 'lit';
-import '@a2ui/lit';
-import {renderMarkdown} from '@a2ui/markdown-it';
-import {
-  basicCatalog,
-  MessageProcessor,
-  setMarkdownRenderer,
-  type ProcessableMessagePayload,
-} from '@a2ui/web_core/v1_0';
-import {App} from '@modelcontextprotocol/ext-apps';
-import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
-
-setMarkdownRenderer(renderMarkdown);
-
-const A2UI_MIME_TYPE = 'application/a2ui+json';
-const rootEl = document.getElementById('surface-root')!;
-
-const app = new App(
-  {name: 'counter-mcp-app', version: '1.0.0'},
-  {availableDisplayModes: ['inline']},
-  {autoResize: true},
-);
-
-function applyToolResult(result: CallToolResult): void {
-  for (const block of result.content ?? []) {
-    if (
-      block.type === 'resource' &&
-      'text' in block.resource &&
-      (block.resource.mimeType === A2UI_MIME_TYPE ||
-        block.resource.mimeType === 'application/json+a2ui')
-    ) {
-      const messages = JSON.parse(block.resource.text) as ProcessableMessagePayload;
-      processor.processMessages(messages);
-    }
-  }
-}
-
-const processor = new MessageProcessor([basicCatalog], async action => {
-  const result = await app.callServerTool({
-    name: action.name,
-    arguments: action.context,
-  });
-  applyToolResult(result);
-});
-
-processor.onSurfaceCreated(surface => {
-  render(html`<a2ui-surface .surface=${surface}></a2ui-surface>`, rootEl);
-});
-
-app.ontoolresult = params => {
-  applyToolResult(params);
-};
-
-await app.connect();
-```
-
-  </TabItem>
-  <TabItem label="v0.9.1">
-
-```typescript
-import {html, render} from 'lit';
-import {basicCatalog} from '@a2ui/lit/v0_9';
-import {renderMarkdown} from '@a2ui/markdown-it';
-import {
-  MessageProcessor,
-  setMarkdownRenderer,
-  type ProcessableMessagePayload,
-} from '@a2ui/web_core/v0_9';
-import {App} from '@modelcontextprotocol/ext-apps';
-import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
-
-setMarkdownRenderer(renderMarkdown);
-
-const A2UI_MIME_TYPE = 'application/a2ui+json';
-const rootEl = document.getElementById('surface-root')!;
-
-const app = new App(
-  {name: 'counter-mcp-app', version: '1.0.0'},
-  {availableDisplayModes: ['inline']},
-  {autoResize: true},
-);
-
-function applyToolResult(result: CallToolResult): void {
-  for (const block of result.content ?? []) {
-    if (
-      block.type === 'resource' &&
-      'text' in block.resource &&
-      (block.resource.mimeType === A2UI_MIME_TYPE ||
-        block.resource.mimeType === 'application/json+a2ui')
-    ) {
-      const messages = JSON.parse(block.resource.text) as ProcessableMessagePayload;
-      processor.processMessages(messages);
-    }
-  }
-}
-
-const processor = new MessageProcessor([basicCatalog], async action => {
-  const result = await app.callServerTool({
-    name: action.name,
-    arguments: action.context,
-  });
-  applyToolResult(result);
-});
-
-processor.onSurfaceCreated(surface => {
-  render(html`<a2ui-surface .surface=${surface}></a2ui-surface>`, rootEl);
-});
-
-app.ontoolresult = params => {
-  applyToolResult(params);
-};
-
-await app.connect();
-```
-
-  </TabItem>
-</Tabs>
-
-If you need to include full form state from the surface `DataModel` alongside explicit `action.context` entries (as the Editor sample does when submitting slider and checkbox adjustments to `smart_editor_apply`), read `processor.getSurface(action.surfaceId)?.dataModel.get('/')` inside the action callback and merge it into `arguments`. You can also speak the underlying JSON-RPC 2.0 `window.parent.postMessage` protocol directly without `@modelcontextprotocol/ext-apps`; see [`server/apps/src/src/main.ts`](https://github.com/a2ui-project/a2ui/blob/main/samples/community/mcp/a2ui-in-mcpapps/server/apps/src/src/main.ts) for a zero-wrapper reference.
-
-### Step 3: Bundle into a single self-contained HTML file
-
-MCP Apps load inside a `srcdoc` iframe with `sandbox="allow-scripts"` and no base server URL, so external `<script src="...">`, `<link rel="stylesheet" href="...">`, or code-split ES module chunks cannot resolve relative paths. Bundle your renderer and application code into one standalone HTML file before serving it from `resources/read`:
-
-<Tabs syncKey="bundler">
-  <TabItem label="Vite (Lit or React)">
-
-Install [`vite-plugin-singlefile`](https://github.com/richardtallent/vite-plugin-singlefile) (`npm install -D vite vite-plugin-singlefile`) and enable it in `vite.config.ts` so `vite build` inlines every JavaScript and CSS asset directly into `dist/index.html`:
-
-```typescript
-import {defineConfig} from 'vite';
-import {viteSingleFile} from 'vite-plugin-singlefile';
-
-export default defineConfig({
-  plugins: [viteSingleFile()],
-  build: {
-    outDir: 'dist',
-    emptyOutDir: true,
+const app = createA2uiApp(server, {
+  html: new URL('../dist/a2ui-app.html', import.meta.url),
+  catalogSchema: new URL('../dist/a2ui-app.catalog.json', import.meta.url),
+  resourceUri: 'ui://releases/app.html', // Optional (default: 'ui://a2ui/app.html')
+  resourceName: 'Release tracker', // Optional (default: 'A2UI app')
+  csp: {
+    resourceDomains: ['https://images.example.com'], // Optional (default: none)
+    connectDomains: [], // Optional (default: none)
   },
+  prefersBorder: true, // Optional (default: host decides)
 });
 ```
 
-  </TabItem>
-  <TabItem label="Angular CLI + esbuild">
+Keep these runtime behaviors in mind when designing surfaces for MCP Apps hosts:
 
-Angular production builds emit split ES module chunks and `<link rel="modulepreload">` tags by default. Follow [`samples/community/mcp/a2ui-in-mcpapps/server/apps/inline.js`](https://github.com/a2ui-project/a2ui/blob/main/samples/community/mcp/a2ui-in-mcpapps/server/apps/inline.js): run `ng build`, bundle `main.js` into one ESM file with `esbuild --bundle --format=esm`, inline `<script type="module">` and `<style>` blocks into `index.html`, and strip `<link rel="modulepreload">` tags so the iframe does not issue blocked relative requests.
+- MCP Apps iframes default to `default-src 'none'` with inline `<script>` and `<style>` tags plus `data:` and `blob:` media. Add `csp.resourceDomains` when components load HTTPS images, media, or external font stylesheets (for example, `https://fonts.googleapis.com` and `https://fonts.gstatic.com` if you use the Basic Catalog `Icon` font rather than inline SVG icons).
+- Clicking `http:`, `https:`, or `mailto:` links inside Markdown `Text` components dispatches `ui/open-link` to the host rather than navigating the sandboxed iframe.
+- `@a2ui/embed` automatically syncs light and dark color schemes, fonts, and MCP Apps `--color-*` host style variables onto `--a2ui-*` Basic Catalog CSS properties whenever `ui/notifications/host-context-changed` fires.
+- Give model-facing tools clear domain names (`release_status`, `triage_inbox`) because hosts that lazy-load MCP tool schemas select tools by name before reading descriptions, and keep full prefixed names (`mcp_<plugin>_<server>_<tool>`) within 64 characters.
 
-  </TabItem>
-</Tabs>
+<details>
+<summary>Host CSS variable mappings and layout overrides</summary>
+
+`@a2ui/embed` maps standard MCP Apps host variables onto Basic Catalog tokens with `:where(.a2ui-embed)` rules (zero CSS specificity), falling back to Basic Catalog defaults when a host omits a variable:
+
+| A2UI CSS property                                                                                             | MCP Apps host variable         |
+| :------------------------------------------------------------------------------------------------------------ | :----------------------------- |
+| `--a2ui-color-background`                                                                                     | `--color-background-primary`   |
+| `--a2ui-color-on-background`, `--a2ui-color-on-surface`, `--a2ui-color-on-secondary`, `--a2ui-color-on-input` | `--color-text-primary`         |
+| `--a2ui-color-surface`                                                                                        | `--color-background-secondary` |
+| `--a2ui-color-secondary`                                                                                      | `--color-background-tertiary`  |
+| `--a2ui-color-input`                                                                                          | `--color-background-primary`   |
+| `--a2ui-color-primary`                                                                                        | `--color-ring-primary`         |
+| `--a2ui-color-border`                                                                                         | `--color-border-primary`       |
+| `--a2ui-text-caption-color`                                                                                   | `--color-text-secondary`       |
+| `--a2ui-border-radius`                                                                                        | `--border-radius-md`           |
+| `--a2ui-border-width`                                                                                         | `--border-width-regular`       |
+| `--a2ui-font-family-monospace`                                                                                | `--font-mono`                  |
+
+Any rule targeting `.a2ui-embed` overrides these defaults as well as the container layout variables:
+
+| App CSS property                  | Default                     |
+| :-------------------------------- | :-------------------------- |
+| `--a2ui-embed-max-width`          | `960px`                     |
+| `--a2ui-embed-padding`            | `0`                         |
+| `--a2ui-embed-error-color`        | `--color-text-danger`       |
+| `--a2ui-embed-error-background`   | `--color-background-danger` |
+| `--a2ui-embed-error-border-color` | `--color-border-danger`     |
+
+</details>
 
 ---
 
-## Advanced considerations
+## Server and app contract reference
 
-### Sandbox and Content Security Policy constraints
+`@a2ui/embed/contract` defines the versioned interface between an MCP server and the embedded app iframe. Minor contract revisions (`major.minor`) only add optional fields; if a server sends a payload with a different major version, the app renders an error card instead of partially applying incompatible messages.
 
-An MCP App runs inside a double-iframe sandbox where the inner `srcdoc` frame carries `sandbox="allow-scripts"` without `allow-same-origin`. Keep three browser constraints in mind when building surfaces for this environment:
+| Contract element    | Value and shape                                                                                                                                                                                                                                  |
+| :------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Contract version    | `CONTRACT_VERSION` (`'1.0'`). Checked via `checkContractVersion(version)`.                                                                                                                                                                       |
+| App resource        | Default URI `ui://a2ui/app.html` (`DEFAULT_RESOURCE_URI`), MIME type `text/html;profile=mcp-app`. Tools reference it in `_meta.ui.resourceUri`.                                                                                                  |
+| Tool result         | `content: [{type: 'text', text}]` carries the model summary; `structuredContent.a2ui` (`A2UI_STRUCTURED_KEY`) carries `EmbedPayload`, kept out of model context by MCP Apps hosts.                                                               |
+| `EmbedPayload`      | `{contractVersion: string; messages: AgentToRendererMessage[]; followUp?: {text: string}}` (`EmbedPayloadSchema`). Only `createSurface`, `updateComponents`, `updateDataModel`, and `deleteSurface` are delivered.                               |
+| Action tool         | `a2ui_action` (`ACTION_TOOL_NAME`) with `_meta.ui.visibility: ['app']`. Called with `ActionCall` (`{name: string; surfaceId: string; sourceComponentId?: string; context: Record<string, unknown>}`).                                            |
+| Catalog schema file | `{contractVersion: string; catalogs: Record<string, Record<string, unknown>>}` (`CatalogSchemaFileSchema`), emitted next to the HTML bundle as `*.catalog.json` with each catalog's JSON Schema, `protocolVersion`, and optional `instructions`. |
 
-1. Because the inner frame runs under an opaque `null` origin (`window.location.origin === "null"`), `localStorage`, `sessionStorage`, `IndexedDB`, and `document.cookie` throw `SecurityError`. Store transient UI state in the A2UI surface [Data Model](../../concepts/data-binding/) and persist durable state on the MCP server through `tools/call`.
-2. When writing custom `window.addEventListener('message', ...)` handlers instead of using `App` from `@modelcontextprotocol/ext-apps`, check `event.source === window.parent` before trusting incoming JSON-RPC messages, and pass an explicit target origin to `window.parent.postMessage` whenever the outer host origin is known.
-3. MCP App hosts enforce a restrictive Content Security Policy (`connect-src 'none'`, with external media and fonts blocked unless allowlisted). If A2UI components such as `Image`, `Video`, or `AudioPlayer` reference external HTTPS URLs, declare those origins in `_meta.ui.csp` on the HTML content item returned from `resources/read` so the outer sandbox proxy adds them to the frame's CSP header:
-
-```json
-{
-  "contents": [
-    {
-      "uri": "ui://counter/app",
-      "mimeType": "text/html;profile=mcp-app",
-      "text": "<!doctype html><html>...</html>",
-      "_meta": {
-        "ui": {
-          "csp": {
-            "resourceDomains": ["https://images.example.com"],
-            "connectDomains": []
-          }
-        }
-      }
-    }
-  ]
-}
-```
-
-### Synchronizing light and dark themes with the MCP host
-
-The Basic Catalog stylesheet in `@a2ui/web_core` defines its design tokens (`--a2ui-color-background`, `--a2ui-color-surface`, `--a2ui-color-on-surface`, `--a2ui-color-primary`, and `--a2ui-color-border`) with CSS `light-dark()`, and supports explicit `.a2ui-light` and `.a2ui-dark` root classes.
-
-To match the outer MCP host's active color scheme rather than only the operating system default, apply the theme reported by `app.getHostContext()` on startup and update it whenever `ui/notifications/host-context-changed` fires:
+TypeScript servers that assemble raw MCP `CallToolResult` objects directly (without `createA2uiApp`) can use `toToolResult`, `readEmbedPayload`, and `checkContractVersion` from `@a2ui/embed/contract`:
 
 ```typescript
-function applyHostTheme(theme: string | undefined): void {
-  const root = document.documentElement;
-  root.classList.toggle('a2ui-dark', theme === 'dark');
-  root.classList.toggle('a2ui-light', theme === 'light');
-}
+import {CONTRACT_VERSION, toToolResult} from '@a2ui/embed/contract';
 
-// Register before the existing await app.connect() call in src/main.ts:
-app.onhostcontextchanged = context => {
-  applyHostTheme(context.theme);
-};
-
-// After the existing await app.connect() call in src/main.ts resolves:
-applyHostTheme(app.getHostContext()?.theme);
+return toToolResult({
+  text: 'checkout-api 2.4.0: Awaiting sign-off (1 approvals).',
+  payload: {contractVersion: CONTRACT_VERSION, messages},
+});
 ```
 
-You can also override `--a2ui-color-primary`, `--a2ui-border-radius`, or `--a2ui-font-family-title` on `:root` in your app's CSS to match your product's typography and accent palette.
+<details>
+<summary>End-to-end MCP Apps sequence diagram</summary>
 
-### Validating server payloads before returning tool results
+```mermaid
+sequenceDiagram
+    participant Host as MCP Apps Host
+    participant Server as MCP Server (@a2ui/embed)
+    participant App as App Iframe (ui://a2ui/app.html)
 
-Because A2UI JSON messages travel inside MCP `CallToolResult` payloads and are parsed inside the client's sandboxed iframe, an invalid component property or missing child ID fails inside the iframe rather than at the server boundary. Validate generated or static message arrays on your MCP server before returning them from `tools/call` using `validatePayload` (`validate_payload` in Python) from the A2UI Agent SDK.
+    Host->>Server: tools/call (release_status)
+    Server-->>Host: CallToolResult (content text + structuredContent.a2ui)
+    Host->>Server: resources/read (ui://a2ui/app.html)
+    Server-->>Host: Single-file HTML bundle
+    Host->>App: Mount sandboxed iframe + ui/initialize
+    Host->>App: ui/notifications/tool-result (structuredContent.a2ui)
+    App->>App: Validate batch and render <a2ui-surface>
+    Note over App,Host: User clicks an action button
+    App->>Host: tools/call (a2ui_action with ActionCall)
+    Host->>Server: tools/call (a2ui_action)
+    Server-->>Host: CallToolResult (in-place updateDataModel or followUp)
+    Host-->>App: Tool result applied in place (or ui/message posted)
+    Note over App,Host: User edits input on sendDataModel surface
+    App->>Host: ui/update-model-context (debounced 300 ms, <= 16 KiB)
+```
 
-Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) focus on client-side rendering rather than server-side generation, so Agent SDK payload validation is available in TypeScript, Python, and Dart:
+</details>
 
-<Tabs syncKey="sdk-lang">
-  <TabItem label="TypeScript">
+<details>
+<summary>Custom iframe entry point (@a2ui/embed/mcp)</summary>
+
+`a2ui-embed build` generates the iframe entry point automatically. If you maintain a custom single-file HTML bundler, call `startEmbedApp` from `@a2ui/embed/mcp` inside your browser entry script:
 
 ```typescript
-import {validatePayload} from '@a2ui/agent';
+import {startEmbedApp} from '@a2ui/embed/mcp';
+import {renderMarkdown} from '@a2ui/markdown-it';
 import {basicCatalog} from '@a2ui/web_core/v1_0';
 
-// Throws A2uiValidationError if a v1.0 renderer holding basicCatalog would reject the messages.
-validatePayload([basicCatalog], a2uiPayload);
+const handle = startEmbedApp({
+  catalogs: [basicCatalog],
+  appInfo: {name: 'release-tracker', version: '1.0.0'}, // Optional (default: {name: 'a2ui-embed', version: '1.0.0'})
+  root: document.getElementById('app')!, // Optional (default: document.body)
+  modelContext: {maxBytes: 8192}, // Optional (default: {maxBytes: 16384})
+  markdown: renderMarkdown, // Optional (default: plain text)
+});
+
+await handle.ready;
 ```
 
-  </TabItem>
-  <TabItem label="Python">
+`startEmbedApp` returns `{app, ready, close}` where `app` is the underlying `@modelcontextprotocol/ext-apps` `App` instance.
 
-```python
-from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.utils import validate_payload
+</details>
 
-# Raises A2uiValidationError if a v1.0 renderer holding BasicCatalog would reject the messages.
-validate_payload([BasicCatalog("1.0")], a2ui_payload)
-```
+<span id="quick-start-run-the-sample"></span>
 
-  </TabItem>
-  <TabItem label="Dart">
+### Community editor sample
 
-```dart
-import 'package:a2ui_agent/a2ui_agent.dart';
-import 'package:a2ui_core/a2ui_core.dart';
+The [`samples/community/mcp/a2ui-in-mcpapps`](https://github.com/a2ui-project/a2ui/tree/main/samples/community/mcp/a2ui-in-mcpapps) directory contains an earlier standalone prototype with a Python MCP server, Angular micro-apps (`v0.8`), and a local double-iframe test host for contextual text editing.
 
-// Throws A2uiValidationError if a v1.0 renderer holding BasicCatalog.v1_0() would reject the messages.
-final parsed = AgentToRendererMessagePayload.fromJson(
-  a2uiPayload,
-  protocolVersion: A2uiProtocolVersion.v1_0,
-);
-validatePayload([BasicCatalog.v1_0()], parsed.messages);
-```
+<details>
+<summary>Preview the community editor sample</summary>
 
-  </TabItem>
-</Tabs>
+<img
+  src={`${baseUrl}/assets/editor.gif`}
+  alt="Generative document editor demo showing selected text in an MCP App triggering contextual A2UI controls to revise content"
+/>
+
+</details>
 
 ---
 
 ## Next steps
 
-1. Explore the inverse pattern (embedding `ui://` MCP App widgets inside a native A2UI host with `McpApp`) in [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/).
-2. Serve cached `a2ui://` layout templates and `updateDataModel` tool results to native A2UI hosts in [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
-3. Connect web surfaces directly to MCP tools with `@a2ui/catalog-mcp` and `callMcpTool` in [Call MCP Tools from A2UI](../mcp-catalog/).
-4. Package custom web components into your embedded renderer bundle in [How to Define a Catalog](../defining-a-catalog/) and [Authoring Universal Web Components](../authoring-universal-components/).
+- Explore the inverse architecture (embedding `ui://` MCP App widgets inside a native A2UI host with `McpApp`) in [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/).
+- Serve reusable `a2ui://` layout templates and `updateDataModel` tool results to native A2UI hosts in [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
+- Connect web surfaces directly to headless MCP tools with `@a2ui/catalog-mcp` and `callMcpTool` in [Call MCP Tools from A2UI](../mcp-catalog/).
+- Share custom web components across Lit, React, and Angular in [Authoring Universal Web Components](../authoring-universal-components/) and [How to Define a Catalog](../defining-a-catalog/).

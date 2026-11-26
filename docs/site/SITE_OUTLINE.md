@@ -67,7 +67,7 @@ All cross-page links must target these exact Starlight routes (with `docs/site/s
 | **Guides**        | MCP Catalog                                    | **P1**   | `content/docs/guides/mcp-catalog.mdx`                                     | `/guides/mcp-catalog/`                                     |
 | **Guides**        | A2UI over MCP                                  | **P1**   | `content/docs/guides/a2ui-over-mcp.md`                                    | `/guides/a2ui-over-mcp/`                                   |
 | **Guides**        | MCP Apps in A2UI Surfaces                      | **P1**   | `content/docs/guides/mcp-apps-in-a2ui.mdx`                                | `/guides/mcp-apps-in-a2ui/`                                |
-| **Guides**        | A2UI Dynamic Rendering within MCP Applications | **P1**   | `content/docs/guides/a2ui-in-mcp-apps.md`                                 | `/guides/a2ui-in-mcp-apps/`                                |
+| **Guides**        | A2UI Dynamic Rendering within MCP Applications | **P1**   | `content/docs/guides/a2ui-in-mcp-apps.mdx`                                | `/guides/a2ui-in-mcp-apps/`                                |
 | **Guides**        | Authoring Universal Web Components             | **P1**   | `content/docs/guides/authoring-universal-components.md`                   | `/guides/authoring-universal-components/`                  |
 | **Guides**        | SDK Development                                | **P2**   | `content/docs/guides/sdk-development.md`                                  | `/guides/sdk-development/`                                 |
 | **Roadmap**       | Roadmap                                        | **P1**   | `content/docs/roadmap.mdx`                                                | `/roadmap/`                                                |
@@ -372,7 +372,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### A2UI Dynamic Rendering within MCP Applications (`/guides/a2ui-in-mcp-apps/`) [P1]
 
-- Reference [`samples/community/mcp/a2ui-in-mcpapps/`](../../samples/community/mcp/a2ui-in-mcpapps/).
+- Step-by-step `@a2ui/embed` guide in [`src/content/docs/guides/a2ui-in-mcp-apps.mdx`](src/content/docs/guides/a2ui-in-mcp-apps.mdx) covering `a2ui-embed build`, `createA2uiApp` (`app.describeActions`), custom catalog bundling, `sendDataModel` model-context updates, `@a2ui/agent` Express surface composition, multi-language servers, and the `structuredContent.a2ui` contract, plus a pointer to [`samples/community/mcp/a2ui-in-mcpapps/`](../../samples/community/mcp/a2ui-in-mcpapps/).
 
 <a id="authoring-universal-web-components"></a>
 
