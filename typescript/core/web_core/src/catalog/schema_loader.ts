@@ -191,6 +191,37 @@ function finalizePropertyZod(
 }
 
 /**
+ * Rejects an array longer than `maxItems` before any of its items are parsed.
+ *
+ * Zod 3 records a failed `.max()` but keeps parsing every item, and runs any
+ * refinement on the array (such as the `uniqueItems` check) after that, so the
+ * work a value costs is not bounded by `maxItems` (GHSA-mrhx-c7xc-m3w5). The
+ * check runs as a fatal preprocess issue, which stops parsing before `arr`
+ * sees the value. JSON Schema output is unchanged: `zod-to-json-schema`
+ * describes a preprocess by its inner schema, which still carries `maxItems`.
+ *
+ * @param arr Array schema, possibly wrapped in refinements, that already
+ *   declares `.max(maxItems)`.
+ * @param maxItems Maximum number of items the array may hold.
+ * @returns Schema that fails fast on oversized arrays and otherwise parses as `arr`.
+ */
+function rejectOversizedArray(arr: z.ZodTypeAny, maxItems: number): z.ZodTypeAny {
+  return z.preprocess((val, ctx) => {
+    if (Array.isArray(val) && val.length > maxItems) {
+      ctx.addIssue({
+        code: 'too_big',
+        maximum: maxItems,
+        inclusive: true,
+        type: 'array',
+        message: `Array must contain at most ${maxItems} element(s)`,
+        fatal: true,
+      });
+    }
+    return val;
+  }, arr);
+}
+
+/**
  * Converts a JSON Schema `$ref` pointer into a Zod schema.
  *
  * Resolves standard protocol definitions from common types, as well as local
@@ -487,6 +518,9 @@ function convertPropertyToZod(
         (items: unknown[]) => new Set(items.map(canonicalJsonStringify)).size === items.length,
         {message: 'Array items must be unique'},
       );
+    }
+    if (typeof propSchema.maxItems === 'number') {
+      arr = rejectOversizedArray(arr, propSchema.maxItems);
     }
     return finalizePropertyZod(arr, propSchema, rootDoc, visitedPointers, defCache);
   }

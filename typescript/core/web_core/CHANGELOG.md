@@ -5,6 +5,7 @@
 - **BREAKING CHANGE**: `MessageProcessor` rejects a payload whose batch arrays and `{"messages": [...]}` wrappers nest deeper than `MAX_GLOBAL_DEPTH` with `A2uiRecursionError`, with or without a `validationConfig`. With a `validationConfig`, each message's depth counts from `0` inside those containers, and keys beside `messages` on a wrapper are checked for depth and `path` syntax. Recommended migration: send messages in one array or wrapper, and remove invalid values beside `messages` ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
 - Treat an already-registered subclass of `component.element` as idempotent in `registerUniversalElement` instead of throwing a tag-name collision error. [#4396](https://github.com/a2ui-project/a2ui/pull/4396)
 - Add an optional `startDepth` parameter to `validateRecursionAndPaths`, a non-negative integer that defaults to `0`, for checking a value held by a container whose depth is already counted ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
+- An array property declared with `maxItems` in JSON Schema (by `Catalog.fromJson` or an `AgentFunction` `schema`) now fails on its length before its items are parsed or checked for `uniqueItems`, so a value over `maxItems` reports a single `too_big` issue and costs no more to validate than its length check, on Zod 3 as on Zod 4 (GHSA-mrhx-c7xc-m3w5, [#4192](https://github.com/a2ui-project/a2ui/issues/4192), [#4399](https://github.com/a2ui-project/a2ui/pull/4399)).
 
 ## 0.16.1
 
