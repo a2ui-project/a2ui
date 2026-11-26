@@ -34,6 +34,15 @@ const VERSION_TAG = 'v1.0';
 const SCRIPT_SOURCE = 'src/v1_0/scripts/generate-schemas.mjs';
 
 /**
+ * Returns the properties a catalog function may declare for its call,
+ * from `FunctionCallValidationSchema` in catalog_definition.json.
+ */
+function catalogFunctionProperties() {
+  const catalogDefJson = JSON.parse(readFileSync(join(specDir, 'catalog_definition.json'), 'utf8'));
+  return catalogDefJson.$defs.FunctionCallValidationSchema.properties.properties.properties;
+}
+
+/**
  * Generates v1.0 common-types.ts.
  */
 function generateCommonTypes() {
@@ -76,46 +85,6 @@ function generateCommonTypes() {
       code = `export const ChildListSchema = markChildRef(\n  ${schemaExp},\n  'child-list',\n);\nexport type ${typePart}`;
     } else if (name === 'Child') {
       code = `export const ChildSchema = ComponentIdSchema;\nexport type Child = z.infer<typeof ChildSchema>;`;
-    } else if (name === 'DataBinding') {
-      code = `export const DataBindingSchema = z
-  .object({
-    '@path': z.string().describe('A JSON Pointer path to a value in the data model.').optional(),
-    'path': z.string().describe('A JSON Pointer path to a value in the data model.').optional(),
-  })
-  .refine(data => data['@path'] !== undefined || data.path !== undefined, {
-    message: "Either '@path' or 'path' must be provided.",
-  })
-  .describe('REF:#/$defs/DataBinding');
-export type DataBinding = z.infer<typeof DataBindingSchema>;`;
-    } else if (name === 'FunctionCommon') {
-      code = `export const FunctionCommonSchema = z
-  .object({
-    '@call': z.string().describe('The name of the function to call.').optional(),
-    'call': z.string().describe('The name of the function to call.').optional(),
-    'catalogId': z
-      .string()
-      .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
-      .optional(),
-  })
-  .refine(data => data['@call'] !== undefined || data.call !== undefined, {
-    message: "Either '@call' or 'call' must be provided.",
-  })
-  .describe(
-    "REF:#/$defs/FunctionCommon|Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog.",
-  );
-export type FunctionCommon = z.infer<typeof FunctionCommonSchema>;`;
-    } else if (name === 'IndexSystemFunction') {
-      code = `export const IndexSystemFunctionSchema = z
-  .object({
-    '@call': z.literal('@index').optional(),
-    'call': z.literal('@index').optional(),
-    'args': z.object({'offset': DynamicNumberSchema.optional()}).optional(),
-  })
-  .refine(data => data['@call'] !== undefined || data.call !== undefined, {
-    message: "Either '@call' or 'call' must be '@index'.",
-  })
-  .describe('REF:#/$defs/IndexSystemFunction');
-export type IndexSystemFunction = z.infer<typeof IndexSystemFunctionSchema>;`;
     }
 
     if (recursiveSchemas.has(name)) {
@@ -149,7 +118,27 @@ export type IndexSystemFunction = z.infer<typeof IndexSystemFunctionSchema>;`;
     if (name === 'DynamicValue') {
       code = code.replace(
         'z.record(z.string(), z.any())',
-        "z.record(z.string(), z.unknown()).refine((obj) => !obj || (!('@path' in obj) && !('path' in obj) && !('@call' in obj) && !('call' in obj)))",
+        "z.record(z.string(), z.unknown()).refine((obj) => !obj || (!('@path' in obj) && !('@call' in obj)))",
+      );
+    }
+
+    if (name === 'FunctionCall') {
+      // The def closes `allOf: [FunctionCommon, <catalog function>]` with
+      // `unevaluatedProperties: false`, which jsonSchemaToZod drops. A call
+      // holds only the keys those declare: FunctionCommon's, and the `@call`
+      // and `args` that a catalog function's properties are limited to.
+      const callKeys = [
+        ...new Set([
+          ...Object.keys(commonJson.$defs.FunctionCommon.properties),
+          ...Object.keys(catalogFunctionProperties()),
+        ]),
+      ];
+      code = code.replace(
+        '.and(z.intersection(FunctionCommonSchema, z.any()))',
+        `.and(z.intersection(FunctionCommonSchema, z.any())).superRefine((obj, ctx) => {
+          const keys = Object.keys(obj).filter(key => !${JSON.stringify(callKeys)}.includes(key));
+          if (keys.length > 0) ctx.addIssue({code: z.ZodIssueCode.unrecognized_keys, keys});
+        })`,
       );
     }
 

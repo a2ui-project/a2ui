@@ -154,8 +154,44 @@ describe('Catalog.fromJson & schema_loader', () => {
     const input = catalog.components.get('Input');
     assert.ok(input);
     const shape = (input.schema as z.ZodObject<any>).shape;
-    assert.ok(shape.checks);
+    assert.ok(shape['@checks']);
     assert.ok(shape.label);
+  });
+
+  it("checks a v1.0 catalog's check rules against the v1.0 common types", () => {
+    const v10BasicCatalogPath = resolve(process.cwd(), '../../../catalogs/basic/v1/catalog.json');
+    const v10Validator = new PayloadValidator(
+      Catalog.fromJson(JSON.parse(readFileSync(v10BasicCatalogPath, 'utf-8'))),
+      STRICT_VALIDATION,
+    );
+    const field = (rule: Record<string, unknown>) => ({
+      'id': 'name',
+      'component': 'TextField',
+      'label': 'Name',
+      'value': {'@path': '/name'},
+      '@checks': [rule],
+    });
+    // A v1.0 condition is a binding or a call, and a rule takes no other key.
+    for (const rule of [{condition: true}, {condition: {'@path': '/ok'}, foo: 1}]) {
+      assert.throws(
+        () => v10Validator.validateComponent(field(rule)),
+        A2uiValidationError,
+        `expected ${JSON.stringify(rule)} to be rejected`,
+      );
+    }
+    v10Validator.validateComponent(field({condition: {'@path': '/ok'}}));
+
+    // A v0.9 condition is a DynamicBoolean, which a literal boolean is.
+    new PayloadValidator(
+      Catalog.fromJson(basicCatalogJson, '0.9'),
+      STRICT_VALIDATION,
+    ).validateComponent({
+      id: 'name',
+      component: 'TextField',
+      label: 'Name',
+      value: {path: '/name'},
+      checks: [{condition: true, message: 'Required'}],
+    });
   });
 
   it('resolves the Child reference from common_types.json', () => {
@@ -735,9 +771,10 @@ describe('Catalog.fromJson & schema_loader', () => {
   });
 
   /**
-   * A v1.0 catalog whose Toggle narrows properties that a standard mixin
-   * (`checks` from Checkable), a local definition (`label`, `size` from Base)
-   * and an inline branch (`size`) also declare, with the mixins listed last.
+   * A v1.0 catalog whose Toggle narrows properties that a local definition
+   * (`label`, `size` from Base) and an inline branch (`size`) also declare,
+   * with the mixins listed last. Its `checks` is its own property, since the
+   * v1.0 Checkable declares `@checks`.
    */
   const precedenceCatalog = {
     catalogId: 'https://example.com/precedence.json',
@@ -774,13 +811,12 @@ describe('Catalog.fromJson & schema_loader', () => {
     assert.ok(!schema.safeParse({size: 'large'}).success, 'top level beats the inline branch');
     assert.ok(!schema.safeParse({size: true}).success, 'top level beats the local definition');
     assert.deepStrictEqual(Object.keys(schema.shape), [
-      'checks',
       '@checks',
-      'accessibility',
       '@accessibility',
       '@metadata',
       'label',
       'size',
+      'checks',
     ]);
   });
 
@@ -1010,7 +1046,7 @@ describe('Catalog.fromJson & schema_loader', () => {
         count: 5,
         child: 'child_1',
         tone: 'info',
-        checks: [{condition: true, message: 'Valid'}],
+        checks: [{condition: {'@path': '/form/valid'}, message: 'Valid'}],
         accessibility: {label: 'Field label'},
       });
 
@@ -1099,7 +1135,7 @@ describe('Catalog.fromJson & schema_loader', () => {
       id: 'score_1',
       component: 'ScoreInput',
       checks: 3,
-      '@checks': [{condition: true, message: 'Must pass'}],
+      '@checks': [{condition: {'@path': '/score/valid'}, message: 'Must pass'}],
     });
   });
 

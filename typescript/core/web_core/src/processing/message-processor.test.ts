@@ -708,7 +708,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-1',
           callFunction: {
-            call: 'computeGreeting',
+            '@call': 'computeGreeting',
             catalogId: 'cat-fn',
             args: {user: 'Alice'},
           },
@@ -1152,7 +1152,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-call-1',
           callFunction: {
-            call: 'echoFunction',
+            '@call': 'echoFunction',
             catalogId: 'rpc-cat',
             args: {text: 'World'},
           },
@@ -1231,7 +1231,7 @@ describe('MessageProcessor', () => {
           surfaceId: 's2',
           functionCallId: 'rpc-surf-1',
           callFunction: {
-            call: 'readUserName',
+            '@call': 'readUserName',
             catalogId: 'rpc-model-cat',
             args: {text: {'@path': '/user/name'}},
           },
@@ -1246,7 +1246,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-surf-2',
           callFunction: {
-            call: 'readUserName',
+            '@call': 'readUserName',
             catalogId: 'rpc-model-cat',
             args: {text: {'@path': '/user/name'}},
           },
@@ -1262,7 +1262,7 @@ describe('MessageProcessor', () => {
           surfaceId: 'non_existent_surface',
           functionCallId: 'rpc-surf-3',
           callFunction: {
-            call: 'readUserName',
+            '@call': 'readUserName',
             catalogId: 'rpc-model-cat',
             args: {},
           },
@@ -1284,7 +1284,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-surf-4',
           callFunction: {
-            call: 'readUserName',
+            '@call': 'readUserName',
             catalogId: 'rpc-model-cat',
             args: {text: {'@call': '@index'}},
           },
@@ -1303,7 +1303,7 @@ describe('MessageProcessor', () => {
           callRendererFunction: {
             functionCallId: 'rpc-surf-5',
             callFunction: {
-              call: 'readUserName',
+              '@call': 'readUserName',
               args: {},
             },
           },
@@ -1325,7 +1325,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-call-2',
           callFunction: {
-            call: 'secureAction',
+            '@call': 'secureAction',
             catalogId: 'rpc-cat',
             args: {},
           },
@@ -1345,7 +1345,7 @@ describe('MessageProcessor', () => {
           callRendererFunction: {
             functionCallId: 'rpc-call-3',
             callFunction: {
-              call: 'secureAction',
+              '@call': 'secureAction',
               catalogId: 'rpc-cat',
               args: {},
             },
@@ -1426,7 +1426,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-sync-1',
           callFunction: {
-            call: 'echoFunction',
+            '@call': 'echoFunction',
             catalogId: 'rpc-cat',
             args: {text: 'SyncTest'},
           },
@@ -1458,7 +1458,7 @@ describe('MessageProcessor', () => {
           callRendererFunction: {
             functionCallId: 'rpc-sync-2',
             callFunction: {
-              call: 'echoFunction',
+              '@call': 'echoFunction',
               catalogId: 'rpc-cat',
               args: {},
             },
@@ -3201,7 +3201,7 @@ describe('MessageProcessor component envelope mixins', () => {
           '@catalogId': 'other',
           '@metadata': {extensions: {com_example_trace: 't1'}},
           '@accessibility': {label: 'Email address'},
-          '@checks': [{condition: true, message: 'Required'}],
+          '@checks': [{condition: {'@path': '/form/valid'}, message: 'Required'}],
         },
       ]);
       const root = proc.getSurface('s')!.componentsModel.get('root')!;
@@ -3210,7 +3210,7 @@ describe('MessageProcessor component envelope mixins', () => {
       assert.deepStrictEqual(root.properties, {
         'label': 'Email',
         '@accessibility': {label: 'Email address'},
-        '@checks': [{condition: true, message: 'Required'}],
+        '@checks': [{condition: {'@path': '/form/valid'}, message: 'Required'}],
       });
       proc.dispose();
     });
@@ -3225,7 +3225,7 @@ describe('MessageProcessor component envelope mixins', () => {
           catalogId: 'other',
           metadata: {extensions: {com_example_trace: 't1'}},
           accessibility: {label: 'Email address'},
-          checks: [{condition: true, message: 'Required'}],
+          checks: [{condition: {'@path': '/form/valid'}, message: 'Required'}],
         },
       ]);
       const root = proc.getSurface('s')!.componentsModel.get('root')!;
@@ -3234,7 +3234,7 @@ describe('MessageProcessor component envelope mixins', () => {
       assert.deepStrictEqual(root.properties, {
         'label': 'Email',
         '@accessibility': {label: 'Email address'},
-        '@checks': [{condition: true, message: 'Required'}],
+        '@checks': [{condition: {'@path': '/form/valid'}, message: 'Required'}],
       });
       proc.dispose();
     });
@@ -3374,6 +3374,7 @@ describe('MessageProcessor component envelope mixins', () => {
       });
       proc.processMessages([
         {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'main'}},
+        {version: '1.0', updateDataModel: {surfaceId: 's', path: '/', value: {valid: false}}},
         {
           version: '1.0',
           updateComponents: {
@@ -3383,7 +3384,7 @@ describe('MessageProcessor component envelope mixins', () => {
                 'id': 'root',
                 'component': 'Field',
                 '@accessibility': {label: 'Email address'},
-                '@checks': [{condition: false, message: 'Required'}],
+                '@checks': [{condition: {'@path': '/valid'}, message: 'Required'}],
               },
             ],
           },
