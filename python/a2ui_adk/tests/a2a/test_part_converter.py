@@ -17,7 +17,6 @@
 import json
 from unittest.mock import patch
 
-from a2a import types as a2a_types
 from google.genai import types as genai_types
 
 from a2ui.a2a import create_a2ui_part
@@ -29,6 +28,13 @@ from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.processor import A2uiRequestProcessor
+
+from ..a2a_test_helpers import (
+    is_text_part,
+    make_data_part,
+    part_metadata,
+    part_text,
+)
 from a2ui.utils import RendererState
 
 
@@ -166,7 +172,7 @@ def test_converter_class_convert_text_with_a2ui():
 
     # Expect a TextPart and one A2UI DataPart per message
     assert len(a2a_parts) == 3
-    assert a2a_parts[0].root.text == "Here is the UI:"
+    assert part_text(a2a_parts[0]) == "Here is the UI:"
     assert a2a_parts[1] == create_a2ui_part(valid_a2ui[0], version=ProtocolVersion.V0_8)
     assert a2a_parts[-1] == create_a2ui_part(_BEGIN_MAIN, version=ProtocolVersion.V0_8)
 
@@ -198,7 +204,7 @@ def test_converter_class_convert_text_with_a2ui_v0_9_1():
 
     # Expect a TextPart and one A2UI DataPart per message
     assert len(a2a_parts) == 3
-    assert a2a_parts[0].root.text == "Here is the UI:"
+    assert part_text(a2a_parts[0]) == "Here is the UI:"
     assert a2a_parts[1:] == [
         create_a2ui_part(message, version=ProtocolVersion.V0_9_1)
         for message in valid_a2ui
@@ -249,7 +255,7 @@ def test_converter_class_convert_text_markdown_wrapped():
     a2a_parts = converter.convert(part)
 
     assert len(a2a_parts) == 3
-    assert a2a_parts[0].root.text == "Behold:"
+    assert part_text(a2a_parts[0]) == "Behold:"
     assert a2a_parts[1] == create_a2ui_part(ui[0], version=ProtocolVersion.V0_8)
     assert a2a_parts[-1] == create_a2ui_part(_BEGIN_MAIN, version=ProtocolVersion.V0_8)
 
@@ -280,7 +286,7 @@ def test_converter_class_convert_text_with_a2ui_that_fails_validation():
     a2a_parts = converter.convert(genai_types.Part(text=text))
 
     assert len(a2a_parts) == 1
-    assert a2a_parts[0].root.text == custom_fallback
+    assert part_text(a2a_parts[0]) == custom_fallback
 
 
 def test_converter_class_convert_other_part():
@@ -293,7 +299,7 @@ def test_converter_class_convert_other_part():
     with patch(
         "google.adk.a2a.converters.part_converter.convert_genai_part_to_a2a_part"
     ) as mock_convert:
-        mock_a2a_part = a2a_types.Part(root=a2a_types.DataPart(kind="data", data={}))
+        mock_a2a_part = make_data_part({})
         mock_convert.return_value = mock_a2a_part
 
         a2a_parts = converter.convert(part)
@@ -329,7 +335,7 @@ def test_converter_class_convert_tool_response_with_result_containing_a2ui():
 
     # Expect a TextPart and one A2UI DataPart per message
     assert len(a2a_parts) == 3
-    assert a2a_parts[0].root.text == "Here is the result:"
+    assert part_text(a2a_parts[0]) == "Here is the result:"
     assert a2a_parts[1] == create_a2ui_part(valid_a2ui[0], version=ProtocolVersion.V0_8)
     assert a2a_parts[-1] == create_a2ui_part(_BEGIN_MAIN, version=ProtocolVersion.V0_8)
 
@@ -343,7 +349,7 @@ def test_converter_class_convert_text_with_invalid_a2ui_and_custom_fallback():
 
     a2a_parts = converter.convert(part)
     assert len(a2a_parts) == 1
-    assert a2a_parts[0].root.text == custom_fallback
+    assert part_text(a2a_parts[0]) == custom_fallback
 
 
 def test_converter_class_convert_tool_response_with_result_containing_invalid_a2ui_and_default_fallback():
@@ -377,7 +383,7 @@ def test_converter_class_convert_tool_response_with_result_containing_invalid_a2
 
     a2a_parts = converter.convert(part)
     assert len(a2a_parts) == 1
-    assert a2a_parts[0].root.text == custom_fallback
+    assert part_text(a2a_parts[0]) == custom_fallback
 
 
 def test_converter_reads_text_in_the_processors_format():
@@ -487,5 +493,5 @@ def test_converter_leaves_thought_parts_to_adk():
     a2a_parts = converter.convert(part)
 
     assert len(a2a_parts) == 1
-    assert isinstance(a2a_parts[0].root, a2a_types.TextPart)
-    assert a2a_parts[0].root.metadata == {"adk_thought": True}
+    assert is_text_part(a2a_parts[0])
+    assert part_metadata(a2a_parts[0]) == {"adk_thought": True}

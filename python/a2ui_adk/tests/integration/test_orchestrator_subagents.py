@@ -161,9 +161,11 @@ def _build_in_process_subagent(
         event_converter=A2uiEventConverter(a2ui_processor=processor),
         execute_interceptors=[ExecuteInterceptor(before_agent=_capture_before_agent)],
     )
+    # A loopback host: newer ADK releases only resolve an http agent card on a
+    # loopback host.
     app = to_a2a(
         sub_llm_agent,
-        host="testserver",
+        host="localhost",
         port=80,
         runner=runner,
         agent_executor_factory=lambda r: A2aAgentExecutor(
@@ -173,7 +175,7 @@ def _build_in_process_subagent(
     transport = httpx.ASGITransport(app=app)
     http_client = httpx.AsyncClient(
         transport=transport,
-        base_url="http://testserver",
+        base_url="http://localhost",
     )
     client_factory = ClientFactory(ClientConfig(httpx_client=http_client))
 
@@ -192,7 +194,7 @@ def _build_in_process_subagent(
 
     remote_agent = RemoteA2aAgent(
         name=name,
-        agent_card="http://testserver/.well-known/agent-card.json",
+        agent_card="http://localhost/.well-known/agent-card.json",
         httpx_client=http_client,
         a2a_client_factory=client_factory,
         config=A2aRemoteAgentConfig(
@@ -296,6 +298,8 @@ async def _run_orchestrator_turn(
             for genai_part in event.content.parts:
                 a2a_part = convert_genai_part_to_a2a_part(genai_part)
                 if a2a_part is not None:
+                    # Newer ADK releases on a2a-sdk 1.x deliver a remote
+                    # agent's parts twice in a turn, which the map accepts.
                     session = await _get_orchestrator_session(runner, session_id)
                     await A2uiSubagentMap.update_from_server_event(
                         a2a_part,
