@@ -95,8 +95,9 @@ String? replyToPost(TriageAnalysis analysis) {
 
 /// The people whose review applying [analysis] requests on [item]: when
 /// [analysis] assigns a pull request for triage, by adding
-/// [assignedForTriageLabel], its assignees once [analysis] is applied, so
-/// that the pull request is also in their review queue. Empty for an issue,
+/// [assignedForTriageLabel], its assignees and the [analysis]'s new
+/// assignees, including the ones that [analysis] unassigns, so that the pull
+/// request is also in their review queue. Empty for an issue,
 /// and for any other change.
 ///
 /// The pull request's author is left out, since GitHub does not request a
@@ -106,15 +107,10 @@ List<String> reviewersToRequest(TriageItem item, TriageAnalysis analysis) {
       !analysis.addedLabels.contains(assignedForTriageLabel)) {
     return const [];
   }
-  final Set<String> removed = {
-    for (final login in analysis.removedAssignees) login.toLowerCase(),
-  };
   final seen = <String>{?item.author?.toLowerCase()};
   return [
     for (final login in [...item.assignees, ...analysis.newAssignees])
-      if (!removed.contains(login.toLowerCase()) &&
-          seen.add(login.toLowerCase()))
-        login,
+      if (seen.add(login.toLowerCase())) login,
   ];
 }
 

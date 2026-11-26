@@ -155,7 +155,7 @@ void main() {
   });
 
   test('assigning a PR for triage requests a review from its assignees, '
-      'except the author', () async {
+      'even unassigned ones, except the author', () async {
     final ApplyResult result = await apply(
       15,
       const TriageAnalysis(
@@ -170,12 +170,12 @@ void main() {
       'Add labels: $assignedForTriageLabel',
       'Unassign: hubot',
       'Assign: octocat',
-      'Request review: monalisa, octocat',
+      'Request review: hubot, monalisa, octocat',
     ]);
     expect(
       github.calls.last,
       'POST pulls/15/requested_reviewers '
-      '{"reviewers":["monalisa","octocat"]}',
+      '{"reviewers":["hubot","monalisa","octocat"]}',
     );
   });
 
@@ -198,16 +198,16 @@ void main() {
       ),
       isEmpty,
     );
-    // Only the PR author would be asked.
+    // The PR author is left out, and a person is asked once.
     expect(
       reviewersToRequest(
         item(15),
         const TriageAnalysis(
           addedLabels: [assignedForTriageLabel],
-          removedAssignees: ['hubot', 'MonaLisa'],
+          newAssignees: ['MonaLisa', 'Author15'],
         ),
       ),
-      isEmpty,
+      ['hubot', 'monalisa'],
     );
   });
 
