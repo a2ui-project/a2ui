@@ -204,8 +204,19 @@ function extractCapabilitiesEntry(
   if (!isPlainObject(rendererCapabilities)) {
     throw new A2uiValidationError('Renderer capabilities must be an object.');
   }
-  let entry: unknown = Object.hasOwn(rendererCapabilities, key)
-    ? rendererCapabilities[key]
+  let entryKey = key;
+  if (key === '1.0') {
+    const hasCanonical = Object.hasOwn(rendererCapabilities, '1.0');
+    const hasPrefixed = Object.hasOwn(rendererCapabilities, 'v1.0');
+    if (hasCanonical && hasPrefixed) {
+      throw new A2uiValidationError("Renderer capabilities cannot specify both '1.0' and 'v1.0'.");
+    }
+    if (!hasCanonical && hasPrefixed) {
+      entryKey = 'v1.0';
+    }
+  }
+  let entry: unknown = Object.hasOwn(rendererCapabilities, entryKey)
+    ? rendererCapabilities[entryKey]
     : undefined;
   if (
     entry === undefined &&
@@ -220,7 +231,7 @@ function extractCapabilitiesEntry(
   }
   if (!isPlainObject(entry)) {
     throw new A2uiValidationError(
-      `Invalid '${key}' renderer capabilities: entry must be an object.`,
+      `Invalid '${entryKey}' renderer capabilities: entry must be an object.`,
     );
   }
   if (
@@ -229,7 +240,7 @@ function extractCapabilitiesEntry(
       !entry.supportedCatalogIds.every((id): id is string => typeof id === 'string'))
   ) {
     throw new A2uiValidationError(
-      `Invalid '${key}' renderer capabilities: supportedCatalogIds must be an array of strings.`,
+      `Invalid '${entryKey}' renderer capabilities: supportedCatalogIds must be an array of strings.`,
     );
   }
   return entry;
@@ -251,17 +262,18 @@ function extractCapabilitiesEntry(
  *
  * @param catalogs Registered catalog configurations supported by the agent.
  * @param rendererCapabilities Capabilities sent by the client renderer (either keyed by
- *     protocol version, such as `{"v1.0": {"supportedCatalogIds": [...]}}`, or a single
- *     capabilities entry), or `undefined` when the request carried none. With no
- *     capabilities the renderer stated no preference, so every registered catalog is
- *     active, which is none when nothing is registered.
+ *     protocol version, such as `{"1.0": {"supportedCatalogIds": [...]}}` with `"v1.0"`
+ *     accepted as an alias when `"1.0"` is absent, or a single capabilities entry), or
+ *     `undefined` when the request carried none. With no capabilities the renderer stated
+ *     no preference, so every registered catalog is active, which is none when nothing is
+ *     registered.
  * @param acceptsInlineCatalogs Whether the agent accepts inline catalogs from the client.
  * @returns Array of active CatalogApi instances.
  * @throws {A2uiCatalogError} If capabilities are given and the agent has no catalogs, if
  *     registered catalogs read different capabilities keys, if `inlineCatalogs` is not an
  *     array of valid catalogs, or if negotiation leaves no active catalog.
  * @throws {A2uiValidationError} If the capabilities have no valid entry for the protocol
- *     version of the registered catalogs.
+ *     version of the registered catalogs, or specify both `"1.0"` and `"v1.0"`.
  */
 export function resolveCatalogs(
   catalogs: CatalogConfig[],

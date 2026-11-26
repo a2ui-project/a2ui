@@ -122,6 +122,63 @@ describe('resolveCatalogs', () => {
     expect(resolved.map(c => c.id)).toEqual(['id_custom1', 'id_basic']);
   });
 
+  it("accepts 'v1.0' as an alias when '1.0' is absent on version-keyed capabilities", () => {
+    const caps = {
+      'v1.0': {
+        supportedCatalogIds: ['id_custom2', 'id_basic'],
+        inlineCatalogs: [inline('id_inline_v10')],
+      },
+    };
+    const resolved = resolveCatalogs(supportedConfigs, caps, true);
+    expect(resolved.map(c => c.id)).toEqual(['id_custom2', 'id_basic', 'id_inline_v10']);
+
+    const vPrefixedConfig = new CatalogConfig(new Catalog('id_prefixed', 'v1.0', [], []));
+    const resolvedPrefixed = resolveCatalogs([vPrefixedConfig], {
+      'v1.0': {supportedCatalogIds: ['id_prefixed']},
+    });
+    expect(resolvedPrefixed.map(c => c.id)).toEqual(['id_prefixed']);
+  });
+
+  it("throws A2uiValidationError when capabilities specify both '1.0' and 'v1.0'", () => {
+    const caps = {
+      '1.0': {supportedCatalogIds: ['id_basic']},
+      'v1.0': {supportedCatalogIds: ['id_custom1']},
+    };
+    expect(() => resolveCatalogs(supportedConfigs, caps)).toThrowError(A2uiValidationError);
+    expect(() => resolveCatalogs(supportedConfigs, caps)).toThrowError(
+      "Renderer capabilities cannot specify both '1.0' and 'v1.0'.",
+    );
+  });
+
+  it("validates malformed 'v1.0' alias entries with A2uiValidationError", () => {
+    expect(() =>
+      resolveCatalogs(supportedConfigs, {
+        'v1.0': 'not-an-object' as unknown as RendererCapabilities,
+      }),
+    ).toThrowError(A2uiValidationError);
+    expect(() =>
+      resolveCatalogs(supportedConfigs, {
+        'v1.0': {supportedCatalogIds: 'id_basic' as unknown as string[]},
+      }),
+    ).toThrowError(A2uiValidationError);
+  });
+
+  it("resolves 'v0.9' capabilities for v0.9 and v0.9.1 catalogs and rejects v1.0-only keys", () => {
+    const configV09 = new CatalogConfig(new Catalog('id_v09', 'v0.9', [], []));
+    const configV091 = new CatalogConfig(new Catalog('id_v091', 'v0.9.1', [], []));
+    const resolved = resolveCatalogs([configV09, configV091], {
+      'v0.9': {supportedCatalogIds: ['id_v091', 'id_v09']},
+    });
+    expect(resolved.map(c => c.id)).toEqual(['id_v091', 'id_v09']);
+
+    expect(() =>
+      resolveCatalogs([configV09], {'1.0': {supportedCatalogIds: ['id_v09']}}),
+    ).toThrowError(A2uiValidationError);
+    expect(() =>
+      resolveCatalogs([configV09], {'v1.0': {supportedCatalogIds: ['id_v09']}}),
+    ).toThrowError(A2uiValidationError);
+  });
+
   it('throws A2uiValidationError when version-keyed capabilities omit the catalogs version', () => {
     const caps = {
       'v0.8': {
