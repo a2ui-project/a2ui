@@ -31,6 +31,7 @@ typescript/renderers/react/a2ui_explorer/src/generated/**
 typescript/agents/a2ui_agent/src/inference-formats/express/generated/**
 typescript/renderers/*/a2ui_explorer/public/a2ui-sandbox/**
 typescript/catalogs/mcp/tests/fixtures/generated/**
+typescript/embed/tests/fixtures/generated/**
 .next
 **/.next
 **/.astro
