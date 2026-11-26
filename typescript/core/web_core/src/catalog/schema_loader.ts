@@ -145,6 +145,235 @@ function canonicalJsonStringify(val: unknown): string {
 }
 
 /**
+ * Applies JSON Schema conditional `if` / `then` / `else` validation to a Zod schema.
+ *
+ * Per JSON Schema Draft 2020-12:
+ * - When `if` is absent, `then` and `else` have no effect.
+ * - When `if` is present and validates the instance, `then` (if present) must also succeed.
+ * - When `if` is present and fails on the instance, `else` (if present) must succeed.
+ */
+function applyConditionalSchemaConstraint(
+  baseZod: z.ZodTypeAny,
+  propSchema: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
+  visitedPointers?: Set<string>,
+  defCache?: Map<string, z.ZodTypeAny>,
+): z.ZodTypeAny {
+  if (!isPlainObject(propSchema.if)) {
+    return baseZod;
+  }
+  const ifSchema = convertPropertyToZod(propSchema.if, rootDoc, new Set(visitedPointers), defCache);
+  const thenSchema = isPlainObject(propSchema.then)
+    ? convertPropertyToZod(propSchema.then, rootDoc, new Set(visitedPointers), defCache)
+    : undefined;
+  const elseSchema = isPlainObject(propSchema.else)
+    ? convertPropertyToZod(propSchema.else, rootDoc, new Set(visitedPointers), defCache)
+    : undefined;
+
+  if (!thenSchema && !elseSchema) {
+    return baseZod;
+  }
+
+  return baseZod.superRefine((val, ctx) => {
+    const branch = ifSchema.safeParse(val).success ? thenSchema : elseSchema;
+    if (!branch) return;
+    const res = branch.safeParse(val);
+    if (!res.success) {
+      for (const issue of res.error.issues) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: issue.message,
+          path: issue.path,
+        });
+      }
+    }
+  });
+}
+
+/**
+ * Collects the object property keys evaluated by `schema` and its matching
+ * applicators (`$ref`, `allOf`, `if`/`then`/`else`, `anyOf`, `oneOf`, `dependentSchemas`)
+ * for a specific runtime object instance, per JSON Schema Draft 2020-12.
+ */
+function collectEvaluatedObjectKeys(
+  schema: Record<string, unknown>,
+  val: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
+  visitedPointers = new Set<string>(),
+  defCache = new Map<string, z.ZodTypeAny>(),
+  out = new Set<string>(),
+): Set<string> {
+  if (typeof schema.$ref === 'string' && rootDoc && schema.$ref.startsWith('#/')) {
+    if (!visitedPointers.has(schema.$ref)) {
+      const target = resolveJsonPointer(rootDoc, schema.$ref);
+      if (isPlainObject(target)) {
+        const nextVisited = new Set(visitedPointers);
+        nextVisited.add(schema.$ref);
+        collectEvaluatedObjectKeys(target, val, rootDoc, nextVisited, defCache, out);
+      }
+    }
+  }
+
+  if (isPlainObject(schema.properties)) {
+    for (const key of Object.keys(schema.properties)) {
+      out.add(key);
+    }
+  }
+
+  if (isPlainObject(schema.patternProperties)) {
+    for (const pattern of Object.keys(schema.patternProperties)) {
+      try {
+        const regex = new RegExp(pattern, 'u');
+        for (const key of Object.keys(val)) {
+          if (regex.test(key)) {
+            out.add(key);
+          }
+        }
+      } catch {
+        // ignore invalid regex
+      }
+    }
+  }
+
+  if (Array.isArray(schema.allOf)) {
+    for (const sub of schema.allOf) {
+      if (isPlainObject(sub)) {
+        collectEvaluatedObjectKeys(sub, val, rootDoc, visitedPointers, defCache, out);
+      }
+    }
+  }
+
+  if (isPlainObject(schema.if)) {
+    const ifZod = convertPropertyToZod(schema.if, rootDoc, new Set(visitedPointers), defCache);
+    if (ifZod.safeParse(val).success) {
+      collectEvaluatedObjectKeys(schema.if, val, rootDoc, visitedPointers, defCache, out);
+      if (isPlainObject(schema.then)) {
+        collectEvaluatedObjectKeys(schema.then, val, rootDoc, visitedPointers, defCache, out);
+      }
+    } else if (isPlainObject(schema.else)) {
+      collectEvaluatedObjectKeys(schema.else, val, rootDoc, visitedPointers, defCache, out);
+    }
+  }
+
+  if (Array.isArray(schema.anyOf)) {
+    for (const branch of schema.anyOf) {
+      if (!isPlainObject(branch)) continue;
+      const branchZod = convertPropertyToZod(branch, rootDoc, new Set(visitedPointers), defCache);
+      if (branchZod.safeParse(val).success) {
+        collectEvaluatedObjectKeys(branch, val, rootDoc, visitedPointers, defCache, out);
+      }
+    }
+  }
+
+  if (Array.isArray(schema.oneOf)) {
+    const matchingBranches: Record<string, unknown>[] = [];
+    for (const branch of schema.oneOf) {
+      if (!isPlainObject(branch)) continue;
+      const branchZod = convertPropertyToZod(branch, rootDoc, new Set(visitedPointers), defCache);
+      if (branchZod.safeParse(val).success) {
+        matchingBranches.push(branch);
+      }
+    }
+    if (matchingBranches.length === 1) {
+      collectEvaluatedObjectKeys(matchingBranches[0], val, rootDoc, visitedPointers, defCache, out);
+    }
+  }
+
+  if (isPlainObject(schema.dependentSchemas)) {
+    for (const [trigger, depSchema] of Object.entries(schema.dependentSchemas)) {
+      if (Object.prototype.hasOwnProperty.call(val, trigger) && isPlainObject(depSchema)) {
+        const depZod = convertPropertyToZod(depSchema, rootDoc, new Set(visitedPointers), defCache);
+        if (depZod.safeParse(val).success) {
+          collectEvaluatedObjectKeys(depSchema, val, rootDoc, visitedPointers, defCache, out);
+        }
+      }
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Enforces `unevaluatedProperties: false` on a schema object by rejecting any
+ * object key not evaluated by `schema` or its matching applicator branches.
+ */
+function applyUnevaluatedPropertiesConstraint(
+  baseZod: z.ZodTypeAny,
+  propSchema: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
+  visitedPointers = new Set<string>(),
+  defCache = new Map<string, z.ZodTypeAny>(),
+): z.ZodTypeAny {
+  if (propSchema.unevaluatedProperties !== false) {
+    return baseZod;
+  }
+  return baseZod.superRefine((val, ctx) => {
+    if (!isPlainObject(val)) return;
+    const evaluated = collectEvaluatedObjectKeys(
+      propSchema,
+      val,
+      rootDoc,
+      visitedPointers,
+      defCache,
+    );
+    const unrecognized = Object.keys(val).filter(k => !evaluated.has(k));
+    if (unrecognized.length > 0) {
+      ctx.addIssue({code: z.ZodIssueCode.unrecognized_keys, keys: unrecognized});
+    }
+  });
+}
+
+/**
+ * Enforces object-level keywords (`properties`, `patternProperties`, `required`,
+ * `additionalProperties: false`, `minProperties`, `maxProperties`, `dependentRequired`)
+ * declared directly on a schema object that also carries `oneOf`, `anyOf`, or `allOf`.
+ */
+function applyLocalObjectConstraints(
+  baseZod: z.ZodTypeAny,
+  propSchema: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
+  visitedPointers = new Set<string>(),
+  defCache = new Map<string, z.ZodTypeAny>(),
+): z.ZodTypeAny {
+  const hasLocalObjectKeywords =
+    OBJECT_APPLICATOR_KEYWORDS.some(
+      k => k !== 'unevaluatedProperties' && propSchema[k] !== undefined,
+    ) || propSchema.type === 'object';
+  if (!hasLocalObjectKeywords) {
+    return baseZod;
+  }
+  const localValidator =
+    propSchema.type === 'object'
+      ? convertObjectSchemaToZod(propSchema, rootDoc, visitedPointers, defCache)
+      : convertTypelessSchemaToZod(
+          {
+            ...propSchema,
+            if: undefined,
+            then: undefined,
+            else: undefined,
+            not: undefined,
+            unevaluatedProperties: undefined,
+          },
+          rootDoc,
+          visitedPointers,
+          defCache,
+        );
+  return baseZod.superRefine((val, ctx) => {
+    if (!isPlainObject(val)) return;
+    const res = localValidator.safeParse(val);
+    if (!res.success) {
+      for (const issue of res.error.issues) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: issue.message,
+          path: issue.path,
+        });
+      }
+    }
+  });
+}
+
+/**
  * Applies `not`, `default`, and `description` modifiers to a converted Zod schema.
  *
  * @param baseZod Base Zod schema before modifiers.
@@ -161,7 +390,20 @@ function finalizePropertyZod(
   visitedPointers?: Set<string>,
   defCache?: Map<string, z.ZodTypeAny>,
 ): z.ZodTypeAny {
-  let result = baseZod;
+  let result = applyConditionalSchemaConstraint(
+    baseZod,
+    propSchema,
+    rootDoc,
+    visitedPointers,
+    defCache,
+  );
+  result = applyUnevaluatedPropertiesConstraint(
+    result,
+    propSchema,
+    rootDoc,
+    visitedPointers,
+    defCache,
+  );
   if (propSchema.not && typeof propSchema.not === 'object') {
     const notSchema = convertPropertyToZod(
       propSchema.not as Record<string, unknown>,
@@ -300,13 +542,24 @@ function convertUnionToZod(
     unionZod = isOneOf ? exclusiveUnion(tuple) : z.union(tuple);
   }
 
-  if (propSchema.default !== undefined) {
-    unionZod = unionZod.default(propSchema.default);
-  }
+  let result = applyLocalObjectConstraints(
+    unionZod,
+    propSchema,
+    rootDoc,
+    visitedPointers,
+    defCache,
+  );
   const desc =
     (typeof propSchema.description === 'string' ? propSchema.description : undefined) ||
     (enumBranch && hasBinding ? 'REF:common_types.json#/$defs/DynamicString' : undefined);
-  return desc ? unionZod.describe(desc) : unionZod;
+  result = finalizePropertyZod(
+    desc ? result.describe(desc) : result,
+    propSchema,
+    rootDoc,
+    visitedPointers,
+    defCache,
+  );
+  return result;
 }
 
 /**
@@ -336,7 +589,7 @@ function convertAllOfPropertyToZod(
       new Set(visitedPointers),
       false,
     );
-    if (subSchemas.length > 0) {
+    if (subSchemas.length > 0 && subSchemas.length === branches.length) {
       const requiredSet = new Set<string>();
       for (const s of subSchemas) {
         if (s.kind === 'json' && Array.isArray(s.schema.required)) {
@@ -369,13 +622,8 @@ function convertAllOfPropertyToZod(
       const baseObj = z.object(shape);
       const forbidExtra =
         propSchema.additionalProperties === false ||
-        propSchema.unevaluatedProperties === false ||
-        subSchemas.some(
-          s =>
-            s.kind === 'json' &&
-            (s.schema.additionalProperties === false || s.schema.unevaluatedProperties === false),
-        );
-      const obj = closeObjectSchema(
+        subSchemas.some(s => s.kind === 'json' && s.schema.additionalProperties === false);
+      let obj = closeObjectSchema(
         baseObj,
         [
           propSchema,
@@ -388,6 +636,18 @@ function convertAllOfPropertyToZod(
         visitedPointers,
         defCache,
       );
+      for (const s of subSchemas) {
+        if (s.kind === 'json' && s.schema !== propSchema) {
+          obj = applyConditionalSchemaConstraint(obj, s.schema, rootDoc, visitedPointers, defCache);
+          obj = applyUnevaluatedPropertiesConstraint(
+            obj,
+            s.schema,
+            rootDoc,
+            visitedPointers,
+            defCache,
+          );
+        }
+      }
       return finalizePropertyZod(obj, propSchema, rootDoc, visitedPointers, defCache);
     }
   }
@@ -399,7 +659,218 @@ function convertAllOfPropertyToZod(
   for (let i = 1; i < zodBranches.length; i++) {
     intersected = intersected.and(zodBranches[i]);
   }
-  return finalizePropertyZod(intersected, propSchema, rootDoc, visitedPointers, defCache);
+  const constrained = applyLocalObjectConstraints(
+    intersected,
+    propSchema,
+    rootDoc,
+    visitedPointers,
+    defCache,
+  );
+  return finalizePropertyZod(constrained, propSchema, rootDoc, visitedPointers, defCache);
+}
+
+/**
+ * Converts an object-typed JSON Schema definition into a Zod schema.
+ *
+ * Builds a structured `z.object(...)` closed via `closeObjectSchema` whenever
+ * `properties` or `patternProperties` is declared, or falls back to
+ * `z.record(z.unknown())` constrained by `minProperties`/`maxProperties` otherwise.
+ */
+function convertObjectSchemaToZod(
+  propSchema: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
+  visitedPointers = new Set<string>(),
+  defCache = new Map<string, z.ZodTypeAny>(),
+): z.ZodTypeAny {
+  const props = propSchema.properties;
+  const hasPatterns =
+    typeof propSchema.patternProperties === 'object' && propSchema.patternProperties !== null;
+  if ((typeof props === 'object' && props !== null) || hasPatterns) {
+    const required = Array.isArray(propSchema.required)
+      ? new Set(propSchema.required.filter((r): r is string => typeof r === 'string'))
+      : new Set<string>();
+    const baseObj = z.object(
+      convertPropertiesToShape(
+        (props ?? {}) as Record<string, unknown>,
+        required,
+        false,
+        rootDoc,
+        visitedPointers,
+        defCache,
+      ),
+    );
+    const forbidExtra = propSchema.additionalProperties === false;
+    return closeObjectSchema(
+      baseObj,
+      [propSchema],
+      forbidExtra,
+      rootDoc,
+      visitedPointers,
+      defCache,
+    );
+  }
+
+  let base: z.ZodTypeAny = z.record(z.unknown());
+  if (propSchema.additionalProperties === false) {
+    base = base.refine((val: unknown) => isPlainObject(val) && Object.keys(val).length === 0, {
+      message: 'Additional properties are not allowed',
+    });
+  }
+  return applyDependentRequiredConstraints(applyObjectKeyCountConstraints(base, [propSchema]), [
+    propSchema,
+  ]);
+}
+
+const STRING_APPLICATOR_KEYWORDS = ['minLength', 'maxLength', 'pattern', 'format'] as const;
+const NUMBER_APPLICATOR_KEYWORDS = [
+  'minimum',
+  'maximum',
+  'exclusiveMinimum',
+  'exclusiveMaximum',
+  'multipleOf',
+] as const;
+
+function convertStringSchemaToZod(propSchema: Record<string, unknown>): z.ZodTypeAny {
+  let s = z.string();
+  if (typeof propSchema.minLength === 'number') {
+    s = s.min(propSchema.minLength);
+  }
+  if (typeof propSchema.maxLength === 'number') {
+    s = s.max(propSchema.maxLength);
+  }
+  if (typeof propSchema.pattern === 'string') {
+    try {
+      s = s.regex(new RegExp(propSchema.pattern, 'u'));
+    } catch {
+      // ignore regex compilation failure
+    }
+  }
+  if (propSchema.format === 'uri') {
+    return s.refine(v => v.trim().length > 0 && !/\s/.test(v.trim()), 'Invalid URI');
+  }
+  return s;
+}
+
+function convertNumberSchemaToZod(
+  propSchema: Record<string, unknown>,
+  integerOnly: boolean,
+): z.ZodTypeAny {
+  let n = integerOnly ? z.number().int() : z.number();
+  if (typeof propSchema.minimum === 'number') {
+    n = n.min(propSchema.minimum);
+  }
+  if (typeof propSchema.maximum === 'number') {
+    n = n.max(propSchema.maximum);
+  }
+  if (typeof propSchema.exclusiveMinimum === 'number') {
+    n = n.gt(propSchema.exclusiveMinimum);
+  }
+  if (typeof propSchema.exclusiveMaximum === 'number') {
+    n = n.lt(propSchema.exclusiveMaximum);
+  }
+  if (typeof propSchema.multipleOf === 'number') {
+    n = n.multipleOf(propSchema.multipleOf);
+  }
+  return n;
+}
+
+const OBJECT_APPLICATOR_KEYWORDS = [
+  'properties',
+  'patternProperties',
+  'required',
+  'minProperties',
+  'maxProperties',
+  'additionalProperties',
+  'unevaluatedProperties',
+  'dependentRequired',
+  'dependentSchemas',
+  'propertyNames',
+] as const;
+
+/**
+ * Converts a JSON Schema fragment that omits an explicit `type` keyword into a Zod schema
+ * by inspecting type-specific keywords (such as `required`, `properties`, `minProperties`,
+ * `maxProperties`, string bounds, or numeric bounds).
+ *
+ * Per JSON Schema semantics, keywords only constrain instances of their applicable type
+ * when `type` is omitted (e.g. `{"required": ["b"]}` constrains objects and `{"pattern": "^[0-9]+$"}`
+ * constrains strings while allowing other types unless `type` is also specified).
+ */
+function convertTypelessSchemaToZod(
+  propSchema: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
+  visitedPointers = new Set<string>(),
+  defCache = new Map<string, z.ZodTypeAny>(),
+): z.ZodTypeAny {
+  const hasObjectKeywords = OBJECT_APPLICATOR_KEYWORDS.some(k => propSchema[k] !== undefined);
+  const hasStringKeywords = STRING_APPLICATOR_KEYWORDS.some(k => propSchema[k] !== undefined);
+  const hasNumberKeywords = NUMBER_APPLICATOR_KEYWORDS.some(k => propSchema[k] !== undefined);
+
+  if (hasObjectKeywords || hasStringKeywords || hasNumberKeywords) {
+    let objectValidator: z.ZodTypeAny | undefined;
+    if (hasObjectKeywords) {
+      const hasPropsOrPatterns =
+        (typeof propSchema.properties === 'object' && propSchema.properties !== null) ||
+        (typeof propSchema.patternProperties === 'object' && propSchema.patternProperties !== null);
+
+      if (hasPropsOrPatterns) {
+        objectValidator = convertObjectSchemaToZod(propSchema, rootDoc, visitedPointers, defCache);
+      } else {
+        const requiredKeys = Array.isArray(propSchema.required)
+          ? propSchema.required.filter((r): r is string => typeof r === 'string')
+          : [];
+        let base: z.ZodTypeAny = z.record(z.unknown());
+        if (requiredKeys.length > 0) {
+          base = base.refine(
+            (val: unknown) =>
+              isPlainObject(val) &&
+              requiredKeys.every(key => Object.prototype.hasOwnProperty.call(val, key)),
+            {message: `Object is missing required properties: ${requiredKeys.join(', ')}`},
+          );
+        }
+        if (propSchema.additionalProperties === false) {
+          base = base.refine(
+            (val: unknown) => isPlainObject(val) && Object.keys(val).length === 0,
+            {
+              message: 'Additional properties are not allowed',
+            },
+          );
+        }
+        objectValidator = applyDependentRequiredConstraints(
+          applyObjectKeyCountConstraints(base, [propSchema]),
+          [propSchema],
+        );
+      }
+    }
+
+    const stringValidator = hasStringKeywords ? convertStringSchemaToZod(propSchema) : undefined;
+    const numberValidator = hasNumberKeywords
+      ? convertNumberSchemaToZod(propSchema, false)
+      : undefined;
+
+    const typelessSchema = z.unknown().superRefine((val, ctx) => {
+      let res: z.SafeParseReturnType<unknown, unknown> | undefined;
+      if (objectValidator && isPlainObject(val)) {
+        res = objectValidator.safeParse(val);
+      } else if (stringValidator && typeof val === 'string') {
+        res = stringValidator.safeParse(val);
+      } else if (numberValidator && typeof val === 'number') {
+        res = numberValidator.safeParse(val);
+      }
+      if (res && !res.success) {
+        for (const issue of res.error.issues) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: issue.message,
+            path: issue.path,
+          });
+        }
+      }
+    });
+    return finalizePropertyZod(typelessSchema, propSchema, rootDoc, visitedPointers, defCache);
+  }
+
+  return finalizePropertyZod(z.unknown(), propSchema, rootDoc, visitedPointers, defCache);
 }
 
 /**
@@ -494,94 +965,33 @@ function convertPropertyToZod(
   // Primitives
   switch (propSchema.type) {
     case 'string': {
-      let s = z.string();
-      if (typeof propSchema.minLength === 'number') {
-        s = s.min(propSchema.minLength);
-      }
-      if (typeof propSchema.maxLength === 'number') {
-        s = s.max(propSchema.maxLength);
-      }
-      if (typeof propSchema.pattern === 'string') {
-        try {
-          s = s.regex(new RegExp(propSchema.pattern, 'u'));
-        } catch {
-          // ignore regex compilation failure
-        }
-      }
-      if (propSchema.format === 'uri') {
-        return finalizePropertyZod(
-          s.refine(v => v.trim().length > 0 && !/\s/.test(v.trim()), 'Invalid URI'),
-          propSchema,
-          rootDoc,
-          visitedPointers,
-          defCache,
-        );
-      }
-      return finalizePropertyZod(s, propSchema, rootDoc, visitedPointers, defCache);
+      return finalizePropertyZod(
+        convertStringSchemaToZod(propSchema),
+        propSchema,
+        rootDoc,
+        visitedPointers,
+        defCache,
+      );
     }
     case 'integer':
     case 'number': {
-      let n = propSchema.type === 'integer' ? z.number().int() : z.number();
-      if (typeof propSchema.minimum === 'number') {
-        n = n.min(propSchema.minimum);
-      }
-      if (typeof propSchema.maximum === 'number') {
-        n = n.max(propSchema.maximum);
-      }
-      if (typeof propSchema.exclusiveMinimum === 'number') {
-        n = n.gt(propSchema.exclusiveMinimum);
-      }
-      if (typeof propSchema.exclusiveMaximum === 'number') {
-        n = n.lt(propSchema.exclusiveMaximum);
-      }
-      if (typeof propSchema.multipleOf === 'number') {
-        n = n.multipleOf(propSchema.multipleOf);
-      }
-      return finalizePropertyZod(n, propSchema, rootDoc, visitedPointers, defCache);
+      return finalizePropertyZod(
+        convertNumberSchemaToZod(propSchema, propSchema.type === 'integer'),
+        propSchema,
+        rootDoc,
+        visitedPointers,
+        defCache,
+      );
     }
     case 'boolean': {
       return finalizePropertyZod(z.boolean(), propSchema, rootDoc, visitedPointers, defCache);
     }
     case 'object': {
-      // An inline object that declares its properties is converted structurally
-      // rather than collapsed to an opaque record. Without this, a child
-      // reference nested inside an array item is invisible to the reference map,
-      // so the component graph would look as if it had no children there.
-      const props = propSchema.properties;
-      const hasPatterns =
-        typeof propSchema.patternProperties === 'object' && propSchema.patternProperties !== null;
-      let obj: z.ZodTypeAny;
-      if ((typeof props === 'object' && props !== null) || hasPatterns) {
-        const required = Array.isArray(propSchema.required)
-          ? new Set(propSchema.required.filter((r): r is string => typeof r === 'string'))
-          : new Set<string>();
-        const baseObj = z.object(
-          convertPropertiesToShape(
-            (props ?? {}) as Record<string, unknown>,
-            required,
-            false,
-            rootDoc,
-            visitedPointers,
-            defCache,
-          ),
-        );
-        const forbidExtra =
-          propSchema.additionalProperties === false || propSchema.unevaluatedProperties === false;
-        obj = closeObjectSchema(
-          baseObj,
-          [propSchema],
-          forbidExtra,
-          rootDoc,
-          visitedPointers,
-          defCache,
-        );
-      } else {
-        obj = z.record(z.unknown());
-      }
+      const obj = convertObjectSchemaToZod(propSchema, rootDoc, visitedPointers, defCache);
       return finalizePropertyZod(obj, propSchema, rootDoc, visitedPointers, defCache);
     }
     default: {
-      return finalizePropertyZod(z.unknown(), propSchema, rootDoc, visitedPointers, defCache);
+      return convertTypelessSchemaToZod(propSchema, rootDoc, visitedPointers, defCache);
     }
   }
 }
@@ -701,6 +1111,119 @@ function convertPropertiesToShape(
 }
 
 /**
+ * Applies `minProperties` and `maxProperties` key-count constraints from one or
+ * more JSON Schema object fragments onto a converted Zod object or record schema.
+ *
+ * When multiple pieces declare bounds (for example in an `allOf` composition),
+ * the strictest lower and upper bounds across all pieces are enforced.
+ *
+ * @param baseSchema The Zod object or record schema to constrain.
+ * @param pieces The JSON Schema fragments that may declare `minProperties` or `maxProperties`.
+ * @returns The schema wrapped with key-count refinements when bounds are present.
+ */
+function applyObjectKeyCountConstraints(
+  baseSchema: z.ZodTypeAny,
+  pieces: ReadonlyArray<Record<string, unknown>>,
+): z.ZodTypeAny {
+  // Track the highest `minProperties` and lowest `maxProperties` across all composed pieces.
+  let minProps: number | undefined;
+  let maxProps: number | undefined;
+
+  for (const piece of new Set(pieces)) {
+    if (typeof piece.minProperties === 'number') {
+      minProps =
+        minProps === undefined ? piece.minProperties : Math.max(minProps, piece.minProperties);
+    }
+    if (typeof piece.maxProperties === 'number') {
+      maxProps =
+        maxProps === undefined ? piece.maxProperties : Math.min(maxProps, piece.maxProperties);
+    }
+  }
+
+  let result = baseSchema;
+
+  // Enforce lower and upper bounds on key count if minProperties or maxProperties were declared, allowing non-objects to pass vacuously.
+  if (minProps !== undefined) {
+    const requiredMin = minProps;
+    result = result.refine(
+      (val: unknown) => !isPlainObject(val) || Object.keys(val).length >= requiredMin,
+      {message: `Object must have at least ${requiredMin} properties`},
+    );
+  }
+
+  if (maxProps !== undefined) {
+    const allowedMax = maxProps;
+    result = result.refine(
+      (val: unknown) => !isPlainObject(val) || Object.keys(val).length <= allowedMax,
+      {message: `Object must have at most ${allowedMax} properties`},
+    );
+  }
+
+  return result;
+}
+
+/**
+ * Applies `dependentRequired` constraints from one or more JSON Schema object
+ * fragments onto a converted Zod object or record schema.
+ *
+ * When a trigger property is present on an object (with a defined value), all
+ * dependent properties listed for that trigger must also be present.
+ *
+ * @param baseSchema The Zod object or record schema to constrain.
+ * @param pieces The JSON Schema fragments that may declare `dependentRequired`.
+ * @returns The schema wrapped with a `superRefine` enforcing `dependentRequired`.
+ */
+function applyDependentRequiredConstraints(
+  baseSchema: z.ZodTypeAny,
+  pieces: ReadonlyArray<Record<string, unknown>>,
+): z.ZodTypeAny {
+  const merged = new Map<string, Set<string>>();
+  for (const piece of new Set(pieces)) {
+    const raw = piece.dependentRequired;
+    if (!isPlainObject(raw)) continue;
+    for (const [trigger, deps] of Object.entries(raw)) {
+      if (!Array.isArray(deps)) continue;
+      let depSet = merged.get(trigger);
+      if (!depSet) {
+        depSet = new Set<string>();
+        merged.set(trigger, depSet);
+      }
+      for (const dep of deps) {
+        if (typeof dep === 'string') {
+          depSet.add(dep);
+        }
+      }
+    }
+  }
+
+  if (merged.size === 0) {
+    return baseSchema;
+  }
+
+  const entries = Array.from(merged.entries()).map(([trigger, depSet]) => ({
+    trigger,
+    deps: Array.from(depSet),
+  }));
+
+  return baseSchema.superRefine((val: unknown, ctx) => {
+    if (!isPlainObject(val)) return;
+    for (const {trigger, deps} of entries) {
+      if (Object.prototype.hasOwnProperty.call(val, trigger) && val[trigger] !== undefined) {
+        const missing = deps.filter(
+          dep => !Object.prototype.hasOwnProperty.call(val, dep) || val[dep] === undefined,
+        );
+        if (missing.length > 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Property '${trigger}' requires dependent properties: ${missing.join(', ')}`,
+          });
+        }
+      }
+    }
+  });
+}
+
+/**
  * Closes or opens a converted object schema, honoring the `patternProperties`
  * of the JSON Schema pieces it was built from.
  *
@@ -750,10 +1273,14 @@ function closeObjectSchema(
     }
   }
   if (patterns.length === 0) {
-    return forbidExtra ? obj.strict() : obj.passthrough();
+    const closed = forbidExtra ? obj.strict() : obj.passthrough();
+    return applyDependentRequiredConstraints(
+      applyObjectKeyCountConstraints(closed, pieces),
+      pieces,
+    );
   }
   const declared = new Set(Object.keys(obj.shape));
-  return obj.passthrough().superRefine((value, ctx) => {
+  const refined = obj.passthrough().superRefine((value, ctx) => {
     const unrecognized: string[] = [];
     for (const [key, entry] of Object.entries(value)) {
       if (declared.has(key)) continue;
@@ -778,6 +1305,7 @@ function closeObjectSchema(
       ctx.addIssue({code: z.ZodIssueCode.unrecognized_keys, keys: unrecognized});
     }
   });
+  return applyDependentRequiredConstraints(applyObjectKeyCountConstraints(refined, pieces), pieces);
 }
 
 /**
@@ -958,26 +1486,50 @@ function convertComponentJsonSchemaToZod(
   return allowExtra ? obj.passthrough() : obj.strict();
 }
 
+// Typeless JSON Schema keywords whose values are objects or booleans (not arrays or primitives)
+// and could otherwise be mistaken for a shorthand `{ paramName: subSchema }` map.
+const SCHEMA_OBJECT_OR_BOOL_KEYWORDS = new Set([
+  'properties',
+  'patternProperties',
+  'additionalProperties',
+  'unevaluatedProperties',
+  'dependentRequired',
+  'dependentSchemas',
+  'dependencies',
+  'propertyNames',
+  'not',
+  'if',
+  'then',
+  'else',
+  'items',
+  'additionalItems',
+  'unevaluatedItems',
+  'contains',
+  'contentSchema',
+  'definitions',
+]);
+
 /**
  * Checks whether an object schema represents a shorthand parameter map (a map
  * of parameter names to subschemas), rather than a full JSON Schema object or
  * reference combinator.
  */
 export function isShorthandParameterMap(schema: unknown): boolean {
-  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+  if (!isPlainObject(schema)) {
     return false;
   }
-  const s = schema as Record<string, unknown>;
+  const entries = Object.entries(schema);
   return (
-    Object.keys(s).length > 0 &&
-    s.properties === undefined &&
-    typeof s.type !== 'string' &&
-    !('$ref' in s) &&
-    !('allOf' in s) &&
-    !('oneOf' in s) &&
-    !('anyOf' in s) &&
-    !('not' in s) &&
-    Object.values(s).every(v => v !== null && (typeof v === 'object' || typeof v === 'boolean'))
+    entries.length > 0 &&
+    typeof schema.type !== 'string' &&
+    entries.every(
+      ([key, v]) =>
+        !key.startsWith('$') &&
+        !SCHEMA_OBJECT_OR_BOOL_KEYWORDS.has(key) &&
+        v !== null &&
+        !Array.isArray(v) &&
+        (typeof v === 'object' || typeof v === 'boolean'),
+    )
   );
 }
 
@@ -1057,7 +1609,9 @@ function collectArgSubSchemas(
   }
 
   const requiredDisjunction = extractRequiredDisjunction(schema.anyOf);
-  if ((Array.isArray(schema.anyOf) && !requiredDisjunction) || Array.isArray(schema.oneOf)) {
+  const hasGeneralUnion =
+    (Array.isArray(schema.anyOf) && !requiredDisjunction) || Array.isArray(schema.oneOf);
+  if (hasGeneralUnion) {
     result.hasUnresolvable = true;
   }
 
@@ -1065,9 +1619,15 @@ function collectArgSubSchemas(
     schema.properties ||
     schema.required ||
     requiredDisjunction ||
+    hasGeneralUnion ||
     schema.patternProperties ||
     schema.additionalProperties !== undefined ||
-    schema.unevaluatedProperties !== undefined
+    schema.unevaluatedProperties !== undefined ||
+    schema.minProperties !== undefined ||
+    schema.maxProperties !== undefined ||
+    schema.dependentRequired !== undefined ||
+    isPlainObject(schema.if) ||
+    (schema.not !== undefined && typeof schema.not === 'object' && schema.not !== null)
   ) {
     result.schemas.push(schema);
   }
@@ -1137,16 +1697,22 @@ export function convertFunctionArgsJsonSchemaToZod(
         undefined,
         defCache,
       );
-      Object.assign(shape, propShape);
+      for (const [propName, propZod] of Object.entries(propShape)) {
+        shape[propName] = shape[propName] ? shape[propName].and(propZod) : propZod;
+      }
     }
   }
 
   const obj = z.object(shape);
-  const allowExtra =
-    collected.hasUnresolvable ||
-    collected.schemas.some(isExplicitlyOpen) ||
-    isExplicitlyOpen(rawSchema);
   const allSchemas = [rawSchema, ...collected.schemas.filter(s => s !== rawSchema)];
+  const hasAdditionalPropsFalse = allSchemas.some(s => s.additionalProperties === false);
+  const hasUnevaluatedPropsFalse = allSchemas.some(s => s.unevaluatedProperties === false);
+  const allowExtra =
+    !hasAdditionalPropsFalse &&
+    (hasUnevaluatedPropsFalse ||
+      collected.hasUnresolvable ||
+      collected.schemas.some(isExplicitlyOpen) ||
+      isExplicitlyOpen(rawSchema));
   let closed: z.ZodTypeAny = closeObjectSchema(
     obj,
     allSchemas,
@@ -1156,6 +1722,8 @@ export function convertFunctionArgsJsonSchemaToZod(
     defCache,
   );
   for (const s of allSchemas) {
+    closed = applyConditionalSchemaConstraint(closed, s, rootDoc, undefined, defCache);
+    closed = applyUnevaluatedPropertiesConstraint(closed, s, rootDoc, undefined, defCache);
     const groups = extractRequiredDisjunction(s.anyOf);
     if (groups) {
       const label = groups.map(g => g.map(k => `'${k}'`).join('+')).join(', ');
@@ -1164,6 +1732,46 @@ export function convertFunctionArgsJsonSchemaToZod(
           isPlainObject(args) && groups.some(group => group.every(key => args[key] !== undefined)),
         {message: `At least one of ${label} must be provided.`},
       );
+    } else if (Array.isArray(s.oneOf) || Array.isArray(s.anyOf)) {
+      const branches = (Array.isArray(s.oneOf) ? s.oneOf : s.anyOf) as unknown[];
+      const hasObjectBranch = branches.some(
+        b => isPlainObject(b) && (b.type === undefined || b.type === 'object'),
+      );
+      if (hasObjectBranch) {
+        const unionZod = convertUnionToZod(s, rootDoc, new Set<string>(), defCache);
+        if (unionZod) {
+          closed = closed.superRefine((val, ctx) => {
+            const res = unionZod.safeParse(val);
+            if (!res.success) {
+              for (const issue of res.error.issues) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  message: issue.message,
+                  path: issue.path,
+                });
+              }
+            }
+          });
+        }
+      }
+    }
+
+    if (s.not && typeof s.not === 'object' && !Array.isArray(s.not)) {
+      const notSchema = convertPropertyToZod(
+        s.not as Record<string, unknown>,
+        rootDoc,
+        new Set<string>(),
+        defCache,
+      );
+      closed = z.preprocess((val, ctx) => {
+        if (notSchema.safeParse(val).success) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Value matched prohibited "not" schema',
+          });
+        }
+        return val;
+      }, closed);
     }
   }
   return closed;

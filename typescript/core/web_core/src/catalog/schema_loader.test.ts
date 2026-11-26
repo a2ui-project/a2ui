@@ -21,6 +21,7 @@ import {resolve} from 'node:path';
 import {z} from 'zod';
 import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 import {Catalog} from './types.js';
+import {convertFunctionArgsJsonSchemaToZod, isShorthandParameterMap} from './schema_loader.js';
 import {analyzeChildRefSchema} from './reference-map.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {STRICT_VALIDATION} from '../validation/integrity-checker.js';
@@ -1147,5 +1148,805 @@ describe('Catalog.fromJson & schema_loader', () => {
         }),
       A2uiValidationError,
     );
+  });
+
+  describe('JSON Schema keyword parity (Issue #3998)', () => {
+    it('enforces maxProperties on function argument schemas and nested objects', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          a: {type: 'string'},
+          b: {type: 'string'},
+        },
+        maxProperties: 1,
+      });
+
+      assert.strictEqual(schema.safeParse({}).success, true);
+      assert.strictEqual(schema.safeParse({a: 'x'}).success, true);
+      assert.strictEqual(schema.safeParse({a: 'x', b: 'y'}).success, false);
+
+      const recordSchema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          bag: {type: 'object', minProperties: 1, maxProperties: 2},
+        },
+        required: ['bag'],
+      });
+      assert.strictEqual(recordSchema.safeParse({bag: {}}).success, false);
+      assert.strictEqual(recordSchema.safeParse({bag: {k1: 1}}).success, true);
+      assert.strictEqual(recordSchema.safeParse({bag: {k1: 1, k2: 2, k3: 3}}).success, false);
+    });
+
+    it('enforces minProperties on function argument schemas and typeless-property objects', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          a: {type: 'string'},
+        },
+        minProperties: 1,
+      });
+
+      assert.strictEqual(schema.safeParse({}).success, false);
+      assert.strictEqual(schema.safeParse({a: 'x'}).success, true);
+    });
+
+    it('enforces typeless "not" subschemas such as {"not": {"required": ["b"]}} (Row 6)', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          payload: {
+            type: 'object',
+            properties: {
+              a: {type: 'string'},
+              b: {type: 'string'},
+            },
+            not: {required: ['b']},
+          },
+        },
+        required: ['payload'],
+      });
+
+      assert.strictEqual(schema.safeParse({payload: {a: 'ok'}}).success, true);
+      assert.strictEqual(schema.safeParse({payload: {}}).success, true);
+      assert.strictEqual(schema.safeParse({payload: {a: 'ok', b: 'forbidden'}}).success, false);
+    });
+
+    it('enforces top-level "not" on function argument schemas (Row 5)', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          a: {type: 'string'},
+        },
+        not: {required: ['a']},
+      });
+
+      assert.strictEqual(schema.safeParse({}).success, true);
+      assert.strictEqual(schema.safeParse({a: 'forbidden'}).success, false);
+    });
+
+    it('enforces dependentRequired on function argument schemas and nested objects (Row 4)', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          creditCard: {type: 'string'},
+          billingAddress: {type: 'string'},
+          postalCode: {type: 'string'},
+          nested: {
+            type: 'object',
+            properties: {
+              a: {type: 'string'},
+              b: {type: 'string'},
+            },
+            dependentRequired: {
+              a: ['b'],
+            },
+          },
+        },
+        dependentRequired: {
+          creditCard: ['billingAddress', 'postalCode'],
+        },
+      });
+
+      assert.strictEqual(schema.safeParse({}).success, true);
+      assert.strictEqual(schema.safeParse({creditCard: '4111-1111'}).success, false);
+      assert.strictEqual(
+        schema.safeParse({creditCard: '4111-1111', billingAddress: '123 Main St'}).success,
+        false,
+      );
+      assert.strictEqual(
+        schema.safeParse({
+          creditCard: '4111-1111',
+          billingAddress: '123 Main St',
+          postalCode: '78641',
+          nested: {a: 'present', b: 'also-present'},
+        }).success,
+        true,
+      );
+      assert.strictEqual(schema.safeParse({nested: {a: 'present'}}).success, false);
+    });
+
+    it('enforces conditional if/then/else subschemas on function args and nested objects (Row 3)', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          country: {type: 'string'},
+          postalCode: {type: 'string'},
+          nested: {
+            type: 'object',
+            properties: {
+              mode: {type: 'string'},
+              port: {type: 'number'},
+            },
+            if: {
+              properties: {mode: {const: 'network'}},
+              required: ['mode'],
+            },
+            then: {
+              required: ['port'],
+            },
+          },
+        },
+        if: {
+          properties: {country: {const: 'USA'}},
+          required: ['country'],
+        },
+        then: {
+          required: ['postalCode'],
+          properties: {postalCode: {pattern: '^[0-9]{5}$'}},
+        },
+        else: {
+          properties: {postalCode: {minLength: 3}},
+        },
+      });
+
+      assert.strictEqual(schema.safeParse({country: 'USA', postalCode: '78641'}).success, true);
+      assert.strictEqual(schema.safeParse({country: 'USA'}).success, false);
+      assert.strictEqual(schema.safeParse({country: 'USA', postalCode: 'AB'}).success, false);
+      assert.strictEqual(schema.safeParse({country: 'CA', postalCode: 'K1A'}).success, true);
+      assert.strictEqual(schema.safeParse({country: 'CA', postalCode: 'A'}).success, false);
+      assert.strictEqual(schema.safeParse({nested: {mode: 'network'}}).success, false);
+      assert.strictEqual(schema.safeParse({nested: {mode: 'local'}}).success, true);
+    });
+
+    it('enforces top-level allOf, oneOf, and anyOf combinators on function argument schemas (Row 7)', () => {
+      const allOfSchema = convertFunctionArgsJsonSchemaToZod({
+        allOf: [
+          {
+            type: 'object',
+            properties: {code: {type: 'string', minLength: 2}},
+            required: ['code'],
+          },
+          {
+            type: 'object',
+            properties: {code: {type: 'string', maxLength: 4}},
+          },
+        ],
+      });
+      assert.strictEqual(allOfSchema.safeParse({code: 'a'}).success, false);
+      assert.strictEqual(allOfSchema.safeParse({code: 'ab'}).success, true);
+      assert.strictEqual(allOfSchema.safeParse({code: 'abcde'}).success, false);
+
+      const oneOfSchema = convertFunctionArgsJsonSchemaToZod({
+        oneOf: [
+          {
+            type: 'object',
+            properties: {url: {type: 'string'}},
+            required: ['url'],
+            additionalProperties: false,
+          },
+          {
+            type: 'object',
+            properties: {path: {type: 'string'}},
+            required: ['path'],
+            additionalProperties: false,
+          },
+        ],
+      });
+      assert.strictEqual(oneOfSchema.safeParse({url: 'https://example.com'}).success, true);
+      assert.strictEqual(oneOfSchema.safeParse({path: '/tmp/file'}).success, true);
+      assert.strictEqual(oneOfSchema.safeParse({}).success, false);
+      assert.strictEqual(
+        oneOfSchema.safeParse({url: 'https://example.com', path: '/tmp/file'}).success,
+        false,
+      );
+
+      const anyOfSchema = convertFunctionArgsJsonSchemaToZod({
+        anyOf: [
+          {
+            type: 'object',
+            properties: {email: {type: 'string'}},
+            required: ['email'],
+          },
+          {
+            type: 'object',
+            properties: {phone: {type: 'string'}},
+            required: ['phone'],
+          },
+        ],
+      });
+      assert.strictEqual(anyOfSchema.safeParse({email: 'a@b.com'}).success, true);
+      assert.strictEqual(anyOfSchema.safeParse({phone: '555-1234'}).success, true);
+      assert.strictEqual(
+        anyOfSchema.safeParse({email: 'a@b.com', phone: '555-1234'}).success,
+        true,
+      );
+      assert.strictEqual(anyOfSchema.safeParse({}).success, false);
+    });
+
+    it('enforces unevaluatedProperties: false and additionalProperties: false per Draft 2020-12 across conditional and combinator branches', () => {
+      const nestedConditionalSchema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        unevaluatedProperties: false,
+        properties: {
+          mode: {type: 'string'},
+        },
+        if: {
+          properties: {mode: {const: 'advanced'}},
+          required: ['mode'],
+        },
+        then: {
+          properties: {tier: {type: 'string'}},
+          if: {
+            properties: {tier: {const: 'enterprise'}},
+            required: ['tier'],
+          },
+          then: {
+            allOf: [
+              {
+                properties: {
+                  ssoUrl: {type: 'string'},
+                },
+                required: ['ssoUrl'],
+              },
+            ],
+          },
+        },
+        else: {
+          properties: {basicFlag: {type: 'boolean'}},
+        },
+      });
+
+      assert.strictEqual(
+        nestedConditionalSchema.safeParse({
+          mode: 'advanced',
+          tier: 'enterprise',
+          ssoUrl: 'https://example.com',
+        }).success,
+        true,
+      );
+      assert.strictEqual(
+        nestedConditionalSchema.safeParse({
+          mode: 'advanced',
+          tier: 'enterprise',
+        }).success,
+        false,
+      );
+      // Rejects key from unselected `else` branch when `if` matches
+      assert.strictEqual(
+        nestedConditionalSchema.safeParse({
+          mode: 'advanced',
+          tier: 'enterprise',
+          ssoUrl: 'https://example.com',
+          basicFlag: true,
+        }).success,
+        false,
+      );
+      assert.strictEqual(
+        nestedConditionalSchema.safeParse({
+          mode: 'simple',
+          basicFlag: true,
+        }).success,
+        true,
+      );
+      // Rejects keys from unselected `then` branch when `if` does not match
+      assert.strictEqual(
+        nestedConditionalSchema.safeParse({
+          mode: 'simple',
+          basicFlag: true,
+          tier: 'enterprise',
+        }).success,
+        false,
+      );
+      assert.strictEqual(
+        nestedConditionalSchema.safeParse({
+          mode: 'simple',
+          basicFlag: true,
+          unknownExtra: 123,
+        }).success,
+        false,
+      );
+
+      // Rootless unevaluatedProperties: false with if/then/else
+      const rootlessConditionalSchema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        unevaluatedProperties: false,
+        if: {
+          properties: {kind: {const: 'a'}},
+          required: ['kind'],
+        },
+        then: {
+          properties: {
+            kind: {type: 'string'},
+            aVal: {type: 'number'},
+          },
+          required: ['kind', 'aVal'],
+        },
+        else: {
+          properties: {
+            kind: {type: 'string'},
+            bVal: {type: 'boolean'},
+          },
+          required: ['kind', 'bVal'],
+        },
+      });
+
+      assert.strictEqual(rootlessConditionalSchema.safeParse({kind: 'a', aVal: 42}).success, true);
+      assert.strictEqual(
+        rootlessConditionalSchema.safeParse({kind: 'b', bVal: false}).success,
+        true,
+      );
+      assert.strictEqual(
+        rootlessConditionalSchema.safeParse({kind: 'a', aVal: 42, bVal: false}).success,
+        false,
+      );
+      assert.strictEqual(
+        rootlessConditionalSchema.safeParse({kind: 'a', aVal: 42, extra: 'nope'}).success,
+        false,
+      );
+
+      // Rootless unevaluatedProperties: false with oneOf rejects unselected branch keys
+      const rootlessOneOfSchema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        unevaluatedProperties: false,
+        oneOf: [
+          {
+            properties: {url: {type: 'string'}},
+            required: ['url'],
+          },
+          {
+            properties: {path: {type: 'string'}},
+            required: ['path'],
+          },
+        ],
+      });
+
+      assert.strictEqual(rootlessOneOfSchema.safeParse({url: 'https://example.com'}).success, true);
+      assert.strictEqual(rootlessOneOfSchema.safeParse({path: '/var/log'}).success, true);
+      assert.strictEqual(
+        rootlessOneOfSchema.safeParse({url: 'https://example.com', path: '/var/log'}).success,
+        false,
+      );
+      assert.strictEqual(
+        rootlessOneOfSchema.safeParse({url: 'https://example.com', unexpected: true}).success,
+        false,
+      );
+
+      // anyOf with unevaluatedProperties: false rejects keys from non-matching branches
+      const anyOfUnevaluatedSchema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        unevaluatedProperties: false,
+        anyOf: [
+          {properties: {a: {type: 'string'}}, required: ['a']},
+          {properties: {b: {type: 'string'}, c: {type: 'string'}}, required: ['b', 'c']},
+        ],
+      });
+
+      assert.strictEqual(anyOfUnevaluatedSchema.safeParse({a: 'x'}).success, true);
+      assert.strictEqual(
+        anyOfUnevaluatedSchema.safeParse({a: 'x', b: 'unselected'}).success,
+        false,
+      );
+    });
+
+    it('enforces additionalProperties: false locally without accepting keys from sibling anyOf branches (Issue #3998 Row 4)', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        anyOf: [{properties: {a: {type: 'string'}}, required: ['a']}],
+        additionalProperties: false,
+      });
+
+      assert.strictEqual(schema.safeParse({a: 'x'}).success, false);
+      assert.strictEqual(schema.safeParse({}).success, false);
+
+      const withLocalProp = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {a: {type: 'string'}},
+        anyOf: [{required: ['a']}],
+        additionalProperties: false,
+      });
+
+      assert.strictEqual(withLocalProp.safeParse({a: 'x'}).success, true);
+      assert.strictEqual(withLocalProp.safeParse({a: 'x', zzz: 1}).success, false);
+      assert.strictEqual(withLocalProp.safeParse({}).success, false);
+    });
+
+    it('does not treat typeless allOf subschemas as shorthand parameter maps', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        allOf: [
+          {
+            type: 'object',
+            properties: {
+              a: {type: 'string'},
+              b: {type: 'string'},
+            },
+          },
+          {
+            dependentRequired: {a: ['b']},
+          },
+          {
+            if: {properties: {a: {const: 'req'}}, required: ['a']},
+            then: {required: ['b']},
+          },
+          {
+            required: ['a'],
+          },
+          {
+            additionalProperties: false,
+          },
+        ],
+      });
+
+      assert.strictEqual(schema.safeParse({a: 'ok', b: 'present'}).success, true);
+      assert.strictEqual(schema.safeParse({a: 'ok'}).success, false);
+      assert.strictEqual(schema.safeParse({a: 'ok', b: 'present', extra: 1}).success, false);
+    });
+
+    it('isolates typeless schema constraints to their applicable runtime primitive types', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          noReqB: {
+            not: {required: ['b']},
+          },
+          minTen: {
+            minimum: 10,
+          },
+          notDigits: {
+            not: {pattern: '^[0-9]+$'},
+          },
+        },
+      });
+
+      // { required: ['b'] } vacuously succeeds on non-objects, so `not: { required: ['b'] }`
+      // accepts objects missing 'b' and rejects objects with 'b' as well as non-objects
+      assert.strictEqual(schema.safeParse({noReqB: 'hello'}).success, false);
+      assert.strictEqual(schema.safeParse({noReqB: 42}).success, false);
+      assert.strictEqual(schema.safeParse({noReqB: {a: 1}}).success, true);
+      assert.strictEqual(schema.safeParse({noReqB: {b: 1}}).success, false);
+
+      // { minimum: 10 } constrains numbers >= 10 while allowing strings
+      assert.strictEqual(schema.safeParse({minTen: 'abc'}).success, true);
+      assert.strictEqual(schema.safeParse({minTen: 12}).success, true);
+      assert.strictEqual(schema.safeParse({minTen: 5}).success, false);
+
+      // { not: { pattern: '^[0-9]+$' } } accepts non-digit strings and rejects digit-only strings and non-strings
+      assert.strictEqual(schema.safeParse({notDigits: 'abc'}).success, true);
+      assert.strictEqual(schema.safeParse({notDigits: 42}).success, false);
+      assert.strictEqual(schema.safeParse({notDigits: '12345'}).success, false);
+    });
+
+    it('merges minProperties, maxProperties, and dependentRequired across allOf subschemas', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        additionalProperties: true,
+        allOf: [
+          {
+            type: 'object',
+            minProperties: 1,
+            dependentRequired: {
+              a: ['b'],
+            },
+          },
+          {
+            type: 'object',
+            maxProperties: 3,
+            dependentRequired: {
+              a: ['c'],
+            },
+          },
+        ],
+      });
+
+      // Violates minProperties: 1
+      assert.strictEqual(schema.safeParse({}).success, false);
+      // Satisfies minProperties: 1 without triggering 'a'
+      assert.strictEqual(schema.safeParse({d: 1}).success, true);
+      // Triggers 'a' but missing 'c' from second allOf branch
+      assert.strictEqual(schema.safeParse({a: 1, b: 2}).success, false);
+      // Triggers 'a' but missing 'b' from first allOf branch
+      assert.strictEqual(schema.safeParse({a: 1, c: 3}).success, false);
+      // Satisfies both dependentRequired branches and key count 3 <= 3
+      assert.strictEqual(schema.safeParse({a: 1, b: 2, c: 3}).success, true);
+      // Violates maxProperties: 3
+      assert.strictEqual(schema.safeParse({a: 1, b: 2, c: 3, d: 4}).success, false);
+    });
+
+    it('enforces additionalProperties: false on object schemas with no declared properties and vacuously passes non-objects on minProperties/maxProperties', () => {
+      const schema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          emptyOnly: {
+            type: 'object',
+            additionalProperties: false,
+          },
+          typelessBounds: {
+            minProperties: 1,
+            maxProperties: 2,
+          },
+        },
+        required: ['emptyOnly', 'typelessBounds'],
+      });
+
+      assert.strictEqual(schema.safeParse({emptyOnly: {}, typelessBounds: {a: 1}}).success, true);
+      assert.strictEqual(
+        schema.safeParse({emptyOnly: {unexpected: 1}, typelessBounds: {a: 1}}).success,
+        false,
+      );
+
+      // Non-object values vacuously pass typeless minProperties / maxProperties constraints
+      assert.strictEqual(
+        schema.safeParse({emptyOnly: {}, typelessBounds: 'not-an-object'}).success,
+        true,
+      );
+      assert.strictEqual(schema.safeParse({emptyOnly: {}, typelessBounds: 42}).success, true);
+
+      // Object values outside [1, 2] keys fail
+      assert.strictEqual(schema.safeParse({emptyOnly: {}, typelessBounds: {}}).success, false);
+      assert.strictEqual(
+        schema.safeParse({emptyOnly: {}, typelessBounds: {a: 1, b: 2, c: 3}}).success,
+        false,
+      );
+    });
+
+    it('enforces unevaluatedProperties: false in allOf property schemas with conditional branches', () => {
+      const doc = {
+        $defs: {
+          ConditionalPayload: {
+            unevaluatedProperties: false,
+            allOf: [
+              {
+                type: 'object',
+                properties: {
+                  kind: {type: 'string'},
+                },
+                required: ['kind'],
+              },
+              {
+                if: {
+                  properties: {kind: {const: 'alpha'}},
+                  required: ['kind'],
+                },
+                then: {
+                  properties: {alphaValue: {type: 'string'}},
+                  required: ['alphaValue'],
+                },
+                else: {
+                  properties: {betaValue: {type: 'number'}},
+                  required: ['betaValue'],
+                },
+              },
+            ],
+          },
+        },
+      };
+
+      const schema = convertFunctionArgsJsonSchemaToZod(
+        {
+          type: 'object',
+          properties: {
+            payload: {$ref: '#/$defs/ConditionalPayload'},
+          },
+          required: ['payload'],
+        },
+        doc,
+      );
+
+      assert.strictEqual(
+        schema.safeParse({payload: {kind: 'alpha', alphaValue: 'ok'}}).success,
+        true,
+      );
+      assert.strictEqual(schema.safeParse({payload: {kind: 'beta', betaValue: 42}}).success, true);
+      // Rejects key from unselected `else` branch when `if` matches
+      assert.strictEqual(
+        schema.safeParse({payload: {kind: 'alpha', alphaValue: 'ok', betaValue: 42}}).success,
+        false,
+      );
+      // Rejects key from unselected `then` branch when `if` does not match
+      assert.strictEqual(
+        schema.safeParse({payload: {kind: 'beta', betaValue: 42, alphaValue: 'no'}}).success,
+        false,
+      );
+    });
+
+    it('isShorthandParameterMap rejects typeless schema applicator objects while preserving valid parameter names', () => {
+      assert.strictEqual(isShorthandParameterMap({dependentRequired: {a: ['b']}}), false);
+      assert.strictEqual(
+        isShorthandParameterMap({
+          if: {properties: {a: {const: 'x'}}},
+          then: {required: ['b']},
+        }),
+        false,
+      );
+      assert.strictEqual(isShorthandParameterMap({required: ['a']}), false);
+      assert.strictEqual(isShorthandParameterMap({additionalProperties: false}), false);
+      assert.strictEqual(isShorthandParameterMap({unevaluatedProperties: false}), false);
+      assert.strictEqual(
+        isShorthandParameterMap({patternProperties: {'^x_': {type: 'string'}}}),
+        false,
+      );
+
+      // Valid shorthand parameter maps whose parameter names happen to match primitive JSON Schema keywords
+      assert.strictEqual(
+        isShorthandParameterMap({
+          title: {type: 'string'},
+          format: {type: 'string'},
+          pattern: {type: 'string'},
+        }),
+        true,
+      );
+    });
+
+    it('enforces Draft 2020-12 additionalProperties: false and unevaluatedProperties: false on nested property schemas with unions and conditionals', () => {
+      const doc = {
+        $defs: {
+          StrictLocalWithAllOfConditional: {
+            type: 'object',
+            properties: {
+              shared: {type: 'string'},
+            },
+            additionalProperties: false,
+            allOf: [
+              {
+                if: {
+                  properties: {shared: {const: 'trigger'}},
+                  required: ['shared'],
+                },
+                then: {
+                  properties: {
+                    branchOnly: {type: 'string'},
+                  },
+                },
+              },
+            ],
+          },
+          ClosedUnionTarget: {
+            type: 'object',
+            unevaluatedProperties: false,
+            oneOf: [
+              {
+                properties: {url: {type: 'string'}},
+                required: ['url'],
+              },
+              {
+                properties: {path: {type: 'string'}},
+                required: ['path'],
+              },
+            ],
+          },
+          StrictLocalWithAnyOf: {
+            type: 'object',
+            properties: {
+              id: {type: 'string'},
+            },
+            additionalProperties: false,
+            anyOf: [
+              {
+                properties: {
+                  siblingOnly: {type: 'string'},
+                },
+              },
+            ],
+          },
+        },
+      };
+
+      const schema = convertFunctionArgsJsonSchemaToZod(
+        {
+          type: 'object',
+          properties: {
+            strictAllOf: {$ref: '#/$defs/StrictLocalWithAllOfConditional'},
+            closedUnion: {$ref: '#/$defs/ClosedUnionTarget'},
+            strictUnion: {$ref: '#/$defs/StrictLocalWithAnyOf'},
+          },
+        },
+        doc,
+      );
+
+      // Draft 2020-12 Section 10.3.2.3: additionalProperties: false only sees same-object
+      // `properties` and `patternProperties`, NOT properties inside `allOf`/`then`
+      assert.strictEqual(schema.safeParse({strictAllOf: {shared: 'ok'}}).success, true);
+      assert.strictEqual(
+        schema.safeParse({strictAllOf: {shared: 'trigger', branchOnly: 'rejected'}}).success,
+        false,
+      );
+
+      // Draft 2020-12 Section 11.3: unevaluatedProperties: false on a union property schema
+      // accepts keys from the single matching branch and rejects unselected/extra keys
+      assert.strictEqual(
+        schema.safeParse({closedUnion: {url: 'https://example.com'}}).success,
+        true,
+      );
+      assert.strictEqual(schema.safeParse({closedUnion: {path: '/var/log'}}).success, true);
+      assert.strictEqual(
+        schema.safeParse({closedUnion: {url: 'https://example.com', path: '/var/log'}}).success,
+        false,
+      );
+      assert.strictEqual(
+        schema.safeParse({closedUnion: {url: 'https://example.com', extra: 1}}).success,
+        false,
+      );
+
+      // Draft 2020-12 Section 10.3.2.3: additionalProperties: false on a union property schema
+      // rejects keys declared only inside sibling `anyOf` branches
+      assert.strictEqual(schema.safeParse({strictUnion: {id: '123'}}).success, true);
+      assert.strictEqual(
+        schema.safeParse({strictUnion: {id: '123', siblingOnly: 'rejected'}}).success,
+        false,
+      );
+    });
+
+    it('preserves nested issue.path on conditional and union validation failures', () => {
+      const conditionalSchema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        properties: {
+          mode: {type: 'string'},
+          config: {
+            type: 'object',
+            properties: {
+              port: {type: 'number'},
+            },
+          },
+        },
+        if: {
+          properties: {mode: {const: 'strict'}},
+          required: ['mode'],
+        },
+        then: {
+          properties: {
+            config: {
+              type: 'object',
+              properties: {
+                port: {type: 'number', minimum: 1024},
+              },
+            },
+          },
+        },
+      });
+
+      const condRes = conditionalSchema.safeParse({mode: 'strict', config: {port: 80}});
+      assert.strictEqual(condRes.success, false);
+      if (!condRes.success) {
+        assert.deepStrictEqual(condRes.error.issues[0]?.path, ['config', 'port']);
+      }
+
+      const unionSchema = convertFunctionArgsJsonSchemaToZod({
+        type: 'object',
+        oneOf: [
+          {
+            properties: {
+              endpoint: {
+                type: 'object',
+                properties: {
+                  timeoutMs: {type: 'number', minimum: 100},
+                },
+                required: ['timeoutMs'],
+              },
+            },
+            required: ['endpoint'],
+          },
+          {
+            properties: {
+              disabled: {const: true},
+            },
+            required: ['disabled'],
+          },
+        ],
+      });
+
+      const unionRes = unionSchema.safeParse({endpoint: {timeoutMs: 10}});
+      assert.strictEqual(unionRes.success, false);
+      if (!unionRes.success) {
+        assert.deepStrictEqual(unionRes.error.issues[0]?.path, ['endpoint', 'timeoutMs']);
+      }
+    });
   });
 });
