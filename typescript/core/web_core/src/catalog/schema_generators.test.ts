@@ -196,6 +196,25 @@ if (a == i) {}`;
     assert.ok(code.includes('export const TestWidgetSchema ='));
     assert.ok(code.includes('export type TestWidget = z.infer<typeof TestWidgetSchema>'));
   });
+
+  it('compiles a required property that accepts any value to reject a missing key', () => {
+    const def = {
+      type: 'object',
+      properties: {
+        value: {description: 'Any value.'},
+        note: {description: 'Optional.'},
+      },
+      required: ['value'],
+    };
+    const code = compileDefToZod(def, 'TestUpdate');
+    assert.ok(
+      code.includes(
+        `"value": z.any().refine(value => value !== undefined, 'Required').describe("Any value.")`,
+      ),
+      code,
+    );
+    assert.ok(code.includes('"note": z.any().describe("Optional.").optional()'), code);
+  });
 });
 
 describe('generate-superset-common-types.mjs', () => {
