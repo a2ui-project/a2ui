@@ -26,18 +26,18 @@ For each issue in the [first-line triage queue][not-first-line-handled]:
 1. Go through the [second-line triage queue][needs-triage-minus-needs-team]. For each item:
 
     - If you can triage it in a couple of minutes, [triage it](#triage-an-item).
-    - Otherwise, add [status: needs-team-input][needs-team-input]. Optionally, add a comment with your thoughts.
+    - Otherwise, add [status: needs-team-input][needs-team-input].
 
 2. Go through [status: needs-team-input][needs-team-input] with other team members. For each item:
 
     - If you can triage it in a couple of minutes, [triage it](#triage-an-item) and remove `status: needs-team-input`.
-    - Otherwise, assign it to an expert in the area, add [status: assigned-for-triage][assigned-for-triage], and remove `status: needs-team-input`.
+    - Otherwise, assign it to an expert in the area, add [status: assigned-for-triage][assigned-for-triage], and remove `status: needs-team-input`. For a PR, also request the expert's review, so that the PR is in their review queue. The triage UI does this when it applies the label.
 
 ## Triage an item
 
 ### Add labels
 
-- Add [status: waiting-for-author-response][waiting-for-author-response] when a PR or an issue needs a response or clarification from its author or another contributor. The bot removes the label once someone outside the team replies, and the item goes back to the triage queue.
+- Add [status: waiting-for-author-response][waiting-for-author-response] when a PR or an issue needs a response or clarification from its author or another contributor. The flagger removes the label once someone outside the team replies, and the item goes back to the triage queue.
 - Add [size: small][size-small] to a small issue.
 
 ### Triage an issue
@@ -89,14 +89,13 @@ What may help:
 - Before you start, check open issues and PRs for related work, so that your change does not overlap with them.
 ```
 
-## Other resources
+## Automation
 
-- [All items that need triage][needs-triage-all], including the ones that need team input.
+See [Triage automation](../../../tools/internal/triage/README.md).
 
 [not-first-line-handled]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3A%22status%3A%20first-line-handled%22%20sort%3Acreated-asc
-[needs-triage-all]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-triage%22
 [needs-triage-minus-needs-team]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-triage%22+-label%3A%22status%3A+needs-team-input%22
-[needs-team-input]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-team-input%22
-[assigned-for-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20assigned-for-triage%22
-[waiting-for-author-response]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20waiting-for-author-response%22
+[needs-team-input]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-team-input%22
+[assigned-for-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+assigned-for-triage%22
+[waiting-for-author-response]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+waiting-for-author-response%22
 [size-small]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22size%3A%20small%22

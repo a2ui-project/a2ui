@@ -19,22 +19,15 @@ import {TestBed} from '@angular/core/testing';
 import {getCanvas, loadExample, wait, Version} from '../utils';
 
 for (const useUniversal of [false, true]) {
-  // With universal components on, the basic catalog renders web_core's
-  // elements and every other Angular component renders in its
-  // `a2ui-ng-<name>` host element; off, each renders as its own selector.
-  const tag = useUniversal
-    ? {
-        grid: 'a2ui-ng-customgrid',
-        slider: 'a2ui-ng-customslider',
-        card: 'a2ui-card',
-        button: 'a2ui-basic-button',
-      }
-    : {
-        grid: 'a2ui-custom-grid',
-        slider: 'a2ui-custom-slider',
-        card: 'a2ui-v09-card',
-        button: 'a2ui-v09-button',
-      };
+  // Angular components keep their own selector (`a2ui-custom-grid`,
+  // `a2ui-custom-slider`) in both modes, wrapped in `a2ui-ng-<name>` only
+  // when rendered inside a universal Web Component container.
+  const tag = {
+    grid: 'a2ui-custom-grid',
+    slider: 'a2ui-custom-slider',
+    card: useUniversal ? 'a2ui-card' : 'a2ui-v09-card',
+    button: useUniversal ? 'a2ui-basic-button' : 'a2ui-v09-button',
+  };
 
   describe(`Example: Native Angular Grid (useUniversalComponents: ${useUniversal})`, () => {
     let canvas: HTMLElement;

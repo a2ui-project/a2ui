@@ -23,8 +23,15 @@ import {
   PluralizeImplementation,
 } from '../catalogs/basic/v1/functions/basic_functions.js';
 import {A2uiError} from '../errors.js';
-import {isSignal, peekValue, signal} from '../reactivity/signals.js';
+import {
+  _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
+  isSignal,
+  peekValue,
+  setSignalImplementation,
+  signal,
+} from '../reactivity/signals.js';
 import {DataContext} from '../resolution/data-context.js';
+import {DataModel} from '../state/data-model.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {IndexImplementation} from '../v1_0/functions/system_functions.js';
 import {A2uiRpcError, RpcErrorCode, RpcHandler} from './rpc-handler.js';
@@ -760,15 +767,30 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const standaloneId = 'https://example.com/standalone/catalog.json';
 
     const labelA = createFunctionImplementation(
-      {name: 'label', returnType: 'string' as const, schema: z.object({})},
+      {
+        name: 'label',
+        returnType: 'string' as const,
+        schema: z.object({}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
       () => 'from-A',
     );
     const labelB = createFunctionImplementation(
-      {name: 'label', returnType: 'string' as const, schema: z.object({})},
+      {
+        name: 'label',
+        returnType: 'string' as const,
+        schema: z.object({}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
       () => 'from-B',
     );
     const labelStandalone = createFunctionImplementation(
-      {name: 'label', returnType: 'string' as const, schema: z.object({})},
+      {
+        name: 'label',
+        returnType: 'string' as const,
+        schema: z.object({}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
       () => 'from-standalone',
     );
 
@@ -805,19 +827,23 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       ...FormatStringImplementation,
       allowedCallers: 'rendererOrAgent' as const,
     };
+    const rpcPluralize = {
+      ...PluralizeImplementation,
+      allowedCallers: 'rendererOrAgent' as const,
+    };
 
     const catA = new Catalog(
       catAId,
       '1.0',
       [],
-      [rpcFormatString, PluralizeImplementation, labelA, asyncFormatA],
+      [rpcFormatString, rpcPluralize, labelA, asyncFormatA],
     );
     const catB = new Catalog(catBId, '1.0', [], [rpcFormatString, labelB, asyncFormatB]);
     const standaloneCat = new Catalog(
       standaloneId,
       '1.0',
       [],
-      [rpcFormatString, PluralizeImplementation, labelStandalone],
+      [rpcFormatString, rpcPluralize, labelStandalone],
     );
 
     const surface = new SurfaceModel(
@@ -911,7 +937,12 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     // while targeting an unnegotiated catalog fails with `EXECUTION_ERROR`.
     const makeLabelHelper = (text: string) =>
       createFunctionImplementation(
-        {name: 'label', returnType: 'string' as const, schema: z.object({})},
+        {
+          name: 'label',
+          returnType: 'string' as const,
+          schema: z.object({}),
+          allowedCallers: 'rendererOrAgent' as const,
+        },
         () => text,
       );
     const echoLabelImpl = createFunctionImplementation(
@@ -927,7 +958,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       'https://example.com/rpc-echo-standalone/catalog.json',
       '1.0',
       [],
-      [echoLabelImpl, FormatStringImplementation, makeLabelHelper('arg-standalone')],
+      [echoLabelImpl, rpcFormatString, makeLabelHelper('arg-standalone')],
     );
     const otherUnnegotiatedCat = new Catalog(
       'https://example.com/rpc-other-unnegotiated/catalog.json',
@@ -997,6 +1028,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
           },
           label: {
             returnType: 'string',
+            allowedCallers: 'rendererOrAgent',
             parameters: {type: 'object', properties: {}},
           },
         },
@@ -1037,5 +1069,358 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       schemaOnlyCtx,
     );
     assert.strictEqual(sharedRes.rendererFunctionResponse.value, 'Resolved: from-exec-rpc');
+  });
+
+  it('rejects nested rendererOnly calls before sibling arguments execute and enforces caller boundary on DataModel templates', async () => {
+    const catId = 'https://example.com/rpc-nested-boundary/catalog.json';
+    const sideEffects: string[] = [];
+
+    const mutatingAllowed = createFunctionImplementation(
+      {
+        name: 'mutatingAllowed',
+        returnType: 'string' as const,
+        schema: z.object({}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
+      () => {
+        sideEffects.push('mutated');
+        return 'ok';
+      },
+    );
+    const secretRendererOnly = createFunctionImplementation(
+      {
+        name: 'secretRendererOnly',
+        returnType: 'string' as const,
+        schema: z.object({label: z.string().optional()}),
+        allowedCallers: 'rendererOnly' as const,
+      },
+      () => {
+        sideEffects.push('leaked');
+        return 'SECRET';
+      },
+    );
+    const agentOnlyFn = createFunctionImplementation(
+      {
+        name: 'agentOnlyFn',
+        returnType: 'string' as const,
+        schema: z.object({}),
+        allowedCallers: 'agentOnly' as const,
+      },
+      () => 'AGENT_SECRET',
+    );
+    const echoAll = createFunctionImplementation(
+      {
+        name: 'echoAll',
+        returnType: 'any' as const,
+        schema: z.record(z.string(), z.any()),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
+      args => args,
+    );
+    const renderTpl = createFunctionImplementation(
+      {
+        name: 'renderTpl',
+        returnType: 'any' as const,
+        schema: z.object({value: z.string()}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
+      (args, ctx) => {
+        const res = FormatStringImplementation.execute({value: args.value}, ctx);
+        return isSignal(res) ? peekValue(res) : res;
+      },
+    );
+
+    const cat = new Catalog(
+      catId,
+      '1.0',
+      [],
+      [mutatingAllowed, secretRendererOnly, agentOnlyFn, echoAll, renderTpl],
+    );
+    const surface = new SurfaceModel(
+      's-nested-boundary',
+      cat,
+      new Map([[catId, cat]]),
+      undefined,
+      false,
+      new DataModel({tpl: 'Leak: ${secretRendererOnly()}'}),
+      '1.0',
+    );
+    const ctx = new DataContext(surface, '/');
+    const handler = new RpcHandler({catalogs: [cat]});
+
+    // 1. Sibling `mutatingAllowed` must not run when a sibling nested `@call` is `rendererOnly`.
+    const siblingRes = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-sibling-atomic',
+          surfaceId: 's-nested-boundary',
+          callFunction: {
+            '@call': 'echoAll',
+            catalogId: catId,
+            args: {
+              first: {'@call': 'mutatingAllowed', catalogId: catId, args: {}},
+              second: [{'@call': 'secretRendererOnly', catalogId: catId, args: {}}],
+            },
+          },
+        },
+      },
+      ctx,
+    );
+    assert.strictEqual(
+      siblingRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
+    assert.deepStrictEqual(sideEffects, []);
+
+    // 2. Dynamic `${secretRendererOnly()}` stored in `DataModel` and loaded via `@path` is rejected with `INVALID_FUNCTION_CALL`.
+    const tplRes = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-datamodel-tpl',
+          surfaceId: 's-nested-boundary',
+          callFunction: {
+            '@call': 'renderTpl',
+            catalogId: catId,
+            args: {value: {'@path': '/tpl'}},
+          },
+        },
+      },
+      ctx,
+    );
+    assert.strictEqual(
+      tplRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
+    assert.deepStrictEqual(sideEffects, []);
+
+    // 2b. Multi-argument `${secretRendererOnly(label: 'x')}` still returns `INVALID_FUNCTION_CALL`
+    // under a deferred-effect reactivity backend (such as `@a2ui/angular`).
+    surface.dataModel.set('/tplWithArg', "Leak: ${secretRendererOnly(label: 'x')}");
+    setSignalImplementation({
+      ..._PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
+      effect: () => () => {},
+    });
+    try {
+      const deferredTplRes = await handler.handleCallRendererFunction(
+        {
+          version: '1.0',
+          callRendererFunction: {
+            functionCallId: 'nested-deferred-tpl',
+            surfaceId: 's-nested-boundary',
+            callFunction: {
+              '@call': 'renderTpl',
+              catalogId: catId,
+              args: {value: {'@path': '/tplWithArg'}},
+            },
+          },
+        },
+        ctx,
+      );
+      assert.strictEqual(
+        deferredTplRes.rendererFunctionResponse.error?.code,
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+      );
+      assert.deepStrictEqual(sideEffects, []);
+    } finally {
+      setSignalImplementation(_PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION);
+    }
+
+    // 3. Nested `agentOnly` call succeeds under `callRendererFunction`.
+    const agentRes = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-agent-only',
+          surfaceId: 's-nested-boundary',
+          callFunction: {
+            '@call': 'echoAll',
+            catalogId: catId,
+            args: {
+              token: {'@call': 'agentOnlyFn', catalogId: catId, args: {}},
+            },
+          },
+        },
+      },
+      ctx,
+    );
+    assert.deepStrictEqual(agentRes.rendererFunctionResponse.value, {token: 'AGENT_SECRET'});
+
+    // 4. 600 chained `@call` wrappers (+1 per wrapper) still reject `secretRendererOnly`
+    // before sibling `mutatingAllowed` runs, and >1000 levels fail closed with `EXECUTION_ERROR`.
+    let deepForbidden: unknown = {'@call': 'secretRendererOnly', catalogId: catId, args: {}};
+    for (let i = 0; i < 600; i++) {
+      deepForbidden = {'@call': 'echoAll', catalogId: catId, args: {inner: deepForbidden}};
+    }
+    const deepForbiddenRes = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-deep-600',
+          surfaceId: 's-nested-boundary',
+          callFunction: {
+            '@call': 'echoAll',
+            catalogId: catId,
+            args: {
+              first: {'@call': 'mutatingAllowed', catalogId: catId, args: {}},
+              second: deepForbidden,
+            },
+          },
+        },
+      },
+      ctx,
+    );
+    assert.strictEqual(
+      deepForbiddenRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
+    assert.deepStrictEqual(sideEffects, []);
+
+    let overDeep: unknown = 'leaf';
+    for (let i = 0; i < 1005; i++) {
+      overDeep = [overDeep];
+    }
+    const overDeepRes = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-over-deep',
+          surfaceId: 's-nested-boundary',
+          callFunction: {
+            '@call': 'echoAll',
+            catalogId: catId,
+            args: {
+              first: {'@call': 'mutatingAllowed', catalogId: catId, args: {}},
+              second: overDeep,
+            },
+          },
+        },
+      },
+      ctx,
+    );
+    assert.strictEqual(
+      overDeepRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.EXECUTION_ERROR,
+    );
+    assert.deepStrictEqual(sideEffects, []);
+
+    // 5. Renderer-side `agentOnly` evaluation keeps `error.details` undefined.
+    const surfaceErrors: Array<{details?: unknown}> = [];
+    const sub = surface.onError.subscribe(err => {
+      surfaceErrors.push(err);
+    });
+    ctx.resolveDynamicValue({'@call': 'agentOnlyFn', catalogId: catId, args: {}});
+    sub.unsubscribe();
+    assert.strictEqual(surfaceErrors.length, 1);
+    assert.strictEqual(surfaceErrors[0].details, undefined);
+
+    // 6. Forbidden `${...}` call with an unknown argument key returns
+    // `INVALID_FUNCTION_CALL` instead of being swallowed as `""`, and nested
+    // side-effecting arguments do not execute before the boundary check.
+    const bogusArgRes = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-tpl-bogus-arg',
+          surfaceId: 's-nested-boundary',
+          callFunction: {
+            '@call': 'renderTpl',
+            catalogId: catId,
+            args: {value: 'Leak: ${secretRendererOnly(bogus: 1)}'},
+          },
+        },
+      },
+      ctx,
+    );
+    assert.strictEqual(
+      bogusArgRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
+
+    const eagerArgRes = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-tpl-eager-arg',
+          surfaceId: 's-nested-boundary',
+          callFunction: {
+            '@call': 'renderTpl',
+            catalogId: catId,
+            args: {value: '${secretRendererOnly(label: mutatingAllowed())}'},
+          },
+        },
+      },
+      ctx,
+    );
+    assert.strictEqual(
+      eagerArgRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
+    assert.deepStrictEqual(sideEffects, []);
+
+    // 7. Over-deep branch alongside a shallow forbidden sibling still returns
+    // `INVALID_FUNCTION_CALL` deterministically.
+    const mixedDepthRes = await handler.handleCallRendererFunction(
+      {
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'nested-depth-and-forbidden',
+          surfaceId: 's-nested-boundary',
+          callFunction: {
+            '@call': 'echoAll',
+            catalogId: catId,
+            args: {
+              first: overDeep,
+              second: {'@call': 'secretRendererOnly', catalogId: catId, args: {}},
+            },
+          },
+        },
+      },
+      ctx,
+    );
+    assert.strictEqual(
+      mixedDepthRes.rendererFunctionResponse.error?.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
+    assert.deepStrictEqual(sideEffects, []);
+
+    // 8. `resolveImmediateFunctionSignal` chains `prevUnsubscribe` when a
+    // zero-arg function returns a `Signal` with its own cleanup callback.
+    let innerUnsubscribed = false;
+    const signalReturningFn = createFunctionImplementation(
+      {
+        name: 'signalReturningFn',
+        returnType: 'string' as const,
+        schema: z.object({}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
+      () => {
+        const inner = signal('hello');
+        inner.unsubscribe = () => {
+          innerUnsubscribed = true;
+        };
+        return inner;
+      },
+    );
+    const sigCat = new Catalog('sig-cat', '1.0', [], [signalReturningFn]);
+    const sigSurface = new SurfaceModel(
+      's-sig',
+      sigCat,
+      new Map([['sig-cat', sigCat]]),
+      undefined,
+      false,
+      new DataModel({}),
+      '1.0',
+    );
+    const sigCtx = new DataContext(sigSurface, '/');
+    const resolvedSig = sigCtx.resolveSignal<string>({
+      '@call': 'signalReturningFn',
+      catalogId: 'sig-cat',
+      args: {},
+    });
+    assert.strictEqual(peekValue(resolvedSig), 'hello');
+    resolvedSig.unsubscribe?.();
+    assert.strictEqual(innerUnsubscribed, true);
   });
 });

@@ -20,6 +20,7 @@ import json
 from a2ui import constants
 from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.common import to_protocol_version
+from a2ui.inference_formats._shared import release_line
 from a2ui.utils import (
     load_agent_to_renderer_schema,
     load_common_types_schema,
@@ -118,11 +119,11 @@ def _checked_catalogs(catalogs: Iterable[CatalogApi]) -> list[CatalogApi]:
     catalogs = list(catalogs)
     if not catalogs:
         raise A2uiCatalogError("The schema prompt needs at least one catalog.")
-    versions = {to_protocol_version(c.protocol_version) for c in catalogs}
-    if len(versions) > 1:
+    if len({release_line(c.protocol_version) for c in catalogs}) > 1:
+        versions = {to_protocol_version(c.protocol_version).value for c in catalogs}
         raise A2uiCatalogError(
             "The schema prompt's catalogs target different protocol versions:"
-            f" {sorted(v.value for v in versions)}."
+            f" {sorted(versions)}."
         )
     return catalogs
 

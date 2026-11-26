@@ -105,7 +105,37 @@ const CUSTOM = new InMemoryCatalogProvider(
   },
   '1.0',
 ).load();
-const CATALOGS = [BASIC, CUSTOM];
+const OTHER_ID = 'https://example.com/other.json';
+const OTHER = new InMemoryCatalogProvider(
+  {
+    catalogId: OTHER_ID,
+    components: {
+      Dummy: {
+        type: 'object',
+        properties: {component: {const: 'Dummy'}},
+        required: ['component'],
+      },
+    },
+    functions: {
+      greet: {
+        type: 'object',
+        allowedCallers: 'rendererOrAgent',
+        properties: {
+          '@call': {const: 'greet'},
+          args: {
+            type: 'object',
+            properties: {value: {$ref: 'common_types.json#/$defs/DynamicString'}},
+            additionalProperties: false,
+          },
+        },
+        returnType: 'string',
+        required: ['@call'],
+      },
+    },
+  },
+  '1.0',
+).load();
+const CATALOGS = [BASIC, CUSTOM, OTHER];
 
 function call(
   name: string,
@@ -123,8 +153,8 @@ function call(
   return {version: '1.0', callRendererFunction: body};
 }
 
-function create(surfaceId = 's'): Message {
-  return {version: '1.0', createSurface: {surfaceId, catalogId: BASIC_ID}};
+function create(surfaceId = 's', catalogId = BASIC_ID): Message {
+  return {version: '1.0', createSurface: {surfaceId, catalogId}};
 }
 
 function del(surfaceId = 's'): Message {
@@ -133,12 +163,17 @@ function del(surfaceId = 's'): Message {
 
 const RECORDING_ID = 'https://example.com/recording.json';
 
-/** A catalog whose `record` function appends its args to `calls`. */
+/**
+ * A catalog whose `record` function appends its args to `calls`.
+ *
+ * `note` is a string unless `options.note` gives it another schema.
+ */
 function recordingCatalog(
   calls: unknown[],
   options: {
     allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
     requiresUserActivation?: boolean;
+    note?: z.ZodTypeAny;
   } = {allowedCallers: 'rendererOrAgent'},
 ): CatalogApi {
   return new Catalog(
@@ -149,7 +184,7 @@ function recordingCatalog(
       {
         name: 'record',
         returnType: 'void',
-        schema: z.object({note: z.string().optional()}).strict(),
+        schema: z.object({note: options.note ?? z.string().optional()}).strict(),
         execute: (args: Record<string, unknown>) => {
           calls.push(args);
         },
@@ -247,6 +282,7 @@ describe('callRendererFunction validation', () => {
   it.each([
     ['data binding', {'@path': '/name'}],
     ['call', {'@call': 'scrollTo', args: {id: 'x'}}],
+    ['agentOnly call', {'@call': 'getMoonPhase'}],
   ])('accepts an argument the renderer resolves: %s', (_, text) => {
     expect(() => validatePayload(CATALOGS, [call('describe', {args: {text}})])).not.toThrow();
   });
@@ -259,7 +295,8 @@ describe('callRendererFunction validation', () => {
 
   it.each([
     ['same catalog', {'@call': 'scrollTo', args: {id: 'x'}}],
-    ['another catalog', {'@call': 'formatString', catalogId: BASIC_ID, args: {value: 'hi'}}],
+    ['agentOnly', {'@call': 'getMoonPhase'}],
+    ['another catalog', {'@call': 'greet', catalogId: OTHER_ID, args: {value: 'hi'}}],
   ])('accepts a call nested in untyped arguments: %s', (_, value) => {
     expect(() => validatePayload(CATALOGS, [call('echo', {args: {value}})])).not.toThrow();
   });
@@ -272,9 +309,9 @@ describe('callRendererFunction validation', () => {
       /holds a call to 'scrollTo' that does not match the arguments of 'scrollTo'/,
     ],
     [
-      'agent only',
-      {'@call': 'getMoonPhase'},
-      /holds a call to 'getMoonPhase' that the renderer can't make: Function 'getMoonPhase' cannot be called by renderer \(allowedCallers is agentOnly\)/,
+      'renderer only',
+      {'@call': 'formatString', catalogId: BASIC_ID, args: {value: 'hi'}},
+      /holds a call to 'formatString' that the agent can't make: Function 'formatString' cannot be called by agent \(allowedCallers is rendererOnly\)/,
     ],
     [
       'unregistered catalog',
@@ -472,14 +509,20 @@ describe('callRendererFunction validation', () => {
     expect(() => new RendererState(CATALOGS).apply([message])).toThrow(A2uiValidationError);
   });
 
+  it('accepts calls nested deeper than five', () => {
+    expect(() =>
+      validatePayload(CATALOGS, [call('echo', {args: {value: nestCalls(10)}})]),
+    ).not.toThrow();
+  });
+
   it.each([
-    ['bad path', {'@path': 'bad~pointer'}],
-    ['calls nested too deep', nestCalls(7)],
-    ['objects nested too deep', nestObjects(60)],
-  ])('rejects arguments the processor would refuse: %s', (_, value) => {
-    expect(() => validatePayload(CATALOGS, [call('echo', {args: {value}})])).toThrow(
-      A2uiValidationError,
-    );
+    ['bad path', {'@path': 'bad~pointer'}, /Invalid path syntax: 'bad~pointer'/],
+    ['calls nested too deep', nestCalls(30), /Global recursion limit exceeded/],
+    ['objects nested too deep', nestObjects(60), /Global recursion limit exceeded/],
+  ])('rejects arguments the processor would refuse: %s', (_, value, match) => {
+    const payload = [call('echo', {args: {value}})];
+    expect(() => validatePayload(CATALOGS, payload)).toThrow(A2uiValidationError);
+    expect(() => validatePayload(CATALOGS, payload)).toThrow(match);
   });
 
   it.each([
@@ -520,34 +563,44 @@ describe('callRendererFunction validation', () => {
       /holds a call to 'scrollTo' whose 'args' must be an object\./,
     ],
     [
-      'agentOnly call under a non-string @call',
-      {'@call': {'@call': 'getMoonPhase'}},
-      /holds a call to 'getMoonPhase' that the renderer can't make: Function 'getMoonPhase' cannot be called by renderer \(allowedCallers is agentOnly\)/,
+      'rendererOnly call under a non-string @call',
+      {'@call': {'@call': 'formatString', catalogId: BASIC_ID, args: {value: 'hi'}}},
+      /holds a call to 'formatString' that the agent can't make: Function 'formatString' cannot be called by agent \(allowedCallers is rendererOnly\)/,
     ],
     [
-      'agentOnly call in a list under a non-string @call',
-      {'@call': [{'@call': 'getMoonPhase'}]},
-      /holds a call to 'getMoonPhase' that the renderer can't make/,
-    ],
-    [
-      'function that requires a user activation',
-      {'@call': 'openUrl', catalogId: BASIC_ID, args: {url: 'https://example.com'}},
-      /holds a call to 'openUrl' that the renderer can't make: Function 'openUrl' requires a user activation, and a call from the agent has none\./,
+      'rendererOnly call in a list under a non-string @call',
+      {'@call': [{'@call': 'formatString', catalogId: BASIC_ID, args: {value: 'hi'}}]},
+      /holds a call to 'formatString' that the agent can't make/,
     ],
   ])('checks every object in the arguments: %s', (_, value, match) => {
     expect(() => validatePayload(CATALOGS, [call('echo', {args: {value}})])).toThrow(match);
   });
 
+  it('rejects a nested call that requires a user activation', () => {
+    const activated = recordingCatalog([], {
+      allowedCallers: 'rendererOrAgent',
+      requiresUserActivation: true,
+    });
+    expect(() =>
+      validatePayload(
+        [CUSTOM, activated],
+        [call('echo', {args: {value: {'@call': 'record', catalogId: RECORDING_ID}}})],
+      ),
+    ).toThrow(
+      /holds a call to 'record' that the agent can't make: Function 'record' requires a user activation, and a call from the agent has none\./,
+    );
+  });
+
   it('checks a call nested in a typed dynamic argument against its own catalog', () => {
-    // `describe` is in CUSTOM, whose catalog lacks formatString; the argument schema must
+    // `describe` is in CUSTOM, whose catalog lacks `greet`; the argument schema must
     // not resolve the nested call against CUSTOM.
-    const text = {'@call': 'formatString', catalogId: BASIC_ID, args: {value: 'hi'}};
+    const text = {'@call': 'greet', catalogId: OTHER_ID, args: {value: 'hi'}};
     expect(() => validatePayload(CATALOGS, [call('describe', {args: {text}})])).not.toThrow();
     expect(() =>
       validatePayload(CATALOGS, [
-        create(),
+        create('s', OTHER_ID),
         call('describe', {
-          args: {text: {'@call': 'formatString', args: {value: 'hi'}}},
+          args: {text: {'@call': 'greet', args: {value: 'hi'}}},
           surfaceId: 's',
         }),
       ]),
@@ -555,56 +608,58 @@ describe('callRendererFunction validation', () => {
   });
 
   describe('a nested call that names no catalog', () => {
+    const greet = {'@call': 'greet', args: {value: 'hello'}};
     const formatString = {'@call': 'formatString', args: {value: 'hello'}};
 
     it("runs in the call's catalog when the call names no surface", () => {
-      expect(() =>
-        validatePayload(CATALOGS, [call('echo', {args: {label: formatString}})]),
-      ).toThrow(/Unrecognized function 'formatString'/);
+      expect(() => validatePayload(CATALOGS, [call('echo', {args: {label: greet}})])).toThrow(
+        /Unrecognized function 'greet'/,
+      );
     });
 
     it('runs in the default catalog of the surface the call names', () => {
-      const onSurface = call('echo', {args: {label: formatString}, surfaceId: 's'});
-      expect(() => validatePayload(CATALOGS, [create(), onSurface])).not.toThrow();
+      const onSurface = call('echo', {args: {label: greet}, surfaceId: 's'});
+      expect(() => validatePayload(CATALOGS, [create('s', OTHER_ID), onSurface])).not.toThrow();
       const state = new RendererState(CATALOGS);
-      state.apply([create()]);
+      state.apply([create('s', OTHER_ID)]);
       expect(() => state.apply([onSurface])).not.toThrow();
 
       const scrollTo = {'@call': 'scrollTo', args: {id: 'x'}};
       expect(() =>
-        validatePayload(CATALOGS, [create(), call('echo', {args: {scrollTo}, surfaceId: 's'})]),
+        validatePayload(CATALOGS, [
+          create('s', OTHER_ID),
+          call('echo', {args: {scrollTo}, surfaceId: 's'}),
+        ]),
       ).toThrow(/Unrecognized function 'scrollTo'/);
     });
 
     it('is rejected on a surface with no default catalog', () => {
       const bare = {version: '1.0', createSurface: {surfaceId: 's'}};
       expect(() =>
-        validatePayload(CATALOGS, [
-          bare,
-          call('echo', {args: {label: formatString}, surfaceId: 's'}),
-        ]),
+        validatePayload(CATALOGS, [bare, call('echo', {args: {label: greet}, surfaceId: 's'})]),
       ).toThrow(
-        "Function call 'f1' holds a call to 'formatString' without a catalogId, and surface 's' has no default catalog.",
+        "Function call 'f1' holds a call to 'greet' without a catalogId, and surface 's' has no default catalog.",
       );
-      const named = {...formatString, catalogId: BASIC_ID};
+      const named = {...greet, catalogId: OTHER_ID};
       expect(() =>
         validatePayload(CATALOGS, [bare, call('echo', {args: {label: named}, surfaceId: 's'})]),
       ).not.toThrow();
     });
 
     it.each([
-      ['declared by one catalog', formatString, undefined],
+      ['declared by one catalog', greet, undefined],
       ['declared by the call catalog', {'@call': 'scrollTo', args: {id: 'x'}}, undefined],
+      ['agentOnly', {'@call': 'getMoonPhase'}, undefined],
       ['undeclared', {'@call': 'summonDragon'}, /Unrecognized function 'summonDragon'/],
       [
-        'agentOnly wherever declared',
-        {'@call': 'getMoonPhase'},
-        /holds a call to 'getMoonPhase' that the renderer can't make/,
+        'rendererOnly wherever declared',
+        formatString,
+        /holds a call to 'formatString' that the agent can't make/,
       ],
       [
         'bad args',
-        {'@call': 'formatString', args: {value: 1, bogus: 2}},
-        /does not match the arguments of 'formatString'/,
+        {'@call': 'greet', args: {value: 1, bogus: 2}},
+        /does not match the arguments of 'greet'/,
       ],
     ])('is accepted on an assumed surface if some catalog would run it: %s', (_, label, match) => {
       for (const payload of [
@@ -624,14 +679,19 @@ describe('callRendererFunction validation', () => {
   });
 
   it.each([
-    ['bad path', {'@path': 'bad~pointer'}],
-    ['calls nested too deep', nestCalls(7)],
-    ['null args', null],
+    ['bad path', {'@path': 'bad~pointer'}, /Invalid path syntax: 'bad~pointer'/],
+    ['calls nested too deep', nestCalls(30, 'record', 'note'), /Global recursion limit exceeded/],
+    ['null args', null, /must pass an object for 'args'/],
   ])(
     "rejects a call the processor would refuse before the state's changes are final: %s",
-    (_, value) => {
+    (_, value, match) => {
       const calls: unknown[] = [];
-      const catalog = recordingCatalog(calls);
+      // `note` takes any value and the nested calls name `record`, so that nothing but the
+      // check under test refuses the call.
+      const catalog = recordingCatalog(calls, {
+        allowedCallers: 'rendererOrAgent',
+        note: z.unknown(),
+      });
       const processor = new MessageProcessor([catalog as never, BASIC as never]);
       const handled: unknown[] = [];
       vi.spyOn(processor.rpc, 'handleCallRendererFunction').mockImplementation(message => {
@@ -643,7 +703,14 @@ describe('callRendererFunction validation', () => {
       const callFunction = (message.callRendererFunction as Message).callFunction as Message;
       callFunction.args = value === null ? null : {note: value};
 
-      expect(() => state.apply([create(), message])).toThrow(A2uiValidationError);
+      let thrown: unknown;
+      try {
+        state.apply([create(), message]);
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).toBeInstanceOf(A2uiValidationError);
+      expect((thrown as Error).message).toMatch(match);
       expect(state.surfaceIds).toEqual([]);
       expect(processor.model.getSurface('s')).toBeUndefined();
       expect(handled).toEqual([]);
@@ -651,10 +718,15 @@ describe('callRendererFunction validation', () => {
   );
 });
 
-/** Returns `depth` function calls, each nested in the arguments of the one before. */
-function nestCalls(depth: number): Message {
-  let value: Message = {'@call': 'scrollTo', args: {id: 'x'}};
-  for (let i = 1; i < depth; i++) value = {'@call': 'echo', args: {value}};
+/**
+ * Returns `depth` function calls, each nested in the arguments of the one before.
+ *
+ * The innermost call is to `scrollTo`, and each call around it is to `name`, which takes the
+ * call it holds as its `arg` argument. With `name` given, every call is to `name`.
+ */
+function nestCalls(depth: number, name?: string, arg = 'value'): Message {
+  let value: Message = name ? {'@call': name, args: {}} : {'@call': 'scrollTo', args: {id: 'x'}};
+  for (let i = 1; i < depth; i++) value = {'@call': name ?? 'echo', args: {[arg]: value}};
   return value;
 }
 

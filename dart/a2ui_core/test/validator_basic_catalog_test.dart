@@ -17,6 +17,7 @@ import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/validation/component_refs.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
@@ -153,6 +154,299 @@ void main() {
     });
   }
 
+  group('nested function calls in the v0.9 basic catalog', () {
+    /// [depth] `formatString` calls, each the `value` of the one before; the
+    /// innermost takes [innermost] for its `value`.
+    Map<String, Object?> nestedFormatString(
+      int depth, {
+      Object? innermost = 'leaf',
+    }) {
+      var value = innermost;
+      for (var i = 0; i < depth; i++) {
+        value = {
+          'call': 'formatString',
+          'args': {'value': value},
+        };
+      }
+      return value! as Map<String, Object?>;
+    }
+
+    void process(Object? text) {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [BasicCatalog.v0_9()],
+        defaultVersion: A2uiProtocolVersion.v0_9,
+      );
+      processor.processMessages(
+        AgentToRendererMessage.parseAll([
+          {
+            'version': 'v0.9',
+            'createSurface': {
+              'surfaceId': 's1',
+              'catalogId': BasicCatalog.v0_9Id,
+            },
+          },
+          {
+            'version': 'v0.9',
+            'updateComponents': {
+              'surfaceId': 's1',
+              'components': [
+                {'id': 'root', 'component': 'Text', 'text': text},
+              ],
+            },
+          },
+        ], protocolVersion: A2uiProtocolVersion.v0_9),
+      );
+    }
+
+    // Checking a call against every function of the catalog, arguments and
+    // all, takes time that multiplies with each level of nesting: ten levels
+    // would not finish. The timeout fails the test instead.
+    for (final depth in [10, 20, 23]) {
+      test(
+        'MessageProcessor accepts $depth nested calls',
+        timeout: const Timeout(Duration(seconds: 30)),
+        () {
+          expect(() => process(nestedFormatString(depth)), returnsNormally);
+        },
+      );
+    }
+
+    for (final (String label, Object? innermost) in [
+      (
+        'names an unknown function',
+        {
+          'call': 'nope',
+          'args': {'value': 'x'},
+        },
+      ),
+      (
+        'passes an argument of the wrong type',
+        {
+          'call': 'formatString',
+          'args': {'value': 3},
+        },
+      ),
+      (
+        'passes an undeclared argument',
+        {
+          'call': 'formatString',
+          'args': {'value': 'x', 'extra': 1},
+        },
+      ),
+      (
+        'has an undeclared field',
+        {
+          'call': 'formatString',
+          'args': {'value': 'x'},
+          'bogus': 1,
+        },
+      ),
+      (
+        'states a return type the function does not have',
+        {
+          'call': 'formatString',
+          'args': {'value': 'x'},
+          'returnType': 'number',
+        },
+      ),
+      (
+        'returns a boolean where a string is expected',
+        {
+          'call': 'required',
+          'args': {'value': 'x'},
+          'returnType': 'boolean',
+        },
+      ),
+    ]) {
+      test(
+        'MessageProcessor rejects a call nested ten deep that $label',
+        timeout: const Timeout(Duration(seconds: 30)),
+        () {
+          expect(
+            () => process(nestedFormatString(9, innermost: innermost)),
+            throwsA(isA<A2uiValidationError>()),
+          );
+        },
+      );
+    }
+  });
+
+  test(
+    'v0.9 Button.action accepts a custom FunctionImplementation with an open '
+    'object argumentSchema',
+    () {
+      final _RendererCatalog base = BasicCatalog.v0_9();
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: base.id,
+        components: base.components.values.toList(),
+        functions: [
+          ...base.functions.values,
+          _OpenObjectFunction('incrementCounter'),
+        ],
+        themeSchema: base.themeSchema,
+        schemaId: base.schemaId,
+        title: base.title,
+        description: base.description,
+        protocolVersion: base.protocolVersion,
+        instructions: base.instructions,
+        definitions: base.definitions,
+      );
+
+      List<Map<String, Object?>> buttonMessages(
+        Map<String, Object?> action,
+      ) => [
+        {
+          'version': 'v0.9',
+          'createSurface': {
+            'surfaceId': 's1',
+            'catalogId': BasicCatalog.v0_9Id,
+          },
+        },
+        {
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Row',
+                'children': ['event_btn', 'func_btn'],
+              },
+              {
+                'id': 'event_btn',
+                'component': 'Button',
+                'child': 'event_label',
+                'action': {
+                  'event': {
+                    'name': 'buy_item',
+                    'context': {
+                      'sku': {'path': '/itemId'},
+                    },
+                  },
+                },
+              },
+              {'id': 'event_label', 'component': 'Text', 'text': 'Buy'},
+              {
+                'id': 'func_btn',
+                'component': 'Button',
+                'child': 'func_label',
+                'action': action,
+              },
+              {'id': 'func_label', 'component': 'Text', 'text': 'Increment'},
+            ],
+          },
+        },
+      ];
+
+      MessageProcessor<ComponentApi> newProcessor() =>
+          MessageProcessor<ComponentApi>(
+            catalogs: [catalog],
+            defaultVersion: A2uiProtocolVersion.v0_9,
+          );
+
+      expect(
+        () => newProcessor().processMessages(
+          AgentToRendererMessage.parseAll(
+            buttonMessages({
+              'functionCall': {
+                'call': 'incrementCounter',
+                'args': {'path': '/counter', 'step': 5},
+              },
+            }),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
+        returnsNormally,
+      );
+
+      expect(
+        () => newProcessor().processMessages(
+          AgentToRendererMessage.parseAll(
+            buttonMessages({
+              'functionCall': {
+                'call': 'unregisteredAction',
+                'args': {'path': '/counter'},
+              },
+            }),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    },
+  );
+
+  test(
+    'v0.9 function with map-valued additionalProperties validates deeply '
+    'nested calls in linear time',
+    timeout: const Timeout(Duration(seconds: 30)),
+    () {
+      final _RendererCatalog base = BasicCatalog.v0_9();
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: base.id,
+        components: base.components.values.toList(),
+        functions: [
+          ...base.functions.values,
+          _DynamicMapFunction('joinValues'),
+        ],
+        themeSchema: base.themeSchema,
+        schemaId: base.schemaId,
+        title: base.title,
+        description: base.description,
+        protocolVersion: base.protocolVersion,
+        instructions: base.instructions,
+        definitions: base.definitions,
+      );
+
+      Map<String, Object?> nestedJoinValues(
+        int depth, {
+        Object? leaf = 'leaf',
+      }) {
+        var current = leaf;
+        for (var i = 0; i < depth; i++) {
+          current = {
+            'call': 'joinValues',
+            'args': {'item': current},
+          };
+        }
+        return current! as Map<String, Object?>;
+      }
+
+      void process(Object text) {
+        final processor = MessageProcessor<ComponentApi>(
+          catalogs: [catalog],
+          defaultVersion: A2uiProtocolVersion.v0_9,
+        );
+        processor.processMessages(
+          AgentToRendererMessage.parseAll([
+            {
+              'version': 'v0.9',
+              'createSurface': {
+                'surfaceId': 's1',
+                'catalogId': BasicCatalog.v0_9Id,
+              },
+            },
+            {
+              'version': 'v0.9',
+              'updateComponents': {
+                'surfaceId': 's1',
+                'components': [
+                  {'id': 'root', 'component': 'Text', 'text': text},
+                ],
+              },
+            },
+          ], protocolVersion: A2uiProtocolVersion.v0_9),
+        );
+      }
+
+      expect(() => process(nestedJoinValues(23)), returnsNormally);
+      expect(
+        () => process(nestedJoinValues(10, leaf: 42)),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    },
+  );
+
   _registerExamples(
     'the v0.9.1 basic catalog examples against the v0.9.1 document',
     '../catalogs/basic/v0_9_1/examples',
@@ -226,4 +520,43 @@ void _registerExamples(
       });
     }
   });
+}
+
+class _OpenObjectFunction extends FunctionImplementation {
+  _OpenObjectFunction(String name)
+    : super(
+        name: name,
+        argumentSchema: Schema.fromMap(const {
+          'type': 'object',
+          'additionalProperties': true,
+        }),
+      );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) => null;
+}
+
+class _DynamicMapFunction extends FunctionImplementation {
+  _DynamicMapFunction(String name)
+    : super(
+        name: name,
+        returnType: A2uiReturnType.string,
+        argumentSchema: Schema.fromMap(const {
+          'type': 'object',
+          'additionalProperties': {
+            r'$ref': r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString',
+          },
+        }),
+      );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) => args.values.join(',');
 }

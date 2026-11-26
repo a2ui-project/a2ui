@@ -179,4 +179,114 @@ describe('0.8 Display Components (Text and Icon)', () => {
     assert.ok(boundGlyph);
     assert.strictEqual(boundGlyph.textContent, 'account_circle');
   });
+
+  it('Text applies 7-key, partial, and flat additionalStyles.Text maps', async () => {
+    const sevenKeyTheme = {
+      ...mockTheme,
+      additionalStyles: {
+        Text: {
+          h1: {color: 'rgb(10, 20, 30)'},
+          h2: {color: 'rgb(20, 30, 40)'},
+          h3: {},
+          h4: {},
+          h5: {},
+          body: {color: 'rgb(50, 60, 70)'},
+          caption: {},
+        },
+      },
+    } as Theme;
+
+    const el = document.createElement('a2ui-text') as any;
+    el.theme = sevenKeyTheme;
+    mountedElements.push(el);
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, (e: any) => {
+      e.text = {literalString: 'Heading'};
+      e.usageHint = 'h1';
+    });
+    let section = el.shadowRoot?.querySelector('section') as HTMLElement | null;
+    assert.ok(section);
+    assert.strictEqual(section.style.color, 'rgb(10, 20, 30)');
+
+    await asyncUpdate(el, (e: any) => {
+      e.usageHint = null;
+    });
+    section = el.shadowRoot?.querySelector('section') as HTMLElement | null;
+    assert.ok(section);
+    assert.strictEqual(section.style.color, 'rgb(50, 60, 70)');
+
+    // Partial hinted map: applies configured hint and falls back to {} without throwing.
+    const partialTheme = {
+      ...mockTheme,
+      additionalStyles: {
+        Text: {
+          h1: {color: 'rgb(200, 10, 10)'},
+        },
+      },
+    } as Theme;
+    const partialEl = document.createElement('a2ui-text') as any;
+    partialEl.theme = partialTheme;
+    mountedElements.push(partialEl);
+    document.body.appendChild(partialEl);
+
+    await asyncUpdate(partialEl, (e: any) => {
+      e.text = {literalString: 'Partial'};
+      e.usageHint = 'h1';
+    });
+    section = partialEl.shadowRoot?.querySelector('section') as HTMLElement | null;
+    assert.ok(section);
+    assert.strictEqual(section.style.color, 'rgb(200, 10, 10)');
+
+    await asyncUpdate(partialEl, (e: any) => {
+      e.usageHint = 'body';
+    });
+    section = partialEl.shadowRoot?.querySelector('section') as HTMLElement | null;
+    assert.ok(section);
+    assert.strictEqual(section.style.color, '');
+
+    // Flat map and undefined-hint flat map stay on the flat branch; empty {} renders clean.
+    for (const flatTextStyles of [
+      {color: 'rgb(1, 2, 3)'},
+      {color: 'rgb(1, 2, 3)', body: undefined} as unknown as Record<string, string>,
+    ]) {
+      const flatEl = document.createElement('a2ui-text') as any;
+      flatEl.theme = {...mockTheme, additionalStyles: {Text: flatTextStyles}} as Theme;
+      mountedElements.push(flatEl);
+      document.body.appendChild(flatEl);
+      await asyncUpdate(flatEl, (e: any) => {
+        e.text = {literalString: 'Flat'};
+        e.usageHint = 'h2';
+      });
+      section = flatEl.shadowRoot?.querySelector('section') as HTMLElement | null;
+      assert.ok(section);
+      assert.strictEqual(section.style.color, 'rgb(1, 2, 3)');
+    }
+
+    const emptyEl = document.createElement('a2ui-text') as any;
+    emptyEl.theme = {...mockTheme, additionalStyles: {Text: {}}} as Theme;
+    mountedElements.push(emptyEl);
+    document.body.appendChild(emptyEl);
+    await asyncUpdate(emptyEl, (e: any) => {
+      e.text = {literalString: 'Empty'};
+    });
+    section = emptyEl.shadowRoot?.querySelector('section') as HTMLElement | null;
+    assert.ok(section);
+    assert.strictEqual(section.getAttribute('style') ?? '', '');
+
+    const mixedEl = document.createElement('a2ui-text') as any;
+    mixedEl.theme = {
+      ...mockTheme,
+      additionalStyles: {Text: {h1: {color: 'rgb(1, 2, 3)'}, body: '16px'} as any},
+    } as Theme;
+    mountedElements.push(mixedEl);
+    document.body.appendChild(mixedEl);
+    await asyncUpdate(mixedEl, (e: any) => {
+      e.text = {literalString: 'Mixed'};
+      e.usageHint = 'h1';
+    });
+    section = mixedEl.shadowRoot?.querySelector('section') as HTMLElement | null;
+    assert.ok(section);
+    assert.strictEqual(section.getAttribute('style') ?? '', '');
+  });
 });

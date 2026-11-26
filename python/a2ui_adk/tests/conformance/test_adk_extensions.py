@@ -38,6 +38,7 @@ from a2ui.adk import (
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.processor import A2uiRequestProcessor
+from ..a2a_test_helpers import part_text, state_name
 from .conformance_helpers import load_conformance_yaml
 
 SUITE = "extensions/adk/adk_extensions.yaml"
@@ -280,6 +281,8 @@ def _run_converter_event(test_case: dict[str, Any]) -> None:
 
     invocation_context = MagicMock()
     invocation_context.invocation_id = "inv-1"
+    invocation_context.app_name = "app"
+    invocation_context.user_id = "user"
     invocation_context.session.id = "session-1"
     invocation_context.session.state = {}
 
@@ -298,9 +301,9 @@ def _run_converter_event(test_case: dict[str, Any]) -> None:
     assert len(events) == 1
     actual: Any = events[0]
     assert type(actual).__name__ == expect["type"]
-    assert actual.status.state.value.upper() == expect["state"]
+    assert state_name(actual.status.state).upper() == expect["state"]
     assert actual.status.message is not None
-    assert actual.status.message.parts[0].root.text == expect["message"]
+    assert part_text(actual.status.message.parts[0]) == expect["message"]
 
 
 def _run_convert_event(test_case: dict[str, Any]) -> None:

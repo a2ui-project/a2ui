@@ -30,10 +30,16 @@ from .catalogs import (
     catalogs_protocol_version,
     check_catalogs,
     check_mixed_catalogs,
+    release_line,
     surface_catalog_id,
 )
 from .coalesce import CoalescedMessage, coalesce_surface_messages
-from .schema_helper import CatalogSchemaHelper, is_action_slot
+from .schema_helper import (
+    CatalogSchemaHelper,
+    combinator_subschemas,
+    common_def_name,
+    is_action_slot,
+)
 
 __all__ = [
     "CatalogSchemaHelper",
@@ -43,7 +49,10 @@ __all__ = [
     "catalogs_protocol_version",
     "check_catalogs",
     "check_mixed_catalogs",
+    "release_line",
     "coalesce_surface_messages",
+    "combinator_subschemas",
+    "common_def_name",
     "is_action_slot",
     "normalize_prompt_example_messages",
     "surface_catalog_id",
