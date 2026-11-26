@@ -2,14 +2,32 @@
 
 ## Unreleased
 
+- **Breaking:** (v1_0) `RpcHandler` evaluates nested `@call` objects and `${...}` template expressions inside `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions and unactivated `requiresUserActivation` functions with `RpcErrorCode.invalidFunctionCall` while permitting `agentOnly` and `rendererOrAgent` functions, and checking nested `@call` objects before any sibling argument runs. `MessageProcessor.forAgent` applies the same agent-boundary validation to nested `@call` objects (`A2uiValidationError`). Set `allowedCallers` to `rendererOrAgent` or `agentOnly` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774), [#4336](https://github.com/a2ui-project/a2ui/pull/4336)).
+- **Breaking:** Remove the limit of 5 on nested function calls from `checkPathsAndRecursion` and `MessageProcessor`. Function call nesting is bounded only by the global depth limit of 50, so payloads that failed with `functionCall depth > 5` are now accepted ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
+- **Breaking:** (v0_9) `PayloadValidator` closes pre-v1.0 object `argumentSchema`s, of functions defined in code or read by `Catalog.fromJson`, with `unevaluatedProperties: false` in `validateFunction` and `validateFunctionArgs` to match `Catalog.validationSchema`. Set `additionalProperties: true` (or `unevaluatedProperties: true`) on schemas that accept undeclared arguments ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
+
+## 0.9.0
+
 - **Breaking:** Raises the minimum Dart SDK bound from `sdk: ">=3.5.0 <4.0.0"` to `sdk: ">=3.13.0 <4.0.0"`. Upgrade to Dart 3.13.0+ before updating to this release ([#4305](https://github.com/a2ui-project/a2ui/pull/4305)).
 - Regenerate the v0.9 basic catalog bindings and update documentation paths after moving the pre-1.0 catalogs to `catalogs/` ([#4150](https://github.com/a2ui-project/a2ui/pull/4150)).
+- Added `MessageProcessor.addCatalog`, which adds a catalog to a processor
+  after it is built. `createSurface` messages, renderer function calls and
+  `getRendererCapabilities` see the catalog from then on; surfaces created
+  before the call keep the catalogs they were created with. A catalog whose id
+  the processor already holds is rejected with `A2uiCatalogError`.
+  `MessageProcessor.catalogs` lists the added catalog too, and still cannot
+  be modified ([#3303](https://github.com/a2ui-project/a2ui/issues/3303),
+  [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
+- Resolve component properties that reference `FunctionCall` directly in `GenericBinder`, and (v1_0) coerce inline `oneOf` unions of `boolean`, `DataBinding`, and `FunctionCall` to a boolean as `DynamicBoolean` properties are ([#3809](https://github.com/a2ui-project/a2ui/issues/3809)).
+- `MessageProcessor` reports unknown envelope keys, including misspelled message
+  types, at the key's JSON Pointer instead of `/version`. Validation error
+  details keep dot paths and the message index
+  ([#4194](https://github.com/a2ui-project/a2ui/issues/4194)).
 
 ## 0.8.0
 
 - **Breaking:** `PayloadValidator` enforces RFC 3986 scheme-prefixed URI syntax (`^[A-Za-z][A-Za-z0-9+.-]*:\S*$`) on string subschemas with `"format": "uri"` (such as `openUrl.args.url`) without mutating `Catalog.toJson()`, rejecting strings lacking a scheme or containing whitespace ([#4173](https://github.com/a2ui-project/a2ui/issues/4173), [#4187](https://github.com/a2ui-project/a2ui/pull/4187)).
 - **Breaking:** (v1_0) Update `ComponentCommon` and `Checkable` schemas, `Catalog.toJson()`, `Catalog.validationSchema`, and `ComponentModel.toJson()` to emit `@catalogId`, `@metadata`, `@accessibility`, and `@checks` on v1.0 surfaces, while `PayloadValidator` and `MessageProcessor` gate component `metadata` and `catalogId` envelope handling to v1.0+ surfaces (so pre-1.0 surfaces treat them as ordinary component properties), dual-read legacy bare `catalogId`, `metadata`, `accessibility`, and `checks` when undeclared as custom properties by the component schema, validate `@metadata.extensions` keys as UAX #31 identifiers, reject `null` `@catalogId` / legacy `catalogId`, and reject components specifying both `@`-prefixed and bare forms of the same mixin ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#3466](https://github.com/a2ui-project/a2ui/issues/3466), [#3511](https://github.com/a2ui-project/a2ui/issues/3511), [#4012](https://github.com/a2ui-project/a2ui/issues/4012), [#4037](https://github.com/a2ui-project/a2ui/pull/4037), [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
-- Resolve component properties that reference `FunctionCall` directly in `GenericBinder`, and (v1_0) coerce inline `oneOf` unions of `boolean`, `DataBinding`, and `FunctionCall` to a boolean as `DynamicBoolean` properties are ([#3809](https://github.com/a2ui-project/a2ui/issues/3809)).
 - Add explicit type annotations to internal local and pattern variables to satisfy the `specify_nonobvious_local_variable_types` analyzer lint on Dart 3.15+ ([#4233](https://github.com/a2ui-project/a2ui/pull/4233)).
 
 ## 0.7.0
@@ -226,7 +244,7 @@
   ([#2724](https://github.com/a2ui-project/a2ui/pull/2724)).
 - **Breaking:** `MessageProcessor.catalogs` cannot be modified: it is a copy
   of the list the processor was created with, and adding to it throws
-  `UnsupportedError`. Pass every catalog when creating the processor
+  `UnsupportedError`. Add a catalog with `addCatalog`
   ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
 - Added `MessageErrorMapper`, `SurfaceGroupModel.onError`, and
   `MessageProcessor.processMessagesWithErrors` for mapping `A2uiError`

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import pathlib
+import re
 import sys
 from unittest import mock
 
@@ -26,6 +27,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from validate_doc_examples import (
+    REPO_ROOT,
     V0_9_1,
     V1_0,
     _errors_for,
@@ -330,3 +332,18 @@ def test_untabbed_broken_message_json_and_action_envelopes() -> None:
     assert validate(extract_examples_from_text(DOC, pseudo_json)[0]) == []
     assert validate(extract_examples_from_text(DOC, missing_ver_action)[0]) != []
     assert validate(extract_examples_from_text(DOC, jsonrpc_err)[0]) == []
+
+
+def test_requirements_docs_pins_all_dependencies() -> None:
+    text = (REPO_ROOT / "requirements-docs.txt").read_text(encoding="utf-8")
+    pinned: set[str] = set()
+    for raw_line in text.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if line:
+            match = re.fullmatch(
+                r"([A-Za-z0-9][A-Za-z0-9._-]*)==([A-Za-z0-9][A-Za-z0-9._+-]*)",
+                line,
+            )
+            assert match, f"Expected exact 'pkg==version' pin, got: {line!r}"
+            pinned.add(re.sub(r"[-_.]+", "-", match.group(1)).lower())
+    assert {"ghp-import", "jsonschema", "referencing"} <= pinned
