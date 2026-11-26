@@ -33,6 +33,7 @@ from a2ui.a2a import (
 )
 from a2ui.core import A2uiParseError
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import DirectJsonParser
 from a2ui.parser import A2uiPart, TextPart
 from a2ui.utils import RendererState
@@ -220,6 +221,46 @@ def test_create_a2ui_part_defaults_to_the_messages_version():
     assert mime(create_a2ui_part(v0_8)) == "application/json+a2ui"
     # An explicit version still wins.
     assert mime(create_a2ui_part(v0_9_1, version="0.9")) == "application/json+a2ui"
+
+
+@pytest.mark.parametrize(
+    ("version", "expected"),
+    [
+        ("0.9", "v0.9"),
+        ("v0.9", "v0.9"),
+        (ProtocolVersion.V0_9_1, "v0.9.1"),
+        ("1.0", "1.0"),
+        ("v1.0", "1.0"),
+        (ProtocolVersion.V1_0, "1.0"),
+    ],
+)
+def test_create_a2ui_part_adds_the_version_a_message_lacks(version, expected):
+    message = {"deleteSurface": {"surfaceId": "s"}}
+
+    part = create_a2ui_part(message, version=version)
+
+    assert part.root.data == {"version": expected, "deleteSurface": {"surfaceId": "s"}}
+    # The caller's dictionary is left as it was.
+    assert message == {"deleteSurface": {"surfaceId": "s"}}
+
+
+def test_create_a2ui_part_keeps_the_messages_own_version():
+    message = {"version": "v0.9.1", "deleteSurface": {"surfaceId": "s"}}
+
+    part = create_a2ui_part(message, version="1.0")
+
+    assert part.root.data == message
+
+
+@pytest.mark.parametrize("version", [None, "0.8", ProtocolVersion.V0_8, "7.3"])
+def test_create_a2ui_part_adds_no_version_when_none_applies(version):
+    # v0.8 messages carry no `version`, and a version this SDK doesn't define
+    # has no known wire form.
+    message = {"deleteSurface": {"surfaceId": "s"}}
+
+    part = create_a2ui_part(message, version=version)
+
+    assert part.root.data == message
 
 
 def test_extract_a2ui_json_to_parts_extracts_text_and_a2ui_messages():
