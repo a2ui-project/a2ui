@@ -14,17 +14,20 @@
 
 """Unit tests for a2ui.a2a part helpers (a2a-sdk 0.3 / 1.x)."""
 
-from a2ui.a2a import _compat
-from a2ui.a2a.parts import (
+import dataclasses
+
+import pytest
+
+from a2ui.a2a import (
     A2UI_MIME_TYPE,
     DEPRECATED_A2UI_MIME_TYPE,
     create_a2ui_part,
-    extract_user_action,
     get_a2ui_data,
     get_a2ui_datapart,
+    get_a2ui_messages,
     is_a2ui_part,
-    part_data_as_dict,
 )
+from a2ui.a2a import _compat
 
 
 def test_create_a2ui_part_default_uses_legacy_mime():
@@ -47,40 +50,43 @@ def test_text_part_is_not_a2ui():
     part = _compat.make_text_part("hello")
     assert not is_a2ui_part(part)
     assert get_a2ui_data(part) is None
-    assert part_data_as_dict(part) is None
+    assert get_a2ui_datapart(part) is None
 
 
-def test_part_data_as_dict_untagged():
-    part = _compat.make_data_part({"userAction": {"name": "book_restaurant"}})
+def test_untagged_data_part_is_not_a2ui():
+    part = _compat.make_data_part({"action": {"name": "book_restaurant"}})
     assert get_a2ui_data(part) is None
-    data = part_data_as_dict(part)
-    assert data is not None
-    assert data["userAction"]["name"] == "book_restaurant"
+    assert get_a2ui_datapart(part) is None
+    assert get_a2ui_messages([part]) == []
 
 
-def test_extract_user_action_untagged():
-    part = _compat.make_data_part({
-        "userAction": {
-            "name": "submit_booking",
-            "surfaceId": "booking-1",
-            "context": {"partySize": "2"},
-        }
-    })
-    action = extract_user_action([_compat.make_text_part("ignore"), part])
-    assert action == {
-        "name": "submit_booking",
-        "surfaceId": "booking-1",
-        "context": {"partySize": "2"},
-    }
+@pytest.mark.skipif(not _compat.IS_A2A_V1, reason="a2a-sdk 1.x protobuf Part")
+def test_v1_non_object_payload_is_skipped():
+    from a2a.types import Part
+    from google.protobuf import struct_pb2
+
+    value = struct_pb2.Value()
+    value.list_value.values.add().string_value = "x"
+    part = Part(data=value, media_type=A2UI_MIME_TYPE)
+
+    assert is_a2ui_part(part)
+    assert get_a2ui_data(part) is None
+    assert get_a2ui_datapart(part) is None
+    assert get_a2ui_messages([part]) == []
 
 
-def test_extract_user_action_mime_tagged():
-    payload = {"userAction": {"name": "view_metric", "context": {"id": "m1"}}}
-    part = create_a2ui_part(payload, version="0.9")
-    action = extract_user_action([part])
-    assert action == {"name": "view_metric", "context": {"id": "m1"}}
+@pytest.mark.skipif(not _compat.IS_A2A_V1, reason="a2a-sdk 1.x protobuf Part")
+def test_v1_view_takes_mime_type_from_media_type():
+    from a2a.types import Part
+    from google.protobuf import json_format, struct_pb2
 
+    value = struct_pb2.Value()
+    json_format.ParseDict({"deleteSurface": {"surfaceId": "s1"}}, value)
+    part = Part(data=value, media_type=A2UI_MIME_TYPE)
 
-def test_extract_user_action_missing():
-    assert extract_user_action([]) is None
-    assert extract_user_action([_compat.make_data_part({"useStreaming": True})]) is None
+    view = get_a2ui_datapart(part)
+    assert view is not None
+    assert view.metadata == {"mimeType": A2UI_MIME_TYPE}
+    assert view.data == {"deleteSurface": {"surfaceId": "s1"}}
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        view.data = {}  # type: ignore[misc]

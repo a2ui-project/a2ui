@@ -129,6 +129,9 @@ def test_create_a2ui_parts_writes_the_default_version_of_a_model() -> None:
         "version": "1.0",
         "agentFunctionResponse": {"functionCallId": "c1", "value": 3},
     }
+    # On a2a-sdk 1.x a protobuf ``Value`` holds numbers as doubles; they read
+    # back as ints, as on 0.3.
+    assert type(data_part_dict(part)["agentFunctionResponse"]["value"]) is int
 
 
 def test_create_a2ui_parts_leaves_out_the_version_of_a_v0_8_model() -> None:
@@ -140,3 +143,21 @@ def test_create_a2ui_parts_leaves_out_the_version_of_a_v0_8_model() -> None:
 
     assert is_data_part(part)
     assert data_part_dict(part) == {"beginRendering": {"surfaceId": "s1", "root": "r"}}
+
+
+def test_get_a2ui_messages_keeps_integers_and_floats() -> None:
+    part = create_a2ui_part({
+        "version": "1.0",
+        "agentFunctionResponse": {
+            "functionCallId": "c1",
+            "value": {"count": 3, "items": [1, 2], "ratio": 0.5},
+        },
+    })
+
+    (message,) = get_a2ui_messages([part])
+
+    value = message["agentFunctionResponse"]["value"]
+    assert value == {"count": 3, "items": [1, 2], "ratio": 0.5}
+    assert type(value["count"]) is int
+    assert all(type(item) is int for item in value["items"])
+    assert type(value["ratio"]) is float

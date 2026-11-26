@@ -75,25 +75,64 @@ def test_part_metadata_v1_missing_metadata_is_empty(monkeypatch):
     assert _compat.part_metadata(SimpleNamespace(metadata=None)) == {}
 
 
-def _context(state):
-    return SimpleNamespace(call_context=SimpleNamespace(state=state))
+def test_add_activated_extension_calls_the_0_3_api():
+    activated = []
+    context = SimpleNamespace(add_activated_extension=activated.append)
+    _compat.add_activated_extension(context, "uri-a")
+    assert activated == ["uri-a"]
 
 
-def test_add_activated_extension_creates_a_set():
+def test_add_activated_extension_without_the_api_is_a_no_op():
     state = {}
-    _compat.add_activated_extension(_context(state), "uri-a")
-    assert state["activated_extensions"] == {"uri-a"}
+    context = SimpleNamespace(call_context=SimpleNamespace(state=state))
+    _compat.add_activated_extension(context, "uri-a")
+    assert state == {}
 
 
-def test_add_activated_extension_adds_to_an_existing_set():
-    state = {"activated_extensions": {"uri-a"}}
-    _compat.add_activated_extension(_context(state), "uri-b")
-    assert state["activated_extensions"] == {"uri-a", "uri-b"}
+def test_round_trip_keeps_integers_as_ints():
+    part = _compat.make_data_part(
+        {"count": 3, "items": [1, 2], "ratio": 0.5},
+        metadata={"mimeType": "application/a2ui+json", "size": 2},
+    )
+
+    data = _compat.data_part_dict(part)
+    assert data == {"count": 3, "items": [1, 2], "ratio": 0.5}
+    assert type(data["count"]) is int
+    assert all(type(item) is int for item in data["items"])
+    assert type(data["ratio"]) is float
+    assert type(_compat.part_metadata(part)["size"]) is int
 
 
-def test_add_activated_extension_keeps_an_existing_list():
-    """A list the server framework already filled must not be overwritten."""
-    state = {"activated_extensions": ["uri-a"]}
-    _compat.add_activated_extension(_context(state), "uri-b")
-    _compat.add_activated_extension(_context(state), "uri-b")
-    assert state["activated_extensions"] == ["uri-a", "uri-b"]
+@pytest.mark.skipif(not _compat.IS_A2A_V1, reason="a2a-sdk 1.x protobuf Struct")
+def test_metadata_dict_v1_keeps_integers_as_ints():
+    from google.protobuf import struct_pb2
+
+    metadata = struct_pb2.Struct()
+    metadata.update({"caps": {"count": 2}})
+    result = _compat.metadata_dict(metadata)
+    assert result == {"caps": {"count": 2}}
+    assert type(result["caps"]["count"]) is int
+
+
+@pytest.mark.parametrize("metadata", [None, "not a mapping", ["a"], {"a": 1}])
+def test_metadata_dict_passes_other_values_through(metadata):
+    assert _compat.metadata_dict(metadata) == metadata
+
+
+@pytest.mark.skipif(not _compat.IS_A2A_V1, reason="1.x metadata is a Struct")
+def test_make_data_part_v1_normalizes_mappings():
+    from types import MappingProxyType
+
+    part = _compat.make_data_part(
+        {}, metadata={"caps": MappingProxyType({"a": 1}), "ids": ("x", "y")}
+    )
+    assert _compat.part_metadata(part) == {"caps": {"a": 1}, "ids": ["x", "y"]}
+
+
+@pytest.mark.skipif(not _compat.IS_A2A_V1, reason="1.x metadata is a Struct")
+@pytest.mark.parametrize(
+    "value", [float("nan"), float("inf"), object(), {1: "a"}, [object()]]
+)
+def test_make_data_part_v1_rejects_non_json_metadata(value):
+    with pytest.raises(ValueError, match="metadata"):
+        _compat.make_data_part({}, metadata={"bad": value})

@@ -81,7 +81,7 @@ from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.session import Session
 from google.adk.sessions.state import State
 import asyncio
-from a2ui.a2a import is_a2ui_part, part_data_as_dict
+from a2ui.a2a import get_a2ui_data
 from a2ui.constants import (
     A2UI_ACTIONS_KEY,
     A2UI_BEGIN_RENDERING_KEY,
@@ -147,12 +147,12 @@ class A2uiSubagentMap:
         Returns:
             The name of the subagent that owns the targeted surface, or None if not applicable or not found.
         """
-        if a2a_part is None or not is_a2ui_part(a2a_part):
+        if a2a_part is None:
             return None
 
         surface_id = None
-        data = part_data_as_dict(a2a_part)
-        if isinstance(data, dict):
+        data = get_a2ui_data(a2a_part)
+        if data is not None:
             if (action := data.get(A2UI_ACTIONS_KEY)) and isinstance(action, dict):
                 surface_id = action.get(A2UI_SURFACE_ID_KEY)
             elif (error := data.get(A2UI_ERROR_KEY)) and isinstance(error, dict):
@@ -256,12 +256,7 @@ class A2uiSubagentMap:
         Raises:
             SurfaceIdAlreadyExistsError: If an agent tries to create a surface ID that is already owned by someone else.
         """
-        if (
-            a2a_part is None
-            or not is_a2ui_part(a2a_part)
-            or not (data := part_data_as_dict(a2a_part))
-            or not isinstance(data, dict)
-        ):
+        if a2a_part is None or not (data := get_a2ui_data(a2a_part)):
             return
 
         if (
@@ -275,6 +270,11 @@ class A2uiSubagentMap:
             key = cls._get_key(surface_id)
             existing_owner = session.state.get(key)
 
+            if existing_owner == author:
+                # The same agent may send the same surface again, such as
+                # ADK's RemoteA2aAgent with a2a-sdk 1.x, which delivers a
+                # part in both a status update and the final artifact.
+                return
             if existing_owner:
                 raise SurfaceIdAlreadyExistsError(
                     surface_id,
@@ -290,8 +290,7 @@ class A2uiSubagentMap:
                     session,
                 )
         elif (
-            isinstance(data, dict)
-            and (delete_surface := data.get(A2UI_DELETE_SURFACE_KEY))
+            (delete_surface := data.get(A2UI_DELETE_SURFACE_KEY))
             and isinstance(delete_surface, dict)
             and (surface_id := delete_surface.get(A2UI_SURFACE_ID_KEY))
         ):

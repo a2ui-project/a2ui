@@ -20,7 +20,6 @@ from unittest.mock import patch
 from google.genai import types as genai_types
 
 from a2ui.a2a import create_a2ui_part
-from a2ui.a2a._compat import is_text_part, make_data_part, part_metadata, part_text
 from a2ui.adk import SendA2uiToClientToolset
 from a2ui.adk.a2a import A2uiPartConverter
 from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
@@ -29,6 +28,13 @@ from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.processor import A2uiRequestProcessor
+
+from ..a2a_test_helpers import (
+    is_text_part,
+    make_data_part,
+    part_metadata,
+    part_text,
+)
 from a2ui.utils import RendererState
 
 

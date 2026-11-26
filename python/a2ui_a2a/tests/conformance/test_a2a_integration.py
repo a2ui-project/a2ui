@@ -33,6 +33,10 @@ from a2ui.a2a import (
 )
 from a2ui.a2a._compat import make_data_part
 
+from a2ui.a2a.extension import _select_newest_a2ui_extension
+from a2ui.core.common import to_protocol_version
+from .conformance_helpers import load_conformance_yaml
+
 
 def _params_dict(params: object) -> dict:
     """Reads AgentExtension params as a plain dict on 0.3 and 1.x."""
@@ -46,10 +50,6 @@ def _params_dict(params: object) -> dict:
         return MessageToDict(params)
     return dict(params)
 
-
-from a2ui.a2a.extension import _select_newest_a2ui_extension
-from a2ui.core.common import to_protocol_version
-from .conformance_helpers import load_conformance_yaml
 
 SUITE = "extensions/a2a/a2a_integration.yaml"
 

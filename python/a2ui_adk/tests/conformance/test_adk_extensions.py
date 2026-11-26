@@ -29,7 +29,6 @@ from google.genai import types as genai_types
 import pytest
 
 from a2ui.a2a import create_a2ui_part
-from a2ui.a2a._compat import part_text
 from a2ui.adk import (
     A2uiEventConverter,
     A2uiSubagentMap,
@@ -39,6 +38,7 @@ from a2ui.adk import (
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.processor import A2uiRequestProcessor
+from ..a2a_test_helpers import part_text, state_name
 from .conformance_helpers import load_conformance_yaml
 
 SUITE = "extensions/adk/adk_extensions.yaml"
@@ -301,16 +301,7 @@ def _run_converter_event(test_case: dict[str, Any]) -> None:
     assert len(events) == 1
     actual: Any = events[0]
     assert type(actual).__name__ == expect["type"]
-    state = actual.status.state
-    if hasattr(state, "value") and isinstance(state.value, str):
-        actual_state = state.value.upper()
-    elif isinstance(getattr(state, "name", None), str):
-        actual_state = state.name.removeprefix("TASK_STATE_")
-    else:
-        from a2a.types import TaskState
-
-        actual_state = TaskState.Name(int(state)).removeprefix("TASK_STATE_")
-    assert actual_state == expect["state"]
+    assert state_name(actual.status.state).upper() == expect["state"]
     assert actual.status.message is not None
     assert part_text(actual.status.message.parts[0]) == expect["message"]
 

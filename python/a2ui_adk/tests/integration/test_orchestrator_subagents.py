@@ -51,7 +51,7 @@ import httpx
 import pytest
 from starlette.applications import Starlette
 
-from a2ui.a2a import create_a2ui_part, part_data_as_dict
+from a2ui.a2a import create_a2ui_part
 from a2ui.adk import (
     A2uiEventConverter,
     A2uiSubagentMap,
@@ -289,10 +289,6 @@ async def _run_orchestrator_turn(
         parts=[genai_types.Part(text=prompt or "Render UI")],
     )
     events: list[Event] = []
-    # Newer ADK releases on a2a-sdk 1.x deliver a remote agent's parts twice in a
-    # turn: as they stream and again in the final event. Each part is recorded
-    # once.
-    seen_parts: set[tuple[str, str]] = set()
     async for event in runner.run_async(
         user_id=_USER,
         session_id=session_id,
@@ -302,13 +298,8 @@ async def _run_orchestrator_turn(
             for genai_part in event.content.parts:
                 a2a_part = convert_genai_part_to_a2a_part(genai_part)
                 if a2a_part is not None:
-                    part_key = (
-                        event.author,
-                        json.dumps(part_data_as_dict(a2a_part), sort_keys=True),
-                    )
-                    if part_key in seen_parts:
-                        continue
-                    seen_parts.add(part_key)
+                    # Newer ADK releases on a2a-sdk 1.x deliver a remote
+                    # agent's parts twice in a turn, which the map accepts.
                     session = await _get_orchestrator_session(runner, session_id)
                     await A2uiSubagentMap.update_from_server_event(
                         a2a_part,

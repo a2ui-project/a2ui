@@ -59,14 +59,6 @@ from google.genai import types as genai_types
 import pytest
 
 from a2ui.a2a import A2UI_MIME_TYPE, create_a2ui_part, get_a2ui_messages
-from a2ui.a2a._compat import (
-    data_part_dict,
-    is_data_part,
-    is_text_part,
-    make_text_part,
-    part_metadata,
-    part_text,
-)
 from a2ui.adk import A2uiProcessorStore, A2uiRendererCallsStore
 from a2ui.adk.a2a import (
     A2uiEventConverter,
@@ -79,39 +71,18 @@ from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiRequestProcessor
 
-
-def _user_role():
-    """a2a-sdk 0.3 uses ``Role.user``; 1.x uses ``Role.ROLE_USER``."""
-    if hasattr(Role, "user"):
-        return Role.user
-    return Role.ROLE_USER
-
-
-def _agent_role():
-    """a2a-sdk 0.3 uses ``Role.agent``; 1.x uses ``Role.ROLE_AGENT``."""
-    if hasattr(Role, "agent"):
-        return Role.agent
-    return Role.ROLE_AGENT
-
-
-def _task_state(name: str):
-    """a2a-sdk 0.3 uses ``TaskState.working``; 1.x prefixes ``TASK_STATE_``."""
-    if hasattr(TaskState, name):
-        return getattr(TaskState, name)
-    return getattr(TaskState, "TASK_STATE_" + name.upper())
-
-
-def _state_name(state: Any) -> str:
-    """Returns a status state as a lowercase name on both a2a-sdk generations."""
-    if hasattr(state, "value") and isinstance(state.value, str):
-        return state.value
-    enum_name = getattr(state, "name", None)
-    if isinstance(enum_name, str):
-        return enum_name.removeprefix("TASK_STATE_").lower()
-    try:
-        return TaskState.Name(int(state)).removeprefix("TASK_STATE_").lower()
-    except (AttributeError, ValueError):
-        return str(state)
+from ..a2a_test_helpers import (
+    agent_role,
+    data_part_dict,
+    is_data_part,
+    is_text_part,
+    make_text_part,
+    part_metadata,
+    part_text,
+    state_name,
+    task_state,
+    user_role,
+)
 
 
 CATALOG_ID = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -430,6 +401,15 @@ async def test_does_not_resolve_catalogs_for_other_content() -> None:
             ),
             _genai_part(_call()),
         ),
+        _content(
+            # Valid JSON that isn't an object: a ValidationError on a2a-sdk
+            # 0.3, a protobuf ParseError on 1.x.
+            genai_types.Part.from_bytes(
+                data=b'<a2a_datapart_json>["x"]</a2a_datapart_json>',
+                mime_type="text/plain",
+            ),
+            _genai_part(_call()),
+        ),
     ],
     ids=[
         "none",
@@ -444,6 +424,7 @@ async def test_does_not_resolve_catalogs_for_other_content() -> None:
         "media-and-call",
         "blob-without-data-and-call",
         "malformed-tagged-data-and-call",
+        "non-object-tagged-data-and-call",
     ],
 )
 async def test_lets_the_agent_run_for_other_content(
@@ -632,7 +613,7 @@ async def _execute(
     )
     message = Message(
         message_id=str(uuid.uuid4()),
-        role=_user_role(),
+        role=user_role(),
         parts=request_parts,
         context_id=session_id,
     )
@@ -670,7 +651,7 @@ def _agent_status_parts(events: list[Any]) -> list[Any]:
         for event in events
         if isinstance(event, TaskStatusUpdateEvent)
         and event.status.message is not None
-        and event.status.message.role == _agent_role()
+        and event.status.message.role == agent_role()
         for part in event.status.message.parts
     ]
 
@@ -679,7 +660,7 @@ def _assert_completed(events: list[Any]) -> None:
     final = events[-1]
     assert isinstance(final, TaskStatusUpdateEvent)
     assert _is_final(final)
-    assert _state_name(final.status.state) == "completed"
+    assert state_name(final.status.state) == "completed"
 
 
 @pytest.mark.asyncio
@@ -753,7 +734,7 @@ def _final_state(events: list[Any]) -> str:
     final = events[-1]
     assert isinstance(final, TaskStatusUpdateEvent)
     assert _is_final(final)
-    return _state_name(final.status.state)
+    return state_name(final.status.state)
 
 
 @pytest.mark.asyncio
@@ -1046,7 +1027,7 @@ def _request_context(task_id: str, *parts: Part) -> MagicMock:
     context = MagicMock(spec=RequestContext)
     context.task_id = task_id
     context.message = Message(
-        message_id=str(uuid.uuid4()), role=_user_role(), parts=list(parts)
+        message_id=str(uuid.uuid4()), role=user_role(), parts=list(parts)
     )
     return context
 
@@ -1055,7 +1036,7 @@ def _working_event(task_id: str) -> TaskStatusUpdateEvent:
     kwargs: dict[str, Any] = {
         "task_id": task_id,
         "context_id": "ctx",
-        "status": TaskStatus(state=_task_state("working")),
+        "status": TaskStatus(state=task_state("working")),
     }
     # a2a-sdk 1.x removed the final field; finality is the end of the stream.
     if hasattr(TaskState, "working"):
@@ -1076,7 +1057,7 @@ async def test_interceptor_forgets_an_rpc_request_that_never_finished() -> None:
     await interceptor.before_agent(_request_context("t1", make_text_part("hi")))
     event = await interceptor.after_agent(MagicMock(), _working_event("t1"))
 
-    assert event.status.state == _task_state("working")
+    assert event.status.state == task_state("working")
 
 
 @pytest.mark.asyncio
@@ -1095,7 +1076,7 @@ async def test_interceptor_keeps_a_task_it_sees_again_past_older_ones() -> None:
         await interceptor.before_agent(_request_context(f"t{index}", rpc_part))
     event = await interceptor.after_agent(MagicMock(), _working_event("again"))
 
-    assert event.status.state == _task_state("completed")
+    assert event.status.state == task_state("completed")
 
 
 @pytest.mark.asyncio

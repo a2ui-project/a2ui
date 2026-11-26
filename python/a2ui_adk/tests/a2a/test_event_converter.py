@@ -23,7 +23,6 @@ from google.adk.agents.readonly_context import ReadonlyContext
 from google.genai import types as genai_types
 import pytest
 
-from a2ui.a2a._compat import is_text_part, part_metadata, part_text
 from a2ui.adk import A2uiProcessorStore
 from a2ui.adk.a2a import A2uiEventConverter, A2uiPartConverter
 from a2ui.core.basic_catalog import BasicCatalog
@@ -32,6 +31,8 @@ from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.inference_formats.experimental.elemental import ElementalFormatFactory
 from a2ui.processor import A2uiRequestProcessor
 from a2ui.utils import RendererState
+
+from ..a2a_test_helpers import is_text_part, part_metadata, part_text
 
 
 def _context(invocation_id: str = "inv-1", session_id: str = "session-1") -> MagicMock:

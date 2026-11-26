@@ -17,7 +17,7 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from a2ui.a2a.extension import (
+from a2ui.a2a import (
     get_a2ui_agent_extension,
     get_a2ui_extension_uri,
     try_activate_a2ui_extension,
@@ -59,19 +59,13 @@ def test_try_activate_records_on_add_activated_extension():
     )
 
 
-def test_try_activate_falls_back_to_call_context_state():
+def test_try_activate_without_add_activated_extension_returns_the_version():
+    """On a2a-sdk 1.x a RequestContext has no ``add_activated_extension``."""
     uri = get_a2ui_extension_uri("0.9")
-    state = {}
-    context = SimpleNamespace(
-        requested_extensions=[uri],
-        message=None,
-        call_context=SimpleNamespace(state=state),
-    )
+    context = SimpleNamespace(requested_extensions=[uri], message=None)
     card = MagicMock()
     ext = MagicMock()
     ext.uri = uri
     card.capabilities.extensions = [ext]
 
-    version = try_activate_a2ui_extension(context, card)
-    assert version is ProtocolVersion.V0_9
-    assert uri in state["activated_extensions"]
+    assert try_activate_a2ui_extension(context, card) is ProtocolVersion.V0_9

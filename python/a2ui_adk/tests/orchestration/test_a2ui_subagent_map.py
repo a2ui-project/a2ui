@@ -17,9 +17,14 @@ from unittest.mock import AsyncMock, patch, MagicMock
 
 from google.adk.sessions.session import Session
 
-from a2ui.a2a._compat import make_data_part, make_text_part
 from a2ui.adk import A2uiSubagentMap, SurfaceIdAlreadyExistsError
 from a2ui.constants import A2UI_CLIENT_DATA_MODEL_SURFACES_KEY
+
+from ..a2a_test_helpers import make_data_part, make_text_part
+
+
+def _a2ui_part(data):
+    return make_data_part(data, metadata={"mimeType": "application/a2ui+json"})
 
 
 class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
@@ -39,10 +44,8 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         result = await A2uiSubagentMap.get_subagent_name("surface1", state)
         self.assertIsNone(result)
 
-    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
-    async def test_get_subagent_name_for_client_event_action(self, mock_is_a2ui_part):
-        mock_is_a2ui_part.return_value = True
-        a2a_part = make_data_part({"action": {"surfaceId": "surface1"}})
+    async def test_get_subagent_name_for_client_event_action(self):
+        a2a_part = _a2ui_part({"action": {"surfaceId": "surface1"}})
 
         state = {"a2ui_surface_id_surface1": "agent_beta"}
         result = await A2uiSubagentMap.get_subagent_name_for_client_event(
@@ -50,10 +53,8 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(result, "agent_beta")
 
-    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
-    async def test_get_subagent_name_for_client_event_error(self, mock_is_a2ui_part):
-        mock_is_a2ui_part.return_value = True
-        a2a_part = make_data_part({"error": {"surfaceId": "surface1"}})
+    async def test_get_subagent_name_for_client_event_error(self):
+        a2a_part = _a2ui_part({"error": {"surfaceId": "surface1"}})
 
         state = {"a2ui_surface_id_surface1": "agent_beta"}
         result = await A2uiSubagentMap.get_subagent_name_for_client_event(
@@ -61,9 +62,7 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(result, "agent_beta")
 
-    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
-    async def test_get_subagent_name_for_client_event_not_a2ui(self, mock_is_a2ui_part):
-        mock_is_a2ui_part.return_value = False
+    async def test_get_subagent_name_for_client_event_not_a2ui(self):
         a2a_part = make_data_part({})
         state = {"a2ui_surface_id_surface1": "agent_beta"}
         result = await A2uiSubagentMap.get_subagent_name_for_client_event(
@@ -134,13 +133,11 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(err.surface_id, "test_surface")
         self.assertEqual(str(err), "custom message")
 
-    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "set_subagent")
     async def test_update_from_server_event_begin_rendering_new(
-        self, mock_set_subagent, mock_is_a2ui_part
+        self, mock_set_subagent
     ):
-        mock_is_a2ui_part.return_value = True
-        a2a_part = make_data_part({"beginRendering": {"surfaceId": "surface1"}})
+        a2a_part = _a2ui_part({"beginRendering": {"surfaceId": "surface1"}})
 
         session_service = AsyncMock()
         session = MagicMock(spec=Session)
@@ -154,13 +151,9 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
             "surface1", "agent_alpha", session_service, session
         )
 
-    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "set_subagent")
-    async def test_update_from_server_event_create_surface_new(
-        self, mock_set_subagent, mock_is_a2ui_part
-    ):
-        mock_is_a2ui_part.return_value = True
-        a2a_part = make_data_part({"createSurface": {"surfaceId": "surface1"}})
+    async def test_update_from_server_event_create_surface_new(self, mock_set_subagent):
+        a2a_part = _a2ui_part({"createSurface": {"surfaceId": "surface1"}})
 
         session_service = AsyncMock()
         session = MagicMock(spec=Session)
@@ -174,34 +167,29 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
             "surface1", "agent_alpha", session_service, session
         )
 
-    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "set_subagent")
     async def test_update_from_server_event_begin_rendering_existing_same_owner(
-        self, mock_set_subagent, mock_is_a2ui_part
+        self, mock_set_subagent
     ):
-        mock_is_a2ui_part.return_value = True
-        a2a_part = make_data_part({"beginRendering": {"surfaceId": "surface1"}})
+        """The owner sending its surface again, as RemoteA2aAgent may, is a no-op."""
+        a2a_part = _a2ui_part({"beginRendering": {"surfaceId": "surface1"}})
 
         session_service = AsyncMock()
         session = MagicMock(spec=Session)
         session.state = {"a2ui_surface_id_surface1": "agent_alpha"}
 
-        with self.assertRaises(SurfaceIdAlreadyExistsError) as context:
-            await A2uiSubagentMap.update_from_server_event(
-                a2a_part, "agent_alpha", session_service, session
-            )
+        await A2uiSubagentMap.update_from_server_event(
+            a2a_part, "agent_alpha", session_service, session
+        )
 
-        self.assertEqual(context.exception.surface_id, "surface1")
-        self.assertIn("already exists", str(context.exception))
         mock_set_subagent.assert_not_called()
+        self.assertEqual(session.state, {"a2ui_surface_id_surface1": "agent_alpha"})
 
-    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "set_subagent")
     async def test_update_from_server_event_begin_rendering_collision(
-        self, mock_set_subagent, mock_is_a2ui_part
+        self, mock_set_subagent
     ):
-        mock_is_a2ui_part.return_value = True
-        a2a_part = make_data_part({"beginRendering": {"surfaceId": "surface1"}})
+        a2a_part = _a2ui_part({"beginRendering": {"surfaceId": "surface1"}})
 
         session_service = AsyncMock()
         session = MagicMock(spec=Session)
@@ -218,13 +206,9 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         self.assertIn("agent_beta", str(context.exception))
         mock_set_subagent.assert_not_called()
 
-    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "remove_subagent")
-    async def test_update_from_server_event_delete_surface(
-        self, mock_remove_subagent, mock_is_a2ui_part
-    ):
-        mock_is_a2ui_part.return_value = True
-        a2a_part = make_data_part({"deleteSurface": {"surfaceId": "surface1"}})
+    async def test_update_from_server_event_delete_surface(self, mock_remove_subagent):
+        a2a_part = _a2ui_part({"deleteSurface": {"surfaceId": "surface1"}})
 
         session_service = AsyncMock()
         session = MagicMock(spec=Session)
@@ -238,13 +222,11 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
             "surface1", session_service, session
         )
 
-    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "set_subagent")
     @patch.object(A2uiSubagentMap, "remove_subagent")
     async def test_update_from_server_event_not_a2ui(
-        self, mock_remove_subagent, mock_set_subagent, mock_is_a2ui_part
+        self, mock_remove_subagent, mock_set_subagent
     ):
-        mock_is_a2ui_part.return_value = False
         a2a_part = make_data_part({"beginRendering": {"surfaceId": "surface1"}})
 
         session_service = AsyncMock()
@@ -257,13 +239,11 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         mock_set_subagent.assert_not_called()
         mock_remove_subagent.assert_not_called()
 
-    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "set_subagent")
     @patch.object(A2uiSubagentMap, "remove_subagent")
     async def test_update_from_server_event_not_datapart(
-        self, mock_remove_subagent, mock_set_subagent, mock_is_a2ui_part
+        self, mock_remove_subagent, mock_set_subagent
     ):
-        mock_is_a2ui_part.return_value = True
         a2a_part = make_text_part("hello")
 
         session_service = AsyncMock()
@@ -276,18 +256,12 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         mock_set_subagent.assert_not_called()
         mock_remove_subagent.assert_not_called()
 
-    @patch(
-        "a2ui.adk.orchestration.a2ui_subagent_map.part_data_as_dict",
-        return_value="this is a string, not a dict",
-    )
-    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "set_subagent")
     @patch.object(A2uiSubagentMap, "remove_subagent")
-    async def test_update_from_server_event_data_not_dict(
-        self, mock_remove_subagent, mock_set_subagent, mock_is_a2ui_part, _mock_data
+    async def test_update_from_server_event_empty_payload(
+        self, mock_remove_subagent, mock_set_subagent
     ):
-        mock_is_a2ui_part.return_value = True
-        a2a_part = make_data_part({})
+        a2a_part = _a2ui_part({})
 
         session_service = AsyncMock()
         session = MagicMock(spec=Session)
@@ -299,14 +273,12 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         mock_set_subagent.assert_not_called()
         mock_remove_subagent.assert_not_called()
 
-    @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "set_subagent")
     @patch.object(A2uiSubagentMap, "remove_subagent")
     async def test_update_from_server_event_unrelated_dict(
-        self, mock_remove_subagent, mock_set_subagent, mock_is_a2ui_part
+        self, mock_remove_subagent, mock_set_subagent
     ):
-        mock_is_a2ui_part.return_value = True
-        a2a_part = make_data_part({"updateComponents": {"surfaceId": "surface1"}})
+        a2a_part = _a2ui_part({"updateComponents": {"surfaceId": "surface1"}})
 
         session_service = AsyncMock()
         session = MagicMock(spec=Session)

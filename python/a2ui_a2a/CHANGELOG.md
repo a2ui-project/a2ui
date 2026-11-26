@@ -1,10 +1,14 @@
 ## Unreleased
 
-- Add a2a-sdk 0.3 / 1.x dual-compat Part and AgentExtension helpers so the A2A
-  extension can use either generation. Widen `a2a-sdk` to `>=0.3.0,<2`.
-  `get_a2ui_data`, `part_data_as_dict` and `extract_user_action` read parts
-  without reaching into `Part.root`. `renderer_capabilities_from_message`
-  reads both generations' messages.
+- Add `a2a-sdk` 1.x support alongside 0.3 (`a2a-sdk>=0.3.0,<2`). Add
+  `get_a2ui_data`, which returns a part's A2UI message as a dict, and update
+  `get_a2ui_datapart`, `get_a2ui_messages`, `renderer_capabilities_from_message`
+  and the extension helpers to work on both generations. On 1.x,
+  `get_a2ui_datapart` returns a read-only copy of the part's `data` and
+  `metadata` (typed as `A2uiDataPartView`), numbers that are whole read back as
+  `int`, and `try_activate_a2ui_extension` returns the version without
+  recording it, since 1.x has no `RequestContext.add_activated_extension`.
+  [#4418](https://github.com/a2ui-project/a2ui/pull/4418)
 - `create_a2ui_part` adds the `version` field to a message that lacks one when
   a `version` for v0.9 or later is passed, so the version is given once:
   `create_a2ui_part({"deleteSurface": {...}}, version="0.9")` sends

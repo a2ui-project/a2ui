@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterable, Iterable, Mapping, Sequence
 import logging
-from typing import Any
+from typing import Any, Protocol
 
 from a2a.types import Message
 from a2a.types import Part
@@ -46,6 +46,25 @@ logger = logging.getLogger(__name__)
 MIME_TYPE_KEY = "mimeType"
 A2UI_MIME_TYPE = "application/a2ui+json"
 DEPRECATED_A2UI_MIME_TYPE = "application/json+a2ui"
+
+
+class A2uiDataPartView(Protocol):
+    """The data and metadata of an A2UI data Part, as `get_a2ui_datapart` returns.
+
+    On a2a-sdk 0.3 it is the Part's `DataPart`. On 1.x it is a read-only copy:
+    changing its dicts doesn't change the Part.
+    """
+
+    @property
+    def data(self) -> dict[str, Any]:
+        """The A2UI message."""
+        ...
+
+    @property
+    def metadata(self) -> dict[str, Any] | None:
+        """The Part's metadata, such as its `mimeType`."""
+        ...
+
 
 _BLOCK_LEXER = BlockLexer(
     open_tag=A2UI_OPEN_TAG,
@@ -128,74 +147,40 @@ def is_a2ui_part(part: Part) -> bool:
     ) or _compat.part_media_type(part) in (A2UI_MIME_TYPE, DEPRECATED_A2UI_MIME_TYPE)
 
 
-def get_a2ui_datapart(part: Part) -> Any | None:
+def get_a2ui_datapart(part: Part) -> A2uiDataPartView | None:
     """Extracts the data view containing A2UI data from an A2A Part, if present.
 
-    On a2a-sdk 0.3 this is the inner ``DataPart``. On 1.x it is a view with
-    ``data`` and ``metadata`` dicts, so existing callers keep working.
+    On a2a-sdk 0.3 this is the inner `DataPart`. On 1.x it is a read-only copy
+    with `data` and `metadata` dicts, whose metadata has the Part's
+    `media_type` as its `mimeType` when it has none, so existing readers keep
+    working. Use `get_a2ui_data` to read just the payload.
 
     Args:
         part: The A2A Part to extract A2UI data from.
 
     Returns:
-        The data view containing A2UI data if present, None otherwise.
+        The data view containing A2UI data if present, None otherwise. On 1.x a
+        Part whose data isn't a JSON object has none.
     """
     if not is_a2ui_part(part):
         return None
-    return _compat.data_part_view(part)
+    view: A2uiDataPartView | None = _compat.data_part_view(part)
+    return view
 
 
-def get_a2ui_data(part: Part) -> Any | None:
+def get_a2ui_data(part: Part) -> dict[str, Any] | None:
     """Extracts the Python-native A2UI payload from an A2A Part, if present.
 
     Args:
         part: The A2A Part to extract A2UI data from.
 
     Returns:
-        The A2UI payload if the Part is an A2UI data Part, None otherwise.
+        The A2UI message if the Part is an A2UI data Part holding a JSON
+        object, None otherwise.
     """
     if not is_a2ui_part(part):
         return None
     return _compat.data_part_dict(part)
-
-
-def part_data_as_dict(part: Part) -> dict[str, Any] | None:
-    """Decodes a data Part to a dict, whatever its mime type.
-
-    Unlike :func:`is_a2ui_part`, it does not look at the mime type, so it also
-    reads inbound parts that carry no A2UI mime type.
-
-    Args:
-        part: The A2A Part to decode.
-
-    Returns:
-        The Part's data as a dict, or None if it is not a data Part.
-    """
-    if part is None:
-        return None
-    return _compat.data_part_dict(part)
-
-
-def extract_user_action(message_parts: Iterable[Part] | None) -> dict[str, Any] | None:
-    """Finds a ``userAction`` payload in inbound message parts.
-
-    Checks the A2UI-tagged parts first, then data parts without an A2UI mime
-    type, so both kinds of client work.
-
-    Args:
-        message_parts: The parts of the inbound A2A message.
-
-    Returns:
-        The ``userAction`` dict if one is present, None otherwise.
-    """
-    for part in message_parts or []:
-        data = get_a2ui_data(part)
-        if not isinstance(data, dict):
-            data = part_data_as_dict(part)
-        if isinstance(data, dict) and "userAction" in data:
-            action = data["userAction"]
-            return action if isinstance(action, dict) else None
-    return None
 
 
 def get_a2ui_messages(source: Message | Iterable[Part]) -> list[dict[str, Any]]:
@@ -215,9 +200,9 @@ def get_a2ui_messages(source: Message | Iterable[Part]) -> list[dict[str, Any]]:
     parts = source.parts if isinstance(source, Message) else source
     messages: list[dict[str, Any]] = []
     for part in parts:
-        data_part = get_a2ui_datapart(part)
-        if data_part is not None:
-            messages.append(data_part.data)
+        data = get_a2ui_data(part)
+        if data is not None:
+            messages.append(data)
     return messages
 
 

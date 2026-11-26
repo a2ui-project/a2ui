@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
 from a2a.types import Message, Part, Role
@@ -168,3 +169,11 @@ def test_malformed_capabilities_raises_catalog_error() -> None:
     )
     with pytest.raises(A2uiCatalogError):
         renderer_capabilities_from_message(msg, ProtocolVersion.V1_0)
+
+
+@pytest.mark.parametrize("metadata", ["not a mapping", ["a"]])
+def test_malformed_message_metadata_raises_catalog_error(metadata: Any) -> None:
+    """Metadata that isn't a mapping fails loudly rather than being ignored."""
+    msg = SimpleNamespace(metadata=metadata, parts=[])
+    with pytest.raises(A2uiCatalogError, match="mapping"):
+        renderer_capabilities_from_message(msg, ProtocolVersion.V1_0)  # type: ignore[arg-type]
