@@ -909,4 +909,34 @@ void main() {
     expect(controller.leftOnGitHub(a2ui(21)), isTrue);
     expect(controller.leftOnGitHub(a2ui(50)), isFalse);
   });
+
+  test('loads a linked item again after its load failed', () async {
+    github
+      ..items[60] = itemNode(60, pr: true, labels: const [])
+      ..items[12] = itemNode(12, linked: [60]);
+    await controller.start();
+    final TriageItem issue = controller.item(a2ui(12))!;
+    // The item cannot be read.
+    github.items[60]!.remove('title');
+    await controller.loadLinked(issue);
+
+    github.items[60]!['title'] = 'Item 60';
+    await controller.loadLinked(issue);
+
+    expect(names(controller.group(issue)), ['#12', '#60']);
+  });
+
+  test('a load that ends after the controller is disposed does not '
+      'notify', () async {
+    final disposed = TriageController(connect: () async => github.service());
+    await disposed.start();
+    final Completer<void> hold = github.holdSearch = Completer<void>();
+    final Future<void> refreshing = disposed.refresh();
+
+    disposed.dispose();
+    hold.complete();
+    github.holdSearch = null;
+
+    await expectLater(refreshing, completes);
+  });
 }

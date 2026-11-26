@@ -221,7 +221,7 @@ dart run bin/server.dart
 than taking the **Server** for Flutter's development server and keeping a
 pasted token in the **Browser**'s local storage.
 
-and open `http://localhost:8080`. This offers only **Use a token**. To also
+Open `http://localhost:8080`. This offers only **Use a token**. To also
 sign in with GitHub, register a development **OAuth App** as in
 [HOSTING.md](HOSTING.md#2-register-the-github-oauth-app), with the callback URL
 `http://localhost:8080/auth/callback`, and start the Server with its client

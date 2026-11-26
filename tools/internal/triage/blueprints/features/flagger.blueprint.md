@@ -62,7 +62,9 @@ The opening post does not count as a comment.
 
 In step 6, staleness is calculated from the last human contribution (a comment, a PR review or review comment, or the item's creation) rather than `updated_at` to avoid bot edits resetting the timer. Pushing commits to a PR does not count as a contribution.
 
-The flagger prints to the console which items it flags or unflags and why. You can use this to track triage progress. To see why specific items are flagged, without changing their labels, run [flag_reason.dart](../../pkgs/flagger/bin/flag_reason.dart) from the repository root, with item numbers or URLs: `dart run tools/internal/triage/pkgs/flagger/bin/flag_reason.dart 123 456`. It reads GitHub with `GITHUB_TOKEN`, or else with the token of the account that the `gh` CLI is logged in to. The [triage bot](../../../../../.agents/skills/a2ui-triage-bot/SKILL.md) uses it for the `reason` of its suggestions.
+If an item's comments, reviews or label history fail to load, the flagger leaves the item's labels as they are, and a later run judges it: the rules, applied to part of the history, could flag or unflag it wrongly.
+
+The flagger prints to the console which items it flags or unflags and why. You can use this to track triage progress. To see why specific items are flagged, without changing their labels, run [flag_reason.dart](../../pkgs/flagger/bin/flag_reason.dart) from the repository root, with item numbers or URLs: `dart run tools/internal/triage/pkgs/flagger/bin/flag_reason.dart 123 456`. It reads GitHub with `GITHUB_TOKEN`, or else with the token of the account that the `gh` CLI is logged in to. If it cannot read an item's whole history, it exits with code 1 and prints no reasons. The [triage bot](../../../../../.agents/skills/a2ui-triage-bot/SKILL.md) uses it for the `reason` of its suggestions.
 
 The workflow runs daily on a schedule (15:00 UTC / 07:00 PST), on manual dispatch, and automatically on issue events (opened, edited, labeled, unlabeled, assigned, unassigned, milestoned, demilestoned, reopened), new issue comments, and submitted PR reviews or review comments.
 

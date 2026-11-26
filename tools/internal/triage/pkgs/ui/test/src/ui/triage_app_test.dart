@@ -132,6 +132,17 @@ void main() {
   Finder inList(String text) =>
       find.descendant(of: find.byType(ListTile), matching: find.text(text));
 
+  /// Whether the tile with [text] in the list has the border of a selected
+  /// item. Every tile has a border of the same width, transparent unless
+  /// the item is selected.
+  bool hasSelectionBorder(WidgetTester tester, String text) {
+    final ListTile tile = tester.widget(
+      find.ancestor(of: inList(text), matching: find.byType(ListTile)),
+    );
+    final BorderSide side = (tile.shape! as RoundedRectangleBorder).side;
+    return side.style != BorderStyle.none && side.color.a > 0;
+  }
+
   /// The tab of the item with [name], such as "#20", whether it is the
   /// selected item's tab or a linked item's, such as "Linked PR · #20".
   Finder tab(String name) => find.ancestor(
@@ -336,6 +347,15 @@ void main() {
     // The next item is selected while the apply runs.
     expect(controller.selected!.number, 11);
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
+    // A refresh now would take the apply's changes for someone else's.
+    final Finder refresh = find.ancestor(
+      of: find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('Refresh'),
+      ),
+      matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+    );
+    expect(tester.widget<ButtonStyleButton>(refresh).onPressed, isNull);
 
     hold.complete();
     github.hold = null;
@@ -344,6 +364,7 @@ void main() {
     }
     await tester.pumpAndSettle();
     expect(spinner, findsNothing);
+    expect(tester.widget<ButtonStyleButton>(refresh).onPressed, isNotNull);
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
     expect(find.text('1/3'), findsOneWidget);
     expect(find.text('Needs triage (1/3)'), findsOneWidget);
@@ -845,15 +866,69 @@ void main() {
 
     await expand(tester, 'Needs triage (3/3)');
     await expand(tester, 'Issues without open PRs (1/1)');
+    final Rect unselected = tester.getRect(inList('#11 Docs are unclear'));
+    expect(hasSelectionBorder(tester, '#11 Docs are unclear'), isFalse);
     await tester.tap(inList('#11 Docs are unclear'));
     await tester.pumpAndSettle();
     expect(controller.selected!.number, 11);
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
+    // The border of the selected item does not move its text.
+    expect(hasSelectionBorder(tester, '#11 Docs are unclear'), isTrue);
+    expect(tester.getRect(inList('#11 Docs are unclear')), unselected);
 
     await tester.tap(inList('#11 Docs are unclear'));
     await tester.pumpAndSettle();
     expect(controller.selected, isNull);
     expect(find.text('Select an item.'), findsOneWidget);
+  });
+
+  testWidgets('shows the analysis in a box of its own, apart from the '
+      'description and comments', (tester) async {
+    github = FakeGitHub([
+      itemNode(
+        12,
+        body: 'The Row crashes when it is empty.',
+        comments: [
+          commentNode('Same here.', at: day(2), login: 'hubot'),
+          commentNode(
+            analysisComment(
+              'root = TriageAnalysis(tldr="""Case: a crash.""", '
+              'summary="""A crash.""", suggestion="""Set P1.""")',
+            ),
+            at: day(3),
+          ),
+        ],
+      ),
+    ]);
+    controller = TriageController(connect: () async => github.service());
+    await pumpApp(tester, selectFirst: false);
+    controller.select(a2ui(12));
+    await tester.pumpAndSettle();
+
+    final Finder box = find.ancestor(
+      of: find.text('Triage bot analysis'),
+      matching: find.byType(DecoratedBox),
+    );
+    Finder inBox(String text) =>
+        find.descendant(of: box.first, matching: find.text(text));
+    expect(inBox('(agent-generated)'), findsOneWidget);
+    expect(inBox('Current'), findsOneWidget);
+    expect(inBox('Open the comment'), findsOneWidget);
+    expect(inBox('TL;DR'), findsOneWidget);
+    expect(inBox('Summary'), findsOneWidget);
+    expect(inBox('Suggestion'), findsOneWidget);
+    expect(inBox('Same here.'), findsNothing);
+
+    // The analysis comment is not repeated as a comment.
+    expect(find.text('Description and 1 comment'), findsOneWidget);
+    expect(find.text('The Row crashes when it is empty.'), findsOneWidget);
+    expect(find.text('Same here.'), findsOneWidget);
+    expect(find.textContaining('@hubot, '), findsOneWidget);
+
+    await tester.tap(find.text('Description and 1 comment'));
+    await tester.pumpAndSettle();
+    expect(find.text('The Row crashes when it is empty.'), findsNothing);
+    expect(find.text('Same here.'), findsNothing);
   });
 
   testWidgets('Shift-click selects several items, shows their shared and '
@@ -877,20 +952,14 @@ void main() {
     expect([for (final i in controller.multiSelection) i.number], [10, 11]);
     expect(find.text('2 items selected'), findsOneWidget);
     // Both tiles have the border of a selected item.
-    bool hasBorder(String text) =>
-        (tester
-                    .widget<ListTile>(
-                      find.ancestor(
-                        of: inList(text),
-                        matching: find.byType(ListTile),
-                      ),
-                    )
-                    .shape!
-                as RoundedRectangleBorder)
-            .side !=
-        BorderSide.none;
-    expect(hasBorder('#10 Flutter renderer crashes on an empty Row'), isTrue);
-    expect(hasBorder('#11 Docs are unclear'), isTrue);
+    expect(
+      hasSelectionBorder(
+        tester,
+        '#10 Flutter renderer crashes on an empty Row',
+      ),
+      isTrue,
+    );
+    expect(hasSelectionBorder(tester, '#11 Docs are unclear'), isTrue);
     final Finder view = find.byType(MultiSelectionView);
     Finder inView(Finder finder) => find.descendant(of: view, matching: finder);
     // Not editable.
