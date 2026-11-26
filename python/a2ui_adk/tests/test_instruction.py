@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from importlib.metadata import version as package_version
 import logging
 from typing import Any
 from unittest.mock import MagicMock
@@ -28,6 +29,7 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import InMemoryRunner
 from google.genai import types as genai_types
+from packaging.version import parse as parse_version
 import pytest
 
 from a2ui.adk import A2uiInstruction, A2uiProcessorStore, SendA2uiToClientToolset
@@ -242,8 +244,14 @@ async def test_runner_gets_the_prompt_snippet_as_it_is(format_factory, version):
 async def test_string_instruction_fails_as_a_template_in_the_runner():
     processor = _processor()
 
-    with pytest.raises(KeyError, match="expression"):
-        await _run(processor.prompt_snippet)
+    # ADK before 2.14 interpolates `{...}` in a string instruction and raises
+    # KeyError. Later releases leave the snippet as text.
+    if parse_version(package_version("google-adk")) < parse_version("2.14.0"):
+        with pytest.raises(KeyError, match="expression"):
+            await _run(processor.prompt_snippet)
+    else:
+        llm_request = await _run(processor.prompt_snippet)
+        assert processor.prompt_snippet in _system_instruction(llm_request)
 
 
 @pytest.mark.asyncio

@@ -18,47 +18,44 @@ import 'package:test/test.dart';
 
 void main() {
   group('checkPathsAndRecursion', () {
-    test(
-      'skips binding path and call-depth checks inside updateDataModel.value',
-      () {
-        Map<String, Object?> deepCallValue = {'leaf': true};
-        for (var i = 0; i < maxFunctionCallDepth + 3; i++) {
-          deepCallValue = {
-            'call': 'fn_$i',
-            '@call': 'fn_$i',
-            'path': 'invalid~tilde~path',
-            '@path': 'invalid~tilde~path',
-            'args': deepCallValue,
-          };
-        }
-
-        final messageJson = <String, Object?>{
-          'version': 'v0.9',
-          'updateDataModel': {
-            'surfaceId': 's1',
-            'path': '/valid/path',
-            'value': deepCallValue,
-          },
+    test('skips binding path checks inside updateDataModel.value', () {
+      Map<String, Object?> deepCallValue = {'leaf': true};
+      for (var i = 0; i < 8; i++) {
+        deepCallValue = {
+          'call': 'fn_$i',
+          '@call': 'fn_$i',
+          'path': 'invalid~tilde~path',
+          '@path': 'invalid~tilde~path',
+          'args': deepCallValue,
         };
+      }
 
-        expect(() => checkPathsAndRecursion(messageJson), returnsNormally);
-        expect(
-          () => checkPathsAndRecursion(
-            messageJson,
-            version: A2uiProtocolVersion.v1_0,
-          ),
-          returnsNormally,
-        );
+      final messageJson = <String, Object?>{
+        'version': 'v0.9',
+        'updateDataModel': {
+          'surfaceId': 's1',
+          'path': '/valid/path',
+          'value': deepCallValue,
+        },
+      };
 
-        final typedMessage = UpdateDataModelMessage(
-          version: 'v0.9',
-          surfaceId: 's1',
-          path: '/valid/path',
-          value: deepCallValue,
-        );
-        expect(() => checkPathsAndRecursion(typedMessage), returnsNormally);
-      },
-    );
+      expect(() => checkPathsAndRecursion(messageJson), returnsNormally);
+      expect(
+        () => checkPathsAndRecursion(
+          messageJson,
+          version: A2uiProtocolVersion.v1_0,
+        ),
+        returnsNormally,
+      );
+
+      final typedMessage = UpdateDataModelMessage(
+        version: 'v0.9',
+        surfaceId: 's1',
+        path: '/valid/path',
+        value: deepCallValue,
+      );
+      expect(() => checkPathsAndRecursion(typedMessage), returnsNormally);
+    });
 
     test('validates updateDataModel.path syntax', () {
       final invalidJson = <String, Object?>{
@@ -177,7 +174,21 @@ void main() {
         'call': 'leaf',
         'args': <String, Object?>{},
       };
-      for (var i = 0; i < maxFunctionCallDepth; i++) {
+      for (var i = 0; i < 10; i++) {
+        nestedCall = {
+          'call': 'fn_$i',
+          'args': {'inner': nestedCall},
+        };
+      }
+      // Nested function calls are bounded only by the global depth limit.
+      expect(
+        () => checkPathsAndRecursion(
+          nestedCall,
+          version: A2uiProtocolVersion.v0_9,
+        ),
+        returnsNormally,
+      );
+      for (var i = 0; i < maxComponentDepth; i++) {
         nestedCall = {
           'call': 'fn_$i',
           'args': {'inner': nestedCall},
@@ -189,14 +200,6 @@ void main() {
           version: A2uiProtocolVersion.v0_9,
         ),
         throwsA(isA<A2uiRecursionError>()),
-      );
-      // In v1.0 mode, plain 'call' is not a function call object.
-      expect(
-        () => checkPathsAndRecursion(
-          nestedCall,
-          version: A2uiProtocolVersion.v1_0,
-        ),
-        returnsNormally,
       );
     });
 
@@ -263,7 +266,21 @@ void main() {
         '@call': 'leaf',
         'args': <String, Object?>{},
       };
-      for (var i = 0; i < maxFunctionCallDepth; i++) {
+      for (var i = 0; i < 10; i++) {
+        nestedAtCall = {
+          '@call': 'fn_$i',
+          'args': {'inner': nestedAtCall},
+        };
+      }
+      // Nested function calls are bounded only by the global depth limit.
+      expect(
+        () => checkPathsAndRecursion(
+          nestedAtCall,
+          version: A2uiProtocolVersion.v1_0,
+        ),
+        returnsNormally,
+      );
+      for (var i = 0; i < maxComponentDepth; i++) {
         nestedAtCall = {
           '@call': 'fn_$i',
           'args': {'inner': nestedAtCall},
@@ -275,13 +292,6 @@ void main() {
           version: A2uiProtocolVersion.v1_0,
         ),
         throwsA(isA<A2uiRecursionError>()),
-      );
-      expect(
-        () => checkPathsAndRecursion(
-          nestedAtCall,
-          version: A2uiProtocolVersion.v0_9,
-        ),
-        returnsNormally,
       );
     });
 

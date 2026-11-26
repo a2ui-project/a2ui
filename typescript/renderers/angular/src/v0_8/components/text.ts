@@ -24,20 +24,25 @@ import {
 } from '@angular/core';
 import {AsyncPipe} from '@angular/common';
 import {DynamicComponent} from '../rendering/dynamic-component';
+import {isObject} from '@a2ui/web_core/data/guards';
 import * as Primitives from '@a2ui/web_core/types/primitives';
 import * as Styles from '@a2ui/web_core/styles/index';
 import type {ResolvedText, TextNode} from '../types';
 import {MarkdownRenderer} from '../data/markdown';
 
+type UsageHint = NonNullable<ResolvedText['usageHint']>;
+
 interface HintedStyles {
-  h1: Record<string, string>;
-  h2: Record<string, string>;
-  h3: Record<string, string>;
-  h4: Record<string, string>;
-  h5: Record<string, string>;
-  body: Record<string, string>;
-  caption: Record<string, string>;
+  h1?: Record<string, string>;
+  h2?: Record<string, string>;
+  h3?: Record<string, string>;
+  h4?: Record<string, string>;
+  h5?: Record<string, string>;
+  body?: Record<string, string>;
+  caption?: Record<string, string>;
 }
+
+const HINT_KEYS: readonly UsageHint[] = ['h1', 'h2', 'h3', 'h4', 'h5', 'caption', 'body'];
 
 @Component({
   selector: 'a2ui-text',
@@ -126,23 +131,29 @@ export class Text extends DynamicComponent<TextNode> {
       return null;
     }
 
-    let additionalStyles: Record<string, string> = {};
-
     if (this.areHintedStyles(styles)) {
-      additionalStyles = (styles as any)[usageHint ?? 'body'] || {};
-    } else if (typeof styles === 'object' && styles !== null) {
-      additionalStyles = styles as Record<string, string>;
+      const hint: UsageHint = usageHint ?? 'body';
+      return styles[hint] ?? {};
     }
 
-    return additionalStyles;
+    if (
+      isObject(styles) &&
+      Object.values(styles).every(v => v == null || typeof v === 'string' || typeof v === 'number')
+    ) {
+      return styles as Record<string, string>;
+    }
+
+    return {};
   });
 
   private areHintedStyles(styles: unknown): styles is HintedStyles {
-    if (typeof styles !== 'object' || !styles || Array.isArray(styles)) {
+    if (!isObject(styles)) {
       return false;
     }
 
-    const expected = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'caption', 'body'];
-    return expected.every(v => v in styles);
+    return (
+      HINT_KEYS.some(key => isObject(styles[key])) &&
+      HINT_KEYS.every(key => styles[key] == null || isObject(styles[key]))
+    );
   }
 }

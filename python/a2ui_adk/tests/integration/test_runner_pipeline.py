@@ -23,7 +23,12 @@ from unittest.mock import MagicMock
 from a2a.server.agent_execution import RequestContext
 from a2a.server.events import Event as A2AEvent
 from a2a.server.events.event_queue import EventQueue
-from a2a.types import DataPart, Message, MessageSendParams, Part, Role, TaskState, TaskStatusUpdateEvent, TextPart
+from a2a.types import Message, TaskStatusUpdateEvent
+
+try:
+    from a2a.types import MessageSendParams
+except ImportError:  # a2a-sdk 1.x
+    MessageSendParams = None  # type: ignore[misc,assignment]
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor
 from google.adk.a2a.executor.config import A2aAgentExecutorConfig
 from google.adk.agents.llm_agent import LlmAgent
@@ -43,6 +48,16 @@ from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.processor import A2uiRequestProcessor
 from a2ui.utils import RendererState
 
+from ..a2a_test_helpers import (
+    IS_A2A_V1,
+    data_part_dict,
+    is_text_part,
+    make_text_part,
+    part_metadata,
+    part_text,
+    state_name,
+    user_role,
+)
 from .scripted_llm import ScriptedLlm, make_function_call_response, make_text_response
 
 _APP = "integration_app"
@@ -124,8 +139,20 @@ async def _run_agent_turn(
 async def _drain_queue(event_queue: EventQueue) -> list[A2AEvent]:
     events: list[A2AEvent] = []
     while not event_queue.queue.empty():
-        events.append(await event_queue.dequeue_event(no_wait=True))
+        if IS_A2A_V1:
+            # a2a-sdk 1.x dropped the no_wait argument.
+            events.append(await event_queue.dequeue_event())
+        else:
+            events.append(await event_queue.dequeue_event(no_wait=True))
     return events
+
+
+def _assert_ends(status_updates: list[Any], state: str) -> None:
+    """Checks the last status update ends the task in ``state``."""
+    if not IS_A2A_V1:
+        # a2a-sdk 1.x has no ``final`` flag; the state itself is terminal.
+        assert status_updates[-1].final is True
+    assert state_name(status_updates[-1].status.state) == state
 
 
 def _make_a2a_request_context(
@@ -134,14 +161,22 @@ def _make_a2a_request_context(
     message_id: str = "msg-1",
     context_id: str | None = None,
 ) -> RequestContext:
+    message = Message(
+        message_id=message_id,
+        role=user_role(),
+        parts=[make_text_part(text)],
+    )
+    if MessageSendParams is not None:
+        return RequestContext(
+            request=MessageSendParams(message=message),
+            context_id=context_id,
+        )
+    from a2a.server.context import ServerCallContext
+    from a2a.types import SendMessageRequest
+
     return RequestContext(
-        request=MessageSendParams(
-            message=Message(
-                message_id=message_id,
-                role=Role.user,
-                parts=[Part(root=TextPart(text=text))],
-            )
-        ),
+        call_context=ServerCallContext(),
+        request=SendMessageRequest(message=message),
         context_id=context_id,
     )
 
@@ -360,18 +395,16 @@ async def test_executor_streams_partial_a2ui_json_chunks_in_emission_order(
     status_updates = [
         event for event in events_1 if isinstance(event, TaskStatusUpdateEvent)
     ]
-    a2ui_data_parts: list[DataPart] = []
+    a2ui_data: list[dict[str, Any] | None] = []
     for event in status_updates:
         if event.status.message and event.status.message.parts:
             for part in event.status.message.parts:
-                if is_a2ui_part(part) and isinstance(part.root, DataPart):
-                    assert part.root.metadata is not None
-                    assert part.root.metadata.get("mimeType") == expected_mime
-                    a2ui_data_parts.append(part.root)
+                if is_a2ui_part(part):
+                    assert part_metadata(part).get("mimeType") == expected_mime
+                    a2ui_data.append(data_part_dict(part))
 
-    assert [dp.data for dp in a2ui_data_parts] == messages
-    assert status_updates[-1].final is True
-    assert status_updates[-1].status.state == TaskState.completed
+    assert a2ui_data == messages
+    _assert_ends(status_updates, "completed")
 
     # A second invocation opens a separate stream for that invocation.
     queue_2 = EventQueue()
@@ -446,17 +479,16 @@ async def test_executor_rejected_a2ui_json_block_emits_fallback_and_completes(
         if is_a2ui_part(part)
     ]
     emitted_texts = [
-        part.root.text
+        part_text(part)
         for event in status_updates
         if event.status.message and event.status.message.parts
         for part in event.status.message.parts
-        if isinstance(part.root, TextPart)
+        if is_text_part(part)
     ]
     assert emitted_a2ui_parts == []
     assert "Fallback UI text" in emitted_texts
     assert converter._streams == {}
-    assert status_updates[-1].final is True
-    assert status_updates[-1].status.state == TaskState.completed
+    _assert_ends(status_updates, "completed")
 
 
 @pytest.mark.parametrize("version", ["0.9", "1.0"], ids=["v0.9", "1.0"])
@@ -499,8 +531,7 @@ async def test_executor_mid_stream_llm_error_cleans_up_open_stream(
     ]
     assert emitted_a2ui_parts == []
     assert converter._streams == {}
-    assert status_updates[-1].final is True
-    assert status_updates[-1].status.state == TaskState.failed
+    _assert_ends(status_updates, "failed")
 
 
 # endregion
