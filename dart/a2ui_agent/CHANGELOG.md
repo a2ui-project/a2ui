@@ -4,6 +4,11 @@
 
 - **Breaking:** (v1_0) With the updated `a2ui_core`, `validatePayload`, `RendererState.apply`, and the inference format parsers check function calls nested in `callRendererFunction.callFunction.args` under the agent's caller boundary instead of the renderer's, rejecting `rendererOnly` functions while accepting `agentOnly` and `rendererOrAgent` functions. Set `allowedCallers` to `rendererOrAgent` or `agentOnly` on functions nested inside `callRendererFunction` arguments ([#3774](https://github.com/a2ui-project/a2ui/issues/3774), [#4336](https://github.com/a2ui-project/a2ui/pull/4336)).
 - **Breaking:** `resolveCatalogs` and `readRendererCapabilities` reject inline catalogs whose local `#...` `$ref` pointers do not resolve against the inline catalog document or the protocol version's `common_types.json`, throwing `A2uiCatalogError` naming the inline `catalogId` and `$ref` even when `acceptsInlineCatalogs` is `false`. `resolveCatalogs` also emits a `dart:developer` warning log when an accepted inline catalog is dropped because its `catalogId` is already active. Recommended migration: point each local `$ref` in an inline catalog to a definition declared in that inline catalog or in the target protocol version's `common_types.json` ([#3165](https://github.com/a2ui-project/a2ui/issues/3165), [#4367](https://github.com/a2ui-project/a2ui/pull/4367)).
+- `ExpressPromptGenerator` (`promptSnippet`) now documents component property
+  descriptions shared by a strict majority of a catalog's components once in a
+  `Common Component Properties` section while keeping full positional component
+  signatures and preserving per-component description overrides
+  ([#3403](https://github.com/a2ui-project/a2ui/issues/3403), [#4421](https://github.com/a2ui-project/a2ui/pull/4421)).
 - `ExpressPromptGenerator` (`promptSnippet`) now traverses `oneOf`, `anyOf`,
   `allOf`, and locally flattened `DataBinding`, `FunctionCall`, `ChildList`, and
   `Action` wire envelopes when generating property map-key instructions and

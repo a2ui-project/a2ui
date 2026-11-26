@@ -531,6 +531,45 @@ def _format_component_property_detail(
     return detail
 
 
+_COMMON_PROPERTIES_INTRO = (
+    "Properties shared across components (listed in component signatures"
+    " below when supported; component-specific notes override these):"
+)
+
+_ComponentSignatureEntry = tuple[
+    str, str | None, list[str], list[tuple[str, str]], frozenset[str]
+]
+
+
+def _common_component_property_details(
+    comp_entries: Sequence[_ComponentSignatureEntry],
+) -> dict[str, str]:
+    """Returns property details shared by a strict majority of components.
+
+    When a catalog has at least two components, any `(prop_name, detail)` pair
+    emitted by strictly more than half of the components is promoted to the
+    Common Component Properties section, unless another component declares
+    `prop_name` without a detail (which would otherwise falsely inherit the
+    common note). Because each component emits at most one detail per property
+    name, at most one detail can reach strict majority for any property name.
+    """
+    total = len(comp_entries)
+    if total < 2:
+        return {}
+    counts: dict[tuple[str, str], int] = {}
+    undocumented_props: set[str] = set()
+    for _, _, _, prop_details, undocumented in comp_entries:
+        undocumented_props.update(undocumented)
+        for prop_name, detail in prop_details:
+            key = (prop_name, detail)
+            counts[key] = counts.get(key, 0) + 1
+    return {
+        prop_name: detail
+        for (prop_name, detail), count in sorted(counts.items())
+        if count * 2 > total and prop_name not in undocumented_props
+    }
+
+
 def _renderer_call_rule(callable_fns: Sequence[str]) -> str:
     """Formats the Express grammar rule for standalone renderer function calls."""
     formatted = ", ".join(f"`{name}`" for name in callable_fns)
@@ -789,25 +828,29 @@ class ExpressPromptGenerator(PromptGenerator):
             blocks.append(self.wrap_decompiled_blocks([dsl]))
         return "\n\n".join(blocks)
 
-    def _generate_component_signatures(
-        self, helper: CatalogSchemaHelper | None = None
-    ) -> str:
-        """Compiles component definitions into clean function-like signatures.
+    def _build_component_signatures(
+        self,
+        helper: CatalogSchemaHelper | None = None,
+    ) -> tuple[list[str], str]:
+        """Compiles component definitions into common property details and signatures.
 
         Returns:
-            A plain-text multi-line list of component signatures.
+            A `(common_details, signatures)` tuple where `common_details` holds
+            alphabetically sorted shared property bullet blocks and `signatures`
+            holds the plain-text multi-line list of component signatures.
         """
         h = helper or next(iter(self.helpers.values()), None)
         if not h:
-            return ""
-        signatures = []
+            return [], ""
+        comp_entries: list[_ComponentSignatureEntry] = []
         for name in sorted(h.component_properties.keys()):
             props = h.get_component_properties(name)
             reqs = h.get_component_required(name)
             comp_desc = h.get_component_description(name)
 
-            ordered_args = []
-            prop_details = []
+            ordered_args: list[str] = []
+            prop_details: list[tuple[str, str]] = []
+            undocumented: set[str] = set()
             for p in props:
                 p_schema = h.get_property_schema(name, p)
                 ordered_args.append(
@@ -819,16 +862,27 @@ class ExpressPromptGenerator(PromptGenerator):
                     p, p_schema, path_key=h.path_key, call_key=h.call_key
                 )
                 if detail:
-                    prop_details.append(detail)
+                    prop_details.append((p, detail))
+                else:
+                    undocumented.add(p)
+            comp_entries.append(
+                (name, comp_desc, ordered_args, prop_details, frozenset(undocumented))
+            )
 
+        common_details = _common_component_property_details(comp_entries)
+        signatures: list[str] = []
+        for name, comp_desc, ordered_args, prop_details, _ in comp_entries:
             sig = f"• {name}({', '.join(ordered_args)})"
             if comp_desc:
                 desc_indented = comp_desc.replace("\n", "\n    ")
                 sig += f"\n  - Description: {desc_indented}"
-            if prop_details:
-                sig += "\n" + "\n".join(prop_details)
+            kept_details = [
+                detail for p, detail in prop_details if common_details.get(p) != detail
+            ]
+            if kept_details:
+                sig += "\n" + "\n".join(kept_details)
             signatures.append(sig)
-        return "\n".join(signatures)
+        return list(common_details.values()), "\n".join(signatures)
 
     def _generate_function_signatures(
         self, helper: CatalogSchemaHelper | None = None
@@ -909,7 +963,7 @@ class ExpressPromptGenerator(PromptGenerator):
             if catalog
             else next(iter(self.helpers.values()), None)
         )
-        comp_sigs = self._generate_component_signatures(helper=h)
+        common_prop_lines, comp_sigs = self._build_component_signatures(helper=h)
         func_sigs = self._generate_function_signatures(helper=h)
         catalog_instructions = h.catalog.get("instructions", "") if h else ""
 
@@ -934,9 +988,18 @@ class ExpressPromptGenerator(PromptGenerator):
                 f"\n\n## Catalog Instructions\n\n{catalog_instructions}"
             )
 
+        common_props_block = ""
+        if common_prop_lines:
+            common_lines_str = "\n".join(common_prop_lines)
+            common_props_block = (
+                "## Common Component Properties\n\n"
+                f"{_COMMON_PROPERTIES_INTRO}\n"
+                f"{common_lines_str}\n\n"
+            )
+
         desc = (
-            "## Positional Component Signatures\n\nUse these exact positional"
-            " signatures to instantiate components. Do not output property"
+            f"{common_props_block}## Positional Component Signatures\n\nUse these exact"
+            " positional signatures to instantiate components. Do not output property"
             f" keys:\n{comp_sigs}\n\n## Positional Function Signatures\n\nUse these"
             " exact positional signatures to instantiate check rules or logic"
             f" functions:\n{func_sigs}{catalog_instructions_block}"

@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/common_props_catalog_v1_0.json",
+  "protocolVersion": "1.0",
+  "title": "Conformance Common Properties Catalog (v1.0)",
+  "description": "Exercises deduplication of shared component property descriptions (both allOf CatalogComponentCommon mixins and direct $defs property references), omissions, and component-level description overrides.",
+  "catalogId": "conformance/common_props",
+  "components": {
+    "Alpha": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/$defs/CatalogComponentCommon" },
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "Alpha" },
+            "title": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "Alpha title."
+            },
+            "hint": { "$ref": "#/$defs/Hint" }
+          },
+          "required": ["component", "title"]
+        }
+      ]
+    },
+    "Beta": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/$defs/CatalogComponentCommon" },
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "Beta" },
+            "label": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "Beta label."
+            },
+            "hint": { "$ref": "#/$defs/Hint" }
+          },
+          "required": ["component", "label"]
+        }
+      ]
+    },
+    "Gamma": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/$defs/CatalogComponentCommon" },
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "Gamma" },
+            "name": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "Gamma name."
+            },
+            "weight": {
+              "type": "number",
+              "description": "Custom weight override for Gamma."
+            }
+          },
+          "required": ["component", "name"]
+        }
+      ]
+    }
+  },
+  "functions": {},
+  "$defs": {
+    "CatalogComponentCommon": {
+      "type": "object",
+      "properties": {
+        "weight": {
+          "type": "number",
+          "description": "Relative layout weight within a container."
+        }
+      }
+    },
+    "Hint": {
+      "type": "string",
+      "description": "Short helper hint shown beside the component."
+    },
+    "anyComponent": {
+      "oneOf": [
+        { "$ref": "#/components/Alpha" },
+        { "$ref": "#/components/Beta" },
+        { "$ref": "#/components/Gamma" }
+      ],
+      "discriminator": { "propertyName": "component" }
+    },
+    "anyFunction": { "not": {} }
+  }
+}

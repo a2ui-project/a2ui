@@ -393,6 +393,30 @@
     - "* @path"
     - "* path"
 
+- name: test_express_snippet_deduplicates_common_component_properties
+  features: [F-AGT-04, F-AGT-21]
+  description: Express prompt generation documents shared component property descriptions once in a Common Component Properties section while keeping each component's full positional signature and preserving per-component description overrides.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/common_props_catalog_v1_0.json"
+  expect_contains:
+    - |-
+      ## Common Component Properties
+
+      Properties shared across components (listed in component signatures below when supported; component-specific notes override these):
+        - hint: Short helper hint shown beside the component.
+        - weight: Relative layout weight within a container.
+    - |-
+      • Alpha(title, hint? (static), weight? (static))
+        - title: Alpha title.
+      • Beta(label, hint? (static), weight? (static))
+        - label: Beta label.
+      • Gamma(name, weight? (static))
+        - name: Gamma name.
+        - weight: Custom weight override for Gamma.
+
 # --- Errors ---
 
 - name: test_express_no_active_catalogs_is_an_error

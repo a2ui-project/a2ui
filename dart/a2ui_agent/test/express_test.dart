@@ -2204,5 +2204,285 @@ surface("s1")
       final String snippet = processor([cyclicRaw]).promptSnippet;
       expect(snippet, contains('• RawCycleWidget(node (static))'));
     });
+
+    test('deduplicates shared component property descriptions on BasicCatalog '
+        'and stops on single-component catalogs', () {
+      final String snippet = processor().promptSnippet;
+      expect(snippet, contains('## Common Component Properties'));
+      expect(
+        snippet.indexOf('## Common Component Properties'),
+        lessThan(snippet.indexOf('## Positional Component Signatures')),
+      );
+      final int weightDescCount = RegExp(
+        '  - weight: The relative weight of this component',
+      ).allMatches(snippet).length;
+      expect(weightDescCount, 1);
+      final int weightArgCount = RegExp(r'weight\? \(static\)')
+          .allMatches(snippet)
+          .length;
+      expect(weightArgCount, basic.components.length);
+
+      final CatalogApi singleComp = Catalog.fromJson({
+        'catalogId': 'test/single_comp',
+        'protocolVersion': '1.0',
+        'components': {
+          'Solo': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'Solo'},
+              'weight': {'type': 'number', 'description': 'Solo weight.'},
+            },
+            'required': ['component'],
+          },
+        },
+      });
+      final String singleSnippet = processor([singleComp]).promptSnippet;
+      expect(singleSnippet, isNot(contains('Common Component Properties')));
+      expect(singleSnippet, contains('  - weight: Solo weight.'));
+    });
+
+    test(
+      'keeps sub-majority (2/4) properties inline and isolates multi-catalog '
+      'common properties under ### heading',
+      () {
+        final CatalogApi subMajority = Catalog.fromJson({
+          'catalogId': 'test/sub_majority',
+          'protocolVersion': '1.0',
+          'components': {
+            'CompA': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'CompA'},
+                'tag': {'type': 'string', 'description': 'Shared tag.'},
+              },
+              'required': ['component'],
+            },
+            'CompB': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'CompB'},
+                'tag': {'type': 'string', 'description': 'Shared tag.'},
+              },
+              'required': ['component'],
+            },
+            'CompC': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'CompC'},
+                'title': {'type': 'string'},
+              },
+              'required': ['component'],
+            },
+            'CompD': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'CompD'},
+                'label': {'type': 'string'},
+              },
+              'required': ['component'],
+            },
+          },
+        });
+        final String subSnippet = processor([subMajority]).promptSnippet;
+        expect(subSnippet, isNot(contains('Common Component Properties')));
+        expect(
+          RegExp(r'  - tag: Shared tag\.').allMatches(subSnippet).length,
+          2,
+        );
+
+        final CatalogApi sharedCat = Catalog.fromJson({
+          'catalogId': 'test/shared_props',
+          'protocolVersion': '1.0',
+          'components': {
+            'Box': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Box'},
+                'zOrder': {'type': 'number', 'description': 'Stacking order.'},
+                'alpha': {'type': 'number', 'description': 'Opacity level.'},
+                'undocumented': {'type': 'string'},
+              },
+              'required': ['component'],
+            },
+            'Panel': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Panel'},
+                'zOrder': {'type': 'number', 'description': 'Stacking order.'},
+                'alpha': {'type': 'number', 'description': 'Opacity level.'},
+                'undocumented': {'type': 'string'},
+              },
+              'required': ['component'],
+            },
+            'Sheet': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Sheet'},
+                'zOrder': {
+                  'type': 'number',
+                  'description': 'Sheet-specific stacking order.',
+                },
+                'alpha': {'type': 'number', 'description': 'Opacity level.'},
+                'undocumented': {'type': 'string'},
+              },
+              'required': ['component'],
+            },
+          },
+        });
+        final CatalogApi plainCat = Catalog.fromJson({
+          'catalogId': 'test/plain_props',
+          'protocolVersion': '1.0',
+          'components': {
+            'Only': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Only'},
+                'text': {'type': 'string', 'description': 'Text value.'},
+              },
+              'required': ['component'],
+            },
+          },
+        });
+        final String multiSnippet = processor([sharedCat, plainCat])
+            .promptSnippet;
+        final List<String> parts = multiSnippet.split(
+          '## Catalog `test/plain_props`',
+        );
+        expect(parts.length, 2);
+        final String sharedSection = parts[0];
+        final String plainSection = parts[1];
+        expect(
+          sharedSection,
+          contains(
+            '### Common Component Properties\n\n'
+            'Properties shared across components (listed in component '
+            'signatures below when supported; component-specific notes '
+            'override these):\n'
+            '  - alpha: Opacity level.\n'
+            '  - zOrder: Stacking order.',
+          ),
+        );
+        expect(sharedSection, isNot(contains('  - undocumented:')));
+        expect(
+          RegExp(r'  - alpha: Opacity level\.')
+              .allMatches(sharedSection)
+              .length,
+          1,
+        );
+        expect(
+          RegExp(r'  - zOrder: Stacking order\.')
+              .allMatches(sharedSection)
+              .length,
+          1,
+        );
+        expect(
+          sharedSection,
+          contains('  - zOrder: Sheet-specific stacking order.'),
+        );
+        expect(plainSection, isNot(contains('Common Component Properties')));
+        expect(plainSection, contains('  - text: Text value.'));
+      },
+    );
+
+    test('promotes 2/2 structured properties and skips promotion when another '
+        'component leaves the same property undocumented', () {
+      final CatalogApi twoComp = Catalog.fromJson({
+        'catalogId': 'test/two_comp',
+        'protocolVersion': '1.0',
+        'components': {
+          'CardA': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'CardA'},
+              'layout': {
+                'type': 'object',
+                'description': 'Layout config.',
+                'properties': {
+                  'gap': {'type': 'number', 'description': 'Spacing in px'},
+                },
+              },
+              'solo': {'type': 'string', 'description': 'Only on CardA.'},
+            },
+            'required': ['component'],
+          },
+          'CardB': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'CardB'},
+              'layout': {
+                'type': 'object',
+                'description': 'Layout config.',
+                'properties': {
+                  'gap': {'type': 'number', 'description': 'Spacing in px'},
+                },
+              },
+            },
+            'required': ['component'],
+          },
+        },
+      });
+      final String twoSnippet = processor([twoComp]).promptSnippet;
+      expect(
+        twoSnippet,
+        contains(
+          '## Common Component Properties\n\n'
+          'Properties shared across components (listed in component '
+          'signatures below when supported; component-specific notes '
+          'override these):\n'
+          '  - layout: Layout config.\n'
+          '    Map keys:\n'
+          '    * gap - Spacing in px',
+        ),
+      );
+      expect(
+        RegExp(r'  - layout: Layout config\.').allMatches(twoSnippet).length,
+        1,
+      );
+      expect(
+        twoSnippet,
+        contains(
+          '• CardA(layout? (static), solo? (static))\n'
+          '  - solo: Only on CardA.\n'
+          '• CardB(layout? (static))',
+        ),
+      );
+
+      final CatalogApi undocCat = Catalog.fromJson({
+        'catalogId': 'test/undoc_prop',
+        'protocolVersion': '1.0',
+        'components': {
+          'CompA': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'CompA'},
+              'size': {'type': 'number', 'description': 'Font size in px.'},
+            },
+            'required': ['component'],
+          },
+          'CompB': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'CompB'},
+              'size': {'type': 'number', 'description': 'Font size in px.'},
+            },
+            'required': ['component'],
+          },
+          'CompC': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'CompC'},
+              'size': {'type': 'string'},
+            },
+            'required': ['component'],
+          },
+        },
+      });
+      final String undocSnippet = processor([undocCat]).promptSnippet;
+      expect(undocSnippet, isNot(contains('Common Component Properties')));
+      expect(
+        RegExp(r'  - size: Font size in px\.').allMatches(undocSnippet).length,
+        2,
+      );
+    });
   });
 }

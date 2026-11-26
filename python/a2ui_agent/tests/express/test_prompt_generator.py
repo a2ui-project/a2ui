@@ -185,7 +185,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
             },
         )
         fmt = ExpressFormat([cat_map_obj])
-        sigs = fmt.prompt_generator._generate_component_signatures()
+        sigs = fmt.prompt_generator.generate_catalog_instructions()
         self.assertIn("MapComp", sigs)
         self.assertIn("Map with keys:", sigs)
 
@@ -888,6 +888,315 @@ class TestExpressPromptGenerator(unittest.TestCase):
             "• V09Widget(barePath?, atPathOnly? (static))",
             v09_instructions,
         )
+
+    def test_express_common_component_properties_basic_catalogs_and_pruning(self):
+        """Deduplicates shared weight description on v1.0 and v0.9 BasicCatalogs and stops when pruned to one component."""
+        from a2ui.catalog_transformers import ComponentPruningTransformer
+        from a2ui.core.basic_catalog import BasicCatalog
+
+        for version in (ProtocolVersion.V1_0, ProtocolVersion.V0_9):
+            basic = BasicCatalog(version)
+            instructions = ExpressFormat(
+                [basic]
+            ).prompt_generator.generate_catalog_instructions(catalog=basic)
+            self.assertIn("## Common Component Properties", instructions)
+            self.assertEqual(
+                instructions.count("  - weight: The relative weight of this component"),
+                1,
+                f"Expected single weight description for {version}",
+            )
+            self.assertLess(
+                instructions.index("## Common Component Properties"),
+                instructions.index("## Positional Component Signatures"),
+            )
+            self.assertEqual(
+                instructions.count("weight? (static)"),
+                len(basic.components),
+                f"Expected weight? (static) in every signature for {version}",
+            )
+            # Sub-majority shared descriptions (2/18) remain inline.
+            self.assertEqual(
+                instructions.count("  - label: The text label for the input field."),
+                2,
+            )
+
+        pruned = ComponentPruningTransformer(["Text"]).transform(
+            BasicCatalog(ProtocolVersion.V1_0)
+        )
+        pruned_instructions = ExpressFormat(
+            [pruned]
+        ).prompt_generator.generate_catalog_instructions(catalog=pruned)
+        self.assertNotIn("## Common Component Properties", pruned_instructions)
+        self.assertEqual(
+            pruned_instructions.count(
+                "  - weight: The relative weight of this component"
+            ),
+            1,
+        )
+
+    def test_express_common_component_properties_thresholds_overrides_and_multi_catalog(
+        self,
+    ):
+        """Checks sub-majority non-promotion, alphabetical sorting, overrides, empty details, and multi-catalog isolation."""
+        sub_majority_cat = Catalog.from_json(
+            protocol_version=ProtocolVersion.V1_0,
+            catalog_id="test/sub_majority",
+            catalog_schema={
+                "catalogId": "test/sub_majority",
+                "protocolVersion": "1.0",
+                "components": {
+                    "CompA": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "CompA"},
+                            "tag": {"type": "string", "description": "Shared tag."},
+                        },
+                        "required": ["component"],
+                    },
+                    "CompB": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "CompB"},
+                            "tag": {"type": "string", "description": "Shared tag."},
+                        },
+                        "required": ["component"],
+                    },
+                    "CompC": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "CompC"},
+                            "title": {"type": "string"},
+                        },
+                        "required": ["component"],
+                    },
+                    "CompD": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "CompD"},
+                            "label": {"type": "string"},
+                        },
+                        "required": ["component"],
+                    },
+                },
+            },
+        )
+        sub_instructions = ExpressFormat(
+            [sub_majority_cat]
+        ).prompt_generator.generate_catalog_instructions(catalog=sub_majority_cat)
+        self.assertNotIn("## Common Component Properties", sub_instructions)
+        self.assertEqual(sub_instructions.count("  - tag: Shared tag."), 2)
+
+        shared_cat = Catalog.from_json(
+            protocol_version=ProtocolVersion.V1_0,
+            catalog_id="test/shared_props",
+            catalog_schema={
+                "catalogId": "test/shared_props",
+                "protocolVersion": "1.0",
+                "components": {
+                    "Box": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "Box"},
+                            "zOrder": {
+                                "type": "number",
+                                "description": "Stacking order.",
+                            },
+                            "alpha": {
+                                "type": "number",
+                                "description": "Opacity level.",
+                            },
+                            "undocumented": {"type": "string"},
+                        },
+                        "required": ["component"],
+                    },
+                    "Panel": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "Panel"},
+                            "zOrder": {
+                                "type": "number",
+                                "description": "Stacking order.",
+                            },
+                            "alpha": {
+                                "type": "number",
+                                "description": "Opacity level.",
+                            },
+                            "undocumented": {"type": "string"},
+                        },
+                        "required": ["component"],
+                    },
+                    "Sheet": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "Sheet"},
+                            "zOrder": {
+                                "type": "number",
+                                "description": "Sheet-specific stacking order.",
+                            },
+                            "alpha": {
+                                "type": "number",
+                                "description": "Opacity level.",
+                            },
+                            "undocumented": {"type": "string"},
+                        },
+                        "required": ["component"],
+                    },
+                },
+            },
+        )
+        plain_cat = Catalog.from_json(
+            protocol_version=ProtocolVersion.V1_0,
+            catalog_id="test/plain_props",
+            catalog_schema={
+                "catalogId": "test/plain_props",
+                "protocolVersion": "1.0",
+                "components": {
+                    "Only": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "Only"},
+                            "text": {"type": "string", "description": "Text value."},
+                        },
+                        "required": ["component"],
+                    }
+                },
+            },
+        )
+        multi_instructions = ExpressFormat(
+            [shared_cat, plain_cat]
+        ).prompt_generator.generate_catalog_instructions()
+        shared_section, plain_section = multi_instructions.split(
+            "# Catalog `test/plain_props`"
+        )
+        self.assertIn(
+            "## Common Component Properties\n\n"
+            "Properties shared across components (listed in component signatures"
+            " below when supported; component-specific notes override these):\n"
+            "  - alpha: Opacity level.\n"
+            "  - zOrder: Stacking order.",
+            shared_section,
+        )
+        self.assertNotIn("  - undocumented:", shared_section)
+        self.assertEqual(shared_section.count("  - alpha: Opacity level."), 1)
+        self.assertEqual(shared_section.count("  - zOrder: Stacking order."), 1)
+        self.assertIn("  - zOrder: Sheet-specific stacking order.", shared_section)
+        self.assertNotIn("## Common Component Properties", plain_section)
+        self.assertIn("  - text: Text value.", plain_section)
+
+    def test_express_common_component_properties_two_component_boundary_and_undocumented_guard(
+        self,
+    ):
+        """Promotes 2/2 structured properties, keeps 1/2 inline, and skips promotion when another component leaves the same property undocumented."""
+        two_comp_cat = Catalog.from_json(
+            protocol_version=ProtocolVersion.V1_0,
+            catalog_id="test/two_comp",
+            catalog_schema={
+                "catalogId": "test/two_comp",
+                "protocolVersion": "1.0",
+                "components": {
+                    "CardA": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "CardA"},
+                            "layout": {
+                                "type": "object",
+                                "description": "Layout config.",
+                                "properties": {
+                                    "gap": {
+                                        "type": "number",
+                                        "description": "Spacing in px",
+                                    }
+                                },
+                            },
+                            "solo": {"type": "string", "description": "Only on CardA."},
+                        },
+                        "required": ["component"],
+                    },
+                    "CardB": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "CardB"},
+                            "layout": {
+                                "type": "object",
+                                "description": "Layout config.",
+                                "properties": {
+                                    "gap": {
+                                        "type": "number",
+                                        "description": "Spacing in px",
+                                    }
+                                },
+                            },
+                        },
+                        "required": ["component"],
+                    },
+                },
+            },
+        )
+        two_instructions = ExpressFormat(
+            [two_comp_cat]
+        ).prompt_generator.generate_catalog_instructions(catalog=two_comp_cat)
+        self.assertIn(
+            "## Common Component Properties\n\n"
+            "Properties shared across components (listed in component signatures"
+            " below when supported; component-specific notes override these):\n"
+            "  - layout: Layout config.\n"
+            "    Map keys:\n"
+            "    * gap - Spacing in px",
+            two_instructions,
+        )
+        self.assertEqual(two_instructions.count("  - layout: Layout config."), 1)
+        self.assertIn(
+            "• CardA(layout? (static), solo? (static))\n"
+            "  - solo: Only on CardA.\n"
+            "• CardB(layout? (static))",
+            two_instructions,
+        )
+
+        undoc_cat = Catalog.from_json(
+            protocol_version=ProtocolVersion.V1_0,
+            catalog_id="test/undoc_prop",
+            catalog_schema={
+                "catalogId": "test/undoc_prop",
+                "protocolVersion": "1.0",
+                "components": {
+                    "CompA": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "CompA"},
+                            "size": {
+                                "type": "number",
+                                "description": "Font size in px.",
+                            },
+                        },
+                        "required": ["component"],
+                    },
+                    "CompB": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "CompB"},
+                            "size": {
+                                "type": "number",
+                                "description": "Font size in px.",
+                            },
+                        },
+                        "required": ["component"],
+                    },
+                    "CompC": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "CompC"},
+                            "size": {"type": "string"},
+                        },
+                        "required": ["component"],
+                    },
+                },
+            },
+        )
+        undoc_instructions = ExpressFormat(
+            [undoc_cat]
+        ).prompt_generator.generate_catalog_instructions(catalog=undoc_cat)
+        self.assertNotIn("## Common Component Properties", undoc_instructions)
+        self.assertEqual(undoc_instructions.count("  - size: Font size in px."), 2)
 
 
 if __name__ == "__main__":

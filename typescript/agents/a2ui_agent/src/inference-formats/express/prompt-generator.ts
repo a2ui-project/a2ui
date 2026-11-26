@@ -105,6 +105,65 @@ export const EXPRESS_RULES = `${EXPRESS_RULES_PREFIX}\n\n${EVENT_RULE_V10}\n\n${
 
 const EXPRESS_RULES_PRE_V10 = `${EXPRESS_RULES_PREFIX}\n\n${EVENT_RULE_PRE_V10}\n\n${EXPRESS_RULES_SUFFIX}`;
 
+const COMMON_PROPERTIES_INTRO =
+  'Properties shared across components (listed in component signatures below when supported; component-specific notes override these):';
+
+interface ComponentSignatureEntry {
+  readonly name: string;
+  readonly description: string | undefined;
+  readonly orderedArgs: string[];
+  readonly propDetails: Array<readonly [propName: string, detail: string]>;
+  readonly undocumentedProps: ReadonlySet<string>;
+}
+
+/**
+ * Returns property details shared by a strict majority of components in a catalog.
+ *
+ * When a catalog has at least two components, any `(propName, detail)` pair emitted
+ * by strictly more than half of the components is promoted to the Common Component
+ * Properties section, unless another component declares `propName` without a detail
+ * (which would otherwise falsely inherit the common note). Because each component
+ * emits at most one detail per property name, at most one detail can reach strict
+ * majority for any property name.
+ */
+function selectCommonComponentPropertyDetails(
+  entries: readonly ComponentSignatureEntry[],
+): Map<string, string> {
+  const total = entries.length;
+  if (total < 2) {
+    return new Map();
+  }
+  const countsByProp = new Map<string, Map<string, number>>();
+  const undocumentedProps = new Set<string>();
+  for (const entry of entries) {
+    for (const propName of entry.undocumentedProps) {
+      undocumentedProps.add(propName);
+    }
+    for (const [propName, detail] of entry.propDetails) {
+      let detailCounts = countsByProp.get(propName);
+      if (!detailCounts) {
+        detailCounts = new Map();
+        countsByProp.set(propName, detailCounts);
+      }
+      detailCounts.set(detail, (detailCounts.get(detail) ?? 0) + 1);
+    }
+  }
+  const promoted: Array<readonly [string, string]> = [];
+  for (const [propName, detailCounts] of countsByProp) {
+    if (undocumentedProps.has(propName)) {
+      continue;
+    }
+    for (const [detail, count] of detailCounts) {
+      if (count * 2 > total) {
+        promoted.push([propName, detail]);
+        break;
+      }
+    }
+  }
+  promoted.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return new Map(promoted);
+}
+
 /**
  * Rule 15's example line. `generateBaseRules` replaces its placeholder name with a
  * component the active catalogs define, as Python's `_ROOT_EXAMPLE_LINE` does.
@@ -623,7 +682,12 @@ export class ExpressPromptGenerator extends PromptGenerator {
 
   protected renderCatalogInstructions(catalog: CatalogApi): string {
     const helper = this.getHelper(catalog);
-    const compSigs = this.generateComponentSignatures(helper);
+    const hasCustomSignatures =
+      this.generateComponentSignatures !==
+      ExpressPromptGenerator.prototype.generateComponentSignatures;
+    const {commonDetails, signatures: compSigs} = hasCustomSignatures
+      ? {commonDetails: [] as string[], signatures: this.generateComponentSignatures(helper)}
+      : this.buildComponentSignatures(helper, true);
     const funcSigs = this.generateFunctionSignatures(helper);
 
     const rawInstructions =
@@ -645,8 +709,14 @@ export class ExpressPromptGenerator extends PromptGenerator {
       header = `# Catalog: ${catalog.id}\n\n`;
     }
 
+    const commonPropsBlock =
+      commonDetails.length > 0
+        ? `## Common Component Properties\n\n${COMMON_PROPERTIES_INTRO}\n${commonDetails.join('\n')}\n\n`
+        : '';
+
     return (
       header +
+      commonPropsBlock +
       '## Positional Component Signatures\n\n' +
       'Use these exact positional signatures to instantiate components. Do not output property keys:\n' +
       compSigs +
@@ -899,32 +969,63 @@ export class ExpressPromptGenerator extends PromptGenerator {
     return detail;
   }
 
-  generateComponentSignatures(helper: CatalogSchemaHelper): string {
+  private buildComponentSignatures(
+    helper: CatalogSchemaHelper,
+    deduplicateCommon: boolean,
+  ): {commonDetails: string[]; signatures: string} {
     const compNames = Array.from(helper.components.keys()).sort();
-    return compNames
-      .map(name => {
-        const props = helper.getComponentProperties(name);
-        const reqs = helper.getComponentRequired(name);
-        const orderedArgs: string[] = [];
-        const propDetails: string[] = [];
+    const entries: ComponentSignatureEntry[] = compNames.map(name => {
+      const props = helper.getComponentProperties(name);
+      const reqs = helper.getComponentRequired(name);
+      const orderedArgs: string[] = [];
+      const propDetails: Array<readonly [propName: string, detail: string]> = [];
+      const undocumentedProps = new Set<string>();
 
-        for (const p of props) {
-          const pSchema = helper.getPropertySchema(name, p);
-          orderedArgs.push(this.formatComponentArgLabel(p, reqs.includes(p), pSchema, helper));
-          const detail = this.formatComponentPropertyDetail(p, pSchema, helper);
-          if (detail) {
-            propDetails.push(detail);
-          }
+      for (const p of props) {
+        const pSchema = helper.getPropertySchema(name, p);
+        orderedArgs.push(this.formatComponentArgLabel(p, reqs.includes(p), pSchema, helper));
+        const detail = this.formatComponentPropertyDetail(p, pSchema, helper);
+        if (detail) {
+          propDetails.push([p, detail]);
+        } else {
+          undocumentedProps.add(p);
         }
+      }
 
+      return {
+        name,
+        description: helper.getComponentDescription(name),
+        orderedArgs,
+        propDetails,
+        undocumentedProps,
+      };
+    });
+
+    const commonMap = deduplicateCommon
+      ? selectCommonComponentPropertyDetails(entries)
+      : new Map<string, string>();
+    const signatures = entries
+      .map(entry => {
+        const keptDetails = entry.propDetails
+          .filter(([propName, detail]) => commonMap.get(propName) !== detail)
+          .map(([, detail]) => detail);
         return this.formatSignatureEntry(
-          name,
-          orderedArgs,
-          helper.getComponentDescription(name),
-          propDetails,
+          entry.name,
+          entry.orderedArgs,
+          entry.description,
+          keptDetails,
         );
       })
       .join('\n');
+
+    return {
+      commonDetails: Array.from(commonMap.values()),
+      signatures,
+    };
+  }
+
+  generateComponentSignatures(helper: CatalogSchemaHelper): string {
+    return this.buildComponentSignatures(helper, false).signatures;
   }
 
   generateFunctionSignatures(helper: CatalogSchemaHelper): string {

@@ -1174,4 +1174,259 @@ describe('ExpressPromptGenerator', () => {
       expect(instructions).not.toContain('Map with keys:');
     });
   });
+
+  describe('Common component property deduplication', () => {
+    const countOccurrences = (text: string, needle: string): number =>
+      text.split(needle).length - 1;
+
+    it('deduplicates weight once on v1.0 and v0.9 basic catalogs while keeping all signatures and standalone generateComponentSignatures intact', () => {
+      for (const cat of [basicCatalogV10, basicCatalogV09]) {
+        const generator = new ExpressPromptGenerator([cat]);
+        const instructions = generator.generateCatalogInstructions(cat);
+
+        expect(instructions).toContain('## Common Component Properties');
+        expect(instructions.indexOf('## Common Component Properties')).toBeLessThan(
+          instructions.indexOf('## Positional Component Signatures'),
+        );
+        expect(
+          countOccurrences(instructions, '  - weight: The relative weight of this component'),
+        ).toBe(1);
+        expect(countOccurrences(instructions, 'weight? (static)')).toBe(cat.components.size);
+      }
+
+      // Single-component pruned catalog omits the Common Component Properties section.
+      const textOnly = basicCatalogV10.withEntries([basicCatalogV10.components.get('Text')!], []);
+      const prunedInstructions = new ExpressPromptGenerator([textOnly]).generateCatalogInstructions(
+        textOnly,
+      );
+      expect(prunedInstructions).not.toContain('## Common Component Properties');
+      expect(
+        countOccurrences(prunedInstructions, '  - weight: The relative weight of this component'),
+      ).toBe(1);
+
+      // Direct generateComponentSignatures() keeps full per-component details.
+      const v10Generator = new ExpressPromptGenerator([basicCatalogV10]);
+      const directSigs = v10Generator.generateComponentSignatures(
+        (v10Generator as unknown as {helpers: Map<string, never>}).helpers.get(basicCatalogV10.id)!,
+      );
+      expect(
+        countOccurrences(directSigs, '  - weight: The relative weight of this component'),
+      ).toBe(basicCatalogV10.components.size);
+    });
+
+    it('keeps sub-majority (2/4) properties inline and handles overrides, sorting, empty details, and multi-catalog isolation', () => {
+      const subMajority = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        catalogId: 'test/sub_majority',
+        protocolVersion: '1.0',
+        components: {
+          CompA: {
+            type: 'object',
+            properties: {
+              component: {const: 'CompA'},
+              tag: {type: 'string', description: 'Shared tag.'},
+            },
+            required: ['component'],
+          },
+          CompB: {
+            type: 'object',
+            properties: {
+              component: {const: 'CompB'},
+              tag: {type: 'string', description: 'Shared tag.'},
+            },
+            required: ['component'],
+          },
+          CompC: {
+            type: 'object',
+            properties: {component: {const: 'CompC'}, title: {type: 'string'}},
+            required: ['component'],
+          },
+          CompD: {
+            type: 'object',
+            properties: {component: {const: 'CompD'}, label: {type: 'string'}},
+            required: ['component'],
+          },
+        },
+      });
+      const subInstructions = new ExpressPromptGenerator([subMajority]).generateCatalogInstructions(
+        subMajority,
+      );
+      expect(subInstructions).not.toContain('## Common Component Properties');
+      expect(countOccurrences(subInstructions, '  - tag: Shared tag.')).toBe(2);
+
+      const sharedCat = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        catalogId: 'test/shared_props',
+        protocolVersion: '1.0',
+        components: {
+          Box: {
+            type: 'object',
+            properties: {
+              component: {const: 'Box'},
+              zOrder: {type: 'number', description: 'Stacking order.'},
+              alpha: {type: 'number', description: 'Opacity level.'},
+              undocumented: {type: 'string'},
+            },
+            required: ['component'],
+          },
+          Panel: {
+            type: 'object',
+            properties: {
+              component: {const: 'Panel'},
+              zOrder: {type: 'number', description: 'Stacking order.'},
+              alpha: {type: 'number', description: 'Opacity level.'},
+              undocumented: {type: 'string'},
+            },
+            required: ['component'],
+          },
+          Sheet: {
+            type: 'object',
+            properties: {
+              component: {const: 'Sheet'},
+              zOrder: {type: 'number', description: 'Sheet-specific stacking order.'},
+              alpha: {type: 'number', description: 'Opacity level.'},
+              undocumented: {type: 'string'},
+            },
+            required: ['component'],
+          },
+        },
+      });
+      const plainCat = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        catalogId: 'test/plain_props',
+        protocolVersion: '1.0',
+        components: {
+          Only: {
+            type: 'object',
+            properties: {
+              component: {const: 'Only'},
+              text: {type: 'string', description: 'Text value.'},
+            },
+            required: ['component'],
+          },
+        },
+      });
+
+      const multiInstructions = new ExpressPromptGenerator([
+        sharedCat,
+        plainCat,
+      ]).generateCatalogInstructions();
+      const [sharedSection, plainSection] = multiInstructions.split('# Catalog: test/plain_props');
+      expect(sharedSection).toContain(
+        '## Common Component Properties\n\n' +
+          'Properties shared across components (listed in component signatures below when supported; component-specific notes override these):\n' +
+          '  - alpha: Opacity level.\n' +
+          '  - zOrder: Stacking order.',
+      );
+      expect(sharedSection).not.toContain('  - undocumented:');
+      expect(countOccurrences(sharedSection, '  - alpha: Opacity level.')).toBe(1);
+      expect(countOccurrences(sharedSection, '  - zOrder: Stacking order.')).toBe(1);
+      expect(sharedSection).toContain('  - zOrder: Sheet-specific stacking order.');
+      expect(plainSection).not.toContain('## Common Component Properties');
+      expect(plainSection).toContain('  - text: Text value.');
+    });
+
+    it('promotes 2/2 structured properties, blocks promotion when another component leaves the property undocumented, and honors generateComponentSignatures subclass overrides', () => {
+      const twoComp = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        catalogId: 'test/two_comp',
+        protocolVersion: '1.0',
+        components: {
+          CardA: {
+            type: 'object',
+            properties: {
+              component: {const: 'CardA'},
+              layout: {
+                type: 'object',
+                description: 'Layout config.',
+                properties: {
+                  gap: {type: 'number', description: 'Spacing in px'},
+                },
+              },
+              solo: {type: 'string', description: 'Only on CardA.'},
+            },
+            required: ['component'],
+          },
+          CardB: {
+            type: 'object',
+            properties: {
+              component: {const: 'CardB'},
+              layout: {
+                type: 'object',
+                description: 'Layout config.',
+                properties: {
+                  gap: {type: 'number', description: 'Spacing in px'},
+                },
+              },
+            },
+            required: ['component'],
+          },
+        },
+      });
+      const twoInstructions = new ExpressPromptGenerator([twoComp]).generateCatalogInstructions(
+        twoComp,
+      );
+      expect(twoInstructions).toContain(
+        '## Common Component Properties\n\n' +
+          'Properties shared across components (listed in component signatures below when supported; component-specific notes override these):\n' +
+          '  - layout: Layout config.\n' +
+          '    Map keys:\n' +
+          '    * gap - Spacing in px',
+      );
+      expect(countOccurrences(twoInstructions, '  - layout: Layout config.')).toBe(1);
+      expect(twoInstructions).toContain(
+        '• CardA(layout? (static), solo? (static))\n' +
+          '  - solo: Only on CardA.\n' +
+          '• CardB(layout? (static))',
+      );
+
+      const undocCat = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        catalogId: 'test/undoc_prop',
+        protocolVersion: '1.0',
+        components: {
+          CompA: {
+            type: 'object',
+            properties: {
+              component: {const: 'CompA'},
+              size: {type: 'number', description: 'Font size in px.'},
+            },
+            required: ['component'],
+          },
+          CompB: {
+            type: 'object',
+            properties: {
+              component: {const: 'CompB'},
+              size: {type: 'number', description: 'Font size in px.'},
+            },
+            required: ['component'],
+          },
+          CompC: {
+            type: 'object',
+            properties: {
+              component: {const: 'CompC'},
+              size: {type: 'string'},
+            },
+            required: ['component'],
+          },
+        },
+      });
+      const undocInstructions = new ExpressPromptGenerator([undocCat]).generateCatalogInstructions(
+        undocCat,
+      );
+      expect(undocInstructions).not.toContain('## Common Component Properties');
+      expect(countOccurrences(undocInstructions, '  - size: Font size in px.')).toBe(2);
+
+      class CustomPromptGenerator extends ExpressPromptGenerator {
+        override generateComponentSignatures(): string {
+          return '• CustomOverride()';
+        }
+      }
+      const customInstructions = new CustomPromptGenerator([
+        basicCatalogV10,
+      ]).generateCatalogInstructions(basicCatalogV10);
+      expect(customInstructions).toContain('• CustomOverride()');
+      expect(customInstructions).not.toContain('## Common Component Properties');
+    });
+  });
 });
