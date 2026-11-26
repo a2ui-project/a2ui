@@ -12,6 +12,11 @@
   ([#3400](https://github.com/a2ui-project/a2ui/issues/3400),
   [#4184](https://github.com/a2ui-project/a2ui/pull/4184)).
 - (v0_9_1) `DirectJsonPromptGenerator` gives the v0.9.1 agent-to-renderer schema the `$id` `https://a2ui.org/specification/v0_9_1/server_to_client.json`, which `specification/v0_9_1/json/server_to_client.json` declares. It gave it v0.9's `$id` ([#3974](https://github.com/a2ui-project/a2ui/issues/3974), [#3975](https://github.com/a2ui-project/a2ui/pull/3975)).
+- `RendererState(catalogs, assumeUnknownSurfaces: true)` accepts an update to a
+  surface it never saw created, such as one a sub-agent sends to a surface
+  another agent created
+  ([#3318](https://github.com/a2ui-project/a2ui/issues/3318),
+  [#4331](https://github.com/a2ui-project/a2ui/pull/4331)).
 
 ## 0.5.0
 

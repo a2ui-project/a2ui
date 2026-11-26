@@ -37,7 +37,12 @@ import {
 
 const DEFAULT_CATALOG = 'test_data/catalogs/simplified_catalog_v1_0.json';
 
-const RENDERER_STATE_CASE_KEYS = new Set([...CASE_METADATA_KEYS, 'catalogs', 'turns']);
+const RENDERER_STATE_CASE_KEYS = new Set([
+  ...CASE_METADATA_KEYS,
+  'assumeUnknownSurfaces',
+  'catalogs',
+  'turns',
+]);
 const RENDERER_STATE_TURN_KEYS = new Set([
   'format',
   'payload',
@@ -107,7 +112,9 @@ forEachSuiteVersion(
     const catalogs = rawCatalogs.map(
       entry => loadCatalogEntry(entry, isLowered).transformedCatalog,
     );
-    const state = new RendererState(catalogs);
+    const state = new RendererState(catalogs, {
+      assumeUnknownSurfaces: tc.assumeUnknownSurfaces === true,
+    });
 
     const turns = tc.turns as Array<Record<string, unknown>>;
     for (const turn of turns) {

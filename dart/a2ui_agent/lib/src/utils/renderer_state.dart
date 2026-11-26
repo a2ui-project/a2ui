@@ -82,7 +82,8 @@ typedef _BaselineEntry = ({
 ///
 /// The state holds the surfaces as they now stand, not the messages that
 /// built them. An update to a surface the state never saw created is
-/// rejected, as the renderer would reject it.
+/// rejected, as the renderer would reject it, unless the state is made with
+/// `assumeUnknownSurfaces`.
 ///
 /// The state is authoritative for surfaces and their components. The data
 /// model values it holds can drift from the renderer's, since the user edits
@@ -96,10 +97,20 @@ class RendererState {
   ///
   /// Each surface is checked against the catalog its `catalogId` names.
   ///
+  /// With [assumeUnknownSurfaces], an update to a surface the state never saw
+  /// created is accepted, such as one a sub-agent sends to a surface another
+  /// agent created. The state then makes an empty placeholder for the
+  /// surface, on the first catalog that defines the components of the
+  /// payload's updates to it and accepts all of them. Those components are
+  /// still checked, but the surface's tree is not: references to components
+  /// the state never saw and a missing root are accepted there. A surface
+  /// that an earlier message of the payload deleted is not assumed again,
+  /// nor is one that a later message creates.
+  ///
   /// Throws [A2uiCatalogError] if [catalogs] is empty, or if they target
   /// protocol versions whose messages differ, such as v0.9 and v1.0.
-  RendererState(List<CatalogApi> catalogs)
-    : this._(catalogs, assumesUnknownSurfaces: false);
+  RendererState(List<CatalogApi> catalogs, {bool assumeUnknownSurfaces = false})
+    : this._(catalogs, assumesUnknownSurfaces: assumeUnknownSurfaces);
 
   /// Creates the state of a renderer that renders from [processor].
   ///
@@ -149,8 +160,7 @@ class RendererState {
   final A2uiProtocolVersion _protocolVersion;
 
   /// Whether an update to a surface the state never saw created makes an
-  /// empty placeholder for it instead of being rejected. Only a state that
-  /// checks one payload on its own, with no record of earlier ones, sets it.
+  /// empty placeholder for it instead of being rejected.
   final bool _assumesUnknownSurfaces;
 
   late final MessageProcessor<ComponentApi> _processor;
@@ -1002,17 +1012,6 @@ class RendererState {
     }
   }
 }
-
-/// A state that checks one payload on its own, with no record of earlier
-/// ones: an update to a surface it never saw created makes an empty
-/// placeholder for it, on the first catalog that defines the components of
-/// the payload's updates to it and accepts all of them. A surface that an
-/// earlier message of the payload deleted is not assumed again, nor is one
-/// that a later message creates before any message deletes it.
-///
-/// For `validatePayload`; not exported.
-RendererState createPayloadState(List<CatalogApi> catalogs) =>
-    RendererState._(catalogs, assumesUnknownSurfaces: true);
 
 /// The protocol version [catalogs] target.
 A2uiProtocolVersion _checkCatalogs(List<CatalogApi> catalogs) {

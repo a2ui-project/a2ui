@@ -23,6 +23,8 @@
 # - Atomic rollback of a failed turn so the next turn succeeds against the last
 #   committed state.
 # - Deleting a surface on one turn and re-creating it on the next turn.
+# - Accepting an update to a surface another agent created, when the state is
+#   made with `assumeUnknownSurfaces`.
 
 # --- Direct JSON multi-turn state ---
 
@@ -512,3 +514,69 @@
                 "@path": "/title"
           data:
             title: "Committed"
+
+# --- Surfaces another agent created ---
+
+- name: test_renderer_state_assumes_unknown_surface_when_asked
+  description: A state made with assumeUnknownSurfaces accepts an update to a surface it never saw created, as a sub-agent sends to a surface another agent created, and keeps the surface for the next turn.
+  action: renderer_state_turns
+  assumeUnknownSurfaces: true
+  catalogs:
+    - "test_data/catalogs/simplified_catalog_v1_0.json"
+  turns:
+    - format: direct_json
+      response: |-
+        <a2ui-json>
+        [
+          {
+            "version": "1.0",
+            "updateComponents": {
+              "surfaceId": "shared_surface",
+              "components": [
+                {"id": "status", "component": "Text", "text": "Ready"}
+              ]
+            }
+          }
+        ]
+        </a2ui-json>
+      expect_surfaces:
+        shared_surface:
+          components:
+            status:
+              component: "Text"
+              text: "Ready"
+    - payload:
+        - version: "1.0"
+          updateDataModel:
+            surfaceId: "shared_surface"
+            path: "/title"
+            value: "Updated"
+      expect_surfaces:
+        shared_surface:
+          components:
+            status:
+              component: "Text"
+              text: "Ready"
+          data:
+            title: "Updated"
+
+- name: test_renderer_state_does_not_assume_a_surface_the_payload_deleted
+  description: Even a state made with assumeUnknownSurfaces rejects an update to a surface that an earlier message of the same payload deleted, since the renderer no longer holds it.
+  action: renderer_state_turns
+  assumeUnknownSurfaces: true
+  catalogs:
+    - "test_data/catalogs/simplified_catalog_v1_0.json"
+  turns:
+    - payload:
+        - version: "1.0"
+          deleteSurface:
+            surfaceId: "shared_surface"
+        - version: "1.0"
+          updateComponents:
+            surfaceId: "shared_surface"
+            components:
+              - id: "status"
+                component: "Text"
+                text: "Ready"
+      expect_error:
+        category: "ValidationError"

@@ -3150,6 +3150,10 @@
           },
           "description": "Active catalogs registered on the `RendererState` instance."
         },
+        "assumeUnknownSurfaces": {
+          "type": "boolean",
+          "description": "Makes the `RendererState` with `assumeUnknownSurfaces`, so it accepts an update to a surface it never saw created."
+        },
         "turns": {
           "type": "array",
           "minItems": 1,

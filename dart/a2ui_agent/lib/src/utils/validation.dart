@@ -53,7 +53,7 @@ void validatePayload(
   List<CatalogApi> catalogs,
   Iterable<AgentToRendererMessage> payload,
 ) {
-  final RendererState state = createPayloadState(catalogs);
+  final state = RendererState(catalogs, assumeUnknownSurfaces: true);
   try {
     state.checkTopology(state.apply(payload));
   } finally {
