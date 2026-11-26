@@ -1,3 +1,4 @@
 ## Unreleased
 
 - Add `@a2ui/embed`, with the versioned contract between an MCP server and its A2UI app in `@a2ui/embed/contract`: the tool result shape, `EmbedPayload`, the `a2ui_action` tool's `ActionCall`, the catalog schema file, and the `toToolResult`, `readEmbedPayload` and `checkContractVersion` helpers. [#4297](https://github.com/a2ui-project/a2ui/pull/4297)
+- Add `@a2ui/embed/mcp/server`, which serves an A2UI app from an MCP server: `createA2uiApp` registers the app resource, `app.tool` registers tools whose A2UI results render in the app, `app.action` and `app.followUp` handle the app's actions, `app.describeActions` summarizes registered actions for model prompts, and `app.validate` checks A2UI messages against the A2UI specification and the app's catalogs. `@modelcontextprotocol/sdk` is a new peer dependency. [#4298](https://github.com/a2ui-project/a2ui/pull/4298)
