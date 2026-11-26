@@ -2079,3 +2079,62 @@ def test_v10_child_list_template_uses_path_only() -> None:
         "@path": "/items",
     }
     binder.dispose()
+
+
+def test_data_model_cascade_coalesces_binder_and_node_updates() -> None:
+    """Updating a parent path coalesces multi-binding notifications into one update."""
+    from a2ui.core.resolution import NodeResolver
+
+    cat = Catalog.from_json(
+        {
+            "catalogId": "cascade-cat",
+            "components": {
+                "Pair": {
+                    "type": "object",
+                    "properties": {
+                        "first": {"$ref": "common_types.json#/$defs/DynamicString"},
+                        "second": {"$ref": "common_types.json#/$defs/DynamicString"},
+                    },
+                },
+            },
+        },
+        protocol_version="1.0",
+    )
+    surface = SurfaceModel("s1", cat, protocol_version="1.0")
+    surface.data_model.set("/form", {"a": "A1", "b": "B1"})
+    comp = ComponentModel(
+        "root",
+        "Pair",
+        cat,
+        {
+            "first": {"@path": "/form/a"},
+            "second": {"@path": "/form/b"},
+        },
+    )
+    surface.components_model.add_component(comp)
+
+    binder = GenericBinder(ComponentContext(comp, DataContext(surface, path="/")))
+    binder_updates: list[tuple[Any, Any]] = []
+    binder.subscribe(
+        lambda props: binder_updates.append((props.get("first"), props.get("second")))
+    )
+    assert binder_updates == [("A1", "B1")]
+    binder_updates.clear()
+
+    resolver = NodeResolver(surface)
+    root = resolver.root
+    assert root is not None
+    assert (root.props["first"].value, root.props["second"].value) == ("A1", "B1")
+    node_updates: list[tuple[Any, Any]] = []
+    root.on_updated.subscribe(
+        lambda _: node_updates.append(
+            (root.props["first"].value, root.props["second"].value)
+        )
+    )
+
+    surface.data_model.set("/form", {"a": "A2", "b": "B2"})
+
+    assert binder_updates == [("A2", "B2")]
+    assert node_updates == [("A2", "B2")]
+    binder.dispose()
+    resolver.dispose()

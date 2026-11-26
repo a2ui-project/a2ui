@@ -205,6 +205,16 @@ const Map<String, String> _v1OnlyCases = {
   'test_express_snippet_teaches_event_user_message_from_v1_0': _noUserMessage,
   'test_compile_express_surface_targeting_names_a_catalog':
       _oneCatalogPerSurface,
+  'test_compile_express_component_outside_pinned_surface_catalog_'
+          'is_a_validation_error':
+      _oneCatalogPerSurface,
+  'test_express_snippet_names_both_catalogs_and_their_ids':
+      _oneCatalogPerSurface,
+  'test_express_snippet_with_two_catalogs_and_pruning': _oneCatalogPerSurface,
+  'test_express_snippet_renders_multi_catalog_examples': _oneCatalogPerSurface,
+  'test_express_snippet_preserves_supplied_example_order':
+      _oneCatalogPerSurface,
+  'test_express_snippet_is_deterministic': _oneCatalogPerSurface,
   'test_decompile_express_two_surfaces_in_two_catalogs': _oneCatalogPerSurface,
   'test_decompile_express_event_action_with_nested_context':
       'A v0.9 DynamicValue holds no map, so a map in an event\'s context runs '

@@ -19,29 +19,22 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from a2a.types import DataPart, Message, Part
+from a2a.types import Message
 
 from a2ui.core.schema import ProtocolVersion
 from a2ui.utils import read_renderer_capabilities
 
-
-def _data_parts_from_message(message: Message) -> list[DataPart]:
-    data_parts: list[DataPart] = []
-    for part in message.parts or []:
-        inner = part.root if isinstance(part, Part) else part
-        if isinstance(inner, DataPart):
-            data_parts.append(inner)
-    return data_parts
+from . import _compat
 
 
 def _capabilities_from_legacy_data(
-    data_parts: list[DataPart],
+    data_parts: list[tuple[Any, Any]],
     version: ProtocolVersion | str,
 ) -> dict[str, Any] | None:
-    for data_part in data_parts:
-        if not isinstance(data_part.data, Mapping):
+    for data, _ in data_parts:
+        if not isinstance(data, Mapping):
             continue
-        legacy_metadata = data_part.data.get("metadata")
+        legacy_metadata = data.get("metadata")
         if not isinstance(legacy_metadata, Mapping):
             continue
         capabilities = read_renderer_capabilities(legacy_metadata, version)
@@ -56,8 +49,9 @@ def renderer_capabilities_from_message(
 ) -> dict[str, Any] | None:
     """Reads and validates renderer capabilities for ``version`` from an A2A ``Message``.
 
-    Checks ``message.metadata`` first, then each :class:`DataPart`'s ``metadata``,
-    and finally each :class:`DataPart`'s ``data["metadata"]`` (legacy fallback).
+    Checks ``message.metadata`` first, then each data part's ``metadata``, and
+    finally each data part's ``data["metadata"]`` (legacy fallback). Works with
+    both a2a-sdk 0.3 and 1.x messages.
     The first source carrying the version's capabilities key wins.
 
     Args:
@@ -75,15 +69,16 @@ def renderer_capabilities_from_message(
     if message is None:
         return read_renderer_capabilities(None, version)
 
-    if message.metadata is not None:
-        capabilities = read_renderer_capabilities(message.metadata, version)
+    message_metadata = _compat.metadata_dict(message.metadata)
+    if message_metadata is not None:
+        capabilities = read_renderer_capabilities(message_metadata, version)
         if capabilities is not None:
             return capabilities
 
-    data_parts = _data_parts_from_message(message)
-    for data_part in data_parts:
-        if data_part.metadata is not None:
-            capabilities = read_renderer_capabilities(data_part.metadata, version)
+    data_parts = _compat.data_parts_of(message)
+    for _, part_metadata in data_parts:
+        if part_metadata is not None:
+            capabilities = read_renderer_capabilities(part_metadata, version)
             if capabilities is not None:
                 return capabilities
 
