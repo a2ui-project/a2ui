@@ -372,7 +372,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### A2UI Dynamic Rendering within MCP Applications (`/guides/a2ui-in-mcp-apps/`) [P1]
 
-- Step-by-step `@a2ui/embed` guide in [`src/content/docs/guides/a2ui-in-mcp-apps.mdx`](src/content/docs/guides/a2ui-in-mcp-apps.mdx) covering `a2ui-embed build`, `createA2uiApp`, custom catalog bundling, `sendDataModel` model-context updates, multi-language servers, and the `structuredContent.a2ui` contract, plus a pointer to [`samples/community/mcp/a2ui-in-mcpapps/`](../../samples/community/mcp/a2ui-in-mcpapps/).
+- Step-by-step `@a2ui/embed` guide in [`src/content/docs/guides/a2ui-in-mcp-apps.mdx`](src/content/docs/guides/a2ui-in-mcp-apps.mdx) covering `a2ui-embed build`, `createA2uiApp` (`app.describeActions`), custom catalog bundling, `sendDataModel` model-context updates, `@a2ui/agent` Express surface composition, multi-language servers, and the `structuredContent.a2ui` contract, plus a pointer to [`samples/community/mcp/a2ui-in-mcpapps/`](../../samples/community/mcp/a2ui-in-mcpapps/).
 
 <a id="authoring-universal-web-components"></a>
 

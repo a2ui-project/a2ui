@@ -56,7 +56,7 @@ npx a2ui-embed build
 The command writes two files relative to `a2ui-embed.config.ts`:
 
 - `dist/a2ui-app.html`, a self-contained HTML file with the Lit renderer, `basicCatalog`, and Markdown support inlined so the app loads nothing from the network under the default MCP Apps Content Security Policy.
-- `dist/a2ui-app.catalog.json`, the JSON Schemas of your bundled catalogs keyed by catalog ID, used by the server to validate outgoing components before sending tool results.
+- `dist/a2ui-app.catalog.json`, the JSON Schemas, `protocolVersion`, and optional `instructions` of your bundled catalogs keyed by catalog ID, used by the server to validate outgoing components and configure model prompts.
 
 Set `markdown: false` if your surfaces show plain text only; omitting the Markdown parser trims roughly 150 KiB from the HTML file.
 
@@ -219,6 +219,7 @@ export function createReleaseServer(): McpServer {
   );
 
   app.followUp('draft_release_notes', {
+    description: 'Asks the assistant to draft customer release notes.', // Optional
     template: 'Draft concise customer release notes for {service} version {version}.',
     argsSchema: {service: z.string(), version: z.string()},
     maxValueLength: 60, // Optional (default: 80)
@@ -320,7 +321,8 @@ Each registration method handles one interaction path:
 
 - `app.tool` links the tool to `ui://a2ui/app.html` and validates outgoing messages before anything reaches the host. If a component property or ID is invalid, the server returns an MCP `isError: true` message naming the component ID, type, and property. Omitting `a2ui` returns a text-only result and collapses the app frame to height `0`.
 - `app.action` handles interactive [actions](../../concepts/actions-and-functions/) routed through the app-only `a2ui_action` tool (`_meta.ui.visibility: ['app']`), validating `event.context` against `argsSchema` and applying returned [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) or `updateComponents` messages in place without starting a model turn.
-- `app.followUp` turns a button click into a user chat message via `ui/message`. Each `{placeholder}` token in `template` is replaced with a sanitized, truncated, JSON-quoted string (for example, `Draft concise customer release notes for "checkout-api" version "2.4.0".`) so untrusted values cannot inject instructions into the template.
+- `app.followUp` turns a button click into a user chat message via `ui/message`. Each `{placeholder}` token in `template` is replaced with a sanitized, truncated, JSON-quoted string (for example, `Draft concise customer release notes for "checkout-api" version "2.4.0".`) so untrusted values cannot inject instructions into the template. Pass an optional `description` to document when a model should bind an action to this follow-up.
+- `app.describeActions()` returns a Markdown contract of every registered `action` and `followUp` (including its `description` or `template` summary and inferred `context` field types), or `''` when none are registered. Append it to your catalog instructions when a model composes surfaces at runtime so interactive controls only emit event names the server handles.
 
 ## Step 4: Connect the server transport
 
@@ -413,19 +415,7 @@ export default defineConfig({
 Keep two rules in mind when building custom catalogs with `a2ui-embed build`:
 
 - Component `id` values, function names, and function argument names in A2UI v1.0 must be valid Unicode UAX #31 identifiers (`stat_card`, not `stat-card`), whereas browser custom element tag names require a hyphen (`a2ui-stat-card`).
-- `a2ui-embed build` evaluates `a2ui-embed.config.ts` in Node.js to extract `catalog.validationSchema` into `dist/a2ui-app.catalog.json`, then bundles the same module graph for the browser. Keep DOM globals (`document`, `window`) inside component lifecycle or `render()` methods, and keep Node-only imports (`node:fs`) out of the config file and catalog modules.
-
-### Validate model-composed messages on the server
-
-When a tool asks an LLM to compose A2UI layouts against your catalog schema at runtime, call `app.validate(messages)` before returning from `app.tool` so you can feed structured errors back to the model or fall back to a deterministic view:
-
-```typescript
-const check = app.validate(candidateMessages);
-if (!check.ok) {
-  const summary = check.errors.map(err => err.message).join('\n');
-  // Retry model generation with `summary` or return a fallback layout.
-}
-```
+- `a2ui-embed build` evaluates `a2ui-embed.config.ts` in Node.js to write each catalog's validation schema, `protocolVersion`, and optional `instructions` into `dist/a2ui-app.catalog.json`, then bundles the same module graph for the browser. Keep DOM globals (`document`, `window`) inside component lifecycle or `render()` methods, and keep Node-only imports (`node:fs`) out of the config file and catalog modules.
 
 ---
 
@@ -449,6 +439,158 @@ Set `sendDataModel: true` on [`createSurface`](/specification/v1.0/schemas/#agen
 ```
 
 Whenever the user edits a bound input or triggers an action whose response mutates the surface [Data Model](../../concepts/data-binding/), `@a2ui/embed` waits for 300 ms of inactivity and sends `ui/update-model-context` to the host. Supporting hosts attach that JSON snapshot to the user's next chat message without starting a new turn, so the user can ask follow-up questions about their current selection without calling another tool. Initial renders and new tool results do not trigger context updates, and updates default to a 16 KiB size cap (`modelContext.maxBytes`), omitting the largest surface data models by name if exceeded so the model never receives truncated JSON.
+
+### Compose surfaces dynamically with @a2ui/agent
+
+When a tool adapts its layout to the user's request instead of returning a fixed component array, pair `@a2ui/embed` with `@a2ui/agent` (`npm install @a2ui/agent`). Let the model compose the component hierarchy in A2UI Express (`<a2ui>...</a2ui>`), merge authoritative domain records on the server so numbers and URLs never drift, and validate the resulting messages with `app.validate(messages)` before returning (`generateExpress` below represents your model API call):
+
+```typescript
+// src/compose_release_surface.ts
+import {readFile} from 'node:fs/promises';
+
+import {
+  A2uiGenerator,
+  CatalogConfig,
+  ExpressFormatFactory,
+  InMemoryCatalogProvider,
+} from '@a2ui/agent';
+import type {CatalogSchemaFile} from '@a2ui/embed/contract';
+import type {A2uiApp} from '@a2ui/embed/mcp/server';
+import type {AgentToRendererMessage} from '@a2ui/web_core/v1_0';
+
+const RELEASE_CATALOG_ID = 'https://example.com/catalogs/release/v1/catalog.json';
+
+export async function createReleaseComposer(
+  app: A2uiApp,
+  generateExpress: (systemInstruction: string, userPrompt: string) => Promise<string>,
+) {
+  const rawSchema = await readFile(
+    new URL('../dist/a2ui-app.catalog.json', import.meta.url),
+    'utf8',
+  );
+  const catalogSchema = JSON.parse(rawSchema) as CatalogSchemaFile;
+
+  // Load the schema, protocolVersion, and instructions emitted by a2ui-embed build.
+  const baseCatalog = new InMemoryCatalogProvider(
+    catalogSchema.catalogs[RELEASE_CATALOG_ID],
+  ).load();
+
+  const catalog = baseCatalog.copyWith({
+    instructions: [
+      baseCatalog.instructions,
+      app.describeActions(),
+      'Always start <a2ui> with surface("release_card", sendDataModel=true) so host model-context sync stays active. Bind read-only values to paths under $/release and never hardcode release counts.',
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+  });
+
+  const generator = new A2uiGenerator(
+    [new CatalogConfig(catalog)],
+    undefined,
+    new ExpressFormatFactory({surfaceId: 'release_card'}),
+  );
+  const processor = generator.createProcessor({
+    '1.0': {supportedCatalogIds: [RELEASE_CATALOG_ID]},
+  });
+
+  return async function composeReleaseSurface(
+    prompt: string,
+    authoritativeData: Record<string, unknown>,
+    fallbackMessages: AgentToRendererMessage[],
+  ): Promise<AgentToRendererMessage[]> {
+    let nextPrompt = prompt;
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const rawOutput = await generateExpress(processor.promptSnippet, nextPrompt);
+        const compiled = processor
+          .parseResponse(rawOutput)
+          .flatMap(part => (part.type === 'a2ui' ? part.a2ui : []));
+
+        const candidate = mergeAuthoritativeData(compiled, 'release_card', authoritativeData);
+        const check = app.validate(candidate);
+        if (check.ok) {
+          return candidate;
+        }
+        const problems = check.errors.map(err => `- ${err.message}`).join('\n');
+        nextPrompt = `${prompt}\n\nFix these A2UI validation errors:\n${problems}`;
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        nextPrompt = `${prompt}\n\nFix this A2UI Express compilation error:\n${reason}`;
+      }
+    }
+
+    return fallbackMessages;
+  };
+}
+
+function mergeAuthoritativeData(
+  messages: AgentToRendererMessage[],
+  surfaceId: string,
+  authoritativeData: Record<string, unknown>,
+): AgentToRendererMessage[] {
+  const merged = messages.map((msg): AgentToRendererMessage => {
+    if ('createSurface' in msg && msg.createSurface.surfaceId === surfaceId) {
+      return {
+        ...msg,
+        createSurface: {
+          ...msg.createSurface,
+          sendDataModel: true,
+          dataModel: {
+            ...(msg.createSurface.dataModel ?? {}),
+            ...authoritativeData,
+          },
+        },
+      };
+    }
+    if (
+      'updateDataModel' in msg &&
+      msg.updateDataModel.surfaceId === surfaceId &&
+      (!msg.updateDataModel.path || msg.updateDataModel.path === '/') &&
+      !Array.isArray(msg.updateDataModel.value) &&
+      typeof msg.updateDataModel.value === 'object' &&
+      msg.updateDataModel.value !== null
+    ) {
+      return {
+        ...msg,
+        updateDataModel: {
+          ...msg.updateDataModel,
+          value: {
+            ...(msg.updateDataModel.value as Record<string, unknown>),
+            ...authoritativeData,
+          },
+        },
+      };
+    }
+    return msg;
+  });
+
+  const hasRootData = merged.some(
+    msg =>
+      ('createSurface' in msg &&
+        msg.createSurface.surfaceId === surfaceId &&
+        msg.createSurface.dataModel !== undefined) ||
+      ('updateDataModel' in msg &&
+        msg.updateDataModel.surfaceId === surfaceId &&
+        (!msg.updateDataModel.path || msg.updateDataModel.path === '/')),
+  );
+  if (!hasRootData) {
+    merged.push({
+      version: '1.0',
+      updateDataModel: {surfaceId, path: '/', value: authoritativeData},
+    });
+  }
+  return merged;
+}
+```
+
+Four details keep server-side composition reliable inside an MCP App:
+
+- `InMemoryCatalogProvider` reads `catalogId`, `protocolVersion`, and `instructions` directly from `dist/a2ui-app.catalog.json`, so `@a2ui/agent` and the bundled iframe always share the same component schemas.
+- Appending `app.describeActions()` via `.copyWith({instructions})` overrides the generic Express fallback rule so the model binds `Event("<name>", ...)` only to registered server actions and follow-ups rather than inventing unregistered names such as `Event("click")`.
+- Instructing the model to emit `surface("release_card", sendDataModel=true)` (and setting `sendDataModel: true` during merge) keeps `@a2ui/embed`'s `ui/update-model-context` synchronization active for bound inputs and client filters.
+- Merging `authoritativeData` onto `createSurface.dataModel` and root `updateDataModel` messages lets the model choose layout components and UI filter defaults while your server supplies verified domain data, with `app.validate(candidate)` catching schema errors before `fallbackMessages` takes over.
 
 ### Serve the app bundle from Python or other languages
 
@@ -666,14 +808,14 @@ Any rule targeting `.a2ui-embed` overrides these defaults as well as the contain
 
 `@a2ui/embed/contract` defines the versioned interface between an MCP server and the embedded app iframe. Minor contract revisions (`major.minor`) only add optional fields; if a server sends a payload with a different major version, the app renders an error card instead of partially applying incompatible messages.
 
-| Contract element    | Value and shape                                                                                                                                                                                                    |
-| :------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Contract version    | `CONTRACT_VERSION` (`'1.0'`). Checked via `checkContractVersion(version)`.                                                                                                                                         |
-| App resource        | Default URI `ui://a2ui/app.html` (`DEFAULT_RESOURCE_URI`), MIME type `text/html;profile=mcp-app`. Tools reference it in `_meta.ui.resourceUri`.                                                                    |
-| Tool result         | `content: [{type: 'text', text}]` carries the model summary; `structuredContent.a2ui` (`A2UI_STRUCTURED_KEY`) carries `EmbedPayload`, kept out of model context by MCP Apps hosts.                                 |
-| `EmbedPayload`      | `{contractVersion: string; messages: AgentToRendererMessage[]; followUp?: {text: string}}` (`EmbedPayloadSchema`). Only `createSurface`, `updateComponents`, `updateDataModel`, and `deleteSurface` are delivered. |
-| Action tool         | `a2ui_action` (`ACTION_TOOL_NAME`) with `_meta.ui.visibility: ['app']`. Called with `ActionCall` (`{name: string; surfaceId: string; sourceComponentId?: string; context: Record<string, unknown>}`).              |
-| Catalog schema file | `{contractVersion: string; catalogs: Record<string, Record<string, unknown>>}` (`CatalogSchemaFileSchema`), emitted next to the HTML bundle as `*.catalog.json`.                                                   |
+| Contract element    | Value and shape                                                                                                                                                                                                                                  |
+| :------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Contract version    | `CONTRACT_VERSION` (`'1.0'`). Checked via `checkContractVersion(version)`.                                                                                                                                                                       |
+| App resource        | Default URI `ui://a2ui/app.html` (`DEFAULT_RESOURCE_URI`), MIME type `text/html;profile=mcp-app`. Tools reference it in `_meta.ui.resourceUri`.                                                                                                  |
+| Tool result         | `content: [{type: 'text', text}]` carries the model summary; `structuredContent.a2ui` (`A2UI_STRUCTURED_KEY`) carries `EmbedPayload`, kept out of model context by MCP Apps hosts.                                                               |
+| `EmbedPayload`      | `{contractVersion: string; messages: AgentToRendererMessage[]; followUp?: {text: string}}` (`EmbedPayloadSchema`). Only `createSurface`, `updateComponents`, `updateDataModel`, and `deleteSurface` are delivered.                               |
+| Action tool         | `a2ui_action` (`ACTION_TOOL_NAME`) with `_meta.ui.visibility: ['app']`. Called with `ActionCall` (`{name: string; surfaceId: string; sourceComponentId?: string; context: Record<string, unknown>}`).                                            |
+| Catalog schema file | `{contractVersion: string; catalogs: Record<string, Record<string, unknown>>}` (`CatalogSchemaFileSchema`), emitted next to the HTML bundle as `*.catalog.json` with each catalog's JSON Schema, `protocolVersion`, and optional `instructions`. |
 
 TypeScript servers that assemble raw MCP `CallToolResult` objects directly (without `createA2uiApp`) can use `toToolResult`, `readEmbedPayload`, and `checkContractVersion` from `@a2ui/embed/contract`:
 
