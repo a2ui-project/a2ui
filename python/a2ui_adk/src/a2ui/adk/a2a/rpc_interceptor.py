@@ -106,7 +106,7 @@ class _RpcTaskTracker:
             return final_event
         del self._rpc_task_ids[final_event.task_id]
         status = final_event.status
-        has_parts = status.message is not None and len(status.message.parts) > 0
+        has_parts = bool(status.message and status.message.parts)
         if status.state != _task_state("working") or has_parts:
             return final_event
         return _with_state(final_event, _task_state("completed"))

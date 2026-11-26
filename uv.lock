@@ -287,6 +287,7 @@ version = "0.1.0"
 source = { editable = "eval" }
 dependencies = [
     { name = "a2ui-agent-sdk" },
+    { name = "agent-client-protocol" },
     { name = "google-genai" },
     { name = "inspect-ai", version = "0.3.280", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.15'" },
     { name = "inspect-ai", version = "0.3.291", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15'" },
@@ -307,6 +308,7 @@ frontier = [
 [package.metadata]
 requires-dist = [
     { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
+    { name = "agent-client-protocol", specifier = "<1.0" },
     { name = "anthropic", marker = "extra == 'frontier'", specifier = ">=0.49.0" },
     { name = "google-genai", specifier = ">=1.27.0" },
     { name = "inspect-ai", specifier = ">=0.3.217" },
@@ -542,15 +544,14 @@ release = [
 
 [[package]]
 name = "agent-client-protocol"
-version = "1.0.0"
+version = "0.12.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
-    { name = "pydantic-core" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/14/e2/085f4857cb864c3a423d76e205f75e1da1643862fd452e5cec47c3078d79/agent_client_protocol-1.0.0.tar.gz", hash = "sha256:24914d9996aaeeb08931191382d0ca1028b83743e2797cc05ded39b3bb754425", size = 187237, upload-time = "2026-11-09T00:34:01.706Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9d/95/2c28ca34e545ce0282e88272aa3a8abdf8f3f926a0492f567ea11acd071b/agent_client_protocol-0.12.1.tar.gz", hash = "sha256:9963ccb590ed96d7dc542c9c023e90676fc76b1c6562e21a9ee112f4fbcb0095", size = 130605, upload-time = "2026-08-16T14:08:22.545Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/30/a1/7e29d00f01fede44ffdc84099552720727f8bfda942fea79a4f7d5ef1294/agent_client_protocol-1.0.0-py3-none-any.whl", hash = "sha256:179c14266997841438ee15245a2668d31b2c695c13bff87d01c36e016185ddd0", size = 128090, upload-time = "2026-11-09T00:34:00.324Z" },
+    { url = "https://files.pythonhosted.org/packages/21/61/0a2186c8ca53cf464767d4c4fb7fd9e23f48ce4547c2fa0d1c83a4d52410/agent_client_protocol-0.12.1-py3-none-any.whl", hash = "sha256:aaf3cc301ed87d9e2c4ccb91adfe1cd58784355f6ce7e513f50e7ca2391862ef", size = 85929, upload-time = "2026-08-16T14:08:21.307Z" },
 ]
 
 [[package]]

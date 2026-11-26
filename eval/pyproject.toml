@@ -19,6 +19,8 @@ description = "A2UI Evaluation Suite"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    # inspect-ai imports acp.helpers, which agent-client-protocol 1.0 removed.
+    "agent-client-protocol<1.0",
     "a2ui-agent-sdk",
     "google-genai>=1.27.0",
     "inspect-ai>=0.3.217",
