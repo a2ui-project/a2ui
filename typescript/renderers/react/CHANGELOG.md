@@ -1,5 +1,7 @@
 ## Unreleased
 
+- The `UNRESOLVED_CHILD_REFERENCE` report sets `componentId` to the referenced id, and `componentType` when a component with that id exists. The `message` text is unchanged ([#4018](https://github.com/a2ui-project/a2ui/issues/4018), [#4019](https://github.com/a2ui-project/a2ui/pull/4019)).
+
 ## 0.16.1
 
 - (v0_9) Fix `@a2ui/react` throwing `ReferenceError: HTMLElement is not defined` when imported without a DOM (server-side rendering, plain Node). The host element base class is now chosen when the module loads, so the import no longer needs `HTMLElement`. Regression in 0.13.0. [#3158](https://github.com/a2ui-project/a2ui/issues/3158), [#3197](https://github.com/a2ui-project/a2ui/pull/3197)
