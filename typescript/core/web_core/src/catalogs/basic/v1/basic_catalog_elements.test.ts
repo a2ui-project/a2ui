@@ -25,6 +25,8 @@ import {
   Catalog,
   GenericBinder,
   A2uiExpressionError,
+  A2uiValidationError,
+  DynamicValueSchema,
   PayloadValidator,
   getValue,
 } from '../../../v1_0/index.js';
@@ -127,6 +129,22 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
         },
       });
     });
+  });
+
+  it("PayloadValidator rejects v0.9's bare path and call keys as v1.0 dynamic values", () => {
+    const validator = new PayloadValidator(basicCatalog);
+    for (const text of [{path: '/name'}, {call: 'formatString', args: {value: 'Hi'}}]) {
+      assert.throws(
+        () => validator.validateComponent({id: 'txt1', component: 'Text', text}),
+        A2uiValidationError,
+        `expected ${JSON.stringify(text)} to be rejected`,
+      );
+    }
+    for (const text of [{'@path': '/name'}, {'@call': 'formatString', 'args': {value: 'Hi'}}]) {
+      assert.doesNotThrow(() => validator.validateComponent({id: 'txt1', component: 'Text', text}));
+    }
+    // A plain object with bare path and call keys is a literal DynamicValue in v1.0.
+    assert.ok(DynamicValueSchema.safeParse({path: '/var/log/system.log', call: 'audit'}).success);
   });
 
   it('applies accessibility attributes across BasicCatalogA2uiLitElement host and inner semantic element', async () => {

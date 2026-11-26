@@ -708,7 +708,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-1',
           callFunction: {
-            call: 'computeGreeting',
+            '@call': 'computeGreeting',
             catalogId: 'cat-fn',
             args: {user: 'Alice'},
           },
@@ -1152,7 +1152,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-call-1',
           callFunction: {
-            call: 'echoFunction',
+            '@call': 'echoFunction',
             catalogId: 'rpc-cat',
             args: {text: 'World'},
           },
@@ -1231,7 +1231,7 @@ describe('MessageProcessor', () => {
           surfaceId: 's2',
           functionCallId: 'rpc-surf-1',
           callFunction: {
-            call: 'readUserName',
+            '@call': 'readUserName',
             catalogId: 'rpc-model-cat',
             args: {text: {'@path': '/user/name'}},
           },
@@ -1246,7 +1246,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-surf-2',
           callFunction: {
-            call: 'readUserName',
+            '@call': 'readUserName',
             catalogId: 'rpc-model-cat',
             args: {text: {'@path': '/user/name'}},
           },
@@ -1262,7 +1262,7 @@ describe('MessageProcessor', () => {
           surfaceId: 'non_existent_surface',
           functionCallId: 'rpc-surf-3',
           callFunction: {
-            call: 'readUserName',
+            '@call': 'readUserName',
             catalogId: 'rpc-model-cat',
             args: {},
           },
@@ -1284,7 +1284,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-surf-4',
           callFunction: {
-            call: 'readUserName',
+            '@call': 'readUserName',
             catalogId: 'rpc-model-cat',
             args: {text: {'@call': '@index'}},
           },
@@ -1303,7 +1303,7 @@ describe('MessageProcessor', () => {
           callRendererFunction: {
             functionCallId: 'rpc-surf-5',
             callFunction: {
-              call: 'readUserName',
+              '@call': 'readUserName',
               args: {},
             },
           },
@@ -1325,7 +1325,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-call-2',
           callFunction: {
-            call: 'secureAction',
+            '@call': 'secureAction',
             catalogId: 'rpc-cat',
             args: {},
           },
@@ -1345,7 +1345,7 @@ describe('MessageProcessor', () => {
           callRendererFunction: {
             functionCallId: 'rpc-call-3',
             callFunction: {
-              call: 'secureAction',
+              '@call': 'secureAction',
               catalogId: 'rpc-cat',
               args: {},
             },
@@ -1426,7 +1426,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-sync-1',
           callFunction: {
-            call: 'echoFunction',
+            '@call': 'echoFunction',
             catalogId: 'rpc-cat',
             args: {text: 'SyncTest'},
           },
@@ -1458,7 +1458,7 @@ describe('MessageProcessor', () => {
           callRendererFunction: {
             functionCallId: 'rpc-sync-2',
             callFunction: {
-              call: 'echoFunction',
+              '@call': 'echoFunction',
               catalogId: 'rpc-cat',
               args: {},
             },

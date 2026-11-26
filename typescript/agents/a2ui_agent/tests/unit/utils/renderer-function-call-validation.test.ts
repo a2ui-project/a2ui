@@ -486,11 +486,7 @@ describe('callRendererFunction validation', () => {
   });
 
   it.each([
-    [
-      'missing @call',
-      {call: 'scrollTo', catalogId: CUSTOM_ID},
-      /is missing a string '@call' field/,
-    ],
+    ['missing @call', {call: 'scrollTo', catalogId: CUSTOM_ID}, /'@call' is a required property/],
     ['non-string @call', {'@call': 42, catalogId: CUSTOM_ID}, /callFunction\.@call/],
     [
       'extra field',
