@@ -1,0 +1,254 @@
+query ($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    issueOrPullRequest(number: $number) {
+      __typename
+      ... on Issue {
+        number
+        title
+        body
+        url
+        state
+        createdAt
+        lastEditedAt
+        locked
+        author {
+          __typename
+          login
+        }
+        authorAssociation
+        labels(first: 50) {
+          nodes {
+            name
+          }
+        }
+        assignees(first: 20) {
+          nodes {
+            login
+          }
+        }
+        comments(last: 100) {
+          nodes {
+            databaseId
+            url
+            author {
+              __typename
+              login
+            }
+            authorAssociation
+            body
+            createdAt
+            updatedAt
+          }
+        }
+        timelineItems(
+          last: 100
+          itemTypes: [
+            LABELED_EVENT
+            UNLABELED_EVENT
+            ASSIGNED_EVENT
+            UNASSIGNED_EVENT
+            CLOSED_EVENT
+            REOPENED_EVENT
+            CROSS_REFERENCED_EVENT
+            RENAMED_TITLE_EVENT
+          ]
+        ) {
+          nodes {
+            __typename
+            ... on LabeledEvent {
+              createdAt
+              label {
+                name
+              }
+            }
+            ... on UnlabeledEvent {
+              createdAt
+              label {
+                name
+              }
+            }
+            ... on AssignedEvent {
+              createdAt
+            }
+            ... on UnassignedEvent {
+              createdAt
+            }
+            ... on ClosedEvent {
+              createdAt
+            }
+            ... on ReopenedEvent {
+              createdAt
+            }
+            ... on RenamedTitleEvent {
+              createdAt
+            }
+            ... on CrossReferencedEvent {
+              createdAt
+              source {
+                __typename
+                ... on Issue {
+                  number
+                }
+                ... on PullRequest {
+                  number
+                }
+              }
+            }
+          }
+        }
+      }
+      ... on PullRequest {
+        number
+        title
+        body
+        url
+        state
+        createdAt
+        lastEditedAt
+        locked
+        isDraft
+        mergeable
+        author {
+          __typename
+          login
+        }
+        authorAssociation
+        labels(first: 50) {
+          nodes {
+            name
+          }
+        }
+        assignees(first: 20) {
+          nodes {
+            login
+          }
+        }
+        files(first: 100) {
+          nodes {
+            path
+          }
+        }
+        closingIssuesReferences(first: 10) {
+          nodes {
+            number
+            state
+            repository {
+              nameWithOwner
+            }
+          }
+        }
+        comments(last: 100) {
+          nodes {
+            databaseId
+            url
+            author {
+              __typename
+              login
+            }
+            authorAssociation
+            body
+            createdAt
+            updatedAt
+          }
+        }
+        reviews(last: 50) {
+          nodes {
+            url
+            author {
+              __typename
+              login
+            }
+            authorAssociation
+            body
+            state
+            submittedAt
+            comments(first: 50) {
+              nodes {
+                databaseId
+                url
+                author {
+                  __typename
+                  login
+                }
+                authorAssociation
+                body
+                path
+                createdAt
+              }
+            }
+          }
+        }
+        timelineItems(
+          last: 100
+          itemTypes: [
+            LABELED_EVENT
+            UNLABELED_EVENT
+            ASSIGNED_EVENT
+            UNASSIGNED_EVENT
+            CLOSED_EVENT
+            REOPENED_EVENT
+            CROSS_REFERENCED_EVENT
+            RENAMED_TITLE_EVENT
+            READY_FOR_REVIEW_EVENT
+            HEAD_REF_FORCE_PUSHED_EVENT
+            PULL_REQUEST_COMMIT
+          ]
+        ) {
+          nodes {
+            __typename
+            ... on LabeledEvent {
+              createdAt
+              label {
+                name
+              }
+            }
+            ... on UnlabeledEvent {
+              createdAt
+              label {
+                name
+              }
+            }
+            ... on AssignedEvent {
+              createdAt
+            }
+            ... on UnassignedEvent {
+              createdAt
+            }
+            ... on ClosedEvent {
+              createdAt
+            }
+            ... on ReopenedEvent {
+              createdAt
+            }
+            ... on RenamedTitleEvent {
+              createdAt
+            }
+            ... on CrossReferencedEvent {
+              createdAt
+              source {
+                __typename
+                ... on Issue {
+                  number
+                }
+                ... on PullRequest {
+                  number
+                }
+              }
+            }
+            ... on ReadyForReviewEvent {
+              createdAt
+            }
+            ... on HeadRefForcePushedEvent {
+              createdAt
+            }
+            ... on PullRequestCommit {
+              commit {
+                committedDate
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
