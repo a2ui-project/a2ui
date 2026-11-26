@@ -3,7 +3,8 @@
 - Add a2a-sdk 0.3 / 1.x dual-compat Part and AgentExtension helpers so the A2A
   extension can use either generation. Widen `a2a-sdk` to `>=0.3.0,<2`.
   `get_a2ui_data`, `part_data_as_dict` and `extract_user_action` read parts
-  without reaching into `Part.root`.
+  without reaching into `Part.root`. `renderer_capabilities_from_message`
+  reads both generations' messages.
 - `create_a2ui_part` adds the `version` field to a message that lacks one when
   a `version` for v0.9 or later is passed, so the version is given once:
   `create_a2ui_part({"deleteSurface": {...}}, version="0.9")` sends

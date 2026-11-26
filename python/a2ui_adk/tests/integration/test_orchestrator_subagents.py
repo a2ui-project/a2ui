@@ -51,7 +51,7 @@ import httpx
 import pytest
 from starlette.applications import Starlette
 
-from a2ui.a2a import create_a2ui_part
+from a2ui.a2a import create_a2ui_part, part_data_as_dict
 from a2ui.adk import (
     A2uiEventConverter,
     A2uiSubagentMap,
@@ -161,9 +161,11 @@ def _build_in_process_subagent(
         event_converter=A2uiEventConverter(a2ui_processor=processor),
         execute_interceptors=[ExecuteInterceptor(before_agent=_capture_before_agent)],
     )
+    # A loopback host: newer ADK releases only resolve an http agent card on a
+    # loopback host.
     app = to_a2a(
         sub_llm_agent,
-        host="testserver",
+        host="localhost",
         port=80,
         runner=runner,
         agent_executor_factory=lambda r: A2aAgentExecutor(
@@ -173,7 +175,7 @@ def _build_in_process_subagent(
     transport = httpx.ASGITransport(app=app)
     http_client = httpx.AsyncClient(
         transport=transport,
-        base_url="http://testserver",
+        base_url="http://localhost",
     )
     client_factory = ClientFactory(ClientConfig(httpx_client=http_client))
 
@@ -192,7 +194,7 @@ def _build_in_process_subagent(
 
     remote_agent = RemoteA2aAgent(
         name=name,
-        agent_card="http://testserver/.well-known/agent-card.json",
+        agent_card="http://localhost/.well-known/agent-card.json",
         httpx_client=http_client,
         a2a_client_factory=client_factory,
         config=A2aRemoteAgentConfig(
@@ -287,6 +289,10 @@ async def _run_orchestrator_turn(
         parts=[genai_types.Part(text=prompt or "Render UI")],
     )
     events: list[Event] = []
+    # Newer ADK releases on a2a-sdk 1.x deliver a remote agent's parts twice in a
+    # turn: as they stream and again in the final event. Each part is recorded
+    # once.
+    seen_parts: set[tuple[str, str]] = set()
     async for event in runner.run_async(
         user_id=_USER,
         session_id=session_id,
@@ -296,6 +302,13 @@ async def _run_orchestrator_turn(
             for genai_part in event.content.parts:
                 a2a_part = convert_genai_part_to_a2a_part(genai_part)
                 if a2a_part is not None:
+                    part_key = (
+                        event.author,
+                        json.dumps(part_data_as_dict(a2a_part), sort_keys=True),
+                    )
+                    if part_key in seen_parts:
+                        continue
+                    seen_parts.add(part_key)
                     session = await _get_orchestrator_session(runner, session_id)
                     await A2uiSubagentMap.update_from_server_event(
                         a2a_part,

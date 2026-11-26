@@ -19,23 +19,45 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from a2a.types import DataPart, Message, Part
+from a2a.types import Message
 
 from a2ui.core.schema import ProtocolVersion
 from a2ui.utils import read_renderer_capabilities
 
+from . import _compat
 
-def _data_parts_from_message(message: Message) -> list[DataPart]:
-    data_parts: list[DataPart] = []
+
+class _DataPartFields:
+    """The data and metadata of a data part, on either a2a-sdk generation."""
+
+    def __init__(self, data: Any, metadata: dict[str, Any] | None) -> None:
+        self.data = data
+        self.metadata = metadata
+
+
+def _data_parts_from_message(message: Message) -> list[_DataPartFields]:
+    data_parts: list[_DataPartFields] = []
     for part in message.parts or []:
-        inner = part.root if isinstance(part, Part) else part
-        if isinstance(inner, DataPart):
-            data_parts.append(inner)
+        if _compat.IS_A2A_V1:
+            if _compat.is_data_part(part):
+                data_parts.append(
+                    _DataPartFields(
+                        _compat.data_part_dict(part), _compat.part_metadata(part)
+                    )
+                )
+            continue
+        # a2a-sdk 0.3: a ``Part`` wraps its ``DataPart`` in ``root``; a bare
+        # ``DataPart`` is accepted too.
+        inner: Any = getattr(part, "root", part)
+        if isinstance(inner, _compat.DATA_PART_TYPE):
+            data_parts.append(
+                _DataPartFields(inner.data, _compat.metadata_dict(inner.metadata))
+            )
     return data_parts
 
 
 def _capabilities_from_legacy_data(
-    data_parts: list[DataPart],
+    data_parts: list[_DataPartFields],
     version: ProtocolVersion | str,
 ) -> dict[str, Any] | None:
     for data_part in data_parts:
@@ -56,8 +78,9 @@ def renderer_capabilities_from_message(
 ) -> dict[str, Any] | None:
     """Reads and validates renderer capabilities for ``version`` from an A2A ``Message``.
 
-    Checks ``message.metadata`` first, then each :class:`DataPart`'s ``metadata``,
-    and finally each :class:`DataPart`'s ``data["metadata"]`` (legacy fallback).
+    Checks ``message.metadata`` first, then each data part's ``metadata``, and
+    finally each data part's ``data["metadata"]`` (legacy fallback). Works with
+    both a2a-sdk 0.3 and 1.x messages.
     The first source carrying the version's capabilities key wins.
 
     Args:
@@ -75,8 +98,9 @@ def renderer_capabilities_from_message(
     if message is None:
         return read_renderer_capabilities(None, version)
 
-    if message.metadata is not None:
-        capabilities = read_renderer_capabilities(message.metadata, version)
+    message_metadata = _compat.metadata_dict(message.metadata)
+    if message_metadata is not None:
+        capabilities = read_renderer_capabilities(message_metadata, version)
         if capabilities is not None:
             return capabilities
 

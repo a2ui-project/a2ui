@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ ever sees one of the two generations.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from types import SimpleNamespace
 from typing import Any, Optional
 
@@ -36,12 +37,26 @@ _types: Any = _a2a_types
 # ``StreamResponse`` only exists in the protobuf-based 1.x types.
 IS_A2A_V1 = hasattr(_types, "StreamResponse")
 
+# The 0.3 ``DataPart`` class, or None on 1.x, which has no separate class.
+DATA_PART_TYPE: Any = getattr(_types, "DataPart", None)
+
 
 def make_text_part(text: str) -> Part:
     """Builds a text Part for the installed a2a-sdk generation."""
     if IS_A2A_V1:
         return _types.Part(text=text)  # type: ignore[no-any-return]
     return _types.Part(root=_types.TextPart(text=text))  # type: ignore[no-any-return]
+
+
+def _is_json_value(value: Any) -> bool:
+    """Returns True if a protobuf ``Struct`` can hold ``value`` as is."""
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return True
+    if isinstance(value, Mapping):
+        return all(isinstance(k, str) and _is_json_value(v) for k, v in value.items())
+    if isinstance(value, (list, tuple)):
+        return all(_is_json_value(v) for v in value)
+    return False
 
 
 def make_data_part(
@@ -56,7 +71,11 @@ def make_data_part(
         json_format.ParseDict(data, value)
         part: Any = _types.Part(data=value)
         if metadata:
-            part.metadata.update({k: str(v) for k, v in metadata.items()})
+            # ``Struct`` holds JSON values, so nested metadata such as renderer
+            # capabilities keeps its shape. Anything else is stored as text.
+            part.metadata.update(
+                {k: v if _is_json_value(v) else str(v) for k, v in metadata.items()}
+            )
             mime = metadata.get("mimeType")
             if isinstance(mime, str) and mime:
                 part.media_type = mime
@@ -115,6 +134,29 @@ def part_metadata(part: Part) -> dict[str, Any]:
             return result
         return dict(metadata)
     return getattr(getattr(part, "root", None), "metadata", None) or {}
+
+
+def metadata_dict(metadata: Any) -> Optional[dict[str, Any]]:
+    """Reads 0.3 dict or 1.x protobuf ``Struct`` metadata as a plain dict.
+
+    Returns None when there is no metadata. On 1.x an unset ``Struct`` reads as
+    an empty dict.
+    """
+    if metadata is None:
+        return None
+    if IS_A2A_V1:
+        # Checked before ``Mapping``: protobuf registers ``Struct`` as a
+        # ``MutableMapping``, but its values are protobuf ``Value``s.
+        from google.protobuf.message import Message  # type: ignore[import-untyped,unused-ignore]
+
+        if isinstance(metadata, Message):
+            from google.protobuf.json_format import MessageToDict  # type: ignore[import-untyped,unused-ignore]
+
+            result = MessageToDict(metadata)
+            return result if isinstance(result, dict) else None
+    if isinstance(metadata, Mapping):
+        return dict(metadata)
+    return None
 
 
 def data_part_dict(part: Part) -> Optional[dict[str, Any]]:

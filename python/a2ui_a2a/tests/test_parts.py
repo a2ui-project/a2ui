@@ -240,7 +240,10 @@ def test_create_a2ui_part_adds_the_version_a_message_lacks(version, expected):
 
     part = create_a2ui_part(message, version=version)
 
-    assert part.root.data == {"version": expected, "deleteSurface": {"surfaceId": "s"}}
+    assert data_part_dict(part) == {
+        "version": expected,
+        "deleteSurface": {"surfaceId": "s"},
+    }
     # The caller's dictionary is left as it was.
     assert message == {"deleteSurface": {"surfaceId": "s"}}
 
@@ -250,7 +253,7 @@ def test_create_a2ui_part_keeps_the_messages_own_version():
 
     part = create_a2ui_part(message, version="1.0")
 
-    assert part.root.data == message
+    assert data_part_dict(part) == message
 
 
 @pytest.mark.parametrize("version", [None, "0.8", ProtocolVersion.V0_8, "7.3"])
@@ -261,7 +264,7 @@ def test_create_a2ui_part_adds_no_version_when_none_applies(version):
 
     part = create_a2ui_part(message, version=version)
 
-    assert part.root.data == message
+    assert data_part_dict(part) == message
 
 
 def test_extract_a2ui_json_to_parts_extracts_text_and_a2ui_messages():
