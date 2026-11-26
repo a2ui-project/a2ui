@@ -59,28 +59,29 @@ describe('updateDataModel', () => {
     });
   });
 
-  it('rejects null or undefined updates at validation, writing nothing', () => {
+  it('rejects null updates at validation, writing nothing', () => {
     const model = new DataModel({kept: 'original'});
 
-    for (const updates of [null, undefined]) {
-      assert.throws(
-        () => call({updates}, model),
-        (error: unknown) => {
-          assert.ok(error instanceof A2uiExpressionError);
-          assert.strictEqual(error.expression, 'updateDataModel');
-          assert.ok(error.message.startsWith("Validation failed for function 'updateDataModel'"));
-          return true;
-        },
-      );
-    }
+    assert.throws(
+      () => call({updates: null}, model),
+      (error: unknown) => {
+        assert.ok(error instanceof A2uiExpressionError);
+        assert.strictEqual(error.expression, 'updateDataModel');
+        assert.ok(error.message.startsWith("Validation failed for function 'updateDataModel'"));
+        return true;
+      },
+    );
 
     assert.deepStrictEqual(model.get('/'), {kept: 'original'});
   });
 
+  // An unresolved `updates`, a binding to data that is not there yet, reaches
+  // the function as undefined.
   const nonObjectUpdates: ReadonlyArray<readonly [string, unknown]> = [
     ['array', [{'/title': 'Home'}]],
     ['string', '/title'],
     ['number', 42],
+    ['undefined', undefined],
   ];
 
   for (const [label, updates] of nonObjectUpdates) {

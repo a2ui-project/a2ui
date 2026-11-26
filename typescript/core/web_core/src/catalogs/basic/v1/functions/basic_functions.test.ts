@@ -183,6 +183,37 @@ describe('v1.0 BASIC_FUNCTIONS', () => {
         message: 'Value does not match required pattern.',
       });
     });
+
+    it('fails each check on a value the data model does not hold', () => {
+      // A binding to an absent path settles to `undefined`: the check fails,
+      // and the call does not.
+      assert.deepStrictEqual(invoke('required', {value: undefined}), {
+        valid: false,
+        message: 'This field is required.',
+      });
+      assert.deepStrictEqual(invoke('length', {value: undefined, min: 1}), {
+        valid: false,
+        message: 'Minimum length is 1.',
+      });
+      assert.deepStrictEqual(invoke('numeric', {value: undefined, min: 1}), {
+        valid: false,
+        message: 'Value must be a valid number.',
+      });
+      assert.deepStrictEqual(invoke('email', {value: undefined}), {
+        valid: false,
+        code: 'INVALID_EMAIL',
+        severity: 'error',
+        message: 'Please enter a valid email address (e.g. user@example.com).',
+      });
+      assert.deepStrictEqual(invoke('regex', {value: undefined, pattern: '^[a-z]+$'}), {
+        valid: false,
+        message: 'Value does not match required pattern.',
+      });
+    });
+
+    it('refuses a check whose call leaves out the value', () => {
+      assert.throws(() => invoke('required', {}), A2uiExpressionError);
+    });
   });
 
   describe('formatString', () => {

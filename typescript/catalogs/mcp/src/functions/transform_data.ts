@@ -95,7 +95,14 @@ export const TransformDataApi = {
 export const TransformDataImplementation: FunctionImplementation = createFunctionImplementation(
   TransformDataApi,
   args => {
-    const expression = String(args['jmespath']);
+    const expression: unknown = args['jmespath'];
+    // A binding to data that is not there yet reaches the function as undefined.
+    if (typeof expression !== 'string') {
+      throw new A2uiExpressionError(
+        `transformData expects a JMESPath expression string, got ${typeof expression}.`,
+        'transformData',
+      );
+    }
     assertValidExpression(expression);
     try {
       return search(args['data'], expression);
