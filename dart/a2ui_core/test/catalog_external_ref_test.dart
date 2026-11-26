@@ -22,36 +22,35 @@ Map<String, Object?> _catalog({
   Map<String, Object?> components = const {},
   Map<String, Object?>? functions,
   Map<String, Object?>? defs,
-}) =>
-    {
-      'catalogId': 'https://example.com/catalogs/refs',
-      if (protocolVersion != null) 'protocolVersion': protocolVersion,
-      'components': components,
-      if (functions != null) 'functions': functions,
-      if (defs != null) r'$defs': defs,
-    };
+}) => {
+  'catalogId': 'https://example.com/catalogs/refs',
+  'protocolVersion': ?protocolVersion,
+  'components': components,
+  'functions': ?functions,
+  r'$defs': ?defs,
+};
 
 /// A component named [name] whose `value` property is [valueSchema].
 Map<String, Object?> _component(String name, Object? valueSchema) => {
-      name: {
-        'type': 'object',
-        'properties': {
-          'component': {'const': name},
-          'value': valueSchema,
-        },
-        'required': ['component'],
-      },
-    };
+  name: {
+    'type': 'object',
+    'properties': {
+      'component': {'const': name},
+      'value': valueSchema,
+    },
+    'required': ['component'],
+  },
+};
 
 Matcher _unsupportedRef(String ref, String path) => throwsA(
-      isA<A2uiCatalogError>().having(
-        (error) => error.message,
-        'message',
-        "Unsupported external \$ref '$ref' at $path: a v1.0 catalog may only "
-            'reference its own components and functions (#/...) or '
-            'common_types.json.',
-      ),
-    );
+  isA<A2uiCatalogError>().having(
+    (error) => error.message,
+    'message',
+    "Unsupported external \$ref '$ref' at $path: a v1.0 catalog may only "
+        'reference its own components and functions (#/...) or '
+        'common_types.json.',
+  ),
+);
 
 void main() {
   group('Catalog.fromJson external \$ref check (v1.0)', () {
@@ -80,7 +79,8 @@ void main() {
     });
 
     test('rejects an absolute URI reference to another catalog', () {
-      const ref = 'https://a2ui.org/specification/v1_0/catalogs/basic/'
+      const ref =
+          'https://a2ui.org/specification/v1_0/catalogs/basic/'
           'catalog.json#/components/Button/properties/action';
       expect(
         () => Catalog.fromJson(
@@ -178,7 +178,8 @@ void main() {
                 'component': {'const': 'Label'},
                 'text': {r'$ref': r'common_types.json#/$defs/DynamicString'},
                 'caption': {
-                  r'$ref': 'https://a2ui.org/specification/v1_0/'
+                  r'$ref':
+                      'https://a2ui.org/specification/v1_0/'
                       r'common_types.json#/$defs/DynamicString',
                 },
                 'tone': {r'$ref': r'#/$defs/Tone'},

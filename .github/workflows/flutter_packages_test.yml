@@ -23,11 +23,11 @@ on:
     branches:
       - main
   schedule:
-    - cron: "0 * * * *" # hourly
+    - cron: "0 2 * * *" # daily at 02:00 UTC
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -46,7 +46,7 @@ jobs:
       - name: Generate testing matrix
         id: generate_matrix
         run: |
-          DIRS_TO_TEST=$(find samples dart -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -not -path "*/e2e_test_v0_9/*" -exec dirname {} \;)
+          DIRS_TO_TEST=$(find samples dart tools/internal/triage -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -not -path "*/e2e_test_v0_9/*" -exec dirname {} \;)
 
           JSON_MATRIX="["
           FIRST=true

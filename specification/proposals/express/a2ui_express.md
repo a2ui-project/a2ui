@@ -220,8 +220,6 @@ field = TextField("Zip", $/zip, checks=[?zipCode({catalogId: "https://example.co
 
 The decompiler writes a `catalogId` only when the component or function name is defined in more than one active catalog (or differs from the single registered catalog). The v0.9 and v0.9.1 schemas allow `catalogId` only on `createSurface`, so for those targets the compiler rejects multiple catalogs and per-component or per-function `catalogId` overrides.
 
-> **Note:** The multi-catalog behavior described above is implemented in the Python and TypeScript SDKs. The Dart Express compiler does not yet support v1.0 (`dart/a2ui_agent/lib/src/inference_formats/express/compiler.dart`); see `dart/a2ui_agent/test/conformance/multi_catalog_formats_conformance_test.dart` for current conformance status.
-
 #### Deleting a surface
 
 When the compiler encounters the standalone `deleteSurface` command, it produces a standard `deleteSurface` lifecycle message:

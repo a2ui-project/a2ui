@@ -73,8 +73,9 @@ interface FrameSession {
  * The element renders one `<iframe>` in its light DOM that loads the proxy page for
  * {@link sandboxMode}. The proxy is embedded without a `sandbox` attribute on purpose: it needs
  * its real origin to check who embeds it and to exchange messages with the host by origin. The
- * untrusted content only ever runs in the inner frame the proxy creates, which never gets
- * `allow-same-origin`.
+ * untrusted content only ever runs in the inner frame the proxy creates, which omits
+ * `allow-same-origin` by default and always strips it for inline HTML (external `url` frames may
+ * opt in when configured by the host).
  *
  * Once the frame exists and the element has a `context`, the element listens for the proxy's
  * ready signal, answers it with {@link resolveResource}, and hands the frame to the protocol

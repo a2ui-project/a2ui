@@ -2936,4 +2936,13 @@ describe('GenericBinder @accessibility mirror', () => {
     binder.dispose();
     surface.dispose();
   });
+
+  it('handles undefined schemas without throwing on WeakMap caches', () => {
+    assert.deepStrictEqual(scrapeSchemaBehavior(undefined), {type: 'STATIC'});
+    const componentBehavior = scrapeComponentBehavior(undefined);
+    assert.strictEqual(componentBehavior.type, 'OBJECT');
+    assert.ok('accessibility' in componentBehavior.shape);
+    assert.ok('@accessibility' in componentBehavior.shape);
+    assert.ok('@checks' in componentBehavior.shape);
+  });
 });

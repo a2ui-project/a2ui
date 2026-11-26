@@ -17,6 +17,7 @@
 import {html, nothing, css} from 'lit';
 import {state} from 'lit/decorators.js';
 import {getAccessibilityDescription, getAccessibilityLabel} from './accessibility.js';
+import {createRef, ref} from 'lit/directives/ref.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ModalSupportedApis} from './supported_apis.js';
 
@@ -24,14 +25,27 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<ModalSupportedApis>
   /** @nocollapse */
   static readonly tagName = 'a2ui-modal';
   /**
+   * The overlay is shown in a native `<dialog>` opened with `showModal()`, so
+   * it renders in the browser's top layer: it stays above the host page even
+   * when an ancestor creates a stacking context, closes on Escape, and keeps
+   * focus inside the modal.
+   *
    * The styles of the modal can be customized by redefining the following
    * CSS variables:
    *
-   * - `--a2ui-modal-background`: Controls the background of the modal content.
-   * - `--a2ui-modal-padding`: Controls the padding of the modal content.
-   * - `--a2ui-modal-border-radius`: Controls the border radius of the modal content.
-   * - `--a2ui-modal-box-shadow`: Controls the box shadow of the modal content.
-   * - `--a2ui-modal-backdrop-bg`: Controls the background of the backdrop.
+   * - `--a2ui-modal-backdrop-bg`: Background of the modal overlay backdrop. Defaults to `rgba(0, 0, 0, 0.5)`.
+   * - `--a2ui-modal-background`: Background of the modal dialog surface. Defaults to `--a2ui-color-surface`.
+   * - `--a2ui-modal-padding`: Padding of the modal dialog surface. Defaults to `--a2ui-spacing-xl`.
+   * - `--a2ui-modal-border-radius`: Border radius of the modal dialog surface. Defaults to `--a2ui-border-radius`.
+   * - `--a2ui-modal-box-shadow`: Box shadow of the modal dialog surface. Defaults to `0 10px 25px rgba(0, 0, 0, 0.2)`.
+   *
+   * Global theme variables read by this component:
+   *
+   * - `--a2ui-color-surface`: Fallback background color of the modal dialog surface.
+   * - `--a2ui-spacing-xl`: Fallback padding of the modal dialog surface.
+   * - `--a2ui-border-radius`: Fallback border radius of the modal dialog surface.
+   * - `--a2ui-text-caption-color`: Text color of the close button. Defaults to `#999`.
+   * - `--a2ui-text-color`: Hover text color of the close button. Defaults to `#333`.
    *
    * @nocollapse
    */
@@ -45,6 +59,22 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<ModalSupportedApis>
     }
     .a2ui-modal-trigger {
       cursor: pointer;
+    }
+    .a2ui-modal-dialog {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      max-height: none;
+      margin: 0;
+      padding: 0;
+      border: none;
+      background: transparent;
+      overflow: visible;
+    }
+    .a2ui-modal-dialog::backdrop {
+      background: transparent;
     }
     .a2ui-modal-overlay {
       position: fixed;
@@ -86,12 +116,28 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<ModalSupportedApis>
 
   @state() isOpen = false;
 
+  private readonly dialogRef = createRef<HTMLDialogElement>();
+
   openModal() {
     this.isOpen = true;
   }
 
   closeModal() {
     this.isOpen = false;
+  }
+
+  override updated(changed: Map<PropertyKey, unknown>) {
+    super.updated(changed);
+    // Show the dialog as modal once it is rendered, which moves it to the top
+    // layer. Environments without `showModal()` (e.g. jsdom) get a plain open
+    // dialog instead.
+    const dialog = this.dialogRef.value;
+    if (!this.isOpen || !dialog || dialog.open) return;
+    if (typeof dialog.showModal === 'function') {
+      dialog.showModal();
+    } else {
+      dialog.setAttribute('open', '');
+    }
   }
 
   override render() {
@@ -105,26 +151,27 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<ModalSupportedApis>
         </div>
         ${this.isOpen
           ? html`
-              <div class="a2ui-modal-overlay" @click=${() => this.closeModal()}>
-                <div
-                  class="a2ui-modal-content"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-label=${getAccessibilityLabel(props.accessibility)}
-                  aria-description=${getAccessibilityDescription(props.accessibility)}
-                  @click=${(e: Event) => e.stopPropagation()}
-                >
-                  <button
-                    type="button"
-                    class="a2ui-modal-close"
-                    aria-label="Close"
-                    @click=${() => this.closeModal()}
-                  >
-                    &times;
-                  </button>
-                  ${props.content ? html`${this.renderNode(props.content)}` : nothing}
+              <dialog
+                ${ref(this.dialogRef)}
+                class="a2ui-modal-dialog"
+                aria-label=${getAccessibilityLabel(props.accessibility)}
+                aria-description=${getAccessibilityDescription(props.accessibility)}
+                @close=${() => this.closeModal()}
+              >
+                <div class="a2ui-modal-overlay" @click=${() => this.closeModal()}>
+                  <div class="a2ui-modal-content" @click=${(e: Event) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      class="a2ui-modal-close"
+                      aria-label="Close"
+                      @click=${() => this.closeModal()}
+                    >
+                      &times;
+                    </button>
+                    ${props.content ? html`${this.renderNode(props.content)}` : nothing}
+                  </div>
                 </div>
-              </div>
+              </dialog>
             `
           : nothing}
       </div>

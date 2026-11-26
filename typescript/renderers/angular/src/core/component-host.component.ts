@@ -59,7 +59,7 @@ import {SurfaceNodeResolver} from './surface-node-resolver.service';
 import {BoundProperty} from './types';
 
 import type {AngularCatalog, AngularComponentImplementation} from '../catalog/types';
-import {registerUniversalHostInjector} from '../catalog/angular_wc_host';
+import {AngularWcHost, registerUniversalHostInjector} from '../catalog/angular_wc_host';
 import {CatalogComponentInstance} from './catalog_component_instance';
 
 interface UniversalComponentHostElement extends HTMLElement {
@@ -341,10 +341,16 @@ export class ComponentHostComponent {
     this.resolvedNode = node;
     this.resolvedDataContextPath = node.dataPath;
 
-    // Entries from `createComponentImplementation` carry both an Angular component and a Custom
-    // Element; the flag picks which one to mount. Web Component-only entries render only with the
-    // flag on (their placeholder `component` reports the misconfiguration otherwise).
-    if (this.rendererService.useUniversalComponents && isWebComponentImplementation(node.impl)) {
+    // Entries backed by a real Web Component (such as the Lit basic catalog) mount as that
+    // Custom Element when `useUniversalComponents` is enabled; Angular-backed entries whose
+    // `element` is an `AngularWcHost` adapter mount natively via `NgComponentOutlet` here and
+    // only use `AngularWcHost` when rendered inside a universal container.
+    if (
+      this.rendererService.useUniversalComponents &&
+      isWebComponentImplementation(node.impl) &&
+      node.impl.element !== AngularWcHost &&
+      !(node.impl.element.prototype instanceof AngularWcHost)
+    ) {
       this.setupWebComponent(node.impl, node);
     } else {
       this.setupAngularComponent(node.impl.component, node);
@@ -357,7 +363,8 @@ export class ComponentHostComponent {
     id: string,
   ): void {
     if (node?.state === 'unknown-type') {
-      const catalog = surface.componentsModel.get(id)?.catalog as AngularCatalog | undefined;
+      const catalog =
+        surface.componentsModel.get(id)?.catalog ?? surface.defaultCatalog ?? surface.catalog;
       console.error(`Component type "${node.type}" not found in catalog "${catalog?.id}"`);
       return;
     }

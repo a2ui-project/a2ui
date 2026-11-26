@@ -17,8 +17,8 @@ publish_to: none
 license: BSD-3-Clause
 
 environment:
-  sdk: ">=3.10.0 <4.0.0"
-  flutter: ">=3.35.7 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.0"
 
 workspace:
   - samples/client/flutter/restaurant_finder/app
@@ -33,6 +33,11 @@ workspace:
   - dart/a2ui_flutter/e2e_test_v0_9
   - dart/a2ui_flutter/example
   - dart/a2ui_flutter/example_v0_9
+  - tools/internal/triage/pkgs/flagger
+  - tools/internal/triage/pkgs/pinger
+  - tools/internal/triage/pkgs/server
+  - tools/internal/triage/pkgs/shared
+  - tools/internal/triage/pkgs/ui
 
 flutter:
   uses-material-design: true

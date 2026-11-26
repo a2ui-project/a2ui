@@ -61,28 +61,28 @@ void main() {
       });
 
       expect(
-        caps.versions[A2uiProtocolVersion.v1_0]!.inlineCatalogs.single
+        caps
+            .versions[A2uiProtocolVersion.v1_0]!
+            .inlineCatalogs
+            .single
             .protocolVersion,
         A2uiProtocolVersion.v1_0,
       );
     });
 
     test('keeps the version an inline catalog states', () {
-      final caps = A2uiVersionCapabilities.fromJson(
-        {
-          'supportedCatalogIds': <String>[],
-          'inlineCatalogs': [
-            {
-              'catalogId': 'inline',
-              'protocolVersion': '0.9',
-              'components': {
-                'Gauge': {'type': 'object'},
-              },
+      final caps = A2uiVersionCapabilities.fromJson({
+        'supportedCatalogIds': <String>[],
+        'inlineCatalogs': [
+          {
+            'catalogId': 'inline',
+            'protocolVersion': '0.9',
+            'components': {
+              'Gauge': {'type': 'object'},
             },
-          ],
-        },
-        protocolVersion: A2uiProtocolVersion.v1_0,
-      );
+          },
+        ],
+      }, protocolVersion: A2uiProtocolVersion.v1_0);
 
       expect(
         caps.inlineCatalogs.single.protocolVersion,
@@ -264,10 +264,9 @@ void main() {
           'supportedCatalogIds': ['basic'],
         },
       });
-      expect(
-        caps.forVersion(A2uiProtocolVersion.v0_9)!.supportedCatalogIds,
-        ['basic'],
-      );
+      expect(caps.forVersion(A2uiProtocolVersion.v0_9)!.supportedCatalogIds, [
+        'basic',
+      ]);
       expect(caps.forVersion(A2uiProtocolVersion.v1_0), isNull);
     });
   });
@@ -279,18 +278,17 @@ void main() {
       List<ComponentApi> components, {
       List<FunctionImplementation> functions = const [],
       Schema? themeSchema,
-    }) =>
-        MessageProcessor<ComponentApi>(
-          catalogs: [
-            Catalog<ComponentApi, FunctionImplementation>(
-              id: 'cat',
-              components: components,
-              functions: functions,
-              themeSchema: themeSchema,
-            ),
-          ],
-          defaultVersion: A2uiProtocolVersion.v0_9,
-        );
+    }) => MessageProcessor<ComponentApi>(
+      catalogs: [
+        Catalog<ComponentApi, FunctionImplementation>(
+          id: 'cat',
+          components: components,
+          functions: functions,
+          themeSchema: themeSchema,
+        ),
+      ],
+      defaultVersion: A2uiProtocolVersion.v0_9,
+    );
 
     Map<String, Object?> inlineCatalog(
       MessageProcessor<ComponentApi> processor,
@@ -403,10 +401,7 @@ void main() {
           name: 'Button',
           schema: Schema.object(
             description: 'A button.',
-            properties: {
-              'label': Schema.string(),
-              'variant': Schema.string(),
-            },
+            properties: {'label': Schema.string(), 'variant': Schema.string()},
             required: ['label'],
             additionalProperties: false,
           ),
@@ -452,10 +447,14 @@ void main() {
       final Object? descBefore =
           CommonSchemas.dynamicString.value['description'];
 
-      final Map<String, Object?> v09Inline =
-          inlineComponents(processor, A2uiProtocolVersion.v0_9);
-      final Map<String, Object?> current =
-          inlineComponents(processor, A2uiProtocolVersion.v1_0);
+      final Map<String, Object?> v09Inline = inlineComponents(
+        processor,
+        A2uiProtocolVersion.v0_9,
+      );
+      final Map<String, Object?> current = inlineComponents(
+        processor,
+        A2uiProtocolVersion.v1_0,
+      );
 
       final v09Text =
           (v09Body(v09Inline, 'Label')['properties'] as Map)['text'] as Map;
@@ -471,29 +470,24 @@ void main() {
     });
 
     test('inlines resolvable local refs and drops dangling ones', () {
-      final MessageProcessor<ComponentApi> processor = processorFor(
-        [
-          ComponentApi(
-            name: 'Themed',
-            schema: Schema.fromMap({
-              'type': 'object',
-              'properties': {
-                'palette': {
-                  r'$ref': r'#/$defs/theme',
-                  'description': 'The palette.',
-                },
-                'base': {
-                  r'$ref': r'#/$defs/Base',
-                  'description': 'Not in this catalog.',
-                },
+      final MessageProcessor<ComponentApi> processor = processorFor([
+        ComponentApi(
+          name: 'Themed',
+          schema: Schema.fromMap({
+            'type': 'object',
+            'properties': {
+              'palette': {
+                r'$ref': r'#/$defs/theme',
+                'description': 'The palette.',
               },
-            }),
-          ),
-        ],
-        themeSchema: Schema.object(
-          properties: {'primary': Schema.string()},
+              'base': {
+                r'$ref': r'#/$defs/Base',
+                'description': 'Not in this catalog.',
+              },
+            },
+          }),
         ),
-      );
+      ], themeSchema: Schema.object(properties: {'primary': Schema.string()}));
 
       final Map<String, Object?> body = v09Body(
         inlineComponents(processor, A2uiProtocolVersion.v0_9),
@@ -514,9 +508,7 @@ void main() {
     test('emits v0.9 functions and theme from the catalog document', () {
       final MessageProcessor<ComponentApi> processor = processorFor(
         [],
-        functions: [
-          _AddFunction(),
-        ],
+        functions: [_AddFunction()],
         themeSchema: Schema.object(
           properties: {
             'primaryColor': Schema.string(description: 'The main color'),
@@ -524,8 +516,10 @@ void main() {
         ),
       );
 
-      final Map<String, Object?> v09Inline =
-          inlineCatalog(processor, A2uiProtocolVersion.v0_9);
+      final Map<String, Object?> v09Inline = inlineCatalog(
+        processor,
+        A2uiProtocolVersion.v0_9,
+      );
       expect(v09Inline['functions'], [
         {
           'name': 'add',
@@ -569,8 +563,9 @@ void main() {
         includeInlineCatalogs: true,
       );
 
-      final Map<String, Object?> json =
-          processor.getRendererCapabilities(options).toJson();
+      final Map<String, Object?> json = processor
+          .getRendererCapabilities(options)
+          .toJson();
       expect(json, {
         '1.0': {
           'supportedCatalogIds': ['cat'],
@@ -579,8 +574,9 @@ void main() {
       });
 
       // Mutating the result leaves the catalog, and a second call, intact.
-      final inline = ((json['1.0']! as Map)['inlineCatalogs'] as List).single
-          as Map<String, Object?>;
+      final inline =
+          ((json['1.0']! as Map)['inlineCatalogs'] as List).single
+              as Map<String, Object?>;
       (inline['components']! as Map).remove('Label');
       expect((catalog.toJson()['components']! as Map).keys, ['Label']);
       expect(
@@ -671,21 +667,20 @@ void main() {
 
 class _AddFunction extends FunctionImplementation {
   _AddFunction()
-      : super(
-          name: 'add',
-          description: 'Adds two numbers.',
-          returnType: A2uiReturnType.number,
-          argumentSchema: Schema.object(
-            properties: {'a': Schema.number(), 'b': Schema.number()},
-            required: ['a', 'b'],
-          ),
-        );
+    : super(
+        name: 'add',
+        description: 'Adds two numbers.',
+        returnType: A2uiReturnType.number,
+        argumentSchema: Schema.object(
+          properties: {'a': Schema.number(), 'b': Schema.number()},
+          required: ['a', 'b'],
+        ),
+      );
 
   @override
   Object? execute(
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) =>
-      (args['a']! as num) + (args['b']! as num);
+  ]) => (args['a']! as num) + (args['b']! as num);
 }

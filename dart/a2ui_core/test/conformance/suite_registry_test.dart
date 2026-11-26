@@ -55,13 +55,15 @@ void main() {
       expect(
         active.intersection(unsupported),
         isEmpty,
-        reason: 'A suite cannot be in both coreSuiteActions and '
+        reason:
+            'A suite cannot be in both coreSuiteActions and '
             'unsupportedCoreSuites.',
       );
       expect(
         active.union(unsupported),
         equals(onDisk),
-        reason: 'Every conformance/core/*.yaml file must be registered in '
+        reason:
+            'Every conformance/core/*.yaml file must be registered in '
             'coreSuiteActions or unsupportedCoreSuites.',
       );
     });

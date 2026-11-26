@@ -293,7 +293,9 @@ else:
 
 To wrap single messages yourself, use the `create_a2ui_part` helper. It takes a
 message dictionary, so convert the models in `A2uiPart.a2ui` with
-`to_message_dicts` from `a2ui.inference_formats` first.
+`to_message_dicts` from `a2ui.inference_formats` first. When you pass `version`
+for v0.9 or later, a message without a `version` field gets the one that
+version requires, so you give the version once.
 
 ##### Option B: Incremental Streaming Parsing (Advanced)
 
