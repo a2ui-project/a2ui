@@ -322,15 +322,22 @@ class AtomPromptGenerator(PromptGenerator):
                     continue
                 is_req = p in reqs
                 opt_suffix = "" if is_req else "?"
-                p_schema = h.get_property_schema(name, p)
 
                 arg_label = f":{p}{opt_suffix}"
                 ordered_args.append(arg_label)
 
-                p_desc = (
-                    p_schema.get("description") if isinstance(p_schema, dict) else None
-                )
-                enum_vals = _get_schema_enum(p_schema)
+                p_type = h.get_parameter_type(name, p)
+                if p_type is not None:
+                    p_desc = h.get_property_description(name, p)
+                    enum_vals = h.type_enum_values(p_type)
+                else:
+                    p_schema = h.get_property_schema(name, p)
+                    p_desc = (
+                        p_schema.get("description")
+                        if isinstance(p_schema, dict)
+                        else None
+                    )
+                    enum_vals = _get_schema_enum(p_schema)
 
                 if p_desc or enum_vals:
                     p_line_parts = []
@@ -367,15 +374,22 @@ class AtomPromptGenerator(PromptGenerator):
             for p in props:
                 is_req = p in reqs
                 opt_suffix = "" if is_req else "?"
-                p_schema = h.get_function_property_schema(name, p)
 
                 arg_label = f":{p}{opt_suffix}"
                 ordered_args.append(arg_label)
 
-                p_desc = (
-                    p_schema.get("description") if isinstance(p_schema, dict) else None
-                )
-                enum_vals = _get_schema_enum(p_schema)
+                fn_p_type = h.get_function_parameter_type(name, p)
+                if fn_p_type is not None:
+                    p_desc = h.get_function_property_description(name, p)
+                    enum_vals = h.type_enum_values(fn_p_type)
+                else:
+                    p_schema = h.get_function_property_schema(name, p)
+                    p_desc = (
+                        p_schema.get("description")
+                        if isinstance(p_schema, dict)
+                        else None
+                    )
+                    enum_vals = _get_schema_enum(p_schema)
 
                 if p_desc or enum_vals:
                     p_line_parts = []

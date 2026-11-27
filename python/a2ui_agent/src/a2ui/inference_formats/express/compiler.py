@@ -21,7 +21,7 @@ v0.9.1 or v1.0).
 The grammar for A2UI Express is defined in Express.g4.
 """
 
-from collections.abc import Container, Iterable, Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field, replace
 import json
 import re
@@ -29,7 +29,14 @@ from typing import Any, Literal
 
 from antlr4 import CommonTokenStream, InputStream
 
-from a2ui.core import A2uiCatalogError, CatalogApi
+from a2ui.core import (
+    A2uiCatalogError,
+    BooleanType,
+    CatalogApi,
+    IntegerType,
+    NumberType,
+    TypeDefinition,
+)
 from a2ui.core.common import is_at_least_version, is_valid_uax31_identifier
 from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
 from a2ui.inference_formats._shared import (
@@ -103,10 +110,21 @@ _EVENT_KEYWORDS = ("userMessage", "context")
 
 @dataclass(frozen=True)
 class _ValueSlot:
-    """The catalog schema declared at a value's position, with the helper that owns it."""
+    """The catalog type/schema declared at a value's position, with the helper that owns it."""
 
-    schema: dict[str, Any]
+    schema: dict[str, Any] | None
     helper: CatalogSchemaHelper
+    type_def: TypeDefinition | None = None
+
+    def ref_type(self) -> str | None:
+        if self.type_def is not None:
+            return self.helper.type_semantic_kind(self.type_def)
+        return _schema_ref_type(self.schema)
+
+    def is_action(self) -> bool:
+        if self.type_def is not None:
+            return self.helper.type_is_action(self.type_def)
+        return is_action_slot(self.schema)
 
 
 def _item_slot(slot: _ValueSlot | None) -> _ValueSlot | None:
@@ -117,6 +135,9 @@ def _item_slot(slot: _ValueSlot | None) -> _ValueSlot | None:
     """
     if slot is None:
         return None
+    if slot.type_def is not None:
+        item_type = slot.helper.resolve_item_type(slot.type_def)
+        return _ValueSlot(None, slot.helper, item_type) if item_type else None
     schema = slot.helper.resolve_item_schema(slot.schema)
     return _ValueSlot(schema, slot.helper) if schema else None
 
@@ -129,6 +150,9 @@ def _property_slot(slot: _ValueSlot | None, name: str) -> _ValueSlot | None:
     """
     if slot is None:
         return None
+    if slot.type_def is not None:
+        prop_type = slot.helper.resolve_property_type(slot.type_def, name)
+        return _ValueSlot(None, slot.helper, prop_type) if prop_type else None
     schema = slot.helper.resolve_property_schema(slot.schema, name)
     return _ValueSlot(schema, slot.helper) if schema else None
 
@@ -329,6 +353,51 @@ def _schema_allows_databinding(
         _schema_allows_databinding(sub, path_key, visited)
         for sub in combinator_subschemas(schema, ("allOf", "oneOf", "anyOf"))
     )
+
+
+def _allows_databinding_at_ast_type(
+    node: Any,
+    type_def: TypeDefinition | None,
+    comp_helper: CatalogSchemaHelper,
+    raw_symbols: dict[str, Any],
+    seen: frozenset[str] = frozenset(),
+) -> bool:
+    """Validates positionally that every `$path` binding in `node` is permitted by `type_def`."""
+    if isinstance(node, PathNode):
+        return type_def is None or comp_helper.type_allows_databinding(type_def)
+    if isinstance(node, VariableNode):
+        if node.name in seen or node.name not in raw_symbols:
+            return True
+        return _allows_databinding_at_ast_type(
+            raw_symbols[node.name],
+            type_def,
+            comp_helper,
+            raw_symbols,
+            seen | {node.name},
+        )
+    if isinstance(node, list):
+        item_type = (
+            comp_helper.resolve_item_type(type_def) if type_def is not None else None
+        )
+        return all(
+            _allows_databinding_at_ast_type(
+                item, item_type, comp_helper, raw_symbols, seen
+            )
+            for item in node
+        )
+    if isinstance(node, dict):
+        for k, v in node.items():
+            sub_type = (
+                comp_helper.resolve_property_type(type_def, k)
+                if type_def is not None
+                else None
+            )
+            if not _allows_databinding_at_ast_type(
+                v, sub_type, comp_helper, raw_symbols, seen
+            ):
+                return False
+        return True
+    return True
 
 
 def _allows_databinding_at_ast(
@@ -2097,10 +2166,8 @@ class ExpressCompiler:
             if (
                 isinstance(arg, (int, float))
                 and not isinstance(arg, bool)
-                and not comp_helper.accepts_number(
-                    comp_helper.get_property_schema(
-                        comp_name, non_check_properties[prop_idx]
-                    )
+                and not comp_helper.property_accepts_number(
+                    comp_name, non_check_properties[prop_idx]
                 )
             ):
                 moved = False
@@ -2109,10 +2176,8 @@ class ExpressCompiler:
                         later_idx
                         for later_idx in range(prop_idx + 1, len(non_check_properties))
                         if non_check_properties[later_idx] not in kwargs
-                        and comp_helper.accepts_number(
-                            comp_helper.get_property_schema(
-                                comp_name, non_check_properties[later_idx]
-                            )
+                        and comp_helper.property_accepts_number(
+                            comp_name, non_check_properties[later_idx]
                         )
                     ]
                     if len(numeric_later) == 1:
@@ -2161,7 +2226,12 @@ class ExpressCompiler:
                 comp_dict[prop_name] = None
                 continue
 
-            prop_schema = comp_helper.get_property_schema(comp_name, prop_name)
+            prop_type_def = comp_helper.get_parameter_type(comp_name, prop_name)
+            prop_schema = (
+                None
+                if prop_type_def is not None
+                else comp_helper.get_property_schema(comp_name, prop_name)
+            )
             prop_type = comp_helper.get_property_type(comp_name, prop_name)
             if prop_type is None and not comp_helper.common_types_loaded:
                 if prop_name == "child":
@@ -2169,31 +2239,41 @@ class ExpressCompiler:
                 elif prop_name == "children":
                     prop_type = "ChildList"
 
+            value_slot = (
+                _ValueSlot(None, comp_helper, prop_type_def)
+                if prop_type_def is not None
+                else (_ValueSlot(prop_schema, comp_helper) if prop_schema else None)
+            )
             mapped_val = self._compile_value(
                 arg,
                 raw_symbols,
                 ctx,
-                is_action=is_action_slot(prop_schema),
+                is_action=comp_helper.property_is_action(comp_name, prop_name),
                 parent_id=comp_id,
                 parent_prop=prop_name,
                 allow_component_ref=(prop_type == "Child"),
                 allow_list_component_refs=(
                     prop_type == "ChildList" and isinstance(arg, list)
                 ),
-                slot=_ValueSlot(prop_schema, comp_helper) if prop_schema else None,
+                slot=value_slot,
             )
-            if (
-                prop_schema
-                and _has_databinding(arg, raw_symbols)
-                and not _allows_databinding_at_ast(
+            if _has_databinding(arg, raw_symbols):
+                if prop_type_def is not None:
+                    if not _allows_databinding_at_ast_type(
+                        arg, prop_type_def, comp_helper, raw_symbols
+                    ):
+                        raise ExpressForbiddenDatabindingError(comp_name, prop_name)
+                elif prop_schema and not _allows_databinding_at_ast(
                     arg, prop_schema, comp_helper, raw_symbols, ctx.path_key
+                ):
+                    raise ExpressForbiddenDatabindingError(comp_name, prop_name)
+            if isinstance(mapped_val, list) and (
+                comp_helper.type_expects_option_objects(prop_type_def)
+                if prop_type_def is not None
+                else (
+                    prop_schema is not None
+                    and _schema_expects_option_objects(prop_schema)
                 )
-            ):
-                raise ExpressForbiddenDatabindingError(comp_name, prop_name)
-            if (
-                prop_schema
-                and isinstance(mapped_val, list)
-                and _schema_expects_option_objects(prop_schema)
             ):
                 mapped_val = [
                     {"label": opt, "value": opt} if isinstance(opt, str) else opt
@@ -2324,12 +2404,22 @@ class ExpressCompiler:
                     message_val = c_arg
                 continue
             prop_name = check_props[prop_target_idx]
-            prop_schema = chk_helper.get_function_property_schema(check_name, prop_name)
-            if (
-                isinstance(c_arg, str)
-                and prop_schema
-                and prop_schema.get("type") in ["integer", "number", "boolean"]
-            ):
+            fn_p_type = chk_helper.get_function_parameter_type(check_name, prop_name)
+            if fn_p_type is not None:
+                resolved_fn_p = chk_helper.resolve_type(fn_p_type)
+                is_static_non_str = (
+                    isinstance(resolved_fn_p, (IntegerType, NumberType, BooleanType))
+                    and not resolved_fn_p.dynamic
+                )
+            else:
+                prop_schema = chk_helper.get_function_property_schema(
+                    check_name, prop_name
+                )
+                is_static_non_str = bool(
+                    prop_schema
+                    and prop_schema.get("type") in ["integer", "number", "boolean"]
+                )
+            if isinstance(c_arg, str) and is_static_non_str:
                 message_val = c_arg
                 break
             if isinstance(c_arg, SkippedNode):
@@ -2527,9 +2617,7 @@ class ExpressCompiler:
             for k, v in val.items():
                 entry_slot = _property_slot(slot, k)
                 entry_ref_type = (
-                    _schema_ref_type(entry_slot.schema)
-                    if entry_slot is not None
-                    else None
+                    entry_slot.ref_type() if entry_slot is not None else None
                 )
                 if (
                     entry_ref_type is None
@@ -2541,7 +2629,7 @@ class ExpressCompiler:
                     elif k == "children":
                         entry_ref_type = "ChildList"
                 entry_is_action = is_action or (
-                    entry_slot is not None and is_action_slot(entry_slot.schema)
+                    entry_slot is not None and entry_slot.is_action()
                 )
                 dict_res[k] = self._compile_value(
                     v,
@@ -2559,11 +2647,9 @@ class ExpressCompiler:
         if isinstance(val, list):
             # Resolved once for the list, since every item shares the schema.
             item_slot = _item_slot(slot)
-            item_ref_type = (
-                _schema_ref_type(item_slot.schema) if item_slot is not None else None
-            )
+            item_ref_type = item_slot.ref_type() if item_slot is not None else None
             item_is_action = is_action or (
-                item_slot is not None and is_action_slot(item_slot.schema)
+                item_slot is not None and item_slot.is_action()
             )
             return [
                 self._compile_value(

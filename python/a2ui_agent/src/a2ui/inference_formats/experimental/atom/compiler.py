@@ -45,7 +45,15 @@ import json
 import re
 from typing import Any, Literal, TypeGuard
 
-from a2ui.core import A2uiCatalogError, CatalogApi
+from a2ui.core import (
+    A2uiCatalogError,
+    ArrayType,
+    CatalogApi,
+    EnumType,
+    IntegerType,
+    NumberType,
+    ObjectType,
+)
 from a2ui.core.common import is_at_least_version, to_protocol_version
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import (
@@ -1430,11 +1438,11 @@ class AtomCompiler:
                 elif self._is_component_form(val):
                     comp[key] = self._compile_component(val, block)
                 elif isinstance(val, list) and (
-                    item_schema := self._object_list_item_schema(
+                    item_keys := self._object_list_item_keys(
                         comp_helper, comp_type, key
                     )
                 ):
-                    comp[key] = self._compile_object_list(val, block, item_schema)
+                    comp[key] = self._compile_object_list(val, block, item_keys)
                 elif key == "checks" and key not in custom_envelope:
                     sibling_value = (
                         comp["value"]
@@ -1552,15 +1560,27 @@ class AtomCompiler:
         for key, value in list(comp.items()):
             if key in ("id", "component", "catalogId") or key in AT_ENVELOPE_MIXIN_KEYS:
                 continue
-            schema = helper.get_property_schema(comp_type, key) or {}
-            kind = ref_kind(schema)
+            p_type = helper.get_parameter_type(comp_type, key)
+            if p_type is not None:
+                resolved = helper.resolve_type(p_type)
+                kind = helper.type_semantic_kind(resolved)
+                is_static_num = (
+                    isinstance(resolved, (NumberType, IntegerType))
+                    and not resolved.dynamic
+                )
+                default = resolved.default if isinstance(resolved, EnumType) else None
+            else:
+                schema = helper.get_property_schema(comp_type, key) or {}
+                kind = ref_kind(schema)
+                is_static_num = schema.get("type") in ("number", "integer")
+                default = schema.get("default")
             if (kind == "Child" or key == "child") and isinstance(value, list):
                 if len(value) == 1:
                     comp[key] = value[0]
                 elif not value:
                     del comp[key]
                 continue
-            if schema.get("type") in ("number", "integer") and isinstance(value, str):
+            if is_static_num and isinstance(value, str):
                 try:
                     comp[key] = float(value) if "." in value else int(value)
                 except ValueError:
@@ -1568,7 +1588,6 @@ class AtomCompiler:
                 continue
             enum_vals = helper.get_property_enum(comp_type, key)
             if enum_vals and isinstance(value, str) and value not in enum_vals:
-                default = schema.get("default")
                 comp[key] = default if default in enum_vals else enum_vals[0]
 
         for req in helper.get_component_required(comp_type):
@@ -1579,23 +1598,50 @@ class AtomCompiler:
                 f" property '{req}' defined by catalog schema."
             )
 
-    def _object_list_item_schema(
+    def _object_list_item_keys(
         self, helper: CatalogSchemaHelper, comp_type: str, key: str
-    ) -> dict[str, Any] | None:
-        """Returns the item schema of an array property whose items hold a child."""
+    ) -> tuple[list[str], list[str]] | None:
+        """Returns `(child_keys, other_keys)` for an array property whose items hold a child."""
+        p_type = helper.get_parameter_type(comp_type, key)
+        if p_type is not None:
+            resolved = helper.resolve_type(p_type)
+            if (
+                not isinstance(resolved, ArrayType)
+                or resolved.dynamic
+                or resolved.items is None
+            ):
+                return None
+            items = helper.resolve_type(resolved.items)
+            if not isinstance(items, ObjectType) or not items.properties:
+                return None
+            child_keys = [
+                p.name
+                for p in items.properties
+                if helper.type_semantic_kind(p.type) == "Child"
+            ]
+            if not child_keys:
+                return None
+            other_keys = [p.name for p in items.properties if p.name not in child_keys]
+            return child_keys, other_keys
+
         schema = helper.get_property_schema(comp_type, key) or {}
-        items = schema.get("items") if schema.get("type") == "array" else None
-        if not isinstance(items, dict) or not isinstance(items.get("properties"), dict):
+        raw_items = schema.get("items") if schema.get("type") == "array" else None
+        if not isinstance(raw_items, dict) or not isinstance(
+            raw_items.get("properties"), dict
+        ):
             return None
-        if any(ref_kind(s) == "Child" for s in items["properties"].values()):
-            return items
-        return None
+        props: dict[str, Any] = raw_items["properties"]
+        child_keys = [k for k, s in props.items() if ref_kind(s) == "Child"]
+        if not child_keys:
+            return None
+        other_keys = [k for k in props if k not in child_keys]
+        return child_keys, other_keys
 
     def _compile_object_list(
         self,
         val: list[Any],
         block: _Block,
-        item_schema: dict[str, Any],
+        item_keys: tuple[list[str], list[str]],
     ) -> list[dict[str, Any]]:
         """Compiles a list of objects that each hold a child, such as tabs.
 
@@ -1603,9 +1649,8 @@ class AtomCompiler:
         whose key is not an item property goes to the item's child property,
         and a string goes to the first string property not yet set.
         """
-        props: dict[str, Any] = item_schema["properties"]
-        child_keys = [k for k, s in props.items() if ref_kind(s) == "Child"]
-        other_keys = [k for k in props if k not in child_keys]
+        child_keys, other_keys = item_keys
+        all_keys = set(child_keys) | set(other_keys)
         result: list[dict[str, Any]] = []
         for entry in val:
             if not isinstance(entry, list) or not entry:
@@ -1621,7 +1666,7 @@ class AtomCompiler:
                     obj[target] = self._compile_component(child_expr, block)
 
             def put_value(value: Any, key: str | None = None) -> None:
-                if key in props:
+                if key in all_keys:
                     obj[key] = self._resolve_val(value)
                     return
                 target = next((k for k in other_keys if k not in obj), key)
@@ -1659,11 +1704,29 @@ class AtomCompiler:
         """
         if not isinstance(value, list) or not any(isinstance(v, str) for v in value):
             return value
+        p_type = helper.get_parameter_type(comp_type, key)
+        if p_type is not None:
+            resolved = helper.resolve_type(p_type)
+            if (
+                not isinstance(resolved, ArrayType)
+                or resolved.dynamic
+                or resolved.items is None
+            ):
+                return value
+            items = helper.resolve_type(resolved.items)
+            if not isinstance(items, ObjectType) or items.dynamic:
+                return value
+            required = [p.name for p in items.properties if p.required]
+            if not required:
+                return value
+            return [
+                {r: v for r in required} if isinstance(v, str) else v for v in value
+            ]
         schema = helper.get_property_schema(comp_type, key) or {}
-        items = schema.get("items") if schema.get("type") == "array" else None
-        if not isinstance(items, dict) or items.get("type") != "object":
+        raw_items = schema.get("items") if schema.get("type") == "array" else None
+        if not isinstance(raw_items, dict) or raw_items.get("type") != "object":
             return value
-        required = [r for r in items.get("required", []) if isinstance(r, str)]
+        required = [r for r in raw_items.get("required", []) if isinstance(r, str)]
         if not required:
             return value
         return [{r: v for r in required} if isinstance(v, str) else v for v in value]

@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
@@ -110,7 +110,6 @@ source = { editable = "python/a2ui_agent" }
 dependencies = [
     { name = "a2ui-core" },
     { name = "antlr4-python3-runtime" },
-    { name = "jsonschema" },
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
@@ -126,7 +125,6 @@ dev = [
 requires-dist = [
     { name = "a2ui-core", editable = "python/a2ui_core" },
     { name = "antlr4-python3-runtime", specifier = ">=4.13.0,<4.14.0" },
-    { name = "jsonschema", specifier = ">=4.0.0" },
     { name = "pydantic", specifier = ">=2.11.0" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]

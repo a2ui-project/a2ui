@@ -250,6 +250,54 @@ def json_schema_properties(schema: dict[str, Any]) -> dict[str, Any] | None:
     return parameters if isinstance(parameters, dict) else None
 
 
+def _coerce_for_type_definition(type_def: Any, types_map: Any, value: Any) -> Any:
+    from ..catalog.model import (
+        ArrayType,
+        BooleanType,
+        ObjectType,
+        UnionType,
+        resolve_type_ref,
+    )
+
+    if type_def is None:
+        return value
+    resolved = resolve_type_ref(type_def, types_map)
+    if isinstance(resolved, BooleanType) and resolved.dynamic:
+        return coerce_dynamic_boolean(value)
+    if (
+        isinstance(resolved, ArrayType)
+        and resolved.items is not None
+        and isinstance(value, list)
+    ):
+        return [
+            _coerce_for_type_definition(resolved.items, types_map, item)
+            for item in value
+        ]
+    if isinstance(resolved, ObjectType) and isinstance(value, dict):
+        props = {p.name: p.type for p in resolved.properties}
+        return {
+            k: _coerce_for_type_definition(
+                props.get(
+                    k,
+                    resolved.additional_properties
+                    if not isinstance(resolved.additional_properties, bool)
+                    else None,
+                ),
+                types_map,
+                v,
+            )
+            for k, v in value.items()
+        }
+    if isinstance(resolved, UnionType):
+        if any(
+            isinstance(resolve_type_ref(v, types_map), BooleanType)
+            and getattr(resolve_type_ref(v, types_map), "dynamic", False)
+            for v in resolved.variants
+        ):
+            return coerce_dynamic_boolean(value)
+    return value
+
+
 def coerce_validation_results(schema: Any, args: dict[str, Any]) -> dict[str, Any]:
     """Coerces the ``ValidationResult`` arguments that ``schema`` types as ``DynamicBoolean``.
 
@@ -258,14 +306,48 @@ def coerce_validation_results(schema: Any, args: dict[str, Any]) -> dict[str, An
     returned as it is.
 
     Args:
-        schema: The function's argument schema: a Pydantic model class, or a
-            JSON schema dict from a catalog document.
+        schema: The function's argument schema: a Pydantic model class, a
+            canonical `FunctionDefinition` (or `(FunctionDefinition, types)`),
+            or a JSON schema dict from a catalog document.
         args: The function's resolved arguments.
 
     Returns:
         The arguments, with every ``ValidationResult`` in a ``DynamicBoolean``
         position replaced by its ``valid`` boolean.
     """
+    from ..catalog.model import FunctionDefinition
+
+    if (
+        isinstance(schema, tuple)
+        and len(schema) == 2
+        and isinstance(schema[0], FunctionDefinition)
+    ):
+        fn_def, types_map = schema
+        param_map = {p.name: p.type for p in fn_def.parameters}
+        extra_type = (
+            fn_def.additional_parameters
+            if not isinstance(fn_def.additional_parameters, bool)
+            else None
+        )
+        return {
+            key: _coerce_for_type_definition(
+                param_map.get(key, extra_type), types_map, value
+            )
+            for key, value in args.items()
+        }
+    if isinstance(schema, FunctionDefinition):
+        param_map = {p.name: p.type for p in schema.parameters}
+        extra_type = (
+            schema.additional_parameters
+            if not isinstance(schema.additional_parameters, bool)
+            else None
+        )
+        return {
+            key: _coerce_for_type_definition(
+                param_map.get(key, extra_type), None, value
+            )
+            for key, value in args.items()
+        }
     if isinstance(schema, type) and issubclass(schema, BaseModel):
         return _coerce_for_model(schema, args)
     if isinstance(schema, dict):

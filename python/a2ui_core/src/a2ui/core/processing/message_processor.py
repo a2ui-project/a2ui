@@ -51,6 +51,7 @@ from ..catalog import (
     CatalogApi,
     get_custom_envelope_properties,
     get_declared_component_properties,
+    is_catalog_document,
     is_component_checkable,
     is_system_function_name,
 )
@@ -528,6 +529,10 @@ class MessageProcessor:
         if not callable(to_json):
             return None
         raw_document = to_json()
+        if is_catalog_document(raw_document):
+            to_json_schema = getattr(catalog, "to_json_schema", None)
+            if callable(to_json_schema):
+                raw_document = to_json_schema()
         if not isinstance(raw_document, Mapping):
             return None
         # A shallow copy, so a catalog that hands out its own dict keeps it.

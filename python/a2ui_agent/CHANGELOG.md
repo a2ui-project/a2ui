@@ -28,6 +28,10 @@
   bindings
   ([#3400](https://github.com/a2ui-project/a2ui/issues/3400),
   [#4184](https://github.com/a2ui-project/a2ui/pull/4184)).
+- Support canonical `CatalogModel` and decoupled Catalog Document (`formatVersion: "1.0"`) catalogs across `a2ui-agent-sdk`:
+  - Back `CatalogSchemaHelper`, `ExpressFormat`, `ElementalFormat`, `AtomFormat`, and `MacroExpander` directly on `CatalogModel` definitions so canonical catalogs do not serialize through JSON Schema.
+  - Accept and validate Catalog Document entries in `resolve_catalogs` for inline catalog negotiation, and serialize Catalog Document catalogs via `to_json_schema()` in `DirectJsonFormat` / `prune_common_types_schema`.
+  - Remove the unused direct `jsonschema` runtime dependency from `a2ui-agent-sdk`.
 
 ## 0.12.1 (2026-11-23)
 

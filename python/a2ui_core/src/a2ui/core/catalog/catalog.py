@@ -56,6 +56,12 @@ from ..schema.common_types_schema import (
 )
 from ._spec_shape import SpecSchema, SpecShaper, v08_document_schema
 from .components import ComponentApi, ComponentImplementation, ModelComponentApi
+from .document_codec import (
+    CATALOG_DOCUMENT_SCHEMA_URI,
+    is_catalog_document,
+    parse_catalog_document,
+    serialize_catalog_document,
+)
 from .functions import (
     AgentFunction,
     AllowedCallers,
@@ -63,6 +69,36 @@ from .functions import (
     FunctionImplementation,
     FunctionReturnType,
     create_function_implementation,
+)
+from .json_schema_adapter import (
+    _collect_component_all_of_branches,
+    component_definition_from_json_schema,
+    component_definition_to_json_schema,
+    extract_leaf_types_from_defs,
+    function_definition_from_json_schema,
+    function_definition_to_json_schema,
+    surface_properties_from_json_schema,
+    surface_properties_to_json_schema,
+    to_json_schema,
+    type_definition_to_json_schema,
+)
+from .model import (
+    ArrayType,
+    CATALOG_DOCUMENT_FORMAT_VERSION,
+    CatalogModel,
+    ComponentDefinition,
+    DataTypeDefinition,
+    FunctionDefinition,
+    ObjectType,
+    RefType,
+    SurfacePropertiesDefinition,
+    TypeDefinition,
+    UnionType,
+)
+from .pydantic_adapter import (
+    component_definition_from_model,
+    function_definition_from_model,
+    surface_properties_from_model,
 )
 from .reference_map import ComponentRefSpec, build_component_ref_map
 from .system_functions import system_functions_for
@@ -441,12 +477,14 @@ def _is_function_definition(schema: Any) -> bool:
 def _is_authored_component(component: Any) -> bool:
     """Whether a component's schema is its catalog document entry.
 
-    That is a component whose `schema` is a JSON schema rather than one a
-    model generates.
+    That is a component whose `schema` is a JSON schema (or canonical
+    `ComponentDefinition`) rather than one a Pydantic model generates.
     """
-    return getattr(component, "model_class", None) is None and isinstance(
-        getattr(component, "schema", None), dict
-    )
+    if getattr(component, "model_class", None) is not None:
+        return False
+    if getattr(component, "_explicit_definition", False):
+        return True
+    return isinstance(getattr(component, "schema", None), dict)
 
 
 def _is_authored_function(function: Any) -> bool:
@@ -457,6 +495,8 @@ def _is_authored_function(function: Any) -> bool:
     for any other, the schema's shape decides.
     """
     schema = getattr(function, "schema", None)
+    if getattr(function, "_explicit_definition", False) and schema is None:
+        return True
     is_definition = getattr(function, "is_definition", None)
     if is_definition is not None:
         return bool(is_definition) and isinstance(schema, Mapping)
@@ -1204,6 +1244,12 @@ def get_custom_envelope_properties(
         if isinstance(getattr(catalog, "components", None), Mapping)
         else None
     )
+    if isinstance(comp_entry, ComponentApi) and comp_entry._explicit_definition:
+        return comp_entry.definition.custom_envelope_properties
+    if isinstance(catalog, Catalog):
+        comp_def = catalog.get_component_definition(comp_type)
+        if comp_def is not None and comp_def.raw_schema is None:
+            return comp_def.custom_envelope_properties
     model_cls = (
         getattr(comp_entry, "schema", None)
         if isinstance(getattr(comp_entry, "schema", None), type)
@@ -1341,6 +1387,12 @@ def is_component_checkable(catalog: Any, comp_type: str | None) -> bool:
         if isinstance(getattr(catalog, "components", None), Mapping)
         else None
     )
+    if isinstance(comp_entry, ComponentApi) and comp_entry._explicit_definition:
+        return bool(comp_entry.definition.checkable)
+    if isinstance(catalog, Catalog):
+        comp_def = catalog.get_component_definition(comp_type)
+        if comp_def is not None and comp_def.raw_schema is None:
+            return comp_def.checkable
     model_cls = (
         getattr(comp_entry, "schema", None)
         if isinstance(getattr(comp_entry, "schema", None), type)
@@ -1386,6 +1438,13 @@ def get_declared_component_properties(
         if isinstance(getattr(catalog, "components", None), Mapping)
         else None
     )
+    if isinstance(comp_entry, ComponentApi) and comp_entry._explicit_definition:
+        comp_def = comp_entry.definition
+        declared_from_def: set[str] = {"id", "component"}
+        declared_from_def.update(p.name for p in comp_def.parameters)
+        if comp_def.checkable:
+            declared_from_def.add("checks")
+        return frozenset(declared_from_def)
     model_cls = (
         getattr(comp_entry, "schema", None)
         if isinstance(getattr(comp_entry, "schema", None), type)
@@ -1649,6 +1708,11 @@ class Catalog(Generic[TComponent, TFunction]):
         functions_form: FunctionsForm | None = None,
         union_defs: Mapping[str, Any | None] | None = None,
         extras: Mapping[str, Any] | None = None,
+        types: Mapping[str, DataTypeDefinition] | None = None,
+        surface_properties: SurfacePropertiesDefinition | None = None,
+        catalog_metadata: Mapping[str, Any] | None = None,
+        _catalog_model: CatalogModel | None = None,
+        _from_catalog_document: bool = False,
         _layout: "_DocumentLayout | None" = None,
     ):
         """Initializes the catalog.
@@ -1743,6 +1807,13 @@ class Catalog(Generic[TComponent, TFunction]):
             }
         )
         self.extras: dict[str, Any] = copy.deepcopy(dict(extras)) if extras else {}
+        self.types: dict[str, DataTypeDefinition] = dict(types) if types else {}
+        self.surface_properties: SurfacePropertiesDefinition | None = surface_properties
+        self.catalog_metadata: dict[str, Any] | None = (
+            clone_metadata(catalog_metadata) if catalog_metadata is not None else None
+        )
+        self._cached_model: CatalogModel | None = _catalog_model
+        self._from_catalog_document: bool = _from_catalog_document
         raw_layout = _layout or _DocumentLayout()
         self._layout = _DocumentLayout(
             declares_defs=raw_layout.declares_defs,
@@ -1791,12 +1862,16 @@ class Catalog(Generic[TComponent, TFunction]):
                     f"Invalid UAX #31 function identifier: '{fn.name}'"
                 )
             if validate_identifiers and isinstance(fn, AgentFunction):
-                outer_defs = (
-                    fn.schema.get("$defs") if isinstance(fn.schema, dict) else None
-                )
-                for arg_name in _parameter_names(
-                    _agent_function_args_schema(fn), self.defs, outer_defs
-                ):
+                if getattr(fn, "_explicit_definition", False):
+                    arg_names = [p.name for p in fn.definition.parameters]
+                else:
+                    outer_defs = (
+                        fn.schema.get("$defs") if isinstance(fn.schema, dict) else None
+                    )
+                    arg_names = _parameter_names(
+                        _agent_function_args_schema(fn), self.defs, outer_defs
+                    )
+                for arg_name in arg_names:
                     if not is_valid_uax31_identifier(arg_name):
                         raise A2uiCatalogError(
                             f"Invalid UAX #31 argument identifier: '{arg_name}'"
@@ -2077,6 +2152,26 @@ class Catalog(Generic[TComponent, TFunction]):
         else:
             new_defs = dict(defs)
 
+        new_types = dict(self.types)
+        if new_types:
+            old_t_refs = _reachable_model_types(
+                self.components.values(),
+                self.functions.values(),
+                self.surface_properties,
+                new_types,
+            )
+            new_t_refs = _reachable_model_types(
+                new_components,
+                new_functions,
+                self.surface_properties,
+                new_types,
+            )
+            new_types = {
+                name: t_def
+                for name, t_def in new_types.items()
+                if name not in old_t_refs or name in new_t_refs
+            }
+
         return Catalog(
             catalog_id=catalog_id,
             protocol_version=self.protocol_version,
@@ -2099,6 +2194,10 @@ class Catalog(Generic[TComponent, TFunction]):
             functions_form=self.functions_form,
             union_defs=union_defs,
             extras=self.extras,
+            types=new_types,
+            surface_properties=self.surface_properties,
+            catalog_metadata=self.catalog_metadata,
+            _from_catalog_document=self._from_catalog_document,
             _layout=_DocumentLayout(
                 declares_defs=self._layout.declares_defs,
                 null_unions=frozenset(null_unions),
@@ -2134,27 +2233,70 @@ class Catalog(Generic[TComponent, TFunction]):
         cached: _ResolvedSchemas | None = getattr(self, cache_attr, None)
         if cached is not None:
             return cached
+        at_least_v10 = is_at_least_version(self.protocol_version, ProtocolVersion.V1_0)
         own_defs = {
             name: schema
             for name, schema in self.defs.items()
             if name not in _UNION_DEFS
         }
-        authored_theme = self.theme_model is None and bool(self.theme_schema)
+        for type_name, type_def in self.types.items():
+            if type_name not in own_defs:
+                own_defs[type_name] = type_definition_to_json_schema(
+                    type_def,
+                    at_least_v10=at_least_v10,
+                    common_types_uri=self.common_types_uri,
+                )
+        effective_theme = self.theme_schema
+        if not effective_theme and self.surface_properties is not None:
+            effective_theme = surface_properties_to_json_schema(
+                self.surface_properties,
+                at_least_v10=at_least_v10,
+                common_types_uri=self.common_types_uri,
+            )
+        authored_theme = self.theme_model is None and bool(effective_theme)
         if authored_theme and self.theme_location == "$defs":
-            own_defs["theme"] = self.theme_schema
+            own_defs["theme"] = effective_theme
         authored_components = {
             name: (
-                comp.schema
+                (
+                    component_definition_to_json_schema(
+                        comp.definition,
+                        at_least_v10=at_least_v10,
+                        common_types_uri=self.common_types_uri,
+                    )
+                    if getattr(comp, "_explicit_definition", False)
+                    and comp._schema is None
+                    else comp.schema
+                )
                 if inline_local_defs
-                else _restore_catalog_def_refs(comp.schema, own_defs)
+                else _restore_catalog_def_refs(
+                    component_definition_to_json_schema(
+                        comp.definition,
+                        at_least_v10=at_least_v10,
+                        common_types_uri=self.common_types_uri,
+                    )
+                    if getattr(comp, "_explicit_definition", False)
+                    and comp._schema is None
+                    else comp.schema,
+                    own_defs,
+                )
             )
             for name, comp in self.components.items()
             if _is_authored_component(comp)
         }
         authored_functions = {
-            name: fn.schema
+            name: (
+                function_definition_to_json_schema(
+                    fn.definition,
+                    at_least_v10=at_least_v10,
+                    common_types_uri=self.common_types_uri,
+                )
+                if getattr(fn, "_explicit_definition", False) and fn.schema is None
+                else fn.schema
+            )
             for name, fn in self.functions.items()
             if isinstance(fn.schema, dict)
+            or (getattr(fn, "_explicit_definition", False) and fn.schema is None)
         }
         root: dict[str, Any] = _normalize_external_schema_refs({
             "$defs": own_defs,
@@ -2201,7 +2343,7 @@ class Catalog(Generic[TComponent, TFunction]):
         functions: dict[str, Any] = {}
         for name, fn in self.functions.items():
             if name in authored_functions:
-                functions[name] = resolve(fn.schema)
+                functions[name] = resolve(authored_functions[name])
             else:
                 # A function without an argument schema takes any args.
                 functions[name] = {} if fn.schema is None else fn.schema
@@ -2214,10 +2356,10 @@ class Catalog(Generic[TComponent, TFunction]):
                     if inline_local_defs
                     else resolve(_restore_catalog_def_refs(schema, own_defs))
                 )
-                for name, schema in self.defs.items()
-                if name not in _UNION_DEFS
+                for name, schema in own_defs.items()
+                if name not in _UNION_DEFS and name != "theme"
             },
-            theme=resolve(self.theme_schema) if authored_theme else self.theme_schema,
+            theme=resolve(effective_theme) if authored_theme else effective_theme,
         )
         setattr(self, cache_attr, resolved)
         return resolved
@@ -2878,6 +3020,11 @@ class Catalog(Generic[TComponent, TFunction]):
 
     def _build_document(self) -> dict[str, Any]:
         """Assembles the catalog document that `to_json` returns."""
+        if self._from_catalog_document:
+            return serialize_catalog_document(
+                self.model,
+                include_schema=self.schema_dialect == CATALOG_DOCUMENT_SCHEMA_URI,
+            )
         # The protocol reserves the `@` namespace for system functions.
         system_names = set(system_functions_for(self.protocol_version))
         functions = {
@@ -2956,6 +3103,15 @@ class Catalog(Generic[TComponent, TFunction]):
         for name, schema in derived.defs.items():
             if name in reachable and name not in defs:
                 defs[name] = schema
+        for type_name, type_def in self.types.items():
+            if type_name not in defs:
+                defs[type_name] = type_definition_to_json_schema(
+                    type_def,
+                    at_least_v10=is_at_least_version(
+                        self.protocol_version, ProtocolVersion.V1_0
+                    ),
+                    common_types_uri=self.common_types_uri,
+                )
         if theme is not None and self.theme_location == "$defs":
             defs["theme"] = theme
         defs.update(self._union_documents(list(components), list(function_docs)))
@@ -2989,6 +3145,17 @@ class Catalog(Generic[TComponent, TFunction]):
         self, component: ComponentApi, common_names: set[str]
     ) -> dict[str, Any]:
         """Returns the document entry of a component whose schema is authored."""
+        if (
+            getattr(component, "_explicit_definition", False)
+            and component._schema is None
+        ):
+            return component_definition_to_json_schema(
+                component.definition,
+                at_least_v10=is_at_least_version(
+                    self.protocol_version, ProtocolVersion.V1_0
+                ),
+                common_types_uri=self.common_types_uri,
+            )
         raw_schema = component.schema if isinstance(component.schema, dict) else {}
         schema = _restore_catalog_def_refs(raw_schema, self.defs)
         entry = (
@@ -3017,6 +3184,14 @@ class Catalog(Generic[TComponent, TFunction]):
         written where the schema declares it, or added where it differs from
         the default.
         """
+        if getattr(function, "_explicit_definition", False) and function.schema is None:
+            return function_definition_to_json_schema(
+                function.definition,
+                at_least_v10=is_at_least_version(
+                    self.protocol_version, ProtocolVersion.V1_0
+                ),
+                common_types_uri=self.common_types_uri,
+            )
         entry: dict[str, Any] = (
             copy.deepcopy(function.schema)
             if getattr(function, "from_document", False)
@@ -3167,6 +3342,246 @@ class Catalog(Generic[TComponent, TFunction]):
         return _DerivedEntries(components, function_docs, defs, theme, common_names)
 
     # ==========================================================================
+    # Canonical CatalogModel & Catalog Document APIs
+    # ==========================================================================
+
+    @property
+    def model(self) -> CatalogModel:
+        """Returns the canonical schema-library-independent `CatalogModel`."""
+        if self._cached_model is not None:
+            return self._cached_model
+        at_least_v10 = is_at_least_version(self.protocol_version, ProtocolVersion.V1_0)
+        extracted_types: dict[str, DataTypeDefinition] = dict(self.types)
+        used_mixins: set[str] = set()
+        if self.defs:
+            for comp in self.components.values():
+                if (
+                    getattr(comp, "model_class", None) is None
+                    and not getattr(comp, "_explicit_definition", False)
+                    and isinstance(comp._schema, Mapping)
+                ):
+                    _collect_component_all_of_branches(
+                        comp._schema, self.defs, set(), used_mixins
+                    )
+            for t_name, t_def in extract_leaf_types_from_defs(
+                self.defs,
+                excluded_names=frozenset(used_mixins),
+                at_least_v10=at_least_v10,
+            ).items():
+                extracted_types.setdefault(t_name, t_def)
+
+        leaf_type_names = frozenset(extracted_types.keys())
+        comp_defs: list[ComponentDefinition] = []
+        for comp in self.components.values():
+            if getattr(comp, "_explicit_definition", False):
+                comp_defs.append(comp.definition)
+            elif getattr(comp, "model_class", None) is not None:
+                comp_defs.append(
+                    component_definition_from_model(
+                        getattr(comp, "model_class"),
+                        name=comp.name,
+                        allowed_parents=comp.allowed_parents,
+                        allowed_children=comp.allowed_children,
+                        metadata=comp.metadata,
+                        extracted_types=extracted_types,
+                    )
+                )
+            else:
+                comp_defs.append(
+                    component_definition_from_json_schema(
+                        comp.name,
+                        comp.schema if isinstance(comp.schema, Mapping) else {},
+                        local_defs=self.defs,
+                        leaf_type_names=leaf_type_names,
+                        allowed_parents=comp.allowed_parents,
+                        allowed_children=comp.allowed_children,
+                        metadata=comp.metadata,
+                        at_least_v10=at_least_v10,
+                    )
+                )
+
+        system_names = set(system_functions_for(self.protocol_version))
+        fn_defs: list[FunctionDefinition] = []
+        for fn_name, fn in self.functions.items():
+            if not _is_authored_function(fn) and (
+                fn_name in system_names or fn_name.startswith("@")
+            ):
+                continue
+            if getattr(fn, "_explicit_definition", False):
+                fn_defs.append(fn.definition)
+            elif isinstance(fn.schema, type) and issubclass(fn.schema, BaseModel):
+                fn_defs.append(
+                    function_definition_from_model(
+                        fn.name,
+                        fn.schema,
+                        return_type=fn.return_type,
+                        allowed_callers=fn.allowed_callers,
+                        requires_user_activation=fn.requires_user_activation,
+                        description=fn.description,
+                        extracted_types=extracted_types,
+                    )
+                )
+            else:
+                fn_defs.append(
+                    function_definition_from_json_schema(
+                        fn.name,
+                        fn.schema if isinstance(fn.schema, Mapping) else None,
+                        return_type=fn.return_type,
+                        allowed_callers=fn.allowed_callers,
+                        requires_user_activation=fn.requires_user_activation,
+                        description=fn.description,
+                        local_defs=self.defs,
+                        leaf_type_names=leaf_type_names,
+                        at_least_v10=at_least_v10,
+                    )
+                )
+
+        surface_props = self.surface_properties
+        if surface_props is None:
+            if self.theme_model is not None:
+                surface_props = surface_properties_from_model(
+                    self.theme_model, extracted_types=extracted_types
+                )
+            elif self.theme_schema:
+                surface_props = surface_properties_from_json_schema(
+                    self.theme_schema,
+                    local_defs=self.defs,
+                    leaf_type_names=leaf_type_names,
+                )
+
+        pv_str = (
+            self.protocol_version.value
+            if isinstance(self.protocol_version, ProtocolVersion)
+            else str(self.protocol_version)
+        )
+        canonical_pv = to_canonical_version(pv_str) or pv_str
+
+        built = CatalogModel(
+            catalog_id=self.catalog_id,
+            protocol_version=canonical_pv,
+            format_version=CATALOG_DOCUMENT_FORMAT_VERSION,
+            title=self.title,
+            description=self.description,
+            instructions=self.instructions,
+            metadata=self.catalog_metadata,
+            types=extracted_types,
+            surface_properties=surface_props,
+            components=tuple(comp_defs),
+            functions=tuple(fn_defs),
+        )
+        self._cached_model = built
+        return built
+
+    def get_component_definition(self, name: str) -> ComponentDefinition | None:
+        """Returns the canonical `ComponentDefinition` for `name`, or None."""
+        comp = self.components.get(name)
+        if comp is None:
+            return None
+        if getattr(comp, "_explicit_definition", False):
+            return comp.definition
+        return self.model.get_component(name)
+
+    def get_function_definition(self, name: str) -> FunctionDefinition | None:
+        """Returns the canonical `FunctionDefinition` for `name`, or None."""
+        fn = self.get_function(name)
+        if fn is None:
+            return None
+        if getattr(fn, "_explicit_definition", False):
+            return fn.definition
+        found = self.model.get_function(fn.name)
+        return found if found is not None else fn.definition
+
+    def to_document(self, *, include_schema: bool = False) -> dict[str, Any]:
+        """Serializes this catalog into a decoupled Catalog Document (`formatVersion: "1.0"`)."""
+        return serialize_catalog_document(self.model, include_schema=include_schema)
+
+    def to_json_schema(
+        self,
+        *,
+        protocol_version: ProtocolVersion | str | None = None,
+    ) -> dict[str, Any]:
+        """Synthesizes a clean JSON Schema catalog document from `self.model`."""
+        return to_json_schema(
+            self.model,
+            protocol_version=protocol_version,
+            common_types_uri=self.common_types_uri,
+        )
+
+    @classmethod
+    def from_model(
+        cls,
+        model: CatalogModel,
+        *,
+        schema_dialect: str | None = None,
+    ) -> "CatalogApi":
+        """Constructs a `Catalog` purely from an in-memory `CatalogModel`.
+
+        No JSON Schema dicts are constructed eagerly.
+        """
+        if not model.catalog_id:
+            raise A2uiCatalogError("CatalogModel.catalog_id must be non-empty.")
+        for comp in model.components:
+            if comp.name == "Surface":
+                raise A2uiCatalogError(
+                    "Component name 'Surface' is reserved and forbidden."
+                )
+        for fn in model.functions:
+            if fn.name.startswith("@"):
+                raise A2uiCatalogError(
+                    f"Function name '{fn.name}' cannot start with '@'."
+                )
+            if fn.requires_user_activation and fn.allowed_callers != "rendererOnly":
+                raise A2uiCatalogError(
+                    f"Function '{fn.name}' declares requiresUserActivation=true with"
+                    f" allowedCallers='{fn.allowed_callers}';"
+                    " requiresUserActivation=true requires"
+                    " allowedCallers='rendererOnly'."
+                )
+        components = [ComponentApi.from_definition(c) for c in model.components]
+        functions = [FunctionApi.from_definition(f) for f in model.functions]
+        at_least_v10 = is_at_least_version(model.protocol_version, ProtocolVersion.V1_0)
+        theme_loc: ThemeLocation | None = (
+            ("theme" if at_least_v10 else "$defs")
+            if model.surface_properties is not None
+            else None
+        )
+        return CatalogApi(
+            catalog_id=model.catalog_id,
+            protocol_version=model.protocol_version,
+            components=components,
+            functions=functions,
+            instructions=model.instructions,
+            title=model.title,
+            description=model.description,
+            schema_dialect=schema_dialect,
+            theme_location=theme_loc,
+            types=model.types,
+            surface_properties=model.surface_properties,
+            catalog_metadata=model.metadata,
+            _catalog_model=model,
+            _from_catalog_document=True,
+        )
+
+    @classmethod
+    def from_document(
+        cls,
+        document: Mapping[str, Any],
+        protocol_version: ProtocolVersion | str | None = None,
+        catalog_id: str | None = None,
+    ) -> "CatalogApi":
+        """Parses a decoupled Catalog Document (`formatVersion: "1.0"`) into a `Catalog`."""
+        model = parse_catalog_document(
+            document,
+            protocol_version=protocol_version,
+            catalog_id=catalog_id,
+        )
+        raw_schema = document.get("$schema")
+        return cls.from_model(
+            model,
+            schema_dialect=raw_schema if isinstance(raw_schema, str) else None,
+        )
+
+    # ==========================================================================
     # Lookups
     # ==========================================================================
 
@@ -3234,6 +3649,13 @@ class Catalog(Generic[TComponent, TFunction]):
                 malformed, or if a v1.0 document has a `$ref` to a document
                 other than itself or `common_types.json`.
         """
+        if is_catalog_document(catalog_schema):
+            return cls.from_document(
+                catalog_schema,
+                protocol_version=protocol_version,
+                catalog_id=catalog_id,
+            )
+
         catalog_id = catalog_id or catalog_schema.get("catalogId")
         if not catalog_id:
             raise A2uiCatalogError(
@@ -3614,6 +4036,73 @@ def _function_entries(raw: Any, catalog_id: str) -> list[tuple[str, dict[str, An
         f"Catalog '{catalog_id}' 'functions' must be an object or a list of"
         f" definitions, got {type(raw).__name__}."
     )
+
+
+def _collect_type_refs_from_type(type_def: TypeDefinition, out: set[str]) -> None:
+    if isinstance(type_def, RefType):
+        out.add(type_def.ref)
+    elif isinstance(type_def, ObjectType):
+        for p in type_def.properties:
+            _collect_type_refs_from_type(p.type, out)
+        if not isinstance(type_def.additional_properties, bool):
+            _collect_type_refs_from_type(type_def.additional_properties, out)
+    elif isinstance(type_def, ArrayType) and type_def.items is not None:
+        _collect_type_refs_from_type(type_def.items, out)
+    elif isinstance(type_def, UnionType):
+        for v in type_def.variants:
+            _collect_type_refs_from_type(v, out)
+
+
+def _reachable_model_types(
+    components: Sequence[Any] | Any,
+    functions: Sequence[Any] | Any,
+    surface_properties: SurfacePropertiesDefinition | None,
+    types_map: Mapping[str, DataTypeDefinition],
+) -> set[str]:
+    """Returns names in `types_map` transitively referenced by entries."""
+    seeds: set[str] = set()
+    for comp in components:
+        if getattr(comp, "_explicit_definition", False):
+            for p in comp.definition.parameters:
+                _collect_type_refs_from_type(p.type, seeds)
+    for fn in functions:
+        if getattr(fn, "_explicit_definition", False):
+            fn_def = fn.definition
+            if isinstance(
+                fn_def.return_type,
+                (
+                    RefType,
+                    ObjectType,
+                    ArrayType,
+                    UnionType,
+                ),
+            ):
+                _collect_type_refs_from_type(fn_def.return_type, seeds)
+            for p in fn_def.parameters:
+                _collect_type_refs_from_type(p.type, seeds)
+            if not isinstance(fn_def.additional_parameters, bool):
+                _collect_type_refs_from_type(fn_def.additional_parameters, seeds)
+    if surface_properties is not None:
+        for p in surface_properties.properties:
+            _collect_type_refs_from_type(p.type, seeds)
+        if not isinstance(surface_properties.additional_properties, bool):
+            _collect_type_refs_from_type(
+                surface_properties.additional_properties, seeds
+            )
+
+    reachable: set[str] = set()
+    queue = deque(sorted(seeds))
+    while queue:
+        name = queue.popleft()
+        if name in reachable or name not in types_map:
+            continue
+        reachable.add(name)
+        nested: set[str] = set()
+        _collect_type_refs_from_type(types_map[name], nested)
+        for nxt in sorted(nested):
+            if nxt not in reachable:
+                queue.append(nxt)
+    return reachable
 
 
 CatalogApi: TypeAlias = Catalog[ComponentApi, FunctionApi]

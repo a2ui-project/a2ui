@@ -20,8 +20,10 @@ component schemas to enable O(1) reference lookups during validation and tree tr
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import types
 from typing import (
+    TYPE_CHECKING,
     Annotated,
     Any,
     Final,
@@ -31,13 +33,22 @@ from typing import (
     get_args,
     get_origin,
 )
+
 from pydantic import BaseModel
+
 from ..schema.common_types import (
     ComponentReference,
-    SingleReference,
     ListReference,
+    SingleReference,
     TemplateChildList,
 )
+
+if TYPE_CHECKING:
+    from .model import (
+        ComponentDefinition,
+        DataTypeDefinition,
+        TypeDefinition,
+    )
 
 # Reference property keys and schema type identifiers
 COMPONENT_ID_KEY: Final[str] = "componentId"
@@ -369,10 +380,75 @@ class ComponentRefSpec:
                         yield ref_id, f"{key}.{sub_path}" if sub_path else key
 
 
+def _type_contains_child_ref(
+    type_def: TypeDefinition,
+    types_map: Mapping[str, DataTypeDefinition] | None,
+) -> tuple[bool, bool, set[str]]:
+    """Classifies a `TypeDefinition` into `(is_single, is_list, nested_child_keys)`."""
+    from .model import (
+        ArrayType,
+        ChildListType,
+        ChildType,
+        ObjectType,
+        UnionType,
+        resolve_type_ref,
+    )
+
+    resolved = resolve_type_ref(type_def, types_map)
+    if isinstance(resolved, ChildType):
+        return True, False, set()
+    if isinstance(resolved, ChildListType):
+        return False, True, set()
+    if isinstance(resolved, ArrayType) and resolved.items is not None:
+        item = resolve_type_ref(resolved.items, types_map)
+        if isinstance(item, (ChildType, ChildListType)):
+            return False, True, set()
+        if isinstance(item, ObjectType):
+            nested: set[str] = set()
+            for sub in item.properties:
+                s_single, s_list, _ = _type_contains_child_ref(sub.type, types_map)
+                if s_single or s_list:
+                    nested.add(sub.name)
+            if nested:
+                return False, True, nested
+    if isinstance(resolved, UnionType):
+        for variant in resolved.variants:
+            v_single, v_list, v_nested = _type_contains_child_ref(variant, types_map)
+            if v_single or v_list:
+                return v_single, v_list, v_nested
+    return False, False, set()
+
+
+def analyze_component_definition_refs(
+    definition: ComponentDefinition,
+    types: Mapping[str, DataTypeDefinition] | None = None,
+) -> ComponentRefSpec:
+    """Directly analyzes a canonical `ComponentDefinition` into a `ComponentRefSpec`."""
+    single_refs: set[str] = set()
+    list_refs: set[str] = set()
+    nested_refs: dict[str, set[str]] = {}
+    for param in definition.parameters:
+        if param.name in ("id", "component"):
+            continue
+        is_single, is_list, nested = _type_contains_child_ref(param.type, types)
+        if is_single:
+            single_refs.add(param.name)
+        elif is_list:
+            list_refs.add(param.name)
+            if nested:
+                nested_refs[param.name] = nested
+    return ComponentRefSpec(single_refs, list_refs, nested_refs)
+
+
 def analyze_child_ref_schema(
     schema: Any, catalog_schema: dict[str, Any] | None = None
 ) -> ComponentRefSpec:
-    """Analyzes a component's Pydantic model or JSON Schema strictly per A2UI protocol ($ref / SingleReference / ListReference)."""
+    """Analyzes a component's `ComponentDefinition`, Pydantic model, or JSON Schema."""
+    from .model import ComponentDefinition
+
+    if isinstance(schema, ComponentDefinition) and schema.raw_schema is None:
+        return analyze_component_definition_refs(schema)
+
     single_refs: set[str] = set()
     list_refs: set[str] = set()
     nested_refs: dict[str, set[str]] = {}
@@ -489,16 +565,33 @@ def build_component_ref_map(catalog: Any) -> dict[str, ComponentRefSpec]:
         return ref_map
 
     from .catalog import _get_readonly_validation_schema
+    from .model import has_raw_json_schema
 
-    catalog_schema = _get_readonly_validation_schema(catalog) or getattr(
-        catalog, "schema", None
-    )
+    catalog_schema: dict[str, Any] | None = None
+    get_comp_def = getattr(catalog, "get_component_definition", None)
+    catalog_types = getattr(catalog, "types", None)
     comps = catalog.components
     comp_list = comps.values() if isinstance(comps, dict) else comps
     for comp in comp_list:
         name = getattr(comp, "name", None)
         if not name:
             continue
+        if callable(get_comp_def):
+            comp_def = get_comp_def(name)
+            if comp_def is not None and not has_raw_json_schema(
+                comp_def, catalog_types
+            ):
+                types_map = (
+                    catalog_types
+                    if getattr(comp, "_explicit_definition", False)
+                    else catalog.model.types
+                )
+                ref_map[name] = analyze_component_definition_refs(comp_def, types_map)
+                continue
+        if catalog_schema is None:
+            catalog_schema = _get_readonly_validation_schema(catalog) or getattr(
+                catalog, "schema", None
+            )
         target = getattr(comp, "model_class", None)
         if target is None:
             # A catalog keeps authored schemas as written; resolve their

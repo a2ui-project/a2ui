@@ -25,7 +25,7 @@ import json
 import re
 from typing import Any, Literal
 
-from a2ui.core import CatalogApi
+from a2ui.core import CatalogApi, ChildType, TypeDefinition
 from a2ui.core.common import is_at_least_version
 from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
 from a2ui.inference_formats._shared import (
@@ -458,6 +458,70 @@ def _resolve_structured_property(
         visited.remove(obj_id)
 
 
+def _format_component_arg_label_from_type(
+    prop_name: str,
+    is_required: bool,
+    type_def: TypeDefinition,
+    helper: CatalogSchemaHelper,
+) -> str:
+    """Formats one component signature argument directly from its `TypeDefinition`."""
+    arg_label = f"{prop_name}{'' if is_required else '?'}"
+    resolved = helper.resolve_type(type_def)
+    if isinstance(resolved, ChildType) and not helper.at_least_v10:
+        return f"{arg_label} (component ID)"
+    if not helper.type_allows_databinding(type_def):
+        return f"{arg_label} (static)"
+    return arg_label
+
+
+def _format_sub_key_lines_from_types(
+    properties: Mapping[str, TypeDefinition],
+    helper: CatalogSchemaHelper,
+) -> str:
+    """Formats nested map keys and their descriptions directly from `TypeDefinition`s."""
+    lines: list[str] = []
+    for sub_k, sub_v in properties.items():
+        desc = sub_v.description or helper.resolve_type(sub_v).description or ""
+        desc_suffix = f" - {desc}" if desc else ""
+        lines.append(f"    * {sub_k}{desc_suffix}")
+    return "\n".join(lines)
+
+
+def _format_component_property_detail_from_type(
+    prop_name: str,
+    type_def: TypeDefinition,
+    helper: CatalogSchemaHelper,
+    p_desc: str | None,
+) -> str | None:
+    """Formats the bullet detail line directly from a canonical `TypeDefinition`."""
+    enum_vals = helper.type_enum_values(type_def)
+    line_parts: list[str] = []
+    if p_desc:
+        line_parts.append(p_desc)
+    if enum_vals:
+        enum_vals_str = ", ".join(f"'{v}'" for v in enum_vals)
+        line_parts.append(f"Must be one of: {enum_vals_str}")
+    detail = f"  - {prop_name}: {' '.join(line_parts)}" if line_parts else None
+
+    if not enum_vals:
+        structured = helper.type_structured_properties(type_def)
+        if structured is not None:
+            kind, sub_props = structured
+            sub_keys = _format_sub_key_lines_from_types(sub_props, helper)
+            if kind == "object":
+                return (
+                    f"{detail}\n    Map keys:\n{sub_keys}"
+                    if detail
+                    else f"  - {prop_name}: Map with keys:\n{sub_keys}"
+                )
+            return (
+                f"{detail}\n    List of maps keys:\n{sub_keys}"
+                if detail
+                else f"  - {prop_name}: List of maps with keys:\n{sub_keys}"
+            )
+    return detail
+
+
 def _format_component_arg_label(
     prop_name: str,
     is_required: bool,
@@ -809,15 +873,24 @@ class ExpressPromptGenerator(PromptGenerator):
             ordered_args = []
             prop_details = []
             for p in props:
-                p_schema = h.get_property_schema(name, p)
-                ordered_args.append(
-                    _format_component_arg_label(
-                        p, p in reqs, p_schema, path_key=h.path_key
+                p_type = h.get_parameter_type(name, p)
+                if p_type is not None:
+                    ordered_args.append(
+                        _format_component_arg_label_from_type(p, p in reqs, p_type, h)
                     )
-                )
-                detail = _format_component_property_detail(
-                    p, p_schema, path_key=h.path_key, call_key=h.call_key
-                )
+                    detail = _format_component_property_detail_from_type(
+                        p, p_type, h, h.get_property_description(name, p)
+                    )
+                else:
+                    p_schema = h.get_property_schema(name, p)
+                    ordered_args.append(
+                        _format_component_arg_label(
+                            p, p in reqs, p_schema, path_key=h.path_key
+                        )
+                    )
+                    detail = _format_component_property_detail(
+                        p, p_schema, path_key=h.path_key, call_key=h.call_key
+                    )
                 if detail:
                     prop_details.append(detail)
 
@@ -859,20 +932,12 @@ class ExpressPromptGenerator(PromptGenerator):
             ordered_args = []
             prop_details = []
 
-            func_schema = h.functions.get(name) or h.system_functions.get(name, {})
-            args_properties = (
-                func_schema.get("properties", {}).get("args", {}).get("properties", {})
-            )
-
             for p in props:
                 is_req = p in reqs
                 opt_suffix = "" if is_req else "?"
                 ordered_args.append(f"{p}{opt_suffix}")
 
-                p_schema = args_properties.get(p, {})
-                p_desc = (
-                    p_schema.get("description") if isinstance(p_schema, dict) else None
-                )
+                p_desc = h.get_function_property_description(name, p)
                 if p_desc:
                     prop_details.append(f"  - {p}: {p_desc}")
 
@@ -911,7 +976,7 @@ class ExpressPromptGenerator(PromptGenerator):
         )
         comp_sigs = self._generate_component_signatures(helper=h)
         func_sigs = self._generate_function_signatures(helper=h)
-        catalog_instructions = h.catalog.get("instructions", "") if h else ""
+        catalog_instructions = h.instructions if h else ""
 
         # Translate json examples in catalog instructions into A2UI Express DSL.
         # An example in a catalog's instructions belongs to that catalog.

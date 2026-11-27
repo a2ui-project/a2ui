@@ -732,11 +732,18 @@ class ExpressDecompiler:
                     continue
 
                 if prop_name in c:
-                    p_schema = comp_helper.get_property_schema(comp_name, prop_name)
+                    p_type = comp_helper.get_parameter_type(comp_name, prop_name)
+                    is_comp_ref = (
+                        comp_helper.type_accepts_components(p_type)
+                        if p_type is not None
+                        else _is_component_reference_property(
+                            comp_helper.get_property_schema(comp_name, prop_name)
+                        )
+                    )
                     val_str = self._decompile_value(
                         c[prop_name],
                         var_names,
-                        _is_component_reference_property(p_schema),
+                        is_comp_ref,
                         surface_cat_id,
                     )
                     if keyword:

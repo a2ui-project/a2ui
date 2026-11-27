@@ -18,7 +18,7 @@ from collections.abc import Iterable, Sequence
 import json
 
 from a2ui import constants
-from a2ui.core import A2uiCatalogError, CatalogApi
+from a2ui.core import A2uiCatalogError, Catalog, CatalogApi, is_catalog_document
 from a2ui.core.common import to_protocol_version
 from a2ui.inference_formats._shared import release_line
 from a2ui.utils import (
@@ -138,7 +138,12 @@ def _protocol_schema_sections(
     if allowed_messages is not None:
         a2r_schema = prune_messages_schema(a2r_schema, version, allowed_messages)
 
-    catalog_docs = [c.to_json() for c in catalogs]
+    catalog_docs = [
+        c.to_json_schema()
+        if isinstance(c, Catalog) and is_catalog_document(c.to_json())
+        else c.to_json()
+        for c in catalogs
+    ]
     common_types_schema = prune_common_types_schema(
         load_common_types_schema(version),
         *catalog_docs,

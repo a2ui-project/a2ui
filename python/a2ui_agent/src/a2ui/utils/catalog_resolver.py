@@ -24,7 +24,14 @@ from typing import Any, TYPE_CHECKING
 
 from pydantic import BaseModel, ValidationError
 
-from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog, CatalogApi
+from a2ui.core import (
+    A2uiCatalogError,
+    A2uiValidationError,
+    Catalog,
+    CatalogApi,
+    is_catalog_document,
+    parse_catalog_document,
+)
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import (
     A2uiRendererCapabilities,
@@ -278,11 +285,12 @@ def resolve_catalogs(
         inline: list[CatalogApi] = []
         for document in entry.get("inlineCatalogs", []):
             parsed = Catalog.from_json(document, protocol_version=entry_version)
-            validate_inline_catalog_local_refs(
-                document,
-                parsed.catalog_id,
-                to_protocol_version(parsed.protocol_version),
-            )
+            if not is_catalog_document(document):
+                validate_inline_catalog_local_refs(
+                    document,
+                    parsed.catalog_id,
+                    to_protocol_version(parsed.protocol_version),
+                )
             inline.append(parsed)
         candidates.append((entry, inline))
 
@@ -352,6 +360,59 @@ def _validated_entry(
     key: str, entry: Any, entry_model: type[BaseModel]
 ) -> dict[str, Any]:
     """Returns the capabilities entry under `key`, validated by `entry_model`."""
+    raw_inlines = (
+        entry.get("inlineCatalogs")
+        if isinstance(entry, Mapping) and isinstance(entry.get("inlineCatalogs"), list)
+        else None
+    )
+    has_catalog_docs = raw_inlines is not None and any(
+        is_catalog_document(item) for item in raw_inlines
+    )
+    if has_catalog_docs and isinstance(entry, Mapping) and raw_inlines is not None:
+        # Validate Catalog Document entries via `parse_catalog_document` and
+        # validate the remaining capability fields via `entry_model`.
+        validated_positions: dict[int, Any] = {}
+        legacy_inlines: list[Any] = []
+        for idx, item in enumerate(raw_inlines):
+            if is_catalog_document(item):
+                try:
+                    parse_catalog_document(item)
+                except (A2uiCatalogError, A2uiValidationError) as e:
+                    raise A2uiCatalogError(
+                        f"Invalid inline catalog in '{key}' renderer capabilities: {e}"
+                    ) from e
+                validated_positions[idx] = item
+            else:
+                legacy_inlines.append(item)
+        sanitized = dict(entry)
+        sanitized["inlineCatalogs"] = legacy_inlines
+        try:
+            dumped = entry_model.model_validate(sanitized).model_dump(
+                by_alias=True, exclude_none=True
+            )
+        except ValidationError as e:
+            errors = e.errors()
+            if errors and all(
+                len(err.get("loc", ())) >= 1
+                and err["loc"][0] in ("inlineCatalogs", "inline_catalogs")
+                for err in errors
+            ):
+                raise A2uiCatalogError(
+                    f"Invalid inline catalog in '{key}' renderer capabilities: {e}"
+                ) from e
+            raise A2uiValidationError(
+                f"Invalid '{key}' renderer capabilities: {e}"
+            ) from e
+        rebuilt: list[Any] = []
+        legacy_iter = iter(dumped.get("inlineCatalogs", []))
+        for idx in range(len(raw_inlines)):
+            if idx in validated_positions:
+                rebuilt.append(validated_positions[idx])
+            else:
+                rebuilt.append(next(legacy_iter))
+        dumped["inlineCatalogs"] = rebuilt
+        return dumped
+
     try:
         return entry_model.model_validate(entry).model_dump(
             by_alias=True, exclude_none=True
