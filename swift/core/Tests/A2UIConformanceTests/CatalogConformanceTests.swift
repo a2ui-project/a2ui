@@ -205,9 +205,17 @@ struct CatalogConformanceTests {
     )
 
     // Catalog Document round-trip whenever root metadata satisfies Catalog Document v1.0 schema.
-    let hasStrictMetadata =
-      firstLoad.catalog.metadata == nil
-      || (try? MetadataValidator.validate(firstLoad.catalog.metadata)) != nil
+    let hasStrictMetadata: Bool
+    if let rootMeta = firstLoad.catalog.metadata {
+      do {
+        _ = try MetadataValidator.validate(rootMeta)
+        hasStrictMetadata = true
+      } catch {
+        hasStrictMetadata = false
+      }
+    } else {
+      hasStrictMetadata = true
+    }
     if hasStrictMetadata {
       let document = try firstLoad.catalog.toDocument()
       let fromDoc = try Catalog.fromDocument(document)

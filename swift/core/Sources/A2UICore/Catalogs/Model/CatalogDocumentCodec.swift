@@ -102,6 +102,7 @@ public enum CatalogDocumentCodec {
     )
 
     let model = CatalogModel(
+      schemaURI: try reader.optionalString("$schema"),
       formatVersion: formatVersion,
       catalogID: catalogID,
       protocolVersion: protocolVersion,
@@ -112,8 +113,7 @@ public enum CatalogDocumentCodec {
       types: types,
       surfaceProperties: surfaceProperties,
       components: components,
-      functions: functions,
-      schemaURI: try reader.optionalString("$schema")
+      functions: functions
     )
     try validateModelRefsAndCycles(model)
     return model

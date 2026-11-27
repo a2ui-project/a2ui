@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import A2UIJSON
 import Foundation
 import JSONSchema
 import OrderedCollections
@@ -819,11 +820,13 @@ internal enum ModelPayloadValidator {
     case .dataBinding:
       guard isDataBinding(value, isV10: context.isV10) else {
         errors.append(typeError(path, expected: "a DataBinding object"))
+        return
       }
 
     case .functionCall:
       guard isFunctionCall(value, isV10: context.isV10, v09ReturnType: nil) else {
         errors.append(typeError(path, expected: "a FunctionCall object"))
+        return
       }
 
     case .ref(let refName, _):
@@ -851,6 +854,7 @@ internal enum ModelPayloadValidator {
     case .child:
       guard case .string = value else {
         errors.append(typeError(path, expected: "a child component ID string"))
+        return
       }
 
     case .childList:

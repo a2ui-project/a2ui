@@ -917,7 +917,7 @@ struct CatalogModelTests {
       ],
       definition: childTreeDef
     )
-    #expect(refs.map(\.id) == ["c1", "c2", "c3"])
+    #expect(refs.map(\.referenceID) == ["c1", "c2", "c3"])
   }
 
   @Test func multipleAtLeastOneOfGroupsUseConjunctiveAllOfAndValidateBothGroups() throws {
@@ -1095,7 +1095,7 @@ struct CatalogModelTests {
       "components": [
         [
           "name": "Box",
-          "parameters": [["name": "data", "type": "any", "nullable": false, "default": nil]],
+          "parameters": [["name": "data", "type": "any", "nullable": false, "default": .null]],
         ]
       ],
     ]
@@ -1105,7 +1105,7 @@ struct CatalogModelTests {
     let nullTitle: JSONValue = [
       "formatVersion": "1.0",
       "catalogId": "https://example.com/null-title",
-      "title": nil,
+      "title": .null,
     ]
     #expect(throws: A2UICatalogError.self) { _ = try Catalog.fromDocument(nullTitle) }
 
