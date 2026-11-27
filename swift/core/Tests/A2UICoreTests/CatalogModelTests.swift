@@ -720,8 +720,11 @@ struct CatalogModelTests {
     let inlineCatalog = try #require(caps["1.0"]?["inlineCatalogs"]?.arrayValue?.first)
     #expect(inlineCatalog["catalogId"] == .string(loaded.id))
     #expect(inlineCatalog["$defs"]?["Weight"]?["type"] == .string("number"))
+    let inputAllOf = try #require(inlineCatalog["components"]?["Input"]?["allOf"]?.arrayValue)
+    #expect(inputAllOf.count == 2)
+    #expect(inputAllOf[0]["$ref"] == .string("common_types.json#/$defs/Checkable"))
     #expect(
-      inlineCatalog["components"]?["Input"]?["properties"]?["label"]?["$ref"]
+      inputAllOf[1]["properties"]?["label"]?["$ref"]
         == .string("common_types.json#/$defs/DynamicString"))
     #expect(
       inlineCatalog["components"]?["Label"]?["properties"]?["text"]?["oneOf"]?.arrayValue?.first?[
