@@ -774,6 +774,25 @@ void main() {
       );
     });
 
+    test('gives a v0.9.1 catalog the v0.9.1 message schema', () {
+      final String text = snippet(
+        catalogs: [
+          Catalog.fromJson({
+            'catalogId': 'https://example.com/v0_9_1.json',
+            'protocolVersion': '0.9.1',
+            'components': <String, Object?>{},
+          }),
+        ],
+      );
+      expect(
+        text,
+        contains(
+          '"\$id":"https://a2ui.org/specification/v0_9_1/server_to_client.json"',
+        ),
+      );
+      expect(text, contains('"version":{"enum":["v0.9","v0.9.1"]}'));
+    });
+
     test('embeds the common types and the catalog', () {
       final String text = snippet();
       expect(

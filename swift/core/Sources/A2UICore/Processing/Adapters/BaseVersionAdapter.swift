@@ -22,7 +22,6 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
   private static let validPathRegex = try! NSRegularExpression(
     pattern: "^(?:(?:/(?:[^~/]|~[01])*)*|(?:[^~/]|~[01])+(?:/(?:[^~/]|~[01])*)*)$"
   )
-  private static let maxFunctionDepth = 5
   private static let maxGlobalDepth = 50
 
   public let version: A2UIProtocolVersion
@@ -432,7 +431,6 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
   private struct PathRecursionState {
     let value: JSONValue
     let globalDepth: Int
-    let functionDepth: Int
     let validateExpressions: Bool
     let currentPath: String
   }
@@ -440,7 +438,6 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
   internal func validatePathsAndRecursion(
     _ value: JSONValue,
     globalDepth: Int = 0,
-    functionDepth: Int = 0,
     validateExpressions: Bool = true,
     currentPath: String = "messages.0"
   ) throws {
@@ -448,23 +445,17 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
       PathRecursionState(
         value: value,
         globalDepth: globalDepth,
-        functionDepth: functionDepth,
         validateExpressions: validateExpressions,
         currentPath: currentPath
       )
     ]
 
     while let current = stack.popLast() {
-      try checkRecursionDepths(current)
+      try checkRecursionDepth(current)
       switch current.value {
       case .object(let dictionary):
-        let nextFunctionDepth = try validateObjectExpressions(dictionary, state: current)
-        appendObjectChildren(
-          dictionary,
-          state: current,
-          nextFunctionDepth: nextFunctionDepth,
-          to: &stack
-        )
+        try validateObjectExpressions(dictionary, state: current)
+        appendObjectChildren(dictionary, state: current, to: &stack)
       case .array(let array):
         appendArrayChildren(array, state: current, to: &stack)
       default:
@@ -473,15 +464,10 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
     }
   }
 
-  private func checkRecursionDepths(_ state: PathRecursionState) throws {
+  private func checkRecursionDepth(_ state: PathRecursionState) throws {
     guard state.globalDepth <= Self.maxGlobalDepth else {
       throw A2UIRecursionError(
         "Global recursion limit exceeded: Depth > \(Self.maxGlobalDepth)"
-      )
-    }
-    if state.validateExpressions, state.functionDepth > Self.maxFunctionDepth {
-      throw A2UIRecursionError(
-        "Recursion limit exceeded: functionCall depth > \(Self.maxFunctionDepth)"
       )
     }
   }
@@ -489,8 +475,8 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
   private func validateObjectExpressions(
     _ dictionary: OrderedDictionary<String, JSONValue>,
     state: PathRecursionState
-  ) throws -> Int {
-    guard state.validateExpressions else { return state.functionDepth }
+  ) throws {
+    guard state.validateExpressions else { return }
     let pathKey = version.isAtLeastV10 ? "@path" : "path"
     if let path = dictionary[pathKey]?.stringValue ?? dictionary["path"]?.stringValue {
       try validateDynamicPathSyntax(path, at: state.currentPath)
@@ -502,10 +488,6 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
     {
       try throwInvalidFunctionIdentifier(callName, at: state.currentPath)
     }
-
-    let isFunctionCall =
-      dictionary[callKey] != nil || dictionary["call"] != nil || dictionary["function"] != nil
-    return isFunctionCall ? state.functionDepth + 1 : state.functionDepth
   }
 
   private func validateDynamicPathSyntax(_ path: String, at currentPath: String) throws {
@@ -548,7 +530,6 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
   private func appendObjectChildren(
     _ dictionary: OrderedDictionary<String, JSONValue>,
     state: PathRecursionState,
-    nextFunctionDepth: Int,
     to stack: inout [PathRecursionState]
   ) {
     for (key, propertyValue) in dictionary.reversed() {
@@ -560,7 +541,6 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
         PathRecursionState(
           value: propertyValue,
           globalDepth: state.globalDepth + 1,
-          functionDepth: nextFunctionDepth,
           validateExpressions: state.validateExpressions && !isRawDataPayload,
           currentPath: childPath
         )
@@ -579,7 +559,6 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
         PathRecursionState(
           value: item,
           globalDepth: state.globalDepth + 1,
-          functionDepth: state.functionDepth,
           validateExpressions: state.validateExpressions,
           currentPath: childPath
         )

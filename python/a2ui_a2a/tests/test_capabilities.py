@@ -16,14 +16,23 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
-from a2a.types import DataPart, Message, Part, Role, TextPart
+from a2a.types import Message, Part, Role
 import pytest
 
 from a2ui.a2a import renderer_capabilities_from_message
+from a2ui.a2a._compat import make_data_part, make_text_part
 from a2ui.core import A2uiCatalogError
 from a2ui.core.schema import ProtocolVersion
+
+
+def _user_role() -> Any:
+    """a2a-sdk 0.3 uses ``Role.user``; 1.x uses ``Role.ROLE_USER``."""
+    if hasattr(Role, "user"):
+        return Role.user
+    return Role.ROLE_USER
 
 
 def _make_message(
@@ -31,12 +40,14 @@ def _make_message(
     metadata: dict[str, Any] | None = None,
     parts: list[Part] | None = None,
 ) -> Message:
-    return Message(
-        message_id="msg-1",
-        role=Role.user,
-        parts=parts or [Part(root=TextPart(text="hello"))],
-        metadata=metadata,
-    )
+    fields: dict[str, Any] = {
+        "message_id": "msg-1",
+        "role": _user_role(),
+        "parts": parts or [make_text_part("hello")],
+    }
+    if metadata is not None:
+        fields["metadata"] = metadata
+    return Message(**fields)
 
 
 def test_message_metadata_wins_over_part_fallbacks() -> None:
@@ -45,21 +56,19 @@ def test_message_metadata_wins_over_part_fallbacks() -> None:
             "a2uiRendererCapabilities": {"1.0": {"supportedCatalogIds": ["cat-msg"]}}
         },
         parts=[
-            Part(
-                root=DataPart(
-                    data={
-                        "metadata": {
-                            "a2uiRendererCapabilities": {
-                                "1.0": {"supportedCatalogIds": ["cat-data"]}
-                            }
-                        }
-                    },
-                    metadata={
+            make_data_part(
+                data={
+                    "metadata": {
                         "a2uiRendererCapabilities": {
-                            "1.0": {"supportedCatalogIds": ["cat-part"]}
+                            "1.0": {"supportedCatalogIds": ["cat-data"]}
                         }
-                    },
-                )
+                    }
+                },
+                metadata={
+                    "a2uiRendererCapabilities": {
+                        "1.0": {"supportedCatalogIds": ["cat-part"]}
+                    }
+                },
             )
         ],
     )
@@ -71,21 +80,19 @@ def test_message_metadata_wins_over_part_fallbacks() -> None:
 def test_data_part_metadata_wins_over_legacy_data_dict_metadata() -> None:
     msg = _make_message(
         parts=[
-            Part(
-                root=DataPart(
-                    data={
-                        "metadata": {
-                            "a2uiClientCapabilities": {
-                                "v0.9": {"supportedCatalogIds": ["cat-data"]}
-                            }
-                        }
-                    },
-                    metadata={
+            make_data_part(
+                data={
+                    "metadata": {
                         "a2uiClientCapabilities": {
-                            "v0.9": {"supportedCatalogIds": ["cat-part"]}
+                            "v0.9": {"supportedCatalogIds": ["cat-data"]}
                         }
-                    },
-                )
+                    }
+                },
+                metadata={
+                    "a2uiClientCapabilities": {
+                        "v0.9": {"supportedCatalogIds": ["cat-part"]}
+                    }
+                },
             )
         ]
     )
@@ -97,16 +104,12 @@ def test_data_part_metadata_wins_over_legacy_data_dict_metadata() -> None:
 def test_legacy_data_part_dict_metadata_fallback() -> None:
     msg = _make_message(
         parts=[
-            Part(
-                root=DataPart(
-                    data={
-                        "metadata": {
-                            "a2uiClientCapabilities": {
-                                "supportedCatalogIds": ["cat-v08"]
-                            }
-                        }
+            make_data_part(
+                data={
+                    "metadata": {
+                        "a2uiClientCapabilities": {"supportedCatalogIds": ["cat-v08"]}
                     }
-                )
+                }
             )
         ]
     )
@@ -116,7 +119,7 @@ def test_legacy_data_part_dict_metadata_fallback() -> None:
 
 
 def test_legacy_fallback_ignores_non_mapping_data_metadata() -> None:
-    unrelated_part = Part(root=DataPart(data={"title": "doc", "metadata": "draft"}))
+    unrelated_part = make_data_part(data={"title": "doc", "metadata": "draft"})
     assert (
         renderer_capabilities_from_message(
             _make_message(parts=[unrelated_part]), ProtocolVersion.V1_0
@@ -124,16 +127,14 @@ def test_legacy_fallback_ignores_non_mapping_data_metadata() -> None:
         is None
     )
 
-    legacy_caps_part = Part(
-        root=DataPart(
-            data={
-                "metadata": {
-                    "a2uiRendererCapabilities": {
-                        "1.0": {"supportedCatalogIds": ["cat-v10"]}
-                    }
+    legacy_caps_part = make_data_part(
+        data={
+            "metadata": {
+                "a2uiRendererCapabilities": {
+                    "1.0": {"supportedCatalogIds": ["cat-v10"]}
                 }
             }
-        )
+        }
     )
     msg = _make_message(parts=[unrelated_part, legacy_caps_part])
     assert renderer_capabilities_from_message(msg, ProtocolVersion.V1_0) == {
@@ -168,3 +169,11 @@ def test_malformed_capabilities_raises_catalog_error() -> None:
     )
     with pytest.raises(A2uiCatalogError):
         renderer_capabilities_from_message(msg, ProtocolVersion.V1_0)
+
+
+@pytest.mark.parametrize("metadata", ["not a mapping", ["a"]])
+def test_malformed_message_metadata_raises_catalog_error(metadata: Any) -> None:
+    """Metadata that isn't a mapping fails loudly rather than being ignored."""
+    msg = SimpleNamespace(metadata=metadata, parts=[])
+    with pytest.raises(A2uiCatalogError, match="mapping"):
+        renderer_capabilities_from_message(msg, ProtocolVersion.V1_0)  # type: ignore[arg-type]

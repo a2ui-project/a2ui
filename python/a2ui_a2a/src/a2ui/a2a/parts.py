@@ -16,16 +16,15 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterable, Iterable, Mapping, Sequence
 import logging
-from typing import Any
+from typing import Any, Protocol
 
-from a2a.types import DataPart
 from a2a.types import Message
 from a2a.types import Part
-from a2a.types import TextPart as A2aTextPart
 from pydantic import BaseModel
 
 from a2ui.constants import A2UI_CLOSE_TAG
 from a2ui.constants import A2UI_OPEN_TAG
+from a2ui.core import to_protocol_version
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.direct_json import read_json
@@ -40,11 +39,32 @@ from a2ui.parser import TextPart
 from a2ui.utils import RendererState
 from a2ui.utils import to_version_number
 
+from . import _compat
+
 logger = logging.getLogger(__name__)
 
 MIME_TYPE_KEY = "mimeType"
 A2UI_MIME_TYPE = "application/a2ui+json"
 DEPRECATED_A2UI_MIME_TYPE = "application/json+a2ui"
+
+
+class A2uiDataPartView(Protocol):
+    """The data and metadata of an A2UI data Part, as `get_a2ui_datapart` returns.
+
+    On a2a-sdk 0.3 it is the Part's `DataPart`. On 1.x it is a read-only copy:
+    changing its dicts doesn't change the Part.
+    """
+
+    @property
+    def data(self) -> dict[str, Any]:
+        """The A2UI message."""
+        ...
+
+    @property
+    def metadata(self) -> dict[str, Any] | None:
+        """The Part's metadata, such as its `mimeType`."""
+        ...
+
 
 _BLOCK_LEXER = BlockLexer(
     open_tag=A2UI_OPEN_TAG,
@@ -59,17 +79,34 @@ _BLOCK_LEXER = BlockLexer(
 )
 
 
+def _wire_version(version: ProtocolVersion | str) -> str | None:
+    """Returns the `version` a message of a protocol version carries, if any.
+
+    v0.8 messages carry no `version`, and a version this SDK doesn't define
+    has no known wire form, so both give `None`.
+    """
+    try:
+        protocol_version = to_protocol_version(version)
+    except ValueError:
+        return None
+    if protocol_version is ProtocolVersion.V0_8:
+        return None
+    return str(protocol_version.value)
+
+
 def create_a2ui_part(
     a2ui_data: dict[str, Any], version: ProtocolVersion | str | None = None
 ) -> Part:
     """Creates an A2A Part containing A2UI data.
 
     Args:
-        a2ui_data: The A2UI data dictionary.
+        a2ui_data: The A2UI data dictionary. It isn't modified.
         version: The A2UI version: a `ProtocolVersion`, or a version string with
             or without a leading "v". Defaults to the message's own `version`
             field. Without either, or for v0.8 and v0.9, the part uses the
-            deprecated MIME type.
+            deprecated MIME type. For v0.9 and later, a message without a
+            `version` field gets the one this version requires, such as
+            `"v0.9"` or `"1.0"`. A message's own `version` field is kept.
 
     Returns:
         An A2A Part with a DataPart containing the A2UI data.
@@ -80,13 +117,16 @@ def create_a2ui_part(
     if version is None or to_version_number(version) in ("0.8", "0.9"):
         mime_type = DEPRECATED_A2UI_MIME_TYPE
 
-    return Part(
-        root=DataPart(
-            data=a2ui_data,
-            metadata={
-                MIME_TYPE_KEY: mime_type,
-            },
-        )
+    if version is not None and "version" not in a2ui_data:
+        wire_version = _wire_version(version)
+        if wire_version is not None:
+            a2ui_data = {"version": wire_version, **a2ui_data}
+
+    return _compat.make_data_part(
+        a2ui_data,
+        metadata={
+            MIME_TYPE_KEY: mime_type,
+        },
     )
 
 
@@ -99,26 +139,48 @@ def is_a2ui_part(part: Part) -> bool:
     Returns:
         True if the part contains A2UI data, False otherwise.
     """
-    return bool(
-        isinstance(part.root, DataPart)
-        and part.root.metadata
-        and part.root.metadata.get(MIME_TYPE_KEY)
-        in (A2UI_MIME_TYPE, DEPRECATED_A2UI_MIME_TYPE)
-    )
+    if part is None or not _compat.is_data_part(part):
+        return False
+    return _compat.part_metadata(part).get(MIME_TYPE_KEY) in (
+        A2UI_MIME_TYPE,
+        DEPRECATED_A2UI_MIME_TYPE,
+    ) or _compat.part_media_type(part) in (A2UI_MIME_TYPE, DEPRECATED_A2UI_MIME_TYPE)
 
 
-def get_a2ui_datapart(part: Part) -> DataPart | None:
-    """Extracts the DataPart containing A2UI data from an A2A Part, if present.
+def get_a2ui_datapart(part: Part) -> A2uiDataPartView | None:
+    """Extracts the data view containing A2UI data from an A2A Part, if present.
+
+    On a2a-sdk 0.3 this is the inner `DataPart`. On 1.x it is a read-only copy
+    with `data` and `metadata` dicts, whose metadata has the Part's
+    `media_type` as its `mimeType` when it has none, so existing readers keep
+    working. Use `get_a2ui_data` to read just the payload.
 
     Args:
         part: The A2A Part to extract A2UI data from.
 
     Returns:
-        The DataPart containing A2UI data if present, None otherwise.
+        The data view containing A2UI data if present, None otherwise. On 1.x a
+        Part whose data isn't a JSON object has none.
     """
-    if is_a2ui_part(part) and isinstance(part.root, DataPart):
-        return part.root
-    return None
+    if not is_a2ui_part(part):
+        return None
+    view: A2uiDataPartView | None = _compat.data_part_view(part)
+    return view
+
+
+def get_a2ui_data(part: Part) -> dict[str, Any] | None:
+    """Extracts the Python-native A2UI payload from an A2A Part, if present.
+
+    Args:
+        part: The A2A Part to extract A2UI data from.
+
+    Returns:
+        The A2UI message if the Part is an A2UI data Part holding a JSON
+        object, None otherwise.
+    """
+    if not is_a2ui_part(part):
+        return None
+    return _compat.data_part_dict(part)
 
 
 def get_a2ui_messages(source: Message | Iterable[Part]) -> list[dict[str, Any]]:
@@ -138,9 +200,9 @@ def get_a2ui_messages(source: Message | Iterable[Part]) -> list[dict[str, Any]]:
     parts = source.parts if isinstance(source, Message) else source
     messages: list[dict[str, Any]] = []
     for part in parts:
-        data_part = get_a2ui_datapart(part)
-        if data_part is not None:
-            messages.append(data_part.data)
+        data = get_a2ui_data(part)
+        if data is not None:
+            messages.append(data)
     return messages
 
 
@@ -206,7 +268,7 @@ def to_a2a_parts(
     parts: list[Part] = []
     for part in response_parts:
         if isinstance(part, TextPart) and part.text:
-            parts.append(Part(root=A2aTextPart(text=part.text)))
+            parts.append(_compat.make_text_part(part.text))
         elif isinstance(part, A2uiPart):
             for message in to_message_dicts(part.a2ui):
                 parts.append(create_a2ui_part(message, version=version))
@@ -251,7 +313,7 @@ def parse_content_to_parts(
         logger.debug("A2UI response parse error: %s", e)
 
     if not parts and fallback_text:
-        parts.append(Part(root=A2aTextPart(text=fallback_text)))
+        parts.append(_compat.make_text_part(fallback_text))
 
     return parts
 
@@ -285,7 +347,7 @@ def extract_a2ui_json_to_parts(
         for raw_part in _BLOCK_LEXER.tokenize(content):
             if isinstance(raw_part.part, TextPart):
                 if raw_part.part.text:
-                    parts.append(Part(root=A2aTextPart(text=raw_part.part.text)))
+                    parts.append(_compat.make_text_part(raw_part.part.text))
             elif isinstance(raw_part.part, RawA2uiPart):
                 if not raw_part.is_final:
                     logger.warning("Skipping unclosed A2UI JSON block.")
@@ -304,7 +366,7 @@ def extract_a2ui_json_to_parts(
         logger.debug("A2UI response parse error: %s", e)
 
     if not parts and fallback_text:
-        parts.append(Part(root=A2aTextPart(text=fallback_text)))
+        parts.append(_compat.make_text_part(fallback_text))
 
     return parts
 

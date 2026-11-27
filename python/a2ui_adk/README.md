@@ -15,7 +15,9 @@ pip install "a2ui-adk[a2a]"
 ```
 
 The `a2a` extra installs [`a2ui-a2a`](../a2ui_a2a/README.md) and
-`google-adk[a2a]`.
+`google-adk[a2a]`. It works with `a2a-sdk` 0.3 or 1.x; with 1.x, it needs
+`google-adk>=2.14.0`, the first release whose A2A executor speaks 1.x task
+states.
 
 ## Contents
 

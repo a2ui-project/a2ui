@@ -374,7 +374,6 @@ export {
   getComponentReferences,
   validateRecursionAndPaths,
   MAX_GLOBAL_DEPTH,
-  MAX_FUNC_CALL_DEPTH,
   RELAXED_PATH_PATTERN,
   type ChildRefAnalysis,
   type ChildRefAnalysisOptions,

@@ -25,6 +25,14 @@ from google.genai import types as genai_types
 
 from a2ui.a2a import get_a2ui_messages
 
+try:
+    from google.protobuf.json_format import ParseError  # type: ignore[import-untyped,unused-ignore]
+except ImportError:  # pragma: no cover - protobuf comes with google-adk.
+
+    class ParseError(Exception):  # type: ignore[no-redef]
+        """Stands in for protobuf's error when protobuf isn't installed."""
+
+
 CALL_AGENT_FUNCTION = "callAgentFunction"
 AGENT_FUNCTION_RESPONSE = "agentFunctionResponse"
 RENDERER_FUNCTION_RESPONSE = "rendererFunctionResponse"
@@ -76,9 +84,9 @@ def genai_part_a2ui_messages(part: genai_types.Part) -> list[dict[str, Any]]:
         return []
     try:
         a2a_part = part_converter.convert_genai_part_to_a2a_part(part)
-    except ValueError:
-        # Pydantic's `ValidationError` for a tagged payload that isn't a
-        # `DataPart`.
+    except (ValueError, ParseError):
+        # A tagged payload that isn't a `DataPart`: Pydantic's
+        # `ValidationError` on a2a-sdk 0.3, protobuf's `ParseError` on 1.x.
         return []
     return get_a2ui_messages([a2a_part]) if a2a_part is not None else []
 
