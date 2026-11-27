@@ -330,26 +330,42 @@ public final class MessageProcessor: ObservableObject {
     if !functionsDictionary.isEmpty {
       catalogDictionary["functions"] = .object(functionsDictionary)
     } else if !version.isAtLeastV10, !catalog.functions.isEmpty {
-      catalogDictionary["functions"] = .array(generateV09InlineFunctions(catalog))
+      catalogDictionary["functions"] = .array(generateV09InlineFunctions(catalog, version: version))
     }
 
-    if !version.isAtLeastV10, let themeSchema = catalog.themeSchema {
-      let schemaJSON = schemaToJSONValue(themeSchema) ?? .object([:])
-      let processedTheme = processRefs(schemaJSON)
-      catalogDictionary["theme"] = processedTheme["properties"] ?? processedTheme
+    if !version.isAtLeastV10 {
+      if let surfaceProperties = catalog.surfaceProperties, surfaceProperties.isCanonical {
+        let themeObj = CatalogJSONSchemaCodec.inlineSurfacePropertiesJSONSchema(
+          surfaceProperties,
+          version: version,
+          localTypes: catalog.types
+        )
+        catalogDictionary["theme"] = themeObj["properties"] ?? themeObj
+      } else if let themeSchema = catalog.themeSchema {
+        let schemaJSON = schemaToJSONValue(themeSchema) ?? .object([:])
+        let processedTheme = processRefs(schemaJSON)
+        catalogDictionary["theme"] = processedTheme["properties"] ?? processedTheme
+      }
     }
 
     if version.isAtLeastV10 {
       // `catalog_definition.json` requires `$defs` to hold both unions, even for a catalog with
       // no components or no functions.
-      catalogDictionary["$defs"] = .object([
+      var defs: OrderedDictionary<String, JSONValue> = [
         "anyComponent": inlineCatalogUnion(
           of: componentsDictionary.keys,
           in: "components",
           discriminator: "component"
         ),
         "anyFunction": inlineCatalogUnion(of: functionsDictionary.keys, in: "functions"),
-      ])
+      ]
+      for (name, schema) in CatalogJSONSchemaCodec.typeDefsJSONSchema(
+        catalog.types,
+        version: version
+      ) {
+        defs[name] = schema
+      }
+      catalogDictionary["$defs"] = .object(defs)
     }
 
     return .object(catalogDictionary)
@@ -386,6 +402,7 @@ public final class MessageProcessor: ObservableObject {
       componentsDictionary[name] = buildInlineComponentSchema(
         name: name,
         componentAPI: componentAPI,
+        catalogTypes: catalog.types,
         version: version,
         envelopeRef: envelopeRef
       )
@@ -396,9 +413,20 @@ public final class MessageProcessor: ObservableObject {
   private func buildInlineComponentSchema(
     name: String,
     componentAPI: AnyComponentAPI,
+    catalogTypes: [String: TypeDefinition],
     version: A2UIProtocolVersion,
     envelopeRef: String
   ) -> JSONValue {
+    let definition = componentAPI.definition
+    if definition.isCanonical {
+      return CatalogJSONSchemaCodec.inlineComponentJSONSchema(
+        definition,
+        version: version,
+        envelopeRef: envelopeRef,
+        localTypes: catalogTypes
+      )
+    }
+
     let schemaJSON = schemaToJSONValue(componentAPI.schema) ?? .object([:])
     let processedSchema = processRefs(schemaJSON)
 
@@ -465,7 +493,15 @@ public final class MessageProcessor: ObservableObject {
     for key in catalog.functions.keys.sorted() where !key.hasPrefix("@") {
       guard let functionImplementation = catalog.functions[key] else { continue }
       let functionAPI = functionImplementation.api
-      functionsDict[functionAPI.name] = buildV10InlineFunction(functionAPI)
+      let definition = functionAPI.definition
+      if definition.isCanonical {
+        functionsDict[functionAPI.name] = CatalogJSONSchemaCodec.inlineV10FunctionJSONSchema(
+          definition,
+          localTypes: catalog.types
+        )
+      } else {
+        functionsDict[functionAPI.name] = buildV10InlineFunction(functionAPI)
+      }
     }
     return functionsDict
   }
@@ -507,11 +543,25 @@ public final class MessageProcessor: ObservableObject {
     return .object(functionDefinition)
   }
 
-  private func generateV09InlineFunctions(_ catalog: AnyCatalog) -> [JSONValue] {
+  private func generateV09InlineFunctions(
+    _ catalog: AnyCatalog,
+    version: A2UIProtocolVersion
+  ) -> [JSONValue] {
     var functionsArray: [JSONValue] = []
     for key in catalog.functions.keys.sorted() {
       guard let functionImplementation = catalog.functions[key] else { continue }
       let functionAPI = functionImplementation.api
+      let definition = functionAPI.definition
+      if definition.isCanonical {
+        functionsArray.append(
+          CatalogJSONSchemaCodec.inlineV09FunctionJSONSchema(
+            definition,
+            version: version,
+            localTypes: catalog.types
+          )
+        )
+        continue
+      }
       let schemaJSON = schemaToJSONValue(functionAPI.schema) ?? .object([:])
       let processedParameters = processRefs(schemaJSON)
 
@@ -1320,7 +1370,7 @@ public final class MessageProcessor: ObservableObject {
       catalogID =
         ComponentEnvelope.catalogIDEntry(
           in: component,
-          defaultCatalogSchema: defaultCatalogSchema(for: component, on: surface)
+          defaultCatalogComponent: defaultCatalogComponent(for: component, on: surface)
         )?.value.stringValue ?? surface.defaultCatalogID
     } else {
       catalogID = surface.defaultCatalogID
@@ -1331,13 +1381,13 @@ public final class MessageProcessor: ObservableObject {
     return result
   }
 
-  /// The schema of a component's type in the surface default catalog, or nil.
-  private func defaultCatalogSchema(
+  /// The component API of a component's type in the surface default catalog, or nil.
+  private func defaultCatalogComponent(
     for component: [String: JSONValue],
     on surface: SurfaceViewModel
-  ) -> JSONValue? {
+  ) -> (any ComponentAPI)? {
     guard let type = component["component"]?.stringValue else { return nil }
-    return surface.getCatalog(id: surface.defaultCatalogID)?.components[type]?.schema.jsonValue
+    return surface.getCatalog(id: surface.defaultCatalogID)?.components[type]
   }
 
   /// Returns a v1.0 component with the legacy bare `catalogId` that routes it renamed to
@@ -1355,7 +1405,7 @@ public final class MessageProcessor: ObservableObject {
     guard
       let entry = ComponentEnvelope.catalogIDEntry(
         in: component,
-        defaultCatalogSchema: defaultCatalogSchema(for: component, on: surface)
+        defaultCatalogComponent: defaultCatalogComponent(for: component, on: surface)
       ),
       entry.key == mixin.bareKey
     else {
@@ -1374,14 +1424,17 @@ public final class MessageProcessor: ObservableObject {
     on surface: SurfaceViewModel
   ) -> [String] {
     guard let type = component["component"]?.stringValue else { return [] }
-    let schema = GraphTopologyValidator.lookupComponentAPI(
-      type: type,
+    let targetCatalog = GraphTopologyValidator.lookupCatalog(
       catalogID: component["@catalogId"]?.stringValue ?? surface.defaultCatalogID,
       catalogs: surface.catalogs,
       defaultCatalogID: surface.defaultCatalogID
-    )?.schema.jsonValue
-    return GraphTopologyValidator.extractReferences(from: component, schema: schema)
-      .map(\.referenceID)
+    )
+    return GraphTopologyValidator.extractReferences(
+      from: component,
+      componentAPI: targetCatalog?.components[type],
+      types: targetCatalog?.types ?? [:]
+    )
+    .map(\.referenceID)
   }
 
   private func validateBatchComponent(
@@ -1466,7 +1519,7 @@ public final class MessageProcessor: ObservableObject {
     if surface.protocolVersion.isAtLeastV10 {
       let entry = ComponentEnvelope.catalogIDEntry(
         in: componentDict,
-        defaultCatalogSchema: defaultCatalogSchema(for: componentDict, on: surface)
+        defaultCatalogComponent: defaultCatalogComponent(for: componentDict, on: surface)
       )
       componentCatalogID = try resolveV10CatalogID(
         entry?.value,
@@ -1830,10 +1883,12 @@ public final class MessageProcessor: ObservableObject {
     id: String,
     catalog: AnyCatalog?
   ) throws -> ComponentEnvelope {
-    let schema = componentDict["component"]?.stringValue.flatMap {
-      catalog?.components[$0]?.schema.jsonValue
-    }
-    return try ComponentEnvelope(component: componentDict, schema: schema, componentID: id)
+    let componentAPI = componentDict["component"]?.stringValue.flatMap { catalog?.components[$0] }
+    return try ComponentEnvelope(
+      component: componentDict,
+      componentAPI: componentAPI,
+      componentID: id
+    )
   }
 
   private func findCatalog(

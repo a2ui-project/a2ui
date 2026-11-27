@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import A2UIJSON
 import Foundation
-import JSONSchema
 import OrderedCollections
 import OrderedJSON
 
@@ -262,19 +260,24 @@ public final class DataContext {
     guard var resolvedArguments = resolveArguments(of: dict) else {
       return .null
     }
-    if let argPropsSchema = function.api.schema.jsonValue["properties"]?.objectValue {
-      for (argKey, resolvedVal) in resolvedArguments {
-        if let propSchema = argPropsSchema[argKey] {
-          resolvedArguments[argKey] = Self.coerceValidationResults(
-            schema: propSchema,
-            value: resolvedVal
-          )
-        }
-      }
-    }
-    // A v1.0 call whose arguments don't match the function's schema is refused, not run.
+    let catalogTypes = functionHandler?.catalogTypes(forCatalogID: resolvedCatalogID) ?? [:]
+    let functionDef = function.api.definition
+    resolvedArguments = ModelPayloadValidator.coerceValidationResults(
+      in: resolvedArguments,
+      definition: functionDef,
+      types: catalogTypes
+    )
+    // A v1.0 call whose arguments don't match the function's definition is refused, not run.
     if atLeastV10 {
-      guard Self.areLocalArgumentsValid(resolvedArguments, schema: function.api.schema) else {
+      let argErrors = ModelPayloadValidator.validateFunctionArguments(
+        resolvedArguments,
+        definition: functionDef,
+        types: catalogTypes,
+        protocolVersion: protocolVersion ?? .v10,
+        allowDynamicExpressions: false,
+        allowNullValues: true
+      )
+      guard argErrors.isEmpty else {
         functionHandler?.handleFunctionError(
           A2UIValidationError(
             "Validation failed for function '\(callName)': the arguments do not match its schema."
@@ -304,17 +307,6 @@ public final class DataContext {
       recordFailedCall()
       return .null
     }
-  }
-
-  private static func isDynamicExpressionBranch(_ schema: JSONValue) -> Bool {
-    if let ref = schema["$ref"]?.stringValue {
-      return ref.hasSuffix("/$defs/DataBinding") || ref.hasSuffix("/$defs/FunctionCall")
-    }
-    if let props = schema["properties"]?.objectValue, props["componentId"] == nil {
-      return props["@path"] != nil || props["path"] != nil
-        || props["@call"] != nil || props["call"] != nil
-    }
-    return false
   }
 
   /// Records a function call that failed with a reported error: it has no value, so a call that
@@ -407,20 +399,27 @@ public final class DataContext {
       return .null
     }
     if let declaration {
-      let schema = declaration.api.schema
-      if let argPropsSchema = schema.jsonValue["properties"]?.objectValue {
-        for (argKey, resolvedVal) in arguments {
-          if let propSchema = argPropsSchema[argKey] {
-            arguments[argKey] = Self.coerceValidationResults(
-              schema: propSchema,
-              value: resolvedVal
-            )
-          }
-        }
-      }
-      arguments = Self.applyingArgumentDefaults(of: schema.jsonValue, to: arguments)
-      let result = schema.validate(.object(OrderedDictionary(uniqueKeysWithValues: arguments)))
-      guard result.isValid else {
+      let catalogTypes = functionHandler?.catalogTypes(forCatalogID: catalogID) ?? [:]
+      let def = declaration.api.definition
+      arguments = ModelPayloadValidator.coerceValidationResults(
+        in: arguments,
+        definition: def,
+        types: catalogTypes
+      )
+      arguments = ModelPayloadValidator.applyingArgumentDefaults(
+        of: def,
+        types: catalogTypes,
+        to: arguments
+      )
+      let argErrors = ModelPayloadValidator.validateFunctionArguments(
+        arguments,
+        definition: def,
+        types: catalogTypes,
+        protocolVersion: protocolVersion ?? .v10,
+        allowDynamicExpressions: false,
+        allowNullValues: false
+      )
+      guard argErrors.isEmpty else {
         functionHandler?.handleFunctionError(
           A2UIValidationError(
             "Validation failed for function '\(callName)': the arguments do not match its schema."
@@ -439,55 +438,6 @@ public final class DataContext {
     return value
   }
 
-  private static func isDynamicBooleanSchema(_ schema: JSONValue) -> Bool {
-    if let ref = schema["$ref"]?.stringValue, ref.hasSuffix("/$defs/DynamicBoolean") {
-      return true
-    }
-    if schema["type"]?.stringValue == "boolean" {
-      return true
-    }
-    if let allOf = schema["allOf"]?.arrayValue,
-      allOf.contains(where: { isDynamicBooleanSchema($0) })
-    {
-      return true
-    }
-    for keyword in ["oneOf", "anyOf"] {
-      if let subSchemas = schema[keyword]?.arrayValue {
-        let hasBoolean = subSchemas.contains(where: { isDynamicBooleanSchema($0) })
-        let onlyBooleanOrDynamic = subSchemas.allSatisfy {
-          isDynamicBooleanSchema($0)
-            || $0["type"]?.stringValue == "null"
-            || isDynamicExpressionBranch($0)
-        }
-        if hasBoolean && onlyBooleanOrDynamic {
-          return true
-        }
-      }
-    }
-    return false
-  }
-
-  private static func coerceValidationResults(schema: JSONValue, value: JSONValue) -> JSONValue {
-    if isDynamicBooleanSchema(schema) {
-      return .boolean(value.coercedDynamicBoolean)
-    }
-    if let itemsSchema = schema["items"], let arr = value.arrayValue {
-      return .array(arr.map { coerceValidationResults(schema: itemsSchema, value: $0) })
-    }
-    if let propsSchema = schema["properties"]?.objectValue, let obj = value.objectValue {
-      var coerced: OrderedDictionary<String, JSONValue> = [:]
-      for (k, v) in obj {
-        if let propSchema = propsSchema[k] {
-          coerced[k] = coerceValidationResults(schema: propSchema, value: v)
-        } else {
-          coerced[k] = v
-        }
-      }
-      return .object(coerced)
-    }
-    return value
-  }
-
   /// Whether `value` has a JSON form: it holds no NaN or infinite number.
   private static func isJSONRepresentable(_ value: JSONValue) -> Bool {
     switch value {
@@ -500,122 +450,6 @@ public final class DataContext {
     case .string, .integer, .boolean, .null:
       return true
     }
-  }
-
-  /// Adds the `default` of each property in an argument schema that `arguments` lacks, and of
-  /// the properties of each object argument whose schema declares properties, recursively.
-  private static func applyingArgumentDefaults(
-    of schemaJSON: JSONValue,
-    to arguments: [String: JSONValue]
-  ) -> [String: JSONValue] {
-    guard let properties = schemaJSON["properties"]?.dictionaryValue else { return arguments }
-    var result = arguments
-    for (name, propertySchema) in properties {
-      if let value = result[name] {
-        result[name] = applyingDefaults(of: propertySchema, to: value)
-      } else if let defaultValue = propertySchema["default"] {
-        result[name] = defaultValue
-      }
-    }
-    return result
-  }
-
-  /// Adds the property defaults of `schemaJSON` to `value` if it is an object, recursively.
-  private static func applyingDefaults(of schemaJSON: JSONValue, to value: JSONValue) -> JSONValue {
-    guard case .object(var members) = value, schemaJSON["properties"] != nil else { return value }
-    let completed = applyingArgumentDefaults(
-      of: schemaJSON,
-      to: Dictionary(uniqueKeysWithValues: members.map { ($0.key, $0.value) })
-    )
-    for (key, member) in completed {
-      members[key] = member
-    }
-    return .object(members)
-  }
-
-  /// Checks whether `arguments` match `schema`, leaving `null` argument values (such as a data
-  /// binding whose path has no value yet) for the function to handle.
-  private static func areLocalArgumentsValid(
-    _ arguments: [String: JSONValue],
-    schema: Schema
-  ) -> Bool {
-    let argumentObject = JSONValue.object(OrderedDictionary(uniqueKeysWithValues: arguments))
-    guard containsNull(argumentObject) else {
-      return schema.validate(argumentObject).isValid
-    }
-    guard
-      let relaxedSchema = try? Schema(
-        rawSchema: allowingNullValues(in: schema.jsonValue),
-        context: A2UISchemaRegistry.makeContext()
-      )
-    else {
-      return schema.validate(argumentObject).isValid
-    }
-    return relaxedSchema.validate(argumentObject).isValid
-  }
-
-  /// Whether `value` is `null` or holds `null` in an array or object.
-  private static func containsNull(_ value: JSONValue) -> Bool {
-    switch value {
-    case .null:
-      return true
-    case .array(let elements):
-      return elements.contains(where: containsNull)
-    case .object(let members):
-      return members.values.contains(where: containsNull)
-    case .string, .number, .integer, .boolean:
-      return false
-    }
-  }
-
-  /// Returns an object schema like `schema` whose properties and array items also accept `null`.
-  private static func allowingNullValues(in schema: JSONValue) -> JSONValue {
-    guard case .object(var members) = schema else { return schema }
-    if case .object(var properties) = members["properties"] {
-      for (name, propertySchema) in properties {
-        properties[name] = acceptingNull(in: propertySchema)
-      }
-      members["properties"] = .object(properties)
-    }
-    for combiner in ["allOf", "anyOf", "oneOf"] {
-      if case .array(let branches) = members[combiner] {
-        members[combiner] = .array(branches.map(allowingNullValues))
-      }
-    }
-    return .object(members)
-  }
-
-  /// Returns a value schema like `schema` that also accepts `null`, recursively in `items` and
-  /// `properties`.
-  private static func acceptingNull(in schema: JSONValue) -> JSONValue {
-    guard case .object(var members) = schema else { return schema }
-    if let items = members["items"] {
-      members["items"] = acceptingNull(in: items)
-    }
-    if case .object(var properties) = members["properties"] {
-      for (name, propertySchema) in properties {
-        properties[name] = acceptingNull(in: propertySchema)
-      }
-      members["properties"] = .object(properties)
-    }
-    if members["enum"] == nil && members["const"] == nil {
-      switch members["type"] {
-      case .string(let typeName) where typeName != "null":
-        members["type"] = .array([.string(typeName), .string("null")])
-        return .object(members)
-      case .array(var types) where !types.contains(.string("null")):
-        types.append(.string("null"))
-        members["type"] = .array(types)
-        return .object(members)
-      case .string, .array:
-        return .object(members)
-      default:
-        break
-      }
-    }
-    return .object([
-      "anyOf": .array([.object(members), .object(["type": .string("null")])])
-    ])
   }
   /// Looks up the function a v1.0 call runs, reporting any failure to the function handler.
   ///

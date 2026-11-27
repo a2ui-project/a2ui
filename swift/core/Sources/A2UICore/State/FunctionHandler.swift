@@ -48,6 +48,9 @@ public protocol FunctionHandler: AnyObject, Sendable {
   ///   default catalog), or `nil` when calls are not routed to the agent.
   func agentFunctionCatalogID(forCallCatalogID catalogID: String?) -> String?
 
+  /// Returns the catalog-local reusable leaf types declared by the resolved catalog, if any.
+  func catalogTypes(forCatalogID catalogID: String?) -> [String: TypeDefinition]
+
   /// Sends a call to the agent, returning its result if it is already available.
   ///
   /// ``DataContext`` calls this for each call it routes to the agent. The handler reports an agent
@@ -71,6 +74,10 @@ extension FunctionHandler {
 
   public func agentFunctionCatalogID(forCallCatalogID catalogID: String?) -> String? {
     nil
+  }
+
+  public func catalogTypes(forCatalogID catalogID: String?) -> [String: TypeDefinition] {
+    [:]
   }
 
   public func agentFunctionValue(for call: AgentFunctionCall) -> JSONValue? {
