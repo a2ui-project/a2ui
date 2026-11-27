@@ -20,7 +20,7 @@
   - Export frozen catalog model dataclasses (`CatalogModel`, `ComponentDefinition`, `FunctionDefinition`, `ParameterDefinition`, `SurfacePropertiesDefinition`, `VoidReturnType`, `ValidationResultReturnType`, and the 18-variant `TypeDefinition` union) from `a2ui.core` and `a2ui.core.catalog`.
   - Export Catalog Document codec helpers (`CATALOG_DOCUMENT_FORMAT_VERSION`, `CATALOG_DOCUMENT_SCHEMA_URI`, `is_catalog_document`, `parse_catalog_document`, `serialize_catalog_document`) and bidirectional JSON Schema / Pydantic adapters (`from_json_schema`, `to_json_schema`, `component_definition_from_pydantic`, `function_definition_from_pydantic`).
   - Add pure in-memory authoring and Catalog Document entry points on `Catalog`, `ComponentApi`, and `FunctionApi` (`Catalog.from_model`, `Catalog.from_document`, `catalog.model`, `catalog.to_document()`, `catalog.to_json_schema()`, `ComponentApi.from_definition`, `FunctionApi.from_definition`), with `Catalog.from_json` auto-detecting Catalog Documents alongside JSON Schema catalogs.
-  - Add native model-backed component reference analysis (`analyze_component_definition_refs`), binding classification (`classify_definition_behavior`, `GenericBinder(..., definition=...)`), and payload validation (`validate_component_definition`, `validate_function_definition`, `validate_surface_properties_definition`).
+  - Add native model-backed component reference analysis (`analyze_component_definition_refs`), binding classification (`classify_definition_behavior`, `GenericBinder(..., definition=...)`), and payload validation (`validate_component_definition`, `validate_function_definition`, `validate_surface_properties_definition`) ([#4432](https://github.com/a2ui-project/a2ui/pull/4432)).
 
 ## 0.7.1 (2026-11-23)
 
