@@ -49,9 +49,8 @@ enum A2uiReturnType {
   /// unrecognized or extension return types (such as a name a future protocol
   /// version adds).
   static A2uiReturnType fromJson(String value) {
-    if (value == 'void') return void_;
     for (final A2uiReturnType candidate in values) {
-      if (candidate.name == value) return candidate;
+      if (candidate.jsonValue == value) return candidate;
     }
     return any;
   }
@@ -158,22 +157,46 @@ class FunctionReturnDefinition {
     return returnType.jsonValue;
   }
 
-  @override
-  bool operator ==(Object other) =>
-      other is FunctionReturnDefinition &&
-      other.returnType == returnType &&
-      other.isIntegerShorthand == isIntegerShorthand &&
-      other.type == type &&
-      other.description == description;
+  /// Normalized structured type used so `shorthand(string, description: 'x')`
+  /// compares equal to `typed(StringType(description: 'x'))` after round-trip.
+  TypeDefinition? get _normalizedType {
+    if (type != null) return type;
+    if (description == null) return null;
+    if (isIntegerShorthand) return IntegerType(description: description);
+    return switch (returnType) {
+      A2uiReturnType.string => StringType(description: description),
+      A2uiReturnType.number => NumberType(description: description),
+      A2uiReturnType.boolean => BooleanType(description: description),
+      A2uiReturnType.array => ArrayType(description: description),
+      A2uiReturnType.object => ObjectType(description: description),
+      A2uiReturnType.any => AnyType(description: description),
+      A2uiReturnType.void_ || A2uiReturnType.validationResult => null,
+    };
+  }
 
   @override
-  int get hashCode => Object.hash(
-    FunctionReturnDefinition,
-    returnType,
-    isIntegerShorthand,
-    type,
-    description,
-  );
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! FunctionReturnDefinition) return false;
+    final TypeDefinition? a = _normalizedType;
+    final TypeDefinition? b = other._normalizedType;
+    if (a != null || b != null) return a == b;
+    return other.returnType == returnType &&
+        other.isIntegerShorthand == isIntegerShorthand &&
+        other.description == description;
+  }
+
+  @override
+  int get hashCode {
+    final TypeDefinition? norm = _normalizedType;
+    if (norm != null) return Object.hash(FunctionReturnDefinition, norm);
+    return Object.hash(
+      FunctionReturnDefinition,
+      returnType,
+      isIntegerShorthand,
+      description,
+    );
+  }
 }
 
 /// Schema for customizable surface-level data properties (maps to v0.9
@@ -203,7 +226,8 @@ class SurfacePropertiesDefinition {
   bool get allowsAdditionalProperties =>
       additionalProperties || additionalPropertiesType != null;
 
-  @internal
+  /// Whether this definition or any nested property wraps a
+  /// [RawJsonSchemaType].
   bool get containsRawJsonSchema =>
       rawSchema != null ||
       properties.any((p) => p.type.containsRawJsonSchema) ||
@@ -301,7 +325,7 @@ class ComponentDefinition {
       if (param.required) param.name,
   ];
 
-  @internal
+  /// Whether this component or any parameter wraps a [RawJsonSchemaType].
   bool get containsRawJsonSchema =>
       rawSchema != null || parameters.any((p) => p.type.containsRawJsonSchema);
 
@@ -428,7 +452,7 @@ class FunctionDefinition {
       if (param.required) param.name,
   ];
 
-  @internal
+  /// Whether this function or any parameter wraps a [RawJsonSchemaType].
   bool get containsRawJsonSchema =>
       rawArgumentSchema != null ||
       parameters.any((p) => p.type.containsRawJsonSchema) ||
@@ -441,8 +465,8 @@ class FunctionDefinition {
       other.name == name &&
       other.description == description &&
       other.returnType == returnType &&
-      other.declaredAllowedCallers == declaredAllowedCallers &&
-      other.declaredRequiresUserActivation == declaredRequiresUserActivation &&
+      other.allowedCallers == allowedCallers &&
+      other.requiresUserActivation == requiresUserActivation &&
       _deepEquals.equals(other.parameters, parameters) &&
       _deepEquals.equals(other.atLeastOneOf, atLeastOneOf) &&
       other.additionalParameters == additionalParameters &&
@@ -457,8 +481,8 @@ class FunctionDefinition {
     name,
     description,
     returnType,
-    declaredAllowedCallers,
-    declaredRequiresUserActivation,
+    allowedCallers,
+    requiresUserActivation,
     _deepEquals.hash(parameters),
     _deepEquals.hash(atLeastOneOf),
     additionalParameters,
@@ -561,7 +585,8 @@ class CatalogModel {
     return current;
   }
 
-  @internal
+  /// Whether any type, surface property, component, or function in this model
+  /// wraps a [RawJsonSchemaType].
   bool get containsRawJsonSchema =>
       types.values.any((t) => t.containsRawJsonSchema) ||
       (surfaceProperties?.containsRawJsonSchema ?? false) ||

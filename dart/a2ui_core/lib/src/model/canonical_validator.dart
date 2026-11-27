@@ -25,23 +25,79 @@ import 'type_definition.dart';
 /// Direct canonical validator over [TypeDefinition], [ComponentDefinition],
 /// [FunctionDefinition], and [SurfacePropertiesDefinition].
 ///
-/// Validates wire payloads and resolved function arguments without allocating
-/// JSON Schema documents, avoiding `json_schema_builder` workarounds (such as
-/// Unicode `\p{XID_Start}` and URI format quirks) and falling back to
-/// `json_schema_builder` only for [RawJsonSchemaType] legacy escape hatches.
+/// Validates wire payloads and resolved function arguments directly over the
+/// canonical AST, falling back to `json_schema_builder` only for
+/// [RawJsonSchemaType] legacy escape hatches.
 @internal
 final class CanonicalValidator {
   static const DeepCollectionEquality _deepEquals = DeepCollectionEquality();
   static final RegExp _uriPattern = RegExp(r'^[A-Za-z][A-Za-z0-9+.-]*:\S*$');
   static final RegExp _reservedKeyPattern = RegExp(r'^@([^@]|$)');
-  static final RegExp _datePattern = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+  static final RegExp _datePattern = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$');
   static final RegExp _timePattern = RegExp(
-    r'^\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$',
+    r'^(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|([+-])(\d{2}):(\d{2}))$',
   );
   static final RegExp _dateTimePattern = RegExp(
-    r'^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$',
+    r'^(\d{4})-(\d{2})-(\d{2})[Tt ](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?'
+    r'(?:[Zz]|([+-])(\d{2}):(\d{2}))$',
   );
   static final RegExp _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+  static const ObjectType _accessibilitySchema = ObjectType(
+    properties: [
+      ParameterDefinition(name: 'label', type: StringType(dynamic: true)),
+      ParameterDefinition(name: 'description', type: StringType(dynamic: true)),
+    ],
+  );
+  static const ObjectType _childListTemplateSchema = ObjectType(
+    properties: [
+      ParameterDefinition(
+        name: 'componentId',
+        type: StringType(),
+        required: true,
+      ),
+      ParameterDefinition(name: 'path', type: StringType(), required: true),
+    ],
+  );
+  static const ObjectType _actionEventV1Schema = ObjectType(
+    properties: [
+      ParameterDefinition(name: 'name', type: StringType(), required: true),
+      ParameterDefinition(name: 'userMessage', type: StringType(dynamic: true)),
+      ParameterDefinition(
+        name: 'context',
+        type: ObjectType(additionalPropertiesType: AnyType(dynamic: true)),
+      ),
+    ],
+  );
+  static const ObjectType _actionEventV09Schema = ObjectType(
+    properties: [
+      ParameterDefinition(name: 'name', type: StringType(), required: true),
+      ParameterDefinition(
+        name: 'context',
+        type: ObjectType(additionalPropertiesType: AnyType(dynamic: true)),
+      ),
+    ],
+  );
+  static const ObjectType _checkRuleV1Schema = ObjectType(
+    properties: [
+      ParameterDefinition(
+        name: 'condition',
+        type: UnionType(variants: [DataBindingType(), FunctionCallType()]),
+        required: true,
+      ),
+      ParameterDefinition(name: 'message', type: StringType()),
+    ],
+  );
+  static const ObjectType _checkRuleV09Schema = ObjectType(
+    properties: [
+      ParameterDefinition(
+        name: 'condition',
+        type: BooleanType(dynamic: true),
+        required: true,
+      ),
+      ParameterDefinition(name: 'message', type: StringType(), required: true),
+    ],
+  );
 
   final Map<String, TypeDefinition> types;
   final bool atLeastV1;
@@ -54,245 +110,89 @@ final class CanonicalValidator {
   });
 
   /// Validates a component's non-envelope properties against [definition].
-  ///
-  /// Unknown-property enforcement is left to `PayloadValidator` so
-  /// `ValidationConfig.allowUnknownElements` and component-level envelope rules
-  /// keep identical behavior.
   List<ValidationError> validateComponentProperties(
     ComponentDefinition definition,
     Map<String, Object?> target,
-  ) {
-    final errors = <ValidationError>[];
-    for (final ParameterDefinition param in definition.parameters) {
-      if (param.required && !target.containsKey(param.name)) {
-        errors.add(
-          ValidationError(
-            ValidationErrorType.requiredPropertyMissing,
-            path: const [],
-            details: 'Required property "${param.name}" is missing',
-          ),
-        );
-      }
-    }
-    _checkAtLeastOneOf(definition.atLeastOneOf, target, const [], errors);
-    for (final MapEntry<String, Object?> entry in target.entries) {
-      final ParameterDefinition? param = definition.parameter(entry.key);
-      if (param == null) continue;
-      _validateValue(
-        entry.value,
-        param.type,
-        <String>[entry.key],
-        errors,
-        allowValidationResultInBool: false,
-      );
-    }
-    return errors;
-  }
+  ) => _ValidationRun(this).runObject(
+    target,
+    parameters: definition.parameters,
+    atLeastOneOf: definition.atLeastOneOf,
+    additionalFlag: true,
+    additionalType: null,
+  );
 
   /// Validates a function call's wire `args` map against [definition].
-  ///
-  /// When [ignoreNullArgs] is `true` (runtime `Catalog.invoke` /
-  /// `argumentErrors`), null argument entries are skipped as unresolved
-  /// bindings, and when [allowValidationResultInBool] is `true`,
-  /// `{valid: bool}` maps are accepted in `DynamicBoolean` positions.
   List<ValidationError> validateFunctionArgs(
     FunctionDefinition definition,
     Map<String, Object?> args, {
     bool ignoreNullArgs = false,
     bool allowValidationResultInBool = false,
-  }) {
-    final errors = <ValidationError>[];
-    final Set<String> unresolved = ignoreNullArgs
-        ? {
-            for (final MapEntry<String, Object?> entry in args.entries)
-              if (entry.value == null) entry.key,
-          }
-        : const <String>{};
-
-    for (final ParameterDefinition param in definition.parameters) {
-      if (param.required &&
-          !args.containsKey(param.name) &&
-          !unresolved.contains(param.name)) {
-        errors.add(
-          ValidationError(
-            ValidationErrorType.requiredPropertyMissing,
-            path: const [],
-            details: 'Required property "${param.name}" is missing',
-          ),
-        );
-      }
-    }
-
-    if (definition.atLeastOneOf != null) {
-      final effective = <String, Object?>{
-        for (final MapEntry<String, Object?> entry in args.entries)
-          if (!unresolved.contains(entry.key)) entry.key: entry.value,
-      };
-      // In runtime invoke mode, a group whose member is unresolved (null)
-      // should not fail prematurely.
-      for (final List<String> group in definition.atLeastOneOf!) {
-        final bool satisfied =
-            group.any(effective.containsKey) ||
-            (ignoreNullArgs && group.any(unresolved.contains));
-        if (!satisfied) {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.anyOfNotMet,
-              path: const [],
-              details: 'At least one of ${group.join(', ')} is required',
-            ),
-          );
-        }
-      }
-    }
-
-    for (final MapEntry<String, Object?> entry in args.entries) {
-      if (unresolved.contains(entry.key)) continue;
-      final ParameterDefinition? param = definition.parameter(entry.key);
-      if (param != null) {
-        _validateValue(
-          entry.value,
-          param.type,
-          <String>[entry.key],
-          errors,
-          allowValidationResultInBool: allowValidationResultInBool,
-        );
-      } else if (definition.additionalParametersType != null) {
-        _validateValue(
-          entry.value,
-          definition.additionalParametersType!,
-          <String>[entry.key],
-          errors,
-          allowValidationResultInBool: allowValidationResultInBool,
-        );
-      } else if (!definition.additionalParameters) {
-        errors.add(
-          ValidationError(
-            ValidationErrorType.unevaluatedPropertyNotAllowed,
-            path: <String>[entry.key],
-            details: 'Additional property "${entry.key}" is not allowed',
-          ),
-        );
-      }
-    }
-    return errors;
-  }
+  }) =>
+      _ValidationRun(
+        this,
+        allowValidationResultInBool: allowValidationResultInBool,
+      ).runObject(
+        args,
+        parameters: definition.parameters,
+        atLeastOneOf: definition.atLeastOneOf,
+        additionalFlag: definition.additionalParameters,
+        additionalType: definition.additionalParametersType,
+        ignoreNullValues: ignoreNullArgs,
+        unknownErrorType: ValidationErrorType.unevaluatedPropertyNotAllowed,
+      );
 
   /// Validates a surface's `theme` / `surfaceProperties` object.
   List<ValidationError> validateSurfaceProperties(
     SurfacePropertiesDefinition definition,
     Map<String, Object?> value,
-  ) {
-    final errors = <ValidationError>[];
-    for (final ParameterDefinition param in definition.properties) {
-      if (param.required && !value.containsKey(param.name)) {
-        errors.add(
-          ValidationError(
-            ValidationErrorType.requiredPropertyMissing,
-            path: const [],
-            details: 'Required property "${param.name}" is missing',
-          ),
-        );
-      }
-    }
-    for (final MapEntry<String, Object?> entry in value.entries) {
-      ParameterDefinition? declared;
-      for (final ParameterDefinition p in definition.properties) {
-        if (p.name == entry.key) {
-          declared = p;
-          break;
-        }
-      }
-      if (declared != null) {
-        _validateValue(
-          entry.value,
-          declared.type,
-          <String>[entry.key],
-          errors,
-          allowValidationResultInBool: false,
-        );
-      } else if (definition.additionalPropertiesType != null) {
-        _validateValue(
-          entry.value,
-          definition.additionalPropertiesType!,
-          <String>[entry.key],
-          errors,
-          allowValidationResultInBool: false,
-        );
-      } else if (!definition.additionalProperties) {
-        errors.add(
-          ValidationError(
-            ValidationErrorType.additionalPropertyNotAllowed,
-            path: <String>[entry.key],
-            details: 'Additional property "${entry.key}" is not allowed',
-          ),
-        );
-      }
-    }
-    return errors;
-  }
+  ) => _ValidationRun(this).runObject(
+    value,
+    parameters: definition.properties,
+    atLeastOneOf: null,
+    additionalFlag: definition.additionalProperties,
+    additionalType: definition.additionalPropertiesType,
+  );
 
   /// Validates a v1.0 component `@accessibility` / `accessibility` object.
-  List<ValidationError> validateAccessibility(Object? value) {
-    final errors = <ValidationError>[];
-    _validateAccessibility(value, const [], errors);
-    return errors;
-  }
+  List<ValidationError> validateAccessibility(Object? value) =>
+      _ValidationRun(this).runValue(value, _accessibilitySchema);
 
   /// Validates a v1.0 component `@checks` / `checks` array.
-  List<ValidationError> validateChecks(Object? value) {
-    final errors = <ValidationError>[];
-    if (value is! List) {
-      errors.add(
-        ValidationError.typeMismatch(
-          path: const [],
-          expectedType: 'array',
-          actualValue: value,
-        ),
+  List<ValidationError> validateChecks(Object? value) => _ValidationRun(this)
+      .runValue(
+        value,
+        ArrayType(items: atLeastV1 ? _checkRuleV1Schema : _checkRuleV09Schema),
       );
-      return errors;
-    }
-    for (var i = 0; i < value.length; i++) {
-      _validateCheckRule(value[i], <String>['$i'], errors);
-    }
-    return errors;
-  }
 
   /// Validates a v1.0 component `@metadata` / `metadata` object natively with
   /// full Unicode UAX #31 extension key support.
   List<ValidationError> validateMetadata(Object? value) {
-    final errors = <ValidationError>[];
+    final run = _ValidationRun(this);
     if (value is! Map) {
-      errors.add(
-        ValidationError.typeMismatch(
-          path: const [],
-          expectedType: 'object',
-          actualValue: value,
-        ),
-      );
-      return errors;
+      run.typeErr(const [], 'object', value);
+      return run.errors;
     }
     for (final MapEntry<Object?, Object?> entry in value.entries) {
       final key = '${entry.key}';
       if (key != 'extensions') {
-        errors.add(
-          ValidationError(
-            ValidationErrorType.additionalPropertyNotAllowed,
-            path: <String>[key],
-            details: 'Additional property "$key" is not allowed',
-          ),
-        );
+        run.err(ValidationErrorType.additionalPropertyNotAllowed, [
+          key,
+        ], 'Additional property "$key" is not allowed');
       } else if (entry.value is! Map) {
-        errors.add(
-          ValidationError.typeMismatch(
-            path: const ['extensions'],
-            expectedType: 'object',
-            actualValue: entry.value,
-          ),
-        );
+        run.typeErr(const ['extensions'], 'object', entry.value);
+      } else {
+        for (final Object? extKey in (entry.value! as Map).keys) {
+          final k = '$extKey';
+          if (!isValidUax31Identifier(k)) {
+            run.err(ValidationErrorType.patternMismatch, [
+              'extensions',
+              k,
+            ], 'Extension key "$k" must be a valid UAX #31 identifier');
+          }
+        }
       }
     }
-    return errors;
+    return run.errors;
   }
 
   /// Coerces [ValidationResult] objects in `DynamicBoolean` argument positions
@@ -305,9 +205,9 @@ final class CanonicalValidator {
     var changed = false;
     final coerced = <String, dynamic>{};
     for (final MapEntry<String, dynamic> entry in args.entries) {
-      final ParameterDefinition? param = definition.parameter(entry.key);
       final TypeDefinition? type =
-          param?.type ?? definition.additionalParametersType;
+          definition.parameter(entry.key)?.type ??
+          definition.additionalParametersType;
       final Object? result = type == null
           ? entry.value
           : _coerceTypeValue(type, types, entry.value, <String>{});
@@ -326,325 +226,466 @@ final class CanonicalValidator {
     switch (type) {
       case RefType(:final ref):
         if (!visitedRefs.add(ref)) return value;
-        final TypeDefinition? target = types[ref];
-        return target == null
-            ? value
-            : _coerceTypeValue(target, types, value, visitedRefs);
+        try {
+          final TypeDefinition? target = types[ref];
+          return target == null
+              ? value
+              : _coerceTypeValue(target, types, value, visitedRefs);
+        } finally {
+          visitedRefs.remove(ref);
+        }
       case BooleanType(dynamic: true):
         return coerceDynamicBoolean(value);
       case ArrayType(:final items) when items != null && value is List:
         var changed = false;
-        final out = <Object?>[];
-        for (final Object? item in value) {
-          final Object? coerced = _coerceTypeValue(
-            items,
-            types,
-            item,
-            visitedRefs,
-          );
-          if (!identical(coerced, item)) changed = true;
-          out.add(coerced);
-        }
+        final out = <Object?>[
+          for (final Object? item in value)
+            () {
+              final Object? c = _coerceTypeValue(
+                items,
+                types,
+                item,
+                visitedRefs,
+              );
+              if (!identical(c, item)) changed = true;
+              return c;
+            }(),
+        ];
         return changed ? out : value;
-      case ObjectType(:final properties, :final additionalPropertiesType)
-          when value is Map:
+      case ObjectType(:final additionalPropertiesType) when value is Map:
         var changed = false;
         final out = <String, Object?>{};
         for (final MapEntry<Object?, Object?> entry in value.entries) {
           final key = '${entry.key}';
-          ParameterDefinition? declared;
-          for (final p in properties) {
-            if (p.name == key) {
-              declared = p;
-              break;
-            }
-          }
           final TypeDefinition? propType =
-              declared?.type ?? additionalPropertiesType;
-          final Object? coerced = propType == null
+              type.property(key)?.type ?? additionalPropertiesType;
+          final Object? c = propType == null
               ? entry.value
               : _coerceTypeValue(propType, types, entry.value, visitedRefs);
-          if (!identical(coerced, entry.value)) changed = true;
-          out[key] = coerced;
+          if (!identical(c, entry.value)) changed = true;
+          out[key] = c;
         }
         return changed ? out : value;
-      default:
+      case UnionType(:final variants):
+        for (final variant in variants) {
+          final Object? c = _coerceTypeValue(
+            variant,
+            types,
+            value,
+            visitedRefs,
+          );
+          if (!identical(c, value)) return c;
+        }
+        return value;
+      case StringType() ||
+          NumberType() ||
+          IntegerType() ||
+          BooleanType() ||
+          EnumType() ||
+          ConstType() ||
+          AnyType() ||
+          ObjectType() ||
+          ArrayType() ||
+          DataBindingType() ||
+          FunctionCallType() ||
+          ChildType() ||
+          ChildListType() ||
+          ActionType() ||
+          CheckRuleType() ||
+          AccessibilityType() ||
+          RawJsonSchemaType():
         return value;
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Core recursive value validation
-  // ---------------------------------------------------------------------------
+  static bool _isValidationResultMap(Object? value) =>
+      value is ValidationResult ||
+      (value is Map &&
+          value['valid'] is bool &&
+          value.keys.every(
+            (k) =>
+                k == 'valid' ||
+                k == 'message' ||
+                k == 'code' ||
+                k == 'severity',
+          ));
 
-  void _validateValue(
-    Object? value,
-    TypeDefinition type,
-    List<String> path,
-    List<ValidationError> errors, {
-    required bool allowValidationResultInBool,
+  static bool _matchesFormat(String value, String format) => switch (format) {
+    'uri' || 'iri' => _uriPattern.hasMatch(value),
+    'date' => _isValidCalendarDate(value),
+    'time' => _isValidRfc3339Time(value),
+    'date-time' => _isValidRfc3339DateTime(value),
+    'email' => _emailPattern.hasMatch(value),
+    _ => true,
+  };
+
+  static bool _validDate(int y, int m, int d) {
+    if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+    final dt = DateTime.utc(y, m, d);
+    return dt.year == y && dt.month == m && dt.day == d;
+  }
+
+  static bool _validTime(
+    int h,
+    int min,
+    int sec,
+    String? sign,
+    String? oh,
+    String? om,
+  ) =>
+      h <= 23 &&
+      min <= 59 &&
+      sec <= 60 &&
+      (sign == null || (int.parse(oh!) <= 23 && int.parse(om!) <= 59));
+
+  static bool _isValidCalendarDate(String value) {
+    final RegExpMatch? m = _datePattern.firstMatch(value);
+    return m != null &&
+        _validDate(
+          int.parse(m.group(1)!),
+          int.parse(m.group(2)!),
+          int.parse(m.group(3)!),
+        );
+  }
+
+  static bool _isValidRfc3339Time(String value) {
+    final RegExpMatch? m = _timePattern.firstMatch(value);
+    return m != null &&
+        _validTime(
+          int.parse(m.group(1)!),
+          int.parse(m.group(2)!),
+          int.parse(m.group(3)!),
+          m.group(4),
+          m.group(5),
+          m.group(6),
+        );
+  }
+
+  static bool _isValidRfc3339DateTime(String value) {
+    final RegExpMatch? m = _dateTimePattern.firstMatch(value);
+    return m != null &&
+        _validDate(
+          int.parse(m.group(1)!),
+          int.parse(m.group(2)!),
+          int.parse(m.group(3)!),
+        ) &&
+        _validTime(
+          int.parse(m.group(4)!),
+          int.parse(m.group(5)!),
+          int.parse(m.group(6)!),
+          m.group(7),
+          m.group(8),
+          m.group(9),
+        );
+  }
+}
+
+final class _ValidationRun {
+  _ValidationRun(
+    this.v, {
+    this.allowValidationResultInBool = false,
     Set<String>? visitedRefs,
+  }) : visitedRefs = visitedRefs ?? <String>{};
+
+  final CanonicalValidator v;
+  final bool allowValidationResultInBool;
+  final Set<String> visitedRefs;
+  final List<ValidationError> errors = [];
+
+  bool get _v1 => v.atLeastV1;
+
+  void err(ValidationErrorType type, List<String> path, String? details) =>
+      errors.add(ValidationError(type, path: path, details: details));
+
+  void typeErr(List<String> path, String expected, Object? actual) =>
+      errors.add(
+        ValidationError.typeMismatch(
+          path: path,
+          expectedType: expected,
+          actualValue: actual,
+        ),
+      );
+
+  List<ValidationError> runValue(Object? value, TypeDefinition type) {
+    _validateValue(value, type, const []);
+    return errors;
+  }
+
+  List<ValidationError> runObject(
+    Map<Object?, Object?> map, {
+    required List<ParameterDefinition> parameters,
+    required List<List<String>>? atLeastOneOf,
+    required bool additionalFlag,
+    required TypeDefinition? additionalType,
+    bool ignoreNullValues = false,
+    ValidationErrorType unknownErrorType =
+        ValidationErrorType.additionalPropertyNotAllowed,
   }) {
+    _validateObjectProperties(
+      map,
+      parameters: parameters,
+      atLeastOneOf: atLeastOneOf,
+      additionalFlag: additionalFlag,
+      additionalType: additionalType,
+      path: const [],
+      ignoreNullValues: ignoreNullValues,
+      unknownErrorType: unknownErrorType,
+    );
+    return errors;
+  }
+
+  void _validateObjectProperties(
+    Map<Object?, Object?> map, {
+    required List<ParameterDefinition> parameters,
+    required List<List<String>>? atLeastOneOf,
+    required bool additionalFlag,
+    required TypeDefinition? additionalType,
+    required List<String> path,
+    bool ignoreNullValues = false,
+    ValidationErrorType unknownErrorType =
+        ValidationErrorType.additionalPropertyNotAllowed,
+  }) {
+    final Set<String> unresolved = ignoreNullValues
+        ? {
+            for (final MapEntry<Object?, Object?> e in map.entries)
+              if (e.value == null) '${e.key}',
+          }
+        : const <String>{};
+
+    for (final p in parameters) {
+      if (p.required &&
+          !map.containsKey(p.name) &&
+          !unresolved.contains(p.name)) {
+        err(
+          ValidationErrorType.requiredPropertyMissing,
+          path,
+          'Required property "${p.name}" is missing',
+        );
+      }
+    }
+
+    if (atLeastOneOf != null) {
+      for (final List<String> group in atLeastOneOf) {
+        final bool ok =
+            group.any((k) => map.containsKey(k) && !unresolved.contains(k)) ||
+            (ignoreNullValues && group.any(unresolved.contains));
+        if (!ok) {
+          err(
+            ValidationErrorType.anyOfNotMet,
+            path,
+            'At least one of ${group.join(', ')} is required',
+          );
+        }
+      }
+    }
+
+    final byName = <String, ParameterDefinition>{
+      for (final p in parameters) p.name: p,
+    };
+    for (final MapEntry<Object?, Object?> entry in map.entries) {
+      final key = '${entry.key}';
+      if (unresolved.contains(key)) continue;
+      final childPath = [...path, key];
+      if (byName[key] case final ParameterDefinition declared) {
+        _validateValue(entry.value, declared.type, childPath);
+      } else if (additionalType != null) {
+        _validateValue(entry.value, additionalType, childPath);
+      } else if (!additionalFlag) {
+        err(
+          unknownErrorType,
+          childPath,
+          'Additional property "$key" is not allowed',
+        );
+      }
+    }
+  }
+
+  void _validateValue(Object? value, TypeDefinition type, List<String> path) {
     if (type is RefType) {
-      final Set<String> seen = visitedRefs ?? <String>{};
-      if (!seen.add(type.ref)) return;
-      final TypeDefinition? target = types[type.ref];
-      if (target == null) {
-        errors.add(
-          ValidationError(
-            ValidationErrorType.refResolutionError,
-            path: path,
-            details: "Unresolved local type reference '${type.ref}'",
-          ),
+      if (!visitedRefs.add(type.ref)) {
+        err(
+          ValidationErrorType.custom,
+          path,
+          "Cyclic local type reference '${type.ref}'",
         );
         return;
       }
-      _validateValue(
-        value,
-        target,
-        path,
-        errors,
-        allowValidationResultInBool: allowValidationResultInBool,
-        visitedRefs: seen,
-      );
+      try {
+        final TypeDefinition? resolved = v.types[type.ref];
+        if (resolved == null) {
+          err(
+            ValidationErrorType.custom,
+            path,
+            "Unresolved local type reference '${type.ref}'",
+          );
+          return;
+        }
+        _validateValue(value, resolved, path);
+      } finally {
+        visitedRefs.remove(type.ref);
+      }
       return;
     }
 
-    if (type.isDynamic &&
-        type is! DataBindingType &&
-        type is! FunctionCallType &&
-        type is! AnyType) {
-      final String? expectedReturn = _expectedReturnTypeFor(type);
-      if (_isValidDynamicExpr(value, expectedReturnType: expectedReturn)) {
-        return;
-      }
-      // If it looks like a malformed binding or function call, validate it
-      // specifically so the error is actionable.
-      if (_looksLikeBinding(value)) {
-        _validateDataBinding(value, path, errors);
-        return;
-      }
-      if (_looksLikeFunctionCall(value)) {
-        _validateFunctionCall(
-          value,
-          path,
-          errors,
-          expectedReturnType: expectedReturn,
-        );
-        return;
+    if (type.isDynamic && value is Map) {
+      final String? expectedRet = _expectedDynamicReturnType(type);
+      if (_isValidDynamicExpr(value, expectedReturnType: expectedRet)) return;
+      // Avoid hijacking literal pre-v1.0 ObjectTypes that declare `path`/`call`
+      // or UnionTypes that may match another branch.
+      final bool allowShortCircuit = switch (type) {
+        ObjectType() =>
+          _v1 ||
+              (value.length == 1 &&
+                  type.property('path') == null &&
+                  type.property('call') == null),
+        UnionType() => false,
+        _ => true,
+      };
+      if (allowShortCircuit) {
+        if (_looksLikeBinding(value)) {
+          _validateDataBinding(value, path);
+          return;
+        }
+        if (_looksLikeFunctionCall(value)) {
+          _validateFunctionCall(value, path, expectedReturnType: expectedRet);
+          return;
+        }
       }
     }
 
     switch (type) {
       case StringType(
-        :final formats,
+        :final allFormats,
         :final pattern,
         :final minLength,
         :final maxLength,
       ):
-        if (value is! String) {
-          errors.add(
-            ValidationError.typeMismatch(
-              path: path,
-              expectedType: 'string',
-              actualValue: value,
-            ),
-          );
-          return;
-        }
-        if (minLength != null && value.length < minLength) {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.minLengthNotMet,
-              path: path,
-              details: 'String length ${value.length} is less than $minLength',
-            ),
+        if (value is! String) return typeErr(path, 'string', value);
+        final int cp = value.runes.length;
+        if (minLength != null && cp < minLength) {
+          err(
+            ValidationErrorType.minLengthNotMet,
+            path,
+            'String length $cp is less than minimum $minLength',
           );
         }
-        if (maxLength != null && value.length > maxLength) {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.maxLengthExceeded,
-              path: path,
-              details: 'String length ${value.length} exceeds $maxLength',
-            ),
+        if (maxLength != null && cp > maxLength) {
+          err(
+            ValidationErrorType.maxLengthExceeded,
+            path,
+            'String length $cp exceeds maximum $maxLength',
           );
         }
         if (pattern != null) {
-          final regex = RegExp(pattern, unicode: true);
-          if (!regex.hasMatch(value)) {
-            errors.add(
-              ValidationError(
+          try {
+            if (!RegExp(pattern, unicode: true).hasMatch(value)) {
+              err(
                 ValidationErrorType.patternMismatch,
-                path: path,
-                details: 'String "$value" does not match pattern "$pattern"',
-              ),
+                path,
+                'String "$value" does not match pattern "$pattern"',
+              );
+            }
+          } on FormatException catch (e) {
+            err(
+              ValidationErrorType.patternMismatch,
+              path,
+              'Invalid pattern "$pattern": ${e.message}',
             );
           }
         }
-        if (formats != null && formats.isNotEmpty) {
-          final bool matched = formats.any((f) => _matchesFormat(value, f));
-          if (!matched) {
-            errors.add(
-              ValidationError(
-                ValidationErrorType.formatInvalid,
-                path: path,
-                details:
-                    'String "$value" does not match format '
-                    '${formats.join(' | ')}',
-              ),
-            );
-          }
+        if (allFormats.isNotEmpty &&
+            !allFormats.any(
+              (f) => CanonicalValidator._matchesFormat(value, f),
+            )) {
+          err(
+            ValidationErrorType.formatInvalid,
+            path,
+            'String "$value" does not match format '
+            '${allFormats.map((f) => '"$f"').join(' or ')}',
+          );
         }
 
       case NumberType(:final min, :final max):
-        if (value is! num) {
-          errors.add(
-            ValidationError.typeMismatch(
-              path: path,
-              expectedType: 'number',
-              actualValue: value,
-            ),
-          );
-          return;
-        }
+        if (value is! num) return typeErr(path, 'number', value);
         if (min != null && value < min) {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.minimumNotMet,
-              path: path,
-              details: 'Value $value is less than minimum $min',
-            ),
+          err(
+            ValidationErrorType.minimumNotMet,
+            path,
+            'Value $value is less than minimum $min',
           );
         }
         if (max != null && value > max) {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.maximumExceeded,
-              path: path,
-              details: 'Value $value exceeds maximum $max',
-            ),
+          err(
+            ValidationErrorType.maximumExceeded,
+            path,
+            'Value $value exceeds maximum $max',
           );
         }
 
       case IntegerType(:final min, :final max):
-        if (value is! int) {
-          errors.add(
-            ValidationError.typeMismatch(
-              path: path,
-              expectedType: 'integer',
-              actualValue: value,
-            ),
+        final bool isInt =
+            value is int ||
+            (value is double &&
+                value.isFinite &&
+                value == value.truncateToDouble());
+        if (!isInt) return typeErr(path, 'integer', value);
+        final numVal = value as num;
+        if (min != null && numVal < min) {
+          err(
+            ValidationErrorType.minimumNotMet,
+            path,
+            'Value $numVal is less than minimum $min',
           );
+        }
+        if (max != null && numVal > max) {
+          err(
+            ValidationErrorType.maximumExceeded,
+            path,
+            'Value $numVal exceeds maximum $max',
+          );
+        }
+
+      case BooleanType(:final dynamic):
+        if (value is bool) return;
+        if (dynamic &&
+            allowValidationResultInBool &&
+            CanonicalValidator._isValidationResultMap(value)) {
           return;
         }
-        if (min != null && value < min) {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.minimumNotMet,
-              path: path,
-              details: 'Value $value is less than minimum $min',
-            ),
-          );
-        }
-        if (max != null && value > max) {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.maximumExceeded,
-              path: path,
-              details: 'Value $value exceeds maximum $max',
-            ),
-          );
-        }
-
-      case BooleanType():
-        if (value is bool) return;
-        if (allowValidationResultInBool && _isValidityMap(value)) return;
-        errors.add(
-          ValidationError.typeMismatch(
-            path: path,
-            expectedType: 'boolean',
-            actualValue: value,
-          ),
-        );
+        typeErr(path, 'boolean', value);
 
       case EnumType(:final values):
-        if (!values.any((v) => v == value)) {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.enumValueNotAllowed,
-              path: path,
-              details: 'Value "$value" is not in allowed enum values $values',
-            ),
+        if (!values.any((allowed) => allowed == value)) {
+          err(
+            ValidationErrorType.enumValueNotAllowed,
+            path,
+            'Value "$value" is not in allowed enum values $values',
           );
         }
 
-      case ConstType(value: final Object? expected):
+      case ConstType(value: final expected):
         if (value != expected) {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.constMismatch,
-              path: path,
-              details: 'Value "$value" does not match const "$expected"',
-            ),
+          err(
+            ValidationErrorType.constMismatch,
+            path,
+            'Expected constant value "$expected", got "$value"',
           );
         }
 
       case AnyType(:final dynamic, :final nullable):
         if (value == null) {
-          if (!nullable) {
-            errors.add(
-              ValidationError.typeMismatch(
-                path: path,
-                expectedType: 'non-null',
-                actualValue: value,
-              ),
-            );
-          }
+          if (!nullable) typeErr(path, 'non-null value', value);
           return;
         }
-        if (dynamic && !nullable) {
-          // Matches common_types.json#/$defs/DynamicValue.
-          if (value is String ||
-              value is num ||
-              value is bool ||
-              value is List) {
-            return;
-          }
-          if (value is Map) {
-            if (_isValidDynamicExpr(value)) return;
-            if (_looksLikeBinding(value)) {
-              _validateDataBinding(value, path, errors);
-              return;
-            }
-            if (_looksLikeFunctionCall(value)) {
-              _validateFunctionCall(value, path, errors);
-              return;
-            }
-            if (!atLeastV1) {
-              // v0.9 DynamicValue forbids plain objects.
-              errors.add(
-                ValidationError.typeMismatch(
-                  path: path,
-                  expectedType: 'DynamicValue',
-                  actualValue: value,
-                ),
-              );
-              return;
-            }
-            // v1.0 DynamicValue accepts plain objects without single-@ keys.
-            for (final Object? key in value.keys) {
-              if (key is String && _reservedKeyPattern.hasMatch(key)) {
-                errors.add(
-                  ValidationError(
-                    ValidationErrorType.propertyNamesInvalid,
-                    path: [...path, key],
-                    details: 'Reserved directive key "$key" not allowed here',
-                  ),
-                );
-              }
-            }
-            return;
+        if (value is Map && !dynamic) {
+          if (_isValidDynamicExpr(value)) {
+            err(
+              ValidationErrorType.typeMismatch,
+              path,
+              'Dynamic expression is not allowed for static any type',
+            );
+          } else if (_v1) {
+            _validateNoReservedKeys(value, path);
           }
         }
 
@@ -654,60 +695,15 @@ final class CanonicalValidator {
         :final additionalPropertiesType,
         :final atLeastOneOf,
       ):
-        if (value is! Map) {
-          errors.add(
-            ValidationError.typeMismatch(
-              path: path,
-              expectedType: 'object',
-              actualValue: value,
-            ),
-          );
-          return;
-        }
-        final map = <String, Object?>{
-          for (final MapEntry<Object?, Object?> e in value.entries)
-            '${e.key}': e.value,
-        };
-        for (final prop in properties) {
-          if (prop.required && !map.containsKey(prop.name)) {
-            errors.add(
-              ValidationError(
-                ValidationErrorType.requiredPropertyMissing,
-                path: path,
-                details: 'Required property "${prop.name}" is missing',
-              ),
-            );
-          }
-        }
-        _checkAtLeastOneOf(atLeastOneOf, map, path, errors);
-        for (final MapEntry<String, Object?> entry in map.entries) {
-          final ParameterDefinition? prop = type.property(entry.key);
-          if (prop != null) {
-            _validateValue(
-              entry.value,
-              prop.type,
-              [...path, entry.key],
-              errors,
-              allowValidationResultInBool: allowValidationResultInBool,
-            );
-          } else if (additionalPropertiesType != null) {
-            _validateValue(
-              entry.value,
-              additionalPropertiesType,
-              [...path, entry.key],
-              errors,
-              allowValidationResultInBool: allowValidationResultInBool,
-            );
-          } else if (!additionalProperties) {
-            errors.add(
-              ValidationError(
-                ValidationErrorType.additionalPropertyNotAllowed,
-                path: [...path, entry.key],
-                details: 'Additional property "${entry.key}" is not allowed',
-              ),
-            );
-          }
-        }
+        if (value is! Map) return typeErr(path, 'object', value);
+        _validateObjectProperties(
+          value,
+          parameters: properties,
+          atLeastOneOf: atLeastOneOf,
+          additionalFlag: additionalProperties,
+          additionalType: additionalPropertiesType,
+          path: path,
+        );
 
       case ArrayType(
         :final items,
@@ -715,45 +711,29 @@ final class CanonicalValidator {
         :final maxItems,
         :final uniqueItems,
       ):
-        if (value is! List) {
-          errors.add(
-            ValidationError.typeMismatch(
-              path: path,
-              expectedType: 'array',
-              actualValue: value,
-            ),
-          );
-          return;
-        }
+        if (value is! List) return typeErr(path, 'array', value);
         if (minItems != null && value.length < minItems) {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.minItemsNotMet,
-              path: path,
-              details: 'Array length ${value.length} is less than $minItems',
-            ),
+          err(
+            ValidationErrorType.minItemsNotMet,
+            path,
+            'Array length ${value.length} is less than minimum $minItems',
           );
         }
         if (maxItems != null && value.length > maxItems) {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.maxItemsExceeded,
-              path: path,
-              details: 'Array length ${value.length} exceeds $maxItems',
-            ),
+          err(
+            ValidationErrorType.maxItemsExceeded,
+            path,
+            'Array length ${value.length} exceeds maximum $maxItems',
           );
         }
         if (uniqueItems) {
           for (var i = 0; i < value.length; i++) {
             for (int j = i + 1; j < value.length; j++) {
-              if (_deepEquals.equals(value[i], value[j])) {
-                errors.add(
-                  ValidationError(
-                    ValidationErrorType.uniqueItemsViolated,
-                    path: [...path, '$j'],
-                    details: 'Duplicate array item at index $j',
-                  ),
-                );
+              if (CanonicalValidator._deepEquals.equals(value[i], value[j])) {
+                err(ValidationErrorType.uniqueItemsViolated, [
+                  ...path,
+                  '$j',
+                ], 'Array items must be unique');
                 break;
               }
             }
@@ -761,688 +741,253 @@ final class CanonicalValidator {
         }
         if (items != null) {
           for (var i = 0; i < value.length; i++) {
-            _validateValue(
-              value[i],
-              items,
-              [...path, '$i'],
-              errors,
-              allowValidationResultInBool: allowValidationResultInBool,
-            );
+            _validateValue(value[i], items, [...path, '$i']);
           }
         }
 
       case UnionType(:final variants, :final exclusive):
         var matches = 0;
         for (final variant in variants) {
-          final branchErrors = <ValidationError>[];
-          _validateValue(
-            value,
-            variant,
-            path,
-            branchErrors,
+          final probe = _ValidationRun(
+            v,
             allowValidationResultInBool: allowValidationResultInBool,
-          );
-          if (branchErrors.isEmpty) matches++;
+            visitedRefs: visitedRefs,
+          ).._validateValue(value, variant, path);
+          if (probe.errors.isEmpty) matches++;
         }
-        if (exclusive) {
-          if (matches != 1) {
-            errors.add(
-              ValidationError(
-                ValidationErrorType.oneOfNotMet,
-                path: path,
-                details:
-                    'Expected value to match exactly one variant '
-                    '(matched $matches)',
-              ),
-            );
-          }
-        } else {
-          if (matches == 0) {
-            errors.add(
-              ValidationError(
-                ValidationErrorType.anyOfNotMet,
-                path: path,
-                details: 'Value matched none of the allowed variants',
-              ),
-            );
-          }
+        if (exclusive && matches != 1) {
+          err(
+            ValidationErrorType.oneOfNotMet,
+            path,
+            'Value must match exactly one variant (matched $matches)',
+          );
+        } else if (!exclusive && matches == 0) {
+          err(
+            ValidationErrorType.anyOfNotMet,
+            path,
+            'Value did not match any allowed union variant',
+          );
         }
 
       case DataBindingType():
-        _validateDataBinding(value, path, errors);
-
+        _validateDataBinding(value, path);
       case FunctionCallType():
-        _validateFunctionCall(value, path, errors);
-
-      case RefType():
-        break; // Handled above.
-
+        _validateFunctionCall(value, path);
       case ChildType():
-        if (value is! String) {
-          errors.add(
-            ValidationError.typeMismatch(
-              path: path,
-              expectedType: 'string',
-              actualValue: value,
-            ),
-          );
-        }
-
+        if (value is! String) typeErr(path, 'string', value);
       case ChildListType():
-        _validateChildList(value, path, errors);
-
-      case ActionType():
-        _validateAction(value, path, errors);
-
-      case CheckRuleType():
-        _validateCheckRule(value, path, errors);
-
-      case AccessibilityType():
-        _validateAccessibility(value, path, errors);
-
-      case RawJsonSchemaType(:final schema):
-        final List<ValidationError> rawErrors = Schema.fromMap(schema)
-            .validateSync(value, strictFormat: true);
-        for (final err in rawErrors) {
-          errors.add(
-            ValidationError(
-              err.error,
-              path: [...path, ...err.path],
-              details: err.details,
-            ),
+        if (value is List) {
+          for (var i = 0; i < value.length; i++) {
+            if (value[i] is! String) {
+              typeErr([...path, '$i'], 'string', value[i]);
+            }
+          }
+        } else if (value is Map) {
+          _validateValue(
+            value,
+            CanonicalValidator._childListTemplateSchema,
+            path,
           );
+        } else {
+          typeErr(path, 'ChildList', value);
         }
+      case ActionType():
+        if (value is! Map) return typeErr(path, 'Action', value);
+        final bool hasEvent = value.containsKey('event');
+        final bool hasFn = value.containsKey('functionCall');
+        if (hasEvent == hasFn || value.length != 1) {
+          err(
+            ValidationErrorType.oneOfNotMet,
+            path,
+            'Action must have exactly one of "event" or "functionCall"',
+          );
+          return;
+        }
+        if (hasEvent) {
+          _validateValue(
+            value['event'],
+            _v1
+                ? CanonicalValidator._actionEventV1Schema
+                : CanonicalValidator._actionEventV09Schema,
+            [...path, 'event'],
+          );
+        } else {
+          _validateFunctionCall(value['functionCall'], [
+            ...path,
+            'functionCall',
+          ]);
+        }
+      case CheckRuleType():
+        _validateValue(
+          value,
+          _v1
+              ? CanonicalValidator._checkRuleV1Schema
+              : CanonicalValidator._checkRuleV09Schema,
+          path,
+        );
+      case AccessibilityType():
+        _validateValue(value, CanonicalValidator._accessibilitySchema, path);
+      case RawJsonSchemaType(:final schema):
+        for (final ValidationError e in Schema.fromMap(
+          schema,
+        ).validateSync(value)) {
+          err(e.error, [...path, ...e.path], e.details);
+        }
+      case RefType():
+        break;
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Protocol common-type validators
-  // ---------------------------------------------------------------------------
+  bool _looksLikeBinding(Map<Object?, Object?> value) =>
+      _v1 ? value.containsKey('@path') : value.containsKey('path');
 
-  String? _expectedReturnTypeFor(TypeDefinition type) => switch (type) {
-    StringType() => 'string',
-    NumberType() || IntegerType() => 'number',
-    BooleanType() => 'boolean',
-    ArrayType() => 'array',
-    ObjectType() => 'object',
-    _ => null,
-  };
-
-  bool _looksLikeBinding(Object? value) {
-    if (value is! Map) return false;
-    final key = atLeastV1 ? '@path' : 'path';
-    return value.containsKey(key) && !value.containsKey('componentId');
-  }
-
-  bool _looksLikeFunctionCall(Object? value) {
-    if (value is! Map) return false;
-    final key = atLeastV1 ? '@call' : 'call';
-    return value.containsKey(key);
-  }
+  bool _looksLikeFunctionCall(Map<Object?, Object?> value) =>
+      _v1 ? value.containsKey('@call') : value.containsKey('call');
 
   bool _isValidDynamicExpr(Object? value, {String? expectedReturnType}) {
     if (value is! Map) return false;
-    final bindingErrors = <ValidationError>[];
+    final probe = _ValidationRun(v, visitedRefs: visitedRefs);
     if (_looksLikeBinding(value)) {
-      _validateDataBinding(value, const [], bindingErrors);
-      return bindingErrors.isEmpty;
+      probe._validateDataBinding(value, const []);
+      return probe.errors.isEmpty;
     }
     if (_looksLikeFunctionCall(value)) {
-      final callErrors = <ValidationError>[];
-      _validateFunctionCall(
+      probe._validateFunctionCall(
         value,
         const [],
-        callErrors,
         expectedReturnType: expectedReturnType,
       );
-      return callErrors.isEmpty;
+      return probe.errors.isEmpty;
     }
     return false;
   }
 
-  void _validateDataBinding(
-    Object? value,
-    List<String> path,
-    List<ValidationError> errors,
-  ) {
-    final pathKey = atLeastV1 ? '@path' : 'path';
-    if (value is! Map) {
-      errors.add(
-        ValidationError.typeMismatch(
-          path: path,
-          expectedType: 'DataBinding',
-          actualValue: value,
-        ),
+  static String? _expectedDynamicReturnType(TypeDefinition type) =>
+      switch (type) {
+        StringType() => 'string',
+        NumberType() || IntegerType() => 'number',
+        BooleanType() => 'boolean',
+        ArrayType() => 'array',
+        ObjectType() => 'object',
+        _ => null,
+      };
+
+  void _validateDataBinding(Object? value, List<String> path) {
+    final key = _v1 ? '@path' : 'path';
+    if (value is! Map) return typeErr(path, 'DataBinding', value);
+    if (!value.containsKey(key)) {
+      err(
+        ValidationErrorType.requiredPropertyMissing,
+        path,
+        'Required property "$key" is missing',
       );
-      return;
+    } else if (value[key] is! String) {
+      typeErr([...path, key], 'string', value[key]);
     }
-    if (value[pathKey] is! String) {
-      errors.add(
-        ValidationError(
-          value.containsKey(pathKey)
-              ? ValidationErrorType.typeMismatch
-              : ValidationErrorType.requiredPropertyMissing,
-          path: path,
-          details: 'Required property "$pathKey" must be a string',
-        ),
-      );
-    }
-    for (final Object? key in value.keys) {
-      if (key != pathKey) {
-        errors.add(
-          ValidationError(
-            ValidationErrorType.additionalPropertyNotAllowed,
-            path: [...path, '$key'],
-            details: 'Additional property "$key" is not allowed in DataBinding',
-          ),
-        );
+    for (final Object? k in value.keys) {
+      if (k != key) {
+        err(ValidationErrorType.additionalPropertyNotAllowed, [
+          ...path,
+          '$k',
+        ], 'Unexpected property "$k" on DataBinding');
       }
     }
   }
 
   void _validateFunctionCall(
     Object? value,
-    List<String> path,
-    List<ValidationError> errors, {
+    List<String> path, {
     String? expectedReturnType,
   }) {
-    final callKey = atLeastV1 ? '@call' : 'call';
-    if (value is! Map) {
-      errors.add(
-        ValidationError.typeMismatch(
-          path: path,
-          expectedType: 'FunctionCall',
-          actualValue: value,
-        ),
-      );
-      return;
-    }
+    if (value is! Map) return typeErr(path, 'FunctionCall', value);
+    final callKey = _v1 ? '@call' : 'call';
     final Object? name = value[callKey];
-    if (name is! String) {
-      errors.add(
-        ValidationError(
-          ValidationErrorType.requiredPropertyMissing,
-          path: path,
-          details: 'Required property "$callKey" must be a string',
-        ),
+    if (name is! String || name.isEmpty) {
+      err(
+        value.containsKey(callKey)
+            ? ValidationErrorType.typeMismatch
+            : ValidationErrorType.requiredPropertyMissing,
+        path,
+        'FunctionCall requires a non-empty string "$callKey"',
       );
       return;
     }
     if (value.containsKey('args') && value['args'] is! Map) {
-      errors.add(
-        ValidationError.typeMismatch(
-          path: [...path, 'args'],
-          expectedType: 'object',
-          actualValue: value['args'],
-        ),
-      );
+      typeErr([...path, 'args'], 'object', value['args']);
     }
-
-    if (atLeastV1) {
-      if (name == '@index') {
-        for (final Object? k in value.keys) {
-          if (k != '@call' && k != 'args') {
-            errors.add(
-              ValidationError(
-                ValidationErrorType.unevaluatedPropertyNotAllowed,
-                path: [...path, '$k'],
-                details: 'Unexpected property "$k" on @index call',
-              ),
-            );
-          }
-        }
-        if (value['args'] case final Map<Object?, Object?> indexArgs) {
-          for (final MapEntry<Object?, Object?> e in indexArgs.entries) {
-            if (e.key != 'offset') {
-              errors.add(
-                ValidationError(
-                  ValidationErrorType.unevaluatedPropertyNotAllowed,
-                  path: [...path, 'args', '${e.key}'],
-                  details: 'Unexpected argument "${e.key}" on @index',
-                ),
-              );
-            } else {
-              _validateValue(
-                e.value,
-                const NumberType(dynamic: true),
-                [...path, 'args', 'offset'],
-                errors,
-                allowValidationResultInBool: false,
-              );
-            }
-          }
-        }
-        return;
+    if (_v1) {
+      if (value.containsKey('catalogId') &&
+          (value['catalogId'] is! String ||
+              (value['catalogId']! as String).isEmpty)) {
+        typeErr([...path, 'catalogId'], 'non-empty string', value['catalogId']);
       }
       for (final Object? k in value.keys) {
-        if (k != '@call' && k != 'args' && k != 'catalogId') {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.unevaluatedPropertyNotAllowed,
-              path: [...path, '$k'],
-              details: 'Unexpected property "$k" on FunctionCall',
-            ),
-          );
+        if (k != '@call' && k != 'catalogId' && k != 'args') {
+          err(ValidationErrorType.additionalPropertyNotAllowed, [
+            ...path,
+            '$k',
+          ], 'Unexpected property "$k" on FunctionCall');
         }
       }
-      if (value.containsKey('catalogId') && value['catalogId'] is! String) {
-        errors.add(
-          ValidationError.typeMismatch(
-            path: [...path, 'catalogId'],
-            expectedType: 'string',
-            actualValue: value['catalogId'],
-          ),
+      return;
+    }
+    if (value.containsKey('returnType')) {
+      final Object? rt = value['returnType'];
+      if (rt is! String) {
+        typeErr([...path, 'returnType'], 'string', rt);
+      } else if (expectedReturnType != null && rt != expectedReturnType) {
+        err(ValidationErrorType.constMismatch, [
+          ...path,
+          'returnType',
+        ], 'Expected returnType "$expectedReturnType", got "$rt"');
+      }
+    }
+    if (v.functions.isNotEmpty) {
+      final FunctionDefinition? fn = v.functions[name];
+      if (fn == null) {
+        err(ValidationErrorType.oneOfNotMet, path, "Unknown function '$name'");
+        return;
+      }
+      final bool reqArgs =
+          fn.requiredParameters.isNotEmpty ||
+          (fn.atLeastOneOf?.isNotEmpty ?? false);
+      if (reqArgs && !value.containsKey('args')) {
+        err(
+          ValidationErrorType.requiredPropertyMissing,
+          path,
+          'Required property "args" is missing',
         );
       }
-    } else {
-      // Pre-v1.0 FunctionCall validates call against catalog functions &
-      // returnType.
       if (expectedReturnType != null &&
-          value.containsKey('returnType') &&
-          value['returnType'] != expectedReturnType) {
-        errors.add(
-          ValidationError(
-            ValidationErrorType.constMismatch,
-            path: [...path, 'returnType'],
-            details:
-                'Expected returnType "$expectedReturnType", got '
-                '"${value['returnType']}"',
-          ),
+          fn.returnType.returnType != A2uiReturnType.any &&
+          fn.returnType.returnType.jsonValue != expectedReturnType) {
+        err(
+          ValidationErrorType.constMismatch,
+          path,
+          "Function '$name' returns '${fn.returnType.returnType.jsonValue}', "
+          "expected '$expectedReturnType'",
         );
       }
-      if (functions.isNotEmpty) {
-        final FunctionDefinition? fn = functions[name];
-        if (fn == null) {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.oneOfNotMet,
-              path: path,
-              details: "Unknown function '$name'",
-            ),
-          );
-          return;
-        }
-        final bool requiresArgs =
-            fn.requiredParameters.isNotEmpty ||
-            (fn.atLeastOneOf?.isNotEmpty ?? false);
-        if (requiresArgs && !value.containsKey('args')) {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.requiredPropertyMissing,
-              path: path,
-              details: 'Required property "args" is missing',
-            ),
-          );
-        }
-        if (expectedReturnType != null &&
-            fn.returnType.returnType != A2uiReturnType.any &&
-            fn.returnType.returnType.jsonValue != expectedReturnType) {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.constMismatch,
-              path: path,
-              details:
-                  "Function '$name' returns "
-                  "'${fn.returnType.returnType.jsonValue}', expected "
-                  "'$expectedReturnType'",
-            ),
-          );
-        }
-      }
-      for (final Object? k in value.keys) {
-        if (k != 'call' && k != 'args' && k != 'returnType') {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.unevaluatedPropertyNotAllowed,
-              path: [...path, '$k'],
-              details: 'Unexpected property "$k" on FunctionCall',
-            ),
-          );
-        }
+    }
+    for (final Object? k in value.keys) {
+      if (k != 'call' && k != 'args' && k != 'returnType') {
+        err(ValidationErrorType.unevaluatedPropertyNotAllowed, [
+          ...path,
+          '$k',
+        ], 'Unexpected property "$k" on FunctionCall');
       }
     }
   }
 
-  void _validateChildList(
-    Object? value,
-    List<String> path,
-    List<ValidationError> errors,
-  ) {
-    if (value is List) {
-      for (var i = 0; i < value.length; i++) {
-        if (value[i] is! String) {
-          errors.add(
-            ValidationError.typeMismatch(
-              path: [...path, '$i'],
-              expectedType: 'string',
-              actualValue: value[i],
-            ),
-          );
-        }
-      }
-      return;
-    }
-    if (value is Map) {
-      if (value['componentId'] is! String) {
-        errors.add(
-          ValidationError(
-            value.containsKey('componentId')
-                ? ValidationErrorType.typeMismatch
-                : ValidationErrorType.requiredPropertyMissing,
-            path: path,
-            details: 'Required property "componentId" must be a string',
-          ),
-        );
-      }
-      if (value['path'] is! String) {
-        errors.add(
-          ValidationError(
-            value.containsKey('path')
-                ? ValidationErrorType.typeMismatch
-                : ValidationErrorType.requiredPropertyMissing,
-            path: path,
-            details: 'Required property "path" must be a string',
-          ),
-        );
-      }
-      for (final Object? key in value.keys) {
-        if (key != 'componentId' && key != 'path') {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.additionalPropertyNotAllowed,
-              path: [...path, '$key'],
-              details: 'Additional property "$key" is not allowed in ChildList',
-            ),
-          );
-        }
-      }
-      return;
-    }
-    errors.add(
-      ValidationError.typeMismatch(
-        path: path,
-        expectedType: 'ChildList',
-        actualValue: value,
-      ),
-    );
-  }
-
-  void _validateAction(
-    Object? value,
-    List<String> path,
-    List<ValidationError> errors,
-  ) {
-    if (value is! Map) {
-      errors.add(
-        ValidationError.typeMismatch(
-          path: path,
-          expectedType: 'Action',
-          actualValue: value,
-        ),
-      );
-      return;
-    }
-    final bool hasEvent = value.containsKey('event');
-    final bool hasFn = value.containsKey('functionCall');
-    if (hasEvent == hasFn || value.length != 1) {
-      errors.add(
-        ValidationError(
-          ValidationErrorType.oneOfNotMet,
-          path: path,
-          details: 'Action must have exactly one of "event" or "functionCall"',
-        ),
-      );
-      return;
-    }
-    if (hasEvent) {
-      final Object? event = value['event'];
-      if (event is! Map) {
-        errors.add(
-          ValidationError.typeMismatch(
-            path: [...path, 'event'],
-            expectedType: 'object',
-            actualValue: event,
-          ),
-        );
-        return;
-      }
-      if (event['name'] is! String) {
-        errors.add(
-          ValidationError(
-            event.containsKey('name')
-                ? ValidationErrorType.typeMismatch
-                : ValidationErrorType.requiredPropertyMissing,
-            path: [...path, 'event'],
-            details: 'Required property "name" is missing',
-          ),
-        );
-      }
-      for (final MapEntry<Object?, Object?> e in event.entries) {
-        final key = '${e.key}';
-        if (key == 'name') continue;
-        if (key == 'userMessage' && atLeastV1) {
-          _validateValue(
-            e.value,
-            const StringType(dynamic: true),
-            [...path, 'event', 'userMessage'],
-            errors,
-            allowValidationResultInBool: false,
-          );
-        } else if (key == 'context') {
-          if (e.value is! Map) {
-            errors.add(
-              ValidationError.typeMismatch(
-                path: [...path, 'event', 'context'],
-                expectedType: 'object',
-                actualValue: e.value,
-              ),
-            );
-          } else {
-            for (final MapEntry<Object?, Object?> ctx
-                in (e.value! as Map).entries) {
-              _validateValue(
-                ctx.value,
-                const AnyType(dynamic: true),
-                [...path, 'event', 'context', '${ctx.key}'],
-                errors,
-                allowValidationResultInBool: false,
-              );
-            }
-          }
-        } else {
-          errors.add(
-            ValidationError(
-              ValidationErrorType.additionalPropertyNotAllowed,
-              path: [...path, 'event', key],
-              details: 'Additional property "$key" is not allowed in event',
-            ),
-          );
-        }
-      }
-    } else {
-      _validateFunctionCall(value['functionCall'], [
-        ...path,
-        'functionCall',
-      ], errors);
-    }
-  }
-
-  void _validateCheckRule(
-    Object? value,
-    List<String> path,
-    List<ValidationError> errors,
-  ) {
-    if (value is! Map) {
-      errors.add(
-        ValidationError.typeMismatch(
-          path: path,
-          expectedType: 'CheckRule',
-          actualValue: value,
-        ),
-      );
-      return;
-    }
-    if (!value.containsKey('condition')) {
-      errors.add(
-        ValidationError(
-          ValidationErrorType.requiredPropertyMissing,
-          path: path,
-          details: 'Required property "condition" is missing',
-        ),
-      );
-    } else if (atLeastV1) {
-      final Object? cond = value['condition'];
-      if (!_isValidDynamicExpr(cond)) {
-        errors.add(
-          ValidationError(
-            ValidationErrorType.oneOfNotMet,
-            path: [...path, 'condition'],
-            details:
-                'CheckRule condition must be a DataBinding or FunctionCall',
-          ),
-        );
-      }
-    } else {
-      _validateValue(
-        value['condition'],
-        const BooleanType(dynamic: true),
-        [...path, 'condition'],
-        errors,
-        allowValidationResultInBool: false,
-      );
-    }
-
-    if (!atLeastV1 && !value.containsKey('message')) {
-      errors.add(
-        ValidationError(
-          ValidationErrorType.requiredPropertyMissing,
-          path: path,
-          details: 'Required property "message" is missing',
-        ),
-      );
-    } else if (value.containsKey('message') && value['message'] is! String) {
-      errors.add(
-        ValidationError.typeMismatch(
-          path: [...path, 'message'],
-          expectedType: 'string',
-          actualValue: value['message'],
-        ),
-      );
-    }
-
-    for (final Object? key in value.keys) {
-      if (key != 'condition' && key != 'message') {
-        errors.add(
-          ValidationError(
-            ValidationErrorType.additionalPropertyNotAllowed,
-            path: [...path, '$key'],
-            details: 'Additional property "$key" is not allowed in CheckRule',
-          ),
-        );
+  void _validateNoReservedKeys(Map<Object?, Object?> map, List<String> path) {
+    for (final MapEntry<Object?, Object?> e in map.entries) {
+      final key = '${e.key}';
+      if (CanonicalValidator._reservedKeyPattern.hasMatch(key)) {
+        err(ValidationErrorType.additionalPropertyNotAllowed, [
+          ...path,
+          key,
+        ], 'Reserved "@"-prefixed key "$key" is not allowed in plain objects');
       }
     }
-  }
-
-  void _validateAccessibility(
-    Object? value,
-    List<String> path,
-    List<ValidationError> errors,
-  ) {
-    if (value is! Map) {
-      errors.add(
-        ValidationError.typeMismatch(
-          path: path,
-          expectedType: 'AccessibilityAttributes',
-          actualValue: value,
-        ),
-      );
-      return;
-    }
-    for (final MapEntry<Object?, Object?> entry in value.entries) {
-      final key = '${entry.key}';
-      switch (key) {
-        case 'label' || 'description':
-          _validateValue(
-            entry.value,
-            const StringType(dynamic: true),
-            [...path, key],
-            errors,
-            allowValidationResultInBool: false,
-          );
-        case 'live' when atLeastV1:
-          _validateValue(
-            entry.value,
-            const EnumType(values: ['off', 'polite', 'assertive']),
-            [...path, key],
-            errors,
-            allowValidationResultInBool: false,
-          );
-        case 'hidden' when atLeastV1:
-          _validateValue(
-            entry.value,
-            const BooleanType(dynamic: true),
-            [...path, key],
-            errors,
-            allowValidationResultInBool: false,
-          );
-        default:
-          if (atLeastV1) {
-            errors.add(
-              ValidationError(
-                ValidationErrorType.additionalPropertyNotAllowed,
-                path: [...path, key],
-                details:
-                    'Additional property "$key" is not allowed in '
-                    'AccessibilityAttributes',
-              ),
-            );
-          }
-      }
-    }
-  }
-
-  void _checkAtLeastOneOf(
-    List<List<String>>? groups,
-    Map<String, Object?> map,
-    List<String> path,
-    List<ValidationError> errors,
-  ) {
-    if (groups == null) return;
-    for (final List<String> group in groups) {
-      if (!group.any(map.containsKey)) {
-        errors.add(
-          ValidationError(
-            ValidationErrorType.anyOfNotMet,
-            path: path,
-            details: 'At least one of ${group.join(', ')} is required',
-          ),
-        );
-      }
-    }
-  }
-
-  static bool _isValidityMap(Object? value) =>
-      value is Map && value['valid'] is bool;
-
-  static bool _matchesFormat(String value, String format) => switch (format) {
-    'uri' => _uriPattern.hasMatch(value),
-    'date' => _datePattern.hasMatch(value) && DateTime.tryParse(value) != null,
-    'time' => _timePattern.hasMatch(value),
-    'date-time' =>
-      _dateTimePattern.hasMatch(value) && DateTime.tryParse(value) != null,
-    'email' => _emailPattern.hasMatch(value),
-    _ => true,
-  };
-
-  /// Validates that every extension key in a `metadata` map satisfies UAX #31.
-  static String? firstInvalidExtensionKey(Object? metadata) {
-    if (metadata case {'extensions': final Map<Object?, Object?> extensions}) {
-      for (final Object? key in extensions.keys) {
-        if (key is! String || !isValidUax31Identifier(key)) {
-          return '$key';
-        }
-      }
-    }
-    return null;
   }
 }

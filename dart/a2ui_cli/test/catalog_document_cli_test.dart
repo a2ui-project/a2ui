@@ -214,5 +214,126 @@ void main() {
         );
       },
     );
+
+    test('lintCatalog catches unknown nested keys, invalid returnType/callers, '
+        'duplicate atLeastOneOf, inverted bounds, and structural ref cycles '
+        'with JSON Pointers', () {
+      final List<CatalogLintFinding> findings = lintCatalog({
+        'formatVersion': '1.0',
+        'catalogId': 'urn:a2ui:lint-deep',
+        'types': {
+          'Cyclic': {
+            'type': 'object',
+            'properties': [
+              {'name': 'self', 'type': 'ref', 'ref': 'Cyclic'},
+            ],
+          },
+        },
+        'components': [
+          {
+            'name': 'Widget',
+            'extraKey': 1,
+            'parameters': [
+              {'name': 'a', 'type': 'number', 'min': 10, 'max': 2},
+              {'name': 'b', 'type': 'string', 'bogus': true},
+            ],
+            'atLeastOneOf': [
+              ['a', 'a'],
+            ],
+          },
+        ],
+        'functions': [
+          {'name': 'badFn', 'returnType': 'bogus', 'allowedCallers': 'nobody'},
+        ],
+      });
+      final Set<String?> paths = findings.map((f) => f.path).toSet();
+      expect(paths, contains('/types/Cyclic'));
+      expect(paths, contains('/components/0/extraKey'));
+      expect(paths, contains('/components/0/parameters/0/min'));
+      expect(paths, contains('/components/0/parameters/1/bogus'));
+      expect(paths, contains('/components/0/atLeastOneOf/0/1'));
+      expect(paths, contains('/functions/0/returnType'));
+      expect(paths, contains('/functions/0/allowedCallers'));
+    });
+
+    test('CatalogAnalyzer preserves typed additionalProperties, dynamic union '
+        'branches, structured function returnType, and integer returnType', () {
+      final catalog = CodegenCatalog.fromJson({
+        'formatVersion': '1.0',
+        'catalogId': 'urn:a2ui:analyzer-edge',
+        'protocolVersion': '1.0',
+        'components': [
+          {
+            'name': 'Inspector',
+            'parameters': [
+              {
+                'name': 'headers',
+                'type': 'object',
+                'additionalProperties': {'type': 'string'},
+              },
+              {
+                'name': 'value',
+                'type': 'union',
+                'variants': [
+                  {'type': 'string', 'dynamic': true},
+                  {'type': 'number'},
+                ],
+              },
+            ],
+          },
+        ],
+        'functions': [
+          {'name': 'count', 'returnType': 'integer'},
+          {
+            'name': 'tags',
+            'returnType': {
+              'type': 'array',
+              'items': {'type': 'string'},
+            },
+          },
+        ],
+      });
+
+      final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(catalog);
+      final AnalysedComponentApi comp = analysed.components['Inspector']!;
+      expect(
+        comp.properties['headers']!.type,
+        isA<MapType>().having(
+          (m) => m.valueType,
+          'valueType',
+          isA<PrimitiveType>().having(
+            (p) => p.primitive,
+            'primitive',
+            PrimitiveKind.string,
+          ),
+        ),
+      );
+      final dynValue = comp.properties['value']!.type as DynamicType;
+      final valueType = dynValue.inner as UnionType;
+      expect(valueType.options, hasLength(2));
+
+      final AnalysedFunctionApi countFn = analysed.functions['count']!;
+      expect(
+        countFn.returnType,
+        isA<PrimitiveType>().having(
+          (p) => p.primitive,
+          'primitive',
+          PrimitiveKind.integer,
+        ),
+      );
+      final AnalysedFunctionApi tagsFn = analysed.functions['tags']!;
+      expect(
+        tagsFn.returnType,
+        isA<ListType>().having(
+          (l) => l.elementType,
+          'elementType',
+          isA<PrimitiveType>().having(
+            (p) => p.primitive,
+            'primitive',
+            PrimitiveKind.string,
+          ),
+        ),
+      );
+    });
   });
 }

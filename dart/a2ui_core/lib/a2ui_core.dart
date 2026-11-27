@@ -38,9 +38,11 @@ export 'src/expressions/expression_parser.dart';
 export 'src/model/catalog_document_codec.dart'
     show
         CatalogDocumentCodec,
+        CatalogDocumentDiagnostic,
         isCatalogDocument,
         parseCatalogDocument,
-        serializeCatalogDocument;
+        serializeCatalogDocument,
+        validateCatalogDocument;
 export 'src/model/catalog_model.dart'
     show
         CatalogModel,
@@ -69,6 +71,7 @@ export 'src/model/type_definition.dart'
         NumberType,
         ObjectType,
         ParameterDefinition,
+        RawJsonSchemaType,
         RefType,
         StringType,
         TypeDefinition,

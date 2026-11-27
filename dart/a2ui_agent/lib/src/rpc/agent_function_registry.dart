@@ -187,14 +187,12 @@ final class AgentFunctionRegistry {
     // caller's own arguments have passed.
     _checkArgNames(fn.name, rawArgs);
     validator.validateFunctionArgs(fn.name, rawArgs);
-    final FunctionDefinition? canonicalDef = catalog.model.function(fn.name);
-    if (canonicalDef != null &&
-        fn.definition == null &&
-        canonicalDef.parameters.isNotEmpty) {
+    if (fn.hasCanonicalDefinition &&
+        !fn.functionDefinition.containsRawJsonSchema) {
       return _applyCanonicalDefaults(
         rawArgs,
-        canonicalDef.parameters,
-        catalog.model.types,
+        fn.functionDefinition.parameters,
+        catalog.types,
       );
     }
     final Map<String, Object?> resolvedSchema = _resolvedArgSchemas.putIfAbsent(
@@ -227,12 +225,17 @@ final class AgentFunctionRegistry {
     Map<String, TypeDefinition> types,
   ) {
     for (final param in parameters) {
-      final TypeDefinition resolved = _resolveCanonicalType(param.type, types);
+      final (
+        :TypeDefinition resolved,
+        :bool hasDefault,
+        :Object? defaultValue,
+      ) = _resolveCanonicalTypeWithDefault(
+        param.type,
+        types,
+      );
       if (!target.containsKey(param.name)) {
-        if (param.hasDefault) {
-          target[param.name] = _deepCopyJson(param.defaultValue);
-        } else if (resolved.hasDefault) {
-          target[param.name] = _deepCopyJson(resolved.defaultValue);
+        if (hasDefault) {
+          target[param.name] = _deepCopyJson(defaultValue);
         }
       } else if (target[param.name] is Map && resolved is ObjectType) {
         final rawNested = target[param.name]! as Map<Object?, Object?>;
@@ -246,18 +249,35 @@ final class AgentFunctionRegistry {
     }
   }
 
-  static TypeDefinition _resolveCanonicalType(
+  /// Resolves [type] across any `RefType` chain while recording the first
+  /// default encountered at any hop (closest override wins).
+  static ({TypeDefinition resolved, bool hasDefault, Object? defaultValue})
+  _resolveCanonicalTypeWithDefault(
     TypeDefinition type,
     Map<String, TypeDefinition> types,
   ) {
     var current = type;
+    var hasDefault = false;
+    Object? defaultValue;
     final visited = <String>{};
-    while (current is RefType &&
-        visited.add(current.ref) &&
-        types.containsKey(current.ref)) {
-      current = types[current.ref]!;
+    while (true) {
+      if (!hasDefault && current.hasDefault) {
+        hasDefault = true;
+        defaultValue = current.defaultValue;
+      }
+      if (current is RefType &&
+          visited.add(current.ref) &&
+          types.containsKey(current.ref)) {
+        current = types[current.ref]!;
+      } else {
+        break;
+      }
     }
-    return current;
+    return (
+      resolved: current,
+      hasDefault: hasDefault,
+      defaultValue: defaultValue,
+    );
   }
 
   /// The most arguments a call may pass, as `PayloadValidator` allows.

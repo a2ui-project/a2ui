@@ -31,6 +31,35 @@ String _findRepoRoot() {
   return dir.path;
 }
 
+class _CheckFlagsFunction extends FunctionImplementation {
+  _CheckFlagsFunction()
+    : super.define(
+        name: 'checkFlags',
+        returnType: A2uiReturnType.boolean,
+        parameters: [
+          ParameterDefinition.array('flags', items: const RefType(ref: 'Flag')),
+          ParameterDefinition.ref('a', ref: 'Flag'),
+          ParameterDefinition.ref('b', ref: 'Flag'),
+          ParameterDefinition.union(
+            'mixed',
+            variants: const [BooleanType(dynamic: true), StringType()],
+          ),
+        ],
+      );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? signal,
+  ]) =>
+      args['a'] == true &&
+      args['b'] == false &&
+      args['mixed'] == true &&
+      (args['flags'] as List<dynamic>)[0] == true &&
+      (args['flags'] as List<dynamic>)[1] == false;
+}
+
 class _IsPositiveFunction extends FunctionImplementation {
   _IsPositiveFunction()
     : super.define(
@@ -752,6 +781,28 @@ void main() {
         expect(fromDoc.functions.length, basic.functions.length);
         expect(fromDoc.model.surfaceProperties, isNotNull);
 
+        // Component own properties precede `$ref` mixin properties (`weight`)
+        // and `ComponentCommon.accessibility` is not synthesized into params.
+        final ComponentDefinition textDef = fromDoc.model.component('Text')!;
+        expect(textDef.parameters.first.name, 'text');
+        expect(textDef.parameters.last.name, 'weight');
+        expect(textDef.parameter('accessibility'), isNull);
+
+        // `toJson()` on a v0.9 canonical catalog emits v0.9 envelope & refs.
+        final Map<String, Object?> v09Json = fromDoc.toJson();
+        final v09Components = v09Json['components']! as Map<String, Object?>;
+        final textJson = v09Components['Text']! as Map<String, Object?>;
+        expect(textJson['unevaluatedProperties'], isFalse);
+        expect(jsonEncode(textJson), contains('ComponentCommon'));
+        expect(
+          jsonEncode(v09Components['Card']),
+          contains('common_types.json#/\$defs/ComponentId'),
+        );
+        expect(
+          jsonEncode(v09Components['Card']),
+          isNot(contains('common_types.json#/\$defs/Child"')),
+        );
+
         final Map<String, Object?> jsonSchema = fromDoc.toJsonSchema();
         final CatalogApi fromSchema = Catalog.fromJson(
           jsonSchema,
@@ -759,6 +810,31 @@ void main() {
         );
         expect(fromSchema.components.keys, equals(basic.components.keys));
         expect(fromSchema.functions.keys, equals(basic.functions.keys));
+        expect(fromSchema.toDocument(), equals(doc));
+      },
+    );
+
+    test(
+      'v0.9 component declaring custom accessibility retains required id',
+      () {
+        final v09Custom = Catalog<ComponentApi, FunctionApi>(
+          id: 'urn:a2ui:v09-custom-a11y',
+          protocolVersion: A2uiProtocolVersion.v0_9,
+          components: [
+            ComponentApi.define(
+              name: 'Reader',
+              parameters: [
+                ParameterDefinition.string('accessibility', required: true),
+              ],
+            ),
+          ],
+        );
+        final Map<String, Object?> json = v09Custom.toJson();
+        final reader =
+            (json['components']! as Map<String, Object?>)['Reader']!
+                as Map<String, Object?>;
+        expect(reader['required'], contains('id'));
+        expect(reader['unevaluatedProperties'], isFalse);
       },
     );
 
@@ -784,5 +860,665 @@ void main() {
         expect(viaSchema.toDocument(), equals(doc));
       });
     }
+  });
+
+  group('Refinement hardening & edge-case regressions', () {
+    test('JsonSchemaCodec round-trips ObjectType.atLeastOneOf, non-dynamic '
+        'multi-format StringType, v0.9 FunctionCall allOf, allOf '
+        'additionalProperties, and all 4 AnyType variants', () {
+      final model = CatalogModel(
+        catalogId: 'urn:a2ui:codec-roundtrip-edge',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: [
+          ComponentDefinition(
+            name: 'Probe',
+            parameters: [
+              ParameterDefinition.object(
+                'range',
+                properties: [
+                  ParameterDefinition.number('min'),
+                  ParameterDefinition.number('max'),
+                  ParameterDefinition.number('step'),
+                ],
+                atLeastOneOf: const [
+                  ['min', 'max'],
+                ],
+              ),
+              ParameterDefinition.object(
+                'multiRange',
+                properties: [
+                  ParameterDefinition.number('a'),
+                  ParameterDefinition.number('b'),
+                  ParameterDefinition.number('c'),
+                  ParameterDefinition.number('d'),
+                ],
+                atLeastOneOf: const [
+                  ['a', 'b'],
+                  ['c', 'd'],
+                ],
+              ),
+              ParameterDefinition.string(
+                'when',
+                formats: const ['date', 'time'],
+                minLength: 4,
+                maxLength: 20,
+              ),
+              ParameterDefinition.any(
+                'anyDynNull',
+                dynamic: true,
+                nullable: true,
+              ),
+              ParameterDefinition.any('anyDynNonNull', dynamic: true),
+              ParameterDefinition.any('anyStaticNonNull'),
+              ParameterDefinition.any('anyStaticNull', nullable: true),
+            ],
+          ),
+        ],
+      );
+      final Map<String, Object?> schema = JsonSchemaCodec.toJsonSchema(model);
+      final CatalogModel back = JsonSchemaCodec.fromJsonSchema(schema);
+      final ComponentDefinition probe = back.component('Probe')!;
+      expect(probe.parameter('range')!.type, isA<ObjectType>());
+      expect(
+        (probe.parameter('range')!.type as ObjectType).atLeastOneOf,
+        const [
+          ['min', 'max'],
+        ],
+      );
+      expect(
+        (probe.parameter('multiRange')!.type as ObjectType).atLeastOneOf,
+        const [
+          ['a', 'b'],
+          ['c', 'd'],
+        ],
+      );
+      final whenType = probe.parameter('when')!.type as StringType;
+      expect(whenType.dynamic, isFalse);
+      expect(whenType.formats, const ['date', 'time']);
+      expect(whenType.minLength, 4);
+      expect(whenType.maxLength, 20);
+      expect(
+        probe.parameter('anyDynNull')!.type,
+        const AnyType(dynamic: true, nullable: true),
+      );
+      expect(
+        probe.parameter('anyDynNonNull')!.type,
+        const AnyType(dynamic: true),
+      );
+      expect(probe.parameter('anyStaticNonNull')!.type, const AnyType());
+      expect(
+        probe.parameter('anyStaticNull')!.type,
+        const AnyType(nullable: true),
+      );
+
+      // v0.9 inline `allOf: [FunctionCall, {returnType}]` collapses into a
+      // dynamic scalar.
+      final TypeDefinition v09Dyn = JsonSchemaCodec.schemaToTypeDefinition({
+        'oneOf': [
+          {'type': 'string', 'format': 'uri'},
+          {r'$ref': 'common_types.json#/\$defs/DataBinding'},
+          {
+            'allOf': [
+              {r'$ref': 'common_types.json#/\$defs/FunctionCall'},
+              {
+                'properties': {
+                  'returnType': {'const': 'string'},
+                },
+              },
+            ],
+          },
+        ],
+      }, atLeastV1: false);
+      expect(v09Dyn, const StringType(dynamic: true, format: 'uri'));
+
+      // `additionalProperties: false` declared inside an `allOf` subschema
+      // is preserved when flattening objects.
+      final TypeDefinition closedAllOf = JsonSchemaCodec.schemaToTypeDefinition(
+        {
+          'allOf': [
+            {
+              'type': 'object',
+              'properties': {
+                'x': {'type': 'string'},
+              },
+              'additionalProperties': false,
+            },
+            {
+              'type': 'object',
+              'properties': {
+                'y': {'type': 'number'},
+              },
+            },
+          ],
+        },
+      );
+      expect(closedAllOf, isA<ObjectType>());
+      expect((closedAllOf as ObjectType).additionalProperties, isFalse);
+    });
+
+    test('CatalogDocumentCodec rejects structural cycles, explicit null, '
+        'heterogeneous enum, out-of-set enum default, inverted bounds, '
+        'invalid regex, and missing catalogId even with override', () {
+      final invalidDocs = <String, Map<String, Object?>>{
+        'structural cycle via ObjectType': {
+          'formatVersion': '1.0',
+          'catalogId': 'urn:test',
+          'types': {
+            'Node': {
+              'type': 'object',
+              'properties': [
+                {'name': 'next', 'type': 'ref', 'ref': 'Node'},
+              ],
+            },
+          },
+        },
+        'structural cycle via ArrayType': {
+          'formatVersion': '1.0',
+          'catalogId': 'urn:test',
+          'types': {
+            'Tree': {
+              'type': 'array',
+              'items': {'type': 'ref', 'ref': 'Tree'},
+            },
+          },
+        },
+        'structural cycle via UnionType': {
+          'formatVersion': '1.0',
+          'catalogId': 'urn:test',
+          'types': {
+            'Val': {
+              'type': 'union',
+              'variants': [
+                {'type': 'string'},
+                {'type': 'ref', 'ref': 'Val'},
+              ],
+            },
+          },
+        },
+        'structural cycle via additionalProperties': {
+          'formatVersion': '1.0',
+          'catalogId': 'urn:test',
+          'types': {
+            'Dict': {
+              'type': 'object',
+              'additionalProperties': {'type': 'ref', 'ref': 'Dict'},
+            },
+          },
+        },
+        'explicit null title': {
+          'formatVersion': '1.0',
+          'catalogId': 'urn:test',
+          'title': null,
+        },
+        'explicit null checkable': {
+          'formatVersion': '1.0',
+          'catalogId': 'urn:test',
+          'components': [
+            {'name': 'Box', 'checkable': null},
+          ],
+        },
+        'explicit null metadata.extensions': {
+          'formatVersion': '1.0',
+          'catalogId': 'urn:test',
+          'metadata': {'extensions': null},
+        },
+        'explicit null enum default': {
+          'formatVersion': '1.0',
+          'catalogId': 'urn:test',
+          'components': [
+            {
+              'name': 'Box',
+              'parameters': [
+                {
+                  'name': 'mode',
+                  'type': 'enum',
+                  'values': ['a', 'b'],
+                  'default': null,
+                },
+              ],
+            },
+          ],
+        },
+        'mixed-type enum values': {
+          'formatVersion': '1.0',
+          'catalogId': 'urn:test',
+          'components': [
+            {
+              'name': 'Box',
+              'parameters': [
+                {
+                  'name': 'mode',
+                  'type': 'enum',
+                  'values': ['a', 1],
+                },
+              ],
+            },
+          ],
+        },
+        'numeric enum without valueType': {
+          'formatVersion': '1.0',
+          'catalogId': 'urn:test',
+          'components': [
+            {
+              'name': 'Box',
+              'parameters': [
+                {
+                  'name': 'level',
+                  'type': 'enum',
+                  'values': [1, 2],
+                },
+              ],
+            },
+          ],
+        },
+        'enum default not in values': {
+          'formatVersion': '1.0',
+          'catalogId': 'urn:test',
+          'components': [
+            {
+              'name': 'Box',
+              'parameters': [
+                {
+                  'name': 'mode',
+                  'type': 'enum',
+                  'values': ['a', 'b'],
+                  'default': 'c',
+                },
+              ],
+            },
+          ],
+        },
+        'inverted number bounds': {
+          'formatVersion': '1.0',
+          'catalogId': 'urn:test',
+          'components': [
+            {
+              'name': 'Box',
+              'parameters': [
+                {'name': 'n', 'type': 'number', 'min': 10, 'max': 5},
+              ],
+            },
+          ],
+        },
+        'inverted string length bounds': {
+          'formatVersion': '1.0',
+          'catalogId': 'urn:test',
+          'components': [
+            {
+              'name': 'Box',
+              'parameters': [
+                {
+                  'name': 's',
+                  'type': 'string',
+                  'minLength': 10,
+                  'maxLength': 2,
+                },
+              ],
+            },
+          ],
+        },
+        'inverted array item bounds': {
+          'formatVersion': '1.0',
+          'catalogId': 'urn:test',
+          'components': [
+            {
+              'name': 'Box',
+              'parameters': [
+                {'name': 'xs', 'type': 'array', 'minItems': 5, 'maxItems': 1},
+              ],
+            },
+          ],
+        },
+        'invalid regex pattern': {
+          'formatVersion': '1.0',
+          'catalogId': 'urn:test',
+          'components': [
+            {
+              'name': 'Box',
+              'parameters': [
+                {'name': 's', 'type': 'string', 'pattern': '[unclosed'},
+              ],
+            },
+          ],
+        },
+      };
+
+      for (final MapEntry<String, Map<String, Object?>> e
+          in invalidDocs.entries) {
+        expect(
+          () => parseCatalogDocument(e.value),
+          throwsA(isA<A2uiCatalogError>()),
+          reason: 'Expected A2uiCatalogError for: ${e.key}',
+        );
+        expect(
+          validateCatalogDocument(e.value),
+          isNotEmpty,
+          reason: 'Expected diagnostics for: ${e.key}',
+        );
+      }
+
+      // Missing `catalogId` is rejected even when caller passes override.
+      expect(
+        () => parseCatalogDocument(const {
+          'formatVersion': '1.0',
+        }, catalogId: 'urn:override'),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+
+      // `Catalog.fromModel` and `serializeCatalogDocument` validate models.
+      const badModel = CatalogModel(
+        catalogId: 'urn:bad',
+        components: [ComponentDefinition(name: 'Surface')],
+      );
+      expect(
+        () => Catalog.fromModel(badModel),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+      expect(
+        () => serializeCatalogDocument(badModel),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('CanonicalValidator enforces calendar dates, RFC 3339 time bounds, '
+        'Unicode code-point length, whole-number doubles, v0.9 dynamic Object '
+        'with path key, shared RefType coercion, and mixed canonical+legacy '
+        'catalogs', () {
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'urn:a2ui:validator-edge',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        types: const {'Flag': BooleanType(dynamic: true)},
+        components: [
+          ComponentApi.define(
+            name: 'Form',
+            parameters: [
+              ParameterDefinition.string('date', format: 'date'),
+              ParameterDefinition.string('time', format: 'time'),
+              ParameterDefinition.string('dateTime', format: 'date-time'),
+              ParameterDefinition.string('emoji', minLength: 1, maxLength: 1),
+              ParameterDefinition.integer('count'),
+            ],
+          ),
+        ],
+        functions: [_CheckFlagsFunction()],
+      );
+
+      final PayloadValidator<ComponentApi, FunctionImplementation> validator =
+          PayloadValidator(catalog: catalog);
+
+      // Valid calendar leap day, lowercase RFC 3339 t/z, single emoji
+      // code point (2 UTF-16 code units!), and whole-number double `2.0`.
+      expect(
+        () => validator.validateComponent({
+          'id': 'root',
+          'component': 'Form',
+          'date': '2024-02-29',
+          'time': '23:59:59z',
+          'dateTime': '2024-02-29t12:30:00+05:30',
+          'emoji': '😀',
+          'count': 2.0,
+        }),
+        returnsNormally,
+      );
+
+      // Reject invalid calendar dates, out-of-range times, fractional double
+      // for integer, and 2-emoji string for maxLength: 1.
+      for (final Map<String, Object?> badProp in const [
+        {'date': '2024-02-31'},
+        {'date': '2023-02-29'},
+        {'time': '99:99:99+99:99'},
+        {'dateTime': '2024-01-01T25:00:00Z'},
+        {'emoji': '😀😀'},
+        {'count': 1.5},
+      ]) {
+        expect(
+          () => validator.validateComponent({
+            'id': 'root',
+            'component': 'Form',
+            ...badProp,
+          }),
+          throwsA(isA<A2uiValidationError>()),
+          reason: 'Expected validation error for $badProp',
+        );
+      }
+
+      // Repeated RefType in array elements, sibling params, and UnionType
+      // all coerce ValidationResult cleanly without shared-Set corruption.
+      final dataContext = DataContext(DataModel(), catalog.invoke, '/');
+      final Object? coercedResult = catalog.invoke('checkFlags', {
+        'flags': const [
+          ValidationResult(valid: true),
+          ValidationResult(valid: false),
+        ],
+        'a': const ValidationResult(valid: true),
+        'b': const ValidationResult(valid: false),
+        'mixed': const ValidationResult(valid: true),
+      }, dataContext);
+      expect(coercedResult, isTrue);
+
+      // v0.9 dynamic ObjectType with a `path` property accepts a literal map.
+      final v09Catalog = Catalog<ComponentApi, FunctionApi>(
+        id: 'urn:a2ui:v09-dyn-obj',
+        protocolVersion: A2uiProtocolVersion.v0_9,
+        components: [
+          ComponentApi.define(
+            name: 'Link',
+            parameters: [
+              ParameterDefinition.object(
+                'route',
+                dynamic: true,
+                properties: [
+                  ParameterDefinition.string('path', required: true),
+                  ParameterDefinition.string('label', required: true),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+      final PayloadValidator<ComponentApi, FunctionApi> v09Validator =
+          PayloadValidator(catalog: v09Catalog);
+      expect(
+        () => v09Validator.validateComponent({
+          'id': 'root',
+          'component': 'Link',
+          'route': {'path': '/home', 'label': 'Home'},
+        }),
+        returnsNormally,
+      );
+
+      // Mixed canonical component + legacy v0.9 function validates calls to
+      // the legacy function without "Unknown function".
+      final Catalog<ComponentApi, FunctionImplementation> legacyBasic =
+          BasicCatalog.v0_9();
+      final mixed = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'urn:a2ui:mixed-v09',
+        protocolVersion: A2uiProtocolVersion.v0_9,
+        components: [
+          ComponentApi.define(
+            name: 'Banner',
+            parameters: [ParameterDefinition.string('text', dynamic: true)],
+          ),
+        ],
+        functions: [legacyBasic.functions['formatString']!],
+      );
+      final PayloadValidator<ComponentApi, FunctionImplementation>
+      mixedValidator = PayloadValidator(catalog: mixed);
+      expect(
+        () => mixedValidator.validateComponent({
+          'id': 'root',
+          'component': 'Banner',
+          'text': {
+            'call': 'formatString',
+            'args': {'value': 'Hello'},
+          },
+        }),
+        returnsNormally,
+      );
+
+      // Defensive cycle guard: hand-constructed cyclic types terminate cleanly
+      // in PayloadValidator without StackOverflowError.
+      final cyclicCatalog = Catalog<ComponentApi, FunctionApi>(
+        id: 'urn:a2ui:cyclic-runtime',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        types: const {
+          'Node': ObjectType(
+            properties: [
+              ParameterDefinition(
+                name: 'next',
+                type: RefType(ref: 'Node'),
+              ),
+            ],
+          ),
+        },
+        components: [
+          ComponentApi.define(
+            name: 'Tree',
+            parameters: [ParameterDefinition.ref('root', ref: 'Node')],
+          ),
+        ],
+      );
+      final PayloadValidator<ComponentApi, FunctionApi> cyclicValidator =
+          PayloadValidator(catalog: cyclicCatalog);
+      expect(
+        () => cyclicValidator.validateComponent({
+          'id': 'root',
+          'component': 'Tree',
+          'root': {
+            'next': {'next': const <String, Object?>{}},
+          },
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('Exhaustive TypeDefinition switch, const .fromDefinition, model '
+        'equality, A2uiReturnType.fromJson, mutable serialize, and '
+        'Catalog.copyWith/derive metadata', () {
+      // Exhaustive 19-case switch with zero wildcard/default arm.
+      String labelOf(TypeDefinition t) => switch (t) {
+        StringType() => 'string',
+        NumberType() => 'number',
+        IntegerType() => 'integer',
+        BooleanType() => 'boolean',
+        EnumType() => 'enum',
+        ConstType() => 'const',
+        AnyType() => 'any',
+        ObjectType() => 'object',
+        ArrayType() => 'array',
+        UnionType() => 'union',
+        RefType() => 'ref',
+        DataBindingType() => 'dataBinding',
+        FunctionCallType() => 'functionCall',
+        ChildType() => 'child',
+        ChildListType() => 'childList',
+        ActionType() => 'action',
+        CheckRuleType() => 'checkRule',
+        AccessibilityType() => 'accessibility',
+        RawJsonSchemaType() => 'raw',
+      };
+      expect(labelOf(const RawJsonSchemaType({'not': {}})), 'raw');
+
+      // Genuine `const` authoring via `.fromDefinition`.
+      const comp = ComponentApi.fromDefinition(
+        ComponentDefinition(
+          name: 'ConstCard',
+          parameters: [ParameterDefinition(name: 'title', type: StringType())],
+        ),
+      );
+      const fn = FunctionApi.fromDefinition(
+        FunctionDefinition(name: 'constFn'),
+      );
+      expect(comp.name, 'ConstCard');
+      expect(fn.name, 'constFn');
+
+      // Effective equality on FunctionDefinition and FunctionReturnDefinition.
+      expect(
+        const FunctionDefinition(name: 'f'),
+        equals(
+          const FunctionDefinition(
+            name: 'f',
+            allowedCallers: AllowedCallers.rendererOnly,
+            requiresUserActivation: false,
+          ),
+        ),
+      );
+      expect(
+        const FunctionReturnDefinition.shorthand(
+          A2uiReturnType.string,
+          description: 'greeting',
+        ),
+        equals(
+          FunctionReturnDefinition.typed(
+            const StringType(description: 'greeting'),
+          ),
+        ),
+      );
+      expect(A2uiReturnType.fromJson('void_'), A2uiReturnType.any);
+      expect(A2uiReturnType.fromJson('void'), A2uiReturnType.void_);
+
+      // `serializeCatalogDocument` emits plain mutable maps and lists.
+      final Map<String, Object?> serialized = serializeCatalogDocument(
+        const CatalogModel(
+          catalogId: 'urn:mutable',
+          metadata: {
+            'extensions': {
+              'custom': {'flag': true},
+            },
+          },
+          components: [
+            ComponentDefinition(
+              name: 'Card',
+              parameters: [
+                ParameterDefinition(
+                  name: 'data',
+                  type: ObjectType(
+                    defaultValue: {
+                      'k': [1, 2],
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+      ((serialized['metadata']! as Map<String, Object?>)['extensions']!
+              as Map<String, Object?>)['extra'] =
+          1;
+      expect(
+        ((serialized['metadata']! as Map<String, Object?>)['extensions']!
+            as Map<String, Object?>)['extra'],
+        1,
+      );
+
+      // `Catalog.derive` preserves metadata & `$schema`; `copyWith` updates
+      // `types`.
+      final CatalogApi base = Catalog.fromDocument({
+        r'$schema': 'https://example.org/catalog.schema.json',
+        'formatVersion': '1.0',
+        'catalogId': 'urn:base',
+        'metadata': {
+          'extensions': {'team': 'a2ui'},
+        },
+        'types': {
+          'OldType': {'type': 'string'},
+        },
+        'components': [
+          {'name': 'Box'},
+        ],
+      });
+      final CatalogApi derived = base.derive(catalogId: 'urn:derived');
+      expect(
+        derived.toDocument()[r'$schema'],
+        'https://example.org/catalog.schema.json',
+      );
+      expect(derived.model.metadata, base.model.metadata);
+
+      final CatalogApi copied = base.copyWith(
+        types: const {'NewType': IntegerType()},
+      );
+      expect(copied.types.keys, ['NewType']);
+    });
   });
 }

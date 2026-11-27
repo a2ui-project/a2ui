@@ -129,7 +129,7 @@ void main() {
       expect(generated, contains('tags: Sequence[str]'));
       expect(
         generated,
-        contains('metadata: Optional[Mapping[str, Any]] = None'),
+        contains('metadata: Optional[Mapping[str, str]] = None'),
       );
       expect(
         generated,

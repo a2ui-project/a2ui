@@ -13,16 +13,38 @@
 // limitations under the License.
 
 // Deliberately does NOT import `package:json_schema_builder` (and needs no
-// `hide ValidationResult`!) to verify zero-schema-library Flutter authoring.
+// `hide ValidationResult`!) or deprecated `package:flutter/material.dart`.
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+Widget _buildFooter(
+  BuildContext context,
+  ComponentNode<ComponentImplementation> node,
+  ComponentProps props,
+  ChildWidgetBuilder buildChild,
+) => Text(props.string('text') ?? '');
+
+const ComponentImplementation _constFooterComponent =
+    ComponentImplementation.fromDefinition(
+      ComponentDefinition(
+        name: 'FooterNote',
+        parameters: [
+          ParameterDefinition(
+            name: 'text',
+            type: StringType(dynamic: true),
+            required: true,
+          ),
+        ],
+      ),
+      builder: _buildFooter,
+    );
 
 void main() {
   testWidgets(
-    'ComponentImplementation.define renders, binds reactively, and dispatches '
-    'actions without importing json_schema_builder',
+    'ComponentImplementation.define and const .fromDefinition render, bind '
+    'reactively, and dispatch actions without importing json_schema_builder',
     (WidgetTester tester) async {
       final actions = <A2uiRendererAction>[];
 
@@ -53,8 +75,8 @@ void main() {
                     children: [
                       Text(message),
                       if (onAck != null)
-                        ElevatedButton(
-                          onPressed: onAck,
+                        GestureDetector(
+                          onTap: onAck,
                           child: const Text('Acknowledge'),
                         ),
                       if (footer != null) buildChild(footer),
@@ -62,18 +84,7 @@ void main() {
                   );
                 },
               ),
-              ComponentImplementation.define(
-                name: 'FooterNote',
-                parameters: [
-                  ParameterDefinition.string(
-                    'text',
-                    dynamic: true,
-                    required: true,
-                  ),
-                ],
-                builder: (context, node, props, buildChild) =>
-                    Text(props.string('text') ?? ''),
-              ),
+              _constFooterComponent,
             ],
           );
 
@@ -122,8 +133,9 @@ void main() {
       final SurfaceModel<ComponentImplementation> surface = processor.model
           .getSurface('main')!;
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(body: A2uiSurface(surface: surface)),
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: A2uiSurface(surface: surface),
         ),
       );
       await tester.pumpAndSettle();
@@ -145,7 +157,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Updated Reactively!'), findsOneWidget);
 
-      // Action tap dispatches A2uiClientAction.
+      // Action tap dispatches A2uiRendererAction.
       await tester.tap(find.text('Acknowledge'));
       await tester.pumpAndSettle();
       expect(actions, hasLength(1));

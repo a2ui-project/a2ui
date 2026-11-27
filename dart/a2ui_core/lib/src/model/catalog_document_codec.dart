@@ -12,25 +12,58 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:meta/meta.dart';
+
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/uax31.dart';
 import 'catalog_model.dart';
+import 'json_utils.dart';
 import 'type_definition.dart';
 
-/// Returns `true` when [json] carries a string `formatVersion` discriminator,
-/// identifying it as an A2UI Catalog Document rather than a legacy JSON Schema
-/// catalog file.
-bool isCatalogDocument(Map<String, Object?> json) =>
-    json['formatVersion'] is String;
+/// A single structural or semantic diagnostic produced while validating an
+/// A2UI Catalog Document (`formatVersion: "1.0"`).
+@immutable
+final class CatalogDocumentDiagnostic {
+  const CatalogDocumentDiagnostic({
+    required this.code,
+    required this.path,
+    required this.message,
+  });
 
-/// Parses a serialized A2UI Catalog Document (`formatVersion: "1.0"`) into a
-/// canonical [CatalogModel].
+  /// Machine-readable diagnostic identifier (e.g. `'invalid_catalog_schema'`,
+  /// `'reserved_component_name'`, `'unresolved_local_ref'`).
+  final String code;
+
+  /// RFC 6901 JSON Pointer locating the offending node.
+  final String path;
+
+  /// Human-readable description of the violation.
+  final String message;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CatalogDocumentDiagnostic &&
+          code == other.code &&
+          path == other.path &&
+          message == other.message;
+
+  @override
+  int get hashCode => Object.hash(code, path, message);
+
+  @override
+  String toString() => 'CatalogDocumentDiagnostic($code at $path: $message)';
+}
+
+/// Returns `true` if [json] is an A2UI Catalog Document (declares
+/// `formatVersion`) rather than a legacy JSON Schema catalog.
+bool isCatalogDocument(Map<String, Object?> json) =>
+    json.containsKey('formatVersion');
+
+/// Parses a Catalog Document (`formatVersion: "1.0"`) into a [CatalogModel].
 ///
-/// Throws [A2uiCatalogError] on unsupported `formatVersion`, malformed
-/// structure, unknown keys, invalid UAX #31 identifiers, reserved names
-/// (`'Surface'` or `'@*'`), duplicate names, unresolved local type `ref`s,
-/// component-only types in data-only contexts, or invalid caller permissions.
+/// Throws [A2uiCatalogError] on any structural or semantic violation.
 CatalogModel parseCatalogDocument(
   Map<String, Object?> json, {
   String? expectedCatalogId,
@@ -43,15 +76,21 @@ CatalogModel parseCatalogDocument(
   catalogId: catalogId,
 );
 
-/// Serializes a canonical [CatalogModel] into an A2UI Catalog Document JSON
-/// map (`formatVersion: "1.0"`).
+/// Validates a Catalog Document (`formatVersion: "1.0"`) and returns every
+/// structural and semantic [CatalogDocumentDiagnostic] with its JSON Pointer.
+List<CatalogDocumentDiagnostic> validateCatalogDocument(
+  Map<String, Object?> json,
+) => CatalogDocumentCodec.validateCatalogDocument(json);
+
+/// Serializes [model] into a plain mutable Catalog Document JSON map
+/// (`formatVersion: "1.0"`).
 ///
-/// Throws [A2uiCatalogError] if [model] contains an untranslatable legacy
-/// raw JSON Schema fragment.
+/// Validates [model] first and throws [A2uiCatalogError] on any violation or
+/// when [model] contains a [RawJsonSchemaType].
 Map<String, Object?> serializeCatalogDocument(CatalogModel model) =>
     CatalogDocumentCodec.serializeCatalogDocument(model);
 
-/// Codec for parsing and serializing the A2UI Catalog Document format
+/// Codec for parsing, validating, and serializing A2UI Catalog Documents
 /// (`formatVersion: "1.0"`).
 abstract final class CatalogDocumentCodec {
   static const Set<String> _rootKeys = {
@@ -68,7 +107,6 @@ abstract final class CatalogDocumentCodec {
     'components',
     'functions',
   };
-
   static const Set<String> _componentKeys = {
     'name',
     'description',
@@ -81,7 +119,6 @@ abstract final class CatalogDocumentCodec {
     'deprecated',
     'deprecatedReason',
   };
-
   static const Set<String> _functionKeys = {
     'name',
     'description',
@@ -94,23 +131,19 @@ abstract final class CatalogDocumentCodec {
     'deprecated',
     'deprecatedReason',
   };
-
-  static const Set<String> _surfacePropertyKeys = {
+  static const Set<String> _surfacePropKeys = {
     'description',
     'properties',
     'additionalProperties',
   };
-
   static const Set<String> _baseTypeKeys = {
     'type',
     'description',
     'deprecated',
     'deprecatedReason',
   };
-
-  static const Set<String> _parameterIdentityKeys = {'name', 'required'};
-
-  static const Set<String> _shorthandReturnTypes = {
+  static const Set<String> _paramKeys = {'name', 'required'};
+  static const Set<String> _shorthandReturns = {
     'string',
     'number',
     'integer',
@@ -122,1536 +155,741 @@ abstract final class CatalogDocumentCodec {
     'void',
   };
 
-  /// Returns `true` when [json] is a Catalog Document (has a string
-  /// `formatVersion` field).
-  static bool isCatalogDocument(Map<String, Object?> json) =>
-      json['formatVersion'] is String;
-
-  /// Parses [json] into a [CatalogModel].
+  /// Parses [json] into a [CatalogModel], throwing [A2uiCatalogError] on the
+  /// first violation.
   static CatalogModel parseCatalogDocument(
     Map<String, Object?> json, {
     String? expectedCatalogId,
     A2uiProtocolVersion? protocolVersion,
     String? catalogId,
-  }) {
-    final Object? rawFormat = json['formatVersion'];
-    if (rawFormat is! String) {
-      throw A2uiCatalogError(
-        "Catalog document must declare string 'formatVersion': "
-        "'$catalogDocumentFormatVersion'.",
-      );
-    }
-    if (rawFormat != catalogDocumentFormatVersion) {
-      throw A2uiCatalogError(
-        "Unsupported catalog document formatVersion '$rawFormat'; "
-        "expected '$catalogDocumentFormatVersion'.",
-      );
-    }
+  }) => _Parser(_DiagSink(failFast: true)).parseDocument(
+    json,
+    expectedCatalogId: expectedCatalogId,
+    protocolVersion: protocolVersion,
+    catalogIdOverride: catalogId,
+  );
 
-    final Object? rawId = catalogId ?? json['catalogId'];
-    if (rawId is! String || rawId.isEmpty) {
-      throw A2uiCatalogError(
-        "Catalog document must declare a non-empty string 'catalogId'.",
-      );
-    }
-    if (expectedCatalogId != null && expectedCatalogId != rawId) {
-      throw A2uiCatalogError(
-        "Catalog id mismatch: expected '$expectedCatalogId' but the document "
-        "declares '$rawId'.",
-        catalogId: rawId,
-      );
-    }
-
-    _rejectUnknownKeys(json, _rootKeys, 'Catalog document', rawId);
-
-    final String? schemaUri = _optionalString(json, r'$schema', 'root', rawId);
-    final String? title = _optionalString(json, 'title', 'root', rawId);
-    final String? description = _optionalString(
-      json,
-      'description',
-      'root',
-      rawId,
-    );
-    final String? instructions = _optionalString(
-      json,
-      'instructions',
-      'root',
-      rawId,
-    );
-
-    final Object? rawVersion = json['protocolVersion'];
-    final String? declaredVersion;
-    final A2uiProtocolVersion effectiveVersion;
-    if (rawVersion == null) {
-      declaredVersion = null;
-      effectiveVersion = protocolVersion ?? A2uiProtocolVersion.v1_0;
-    } else {
-      if (rawVersion is! String) {
-        throw A2uiCatalogError(
-          "Catalog 'protocolVersion' must be a string.",
-          catalogId: rawId,
-        );
-      }
-      final A2uiProtocolVersion? parsed = A2uiProtocolVersion.tryParseSemVer(
-        rawVersion,
-      );
-      if (parsed == null) {
-        throw A2uiCatalogError(
-          "Unsupported catalog 'protocolVersion' '$rawVersion'; supported "
-          'versions are ${A2uiProtocolVersion.supportedVersions}.',
-          catalogId: rawId,
-        );
-      }
-      declaredVersion = rawVersion;
-      effectiveVersion = parsed;
-    }
-
-    final Map<String, Object?>? metadata = _parseMetadata(
-      json['metadata'],
-      'root.metadata',
-      rawId,
-    );
-
-    final types = <String, TypeDefinition>{};
-    final Object? rawTypes = json['types'];
-    if (rawTypes != null) {
-      final Map<String, Object?> typesMap = _expectMap(
-        rawTypes,
-        'types',
-        rawId,
-      );
-      for (final MapEntry<String, Object?> entry in typesMap.entries) {
-        _assertIdentifier(entry.key, "type name '${entry.key}'", rawId);
-        final Map<String, Object?> typeObj = _expectMap(
-          entry.value,
-          'types.${entry.key}',
-          rawId,
-        );
-        types[entry.key] = _parseType(
-          typeObj,
-          allowComponentTypes: false,
-          allowParameterIdentity: false,
-          context: 'types.${entry.key}',
-          catalogId: rawId,
-        );
-      }
-    }
-
-    final SurfacePropertiesDefinition? surfaceProperties =
-        json['surfaceProperties'] == null
-        ? null
-        : _parseSurfaceProperties(
-            _expectMap(json['surfaceProperties'], 'surfaceProperties', rawId),
-            rawId,
-          );
-
-    final components = <ComponentDefinition>[];
-    final componentNames = <String>{};
-    final Object? rawComponents = json['components'];
-    if (rawComponents != null) {
-      final List<Object?> list = _expectList(
-        rawComponents,
-        'components',
-        rawId,
-      );
-      for (var i = 0; i < list.length; i++) {
-        final Map<String, Object?> compObj = _expectMap(
-          list[i],
-          'components[$i]',
-          rawId,
-        );
-        final ComponentDefinition comp = _parseComponent(
-          compObj,
-          'components[$i]',
-          rawId,
-        );
-        if (!componentNames.add(comp.name)) {
-          throw A2uiCatalogError(
-            "Catalog '$rawId' declares more than one component named "
-            "'${comp.name}'.",
-            catalogId: rawId,
-          );
-        }
-        components.add(comp);
-      }
-    }
-
-    final functions = <FunctionDefinition>[];
-    final functionNames = <String>{};
-    final Object? rawFunctions = json['functions'];
-    if (rawFunctions != null) {
-      final List<Object?> list = _expectList(rawFunctions, 'functions', rawId);
-      for (var i = 0; i < list.length; i++) {
-        final Map<String, Object?> fnObj = _expectMap(
-          list[i],
-          'functions[$i]',
-          rawId,
-        );
-        final FunctionDefinition fn = _parseFunction(
-          fnObj,
-          'functions[$i]',
-          rawId,
-          effectiveVersion,
-        );
-        if (!functionNames.add(fn.name)) {
-          throw A2uiCatalogError(
-            "Catalog '$rawId' declares more than one function named "
-            "'${fn.name}'.",
-            catalogId: rawId,
-          );
-        }
-        functions.add(fn);
-      }
-    }
-
-    final model = CatalogModel(
-      formatVersion: rawFormat,
-      schemaUri: schemaUri,
-      catalogId: rawId,
-      protocolVersion: effectiveVersion,
-      declaredProtocolVersion: declaredVersion,
-      title: title,
-      description: description,
-      instructions: instructions,
-      metadata: metadata,
-      types: Map.unmodifiable(types),
-      surfaceProperties: surfaceProperties,
-      components: List.unmodifiable(components),
-      functions: List.unmodifiable(functions),
-    );
-
-    _validateRefs(model);
-    return model;
+  /// Collects all structural and semantic diagnostics in [json].
+  static List<CatalogDocumentDiagnostic> validateCatalogDocument(
+    Map<String, Object?> json,
+  ) {
+    final sink = _DiagSink(failFast: false);
+    _Parser(sink).parseDocument(json);
+    return List<CatalogDocumentDiagnostic>.unmodifiable(sink.diagnostics);
   }
 
-  /// Serializes [model] into a Catalog Document JSON map.
+  /// Validates an in-memory [CatalogModel] against all Catalog Document
+  /// invariants, throwing [A2uiCatalogError] on the first violation.
+  static void validateModel(CatalogModel model) => _validateModel(
+    model,
+    _DiagSink(failFast: true, catalogId: model.catalogId),
+  );
+
+  /// Serializes [model] into a plain mutable Catalog Document JSON map.
   static Map<String, Object?> serializeCatalogDocument(CatalogModel model) {
-    final doc = <String, Object?>{
-      if (model.schemaUri != null) r'$schema': model.schemaUri,
+    validateModel(model);
+    final String? pv =
+        model.declaredProtocolVersion ?? model.protocolVersion?.semverValue;
+    return <String, Object?>{
+      r'$schema': ?model.schemaUri,
       'formatVersion': model.formatVersion,
       'catalogId': model.catalogId,
-      if (model.declaredProtocolVersion != null)
-        'protocolVersion': model.declaredProtocolVersion
-      else if (model.protocolVersion != null)
-        'protocolVersion': model.protocolVersion!.semverValue,
-      if (model.title != null) 'title': model.title,
-      if (model.description != null) 'description': model.description,
-      if (model.instructions != null) 'instructions': model.instructions,
-      if (model.metadata != null) 'metadata': _deepCopy(model.metadata),
+      'protocolVersion': ?pv,
+      'title': ?model.title,
+      'description': ?model.description,
+      'instructions': ?model.instructions,
+      if (model.metadata != null) 'metadata': deepCopyJson(model.metadata),
       if (model.types.isNotEmpty)
         'types': <String, Object?>{
-          for (final MapEntry<String, TypeDefinition> entry
-              in model.types.entries)
-            entry.key: _serializeType(
-              entry.value,
-              catalogId: model.catalogId,
-              context: 'types.${entry.key}',
-            ),
+          for (final MapEntry<String, TypeDefinition> e in model.types.entries)
+            e.key: _serializeType(e.value),
         },
-      if (model.surfaceProperties != null)
-        'surfaceProperties': _serializeSurfaceProperties(
-          model.surfaceProperties!,
-          model.catalogId,
-        ),
+      if (model.surfaceProperties case final SurfacePropertiesDefinition sp)
+        'surfaceProperties': _serializeSurfaceProperties(sp),
       if (model.components.isNotEmpty)
         'components': [
-          for (final ComponentDefinition comp in model.components)
-            _serializeComponent(comp, model.catalogId),
+          for (final c in model.components) _serializeComponent(c),
         ],
       if (model.functions.isNotEmpty)
-        'functions': [
-          for (final FunctionDefinition fn in model.functions)
-            _serializeFunction(fn, model.catalogId),
-        ],
+        'functions': [for (final f in model.functions) _serializeFunction(f)],
     };
-    return doc;
   }
 
   // ---------------------------------------------------------------------------
-  // Parsing helpers
+  // Single-source-of-truth semantic validator (used by parse, lint, serialize)
   // ---------------------------------------------------------------------------
 
-  static Map<String, Object?>? _parseMetadata(
-    Object? raw,
-    String context,
-    String catalogId,
-  ) {
-    if (raw == null) return null;
-    final Map<String, Object?> map = _expectMap(raw, context, catalogId);
-    _rejectUnknownKeys(map, const {'extensions'}, context, catalogId);
-    final Object? rawExt = map['extensions'];
-    if (rawExt == null) return const <String, Object?>{};
-    final Map<String, Object?> extMap = _expectMap(
-      rawExt,
-      '$context.extensions',
-      catalogId,
-    );
-    for (final String key in extMap.keys) {
-      _assertIdentifier(key, "extension key '$key' in $context", catalogId);
-    }
-    return Map<String, Object?>.unmodifiable(<String, Object?>{
-      'extensions': _deepCopy(extMap),
-    });
-  }
-
-  static SurfacePropertiesDefinition _parseSurfaceProperties(
-    Map<String, Object?> map,
-    String catalogId,
-  ) {
-    _rejectUnknownKeys(
-      map,
-      _surfacePropertyKeys,
-      'surfaceProperties',
-      catalogId,
-    );
-    final String? description = _optionalString(
-      map,
-      'description',
-      'surfaceProperties',
-      catalogId,
-    );
-    final List<ParameterDefinition> properties = _parseParameters(
-      map['properties'],
-      allowComponentTypes: false,
-      context: 'surfaceProperties.properties',
-      catalogId: catalogId,
-    );
-    final (:bool flag, :TypeDefinition? type) = _parseAdditionalSchema(
-      map['additionalProperties'],
-      allowComponentTypes: false,
-      context: 'surfaceProperties.additionalProperties',
-      catalogId: catalogId,
-    );
-    return SurfacePropertiesDefinition(
-      description: description,
-      properties: List.unmodifiable(properties),
-      additionalProperties: flag,
-      additionalPropertiesType: type,
-    );
-  }
-
-  static ComponentDefinition _parseComponent(
-    Map<String, Object?> map,
-    String context,
-    String catalogId,
-  ) {
-    _rejectUnknownKeys(map, _componentKeys, context, catalogId);
-    final String name = _requiredString(map, 'name', context, catalogId);
-    if (name == 'Surface') {
-      throw A2uiCatalogError(
-        "Catalog '$catalogId' declares a component named 'Surface', which is "
-        'reserved.',
-        catalogId: catalogId,
-      );
-    }
-    _assertIdentifier(name, "component identifier '$name'", catalogId);
-
-    final String? description = _optionalString(
-      map,
-      'description',
-      "component '$name'",
-      catalogId,
-    );
-    final bool checkable =
-        _optionalBool(map, 'checkable', "component '$name'", catalogId) ??
-        false;
-    final List<ParameterDefinition> parameters = _parseParameters(
-      map['parameters'],
-      allowComponentTypes: true,
-      context: "component '$name'.parameters",
-      catalogId: catalogId,
-    );
-    final Set<String> paramNames = {
-      for (final ParameterDefinition p in parameters) p.name,
-    };
-    final List<List<String>>? atLeastOneOf = _parseAtLeastOneOf(
-      map['atLeastOneOf'],
-      paramNames,
-      "component '$name'.atLeastOneOf",
-      catalogId,
-    );
-    final List<String>? allowedParents = _parseIdentifierList(
-      map['allowedParents'],
-      "component '$name'.allowedParents",
-      catalogId,
-    );
-    final List<String>? allowedChildren = _parseIdentifierList(
-      map['allowedChildren'],
-      "component '$name'.allowedChildren",
-      catalogId,
-    );
-    final Map<String, Object?>? metadata = _parseMetadata(
-      map['metadata'],
-      "component '$name'.metadata",
-      catalogId,
-    );
-    final bool deprecated =
-        _optionalBool(map, 'deprecated', "component '$name'", catalogId) ??
-        false;
-    final String? deprecatedReason = _optionalString(
-      map,
-      'deprecatedReason',
-      "component '$name'",
-      catalogId,
-    );
-
-    return ComponentDefinition(
-      name: name,
-      description: description,
-      checkable: checkable,
-      parameters: List.unmodifiable(parameters),
-      atLeastOneOf: atLeastOneOf,
-      allowedParents: allowedParents,
-      allowedChildren: allowedChildren,
-      metadata: metadata,
-      deprecated: deprecated,
-      deprecatedReason: deprecatedReason,
-    );
-  }
-
-  static FunctionDefinition _parseFunction(
-    Map<String, Object?> map,
-    String context,
-    String catalogId,
-    A2uiProtocolVersion effectiveVersion,
-  ) {
-    _rejectUnknownKeys(map, _functionKeys, context, catalogId);
-    final String name = _requiredString(map, 'name', context, catalogId);
-    if (name.startsWith('@')) {
-      throw A2uiCatalogError(
-        "Catalog '$catalogId' declares a function named '$name'; names "
-        "starting with '@' are reserved.",
-        catalogId: catalogId,
-      );
-    }
-    _assertIdentifier(name, "function identifier '$name'", catalogId);
-
-    if (!map.containsKey('returnType') || map['returnType'] == null) {
-      throw A2uiCatalogError(
-        "Function '$name' must declare 'returnType'.",
-        catalogId: catalogId,
-      );
-    }
-    final FunctionReturnDefinition returnType = _parseReturnType(
-      map['returnType'],
-      "function '$name'.returnType",
-      catalogId,
-    );
-    if (!effectiveVersion.isAtLeast(A2uiProtocolVersion.v1_0) &&
-        returnType.returnType == A2uiReturnType.validationResult) {
-      throw A2uiCatalogError(
-        "Function '$name' declares returnType 'validationResult', which "
-        'protocol ${effectiveVersion.semverValue} does not define; declare '
-        'protocolVersion 1.0 or later.',
-        catalogId: catalogId,
-      );
-    }
-
-    final String? description = _optionalString(
-      map,
-      'description',
-      "function '$name'",
-      catalogId,
-    );
-    final AllowedCallers? declaredAllowedCallers =
-        switch (map['allowedCallers']) {
-          null => null,
-          final String s => AllowedCallers.fromJson(s),
-          final Object other => throw A2uiCatalogError(
-            "Function '$name' allowedCallers must be a string, got "
-            '${other.runtimeType}.',
-            catalogId: catalogId,
-          ),
-        };
-    final bool? declaredRequiresUserActivation = _optionalBool(
-      map,
-      'requiresUserActivation',
-      "function '$name'",
-      catalogId,
-    );
-    final AllowedCallers effectiveCallers =
-        declaredAllowedCallers ?? AllowedCallers.rendererOnly;
-    if ((declaredRequiresUserActivation ?? false) &&
-        effectiveCallers != AllowedCallers.rendererOnly) {
-      throw A2uiCatalogError(
-        "Function '$name' declares requiresUserActivation with "
-        "allowedCallers '${effectiveCallers.jsonValue}'; a function that "
-        "requires user activation must be 'rendererOnly'.",
-        catalogId: catalogId,
-      );
-    }
-
-    final List<ParameterDefinition> parameters = _parseParameters(
-      map['parameters'],
-      allowComponentTypes: false,
-      context: "function '$name'.parameters",
-      catalogId: catalogId,
-    );
-    final Set<String> paramNames = {
-      for (final ParameterDefinition p in parameters) p.name,
-    };
-    final List<List<String>>? atLeastOneOf = _parseAtLeastOneOf(
-      map['atLeastOneOf'],
-      paramNames,
-      "function '$name'.atLeastOneOf",
-      catalogId,
-    );
-    final (:bool flag, :TypeDefinition? type) = _parseAdditionalSchema(
-      map['additionalParameters'],
-      allowComponentTypes: false,
-      context: "function '$name'.additionalParameters",
-      catalogId: catalogId,
-    );
-    final bool deprecated =
-        _optionalBool(map, 'deprecated', "function '$name'", catalogId) ??
-        false;
-    final String? deprecatedReason = _optionalString(
-      map,
-      'deprecatedReason',
-      "function '$name'",
-      catalogId,
-    );
-
-    return FunctionDefinition(
-      name: name,
-      description: description,
-      returnType: returnType,
-      allowedCallers: declaredAllowedCallers,
-      requiresUserActivation: declaredRequiresUserActivation,
-      parameters: List.unmodifiable(parameters),
-      atLeastOneOf: atLeastOneOf,
-      additionalParameters: flag,
-      additionalParametersType: type,
-      deprecated: deprecated,
-      deprecatedReason: deprecatedReason,
-    );
-  }
-
-  static FunctionReturnDefinition _parseReturnType(
-    Object? raw,
-    String context,
-    String catalogId,
-  ) {
-    if (raw is String) {
-      if (!_shorthandReturnTypes.contains(raw)) {
-        throw A2uiCatalogError(
-          "Unknown $context '$raw'; expected one of "
-          '${_shorthandReturnTypes.join(', ')}.',
-          catalogId: catalogId,
-        );
-      }
-      if (raw == 'integer') return const FunctionReturnDefinition.integer();
-      return FunctionReturnDefinition.shorthand(A2uiReturnType.fromJson(raw));
-    }
-    final Map<String, Object?> map = _expectMap(raw, context, catalogId);
-    final Object? kind = map['type'];
-    if (kind == 'void') {
-      _rejectUnknownKeys(
-        map,
-        const {'type', 'description'},
-        context,
-        catalogId,
-      );
-      return FunctionReturnDefinition.void_(
-        description: _optionalString(map, 'description', context, catalogId),
-      );
-    }
-    if (kind == 'validationResult') {
-      _rejectUnknownKeys(
-        map,
-        const {'type', 'description'},
-        context,
-        catalogId,
-      );
-      return FunctionReturnDefinition.validationResult(
-        description: _optionalString(map, 'description', context, catalogId),
-      );
-    }
-    final TypeDefinition dataType = _parseType(
-      map,
-      allowComponentTypes: false,
-      allowParameterIdentity: false,
-      context: context,
-      catalogId: catalogId,
-    );
-    return FunctionReturnDefinition.typed(dataType);
-  }
-
-  static List<ParameterDefinition> _parseParameters(
-    Object? raw, {
-    required bool allowComponentTypes,
-    required String context,
-    required String catalogId,
+  static void _validateModel(
+    CatalogModel model,
+    _DiagSink sink, {
+    bool checkEmptyNames = true,
   }) {
-    if (raw == null) return const [];
-    final List<Object?> list = _expectList(raw, context, catalogId);
-    final result = <ParameterDefinition>[];
-    final seen = <String>{};
-    for (var i = 0; i < list.length; i++) {
-      final Map<String, Object?> paramMap = _expectMap(
-        list[i],
-        '$context[$i]',
-        catalogId,
+    if (model.formatVersion != catalogDocumentFormatVersion) {
+      sink.schema(
+        '/formatVersion',
+        "Unsupported Catalog Document 'formatVersion' '${model.formatVersion}'"
+            "; expected '$catalogDocumentFormatVersion'.",
       );
-      final String name = _requiredString(
-        paramMap,
-        'name',
-        '$context[$i]',
-        catalogId,
+    }
+    if (model.catalogId.isEmpty) {
+      sink.schema(
+        '/catalogId',
+        "Catalog Document 'catalogId' must be a non-empty string.",
       );
-      _assertIdentifier(name, "parameter identifier '$name'", catalogId);
-      if (!seen.add(name)) {
-        throw A2uiCatalogError(
-          "Duplicate parameter name '$name' in $context.",
-          catalogId: catalogId,
+    }
+    _validateMetadataMap(model.metadata, '/metadata', sink);
+
+    for (final MapEntry<String, TypeDefinition> e in model.types.entries) {
+      final ptr = '/types/${_esc(e.key)}';
+      _checkId(e.key, "type name '${e.key}'", ptr, sink);
+      _validateType(
+        e.value,
+        ptr,
+        knownTypes: model.types,
+        allowComponentTypes: false,
+        checkEmptyNames: checkEmptyNames,
+        sink: sink,
+      );
+    }
+    _detectStructuralCycles(model.types, sink);
+
+    if (model.surfaceProperties case final SurfacePropertiesDefinition sp) {
+      if (sp.rawSchema != null) {
+        sink.schema(
+          '/surfaceProperties',
+          'RawJsonSchemaType is not valid in a Catalog Document.',
         );
       }
-      final bool required =
-          _optionalBool(paramMap, 'required', "$context.'$name'", catalogId) ??
-          false;
-      final TypeDefinition type = _parseType(
-        paramMap,
+      _validateParams(
+        sp.properties,
+        '/surfaceProperties/properties',
+        knownTypes: model.types,
+        allowComponentTypes: false,
+        checkEmptyNames: checkEmptyNames,
+        sink: sink,
+      );
+      if (sp.additionalPropertiesType case final TypeDefinition extra) {
+        _validateType(
+          extra,
+          '/surfaceProperties/additionalProperties',
+          knownTypes: model.types,
+          allowComponentTypes: false,
+          checkEmptyNames: checkEmptyNames,
+          sink: sink,
+        );
+      }
+    }
+
+    final seenComponents = <String>{};
+    for (var i = 0; i < model.components.length; i++) {
+      final ComponentDefinition c = model.components[i];
+      final ptr = '/components/$i';
+      if (c.rawSchema != null) {
+        sink.schema(
+          ptr,
+          'RawJsonSchemaType is not valid in a Catalog Document.',
+        );
+      }
+      if (c.name == 'Surface') {
+        sink.add(
+          'reserved_component_name',
+          '$ptr/name',
+          "Component name 'Surface' is reserved.",
+        );
+      } else if (c.name.isEmpty) {
+        if (checkEmptyNames) {
+          sink.schema(
+            '$ptr/name',
+            'Component name must be a non-empty string.',
+          );
+        }
+      } else {
+        _checkId(c.name, "component name '${c.name}'", '$ptr/name', sink);
+        if (!seenComponents.add(c.name)) {
+          sink.add(
+            'duplicate_name',
+            '$ptr/name',
+            "Duplicate component name '${c.name}'.",
+          );
+        }
+      }
+      _validateMetadataMap(c.metadata, '$ptr/metadata', sink);
+      final Set<String> paramNames = _validateParams(
+        c.parameters,
+        '$ptr/parameters',
+        knownTypes: model.types,
+        allowComponentTypes: true,
+        checkEmptyNames: checkEmptyNames,
+        sink: sink,
+      );
+      _validateAtLeastOneOf(
+        c.atLeastOneOf,
+        paramNames,
+        '$ptr/atLeastOneOf',
+        sink,
+      );
+    }
+
+    final seenFunctions = <String>{};
+    for (var i = 0; i < model.functions.length; i++) {
+      final FunctionDefinition fn = model.functions[i];
+      final ptr = '/functions/$i';
+      if (fn.rawArgumentSchema != null) {
+        sink.schema(
+          ptr,
+          'RawJsonSchemaType is not valid in a Catalog Document.',
+        );
+      }
+      if (fn.name.startsWith('@')) {
+        sink.add(
+          'reserved_function_name',
+          '$ptr/name',
+          "Function name '${fn.name}' must not start with '@'.",
+        );
+      } else if (fn.name.isEmpty) {
+        if (checkEmptyNames) {
+          sink.schema('$ptr/name', 'Function name must be a non-empty string.');
+        }
+      } else {
+        _checkId(fn.name, "function name '${fn.name}'", '$ptr/name', sink);
+        if (!seenFunctions.add(fn.name)) {
+          sink.add(
+            'duplicate_name',
+            '$ptr/name',
+            "Duplicate function name '${fn.name}'.",
+          );
+        }
+      }
+      if (fn.requiresUserActivation &&
+          fn.allowedCallers != AllowedCallers.rendererOnly) {
+        sink.add(
+          'user_activation_allows_agent',
+          '$ptr/requiresUserActivation',
+          "Function '${fn.name}' sets requiresUserActivation: true, so "
+              "allowedCallers must be 'rendererOnly' (got "
+              "'${fn.allowedCallers.jsonValue}').",
+        );
+      }
+      if (fn.returnType.type case final TypeDefinition retType) {
+        _validateType(
+          retType,
+          '$ptr/returnType',
+          knownTypes: model.types,
+          allowComponentTypes: false,
+          checkEmptyNames: checkEmptyNames,
+          sink: sink,
+        );
+      }
+      final Set<String> paramNames = _validateParams(
+        fn.parameters,
+        '$ptr/parameters',
+        knownTypes: model.types,
+        allowComponentTypes: false,
+        checkEmptyNames: checkEmptyNames,
+        sink: sink,
+      );
+      _validateAtLeastOneOf(
+        fn.atLeastOneOf,
+        paramNames,
+        '$ptr/atLeastOneOf',
+        sink,
+      );
+      if (fn.additionalParametersType case final TypeDefinition extra) {
+        _validateType(
+          extra,
+          '$ptr/additionalParameters',
+          knownTypes: model.types,
+          allowComponentTypes: false,
+          checkEmptyNames: checkEmptyNames,
+          sink: sink,
+        );
+      }
+    }
+  }
+
+  static void _checkId(String value, String label, String ptr, _DiagSink sink) {
+    if (!isValidUax31Identifier(value)) {
+      sink.add(
+        'invalid_identifier',
+        ptr,
+        'Invalid $label: must be a Unicode UAX #31 identifier.',
+      );
+    }
+  }
+
+  static void _checkRange(
+    num? min,
+    num? max,
+    String minKey,
+    String maxKey,
+    String ptr,
+    _DiagSink sink, {
+    bool nonNegative = false,
+  }) {
+    if (nonNegative && min != null && min < 0) {
+      sink.constraint('$ptr/$minKey', '$minKey must be >= 0.');
+    }
+    if (nonNegative && max != null && max < 0) {
+      sink.constraint('$ptr/$maxKey', '$maxKey must be >= 0.');
+    }
+    if (min != null && max != null && min > max) {
+      sink.constraint(
+        '$ptr/$minKey',
+        '$minKey ($min) must not exceed $maxKey ($max).',
+      );
+    }
+  }
+
+  static void _validateMetadataMap(
+    Map<String, Object?>? meta,
+    String ptr,
+    _DiagSink sink,
+  ) {
+    if (meta == null) return;
+    for (final String key in meta.keys) {
+      if (key != 'extensions') {
+        sink.schema(
+          '$ptr/${_esc(key)}',
+          "Unknown property '$key' on metadata; only 'extensions' is allowed.",
+        );
+      }
+    }
+    if (!meta.containsKey('extensions')) return;
+    final Object? ext = meta['extensions'];
+    if (ext is! Map) {
+      sink.schema(
+        '$ptr/extensions',
+        "Metadata 'extensions' must be a JSON object.",
+      );
+      return;
+    }
+    for (final Object? key in ext.keys) {
+      if (key is! String || !isValidUax31Identifier(key)) {
+        sink.add(
+          'invalid_identifier',
+          '$ptr/extensions/${_esc('$key')}',
+          "Invalid metadata extension key '$key': must be a UAX #31 "
+              'identifier.',
+        );
+      }
+    }
+  }
+
+  static Set<String> _validateParams(
+    List<ParameterDefinition> params,
+    String ptr, {
+    required Map<String, TypeDefinition> knownTypes,
+    required bool allowComponentTypes,
+    required bool checkEmptyNames,
+    required _DiagSink sink,
+  }) {
+    final seen = <String>{};
+    for (var i = 0; i < params.length; i++) {
+      final ParameterDefinition p = params[i];
+      final itemPtr = '$ptr/$i';
+      if (p.name.isEmpty) {
+        if (checkEmptyNames) {
+          sink.schema(
+            '$itemPtr/name',
+            'Parameter name must be a non-empty string.',
+          );
+        }
+      } else {
+        _checkId(p.name, "parameter name '${p.name}'", '$itemPtr/name', sink);
+        if (!seen.add(p.name)) {
+          sink.add(
+            'duplicate_name',
+            '$itemPtr/name',
+            "Duplicate parameter name '${p.name}'.",
+          );
+        }
+      }
+      _validateType(
+        p.type,
+        itemPtr,
+        knownTypes: knownTypes,
         allowComponentTypes: allowComponentTypes,
-        allowParameterIdentity: true,
-        context: "$context.'$name'",
-        catalogId: catalogId,
-      );
-      result.add(
-        ParameterDefinition(name: name, type: type, required: required),
+        checkEmptyNames: checkEmptyNames,
+        sink: sink,
       );
     }
-    return result;
+    return seen;
   }
 
-  static TypeDefinition _parseType(
-    Map<String, Object?> map, {
-    required bool allowComponentTypes,
-    required bool allowParameterIdentity,
-    required String context,
-    required String catalogId,
-  }) {
-    if (!allowParameterIdentity) {
-      if (map.containsKey('name')) {
-        throw A2uiCatalogError(
-          "Unexpected 'name' key on unnamed type at $context.",
-          catalogId: catalogId,
+  static void _validateAtLeastOneOf(
+    List<List<String>>? groups,
+    Set<String> declared,
+    String ptr,
+    _DiagSink sink,
+  ) {
+    if (groups == null) return;
+    for (var i = 0; i < groups.length; i++) {
+      final List<String> group = groups[i];
+      final gPtr = '$ptr/$i';
+      if (group.length < 2) {
+        sink.constraint(
+          gPtr,
+          'Each atLeastOneOf group must list at least 2 parameter names.',
         );
       }
-      if (map.containsKey('required')) {
-        throw A2uiCatalogError(
-          "Unexpected 'required' key on unnamed type at $context.",
-          catalogId: catalogId,
-        );
+      final seen = <String>{};
+      for (var j = 0; j < group.length; j++) {
+        final String name = group[j];
+        if (!seen.add(name)) {
+          sink.constraint(
+            '$gPtr/$j',
+            "Duplicate parameter '$name' in atLeastOneOf group.",
+          );
+        }
+        if (!declared.contains(name)) {
+          sink.constraint(
+            '$gPtr/$j',
+            "atLeastOneOf references unknown parameter '$name'.",
+          );
+        }
       }
     }
+  }
 
-    final String kind = _requiredString(map, 'type', context, catalogId);
-    final String? description = _optionalString(
-      map,
-      'description',
-      context,
-      catalogId,
-    );
-    final bool deprecated =
-        _optionalBool(map, 'deprecated', context, catalogId) ?? false;
-    final String? deprecatedReason = _optionalString(
-      map,
-      'deprecatedReason',
-      context,
-      catalogId,
-    );
-
-    Set<String> allowed(Set<String> extra) => {
-      ..._baseTypeKeys,
-      if (allowParameterIdentity) ..._parameterIdentityKeys,
-      ...extra,
-    };
-
-    switch (kind) {
-      case 'string':
-        _rejectUnknownKeys(
-          map,
-          allowed(const {
-            'dynamic',
-            'format',
-            'pattern',
-            'minLength',
-            'maxLength',
-            'default',
-          }),
-          context,
-          catalogId,
-        );
-        final bool isDynamic =
-            _optionalBool(map, 'dynamic', context, catalogId) ?? false;
-        final (:String? singleFormat, :List<String>? multiFormats) =
-            _parseFormats(map['format'], context, catalogId);
-        final String? pattern = _optionalString(
-          map,
-          'pattern',
-          context,
-          catalogId,
-        );
-        final int? minLength = _optionalNonNegativeInt(
-          map,
+  static void _validateType(
+    TypeDefinition type,
+    String ptr, {
+    required Map<String, TypeDefinition> knownTypes,
+    required bool allowComponentTypes,
+    required bool checkEmptyNames,
+    required _DiagSink sink,
+  }) {
+    if (!allowComponentTypes &&
+        (type is ChildType ||
+            type is ChildListType ||
+            type is ActionType ||
+            type is CheckRuleType ||
+            type is AccessibilityType)) {
+      sink.schema(
+        '$ptr/type',
+        'Component-only type ${type.runtimeType} is not allowed in a '
+            'data-only context.',
+      );
+      return;
+    }
+    switch (type) {
+      case StringType(
+        :final format,
+        :final formats,
+        :final pattern,
+        :final minLength,
+        :final maxLength,
+      ):
+        if (format != null && formats != null) {
+          sink.constraint(
+            '$ptr/formats',
+            "Type 'string' cannot specify both 'format' and 'formats'.",
+          );
+        }
+        if (formats != null && formats.isEmpty) {
+          sink.constraint(
+            '$ptr/formats',
+            "Field 'formats' must be a non-empty array of strings.",
+          );
+        }
+        _checkRange(
+          minLength,
+          maxLength,
           'minLength',
-          context,
-          catalogId,
-        );
-        final int? maxLength = _optionalNonNegativeInt(
-          map,
           'maxLength',
-          context,
-          catalogId,
+          ptr,
+          sink,
+          nonNegative: true,
         );
-        final String? defaultValue = _optionalString(
-          map,
-          'default',
-          context,
-          catalogId,
-        );
-        return StringType(
-          dynamic: isDynamic,
-          format: singleFormat,
-          formats: multiFormats,
-          pattern: pattern,
-          minLength: minLength,
-          maxLength: maxLength,
-          defaultValue: defaultValue,
-          description: description,
-          deprecated: deprecated,
-          deprecatedReason: deprecatedReason,
-        );
-
-      case 'number':
-        _rejectUnknownKeys(
-          map,
-          allowed(const {'dynamic', 'min', 'max', 'default'}),
-          context,
-          catalogId,
-        );
-        return NumberType(
-          dynamic: _optionalBool(map, 'dynamic', context, catalogId) ?? false,
-          min: _optionalNum(map, 'min', context, catalogId),
-          max: _optionalNum(map, 'max', context, catalogId),
-          defaultValue: _optionalNum(map, 'default', context, catalogId),
-          description: description,
-          deprecated: deprecated,
-          deprecatedReason: deprecatedReason,
-        );
-
-      case 'integer':
-        _rejectUnknownKeys(
-          map,
-          allowed(const {'dynamic', 'min', 'max', 'default'}),
-          context,
-          catalogId,
-        );
-        return IntegerType(
-          dynamic: _optionalBool(map, 'dynamic', context, catalogId) ?? false,
-          min: _optionalInt(map, 'min', context, catalogId),
-          max: _optionalInt(map, 'max', context, catalogId),
-          defaultValue: _optionalInt(map, 'default', context, catalogId),
-          description: description,
-          deprecated: deprecated,
-          deprecatedReason: deprecatedReason,
-        );
-
-      case 'boolean':
-        _rejectUnknownKeys(
-          map,
-          allowed(const {'dynamic', 'default'}),
-          context,
-          catalogId,
-        );
-        return BooleanType(
-          dynamic: _optionalBool(map, 'dynamic', context, catalogId) ?? false,
-          defaultValue: _optionalBool(map, 'default', context, catalogId),
-          description: description,
-          deprecated: deprecated,
-          deprecatedReason: deprecatedReason,
-        );
-
-      case 'enum':
-        _rejectUnknownKeys(
-          map,
-          allowed(const {'dynamic', 'valueType', 'values', 'default'}),
-          context,
-          catalogId,
-        );
-        final EnumValueType? valueType = switch (map['valueType']) {
-          null => null,
-          final String s => EnumValueType.fromJson(s),
-          final Object other => throw A2uiCatalogError(
-            "$context 'valueType' must be a string, got ${other.runtimeType}.",
-            catalogId: catalogId,
-          ),
-        };
-        final List<Object?> rawValues = _expectList(
-          map['values'],
-          '$context.values',
-          catalogId,
-        );
-        if (rawValues.isEmpty) {
-          throw A2uiCatalogError(
-            "$context 'values' must contain at least one element.",
-            catalogId: catalogId,
-          );
-        }
-        final values = <Object>[];
-        final seen = <Object>{};
-        for (final item in rawValues) {
-          if (item == null ||
-              (item is! String && item is! num && item is! bool)) {
-            throw A2uiCatalogError(
-              "$context 'values' entries must be string, number, or boolean.",
-              catalogId: catalogId,
+        if (pattern != null) {
+          try {
+            RegExp(pattern, unicode: true);
+          } on FormatException catch (e) {
+            sink.constraint(
+              '$ptr/pattern',
+              "Invalid regular expression pattern '$pattern': ${e.message}",
             );
           }
-          if (valueType != null && !_matchesEnumValueType(item, valueType)) {
-            throw A2uiCatalogError(
-              "$context enum value '$item' does not match valueType "
-              "'${valueType.jsonValue}'.",
-              catalogId: catalogId,
+        }
+      case NumberType(:final min, :final max):
+        _checkRange(min, max, 'min', 'max', ptr, sink);
+      case IntegerType(:final min, :final max):
+        _checkRange(min, max, 'min', 'max', ptr, sink);
+      case EnumType(:final values, :final valueType, :final defaultValue):
+        if (values.isEmpty) {
+          sink.constraint('$ptr/values', 'EnumType values must be non-empty.');
+        }
+        for (var i = 0; i < values.length; i++) {
+          if (!_matchesEnumValueType(values[i], valueType)) {
+            sink.schema(
+              '$ptr/values/$i',
+              "Enum value '${values[i]}' does not match valueType "
+                  "'${valueType.jsonValue}'.",
             );
           }
-          if (!seen.add(item)) {
-            throw A2uiCatalogError(
-              "$context 'values' contains duplicate value '$item'.",
-              catalogId: catalogId,
-            );
-          }
-          values.add(item);
         }
-        final Object? defaultVal = map['default'];
-        if (defaultVal != null &&
-            defaultVal is! String &&
-            defaultVal is! num &&
-            defaultVal is! bool) {
-          throw A2uiCatalogError(
-            "$context 'default' must be a string, number, or boolean.",
-            catalogId: catalogId,
+        if (defaultValue != null &&
+            (!_matchesEnumValueType(defaultValue, valueType) ||
+                !values.contains(defaultValue))) {
+          sink.constraint(
+            '$ptr/default',
+            "Enum default '$defaultValue' must be a member of values matching "
+                "valueType '${valueType.jsonValue}'.",
           );
         }
-        return EnumType(
-          values: List.unmodifiable(values),
-          valueType: valueType,
-          dynamic: _optionalBool(map, 'dynamic', context, catalogId) ?? false,
-          defaultValue: defaultVal,
-          description: description,
-          deprecated: deprecated,
-          deprecatedReason: deprecatedReason,
-        );
-
-      case 'const':
-        _rejectUnknownKeys(map, allowed(const {'value'}), context, catalogId);
-        if (!map.containsKey('value')) {
-          throw A2uiCatalogError(
-            "$context of type 'const' must declare 'value'.",
-            catalogId: catalogId,
-          );
-        }
-        final Object? constVal = map['value'];
-        if (constVal != null &&
-            constVal is! String &&
-            constVal is! num &&
-            constVal is! bool) {
-          throw A2uiCatalogError(
-            "$context 'value' must be string, number, boolean, or null.",
-            catalogId: catalogId,
-          );
-        }
-        return ConstType(
-          value: constVal,
-          description: description,
-          deprecated: deprecated,
-          deprecatedReason: deprecatedReason,
-        );
-
-      case 'any':
-        _rejectUnknownKeys(
-          map,
-          allowed(const {'dynamic', 'nullable', 'default'}),
-          context,
-          catalogId,
-        );
-        final bool isDynamic =
-            _optionalBool(map, 'dynamic', context, catalogId) ?? false;
-        final bool nullable =
-            _optionalBool(map, 'nullable', context, catalogId) ?? false;
-        return map.containsKey('default')
-            ? AnyType(
-                dynamic: isDynamic,
-                nullable: nullable,
-                defaultValue: _deepCopy(map['default']),
-                description: description,
-                deprecated: deprecated,
-                deprecatedReason: deprecatedReason,
-              )
-            : AnyType(
-                dynamic: isDynamic,
-                nullable: nullable,
-                description: description,
-                deprecated: deprecated,
-                deprecatedReason: deprecatedReason,
-              );
-
-      case 'object':
-        _rejectUnknownKeys(
-          map,
-          allowed(const {
-            'dynamic',
-            'properties',
-            'additionalProperties',
-            'atLeastOneOf',
-            'default',
-          }),
-          context,
-          catalogId,
-        );
-        final List<ParameterDefinition> props = _parseParameters(
-          map['properties'],
+      case ObjectType(
+        :final properties,
+        :final additionalPropertiesType,
+        :final atLeastOneOf,
+      ):
+        final Set<String> names = _validateParams(
+          properties,
+          '$ptr/properties',
+          knownTypes: knownTypes,
           allowComponentTypes: allowComponentTypes,
-          context: '$context.properties',
-          catalogId: catalogId,
+          checkEmptyNames: checkEmptyNames,
+          sink: sink,
         );
-        final Set<String> propNames = {
-          for (final ParameterDefinition p in props) p.name,
-        };
-        final List<List<String>>? atLeastOneOf = _parseAtLeastOneOf(
-          map['atLeastOneOf'],
-          propNames,
-          '$context.atLeastOneOf',
-          catalogId,
-        );
-        final (:bool flag, :TypeDefinition? type) = _parseAdditionalSchema(
-          map['additionalProperties'],
-          allowComponentTypes: allowComponentTypes,
-          context: '$context.additionalProperties',
-          catalogId: catalogId,
-        );
-        final Map<String, Object?>? defaultVal = map['default'] == null
-            ? null
-            : _deepCopy(
-                    _expectMap(map['default'], '$context.default', catalogId),
-                  )!
-                  as Map<String, Object?>;
-        return ObjectType(
-          dynamic: _optionalBool(map, 'dynamic', context, catalogId) ?? false,
-          properties: List.unmodifiable(props),
-          additionalProperties: flag,
-          additionalPropertiesType: type,
-          atLeastOneOf: atLeastOneOf,
-          defaultValue: defaultVal,
-          description: description,
-          deprecated: deprecated,
-          deprecatedReason: deprecatedReason,
-        );
-
-      case 'array':
-        _rejectUnknownKeys(
-          map,
-          allowed(const {
-            'dynamic',
-            'items',
-            'minItems',
-            'maxItems',
-            'uniqueItems',
-            'default',
-          }),
-          context,
-          catalogId,
-        );
-        final TypeDefinition? items = map['items'] == null
-            ? null
-            : _parseType(
-                _expectMap(map['items'], '$context.items', catalogId),
-                allowComponentTypes: allowComponentTypes,
-                allowParameterIdentity: false,
-                context: '$context.items',
-                catalogId: catalogId,
-              );
-        final List<Object?>? defaultVal = map['default'] == null
-            ? null
-            : _deepCopy(
-                    _expectList(map['default'], '$context.default', catalogId),
-                  )!
-                  as List<Object?>;
-        return ArrayType(
-          dynamic: _optionalBool(map, 'dynamic', context, catalogId) ?? false,
-          items: items,
-          minItems: _optionalNonNegativeInt(
-            map,
-            'minItems',
-            context,
-            catalogId,
-          ),
-          maxItems: _optionalNonNegativeInt(
-            map,
-            'maxItems',
-            context,
-            catalogId,
-          ),
-          uniqueItems:
-              _optionalBool(map, 'uniqueItems', context, catalogId) ?? false,
-          defaultValue: defaultVal,
-          description: description,
-          deprecated: deprecated,
-          deprecatedReason: deprecatedReason,
-        );
-
-      case 'union':
-        _rejectUnknownKeys(
-          map,
-          allowed(const {'dynamic', 'exclusive', 'variants', 'default'}),
-          context,
-          catalogId,
-        );
-        final List<Object?> rawVariants = _expectList(
-          map['variants'],
-          '$context.variants',
-          catalogId,
-        );
-        if (rawVariants.length < 2) {
-          throw A2uiCatalogError(
-            "$context 'variants' must contain at least 2 variants.",
-            catalogId: catalogId,
+        _validateAtLeastOneOf(atLeastOneOf, names, '$ptr/atLeastOneOf', sink);
+        if (additionalPropertiesType != null) {
+          _validateType(
+            additionalPropertiesType,
+            '$ptr/additionalProperties',
+            knownTypes: knownTypes,
+            allowComponentTypes: allowComponentTypes,
+            checkEmptyNames: checkEmptyNames,
+            sink: sink,
           );
         }
-        final variants = <TypeDefinition>[
-          for (var i = 0; i < rawVariants.length; i++)
-            _parseType(
-              _expectMap(rawVariants[i], '$context.variants[$i]', catalogId),
-              allowComponentTypes: allowComponentTypes,
-              allowParameterIdentity: false,
-              context: '$context.variants[$i]',
-              catalogId: catalogId,
-            ),
-        ];
-        final bool isDynamic =
-            _optionalBool(map, 'dynamic', context, catalogId) ?? false;
-        final bool exclusive =
-            _optionalBool(map, 'exclusive', context, catalogId) ?? true;
-        return map.containsKey('default')
-            ? UnionType(
-                variants: List.unmodifiable(variants),
-                exclusive: exclusive,
-                dynamic: isDynamic,
-                defaultValue: _deepCopy(map['default']),
-                description: description,
-                deprecated: deprecated,
-                deprecatedReason: deprecatedReason,
-              )
-            : UnionType(
-                variants: List.unmodifiable(variants),
-                exclusive: exclusive,
-                dynamic: isDynamic,
-                description: description,
-                deprecated: deprecated,
-                deprecatedReason: deprecatedReason,
-              );
-
-      case 'dataBinding':
-        _rejectUnknownKeys(map, allowed(const {}), context, catalogId);
-        return DataBindingType(
-          description: description,
-          deprecated: deprecated,
-          deprecatedReason: deprecatedReason,
+      case ArrayType(:final items, :final minItems, :final maxItems):
+        _checkRange(
+          minItems,
+          maxItems,
+          'minItems',
+          'maxItems',
+          ptr,
+          sink,
+          nonNegative: true,
         );
-
-      case 'functionCall':
-        _rejectUnknownKeys(map, allowed(const {}), context, catalogId);
-        return FunctionCallType(
-          description: description,
-          deprecated: deprecated,
-          deprecatedReason: deprecatedReason,
-        );
-
-      case 'ref':
-        _rejectUnknownKeys(
-          map,
-          allowed(const {'ref', 'default'}),
-          context,
-          catalogId,
-        );
-        final String ref = _requiredString(map, 'ref', context, catalogId);
-        _assertIdentifier(ref, "type ref '$ref' at $context", catalogId);
-        return map.containsKey('default')
-            ? RefType(
-                ref: ref,
-                defaultValue: _deepCopy(map['default']),
-                description: description,
-                deprecated: deprecated,
-                deprecatedReason: deprecatedReason,
-              )
-            : RefType(
-                ref: ref,
-                description: description,
-                deprecated: deprecated,
-                deprecatedReason: deprecatedReason,
-              );
-
-      case 'child':
-      case 'childList':
-      case 'action':
-      case 'checkRule':
-      case 'accessibility':
-        if (!allowComponentTypes) {
-          throw A2uiCatalogError(
-            "Component-only type '$kind' is not allowed at $context.",
-            catalogId: catalogId,
+        if (items != null) {
+          _validateType(
+            items,
+            '$ptr/items',
+            knownTypes: knownTypes,
+            allowComponentTypes: allowComponentTypes,
+            checkEmptyNames: checkEmptyNames,
+            sink: sink,
           );
         }
-        _rejectUnknownKeys(map, allowed(const {}), context, catalogId);
-        return switch (kind) {
-          'child' => ChildType(
-            description: description,
-            deprecated: deprecated,
-            deprecatedReason: deprecatedReason,
-          ),
-          'childList' => ChildListType(
-            description: description,
-            deprecated: deprecated,
-            deprecatedReason: deprecatedReason,
-          ),
-          'action' => ActionType(
-            description: description,
-            deprecated: deprecated,
-            deprecatedReason: deprecatedReason,
-          ),
-          'checkRule' => CheckRuleType(
-            description: description,
-            deprecated: deprecated,
-            deprecatedReason: deprecatedReason,
-          ),
-          _ => AccessibilityType(
-            description: description,
-            deprecated: deprecated,
-            deprecatedReason: deprecatedReason,
-          ),
-        };
-
-      default:
-        throw A2uiCatalogError(
-          "Unknown type '$kind' at $context.",
-          catalogId: catalogId,
+      case UnionType(:final variants):
+        if (variants.length < 2) {
+          sink.constraint(
+            '$ptr/variants',
+            'UnionType must declare at least 2 variants.',
+          );
+        }
+        for (var i = 0; i < variants.length; i++) {
+          _validateType(
+            variants[i],
+            '$ptr/variants/$i',
+            knownTypes: knownTypes,
+            allowComponentTypes: allowComponentTypes,
+            checkEmptyNames: checkEmptyNames,
+            sink: sink,
+          );
+        }
+      case RefType(:final ref):
+        if (ref.isEmpty) {
+          if (checkEmptyNames) {
+            sink.schema('$ptr/ref', 'RefType ref must be a non-empty string.');
+          }
+        } else if (!knownTypes.containsKey(ref)) {
+          sink.add(
+            'unresolved_local_ref',
+            '$ptr/ref',
+            "Unresolved local type reference '$ref'.",
+          );
+        }
+      case RawJsonSchemaType():
+        sink.schema(
+          ptr,
+          'RawJsonSchemaType is not valid in a Catalog Document.',
         );
+      case BooleanType() ||
+          ConstType() ||
+          AnyType() ||
+          DataBindingType() ||
+          FunctionCallType() ||
+          ChildType() ||
+          ChildListType() ||
+          ActionType() ||
+          CheckRuleType() ||
+          AccessibilityType():
+        break;
     }
   }
 
-  static ({bool flag, TypeDefinition? type}) _parseAdditionalSchema(
-    Object? raw, {
-    required bool allowComponentTypes,
-    required String context,
-    required String catalogId,
-  }) {
-    if (raw == null) return (flag: false, type: null);
-    if (raw is bool) return (flag: raw, type: null);
-    final Map<String, Object?> map = _expectMap(raw, context, catalogId);
-    final TypeDefinition parsed = _parseType(
-      map,
-      allowComponentTypes: allowComponentTypes,
-      allowParameterIdentity: false,
-      context: context,
-      catalogId: catalogId,
-    );
-    return (flag: false, type: parsed);
-  }
-
-  static ({String? singleFormat, List<String>? multiFormats}) _parseFormats(
-    Object? raw,
-    String context,
-    String catalogId,
+  /// Detects direct and structural cycles in [types] via 3-color DFS.
+  static void _detectStructuralCycles(
+    Map<String, TypeDefinition> types,
+    _DiagSink sink,
   ) {
-    if (raw == null) return (singleFormat: null, multiFormats: null);
-    if (raw is String) {
-      if (raw.isEmpty) {
-        throw A2uiCatalogError(
-          "$context 'format' must not be empty.",
-          catalogId: catalogId,
-        );
-      }
-      return (singleFormat: raw, multiFormats: null);
-    }
-    if (raw is List) {
-      if (raw.isEmpty) {
-        throw A2uiCatalogError(
-          "$context 'format' array must contain at least one format.",
-          catalogId: catalogId,
-        );
-      }
-      final formats = <String>[];
-      final seen = <String>{};
-      for (final Object? item in raw) {
-        if (item is! String || item.isEmpty) {
-          throw A2uiCatalogError(
-            "$context 'format' entries must be non-empty strings.",
-            catalogId: catalogId,
-          );
-        }
-        if (!seen.add(item)) {
-          throw A2uiCatalogError(
-            "$context 'format' contains duplicate entry '$item'.",
-            catalogId: catalogId,
-          );
-        }
-        formats.add(item);
-      }
-      if (formats.length == 1) {
-        return (singleFormat: formats.first, multiFormats: null);
-      }
-      return (singleFormat: null, multiFormats: List.unmodifiable(formats));
-    }
-    throw A2uiCatalogError(
-      "$context 'format' must be a string or array of strings.",
-      catalogId: catalogId,
-    );
-  }
+    final state = <String, int>{}; // 1 = visiting, 2 = done
+    final reported = <String>{};
+    late final void Function(String, List<String>) visitName;
 
-  static List<List<String>>? _parseAtLeastOneOf(
-    Object? raw,
-    Set<String> declaredNames,
-    String context,
-    String catalogId,
-  ) {
-    if (raw == null) return null;
-    final List<Object?> outer = _expectList(raw, context, catalogId);
-    if (outer.isEmpty) {
-      throw A2uiCatalogError(
-        '$context must contain at least one group.',
-        catalogId: catalogId,
-      );
-    }
-    final groups = <List<String>>[];
-    for (var i = 0; i < outer.length; i++) {
-      final List<Object?> inner = _expectList(
-        outer[i],
-        '$context[$i]',
-        catalogId,
-      );
-      if (inner.isEmpty) {
-        throw A2uiCatalogError(
-          '$context[$i] must contain at least one parameter name.',
-          catalogId: catalogId,
-        );
-      }
-      final group = <String>[];
-      final seen = <String>{};
-      for (final entry in inner) {
-        if (entry is! String) {
-          throw A2uiCatalogError(
-            '$context[$i] entries must be strings.',
-            catalogId: catalogId,
-          );
-        }
-        _assertIdentifier(
-          entry,
-          "identifier '$entry' in $context[$i]",
-          catalogId,
-        );
-        if (!seen.add(entry)) {
-          throw A2uiCatalogError(
-            "$context[$i] contains duplicate parameter '$entry'.",
-            catalogId: catalogId,
-          );
-        }
-        if (!declaredNames.contains(entry)) {
-          throw A2uiCatalogError(
-            "$context[$i] references undeclared parameter '$entry'.",
-            catalogId: catalogId,
-          );
-        }
-        group.add(entry);
-      }
-      groups.add(List.unmodifiable(group));
-    }
-    return List.unmodifiable(groups);
-  }
-
-  static List<String>? _parseIdentifierList(
-    Object? raw,
-    String context,
-    String catalogId,
-  ) {
-    if (raw == null) return null;
-    final List<Object?> list = _expectList(raw, context, catalogId);
-    final result = <String>[];
-    final seen = <String>{};
-    for (final entry in list) {
-      if (entry is! String) {
-        throw A2uiCatalogError(
-          '$context entries must be strings.',
-          catalogId: catalogId,
-        );
-      }
-      _assertIdentifier(entry, "identifier '$entry' in $context", catalogId);
-      if (!seen.add(entry)) {
-        throw A2uiCatalogError(
-          "$context contains duplicate entry '$entry'.",
-          catalogId: catalogId,
-        );
-      }
-      result.add(entry);
-    }
-    return List.unmodifiable(result);
-  }
-
-  static void _validateRefs(CatalogModel model) {
-    final Set<String> definedTypes = model.types.keys.toSet();
-
-    void walk(TypeDefinition type, String context) {
+    void visitType(TypeDefinition type, String origin, List<String> chain) {
       switch (type) {
-        case RefType(:final String ref):
-          if (!definedTypes.contains(ref)) {
-            throw A2uiCatalogError(
-              "$context references undefined local type '$ref'.",
-              catalogId: model.catalogId,
-            );
+        case RefType(:final ref):
+          if (!types.containsKey(ref)) return;
+          if (state[ref] == 1) {
+            if (reported.add(ref)) {
+              final int start = chain.indexOf(ref);
+              final String cycle = [
+                ...(start >= 0 ? chain.sublist(start) : chain),
+                ref,
+              ].join(' -> ');
+              sink.add(
+                'invalid_constraint',
+                '/types/${_esc(origin)}',
+                "Cyclic local type reference in 'types': $cycle.",
+              );
+            }
+            return;
           }
+          if (state[ref] == 2) return;
+          visitName(ref, chain);
         case ObjectType(:final properties, :final additionalPropertiesType):
           for (final p in properties) {
-            walk(p.type, '$context.${p.name}');
+            visitType(p.type, origin, chain);
           }
           if (additionalPropertiesType != null) {
-            walk(additionalPropertiesType, '$context.additionalProperties');
+            visitType(additionalPropertiesType, origin, chain);
           }
         case ArrayType(:final items):
-          if (items != null) walk(items, '$context.items');
+          if (items != null) visitType(items, origin, chain);
         case UnionType(:final variants):
-          for (var i = 0; i < variants.length; i++) {
-            walk(variants[i], '$context.variants[$i]');
+          for (final v in variants) {
+            visitType(v, origin, chain);
           }
-        default:
+        case StringType() ||
+            NumberType() ||
+            IntegerType() ||
+            BooleanType() ||
+            EnumType() ||
+            ConstType() ||
+            AnyType() ||
+            DataBindingType() ||
+            FunctionCallType() ||
+            ChildType() ||
+            ChildListType() ||
+            ActionType() ||
+            CheckRuleType() ||
+            AccessibilityType() ||
+            RawJsonSchemaType():
           break;
       }
     }
 
-    for (final MapEntry<String, TypeDefinition> entry in model.types.entries) {
-      walk(entry.value, 'types.${entry.key}');
-      // Detect direct RefType alias cycles (e.g. A -> B -> A).
-      final visited = <String>{entry.key};
-      TypeDefinition current = entry.value;
-      while (current is RefType) {
-        if (!visited.add(current.ref)) {
-          throw A2uiCatalogError(
-            "Cyclic local type reference involving '${entry.key}' in "
-            "catalog '${model.catalogId}'.",
-            catalogId: model.catalogId,
-          );
-        }
-        current = model.types[current.ref]!;
-      }
-    }
+    visitName = (String name, List<String> chain) {
+      state[name] = 1;
+      chain.add(name);
+      visitType(types[name]!, name, chain);
+      chain.removeLast();
+      state[name] = 2;
+    };
 
-    if (model.surfaceProperties case final SurfacePropertiesDefinition sp) {
-      for (final ParameterDefinition p in sp.properties) {
-        walk(p.type, 'surfaceProperties.${p.name}');
-      }
-      if (sp.additionalPropertiesType != null) {
-        walk(
-          sp.additionalPropertiesType!,
-          'surfaceProperties.additionalProperties',
-        );
-      }
-    }
-
-    for (final ComponentDefinition comp in model.components) {
-      for (final ParameterDefinition p in comp.parameters) {
-        walk(p.type, 'components.${comp.name}.${p.name}');
-      }
-    }
-
-    for (final FunctionDefinition fn in model.functions) {
-      if (fn.returnType.type != null) {
-        walk(fn.returnType.type!, 'functions.${fn.name}.returnType');
-      }
-      for (final ParameterDefinition p in fn.parameters) {
-        walk(p.type, 'functions.${fn.name}.${p.name}');
-      }
-      if (fn.additionalParametersType != null) {
-        walk(
-          fn.additionalParametersType!,
-          'functions.${fn.name}.additionalParameters',
-        );
-      }
+    for (final String name in types.keys) {
+      if (state[name] == null) visitName(name, <String>[]);
     }
   }
 
+  static bool _matchesEnumValueType(Object value, EnumValueType type) =>
+      switch (type) {
+        EnumValueType.string => value is String,
+        EnumValueType.number => value is num,
+        EnumValueType.boolean => value is bool,
+      };
+
   // ---------------------------------------------------------------------------
-  // Serialization helpers
+  // Serialization helpers (plain mutable JSON output)
   // ---------------------------------------------------------------------------
 
   static Map<String, Object?> _serializeSurfaceProperties(
     SurfacePropertiesDefinition sp,
-    String catalogId,
-  ) {
-    if (sp.rawSchema != null) {
-      throw A2uiCatalogError(
-        'Cannot serialize untranslatable legacy raw JSON Schema in '
-        'surfaceProperties to a Catalog Document.',
-        catalogId: catalogId,
-      );
-    }
-    return <String, Object?>{
-      if (sp.description != null) 'description': sp.description,
-      if (sp.properties.isNotEmpty)
-        'properties': [
-          for (final ParameterDefinition p in sp.properties)
-            _serializeParameter(
-              p,
-              catalogId: catalogId,
-              context: 'surfaceProperties.${p.name}',
-            ),
-        ],
-      if (sp.additionalPropertiesType != null)
-        'additionalProperties': _serializeType(
-          sp.additionalPropertiesType!,
-          catalogId: catalogId,
-          context: 'surfaceProperties.additionalProperties',
-        )
-      else if (sp.additionalProperties)
-        'additionalProperties': true,
-    };
-  }
+  ) => <String, Object?>{
+    'description': ?sp.description,
+    if (sp.properties.isNotEmpty)
+      'properties': [for (final p in sp.properties) _serializeParameter(p)],
+    if (sp.additionalPropertiesType case final TypeDefinition extra)
+      'additionalProperties': _serializeType(extra)
+    else if (sp.additionalProperties)
+      'additionalProperties': true,
+  };
 
-  static Map<String, Object?> _serializeComponent(
-    ComponentDefinition comp,
-    String catalogId,
-  ) {
-    if (comp.rawSchema != null) {
-      throw A2uiCatalogError(
-        "Cannot serialize component '${comp.name}' with untranslatable "
-        'legacy raw JSON Schema to a Catalog Document.',
-        catalogId: catalogId,
-      );
-    }
-    return <String, Object?>{
-      'name': comp.name,
-      if (comp.description != null) 'description': comp.description,
-      if (comp.checkable) 'checkable': true,
-      if (comp.parameters.isNotEmpty)
-        'parameters': [
-          for (final ParameterDefinition p in comp.parameters)
-            _serializeParameter(
-              p,
-              catalogId: catalogId,
-              context: 'components.${comp.name}.${p.name}',
-            ),
-        ],
-      if (comp.atLeastOneOf != null && comp.atLeastOneOf!.isNotEmpty)
-        'atLeastOneOf': [
-          for (final List<String> group in comp.atLeastOneOf!)
-            List<String>.of(group),
-        ],
-      if (comp.allowedParents != null)
-        'allowedParents': List<String>.of(comp.allowedParents!),
-      if (comp.allowedChildren != null)
-        'allowedChildren': List<String>.of(comp.allowedChildren!),
-      if (comp.metadata != null) 'metadata': _deepCopy(comp.metadata),
-      if (comp.deprecated) 'deprecated': true,
-      if (comp.deprecatedReason != null)
-        'deprecatedReason': comp.deprecatedReason,
-    };
-  }
+  static Map<String, Object?> _serializeComponent(ComponentDefinition c) =>
+      <String, Object?>{
+        'name': c.name,
+        'description': ?c.description,
+        if (c.checkable) 'checkable': true,
+        if (c.parameters.isNotEmpty)
+          'parameters': [for (final p in c.parameters) _serializeParameter(p)],
+        if (c.atLeastOneOf case final List<List<String>> groups
+            when groups.isNotEmpty)
+          'atLeastOneOf': [for (final g in groups) List<String>.of(g)],
+        if (c.allowedParents case final List<String> parents)
+          'allowedParents': List<String>.of(parents),
+        if (c.allowedChildren case final List<String> children)
+          'allowedChildren': List<String>.of(children),
+        if (c.metadata != null) 'metadata': deepCopyJson(c.metadata),
+        if (c.deprecated) 'deprecated': true,
+        'deprecatedReason': ?c.deprecatedReason,
+      };
 
-  static Map<String, Object?> _serializeFunction(
-    FunctionDefinition fn,
-    String catalogId,
-  ) {
-    if (fn.rawArgumentSchema != null) {
-      throw A2uiCatalogError(
-        "Cannot serialize function '${fn.name}' with untranslatable legacy "
-        'raw JSON Schema to a Catalog Document.',
-        catalogId: catalogId,
-      );
-    }
-    final AllowedCallers? callers = fn.declaredAllowedCallers;
-    final bool emitCallers =
-        callers != null && callers != AllowedCallers.rendererOnly;
-    return <String, Object?>{
-      'name': fn.name,
-      if (fn.description != null) 'description': fn.description,
-      'returnType': _serializeReturnType(
-        fn.returnType,
-        catalogId: catalogId,
-        context: 'functions.${fn.name}.returnType',
-      ),
-      if (emitCallers) 'allowedCallers': callers.jsonValue,
-      if (fn.requiresUserActivation) 'requiresUserActivation': true,
-      if (fn.parameters.isNotEmpty)
-        'parameters': [
-          for (final ParameterDefinition p in fn.parameters)
-            _serializeParameter(
-              p,
-              catalogId: catalogId,
-              context: 'functions.${fn.name}.${p.name}',
-            ),
-        ],
-      if (fn.atLeastOneOf != null && fn.atLeastOneOf!.isNotEmpty)
-        'atLeastOneOf': [
-          for (final List<String> group in fn.atLeastOneOf!)
-            List<String>.of(group),
-        ],
-      if (fn.additionalParametersType != null)
-        'additionalParameters': _serializeType(
-          fn.additionalParametersType!,
-          catalogId: catalogId,
-          context: 'functions.${fn.name}.additionalParameters',
-        )
-      else if (fn.additionalParameters)
-        'additionalParameters': true,
-      if (fn.deprecated) 'deprecated': true,
-      if (fn.deprecatedReason != null) 'deprecatedReason': fn.deprecatedReason,
-    };
-  }
+  static Map<String, Object?> _serializeFunction(FunctionDefinition f) =>
+      <String, Object?>{
+        'name': f.name,
+        'description': ?f.description,
+        'returnType': _serializeReturnType(f.returnType),
+        if (f.allowedCallers != AllowedCallers.rendererOnly)
+          'allowedCallers': f.allowedCallers.jsonValue,
+        if (f.requiresUserActivation) 'requiresUserActivation': true,
+        if (f.parameters.isNotEmpty)
+          'parameters': [for (final p in f.parameters) _serializeParameter(p)],
+        if (f.atLeastOneOf case final List<List<String>> groups
+            when groups.isNotEmpty)
+          'atLeastOneOf': [for (final g in groups) List<String>.of(g)],
+        if (f.additionalParametersType case final TypeDefinition extra)
+          'additionalParameters': _serializeType(extra)
+        else if (f.additionalParameters)
+          'additionalParameters': true,
+        if (f.deprecated) 'deprecated': true,
+        'deprecatedReason': ?f.deprecatedReason,
+      };
 
-  static Object _serializeReturnType(
-    FunctionReturnDefinition ret, {
-    required String catalogId,
-    required String context,
-  }) {
-    if (ret.type != null) {
-      return _serializeType(ret.type!, catalogId: catalogId, context: context);
-    }
-    if (ret.shorthandName case final String name) {
-      return name;
-    }
+  static Object _serializeReturnType(FunctionReturnDefinition ret) {
+    if (ret.shorthandName case final String short) return short;
+    if (ret.type case final TypeDefinition t) return _serializeType(t);
     return <String, Object?>{
       'type': ret.isIntegerShorthand ? 'integer' : ret.returnType.jsonValue,
-      if (ret.description != null) 'description': ret.description,
+      'description': ?ret.description,
     };
   }
 
-  static Map<String, Object?> _serializeParameter(
-    ParameterDefinition param, {
-    required String catalogId,
-    required String context,
-  }) {
-    final Map<String, Object?> body = _serializeType(
-      param.type,
-      catalogId: catalogId,
-      context: context,
-    );
-    return <String, Object?>{
-      'name': param.name,
-      ...body,
-      if (param.required) 'required': true,
-    };
-  }
+  static Map<String, Object?> _serializeParameter(ParameterDefinition p) =>
+      <String, Object?>{
+        'name': p.name,
+        ..._serializeType(p.type),
+        if (p.required) 'required': true,
+      };
 
-  static Map<String, Object?> _serializeType(
-    TypeDefinition type, {
-    required String catalogId,
-    required String context,
-  }) {
-    final base = <String, Object?>{
-      if (type.description != null) 'description': type.description,
-      if (type.deprecated) 'deprecated': true,
-      if (type.deprecatedReason != null)
-        'deprecatedReason': type.deprecatedReason,
+  static Map<String, Object?> _serializeType(TypeDefinition t) {
+    final common = <String, Object?>{
+      'description': ?t.description,
+      if (t.deprecated) 'deprecated': true,
+      'deprecatedReason': ?t.deprecatedReason,
     };
-
-    return switch (type) {
+    return switch (t) {
       StringType(
         :final dynamic,
         :final format,
@@ -1664,15 +902,13 @@ abstract final class CatalogDocumentCodec {
         <String, Object?>{
           'type': 'string',
           if (dynamic) 'dynamic': true,
-          if (format != null)
-            'format': format
-          else if (formats != null && formats.isNotEmpty)
-            'format': List<String>.of(formats),
+          'format': ?format,
+          if (formats != null) 'formats': List<String>.of(formats),
           'pattern': ?pattern,
           'minLength': ?minLength,
           'maxLength': ?maxLength,
           'default': ?defaultValue,
-          ...base,
+          ...common,
         },
       NumberType(:final dynamic, :final min, :final max, :final defaultValue) =>
         <String, Object?>{
@@ -1681,7 +917,7 @@ abstract final class CatalogDocumentCodec {
           'min': ?min,
           'max': ?max,
           'default': ?defaultValue,
-          ...base,
+          ...common,
         },
       IntegerType(
         :final dynamic,
@@ -1695,13 +931,13 @@ abstract final class CatalogDocumentCodec {
           'min': ?min,
           'max': ?max,
           'default': ?defaultValue,
-          ...base,
+          ...common,
         },
       BooleanType(:final dynamic, :final defaultValue) => <String, Object?>{
         'type': 'boolean',
         if (dynamic) 'dynamic': true,
         'default': ?defaultValue,
-        ...base,
+        ...common,
       },
       EnumType(
         :final values,
@@ -1711,17 +947,17 @@ abstract final class CatalogDocumentCodec {
       ) =>
         <String, Object?>{
           'type': 'enum',
-          if (dynamic) 'dynamic': true,
           if (valueType != EnumValueType.string)
             'valueType': valueType.jsonValue,
           'values': List<Object>.of(values),
+          if (dynamic) 'dynamic': true,
           'default': ?defaultValue,
-          ...base,
+          ...common,
         },
       ConstType(:final value) => <String, Object?>{
         'type': 'const',
         'value': value,
-        ...base,
+        ...common,
       },
       AnyType(
         :final dynamic,
@@ -1733,8 +969,8 @@ abstract final class CatalogDocumentCodec {
           'type': 'any',
           if (dynamic) 'dynamic': true,
           if (nullable) 'nullable': true,
-          if (hasDefault) 'default': _deepCopy(defaultValue),
-          ...base,
+          if (hasDefault) 'default': deepCopyJson(defaultValue),
+          ...common,
         },
       ObjectType(
         :final dynamic,
@@ -1748,29 +984,15 @@ abstract final class CatalogDocumentCodec {
           'type': 'object',
           if (dynamic) 'dynamic': true,
           if (properties.isNotEmpty)
-            'properties': [
-              for (final ParameterDefinition p in properties)
-                _serializeParameter(
-                  p,
-                  catalogId: catalogId,
-                  context: '$context.${p.name}',
-                ),
-            ],
+            'properties': [for (final p in properties) _serializeParameter(p)],
           if (additionalPropertiesType != null)
-            'additionalProperties': _serializeType(
-              additionalPropertiesType,
-              catalogId: catalogId,
-              context: '$context.additionalProperties',
-            )
+            'additionalProperties': _serializeType(additionalPropertiesType)
           else if (additionalProperties)
             'additionalProperties': true,
           if (atLeastOneOf != null && atLeastOneOf.isNotEmpty)
-            'atLeastOneOf': [
-              for (final List<String> group in atLeastOneOf)
-                List<String>.of(group),
-            ],
-          if (defaultValue != null) 'default': _deepCopy(defaultValue),
-          ...base,
+            'atLeastOneOf': [for (final g in atLeastOneOf) List<String>.of(g)],
+          if (defaultValue != null) 'default': deepCopyJson(defaultValue),
+          ...common,
         },
       ArrayType(
         :final dynamic,
@@ -1783,17 +1005,12 @@ abstract final class CatalogDocumentCodec {
         <String, Object?>{
           'type': 'array',
           if (dynamic) 'dynamic': true,
-          if (items != null)
-            'items': _serializeType(
-              items,
-              catalogId: catalogId,
-              context: '$context.items',
-            ),
+          if (items != null) 'items': _serializeType(items),
           'minItems': ?minItems,
           'maxItems': ?maxItems,
           if (uniqueItems) 'uniqueItems': true,
-          if (defaultValue != null) 'default': _deepCopy(defaultValue),
-          ...base,
+          if (defaultValue != null) 'default': deepCopyJson(defaultValue),
+          ...common,
         },
       UnionType(
         :final variants,
@@ -1804,221 +1021,784 @@ abstract final class CatalogDocumentCodec {
       ) =>
         <String, Object?>{
           'type': 'union',
+          'variants': [for (final v in variants) _serializeType(v)],
+          if (exclusive) 'exclusive': true,
           if (dynamic) 'dynamic': true,
-          if (!exclusive) 'exclusive': false,
-          'variants': [
-            for (var i = 0; i < variants.length; i++)
-              _serializeType(
-                variants[i],
-                catalogId: catalogId,
-                context: '$context.variants[$i]',
-              ),
-          ],
-          if (hasDefault) 'default': _deepCopy(defaultValue),
-          ...base,
+          if (hasDefault) 'default': deepCopyJson(defaultValue),
+          ...common,
         },
-      DataBindingType() => <String, Object?>{'type': 'dataBinding', ...base},
-      FunctionCallType() => <String, Object?>{'type': 'functionCall', ...base},
       RefType(:final ref, :final hasDefault, :final defaultValue) =>
         <String, Object?>{
           'type': 'ref',
           'ref': ref,
-          if (hasDefault) 'default': _deepCopy(defaultValue),
-          ...base,
+          if (hasDefault) 'default': deepCopyJson(defaultValue),
+          ...common,
         },
-      ChildType() => <String, Object?>{'type': 'child', ...base},
-      ChildListType() => <String, Object?>{'type': 'childList', ...base},
-      ActionType() => <String, Object?>{'type': 'action', ...base},
-      CheckRuleType() => <String, Object?>{'type': 'checkRule', ...base},
+      DataBindingType() => <String, Object?>{'type': 'dataBinding', ...common},
+      FunctionCallType() => <String, Object?>{
+        'type': 'functionCall',
+        ...common,
+      },
+      ChildType() => <String, Object?>{'type': 'child', ...common},
+      ChildListType() => <String, Object?>{'type': 'childList', ...common},
+      ActionType() => <String, Object?>{'type': 'action', ...common},
+      CheckRuleType() => <String, Object?>{'type': 'checkRule', ...common},
       AccessibilityType() => <String, Object?>{
         'type': 'accessibility',
-        ...base,
+        ...common,
       },
       RawJsonSchemaType() => throw A2uiCatalogError(
-        'Cannot serialize untranslatable legacy raw JSON Schema at $context '
-        'to a Catalog Document.',
-        catalogId: catalogId,
+        'Cannot serialize RawJsonSchemaType into a Catalog Document.',
       ),
     };
   }
+}
 
-  // ---------------------------------------------------------------------------
-  // Validation utilities
-  // ---------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Diagnostic sink & strict JSON reader
+// -----------------------------------------------------------------------------
 
-  static void _assertIdentifier(
-    String value,
-    String context,
-    String catalogId,
-  ) {
-    if (!isValidUax31Identifier(value)) {
-      throw A2uiCatalogError('Invalid UAX #31 $context.', catalogId: catalogId);
-    }
+final class _DiagSink {
+  _DiagSink({required this.failFast, this.catalogId});
+
+  final bool failFast;
+  String? catalogId;
+  final List<CatalogDocumentDiagnostic> diagnostics = [];
+
+  void add(String code, String path, String message) {
+    if (failFast) throw A2uiCatalogError(message, catalogId: catalogId);
+    diagnostics.add(
+      CatalogDocumentDiagnostic(code: code, path: path, message: message),
+    );
   }
 
-  static void _rejectUnknownKeys(
-    Map<String, Object?> map,
-    Set<String> allowed,
-    String context,
-    String catalogId,
-  ) {
+  void schema(String path, String message) =>
+      add('invalid_catalog_schema', path, message);
+
+  void constraint(String path, String message) =>
+      add('invalid_constraint', path, message);
+}
+
+final class _JsonReader {
+  _JsonReader(this.map, this.ptr, this.sink);
+
+  final Map<String, Object?> map;
+  final String ptr;
+  final _DiagSink sink;
+
+  String child(String key) => '$ptr/${_esc(key)}';
+
+  void rejectUnknown(Set<String> allowed, String context) {
     for (final String key in map.keys) {
       if (!allowed.contains(key)) {
-        throw A2uiCatalogError(
-          "Unknown property '$key' in $context.",
-          catalogId: catalogId,
-        );
+        sink.schema(child(key), "Unknown property '$key' on $context.");
       }
     }
   }
 
-  static Map<String, Object?> _expectMap(
-    Object? value,
-    String context,
-    String catalogId,
-  ) {
-    if (value is Map<String, Object?>) return value;
-    if (value is Map) {
-      final result = <String, Object?>{};
-      for (final MapEntry<Object?, Object?> entry in value.entries) {
-        if (entry.key is! String) {
-          throw A2uiCatalogError(
-            '$context keys must be strings.',
-            catalogId: catalogId,
-          );
-        }
-        result[entry.key! as String] = entry.value;
-      }
-      return result;
+  T? opt<T>(String key, String typeName) {
+    if (!map.containsKey(key)) return null;
+    final Object? v = map[key];
+    if (v is T) return v;
+    sink.schema(child(key), "Field '$key' must be a $typeName.");
+    return null;
+  }
+
+  String? str(String key) => opt<String>(key, 'string');
+
+  String? nonEmptyStr(String key) {
+    final String? s = str(key);
+    if (s != null && s.isEmpty) {
+      sink.schema(child(key), "Field '$key' must be a non-empty string.");
+      return null;
     }
-    throw A2uiCatalogError(
-      '$context must be a JSON object, got ${value.runtimeType}.',
-      catalogId: catalogId,
-    );
+    return s;
   }
 
-  static List<Object?> _expectList(
-    Object? value,
-    String context,
-    String catalogId,
-  ) {
-    if (value is List<Object?>) return value;
-    if (value is List) return List<Object?>.of(value);
-    throw A2uiCatalogError(
-      '$context must be a JSON array, got ${value.runtimeType}.',
-      catalogId: catalogId,
-    );
+  String reqStr(String key) {
+    if (!map.containsKey(key)) {
+      sink.schema(child(key), "Missing required string field '$key'.");
+      return '';
+    }
+    return nonEmptyStr(key) ?? '';
   }
 
-  static String _requiredString(
-    Map<String, Object?> map,
-    String key,
-    String context,
-    String catalogId,
-  ) {
-    final Object? value = map[key];
-    if (value is String && value.isNotEmpty) return value;
-    throw A2uiCatalogError(
-      "$context must declare a non-empty string '$key'.",
-      catalogId: catalogId,
-    );
+  bool flag(String key) => opt<bool>(key, 'boolean') ?? false;
+  bool? optBool(String key) => opt<bool>(key, 'boolean');
+  num? number(String key) => opt<num>(key, 'number');
+  int? integer(String key) => opt<int>(key, 'integer');
+  List<Object?>? optList(String key) => opt<List<Object?>>(key, 'array');
+
+  Map<String, Object?>? optMap(String key) {
+    if (!map.containsKey(key)) return null;
+    final Map<String, Object?>? m = _asStringMap(map[key]);
+    if (m == null) {
+      sink.schema(child(key), "Field '$key' must be a JSON object.");
+    }
+    return m;
   }
 
-  static String? _optionalString(
-    Map<String, Object?> map,
-    String key,
-    String context,
-    String catalogId,
-  ) {
-    final Object? value = map[key];
-    if (value == null) return null;
-    if (value is String) return value;
-    throw A2uiCatalogError(
-      "$context '$key' must be a string, got ${value.runtimeType}.",
-      catalogId: catalogId,
-    );
-  }
-
-  static bool? _optionalBool(
-    Map<String, Object?> map,
-    String key,
-    String context,
-    String catalogId,
-  ) {
-    final Object? value = map[key];
-    if (value == null) return null;
-    if (value is bool) return value;
-    throw A2uiCatalogError(
-      "$context '$key' must be a boolean, got ${value.runtimeType}.",
-      catalogId: catalogId,
-    );
-  }
-
-  static num? _optionalNum(
-    Map<String, Object?> map,
-    String key,
-    String context,
-    String catalogId,
-  ) {
-    final Object? value = map[key];
-    if (value == null) return null;
-    if (value is num) return value;
-    throw A2uiCatalogError(
-      "$context '$key' must be a number, got ${value.runtimeType}.",
-      catalogId: catalogId,
-    );
-  }
-
-  static int? _optionalInt(
-    Map<String, Object?> map,
-    String key,
-    String context,
-    String catalogId,
-  ) {
-    final Object? value = map[key];
-    if (value == null) return null;
-    if (value is int) return value;
-    throw A2uiCatalogError(
-      "$context '$key' must be an integer, got ${value.runtimeType}.",
-      catalogId: catalogId,
-    );
-  }
-
-  static int? _optionalNonNegativeInt(
-    Map<String, Object?> map,
-    String key,
-    String context,
-    String catalogId,
-  ) {
-    final int? value = _optionalInt(map, key, context, catalogId);
-    if (value != null && value < 0) {
-      throw A2uiCatalogError(
-        "$context '$key' must be >= 0, got $value.",
-        catalogId: catalogId,
+  List<String>? strList(String key, {bool nonEmpty = false}) {
+    final List<Object?>? raw = optList(key);
+    if (raw == null) return null;
+    if (nonEmpty && raw.isEmpty) {
+      sink.constraint(
+        child(key),
+        "Field '$key' must be a non-empty array of strings.",
       );
+      return null;
     }
-    return value;
-  }
-
-  static bool _matchesEnumValueType(Object item, EnumValueType type) =>
-      switch (type) {
-        EnumValueType.string => item is String,
-        EnumValueType.number => item is num,
-        EnumValueType.boolean => item is bool,
-      };
-
-  static Object? _deepCopy(Object? value) {
-    if (value is Map) {
-      return Map<String, Object?>.unmodifiable(<String, Object?>{
-        for (final MapEntry<Object?, Object?> entry in value.entries)
-          '${entry.key}': _deepCopy(entry.value),
-      });
+    final out = <String>[];
+    for (var i = 0; i < raw.length; i++) {
+      final Object? item = raw[i];
+      if (item is! String || item.isEmpty) {
+        sink.schema(
+          '${child(key)}/$i',
+          "Items of '$key' must be non-empty strings.",
+        );
+      } else {
+        out.add(item);
+      }
     }
-    if (value is List) {
-      return List<Object?>.unmodifiable(<Object?>[
-        for (final Object? item in value) _deepCopy(item),
-      ]);
-    }
-    return value;
+    return List<String>.unmodifiable(out);
   }
 }
+
+// -----------------------------------------------------------------------------
+// Syntax-only parser that delegates all semantic checks to `_validateModel`
+// -----------------------------------------------------------------------------
+
+typedef _MarkerCtor = TypeDefinition Function({
+  String? description,
+  bool deprecated,
+  String? deprecatedReason,
+});
+
+final class _Parser {
+  _Parser(this.sink);
+
+  final _DiagSink sink;
+
+  static const Map<String, _MarkerCtor> _markerTypes = {
+    'dataBinding': DataBindingType.new,
+    'functionCall': FunctionCallType.new,
+    'child': ChildType.new,
+    'childList': ChildListType.new,
+    'action': ActionType.new,
+    'checkRule': CheckRuleType.new,
+    'accessibility': AccessibilityType.new,
+  };
+
+  CatalogModel parseDocument(
+    Map<String, Object?> json, {
+    String? expectedCatalogId,
+    A2uiProtocolVersion? protocolVersion,
+    String? catalogIdOverride,
+  }) {
+    final r = _JsonReader(json, '', sink);
+    final rawFmt = json['formatVersion'] is String
+        ? json['formatVersion']! as String
+        : '${json['formatVersion']}';
+    if (json['formatVersion'] != catalogDocumentFormatVersion) {
+      sink.schema(
+        '/formatVersion',
+        "Unsupported Catalog Document 'formatVersion' "
+            "'${json['formatVersion']}'; expected "
+            "'$catalogDocumentFormatVersion'.",
+      );
+    }
+
+    // `catalogId` is always required in a Catalog Document even with override.
+    final String docCatalogId = r.reqStr('catalogId');
+    final String effectiveId = catalogIdOverride ?? docCatalogId;
+    if (catalogIdOverride != null && catalogIdOverride.isEmpty) {
+      sink.schema(
+        '/catalogId',
+        'Override catalogId must be a non-empty string.',
+      );
+    }
+    sink.catalogId = effectiveId.isEmpty ? null : effectiveId;
+    if (expectedCatalogId != null &&
+        effectiveId.isNotEmpty &&
+        expectedCatalogId != effectiveId) {
+      sink.schema(
+        '/catalogId',
+        "Catalog id mismatch: expected '$expectedCatalogId' but the document "
+            "declares '$effectiveId'.",
+      );
+    }
+
+    r.rejectUnknown(CatalogDocumentCodec._rootKeys, 'Catalog document');
+    String? declaredVersion;
+    A2uiProtocolVersion effectiveVersion =
+        protocolVersion ?? A2uiProtocolVersion.v1_0;
+    if (json.containsKey('protocolVersion')) {
+      final String? rawVer = r.nonEmptyStr('protocolVersion');
+      if (rawVer != null) {
+        final A2uiProtocolVersion? parsed = A2uiProtocolVersion.tryParseSemVer(
+          rawVer,
+        );
+        if (parsed == null) {
+          sink.schema(
+            '/protocolVersion',
+            "Unsupported catalog 'protocolVersion' '$rawVer'; supported "
+                'versions are ${A2uiProtocolVersion.supportedVersions}.',
+          );
+        } else {
+          declaredVersion = rawVer;
+          effectiveVersion = parsed;
+        }
+      }
+    }
+
+    final Map<String, Object?>? rawMeta = r.optMap('metadata');
+    final types = <String, TypeDefinition>{};
+    if (r.optMap('types') case final Map<String, Object?> rawTypes) {
+      for (final MapEntry<String, Object?> e in rawTypes.entries) {
+        final ptr = '/types/${_esc(e.key)}';
+        final Map<String, Object?>? typeObj = _asStringMap(e.value);
+        if (typeObj == null) {
+          sink.schema(ptr, "Type '${e.key}' must be a JSON object.");
+          continue;
+        }
+        types[e.key] = _parseType(typeObj, ptr, extraAllowedKeys: const {});
+      }
+    }
+
+    SurfacePropertiesDefinition? surfaceProps;
+    if (r.optMap('surfaceProperties') case final Map<String, Object?> spMap) {
+      final sr = _JsonReader(spMap, '/surfaceProperties', sink);
+      sr.rejectUnknown(
+        CatalogDocumentCodec._surfacePropKeys,
+        'surfaceProperties',
+      );
+      final (:bool flag, :TypeDefinition? type) = _parseAdditional(
+        sr,
+        'additionalProperties',
+      );
+      surfaceProps = SurfacePropertiesDefinition(
+        description: sr.str('description'),
+        properties: _parseParams(sr, 'properties'),
+        additionalProperties: flag,
+        additionalPropertiesType: type,
+      );
+    }
+
+    final components = <ComponentDefinition>[];
+    if (r.optList('components') case final List<Object?> rawComps) {
+      for (var i = 0; i < rawComps.length; i++) {
+        final ptr = '/components/$i';
+        final Map<String, Object?>? obj = _asStringMap(rawComps[i]);
+        if (obj == null) {
+          sink.schema(ptr, 'Each component entry must be a JSON object.');
+          continue;
+        }
+        components.add(_parseComponent(obj, ptr));
+      }
+    }
+
+    final functions = <FunctionDefinition>[];
+    if (r.optList('functions') case final List<Object?> rawFns) {
+      for (var i = 0; i < rawFns.length; i++) {
+        final ptr = '/functions/$i';
+        final Map<String, Object?>? obj = _asStringMap(rawFns[i]);
+        if (obj == null) {
+          sink.schema(ptr, 'Each function entry must be a JSON object.');
+          continue;
+        }
+        functions.add(_parseFunction(obj, ptr));
+      }
+    }
+
+    final model = CatalogModel(
+      formatVersion: rawFmt,
+      schemaUri: r.str(r'$schema'),
+      catalogId: effectiveId,
+      protocolVersion: effectiveVersion,
+      declaredProtocolVersion: declaredVersion,
+      title: r.str('title'),
+      description: r.str('description'),
+      instructions: r.str('instructions'),
+      metadata: rawMeta == null
+          ? null
+          : deepCopyJsonMap(rawMeta, unmodifiable: true),
+      types: Map<String, TypeDefinition>.unmodifiable(types),
+      surfaceProperties: surfaceProps,
+      components: List<ComponentDefinition>.unmodifiable(components),
+      functions: List<FunctionDefinition>.unmodifiable(functions),
+    );
+    final toValidate =
+        model.formatVersion == catalogDocumentFormatVersion &&
+            model.catalogId.isNotEmpty
+        ? model
+        : CatalogModel(
+            catalogId: model.catalogId.isEmpty ? '_invalid_' : model.catalogId,
+            protocolVersion: model.protocolVersion,
+            metadata: model.metadata,
+            types: model.types,
+            surfaceProperties: model.surfaceProperties,
+            components: model.components,
+            functions: model.functions,
+          );
+    CatalogDocumentCodec._validateModel(
+      toValidate,
+      sink,
+      checkEmptyNames: false,
+    );
+    return model;
+  }
+
+  ComponentDefinition _parseComponent(Map<String, Object?> json, String ptr) {
+    final r = _JsonReader(json, ptr, sink);
+    r.rejectUnknown(CatalogDocumentCodec._componentKeys, 'component');
+    final Map<String, Object?>? rawMeta = r.optMap('metadata');
+    return ComponentDefinition(
+      name: r.reqStr('name'),
+      description: r.str('description'),
+      checkable: r.flag('checkable'),
+      parameters: _parseParams(r, 'parameters'),
+      atLeastOneOf: _parseAtLeastOneOf(r),
+      allowedParents: r.strList('allowedParents'),
+      allowedChildren: r.strList('allowedChildren'),
+      metadata: rawMeta == null
+          ? null
+          : deepCopyJsonMap(rawMeta, unmodifiable: true),
+      deprecated: r.flag('deprecated'),
+      deprecatedReason: r.str('deprecatedReason'),
+    );
+  }
+
+  FunctionDefinition _parseFunction(Map<String, Object?> json, String ptr) {
+    final r = _JsonReader(json, ptr, sink);
+    r.rejectUnknown(CatalogDocumentCodec._functionKeys, 'function');
+    AllowedCallers? allowedCallers;
+    if (json.containsKey('allowedCallers')) {
+      final String? raw = r.nonEmptyStr('allowedCallers');
+      if (raw != null) {
+        try {
+          allowedCallers = AllowedCallers.fromJson(raw);
+        } on A2uiCatalogError catch (e) {
+          sink.schema('$ptr/allowedCallers', e.message);
+        }
+      }
+    }
+    final (:bool flag, :TypeDefinition? type) = _parseAdditional(
+      r,
+      'additionalParameters',
+    );
+    return FunctionDefinition(
+      name: r.reqStr('name'),
+      description: r.str('description'),
+      returnType: _parseReturnType(json, '$ptr/returnType'),
+      allowedCallers: allowedCallers,
+      requiresUserActivation: r.optBool('requiresUserActivation'),
+      parameters: _parseParams(r, 'parameters'),
+      atLeastOneOf: _parseAtLeastOneOf(r),
+      additionalParameters: flag,
+      additionalParametersType: type,
+      deprecated: r.flag('deprecated'),
+      deprecatedReason: r.str('deprecatedReason'),
+    );
+  }
+
+  FunctionReturnDefinition _parseReturnType(
+    Map<String, Object?> fnMap,
+    String ptr,
+  ) {
+    if (!fnMap.containsKey('returnType')) {
+      sink.schema(ptr, "Function is missing required field 'returnType'.");
+      return const FunctionReturnDefinition.shorthand(A2uiReturnType.any);
+    }
+    final Object? raw = fnMap['returnType'];
+    if (raw is String) {
+      if (!CatalogDocumentCodec._shorthandReturns.contains(raw)) {
+        sink.schema(
+          ptr,
+          "Invalid function returnType '$raw'; expected one of "
+          '${CatalogDocumentCodec._shorthandReturns.join(', ')}.',
+        );
+        return const FunctionReturnDefinition.shorthand(A2uiReturnType.any);
+      }
+      if (raw == 'integer') return const FunctionReturnDefinition.integer();
+      return FunctionReturnDefinition.shorthand(A2uiReturnType.fromJson(raw));
+    }
+    final Map<String, Object?>? obj = _asStringMap(raw);
+    if (obj == null) {
+      sink.schema(
+        ptr,
+        "Function 'returnType' must be a string or a type object.",
+      );
+      return const FunctionReturnDefinition.shorthand(A2uiReturnType.any);
+    }
+    final Object? objType = obj['type'];
+    if (objType == 'void' || objType == 'validationResult') {
+      final r = _JsonReader(obj, ptr, sink);
+      r.rejectUnknown(const {'type', 'description'}, 'returnType');
+      final String? desc = r.str('description');
+      return objType == 'void'
+          ? FunctionReturnDefinition.void_(description: desc)
+          : FunctionReturnDefinition.validationResult(description: desc);
+    }
+    return FunctionReturnDefinition.typed(
+      _parseType(obj, ptr, extraAllowedKeys: const {}),
+    );
+  }
+
+  List<ParameterDefinition> _parseParams(_JsonReader parent, String key) {
+    final List<Object?>? rawList = parent.optList(key);
+    if (rawList == null) return const [];
+    final String listPtr = parent.child(key);
+    final out = <ParameterDefinition>[];
+    for (var i = 0; i < rawList.length; i++) {
+      final itemPtr = '$listPtr/$i';
+      final Map<String, Object?>? pObj = _asStringMap(rawList[i]);
+      if (pObj == null) {
+        sink.schema(itemPtr, 'Each parameter entry must be a JSON object.');
+        continue;
+      }
+      final pr = _JsonReader(pObj, itemPtr, sink);
+      out.add(
+        ParameterDefinition(
+          name: pr.reqStr('name'),
+          required: pr.flag('required'),
+          type: _parseType(
+            pObj,
+            itemPtr,
+            extraAllowedKeys: CatalogDocumentCodec._paramKeys,
+          ),
+        ),
+      );
+    }
+    return List<ParameterDefinition>.unmodifiable(out);
+  }
+
+  List<List<String>>? _parseAtLeastOneOf(_JsonReader parent) {
+    final List<Object?>? raw = parent.optList('atLeastOneOf');
+    if (raw == null) return null;
+    final String ptr = parent.child('atLeastOneOf');
+    if (raw.isEmpty) {
+      sink.constraint(ptr, 'atLeastOneOf must be non-empty.');
+      return null;
+    }
+    final groups = <List<String>>[];
+    for (var i = 0; i < raw.length; i++) {
+      final gPtr = '$ptr/$i';
+      final Object? item = raw[i];
+      if (item is! List) {
+        sink.constraint(
+          gPtr,
+          'Each atLeastOneOf group must be an array of parameter names.',
+        );
+        continue;
+      }
+      final group = <String>[];
+      for (var j = 0; j < item.length; j++) {
+        if (item[j] is! String || (item[j]! as String).isEmpty) {
+          sink.schema(
+            '$gPtr/$j',
+            'atLeastOneOf entries must be non-empty strings.',
+          );
+        } else {
+          group.add(item[j]! as String);
+        }
+      }
+      groups.add(List<String>.unmodifiable(group));
+    }
+    return List<List<String>>.unmodifiable(groups);
+  }
+
+  ({bool flag, TypeDefinition? type}) _parseAdditional(
+    _JsonReader parent,
+    String key,
+  ) {
+    if (!parent.map.containsKey(key)) return (flag: false, type: null);
+    final Object? raw = parent.map[key];
+    if (raw is bool) return (flag: raw, type: null);
+    final Map<String, Object?>? m = _asStringMap(raw);
+    if (m != null) {
+      return (
+        flag: false,
+        type: _parseType(m, parent.child(key), extraAllowedKeys: const {}),
+      );
+    }
+    sink.schema(
+      parent.child(key),
+      "Field '$key' must be a boolean or a type object.",
+    );
+    return (flag: false, type: null);
+  }
+
+  TypeDefinition _parseType(
+    Map<String, Object?> map,
+    String ptr, {
+    required Set<String> extraAllowedKeys,
+  }) {
+    final r = _JsonReader(map, ptr, sink);
+    final String kind = r.reqStr('type');
+    if (kind.isEmpty) return const AnyType();
+    final String? desc = r.str('description');
+    final bool dep = r.flag('deprecated');
+    final String? depR = r.str('deprecatedReason');
+    void allow(Set<String> specific) => r.rejectUnknown({
+      ...CatalogDocumentCodec._baseTypeKeys,
+      ...extraAllowedKeys,
+      ...specific,
+    }, "type '$kind'");
+
+    if (_markerTypes[kind] case final _MarkerCtor ctor) {
+      allow(const {});
+      return ctor(description: desc, deprecated: dep, deprecatedReason: depR);
+    }
+
+    switch (kind) {
+      case 'string':
+        allow(const {
+          'dynamic',
+          'format',
+          'formats',
+          'pattern',
+          'minLength',
+          'maxLength',
+          'default',
+        });
+        final String? format = r.nonEmptyStr('format');
+        final List<String>? formats = r.strList('formats', nonEmpty: true);
+        if (format != null && formats != null) {
+          sink.constraint(
+            '$ptr/formats',
+            "Type 'string' cannot specify both 'format' and 'formats'.",
+          );
+        }
+        return StringType(
+          dynamic: r.flag('dynamic'),
+          format: formats == null ? format : null,
+          formats: formats,
+          pattern: r.str('pattern'),
+          minLength: r.integer('minLength'),
+          maxLength: r.integer('maxLength'),
+          defaultValue: r.str('default'),
+          description: desc,
+          deprecated: dep,
+          deprecatedReason: depR,
+        );
+      case 'number':
+        allow(const {'dynamic', 'min', 'max', 'default'});
+        return NumberType(
+          dynamic: r.flag('dynamic'),
+          min: r.number('min'),
+          max: r.number('max'),
+          defaultValue: r.number('default'),
+          description: desc,
+          deprecated: dep,
+          deprecatedReason: depR,
+        );
+      case 'integer':
+        allow(const {'dynamic', 'min', 'max', 'default'});
+        return IntegerType(
+          dynamic: r.flag('dynamic'),
+          min: r.integer('min'),
+          max: r.integer('max'),
+          defaultValue: r.integer('default'),
+          description: desc,
+          deprecated: dep,
+          deprecatedReason: depR,
+        );
+      case 'boolean':
+        allow(const {'dynamic', 'default'});
+        return BooleanType(
+          dynamic: r.flag('dynamic'),
+          defaultValue: r.optBool('default'),
+          description: desc,
+          deprecated: dep,
+          deprecatedReason: depR,
+        );
+      case 'enum':
+        allow(const {'values', 'valueType', 'dynamic', 'default'});
+        EnumValueType? declaredVt;
+        if (map.containsKey('valueType')) {
+          final String? rawVt = r.nonEmptyStr('valueType');
+          if (rawVt != null) {
+            try {
+              declaredVt = EnumValueType.fromJson(rawVt);
+            } on FormatException catch (e) {
+              sink.schema('$ptr/valueType', e.message);
+            }
+          }
+        }
+        final List<Object?>? rawVals = r.optList('values');
+        final values = <Object>[];
+        if (rawVals != null) {
+          for (var i = 0; i < rawVals.length; i++) {
+            final Object? v = rawVals[i];
+            if (v == null) {
+              sink.schema(
+                '$ptr/values/$i',
+                'Enum values must not contain null.',
+              );
+            } else {
+              values.add(v);
+            }
+          }
+        }
+        Object? defVal;
+        if (map.containsKey('default')) {
+          if (map['default'] == null) {
+            sink.constraint('$ptr/default', 'Enum default must not be null.');
+          } else {
+            defVal = map['default'];
+          }
+        }
+        return EnumType(
+          values: List<Object>.unmodifiable(values),
+          valueType: declaredVt,
+          dynamic: r.flag('dynamic'),
+          defaultValue: defVal,
+          description: desc,
+          deprecated: dep,
+          deprecatedReason: depR,
+        );
+      case 'const':
+        allow(const {'value'});
+        if (!map.containsKey('value')) {
+          sink.schema('$ptr/value', "Const type requires a 'value' field.");
+        }
+        final Object? val = map['value'];
+        if (val != null && val is! String && val is! num && val is! bool) {
+          sink.schema(
+            '$ptr/value',
+            "Const 'value' must be a string, number, boolean, or null.",
+          );
+        }
+        return ConstType(
+          value: val,
+          description: desc,
+          deprecated: dep,
+          deprecatedReason: depR,
+        );
+      case 'any':
+        allow(const {'dynamic', 'nullable', 'default'});
+        return AnyType(
+          dynamic: r.flag('dynamic'),
+          nullable: r.flag('nullable'),
+          defaultValue: map.containsKey('default')
+              ? deepCopyJson(map['default'], unmodifiable: true)
+              : noDefaultValue,
+          description: desc,
+          deprecated: dep,
+          deprecatedReason: depR,
+        );
+      case 'object':
+        allow(const {
+          'dynamic',
+          'properties',
+          'additionalProperties',
+          'atLeastOneOf',
+          'default',
+        });
+        final (:bool flag, :TypeDefinition? type) = _parseAdditional(
+          r,
+          'additionalProperties',
+        );
+        final Map<String, Object?>? rawDef = r.optMap('default');
+        return ObjectType(
+          dynamic: r.flag('dynamic'),
+          properties: _parseParams(r, 'properties'),
+          additionalProperties: flag,
+          additionalPropertiesType: type,
+          atLeastOneOf: _parseAtLeastOneOf(r),
+          defaultValue: rawDef == null
+              ? null
+              : deepCopyJsonMap(rawDef, unmodifiable: true),
+          description: desc,
+          deprecated: dep,
+          deprecatedReason: depR,
+        );
+      case 'array':
+        allow(const {
+          'dynamic',
+          'items',
+          'minItems',
+          'maxItems',
+          'uniqueItems',
+          'default',
+        });
+        final Map<String, Object?>? itemsObj = r.optMap('items');
+        final List<Object?>? rawDef = r.optList('default');
+        return ArrayType(
+          dynamic: r.flag('dynamic'),
+          items: itemsObj == null
+              ? null
+              : _parseType(itemsObj, '$ptr/items', extraAllowedKeys: const {}),
+          minItems: r.integer('minItems'),
+          maxItems: r.integer('maxItems'),
+          uniqueItems: r.flag('uniqueItems'),
+          defaultValue: rawDef == null
+              ? null
+              : (deepCopyJson(rawDef, unmodifiable: true)! as List<Object?>),
+          description: desc,
+          deprecated: dep,
+          deprecatedReason: depR,
+        );
+      case 'union':
+        allow(const {'variants', 'exclusive', 'dynamic', 'default'});
+        final List<Object?>? rawVars = r.optList('variants');
+        final variants = <TypeDefinition>[];
+        if (rawVars != null) {
+          for (var i = 0; i < rawVars.length; i++) {
+            final Map<String, Object?>? vObj = _asStringMap(rawVars[i]);
+            if (vObj == null) {
+              sink.schema(
+                '$ptr/variants/$i',
+                'Each union variant must be a JSON object.',
+              );
+              continue;
+            }
+            variants.add(
+              _parseType(vObj, '$ptr/variants/$i', extraAllowedKeys: const {}),
+            );
+          }
+        }
+        return UnionType(
+          variants: List<TypeDefinition>.unmodifiable(variants),
+          exclusive: r.flag('exclusive'),
+          dynamic: r.flag('dynamic'),
+          defaultValue: map.containsKey('default')
+              ? deepCopyJson(map['default'], unmodifiable: true)
+              : noDefaultValue,
+          description: desc,
+          deprecated: dep,
+          deprecatedReason: depR,
+        );
+      case 'ref':
+        allow(const {'ref', 'default'});
+        return RefType(
+          ref: r.reqStr('ref'),
+          defaultValue: map.containsKey('default')
+              ? deepCopyJson(map['default'], unmodifiable: true)
+              : noDefaultValue,
+          description: desc,
+          deprecated: dep,
+          deprecatedReason: depR,
+        );
+      default:
+        sink.schema('$ptr/type', "Unknown Catalog Document type '$kind'.");
+        return const AnyType();
+    }
+  }
+}
+
+Map<String, Object?>? _asStringMap(Object? value) {
+  if (value is Map<String, Object?>) return value;
+  if (value is Map) {
+    final out = <String, Object?>{};
+    for (final MapEntry<Object?, Object?> e in value.entries) {
+      if (e.key is! String) return null;
+      out[e.key! as String] = e.value;
+    }
+    return out;
+  }
+  return null;
+}
+
+String _esc(String segment) =>
+    segment.replaceAll('~', '~0').replaceAll('/', '~1');

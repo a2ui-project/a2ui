@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
-import '../primitives/errors.dart';
+import 'json_utils.dart';
 
-const DeepCollectionEquality _deepEquals = DeepCollectionEquality();
-const Object _noDefault = Object();
+/// Sentinel distinguishing an omitted default value from an explicit `null`
+/// default on types that allow `null` (such as [AnyType], [UnionType], and
+/// [RefType]).
+@internal
+const Object noDefaultValue = Object();
 
-/// The underlying primitive type of an [EnumType]'s values.
+/// Value type discriminator for an [EnumType].
 enum EnumValueType {
   string('string'),
   number('number'),
@@ -28,91 +30,102 @@ enum EnumValueType {
 
   const EnumValueType(this.jsonValue);
 
-  /// The value as written in a Catalog Document.
+  /// Wire value used in Catalog Documents (`"string"`, `"number"`,
+  /// `"boolean"`).
   final String jsonValue;
 
-  /// Parses an [EnumValueType] from its Catalog Document string value.
-  static EnumValueType fromJson(String value) {
-    for (final EnumValueType candidate in values) {
-      if (candidate.jsonValue == value) return candidate;
-    }
-    throw A2uiCatalogError(
-      "Unknown enum valueType '$value'; expected one of "
-      '${values.map((v) => v.jsonValue).join(', ')}.',
-    );
-  }
+  /// Parses a Catalog Document `valueType` string.
+  static EnumValueType fromJson(String value) => switch (value) {
+    'string' => EnumValueType.string,
+    'number' => EnumValueType.number,
+    'boolean' => EnumValueType.boolean,
+    _ => throw FormatException(
+      "Invalid enum valueType '$value'; expected 'string', 'number', or "
+      "'boolean'.",
+    ),
+  };
 }
 
-/// Canonical, JSON-Schema-free type AST for A2UI catalog parameters, reusable
-/// leaf types, and function return types.
+/// Canonical, JSON-Schema-free AST node representing an A2UI parameter,
+/// property, or catalog-local data type.
 ///
-/// The public hierarchy is closed over 18 variants matching the A2UI Catalog
-/// Document format (`formatVersion: "1.0"`): 13 data types and 5
-/// component-only UI types ([ChildType], [ChildListType], [ActionType],
-/// [CheckRuleType], [AccessibilityType]).
+/// Closed over the 18 public Catalog Document types plus [RawJsonSchemaType]
+/// for legacy JSON Schema features that have no canonical equivalent.
 @immutable
 sealed class TypeDefinition {
-  /// Human- and LLM-readable description of this value or parameter.
-  final String? description;
-
-  /// Whether this type or parameter is deprecated.
-  final bool deprecated;
-
-  /// Optional explanation and migration hint when [deprecated] is `true`.
-  final String? deprecatedReason;
-
   const TypeDefinition({
     this.description,
     this.deprecated = false,
     this.deprecatedReason,
   });
 
-  /// Whether values of this type may be a data binding or function call.
+  /// Human-readable description shown in prompts and generated docs.
+  final String? description;
+
+  /// Whether this type or parameter is deprecated.
+  final bool deprecated;
+
+  /// Optional migration guidance when [deprecated] is `true`.
+  final String? deprecatedReason;
+
+  /// Whether this type accepts dynamic runtime values (data bindings or
+  /// function calls) in addition to static literals.
   bool get isDynamic => false;
 
-  /// Whether this type variant itself is restricted to component parameters.
-  bool get isComponentOnly => false;
-
-  /// Whether this type or any nested child type is restricted to components.
-  bool get containsComponentOnlyType => isComponentOnly;
-
-  /// Whether this type carries an explicit default value (including `null`).
+  /// Whether this type declares a default value (including an explicit `null`
+  /// default on nullable types).
   bool get hasDefault => false;
 
-  /// The default value when [hasDefault] is `true`, or `null` otherwise.
+  /// The declared default value, or `null` when [hasDefault] is `false` or the
+  /// explicit default is `null`.
   Object? get defaultValue => null;
 
-  /// Whether this type or any nested child holds an untranslatable legacy
-  /// JSON Schema fallback.
-  @internal
+  /// Whether this type or any nested child uses a component-only protocol type
+  /// (`child`, `childList`, `action`, `checkRule`, `accessibility`).
+  bool get containsComponentOnlyType => false;
+
+  /// Whether this type or any nested child wraps a [RawJsonSchemaType]
+  /// fallback.
   bool get containsRawJsonSchema => false;
+
+  @protected
+  bool baseEquals(TypeDefinition other) =>
+      description == other.description &&
+      deprecated == other.deprecated &&
+      deprecatedReason == other.deprecatedReason;
+
+  @protected
+  int get baseHashCode =>
+      Object.hash(runtimeType, description, deprecated, deprecatedReason);
 }
 
-/// A string value, optionally dynamic and/or constrained by format, pattern, or
-/// length.
-final class StringType extends TypeDefinition {
-  /// Whether literal strings, data bindings, and function calls are accepted.
-  final bool dynamic;
-
-  final String? _format;
-  final List<String>? _formats;
-
-  /// Regular expression pattern literal values must match.
-  final String? pattern;
-
-  /// Minimum character length for literal string values.
-  final int? minLength;
-
-  /// Maximum character length for literal string values.
-  final int? maxLength;
+/// Shared base for the 7 zero-field protocol marker types.
+@immutable
+sealed class _MarkerTypeDefinition extends TypeDefinition {
+  const _MarkerTypeDefinition({
+    super.description,
+    super.deprecated,
+    super.deprecatedReason,
+  });
 
   @override
-  final String? defaultValue;
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other.runtimeType == runtimeType &&
+          other is _MarkerTypeDefinition &&
+          baseEquals(other));
 
+  @override
+  int get hashCode => baseHashCode;
+}
+
+/// A string value (optionally dynamic, formatted, pattern- or length-bounded).
+@immutable
+final class StringType extends TypeDefinition {
   const StringType({
     this.dynamic = false,
-    String? format,
-    List<String>? formats,
+    this.format,
+    this.formats,
     this.pattern,
     this.minLength,
     this.maxLength,
@@ -123,18 +136,32 @@ final class StringType extends TypeDefinition {
   }) : assert(
          format == null || formats == null,
          'Specify either format or formats, not both.',
-       ),
-       _format = format,
-       _formats = formats;
+       );
 
-  /// Single string format constraint when exactly one format is declared.
-  String? get format =>
-      _format ??
-      (_formats != null && _formats.length == 1 ? _formats[0] : null);
+  final bool dynamic;
 
-  /// All allowed string formats (one or more), or `null` when unconstrained.
-  List<String>? get formats =>
-      _formats ?? (_format != null ? <String>[_format] : null);
+  /// Single string format (e.g. `'uri'`, `'date'`, `'date-time'`, `'email'`).
+  final String? format;
+
+  /// Multiple alternative string formats (e.g. `['date', 'time',
+  /// 'date-time']`).
+  final List<String>? formats;
+
+  /// Regular expression pattern constraint.
+  final String? pattern;
+
+  /// Minimum string length in Unicode code points (inclusive, `>= 0`).
+  final int? minLength;
+
+  /// Maximum string length in Unicode code points (inclusive, `>= 0`).
+  final int? maxLength;
+
+  @override
+  final String? defaultValue;
+
+  /// All accepted string formats, normalized from [format] or [formats].
+  List<String> get allFormats =>
+      formats ?? (format != null ? <String>[format!] : const <String>[]);
 
   @override
   bool get isDynamic => dynamic;
@@ -144,42 +171,33 @@ final class StringType extends TypeDefinition {
 
   @override
   bool operator ==(Object other) =>
+      identical(this, other) ||
       other is StringType &&
-      other.dynamic == dynamic &&
-      _deepEquals.equals(other.formats, formats) &&
-      other.pattern == pattern &&
-      other.minLength == minLength &&
-      other.maxLength == maxLength &&
-      other.defaultValue == defaultValue &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
+          baseEquals(other) &&
+          dynamic == other.dynamic &&
+          format == other.format &&
+          deepJsonEquals(formats, other.formats) &&
+          pattern == other.pattern &&
+          minLength == other.minLength &&
+          maxLength == other.maxLength &&
+          defaultValue == other.defaultValue;
 
   @override
   int get hashCode => Object.hash(
-    StringType,
+    baseHashCode,
     dynamic,
-    _deepEquals.hash(formats),
+    format,
+    deepJsonHash(formats),
     pattern,
     minLength,
     maxLength,
     defaultValue,
-    description,
-    this.deprecated,
-    deprecatedReason,
   );
 }
 
-/// A numeric (floating-point or integer) value, optionally dynamic and/or
-/// bounded by [min] and [max].
+/// A floating-point or arbitrary JSON number (optionally dynamic and bounded).
+@immutable
 final class NumberType extends TypeDefinition {
-  final bool dynamic;
-  final num? min;
-  final num? max;
-
-  @override
-  final num? defaultValue;
-
   const NumberType({
     this.dynamic = false,
     this.min,
@@ -190,6 +208,13 @@ final class NumberType extends TypeDefinition {
     super.deprecatedReason,
   });
 
+  final bool dynamic;
+  final num? min;
+  final num? max;
+
+  @override
+  final num? defaultValue;
+
   @override
   bool get isDynamic => dynamic;
 
@@ -198,37 +223,22 @@ final class NumberType extends TypeDefinition {
 
   @override
   bool operator ==(Object other) =>
+      identical(this, other) ||
       other is NumberType &&
-      other.dynamic == dynamic &&
-      other.min == min &&
-      other.max == max &&
-      other.defaultValue == defaultValue &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
+          baseEquals(other) &&
+          dynamic == other.dynamic &&
+          min == other.min &&
+          max == other.max &&
+          defaultValue == other.defaultValue;
 
   @override
-  int get hashCode => Object.hash(
-    NumberType,
-    dynamic,
-    min,
-    max,
-    defaultValue,
-    description,
-    this.deprecated,
-    deprecatedReason,
-  );
+  int get hashCode =>
+      Object.hash(baseHashCode, dynamic, min, max, defaultValue);
 }
 
-/// An integer value, optionally dynamic and/or bounded by [min] and [max].
+/// An integer value (optionally dynamic and bounded).
+@immutable
 final class IntegerType extends TypeDefinition {
-  final bool dynamic;
-  final int? min;
-  final int? max;
-
-  @override
-  final int? defaultValue;
-
   const IntegerType({
     this.dynamic = false,
     this.min,
@@ -239,6 +249,13 @@ final class IntegerType extends TypeDefinition {
     super.deprecatedReason,
   });
 
+  final bool dynamic;
+  final int? min;
+  final int? max;
+
+  @override
+  final int? defaultValue;
+
   @override
   bool get isDynamic => dynamic;
 
@@ -247,39 +264,22 @@ final class IntegerType extends TypeDefinition {
 
   @override
   bool operator ==(Object other) =>
+      identical(this, other) ||
       other is IntegerType &&
-      other.dynamic == dynamic &&
-      other.min == min &&
-      other.max == max &&
-      other.defaultValue == defaultValue &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
+          baseEquals(other) &&
+          dynamic == other.dynamic &&
+          min == other.min &&
+          max == other.max &&
+          defaultValue == other.defaultValue;
 
   @override
-  int get hashCode => Object.hash(
-    IntegerType,
-    dynamic,
-    min,
-    max,
-    defaultValue,
-    description,
-    this.deprecated,
-    deprecatedReason,
-  );
+  int get hashCode =>
+      Object.hash(baseHashCode, dynamic, min, max, defaultValue);
 }
 
-/// A boolean value, optionally dynamic.
-///
-/// In protocol v1.0+, a dynamic boolean also accepts function calls returning
-/// `ValidationResult` and coerces `{valid: bool}` objects to their boolean
-/// validity.
+/// A boolean value (optionally dynamic).
+@immutable
 final class BooleanType extends TypeDefinition {
-  final bool dynamic;
-
-  @override
-  final bool? defaultValue;
-
   const BooleanType({
     this.dynamic = false,
     this.defaultValue,
@@ -288,6 +288,11 @@ final class BooleanType extends TypeDefinition {
     super.deprecatedReason,
   });
 
+  final bool dynamic;
+
+  @override
+  final bool? defaultValue;
+
   @override
   bool get isDynamic => dynamic;
 
@@ -296,37 +301,19 @@ final class BooleanType extends TypeDefinition {
 
   @override
   bool operator ==(Object other) =>
+      identical(this, other) ||
       other is BooleanType &&
-      other.dynamic == dynamic &&
-      other.defaultValue == defaultValue &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
+          baseEquals(other) &&
+          dynamic == other.dynamic &&
+          defaultValue == other.defaultValue;
 
   @override
-  int get hashCode => Object.hash(
-    BooleanType,
-    dynamic,
-    defaultValue,
-    description,
-    this.deprecated,
-    deprecatedReason,
-  );
+  int get hashCode => Object.hash(baseHashCode, dynamic, defaultValue);
 }
 
-/// An enumerated set of allowed literal values (`String`, `num`, or `bool`).
+/// A closed enumeration of string, number, or boolean literals.
+@immutable
 final class EnumType extends TypeDefinition {
-  /// Ordered list of allowed literal values.
-  final List<Object> values;
-
-  /// The explicitly declared [EnumValueType], or `null` to infer from [values].
-  final EnumValueType? declaredValueType;
-
-  final bool dynamic;
-
-  @override
-  final Object? defaultValue;
-
   const EnumType({
     required this.values,
     EnumValueType? valueType,
@@ -337,16 +324,19 @@ final class EnumType extends TypeDefinition {
     super.deprecatedReason,
   }) : declaredValueType = valueType;
 
-  /// Effective primitive type of [values] (defaults to [EnumValueType.string]).
-  EnumValueType get valueType {
-    if (declaredValueType != null) return declaredValueType!;
-    if (values.isNotEmpty) {
-      final Object first = values.first;
-      if (first is num) return EnumValueType.number;
-      if (first is bool) return EnumValueType.boolean;
-    }
-    return EnumValueType.string;
-  }
+  /// Permitted literal values (must be non-empty).
+  final List<Object> values;
+
+  /// Explicitly declared `valueType`, or `null` when defaulted to `string`.
+  final EnumValueType? declaredValueType;
+
+  /// Effective value type (defaults to [EnumValueType.string]).
+  EnumValueType get valueType => declaredValueType ?? EnumValueType.string;
+
+  final bool dynamic;
+
+  @override
+  final Object? defaultValue;
 
   @override
   bool get isDynamic => dynamic;
@@ -356,32 +346,27 @@ final class EnumType extends TypeDefinition {
 
   @override
   bool operator ==(Object other) =>
+      identical(this, other) ||
       other is EnumType &&
-      _deepEquals.equals(other.values, values) &&
-      other.valueType == valueType &&
-      other.dynamic == dynamic &&
-      other.defaultValue == defaultValue &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
+          baseEquals(other) &&
+          deepJsonEquals(values, other.values) &&
+          valueType == other.valueType &&
+          dynamic == other.dynamic &&
+          defaultValue == other.defaultValue;
 
   @override
   int get hashCode => Object.hash(
-    EnumType,
-    _deepEquals.hash(values),
+    baseHashCode,
+    deepJsonHash(values),
     valueType,
     dynamic,
     defaultValue,
-    description,
-    this.deprecated,
-    deprecatedReason,
   );
 }
 
-/// An exact required literal value (`String`, `num`, `bool`, or `null`).
+/// A single constant JSON scalar value (`string`, `num`, `bool`, or `null`).
+@immutable
 final class ConstType extends TypeDefinition {
-  final Object? value;
-
   const ConstType({
     required this.value,
     super.description,
@@ -389,100 +374,65 @@ final class ConstType extends TypeDefinition {
     super.deprecatedReason,
   });
 
+  final Object? value;
+
   @override
   bool operator ==(Object other) =>
-      other is ConstType &&
-      other.value == value &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
+      identical(this, other) ||
+      other is ConstType && baseEquals(other) && value == other.value;
 
   @override
-  int get hashCode => Object.hash(
-    ConstType,
-    value,
-    description,
-    this.deprecated,
-    deprecatedReason,
-  );
+  int get hashCode => Object.hash(baseHashCode, value);
 }
 
-/// An unconstrained JSON value.
-///
-/// - `dynamic: true, nullable: false` corresponds to v1.0 `DynamicValue`.
-/// - `dynamic: true, nullable: true` corresponds to an unconstrained `{}`
-///   schema (such as `required.args.value`).
+/// An unconstrained JSON value (optionally dynamic and/or nullable).
+@immutable
 final class AnyType extends TypeDefinition {
-  final bool dynamic;
-  final bool nullable;
-  final Object? _defaultValue;
-
   const AnyType({
     this.dynamic = false,
     this.nullable = false,
-    this._defaultValue = _noDefault,
+    this._defaultValue = noDefaultValue,
     super.description,
     super.deprecated,
     super.deprecatedReason,
   });
 
+  final bool dynamic;
+  final bool nullable;
+  final Object? _defaultValue;
+
   @override
   bool get isDynamic => dynamic;
 
   @override
-  bool get hasDefault => !identical(_defaultValue, _noDefault);
+  bool get hasDefault => !identical(_defaultValue, noDefaultValue);
 
   @override
   Object? get defaultValue => hasDefault ? _defaultValue : null;
 
   @override
   bool operator ==(Object other) =>
+      identical(this, other) ||
       other is AnyType &&
-      other.dynamic == dynamic &&
-      other.nullable == nullable &&
-      other.hasDefault == hasDefault &&
-      _deepEquals.equals(other.defaultValue, defaultValue) &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
+          baseEquals(other) &&
+          dynamic == other.dynamic &&
+          nullable == other.nullable &&
+          hasDefault == other.hasDefault &&
+          deepJsonEquals(defaultValue, other.defaultValue);
 
   @override
   int get hashCode => Object.hash(
-    AnyType,
+    baseHashCode,
     dynamic,
     nullable,
     hasDefault,
-    _deepEquals.hash(defaultValue),
-    description,
-    this.deprecated,
-    deprecatedReason,
+    deepJsonHash(defaultValue),
   );
 }
 
-/// A structured JSON object or typed dictionary.
-///
-/// By default, undeclared keys are rejected ([additionalProperties] is `false`
-/// and [additionalPropertiesType] is `null`).
+/// A structured JSON object with typed properties and closure rules.
+@immutable
 final class ObjectType extends TypeDefinition {
-  final bool dynamic;
-
-  /// Ordered declared properties of this object.
-  final List<ParameterDefinition> properties;
-
-  /// Whether arbitrary undeclared properties are permitted.
-  final bool additionalProperties;
-
-  /// Optional schema for undeclared properties (implies additional properties
-  /// are permitted when non-null).
-  final TypeDefinition? additionalPropertiesType;
-
-  /// Cross-property requirement groups; at least one property from each group
-  /// must be provided.
-  final List<List<String>>? atLeastOneOf;
-
-  @override
-  final Map<String, Object?>? defaultValue;
-
   const ObjectType({
     this.dynamic = false,
     this.properties = const [],
@@ -493,20 +443,28 @@ final class ObjectType extends TypeDefinition {
     super.description,
     super.deprecated,
     super.deprecatedReason,
-  }) : assert(
-         !(additionalProperties && additionalPropertiesType != null),
-         'Specify either additionalProperties: true or '
-         'additionalPropertiesType, not both.',
-       );
+  });
 
-  /// Whether undeclared properties are allowed (either untyped or typed).
-  bool get allowsAdditionalProperties =>
-      additionalProperties || additionalPropertiesType != null;
+  final bool dynamic;
+  final List<ParameterDefinition> properties;
+
+  /// Whether undeclared keys are allowed when [additionalPropertiesType] is
+  /// `null`.
+  final bool additionalProperties;
+
+  /// Optional schema for undeclared keys (`additionalProperties: <Type>`).
+  final TypeDefinition? additionalPropertiesType;
+
+  /// Groups of property names of which at least one must be present.
+  final List<List<String>>? atLeastOneOf;
+
+  @override
+  final Map<String, Object?>? defaultValue;
 
   /// Looks up a declared property by [name], or returns `null`.
   ParameterDefinition? property(String name) {
-    for (final ParameterDefinition prop in properties) {
-      if (prop.name == name) return prop;
+    for (final ParameterDefinition p in properties) {
+      if (p.name == name) return p;
     }
     return null;
   }
@@ -523,54 +481,37 @@ final class ObjectType extends TypeDefinition {
       (additionalPropertiesType?.containsComponentOnlyType ?? false);
 
   @override
-  @internal
   bool get containsRawJsonSchema =>
       properties.any((p) => p.type.containsRawJsonSchema) ||
       (additionalPropertiesType?.containsRawJsonSchema ?? false);
 
   @override
   bool operator ==(Object other) =>
+      identical(this, other) ||
       other is ObjectType &&
-      other.dynamic == dynamic &&
-      _deepEquals.equals(other.properties, properties) &&
-      other.additionalProperties == additionalProperties &&
-      other.additionalPropertiesType == additionalPropertiesType &&
-      _deepEquals.equals(other.atLeastOneOf, atLeastOneOf) &&
-      _deepEquals.equals(other.defaultValue, defaultValue) &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
+          baseEquals(other) &&
+          dynamic == other.dynamic &&
+          deepJsonEquals(properties, other.properties) &&
+          additionalProperties == other.additionalProperties &&
+          additionalPropertiesType == other.additionalPropertiesType &&
+          deepJsonEquals(atLeastOneOf, other.atLeastOneOf) &&
+          deepJsonEquals(defaultValue, other.defaultValue);
 
   @override
   int get hashCode => Object.hash(
-    ObjectType,
+    baseHashCode,
     dynamic,
-    _deepEquals.hash(properties),
+    deepJsonHash(properties),
     additionalProperties,
     additionalPropertiesType,
-    _deepEquals.hash(atLeastOneOf),
-    _deepEquals.hash(defaultValue),
-    description,
-    this.deprecated,
-    deprecatedReason,
+    deepJsonHash(atLeastOneOf),
+    deepJsonHash(defaultValue),
   );
 }
 
-/// A JSON array, optionally dynamic and/or constrained by [items], length
-/// bounds, or uniqueness.
-///
-/// `ArrayType(items: StringType(), dynamic: true)` corresponds to v1.0
-/// `DynamicStringList`.
+/// A JSON array with optional element type and cardinality constraints.
+@immutable
 final class ArrayType extends TypeDefinition {
-  final bool dynamic;
-  final TypeDefinition? items;
-  final int? minItems;
-  final int? maxItems;
-  final bool uniqueItems;
-
-  @override
-  final List<Object?>? defaultValue;
-
   const ArrayType({
     this.dynamic = false,
     this.items,
@@ -583,6 +524,15 @@ final class ArrayType extends TypeDefinition {
     super.deprecatedReason,
   });
 
+  final bool dynamic;
+  final TypeDefinition? items;
+  final int? minItems;
+  final int? maxItems;
+  final bool uniqueItems;
+
+  @override
+  final List<Object?>? defaultValue;
+
   @override
   bool get isDynamic => dynamic;
 
@@ -594,63 +544,59 @@ final class ArrayType extends TypeDefinition {
       items?.containsComponentOnlyType ?? false;
 
   @override
-  @internal
   bool get containsRawJsonSchema => items?.containsRawJsonSchema ?? false;
 
   @override
   bool operator ==(Object other) =>
+      identical(this, other) ||
       other is ArrayType &&
-      other.dynamic == dynamic &&
-      other.items == items &&
-      other.minItems == minItems &&
-      other.maxItems == maxItems &&
-      other.uniqueItems == uniqueItems &&
-      _deepEquals.equals(other.defaultValue, defaultValue) &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
+          baseEquals(other) &&
+          dynamic == other.dynamic &&
+          items == other.items &&
+          minItems == other.minItems &&
+          maxItems == other.maxItems &&
+          uniqueItems == other.uniqueItems &&
+          deepJsonEquals(defaultValue, other.defaultValue);
 
   @override
   int get hashCode => Object.hash(
-    ArrayType,
+    baseHashCode,
     dynamic,
     items,
     minItems,
     maxItems,
     uniqueItems,
-    _deepEquals.hash(defaultValue),
-    description,
-    this.deprecated,
-    deprecatedReason,
+    deepJsonHash(defaultValue),
   );
 }
 
-/// A union of two or more [variants].
-///
-/// When [exclusive] is `true` (the default), exactly one variant must match
-/// (JSON Schema `oneOf`); when `false`, at least one variant must match
-/// (`anyOf`).
+/// A union of two or more alternative [TypeDefinition] variants.
+@immutable
 final class UnionType extends TypeDefinition {
-  final List<TypeDefinition> variants;
-  final bool exclusive;
-  final bool dynamic;
-  final Object? _defaultValue;
-
   const UnionType({
     required this.variants,
-    this.exclusive = true,
+    this.exclusive = false,
     this.dynamic = false,
-    this._defaultValue = _noDefault,
+    this._defaultValue = noDefaultValue,
     super.description,
     super.deprecated,
     super.deprecatedReason,
   });
 
+  final List<TypeDefinition> variants;
+
+  /// When `true`, exactly one variant must match (`oneOf`); when `false`, at
+  /// least one variant must match (`anyOf`).
+  final bool exclusive;
+
+  final bool dynamic;
+  final Object? _defaultValue;
+
   @override
   bool get isDynamic => dynamic;
 
   @override
-  bool get hasDefault => !identical(_defaultValue, _noDefault);
+  bool get hasDefault => !identical(_defaultValue, noDefaultValue);
 
   @override
   Object? get defaultValue => hasDefault ? _defaultValue : null;
@@ -660,137 +606,91 @@ final class UnionType extends TypeDefinition {
       variants.any((v) => v.containsComponentOnlyType);
 
   @override
-  @internal
   bool get containsRawJsonSchema =>
       variants.any((v) => v.containsRawJsonSchema);
 
   @override
   bool operator ==(Object other) =>
+      identical(this, other) ||
       other is UnionType &&
-      _deepEquals.equals(other.variants, variants) &&
-      other.exclusive == exclusive &&
-      other.dynamic == dynamic &&
-      other.hasDefault == hasDefault &&
-      _deepEquals.equals(other.defaultValue, defaultValue) &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
+          baseEquals(other) &&
+          deepJsonEquals(variants, other.variants) &&
+          exclusive == other.exclusive &&
+          dynamic == other.dynamic &&
+          hasDefault == other.hasDefault &&
+          deepJsonEquals(defaultValue, other.defaultValue);
 
   @override
   int get hashCode => Object.hash(
-    UnionType,
-    _deepEquals.hash(variants),
+    baseHashCode,
+    deepJsonHash(variants),
     exclusive,
     dynamic,
     hasDefault,
-    _deepEquals.hash(defaultValue),
-    description,
-    this.deprecated,
-    deprecatedReason,
+    deepJsonHash(defaultValue),
   );
 }
 
-/// A reactive data model binding (`{@path: "..."}` in v1.0, `{path: "..."}` in
-/// v0.9).
-final class DataBindingType extends TypeDefinition {
+/// An explicit protocol `DataBinding` object (`{"@path": ...}` / `{"path": ...}`).
+@immutable
+final class DataBindingType extends _MarkerTypeDefinition {
   const DataBindingType({
     super.description,
     super.deprecated,
     super.deprecatedReason,
   });
-
-  @override
-  bool get isDynamic => true;
-
-  @override
-  bool operator ==(Object other) =>
-      other is DataBindingType &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
-
-  @override
-  int get hashCode => Object.hash(
-    DataBindingType,
-    description,
-    this.deprecated,
-    deprecatedReason,
-  );
 }
 
-/// A reactive function call expression (`{@call: "...", args: {...}}` in v1.0,
-/// `{call: "...", args: {...}}` in v0.9).
-final class FunctionCallType extends TypeDefinition {
+/// An explicit protocol `FunctionCall` object (`{"@call": ...}` / `{"call": ...}`).
+@immutable
+final class FunctionCallType extends _MarkerTypeDefinition {
   const FunctionCallType({
     super.description,
     super.deprecated,
     super.deprecatedReason,
   });
-
-  @override
-  bool get isDynamic => true;
-
-  @override
-  bool operator ==(Object other) =>
-      other is FunctionCallType &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
-
-  @override
-  int get hashCode => Object.hash(
-    FunctionCallType,
-    description,
-    this.deprecated,
-    deprecatedReason,
-  );
 }
 
-/// A reference to a catalog-local reusable data type declared in
+/// A reference to a catalog-local named type declared under
 /// `CatalogModel.types`.
+@immutable
 final class RefType extends TypeDefinition {
-  final String ref;
-  final Object? _defaultValue;
-
   const RefType({
     required this.ref,
-    this._defaultValue = _noDefault,
+    this._defaultValue = noDefaultValue,
     super.description,
     super.deprecated,
     super.deprecatedReason,
   });
 
+  /// Name of a type declared in `CatalogModel.types`.
+  final String ref;
+
+  final Object? _defaultValue;
+
   @override
-  bool get hasDefault => !identical(_defaultValue, _noDefault);
+  bool get hasDefault => !identical(_defaultValue, noDefaultValue);
 
   @override
   Object? get defaultValue => hasDefault ? _defaultValue : null;
 
   @override
   bool operator ==(Object other) =>
+      identical(this, other) ||
       other is RefType &&
-      other.ref == ref &&
-      other.hasDefault == hasDefault &&
-      _deepEquals.equals(other.defaultValue, defaultValue) &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
+          baseEquals(other) &&
+          ref == other.ref &&
+          hasDefault == other.hasDefault &&
+          deepJsonEquals(defaultValue, other.defaultValue);
 
   @override
-  int get hashCode => Object.hash(
-    RefType,
-    ref,
-    hasDefault,
-    _deepEquals.hash(defaultValue),
-    description,
-    this.deprecated,
-    deprecatedReason,
-  );
+  int get hashCode =>
+      Object.hash(baseHashCode, ref, hasDefault, deepJsonHash(defaultValue));
 }
 
-/// A single child component ID reference (`Child` in v1.0, `ComponentId` in
-/// v0.9). Restricted to component parameters.
-final class ChildType extends TypeDefinition {
+/// A single child component ID reference (component-only).
+@immutable
+final class ChildType extends _MarkerTypeDefinition {
   const ChildType({
     super.description,
     super.deprecated,
@@ -798,23 +698,12 @@ final class ChildType extends TypeDefinition {
   });
 
   @override
-  bool get isComponentOnly => true;
-
-  @override
-  bool operator ==(Object other) =>
-      other is ChildType &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
-
-  @override
-  int get hashCode =>
-      Object.hash(ChildType, description, this.deprecated, deprecatedReason);
+  bool get containsComponentOnlyType => true;
 }
 
-/// A static child ID array or dynamic data-bound child template (`ChildList`).
-/// Restricted to component parameters.
-final class ChildListType extends TypeDefinition {
+/// A list of child component IDs or dynamic template binding (component-only).
+@immutable
+final class ChildListType extends _MarkerTypeDefinition {
   const ChildListType({
     super.description,
     super.deprecated,
@@ -822,27 +711,13 @@ final class ChildListType extends TypeDefinition {
   });
 
   @override
-  bool get isComponentOnly => true;
-
-  @override
-  bool operator ==(Object other) =>
-      other is ChildListType &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
-
-  @override
-  int get hashCode => Object.hash(
-    ChildListType,
-    description,
-    this.deprecated,
-    deprecatedReason,
-  );
+  bool get containsComponentOnlyType => true;
 }
 
-/// An interaction handler triggering an agent event or function call
-/// (`Action`). Restricted to component parameters.
-final class ActionType extends TypeDefinition {
+/// A user-triggered interaction action (`event` or `functionCall`,
+/// component-only).
+@immutable
+final class ActionType extends _MarkerTypeDefinition {
   const ActionType({
     super.description,
     super.deprecated,
@@ -850,23 +725,13 @@ final class ActionType extends TypeDefinition {
   });
 
   @override
-  bool get isComponentOnly => true;
-
-  @override
-  bool operator ==(Object other) =>
-      other is ActionType &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
-
-  @override
-  int get hashCode =>
-      Object.hash(ActionType, description, this.deprecated, deprecatedReason);
+  bool get containsComponentOnlyType => true;
 }
 
-/// A single validation check rule (`CheckRule`). Restricted to component
-/// parameters.
-final class CheckRuleType extends TypeDefinition {
+/// A client-side validation check rule (`condition` + optional `message`,
+/// component-only).
+@immutable
+final class CheckRuleType extends _MarkerTypeDefinition {
   const CheckRuleType({
     super.description,
     super.deprecated,
@@ -874,27 +739,13 @@ final class CheckRuleType extends TypeDefinition {
   });
 
   @override
-  bool get isComponentOnly => true;
-
-  @override
-  bool operator ==(Object other) =>
-      other is CheckRuleType &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
-
-  @override
-  int get hashCode => Object.hash(
-    CheckRuleType,
-    description,
-    this.deprecated,
-    deprecatedReason,
-  );
+  bool get containsComponentOnlyType => true;
 }
 
-/// Accessibility attributes (`AccessibilityAttributes`). Restricted to
-/// component parameters.
-final class AccessibilityType extends TypeDefinition {
+/// Standard protocol accessibility attributes (`label`, `description`,
+/// component-only).
+@immutable
+final class AccessibilityType extends _MarkerTypeDefinition {
   const AccessibilityType({
     super.description,
     super.deprecated,
@@ -902,32 +753,18 @@ final class AccessibilityType extends TypeDefinition {
   });
 
   @override
-  bool get isComponentOnly => true;
-
-  @override
-  bool operator ==(Object other) =>
-      other is AccessibilityType &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
-
-  @override
-  int get hashCode => Object.hash(
-    AccessibilityType,
-    description,
-    this.deprecated,
-    deprecatedReason,
-  );
+  bool get containsComponentOnlyType => true;
 }
 
-/// In-memory-only legacy escape hatch preserving an untranslatable JSON Schema
-/// fragment (for example `patternProperties` or arbitrary `not`).
+/// Read-only legacy JSON Schema compatibility fallback for Draft 2020-12
+/// keywords (such as `patternProperties`, `not`, `if`/`then`/`else`, or
+/// unresolvable/cyclic `$ref`s) that have no canonical Catalog Document
+/// representation.
 ///
-/// Never emitted in Catalog Documents.
-@internal
+/// Never emitted in Catalog Documents; `serializeCatalogDocument` throws
+/// `A2uiCatalogError` if a model contains this variant.
+@immutable
 final class RawJsonSchemaType extends TypeDefinition {
-  final Map<String, Object?> schema;
-
   const RawJsonSchemaType(
     this.schema, {
     super.description,
@@ -935,54 +772,38 @@ final class RawJsonSchemaType extends TypeDefinition {
     super.deprecatedReason,
   });
 
-  @override
-  bool get hasDefault => schema.containsKey('default');
+  final Map<String, Object?> schema;
 
   @override
-  Object? get defaultValue => schema['default'];
-
-  @override
-  @internal
   bool get containsRawJsonSchema => true;
 
   @override
   bool operator ==(Object other) =>
+      identical(this, other) ||
       other is RawJsonSchemaType &&
-      _deepEquals.equals(other.schema, schema) &&
-      other.description == description &&
-      other.deprecated == this.deprecated &&
-      other.deprecatedReason == deprecatedReason;
+          baseEquals(other) &&
+          deepJsonEquals(schema, other.schema);
 
   @override
-  int get hashCode => Object.hash(
-    RawJsonSchemaType,
-    _deepEquals.hash(schema),
-    description,
-    this.deprecated,
-    deprecatedReason,
-  );
+  int get hashCode => Object.hash(baseHashCode, deepJsonHash(schema));
 }
 
-/// A named parameter of a component, function, object, or surface properties
-/// definition.
+/// A named parameter on a component, function, object type, or surface
+/// properties definition.
+///
+/// Provides named convenience constructors for all 18 canonical types so
+/// catalog authors never need `json_schema_builder` or `hide ValidationResult`.
+/// For compile-time constants, use the default `const ParameterDefinition(...)`
+/// constructor with a `const` [TypeDefinition].
 @immutable
-class ParameterDefinition {
-  /// Unique identifier within the enclosing component, function, or object.
-  final String name;
-
-  /// The parameter's canonical type and constraints.
-  final TypeDefinition type;
-
-  /// Whether wire payloads must supply this parameter.
-  final bool required;
-
+final class ParameterDefinition {
   const ParameterDefinition({
     required this.name,
     required this.type,
     this.required = false,
   });
 
-  /// Declares a [StringType] parameter.
+  /// Declares a string parameter.
   ParameterDefinition.string(
     this.name, {
     this.required = false,
@@ -1009,7 +830,7 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares a [NumberType] parameter.
+  /// Declares a numeric parameter.
   ParameterDefinition.number(
     this.name, {
     this.required = false,
@@ -1030,7 +851,7 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares an [IntegerType] parameter.
+  /// Declares an integer parameter.
   ParameterDefinition.integer(
     this.name, {
     this.required = false,
@@ -1051,7 +872,7 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares a [BooleanType] parameter.
+  /// Declares a boolean parameter.
   ParameterDefinition.boolean(
     this.name, {
     this.required = false,
@@ -1068,7 +889,7 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares an [EnumType] parameter.
+  /// Declares a closed enumeration parameter.
   ParameterDefinition.enumeration(
     this.name, {
     required List<Object> values,
@@ -1089,7 +910,7 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares a [ConstType] parameter.
+  /// Declares a single constant scalar parameter.
   ParameterDefinition.constant(
     this.name, {
     required Object? value,
@@ -1104,13 +925,13 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares an [AnyType] parameter.
+  /// Declares an unconstrained JSON value parameter.
   ParameterDefinition.any(
     this.name, {
     this.required = false,
     bool dynamic = false,
     bool nullable = false,
-    Object? defaultValue = _noDefault,
+    Object? defaultValue = noDefaultValue,
     String? description,
     bool deprecated = false,
     String? deprecatedReason,
@@ -1123,12 +944,12 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares an [ObjectType] parameter.
+  /// Declares a structured object parameter.
   ParameterDefinition.object(
     this.name, {
-    List<ParameterDefinition> properties = const [],
     this.required = false,
     bool dynamic = false,
+    List<ParameterDefinition> properties = const [],
     bool additionalProperties = false,
     TypeDefinition? additionalPropertiesType,
     List<List<String>>? atLeastOneOf,
@@ -1148,12 +969,12 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares an [ArrayType] parameter.
+  /// Declares an array parameter.
   ParameterDefinition.array(
     this.name, {
-    TypeDefinition? items,
     this.required = false,
     bool dynamic = false,
+    TypeDefinition? items,
     int? minItems,
     int? maxItems,
     bool uniqueItems = false,
@@ -1173,14 +994,14 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares a [UnionType] parameter.
+  /// Declares a union parameter.
   ParameterDefinition.union(
     this.name, {
     required List<TypeDefinition> variants,
-    bool exclusive = true,
     this.required = false,
+    bool exclusive = false,
     bool dynamic = false,
-    Object? defaultValue = _noDefault,
+    Object? defaultValue = noDefaultValue,
     String? description,
     bool deprecated = false,
     String? deprecatedReason,
@@ -1194,7 +1015,7 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares a [DataBindingType] parameter.
+  /// Declares an explicit `DataBinding` parameter.
   ParameterDefinition.dataBinding(
     this.name, {
     this.required = false,
@@ -1207,7 +1028,7 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares a [FunctionCallType] parameter.
+  /// Declares an explicit `FunctionCall` parameter.
   ParameterDefinition.functionCall(
     this.name, {
     this.required = false,
@@ -1220,12 +1041,12 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares a [RefType] parameter referencing a catalog-local type.
+  /// Declares a parameter referencing a catalog-local type in `Catalog.types`.
   ParameterDefinition.ref(
     this.name, {
     required String ref,
     this.required = false,
-    Object? defaultValue = _noDefault,
+    Object? defaultValue = noDefaultValue,
     String? description,
     bool deprecated = false,
     String? deprecatedReason,
@@ -1237,7 +1058,7 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares a [ChildType] component parameter.
+  /// Declares a single child component ID parameter (component-only).
   ParameterDefinition.child(
     this.name, {
     this.required = false,
@@ -1250,7 +1071,7 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares a [ChildListType] component parameter.
+  /// Declares a child component list or template parameter (component-only).
   ParameterDefinition.childList(
     this.name, {
     this.required = false,
@@ -1263,7 +1084,7 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares an [ActionType] component parameter.
+  /// Declares an interaction action parameter (component-only).
   ParameterDefinition.action(
     this.name, {
     this.required = false,
@@ -1276,7 +1097,7 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares a [CheckRuleType] component parameter.
+  /// Declares a validation check rule parameter (component-only).
   ParameterDefinition.checkRule(
     this.name, {
     this.required = false,
@@ -1289,7 +1110,7 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
-  /// Declares an [AccessibilityType] component parameter.
+  /// Declares an accessibility attributes parameter (component-only).
   ParameterDefinition.accessibility(
     this.name, {
     this.required = false,
@@ -1302,20 +1123,32 @@ class ParameterDefinition {
          deprecatedReason: deprecatedReason,
        );
 
+  /// Parameter name (UAX #31 identifier in Catalog Documents).
+  final String name;
+
+  /// Canonical type definition of this parameter.
+  final TypeDefinition type;
+
+  /// Whether this parameter is required.
+  final bool required;
+
+  /// Convenience forwarding to [TypeDefinition.description].
   String? get description => type.description;
-  bool get isDynamic => type.isDynamic;
+
+  /// Convenience forwarding to [TypeDefinition.hasDefault].
   bool get hasDefault => type.hasDefault;
+
+  /// Convenience forwarding to [TypeDefinition.defaultValue].
   Object? get defaultValue => type.defaultValue;
-  bool get deprecated => type.deprecated;
-  String? get deprecatedReason => type.deprecatedReason;
 
   @override
   bool operator ==(Object other) =>
+      identical(this, other) ||
       other is ParameterDefinition &&
-      other.name == name &&
-      other.type == type &&
-      other.required == required;
+          name == other.name &&
+          type == other.type &&
+          required == other.required;
 
   @override
-  int get hashCode => Object.hash(ParameterDefinition, name, type, required);
+  int get hashCode => Object.hash(name, type, required);
 }

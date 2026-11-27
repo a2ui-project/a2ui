@@ -216,5 +216,99 @@ root = Stack([card])
         expect(result.replies, hasLength(1));
       },
     );
+
+    test('ExpressPromptGenerator preserves canonical ObjectType with path key '
+        'instead of misclassifying as wire envelope', () {
+      final catalog = Catalog<ComponentApi, FunctionApi>(
+        id: 'urn:a2ui:canonical-path-prop:v1',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: [
+          ComponentApi.define(
+            name: 'NavItem',
+            parameters: [
+              ParameterDefinition.object(
+                'destination',
+                required: true,
+                properties: [
+                  ParameterDefinition.string('path', required: true),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+      final promptGen = ExpressPromptGenerator([catalog]);
+      final String snippet = promptGen.generate();
+      expect(snippet, contains('NavItem('));
+      expect(snippet, contains('Map with keys:'));
+      expect(snippet, contains('* path'));
+    });
+
+    test(
+      'AgentFunction.define handles 0-param canonical functions and multi-hop '
+      'RefType default chains',
+      () async {
+        Map<String, dynamic>? receivedArgs;
+        var zeroCalled = false;
+        final catalog = Catalog<ComponentApi, FunctionApi>(
+          id: 'urn:a2ui:agent-fn-multihop:v1',
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          types: const {
+            'BaseLimit': IntegerType(defaultValue: 10),
+            'DefaultLimit': RefType(ref: 'BaseLimit', defaultValue: 5),
+          },
+          components: const [],
+          functions: [
+            AgentFunction.define(
+              name: 'ping',
+              returnType: A2uiReturnType.string,
+              handler: (args, _) {
+                zeroCalled = true;
+                return 'pong';
+              },
+            ),
+            AgentFunction.define(
+              name: 'listItems',
+              returnType: A2uiReturnType.array,
+              parameters: [
+                ParameterDefinition.ref('limit', ref: 'DefaultLimit'),
+              ],
+              handler: (args, _) {
+                receivedArgs = args;
+                return const <Object?>[];
+              },
+            ),
+          ],
+        );
+
+        final processor = RendererToAgentMessageProcessor(catalogs: [catalog]);
+        final ProcessResult pingRes = await processor.processMessage({
+          'version': '1.0',
+          'callAgentFunction': {
+            'surfaceId': 's1',
+            'functionCallId': 'call-ping',
+            'callFunction': {'@call': 'ping', 'catalogId': catalog.id},
+          },
+        });
+        expect(pingRes.handled, isTrue);
+        expect(zeroCalled, isTrue);
+
+        final ProcessResult listRes = await processor.processMessage({
+          'version': '1.0',
+          'callAgentFunction': {
+            'surfaceId': 's1',
+            'functionCallId': 'call-list',
+            'callFunction': {
+              '@call': 'listItems',
+              'catalogId': catalog.id,
+              'args': const <String, Object?>{},
+            },
+          },
+        });
+        expect(listRes.handled, isTrue);
+        expect(receivedArgs, isNotNull);
+        expect(receivedArgs!['limit'], 5);
+      },
+    );
   });
 }

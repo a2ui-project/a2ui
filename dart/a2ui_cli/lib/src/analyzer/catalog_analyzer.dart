@@ -49,14 +49,16 @@ class CatalogAnalyzer {
     final core.CatalogModel model = catalog.model;
     _enums.clear();
     _objectModels.clear();
-    _isV10 = model.protocolVersion == core.A2uiProtocolVersion.v1_0;
+    _isV10 =
+        model.protocolVersion?.isAtLeast(core.A2uiProtocolVersion.v1_0) ??
+        false;
     _reservedNames
       ..clear()
       ..addAll(model.components.map((c) => c.name));
 
     final components = <String, AnalysedComponentApi>{
       for (final core.ComponentDefinition comp in model.components)
-        comp.name: _analyzeComponent(comp, model),
+        comp.name: _analyzeComponent(comp, model, catalog),
     };
     final functions = <String, AnalysedFunctionApi>{
       for (final core.FunctionDefinition fn in model.functions)
@@ -76,13 +78,58 @@ class CatalogAnalyzer {
   AnalysedComponentApi _analyzeComponent(
     core.ComponentDefinition comp,
     core.CatalogModel model,
+    CodegenCatalog catalog,
   ) {
     final properties = <String, PropertyDescriptor>{};
     final requiredProps = <String>[];
+    final core.ComponentApi? api = catalog.catalog.components[comp.name];
 
-    for (final core.ParameterDefinition param in comp.parameters) {
-      if (param.required) requiredProps.add(param.name);
-      properties[param.name] = _analyzeParameter(comp.name, param, model);
+    // For legacy pre-v1.0 JSON Schema catalogs, preserve the legacy flattened
+    // property order (e.g. `weight` before own properties and `ComponentCommon`
+    // `accessibility`) so checked-in v0.9 Python goldens stay byte-identical.
+    if (!_isV10 && api != null && !api.hasCanonicalDefinition) {
+      final Map<String, dynamic> legacyProps =
+          catalog.components[comp.name]?.properties ?? const {};
+      final Set<String> legacyKeys = legacyProps.keys.toSet();
+      for (final propName in legacyKeys) {
+        if (propName == 'checks' && comp.checkable) continue;
+        final core.ParameterDefinition? param = comp.parameter(propName);
+        if (param != null) {
+          if (param.required) requiredProps.add(param.name);
+          properties[param.name] = _analyzeParameter(
+            comp.name,
+            param,
+            model,
+            <String>{},
+          );
+        } else if (propName == 'accessibility') {
+          properties['accessibility'] = const PropertyDescriptor(
+            name: 'accessibility',
+            type: AccessibilityType(),
+            isRequired: false,
+          );
+        }
+      }
+      for (final core.ParameterDefinition param in comp.parameters) {
+        if (properties.containsKey(param.name)) continue;
+        if (param.required) requiredProps.add(param.name);
+        properties[param.name] = _analyzeParameter(
+          comp.name,
+          param,
+          model,
+          <String>{},
+        );
+      }
+    } else {
+      for (final core.ParameterDefinition param in comp.parameters) {
+        if (param.required) requiredProps.add(param.name);
+        properties[param.name] = _analyzeParameter(
+          comp.name,
+          param,
+          model,
+          <String>{},
+        );
+      }
     }
 
     if (comp.checkable) {
@@ -115,15 +162,32 @@ class CatalogAnalyzer {
 
     for (final core.ParameterDefinition param in fn.parameters) {
       if (param.required) requiredParams.add(param.name);
-      parameters[param.name] = _analyzeParameter(fn.name, param, model);
+      parameters[param.name] = _analyzeParameter(
+        fn.name,
+        param,
+        model,
+        <String>{},
+      );
     }
+
+    final TypeDescriptor returnType = fn.returnType.type != null
+        ? _analyzeType(
+            fn.name,
+            'return',
+            fn.returnType.type!,
+            model,
+            <String>{},
+          )
+        : fn.returnType.isIntegerShorthand
+        ? const PrimitiveType(PrimitiveKind.integer)
+        : _returnTypeToTypeDescriptor(fn.returnType.returnType);
 
     return AnalysedFunctionApi(
       name: fn.name,
       description: fn.description,
       parameters: parameters,
       requiredParameters: requiredParams,
-      returnType: _returnTypeToTypeDescriptor(fn.returnType.returnType),
+      returnType: returnType,
     );
   }
 
@@ -131,6 +195,7 @@ class CatalogAnalyzer {
     String parentName,
     core.ParameterDefinition param,
     core.CatalogModel model,
+    Set<String> visitedRefs,
   ) {
     final core.TypeDefinition rawType = param.type;
     final core.TypeDefinition resolved = model.resolveType(rawType) ?? rawType;
@@ -140,7 +205,7 @@ class CatalogAnalyzer {
         : resolved.defaultValue;
     return PropertyDescriptor(
       name: param.name,
-      type: _analyzeType(parentName, param.name, resolved, model),
+      type: _analyzeType(parentName, param.name, rawType, model, visitedRefs),
       description: description,
       defaultValue: defaultValue,
       isRequired: param.required,
@@ -152,9 +217,22 @@ class CatalogAnalyzer {
     String propName,
     core.TypeDefinition type,
     core.CatalogModel model,
+    Set<String> visitedRefs,
   ) {
-    final core.TypeDefinition resolved = model.resolveType(type) ?? type;
-    return switch (resolved) {
+    if (type is core.RefType) {
+      if (!visitedRefs.add(type.ref)) {
+        return const PrimitiveType(PrimitiveKind.any);
+      }
+      try {
+        final core.TypeDefinition? target = model.types[type.ref];
+        return target == null
+            ? const PrimitiveType(PrimitiveKind.any)
+            : _analyzeType(parentName, propName, target, model, visitedRefs);
+      } finally {
+        visitedRefs.remove(type.ref);
+      }
+    }
+    return switch (type) {
       core.AccessibilityType() => const AccessibilityType(),
       core.ChildListType() => const ComponentListType(),
       core.ChildType() => const ComponentRefType(),
@@ -206,28 +284,46 @@ class CatalogAnalyzer {
           propName,
           items,
           model,
+          visitedRefs,
           isDynamic: dynamic,
           fallbackDescription: description,
         ),
-      core.ObjectType(:final properties, :final dynamic) => _wrapDynamic(
-        properties.isEmpty
-            ? const MapType(PrimitiveType(PrimitiveKind.any))
-            : _registerObjectModel(
-                '$parentName${capitalize(propName)}',
-                resolved,
-                model,
-              ),
-        dynamic,
-      ),
+      core.ObjectType(
+        :final properties,
+        :final additionalPropertiesType,
+        :final dynamic,
+      ) =>
+        _wrapDynamic(
+          properties.isEmpty
+              ? MapType(
+                  additionalPropertiesType != null
+                      ? _analyzeType(
+                          parentName,
+                          '${propName}Value',
+                          additionalPropertiesType,
+                          model,
+                          visitedRefs,
+                        )
+                      : const PrimitiveType(PrimitiveKind.any),
+                )
+              : _registerObjectModel(
+                  '$parentName${capitalize(propName)}',
+                  type,
+                  model,
+                  visitedRefs,
+                ),
+          dynamic,
+        ),
       core.UnionType(:final variants, :final dynamic) => _analyzeUnion(
         parentName,
         propName,
         variants,
         model,
+        visitedRefs,
         isDynamic: dynamic,
       ),
       core.RefType() ||
-      core.TypeDefinition() => const PrimitiveType(PrimitiveKind.any),
+      core.RawJsonSchemaType() => const PrimitiveType(PrimitiveKind.any),
     };
   }
 
@@ -235,7 +331,8 @@ class CatalogAnalyzer {
     String parentName,
     String propName,
     core.TypeDefinition? items,
-    core.CatalogModel model, {
+    core.CatalogModel model,
+    Set<String> visitedRefs, {
     required bool isDynamic,
     String? fallbackDescription,
   }) {
@@ -245,13 +342,40 @@ class CatalogAnalyzer {
         isDynamic,
       );
     }
-    final core.TypeDefinition resolved = model.resolveType(items) ?? items;
-    if (resolved is core.ChildType) return const ComponentListType();
-    if (resolved is core.ObjectType && resolved.properties.isNotEmpty) {
+    if (items is core.RefType) {
+      if (!visitedRefs.add(items.ref)) {
+        return _wrapDynamic(
+          const ListType(PrimitiveType(PrimitiveKind.any)),
+          isDynamic,
+        );
+      }
+      try {
+        final core.TypeDefinition? target = model.types[items.ref];
+        return target == null
+            ? _wrapDynamic(
+                const ListType(PrimitiveType(PrimitiveKind.any)),
+                isDynamic,
+              )
+            : _analyzeArray(
+                parentName,
+                propName,
+                target,
+                model,
+                visitedRefs,
+                isDynamic: isDynamic,
+                fallbackDescription: fallbackDescription,
+              );
+      } finally {
+        visitedRefs.remove(items.ref);
+      }
+    }
+    if (items is core.ChildType) return const ComponentListType();
+    if (items is core.ObjectType && items.properties.isNotEmpty) {
       final ObjectModelType itemModel = _registerObjectModel(
         _itemModelName(parentName, propName),
-        resolved,
+        items,
         model,
+        visitedRefs,
         fallbackDescription: fallbackDescription,
       );
       return _wrapDynamic(ListType(itemModel), isDynamic);
@@ -259,8 +383,9 @@ class CatalogAnalyzer {
     final TypeDescriptor elem = _analyzeType(
       parentName,
       '${propName}Item',
-      resolved,
+      items,
       model,
+      visitedRefs,
     );
     return _wrapDynamic(ListType(elem), isDynamic);
   }
@@ -269,30 +394,38 @@ class CatalogAnalyzer {
     String parentName,
     String propName,
     List<core.TypeDefinition> variants,
-    core.CatalogModel model, {
+    core.CatalogModel model,
+    Set<String> visitedRefs, {
     required bool isDynamic,
   }) {
     var hasDynamic = isDynamic;
     final baseTypes = <TypeDescriptor>[];
 
     for (final variant in variants) {
-      final core.TypeDefinition resolved =
-          model.resolveType(variant) ?? variant;
-      if (resolved is core.DataBindingType ||
-          resolved is core.FunctionCallType) {
+      final core.TypeDefinition? deref = variant is core.RefType
+          ? (visitedRefs.contains(variant.ref)
+                ? null
+                : model.resolveType(variant))
+          : variant;
+      if (deref == null) continue;
+      if (deref is core.DataBindingType || deref is core.FunctionCallType) {
         hasDynamic = true;
         continue;
       }
-      if (resolved is core.ConstType && resolved.value == null) continue;
+      if (deref is core.ConstType && deref.value == null) continue;
       final TypeDescriptor analyzed = _analyzeType(
         parentName,
         propName,
-        resolved,
+        variant,
         model,
+        visitedRefs,
       );
-      if (analyzed is! DynamicType &&
-          analyzed is! DataBindingType &&
-          analyzed is! ActionType) {
+      if (analyzed is DataBindingType) {
+        hasDynamic = true;
+      } else if (analyzed is DynamicType) {
+        hasDynamic = true;
+        baseTypes.add(analyzed.inner);
+      } else {
         baseTypes.add(analyzed);
       }
     }
@@ -346,13 +479,14 @@ class CatalogAnalyzer {
   ObjectModelType _registerObjectModel(
     String preferredName,
     core.ObjectType obj,
-    core.CatalogModel model, {
+    core.CatalogModel model,
+    Set<String> visitedRefs, {
     String? fallbackDescription,
   }) {
     var name = preferredName;
     final properties = <String, PropertyDescriptor>{
       for (final core.ParameterDefinition prop in obj.properties)
-        prop.name: _analyzeParameter(name, prop, model),
+        prop.name: _analyzeParameter(name, prop, model, visitedRefs),
     };
 
     var suffix = 2;

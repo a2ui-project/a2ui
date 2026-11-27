@@ -64,7 +64,7 @@ class ComponentImplementation extends ComponentApi {
 
   /// Creates a [ComponentImplementation] backed directly by a canonical
   /// [ComponentDefinition] with no `json_schema_builder` dependency.
-  ComponentImplementation.fromDefinition(
+  const ComponentImplementation.fromDefinition(
     super.definition, {
     required this.builder,
   }) : super.fromDefinition();

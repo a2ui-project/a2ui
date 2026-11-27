@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Support Catalog Documents (`formatVersion: "1.0"`) alongside legacy JSON Schema catalogs in `a2ui codegen` and `a2ui lint`, add `CodegenCatalog.model`, `CodegenCatalog.componentDefinition`, and `CodegenCatalog.functionDefinition`, and back `CatalogAnalyzer` directly on `a2ui_core`'s canonical `CatalogModel` and sealed `TypeDefinition` AST ([#4430](https://github.com/a2ui-project/a2ui/pull/4430)).
+- With the updated `a2ui_core`, support Catalog Documents (`formatVersion: "1.0"`) alongside legacy JSON Schema catalogs in `a2ui codegen` and `a2ui lint`, emit typed `Mapping[str, <value>]` annotations for map properties declaring `additionalProperties`, and add `CodegenCatalog.model`, `CatalogComponentDefinition.componentDefinition`, and `CatalogFunctionDefinition.functionDefinition` ([#4430](https://github.com/a2ui-project/a2ui/pull/4430)).
 
 ## 0.5.0
 

@@ -249,6 +249,7 @@ String _componentSignatures(CatalogSchemaHelper helper) {
   final callKey = isV1 ? '@call' : 'call';
   final signatures = <String>[];
   for (final String name in helper.catalog.components.keys.toList()..sort()) {
+    final bool isCanonical = helper.isCanonicalComponent(name);
     final List<String> required = helper.requiredProperties(name);
     final arguments = <String>[];
     final details = <String>[];
@@ -257,14 +258,14 @@ String _componentSignatures(CatalogSchemaHelper helper) {
         name,
         property,
       );
-      final Map<String, Object?>? schema = helper.propertySchema(
-        name,
-        property,
-      );
+      final Map<String, Object?>? schema = isCanonical
+          ? null
+          : helper.propertySchema(name, property);
       final optional = required.contains(property) ? '' : '?';
       final bool useCanonicalParam =
           paramDef != null &&
-          (schema == null ||
+          (isCanonical ||
+              schema == null ||
               !_isUnstructuredFallback(paramDef.type, schema, helper));
       final annotation = useCanonicalParam
           ? (helper.isTypeComponentId(paramDef.type)
@@ -381,8 +382,7 @@ bool _typeHasFallbackOrFlattenedEnvelope(
       return variants.any(
         (v) => _typeHasFallbackOrFlattenedEnvelope(v, helper, visited),
       );
-    default:
-      // Internal RawJsonSchemaType escape hatch.
+    case RawJsonSchemaType():
       return true;
   }
 }

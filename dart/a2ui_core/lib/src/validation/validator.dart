@@ -153,7 +153,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     atLeastV1: _v1,
     functions: {
       for (final F fn in catalog.functions.values)
-        if (fn.hasCanonicalDefinition) fn.name: fn.functionDefinition,
+        fn.name: fn.functionDefinition,
     },
   );
 
