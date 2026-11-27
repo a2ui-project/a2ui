@@ -222,10 +222,24 @@ public final class RPCHandler {
       )
     }
 
-    let argsValidation = function.api.schema.validate(
-      .object(OrderedDictionary(uniqueKeysWithValues: resolvedArgs))
-    )
-    if !argsValidation.isValid {
+    let argsValid: Bool
+    if function.api.hasCanonicalDefinition {
+      let argErrors = ModelPayloadValidator.validateFunctionArguments(
+        resolvedArgs,
+        definition: function.api.definition,
+        types: catalog.types,
+        protocolVersion: dataContext?.protocolVersion ?? message.version,
+        allowDynamicExpressions: false,
+        allowNullValues: false
+      )
+      argsValid = argErrors.isEmpty
+    } else {
+      argsValid =
+        function.api.schema.validate(
+          .object(OrderedDictionary(uniqueKeysWithValues: resolvedArgs))
+        ).isValid
+    }
+    if !argsValid {
       let errorPayload = FunctionErrorPayload(
         code: .invalidFunctionCall,
         message: "Invalid arguments for function '\(callName)'."

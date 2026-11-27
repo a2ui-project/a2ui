@@ -57,6 +57,63 @@ struct ComponentEnvelope {
   /// The component's own properties: every key but `id`, `component`, and the mixin keys.
   private(set) var properties: [String: JSONValue]
 
+  /// Splits a v1.0 component object using the canonical ``ComponentDefinition`` when available,
+  /// falling back to JSON Schema inspection for legacy schema-backed components.
+  init(
+    component: [String: JSONValue],
+    componentAPI: (any ComponentAPI)?,
+    componentID: String
+  ) throws {
+    if let componentAPI, componentAPI.hasCanonicalDefinition {
+      try self.init(
+        component: component,
+        definition: componentAPI.definition,
+        componentID: componentID
+      )
+      return
+    }
+    try self.init(
+      component: component,
+      schema: componentAPI?.schema.jsonValue,
+      componentID: componentID
+    )
+  }
+
+  /// Splits a v1.0 component object directly against a canonical ``ComponentDefinition`` in O(1)
+  /// without inspecting JSON Schema.
+  init(
+    component: [String: JSONValue],
+    definition: ComponentDefinition,
+    componentID: String
+  ) throws {
+    var properties = component
+    properties.removeValue(forKey: "id")
+    properties.removeValue(forKey: "component")
+    for mixin in Mixin.allCases {
+      let prefixed = component[mixin.prefixedKey]
+      let bare = component[mixin.bareKey]
+      if prefixed == nil && bare == nil {
+        continue
+      }
+      properties.removeValue(forKey: mixin.prefixedKey)
+      let declaresBare = bare != nil && Self.declaresOwnProperty(mixin, in: definition)
+      if let prefixed {
+        if bare != nil, !declaresBare {
+          throw Self.conflictError(mixin, componentID: componentID)
+        }
+        values[mixin] = prefixed
+        keys[mixin] = mixin.prefixedKey
+      } else if let bare, !declaresBare,
+        mixin != .checks || definition.isCheckable
+      {
+        properties.removeValue(forKey: mixin.bareKey)
+        values[mixin] = bare
+        keys[mixin] = mixin.bareKey
+      }
+    }
+    self.properties = properties
+  }
+
   /// Splits a v1.0 component object.
   ///
   /// - Parameters:
@@ -102,6 +159,33 @@ struct ComponentEnvelope {
   /// The key under which the component carries a mixin, or nil when it doesn't carry it.
   func key(of mixin: Mixin) -> String? {
     keys[mixin]
+  }
+
+  /// Returns the key and value of the catalog a v1.0 component names, using the canonical
+  /// ``ComponentDefinition`` when available.
+  static func catalogIDEntry(
+    in component: [String: JSONValue],
+    defaultCatalogComponent: (any ComponentAPI)?
+  ) -> (key: String, value: JSONValue)? {
+    let mixin = Mixin.catalogID
+    if let prefixed = component[mixin.prefixedKey] {
+      return (mixin.prefixedKey, prefixed)
+    }
+    guard let bare = component[mixin.bareKey] else { return nil }
+    if let defaultCatalogComponent, defaultCatalogComponent.hasCanonicalDefinition {
+      return declaresOwnProperty(mixin, in: defaultCatalogComponent.definition)
+        ? nil
+        : (mixin.bareKey, bare)
+    }
+    return declaresOwnProperty(mixin, in: defaultCatalogComponent?.schema.jsonValue)
+      ? nil
+      : (mixin.bareKey, bare)
+  }
+
+  /// Returns whether a canonical ``ComponentDefinition`` declares a property of its own named like
+  /// a mixin.
+  static func declaresOwnProperty(_ mixin: Mixin, in definition: ComponentDefinition) -> Bool {
+    definition.parameter(named: mixin.bareKey) != nil
   }
 
   /// Returns the key and value of the catalog a v1.0 component names, or nil when it names none.

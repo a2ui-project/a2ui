@@ -515,8 +515,12 @@ extension SurfaceViewModel: FunctionHandler {
     nodeResolver.agentFunctionCatalogID(forCallCatalogID: catalogID)
   }
 
-  /// Returns the agent's answer to `call` if the surface already has it, for a one-shot
-  /// evaluation outside a node or an action, such as a ``DataContext`` built on the surface.
+  public func catalogTypes(forCatalogID catalogID: String?) -> [String: TypeDefinition] {
+    nodeResolver.catalogTypes(forCatalogID: catalogID)
+  }
+
+  /// Returns the agent's answer to `call` if the surface already has it, for a one-shot evaluation
+  /// outside a node or an action, such as a ``DataContext`` built on the surface.
   ///
   /// Such an evaluation can't wait for a pending value, so it never sends the call: without an
   /// answer already kept, the call fails with an `EXPRESSION_ERROR`.

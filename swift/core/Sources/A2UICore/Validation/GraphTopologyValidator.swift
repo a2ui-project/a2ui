@@ -88,24 +88,32 @@ public enum GraphTopologyValidator {
     "id", "component", "catalogId", "@catalogId", "@metadata",
   ]
 
+  static func lookupCatalog(
+    catalogID: String?,
+    catalogs: [String: AnyCatalog]?,
+    defaultCatalogID: String?
+  ) -> AnyCatalog? {
+    guard let catalogs, !catalogs.isEmpty else { return nil }
+    if let catalogID, let catalog = catalogs[catalogID] {
+      return catalog
+    }
+    if let defaultCatalogID, let catalog = catalogs[defaultCatalogID] {
+      return catalog
+    }
+    if catalogs.count == 1, let soleCatalog = catalogs.values.first {
+      return soleCatalog
+    }
+    return nil
+  }
+
   static func lookupComponentAPI(
     type: String,
     catalogID: String?,
     catalogs: [String: AnyCatalog]?,
     defaultCatalogID: String?
   ) -> (any ComponentAPI)? {
-    guard let catalogs, !catalogs.isEmpty else { return nil }
-
-    if let catalogID, let catalog = catalogs[catalogID] {
-      return catalog.components[type]
-    }
-    if let defaultCatalogID, let catalog = catalogs[defaultCatalogID] {
-      return catalog.components[type]
-    }
-    if catalogs.count == 1, let soleCatalog = catalogs.values.first {
-      return soleCatalog.components[type]
-    }
-    return nil
+    lookupCatalog(catalogID: catalogID, catalogs: catalogs, defaultCatalogID: defaultCatalogID)?
+      .components[type]
   }
 
   private struct ComponentMeta {
@@ -266,21 +274,23 @@ public enum GraphTopologyValidator {
       allComponentIDs.insert(componentID)
       adjacencyList[componentID] = []
 
-      let componentSchema: JSONValue?
+      let references: [Reference]
       if let type = component["component"]?.stringValue {
         let catalogID = componentCatalogID(of: component, defaultCatalogID: defaultCatalogID)
-        componentSchema =
-          lookupComponentAPI(
-            type: type,
-            catalogID: catalogID,
-            catalogs: catalogs,
-            defaultCatalogID: defaultCatalogID
-          )?.schema.jsonValue
+        let targetCatalog = lookupCatalog(
+          catalogID: catalogID,
+          catalogs: catalogs,
+          defaultCatalogID: defaultCatalogID
+        )
+        let componentAPI = targetCatalog?.components[type]
+        references = extractReferences(
+          from: component,
+          componentAPI: componentAPI,
+          types: targetCatalog?.types ?? [:]
+        )
       } else {
-        componentSchema = nil
+        references = []
       }
-
-      let references = extractReferences(from: component, schema: componentSchema)
       for reference in references {
         if reference.referenceID == componentID, !config.allowCyclicReferences {
           throw A2UIRecursionError(
@@ -409,6 +419,129 @@ public enum GraphTopologyValidator {
       }
     }
     recursionStack.remove(nodeID)
+  }
+
+  /// Extracts component reference pointers directly from a canonical ``ComponentDefinition``
+  /// without walking JSON Schema ASTs.
+  public static func extractReferences(
+    from component: [String: JSONValue],
+    definition: ComponentDefinition,
+    types: [String: TypeDefinition] = [:]
+  ) -> [Reference] {
+    var references: [Reference] = []
+    for param in definition.parameters where !nonReferenceKeys.contains(param.name) {
+      guard let propertyValue = component[param.name] else { continue }
+      collectTypeReferences(
+        from: propertyValue,
+        type: param.type,
+        types: types,
+        path: param.name,
+        visitedRefs: [],
+        into: &references
+      )
+    }
+    return references
+  }
+
+  static func extractReferences(
+    from component: [String: JSONValue],
+    componentAPI: (any ComponentAPI)?,
+    types: [String: TypeDefinition] = [:]
+  ) -> [Reference] {
+    guard let componentAPI else { return [] }
+    if componentAPI.hasCanonicalDefinition {
+      return extractReferences(from: component, definition: componentAPI.definition, types: types)
+    }
+    return extractReferences(from: component, schema: componentAPI.schema.jsonValue)
+  }
+
+  private static func collectTypeReferences(
+    from value: JSONValue,
+    type: TypeDefinition,
+    types: [String: TypeDefinition],
+    path: String,
+    visitedRefs: Set<String>,
+    into result: inout [Reference]
+  ) {
+    switch type {
+    case .childList:
+      collectChildListReferences(from: value, path: path, into: &result)
+    case .child:
+      if let childID = value.stringValue {
+        result.append((childID, path))
+      }
+    case .array(_, let items, _, _, _, _, _, _, _):
+      guard let items, case .array(let array) = value else { return }
+      for (index, item) in array.enumerated() {
+        collectTypeReferences(
+          from: item,
+          type: items,
+          types: types,
+          path: "\(path)[\(index)]",
+          visitedRefs: visitedRefs,
+          into: &result
+        )
+      }
+    case .object(_, let properties, let additionalProperties, _, _, _, _, _):
+      guard case .object(let dict) = value else { return }
+      for param in properties {
+        guard let propValue = dict[param.name] else { continue }
+        collectTypeReferences(
+          from: propValue,
+          type: param.type,
+          types: types,
+          path: "\(path).\(param.name)",
+          visitedRefs: visitedRefs,
+          into: &result
+        )
+      }
+      if case .typed(let extraType) = additionalProperties {
+        let declared = Set(properties.map(\.name))
+        for (key, propValue) in dict where !declared.contains(key) {
+          collectTypeReferences(
+            from: propValue,
+            type: extraType,
+            types: types,
+            path: "\(path).\(key)",
+            visitedRefs: visitedRefs,
+            into: &result
+          )
+        }
+      }
+    case .union(let variants, _, _, _, _, _, _):
+      for variant in variants {
+        var candidateRefs: [Reference] = []
+        collectTypeReferences(
+          from: value,
+          type: variant,
+          types: types,
+          path: path,
+          visitedRefs: visitedRefs,
+          into: &candidateRefs
+        )
+        if !candidateRefs.isEmpty {
+          result.append(contentsOf: candidateRefs)
+          return
+        }
+      }
+    case .ref(let refName, _, _, _, _):
+      guard !visitedRefs.contains(refName), let target = types[refName] else { return }
+      var nextVisited = visitedRefs
+      nextVisited.insert(refName)
+      collectTypeReferences(
+        from: value,
+        type: target,
+        types: types,
+        path: path,
+        visitedRefs: nextVisited,
+        into: &result
+      )
+    case .rawJSONSchema(let raw):
+      collectSchemaReferences(from: value, schema: raw, path: path, into: &result)
+    case .string, .number, .integer, .boolean, .enum, .const, .any,
+      .dataBinding, .functionCall, .action, .checkRule, .accessibility:
+      break
+    }
   }
 
   /// Extracts component reference pointers from a component property dictionary.

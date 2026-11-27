@@ -262,27 +262,56 @@ public final class DataContext {
     guard var resolvedArguments = resolveArguments(of: dict) else {
       return .null
     }
-    if let argPropsSchema = function.api.schema.jsonValue["properties"]?.objectValue {
-      for (argKey, resolvedVal) in resolvedArguments {
-        if let propSchema = argPropsSchema[argKey] {
-          resolvedArguments[argKey] = Self.coerceValidationResults(
-            schema: propSchema,
-            value: resolvedVal
+    if function.api.hasCanonicalDefinition {
+      let catalogTypes = functionHandler?.catalogTypes(forCatalogID: resolvedCatalogID) ?? [:]
+      resolvedArguments = ModelPayloadValidator.coerceValidationResults(
+        in: resolvedArguments,
+        definition: function.api.definition,
+        types: catalogTypes
+      )
+      if atLeastV10 {
+        let argErrors = ModelPayloadValidator.validateFunctionArguments(
+          resolvedArguments,
+          definition: function.api.definition,
+          types: catalogTypes,
+          protocolVersion: protocolVersion ?? .v10,
+          allowDynamicExpressions: false,
+          allowNullValues: true
+        )
+        guard argErrors.isEmpty else {
+          functionHandler?.handleFunctionError(
+            A2UIValidationError(
+              "Validation failed for function '\(callName)': the arguments do not match its schema."
+            ),
+            functionName: callName
           )
+          recordFailedCall()
+          return .null
         }
       }
-    }
-    // A v1.0 call whose arguments don't match the function's schema is refused, not run.
-    if atLeastV10 {
-      guard Self.areLocalArgumentsValid(resolvedArguments, schema: function.api.schema) else {
-        functionHandler?.handleFunctionError(
-          A2UIValidationError(
-            "Validation failed for function '\(callName)': the arguments do not match its schema."
-          ),
-          functionName: callName
-        )
-        recordFailedCall()
-        return .null
+    } else {
+      if let argPropsSchema = function.api.schema.jsonValue["properties"]?.objectValue {
+        for (argKey, resolvedVal) in resolvedArguments {
+          if let propSchema = argPropsSchema[argKey] {
+            resolvedArguments[argKey] = Self.coerceValidationResults(
+              schema: propSchema,
+              value: resolvedVal
+            )
+          }
+        }
+      }
+      // A v1.0 call whose arguments don't match the function's schema is refused, not run.
+      if atLeastV10 {
+        guard Self.areLocalArgumentsValid(resolvedArguments, schema: function.api.schema) else {
+          functionHandler?.handleFunctionError(
+            A2UIValidationError(
+              "Validation failed for function '\(callName)': the arguments do not match its schema."
+            ),
+            functionName: callName
+          )
+          recordFailedCall()
+          return .null
+        }
       }
     }
 
@@ -407,28 +436,61 @@ public final class DataContext {
       return .null
     }
     if let declaration {
-      let schema = declaration.api.schema
-      if let argPropsSchema = schema.jsonValue["properties"]?.objectValue {
-        for (argKey, resolvedVal) in arguments {
-          if let propSchema = argPropsSchema[argKey] {
-            arguments[argKey] = Self.coerceValidationResults(
-              schema: propSchema,
-              value: resolvedVal
-            )
+      if declaration.api.hasCanonicalDefinition {
+        let catalogTypes = functionHandler?.catalogTypes(forCatalogID: catalogID) ?? [:]
+        let def = declaration.api.definition
+        arguments = ModelPayloadValidator.coerceValidationResults(
+          in: arguments,
+          definition: def,
+          types: catalogTypes
+        )
+        arguments = ModelPayloadValidator.applyingArgumentDefaults(
+          of: def,
+          types: catalogTypes,
+          to: arguments
+        )
+        let argErrors = ModelPayloadValidator.validateFunctionArguments(
+          arguments,
+          definition: def,
+          types: catalogTypes,
+          protocolVersion: protocolVersion ?? .v10,
+          allowDynamicExpressions: false,
+          allowNullValues: false
+        )
+        guard argErrors.isEmpty else {
+          functionHandler?.handleFunctionError(
+            A2UIValidationError(
+              "Validation failed for function '\(callName)': the arguments do not match its schema."
+            ),
+            functionName: callName
+          )
+          recordFailedCall()
+          return .null
+        }
+      } else {
+        let schema = declaration.api.schema
+        if let argPropsSchema = schema.jsonValue["properties"]?.objectValue {
+          for (argKey, resolvedVal) in arguments {
+            if let propSchema = argPropsSchema[argKey] {
+              arguments[argKey] = Self.coerceValidationResults(
+                schema: propSchema,
+                value: resolvedVal
+              )
+            }
           }
         }
-      }
-      arguments = Self.applyingArgumentDefaults(of: schema.jsonValue, to: arguments)
-      let result = schema.validate(.object(OrderedDictionary(uniqueKeysWithValues: arguments)))
-      guard result.isValid else {
-        functionHandler?.handleFunctionError(
-          A2UIValidationError(
-            "Validation failed for function '\(callName)': the arguments do not match its schema."
-          ),
-          functionName: callName
-        )
-        recordFailedCall()
-        return .null
+        arguments = Self.applyingArgumentDefaults(of: schema.jsonValue, to: arguments)
+        let result = schema.validate(.object(OrderedDictionary(uniqueKeysWithValues: arguments)))
+        guard result.isValid else {
+          functionHandler?.handleFunctionError(
+            A2UIValidationError(
+              "Validation failed for function '\(callName)': the arguments do not match its schema."
+            ),
+            functionName: callName
+          )
+          recordFailedCall()
+          return .null
+        }
       }
     }
     let call = AgentFunctionCall(name: callName, catalogID: catalogID, args: arguments)

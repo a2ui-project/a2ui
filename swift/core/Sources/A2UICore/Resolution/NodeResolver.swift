@@ -36,8 +36,13 @@ public final class NodeResolver: Sendable {
   public weak var actionHandler: (any ActionHandling)?
   public let protocolVersion: A2UIProtocolVersion?
 
+  private enum PropertyDescriptor {
+    case canonical(TypeDefinition, types: [String: TypeDefinition])
+    case legacy(JSONValue)
+  }
+
   private struct CachedComponentSchema {
-    let propertiesSchema: [String: JSONValue]
+    let descriptors: [String: PropertyDescriptor]
     let classifiedTypes: [String: PropertyType]
   }
 
@@ -971,6 +976,15 @@ public final class NodeResolver: Sendable {
     isTrackingNodeReplacements = false
   }
 
+  /// Canonical properties of `AccessibilityAttributes` used when resolving accessibility objects
+  /// without inspecting JSON Schema.
+  private static let canonicalAccessibilityProperties: [String: TypeDefinition] = [
+    "label": .string(dynamic: true),
+    "description": .string(dynamic: true),
+    "live": .enum(values: [.string("off"), .string("polite"), .string("assertive")]),
+    "hidden": .boolean(dynamic: true),
+  ]
+
   /// The schema of the accessibility mixin: `AccessibilityAttributes`.
   private static let accessibilityMixinSchema: JSONValue = .object([
     "$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))
@@ -991,6 +1005,34 @@ public final class NodeResolver: Sendable {
     if let cached = schemaCache[cacheKey] {
       return cached
     }
+
+    if let componentAPI = catalog?.components[type], componentAPI.hasCanonicalDefinition {
+      let definition = componentAPI.definition
+      let localTypes = catalog?.types ?? [:]
+      var descriptors: [String: PropertyDescriptor] = [:]
+      for param in definition.parameters {
+        descriptors[param.name] = .canonical(param.type, types: localTypes)
+      }
+      if descriptors["checks"] == nil && definition.isCheckable {
+        descriptors["checks"] = .canonical(.array(items: .checkRule()), types: [:])
+      }
+      if descriptors["accessibility"] == nil {
+        descriptors["accessibility"] = .canonical(.accessibility(), types: [:])
+      }
+      if descriptors["@accessibility"] == nil {
+        descriptors["@accessibility"] = .canonical(.accessibility(), types: [:])
+      }
+      if descriptors["@checks"] == nil {
+        descriptors["@checks"] = .canonical(.array(items: .checkRule()), types: [:])
+      }
+      let entry = CachedComponentSchema(
+        descriptors: descriptors,
+        classifiedTypes: descriptors.mapValues { classifyDescriptor($0) }
+      )
+      schemaCache[cacheKey] = entry
+      return entry
+    }
+
     let schemaJSON = catalog?.components[type]?.schema.jsonValue ?? .object([:])
     var propertiesSchema = extractPropertiesSchema(from: schemaJSON)
     // The shared v1.0 `Checkable` definition declares only `@checks`. A v0.9 component, or a
@@ -1011,8 +1053,9 @@ public final class NodeResolver: Sendable {
     if propertiesSchema["@checks"] == nil {
       propertiesSchema["@checks"] = Self.checksMixinSchema
     }
+    let descriptors = propertiesSchema.mapValues { PropertyDescriptor.legacy($0) }
     let entry = CachedComponentSchema(
-      propertiesSchema: propertiesSchema,
+      descriptors: descriptors,
       classifiedTypes: propertiesSchema.mapValues { classifySchema($0) }
     )
     schemaCache[cacheKey] = entry
@@ -1118,7 +1161,7 @@ public final class NodeResolver: Sendable {
     visited.insert(nodeKey)
 
     let cached = cachedSchema(for: type, catalogID: effectiveCatalogID, catalog: targetCatalog)
-    let propertiesSchema = cached.propertiesSchema
+    let descriptors = cached.descriptors
 
     // An unknown-type node stays inert like the `pending` and `cyclic` placeholders: its
     // properties are not resolved, so it reads no data, makes no calls and has no children.
@@ -1139,12 +1182,12 @@ public final class NodeResolver: Sendable {
         resolvedProperties[key] = preResolved
         continue
       }
-      let propSchema = propertiesSchema[key] ?? .boolean(true)
+      let propDescriptor = descriptors[key] ?? .legacy(.boolean(true))
       let propType = cached.classifiedTypes[key] ?? .standard
 
       if let resolvedVal = resolveProperty(
         value: val,
-        schema: propSchema,
+        descriptor: propDescriptor,
         type: propType,
         basePath: basePath,
         index: index,
@@ -1372,6 +1415,230 @@ public final class NodeResolver: Sendable {
     "ComponentId": .componentID,
   ]
 
+  private func classifyDescriptor(_ descriptor: PropertyDescriptor) -> PropertyType {
+    switch descriptor {
+    case .canonical(let typeDef, let types):
+      return classifyTypeDefinition(typeDef, types: types)
+    case .legacy(let schemaJSON):
+      return classifySchema(schemaJSON)
+    }
+  }
+
+  private func classifyTypeDefinition(
+    _ typeDef: TypeDefinition,
+    types: [String: TypeDefinition],
+    visitedRefs: Set<String> = []
+  ) -> PropertyType {
+    switch typeDef {
+    case .string(let dynamic, _, _, _, _, _, _, _, _):
+      return dynamic ? .dynamicString : .standard
+    case .number(let dynamic, _, _, _, _, _, _):
+      return dynamic ? .dynamicNumber : .number
+    case .integer(let dynamic, _, _, _, _, _, _):
+      return dynamic ? .dynamicNumber : .integer
+    case .boolean(let dynamic, _, _, _, _):
+      return dynamic ? .dynamicBoolean : .standard
+    case .enum(_, let valueType, let dynamic, _, _, _, _):
+      if dynamic {
+        switch valueType {
+        case .string: return .dynamicString
+        case .number: return .dynamicNumber
+        case .boolean: return .dynamicBoolean
+        }
+      }
+      return valueType == .number ? .number : .standard
+    case .const:
+      return .standard
+    case .any(let dynamic, _, _, _, _, _):
+      return dynamic ? .dynamicValue : .standard
+    case .dataBinding, .functionCall:
+      return .dynamicValue
+    case .child:
+      return .componentID
+    case .childList:
+      return .childList
+    case .action:
+      return .action
+    case .checkRule:
+      return .checks
+    case .accessibility:
+      return .standard
+    case .array(let dynamic, let items, _, _, _, _, _, _, _):
+      if dynamic {
+        if case .string = items {
+          return .dynamicStringList
+        }
+        return .dynamicValue
+      }
+      if let items,
+        classifyTypeDefinition(items, types: types, visitedRefs: visitedRefs) == .checks
+      {
+        return .checks
+      }
+      return .standard
+    case .object(let dynamic, _, _, _, _, _, _, _):
+      return dynamic ? .dynamicValue : .standard
+    case .union(let variants, _, let dynamic, _, _, _, _):
+      return classifyUnionTypeDefinitions(
+        variants,
+        isDynamic: dynamic,
+        types: types,
+        visitedRefs: visitedRefs
+      )
+    case .ref(let refName, _, _, _, _):
+      guard !visitedRefs.contains(refName), let target = types[refName] else {
+        return .standard
+      }
+      var nextVisited = visitedRefs
+      nextVisited.insert(refName)
+      return classifyTypeDefinition(target, types: types, visitedRefs: nextVisited)
+    case .rawJSONSchema(let raw):
+      return classifySchema(raw)
+    }
+  }
+
+  private func classifyUnionTypeDefinitions(
+    _ variants: [TypeDefinition],
+    isDynamic: Bool,
+    types: [String: TypeDefinition],
+    visitedRefs: Set<String>
+  ) -> PropertyType {
+    var firstDynamic: PropertyType? = isDynamic ? .dynamicValue : nil
+    var firstNonDynamicSpecial: PropertyType?
+    var literalKinds: Set<String> = []
+    var hasUntypedLiteral = false
+
+    for variant in variants {
+      let classified = classifyTypeDefinition(variant, types: types, visitedRefs: visitedRefs)
+      switch classified {
+      case .dynamicBoolean, .dynamicString, .dynamicNumber, .dynamicValue, .dynamicStringList:
+        if firstDynamic == nil { firstDynamic = classified }
+        continue
+      case .checks, .action, .childList, .componentID:
+        if firstNonDynamicSpecial == nil { firstNonDynamicSpecial = classified }
+        continue
+      case .number:
+        if firstNonDynamicSpecial == nil { firstNonDynamicSpecial = .number }
+        literalKinds.insert("number")
+        continue
+      case .integer:
+        if firstNonDynamicSpecial == nil { firstNonDynamicSpecial = .integer }
+        literalKinds.insert("integer")
+        continue
+      case .standard:
+        break
+      }
+      switch variant {
+      case .string:
+        literalKinds.insert("string")
+      case .boolean:
+        literalKinds.insert("boolean")
+      case .enum(_, let valueType, _, _, _, _, _):
+        literalKinds.insert(valueType.rawValue)
+      case .object, .accessibility:
+        literalKinds.insert("object")
+      case .array:
+        literalKinds.insert("array")
+      default:
+        hasUntypedLiteral = true
+      }
+    }
+
+    guard let dynamicType = firstDynamic else {
+      return firstNonDynamicSpecial ?? .standard
+    }
+    if dynamicType != .dynamicValue { return dynamicType }
+    if !hasUntypedLiteral && !literalKinds.isEmpty {
+      if literalKinds == ["boolean"] { return .dynamicBoolean }
+      if literalKinds == ["string"] { return .dynamicString }
+      if literalKinds.isSubset(of: ["number", "integer"]) { return .dynamicNumber }
+    }
+    return .dynamicValue
+  }
+
+  private func canonicalArrayItemDescriptor(
+    for typeDef: TypeDefinition,
+    types: [String: TypeDefinition],
+    visitedRefs: Set<String> = []
+  ) -> PropertyDescriptor {
+    switch typeDef {
+    case .array(_, let items, _, _, _, _, _, _, _):
+      if let items {
+        return .canonical(items, types: types)
+      }
+      return .canonical(.any(), types: types)
+    case .ref(let refName, _, _, _, _):
+      guard !visitedRefs.contains(refName), let target = types[refName] else {
+        return .canonical(.any(), types: types)
+      }
+      var nextVisited = visitedRefs
+      nextVisited.insert(refName)
+      return canonicalArrayItemDescriptor(for: target, types: types, visitedRefs: nextVisited)
+    case .union(let variants, _, _, _, _, _, _):
+      for variant in variants {
+        if case .array(_, let items, _, _, _, _, _, _, _) = variant, let items {
+          return .canonical(items, types: types)
+        }
+      }
+      return .canonical(.any(), types: types)
+    case .rawJSONSchema(let raw):
+      return .legacy(raw["items"] ?? .boolean(true))
+    default:
+      return .canonical(.any(), types: types)
+    }
+  }
+
+  private func canonicalObjectDescriptors(
+    for typeDef: TypeDefinition,
+    types: [String: TypeDefinition],
+    visitedRefs: Set<String> = []
+  ) -> (properties: [String: PropertyDescriptor], additional: PropertyDescriptor?) {
+    switch typeDef {
+    case .object(_, let props, let additional, _, _, _, _, _):
+      var map: [String: PropertyDescriptor] = [:]
+      for prop in props {
+        map[prop.name] = .canonical(prop.type, types: types)
+      }
+      let extra: PropertyDescriptor?
+      if case .typed(let extraType) = additional {
+        extra = .canonical(extraType, types: types)
+      } else {
+        extra = nil
+      }
+      return (map, extra)
+    case .accessibility:
+      let map = Self.canonicalAccessibilityProperties.mapValues {
+        PropertyDescriptor.canonical($0, types: [:])
+      }
+      return (map, nil)
+    case .union(let variants, _, _, _, _, _, _):
+      var merged: [String: PropertyDescriptor] = [:]
+      var extra: PropertyDescriptor?
+      for variant in variants {
+        let sub = canonicalObjectDescriptors(for: variant, types: types, visitedRefs: visitedRefs)
+        for (k, v) in sub.properties {
+          merged[k] = v
+        }
+        if extra == nil {
+          extra = sub.additional
+        }
+      }
+      return (merged, extra)
+    case .ref(let refName, _, _, _, _):
+      guard !visitedRefs.contains(refName), let target = types[refName] else {
+        return ([:], nil)
+      }
+      var nextVisited = visitedRefs
+      nextVisited.insert(refName)
+      return canonicalObjectDescriptors(for: target, types: types, visitedRefs: nextVisited)
+    case .rawJSONSchema(let raw):
+      let props = extractPropertiesSchema(from: raw).mapValues { PropertyDescriptor.legacy($0) }
+      return (props, nil)
+    default:
+      return ([:], nil)
+    }
+  }
+
   private func classifySchema(_ schemaJSON: JSONValue) -> PropertyType {
     if let ref = schemaJSON["$ref"]?.stringValue,
       let typeName = ref.split(separator: "/").last.map(String.init),
@@ -1498,7 +1765,7 @@ public final class NodeResolver: Sendable {
 
   private func resolveProperty(
     value: JSONValue,
-    schema: JSONValue,
+    descriptor: PropertyDescriptor,
     type: PropertyType,
     basePath: String?,
     index: Int? = nil,
@@ -1571,7 +1838,7 @@ public final class NodeResolver: Sendable {
     case .standard:
       return resolveStandardProperty(
         value: value,
-        schema: schema,
+        descriptor: descriptor,
         basePath: basePath,
         index: index,
         instanceSuffix: instanceSuffix,
@@ -1617,7 +1884,7 @@ public final class NodeResolver: Sendable {
 
   private func resolveStandardProperty(
     value: JSONValue,
-    schema: JSONValue,
+    descriptor: PropertyDescriptor,
     basePath: String?,
     index: Int?,
     instanceSuffix: String?,
@@ -1634,7 +1901,7 @@ public final class NodeResolver: Sendable {
       return resolveStandardArrayProperty(
         array: array,
         rawValue: value,
-        schema: schema,
+        descriptor: descriptor,
         basePath: basePath,
         index: index,
         instanceSuffix: instanceSuffix,
@@ -1649,11 +1916,24 @@ public final class NodeResolver: Sendable {
       )
     }
     if let object = value.objectValue {
-      let objectProperties = extractPropertiesSchema(from: schema)
-      if !objectProperties.isEmpty {
+      let objectDescriptors: [String: PropertyDescriptor]
+      let additionalDescriptor: PropertyDescriptor?
+      switch descriptor {
+      case .canonical(let typeDef, let types):
+        let extracted = canonicalObjectDescriptors(for: typeDef, types: types)
+        objectDescriptors = extracted.properties
+        additionalDescriptor = extracted.additional
+      case .legacy(let schema):
+        objectDescriptors = extractPropertiesSchema(from: schema).mapValues {
+          PropertyDescriptor.legacy($0)
+        }
+        additionalDescriptor = nil
+      }
+      if !objectDescriptors.isEmpty || additionalDescriptor != nil {
         return resolveStandardObjectProperty(
           object: object,
-          objectProperties: objectProperties,
+          objectDescriptors: objectDescriptors,
+          additionalDescriptor: additionalDescriptor,
           basePath: basePath,
           index: index,
           instanceSuffix: instanceSuffix,
@@ -1674,7 +1954,7 @@ public final class NodeResolver: Sendable {
   private func resolveStandardArrayProperty(
     array: [JSONValue],
     rawValue: JSONValue,
-    schema: JSONValue,
+    descriptor: PropertyDescriptor,
     basePath: String?,
     index: Int?,
     instanceSuffix: String?,
@@ -1687,8 +1967,14 @@ public final class NodeResolver: Sendable {
     checks: [ResolvedCheck],
     recurseIntoChildren: Bool = true
   ) -> (any Resolved)? {
-    let itemsSchema = schema["items"] ?? .boolean(true)
-    let itemType = classifySchema(itemsSchema)
+    let itemDescriptor: PropertyDescriptor
+    switch descriptor {
+    case .canonical(let typeDef, let types):
+      itemDescriptor = canonicalArrayItemDescriptor(for: typeDef, types: types)
+    case .legacy(let schema):
+      itemDescriptor = .legacy(schema["items"] ?? .boolean(true))
+    }
+    let itemType = classifyDescriptor(itemDescriptor)
     if itemType == .checks {
       return resolveChecks(rawValue, basePath: basePath, index: index, data: data)
     }
@@ -1698,7 +1984,7 @@ public final class NodeResolver: Sendable {
       let itemSlotLocation = slotLocation.appending(.arrayIndex(resolvedArray.count))
       if let resolved = resolveProperty(
         value: item,
-        schema: itemsSchema,
+        descriptor: itemDescriptor,
         type: itemType,
         basePath: basePath,
         index: index,
@@ -1722,7 +2008,8 @@ public final class NodeResolver: Sendable {
 
   private func resolveStandardObjectProperty(
     object: OrderedDictionary<String, JSONValue>,
-    objectProperties: [String: JSONValue],
+    objectDescriptors: [String: PropertyDescriptor],
+    additionalDescriptor: PropertyDescriptor?,
     basePath: String?,
     index: Int?,
     instanceSuffix: String?,
@@ -1738,14 +2025,15 @@ public final class NodeResolver: Sendable {
     var resolvedObject: [String: any Resolved] = [:]
     let bindingKey = atLeastV10 ? "@path" : "path"
     for (key, propertyValue) in object {
-      let nestedPropSchema = objectProperties[key] ?? .boolean(true)
-      let classified = classifySchema(nestedPropSchema)
+      let nestedDescriptor =
+        objectDescriptors[key] ?? additionalDescriptor ?? .legacy(.boolean(true))
+      let classified = classifyDescriptor(nestedDescriptor)
       let nestedPropType: PropertyType =
         (classified == .standard && propertyValue.objectValue?[bindingKey] != nil)
         ? .dynamicValue : classified
       if let resolvedValue = resolveProperty(
         value: propertyValue,
-        schema: nestedPropSchema,
+        descriptor: nestedDescriptor,
         type: nestedPropType,
         basePath: basePath,
         index: index,
@@ -2719,8 +3007,13 @@ extension NodeResolver: FunctionHandler {
     atLeastV10 ? (catalogID ?? defaultCatalogID) : defaultCatalogID
   }
 
-  /// Checks that the catalog a v1.0 function call runs in resolves on this surface: the
-  /// catalog the call names, else the default catalog.
+  public func catalogTypes(forCatalogID catalogID: String?) -> [String: TypeDefinition] {
+    let callCatalogID = resolvedFunctionCatalogID(forCallCatalogID: catalogID)
+    return getCatalog(id: callCatalogID)?.types ?? [:]
+  }
+
+  /// Checks that the catalog a v1.0 function call runs in resolves on this surface: the catalog the
+  /// call names, else the default catalog.
   ///
   /// - Throws: `A2UICatalogError` with the detail code `CATALOG_ERROR` if the named catalog is
   ///   not available, or the call names none and there is no default catalog.

@@ -15,6 +15,14 @@
   `A2UICore`. Function call nesting is bounded only by the global depth limit of 50, so payloads
   that failed with `functionCall depth > 5` are now accepted
   ([#4296](https://github.com/a2ui-project/a2ui/pull/4296)).
+- Add a JSON-Schema-independent canonical catalog model (`CatalogModel`, `ComponentDefinition`,
+  `FunctionDefinition`, `FunctionReturnDefinition`, `ParameterDefinition`,
+  `SurfacePropertiesDefinition`, `TypeDefinition`, `AdditionalProperties`, `EnumValueType`),
+  `CatalogDocumentCodec` (`formatVersion: "1.0"`), and bidirectional `CatalogJSONSchemaCodec` in
+  `A2UICore`, with `Catalog.fromDocument(_:functions:)`, `Catalog.fromJSON(_:)`,
+  `Catalog.toDocument()`, `Catalog.toJSON(protocolVersion:componentEnvelopeRef:)`,
+  `AnyComponentAPI(definition:)`, `FunctionAPI(definition:)`, and
+  `ComponentImplementation(definition:builder:)` in `A2UISwiftUI`.
 
 ## 0.12.0
 

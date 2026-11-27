@@ -49,6 +49,12 @@ public final class PayloadValidator: Sendable {
     Self.enforcesIdentifiers(catalog: catalog, config: config)
   }
 
+  private var effectiveProtocolVersion: A2UIProtocolVersion {
+    config.protocolVersion
+      ?? catalog.a2uiProtocolVersion
+      ?? (catalog.isAtLeastV10 ? .v10 : .v091)
+  }
+
   private static func enforcesIdentifiers(catalog: AnyCatalog, config: ValidationConfig) -> Bool {
     if let version = config.protocolVersion {
       return version.isAtLeastV10
@@ -80,9 +86,11 @@ public final class PayloadValidator: Sendable {
     self.catalog = anyCatalog
     self.config = config
     if Self.enforcesIdentifiers(catalog: anyCatalog, config: config) {
-      self.declaredEnvelopeKeys = anyCatalog.components.mapValues {
-        Self.envelopeKeysDeclared(in: $0.schema.jsonValue)
+      var envelopeKeysByComponent: [String: Set<String>] = [:]
+      for (name, componentAPI) in anyCatalog.components where !componentAPI.hasCanonicalDefinition {
+        envelopeKeysByComponent[name] = Self.envelopeKeysDeclared(in: componentAPI.schema.jsonValue)
       }
+      self.declaredEnvelopeKeys = envelopeKeysByComponent
     } else {
       self.declaredEnvelopeKeys = [:]
     }
@@ -133,7 +141,7 @@ public final class PayloadValidator: Sendable {
       enforceIdentifiers
       ? try ComponentEnvelope(
         component: component,
-        schema: componentAPI?.schema.jsonValue,
+        componentAPI: componentAPI,
         componentID: id
       )
       : nil
@@ -182,10 +190,11 @@ public final class PayloadValidator: Sendable {
   /// `catalogId` when its schema doesn't declare a `catalogId` property of its own.
   private func componentNamesCatalog(_ component: [String: JSONValue]) -> Bool {
     guard enforceIdentifiers else { return false }
-    let schema = component["component"]?.stringValue.flatMap {
-      catalog.components[$0]?.schema.jsonValue
-    }
-    return ComponentEnvelope.catalogIDEntry(in: component, defaultCatalogSchema: schema) != nil
+    let compAPI = component["component"]?.stringValue.flatMap { catalog.components[$0] }
+    return ComponentEnvelope.catalogIDEntry(
+      in: component,
+      defaultCatalogComponent: compAPI
+    ) != nil
   }
 
   private func extractAndValidateComponentEnvelope(
@@ -263,7 +272,7 @@ public final class PayloadValidator: Sendable {
     guard
       let entry = ComponentEnvelope.catalogIDEntry(
         in: component,
-        defaultCatalogSchema: catalog.components[type]?.schema.jsonValue
+        defaultCatalogComponent: catalog.components[type]
       )
     else {
       return
@@ -287,6 +296,16 @@ public final class PayloadValidator: Sendable {
     componentAPI: any ComponentAPI,
     envelope: ComponentEnvelope?
   ) throws {
+    if componentAPI.hasCanonicalDefinition {
+      try validateCanonicalComponent(
+        component,
+        type: type,
+        definition: componentAPI.definition,
+        envelope: envelope
+      )
+      return
+    }
+
     let schemaJSON = componentAPI.schema.jsonValue
     var schemaTargetDict: [String: JSONValue]
     if let envelope {
@@ -331,8 +350,122 @@ public final class PayloadValidator: Sendable {
     throw A2UIValidationError(errorMessage, details: errorDetails)
   }
 
-  /// Builds the instance that a v1.0 component schema checks, after checking the component's
-  /// mixins on their own.
+  /// Validates a component directly against its canonical ``ComponentDefinition`` without compiling
+  /// or walking JSON Schema.
+  private func validateCanonicalComponent(
+    _ component: [String: JSONValue],
+    type: String,
+    definition: ComponentDefinition,
+    envelope: ComponentEnvelope?
+  ) throws {
+    let version = effectiveProtocolVersion
+    var ownProperties: [String: JSONValue]
+    if let envelope {
+      if let metadata = envelope[.metadata] {
+        let key = envelope.key(of: .metadata) ?? ComponentEnvelope.Mixin.metadata.prefixedKey
+        _ = try MetadataValidator.validate(metadata, pathPrefix: key)
+      }
+      if let accessibility = envelope[.accessibility] {
+        let key =
+          envelope.key(of: .accessibility) ?? ComponentEnvelope.Mixin.accessibility.prefixedKey
+        let accErrors = ModelPayloadValidator.validateAccessibility(
+          accessibility,
+          key: key,
+          protocolVersion: version,
+          allowUnknownElements: config.allowUnknownElements
+        )
+        if !accErrors.isEmpty {
+          throw A2UIValidationError(
+            "Field '\(key)' must match AccessibilityAttributes",
+            details: accErrors
+          )
+        }
+      }
+      if let checks = envelope[.checks] {
+        let key = envelope.key(of: .checks) ?? ComponentEnvelope.Mixin.checks.prefixedKey
+        guard definition.isCheckable else {
+          let msg =
+            "Validation failed for component '\(type)': '\(key)' is not allowed on a "
+            + "component that is not checkable"
+          throw A2UIValidationError(
+            msg,
+            details: [A2UIErrorDetail(path: key, code: "invalid_value", message: msg)]
+          )
+        }
+        let checkErrors = ModelPayloadValidator.validateChecks(
+          checks,
+          componentType: type,
+          key: key,
+          protocolVersion: version,
+          allowUnknownElements: config.allowUnknownElements
+        )
+        if !checkErrors.isEmpty {
+          let msg = checkErrors.map(\.message).joined(separator: "; ")
+          throw A2UIValidationError(msg, details: checkErrors)
+        }
+      }
+      ownProperties = envelope.properties
+    } else {
+      for key in ComponentEnvelope.prefixedKeys.sorted()
+      where component[key] != nil && definition.parameter(named: key) == nil {
+        let msg =
+          "Validation failed for component '\(type)': '\(key)' is a v1.0 component key "
+          + "and is not allowed before v1.0"
+        throw A2UIValidationError(
+          msg,
+          details: [A2UIErrorDetail(path: key, code: "invalid_value", message: msg)]
+        )
+      }
+      ownProperties = component
+      ownProperties.removeValue(forKey: "id")
+      ownProperties.removeValue(forKey: "component")
+      if definition.parameter(named: "accessibility") == nil,
+        let accessibility = ownProperties.removeValue(forKey: "accessibility")
+      {
+        let accErrors = ModelPayloadValidator.validateAccessibility(
+          accessibility,
+          key: "accessibility",
+          protocolVersion: version,
+          allowUnknownElements: config.allowUnknownElements
+        )
+        if !accErrors.isEmpty {
+          throw A2UIValidationError(
+            "Field 'accessibility' must match AccessibilityAttributes",
+            details: accErrors
+          )
+        }
+      }
+      if definition.isCheckable, definition.parameter(named: "checks") == nil,
+        let checks = ownProperties.removeValue(forKey: "checks")
+      {
+        let checkErrors = ModelPayloadValidator.validateChecks(
+          checks,
+          componentType: type,
+          key: "checks",
+          protocolVersion: version,
+          allowUnknownElements: config.allowUnknownElements
+        )
+        if !checkErrors.isEmpty {
+          let msg = checkErrors.map(\.message).joined(separator: "; ")
+          throw A2UIValidationError(msg, details: checkErrors)
+        }
+      }
+    }
+
+    let errors = ModelPayloadValidator.validateComponentProperties(
+      ownProperties,
+      definition: definition,
+      types: catalog.types,
+      protocolVersion: version,
+      allowUnknownElements: config.allowUnknownElements
+    )
+    guard !errors.isEmpty else { return }
+    let errorMessage = errors.map(\.message).joined(separator: "; ")
+    throw A2UIValidationError(errorMessage, details: errors)
+  }
+
+  /// Builds the instance that a v1.0 component schema checks, after checking the component's mixins
+  /// on their own.
   ///
   /// The instance holds the component's own properties, and `id` and `component` when the schema
   /// declares them. Checks stay in it, under the name the component schema gives them (the shared
@@ -582,6 +715,20 @@ public final class PayloadValidator: Sendable {
     }
 
     let normalizedArgs = args ?? [:]
+    if function.api.hasCanonicalDefinition {
+      let errors = ModelPayloadValidator.validateFunctionArguments(
+        normalizedArgs,
+        definition: function.api.definition,
+        types: catalog.types,
+        protocolVersion: effectiveProtocolVersion,
+        allowDynamicExpressions: allowDynamicArgValues,
+        allowNullValues: false
+      )
+      guard !errors.isEmpty else { return }
+      let errorMessage = errors.map(\.message).joined(separator: "; ")
+      throw A2UIValidationError(errorMessage, details: errors)
+    }
+
     let schema =
       allowDynamicArgValues && containsDynamicExpression(in: normalizedArgs)
       ? schemaAllowingDynamicArgs(baseSchema: function.api.schema, args: normalizedArgs)
@@ -1250,6 +1397,21 @@ public final class PayloadValidator: Sendable {
           )
         ]
       )
+    }
+
+    if catalog.hasCanonicalSurfaceProperties,
+      let surfaceProps = catalog.surfaceProperties,
+      let themeObj = theme.objectValue
+    {
+      let errors = ModelPayloadValidator.validateSurfaceProperties(
+        themeObj,
+        definition: surfaceProps,
+        types: catalog.types,
+        protocolVersion: effectiveProtocolVersion
+      )
+      guard !errors.isEmpty else { return }
+      let errorMessage = errors.map(\.message).joined(separator: "; ")
+      throw A2UIValidationError(errorMessage, details: errors)
     }
 
     guard let themeSchema = catalog.themeSchema else { return }
