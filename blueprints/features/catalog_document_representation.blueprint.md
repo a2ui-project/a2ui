@@ -96,7 +96,10 @@ Every Core SDK and Framework Adapter MUST allow developers to define components,
    - Translates v0.9, v0.9.1, and v1.0 JSON Schema catalog documents into the canonical `CatalogModel` (and back to unbundled or bundled JSON Schema on demand).
    - Preserves an optional opaque legacy source attachment for JSON-Schema-loaded catalogs so `Catalog.fromJson(legacyDoc).toJson()` remains structurally identical to `legacyDoc` (preserving `conformance/core/catalog.yaml` round-trip guarantees).
    - Eliminates the need for `REF:` description-string smuggling on all catalogs authored via the canonical model or Catalog Document format.
-3. **Auto-detection in `Catalog.fromJson(doc)`:** If `doc` carries `"formatVersion"`, `Catalog.fromJson` delegates to the Catalog Document codec; otherwise it delegates to the JSON Schema codec.
+3. **Auto-detection and serialization contract:**
+   - `Catalog.fromJson(doc)` auto-detects the input format: if `doc` carries `"formatVersion"`, it delegates to the Catalog Document codec (rejecting unsupported versions); otherwise it delegates to the JSON Schema codec.
+   - `Catalog.toJson()` MUST always emit JSON Schema (`toJsonSchema()` for model- or document-constructed catalogs, and exact lossless legacy JSON Schema round-trip for legacy JSON Schema catalogs) so `DirectJsonFormat`, wire `inlineCatalogs`, and existing callers never receive an unexpected format. `Catalog.toDocument()` explicitly emits a Catalog Document (`formatVersion: "1.0"`).
+4. **Shared conformance testing:** Because each SDK implements its own `CatalogDocumentCodec`, `JsonSchemaCodec`, and native `CatalogModel` validator, implementations SHOULD be verified against a shared language-agnostic conformance suite covering cyclic local `ref`s (structural recursion vs. unguarded alias cycles), multi-group `atLeastOneOf`, strict RFC 3339 formats, Unicode code-point lengths, explicit `null` rejection, and v0.9/v1.0 bidirectional round-trips.
 
 ### 4. Backward compatibility (non-breaking transition)
 
