@@ -1,0 +1,706 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/proposals/catalog_schema/catalog_schema.json",
+  "title": "A2UI Catalog Document Schema",
+  "description": "Strict JSON Schema (Draft 2020-12) describing the decoupled A2UI Catalog Document format. Represents A2UI v1.0 (and backward-compatible v0.9) catalogs directly as typed data structures without embedding JSON Schema fragments.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional JSON Schema URI reference for editor validation."
+    },
+    "formatVersion": {
+      "const": "1.0",
+      "description": "Catalog Document format version. Unambiguously distinguishes Catalog Documents from legacy JSON Schema catalog files."
+    },
+    "catalogId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique string identifier for this catalog. Treated as an opaque identifier; never fetched over the network."
+    },
+    "protocolVersion": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:\\.(0|[1-9][0-9]*))?(?:-((?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$",
+      "default": "1.0",
+      "description": "The A2UI protocol version targeted by this catalog (e.g. '1.0', '0.9', '0.9.1'). Defaults to '1.0'."
+    },
+    "title": {
+      "type": "string",
+      "description": "Human-readable title of the catalog."
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the catalog."
+    },
+    "instructions": {
+      "type": "string",
+      "description": "Markdown-formatted design guidelines, usage rules, and examples specific to this catalog for LLM prompts."
+    },
+    "metadata": {
+      "$ref": "#/$defs/Metadata",
+      "description": "Optional catalog-level static metadata and vendor extensions."
+    },
+    "types": {
+      "type": "object",
+      "description": "Catalog-local reusable leaf data type definitions (e.g. Weight, ColorToken, SelectOption). External URIs and component definitions are forbidden.",
+      "propertyNames": {
+        "$ref": "#/$defs/IdentifierString"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/DataType"
+      }
+    },
+    "surfaceProperties": {
+      "$ref": "#/$defs/SurfacePropertiesDefinition",
+      "description": "Optional schema for surface-level data properties (maps to v0.9 'theme' when translating to pre-1.0 JSON Schema; omitted on v1.0 JSON Schema catalogs unless used)."
+    },
+    "components": {
+      "type": "array",
+      "description": "Ordered list of UI component definitions supported by this catalog. Order is preserved for prompt presentation.",
+      "items": {
+        "$ref": "#/$defs/ComponentDefinition"
+      }
+    },
+    "functions": {
+      "type": "array",
+      "description": "Ordered list of function definitions supported by this catalog.",
+      "items": {
+        "$ref": "#/$defs/FunctionDefinition"
+      }
+    }
+  },
+  "required": ["formatVersion", "catalogId"],
+  "additionalProperties": false,
+  "$defs": {
+    "IdentifierString": {
+      "type": "string",
+      "pattern": "^[\\p{XID_Start}_][\\p{XID_Continue}]*$",
+      "description": "Unicode identifier conforming to UAX #31 (matching v1.0 A2UI identifier rules)."
+    },
+    "Extensions": {
+      "type": "object",
+      "description": "Optional extension metadata map. Keys MUST be Unicode UAX #31 identifiers; keys starting with 'a2ui_' are reserved for official extensions.",
+      "propertyNames": {
+        "$ref": "#/$defs/IdentifierString"
+      }
+    },
+    "Metadata": {
+      "type": "object",
+      "description": "Static metadata container carrying optional vendor or official extensions.",
+      "properties": {
+        "extensions": {
+          "$ref": "#/$defs/Extensions"
+        }
+      },
+      "additionalProperties": false
+    },
+    "DeprecationFields": {
+      "type": "object",
+      "properties": {
+        "deprecated": {
+          "type": "boolean",
+          "default": false,
+          "description": "Marks this definition or parameter as deprecated."
+        },
+        "deprecatedReason": {
+          "type": "string",
+          "description": "Human-readable explanation and migration hint for a deprecated definition or parameter."
+        }
+      }
+    },
+    "BaseTypeFields": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/DeprecationFields"}],
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Human- and LLM-readable description of this value or parameter."
+        }
+      }
+    },
+    "ParameterIdentity": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/IdentifierString",
+          "description": "Unique parameter or property identifier within its enclosing component, function, or object."
+        },
+        "required": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this parameter or property must be provided on wire payloads."
+        }
+      },
+      "required": ["name"]
+    },
+    "AtLeastOneOfConstraint": {
+      "type": "array",
+      "description": "Cross-property requirement groups. Each inner array lists parameter names of which at least one MUST be provided (e.g. [['min', 'max']]).",
+      "minItems": 1,
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": {
+          "$ref": "#/$defs/IdentifierString"
+        }
+      }
+    },
+    "ComponentDefinition": {
+      "type": "object",
+      "description": "Defines a single UI component's contract, traits, composition constraints, and metadata.",
+      "allOf": [{"$ref": "#/$defs/DeprecationFields"}],
+      "properties": {
+        "name": {
+          "allOf": [{"$ref": "#/$defs/IdentifierString"}, {"not": {"const": "Surface"}}],
+          "description": "Unique component name (e.g. Text, Button, Row). 'Surface' is reserved and forbidden."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human- and LLM-readable description of component usage and behavior."
+        },
+        "checkable": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, this component supports renderer-side validation checks ('@checks' in v1.0, 'checks' in v0.9)."
+        },
+        "parameters": {
+          "type": "array",
+          "description": "Ordered list of component-specific parameters. Order determines positional argument signatures in DSL inference formats such as Express. Envelope keys (id, component, @catalogId, @accessibility, @metadata, @checks) are omitted.",
+          "items": {
+            "$ref": "#/$defs/ComponentParameter"
+          }
+        },
+        "atLeastOneOf": {
+          "$ref": "#/$defs/AtLeastOneOfConstraint"
+        },
+        "allowedParents": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/IdentifierString"
+          },
+          "description": "Parent component type names allowed to contain this component (including reserved 'Surface' for top-level root). If omitted, all parents are allowed."
+        },
+        "allowedChildren": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/IdentifierString"
+          },
+          "description": "Child component type names allowed inside this component. If omitted, all children are allowed."
+        },
+        "metadata": {
+          "$ref": "#/$defs/Metadata",
+          "description": "Optional static component-level metadata and extensions."
+        }
+      },
+      "required": ["name"],
+      "unevaluatedProperties": false
+    },
+    "FunctionDefinition": {
+      "type": "object",
+      "description": "Defines a catalog function's signature, return type, and caller permissions.",
+      "allOf": [
+        {"$ref": "#/$defs/DeprecationFields"},
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/IdentifierString",
+              "description": "Unique function name (e.g. required, formatDate). System '@' prefixes are forbidden."
+            },
+            "description": {
+              "type": "string",
+              "description": "Human- and LLM-readable description of function behavior."
+            },
+            "returnType": {
+              "$ref": "#/$defs/FunctionReturnType",
+              "description": "Return value type. Accepts a shorthand type name or a structured DataType definition."
+            },
+            "allowedCallers": {
+              "type": "string",
+              "enum": ["rendererOnly", "agentOnly", "rendererOrAgent"],
+              "default": "rendererOnly",
+              "description": "Specifies which roles are authorized to invoke this function."
+            },
+            "requiresUserActivation": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether this function requires an active user gesture to execute. When true, allowedCallers MUST be 'rendererOnly'."
+            },
+            "parameters": {
+              "type": "array",
+              "description": "Ordered list of function arguments. Restricted to data types (no UI child refs or actions).",
+              "items": {
+                "$ref": "#/$defs/DataParameter"
+              }
+            },
+            "atLeastOneOf": {
+              "$ref": "#/$defs/AtLeastOneOfConstraint"
+            },
+            "additionalParameters": {
+              "description": "Whether extra undeclared function arguments are accepted. Defaults to false (closed argument object).",
+              "oneOf": [{"type": "boolean"}, {"$ref": "#/$defs/DataType"}],
+              "default": false
+            }
+          },
+          "required": ["name", "returnType"]
+        },
+        {
+          "if": {
+            "properties": {
+              "requiresUserActivation": {"const": true}
+            },
+            "required": ["requiresUserActivation"]
+          },
+          "then": {
+            "properties": {
+              "allowedCallers": {"enum": ["rendererOnly"]}
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "FunctionReturnType": {
+      "description": "Function return type: either a shorthand primitive/protocol type string or a full DataType (or void/validationResult object).",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "string",
+            "number",
+            "integer",
+            "boolean",
+            "array",
+            "object",
+            "validationResult",
+            "any",
+            "void"
+          ],
+          "description": "Shorthand return type name."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {"const": "void"},
+            "description": {"type": "string"}
+          },
+          "required": ["type"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {"const": "validationResult"},
+            "description": {"type": "string"}
+          },
+          "required": ["type"],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/DataType"
+        }
+      ]
+    },
+    "SurfacePropertiesDefinition": {
+      "type": "object",
+      "description": "Schema for surface-level data properties (maps to v0.9 'theme'). Restricted to data types.",
+      "properties": {
+        "description": {"type": "string"},
+        "properties": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/DataParameter"}
+        },
+        "additionalProperties": {
+          "oneOf": [{"type": "boolean"}, {"$ref": "#/$defs/DataType"}],
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "StringTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "string"},
+        "dynamic": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, accepts a literal string, a DataBinding, or a FunctionCall (equivalent to v1.0 DynamicString)."
+        },
+        "format": {
+          "description": "String format constraint (e.g. 'uri', 'date', 'time', 'date-time', 'email') or a list of allowed formats.",
+          "oneOf": [
+            {"type": "string", "minLength": 1},
+            {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1}
+            }
+          ]
+        },
+        "pattern": {
+          "type": "string",
+          "description": "Regular expression pattern that literal string values must match."
+        },
+        "minLength": {"type": "integer", "minimum": 0},
+        "maxLength": {"type": "integer", "minimum": 0},
+        "default": {"type": "string"}
+      },
+      "required": ["type"]
+    },
+    "NumberTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "number"},
+        "dynamic": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, accepts a literal number, a DataBinding, or a FunctionCall (equivalent to v1.0 DynamicNumber)."
+        },
+        "min": {"type": "number"},
+        "max": {"type": "number"},
+        "default": {"type": "number"}
+      },
+      "required": ["type"]
+    },
+    "IntegerTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "integer"},
+        "dynamic": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, accepts a literal integer, a DataBinding, or a FunctionCall."
+        },
+        "min": {"type": "integer"},
+        "max": {"type": "integer"},
+        "default": {"type": "integer"}
+      },
+      "required": ["type"]
+    },
+    "BooleanTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "boolean"},
+        "dynamic": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, accepts a literal boolean, a DataBinding, or a FunctionCall returning boolean or ValidationResult (equivalent to v1.0 DynamicBoolean)."
+        },
+        "default": {"type": "boolean"}
+      },
+      "required": ["type"]
+    },
+    "EnumTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "enum"},
+        "dynamic": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, accepts a literal enum member, a DataBinding, or a FunctionCall."
+        },
+        "valueType": {
+          "type": "string",
+          "enum": ["string", "number", "boolean"],
+          "default": "string",
+          "description": "Underlying primitive type of the enum values."
+        },
+        "values": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": ["string", "number", "boolean"]},
+          "description": "Ordered list of allowed literal values."
+        },
+        "default": {"type": ["string", "number", "boolean"]}
+      },
+      "required": ["type", "values"]
+    },
+    "ConstTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "const"},
+        "value": {
+          "type": ["string", "number", "boolean", "null"],
+          "description": "Exact required literal value (typically used as a discriminator inside tagged unions)."
+        }
+      },
+      "required": ["type", "value"]
+    },
+    "AnyTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "any"},
+        "dynamic": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true (and nullable is false), maps to v1.0 DynamicValue (any non-@ literal, DataBinding, or FunctionCall). When true and nullable is true, accepts any value including null (equivalent to unconstrained JSON Schema {})."
+        },
+        "nullable": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, explicitly permits null values (e.g. required.args.value)."
+        },
+        "default": {}
+      },
+      "required": ["type"]
+    },
+    "DataBindingTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "dataBinding"}
+      },
+      "required": ["type"]
+    },
+    "FunctionCallTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "functionCall"}
+      },
+      "required": ["type"]
+    },
+    "RefTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "ref"},
+        "ref": {
+          "$ref": "#/$defs/IdentifierString",
+          "description": "Name of a catalog-local leaf type declared in root 'types'. External references are impossible."
+        },
+        "default": {}
+      },
+      "required": ["type", "ref"]
+    },
+    "DataObjectTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "object"},
+        "dynamic": {"type": "boolean", "default": false},
+        "properties": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/DataParameter"}
+        },
+        "additionalProperties": {
+          "oneOf": [{"type": "boolean"}, {"$ref": "#/$defs/DataType"}],
+          "default": false
+        },
+        "atLeastOneOf": {
+          "$ref": "#/$defs/AtLeastOneOfConstraint"
+        },
+        "default": {"type": "object"}
+      },
+      "required": ["type"]
+    },
+    "DataArrayTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "array"},
+        "dynamic": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true on an array of strings, corresponds to v1.0 DynamicStringList; generalizes cleanly to any dynamic array."
+        },
+        "items": {
+          "$ref": "#/$defs/DataType",
+          "description": "Optional element type schema. If omitted, elements may be any value."
+        },
+        "minItems": {"type": "integer", "minimum": 0},
+        "maxItems": {"type": "integer", "minimum": 0},
+        "uniqueItems": {"type": "boolean", "default": false},
+        "default": {"type": "array"}
+      },
+      "required": ["type"]
+    },
+    "DataUnionTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "union"},
+        "dynamic": {"type": "boolean", "default": false},
+        "exclusive": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true (default), exactly one variant must match (JSON Schema oneOf). When false, at least one variant must match (anyOf)."
+        },
+        "variants": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"$ref": "#/$defs/DataType"}
+        },
+        "default": {}
+      },
+      "required": ["type", "variants"]
+    },
+    "ChildTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "child"}
+      },
+      "required": ["type"]
+    },
+    "ChildListTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "childList"}
+      },
+      "required": ["type"]
+    },
+    "ActionTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "action"}
+      },
+      "required": ["type"]
+    },
+    "CheckRuleTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "checkRule"}
+      },
+      "required": ["type"]
+    },
+    "AccessibilityTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "accessibility"}
+      },
+      "required": ["type"]
+    },
+    "ComponentObjectTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "object"},
+        "dynamic": {"type": "boolean", "default": false},
+        "properties": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/ComponentParameter"}
+        },
+        "additionalProperties": {
+          "oneOf": [{"type": "boolean"}, {"$ref": "#/$defs/ComponentType"}],
+          "default": false
+        },
+        "atLeastOneOf": {
+          "$ref": "#/$defs/AtLeastOneOfConstraint"
+        },
+        "default": {"type": "object"}
+      },
+      "required": ["type"]
+    },
+    "ComponentArrayTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "array"},
+        "dynamic": {"type": "boolean", "default": false},
+        "items": {
+          "$ref": "#/$defs/ComponentType",
+          "description": "Optional element type schema."
+        },
+        "minItems": {"type": "integer", "minimum": 0},
+        "maxItems": {"type": "integer", "minimum": 0},
+        "uniqueItems": {"type": "boolean", "default": false},
+        "default": {"type": "array"}
+      },
+      "required": ["type"]
+    },
+    "ComponentUnionTypeCore": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/BaseTypeFields"}],
+      "properties": {
+        "type": {"const": "union"},
+        "dynamic": {"type": "boolean", "default": false},
+        "exclusive": {"type": "boolean", "default": true},
+        "variants": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"$ref": "#/$defs/ComponentType"}
+        },
+        "default": {}
+      },
+      "required": ["type", "variants"]
+    },
+    "DataTypeCore": {
+      "description": "Open discriminated union of all data-only type variants (disallows UI child references, actions, check rules, and accessibility attributes).",
+      "oneOf": [
+        {"$ref": "#/$defs/StringTypeCore"},
+        {"$ref": "#/$defs/NumberTypeCore"},
+        {"$ref": "#/$defs/IntegerTypeCore"},
+        {"$ref": "#/$defs/BooleanTypeCore"},
+        {"$ref": "#/$defs/EnumTypeCore"},
+        {"$ref": "#/$defs/ConstTypeCore"},
+        {"$ref": "#/$defs/AnyTypeCore"},
+        {"$ref": "#/$defs/DataBindingTypeCore"},
+        {"$ref": "#/$defs/FunctionCallTypeCore"},
+        {"$ref": "#/$defs/RefTypeCore"},
+        {"$ref": "#/$defs/DataObjectTypeCore"},
+        {"$ref": "#/$defs/DataArrayTypeCore"},
+        {"$ref": "#/$defs/DataUnionTypeCore"}
+      ]
+    },
+    "ComponentTypeCore": {
+      "description": "Open discriminated union of all component-scope type variants (allows data types plus child, childList, action, checkRule, and accessibility recursively).",
+      "oneOf": [
+        {"$ref": "#/$defs/StringTypeCore"},
+        {"$ref": "#/$defs/NumberTypeCore"},
+        {"$ref": "#/$defs/IntegerTypeCore"},
+        {"$ref": "#/$defs/BooleanTypeCore"},
+        {"$ref": "#/$defs/EnumTypeCore"},
+        {"$ref": "#/$defs/ConstTypeCore"},
+        {"$ref": "#/$defs/AnyTypeCore"},
+        {"$ref": "#/$defs/DataBindingTypeCore"},
+        {"$ref": "#/$defs/FunctionCallTypeCore"},
+        {"$ref": "#/$defs/RefTypeCore"},
+        {"$ref": "#/$defs/ChildTypeCore"},
+        {"$ref": "#/$defs/ChildListTypeCore"},
+        {"$ref": "#/$defs/ActionTypeCore"},
+        {"$ref": "#/$defs/CheckRuleTypeCore"},
+        {"$ref": "#/$defs/AccessibilityTypeCore"},
+        {"$ref": "#/$defs/ComponentObjectTypeCore"},
+        {"$ref": "#/$defs/ComponentArrayTypeCore"},
+        {"$ref": "#/$defs/ComponentUnionTypeCore"}
+      ]
+    },
+    "DataType": {
+      "description": "Closed unnamed data type schema (for array items, map values, union variants, function returnType, and root types entries).",
+      "allOf": [{"$ref": "#/$defs/DataTypeCore"}],
+      "unevaluatedProperties": false
+    },
+    "ComponentType": {
+      "description": "Closed unnamed component type schema (for component array items, map values, and union variants).",
+      "allOf": [{"$ref": "#/$defs/ComponentTypeCore"}],
+      "unevaluatedProperties": false
+    },
+    "DataParameter": {
+      "description": "Closed named data parameter (for function parameters, data object properties, and surfaceProperties).",
+      "allOf": [{"$ref": "#/$defs/ParameterIdentity"}, {"$ref": "#/$defs/DataTypeCore"}],
+      "unevaluatedProperties": false
+    },
+    "ComponentParameter": {
+      "description": "Closed named component parameter (for component parameters and nested component object properties).",
+      "allOf": [{"$ref": "#/$defs/ParameterIdentity"}, {"$ref": "#/$defs/ComponentTypeCore"}],
+      "unevaluatedProperties": false
+    }
+  }
+}

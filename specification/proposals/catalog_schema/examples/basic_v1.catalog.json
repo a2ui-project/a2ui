@@ -1,0 +1,845 @@
+{
+  "$schema": "../catalog_schema.json",
+  "formatVersion": "1.0",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+  "protocolVersion": "1.0",
+  "title": "A2UI Basic Catalog",
+  "description": "Unified catalog of basic A2UI components and functions.",
+  "instructions": "For layout, use the Row and Column components to organize other components.\n\n## Catalog Guidelines\n\n1. String Concatenation & Formatting: A2UI does not support binary operators like '+' or formatting symbols. To concatenate strings or dynamically inject data bindings into text, you must use the catalog function `formatString(value)` where the value string contains placeholders formatted as `${expression}`:\n   formatString(\"Hello ${/user/name}\")\n\n2. Strict Hierarchy: You must strictly adhere to the requested component nesting and hierarchy. If the prompt specifies that a component is 'inside' or 'contained in' another component, you MUST place it as a child of that specific component, not as a sibling or in a different container.\n\n3. Validation Checks: When components support validation checks, specify any custom error messages directly as the 'message' inside the check. Do NOT create separate text-display components to display validation errors.",
+  "types": {
+    "Weight": {
+      "type": "number",
+      "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+    }
+  },
+  "components": [
+    {
+      "name": "Text",
+      "parameters": [
+        {
+          "name": "text",
+          "type": "string",
+          "dynamic": true,
+          "required": true,
+          "description": "The text content to display. While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation."
+        },
+        {
+          "name": "variant",
+          "type": "enum",
+          "values": ["caption", "body"],
+          "default": "body",
+          "description": "A hint for the base text style."
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "Image",
+      "parameters": [
+        {
+          "name": "url",
+          "type": "string",
+          "dynamic": true,
+          "required": true,
+          "description": "The URL of the image to display."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "dynamic": true,
+          "description": "Accessibility text for the image."
+        },
+        {
+          "name": "fit",
+          "type": "enum",
+          "values": ["contain", "cover", "fill", "none", "scaleDown"],
+          "default": "fill",
+          "description": "Specifies how the image should be resized to fit its container. This corresponds to the CSS 'object-fit' property."
+        },
+        {
+          "name": "variant",
+          "type": "enum",
+          "values": ["icon", "avatar", "smallFeature", "mediumFeature", "largeFeature", "header"],
+          "default": "mediumFeature",
+          "description": "A hint for the image size and style."
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "Icon",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "union",
+          "required": true,
+          "description": "The name of the icon to display.",
+          "variants": [
+            {
+              "type": "enum",
+              "values": [
+                "accountCircle",
+                "add",
+                "arrowBack",
+                "arrowForward",
+                "attachFile",
+                "calendarToday",
+                "call",
+                "camera",
+                "check",
+                "close",
+                "delete",
+                "download",
+                "edit",
+                "event",
+                "error",
+                "fastForward",
+                "favorite",
+                "favoriteOff",
+                "folder",
+                "help",
+                "home",
+                "info",
+                "locationOn",
+                "lock",
+                "lockOpen",
+                "mail",
+                "menu",
+                "moreVert",
+                "moreHoriz",
+                "notificationsOff",
+                "notifications",
+                "pause",
+                "payment",
+                "person",
+                "phone",
+                "photo",
+                "play",
+                "print",
+                "refresh",
+                "rewind",
+                "search",
+                "send",
+                "settings",
+                "share",
+                "shoppingCart",
+                "skipNext",
+                "skipPrevious",
+                "star",
+                "starHalf",
+                "starOff",
+                "stop",
+                "upload",
+                "visibility",
+                "visibilityOff",
+                "volumeDown",
+                "volumeMute",
+                "volumeOff",
+                "volumeUp",
+                "warning"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": [
+                {"name": "svgPath", "type": "string", "dynamic": true, "required": true}
+              ]
+            },
+            {"type": "dataBinding"}
+          ]
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "Video",
+      "parameters": [
+        {
+          "name": "url",
+          "type": "string",
+          "dynamic": true,
+          "required": true,
+          "description": "The URL of the video to display."
+        },
+        {
+          "name": "posterUrl",
+          "type": "string",
+          "dynamic": true,
+          "description": "The URL of the poster image to display before the video plays."
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "AudioPlayer",
+      "parameters": [
+        {
+          "name": "url",
+          "type": "string",
+          "dynamic": true,
+          "required": true,
+          "description": "The URL of the audio to be played."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "dynamic": true,
+          "description": "A description of the audio, such as a title or summary."
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "Row",
+      "description": "A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row.",
+      "parameters": [
+        {
+          "name": "children",
+          "type": "childList",
+          "required": true,
+          "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID."
+        },
+        {
+          "name": "justify",
+          "type": "enum",
+          "values": [
+            "center",
+            "end",
+            "spaceAround",
+            "spaceBetween",
+            "spaceEvenly",
+            "start",
+            "stretch"
+          ],
+          "default": "start",
+          "description": "Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together."
+        },
+        {
+          "name": "align",
+          "type": "enum",
+          "values": ["start", "center", "end", "stretch"],
+          "default": "stretch",
+          "description": "Defines the alignment of children along the cross axis (vertically). This is similar to the CSS 'align-items' property, but uses camelCase values (e.g., 'start')."
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "Column",
+      "description": "A layout component that arranges its children vertically. To create a grid layout, nest Rows within this Column.",
+      "parameters": [
+        {
+          "name": "children",
+          "type": "childList",
+          "required": true,
+          "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID."
+        },
+        {
+          "name": "justify",
+          "type": "enum",
+          "values": [
+            "start",
+            "center",
+            "end",
+            "spaceBetween",
+            "spaceAround",
+            "spaceEvenly",
+            "stretch"
+          ],
+          "default": "start",
+          "description": "Defines the arrangement of children along the main axis (vertically). Use 'spaceBetween' to push items to the edges (e.g. header at top, footer at bottom), or 'start'/'end'/'center' to pack them together."
+        },
+        {
+          "name": "align",
+          "type": "enum",
+          "values": ["center", "end", "start", "stretch"],
+          "default": "stretch",
+          "description": "Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property."
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "List",
+      "parameters": [
+        {
+          "name": "children",
+          "type": "childList",
+          "required": true,
+          "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list."
+        },
+        {
+          "name": "direction",
+          "type": "enum",
+          "values": ["vertical", "horizontal"],
+          "default": "vertical",
+          "description": "The direction in which the list items are laid out."
+        },
+        {
+          "name": "align",
+          "type": "enum",
+          "values": ["start", "center", "end", "stretch"],
+          "default": "stretch",
+          "description": "Defines the alignment of children along the cross axis."
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "Card",
+      "parameters": [
+        {
+          "name": "child",
+          "type": "child",
+          "required": true,
+          "description": "The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID."
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "Tabs",
+      "parameters": [
+        {
+          "name": "tabs",
+          "type": "array",
+          "required": true,
+          "minItems": 1,
+          "description": "An array of objects, where each object defines a tab with a title and a child component.",
+          "items": {
+            "type": "object",
+            "properties": [
+              {
+                "name": "title",
+                "type": "string",
+                "dynamic": true,
+                "required": true,
+                "description": "The tab title."
+              },
+              {
+                "name": "child",
+                "type": "child",
+                "required": true,
+                "description": "The ID of the child component."
+              }
+            ]
+          }
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "Modal",
+      "parameters": [
+        {
+          "name": "trigger",
+          "type": "child",
+          "required": true,
+          "description": "The ID of the component that opens the modal when interacted with (e.g., a button)."
+        },
+        {
+          "name": "content",
+          "type": "child",
+          "required": true,
+          "description": "The ID of the component to be displayed inside the modal."
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "Divider",
+      "parameters": [
+        {
+          "name": "axis",
+          "type": "enum",
+          "values": ["horizontal", "vertical"],
+          "default": "horizontal",
+          "description": "The orientation of the divider."
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "Button",
+      "checkable": true,
+      "parameters": [
+        {
+          "name": "child",
+          "type": "child",
+          "required": true,
+          "description": "The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button."
+        },
+        {
+          "name": "variant",
+          "type": "enum",
+          "values": ["default", "primary", "borderless"],
+          "default": "default",
+          "description": "A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link."
+        },
+        {"name": "action", "type": "action", "required": true},
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "TextField",
+      "checkable": true,
+      "parameters": [
+        {
+          "name": "label",
+          "type": "string",
+          "dynamic": true,
+          "required": true,
+          "description": "The text label for the input field."
+        },
+        {
+          "name": "value",
+          "type": "string",
+          "dynamic": true,
+          "required": true,
+          "description": "The value of the text field."
+        },
+        {
+          "name": "placeholder",
+          "type": "string",
+          "dynamic": true,
+          "description": "The placeholder text for the input field."
+        },
+        {
+          "name": "variant",
+          "type": "enum",
+          "values": ["longText", "number", "shortText", "obscured"],
+          "default": "shortText",
+          "description": "The type of input field to display."
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "CheckBox",
+      "checkable": true,
+      "parameters": [
+        {
+          "name": "label",
+          "type": "string",
+          "dynamic": true,
+          "required": true,
+          "description": "The text to display next to the checkbox."
+        },
+        {
+          "name": "value",
+          "type": "boolean",
+          "dynamic": true,
+          "required": true,
+          "description": "The current state of the checkbox (true for checked, false for unchecked)."
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "ChoicePicker",
+      "description": "A component that allows selecting one or more options from a list.",
+      "checkable": true,
+      "parameters": [
+        {
+          "name": "label",
+          "type": "string",
+          "dynamic": true,
+          "description": "The label for the group of options."
+        },
+        {
+          "name": "variant",
+          "type": "enum",
+          "values": ["multipleSelection", "mutuallyExclusive"],
+          "default": "mutuallyExclusive",
+          "description": "A hint for how the choice picker should be displayed and behave."
+        },
+        {
+          "name": "options",
+          "type": "array",
+          "required": true,
+          "description": "The list of available options to choose from.",
+          "items": {
+            "type": "object",
+            "properties": [
+              {
+                "name": "label",
+                "type": "string",
+                "dynamic": true,
+                "required": true,
+                "description": "The text to display for this option."
+              },
+              {
+                "name": "value",
+                "type": "string",
+                "required": true,
+                "description": "The stable value associated with this option."
+              }
+            ]
+          }
+        },
+        {
+          "name": "value",
+          "type": "array",
+          "items": {"type": "string"},
+          "dynamic": true,
+          "required": true,
+          "description": "The list of currently selected values. This should be bound to a string array in the data model."
+        },
+        {
+          "name": "displayStyle",
+          "type": "enum",
+          "values": ["checkbox", "chips"],
+          "default": "checkbox",
+          "description": "The display style of the component."
+        },
+        {
+          "name": "filterable",
+          "type": "boolean",
+          "default": false,
+          "description": "If true, displays a search input to filter the options."
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "Slider",
+      "checkable": true,
+      "parameters": [
+        {
+          "name": "label",
+          "type": "string",
+          "dynamic": true,
+          "description": "The label for the slider."
+        },
+        {
+          "name": "min",
+          "type": "number",
+          "default": 0,
+          "description": "The minimum value of the slider."
+        },
+        {
+          "name": "max",
+          "type": "number",
+          "required": true,
+          "description": "The maximum value of the slider."
+        },
+        {
+          "name": "value",
+          "type": "number",
+          "dynamic": true,
+          "required": true,
+          "description": "The current value of the slider."
+        },
+        {
+          "name": "steps",
+          "type": "integer",
+          "min": 1,
+          "description": "The number of discrete divisions in the slider range. If specified, the slider will snap to discrete values."
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    },
+    {
+      "name": "DateTimeInput",
+      "checkable": true,
+      "parameters": [
+        {
+          "name": "value",
+          "type": "string",
+          "dynamic": true,
+          "required": true,
+          "description": "The selected date and/or time value in ISO 8601 format. If not yet set, initialize with an empty string."
+        },
+        {
+          "name": "enableDate",
+          "type": "boolean",
+          "default": false,
+          "description": "If true, allows the user to select a date."
+        },
+        {
+          "name": "enableTime",
+          "type": "boolean",
+          "default": false,
+          "description": "If true, allows the user to select a time."
+        },
+        {
+          "name": "min",
+          "type": "string",
+          "dynamic": true,
+          "format": ["date", "time", "date-time"],
+          "description": "The minimum allowed date/time in ISO 8601 format."
+        },
+        {
+          "name": "max",
+          "type": "string",
+          "dynamic": true,
+          "format": ["date", "time", "date-time"],
+          "description": "The maximum allowed date/time in ISO 8601 format."
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "dynamic": true,
+          "description": "The text label for the input field."
+        },
+        {"name": "weight", "type": "ref", "ref": "Weight"}
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "name": "required",
+      "description": "Checks that the value is not null, undefined, or empty.",
+      "returnType": "validationResult",
+      "parameters": [
+        {
+          "name": "value",
+          "type": "any",
+          "dynamic": true,
+          "nullable": true,
+          "required": true,
+          "description": "The value to check."
+        }
+      ]
+    },
+    {
+      "name": "regex",
+      "description": "Checks that the value matches a regular expression string.",
+      "returnType": "validationResult",
+      "parameters": [
+        {"name": "value", "type": "string", "dynamic": true, "required": true},
+        {
+          "name": "pattern",
+          "type": "string",
+          "required": true,
+          "description": "The regular expression to search for in the value. Uses the A2UI regex dialect: a portable subset of ECMAScript pattern syntax in Unicode mode with no flags."
+        }
+      ]
+    },
+    {
+      "name": "length",
+      "description": "Checks string length constraints.",
+      "returnType": "validationResult",
+      "parameters": [
+        {"name": "value", "type": "string", "dynamic": true, "required": true},
+        {"name": "min", "type": "integer", "min": 0, "description": "The minimum allowed length."},
+        {"name": "max", "type": "integer", "min": 0, "description": "The maximum allowed length."}
+      ],
+      "atLeastOneOf": [["min", "max"]]
+    },
+    {
+      "name": "numeric",
+      "description": "Checks numeric range constraints.",
+      "returnType": "validationResult",
+      "parameters": [
+        {"name": "value", "type": "number", "dynamic": true, "required": true},
+        {"name": "min", "type": "number", "description": "The minimum allowed value."},
+        {"name": "max", "type": "number", "description": "The maximum allowed value."}
+      ],
+      "atLeastOneOf": [["min", "max"]]
+    },
+    {
+      "name": "email",
+      "description": "Checks that the value is a valid email address.",
+      "returnType": "validationResult",
+      "parameters": [{"name": "value", "type": "string", "dynamic": true, "required": true}]
+    },
+    {
+      "name": "formatString",
+      "description": "Performs string interpolation of data model values and other functions in the catalog functions list and returns the resulting string.",
+      "returnType": "string",
+      "parameters": [{"name": "value", "type": "string", "dynamic": true, "required": true}]
+    },
+    {
+      "name": "formatNumber",
+      "description": "Formats a number with the specified grouping and decimal precision.",
+      "returnType": "string",
+      "parameters": [
+        {
+          "name": "value",
+          "type": "number",
+          "dynamic": true,
+          "required": true,
+          "description": "The number to format."
+        },
+        {
+          "name": "decimals",
+          "type": "number",
+          "dynamic": true,
+          "description": "Optional. The number of decimal places to show. Defaults to 0 or 2 depending on locale."
+        },
+        {
+          "name": "grouping",
+          "type": "boolean",
+          "dynamic": true,
+          "description": "Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
+        }
+      ]
+    },
+    {
+      "name": "formatCurrency",
+      "description": "Formats a number as a currency string.",
+      "returnType": "string",
+      "parameters": [
+        {
+          "name": "value",
+          "type": "number",
+          "dynamic": true,
+          "required": true,
+          "description": "The monetary amount."
+        },
+        {
+          "name": "currency",
+          "type": "string",
+          "dynamic": true,
+          "required": true,
+          "description": "The ISO 4217 currency code (e.g., 'USD', 'EUR')."
+        },
+        {
+          "name": "decimals",
+          "type": "number",
+          "dynamic": true,
+          "description": "Optional. The number of decimal places to show. Defaults to 0 or 2 depending on locale."
+        },
+        {
+          "name": "grouping",
+          "type": "boolean",
+          "dynamic": true,
+          "description": "Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
+        }
+      ]
+    },
+    {
+      "name": "formatDate",
+      "description": "Formats a timestamp into a string using a pattern.",
+      "returnType": "string",
+      "parameters": [
+        {
+          "name": "value",
+          "type": "any",
+          "dynamic": true,
+          "required": true,
+          "description": "The date to format."
+        },
+        {
+          "name": "format",
+          "type": "string",
+          "dynamic": true,
+          "required": true,
+          "description": "A Unicode TR35 date pattern string."
+        }
+      ]
+    },
+    {
+      "name": "pluralize",
+      "description": "Returns a localized string based on the Common Locale Data Repository (CLDR) plural category of the count (zero, one, two, few, many, other). Requires an 'other' fallback.",
+      "returnType": "string",
+      "parameters": [
+        {
+          "name": "value",
+          "type": "number",
+          "dynamic": true,
+          "required": true,
+          "description": "The numeric value used to determine the plural category."
+        },
+        {
+          "name": "zero",
+          "type": "string",
+          "dynamic": true,
+          "description": "String for the 'zero' category (e.g., 0 items)."
+        },
+        {
+          "name": "one",
+          "type": "string",
+          "dynamic": true,
+          "description": "String for the 'one' category (e.g., 1 item)."
+        },
+        {
+          "name": "two",
+          "type": "string",
+          "dynamic": true,
+          "description": "String for the 'two' category (used in Arabic, Welsh, etc.)."
+        },
+        {
+          "name": "few",
+          "type": "string",
+          "dynamic": true,
+          "description": "String for the 'few' category (e.g., small groups in Slavic languages)."
+        },
+        {
+          "name": "many",
+          "type": "string",
+          "dynamic": true,
+          "description": "String for the 'many' category (e.g., large groups in various languages)."
+        },
+        {
+          "name": "other",
+          "type": "string",
+          "dynamic": true,
+          "required": true,
+          "description": "The default/fallback string (used for general plural cases)."
+        }
+      ]
+    },
+    {
+      "name": "openUrl",
+      "description": "Opens the specified URL in a browser or handler (requires user activation). This function has no return value.",
+      "returnType": "void",
+      "requiresUserActivation": true,
+      "parameters": [
+        {
+          "name": "url",
+          "type": "string",
+          "format": "uri",
+          "dynamic": true,
+          "required": true,
+          "description": "The URL to open."
+        }
+      ]
+    },
+    {
+      "name": "and",
+      "description": "Performs a logical AND operation on a list of boolean values.",
+      "returnType": "boolean",
+      "parameters": [
+        {
+          "name": "values",
+          "type": "array",
+          "minItems": 2,
+          "required": true,
+          "description": "The list of boolean values to evaluate.",
+          "items": {"type": "boolean", "dynamic": true}
+        }
+      ]
+    },
+    {
+      "name": "or",
+      "description": "Performs a logical OR operation on a list of boolean values.",
+      "returnType": "boolean",
+      "parameters": [
+        {
+          "name": "values",
+          "type": "array",
+          "minItems": 2,
+          "required": true,
+          "description": "The list of boolean values to evaluate.",
+          "items": {"type": "boolean", "dynamic": true}
+        }
+      ]
+    },
+    {
+      "name": "not",
+      "description": "Performs a logical NOT operation on a boolean value.",
+      "returnType": "boolean",
+      "parameters": [
+        {
+          "name": "value",
+          "type": "boolean",
+          "dynamic": true,
+          "required": true,
+          "description": "The boolean value to negate."
+        }
+      ]
+    }
+  ]
+}

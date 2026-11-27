@@ -281,19 +281,23 @@ export const CardComponent: ComponentApi = {
 
 #### `ComponentApi`
 
-The framework-agnostic definition of a component. It defines the name and the exact JSON schema footprint of the component, without any rendering logic. It acts as the single source of truth for the component's contract.
+The framework-agnostic definition of a component. It defines the name and parameter contract of the component, without any rendering logic. It acts as the single source of truth for the component's contract.
+
+> **Decoupled catalog representation (optional feature):** See [`catalog_document_representation.blueprint.md`](../features/catalog_document_representation.blueprint.md) for the canonical JSON-Schema-free `ComponentDefinition` / `CatalogModel` representation and the [`Catalog Document`](../../specification/proposals/catalog_schema/catalog_schema.json) format. When implemented, `definition` is the canonical in-memory contract and `schema` is maintained as a backward-compatible JSON Schema / host-schema adapter.
 
 ```typescript
 interface ComponentApi {
   /** The name of the component as it appears in the A2UI JSON (e.g., 'Button'). */
   readonly name: string;
-  /** The technical definition used for validation and generating renderer capabilities. */
+  /** Canonical semantic parameter definition (see catalog_document_representation). */
+  readonly definition?: ComponentDefinition;
+  /** Legacy schema representation used for backward-compatible validation and capabilities. */
   readonly schema: Schema;
   /**
    * Static 'ComponentDefinition.metadata' from the catalog document (v1.0+), with every
    * 'extensions' key validated as a UAX #31 identifier at load. Round-trips through
-   * 'Catalog.fromJson' and 'Catalog.toJson'. The catalog document root carries no
-   * 'metadata'; only component definitions do.
+   * 'Catalog.fromJson' and 'Catalog.toJson'. Catalog roots may also carry static 'metadata'
+   * per v1.0 catalog_definition.json.
    */
   readonly metadata?: A2uiMetadata;
 }
@@ -311,8 +315,20 @@ Stateless definition representing a catalog function signature and executable bu
 ```typescript
 interface FunctionApi {
   readonly name: string;
-  readonly returnType: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
-  readonly schema: Schema; // The expected arguments
+  readonly returnType:
+    | 'string'
+    | 'number'
+    | 'boolean'
+    | 'array'
+    | 'object'
+    | 'validationResult'
+    | 'any'
+    | 'void';
+  readonly definition?: FunctionDefinition;
+  readonly schema: Schema; // Legacy schema representation of the expected arguments
+  readonly allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
+  readonly requiresUserActivation?: boolean;
+  readonly description?: string;
 }
 
 /**
@@ -633,18 +649,14 @@ The returned `A2uiRendererCapabilities` map contains capability structures keyed
 
 #### Generating Renderer Capabilities and Schema Types
 
-To dynamically generate the `A2uiRendererCapabilities` payload (specifically `inlineCatalogs`), the processor must convert internal component schemas into valid JSON Schemas.
+To dynamically generate the `A2uiRendererCapabilities` payload (specifically `inlineCatalogs`), the processor serializes registered catalogs to the wire catalog format:
 
-**Schema Types Location**: Foundational schema types _should_ be defined in a dedicated directory like `schema`. You can see the `typescript/core/web_core/src/v1_0/schema/common-types.ts` file in the reference web implementation as an example.
-
-**Detectable Common Types**: Shared definitions (like `DynamicString`) must emit external JSON Schema `$ref` pointers. This is achieved by "tagging" the schemas using their `description` property (e.g., `REF:common_types.json#/$defs/DynamicString`).
-
-When `getRendererCapabilities()` converts internal schemas to generate `inlineCatalogs`:
-
-1. Components: Translate each component schema into a raw JSON Schema. Wrap it in the standard A2UI component envelope (`allOf` containing `ComponentCommon`).
-2. Functions: Map each function in the catalog to a `FunctionDefinition` object, converting its argument schema to JSON Schema.
-3. Theme: Convert the catalog's theme schema into a JSON Schema representation.
-4. Reference Processing: For all generated schemas (components, functions, and themes), traverse the tree looking for descriptions starting with `REF:`. Strip the tag and replace the node with a valid JSON Schema `$ref` object.
+- **Canonical path (`catalog_document_representation`):** When a catalog is backed by the canonical `CatalogModel` (see [`catalog_document_representation.blueprint.md`](../features/catalog_document_representation.blueprint.md)), the JSON Schema codec synthesizes v0.9/v1.0 JSON Schema `inlineCatalogs` directly from `ComponentDefinition` and `FunctionDefinition` without `REF:` description tagging, and can also emit Catalog Documents via `toDocument()`.
+- **Legacy schema-library path:** For catalogs defined purely with host-language schema libraries (such as Zod), shared definitions (like `DynamicString`) emit external JSON Schema `$ref` pointers via `REF:common_types.json#/$defs/<TypeName>` description tags processed by the legacy JSON Schema adapter (`schema` directory, e.g., `typescript/core/web_core/src/v1_0/schema/common-types.ts`):
+  1. Components: Translate each component schema into a raw JSON Schema. Wrap it in the standard A2UI component envelope (`allOf` containing `ComponentCommon`).
+  2. Functions: Map each function in the catalog to a `FunctionDefinition` object, converting its argument schema to JSON Schema.
+  3. Theme: Convert the catalog's theme schema into a JSON Schema representation.
+  4. Reference Processing: For all generated schemas (components, functions, and themes), traverse the tree looking for descriptions starting with `REF:`. Strip the tag and replace the node with a valid JSON Schema `$ref` object.
 
 #### Internal Operations (`a2ui.core.processing.operations`)
 

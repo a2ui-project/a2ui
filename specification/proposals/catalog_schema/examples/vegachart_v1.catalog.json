@@ -1,0 +1,29 @@
+{
+  "$schema": "../catalog_schema.json",
+  "formatVersion": "1.0",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/vegachart/catalog.json",
+  "protocolVersion": "1.0",
+  "title": "A2UI VegaChart Catalog",
+  "description": "Catalog for rendering Vega and Vega-Lite charts in A2UI surfaces. Declares the VegaChart component for displaying interactive data visualizations from Vega-Lite JSON specifications.",
+  "components": [
+    {
+      "name": "VegaChart",
+      "description": "Displays a Vega or Vega-Lite chart.",
+      "parameters": [
+        {
+          "name": "spec",
+          "type": "any",
+          "dynamic": true,
+          "required": true,
+          "description": "The Vega-Lite spec to render as a JSON object."
+        },
+        {
+          "name": "height",
+          "type": "number",
+          "dynamic": true,
+          "description": "Optional height of the chart in pixels. Defaults to 290."
+        }
+      ]
+    }
+  ]
+}

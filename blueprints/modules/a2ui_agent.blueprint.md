@@ -97,7 +97,7 @@ a2ui_agent/
 
 ### A. Catalog Representation & Catalog Transformers
 
-The Agent SDK uses `a2ui.core.Catalog` directly as the canonical model representing component definitions, function signatures, and theme schemas.
+The Agent SDK uses `a2ui.core.Catalog` directly as the canonical model representing component definitions, function signatures, and theme/surface property schemas. When the optional [`catalog_document_representation`](../features/catalog_document_representation.blueprint.md) feature is implemented, inference formats (`Express`, `Elemental`, `Atom`), prompt generators, and macro expanders read the canonical in-memory `CatalogModel` directly instead of serializing to JSON Schema and re-crawling `$ref`/`allOf`/`oneOf` structures; `DirectJsonPromptGenerator` synthesizes JSON Schema views on demand through Core's JSON Schema adapter.
 
 An agent describes and validates renderer functions without running them, so every catalog it loads, negotiates, prompts with, or validates against is a [`CatalogApi`](a2ui_core.blueprint.md#catalogapi), the core name for `Catalog[ComponentApi, FunctionApi]` (whose `functions` may include `AgentFunction` entries with agent-side handlers when the optional [`agent_functions`](../features/agent_functions.blueprint.md) feature is implemented). Catalog transformers are the exception: they stay generic over the component and function types, so the same rules can also prune a catalog that carries implementations.
 
