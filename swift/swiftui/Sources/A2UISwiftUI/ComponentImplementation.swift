@@ -171,7 +171,14 @@ public struct ComponentImplementation: ComponentAPI, @unchecked Sendable {
     builder: @escaping ComponentViewBuilder
   ) {
     if api.hasCanonicalDefinition {
-      self.init(definition: api.definition, builder: builder)
+      let definition = api.definition
+      self.name = definition.name
+      self.allowedParents = definition.allowedParents
+      self.allowedChildren = definition.allowedChildren
+      self.metadata = definition.metadata
+      self.storedDefinition = definition
+      self.storedSchema = nil
+      self.builder = builder
     } else {
       self.name = api.name
       self.allowedParents = api.allowedParents
