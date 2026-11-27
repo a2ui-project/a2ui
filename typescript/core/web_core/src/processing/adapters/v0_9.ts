@@ -14,16 +14,22 @@
  * limitations under the License.
  */
 
-import {BaseVersionAdapter, ProtocolVersion} from './base.js';
+import type {ValidationOutcome} from '../../catalog/model/model_validator.js';
 import {InternalComponentPayload, InternalOperation} from '../operations.js';
-import {A2uiMessageSchema} from '../../v0_9/schema/server-to-client.js';
+import {validateV09AgentToRendererMessage} from '../wire-validators.js';
+import {BaseVersionAdapter, ProtocolVersion} from './base.js';
 
 /**
  * Protocol version adapter for specification v0.9 and v0.9.1.
  */
 export class V0Point9Adapter extends BaseVersionAdapter {
   readonly version: ProtocolVersion = 'v0.9';
-  protected readonly schema = A2uiMessageSchema;
+
+  protected override validateEnvelope(
+    payload: Record<string, unknown>,
+  ): ValidationOutcome<unknown> {
+    return validateV09AgentToRendererMessage(payload);
+  }
 
   override get compatibleCatalogVersions(): ReadonlySet<string> {
     return new Set(['0.9', '0.9.1']);

@@ -16,7 +16,12 @@
 
 import {Signal} from '@angular/core';
 import {z} from 'zod';
-import {ComponentApi} from '@a2ui/web_core';
+import {
+  ComponentApi,
+  ComponentDefinition,
+  ComponentParameterDefinition,
+  InferTypeDefinitionValue,
+} from '@a2ui/web_core';
 import {Child} from './component-binder.service';
 
 /** Data structure that represents a template used to render a collection of children. */
@@ -110,10 +115,41 @@ export type ExtendedProps<ComponentProps extends {[key: string]: unknown}> =
       ? ComponentProps & CheckProps
       : ComponentProps;
 
+type DefinitionParameterToBoundProp<P extends ComponentParameterDefinition> = P extends {
+  readonly type: 'childList';
+}
+  ? BoundProperty<Child[]>
+  : P extends {readonly type: 'child'}
+    ? BoundProperty<Child>
+    : BoundProperty<InferTypeDefinitionValue<P>>;
+
+type DefinitionParametersToProps<Params extends readonly ComponentParameterDefinition[]> = {
+  [P in Params[number] as P['required'] extends true
+    ? P['name']
+    : never]: DefinitionParameterToBoundProp<P>;
+} & {
+  [P in Params[number] as P['required'] extends true
+    ? never
+    : P['name']]?: DefinitionParameterToBoundProp<P>;
+};
+
+type DefinitionToBoundProps<Def extends ComponentDefinition> =
+  Def['parameters'] extends readonly ComponentParameterDefinition[]
+    ? Def extends {readonly checkable: true}
+      ? DefinitionParametersToProps<Def['parameters']> & {
+          [K in keyof CheckProps]: BoundProperty<CheckProps[K]>;
+        }
+      : DefinitionParametersToProps<Def['parameters']>
+    : Record<string, BoundProperty<unknown>>;
+
 /**
  * Utility to convert a component Api Type to the props Type, where the
  * values are wrapped in BoundProperty. This is used to correctly type the props()
  * in a UI component
+ *
+ * Supports both canonical zero-dependency `ComponentDefinition` APIs (mapping
+ * `child` / `childList` parameters directly without hardcoded field names) and
+ * legacy Zod `schema` APIs.
  *
  * @example
  * export const TextComponentApi = {
@@ -125,6 +161,10 @@ export type ExtendedProps<ComponentProps extends {[key: string]: unknown}> =
  * } satisfies ComponentApi;
  * export type TextComponentProps = ComponentApiToProps<typeof TextComponentApi>; // outputs { text: BoundProperty<string>; }
  */
-export type ComponentApiToProps<Api extends ComponentApi> = InferredInterfaceToProps<
-  ExtendedProps<z.infer<Api['schema']>>
->;
+export type ComponentApiToProps<Api extends ComponentApi> = [Api] extends [
+  {readonly definition: infer Def extends ComponentDefinition},
+]
+  ? ComponentDefinition extends Def
+    ? InferredInterfaceToProps<ExtendedProps<z.infer<NonNullable<Api['schema']>>>>
+    : DefinitionToBoundProps<Def>
+  : InferredInterfaceToProps<ExtendedProps<z.infer<NonNullable<Api['schema']>>>>;

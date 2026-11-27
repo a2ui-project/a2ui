@@ -19,9 +19,12 @@ import {
   type A2uiMetadata,
   type ComponentApi,
   type ComponentContext,
+  type ComponentDefinition,
   GenericBinder,
   type InferredComponentApiSchemaType,
+  pickComponentApiFields,
   type ResolveA2uiProps,
+  type ResolveDefinitionProps,
 } from '@a2ui/web_core';
 import {hostRefsOf} from './catalog/host_accessibility';
 import {useNodeView} from './node-view';
@@ -47,30 +50,26 @@ type MemoizedRenderInternalProps<Props> = {
 };
 
 /**
- * Copies the `ComponentApi` fields of `api`. Spreading `api` instead would also copy fields of a
- * richer entry, such as the `tagName` and `element` of a Web Component implementation, and the
- * surface would then render that element instead of the React component.
+ * Infers resolved React component props from either a canonical zero-dependency
+ * `ComponentDefinition` on `Api` or a legacy Zod `schema`.
  */
-function componentApiFields(api: ComponentApi): ComponentApi {
-  return {
-    name: api.name,
-    schema: api.schema,
-    allowedParents: api.allowedParents,
-    allowedChildren: api.allowedChildren,
-    ...(api.metadata !== undefined ? {metadata: api.metadata} : {}),
-  };
-}
+type ResolvedReactComponentProps<Api extends ComponentApi> = [Api] extends [
+  {readonly definition: infer Def extends ComponentDefinition},
+]
+  ? ComponentDefinition extends Def
+    ? ResolveA2uiProps<InferredComponentApiSchemaType<Api>>
+    : ResolveDefinitionProps<Def>
+  : ResolveA2uiProps<InferredComponentApiSchemaType<Api>>;
 
 /**
  * Creates a React component implementation using the deep generic binder.
  */
 export function createComponentImplementation<Api extends ComponentApi>(
   api: Api,
-  RenderComponent: React.FC<
-    ReactA2uiComponentProps<ResolveA2uiProps<InferredComponentApiSchemaType<Api>>>
-  >,
+  RenderComponent: React.FC<ReactA2uiComponentProps<ResolvedReactComponentProps<Api>>>,
 ): ReactComponentImplementation {
-  type Props = ResolveA2uiProps<InferredComponentApiSchemaType<Api>>;
+  type Props = ResolvedReactComponentProps<Api>;
+  const binderTarget = api.definition ?? api.schema;
 
   const MemoizedRender = memo(
     ({
@@ -118,10 +117,10 @@ export function createComponentImplementation<Api extends ComponentApi>(
     // memoize `context`, so a new reference means the component's model or its
     // data path changed.
     if (!bindingRef.current) {
-      bindingRef.current = new GenericBinder<Props>(context, api.schema);
+      bindingRef.current = new GenericBinder<Props>(context, binderTarget);
     } else if ((bindingRef.current as unknown as {context: ComponentContext}).context !== context) {
       bindingRef.current.dispose();
-      bindingRef.current = new GenericBinder<Props>(context, api.schema);
+      bindingRef.current = new GenericBinder<Props>(context, binderTarget);
     }
     const binding = bindingRef.current;
 
@@ -194,7 +193,7 @@ export function createComponentImplementation<Api extends ComponentApi>(
   NodeView.displayName = `${api.name}.view`;
 
   return {
-    ...componentApiFields(api),
+    ...pickComponentApiFields(api),
     render: ReactWrapper,
     view: NodeView,
   };
@@ -227,7 +226,7 @@ export function createBinderlessComponentImplementation(
   NodeView.displayName = `${api.name}.view`;
 
   return {
-    ...componentApiFields(api),
+    ...pickComponentApiFields(api),
     render: RenderComponent,
     view: NodeView,
   };

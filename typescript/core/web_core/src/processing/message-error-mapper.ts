@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
+import type {ValidationIssue} from '../catalog/model/model_validator.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {
   A2uiCatalogError,
@@ -159,12 +159,15 @@ export function normalizeJsonPointer(rawPath: string | undefined): string | unde
   return segments.length > 0 ? `/${segments.join('/')}` : undefined;
 }
 
-function collectLeafZodIssues(issues: readonly z.ZodIssue[], actionType?: string): z.ZodIssue[] {
-  const leaves: z.ZodIssue[] = [];
+function collectLeafValidationIssues(
+  issues: readonly ValidationIssue[],
+  actionType?: string,
+): ValidationIssue[] {
+  const leaves: ValidationIssue[] = [];
   for (const issue of issues) {
-    if (issue.code === z.ZodIssueCode.invalid_union && 'unionErrors' in issue) {
+    if (issue.code === 'invalid_union' && Array.isArray(issue.unionErrors)) {
       const unionIssues = issue.unionErrors.flatMap(u => u.issues);
-      leaves.push(...collectLeafZodIssues(unionIssues, actionType));
+      leaves.push(...collectLeafValidationIssues(unionIssues, actionType));
     } else {
       leaves.push(issue);
     }
@@ -174,9 +177,21 @@ function collectLeafZodIssues(issues: readonly z.ZodIssue[], actionType?: string
   return matching.length > 0 ? matching : leaves;
 }
 
-function extractPathFromZodDetails(details: unknown, actionType?: string): string | undefined {
-  let issues: readonly z.ZodIssue[] | undefined;
-  if (details instanceof z.ZodError) {
+function hasIssuesArray(value: unknown): value is {readonly issues: readonly ValidationIssue[]} {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Array.isArray((value as {issues?: unknown}).issues)
+  );
+}
+
+function extractPathFromValidationDetails(
+  details: unknown,
+  actionType?: string,
+): string | undefined {
+  let issues: readonly ValidationIssue[] | undefined;
+  if (hasIssuesArray(details)) {
     issues = details.issues;
   } else if (Array.isArray(details) && details.length > 0) {
     const first = details[0] as Record<string, unknown>;
@@ -184,17 +199,16 @@ function extractPathFromZodDetails(details: unknown, actionType?: string): strin
       return normalizeJsonPointer(first['path']);
     }
     if (Array.isArray(first?.['path'])) {
-      issues = details as z.ZodIssue[];
+      issues = details as ValidationIssue[];
     }
   }
   if (!issues || issues.length === 0) return undefined;
 
-  const selected = collectLeafZodIssues(issues, actionType)[0];
+  const selected = collectLeafValidationIssues(issues, actionType)[0];
   if (!selected) return undefined;
   const segments = selected.path.map(s => String(s).replace(/~/g, '~0').replace(/\//g, '~1'));
   if (
-    selected.code === z.ZodIssueCode.unrecognized_keys &&
-    'keys' in selected &&
+    selected.code === 'unrecognized_keys' &&
     Array.isArray(selected.keys) &&
     selected.keys.length > 0
   ) {
@@ -282,7 +296,7 @@ export function mapErrorToRendererMessage(
   const rawPath =
     a2uiErr?.path ??
     (err instanceof A2uiValidationError
-      ? extractPathFromZodDetails(err.details, context.actionType)
+      ? extractPathFromValidationDetails(err.details, context.actionType)
       : undefined);
   let path = normalizeJsonPointer(rawPath);
   if (

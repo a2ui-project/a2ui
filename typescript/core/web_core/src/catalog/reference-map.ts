@@ -26,6 +26,7 @@ import {
   isTemplateRefObject,
   unwrapZodField,
 } from '../resolution/ref-fields.js';
+import {extractDefinitionRefFields} from './model/model_semantics.js';
 import type {Catalog, ComponentApi, FunctionApi} from './types.js';
 
 export {type ChildRefAnalysisOptions, extractRefDefName};
@@ -657,6 +658,7 @@ export function buildComponentRefMap<
         ? catalogOrComponents
         : Array.from((catalogOrComponents as ReadonlyMap<string, T>).values());
 
+  const catalogTypes = (catalogOrComponents as {types?: Catalog<T, F>['types']})?.types;
   for (const compApi of componentApis) {
     const acc: ChildRefAccumulator = {
       singleRefs: new Set<string>(),
@@ -664,7 +666,22 @@ export function buildComponentRefMap<
       nestedRefs: {},
     };
 
-    inspectComponentSchema(compApi.schema, acc, options);
+    if (compApi.definition) {
+      for (const [key, refKind] of extractDefinitionRefFields(compApi.definition, catalogTypes)) {
+        if (refKind.kind === 'single') {
+          acc.singleRefs.add(key);
+        } else if (refKind.kind === 'list') {
+          acc.listRefs.add(key);
+        } else {
+          acc.listRefs.add(key);
+          for (const subKey of refKind.keys) {
+            addNestedRef(acc, key, subKey);
+          }
+        }
+      }
+    } else {
+      inspectComponentSchema(compApi.schema, acc, options);
+    }
 
     refMap[compApi.name] = {
       singleRefs: acc.singleRefs,

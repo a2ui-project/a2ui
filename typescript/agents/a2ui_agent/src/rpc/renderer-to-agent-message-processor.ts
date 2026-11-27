@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import type {z} from 'zod';
-
 import {
   A2uiValidationError,
   type ActionMessage,
@@ -23,11 +21,13 @@ import {
   type CatalogInterface,
   type ComponentApi,
   type ErrorMessage,
+  formatValidationIssue,
   type FunctionApi,
   type RendererFunctionResponseMessage,
-  V10ActionMessageSchema,
-  V10ErrorMessageSchema,
-  V10RendererFunctionResponseMessageSchema,
+  validateV10ActionMessage,
+  validateV10ErrorMessage,
+  validateV10RendererFunctionResponseMessage,
+  type ValidationOutcome,
 } from '../internal/web-core.js';
 import {AgentFunctionRegistry} from './agent-function-registry.js';
 
@@ -177,13 +177,24 @@ export class RendererToAgentMessageProcessor {
       case 'callAgentFunction':
         return {handled: true, replies: [await this._registry.handle(message)]};
       case 'action':
-        return await dispatch(message, V10ActionMessageSchema, this._onAction);
+        return await dispatch(
+          message,
+          raw => validateV10ActionMessage(raw) as ValidationOutcome<ActionMessage>,
+          this._onAction,
+        );
       case 'error':
-        return await dispatch(message, V10ErrorMessageSchema, this._onError);
+        return await dispatch(
+          message,
+          raw => validateV10ErrorMessage(raw) as ValidationOutcome<ErrorMessage>,
+          this._onError,
+        );
       case 'rendererFunctionResponse':
         return await dispatch(
           message,
-          V10RendererFunctionResponseMessageSchema,
+          raw =>
+            validateV10RendererFunctionResponseMessage(
+              raw,
+            ) as ValidationOutcome<RendererFunctionResponseMessage>,
           this._onRendererFunctionResponse,
         );
     }
@@ -192,18 +203,19 @@ export class RendererToAgentMessageProcessor {
 
 async function dispatch<T>(
   message: object,
-  schema: z.ZodType<T>,
+  validator: (raw: unknown) => ValidationOutcome<T>,
   callback: RendererMessageCallback<T> | undefined,
 ): Promise<ProcessResult> {
   if (callback === undefined) {
     return {handled: false, replies: []};
   }
-  const parsed = schema.safeParse(message);
+  const parsed = validator(message);
   if (!parsed.success) {
+    const formatted = parsed.issues.map(formatValidationIssue).join('; ');
     throw new A2uiValidationError(
       `Invalid ${Object.keys(message)
         .filter(key => key !== 'version')
-        .join(', ')} message: ${parsed.error.message}`,
+        .join(', ')} message: ${formatted}`,
     );
   }
   const handled = (await callback(parsed.data)) !== false;

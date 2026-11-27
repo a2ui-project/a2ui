@@ -50,7 +50,7 @@ function readRepoJson(relativePath: string): Record<string, any> {
  * annotation, so that the catalog generates its definition from Zod.
  */
 function plain<E extends ComponentApi | FunctionApi>(entry: E): E {
-  return {...entry, schema: entry.schema.describe(entry.schema.description as string)};
+  return {...entry, schema: entry.schema!.describe(entry.schema!.description as string)};
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -600,7 +600,7 @@ describe('union export', () => {
     catalog: {readonly components: ReadonlyMap<string, ComponentApi>},
     radius: unknown,
   ): boolean {
-    return catalog.components.get('Box')!.schema.safeParse({radius}).success;
+    return catalog.components.get('Box')!.schema!.safeParse({radius}).success;
   }
 
   /** The `radius` property of the `Box` component in a catalog document. */
@@ -709,7 +709,7 @@ describe('union export', () => {
           },
         ],
       });
-      const reloaded = Catalog.fromJson(document).components.get('Box')!.schema;
+      const reloaded = Catalog.fromJson(document).components.get('Box')!.schema!;
       assert.strictEqual(reloaded.safeParse({radius: 'md', size: 1}).success, true);
       assert.strictEqual(reloaded.safeParse({radius: 'md', size: {token: 'x'}}).success, true);
       assert.strictEqual(reloaded.safeParse({radius: 'md', size: 'x'}).success, false);
@@ -751,7 +751,7 @@ describe('union export', () => {
       assert.deepStrictEqual(args.properties.inclusive, {anyOf: OVERLAPPING_BRANCHES});
       assert.deepStrictEqual(args.properties.exclusive, {oneOf: OVERLAPPING_BRANCHES});
 
-      const reloaded = Catalog.fromJson(catalog.toJson()).functions.get('round')!.schema;
+      const reloaded = Catalog.fromJson(catalog.toJson()).functions.get('round')!.schema!;
       assert.strictEqual(reloaded.safeParse({inclusive: 'md', exclusive: '12px'}).success, true);
       assert.strictEqual(reloaded.safeParse({inclusive: 'md', exclusive: 'md'}).success, false);
     });
@@ -874,7 +874,7 @@ describe('Catalog.fromJson', () => {
   it('derives the Zod schema of a loaded entry from its definition once, on first use', () => {
     const catalog = Catalog.fromJson(readRepoJson('catalogs/basic/v1/catalog.json'));
     const text = catalog.components.get('Text')!;
-    const schema = text.schema;
+    const schema = text.schema!;
     assert.strictEqual(text.schema, schema, 'the derived schema is cached');
     assert.ok(schema.safeParse({text: 'hi'}).success);
     assert.ok(!schema.safeParse({text: 'hi', unknown: 1}).success);
@@ -934,7 +934,7 @@ describe('Catalog.fromJson', () => {
     const catalog = Catalog.fromJson(document);
     const json = JSON.stringify(catalog.toJson());
     const text = catalog.components.get('Text')!;
-    const textSchemaResult = text.schema.safeParse({text: 'hi', variant: 'h1'}).success;
+    const textSchemaResult = text.schema!.safeParse({text: 'hi', variant: 'h1'}).success;
     document.components.Text.properties.variant.enum = ['mutated'];
     document.components.Text.description = 'mutated';
     document.functions.openUrl.description = 'mutated';
@@ -944,7 +944,7 @@ describe('Catalog.fromJson', () => {
     assert.strictEqual(JSON.stringify(catalog.toJson()), json);
     assert.deepStrictEqual(catalog.validationSchema, fresh.validationSchema);
     assert.strictEqual(
-      text.schema.safeParse({text: 'hi', variant: 'h1'}).success,
+      text.schema!.safeParse({text: 'hi', variant: 'h1'}).success,
       textSchemaResult,
     );
   });
@@ -1263,7 +1263,7 @@ describe('composite catalogs', () => {
         const shape = (reloaded.components.get('Text')!.schema as z.AnyZodObject).shape;
         assert.ok('weight' in shape, 'fromJson(toJson()) keeps weight');
         assert.ok(
-          reloaded.components.get('Text')!.schema.safeParse({text: 'hi', weight: 1}).success,
+          reloaded.components.get('Text')!.schema!.safeParse({text: 'hi', weight: 1}).success,
         );
       });
     }
@@ -1447,7 +1447,7 @@ describe('specification annotations', () => {
 
   it('computes a v1.0 definition without mixins as a flat object', () => {
     const out = new Catalog('https://example.com/badges', '1.0', [
-      {...Badge, schema: spec(Badge.schema, {mixins: []})},
+      {...Badge, schema: spec(Badge.schema!, {mixins: []})},
     ]).toJson();
     const badge = (out.components as Record<string, any>).Badge;
     assert.strictEqual(badge.description, 'A badge.');
@@ -1465,8 +1465,8 @@ describe('specification annotations', () => {
   it('does not change validation', () => {
     const annotated = spec(z.string(), {keywords: {format: 'uri'}});
     assert.ok(annotated.safeParse('not a uri').success);
-    assert.ok(Badge.schema.safeParse({label: 'x', tone: 'info'}).success);
-    assert.ok(!Badge.schema.safeParse({label: 'x', tone: 'other'}).success);
+    assert.ok(Badge.schema!.safeParse({label: 'x', tone: 'info'}).success);
+    assert.ok(!Badge.schema!.safeParse({label: 'x', tone: 'other'}).success);
   });
 
   it('recomputes an out-of-order authored union when withEntries changes entries', () => {

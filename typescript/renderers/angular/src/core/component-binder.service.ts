@@ -20,6 +20,7 @@ import {
   type ComponentNode,
   ResolvedBinding,
   computed,
+  extractDefinitionRefFields,
   getValue,
   isAtLeastVersion,
   isComponentNode,
@@ -89,7 +90,7 @@ export class ComponentBinder {
     return {
       value: valueSignal as AngularSignal<unknown>,
       raw: rawVal,
-      template: this.extractNodeTemplate(key, rawVal),
+      template: this.extractNodeTemplate(node, key, rawVal),
       onUpdate: (newValue: unknown) => {
         const binding = peekValue(node.props)[key];
         if (binding instanceof ResolvedBinding && isWritable(binding)) {
@@ -99,8 +100,16 @@ export class ComponentBinder {
     };
   }
 
-  private extractNodeTemplate(key: string, rawVal: unknown): ComponentTemplate | undefined {
-    if (key !== 'children' || !isChildListTemplateObject(rawVal)) {
+  private extractNodeTemplate(
+    node: ComponentNode,
+    key: string,
+    rawVal: unknown,
+  ): ComponentTemplate | undefined {
+    const isListSlot =
+      key === 'children' ||
+      (node.impl?.definition !== undefined &&
+        extractDefinitionRefFields(node.impl.definition).get(key)?.kind === 'list');
+    if (!isListSlot || !isChildListTemplateObject(rawVal)) {
       return undefined;
     }
     return rawVal.componentId && rawVal.path

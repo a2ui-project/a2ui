@@ -69,7 +69,7 @@ export type ReactRenderProps = {
 
 /** A catalog entry implemented as a React component. */
 export interface ReactComponentImplementation<
-  Schema extends ZodTypeAny = ZodTypeAny,
+  Schema extends ZodTypeAny | undefined = ZodTypeAny,
 > extends ComponentApi<Schema> {
   /**
    * The framework-specific rendering wrapper.
@@ -87,7 +87,7 @@ export interface ReactComponentImplementation<
 }
 
 /** Any entry a React catalog can hold: a React component or a Web Component. */
-export type ReactCatalogComponent<Schema extends ZodTypeAny = ZodTypeAny> =
+export type ReactCatalogComponent<Schema extends ZodTypeAny | undefined = ZodTypeAny> =
   | ReactComponentImplementation<Schema>
   | WebComponentImplementation<Schema>;
 

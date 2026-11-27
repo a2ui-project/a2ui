@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+import {
+  definitionToBehavior,
+  extractDefinitionRefFields,
+} from '../catalog/model/model_semantics.js';
 import {Catalog, ComponentApi, FunctionImplementation} from '../catalog/types.js';
 import {Subscription} from '../common/events.js';
 import {isAtLeastVersion} from '../common/semver.js';
@@ -366,7 +370,16 @@ export class NodeResolver<
       : isAtLeastVersion(compCatalog?.protocolVersion, '0.9')
         ? V09_CHILD_REF_OPTIONS
         : V08_CHILD_REF_OPTIONS;
-    const binder = new GenericBinder<NodeProps>(context, api.schema, refOptions);
+    const binderTarget = api.definition
+      ? {definition: api.definition, types: compCatalog?.types}
+      : api.schema;
+    const binder = new GenericBinder<NodeProps>(context, binderTarget, refOptions);
+    const refFields = api.definition
+      ? extractDefinitionRefFields(api.definition, compCatalog?.types)
+      : extractRefFields(api.schema, refOptions);
+    const behavior = api.definition
+      ? definitionToBehavior(api.definition, compCatalog?.types)
+      : scrapeComponentBehavior(api.schema, refOptions);
     const record = this.registerNode(
       new MutableComponentNode(
         instanceIdFor(componentId, dataPath, occurrence),
@@ -383,8 +396,8 @@ export class NodeResolver<
         edgeKey,
         parent,
         occurrence,
-        refFields: extractRefFields(api.schema, refOptions),
-        behavior: scrapeComponentBehavior(api.schema, refOptions),
+        refFields,
+        behavior,
         componentModel: model,
         binder,
       },

@@ -24,7 +24,7 @@ import type {ComponentApi} from '../catalog/types.js';
  * @template Schema the Zod schema type for the component's properties.
  */
 export interface WebComponentImplementation<
-  Schema extends z.ZodTypeAny = z.ZodTypeAny,
+  Schema extends z.ZodTypeAny | undefined = z.ZodTypeAny,
 > extends ComponentApi<Schema> {
   /** The HTML tag name of the Custom Element registered for this component. */
   readonly tagName: string;

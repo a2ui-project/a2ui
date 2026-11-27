@@ -23,7 +23,14 @@
  */
 
 // ./catalog
-export {AgentFunction, Catalog, isAgentFunction} from '@a2ui/web_core/catalog';
+export {
+  AgentFunction,
+  Catalog,
+  definitionEnvelopeLayout,
+  formatValidationIssue,
+  isAgentFunction,
+  typeDefinitionToJsonSchema,
+} from '@a2ui/web_core/catalog';
 export type {
   AgentFunctionContext,
   AgentFunctionHandler,
@@ -31,9 +38,15 @@ export type {
   CatalogApi,
   CatalogInterface,
   ComponentApi,
+  ComponentDefinition,
   CopyWithCatalogOptions,
+  DataTypeDefinition,
   FunctionApi,
+  FunctionDefinition,
   FunctionImplementation,
+  TypeDefinition,
+  ValidationIssue,
+  ValidationOutcome,
 } from '@a2ui/web_core/catalog';
 
 // ./v0_8
@@ -116,7 +129,13 @@ export {validateReservedDirectives} from '@a2ui/web_core/resolution';
 export {ComponentModel, DataModel, SurfaceModel} from '@a2ui/web_core/state';
 
 // ./processing
-export {MessageProcessor} from '@a2ui/web_core/processing';
+export {
+  MessageProcessor,
+  validateAgentToRendererEnvelope,
+  validateV10ActionMessage,
+  validateV10ErrorMessage,
+  validateV10RendererFunctionResponseMessage,
+} from '@a2ui/web_core/processing';
 export type {MessageProcessorOptions} from '@a2ui/web_core/processing';
 
 // ./validation

@@ -22,7 +22,10 @@ import {
 import type {ReactComponentImplementation} from '../react_component_implementation';
 import {ReactWcHost} from './react_host_element';
 
-const hosted = new WeakMap<ReactComponentImplementation, WebComponentImplementation>();
+const hosted = new WeakMap<
+  ReactComponentImplementation<ZodTypeAny | undefined>,
+  WebComponentImplementation<ZodTypeAny | undefined>
+>();
 const tagNameCounts = new Map<string, number>();
 
 /**
@@ -43,25 +46,26 @@ function computeTagName(name: string): string {
  * defined in `customElements` here; renderers define it with
  * `registerUniversalElement` when they render it.
  */
-export function toWebComponent<Schema extends ZodTypeAny = ZodTypeAny>(
+export function toWebComponent<Schema extends ZodTypeAny | undefined = ZodTypeAny>(
   implementation: ReactComponentImplementation<Schema> | WebComponentImplementation<Schema>,
 ): WebComponentImplementation<Schema> {
   if (isWebComponentImplementation(implementation)) {
     return implementation;
   }
 
-  const cached = hosted.get(implementation);
+  const reactImpl = implementation as ReactComponentImplementation<Schema>;
+  const cached = hosted.get(reactImpl);
   if (cached) {
     return cached as WebComponentImplementation<Schema>;
   }
 
   const entry: WebComponentImplementation<Schema> = {
-    ...implementation,
-    tagName: computeTagName(implementation.name),
+    ...reactImpl,
+    tagName: computeTagName(reactImpl.name),
     // `customElements` refuses to define one class under two tag names.
     element: class extends ReactWcHost {},
   };
 
-  hosted.set(implementation, entry);
+  hosted.set(reactImpl, entry);
   return entry;
 }

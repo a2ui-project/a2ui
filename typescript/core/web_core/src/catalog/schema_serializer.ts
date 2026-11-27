@@ -22,6 +22,12 @@ import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {isAgentFunction} from './agent_function_brand.js';
 import {exclusiveUnionOverride} from './exclusive_union.js';
 import {loadedDefinition} from './json_entries.js';
+import type {DataTypeDefinition, SurfacePropertiesDefinition} from './model/catalog_model.js';
+import {
+  componentDefinitionToJsonSchema,
+  functionDefinitionToJsonSchema,
+  typeDefinitionToJsonSchema,
+} from './model/json_schema_codec.js';
 import {getSpecAnnotation, type JsonSchemaObject} from './spec_annotations.js';
 import {
   DEFAULT_COMMON_TYPES_URI,
@@ -65,6 +71,8 @@ export interface SerializableCatalog {
   readonly commonTypesUri?: string;
   readonly themeLocation?: 'defs' | 'styles';
   readonly defModels?: readonly z.ZodTypeAny[];
+  readonly types?: Readonly<Record<string, DataTypeDefinition>>;
+  readonly surfaceProperties?: SurfacePropertiesDefinition;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -320,6 +328,15 @@ function serializeComponentModel(
   isAtLeastV10: boolean,
   commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
 ): JsonObject {
+  if (comp.definition && !comp.schema) {
+    return componentDefinitionToJsonSchema(comp.definition, {
+      protocolVersion: isAtLeastV10 ? '1.0' : '0.9',
+      commonTypesUri,
+    });
+  }
+  if (!comp.schema) {
+    return {type: 'object', properties: {component: {const: name}}, required: ['component']};
+  }
   const json = zodToUnbundledJson(comp.schema, localDefs, commonTypesUri);
   const {
     component: _component,
@@ -373,7 +390,16 @@ function serializeFunctionModel(
   commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
   defs?: Readonly<JsonObject>,
 ): JsonObject {
-  const args = zodToUnbundledJson(fn.schema, localDefs, commonTypesUri);
+  if (fn.definition && !fn.schema) {
+    return functionDefinitionToJsonSchema(fn.definition, {
+      protocolVersion: isAtLeastV10 ? '1.0' : '0.9',
+      commonTypesUri,
+      functionsLayout: asListItem ? 'list' : 'map',
+    });
+  }
+  const args = fn.schema
+    ? zodToUnbundledJson(fn.schema, localDefs, commonTypesUri)
+    : ({type: 'object', properties: {}} as JsonObject);
   // An agent function writes only what its declaration or constructor set,
   // not its defaults.
   const allowedCallers = isAgentFunction(fn) ? fn.explicitAllowedCallers : fn.allowedCallers;
@@ -501,9 +527,22 @@ export function catalogDocumentModel(catalog: SerializableCatalog): CatalogDocum
 function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel {
   const shaper = new SpecShaper(catalog.protocolVersion, catalog.commonTypesUri);
   const computedDefs = new Map<string, z.ZodTypeAny>();
+  const modelCodecOptions = {
+    protocolVersion: catalog.protocolVersion,
+    commonTypesUri: catalog.commonTypesUri ?? DEFAULT_COMMON_TYPES_URI,
+    functionsLayout: catalog.functionsLayout,
+  };
   const shapedComponents = new Map<string, JsonSchemaObject>();
   for (const [name, comp] of catalog.components) {
-    if (loadedDefinition(comp) || !isSpecComponentSchema(comp.schema)) continue;
+    if (loadedDefinition(comp)) continue;
+    if (comp.definition && (!comp.schema || !isSpecComponentSchema(comp.schema))) {
+      shapedComponents.set(
+        name,
+        deepFreeze(componentDefinitionToJsonSchema(comp.definition, modelCodecOptions)),
+      );
+      continue;
+    }
+    if (!comp.schema || !isSpecComponentSchema(comp.schema)) continue;
     const {schema, catalogDefs} = shaper.componentSchema(
       name,
       comp.schema,
@@ -526,8 +565,17 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
 
   const functions = new Map<string, JsonSchemaObject | undefined>();
   const rawFunctions = new Map<string, FunctionApi>();
+  const canonicalFunctions = new Map<string, JsonSchemaObject>();
   for (const [name, fn] of catalog.functions) {
-    if (!loadedDefinition(fn) && isSpecFunctionSchema(fn.schema)) {
+    if (loadedDefinition(fn)) continue;
+    if (fn.definition && (!fn.schema || !isSpecFunctionSchema(fn.schema))) {
+      canonicalFunctions.set(
+        name,
+        deepFreeze(functionDefinitionToJsonSchema(fn.definition, modelCodecOptions)),
+      );
+      continue;
+    }
+    if (fn.schema && isSpecFunctionSchema(fn.schema)) {
       rawFunctions.set(name, fn);
       // Pre-scan function schema for any referenced catalog $defs models.
       shaper.toJson(fn.schema, computedDefs);
@@ -535,6 +583,39 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
   }
 
   const defs: JsonObject = {...catalog.defs};
+  if (catalog.types) {
+    for (const [typeName, typeDef] of Object.entries(catalog.types)) {
+      if (!(typeName in defs)) {
+        defs[typeName] = typeDefinitionToJsonSchema(typeDef, modelCodecOptions);
+      }
+    }
+  }
+  if (catalog.surfaceProperties && !('theme' in defs) && !catalog.themeSchema) {
+    const themeObj: JsonObject = {type: 'object'};
+    if (catalog.surfaceProperties.description !== undefined) {
+      themeObj['description'] = catalog.surfaceProperties.description;
+    }
+    if (catalog.surfaceProperties.properties && catalog.surfaceProperties.properties.length > 0) {
+      const props: JsonObject = {};
+      const req: string[] = [];
+      for (const p of catalog.surfaceProperties.properties) {
+        props[p.name] = typeDefinitionToJsonSchema(p, modelCodecOptions);
+        if (p.required) req.push(p.name);
+      }
+      themeObj['properties'] = props;
+      if (req.length > 0) themeObj['required'] = req;
+    }
+    if (catalog.surfaceProperties.additionalProperties !== undefined) {
+      themeObj['additionalProperties'] =
+        typeof catalog.surfaceProperties.additionalProperties === 'boolean'
+          ? catalog.surfaceProperties.additionalProperties
+          : typeDefinitionToJsonSchema(
+              catalog.surfaceProperties.additionalProperties,
+              modelCodecOptions,
+            );
+    }
+    defs['theme'] = themeObj;
+  }
   const serializedDefs = new Set<string>();
   while (
     [...computedDefs.keys()].some(defName => !serializedDefs.has(defName) && !(defName in defs))
@@ -560,8 +641,9 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
     functions.set(
       name,
       loaded ??
-        (rawFunctions.has(name)
-          ? deepFreeze(shaper.functionSchema(name, fn, defs, computedDefs))
+        canonicalFunctions.get(name) ??
+        (rawFunctions.has(name) && fn.schema
+          ? deepFreeze(shaper.functionSchema(name, {...fn, schema: fn.schema}, defs, computedDefs))
           : undefined),
     );
   }

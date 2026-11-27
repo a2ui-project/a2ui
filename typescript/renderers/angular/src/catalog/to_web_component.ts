@@ -15,7 +15,7 @@
  */
 
 import {Type} from '@angular/core';
-import {ComponentApi} from '@a2ui/web_core';
+import {ComponentApi, pickComponentApiFields} from '@a2ui/web_core';
 import {WebComponentImplementation} from '@a2ui/web_core/universal';
 import type {AngularComponentImplementation} from './types';
 import {AngularWcHost} from './angular_wc_host';
@@ -41,13 +41,7 @@ function computeTagName(name: string): string {
  * `component`, `tagName` and `element`.
  */
 export function componentApiFields(api: ComponentApi): ComponentApi {
-  return {
-    name: api.name,
-    schema: api.schema,
-    allowedParents: api.allowedParents,
-    allowedChildren: api.allowedChildren,
-    ...(api.metadata !== undefined ? {metadata: api.metadata} : {}),
-  };
+  return pickComponentApiFields(api);
 }
 
 /**
