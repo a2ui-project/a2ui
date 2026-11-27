@@ -356,6 +356,8 @@ def _function_args_schema(catalog: Any, fn: Any) -> Any:
     types become local ``#/$defs/...`` pointers.
     """
     schema = getattr(fn, "schema", None)
+    if getattr(fn, "_explicit_definition", False) and schema is None:
+        return (fn.definition, getattr(catalog, "types", None))
     if not isinstance(schema, dict):
         return schema
     resolve = getattr(catalog, "resolved_function_schema", None)

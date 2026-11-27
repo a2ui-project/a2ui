@@ -12,9 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Type
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Type
+
 from pydantic import BaseModel, TypeAdapter
 from pydantic_core import PydanticUndefined
+
+if TYPE_CHECKING:
+    from .model import ComponentDefinition
 
 
 class ComponentApi:
@@ -23,36 +29,84 @@ class ComponentApi:
     def __init__(
         self,
         name: str,
-        schema: dict[str, Any],
+        schema: dict[str, Any] | None = None,
         allowed_parents: list[str] | None = None,
         allowed_children: list[str] | None = None,
         from_document: bool = False,
         metadata: dict[str, Any] | None = None,
+        *,
+        definition: ComponentDefinition | None = None,
     ):
         """Initializes the component API.
 
         Args:
             name: The component's name, which instances use as `component`.
             schema: The component's JSON schema, as its catalog document
-                writes it. `Catalog.from_json` keeps each component's
-                definition here unchanged (with its `allOf` mixins and
-                references), and `Catalog.to_json` writes it back.
+                writes it. Optional when `definition` is provided; synthesized
+                lazily on access when omitted.
             allowed_parents: The components this component may be a child of.
             allowed_children: The components this component may contain.
             from_document: Whether `schema` was loaded from a catalog
                 document, which `Catalog.from_json` sets on every component
-                it loads. `Catalog.to_json` writes such a schema exactly as
-                it is; for a component defined in code, it points local
-                references to common types at the catalog's
-                `common_types_uri`.
+                it loads.
             metadata: Optional static component-level metadata envelope.
+            definition: Canonical schema-library-independent component
+                definition. When provided, `allowed_parents`,
+                `allowed_children`, and `metadata` default from it.
         """
         self.name = name
-        self.schema = schema
+        self._schema: dict[str, Any] | None = schema
+        self._definition: ComponentDefinition | None = definition
+        self._explicit_definition: bool = definition is not None
+        if definition is not None:
+            if allowed_parents is None and definition.allowed_parents is not None:
+                allowed_parents = list(definition.allowed_parents)
+            if allowed_children is None and definition.allowed_children is not None:
+                allowed_children = list(definition.allowed_children)
+            if metadata is None and definition.metadata is not None:
+                metadata = dict(definition.metadata)
         self.allowed_parents = allowed_parents
         self.allowed_children = allowed_children
         self.from_document = from_document
         self.metadata = metadata
+
+    @classmethod
+    def from_definition(cls, definition: ComponentDefinition) -> ComponentApi:
+        """Creates a `ComponentApi` purely from a canonical `ComponentDefinition`."""
+        return cls(name=definition.name, definition=definition)
+
+    @property
+    def schema(self) -> dict[str, Any]:
+        """The component's JSON Schema dict (synthesized lazily if defined via `definition`)."""
+        if self._schema is None:
+            if self._definition is not None:
+                from .json_schema_adapter import component_definition_to_json_schema
+
+                self._schema = component_definition_to_json_schema(self._definition)
+            else:
+                self._schema = {}
+        return self._schema
+
+    @schema.setter
+    def schema(self, value: dict[str, Any]) -> None:
+        self._schema = value
+        if not self._explicit_definition:
+            self._definition = None
+
+    @property
+    def definition(self) -> ComponentDefinition:
+        """Returns the canonical `ComponentDefinition` for this component."""
+        if self._definition is None:
+            from .json_schema_adapter import component_definition_from_json_schema
+
+            self._definition = component_definition_from_json_schema(
+                self.name,
+                self._schema if isinstance(self._schema, dict) else {},
+                allowed_parents=self.allowed_parents,
+                allowed_children=self.allowed_children,
+                metadata=self.metadata,
+            )
+        return self._definition
 
     @property
     def comp_type(self) -> str:
@@ -86,6 +140,20 @@ class ComponentImplementation(ComponentApi):
         if self._type_adapter is None:
             self._type_adapter = TypeAdapter(self.model_class)
         return self._type_adapter
+
+    @property
+    def definition(self) -> ComponentDefinition:
+        if self._definition is None:
+            from .pydantic_adapter import component_definition_from_model
+
+            self._definition = component_definition_from_model(
+                self.model_class,
+                name=self.name,
+                allowed_parents=self.allowed_parents,
+                allowed_children=self.allowed_children,
+                metadata=self.metadata,
+            )
+        return self._definition
 
 
 class ModelComponentApi(ComponentImplementation):

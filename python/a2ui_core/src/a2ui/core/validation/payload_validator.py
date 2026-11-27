@@ -37,6 +37,7 @@ from ..catalog import (
     system_functions_for,
 )
 from ..catalog.catalog import CatalogApi, _get_readonly_validation_schema
+from ..catalog.model import SurfacePropertiesDefinition, has_raw_json_schema
 from ..common.metadata import validate_metadata
 from ..common.semver import is_at_least_version, to_protocol_version
 from ..common.uax31 import is_valid_uax31_identifier
@@ -45,6 +46,11 @@ from ..processing.format_pydantic_error import format_validation_error, to_json_
 from ..schema import ProtocolVersion
 from ..schema.common_types_schema import get_common_types_catalog_defs
 from ..schema.v1_0 import common_types as v1_0_common_types
+from .model_validator import (
+    validate_component_against_definition,
+    validate_function_against_definition,
+    validate_surface_properties_against_definition,
+)
 from .schema_validator import SchemaValidator
 
 
@@ -674,6 +680,28 @@ class PayloadValidator:
         ):
             self._validate_model_component(
                 model_cls, comp_for_schema, comp_id, allow_unknown, errors
+            )
+        elif self._can_validate_component_definition(target_comp, target_cat):
+            comp_def = (
+                target_comp.definition
+                if getattr(target_comp, "_explicit_definition", False)
+                else target_cat.get_component_definition(str(comp_type))
+            )
+            types_map = (
+                getattr(target_cat, "types", None)
+                if getattr(target_comp, "_explicit_definition", False)
+                else target_cat.model.types
+            )
+            assert comp_def is not None
+            errors.extend(
+                validate_component_against_definition(
+                    comp_def,
+                    comp_for_schema,
+                    comp_id=comp_id,
+                    protocol_version=ver,
+                    types=types_map,
+                    allow_unknown=allow_unknown,
+                )
             )
         elif isinstance(getattr(target_comp, "schema", None), dict) or isinstance(
             target_comp, dict
@@ -1336,6 +1364,32 @@ class PayloadValidator:
         )
         if isinstance(model_cls, type) and issubclass(model_cls, BaseModel):
             return self._validate_model_function(model_cls, name, norm_args)
+        if fn_def is not None and self._can_validate_function_definition(
+            fn_def, self.catalog
+        ):
+            fn_model_def = (
+                fn_def.definition
+                if getattr(fn_def, "_explicit_definition", False)
+                else self.catalog.get_function_definition(name)
+            )
+            types_map = (
+                getattr(self.catalog, "types", None)
+                if getattr(fn_def, "_explicit_definition", False)
+                else self.catalog.model.types
+            )
+            if fn_model_def is not None:
+                validated, fn_errors = validate_function_against_definition(
+                    fn_model_def,
+                    norm_args,
+                    fn_name=name,
+                    protocol_version=getattr(self.catalog, "protocol_version", None),
+                    types=types_map,
+                    allow_unknown=allow_unknown,
+                )
+                if fn_errors:
+                    summary = "\n".join(f"{d.path}: {d.message}" for d in fn_errors)
+                    raise A2uiValidationError(summary, details=fn_errors)
+                return validated
         elif isinstance(fn_schema, dict):
             return self._validate_dict_function(
                 fn_schema, base_schema, name, norm_args, allow_unknown
@@ -1615,6 +1669,36 @@ class PayloadValidator:
                     )
                 ],
             )
+        surface_props = getattr(self.catalog, "surface_properties", None)
+        if (
+            isinstance(surface_props, SurfacePropertiesDefinition)
+            and (
+                not isinstance(self.catalog, Catalog)
+                or getattr(type(self.catalog), "validation_schema", None)
+                is Catalog.validation_schema
+            )
+            and not has_raw_json_schema(
+                surface_props, getattr(self.catalog, "types", None)
+            )
+        ):
+            sp_errors = validate_surface_properties_against_definition(
+                surface_props,
+                theme,
+                protocol_version=getattr(self.catalog, "protocol_version", None),
+                types=getattr(self.catalog, "types", None),
+            )
+            if sp_errors:
+                first_prop = sp_errors[0].path
+                err_ptr = (
+                    "/theme"
+                    if first_prop == "theme"
+                    else f"/theme/{to_json_pointer(first_prop).lstrip('/')}"
+                )
+                summary = "\n".join(
+                    f"{detail.path}: {detail.message}" for detail in sp_errors
+                )
+                raise A2uiValidationError(summary, details=sp_errors, path=err_ptr)
+            return
         base_schema = _get_readonly_validation_schema(self.catalog, {}) or {}
         defs: dict[str, Any] = (
             base_schema.get("$defs", {}) if isinstance(base_schema, dict) else {}
@@ -1682,6 +1766,64 @@ class PayloadValidator:
         )
         summary = "\n".join(f"{detail.path}: {detail.message}" for detail in details)
         raise A2uiValidationError(summary, details=details, path=err_ptr)
+
+    @staticmethod
+    def _can_validate_component_definition(target_comp: Any, target_cat: Any) -> bool:
+        """Returns whether `target_comp` should use the native model validator."""
+        if target_comp is None:
+            return False
+        if getattr(target_comp, "_explicit_definition", False):
+            return not has_raw_json_schema(
+                target_comp.definition, getattr(target_cat, "types", None)
+            )
+        if not isinstance(target_cat, Catalog):
+            return False
+        if (
+            getattr(type(target_cat), "validation_schema", None)
+            is not Catalog.validation_schema
+        ):
+            return False
+        if getattr(target_cat, "common_types_defs", None):
+            return False
+        ver = target_cat.protocol_version
+        if not (ver and is_at_least_version(ver, ProtocolVersion.V0_9)):
+            return False
+        name = getattr(target_comp, "name", None)
+        if not isinstance(name, str):
+            return False
+        comp_def = target_cat.get_component_definition(name)
+        if comp_def is None:
+            return False
+        return not has_raw_json_schema(comp_def, target_cat.model.types)
+
+    @staticmethod
+    def _can_validate_function_definition(fn_def: Any, target_cat: Any) -> bool:
+        """Returns whether `fn_def` should use the native model validator."""
+        if fn_def is None:
+            return False
+        if getattr(fn_def, "_explicit_definition", False):
+            return not has_raw_json_schema(
+                fn_def.definition, getattr(target_cat, "types", None)
+            )
+        if not isinstance(target_cat, Catalog):
+            return False
+        if (
+            getattr(type(target_cat), "validation_schema", None)
+            is not Catalog.validation_schema
+        ):
+            return False
+        if getattr(target_cat, "common_types_defs", None):
+            return False
+        ver = target_cat.protocol_version
+        if not (ver and is_at_least_version(ver, ProtocolVersion.V0_9)):
+            return False
+        name = getattr(fn_def, "name", None)
+        if not isinstance(name, str):
+            return False
+        fn_model_def = target_cat.get_function_definition(name)
+        if fn_model_def is None:
+            return False
+        return not has_raw_json_schema(fn_model_def, target_cat.model.types)
 
     def _map_json_schema_error_code(self, validator_name: str) -> str:
         if validator_name in ("required", "minProperties"):

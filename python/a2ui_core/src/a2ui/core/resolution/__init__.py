@@ -19,7 +19,11 @@ from .data_context import (
     MissingDataBindingWarning,
     validate_reserved_directives,
 )
-from .generic_binder import GenericBinder
+from .generic_binder import (
+    GenericBinder,
+    classify_definition_behavior,
+    classify_type_behavior,
+)
 from .node_resolver import NodeResolver
 from .resolved_binding import ResolvedBinding, WritableBinding, is_writable
 from .validation_result_coercion import coerce_dynamic_boolean
@@ -34,6 +38,8 @@ __all__ = [
     "NodeState",
     "ResolvedBinding",
     "WritableBinding",
+    "classify_definition_behavior",
+    "classify_type_behavior",
     "coerce_dynamic_boolean",
     "is_component_node",
     "is_writable",

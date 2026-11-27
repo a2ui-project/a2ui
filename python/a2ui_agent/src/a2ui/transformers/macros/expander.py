@@ -32,7 +32,7 @@ from a2ui.core import (
     CatalogApi,
 )
 from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
-from a2ui.inference_formats._shared.schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats._shared import CatalogSchemaHelper
 from a2ui.transformers.macros.macro import (
     MacroVersionFamily,
     _MacroMetadata,
@@ -278,10 +278,16 @@ class MacroExpander:
         """Records a transport catalog's primitive component names without mutating protocol version state."""
         if not catalog.catalog_id:
             return
-        schema = catalog.to_json()
-        comps_map = schema.get(CATALOG_COMPONENTS_KEY, {})
-        if isinstance(comps_map, Mapping):
-            self._catalog_base_components[catalog.catalog_id] = set(comps_map.keys())
+        if isinstance(catalog, Catalog):
+            comp_names: set[str] | None = set(catalog.components.keys())
+        else:
+            schema = catalog.to_json()
+            comps_map = schema.get(CATALOG_COMPONENTS_KEY, {})
+            comp_names = (
+                set(comps_map.keys()) if isinstance(comps_map, Mapping) else None
+            )
+        if comp_names is not None:
+            self._catalog_base_components[catalog.catalog_id] = comp_names
             try:
                 self._catalog_helpers[catalog.catalog_id] = CatalogSchemaHelper(catalog)
             except Exception:

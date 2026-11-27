@@ -64,7 +64,7 @@ from a2ui.utils.component_envelope import (
     is_envelope_key,
 )
 
-from .compiler import child_props, positional_child_target, ref_kind
+from .compiler import child_props, positional_child_target
 
 _SIMPLE_KEY = re.compile(r"[A-Za-z_][\w-]*")
 _SIMPLE_ABS_PATH = re.compile(r"(/[\w-]+)+")
@@ -389,13 +389,10 @@ class AtomDecompiler:
         comp_type = comp.get("component", "")
         if helper is None or comp_type not in helper.components:
             return set()
-        schema = helper.get_property_schema(comp_type, key) or {}
-        items = schema.get("items") if schema.get("type") == "array" else None
-        if not isinstance(items, Mapping) or not isinstance(
-            items.get("properties"), Mapping
-        ):
-            return set()
-        return {k for k, s in items["properties"].items() if ref_kind(s) == "Child"}
+        item_keys = helper.type_object_list_keys(
+            helper.get_parameter_type(comp_type, key)
+        )
+        return set(item_keys[0]) if item_keys is not None else set()
 
     def _decompile_components(
         self,

@@ -138,10 +138,9 @@ def _protocol_schema_sections(
     if allowed_messages is not None:
         a2r_schema = prune_messages_schema(a2r_schema, version, allowed_messages)
 
-    catalog_docs = [c.to_json() for c in catalogs]
     common_types_schema = prune_common_types_schema(
         load_common_types_schema(version),
-        *catalog_docs,
+        *(c.to_json() for c in catalogs),
         a2r_schema,
     )
 

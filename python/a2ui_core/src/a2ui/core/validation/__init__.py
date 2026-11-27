@@ -19,6 +19,11 @@ from ..state.validation_helpers import (
     validate_composition_constraints,
     validate_recursion_and_paths,
 )
+from .model_validator import (
+    validate_component_against_definition,
+    validate_function_against_definition,
+    validate_surface_properties_against_definition,
+)
 from .payload_validator import (
     JSON_SCHEMA_DRAFT_2020_12,
     MAX_FUNCTION_CALL_ARGS,
@@ -40,8 +45,11 @@ __all__ = [
     "ValidationConfig",
     "analyze_topology",
     "is_valid_uax31_identifier",
+    "validate_component_against_definition",
     "validate_component_integrity",
     "validate_composition_constraints",
+    "validate_function_against_definition",
     "validate_recursion_and_paths",
+    "validate_surface_properties_against_definition",
     "validate_system_function",
 ]

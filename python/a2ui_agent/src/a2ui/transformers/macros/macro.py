@@ -44,9 +44,11 @@ from a2ui.builder.core import (
 )
 from a2ui.core import (
     A2uiValidationError,
+    ComponentDefinition,
     is_valid_uax31_identifier,
     to_protocol_version,
 )
+from a2ui.core.catalog import component_definition_from_json_schema
 from a2ui.core.schema import ProtocolVersion
 
 logger = logging.getLogger(__name__)
@@ -818,6 +820,22 @@ class _MacroMetadata:
         if self.description:
             schema["description"] = self.description
         return schema
+
+    def to_component_definition(
+        self,
+        *,
+        use_v1_0: bool | None = None,
+    ) -> ComponentDefinition:
+        """Generates a canonical `ComponentDefinition` for this macro."""
+        effective_v1_0 = self.is_v1_0 if use_v1_0 is None else use_v1_0
+        return component_definition_from_json_schema(
+            self.name,
+            self.to_json_schema(
+                include_component_const=effective_v1_0,
+                use_v1_0=effective_v1_0,
+            ),
+            at_least_v10=effective_v1_0,
+        )
 
 
 def macro(

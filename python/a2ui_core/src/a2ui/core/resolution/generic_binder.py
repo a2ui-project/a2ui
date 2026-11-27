@@ -20,6 +20,30 @@ from enum import Enum
 from functools import cache
 from typing import Any, Callable, Final
 
+from ..catalog.model import (
+    AccessibilityType,
+    ActionType,
+    AnyType,
+    ArrayType,
+    BooleanType,
+    CheckRuleType,
+    ChildListType,
+    ChildType,
+    ComponentDefinition,
+    DataBindingType,
+    DataTypeDefinition,
+    EnumType,
+    FunctionCallType,
+    IntegerType,
+    NumberType,
+    ObjectType,
+    RawJsonSchemaType,
+    StringType,
+    TypeDefinition,
+    UnionType,
+    has_raw_json_schema,
+    resolve_type_ref_with_visited,
+)
 from ..common import Subscription
 from ..common.events import enqueue_or_run
 from ..schema._dynamic_types import (
@@ -339,6 +363,111 @@ def classify_schema_behavior(
     return BehaviorNode(BehaviorType.STATIC)
 
 
+def classify_type_behavior(
+    type_def: TypeDefinition,
+    types: Mapping[str, DataTypeDefinition] | None = None,
+    visited_refs: frozenset[str] = frozenset(),
+) -> BehaviorNode:
+    """Directly classifies a canonical `TypeDefinition` into a `BehaviorNode`."""
+    resolved, next_visited, hit_cycle = resolve_type_ref_with_visited(
+        type_def, types, visited_refs
+    )
+    if hit_cycle:
+        return BehaviorNode(BehaviorType.STATIC)
+    if isinstance(resolved, RawJsonSchemaType):
+        return classify_schema_behavior(dict(resolved.schema))
+    if isinstance(resolved, (DataBindingType, FunctionCallType)):
+        return BehaviorNode(BehaviorType.DYNAMIC)
+    if isinstance(resolved, ActionType):
+        return BehaviorNode(BehaviorType.ACTION)
+    if isinstance(resolved, (ChildType, ChildListType)):
+        return BehaviorNode(BehaviorType.STRUCTURAL)
+    if isinstance(resolved, CheckRuleType):
+        return BehaviorNode(BehaviorType.CHECKABLE)
+    if isinstance(resolved, AccessibilityType):
+        return _ACCESSIBILITY_BEHAVIOR
+    if isinstance(resolved, BooleanType):
+        return (
+            BehaviorNode(BehaviorType.DYNAMIC, is_boolean=True)
+            if resolved.dynamic
+            else BehaviorNode(BehaviorType.STATIC)
+        )
+    if isinstance(resolved, (StringType, NumberType, IntegerType, EnumType, AnyType)):
+        return (
+            BehaviorNode(BehaviorType.DYNAMIC)
+            if resolved.dynamic
+            else BehaviorNode(BehaviorType.STATIC)
+        )
+    if isinstance(resolved, ArrayType):
+        if resolved.dynamic:
+            return BehaviorNode(BehaviorType.DYNAMIC)
+        elem = (
+            classify_type_behavior(resolved.items, types, next_visited)
+            if resolved.items is not None
+            else BehaviorNode(BehaviorType.STATIC)
+        )
+        if elem.type == BehaviorType.CHECKABLE:
+            return BehaviorNode(BehaviorType.CHECKABLE)
+        return BehaviorNode(BehaviorType.ARRAY, element=elem)
+    if isinstance(resolved, ObjectType):
+        if resolved.dynamic:
+            return BehaviorNode(BehaviorType.DYNAMIC)
+        shape = {
+            p.name: classify_type_behavior(p.type, types, next_visited)
+            for p in resolved.properties
+        }
+        return BehaviorNode(BehaviorType.OBJECT, shape=shape)
+    if isinstance(resolved, UnionType):
+        if resolved.dynamic:
+            literal_variants = [
+                resolve_type_ref_with_visited(v, types, next_visited)[0]
+                for v in resolved.variants
+            ]
+            is_bool = bool(literal_variants) and all(
+                isinstance(v, BooleanType) for v in literal_variants
+            )
+            return BehaviorNode(BehaviorType.DYNAMIC, is_boolean=is_bool)
+        resolved_variants = [
+            resolve_type_ref_with_visited(v, types, next_visited)[0]
+            for v in resolved.variants
+        ]
+        literal_non_dyn = [
+            rv
+            for rv in resolved_variants
+            if not isinstance(rv, (DataBindingType, FunctionCallType))
+        ]
+        is_bool_union = bool(literal_non_dyn) and all(
+            isinstance(v, BooleanType) for v in literal_non_dyn
+        )
+        for variant in resolved.variants:
+            node = classify_type_behavior(variant, types, next_visited)
+            if node.type in _SPECIAL_BEHAVIORS:
+                if (
+                    node.type == BehaviorType.DYNAMIC
+                    and is_bool_union
+                    and not node.is_boolean
+                ):
+                    return BehaviorNode(BehaviorType.DYNAMIC, is_boolean=True)
+                return node
+        return BehaviorNode(BehaviorType.STATIC)
+    return BehaviorNode(BehaviorType.STATIC)
+
+
+def classify_definition_behavior(
+    definition: ComponentDefinition,
+    types: Mapping[str, DataTypeDefinition] | None = None,
+) -> BehaviorNode:
+    """Directly classifies a canonical `ComponentDefinition` into a `BehaviorNode`."""
+    shape: dict[str, BehaviorNode] = {
+        param.name: classify_type_behavior(param.type, types)
+        for param in definition.parameters
+    }
+    if definition.checkable:
+        shape.setdefault("checks", BehaviorNode(BehaviorType.CHECKABLE))
+        shape.setdefault("@checks", BehaviorNode(BehaviorType.CHECKABLE))
+    return BehaviorNode(BehaviorType.OBJECT, shape=shape)
+
+
 def _schema_defs(catalog: Any, schema: Any) -> dict[str, Any]:
     """Returns the defs that a component schema's `$ref`s resolve against.
 
@@ -422,6 +551,8 @@ class GenericBinder:
         context: ComponentContext,
         schema: dict[str, Any] | None = None,
         expand_templates: bool = False,
+        *,
+        definition: ComponentDefinition | None = None,
     ):
         self.context = context
         self.expand_templates = expand_templates
@@ -431,28 +562,54 @@ class GenericBinder:
         self.comp_unsub: Callable[[], None] | None = None
         self._action_closures: dict[str, tuple[Any, Callable[..., Any]]] = {}
 
-        resolved_schema = schema
         cat = context.component_model.catalog
-        if resolved_schema is None and cat is not None:
-            resolve_fn = getattr(cat, "resolved_component_schema", None)
-            if callable(resolve_fn):
-                resolved_schema = resolve_fn(context.component_model.type)
-            if resolved_schema is None and hasattr(cat, "get_component"):
-                comp_api = cat.get_component(context.component_model.type)
-                if comp_api is not None:
-                    resolved_schema = getattr(comp_api, "schema", None)
-            if isinstance(resolved_schema, type) and hasattr(
-                resolved_schema, "model_json_schema"
-            ):
-                resolved_schema = resolved_schema.model_json_schema()
+        resolved_def = definition
+        types_map: Mapping[str, DataTypeDefinition] | None = None
+        if resolved_def is None and schema is None and cat is not None:
+            get_comp_def = getattr(cat, "get_component_definition", None)
+            if callable(get_comp_def):
+                candidate = get_comp_def(context.component_model.type)
+                if candidate is not None and not has_raw_json_schema(
+                    candidate, getattr(cat, "types", None)
+                ):
+                    resolved_def = candidate
+                    comp_api = (
+                        cat.get_component(context.component_model.type)
+                        if hasattr(cat, "get_component")
+                        else None
+                    )
+                    types_map = (
+                        getattr(cat, "types", None)
+                        if getattr(comp_api, "_explicit_definition", False)
+                        else cat.model.types
+                    )
 
-        self.behavior_tree = (
-            classify_schema_behavior(
-                resolved_schema, _schema_defs(cat, resolved_schema)
+        if resolved_def is not None:
+            if types_map is None and cat is not None:
+                types_map = getattr(cat, "types", None)
+            self.behavior_tree = classify_definition_behavior(resolved_def, types_map)
+        else:
+            resolved_schema = schema
+            if resolved_schema is None and cat is not None:
+                resolve_fn = getattr(cat, "resolved_component_schema", None)
+                if callable(resolve_fn):
+                    resolved_schema = resolve_fn(context.component_model.type)
+                if resolved_schema is None and hasattr(cat, "get_component"):
+                    comp_api = cat.get_component(context.component_model.type)
+                    if comp_api is not None:
+                        resolved_schema = getattr(comp_api, "schema", None)
+                if isinstance(resolved_schema, type) and hasattr(
+                    resolved_schema, "model_json_schema"
+                ):
+                    resolved_schema = resolved_schema.model_json_schema()
+
+            self.behavior_tree = (
+                classify_schema_behavior(
+                    resolved_schema, _schema_defs(cat, resolved_schema)
+                )
+                if isinstance(resolved_schema, dict)
+                else BehaviorNode(BehaviorType.OBJECT, shape={})
             )
-            if isinstance(resolved_schema, dict)
-            else BehaviorNode(BehaviorType.OBJECT, shape={})
-        )
         if self.behavior_tree.type != BehaviorType.OBJECT:
             self.behavior_tree = BehaviorNode(BehaviorType.OBJECT, shape={})
         self.behavior_tree = BehaviorNode(

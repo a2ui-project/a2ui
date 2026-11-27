@@ -34,7 +34,6 @@ from google.adk.models import Gemini
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
-import jsonschema
 
 from a2ui.a2a import (
     get_a2ui_agent_extension,
@@ -43,6 +42,7 @@ from a2ui.a2a import (
 )
 from a2ui.adk import A2uiInstruction
 from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
+from a2ui.core import A2uiValidationError
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
@@ -243,10 +243,8 @@ class RestaurantAgent:
         attempt = 0
         current_query_text = query
 
-        # Ensure schema was loaded
-        if ui_version and (
-            not selected_catalog or not selected_catalog.validation_schema
-        ):
+        # Ensure catalog was loaded
+        if ui_version and not selected_catalog:
             logger.error(
                 "--- RestaurantAgent.stream: A2UI_SCHEMA is not loaded. "
                 "Cannot perform UI validation. ---"
@@ -358,7 +356,7 @@ class RestaurantAgent:
                 except (
                     ValueError,
                     json.JSONDecodeError,
-                    jsonschema.exceptions.ValidationError,
+                    A2uiValidationError,
                 ) as e:
                     logger.warning(
                         f"--- RestaurantAgent.stream: A2UI validation failed: {e}"

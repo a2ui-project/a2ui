@@ -36,6 +36,25 @@ try:
 except ImportError:
     jsonschema = None
 
+try:
+    from a2ui.core import (
+        CATALOG_DOCUMENT_FORMAT_VERSION,
+        CATALOG_DOCUMENT_SCHEMA_URI,
+        from_json_schema as a2ui_from_json_schema,
+        parse_catalog_document as a2ui_parse_catalog_document,
+        serialize_catalog_document as a2ui_serialize_catalog_document,
+        to_json_schema as a2ui_to_json_schema,
+    )
+except ImportError:
+    CATALOG_DOCUMENT_FORMAT_VERSION = "1.0"  # type: ignore[misc]
+    CATALOG_DOCUMENT_SCHEMA_URI = (  # type: ignore[misc]
+        "https://a2ui.org/specification/proposals/catalog_schema/catalog_schema.json"
+    )
+    a2ui_from_json_schema = None  # type: ignore[assignment]
+    a2ui_parse_catalog_document = None  # type: ignore[assignment]
+    a2ui_serialize_catalog_document = None  # type: ignore[assignment]
+    a2ui_to_json_schema = None  # type: ignore[assignment]
+
 # Set up logging
 logger = logging.getLogger("a2ui-assembler")
 
@@ -44,6 +63,11 @@ class CatalogError(Exception):
     """Base exception for catalog assembly errors."""
 
     pass
+
+
+def is_catalog_document_dict(data: Any) -> bool:
+    """Returns whether `data` is an A2UI Catalog Document (`formatVersion` present)."""
+    return isinstance(data, dict) and isinstance(data.get("formatVersion"), str)
 
 
 def is_remote_uri(uri: str) -> bool:
@@ -401,6 +425,302 @@ class CatalogAssembler:
                     "propertyName": "component"
                 }
 
+    def _flatten_external_refs_for_catalog_document(
+        self, data: dict[str, Any], source_uri: str
+    ) -> dict[str, Any]:
+        """Flattens non-`common_types.json` external `$ref`s into local `$defs` without mutating `self`."""
+        flattener = CatalogAssembler(
+            version=self.version,
+            local_basic_catalog_path=self.local_basic_catalog_path,
+            local_common_types_path=self.local_common_types_path,
+        )
+        flattener.file_cache = dict(self.file_cache)
+        processed = copy.deepcopy(data)
+        existing_defs = processed.get("$defs")
+        if isinstance(existing_defs, dict):
+            flattener.used_def_keys.update(existing_defs.keys())
+
+        def _walk(node: Any, current_base_uri: str, depth: int) -> Any:
+            if depth > flattener.max_depth:
+                raise CatalogError(
+                    f"Max recursion depth reached ({flattener.max_depth}) at"
+                    f" {current_base_uri}. Check for circular $ref dependencies."
+                )
+            if isinstance(node, dict):
+                ref = node.get("$ref")
+                if isinstance(ref, str):
+                    parsed_ref = urllib.parse.urlparse(ref)
+                    ref_name = Path(parsed_ref.path).name
+                    if ref_name == "common_types.json":
+                        pass
+                    elif ref_name == "catalog.json":
+                        node["$ref"] = f"#{parsed_ref.fragment}"
+                    elif ref.startswith("#") and current_base_uri == source_uri:
+                        pass
+                    else:
+                        if ref.startswith("#"):
+                            target_uri = current_base_uri
+                            fragment = ref.lstrip("#")
+                            stem = (
+                                Path(urllib.parse.urlparse(target_uri).path).stem
+                                if is_remote_uri(target_uri)
+                                else Path(target_uri).stem
+                            )
+                        else:
+                            target_uri, stem, fragment = flattener._resolve_ref_uri(
+                                ref, current_base_uri
+                            )
+                        full_ref_id = f"{target_uri}#{fragment}"
+                        if full_ref_id in flattener.ref_mapping:
+                            node["$ref"] = (
+                                f"#/$defs/{flattener.ref_mapping[full_ref_id]}"
+                            )
+                        else:
+                            file_data = flattener.fetch_json(
+                                target_uri, referrer=current_base_uri
+                            )
+                            target_subschema = flattener.resolve_json_pointer(
+                                file_data, fragment
+                            )
+                            def_key = flattener.get_def_key(stem, fragment)
+                            flattener.ref_mapping[full_ref_id] = def_key
+                            flattener.definitions[def_key] = _walk(
+                                copy.deepcopy(target_subschema), target_uri, depth + 1
+                            )
+                            node["$ref"] = f"#/$defs/{def_key}"
+                for key, value in node.items():
+                    if key != "$ref":
+                        node[key] = _walk(value, current_base_uri, depth)
+            elif isinstance(node, list):
+                for i, item in enumerate(node):
+                    node[i] = _walk(item, current_base_uri, depth)
+            return node
+
+        processed = _walk(processed, source_uri, 0)
+        if flattener.definitions:
+            merged_defs = dict(existing_defs) if isinstance(existing_defs, dict) else {}
+            merged_defs.update(flattener.definitions)
+            processed["$defs"] = merged_defs
+        return processed
+
+    def _to_catalog_document_dict(
+        self, data: dict[str, Any], source_uri: str
+    ) -> dict[str, Any]:
+        """Normalizes a Catalog Document or JSON Schema catalog into a Catalog Document dict."""
+        if is_catalog_document_dict(data):
+            if a2ui_parse_catalog_document is not None:
+                try:
+                    model = a2ui_parse_catalog_document(data)
+                    return a2ui_serialize_catalog_document(model)
+                except Exception as e:
+                    raise CatalogError(
+                        f"Invalid Catalog Document '{source_uri}': {e}"
+                    ) from e
+            return copy.deepcopy(data)
+
+        if a2ui_from_json_schema is None or a2ui_serialize_catalog_document is None:
+            raise CatalogError(
+                f"Cannot convert JSON Schema catalog '{source_uri}' to Catalog"
+                " Document format because 'a2ui-core' is not installed."
+            )
+        try:
+            direct = copy.deepcopy(data)
+            if not direct.get("catalogId"):
+                direct["catalogId"] = (
+                    f"urn:a2ui:catalog:{Path(urllib.parse.urlparse(source_uri).path).stem}"
+                )
+            try:
+                model = a2ui_from_json_schema(direct, protocol_version=self.version)
+                return a2ui_serialize_catalog_document(model)
+            except Exception:
+                processed = self._flatten_external_refs_for_catalog_document(
+                    data, source_uri
+                )
+                if not processed.get("catalogId"):
+                    processed["catalogId"] = direct["catalogId"]
+                model = a2ui_from_json_schema(processed, protocol_version=self.version)
+                return a2ui_serialize_catalog_document(model)
+        except Exception as e:
+            raise CatalogError(
+                f"Failed converting JSON Schema catalog '{source_uri}' to Catalog"
+                f" Document: {e}"
+            ) from e
+
+    def _append_additional_instructions(
+        self,
+        target: dict[str, Any],
+        additional_instructions: list[Path] | None,
+    ) -> None:
+        if not additional_instructions:
+            return
+        for instr_path in additional_instructions:
+            if instr_path.exists():
+                content = instr_path.read_text(encoding="utf-8").strip()
+                if content:
+                    logger.info(f"  + Including instructions file: {instr_path}")
+                    if "instructions" not in target:
+                        target["instructions"] = content
+                    else:
+                        target["instructions"] += f"\n\n{content}"
+            else:
+                logger.warning(f"Instructions file not found: {instr_path}")
+
+    def _assemble_catalog_document(
+        self,
+        name: str,
+        input_uris: list[str],
+        *,
+        extend_basic: bool = False,
+        catalog_id: str | None = None,
+        additional_instructions: list[Path] | None = None,
+    ) -> dict[str, Any]:
+        """Merges Catalog Documents (and optional converted inputs) without JSON Schema mangling."""
+        file_path = Path(name).with_suffix(".json")
+        base_name = file_path.stem
+        eff_catalog_id = catalog_id or f"urn:a2ui:catalog:{base_name}"
+
+        basic_uri = self._normalize_uri(
+            self.local_basic_catalog_path or BASIC_CATALOG_URLS[self.version]
+        )
+        uris_to_process: list[str] = []
+        if extend_basic:
+            uris_to_process.append(basic_uri)
+        for uri in input_uris:
+            normalized_uri = self._normalize_uri(uri)
+            if normalized_uri not in uris_to_process:
+                uris_to_process.append(normalized_uri)
+
+        merged_components: dict[str, dict[str, Any]] = {}
+        merged_functions: dict[str, dict[str, Any]] = {}
+        merged_types: dict[str, dict[str, Any]] = {}
+        type_sources: dict[str, str] = {}
+        merged_surface_props: dict[str, dict[str, Any]] = {}
+        surface_prop_sources: dict[str, str] = {}
+        surface_props_desc: str | None = None
+        surface_props_ap: Any = False
+        instructions_parts: list[str] = []
+        merged_extensions: dict[str, Any] = {}
+
+        for base_uri in uris_to_process:
+            catalog_stem = Path(urllib.parse.urlparse(base_uri).path).stem
+            is_basic = base_uri == basic_uri
+            source_label = "basic_catalog" if is_basic else catalog_stem
+            logger.info(f"  - Processing Catalog Document: {base_uri}")
+
+            raw = self.fetch_json(base_uri)
+            doc = self._to_catalog_document_dict(raw, base_uri)
+
+            for comp in doc.get("components", []):
+                if not isinstance(comp, dict) or not isinstance(comp.get("name"), str):
+                    raise CatalogError(
+                        f"Malformed component entry in '{base_uri}': missing string"
+                        " 'name'."
+                    )
+                c_name = comp["name"]
+                if c_name in merged_components:
+                    logger.warning(
+                        f"Component collision: '{c_name}' already exists. Overwriting."
+                    )
+                merged_components[c_name] = copy.deepcopy(comp)
+
+            for fn in doc.get("functions", []):
+                if not isinstance(fn, dict) or not isinstance(fn.get("name"), str):
+                    raise CatalogError(
+                        f"Malformed function entry in '{base_uri}': missing string"
+                        " 'name'."
+                    )
+                f_name = fn["name"]
+                if f_name in merged_functions:
+                    logger.warning(
+                        f"Function collision: '{f_name}' already exists. Overwriting."
+                    )
+                merged_functions[f_name] = copy.deepcopy(fn)
+
+            raw_types = doc.get("types")
+            if isinstance(raw_types, dict):
+                for t_name, t_def in raw_types.items():
+                    if t_name in merged_types and merged_types[t_name] != t_def:
+                        prev_source = type_sources.get(t_name)
+                        if prev_source != "basic_catalog":
+                            raise CatalogError(
+                                f"Type definition clash: '{t_name}' is defined"
+                                f" incompatibly in '{prev_source}' and '{source_label}'"
+                            )
+                    merged_types[t_name] = copy.deepcopy(t_def)
+                    type_sources[t_name] = source_label
+
+            raw_sp = doc.get("surfaceProperties")
+            if isinstance(raw_sp, dict):
+                if isinstance(raw_sp.get("description"), str):
+                    surface_props_desc = raw_sp["description"]
+                if "additionalProperties" in raw_sp:
+                    surface_props_ap = copy.deepcopy(raw_sp["additionalProperties"])
+                for sp_prop in raw_sp.get("properties", []):
+                    if not isinstance(sp_prop, dict) or not isinstance(
+                        sp_prop.get("name"), str
+                    ):
+                        continue
+                    sp_name = sp_prop["name"]
+                    if (
+                        sp_name in surface_prop_sources
+                        and surface_prop_sources[sp_name] != "basic_catalog"
+                    ):
+                        raise CatalogError(
+                            f"Surface property clash: '{sp_name}' is defined in both"
+                            f" '{surface_prop_sources[sp_name]}' and '{source_label}'"
+                        )
+                    merged_surface_props[sp_name] = copy.deepcopy(sp_prop)
+                    surface_prop_sources[sp_name] = source_label
+
+            instr = doc.get("instructions")
+            if isinstance(instr, str) and instr.strip():
+                instructions_parts.append(instr)
+
+            meta = doc.get("metadata")
+            if isinstance(meta, dict) and isinstance(meta.get("extensions"), dict):
+                merged_extensions.update(copy.deepcopy(meta["extensions"]))
+
+        combined: dict[str, Any] = {
+            "$schema": CATALOG_DOCUMENT_SCHEMA_URI,
+            "formatVersion": CATALOG_DOCUMENT_FORMAT_VERSION,
+            "protocolVersion": self.version,
+            "catalogId": eff_catalog_id,
+            "title": f"{base_name} A2UI Catalog",
+            "description": (
+                f"{base_name} A2UI catalog, including"
+                f" {', '.join(Path(uri).stem for uri in input_uris)}."
+            ),
+            "components": list(merged_components.values()),
+        }
+        if merged_functions:
+            combined["functions"] = list(merged_functions.values())
+        if merged_types:
+            combined["types"] = merged_types
+        if merged_surface_props or surface_props_ap is not False:
+            sp_doc: dict[str, Any] = {}
+            if surface_props_desc is not None:
+                sp_doc["description"] = surface_props_desc
+            sp_doc["properties"] = list(merged_surface_props.values())
+            if surface_props_ap is not False:
+                sp_doc["additionalProperties"] = surface_props_ap
+            combined["surfaceProperties"] = sp_doc
+        if instructions_parts:
+            combined["instructions"] = "\n\n".join(instructions_parts)
+        if merged_extensions:
+            combined["metadata"] = {"extensions": merged_extensions}
+
+        self._append_additional_instructions(combined, additional_instructions)
+
+        if a2ui_parse_catalog_document is not None:
+            try:
+                model = a2ui_parse_catalog_document(combined)
+                return a2ui_serialize_catalog_document(model)
+            except Exception as e:
+                raise CatalogError(
+                    f"Assembled Catalog Document failed validation: {e}"
+                ) from e
+        return combined
+
     def assemble(
         self,
         name: str,
@@ -408,10 +728,59 @@ class CatalogAssembler:
         extend_basic: bool = False,
         catalog_id: str | None = None,
         additional_instructions: list[Path] | None = None,
+        *,
+        output_format: str = "auto",
     ) -> dict[str, Any]:
-        """Assembles a list of catalog URIs into a single, unified catalog JSON."""
+        """Assembles a list of catalog URIs into a single, unified catalog JSON.
+
+        Args:
+            name: Output catalog name (`.json` suffix optional).
+            input_uris: Local file paths or HTTP(S) URLs to input catalogs.
+            extend_basic: Whether to merge the versioned Basic Catalog first.
+            catalog_id: Optional explicit `catalogId` for the assembled output.
+            additional_instructions: Optional Markdown files appended to `instructions`.
+            output_format: One of `"auto"` (Catalog Document when any input is a
+                Catalog Document, else JSON Schema), `"catalog-document"`, or
+                `"json-schema"`.
+        """
         if not input_uris:
             return {}
+        if output_format not in ("auto", "catalog-document", "json-schema"):
+            raise CatalogError(
+                f"Unsupported output_format {output_format!r}; expected 'auto',"
+                " 'catalog-document', or 'json-schema'."
+            )
+
+        normalized_inputs = [self._normalize_uri(uri) for uri in input_uris]
+        peeked_inputs = [self.fetch_json(uri) for uri in normalized_inputs]
+        any_catalog_doc = any(is_catalog_document_dict(d) for d in peeked_inputs)
+
+        if output_format == "catalog-document" or (
+            output_format == "auto" and any_catalog_doc
+        ):
+            return self._assemble_catalog_document(
+                name,
+                input_uris,
+                extend_basic=extend_basic,
+                catalog_id=catalog_id,
+                additional_instructions=additional_instructions,
+            )
+
+        if output_format == "json-schema" and any_catalog_doc:
+            if a2ui_parse_catalog_document is None or a2ui_to_json_schema is None:
+                raise CatalogError(
+                    "Converting Catalog Documents to JSON Schema requires"
+                    " 'a2ui-core' to be installed."
+                )
+            doc = self._assemble_catalog_document(
+                name,
+                input_uris,
+                extend_basic=extend_basic,
+                catalog_id=catalog_id,
+                additional_instructions=additional_instructions,
+            )
+            model = a2ui_parse_catalog_document(doc)
+            return a2ui_to_json_schema(model, protocol_version=self.version)
 
         file_path = Path(name).with_suffix(".json")
         combined_catalog = self._init_combined_catalog(
@@ -427,8 +796,7 @@ class CatalogAssembler:
         if extend_basic:
             uris_to_process.append(basic_uri)
 
-        for uri in input_uris:
-            normalized_uri = self._normalize_uri(uri)
+        for normalized_uri in normalized_inputs:
             if normalized_uri not in uris_to_process:
                 uris_to_process.append(normalized_uri)
 
@@ -450,24 +818,28 @@ class CatalogAssembler:
         self._synthesize_union_types(combined_catalog, merged_theme)
         combined_catalog["$defs"] = self.definitions
 
-        if additional_instructions:
-            for instr_path in additional_instructions:
-                if instr_path.exists():
-                    content = instr_path.read_text(encoding="utf-8").strip()
-                    if content:
-                        logger.info(f"  + Including instructions file: {instr_path}")
-                        if "instructions" not in combined_catalog:
-                            combined_catalog["instructions"] = content
-                        else:
-                            combined_catalog["instructions"] += f"\n\n{content}"
-                else:
-                    logger.warning(f"Instructions file not found: {instr_path}")
+        self._append_additional_instructions(combined_catalog, additional_instructions)
 
         return combined_catalog
 
 
 def validate_catalog(catalog: dict[str, Any]):
-    """Optional validation using jsonschema if available."""
+    """Optional validation for Catalog Documents (`a2ui-core`) or JSON Schema (`jsonschema`)."""
+    if is_catalog_document_dict(catalog):
+        if a2ui_parse_catalog_document is None:
+            logger.debug(
+                "a2ui-core not installed, skipping Catalog Document validation."
+            )
+            return
+        try:
+            a2ui_parse_catalog_document(catalog)
+            logger.info(
+                "✅ Catalog is a valid A2UI Catalog Document (formatVersion 1.0)"
+            )
+        except Exception as e:
+            logger.error(f"❌ Validation error: {e}")
+        return
+
     if jsonschema is None:
         logger.debug("jsonschema not installed, skipping validation.")
         return
@@ -539,6 +911,17 @@ def main():
         help="Output directory (default: dist)",
     )
     parser.add_argument(
+        "--output-format",
+        choices=["auto", "catalog-document", "json-schema"],
+        default="auto",
+        help=(
+            "Output format: 'auto' emits a Catalog Document when any input is a"
+            " Catalog Document (else JSON Schema); 'catalog-document' converts"
+            " inputs to formatVersion 1.0 Catalog Document; 'json-schema' emits"
+            " JSON Schema."
+        ),
+    )
+    parser.add_argument(
         "--verbose", "-v", action="store_true", help="Enable verbose logging"
     )
 
@@ -564,12 +947,17 @@ def main():
             local_basic_catalog_path=local_basic,
             local_common_types_path=local_common,
         )
+        assemble_kwargs: dict[str, Any] = {
+            "extend_basic": args.extend_basic_catalog,
+            "catalog_id": args.catalog_id,
+            "additional_instructions": args.instructions,
+        }
+        if args.output_format != "auto":
+            assemble_kwargs["output_format"] = args.output_format
         final_schema = assembler.assemble(
             output_filename,
             args.inputs,
-            extend_basic=args.extend_basic_catalog,
-            catalog_id=args.catalog_id,
-            additional_instructions=args.instructions,
+            **assemble_kwargs,
         )
 
         validate_catalog(final_schema)

@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Awaitable
+from __future__ import annotations
+
+from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass
 import inspect
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Generic,
@@ -25,7 +28,12 @@ from typing import (
 )
 from typing_extensions import TypeVar
 
+from pydantic import BaseModel
+
 from ..exceptions import A2uiCatalogError
+
+if TYPE_CHECKING:
+    from .model import DataTypeDefinition, FunctionDefinition
 
 AllowedCallers = Literal["rendererOnly", "agentOnly", "rendererOrAgent"]
 FunctionReturnType = Literal[
@@ -58,6 +66,9 @@ class FunctionApi:
         description: str | None = None,
         is_definition: bool | None = None,
         from_document: bool = False,
+        *,
+        definition: FunctionDefinition | None = None,
+        types: Mapping[str, DataTypeDefinition] | None = None,
     ):
         """Initializes the function API.
 
@@ -70,24 +81,33 @@ class FunctionApi:
                 schema that declares `returnType`), without the `name` of a
                 list entry. `Catalog.from_json` keeps each definition here
                 unchanged, and `Catalog.to_json` writes it back. None, the
-                default, means the function takes any args.
+                default, means the function takes any args (unless `definition`
+                declares its signature).
             allowed_callers: Who may call the function.
             requires_user_activation: Whether a call needs a user gesture.
             description: What the function does, published in the catalog
                 schema.
             is_definition: Whether `schema` is the function's whole catalog
-                document entry rather than the schema of its `args`, which
-                `Catalog.to_json` writes as it is. `Catalog.from_json` sets
-                it on every function it loads. None infers it from the
-                schema: a call schema, or one that declares `returnType`,
-                `parameters`, `allowedCallers` or `requiresUserActivation`.
+                document entry rather than the schema of its `args`.
             from_document: Whether `schema` was loaded from a catalog
-                document, which `Catalog.from_json` sets on every function it
-                loads. `Catalog.to_json` writes such a definition with its
-                references exactly as they are; for a function defined in
-                code, it points local references to common types at the
-                catalog's `common_types_uri`.
+                document.
+            definition: Canonical schema-library-independent function
+                definition. When provided, `return_type`, `allowed_callers`,
+                `requires_user_activation`, and `description` default from it.
         """
+        self._definition: FunctionDefinition | None = definition
+        self._explicit_definition: bool = definition is not None
+        if definition is not None:
+            from .model import function_return_category
+
+            if return_type in (None, "any"):
+                return_type = function_return_category(definition.return_type, types)
+            if allowed_callers in (None, "rendererOnly"):
+                allowed_callers = definition.allowed_callers
+            if not requires_user_activation:
+                requires_user_activation = definition.requires_user_activation
+            if description is None:
+                description = definition.description
         self.name = name
         self.return_type = return_type or "any"
         self.schema = schema
@@ -100,6 +120,44 @@ class FunctionApi:
         )
         self.is_definition = is_definition
         self.from_document = from_document
+
+    @classmethod
+    def from_definition(
+        cls,
+        definition: FunctionDefinition,
+        *,
+        types: Mapping[str, DataTypeDefinition] | None = None,
+    ) -> FunctionApi:
+        """Creates a `FunctionApi` purely from a canonical `FunctionDefinition`."""
+        return cls(name=definition.name, definition=definition, types=types)
+
+    @property
+    def definition(self) -> FunctionDefinition:
+        """Returns the canonical `FunctionDefinition` for this function."""
+        if self._definition is None:
+            if isinstance(self.schema, type) and issubclass(self.schema, BaseModel):
+                from .pydantic_adapter import function_definition_from_model
+
+                self._definition = function_definition_from_model(
+                    self.name,
+                    self.schema,
+                    return_type=self.return_type,
+                    allowed_callers=self.allowed_callers,
+                    requires_user_activation=self.requires_user_activation,
+                    description=self.description,
+                )
+            else:
+                from .json_schema_adapter import function_definition_from_json_schema
+
+                self._definition = function_definition_from_json_schema(
+                    self.name,
+                    self.schema if isinstance(self.schema, dict) else None,
+                    return_type=self.return_type,
+                    allowed_callers=self.allowed_callers,
+                    requires_user_activation=self.requires_user_activation,
+                    description=self.description,
+                )
+        return self._definition
 
 
 class FunctionImplementation(FunctionApi, Generic[TReturn]):
@@ -116,6 +174,9 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
         description: str | None = None,
         is_definition: bool | None = None,
         from_document: bool = False,
+        *,
+        definition: FunctionDefinition | None = None,
+        types: Mapping[str, DataTypeDefinition] | None = None,
     ):
         super().__init__(
             name=name,
@@ -126,8 +187,26 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
             description=description,
             is_definition=is_definition,
             from_document=from_document,
+            definition=definition,
+            types=types,
         )
         self.execute_func = execute
+
+    @classmethod
+    def from_definition(
+        cls,
+        definition: FunctionDefinition,
+        execute: Callable[[dict[str, Any], Any, Any | None], TReturn] | None = None,
+        *,
+        types: Mapping[str, DataTypeDefinition] | None = None,
+    ) -> FunctionImplementation[TReturn]:
+        """Creates a `FunctionImplementation` from a canonical `FunctionDefinition`."""
+        return cls(
+            name=definition.name,
+            execute=execute,
+            definition=definition,
+            types=types,
+        )
 
     def execute(
         self,
@@ -173,6 +252,11 @@ def create_function_implementation(
     execute: Callable[[dict[str, Any], Any, Any | None], TReturn],
 ) -> FunctionImplementation[TReturn]:
     """Creates a FunctionImplementation from a FunctionApi specification and an executable closure."""
+    explicit_def = (
+        getattr(api, "_definition", None)
+        if getattr(api, "_explicit_definition", False)
+        else None
+    )
     return FunctionImplementation[TReturn](
         name=getattr(api, "name", ""),
         return_type=getattr(api, "return_type", "any"),
@@ -183,6 +267,7 @@ def create_function_implementation(
         description=getattr(api, "description", None),
         is_definition=getattr(api, "is_definition", None),
         from_document=getattr(api, "from_document", False),
+        definition=explicit_def,
     )
 
 
@@ -286,6 +371,8 @@ class AgentFunction(FunctionApi):
         schema: Any = None,
         requires_user_activation: bool | None = False,
         description: str | None = None,
+        definition: FunctionDefinition | None = None,
+        types: Mapping[str, DataTypeDefinition] | None = None,
     ):
         """Initializes the agent function.
 
@@ -301,6 +388,8 @@ class AgentFunction(FunctionApi):
             requires_user_activation: Whether a call needs a user gesture.
             description: What the function does, published in the catalog
                 schema and the prompt.
+            definition: Optional canonical `FunctionDefinition`.
+            types: Optional catalog `types` map for resolving `RefType` return types.
 
         Raises:
             TypeError: If `handler` is not callable, or can't be called as
@@ -316,10 +405,28 @@ class AgentFunction(FunctionApi):
             allowed_callers="rendererOnly",
             requires_user_activation=requires_user_activation,
             description=description,
+            definition=definition,
+            types=types,
         )
         self._handler = handler
         self._handler_takes_context = takes_context
         self._declaration: FunctionApi | None = None
+
+    @classmethod
+    def from_definition(  # type: ignore[override]
+        cls,
+        definition: FunctionDefinition,
+        *,
+        handler: AgentFunctionHandler,
+        types: Mapping[str, DataTypeDefinition] | None = None,
+    ) -> AgentFunction:
+        """Creates an `AgentFunction` from a canonical `FunctionDefinition`."""
+        return cls(
+            name=definition.name,
+            handler=handler,
+            definition=definition,
+            types=types,
+        )
 
     @property
     def handler(self) -> AgentFunctionHandler:
@@ -367,6 +474,7 @@ class AgentFunction(FunctionApi):
         """
         if self._declaration is not None:
             return type(self).from_api(self._declaration, handler)
+        explicit_def = self._definition if self._explicit_definition else None
         rebound = type(self)(
             self.name,
             handler=handler,
@@ -374,6 +482,7 @@ class AgentFunction(FunctionApi):
             schema=self.schema,
             requires_user_activation=self.requires_user_activation,
             description=self.description,
+            definition=explicit_def,
         )
         rebound.allowed_callers = self.allowed_callers
         rebound.is_definition = self.is_definition
@@ -424,6 +533,9 @@ class AgentFunction(FunctionApi):
                 f" {api.allowed_callers}; a v1.0 catalog allows"
                 " requiresUserActivation only on rendererOnly functions."
             )
+        explicit_def = (
+            api._definition if getattr(api, "_explicit_definition", False) else None
+        )
         agent_function = cls(
             api.name,
             handler=handler,
@@ -431,6 +543,7 @@ class AgentFunction(FunctionApi):
             schema=api.schema,
             requires_user_activation=api.requires_user_activation,
             description=api.description,
+            definition=explicit_def,
         )
         agent_function.allowed_callers = api.allowed_callers
         agent_function.is_definition = api.is_definition
