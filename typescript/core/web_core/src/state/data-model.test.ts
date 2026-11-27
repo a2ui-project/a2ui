@@ -156,4 +156,23 @@ describe('DataModel', () => {
     assert.strictEqual((root as {polluted?: unknown}).polluted, undefined);
     assert.ok(Object.hasOwn(root, '__proto__'));
   });
+
+  it('returns any from an untyped get, so an overloaded callee does not infer from it', () => {
+    // The assertion is the build: if an untyped `get` infers its result type
+    // from the context, `check` resolves to the first overload and
+    // `.isFalse` does not exist on `Other`.
+    interface Other {
+      other: true;
+    }
+    function check(actual: Other): {isOther(): boolean};
+    function check<T>(actual: T): {isFalse(): boolean};
+    function check(actual: unknown) {
+      return {isOther: () => true, isFalse: () => actual === false};
+    }
+
+    model.set('/flag', false);
+    assert.strictEqual(check(model.get('/flag')).isFalse(), true);
+    const typed: string = model.get<string>('/user/name');
+    assert.strictEqual(typed, 'Alice');
+  });
 });

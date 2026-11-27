@@ -316,12 +316,17 @@ export class DataModel {
   /**
    * Retrieves data at a specific JSON pointer path.
    *
-   * @template T The expected type of the returned value. Defaults to `any`.
+   * Pass a type argument (`get<string>(path)`) for a typed result. Without
+   * one the result is `any`, so a call such as `expect(model.get(path))`
+   * does not infer the result type from an overloaded callee's parameter.
+   *
    * @param path The JSON pointer path to read from.
    * @returns The value at the specified path, or undefined if not found.
    * @throws {A2uiDataError} If path is null, undefined, or contains forbidden
    *     segments (`__proto__`, `constructor`, `prototype`).
    */
+  get(path: string): any;
+  get<T>(path: string): T;
   get<T = any>(path: string): T {
     if (path === null || path === undefined) {
       throw new A2uiDataError('Path cannot be null or undefined.');
