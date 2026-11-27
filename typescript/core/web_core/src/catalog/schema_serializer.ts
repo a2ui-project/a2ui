@@ -22,10 +22,15 @@ import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {isAgentFunction} from './agent_function_brand.js';
 import {exclusiveUnionOverride} from './exclusive_union.js';
 import {loadedDefinition} from './json_entries.js';
-import type {DataTypeDefinition, SurfacePropertiesDefinition} from './model/catalog_model.js';
+import type {
+  CatalogMetadata,
+  DataTypeDefinition,
+  SurfacePropertiesDefinition,
+} from './model/catalog_model.js';
 import {
   componentDefinitionToJsonSchema,
   functionDefinitionToJsonSchema,
+  surfacePropertiesToJsonSchema,
   typeDefinitionToJsonSchema,
 } from './model/json_schema_codec.js';
 import {getSpecAnnotation, type JsonSchemaObject} from './spec_annotations.js';
@@ -36,7 +41,7 @@ import {
   schemaRequiresArgs,
   SpecShaper,
 } from './spec_shape.js';
-import type {CatalogUnions, ComponentApi, FunctionApi} from './types.js';
+import type {CatalogUnions, ComponentApiLike, FunctionApiLike} from './types.js';
 
 /** Names of the union definitions a catalog computes from its entries. */
 export const UNION_DEF_NAMES: ReadonlySet<string> = new Set(['anyComponent', 'anyFunction']);
@@ -53,10 +58,11 @@ export const THEME_DOCUMENT_KEYS = ['theme', 'themeSchema', 'styles'] as const;
 export interface SerializableCatalog {
   readonly id: string;
   readonly protocolVersion: string;
-  readonly components: ReadonlyMap<string, ComponentApi>;
-  readonly functions: ReadonlyMap<string, FunctionApi>;
+  readonly components: ReadonlyMap<string, ComponentApiLike>;
+  readonly functions: ReadonlyMap<string, FunctionApiLike>;
   readonly themeSchema?: z.ZodTypeAny;
   readonly instructions?: string;
+  readonly metadata?: CatalogMetadata;
   readonly schemaUri?: string;
   readonly schemaId?: string;
   readonly title?: string;
@@ -73,6 +79,16 @@ export interface SerializableCatalog {
   readonly defModels?: readonly z.ZodTypeAny[];
   readonly types?: Readonly<Record<string, DataTypeDefinition>>;
   readonly surfaceProperties?: SurfacePropertiesDefinition;
+}
+
+/**
+ * Returns whether an entry carries an eager own `schema` data property rather
+ * than a lazy `Object.defineProperty` getter (avoiding eager Zod compilation
+ * when serializing Catalog-Document-backed entries).
+ */
+function hasEagerSchema(entry: object): boolean {
+  const desc = Object.getOwnPropertyDescriptor(entry, 'schema');
+  return desc !== undefined && desc.get === undefined && desc.value !== undefined;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -167,7 +183,7 @@ function reachableDefs(roots: unknown[], defs: Readonly<JsonObject>): Set<string
  * @param defs The definitions of the catalog that holds the entry.
  */
 export function entryDefinition(
-  entry: ComponentApi | FunctionApi,
+  entry: ComponentApiLike | FunctionApiLike,
   defs: Readonly<JsonObject> | undefined,
 ): JsonSchemaObject | undefined {
   const definition = loadedDefinition(entry);
@@ -204,12 +220,12 @@ export function isFunctionListItem(definition: JsonSchemaObject): boolean {
  */
 export function retainedDefs(
   defs: Readonly<JsonObject> | undefined,
-  before: ReadonlyArray<ComponentApi | FunctionApi>,
-  after: ReadonlyArray<ComponentApi | FunctionApi>,
+  before: ReadonlyArray<ComponentApiLike | FunctionApiLike>,
+  after: ReadonlyArray<ComponentApiLike | FunctionApiLike>,
   extensionFields?: Readonly<JsonObject>,
 ): Readonly<JsonObject> | undefined {
   if (!defs) return defs;
-  const definitions = (entries: ReadonlyArray<ComponentApi | FunctionApi>) =>
+  const definitions = (entries: ReadonlyArray<ComponentApiLike | FunctionApiLike>) =>
     entries
       .map(
         entry =>
@@ -323,12 +339,12 @@ function closeObjectSchema(json: JsonObject): void {
  */
 function serializeComponentModel(
   name: string,
-  comp: ComponentApi,
+  comp: ComponentApiLike,
   localDefs: ReadonlySet<string>,
   isAtLeastV10: boolean,
   commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
 ): JsonObject {
-  if (comp.definition && !comp.schema) {
+  if (comp.definition && !hasEagerSchema(comp)) {
     return componentDefinitionToJsonSchema(comp.definition, {
       protocolVersion: isAtLeastV10 ? '1.0' : '0.9',
       commonTypesUri,
@@ -383,14 +399,14 @@ function serializeComponentModel(
  */
 function serializeFunctionModel(
   name: string,
-  fn: FunctionApi,
+  fn: FunctionApiLike,
   localDefs: ReadonlySet<string>,
   isAtLeastV10: boolean,
   asListItem: boolean,
   commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
   defs?: Readonly<JsonObject>,
 ): JsonObject {
-  if (fn.definition && !fn.schema) {
+  if (fn.definition && !hasEagerSchema(fn)) {
     return functionDefinitionToJsonSchema(fn.definition, {
       protocolVersion: isAtLeastV10 ? '1.0' : '0.9',
       commonTypesUri,
@@ -535,17 +551,18 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
   const shapedComponents = new Map<string, JsonSchemaObject>();
   for (const [name, comp] of catalog.components) {
     if (loadedDefinition(comp)) continue;
-    if (comp.definition && (!comp.schema || !isSpecComponentSchema(comp.schema))) {
+    const eager = hasEagerSchema(comp);
+    if (comp.definition && (!eager || !isSpecComponentSchema(comp.schema!))) {
       shapedComponents.set(
         name,
         deepFreeze(componentDefinitionToJsonSchema(comp.definition, modelCodecOptions)),
       );
       continue;
     }
-    if (!comp.schema || !isSpecComponentSchema(comp.schema)) continue;
+    if (!eager || !isSpecComponentSchema(comp.schema!)) continue;
     const {schema, catalogDefs} = shaper.componentSchema(
       name,
-      comp.schema,
+      comp.schema!,
       comp.allowedParents,
       comp.allowedChildren,
     );
@@ -564,21 +581,22 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
   }
 
   const functions = new Map<string, JsonSchemaObject | undefined>();
-  const rawFunctions = new Map<string, FunctionApi>();
+  const rawFunctions = new Map<string, FunctionApiLike>();
   const canonicalFunctions = new Map<string, JsonSchemaObject>();
   for (const [name, fn] of catalog.functions) {
     if (loadedDefinition(fn)) continue;
-    if (fn.definition && (!fn.schema || !isSpecFunctionSchema(fn.schema))) {
+    const eager = hasEagerSchema(fn);
+    if (fn.definition && (!eager || !isSpecFunctionSchema(fn.schema!))) {
       canonicalFunctions.set(
         name,
         deepFreeze(functionDefinitionToJsonSchema(fn.definition, modelCodecOptions)),
       );
       continue;
     }
-    if (fn.schema && isSpecFunctionSchema(fn.schema)) {
+    if (eager && isSpecFunctionSchema(fn.schema!)) {
       rawFunctions.set(name, fn);
       // Pre-scan function schema for any referenced catalog $defs models.
-      shaper.toJson(fn.schema, computedDefs);
+      shaper.toJson(fn.schema!, computedDefs);
     }
   }
 
@@ -591,30 +609,7 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
     }
   }
   if (catalog.surfaceProperties && !('theme' in defs) && !catalog.themeSchema) {
-    const themeObj: JsonObject = {type: 'object'};
-    if (catalog.surfaceProperties.description !== undefined) {
-      themeObj['description'] = catalog.surfaceProperties.description;
-    }
-    if (catalog.surfaceProperties.properties && catalog.surfaceProperties.properties.length > 0) {
-      const props: JsonObject = {};
-      const req: string[] = [];
-      for (const p of catalog.surfaceProperties.properties) {
-        props[p.name] = typeDefinitionToJsonSchema(p, modelCodecOptions);
-        if (p.required) req.push(p.name);
-      }
-      themeObj['properties'] = props;
-      if (req.length > 0) themeObj['required'] = req;
-    }
-    if (catalog.surfaceProperties.additionalProperties !== undefined) {
-      themeObj['additionalProperties'] =
-        typeof catalog.surfaceProperties.additionalProperties === 'boolean'
-          ? catalog.surfaceProperties.additionalProperties
-          : typeDefinitionToJsonSchema(
-              catalog.surfaceProperties.additionalProperties,
-              modelCodecOptions,
-            );
-    }
-    defs['theme'] = themeObj;
+    defs['theme'] = surfacePropertiesToJsonSchema(catalog.surfaceProperties, modelCodecOptions);
   }
   const serializedDefs = new Set<string>();
   while (
@@ -690,6 +685,7 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
   if (catalog.description !== undefined) doc.description = catalog.description;
   if (catalog.declaresCatalogId !== false) doc.catalogId = catalog.id;
   if (catalog.instructions !== undefined) doc.instructions = catalog.instructions;
+  if (catalog.metadata !== undefined) doc.metadata = deepCopyJson(catalog.metadata);
 
   // Components, unless the document has no `components` key and the catalog
   // has none.

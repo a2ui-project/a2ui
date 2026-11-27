@@ -82,11 +82,13 @@ export {
   defineParameter,
   defineSurfaceProperties,
   t,
+  type A2uiTypeBuilders,
   type CatalogModelInput,
   type ParameterOptions,
 } from './catalog_builders.js';
 export {
   type InferTypeDefinitionValue,
+  type ModelCheckProps,
   type ModelResolvedAccessibility,
   type ModelResolvedChildRef,
   type ModelValidationResult,
@@ -136,6 +138,7 @@ export {
   functionDefinitionToJsonSchema,
   jsonSchemaToModel,
   modelToJsonSchema,
+  surfacePropertiesToJsonSchema,
   typeDefinitionToJsonSchema,
   type JsonSchemaToModelOptions,
   type ModelToJsonSchemaOptions,

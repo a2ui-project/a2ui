@@ -37,6 +37,11 @@ import {
 } from '../index.js';
 import {MessageProcessor} from '../../processing/message-processor.js';
 import {
+  validateAgentToRendererEnvelope,
+  validateV10ActionMessage,
+  validateV10ErrorMessage,
+} from '../../processing/wire-validators.js';
+import {
   ComponentContext,
   GenericBinder,
   isComponentNode,
@@ -461,5 +466,309 @@ describe('CatalogModel end-to-end integration and lossless round-trips', () => {
       validator.validateComponent({id: 'p1', component: 'LegacyPill', text: 'ok', count: -1}),
     );
     assert.throws(() => validator.validateComponent({id: 'p1', component: 'LegacyPill'}));
+  });
+
+  it('validates cyclic ref types and nested function calls in PayloadValidator without stack overflow', () => {
+    const cyclicCatalog = Catalog.fromDocument({
+      formatVersion: '1.0',
+      catalogId: 'https://example.com/cyclic-payload-validator',
+      protocolVersion: '1.0',
+      types: {
+        Node: {
+          type: 'object',
+          properties: [
+            {name: 'label', type: 'string', dynamic: true, required: true},
+            {name: 'next', type: 'ref', ref: 'Node'},
+          ],
+        },
+      },
+      components: [
+        {
+          name: 'Tree',
+          parameters: [{name: 'root', type: 'ref', ref: 'Node', required: true}],
+        },
+      ],
+      functions: [
+        {name: 'makeText', returnType: 'string'},
+        {name: 'makeNum', returnType: 'number'},
+      ],
+    });
+
+    const validator = new PayloadValidator(cyclicCatalog);
+    assert.doesNotThrow(() =>
+      validator.validateComponent({
+        id: 't1',
+        component: 'Tree',
+        root: {
+          label: {'@call': 'makeText'},
+          next: {label: 'leaf'},
+        },
+      }),
+    );
+    assert.throws(() =>
+      validator.validateComponent({
+        id: 't2',
+        component: 'Tree',
+        root: {
+          label: 'root',
+          next: {label: {'@call': 'makeText', args: {bogus: 1}}},
+        },
+      }),
+    );
+    assert.throws(() =>
+      validator.validateComponent({
+        id: 't3',
+        component: 'Tree',
+        root: {
+          label: 'root',
+          next: {label: 12345},
+        },
+      }),
+    );
+
+    // Pre-1.0 return-type checking on a cyclic ref exercises modelPropertyType + allowedReturnTypesForDefinition.
+    const cyclicV09 = Catalog.fromDocument({
+      formatVersion: '1.0',
+      catalogId: 'https://example.com/cyclic-payload-validator-v09',
+      protocolVersion: '0.9',
+      types: {
+        Node: {
+          type: 'object',
+          properties: [
+            {name: 'label', type: 'string', dynamic: true, required: true},
+            {name: 'next', type: 'ref', ref: 'Node'},
+          ],
+        },
+      },
+      components: [
+        {
+          name: 'Tree',
+          parameters: [{name: 'root', type: 'ref', ref: 'Node', required: true}],
+        },
+      ],
+      functions: [
+        {name: 'makeText', returnType: 'string'},
+        {name: 'makeNum', returnType: 'number'},
+      ],
+    });
+    const v09Validator = new PayloadValidator(cyclicV09);
+    assert.throws(() =>
+      v09Validator.validateComponent({
+        id: 't4',
+        component: 'Tree',
+        root: {
+          label: 'root',
+          next: {label: {call: 'makeNum'}},
+        },
+      }),
+    );
+  });
+
+  it('enforces strict v1.0 wire envelope checks (RFC 3339 timestamp, error.code, updateDataModel.value, FunctionResponse.error, callFunction.args)', () => {
+    assert.strictEqual(
+      validateV10ActionMessage({
+        version: '1.0',
+        action: {
+          name: 'submit',
+          surfaceId: 's1',
+          sourceComponentId: 'btn',
+          timestamp: '2024-02-29T12:00:00Z',
+          context: {},
+        },
+      }).success,
+      true,
+    );
+    assert.strictEqual(
+      validateV10ActionMessage({
+        version: '1.0',
+        action: {
+          name: 'submit',
+          surfaceId: 's1',
+          sourceComponentId: 'btn',
+          timestamp: '2024-02-31T12:00:00Z',
+          context: {},
+        },
+      }).success,
+      false,
+    );
+
+    assert.strictEqual(
+      validateV10ErrorMessage({
+        version: '1.0',
+        error: {code: 123, message: 'bad', surfaceId: 's1'},
+      }).success,
+      false,
+    );
+
+    assert.strictEqual(
+      validateAgentToRendererEnvelope({version: '1.0', updateDataModel: {surfaceId: 's1'}}, '1.0')
+        ?.success,
+      false,
+    );
+    assert.strictEqual(
+      validateAgentToRendererEnvelope(
+        {version: '1.0', updateDataModel: {surfaceId: 's1', path: '/a', value: null}},
+        '1.0',
+      )?.success,
+      true,
+    );
+
+    assert.strictEqual(
+      validateAgentToRendererEnvelope(
+        {
+          version: '1.0',
+          agentFunctionResponse: {functionCallId: 'f1', error: undefined},
+        },
+        '1.0',
+      )?.success,
+      false,
+    );
+
+    assert.strictEqual(
+      validateAgentToRendererEnvelope(
+        {
+          version: '1.0',
+          callRendererFunction: {
+            functionCallId: 'c1',
+            callFunction: {'@call': 'ping', catalogId: 'cat', args: 'garbage'},
+          },
+        },
+        '1.0',
+      )?.success,
+      false,
+    );
+    assert.strictEqual(
+      validateAgentToRendererEnvelope(
+        {
+          version: '1.0',
+          callRendererFunction: {
+            functionCallId: 'c2',
+            callFunction: {'@call': 'ping', call: 'ping', catalogId: 'cat'},
+          },
+        },
+        '1.0',
+      )?.success,
+      false,
+    );
+  });
+
+  it('preserves metadata in toJson(), $schema in toDocument(), avoids eager lazy Zod getters, and validates routeToAgent against target catalog types', async () => {
+    const docWithMeta = {
+      $schema: 'https://a2ui.org/specification/v1_0/catalog_document.json',
+      formatVersion: '1.0',
+      catalogId: 'https://example.com/meta-cat',
+      protocolVersion: '1.0',
+      metadata: {extensions: {vendor_ext: {tier: 'gold'}}},
+      types: {
+        Status: {type: 'enum', values: ['open', 'closed']},
+      },
+      components: [
+        {
+          name: 'Ticket',
+          parameters: [{name: 'status', type: 'ref', ref: 'Status', required: true}],
+        },
+      ],
+      functions: [
+        {
+          name: 'updateTicket',
+          returnType: 'boolean',
+          parameters: [{name: 'status', type: 'ref', ref: 'Status', required: true}],
+        },
+      ],
+    };
+
+    const fromDoc = Catalog.fromDocument(docWithMeta);
+    assert.strictEqual(fromDoc.toDocument()['$schema'], docWithMeta.$schema);
+    assert.deepStrictEqual(fromDoc.toJson()['metadata'], docWithMeta.metadata);
+
+    // Catalog.fromJson(catalogDoc).toJson() must not trigger lazy Zod schema getters.
+    const fromJson = Catalog.fromJson(docWithMeta);
+    const ticketEntry = fromJson.components.get('Ticket')!;
+    const fnEntry = fromJson.functions.get('updateTicket')!;
+    assert.ok(
+      Object.getOwnPropertyDescriptor(ticketEntry, 'schema')?.get,
+      'expected lazy schema getter on component',
+    );
+    assert.ok(
+      Object.getOwnPropertyDescriptor(fnEntry, 'schema')?.get,
+      'expected lazy schema getter on function',
+    );
+    const serialized = fromJson.toJson();
+    assert.deepStrictEqual(serialized['metadata'], docWithMeta.metadata);
+
+    let getterCalls = 0;
+    const spyComp = {
+      name: 'Ticket',
+      definition: ticketEntry.definition!,
+      get schema(): z.ZodTypeAny {
+        getterCalls++;
+        throw new Error('toJson() must not invoke lazy schema getter');
+      },
+    };
+    const spyFn = {
+      name: 'updateTicket',
+      returnType: 'boolean' as const,
+      definition: fnEntry.definition!,
+      get schema(): z.ZodTypeAny {
+        getterCalls++;
+        throw new Error('toJson() must not invoke lazy schema getter');
+      },
+    };
+    const spyCatalog = new Catalog('https://example.com/spy-cat', '1.0', [spyComp], [spyFn], {
+      types: fromDoc.types,
+      metadata: docWithMeta.metadata,
+    });
+    const spySerialized = spyCatalog.toJson();
+    assert.strictEqual(getterCalls, 0, 'toJson() must not eagerly invoke lazy Zod schema getters');
+    assert.deepStrictEqual(spySerialized['metadata'], docWithMeta.metadata);
+
+    // routeToAgent validates against the non-default catalog's own `types`, not defaultCatalog.types.
+    const defaultCat = Catalog.fromDocument({
+      formatVersion: '1.0',
+      catalogId: 'https://example.com/default-cat',
+      protocolVersion: '1.0',
+      components: [{name: 'Box'}],
+    });
+    const outbound: unknown[] = [];
+    const processor = new MessageProcessor([defaultCat, fromDoc], undefined, {
+      outboundListener: msg => {
+        outbound.push(msg);
+      },
+    });
+    processor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's-route',
+          catalogId: defaultCat.id,
+          components: [{id: 'root', component: 'Box'}],
+        },
+      },
+    ]);
+    const surface = processor.model.getSurface('s-route')!;
+    const ctx = new ComponentContext(surface, 'root');
+    const validCall = ctx.dataContext.resolveDynamicValue({
+      '@call': 'updateTicket',
+      catalogId: fromDoc.id,
+      args: {status: 'open'},
+    });
+    assert.ok(validCall instanceof Promise);
+    await new Promise(r => setTimeout(r, 0));
+    assert.strictEqual(outbound.length, 1);
+
+    const errors: unknown[] = [];
+    surface.onError.subscribe(err => {
+      errors.push(err);
+    });
+    ctx.dataContext.resolveDynamicValue({
+      '@call': 'updateTicket',
+      catalogId: fromDoc.id,
+      args: {status: 'invalid-status'},
+    });
+    assert.ok(
+      errors.length >= 1,
+      'expected validation error against non-default catalog Status enum',
+    );
+    processor.dispose();
   });
 });

@@ -23,7 +23,7 @@
 
 import {A2uiCatalogError} from '../../errors.js';
 import {
-  CatalogApi,
+  type AnyCatalogApi,
   type ComponentDefinition,
   type DataTypeDefinition,
   definitionEnvelopeLayout,
@@ -427,11 +427,9 @@ export class CatalogSchemaHelper {
   private readonly systemFunctionProperties = new Map<string, string[]>();
   private readonly systemFunctionRequired = new Map<string, string[]>();
 
-  constructor(catalog: CatalogApi, protocolVersion: string) {
+  constructor(catalog: AnyCatalogApi, protocolVersion: string) {
     this.protocolVersion = protocolVersion;
-    this.catalogTypes = (
-      catalog as {readonly types?: Readonly<Record<string, DataTypeDefinition>>}
-    ).types;
+    this.catalogTypes = catalog.types;
     for (const [name, compApi] of catalog.components) {
       if (compApi.definition) {
         this.componentDefs.set(name, compApi.definition);
@@ -637,7 +635,7 @@ export class CatalogSchemaHelper {
 
   private loadComponentFromDefinition(name: string, def: ComponentDefinition): void {
     const layout = definitionEnvelopeLayout(def);
-    this.customEnvelopeProperties.set(name, layout.customKeys);
+    const customEnvelope = new Set<string>(layout.customKeys);
 
     const checkRuleArraySchema: Record<string, unknown> = {
       type: 'array',
@@ -646,14 +644,20 @@ export class CatalogSchemaHelper {
     const isCheckRuleParam = (t: TypeDefinition): boolean =>
       t.type === 'array' && t.items !== undefined && t.items.type === 'checkRule';
 
-    let checkProp: string | undefined;
+    let ownCheckProp: string | undefined;
     const params = def.parameters ?? [];
     for (const p of params) {
       if (isCheckRuleParam(p)) {
-        checkProp = p.name;
+        ownCheckProp = p.name;
         break;
       }
     }
+    if (ownCheckProp === 'checks') {
+      customEnvelope.delete('checks');
+    }
+    this.customEnvelopeProperties.set(name, customEnvelope);
+
+    let checkProp = ownCheckProp;
     if (!checkProp && def.checkable) {
       checkProp = 'checks';
       this.inheritedCheckRulePropertyNames.set(name, 'checks');
@@ -669,6 +673,9 @@ export class CatalogSchemaHelper {
       if (p.name === 'id' || p.name === 'component' || AT_ENVELOPE_MIXIN_KEYS.has(p.name)) {
         continue;
       }
+      if (p.name === 'checks' && !customEnvelope.has('checks')) {
+        continue;
+      }
       orderedKeys.push(p.name);
       if (p.required) {
         reqs.push(p.name);
@@ -678,7 +685,7 @@ export class CatalogSchemaHelper {
         this.componentPropertyEnums.set(`${name}.${p.name}`, enumValues);
       }
     }
-    if (checkProp && !orderedKeys.includes(checkProp)) {
+    if (checkProp && !customEnvelope.has(checkProp) && !orderedKeys.includes(checkProp)) {
       orderedKeys.push(checkProp);
     }
 
@@ -1242,9 +1249,11 @@ export class CatalogSchemaHelper {
     if (!propName) {
       return undefined;
     }
-    const own = this.getPropertySchema(componentName, propName);
-    if (own) {
-      return own;
+    if (!this.getCustomEnvelopeProperties(componentName).has(propName)) {
+      const own = this.getPropertySchema(componentName, propName);
+      if (own) {
+        return own;
+      }
     }
     return this.inheritedCheckRuleSchemas.get(componentName);
   }

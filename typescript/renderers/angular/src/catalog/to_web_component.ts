@@ -15,7 +15,7 @@
  */
 
 import {Type} from '@angular/core';
-import {ComponentApi, pickComponentApiFields} from '@a2ui/web_core';
+import {ComponentApi, ComponentApiLike, pickComponentApiFields} from '@a2ui/web_core';
 import {WebComponentImplementation} from '@a2ui/web_core/universal';
 import type {AngularComponentImplementation} from './types';
 import {AngularWcHost} from './angular_wc_host';
@@ -40,7 +40,9 @@ function computeTagName(name: string): string {
  * Copies the `ComponentApi` fields of `api`, leaving out the fields of a richer entry such as
  * `component`, `tagName` and `element`.
  */
-export function componentApiFields(api: ComponentApi): ComponentApi {
+export function componentApiFields(api: ComponentApi): ComponentApi;
+export function componentApiFields(api: ComponentApiLike): ComponentApiLike;
+export function componentApiFields(api: ComponentApiLike): ComponentApiLike {
   return pickComponentApiFields(api);
 }
 

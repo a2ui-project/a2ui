@@ -15,11 +15,13 @@
  */
 
 import React, {memo, useCallback, useEffect, useRef} from 'react';
+import type {ZodTypeAny} from 'zod';
 import {
   type A2uiMetadata,
-  type ComponentApi,
+  type ComponentApiLike,
   type ComponentContext,
   type ComponentDefinition,
+  type DataTypeDefinition,
   GenericBinder,
   type InferredComponentApiSchemaType,
   pickComponentApiFields,
@@ -32,6 +34,7 @@ import type {
   NodeViewProps,
   ReactA2uiComponentProps,
   ReactComponentImplementation,
+  ReactComponentImplementationLike,
   ReactRenderProps,
 } from './react_component_implementation';
 import {useSyncExternalStore} from './use_sync_external_store';
@@ -51,24 +54,35 @@ type MemoizedRenderInternalProps<Props> = {
 
 /**
  * Infers resolved React component props from either a canonical zero-dependency
- * `ComponentDefinition` on `Api` or a legacy Zod `schema`.
+ * `ComponentDefinition` on `Api` (optionally resolving local `ref` parameters
+ * against `Types`) or a legacy Zod `schema`.
  */
-type ResolvedReactComponentProps<Api extends ComponentApi> = [Api] extends [
-  {readonly definition: infer Def extends ComponentDefinition},
-]
+type ResolvedReactComponentProps<
+  Api extends ComponentApiLike,
+  Types extends Readonly<Record<string, DataTypeDefinition>> = Record<never, never>,
+> = [Api] extends [{readonly definition: infer Def extends ComponentDefinition}]
   ? ComponentDefinition extends Def
     ? ResolveA2uiProps<InferredComponentApiSchemaType<Api>>
-    : ResolveDefinitionProps<Def>
+    : ResolveDefinitionProps<Def, Types>
   : ResolveA2uiProps<InferredComponentApiSchemaType<Api>>;
+
+type ReactComponentImplementationResult<Api extends ComponentApiLike> = [Api] extends [
+  {readonly schema: ZodTypeAny},
+]
+  ? ReactComponentImplementation
+  : ReactComponentImplementationLike;
 
 /**
  * Creates a React component implementation using the deep generic binder.
  */
-export function createComponentImplementation<Api extends ComponentApi>(
+export function createComponentImplementation<
+  Api extends ComponentApiLike,
+  Types extends Readonly<Record<string, DataTypeDefinition>> = Record<never, never>,
+>(
   api: Api,
-  RenderComponent: React.FC<ReactA2uiComponentProps<ResolvedReactComponentProps<Api>>>,
-): ReactComponentImplementation {
-  type Props = ResolvedReactComponentProps<Api>;
+  RenderComponent: React.FC<ReactA2uiComponentProps<ResolvedReactComponentProps<Api, Types>>>,
+): ReactComponentImplementationResult<Api> {
+  type Props = ResolvedReactComponentProps<Api, Types>;
   const binderTarget = api.definition ?? api.schema;
 
   const MemoizedRender = memo(
@@ -196,16 +210,16 @@ export function createComponentImplementation<Api extends ComponentApi>(
     ...pickComponentApiFields(api),
     render: ReactWrapper,
     view: NodeView,
-  };
+  } as unknown as ReactComponentImplementationResult<Api>;
 }
 
 /**
  * Creates a React component implementation that manages its own context bindings (no generic binder).
  */
-export function createBinderlessComponentImplementation(
-  api: ComponentApi,
+export function createBinderlessComponentImplementation<Api extends ComponentApiLike>(
+  api: Api,
   RenderComponent: React.FC<ReactRenderProps>,
-): ReactComponentImplementation {
+): ReactComponentImplementationResult<Api> {
   const NodeView: React.FC<NodeViewProps> = ({node, buildChild}) => {
     // The conversion's only role here is filling the child index; the
     // component binds its own values from the context, so its child ids are
@@ -229,5 +243,5 @@ export function createBinderlessComponentImplementation(
     ...pickComponentApiFields(api),
     render: RenderComponent,
     view: NodeView,
-  };
+  } as unknown as ReactComponentImplementationResult<Api>;
 }

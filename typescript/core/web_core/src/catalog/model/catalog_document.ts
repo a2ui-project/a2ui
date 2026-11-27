@@ -38,6 +38,7 @@ import {
   type SurfacePropertiesDefinition,
   type TypeDefinition,
 } from './catalog_model.js';
+import {isPlainRecord, isValidSemVer} from './format_validators.js';
 
 const ALLOWED_CALLERS_SET: ReadonlySet<string> = new Set<AllowedCallers>([
   'rendererOnly',
@@ -47,8 +48,119 @@ const ALLOWED_CALLERS_SET: ReadonlySet<string> = new Set<AllowedCallers>([
 
 const ENUM_VALUE_TYPES: ReadonlySet<string> = new Set(['string', 'number', 'boolean']);
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+const ROOT_ALLOWED_KEYS: ReadonlySet<string> = new Set([
+  '$schema',
+  'formatVersion',
+  'catalogId',
+  'protocolVersion',
+  'title',
+  'description',
+  'instructions',
+  'metadata',
+  'types',
+  'surfaceProperties',
+  'components',
+  'functions',
+]);
+
+const COMPONENT_ALLOWED_KEYS: ReadonlySet<string> = new Set([
+  'name',
+  'description',
+  'checkable',
+  'parameters',
+  'atLeastOneOf',
+  'allowedParents',
+  'allowedChildren',
+  'metadata',
+  'deprecated',
+  'deprecatedReason',
+]);
+
+const FUNCTION_ALLOWED_KEYS: ReadonlySet<string> = new Set([
+  'name',
+  'description',
+  'returnType',
+  'allowedCallers',
+  'requiresUserActivation',
+  'parameters',
+  'atLeastOneOf',
+  'additionalParameters',
+  'deprecated',
+  'deprecatedReason',
+]);
+
+const SURFACE_PROPS_ALLOWED_KEYS: ReadonlySet<string> = new Set([
+  'description',
+  'properties',
+  'additionalProperties',
+]);
+
+const RETURN_SHORTHAND_OBJ_ALLOWED_KEYS: ReadonlySet<string> = new Set(['type', 'description']);
+
+const TYPE_COMMON_KEYS = ['type', 'description', 'deprecated', 'deprecatedReason'] as const;
+const PARAM_EXTRA_KEYS = ['name', 'required'] as const;
+
+const TYPE_ALLOWED_KEYS: Readonly<Record<string, ReadonlySet<string>>> = {
+  string: new Set([
+    ...TYPE_COMMON_KEYS,
+    'dynamic',
+    'format',
+    'pattern',
+    'minLength',
+    'maxLength',
+    'default',
+  ]),
+  number: new Set([...TYPE_COMMON_KEYS, 'dynamic', 'min', 'max', 'default']),
+  integer: new Set([...TYPE_COMMON_KEYS, 'dynamic', 'min', 'max', 'default']),
+  boolean: new Set([...TYPE_COMMON_KEYS, 'dynamic', 'default']),
+  enum: new Set([...TYPE_COMMON_KEYS, 'values', 'valueType', 'dynamic', 'default']),
+  const: new Set([...TYPE_COMMON_KEYS, 'value']),
+  any: new Set([...TYPE_COMMON_KEYS, 'dynamic', 'nullable', 'default']),
+  object: new Set([
+    ...TYPE_COMMON_KEYS,
+    'dynamic',
+    'properties',
+    'additionalProperties',
+    'atLeastOneOf',
+    'default',
+  ]),
+  array: new Set([
+    ...TYPE_COMMON_KEYS,
+    'dynamic',
+    'items',
+    'minItems',
+    'maxItems',
+    'uniqueItems',
+    'default',
+  ]),
+  union: new Set([...TYPE_COMMON_KEYS, 'variants', 'exclusive', 'dynamic', 'default']),
+  dataBinding: new Set(TYPE_COMMON_KEYS),
+  functionCall: new Set(TYPE_COMMON_KEYS),
+  ref: new Set([...TYPE_COMMON_KEYS, 'ref', 'default']),
+  child: new Set(TYPE_COMMON_KEYS),
+  childList: new Set(TYPE_COMMON_KEYS),
+  action: new Set(TYPE_COMMON_KEYS),
+  checkRule: new Set(TYPE_COMMON_KEYS),
+  accessibility: new Set(TYPE_COMMON_KEYS),
+};
+
+function assertAllowedKeys(
+  obj: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+  ctx: string,
+  extraAllowed?: readonly string[],
+): void {
+  const unknown: string[] = [];
+  for (const key of Object.keys(obj)) {
+    if (allowed.has(key)) continue;
+    if (extraAllowed && extraAllowed.includes(key)) continue;
+    unknown.push(key);
+  }
+  if (unknown.length > 0) {
+    throw new A2uiCatalogError(
+      `${ctx}: unrecognized key(s): ${unknown.map(k => `'${k}'`).join(', ')}.`,
+    );
+  }
 }
 
 function deepFreezeValue<T>(value: T): T {
@@ -58,7 +170,7 @@ function deepFreezeValue<T>(value: T): T {
     }
     return Object.freeze(value);
   }
-  if (isPlainObject(value)) {
+  if (isPlainRecord(value)) {
     for (const entry of Object.values(value)) {
       deepFreezeValue(entry);
     }
@@ -189,13 +301,32 @@ function parseTypeMeta(obj: Record<string, unknown>, ctx: string): Record<string
   return out;
 }
 
+function parseAdditionalTypeRule(
+  raw: unknown,
+  allowComponentTypes: boolean,
+  ctx: string,
+  refsToVerify: Array<{ref: string; ctx: string}>,
+): boolean | TypeDefinition | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw === 'boolean') return raw;
+  return parseTypeDefinition(raw, allowComponentTypes, ctx, refsToVerify, false);
+}
+
+function serializeAdditionalTypeRule(
+  rule: boolean | TypeDefinition,
+  ctx: string,
+): boolean | Record<string, unknown> {
+  return typeof rule === 'boolean' ? rule : serializeTypeDefinition(rule, ctx);
+}
+
 function parseTypeDefinition(
   raw: unknown,
   allowComponentTypes: boolean,
   ctx: string,
   refsToVerify: Array<{ref: string; ctx: string}>,
+  isParameter = false,
 ): TypeDefinition {
-  if (!isPlainObject(raw)) {
+  if (!isPlainRecord(raw)) {
     throw new A2uiCatalogError(`${ctx} must be an object.`);
   }
   const type = raw['type'];
@@ -207,6 +338,12 @@ function parseTypeDefinition(
       `${ctx}.type 'rawJsonSchema' is in-memory only and cannot appear in a Catalog Document.`,
     );
   }
+  const allowedKeys = TYPE_ALLOWED_KEYS[type];
+  if (!allowedKeys) {
+    throw new A2uiCatalogError(`${ctx}: unsupported type '${type}'.`);
+  }
+  assertAllowedKeys(raw, allowedKeys, ctx, isParameter ? PARAM_EXTRA_KEYS : undefined);
+
   if (COMPONENT_ONLY_TYPE_KINDS.has(type)) {
     if (!allowComponentTypes) {
       throw new A2uiCatalogError(
@@ -241,6 +378,15 @@ function parseTypeDefinition(
         }
       }
       const pattern = parseOptionalString(raw, 'pattern', ctx);
+      if (pattern !== undefined) {
+        try {
+          new RegExp(pattern, 'u');
+        } catch (err) {
+          throw new A2uiCatalogError(
+            `${ctx}.pattern '${pattern}' is not a valid regular expression: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
       const minLength =
         raw['minLength'] !== undefined
           ? assertNonNegativeInteger(raw['minLength'], `${ctx}.minLength`)
@@ -249,6 +395,11 @@ function parseTypeDefinition(
         raw['maxLength'] !== undefined
           ? assertNonNegativeInteger(raw['maxLength'], `${ctx}.maxLength`)
           : undefined;
+      if (minLength !== undefined && maxLength !== undefined && minLength > maxLength) {
+        throw new A2uiCatalogError(
+          `${ctx}: minLength (${minLength}) cannot be greater than maxLength (${maxLength}).`,
+        );
+      }
       const def = parseOptionalString(raw, 'default', ctx);
       return {
         type: 'string',
@@ -274,6 +425,9 @@ function parseTypeDefinition(
         if (max !== undefined && !Number.isInteger(max)) {
           throw new A2uiCatalogError(`${ctx}.max must be an integer.`);
         }
+      }
+      if (min !== undefined && max !== undefined && min > max) {
+        throw new A2uiCatalogError(`${ctx}: min (${min}) cannot be greater than max (${max}).`);
       }
       const defRaw = raw['default'];
       let def: number | undefined;
@@ -306,15 +460,6 @@ function parseTypeDefinition(
       if (!Array.isArray(rawValues) || rawValues.length === 0) {
         throw new A2uiCatalogError(`${ctx}.values must be a non-empty array.`);
       }
-      const values: EnumPrimitiveValue[] = [];
-      for (const item of rawValues) {
-        if (typeof item !== 'string' && typeof item !== 'number' && typeof item !== 'boolean') {
-          throw new A2uiCatalogError(
-            `${ctx}.values entries must be strings, numbers, or booleans.`,
-          );
-        }
-        values.push(item);
-      }
       const valueTypeRaw = raw['valueType'];
       let valueType: 'string' | 'number' | 'boolean' | undefined;
       if (valueTypeRaw !== undefined) {
@@ -323,17 +468,44 @@ function parseTypeDefinition(
         }
         valueType = valueTypeRaw as 'string' | 'number' | 'boolean';
       }
+      const effectiveValueType = valueType ?? 'string';
+      const values: EnumPrimitiveValue[] = [];
+      const seenValues = new Set<EnumPrimitiveValue>();
+      for (const item of rawValues) {
+        if (typeof item !== effectiveValueType) {
+          throw new A2uiCatalogError(
+            `${ctx}.values entries must all be '${effectiveValueType}' (got ${typeof item}).`,
+          );
+        }
+        if (typeof item === 'number' && !Number.isFinite(item)) {
+          throw new A2uiCatalogError(`${ctx}.values entries must be finite numbers.`);
+        }
+        const typedItem = item as EnumPrimitiveValue;
+        if (seenValues.has(typedItem)) {
+          throw new A2uiCatalogError(
+            `${ctx}.values contains duplicate entry '${String(typedItem)}'.`,
+          );
+        }
+        seenValues.add(typedItem);
+        values.push(typedItem);
+      }
       const defRaw = raw['default'];
       let def: EnumPrimitiveValue | undefined;
       if (defRaw !== undefined) {
-        if (
-          typeof defRaw !== 'string' &&
-          typeof defRaw !== 'number' &&
-          typeof defRaw !== 'boolean'
-        ) {
-          throw new A2uiCatalogError(`${ctx}.default must be a string, number, or boolean.`);
+        if (typeof defRaw !== effectiveValueType) {
+          throw new A2uiCatalogError(
+            `${ctx}.default must be '${effectiveValueType}' to match enum valueType.`,
+          );
         }
-        def = defRaw;
+        if (typeof defRaw === 'number' && !Number.isFinite(defRaw)) {
+          throw new A2uiCatalogError(`${ctx}.default must be a finite number.`);
+        }
+        def = defRaw as EnumPrimitiveValue;
+        if (!seenValues.has(def)) {
+          throw new A2uiCatalogError(
+            `${ctx}.default '${String(def)}' must be one of the declared enum values.`,
+          );
+        }
       }
       return {
         type: 'enum',
@@ -357,11 +529,17 @@ function parseTypeDefinition(
       ) {
         throw new A2uiCatalogError(`${ctx}.value must be a string, number, boolean, or null.`);
       }
+      if (typeof value === 'number' && !Number.isFinite(value)) {
+        throw new A2uiCatalogError(`${ctx}.value must be a finite number.`);
+      }
       return {type: 'const', value, ...meta};
     }
     case 'any': {
       const nullable = parseOptionalBoolean(raw, 'nullable', ctx);
       const hasDefault = Object.hasOwn(raw, 'default') && raw['default'] !== undefined;
+      if (nullable === false && hasDefault && raw['default'] === null) {
+        throw new A2uiCatalogError(`${ctx}: default cannot be null when nullable is false.`);
+      }
       return {
         type: 'any',
         ...(dynamic !== undefined ? {dynamic} : {}),
@@ -390,23 +568,16 @@ function parseTypeDefinition(
           declaredNames.add(prop.name);
         }
       }
-      let additionalProperties: boolean | TypeDefinition | undefined;
-      if (raw['additionalProperties'] !== undefined) {
-        if (typeof raw['additionalProperties'] === 'boolean') {
-          additionalProperties = raw['additionalProperties'];
-        } else {
-          additionalProperties = parseTypeDefinition(
-            raw['additionalProperties'],
-            allowComponentTypes,
-            `${ctx}.additionalProperties`,
-            refsToVerify,
-          );
-        }
-      }
+      const additionalProperties = parseAdditionalTypeRule(
+        raw['additionalProperties'],
+        allowComponentTypes,
+        `${ctx}.additionalProperties`,
+        refsToVerify,
+      );
       const atLeastOneOf = parseAtLeastOneOf(raw['atLeastOneOf'], declaredNames, ctx);
       let def: Readonly<Record<string, unknown>> | undefined;
       if (raw['default'] !== undefined) {
-        if (!isPlainObject(raw['default'])) {
+        if (!isPlainRecord(raw['default'])) {
           throw new A2uiCatalogError(`${ctx}.default must be an object.`);
         }
         def = raw['default'];
@@ -434,6 +605,11 @@ function parseTypeDefinition(
         raw['maxItems'] !== undefined
           ? assertNonNegativeInteger(raw['maxItems'], `${ctx}.maxItems`)
           : undefined;
+      if (minItems !== undefined && maxItems !== undefined && minItems > maxItems) {
+        throw new A2uiCatalogError(
+          `${ctx}: minItems (${minItems}) cannot be greater than maxItems (${maxItems}).`,
+        );
+      }
       const uniqueItems = parseOptionalBoolean(raw, 'uniqueItems', ctx);
       let def: readonly unknown[] | undefined;
       if (raw['default'] !== undefined) {
@@ -509,7 +685,7 @@ function parseParameterList(
   for (let i = 0; i < rawList.length; i++) {
     const item = rawList[i];
     const itemCtx = `${ctx}[${i}]`;
-    if (!isPlainObject(item)) {
+    if (!isPlainRecord(item)) {
       throw new A2uiCatalogError(`${itemCtx} must be an object.`);
     }
     const name = item['name'];
@@ -527,7 +703,7 @@ function parseParameterList(
     }
     seen.add(name);
     const required = parseOptionalBoolean(item, 'required', itemCtx);
-    const typeDef = parseTypeDefinition(item, allowComponentTypes, itemCtx, refsToVerify);
+    const typeDef = parseTypeDefinition(item, allowComponentTypes, itemCtx, refsToVerify, true);
     out.push({
       name,
       ...(required !== undefined ? {required} : {}),
@@ -550,11 +726,12 @@ function parseFunctionReturnType(
     }
     return raw as FunctionReturnShorthand;
   }
-  if (!isPlainObject(raw)) {
+  if (!isPlainRecord(raw)) {
     throw new A2uiCatalogError(`${ctx}.returnType must be a shorthand string or type object.`);
   }
   const type = raw['type'];
   if (type === 'void' || type === 'validationResult') {
+    assertAllowedKeys(raw, RETURN_SHORTHAND_OBJ_ALLOWED_KEYS, `${ctx}.returnType`);
     const description = parseOptionalString(raw, 'description', `${ctx}.returnType`);
     return {type, ...(description !== undefined ? {description} : {})};
   }
@@ -566,9 +743,10 @@ function parseComponentDefinition(
   ctx: string,
   refsToVerify: Array<{ref: string; ctx: string}>,
 ): ComponentDefinition {
-  if (!isPlainObject(raw)) {
+  if (!isPlainRecord(raw)) {
     throw new A2uiCatalogError(`${ctx} must be an object.`);
   }
+  assertAllowedKeys(raw, COMPONENT_ALLOWED_KEYS, ctx);
   const name = raw['name'];
   if (typeof name !== 'string' || !name) {
     throw new A2uiCatalogError(`${ctx}.name must be a non-empty string.`);
@@ -623,9 +801,10 @@ function parseFunctionDefinition(
   ctx: string,
   refsToVerify: Array<{ref: string; ctx: string}>,
 ): FunctionDefinition {
-  if (!isPlainObject(raw)) {
+  if (!isPlainRecord(raw)) {
     throw new A2uiCatalogError(`${ctx} must be an object.`);
   }
+  assertAllowedKeys(raw, FUNCTION_ALLOWED_KEYS, ctx);
   const name = raw['name'];
   if (typeof name !== 'string' || !name) {
     throw new A2uiCatalogError(`${ctx}.name must be a non-empty string.`);
@@ -679,19 +858,12 @@ function parseFunctionDefinition(
     }
   }
   const atLeastOneOf = parseAtLeastOneOf(raw['atLeastOneOf'], declaredNames, ctx);
-  let additionalParameters: boolean | DataTypeDefinition | undefined;
-  if (raw['additionalParameters'] !== undefined) {
-    if (typeof raw['additionalParameters'] === 'boolean') {
-      additionalParameters = raw['additionalParameters'];
-    } else {
-      additionalParameters = parseTypeDefinition(
-        raw['additionalParameters'],
-        false,
-        `${ctx}.additionalParameters`,
-        refsToVerify,
-      ) as DataTypeDefinition;
-    }
-  }
+  const additionalParameters = parseAdditionalTypeRule(
+    raw['additionalParameters'],
+    false,
+    `${ctx}.additionalParameters`,
+    refsToVerify,
+  ) as boolean | DataTypeDefinition | undefined;
   const deprecated = parseOptionalBoolean(raw, 'deprecated', ctx);
   const deprecatedReason = parseOptionalString(raw, 'deprecatedReason', ctx);
   return {
@@ -713,9 +885,10 @@ function parseSurfaceProperties(
   ctx: string,
   refsToVerify: Array<{ref: string; ctx: string}>,
 ): SurfacePropertiesDefinition {
-  if (!isPlainObject(raw)) {
+  if (!isPlainRecord(raw)) {
     throw new A2uiCatalogError(`${ctx} must be an object.`);
   }
+  assertAllowedKeys(raw, SURFACE_PROPS_ALLOWED_KEYS, ctx);
   const description = parseOptionalString(raw, 'description', ctx);
   let properties: DataParameterDefinition[] | undefined;
   if (raw['properties'] !== undefined) {
@@ -730,24 +903,44 @@ function parseSurfaceProperties(
       refsToVerify,
     ) as DataParameterDefinition[];
   }
-  let additionalProperties: boolean | DataTypeDefinition | undefined;
-  if (raw['additionalProperties'] !== undefined) {
-    if (typeof raw['additionalProperties'] === 'boolean') {
-      additionalProperties = raw['additionalProperties'];
-    } else {
-      additionalProperties = parseTypeDefinition(
-        raw['additionalProperties'],
-        false,
-        `${ctx}.additionalProperties`,
-        refsToVerify,
-      ) as DataTypeDefinition;
-    }
-  }
+  const additionalProperties = parseAdditionalTypeRule(
+    raw['additionalProperties'],
+    false,
+    `${ctx}.additionalProperties`,
+    refsToVerify,
+  ) as boolean | DataTypeDefinition | undefined;
   return {
     ...(description !== undefined ? {description} : {}),
     ...(properties !== undefined ? {properties} : {}),
     ...(additionalProperties !== undefined ? {additionalProperties} : {}),
   };
+}
+
+function assertNoUnguardedRefCycles(types: Readonly<Record<string, DataTypeDefinition>>): void {
+  const walk = (typeDef: TypeDefinition, visiting: Set<string>, rootName: string): void => {
+    if (typeDef.type === 'ref') {
+      if (visiting.has(typeDef.ref)) {
+        throw new A2uiCatalogError(
+          `catalog.types.${rootName}: unguarded cyclic type reference '${typeDef.ref}'. Recursive types must pass through an 'object' or 'array' container.`,
+        );
+      }
+      const target = types[typeDef.ref];
+      if (!target) return;
+      visiting.add(typeDef.ref);
+      try {
+        walk(target, visiting, rootName);
+      } finally {
+        visiting.delete(typeDef.ref);
+      }
+    } else if (typeDef.type === 'union') {
+      for (const variant of typeDef.variants) {
+        walk(variant, visiting, rootName);
+      }
+    }
+  };
+  for (const [name, def] of Object.entries(types)) {
+    walk(def, new Set([name]), name);
+  }
 }
 
 /**
@@ -756,7 +949,7 @@ function parseSurfaceProperties(
  * a legacy JSON Schema catalog document).
  */
 export function isCatalogDocument(raw: unknown): raw is Record<string, unknown> {
-  return isPlainObject(raw) && typeof raw['formatVersion'] === 'string';
+  return isPlainRecord(raw) && typeof raw['formatVersion'] === 'string';
 }
 
 /** Optional overrides applied when loading a Catalog Document. */
@@ -773,7 +966,8 @@ export interface ParseCatalogDocumentOptions {
  *
  * Enforces `formatVersion === "1.0"`, UAX #31 identifiers, the `"Surface"`
  * component ban, `requiresUserActivation` vs `allowedCallers`, unique names,
- * and local `ref` resolution against `types`.
+ * closed schema keys, valid bounds/patterns/enums, and acyclic local `ref`
+ * resolution against `types`.
  *
  * @throws {A2uiCatalogError} If any structural or semantic invariant is violated.
  */
@@ -781,9 +975,10 @@ export function parseCatalogDocument(
   raw: unknown,
   options?: ParseCatalogDocumentOptions,
 ): CatalogModel {
-  if (!isPlainObject(raw)) {
+  if (!isPlainRecord(raw)) {
     throw new A2uiCatalogError('Catalog document must be a JSON object.');
   }
+  assertAllowedKeys(raw, ROOT_ALLOWED_KEYS, 'catalog');
   const formatVersion = raw['formatVersion'];
   if (formatVersion !== CATALOG_DOCUMENT_FORMAT_VERSION) {
     throw new A2uiCatalogError(
@@ -798,6 +993,11 @@ export function parseCatalogDocument(
   const schema = parseOptionalString(raw, '$schema', 'catalog');
   const protocolVersion =
     options?.protocolVersion ?? parseOptionalString(raw, 'protocolVersion', 'catalog') ?? '1.0';
+  if (!isValidSemVer(protocolVersion)) {
+    throw new A2uiCatalogError(
+      `catalog.protocolVersion '${protocolVersion}' must be a valid SemVer string.`,
+    );
+  }
   const title = parseOptionalString(raw, 'title', 'catalog');
   const description = parseOptionalString(raw, 'description', 'catalog');
   const instructions = parseOptionalString(raw, 'instructions', 'catalog');
@@ -807,7 +1007,7 @@ export function parseCatalogDocument(
 
   let types: Record<string, DataTypeDefinition> | undefined;
   if (raw['types'] !== undefined) {
-    if (!isPlainObject(raw['types'])) {
+    if (!isPlainRecord(raw['types'])) {
       throw new A2uiCatalogError('catalog.types must be an object.');
     }
     types = {};
@@ -865,6 +1065,9 @@ export function parseCatalogDocument(
         `${ctx}: local type reference '${ref}' does not match any entry in catalog.types.`,
       );
     }
+  }
+  if (types) {
+    assertNoUnguardedRefCycles(types);
   }
 
   const model: CatalogModel = {
@@ -975,10 +1178,10 @@ function serializeTypeDefinition(typeDef: TypeDefinition, ctx: string): Record<s
         );
       }
       if (typeDef.additionalProperties !== undefined) {
-        out['additionalProperties'] =
-          typeof typeDef.additionalProperties === 'boolean'
-            ? typeDef.additionalProperties
-            : serializeTypeDefinition(typeDef.additionalProperties, `${ctx}.additionalProperties`);
+        out['additionalProperties'] = serializeAdditionalTypeRule(
+          typeDef.additionalProperties,
+          `${ctx}.additionalProperties`,
+        );
       }
       if (typeDef.atLeastOneOf !== undefined) {
         out['atLeastOneOf'] = typeDef.atLeastOneOf.map(g => [...g]);
@@ -1087,13 +1290,10 @@ export function serializeCatalogDocument(model: CatalogModel): Record<string, un
       );
     }
     if (model.surfaceProperties.additionalProperties !== undefined) {
-      sp['additionalProperties'] =
-        typeof model.surfaceProperties.additionalProperties === 'boolean'
-          ? model.surfaceProperties.additionalProperties
-          : serializeTypeDefinition(
-              model.surfaceProperties.additionalProperties,
-              'surfaceProperties.additionalProperties',
-            );
+      sp['additionalProperties'] = serializeAdditionalTypeRule(
+        model.surfaceProperties.additionalProperties,
+        'surfaceProperties.additionalProperties',
+      );
     }
     out['surfaceProperties'] = sp;
   }
@@ -1136,13 +1336,10 @@ export function serializeCatalogDocument(model: CatalogModel): Record<string, un
         f['atLeastOneOf'] = fn.atLeastOneOf.map(g => [...g]);
       }
       if (fn.additionalParameters !== undefined) {
-        f['additionalParameters'] =
-          typeof fn.additionalParameters === 'boolean'
-            ? fn.additionalParameters
-            : serializeTypeDefinition(
-                fn.additionalParameters,
-                `functions[${i}].additionalParameters`,
-              );
+        f['additionalParameters'] = serializeAdditionalTypeRule(
+          fn.additionalParameters,
+          `functions[${i}].additionalParameters`,
+        );
       }
       if (fn.deprecated !== undefined) f['deprecated'] = fn.deprecated;
       if (fn.deprecatedReason !== undefined) f['deprecatedReason'] = fn.deprecatedReason;

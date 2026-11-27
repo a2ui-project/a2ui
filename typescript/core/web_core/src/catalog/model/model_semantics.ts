@@ -77,23 +77,38 @@ const ACCESSIBILITY_BEHAVIOR: ModelBehaviorNode = Object.freeze({
   }),
 });
 
+interface ResolvedRef {
+  readonly resolved: TypeDefinition;
+  readonly nextVisited: ReadonlySet<string>;
+  readonly cyclic: boolean;
+}
+
 function resolveRef(
   typeDef: TypeDefinition,
   types: Readonly<Record<string, DataTypeDefinition>> | undefined,
-  visited: Set<string>,
-): TypeDefinition {
+  visited: ReadonlySet<string>,
+): ResolvedRef {
   let current: TypeDefinition = typeDef;
+  let nextVisited: ReadonlySet<string> = visited;
   while (current.type === 'ref') {
-    if (visited.has(current.ref)) return {type: 'any'};
+    if (nextVisited.has(current.ref)) {
+      return {resolved: {type: 'any'}, nextVisited, cyclic: true};
+    }
     const target = types?.[current.ref];
-    if (!target) return {type: 'any'};
-    visited.add(current.ref);
+    if (!target) {
+      return {resolved: {type: 'any'}, nextVisited, cyclic: false};
+    }
+    if (nextVisited === visited) {
+      nextVisited = new Set(visited);
+    }
+    (nextVisited as Set<string>).add(current.ref);
     current = target;
   }
-  return current;
+  return {resolved: current, nextVisited, cyclic: false};
 }
 
-function hasActiveBehavior(node: ModelBehaviorNode): boolean {
+/** Returns true when a {@link ModelBehaviorNode} subtree requires runtime resolution. */
+export function hasActiveBehavior(node: ModelBehaviorNode): boolean {
   switch (node.type) {
     case 'STATIC':
       return false;
@@ -115,9 +130,10 @@ function hasActiveBehavior(node: ModelBehaviorNode): boolean {
 function typeToBehavior(
   typeDef: TypeDefinition,
   types: Readonly<Record<string, DataTypeDefinition>> | undefined,
-  visited: Set<string>,
+  visited: ReadonlySet<string>,
 ): ModelBehaviorNode {
-  const resolved = resolveRef(typeDef, types, new Set(visited));
+  const {resolved, nextVisited, cyclic} = resolveRef(typeDef, types, visited);
+  if (cyclic) return {type: 'STATIC'};
   switch (resolved.type) {
     case 'child':
       return {type: 'STATIC'};
@@ -146,20 +162,24 @@ function typeToBehavior(
     case 'array': {
       if (resolved.dynamic) return {type: 'DYNAMIC'};
       if (!resolved.items) return {type: 'ARRAY', element: {type: 'STATIC'}};
-      const itemResolved = resolveRef(resolved.items, types, new Set(visited));
-      if (itemResolved.type === 'child') return {type: 'STRUCTURAL'};
-      if (itemResolved.type === 'checkRule') return {type: 'CHECKABLE'};
-      return {type: 'ARRAY', element: typeToBehavior(itemResolved, types, visited)};
+      const itemRef = resolveRef(resolved.items, types, nextVisited);
+      if (itemRef.cyclic) return {type: 'ARRAY', element: {type: 'STATIC'}};
+      if (itemRef.resolved.type === 'child') return {type: 'STRUCTURAL'};
+      if (itemRef.resolved.type === 'checkRule') return {type: 'CHECKABLE'};
+      return {
+        type: 'ARRAY',
+        element: typeToBehavior(itemRef.resolved, types, itemRef.nextVisited),
+      };
     }
     case 'object': {
       if (resolved.dynamic) return {type: 'DYNAMIC'};
       const shape: Record<string, ModelBehaviorNode> = {};
       for (const prop of resolved.properties ?? []) {
-        shape[prop.name] = typeToBehavior(prop, types, visited);
+        shape[prop.name] = typeToBehavior(prop, types, nextVisited);
       }
       const catchall =
         resolved.additionalProperties && typeof resolved.additionalProperties === 'object'
-          ? typeToBehavior(resolved.additionalProperties, types, visited)
+          ? typeToBehavior(resolved.additionalProperties, types, nextVisited)
           : undefined;
       return catchall && catchall.type !== 'STATIC'
         ? {type: 'OBJECT', shape, catchall}
@@ -167,7 +187,10 @@ function typeToBehavior(
     }
     case 'union': {
       if (resolved.dynamic) return {type: 'DYNAMIC'};
-      const variants = resolved.variants.map(v => resolveRef(v, types, new Set(visited)));
+      const variantRefs = resolved.variants
+        .map(v => resolveRef(v, types, nextVisited))
+        .filter(r => !r.cyclic);
+      const variants = variantRefs.map(r => r.resolved);
       if (variants.some(v => v.type === 'action')) return {type: 'ACTION'};
       const hasDynamicVariant = variants.some(
         v =>
@@ -183,17 +206,17 @@ function typeToBehavior(
         return allBoolean && hasBoolean ? {type: 'DYNAMIC', isBoolean: true} : {type: 'DYNAMIC'};
       }
       if (variants.some(v => v.type === 'childList')) {
-        const arrayVariant = variants.find(v => v.type === 'array');
-        if (arrayVariant && arrayVariant.type === 'array' && arrayVariant.items) {
-          const elem = typeToBehavior(arrayVariant.items, types, visited);
+        const arrayRef = variantRefs.find(r => r.resolved.type === 'array');
+        if (arrayRef && arrayRef.resolved.type === 'array' && arrayRef.resolved.items) {
+          const elem = typeToBehavior(arrayRef.resolved.items, types, arrayRef.nextVisited);
           if (hasActiveBehavior(elem)) {
             return {type: 'ARRAY', element: elem, templateFallback: true};
           }
         }
         return {type: 'STRUCTURAL'};
       }
-      const objectBehaviors = variants
-        .map(v => typeToBehavior(v, types, visited))
+      const objectBehaviors = variantRefs
+        .map(r => typeToBehavior(r.resolved, types, r.nextVisited))
         .filter((b): b is Extract<ModelBehaviorNode, {type: 'OBJECT'}> => b.type === 'OBJECT');
       if (objectBehaviors.length > 0) {
         const mergedShape: Record<string, ModelBehaviorNode> = {};
@@ -222,7 +245,7 @@ export function definitionToBehavior(
   types?: Readonly<Record<string, DataTypeDefinition>>,
 ): ModelBehaviorNode {
   const shape: Record<string, ModelBehaviorNode> = {};
-  const visited = new Set<string>();
+  const visited: ReadonlySet<string> = new Set();
   for (const param of def.parameters ?? []) {
     shape[param.name] = typeToBehavior(param, types, visited);
   }
@@ -240,9 +263,10 @@ export function definitionToBehavior(
 function classifyTypeRefKind(
   typeDef: TypeDefinition,
   types: Readonly<Record<string, DataTypeDefinition>> | undefined,
-  visited: Set<string>,
+  visited: ReadonlySet<string>,
 ): ModelRefKind | undefined {
-  const resolved = resolveRef(typeDef, types, new Set(visited));
+  const {resolved, nextVisited, cyclic} = resolveRef(typeDef, types, visited);
+  if (cyclic) return undefined;
   switch (resolved.type) {
     case 'child':
       return {kind: 'single'};
@@ -250,14 +274,15 @@ function classifyTypeRefKind(
       return {kind: 'list'};
     case 'array': {
       if (!resolved.items) return undefined;
-      const itemResolved = resolveRef(resolved.items, types, new Set(visited));
-      if (itemResolved.type === 'child' || itemResolved.type === 'childList') {
+      const itemRef = resolveRef(resolved.items, types, nextVisited);
+      if (itemRef.cyclic) return undefined;
+      if (itemRef.resolved.type === 'child' || itemRef.resolved.type === 'childList') {
         return {kind: 'list'};
       }
-      if (itemResolved.type === 'object' && itemResolved.properties) {
+      if (itemRef.resolved.type === 'object' && itemRef.resolved.properties) {
         const nestedKeys = new Set<string>();
-        for (const subProp of itemResolved.properties) {
-          const subKind = classifyTypeRefKind(subProp, types, visited);
+        for (const subProp of itemRef.resolved.properties) {
+          const subKind = classifyTypeRefKind(subProp, types, itemRef.nextVisited);
           if (subKind) {
             nestedKeys.add(subProp.name);
           }
@@ -272,7 +297,7 @@ function classifyTypeRefKind(
       let sawSingle = false;
       const nestedKeys = new Set<string>();
       for (const variant of resolved.variants) {
-        const k = classifyTypeRefKind(variant, types, visited);
+        const k = classifyTypeRefKind(variant, types, nextVisited);
         if (!k) continue;
         if (k.kind === 'list') return {kind: 'list'};
         if (k.kind === 'nested') {
@@ -364,20 +389,26 @@ export function definitionEnvelopeLayout(def: ComponentDefinition): ModelEnvelop
 function containsDynamicBoolean(
   typeDef: TypeDefinition,
   types: Readonly<Record<string, DataTypeDefinition>> | undefined,
-  visited: Set<string>,
+  visited: ReadonlySet<string>,
 ): boolean {
-  const resolved = resolveRef(typeDef, types, new Set(visited));
+  const {resolved, nextVisited, cyclic} = resolveRef(typeDef, types, visited);
+  if (cyclic) return false;
   if (resolved.type === 'boolean' && resolved.dynamic) {
     return true;
   }
   if (resolved.type === 'array' && resolved.items) {
-    return containsDynamicBoolean(resolved.items, types, visited);
+    return containsDynamicBoolean(resolved.items, types, nextVisited);
   }
-  if (resolved.type === 'object' && resolved.properties) {
-    return resolved.properties.some(p => containsDynamicBoolean(p, types, visited));
+  if (resolved.type === 'object') {
+    if (resolved.properties?.some(p => containsDynamicBoolean(p, types, nextVisited))) {
+      return true;
+    }
+    if (resolved.additionalProperties && typeof resolved.additionalProperties === 'object') {
+      return containsDynamicBoolean(resolved.additionalProperties, types, nextVisited);
+    }
   }
   if (resolved.type === 'union') {
-    return resolved.variants.some(v => containsDynamicBoolean(v, types, visited));
+    return resolved.variants.some(v => containsDynamicBoolean(v, types, nextVisited));
   }
   return false;
 }
@@ -391,7 +422,7 @@ export function findDynamicBooleanParamNames(
   types?: Readonly<Record<string, DataTypeDefinition>>,
 ): ReadonlySet<string> {
   const names = new Set<string>();
-  const visited = new Set<string>();
+  const visited: ReadonlySet<string> = new Set();
   for (const param of def.parameters ?? []) {
     if (containsDynamicBoolean(param, types, visited)) {
       names.add(param.name);
@@ -400,16 +431,14 @@ export function findDynamicBooleanParamNames(
   return names;
 }
 
-/**
- * Returns the allowed pre-1.0 `FunctionCall.returnType` values for a canonical
- * {@link TypeDefinition} slot, or `undefined` if unconstrained.
- */
-export function allowedReturnTypesForDefinition(
+function allowedReturnTypesInner(
   typeDef: TypeDefinition | undefined,
-  types?: Readonly<Record<string, DataTypeDefinition>>,
+  types: Readonly<Record<string, DataTypeDefinition>> | undefined,
+  visited: ReadonlySet<string>,
 ): ReadonlySet<string> | undefined {
   if (!typeDef) return undefined;
-  const resolved = resolveRef(typeDef, types, new Set());
+  const {resolved, nextVisited, cyclic} = resolveRef(typeDef, types, visited);
+  if (cyclic) return undefined;
   switch (resolved.type) {
     case 'string':
       return resolved.dynamic ? new Set(['string']) : undefined;
@@ -423,15 +452,16 @@ export function allowedReturnTypesForDefinition(
     case 'object':
       return resolved.dynamic ? new Set(['object']) : undefined;
     case 'enum':
-      return resolved.dynamic && resolved.valueType ? new Set([resolved.valueType]) : undefined;
+      return resolved.dynamic ? new Set([resolved.valueType ?? 'string']) : undefined;
     case 'any':
       return undefined;
     case 'union': {
       const allowed = new Set<string>();
       for (const variant of resolved.variants) {
-        const sub = resolveRef(variant, types, new Set());
-        if (sub.type === 'any') return undefined;
-        const subAllowed = allowedReturnTypesForDefinition(sub, types);
+        const subRef = resolveRef(variant, types, nextVisited);
+        if (subRef.cyclic) continue;
+        if (subRef.resolved.type === 'any') return undefined;
+        const subAllowed = allowedReturnTypesInner(subRef.resolved, types, subRef.nextVisited);
         if (subAllowed) {
           for (const t of subAllowed) allowed.add(t);
         }
@@ -441,6 +471,17 @@ export function allowedReturnTypesForDefinition(
     default:
       return undefined;
   }
+}
+
+/**
+ * Returns the allowed pre-1.0 `FunctionCall.returnType` values for a canonical
+ * {@link TypeDefinition} slot, or `undefined` if unconstrained.
+ */
+export function allowedReturnTypesForDefinition(
+  typeDef: TypeDefinition | undefined,
+  types?: Readonly<Record<string, DataTypeDefinition>>,
+): ReadonlySet<string> | undefined {
+  return allowedReturnTypesInner(typeDef, types, new Set());
 }
 
 /**

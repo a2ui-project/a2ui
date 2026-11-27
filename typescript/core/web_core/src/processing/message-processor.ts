@@ -16,8 +16,11 @@
 
 import {SurfaceModel, ActionListener, type ActionPayload} from '../state/surface-model.js';
 import {getLegacySchemaAdapter} from '../catalog/legacy_schema_adapter.js';
-import {typeDefinitionToJsonSchema} from '../catalog/model/json_schema_codec.js';
-import {Catalog, ComponentApi} from '../catalog/types.js';
+import {
+  surfacePropertiesToJsonSchema,
+  typeDefinitionToJsonSchema,
+} from '../catalog/model/json_schema_codec.js';
+import {Catalog, ComponentApi, ComponentApiLike} from '../catalog/types.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
 import {SurfaceComponentsModel} from '../state/surface-components-model.js';
@@ -218,7 +221,7 @@ export {formatZodIssue};
  *
  * @template T Concrete type of the ComponentApi.
  */
-export class MessageProcessor<T extends ComponentApi = ComponentApi> {
+export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
   readonly rpc: RpcHandler;
   private readonly adapterRegistry: VersionAdapterResolver;
@@ -503,11 +506,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const rawTheme = legacyAdapter.schemaToJsonSchema(catalog.themeSchema);
       theme = (rawTheme['properties'] as Record<string, unknown>) || undefined;
     } else if (catalog.surfaceProperties?.properties?.length) {
-      const themeProps: Record<string, unknown> = {};
-      for (const param of catalog.surfaceProperties.properties) {
-        themeProps[param.name] = typeDefinitionToJsonSchema(param, codecOpts);
-      }
-      theme = themeProps;
+      const rawTheme = surfacePropertiesToJsonSchema(catalog.surfaceProperties, codecOpts);
+      theme = (rawTheme['properties'] as Record<string, unknown>) || undefined;
     }
 
     return {
@@ -1497,7 +1497,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     comp: Record<string, unknown>,
     surface: SurfaceModel<T>,
     catalog: Catalog<T> | undefined,
-  ): ComponentApi | undefined {
+  ): ComponentApiLike | undefined {
     const {id, component} = comp;
     const type =
       typeof component === 'string' && component
@@ -1891,7 +1891,7 @@ function extractComponentMetadata(rawMetadata: unknown): A2uiMetadata | undefine
   return undefined;
 }
 
-function resolveSurfaceDefaultCatalog<T extends ComponentApi>(
+function resolveSurfaceDefaultCatalog<T extends ComponentApiLike>(
   catalogs: ReadonlyArray<Catalog<T>>,
   catalogId: string | undefined,
   msgVersion: string | undefined,

@@ -125,4 +125,32 @@ describe('Express inference format with canonical Catalog Document (zero-Zod)', 
     expect(roundTrippedDsl).toContain('Metric');
     expect(roundTrippedDsl).toContain('Layout');
   });
+
+  it('keeps custom checks property separate from inherited @checks when checkable is true', () => {
+    const customChecksCatalog = Catalog.fromDocument({
+      formatVersion: '1.0',
+      catalogId: 'https://example.com/custom-checks/v1',
+      protocolVersion: '1.0',
+      components: [
+        {
+          name: 'Checklist',
+          checkable: true,
+          parameters: [
+            {name: 'title', type: 'string', required: true},
+            {name: 'checks', type: 'number'},
+          ],
+        },
+      ],
+    });
+
+    const helper = new CatalogSchemaHelper(customChecksCatalog, '1.0');
+    expect(helper.getComponentProperties('Checklist')).toEqual(['title', 'checks']);
+    expect(helper.getCustomEnvelopeProperties('Checklist').has('checks')).toBe(true);
+    expect(helper.isCheckable('Checklist')).toBe(true);
+    expect(helper.getPropertySchema('Checklist', 'checks')).toMatchObject({type: 'number'});
+    expect(helper.getCheckRulePropertySchema('Checklist')).toMatchObject({
+      type: 'array',
+      items: {$ref: 'common_types.json#/$defs/CheckRule'},
+    });
+  });
 });

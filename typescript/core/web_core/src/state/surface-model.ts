@@ -15,7 +15,13 @@
  */
 
 import {DataModel} from './data-model.js';
-import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from '../catalog/types.js';
+import {
+  Catalog,
+  ComponentApi,
+  ComponentApiLike,
+  FunctionApiLike,
+  FunctionImplementation,
+} from '../catalog/types.js';
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {canonicalJsonKey, toJsonValue} from '../common/canonical_json.js';
 import {EventEmitter, EventSource} from '../common/events.js';
@@ -161,8 +167,8 @@ export type AgentFunctionCaller = (call: AgentFunctionCall) => Promise<unknown>;
  *   implementations.
  */
 export class SurfaceModel<
-  T extends ComponentApi = ComponentApi,
-  F extends FunctionApi = FunctionImplementation,
+  T extends ComponentApiLike = ComponentApi,
+  F extends FunctionApiLike = FunctionImplementation,
 > {
   /** Data model for this surface. */
   readonly dataModel: DataModel;

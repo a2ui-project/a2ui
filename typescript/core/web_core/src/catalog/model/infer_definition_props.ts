@@ -82,6 +82,45 @@ type Prettify<T> = {[K in keyof T]: T[K]} & {};
 
 type NextDepth<D extends readonly unknown[]> = [...D, unknown];
 
+type InferObjectExtra<
+  T,
+  Types extends Readonly<Record<string, DataTypeDefinition>>,
+  Depth extends readonly unknown[],
+> = T extends {readonly additionalProperties: true}
+  ? Record<string, unknown>
+  : T extends {readonly additionalProperties: infer Extra extends TypeDefinition}
+    ? TypeDefinition extends Extra
+      ? Record<never, never>
+      : Record<string, InferTypeDefinitionValue<Extra, Types, Depth>>
+    : Record<never, never>;
+
+type IsDynamicDefinition<
+  T extends TypeDefinition,
+  Types extends Readonly<Record<string, DataTypeDefinition>>,
+  Depth extends readonly unknown[] = [],
+> = Depth['length'] extends 8
+  ? false
+  : TypeDefinition extends T
+    ? false
+    : DataTypeDefinition extends T
+      ? false
+      : T extends {readonly dynamic: true}
+        ? true
+        : T extends {readonly type: 'dataBinding' | 'functionCall'}
+          ? true
+          : T extends {readonly type: 'ref'; readonly ref: infer RefName extends string}
+            ? RefName extends keyof Types
+              ? IsDynamicDefinition<Types[RefName], Types, NextDepth<Depth>>
+              : false
+            : T extends {
+                  readonly type: 'union';
+                  readonly variants: readonly (infer V extends TypeDefinition)[];
+                }
+              ? true extends IsDynamicDefinition<V, Types, NextDepth<Depth>>
+                ? true
+                : false
+              : false;
+
 /**
  * Infers the resolved runtime TypeScript value type of a canonical {@link TypeDefinition}.
  */
@@ -130,41 +169,45 @@ export type InferTypeDefinitionValue<
                                       NextDepth<Depth>
                                     >
                                   : unknown
-                                : T extends {readonly type: 'array'; readonly items?: infer Item}
-                                  ? Item extends TypeDefinition
-                                    ? InferTypeDefinitionValue<Item, Types, NextDepth<Depth>>[]
+                                : T extends {readonly type: 'array'}
+                                  ? T extends {readonly items: infer Item extends TypeDefinition}
+                                    ? TypeDefinition extends Item
+                                      ? unknown[]
+                                      : InferTypeDefinitionValue<Item, Types, NextDepth<Depth>>[]
                                     : unknown[]
-                                  : T extends {
-                                        readonly type: 'object';
-                                        readonly properties?: infer Props;
-                                        readonly additionalProperties?: infer Extra;
+                                  : T extends {readonly type: 'object'}
+                                    ? T extends {
+                                        readonly properties: infer Props extends
+                                          readonly ComponentParameterDefinition[];
                                       }
-                                    ? Props extends readonly ComponentParameterDefinition[]
-                                      ? Extra extends true
+                                      ? T extends {readonly dynamic: true}
                                         ? Prettify<
                                             InferParameterMap<Props, Types, NextDepth<Depth>> &
-                                              Record<string, unknown>
+                                              InferObjectExtra<T, Types, NextDepth<Depth>>
                                           >
-                                        : Extra extends TypeDefinition
-                                          ? Prettify<
-                                              InferParameterMap<Props, Types, NextDepth<Depth>> &
-                                                Record<
-                                                  string,
-                                                  InferTypeDefinitionValue<
-                                                    Extra,
-                                                    Types,
-                                                    NextDepth<Depth>
-                                                  >
-                                                >
-                                            >
-                                          : Prettify<
-                                              InferParameterMap<Props, Types, NextDepth<Depth>>
-                                            >
-                                      : Extra extends TypeDefinition
-                                        ? Record<
-                                            string,
-                                            InferTypeDefinitionValue<Extra, Types, NextDepth<Depth>>
+                                        : Prettify<
+                                            InferParameterMap<Props, Types, NextDepth<Depth>> &
+                                              GenerateDefinitionSetters<
+                                                Props,
+                                                Types,
+                                                NextDepth<Depth>
+                                              > &
+                                              InferObjectExtra<T, Types, NextDepth<Depth>>
                                           >
+                                      : T extends {
+                                            readonly additionalProperties: infer Extra extends
+                                              TypeDefinition;
+                                          }
+                                        ? TypeDefinition extends Extra
+                                          ? Record<string, unknown>
+                                          : Record<
+                                              string,
+                                              InferTypeDefinitionValue<
+                                                Extra,
+                                                Types,
+                                                NextDepth<Depth>
+                                              >
+                                            >
                                         : Record<string, unknown>
                                     : T extends {
                                           readonly type: 'union';
@@ -177,23 +220,19 @@ export type InferTypeDefinitionValue<
 type GenerateDefinitionSetters<
   Params extends readonly ComponentParameterDefinition[],
   Types extends Readonly<Record<string, DataTypeDefinition>>,
+  Depth extends readonly unknown[] = [],
 > = {
-  [P in Params[number] as P extends {readonly dynamic: true}
+  [P in Params[number] as IsDynamicDefinition<P, Types, Depth> extends true
     ? `set${Capitalize<P['name']>}`
-    : never]?: (value: InferTypeDefinitionValue<P, Types>) => void;
+    : never]-?: (value: InferTypeDefinitionValue<P, Types, Depth>) => void;
 };
 
-type CheckableExtension<Def extends ComponentDefinition> = Def extends {readonly checkable: true}
-  ? {
-      isValid?: boolean;
-      validationErrors?: string[];
-      validationResults?: ModelValidationResult[];
-    }
-  : {
-      isValid?: boolean;
-      validationErrors?: string[];
-      validationResults?: ModelValidationResult[];
-    };
+/** Resolved check-rule properties attached by `GenericBinder`. */
+export interface ModelCheckProps {
+  isValid?: boolean;
+  validationErrors?: string[];
+  validationResults?: ModelValidationResult[];
+}
 
 /**
  * Infers the resolved runtime prop map produced by `GenericBinder` for a canonical
@@ -209,8 +248,8 @@ export type ResolveDefinitionProps<
       (Def['parameters'] extends readonly ComponentParameterDefinition[]
         ? InferParameterMap<Def['parameters'], Types> &
             GenerateDefinitionSetters<Def['parameters'], Types>
-        : Record<string, never>) &
-        CheckableExtension<Def> & {
+        : Record<never, never>) &
+        ModelCheckProps & {
           accessibility?: ModelResolvedAccessibility;
           '@accessibility'?: ModelResolvedAccessibility;
         }
@@ -224,13 +263,15 @@ export type ResolveFunctionDefinitionArgs<
   Types extends Readonly<Record<string, DataTypeDefinition>> = Record<never, never>,
 > = FunctionDefinition extends Def
   ? Record<string, unknown>
-  : Def['parameters'] extends readonly DataParameterDefinition[]
-    ? Def['additionalParameters'] extends true
-      ? Prettify<InferDataParameterMap<Def['parameters'], Types> & Record<string, unknown>>
-      : Def['additionalParameters'] extends DataTypeDefinition
-        ? Prettify<
-            InferDataParameterMap<Def['parameters'], Types> &
-              Record<string, InferTypeDefinitionValue<Def['additionalParameters'], Types>>
-          >
-        : Prettify<InferDataParameterMap<Def['parameters'], Types>>
+  : Def extends {readonly parameters: infer Params extends readonly DataParameterDefinition[]}
+    ? Def extends {readonly additionalParameters: true}
+      ? Prettify<InferDataParameterMap<Params, Types> & Record<string, unknown>>
+      : Def extends {readonly additionalParameters: infer Extra extends DataTypeDefinition}
+        ? DataTypeDefinition extends Extra
+          ? Prettify<InferDataParameterMap<Params, Types>>
+          : Prettify<
+              InferDataParameterMap<Params, Types> &
+                Record<string, InferTypeDefinitionValue<Extra, Types>>
+            >
+        : Prettify<InferDataParameterMap<Params, Types>>
     : Record<string, unknown>;

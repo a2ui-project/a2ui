@@ -15,6 +15,7 @@
  */
 
 import type {A2uiMetadata} from '../../common/metadata.js';
+import {isPlainRecord} from './format_validators.js';
 
 /** Current Catalog Document format version discriminator. */
 export const CATALOG_DOCUMENT_FORMAT_VERSION = '1.0' as const;
@@ -419,7 +420,7 @@ export const FORBIDDEN_COMPONENT_PARAM_NAMES: ReadonlySet<string> = new Set([
  */
 export function functionReturnTypeName(returnType: FunctionReturnDefinition): string {
   if (typeof returnType === 'string') {
-    return returnType;
+    return returnType === 'integer' ? 'number' : returnType;
   }
   switch (returnType.type) {
     case 'string':
@@ -433,8 +434,18 @@ export function functionReturnTypeName(returnType: FunctionReturnDefinition): st
       return returnType.type;
     case 'integer':
       return 'number';
-    case 'enum':
-      return returnType.valueType ?? 'any';
+    case 'enum': {
+      if (returnType.valueType) return returnType.valueType;
+      if (returnType.values.length === 0) return 'string';
+      const firstType = typeof returnType.values[0];
+      if (
+        (firstType === 'string' || firstType === 'number' || firstType === 'boolean') &&
+        returnType.values.every(v => typeof v === firstType)
+      ) {
+        return firstType;
+      }
+      return 'any';
+    }
     case 'const':
       if (typeof returnType.value === 'string') return 'string';
       if (typeof returnType.value === 'number') return 'number';
@@ -447,28 +458,26 @@ export function functionReturnTypeName(returnType: FunctionReturnDefinition): st
 
 /** Type guard checking whether a value is a canonical {@link ComponentDefinition}. */
 export function isComponentDefinition(value: unknown): value is ComponentDefinition {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+  if (!isPlainRecord(value)) {
     return false;
   }
-  const obj = value as Record<string, unknown>;
-  if (typeof obj['name'] !== 'string' || !obj['name']) {
+  if (typeof value['name'] !== 'string' || !value['name']) {
     return false;
   }
   // Distinguish from Zod schemas (`_def`), BehaviorNodes (`type`),
   // ComponentApi/FunctionApi wrappers (`schema`/`definition`), and FunctionDefinitions (`returnType`).
   if (
-    '_def' in obj ||
-    'safeParse' in obj ||
-    'type' in obj ||
-    'schema' in obj ||
-    'definition' in obj ||
-    'returnType' in obj
+    '_def' in value ||
+    'safeParse' in value ||
+    'type' in value ||
+    'schema' in value ||
+    'definition' in value ||
+    'returnType' in value
   ) {
     return false;
   }
   return (
-    obj['parameters'] === undefined ||
-    Array.isArray(obj['parameters']) ||
-    typeof obj['checkable'] === 'boolean'
+    (value['parameters'] === undefined || Array.isArray(value['parameters'])) &&
+    (value['checkable'] === undefined || typeof value['checkable'] === 'boolean')
   );
 }

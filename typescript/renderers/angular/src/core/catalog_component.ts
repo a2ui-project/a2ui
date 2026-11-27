@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {A2uiMetadata, ComponentApi} from '@a2ui/web_core';
+import {A2uiMetadata, ComponentApiLike, DataTypeDefinition} from '@a2ui/web_core';
 import {Directive, computed, input} from '@angular/core';
 import {ComponentApiToProps} from './types';
 import {CatalogComponentInstance} from './catalog_component_instance';
@@ -28,12 +28,13 @@ import {CatalogComponentInstance} from './catalog_component_instance';
  */
 @Directive()
 export abstract class CatalogComponent<
-  Api extends ComponentApi,
+  Api extends ComponentApiLike,
+  Types extends Readonly<Record<string, DataTypeDefinition>> = Record<never, never>,
 > implements CatalogComponentInstance {
   /**
    * Reactive properties resolved from the A2UI ComponentModel.
    */
-  readonly props = input<ComponentApiToProps<Api>>({} as ComponentApiToProps<Api>);
+  readonly props = input<ComponentApiToProps<Api, Types>>({} as ComponentApiToProps<Api, Types>);
   readonly metadata = input<A2uiMetadata | undefined>(undefined);
   readonly extensions = computed(() => this.metadata()?.extensions);
   readonly surfaceId = input.required<string>();

@@ -20,15 +20,17 @@ import {
   type ComponentNode,
   ResolvedBinding,
   computed,
-  extractDefinitionRefFields,
   getValue,
   isAtLeastVersion,
   isComponentNode,
   isWritable,
   peekValue,
 } from '@a2ui/web_core';
+import {extractDefinitionRefFields, type ModelRefFields} from '@a2ui/web_core/catalog/model';
 import {BoundProperty, ComponentTemplate} from './types';
 import {assertAngularSignal, initializeAngularReactivity} from './reactivity';
+
+const EMPTY_REF_KEYS: ReadonlySet<string> = new Set();
 
 /** Represents a reference to a child component. */
 export interface Child {
@@ -71,9 +73,13 @@ export class ComponentBinder {
    */
   bindNode(node: ComponentNode): Record<string, BoundProperty> {
     const rawProps = node.context?.componentModel.properties ?? {};
+    const refFields =
+      node.impl?.definition !== undefined
+        ? extractDefinitionRefFields(node.impl.definition)
+        : undefined;
     const bound: Record<string, BoundProperty<unknown>> = {};
     for (const key of Object.keys(peekValue(node.props))) {
-      bound[key] = this.bindNodeProperty(node, key, rawProps[key]);
+      bound[key] = this.bindNodeProperty(node, key, rawProps[key], refFields);
     }
     return bound;
   }
@@ -82,15 +88,16 @@ export class ComponentBinder {
     node: ComponentNode,
     key: string,
     rawVal: unknown,
+    refFields?: ModelRefFields,
   ): BoundProperty<unknown> {
     const valueSignal = computed(() =>
-      this.unwrapNodePropValue(key, getValue(node.props)[key], node.dataPath),
+      this.unwrapNodePropValue(key, getValue(node.props)[key], node.dataPath, refFields),
     );
     assertAngularSignal(valueSignal);
     return {
       value: valueSignal as AngularSignal<unknown>,
       raw: rawVal,
-      template: this.extractNodeTemplate(node, key, rawVal),
+      template: this.extractNodeTemplate(key, rawVal, refFields),
       onUpdate: (newValue: unknown) => {
         const binding = peekValue(node.props)[key];
         if (binding instanceof ResolvedBinding && isWritable(binding)) {
@@ -101,14 +108,12 @@ export class ComponentBinder {
   }
 
   private extractNodeTemplate(
-    node: ComponentNode,
     key: string,
     rawVal: unknown,
+    refFields?: ModelRefFields,
   ): ComponentTemplate | undefined {
     const isListSlot =
-      key === 'children' ||
-      (node.impl?.definition !== undefined &&
-        extractDefinitionRefFields(node.impl.definition).get(key)?.kind === 'list');
+      refFields !== undefined ? refFields.get(key)?.kind === 'list' : key === 'children';
     if (!isListSlot || !isChildListTemplateObject(rawVal)) {
       return undefined;
     }
@@ -117,28 +122,53 @@ export class ComponentBinder {
       : undefined;
   }
 
-  private unwrapNodePropValue(key: string, val: unknown, defaultBasePath: string): unknown {
+  private unwrapNodePropValue(
+    key: string,
+    val: unknown,
+    defaultBasePath: string,
+    refFields?: ModelRefFields,
+    nestedRefKeys?: ReadonlySet<string>,
+  ): unknown {
     if (val instanceof ResolvedBinding) {
-      return this.unwrapNodePropValue(key, val.value, defaultBasePath);
+      return this.unwrapNodePropValue(key, val.value, defaultBasePath, refFields, nestedRefKeys);
     }
     if (isComponentNode(val)) {
       return toChild(val);
     }
+    const refEntry = refFields?.get(key);
+    const isListSlot = refFields !== undefined ? refEntry?.kind === 'list' : key === 'children';
+    const isSingleSlot =
+      nestedRefKeys !== undefined
+        ? nestedRefKeys.has(key)
+        : refFields !== undefined
+          ? refEntry?.kind === 'single'
+          : ['child', 'trigger', 'content'].includes(key);
+    const childNestedKeys = refEntry?.kind === 'nested' ? refEntry.keys : undefined;
     if (Array.isArray(val)) {
-      if (key === 'children') {
+      if (isListSlot) {
         return val.map(item =>
           isComponentNode(item) ? toChild(item) : this.normalizeChildItem(item, defaultBasePath),
         );
       }
-      return val.map(item => this.unwrapNodePropValue(key, item, defaultBasePath));
+      return val.map(item =>
+        this.unwrapNodePropValue(
+          key,
+          item,
+          defaultBasePath,
+          undefined,
+          childNestedKeys ?? nestedRefKeys,
+        ),
+      );
     }
-    if (['child', 'trigger', 'content'].includes(key)) {
+    if (isSingleSlot) {
       return this.normalizeChildItem(val, defaultBasePath);
     }
     if (val && typeof val === 'object' && Object.getPrototypeOf(val) === Object.prototype) {
       const out: Record<string, unknown> = {};
+      const nextNestedKeys =
+        childNestedKeys ?? nestedRefKeys ?? (refFields !== undefined ? EMPTY_REF_KEYS : undefined);
       for (const [k, v] of Object.entries(val)) {
-        out[k] = this.unwrapNodePropValue(k, v, defaultBasePath);
+        out[k] = this.unwrapNodePropValue(k, v, defaultBasePath, undefined, nextNestedKeys);
       }
       return out;
     }

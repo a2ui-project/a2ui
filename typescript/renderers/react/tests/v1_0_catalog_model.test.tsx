@@ -17,10 +17,11 @@
 import React from 'react';
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import {describe, expect, it} from 'vitest';
-import {Catalog, defineComponent, defineComponentApi, MessageProcessor, t} from '@a2ui/web_core';
+import {Catalog, defineComponent, defineComponentApi, MessageProcessor} from '@a2ui/web_core';
+import {t} from '@a2ui/web_core/catalog/model';
 import {A2uiSurface} from '../src/A2uiSurface';
 import {createComponentImplementation} from '../src/adapter';
-import type {ReactCatalogComponent} from '../src/react_component_implementation';
+import type {ReactCatalogComponentLike} from '../src/react_component_implementation';
 
 describe('React renderer with canonical zero-Zod CatalogModel', () => {
   it('infers typed props, preserves definition, and renders reactively without Zod', async () => {
@@ -96,7 +97,12 @@ describe('React renderer with canonical zero-Zod CatalogModel', () => {
 
     const actions: unknown[] = [];
     const catalogId = 'https://example.com/react-zero-zod';
-    const catalog = new Catalog<ReactCatalogComponent>(catalogId, '1.0', [PanelImpl, TagImpl], []);
+    const catalog = new Catalog<ReactCatalogComponentLike>(
+      catalogId,
+      '1.0',
+      [PanelImpl, TagImpl],
+      [],
+    );
     const processor = new MessageProcessor([catalog], action => {
       actions.push(action);
     });

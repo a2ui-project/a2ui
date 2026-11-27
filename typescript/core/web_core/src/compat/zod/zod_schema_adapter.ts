@@ -23,9 +23,7 @@ import {
   type LegacySchemaAdapter,
 } from '../../catalog/legacy_schema_adapter.js';
 import type {ValidationIssue, ValidationOutcome} from '../../catalog/model/model_validator.js';
-import {buildComponentRefMap} from '../../catalog/reference-map.js';
 import {isZodSchema} from '../../catalog/schema_loader.js';
-import {coerceDynamicBooleans} from '../../catalog/validation_result_coercion.js';
 import {extractRefFields} from '../../resolution/ref-fields.js';
 import {scrapeZodComponentBehavior, scrapeZodSchemaBehavior} from './zod_behavior_scraper.js';
 import {getKnownZodSchemaKeys} from './zod_known_keys.js';
@@ -44,7 +42,7 @@ import {
 
 /**
  * Zod implementation of {@link LegacySchemaAdapter}, isolating all runtime
- * Zod and `zod-to-json-schema` bridging behind the core adapter boundary.
+ * Zod and `zod-to-json-schema` compatibility behind the core adapter boundary.
  */
 export const zodSchemaAdapter: LegacySchemaAdapter = {
   isLegacySchema(value: unknown): boolean {
@@ -61,10 +59,6 @@ export const zodSchemaAdapter: LegacySchemaAdapter = {
       success: false,
       issues: res.error.issues as unknown as readonly ValidationIssue[],
     };
-  },
-
-  coerceDynamicBooleans(schema: unknown, value: unknown): unknown {
-    return coerceDynamicBooleans(schema as z.ZodTypeAny, value);
   },
 
   scrapeComponentBehavior(schema: unknown, options?: LegacyChildRefOptions) {
@@ -117,13 +111,6 @@ export const zodSchemaAdapter: LegacySchemaAdapter = {
 
   themeSchemaToSurfaceProperties(schema) {
     return zodThemeToSurfaceProperties(schema as z.ZodTypeAny);
-  },
-
-  buildLegacyComponentRefMap(components, options) {
-    return buildComponentRefMap(
-      components as ReadonlyArray<{name: string; schema: z.ZodTypeAny}>,
-      options,
-    );
   },
 };
 

@@ -24,6 +24,15 @@ import type {
   SurfacePropertiesDefinition,
   TypeDefinition,
 } from './catalog_model.js';
+import {
+  describeValueType,
+  isPlainRecord,
+  isValidEmail,
+  isValidRfc3339Date,
+  isValidRfc3339DateTime,
+  isValidRfc3339Time,
+  isValidUri,
+} from './format_validators.js';
 
 /**
  * Structured validation issue produced by zero-dependency validators.
@@ -62,23 +71,7 @@ export interface ValidateCatalogValueOptions {
   readonly coerceDynamicBoolean?: boolean;
 }
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const ISO_TIME_RE = /^\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:[Zz]|[+-]\d{2}:\d{2})?$/;
-const ISO_DATE_TIME_RE =
-  /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:[Zz]|[+-]\d{2}:\d{2})?$/;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function describeReceived(value: unknown): string {
-  if (value === undefined) return 'undefined';
-  if (value === null) return 'null';
-  if (Array.isArray(value)) return 'array';
-  if (typeof value === 'number' && Number.isNaN(value)) return 'nan';
-  return typeof value;
-}
+const MAX_VALIDATION_DEPTH = 128;
 
 /**
  * Formats a {@link ValidationIssue} into a human-readable diagnostic string.
@@ -121,7 +114,7 @@ export function formatValidationIssue(issue: ValidationIssue): string {
  */
 export function coerceModelDynamicBoolean(value: unknown): boolean {
   if (typeof value === 'boolean') return value;
-  if (isPlainObject(value) && typeof value['valid'] === 'boolean') {
+  if (isPlainRecord(value) && typeof value['valid'] === 'boolean') {
     return value['valid'];
   }
   if (typeof value === 'string') {
@@ -137,21 +130,13 @@ export function coerceModelDynamicBoolean(value: unknown): boolean {
  * Returns whether `value` is a valid A2UI data binding (`{'@path': string}` or `{'path': string}`).
  */
 export function isDataBindingValue(value: unknown, protocolVersion?: string): boolean {
-  if (!isPlainObject(value)) return false;
+  if (!isPlainRecord(value)) return false;
   const allowAt = !protocolVersion || isAtLeastVersion(protocolVersion, '1.0');
   const keys = Object.keys(value);
-  if (keys.length === 0) return false;
-  const hasAtPath = allowAt && typeof value['@path'] === 'string';
-  const hasBarePath = typeof value['path'] === 'string';
-  if (!hasAtPath && !hasBarePath) return false;
-  for (const key of keys) {
-    if (key === 'path' || (allowAt && key === '@path')) {
-      if (typeof value[key] !== 'string') return false;
-    } else {
-      return false;
-    }
-  }
-  return true;
+  if (keys.length !== 1) return false;
+  const key = keys[0];
+  if (key !== 'path' && !(allowAt && key === '@path')) return false;
+  return typeof value[key] === 'string';
 }
 
 /**
@@ -159,15 +144,27 @@ export function isDataBindingValue(value: unknown, protocolVersion?: string): bo
  * (`{'@call': string, args?, catalogId?}` or `{'call': string, ...}`).
  */
 export function isFunctionCallValue(value: unknown, protocolVersion?: string): boolean {
-  if (!isPlainObject(value)) return false;
-  const allowAt = !protocolVersion || isAtLeastVersion(protocolVersion, '1.0');
-  const hasAtCall = allowAt && typeof value['@call'] === 'string';
-  const hasBareCall = typeof value['call'] === 'string';
-  if (!hasAtCall && !hasBareCall) return false;
+  if (!isPlainRecord(value)) return false;
+  const isV10 = !protocolVersion || isAtLeastVersion(protocolVersion, '1.0');
+  const hasAtCall = isV10 && Object.hasOwn(value, '@call');
+  const hasBareCall = Object.hasOwn(value, 'call');
+  if (hasAtCall === hasBareCall) return false;
+  const callKey = hasAtCall ? '@call' : 'call';
+  const callName = value[callKey];
+  if (typeof callName !== 'string' || callName.length === 0) return false;
+  const allowReturnType = !isV10 || (!protocolVersion && hasBareCall);
+  for (const key of Object.keys(value)) {
+    if (key === callKey || key === 'args' || key === 'catalogId') continue;
+    if (allowReturnType && key === 'returnType') continue;
+    return false;
+  }
   if (value['catalogId'] !== undefined && typeof value['catalogId'] !== 'string') {
     return false;
   }
-  if (value['args'] !== undefined && !isPlainObject(value['args'])) {
+  if (value['args'] !== undefined && !isPlainRecord(value['args'])) {
+    return false;
+  }
+  if (value['returnType'] !== undefined && typeof value['returnType'] !== 'string') {
     return false;
   }
   return true;
@@ -181,15 +178,15 @@ function checkStringFormat(value: string, format: string): boolean {
   switch (format) {
     case 'uri':
     case 'url':
-      return value.trim().length > 0 && !/\s/.test(value.trim());
+      return isValidUri(value);
     case 'date':
-      return ISO_DATE_RE.test(value);
+      return isValidRfc3339Date(value);
     case 'time':
-      return ISO_TIME_RE.test(value);
+      return isValidRfc3339Time(value);
     case 'date-time':
-      return ISO_DATE_TIME_RE.test(value);
+      return isValidRfc3339DateTime(value);
     case 'email':
-      return EMAIL_RE.test(value);
+      return isValidEmail(value);
     default:
       // Unknown custom formats are treated as advisory annotations.
       return true;
@@ -209,8 +206,8 @@ function validateDynamicString(
     path,
     code: 'invalid_type',
     expected: 'string',
-    received: describeReceived(value),
-    message: `Expected DynamicString, received ${describeReceived(value)}`,
+    received: describeValueType(value),
+    message: `Expected DynamicString, received ${describeValueType(value)}`,
   });
 }
 
@@ -227,8 +224,8 @@ function validateDynamicBoolean(
     path,
     code: 'invalid_type',
     expected: 'boolean',
-    received: describeReceived(value),
-    message: `Expected DynamicBoolean, received ${describeReceived(value)}`,
+    received: describeValueType(value),
+    message: `Expected DynamicBoolean, received ${describeValueType(value)}`,
   });
 }
 
@@ -247,12 +244,12 @@ function validateDynamicValue(
       path,
       code: 'invalid_type',
       expected: 'DynamicValue',
-      received: describeReceived(value),
-      message: `Expected non-null DynamicValue, received ${describeReceived(value)}`,
+      received: describeValueType(value),
+      message: `Expected non-null DynamicValue, received ${describeValueType(value)}`,
     });
     return;
   }
-  if (isPlainObject(value)) {
+  if (isPlainRecord(value)) {
     const hasBindingKey =
       '@path' in value || 'path' in value || '@call' in value || 'call' in value;
     if (hasBindingKey && !isDynamicWrapperValue(value, protocolVersion)) {
@@ -271,13 +268,13 @@ function validateAccessibilityObject(
   protocolVersion: string | undefined,
   issues: ValidationIssue[],
 ): Record<string, unknown> | undefined {
-  if (!isPlainObject(value)) {
+  if (!isPlainRecord(value)) {
     issues.push({
       path,
       code: 'invalid_type',
       expected: 'object',
-      received: describeReceived(value),
-      message: `Expected object, received ${describeReceived(value)}`,
+      received: describeValueType(value),
+      message: `Expected object, received ${describeValueType(value)}`,
     });
     return undefined;
   }
@@ -304,7 +301,7 @@ function validateAccessibilityObject(
         path: [...path, 'live'],
         code: 'invalid_enum_value',
         options: ['off', 'polite', 'assertive'],
-        received: describeReceived(live) === 'string' ? String(live) : describeReceived(live),
+        received: describeValueType(live) === 'string' ? String(live) : describeValueType(live),
         message: `Invalid enum value. Expected 'off' | 'polite' | 'assertive', received '${String(live)}'`,
       });
     }
@@ -321,16 +318,17 @@ function validateCheckRuleObject(
   protocolVersion: string | undefined,
   issues: ValidationIssue[],
 ): void {
-  if (!isPlainObject(value)) {
+  if (!isPlainRecord(value)) {
     issues.push({
       path,
       code: 'invalid_type',
       expected: 'object',
-      received: describeReceived(value),
-      message: `Expected CheckRule object, received ${describeReceived(value)}`,
+      received: describeValueType(value),
+      message: `Expected CheckRule object, received ${describeValueType(value)}`,
     });
     return;
   }
+  const isV10 = !protocolVersion || isAtLeastVersion(protocolVersion, '1.0');
   const unknownKeys = Object.keys(value).filter(k => k !== 'condition' && k !== 'message');
   if (unknownKeys.length > 0) {
     issues.push({
@@ -344,24 +342,43 @@ function validateCheckRuleObject(
     issues.push({
       path: [...path, 'condition'],
       code: 'invalid_type',
-      expected: 'DataBinding | FunctionCall',
+      expected: isV10 ? 'DataBinding | FunctionCall' : 'DynamicBoolean',
       received: 'undefined',
       message: 'Required',
     });
-  } else if (!isDynamicWrapperValue(value['condition'], protocolVersion)) {
+  } else if (isV10) {
+    if (!isDynamicWrapperValue(value['condition'], protocolVersion)) {
+      issues.push({
+        path: [...path, 'condition'],
+        code: 'custom',
+        message: 'CheckRule condition must be a DataBinding or FunctionCall.',
+      });
+    }
+  } else if (
+    typeof value['condition'] !== 'boolean' &&
+    !isDynamicWrapperValue(value['condition'], protocolVersion)
+  ) {
     issues.push({
       path: [...path, 'condition'],
       code: 'custom',
-      message: 'CheckRule condition must be a DataBinding or FunctionCall.',
+      message: 'CheckRule condition must be a DynamicBoolean.',
     });
   }
-  if (value['message'] !== undefined && typeof value['message'] !== 'string') {
+  if (!isV10 && (!Object.hasOwn(value, 'message') || value['message'] === undefined)) {
     issues.push({
       path: [...path, 'message'],
       code: 'invalid_type',
       expected: 'string',
-      received: describeReceived(value['message']),
-      message: `Expected string, received ${describeReceived(value['message'])}`,
+      received: 'undefined',
+      message: 'Required',
+    });
+  } else if (value['message'] !== undefined && typeof value['message'] !== 'string') {
+    issues.push({
+      path: [...path, 'message'],
+      code: 'invalid_type',
+      expected: 'string',
+      received: describeValueType(value['message']),
+      message: `Expected string, received ${describeValueType(value['message'])}`,
     });
   }
 }
@@ -378,14 +395,14 @@ function validateChildListValue(
           path: [...path, i],
           code: 'invalid_type',
           expected: 'string',
-          received: describeReceived(value[i]),
-          message: `Expected string, received ${describeReceived(value[i])}`,
+          received: describeValueType(value[i]),
+          message: `Expected string, received ${describeValueType(value[i])}`,
         });
       }
     }
     return;
   }
-  if (isPlainObject(value)) {
+  if (isPlainRecord(value)) {
     const unknownKeys = Object.keys(value).filter(k => k !== 'componentId' && k !== 'path');
     if (unknownKeys.length > 0) {
       issues.push({
@@ -400,11 +417,11 @@ function validateChildListValue(
         path: [...path, 'componentId'],
         code: 'invalid_type',
         expected: 'string',
-        received: describeReceived(value['componentId']),
+        received: describeValueType(value['componentId']),
         message:
           value['componentId'] === undefined
             ? 'Required'
-            : `Expected string, received ${describeReceived(value['componentId'])}`,
+            : `Expected string, received ${describeValueType(value['componentId'])}`,
       });
     }
     if (typeof value['path'] !== 'string') {
@@ -412,11 +429,11 @@ function validateChildListValue(
         path: [...path, 'path'],
         code: 'invalid_type',
         expected: 'string',
-        received: describeReceived(value['path']),
+        received: describeValueType(value['path']),
         message:
           value['path'] === undefined
             ? 'Required'
-            : `Expected string, received ${describeReceived(value['path'])}`,
+            : `Expected string, received ${describeValueType(value['path'])}`,
       });
     }
     return;
@@ -425,8 +442,8 @@ function validateChildListValue(
     path,
     code: 'invalid_type',
     expected: 'string[] | { componentId, path }',
-    received: describeReceived(value),
-    message: `Expected ChildList, received ${describeReceived(value)}`,
+    received: describeValueType(value),
+    message: `Expected ChildList, received ${describeValueType(value)}`,
   });
 }
 
@@ -436,16 +453,17 @@ function validateActionValue(
   protocolVersion: string | undefined,
   issues: ValidationIssue[],
 ): void {
-  if (!isPlainObject(value)) {
+  if (!isPlainRecord(value)) {
     issues.push({
       path,
       code: 'invalid_type',
       expected: 'object',
-      received: describeReceived(value),
-      message: `Expected Action object, received ${describeReceived(value)}`,
+      received: describeValueType(value),
+      message: `Expected Action object, received ${describeValueType(value)}`,
     });
     return;
   }
+  const isV10 = !protocolVersion || isAtLeastVersion(protocolVersion, '1.0');
   const hasEvent = Object.hasOwn(value, 'event') && value['event'] !== undefined;
   const hasFn = Object.hasOwn(value, 'functionCall') && value['functionCall'] !== undefined;
   if (hasEvent && !hasFn) {
@@ -459,17 +477,19 @@ function validateActionValue(
       });
     }
     const ev = value['event'];
-    if (!isPlainObject(ev)) {
+    if (!isPlainRecord(ev)) {
       issues.push({
         path: [...path, 'event'],
         code: 'invalid_type',
         expected: 'object',
-        received: describeReceived(ev),
-        message: `Expected object, received ${describeReceived(ev)}`,
+        received: describeValueType(ev),
+        message: `Expected object, received ${describeValueType(ev)}`,
       });
       return;
     }
-    const allowedEv = new Set(['name', 'userMessage', 'context']);
+    const allowedEv = isV10
+      ? new Set(['name', 'userMessage', 'context'])
+      : new Set(['name', 'context']);
     const unknownEv = Object.keys(ev).filter(k => !allowedEv.has(k));
     if (unknownEv.length > 0) {
       issues.push({
@@ -484,14 +504,14 @@ function validateActionValue(
         path: [...path, 'event', 'name'],
         code: 'invalid_type',
         expected: 'string',
-        received: describeReceived(ev['name']),
+        received: describeValueType(ev['name']),
         message:
           ev['name'] === undefined
             ? 'Required'
-            : `Expected string, received ${describeReceived(ev['name'])}`,
+            : `Expected string, received ${describeValueType(ev['name'])}`,
       });
     }
-    if (ev['userMessage'] !== undefined) {
+    if (isV10 && ev['userMessage'] !== undefined) {
       validateDynamicString(
         ev['userMessage'],
         [...path, 'event', 'userMessage'],
@@ -500,13 +520,13 @@ function validateActionValue(
       );
     }
     if (ev['context'] !== undefined) {
-      if (!isPlainObject(ev['context'])) {
+      if (!isPlainRecord(ev['context'])) {
         issues.push({
           path: [...path, 'event', 'context'],
           code: 'invalid_type',
           expected: 'object',
-          received: describeReceived(ev['context']),
-          message: `Expected object, received ${describeReceived(ev['context'])}`,
+          received: describeValueType(ev['context']),
+          message: `Expected object, received ${describeValueType(ev['context'])}`,
         });
       } else {
         for (const [k, v] of Object.entries(ev['context'])) {
@@ -549,7 +569,7 @@ function validateObjectMembers(
   value: Record<string, unknown>,
   path: readonly (string | number)[],
   options: ValidateCatalogValueOptions,
-  visitedRefs: Set<string>,
+  depth: number,
   issues: ValidationIssue[],
 ): Record<string, unknown> {
   const paramByName = new Map<string, ParameterDefinition>();
@@ -582,11 +602,27 @@ function validateObjectMembers(
         }
         continue;
       }
-      out[key] = validateNode(declared, entryVal, [...path, key], options, visitedRefs, issues);
+      out[key] = validateNode(
+        declared,
+        entryVal,
+        [...path, key],
+        options,
+        new Set(),
+        depth + 1,
+        issues,
+      );
     } else if (extraRule === false) {
       unknownKeys.push(key);
     } else if (extraRule !== true) {
-      out[key] = validateNode(extraRule, entryVal, [...path, key], options, visitedRefs, issues);
+      out[key] = validateNode(
+        extraRule,
+        entryVal,
+        [...path, key],
+        options,
+        new Set(),
+        depth + 1,
+        issues,
+      );
     }
   }
 
@@ -636,9 +672,19 @@ function validateNode(
   value: unknown,
   path: readonly (string | number)[],
   options: ValidateCatalogValueOptions,
-  visitedRefs: Set<string>,
+  activeRefsAtValue: Set<string>,
+  depth: number,
   issues: ValidationIssue[],
 ): unknown {
+  if (depth > MAX_VALIDATION_DEPTH) {
+    issues.push({
+      path,
+      code: 'custom',
+      message: `Maximum validation depth (${MAX_VALIDATION_DEPTH}) exceeded.`,
+    });
+    return value;
+  }
+
   const protocolVersion = options.protocolVersion;
 
   if (typeDef.type === 'ref') {
@@ -651,14 +697,19 @@ function validateNode(
       });
       return value;
     }
-    if (visitedRefs.has(typeDef.ref)) {
+    if (activeRefsAtValue.has(typeDef.ref)) {
+      issues.push({
+        path,
+        code: 'custom',
+        message: `Cyclic catalog type reference '${typeDef.ref}'.`,
+      });
       return value;
     }
-    visitedRefs.add(typeDef.ref);
+    activeRefsAtValue.add(typeDef.ref);
     try {
-      return validateNode(target, value, path, options, visitedRefs, issues);
+      return validateNode(target, value, path, options, activeRefsAtValue, depth, issues);
     } finally {
-      visitedRefs.delete(typeDef.ref);
+      activeRefsAtValue.delete(typeDef.ref);
     }
   }
 
@@ -676,36 +727,46 @@ function validateNode(
           path,
           code: 'invalid_type',
           expected: 'string',
-          received: describeReceived(value),
-          message: `Expected string, received ${describeReceived(value)}`,
+          received: describeValueType(value),
+          message: `Expected string, received ${describeValueType(value)}`,
         });
         return value;
       }
-      if (typeDef.minLength !== undefined && value.length < typeDef.minLength) {
-        issues.push({
-          path,
-          code: 'too_small',
-          message: `String must contain at least ${typeDef.minLength} character(s)`,
-        });
-      }
-      if (typeDef.maxLength !== undefined && value.length > typeDef.maxLength) {
-        issues.push({
-          path,
-          code: 'too_big',
-          message: `String must contain at most ${typeDef.maxLength} character(s)`,
-        });
+      if (typeDef.minLength !== undefined || typeDef.maxLength !== undefined) {
+        const codePointLen = [...value].length;
+        if (typeDef.minLength !== undefined && codePointLen < typeDef.minLength) {
+          issues.push({
+            path,
+            code: 'too_small',
+            message: `String must contain at least ${typeDef.minLength} character(s)`,
+          });
+        }
+        if (typeDef.maxLength !== undefined && codePointLen > typeDef.maxLength) {
+          issues.push({
+            path,
+            code: 'too_big',
+            message: `String must contain at most ${typeDef.maxLength} character(s)`,
+          });
+        }
       }
       if (typeDef.pattern !== undefined) {
+        let re: RegExp;
         try {
-          if (!new RegExp(typeDef.pattern, 'u').test(value)) {
-            issues.push({
-              path,
-              code: 'invalid_string',
-              message: `String does not match pattern '${typeDef.pattern}'`,
-            });
-          }
+          re = new RegExp(typeDef.pattern, 'u');
         } catch {
-          // Ignore invalid regex patterns on schema definition.
+          issues.push({
+            path,
+            code: 'custom',
+            message: `Invalid regular expression pattern '${typeDef.pattern}'`,
+          });
+          return value;
+        }
+        if (!re.test(value)) {
+          issues.push({
+            path,
+            code: 'invalid_string',
+            message: `String does not match pattern '${typeDef.pattern}'`,
+          });
         }
       }
       if (typeDef.format !== undefined) {
@@ -730,8 +791,8 @@ function validateNode(
           path,
           code: 'invalid_type',
           expected: typeDef.type,
-          received: describeReceived(value),
-          message: `Expected ${typeDef.type}, received ${describeReceived(value)}`,
+          received: describeValueType(value),
+          message: `Expected ${typeDef.type}, received ${describeValueType(value)}`,
         });
         return value;
       }
@@ -774,8 +835,8 @@ function validateNode(
           path,
           code: 'invalid_type',
           expected: 'boolean',
-          received: describeReceived(value),
-          message: `Expected boolean, received ${describeReceived(value)}`,
+          received: describeValueType(value),
+          message: `Expected boolean, received ${describeValueType(value)}`,
         });
       }
       return value;
@@ -792,7 +853,7 @@ function validateNode(
           received:
             typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
               ? String(value)
-              : describeReceived(value),
+              : describeValueType(value),
           message: `Invalid enum value. Expected ${typeDef.values.map(String).join(' | ')}, received '${String(value)}'`,
         });
       }
@@ -804,27 +865,37 @@ function validateNode(
           path,
           code: 'invalid_literal',
           expected: JSON.stringify(typeDef.value),
-          received: describeReceived(value),
+          received: describeValueType(value),
           message: `Expected ${JSON.stringify(typeDef.value)}, received ${JSON.stringify(value)}`,
         });
       }
       return value;
     }
     case 'any': {
-      validateDynamicValue(value, typeDef.nullable !== false, path, protocolVersion, issues);
+      if (typeDef.dynamic === true) {
+        validateDynamicValue(value, typeDef.nullable !== false, path, protocolVersion, issues);
+      } else if (typeDef.nullable === false && (value === null || value === undefined)) {
+        issues.push({
+          path,
+          code: 'invalid_type',
+          expected: 'non-null value',
+          received: describeValueType(value),
+          message: `Expected non-null value, received ${describeValueType(value)}`,
+        });
+      }
       return value;
     }
     case 'object': {
       if (typeDef.dynamic && isDynamicWrapperValue(value, protocolVersion)) {
         return value;
       }
-      if (!isPlainObject(value)) {
+      if (!isPlainRecord(value)) {
         issues.push({
           path,
           code: 'invalid_type',
           expected: 'object',
-          received: describeReceived(value),
-          message: `Expected object, received ${describeReceived(value)}`,
+          received: describeValueType(value),
+          message: `Expected object, received ${describeValueType(value)}`,
         });
         return value;
       }
@@ -835,7 +906,7 @@ function validateNode(
         value,
         path,
         options,
-        visitedRefs,
+        depth,
         issues,
       );
     }
@@ -848,8 +919,8 @@ function validateNode(
           path,
           code: 'invalid_type',
           expected: 'array',
-          received: describeReceived(value),
-          message: `Expected array, received ${describeReceived(value)}`,
+          received: describeValueType(value),
+          message: `Expected array, received ${describeValueType(value)}`,
         });
         return value;
       }
@@ -869,7 +940,7 @@ function validateNode(
       }
       const outItems = typeDef.items
         ? value.map((item, i) =>
-            validateNode(typeDef.items!, item, [...path, i], options, visitedRefs, issues),
+            validateNode(typeDef.items!, item, [...path, i], options, new Set(), depth + 1, issues),
           )
         : value;
       if (typeDef.uniqueItems) {
@@ -897,7 +968,15 @@ function validateNode(
       const branchErrors: Array<{readonly issues: readonly ValidationIssue[]}> = [];
       for (const variant of typeDef.variants) {
         const subIssues: ValidationIssue[] = [];
-        const result = validateNode(variant, value, path, options, new Set(visitedRefs), subIssues);
+        const result = validateNode(
+          variant,
+          value,
+          path,
+          options,
+          new Set(activeRefsAtValue),
+          depth,
+          subIssues,
+        );
         if (subIssues.length === 0) {
           matched.push(result);
           if (!exclusive) {
@@ -952,8 +1031,8 @@ function validateNode(
           path,
           code: 'invalid_type',
           expected: 'string',
-          received: describeReceived(value),
-          message: `Expected string child component ID, received ${describeReceived(value)}`,
+          received: describeValueType(value),
+          message: `Expected string child component ID, received ${describeValueType(value)}`,
         });
       }
       return value;
@@ -986,7 +1065,7 @@ export function validateCatalogValue(
   options: ValidateCatalogValueOptions = {},
 ): ValidationOutcome {
   const issues: ValidationIssue[] = [];
-  const data = validateNode(typeDef, value, [], options, new Set(), issues);
+  const data = validateNode(typeDef, value, [], options, new Set(), 0, issues);
   return issues.length === 0 ? {success: true, data} : {success: false, issues};
 }
 
@@ -998,7 +1077,7 @@ export function validateComponentProperties(
   properties: unknown,
   options: ValidateCatalogValueOptions = {},
 ): ValidationOutcome<Record<string, unknown>> {
-  if (!isPlainObject(properties)) {
+  if (!isPlainRecord(properties)) {
     return {
       success: false,
       issues: [
@@ -1006,8 +1085,8 @@ export function validateComponentProperties(
           path: [],
           code: 'invalid_type',
           expected: 'object',
-          received: describeReceived(properties),
-          message: `Expected object, received ${describeReceived(properties)}`,
+          received: describeValueType(properties),
+          message: `Expected object, received ${describeValueType(properties)}`,
         },
       ],
     };
@@ -1035,7 +1114,7 @@ export function validateComponentProperties(
     properties,
     [],
     options,
-    new Set(),
+    0,
     issues,
   );
   return issues.length === 0 ? {success: true, data} : {success: false, issues};
@@ -1049,7 +1128,7 @@ export function validateFunctionArguments(
   args: unknown,
   options: ValidateCatalogValueOptions = {},
 ): ValidationOutcome<Record<string, unknown>> {
-  if (!isPlainObject(args)) {
+  if (!isPlainRecord(args)) {
     return {
       success: false,
       issues: [
@@ -1057,8 +1136,8 @@ export function validateFunctionArguments(
           path: [],
           code: 'invalid_type',
           expected: 'object',
-          received: describeReceived(args),
-          message: `Expected object, received ${describeReceived(args)}`,
+          received: describeValueType(args),
+          message: `Expected object, received ${describeValueType(args)}`,
         },
       ],
     };
@@ -1071,7 +1150,7 @@ export function validateFunctionArguments(
     args,
     [],
     {applyDefaults: true, ...options},
-    new Set(),
+    0,
     issues,
   );
   return issues.length === 0 ? {success: true, data} : {success: false, issues};
@@ -1086,7 +1165,7 @@ export function validateSurfaceProperties(
   value: unknown,
   options: ValidateCatalogValueOptions = {},
 ): ValidationOutcome<Record<string, unknown>> {
-  if (!isPlainObject(value)) {
+  if (!isPlainRecord(value)) {
     return {
       success: false,
       issues: [
@@ -1094,8 +1173,8 @@ export function validateSurfaceProperties(
           path: [],
           code: 'invalid_type',
           expected: 'object',
-          received: describeReceived(value),
-          message: `Expected object, received ${describeReceived(value)}`,
+          received: describeValueType(value),
+          message: `Expected object, received ${describeValueType(value)}`,
         },
       ],
     };
@@ -1108,7 +1187,7 @@ export function validateSurfaceProperties(
     value,
     [],
     {applyDefaults: true, ...options},
-    new Set(),
+    0,
     issues,
   );
   return issues.length === 0 ? {success: true, data} : {success: false, issues};
@@ -1118,16 +1197,18 @@ function coerceNodeDynamicBooleans(
   typeDef: TypeDefinition,
   value: unknown,
   types: Readonly<Record<string, DataTypeDefinition>> | undefined,
-  visited: Set<string>,
+  activeRefs: Set<string>,
+  depth: number,
 ): unknown {
+  if (depth > MAX_VALIDATION_DEPTH) return value;
   if (typeDef.type === 'ref') {
     const target = types?.[typeDef.ref];
-    if (!target || visited.has(typeDef.ref)) return value;
-    visited.add(typeDef.ref);
+    if (!target || activeRefs.has(typeDef.ref)) return value;
+    activeRefs.add(typeDef.ref);
     try {
-      return coerceNodeDynamicBooleans(target, value, types, visited);
+      return coerceNodeDynamicBooleans(target, value, types, activeRefs, depth);
     } finally {
-      visited.delete(typeDef.ref);
+      activeRefs.delete(typeDef.ref);
     }
   }
   if (typeDef.type === 'boolean' && typeDef.dynamic) {
@@ -1136,23 +1217,44 @@ function coerceNodeDynamicBooleans(
   if (typeDef.type === 'array' && Array.isArray(value) && typeDef.items) {
     let changed = false;
     const mapped = value.map(item => {
-      const coerced = coerceNodeDynamicBooleans(typeDef.items!, item, types, visited);
+      const coerced = coerceNodeDynamicBooleans(typeDef.items!, item, types, new Set(), depth + 1);
       if (coerced !== item) changed = true;
       return coerced;
     });
     return changed ? mapped : value;
   }
-  if (typeDef.type === 'object' && isPlainObject(value) && typeDef.properties) {
-    const byName = new Map(typeDef.properties.map(p => [p.name, p]));
+  if (typeDef.type === 'object' && isPlainRecord(value)) {
+    const hasProps = (typeDef.properties?.length ?? 0) > 0;
+    const extraType =
+      typeDef.additionalProperties && typeof typeDef.additionalProperties === 'object'
+        ? typeDef.additionalProperties
+        : undefined;
+    if (!hasProps && !extraType) return value;
+    const byName = new Map((typeDef.properties ?? []).map(p => [p.name, p]));
     let changed = false;
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value)) {
-      const prop = byName.get(k);
-      const coerced = prop ? coerceNodeDynamicBooleans(prop, v, types, visited) : v;
+      const prop = byName.get(k) ?? extraType;
+      const coerced = prop ? coerceNodeDynamicBooleans(prop, v, types, new Set(), depth + 1) : v;
       if (coerced !== v) changed = true;
       out[k] = coerced;
     }
     return changed ? out : value;
+  }
+  if (typeDef.type === 'union') {
+    // If value already matches a variant without coercion, keep it untouched unless
+    // a dynamic-boolean variant matches after coercion on a non-matching value.
+    for (const variant of typeDef.variants) {
+      if (validateCatalogValue(variant, value, {types}).success) {
+        return value;
+      }
+    }
+    for (const variant of typeDef.variants) {
+      const coerced = coerceNodeDynamicBooleans(variant, value, types, new Set(activeRefs), depth);
+      if (coerced !== value && validateCatalogValue(variant, coerced, {types}).success) {
+        return coerced;
+      }
+    }
   }
   return value;
 }
@@ -1166,15 +1268,23 @@ export function coerceModelDynamicBooleans(
   args: unknown,
   types?: Readonly<Record<string, DataTypeDefinition>>,
 ): unknown {
-  if (!isPlainObject(args) || !def.parameters || def.parameters.length === 0) {
+  if (!isPlainRecord(args)) {
     return args;
   }
-  const byName = new Map(def.parameters.map(p => [p.name, p]));
+  const hasParams = (def.parameters?.length ?? 0) > 0;
+  const extraType =
+    def.additionalParameters && typeof def.additionalParameters === 'object'
+      ? def.additionalParameters
+      : undefined;
+  if (!hasParams && !extraType) {
+    return args;
+  }
+  const byName = new Map((def.parameters ?? []).map(p => [p.name, p]));
   let changed = false;
   const out: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(args)) {
-    const param = byName.get(key);
-    const coerced = param ? coerceNodeDynamicBooleans(param, val, types, new Set()) : val;
+    const param = byName.get(key) ?? extraType;
+    const coerced = param ? coerceNodeDynamicBooleans(param, val, types, new Set(), 0) : val;
     if (coerced !== val) changed = true;
     out[key] = coerced;
   }

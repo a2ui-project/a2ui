@@ -19,12 +19,12 @@ import {render} from '@testing-library/react';
 import {z} from 'zod';
 import {
   Catalog,
-  type ComponentApi,
+  type ComponentApiLike,
   ComponentModel,
-  extractDefinitionRefFields,
   extractRefFields,
   SurfaceModel,
 } from '@a2ui/web_core';
+import {extractDefinitionRefFields} from '@a2ui/web_core/catalog/model';
 import {BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiSurface} from '../src/A2uiSurface';
 import {createComponentImplementation} from '../src/adapter';
@@ -123,7 +123,10 @@ export function renderA2uiComponent(
  * classification the resolver uses, so a stub is created for exactly the
  * properties the resolver will try to resolve.
  */
-function referencedChildIds(api: ComponentApi, properties: Record<string, unknown>): Set<string> {
+function referencedChildIds(
+  api: ComponentApiLike,
+  properties: Record<string, unknown>,
+): Set<string> {
   const ids = new Set<string>();
   const add = (value: unknown) => {
     if (typeof value === 'string' && value) {

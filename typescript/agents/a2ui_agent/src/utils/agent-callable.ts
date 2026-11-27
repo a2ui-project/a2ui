@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {CatalogApi, isAtLeastVersion} from '../internal/web-core.js';
+import {type AnyCatalogApi, isAtLeastVersion} from '../internal/web-core.js';
 
 /**
  * Returns the names of functions the agent may call directly via `callRendererFunction`.
@@ -27,7 +27,7 @@ import {CatalogApi, isAtLeastVersion} from '../internal/web-core.js';
  * @param catalogs Active catalogs in priority order.
  * @returns Function names eligible for standalone agent calls.
  */
-export function agentCallableFunctions(catalogs: readonly CatalogApi[]): string[] {
+export function agentCallableFunctions(catalogs: readonly AnyCatalogApi[]): string[] {
   const seen = new Set<string>();
   const names: string[] = [];
   for (const catalog of catalogs) {

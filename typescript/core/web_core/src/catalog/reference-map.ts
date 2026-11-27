@@ -27,7 +27,13 @@ import {
   unwrapZodField,
 } from '../resolution/ref-fields.js';
 import {extractDefinitionRefFields} from './model/model_semantics.js';
-import type {Catalog, ComponentApi, FunctionApi} from './types.js';
+import type {
+  Catalog,
+  ComponentApi,
+  ComponentApiLike,
+  FunctionApi,
+  FunctionApiLike,
+} from './types.js';
 
 export {type ChildRefAnalysisOptions, extractRefDefName};
 
@@ -643,15 +649,15 @@ function inspectComponentSchema(
  * @returns ComponentRefMap containing single, list, and nested reference properties.
  */
 export function buildComponentRefMap<
-  T extends ComponentApi = ComponentApi,
-  F extends FunctionApi = FunctionApi,
+  T extends ComponentApiLike = ComponentApi,
+  F extends FunctionApiLike = FunctionApi,
 >(
   catalogOrComponents: Catalog<T, F> | ReadonlyArray<T> | ReadonlyMap<string, T>,
   options: ChildRefAnalysisOptions,
 ): ComponentRefMap {
   const refMap: ComponentRefMap = {};
   const maybeCatalog = catalogOrComponents as {components?: ReadonlyMap<string, T>};
-  const componentApis: ReadonlyArray<ComponentApi> =
+  const componentApis: ReadonlyArray<ComponentApiLike> =
     typeof maybeCatalog?.components?.values === 'function'
       ? Array.from(maybeCatalog.components.values())
       : Array.isArray(catalogOrComponents)

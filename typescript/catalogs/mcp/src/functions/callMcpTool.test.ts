@@ -1055,7 +1055,7 @@ describe('callMcpTool', () => {
       assert.strictEqual(fnApi.name, 'callMcpTool');
       assert.strictEqual(fnApi.returnType, 'any');
 
-      const valid = fnApi.schema!.parse({name: 'read_resource', arguments: {uri: 'a2ui://form'}});
+      const valid = fnApi.schema.parse({name: 'read_resource', arguments: {uri: 'a2ui://form'}});
       assert.deepStrictEqual(valid, {name: 'read_resource', arguments: {uri: 'a2ui://form'}});
     });
 

@@ -86,202 +86,247 @@ export function defineParameter<
 }
 
 /**
+ * Strongly typed builder surface for canonical A2UI {@link TypeDefinition} nodes.
+ *
+ * Dedicated no-options overloads prevent TypeScript from widening `Opts` to the
+ * option-constraint type under contextual typing (such as `Record<string, DataTypeDefinition>`).
+ */
+export interface A2uiTypeBuilders {
+  /** Builds a `string` type definition. */
+  string(): Readonly<{readonly type: 'string'}>;
+  string<const Opts extends Omit<StringTypeDefinition, 'type'>>(
+    options: Opts,
+  ): Readonly<{readonly type: 'string'} & Opts>;
+
+  /** Builds a `number` type definition. */
+  number(): Readonly<{readonly type: 'number'}>;
+  number<const Opts extends Omit<NumberTypeDefinition, 'type'>>(
+    options: Opts,
+  ): Readonly<{readonly type: 'number'} & Opts>;
+
+  /** Builds an `integer` type definition. */
+  integer(): Readonly<{readonly type: 'integer'}>;
+  integer<const Opts extends Omit<IntegerTypeDefinition, 'type'>>(
+    options: Opts,
+  ): Readonly<{readonly type: 'integer'} & Opts>;
+
+  /** Builds a `boolean` type definition. */
+  boolean(): Readonly<{readonly type: 'boolean'}>;
+  boolean<const Opts extends Omit<BooleanTypeDefinition, 'type'>>(
+    options: Opts,
+  ): Readonly<{readonly type: 'boolean'} & Opts>;
+
+  /** Builds an `enum` type definition preserving literal allowed values. */
+  enum<const Values extends readonly [EnumPrimitiveValue, ...EnumPrimitiveValue[]]>(
+    values: Values,
+  ): Readonly<{readonly type: 'enum'; readonly values: Values}>;
+  enum<
+    const Values extends readonly [EnumPrimitiveValue, ...EnumPrimitiveValue[]],
+    const Opts extends Omit<EnumTypeDefinition, 'type' | 'values'>,
+  >(
+    values: Values,
+    options: Opts,
+  ): Readonly<{readonly type: 'enum'; readonly values: Values} & Opts>;
+
+  /** Builds a `const` literal type definition. */
+  const<const Val extends string | number | boolean | null>(
+    value: Val,
+  ): Readonly<{readonly type: 'const'; readonly value: Val}>;
+  const<const Val extends string | number | boolean | null, const Opts extends TypeMeta>(
+    value: Val,
+    options: Opts,
+  ): Readonly<{readonly type: 'const'; readonly value: Val} & Opts>;
+
+  /** Builds an `any` type definition. */
+  any(): Readonly<{readonly type: 'any'}>;
+  any<const Opts extends Omit<AnyTypeDefinition, 'type'>>(
+    options: Opts,
+  ): Readonly<{readonly type: 'any'} & Opts>;
+
+  /** Builds an `object` type definition. */
+  object(): Readonly<{readonly type: 'object'}>;
+  object<const Props extends readonly ComponentParameterDefinition[]>(
+    properties: Props,
+  ): Readonly<{readonly type: 'object'; readonly properties: Props}>;
+  object<
+    const Props extends readonly ComponentParameterDefinition[] | undefined,
+    const Opts extends Omit<ComponentObjectTypeDefinition, 'type' | 'properties'>,
+  >(
+    properties: Props,
+    options: Opts,
+  ): Readonly<
+    {readonly type: 'object'} & (Props extends readonly ComponentParameterDefinition[]
+      ? {readonly properties: Props}
+      : Record<never, never>) &
+      Opts
+  >;
+
+  /** Builds an `array` type definition. */
+  array(): Readonly<{readonly type: 'array'}>;
+  array<const Items extends TypeDefinition>(
+    items: Items,
+  ): Readonly<{readonly type: 'array'; readonly items: Items}>;
+  array<
+    const Items extends TypeDefinition | undefined,
+    const Opts extends Omit<ComponentArrayTypeDefinition, 'type' | 'items'>,
+  >(
+    items: Items,
+    options: Opts,
+  ): Readonly<
+    {readonly type: 'array'} & (Items extends TypeDefinition
+      ? {readonly items: Items}
+      : Record<never, never>) &
+      Opts
+  >;
+
+  /** Builds a `union` type definition (`exclusive` defaults to `true`). */
+  union<const Variants extends readonly [TypeDefinition, ...TypeDefinition[]]>(
+    variants: Variants,
+  ): Readonly<{readonly type: 'union'; readonly variants: Variants}>;
+  union<
+    const Variants extends readonly [TypeDefinition, ...TypeDefinition[]],
+    const Opts extends Omit<ComponentUnionTypeDefinition, 'type' | 'variants'>,
+  >(
+    variants: Variants,
+    options: Opts,
+  ): Readonly<{readonly type: 'union'; readonly variants: Variants} & Opts>;
+
+  /** Builds a `dataBinding` type definition. */
+  dataBinding(): Readonly<DataBindingTypeDefinition>;
+  dataBinding<const Opts extends TypeMeta>(
+    options: Opts,
+  ): Readonly<DataBindingTypeDefinition & Opts>;
+
+  /** Builds a `functionCall` type definition. */
+  functionCall(): Readonly<FunctionCallTypeDefinition>;
+  functionCall<const Opts extends TypeMeta>(
+    options: Opts,
+  ): Readonly<FunctionCallTypeDefinition & Opts>;
+
+  /** Builds a catalog-local `ref` type definition referencing an entry in `CatalogModel.types`. */
+  ref<const RefName extends string>(
+    ref: RefName,
+  ): Readonly<{readonly type: 'ref'; readonly ref: RefName}>;
+  ref<const RefName extends string, const Opts extends Omit<RefTypeDefinition, 'type' | 'ref'>>(
+    ref: RefName,
+    options: Opts,
+  ): Readonly<{readonly type: 'ref'; readonly ref: RefName} & Opts>;
+
+  /** Builds a single-child component reference (`child`) type definition. */
+  child(): Readonly<ChildTypeDefinition>;
+  child<const Opts extends TypeMeta>(options: Opts): Readonly<ChildTypeDefinition & Opts>;
+
+  /** Builds a child list / template (`childList`) type definition. */
+  childList(): Readonly<ChildListTypeDefinition>;
+  childList<const Opts extends TypeMeta>(options: Opts): Readonly<ChildListTypeDefinition & Opts>;
+
+  /** Builds an interaction `action` type definition. */
+  action(): Readonly<ActionTypeDefinition>;
+  action<const Opts extends TypeMeta>(options: Opts): Readonly<ActionTypeDefinition & Opts>;
+
+  /** Builds a `checkRule` type definition. */
+  checkRule(): Readonly<CheckRuleTypeDefinition>;
+  checkRule<const Opts extends TypeMeta>(options: Opts): Readonly<CheckRuleTypeDefinition & Opts>;
+
+  /** Builds an `accessibility` attributes type definition. */
+  accessibility(): Readonly<AccessibilityTypeDefinition>;
+  accessibility<const Opts extends TypeMeta>(
+    options: Opts,
+  ): Readonly<AccessibilityTypeDefinition & Opts>;
+
+  /** Combines a parameter name, optional `required` flag, and type definition. */
+  readonly param: typeof defineParameter;
+}
+
+/**
  * Ergonomic zero-dependency builders for canonical A2UI {@link TypeDefinition} nodes.
  *
  * Uses TypeScript `const` type parameters so literal parameter names, `required`,
  * `dynamic`, enum `values`, `child`, `childList`, and `action` types survive
  * compile-time prop inference via `ResolveDefinitionProps`.
  */
-export const a2uiType = {
-  /** Builds a `string` type definition. */
-  string<const Opts extends Omit<StringTypeDefinition, 'type'> = Record<never, never>>(
-    options?: Opts,
-  ): Readonly<{readonly type: 'string'} & Opts> {
-    return Object.freeze({type: 'string' as const, ...(options ?? ({} as Opts))});
+export const a2uiType: A2uiTypeBuilders = Object.freeze({
+  string(options?: Omit<StringTypeDefinition, 'type'>) {
+    return Object.freeze({type: 'string' as const, ...(options ?? {})});
   },
-
-  /** Builds a `number` type definition. */
-  number<const Opts extends Omit<NumberTypeDefinition, 'type'> = Record<never, never>>(
-    options?: Opts,
-  ): Readonly<{readonly type: 'number'} & Opts> {
-    return Object.freeze({type: 'number' as const, ...(options ?? ({} as Opts))});
+  number(options?: Omit<NumberTypeDefinition, 'type'>) {
+    return Object.freeze({type: 'number' as const, ...(options ?? {})});
   },
-
-  /** Builds an `integer` type definition. */
-  integer<const Opts extends Omit<IntegerTypeDefinition, 'type'> = Record<never, never>>(
-    options?: Opts,
-  ): Readonly<{readonly type: 'integer'} & Opts> {
-    return Object.freeze({type: 'integer' as const, ...(options ?? ({} as Opts))});
+  integer(options?: Omit<IntegerTypeDefinition, 'type'>) {
+    return Object.freeze({type: 'integer' as const, ...(options ?? {})});
   },
-
-  /** Builds a `boolean` type definition. */
-  boolean<const Opts extends Omit<BooleanTypeDefinition, 'type'> = Record<never, never>>(
-    options?: Opts,
-  ): Readonly<{readonly type: 'boolean'} & Opts> {
-    return Object.freeze({type: 'boolean' as const, ...(options ?? ({} as Opts))});
+  boolean(options?: Omit<BooleanTypeDefinition, 'type'>) {
+    return Object.freeze({type: 'boolean' as const, ...(options ?? {})});
   },
-
-  /** Builds an `enum` type definition preserving literal allowed values. */
-  enum<
-    const Values extends readonly [EnumPrimitiveValue, ...EnumPrimitiveValue[]],
-    const Opts extends Omit<EnumTypeDefinition, 'type' | 'values'> = Record<never, never>,
-  >(
-    values: Values,
-    options?: Opts,
-  ): Readonly<{readonly type: 'enum'; readonly values: Values} & Opts> {
+  enum(
+    values: readonly [EnumPrimitiveValue, ...EnumPrimitiveValue[]],
+    options?: Omit<EnumTypeDefinition, 'type' | 'values'>,
+  ) {
     return Object.freeze({
       type: 'enum' as const,
-      values: Object.freeze([...values]) as unknown as Values,
-      ...(options ?? ({} as Opts)),
+      values: Object.freeze([...values]),
+      ...(options ?? {}),
     });
   },
-
-  /** Builds a `const` literal type definition. */
-  const<
-    const Val extends string | number | boolean | null,
-    const Opts extends TypeMeta = Record<never, never>,
-  >(value: Val, options?: Opts): Readonly<{readonly type: 'const'; readonly value: Val} & Opts> {
-    return Object.freeze({type: 'const' as const, value, ...(options ?? ({} as Opts))});
+  const(value: string | number | boolean | null, options?: TypeMeta) {
+    return Object.freeze({type: 'const' as const, value, ...(options ?? {})});
   },
-
-  /** Builds an `any` type definition. */
-  any<const Opts extends Omit<AnyTypeDefinition, 'type'> = Record<never, never>>(
-    options?: Opts,
-  ): Readonly<{readonly type: 'any'} & Opts> {
-    return Object.freeze({type: 'any' as const, ...(options ?? ({} as Opts))});
+  any(options?: Omit<AnyTypeDefinition, 'type'>) {
+    return Object.freeze({type: 'any' as const, ...(options ?? {})});
   },
-
-  /** Builds an `object` type definition. */
-  object<
-    const Props extends readonly ComponentParameterDefinition[] | undefined = undefined,
-    const Opts extends Omit<ComponentObjectTypeDefinition, 'type' | 'properties'> = Record<
-      never,
-      never
-    >,
-  >(
-    properties?: Props,
-    options?: Opts,
-  ): Readonly<
-    {readonly type: 'object'} & (Props extends readonly ComponentParameterDefinition[]
-      ? {readonly properties: Props}
-      : Record<never, never>) &
-      Opts
-  > {
+  object(
+    properties?: readonly ComponentParameterDefinition[],
+    options?: Omit<ComponentObjectTypeDefinition, 'type' | 'properties'>,
+  ) {
     return Object.freeze({
       type: 'object' as const,
       ...(properties !== undefined ? {properties} : {}),
-      ...(options ?? ({} as Opts)),
-    }) as Readonly<
-      {readonly type: 'object'} & (Props extends readonly ComponentParameterDefinition[]
-        ? {readonly properties: Props}
-        : Record<never, never>) &
-        Opts
-    >;
+      ...(options ?? {}),
+    });
   },
-
-  /** Builds an `array` type definition. */
-  array<
-    const Items extends TypeDefinition | undefined = undefined,
-    const Opts extends Omit<ComponentArrayTypeDefinition, 'type' | 'items'> = Record<never, never>,
-  >(
-    items?: Items,
-    options?: Opts,
-  ): Readonly<
-    {readonly type: 'array'} & (Items extends TypeDefinition
-      ? {readonly items: Items}
-      : Record<never, never>) &
-      Opts
-  > {
+  array(items?: TypeDefinition, options?: Omit<ComponentArrayTypeDefinition, 'type' | 'items'>) {
     return Object.freeze({
       type: 'array' as const,
       ...(items !== undefined ? {items} : {}),
-      ...(options ?? ({} as Opts)),
-    }) as Readonly<
-      {readonly type: 'array'} & (Items extends TypeDefinition
-        ? {readonly items: Items}
-        : Record<never, never>) &
-        Opts
-    >;
-  },
-
-  /** Builds a `union` type definition (`exclusive` defaults to `true`). */
-  union<
-    const Variants extends readonly [TypeDefinition, ...TypeDefinition[]],
-    const Opts extends Omit<ComponentUnionTypeDefinition, 'type' | 'variants'> = Record<
-      never,
-      never
-    >,
-  >(
-    variants: Variants,
-    options?: Opts,
-  ): Readonly<{readonly type: 'union'; readonly variants: Variants} & Opts> {
-    return Object.freeze({
-      type: 'union' as const,
-      variants: Object.freeze([...variants]) as unknown as Variants,
-      ...(options ?? ({} as Opts)),
+      ...(options ?? {}),
     });
   },
-
-  /** Builds a `dataBinding` type definition. */
-  dataBinding<const Opts extends TypeMeta = Record<never, never>>(
-    options?: Opts,
-  ): Readonly<DataBindingTypeDefinition & Opts> {
-    return Object.freeze({type: 'dataBinding' as const, ...(options ?? ({} as Opts))});
+  union(
+    variants: readonly [TypeDefinition, ...TypeDefinition[]],
+    options?: Omit<ComponentUnionTypeDefinition, 'type' | 'variants'>,
+  ) {
+    return Object.freeze({
+      type: 'union' as const,
+      variants: Object.freeze([...variants]),
+      ...(options ?? {}),
+    });
   },
-
-  /** Builds a `functionCall` type definition. */
-  functionCall<const Opts extends TypeMeta = Record<never, never>>(
-    options?: Opts,
-  ): Readonly<FunctionCallTypeDefinition & Opts> {
-    return Object.freeze({type: 'functionCall' as const, ...(options ?? ({} as Opts))});
+  dataBinding(options?: TypeMeta) {
+    return Object.freeze({type: 'dataBinding' as const, ...(options ?? {})});
   },
-
-  /** Builds a catalog-local `ref` type definition referencing an entry in `CatalogModel.types`. */
-  ref<
-    const RefName extends string,
-    const Opts extends Omit<RefTypeDefinition, 'type' | 'ref'> = Record<never, never>,
-  >(ref: RefName, options?: Opts): Readonly<{readonly type: 'ref'; readonly ref: RefName} & Opts> {
-    return Object.freeze({type: 'ref' as const, ref, ...(options ?? ({} as Opts))});
+  functionCall(options?: TypeMeta) {
+    return Object.freeze({type: 'functionCall' as const, ...(options ?? {})});
   },
-
-  /** Builds a single-child component reference (`child`) type definition. */
-  child<const Opts extends TypeMeta = Record<never, never>>(
-    options?: Opts,
-  ): Readonly<ChildTypeDefinition & Opts> {
-    return Object.freeze({type: 'child' as const, ...(options ?? ({} as Opts))});
+  ref(ref: string, options?: Omit<RefTypeDefinition, 'type' | 'ref'>) {
+    return Object.freeze({type: 'ref' as const, ref, ...(options ?? {})});
   },
-
-  /** Builds a child list / template (`childList`) type definition. */
-  childList<const Opts extends TypeMeta = Record<never, never>>(
-    options?: Opts,
-  ): Readonly<ChildListTypeDefinition & Opts> {
-    return Object.freeze({type: 'childList' as const, ...(options ?? ({} as Opts))});
+  child(options?: TypeMeta) {
+    return Object.freeze({type: 'child' as const, ...(options ?? {})});
   },
-
-  /** Builds an interaction `action` type definition. */
-  action<const Opts extends TypeMeta = Record<never, never>>(
-    options?: Opts,
-  ): Readonly<ActionTypeDefinition & Opts> {
-    return Object.freeze({type: 'action' as const, ...(options ?? ({} as Opts))});
+  childList(options?: TypeMeta) {
+    return Object.freeze({type: 'childList' as const, ...(options ?? {})});
   },
-
-  /** Builds a `checkRule` type definition. */
-  checkRule<const Opts extends TypeMeta = Record<never, never>>(
-    options?: Opts,
-  ): Readonly<CheckRuleTypeDefinition & Opts> {
-    return Object.freeze({type: 'checkRule' as const, ...(options ?? ({} as Opts))});
+  action(options?: TypeMeta) {
+    return Object.freeze({type: 'action' as const, ...(options ?? {})});
   },
-
-  /** Builds an `accessibility` attributes type definition. */
-  accessibility<const Opts extends TypeMeta = Record<never, never>>(
-    options?: Opts,
-  ): Readonly<AccessibilityTypeDefinition & Opts> {
-    return Object.freeze({type: 'accessibility' as const, ...(options ?? ({} as Opts))});
+  checkRule(options?: TypeMeta) {
+    return Object.freeze({type: 'checkRule' as const, ...(options ?? {})});
   },
-
-  /** Combines a parameter name, optional `required` flag, and type definition. */
+  accessibility(options?: TypeMeta) {
+    return Object.freeze({type: 'accessibility' as const, ...(options ?? {})});
+  },
   param: defineParameter,
-} as const;
+}) as A2uiTypeBuilders;
 
 /** Short alias for {@link a2uiType}. */
 export const t = a2uiType;

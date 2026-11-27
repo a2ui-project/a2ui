@@ -18,10 +18,10 @@ import {nothing} from 'lit';
 import {Directive, directive, type DirectiveResult} from 'lit/directive.js';
 import {ComponentContext} from '../resolution/component-context.js';
 import {isComponentNode, type ComponentNode} from '../resolution/component-node.js';
-import {Catalog} from '../catalog/types.js';
+import {Catalog, type FunctionApiLike} from '../catalog/types.js';
 import {isWebComponentImplementation} from './is_web_component_implementation.js';
 import {registerUniversalElement} from './register_universal_element.js';
-import type {WebComponentImplementation} from './web_component_implementation.js';
+import type {WebComponentImplementationLike} from './web_component_implementation.js';
 import type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
 import {dispatchA2uiElementConnected} from './element_connected_event.js';
 
@@ -70,7 +70,7 @@ const a2uiElement = directive(A2uiElementDirective);
  */
 export function renderA2uiNode(
   context: ComponentContext,
-  catalog: Catalog<WebComponentImplementation>,
+  catalog: Catalog<WebComponentImplementationLike, FunctionApiLike>,
 ): DirectiveResult | typeof nothing;
 /**
  * Renders a resolved node as its implementation's custom element, handing
@@ -84,7 +84,7 @@ export function renderA2uiNode(
 export function renderA2uiNode(node: ComponentNode): DirectiveResult | typeof nothing;
 export function renderA2uiNode(
   source: ComponentContext | ComponentNode,
-  catalog?: Catalog<WebComponentImplementation>,
+  catalog?: Catalog<WebComponentImplementationLike, FunctionApiLike>,
 ) {
   if (isComponentNode(source)) {
     return renderNode(source);
@@ -113,7 +113,7 @@ export function renderA2uiNode(
 /** A node `renderA2uiNode` renders as an element: resolved, with a context and a tag name. */
 type RenderableNode = ComponentNode & {
   context: ComponentContext;
-  impl: Partial<WebComponentImplementation> & {tagName: string};
+  impl: Partial<WebComponentImplementationLike> & {tagName: string};
 };
 
 /**
@@ -126,7 +126,7 @@ export function canRenderA2uiNode(node: ComponentNode): node is RenderableNode {
     !node.isPlaceholder &&
     !node.disposed &&
     !!node.context &&
-    !!(node.impl as Partial<WebComponentImplementation> | undefined)?.tagName
+    !!(node.impl as Partial<WebComponentImplementationLike> | undefined)?.tagName
   );
 }
 

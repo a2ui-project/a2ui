@@ -16,7 +16,7 @@
 
 import {EventEmitter, EventSource} from '../common/events.js';
 import type {A2uiMetadata, ActionDispatchOptions} from '../common/metadata.js';
-import type {ComponentApi} from '../catalog/types.js';
+import type {ComponentApiLike} from '../catalog/types.js';
 import {computed, Signal, signal, peekValue, setValue} from '../reactivity/signals.js';
 import {ResolvedBinding} from './resolved-binding.js';
 import type {ComponentContext} from './component-context.js';
@@ -56,7 +56,7 @@ export type NodeProps = Record<string, unknown>;
  * reference is replaced. Does not emit when a child's internal properties change.
  */
 export interface ComponentNode<
-  C extends ComponentApi = ComponentApi,
+  C extends ComponentApiLike = ComponentApiLike,
   TProps extends NodeProps = NodeProps,
 > {
   /**
@@ -151,7 +151,7 @@ export function isComponentNode(value: unknown): value is ComponentNode {
  * Used internally by the node resolver to construct, update, and dispose nodes.
  */
 export class MutableComponentNode<TProps extends NodeProps = NodeProps> implements ComponentNode<
-  ComponentApi,
+  ComponentApiLike,
   TProps
 > {
   readonly instanceId: string;
@@ -160,7 +160,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
   readonly type: string;
 
   readonly dataPath: string;
-  readonly impl: ComponentApi | undefined;
+  readonly impl: ComponentApiLike | undefined;
   /** @deprecated Read resolved values from props; adapters get the surface from their ambient context. Removed in the next breaking release. */
   readonly context: ComponentContext | undefined;
   readonly state: NodeState;
@@ -192,7 +192,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
     type: string,
     dataPath: string,
     initialProps: TProps,
-    impl?: ComponentApi,
+    impl?: ComponentApiLike,
     context?: ComponentContext,
     state: NodeState = 'resolved',
     metadata: Signal<A2uiMetadata | undefined> = computed(() => undefined),

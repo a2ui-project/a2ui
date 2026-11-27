@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Support canonical zero-dependency `ComponentDefinition` APIs in `createComponentImplementation` and `createBinderlessComponentImplementation` via `pickComponentApiFields` and `ResolveDefinitionProps`, preserving `definition` on implementations and inferring typed React props without Zod ([#4431](https://github.com/a2ui-project/a2ui/pull/4431)).
+- Support canonical zero-dependency `ComponentDefinition` APIs (`ComponentApiLike`) in `createComponentImplementation` (with an optional catalog `Types` type parameter for resolving local `ref`s), `createBinderlessComponentImplementation`, `toWebComponent`, and `A2uiSurface` via `pickComponentApiFields`, `ResolveDefinitionProps`, `ReactComponentImplementationLike`, and `ReactCatalogComponentLike`, preserving `definition` on implementations and inferring typed React props without Zod while keeping existing `ReactComponentImplementation` and `ReactCatalogComponent` contracts unchanged ([#4431](https://github.com/a2ui-project/a2ui/pull/4431)).
 
 ## 0.16.1
 

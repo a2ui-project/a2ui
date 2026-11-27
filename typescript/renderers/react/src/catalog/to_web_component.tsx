@@ -18,14 +18,15 @@ import type {ZodTypeAny} from 'zod';
 import {
   isWebComponentImplementation,
   type WebComponentImplementation,
+  type WebComponentImplementationLike,
 } from '@a2ui/web_core/universal';
-import type {ReactComponentImplementation} from '../react_component_implementation';
+import type {
+  ReactComponentImplementation,
+  ReactComponentImplementationLike,
+} from '../react_component_implementation';
 import {ReactWcHost} from './react_host_element';
 
-const hosted = new WeakMap<
-  ReactComponentImplementation<ZodTypeAny | undefined>,
-  WebComponentImplementation<ZodTypeAny | undefined>
->();
+const hosted = new WeakMap<ReactComponentImplementationLike, WebComponentImplementationLike>();
 const tagNameCounts = new Map<string, number>();
 
 /**
@@ -46,20 +47,26 @@ function computeTagName(name: string): string {
  * defined in `customElements` here; renderers define it with
  * `registerUniversalElement` when they render it.
  */
-export function toWebComponent<Schema extends ZodTypeAny | undefined = ZodTypeAny>(
+export function toWebComponent<Schema extends ZodTypeAny = ZodTypeAny>(
   implementation: ReactComponentImplementation<Schema> | WebComponentImplementation<Schema>,
-): WebComponentImplementation<Schema> {
+): WebComponentImplementation<Schema>;
+export function toWebComponent(
+  implementation: ReactComponentImplementationLike | WebComponentImplementationLike,
+): WebComponentImplementationLike;
+export function toWebComponent(
+  implementation: ReactComponentImplementationLike | WebComponentImplementationLike,
+): WebComponentImplementationLike {
   if (isWebComponentImplementation(implementation)) {
     return implementation;
   }
 
-  const reactImpl = implementation as ReactComponentImplementation<Schema>;
+  const reactImpl = implementation as ReactComponentImplementationLike;
   const cached = hosted.get(reactImpl);
   if (cached) {
-    return cached as WebComponentImplementation<Schema>;
+    return cached;
   }
 
-  const entry: WebComponentImplementation<Schema> = {
+  const entry: WebComponentImplementationLike = {
     ...reactImpl,
     tagName: computeTagName(reactImpl.name),
     // `customElements` refuses to define one class under two tag names.

@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-import type {WebComponentImplementation} from './web_component_implementation.js';
+import type {ComponentApiLike} from '../catalog/types.js';
+import type {
+  WebComponentImplementation,
+  WebComponentImplementationLike,
+} from './web_component_implementation.js';
 
 /**
  * Type guard to check if a component API or implementation is a WebComponentImplementation.
@@ -22,7 +26,11 @@ import type {WebComponentImplementation} from './web_component_implementation.js
  * @param api The object to check
  * @returns true if the object implements WebComponentImplementation
  */
-export function isWebComponentImplementation(api: unknown): api is WebComponentImplementation {
+export function isWebComponentImplementation<T extends ComponentApiLike>(
+  api: T,
+): api is T & {readonly tagName: string; readonly element: CustomElementConstructor};
+export function isWebComponentImplementation(api: unknown): api is WebComponentImplementation;
+export function isWebComponentImplementation(api: unknown): api is WebComponentImplementationLike {
   return (
     typeof api === 'object' &&
     api !== null &&

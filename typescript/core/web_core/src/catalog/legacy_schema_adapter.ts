@@ -15,14 +15,12 @@
  */
 
 import type {
-  CatalogModel,
   ComponentDefinition,
   FunctionDefinition,
   SurfacePropertiesDefinition,
 } from './model/catalog_model.js';
 import type {
   ModelBehaviorNode,
-  ModelComponentRefMap,
   ModelEnvelopeLayout,
   ModelRefFields,
 } from './model/model_semantics.js';
@@ -51,9 +49,6 @@ export interface LegacySchemaAdapter {
 
   /** Validates `value` against a legacy schema. */
   validate(schema: unknown, value: unknown): ValidationOutcome;
-
-  /** Coerces resolved `DynamicBoolean` positions according to a legacy schema. */
-  coerceDynamicBooleans(schema: unknown, value: unknown): unknown;
 
   /** Scrapes a legacy component schema into a `BehaviorNode` tree. */
   scrapeComponentBehavior(schema: unknown, options?: LegacyChildRefOptions): ModelBehaviorNode;
@@ -110,15 +105,6 @@ export interface LegacySchemaAdapter {
 
   /** Converts a legacy theme schema into a canonical {@link SurfacePropertiesDefinition}. */
   themeSchemaToSurfaceProperties(schema: unknown): SurfacePropertiesDefinition | undefined;
-
-  /** Builds a `ComponentRefMap` for legacy components lacking canonical definitions. */
-  buildLegacyComponentRefMap(
-    components: ReadonlyArray<{readonly name: string; readonly schema?: unknown}>,
-    options: LegacyChildRefOptions,
-  ): ModelComponentRefMap;
-
-  /** Converts an entire legacy Catalog instance to a canonical {@link CatalogModel}. */
-  catalogToModel?(catalog: unknown): CatalogModel;
 }
 
 let activeAdapter: LegacySchemaAdapter | undefined;

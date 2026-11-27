@@ -58,14 +58,14 @@ import {HostOwner, HostRegistry} from './host_registry';
 import {HostedMarkdown} from './markdown_hosts';
 import type {
   NodeBuildChild,
-  ReactCatalogComponent,
-  ReactComponentImplementation,
+  ReactCatalogComponentLike,
+  ReactComponentImplementationLike,
   ReactRenderProps,
 } from './react_component_implementation';
 import {useSyncExternalStore} from './use_sync_external_store';
 import {WebComponentNode} from './web_component_node';
 
-export const SurfaceContext = createContext<SurfaceModel<ReactCatalogComponent> | undefined>(
+export const SurfaceContext = createContext<SurfaceModel<ReactCatalogComponentLike> | undefined>(
   undefined,
 );
 
@@ -73,7 +73,7 @@ export const SurfaceContext = createContext<SurfaceModel<ReactCatalogComponent> 
  * Returns the enclosing {@link SurfaceModel} when called inside an
  * {@link A2uiSurface} tree, or `undefined` outside one.
  */
-export function useA2uiSurface(): SurfaceModel<ReactCatalogComponent> | undefined {
+export function useA2uiSurface(): SurfaceModel<ReactCatalogComponentLike> | undefined {
   return useContext(SurfaceContext);
 }
 
@@ -82,14 +82,14 @@ export function useA2uiSurface(): SurfaceModel<ReactCatalogComponent> | undefine
  * falling back to `node.context` when rendered outside an `A2uiSurface`.
  */
 export function useSurface(
-  node?: ComponentNode<ReactCatalogComponent>,
-): SurfaceModel<ReactCatalogComponent> {
+  node?: ComponentNode<ReactCatalogComponentLike>,
+): SurfaceModel<ReactCatalogComponentLike> {
   const surface = useContext(SurfaceContext);
   if (surface) {
     return surface;
   }
   if (node) {
-    return contextOf(node).dataContext.surface as SurfaceModel<ReactCatalogComponent>;
+    return contextOf(node).dataContext.surface as SurfaceModel<ReactCatalogComponentLike>;
   }
   throw new Error('A2UI node views must be rendered inside an <A2uiSurface>.');
 }
@@ -103,7 +103,7 @@ function contextOf(node: ComponentNode): ComponentContext {
 }
 
 /** Unresolved-reference reports already dispatched, per surface. */
-const reportedUnresolved = new WeakMap<SurfaceModel<ReactCatalogComponent>, Set<string>>();
+const reportedUnresolved = new WeakMap<SurfaceModel<ReactCatalogComponentLike>, Set<string>>();
 
 /**
  * Stands in for a child reference the resolver built no node for. It renders
@@ -114,7 +114,7 @@ const reportedUnresolved = new WeakMap<SurfaceModel<ReactCatalogComponent>, Set<
  * rendering, and a subscriber that sets state would then warn.
  */
 export const UnresolvedChildReference: React.FC<{
-  surface: SurfaceModel<ReactCatalogComponent>;
+  surface: SurfaceModel<ReactCatalogComponentLike>;
   id: string;
   requestedPath: string;
   detail: string;
@@ -153,10 +153,10 @@ export function useSignalValue<T>(signal: Signal<T>): T {
  * props, in prop order. `render`-only implementations pass raw component ids
  * instead; those resolve by scanning for `(componentId, dataPath)`.
  */
-type ChildIndex = Map<string, ComponentNode<ReactCatalogComponent>>;
+type ChildIndex = Map<string, ComponentNode<ReactCatalogComponentLike>>;
 
 /** Registers a child and returns the token views hand back to `buildChild`. */
-function registerChild(index: ChildIndex, child: ComponentNode<ReactCatalogComponent>): string {
+function registerChild(index: ChildIndex, child: ComponentNode<ReactCatalogComponentLike>): string {
   index.set(child.id, child);
   return child.id;
 }
@@ -171,8 +171,8 @@ function registerChild(index: ChildIndex, child: ComponentNode<ReactCatalogCompo
 function toViewValue(parent: ComponentNode, value: unknown, index: ChildIndex): unknown {
   if (isComponentNode(value)) {
     // Every node in this surface's props came from its own resolver, whose
-    // catalog carries ReactCatalogComponent entries.
-    const token = registerChild(index, value as ComponentNode<ReactCatalogComponent>);
+    // catalog carries ReactCatalogComponentLike entries.
+    const token = registerChild(index, value as ComponentNode<ReactCatalogComponentLike>);
     if (value.dataPath !== parent.dataPath) {
       return {id: token, basePath: value.dataPath};
     }
@@ -245,7 +245,7 @@ export function useNodeView(
   rawBuildChild: (id: string, basePath?: string) => React.ReactNode;
 } {
   const baseContext = contextOf(node);
-  const surface = useSurface(node as ComponentNode<ReactCatalogComponent>);
+  const surface = useSurface(node as ComponentNode<ReactCatalogComponentLike>);
   const resolved = useSignalValue(node.props);
   const metadataReadRef = useRef(false);
   const subscribeMetadata = useCallback(
@@ -365,8 +365,8 @@ export function useNodeView(
 
 /** Renders an implementation that has no `view`: its wrapper binds itself. */
 const RenderFallback: React.FC<{
-  node: ComponentNode<ReactCatalogComponent>;
-  impl: ReactComponentImplementation;
+  node: ComponentNode<ReactCatalogComponentLike>;
+  impl: ReactComponentImplementationLike;
   buildChild: NodeBuildChild;
 }> = ({node, impl, buildChild}) => {
   // `render` reads raw component ids from the model, not the tokens the
@@ -390,14 +390,15 @@ const RenderFallback: React.FC<{
  * reported unknown types and cycles to the surface, and a pending node is
  * replaced in place when its component arrives.
  */
-export const ChildElement = memo(({node}: {node: ComponentNode<ReactCatalogComponent>}) => {
+export const ChildElement = memo(({node}: {node: ComponentNode<ReactCatalogComponentLike>}) => {
   const ambientSurface = useContext(SurfaceContext);
   const owner = useMemo(() => new HostOwner(), []);
   if (node.isPlaceholder || !node.impl) {
     return null;
   }
   const surface =
-    ambientSurface ?? (contextOf(node).dataContext.surface as SurfaceModel<ReactCatalogComponent>);
+    ambientSurface ??
+    (contextOf(node).dataContext.surface as SurfaceModel<ReactCatalogComponentLike>);
   owner.surface = surface;
   if ('render' in node.impl) {
     // A React implementation: its host is React's own element, so its content
@@ -432,7 +433,7 @@ ChildElement.displayName = 'ChildElement';
  * a host connecting or disconnecting below it re-renders only this list.
  */
 export const HostedChildren: React.FC<{
-  surface: SurfaceModel<ReactCatalogComponent>;
+  surface: SurfaceModel<ReactCatalogComponentLike>;
   owner: HostOwner | null;
 }> = ({surface, owner}) => {
   const registry = HostRegistry.forSurface(surface);
@@ -452,7 +453,7 @@ export const HostedChildren: React.FC<{
  * elements. Memoized so a registry update, which re-renders `HostedChildren`,
  * leaves existing portals alone.
  */
-export const NodeContent = memo(({node}: {node: ComponentNode<ReactCatalogComponent>}) => {
+export const NodeContent = memo(({node}: {node: ComponentNode<ReactCatalogComponentLike>}) => {
   const surface = useSurface(node);
 
   const buildChild = useCallback<NodeBuildChild>(

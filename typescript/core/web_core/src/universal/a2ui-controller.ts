@@ -20,7 +20,7 @@ import {GenericBinder, ResolveA2uiProps} from '../resolution/generic-binder.js';
 import {isComponentNode, type ComponentNode} from '../resolution/component-node.js';
 import {ResolvedBinding, isWritable} from '../resolution/resolved-binding.js';
 import {effect, getValue, peekValue} from '../reactivity/signals.js';
-import {ComponentApi, InferredComponentApiSchemaType} from '../catalog/types.js';
+import {ComponentApi, ComponentApiLike, InferredComponentApiSchemaType} from '../catalog/types.js';
 import {A2uiLitElement} from './a2ui-lit-element.js';
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -87,7 +87,7 @@ export function nodePropsToControllerProps(
  * @internal
  */
 export class A2uiController<
-  Api extends ComponentApi = ComponentApi,
+  Api extends ComponentApiLike = ComponentApi,
   Props = ResolveA2uiProps<InferredComponentApiSchemaType<Api>>,
 > implements ReactiveController {
   private _props: Props;

@@ -34,10 +34,12 @@ import {
   type FunctionDefinition,
   type FunctionReturnDefinition,
   type FunctionReturnShorthand,
+  type ParameterDefinition,
   type SurfacePropertiesDefinition,
   type TypeDefinition,
   type TypeMeta,
 } from './catalog_model.js';
+import {isPlainRecord} from './format_validators.js';
 
 const DEFAULT_JSON_SCHEMA_URI = 'https://json-schema.org/draft/2020-12/schema';
 const DEFAULT_COMMON_TYPES_URI = 'common_types.json';
@@ -52,10 +54,6 @@ const SKIPPED_LOCAL_DEFS = new Set([
   'ComponentCommon',
   'Checkable',
 ]);
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function commonRefName(ref: unknown): string | undefined {
   if (typeof ref !== 'string') return undefined;
@@ -151,43 +149,71 @@ function convertCommonRef(defName: string, meta: TypeMeta): TypeDefinition | und
   }
 }
 
-function extractConditionalFormats(branch: Record<string, unknown>): string[] | undefined {
-  const ifObj = branch['if'];
-  const thenObj = branch['then'];
-  if (!isPlainObject(ifObj) || ifObj['type'] !== 'string' || !isPlainObject(thenObj)) {
-    return undefined;
-  }
-  if (typeof thenObj['format'] === 'string') {
-    return [thenObj['format']];
-  }
-  const list = Array.isArray(thenObj['oneOf'])
-    ? thenObj['oneOf']
-    : Array.isArray(thenObj['anyOf'])
-      ? thenObj['anyOf']
-      : undefined;
-  if (!list || list.length === 0) return undefined;
+function extractFormatList(rawList: unknown): string[] | undefined {
+  if (!Array.isArray(rawList) || rawList.length === 0) return undefined;
   const formats: string[] = [];
-  for (const item of list) {
-    if (!isPlainObject(item) || typeof item['format'] !== 'string') {
+  for (const item of rawList) {
+    if (!isPlainRecord(item) || typeof item['format'] !== 'string') {
       return undefined;
+    }
+    for (const k of Object.keys(item)) {
+      if (k !== 'format' && !(k === 'type' && item['type'] === 'string')) {
+        return undefined;
+      }
     }
     formats.push(item['format']);
   }
   return formats;
 }
 
-function extractAtLeastOneOf(anyOf: unknown): string[][] | undefined {
+function extractConditionalFormats(branch: Record<string, unknown>): string[] | undefined {
+  const ifObj = branch['if'];
+  const thenObj = branch['then'];
+  if (!isPlainRecord(ifObj) || ifObj['type'] !== 'string' || !isPlainRecord(thenObj)) {
+    return undefined;
+  }
+  if (typeof thenObj['format'] === 'string') {
+    return [thenObj['format']];
+  }
+  return extractFormatList(thenObj['oneOf'] ?? thenObj['anyOf']);
+}
+
+function isReturnTypeConstraintBranch(branch: Record<string, unknown>): boolean {
+  const props = branch['properties'];
+  if (!isPlainRecord(props)) return false;
+  const ret = props['returnType'];
+  return isPlainRecord(ret) && typeof ret['const'] === 'string';
+}
+
+function extractSingleAtLeastOneOfGroup(anyOf: unknown): string[] | undefined {
   if (!Array.isArray(anyOf) || anyOf.length === 0) return undefined;
   const group: string[] = [];
   for (const branch of anyOf) {
-    if (!isPlainObject(branch)) return undefined;
+    if (!isPlainRecord(branch)) return undefined;
     const keys = Object.keys(branch);
     if (keys.length !== 1 || keys[0] !== 'required') return undefined;
     const req = branch['required'];
     if (!Array.isArray(req) || req.length !== 1 || typeof req[0] !== 'string') return undefined;
     group.push(req[0]);
   }
-  return group.length > 0 ? [group] : undefined;
+  return group.length > 0 ? group : undefined;
+}
+
+function extractAtLeastOneOf(schema: Record<string, unknown>): string[][] | undefined {
+  const groups: string[][] = [];
+  const direct = extractSingleAtLeastOneOfGroup(schema['anyOf']);
+  if (direct) groups.push(direct);
+  if (Array.isArray(schema['allOf'])) {
+    for (const branch of schema['allOf']) {
+      if (!isPlainRecord(branch)) continue;
+      const keys = Object.keys(branch);
+      if (keys.length === 1 && keys[0] === 'anyOf') {
+        const g = extractSingleAtLeastOneOfGroup(branch['anyOf']);
+        if (g) groups.push(g);
+      }
+    }
+  }
+  return groups.length > 0 ? groups : undefined;
 }
 
 function isDataBindingOrFunctionCall(typeDef: TypeDefinition): boolean {
@@ -233,7 +259,7 @@ function convertJsonSchemaNode(
   allowComponentTypes: boolean,
   ctx: ConversionContext,
 ): TypeDefinition {
-  if (!isPlainObject(raw)) {
+  if (!isPlainRecord(raw)) {
     return {type: 'any', dynamic: true, nullable: true};
   }
   const meta = extractMeta(raw);
@@ -249,7 +275,18 @@ function convertJsonSchemaNode(
   const lRef = localDefName(raw['$ref']);
   if (lRef && Object.hasOwn(ctx.rawDefs, lRef)) {
     if (!SKIPPED_LOCAL_DEFS.has(lRef) && isValidUax31Identifier(lRef)) {
-      if (!ctx.localTypes.has(lRef) && !ctx.convertingDefs.has(lRef)) {
+      const hasDefault = Object.hasOwn(raw, 'default') && raw['default'] !== undefined;
+      const refNode: TypeDefinition = {
+        type: 'ref',
+        ref: lRef,
+        ...(hasDefault ? {default: raw['default']} : {}),
+        ...meta,
+      };
+      // Recursive self-reference while converting `lRef`: emit a ref node directly.
+      if (ctx.convertingDefs.has(lRef)) {
+        return refNode;
+      }
+      if (!ctx.localTypes.has(lRef)) {
         ctx.convertingDefs.add(lRef);
         const converted = convertJsonSchemaNode(ctx.rawDefs[lRef], true, ctx);
         ctx.convertingDefs.delete(lRef);
@@ -258,13 +295,7 @@ function convertJsonSchemaNode(
         }
       }
       if (ctx.localTypes.has(lRef)) {
-        const hasDefault = Object.hasOwn(raw, 'default') && raw['default'] !== undefined;
-        return {
-          type: 'ref',
-          ref: lRef,
-          ...(hasDefault ? {default: raw['default']} : {}),
-          ...meta,
-        };
+        return refNode;
       }
     }
     if (!ctx.convertingDefs.has(lRef)) {
@@ -275,23 +306,33 @@ function convertJsonSchemaNode(
     }
   }
 
-  // Handle allOf (e.g. DateTimeInput DynamicString + if/then format)
+  // Handle allOf (e.g. DateTimeInput DynamicString + if/then format, v0.9 FunctionCall + returnType)
   if (Array.isArray(raw['allOf'])) {
-    const branches = raw['allOf'].filter(isPlainObject);
+    const branches = raw['allOf'].filter(isPlainRecord);
     if (branches.length === 2) {
-      const firstRef = commonRefName(branches[0]['$ref']);
-      const formats = extractConditionalFormats(branches[1]);
-      if (firstRef === 'DynamicString' && formats) {
-        return {
-          type: 'string',
-          dynamic: true,
-          format: formats.length === 1 ? formats[0] : formats,
-          ...meta,
-        };
+      for (const [a, b] of [
+        [branches[0], branches[1]],
+        [branches[1], branches[0]],
+      ] as const) {
+        const refName = commonRefName(a['$ref']);
+        if (refName === 'DynamicString') {
+          const formats = extractConditionalFormats(b);
+          if (formats) {
+            return {
+              type: 'string',
+              dynamic: true,
+              format: formats.length === 1 ? formats[0] : formats,
+              ...meta,
+            };
+          }
+        }
+        if (refName === 'FunctionCall' && isReturnTypeConstraintBranch(b)) {
+          return {type: 'functionCall', ...meta};
+        }
       }
     }
-    // Single-entry allOf or mergeable object branches
-    if (branches.length === 1) {
+    // Single-entry allOf (when not a multi-group atLeastOneOf on an object schema)
+    if (branches.length === 1 && raw['type'] !== 'object' && !isPlainRecord(raw['properties'])) {
       const inner = convertJsonSchemaNode(branches[0], allowComponentTypes, ctx);
       return {...inner, ...meta};
     }
@@ -318,7 +359,9 @@ function convertJsonSchemaNode(
   if (Array.isArray(raw['enum']) && raw['enum'].length > 0) {
     const values = raw['enum'].filter(
       (v): v is EnumPrimitiveValue =>
-        typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean',
+        typeof v === 'string' ||
+        (typeof v === 'number' && Number.isFinite(v)) ||
+        typeof v === 'boolean',
     );
     if (values.length === raw['enum'].length) {
       const valueType =
@@ -341,12 +384,18 @@ function convertJsonSchemaNode(
     }
   }
 
+  // Handle non-dynamic multi-format StringType (`{ type: 'string', oneOf: [{ format: ... }, ...] }`)
+  const multiStringFormats =
+    raw['type'] === 'string' ? extractFormatList(raw['oneOf'] ?? raw['anyOf']) : undefined;
+
   // Handle oneOf / anyOf (unions)
-  const unionKey = Array.isArray(raw['oneOf'])
-    ? 'oneOf'
-    : Array.isArray(raw['anyOf']) && raw['type'] !== 'object' && !isPlainObject(raw['properties'])
-      ? 'anyOf'
-      : undefined;
+  const unionKey = multiStringFormats
+    ? undefined
+    : Array.isArray(raw['oneOf'])
+      ? 'oneOf'
+      : Array.isArray(raw['anyOf']) && raw['type'] !== 'object' && !isPlainRecord(raw['properties'])
+        ? 'anyOf'
+        : undefined;
   if (unionKey) {
     const list = raw[unionKey] as unknown[];
     const variants = list.map(item => convertJsonSchemaNode(item, allowComponentTypes, ctx));
@@ -383,7 +432,7 @@ function convertJsonSchemaNode(
   const schemaType =
     typeof raw['type'] === 'string'
       ? raw['type']
-      : isPlainObject(raw['properties']) || Object.hasOwn(raw, 'additionalProperties')
+      : isPlainRecord(raw['properties']) || Object.hasOwn(raw, 'additionalProperties')
         ? 'object'
         : Object.hasOwn(raw, 'items')
           ? 'array'
@@ -391,7 +440,13 @@ function convertJsonSchemaNode(
 
   switch (schemaType) {
     case 'string': {
-      const format = typeof raw['format'] === 'string' ? raw['format'] : undefined;
+      const format: string | readonly string[] | undefined = multiStringFormats
+        ? multiStringFormats.length === 1
+          ? multiStringFormats[0]
+          : multiStringFormats
+        : typeof raw['format'] === 'string'
+          ? raw['format']
+          : undefined;
       const pattern = typeof raw['pattern'] === 'string' ? raw['pattern'] : undefined;
       const minLength = typeof raw['minLength'] === 'number' ? raw['minLength'] : undefined;
       const maxLength = typeof raw['maxLength'] === 'number' ? raw['maxLength'] : undefined;
@@ -449,7 +504,7 @@ function convertJsonSchemaNode(
           : [],
       );
       let properties: ComponentParameterDefinition[] | undefined;
-      if (isPlainObject(raw['properties'])) {
+      if (isPlainRecord(raw['properties'])) {
         properties = Object.entries(raw['properties']).map(([name, propRaw]) => {
           const propType = convertJsonSchemaNode(propRaw, allowComponentTypes, ctx);
           return {
@@ -464,7 +519,7 @@ function convertJsonSchemaNode(
       let additionalProperties: boolean | TypeDefinition | undefined;
       if (typeof raw['additionalProperties'] === 'boolean') {
         additionalProperties = raw['additionalProperties'];
-      } else if (isPlainObject(raw['additionalProperties'])) {
+      } else if (isPlainRecord(raw['additionalProperties'])) {
         additionalProperties = convertJsonSchemaNode(
           raw['additionalProperties'],
           allowComponentTypes,
@@ -475,8 +530,8 @@ function convertJsonSchemaNode(
       } else {
         additionalProperties = true;
       }
-      const atLeastOneOf = extractAtLeastOneOf(raw['anyOf']);
-      const def = isPlainObject(raw['default']) ? raw['default'] : undefined;
+      const atLeastOneOf = extractAtLeastOneOf(raw);
+      const def = isPlainRecord(raw['default']) ? raw['default'] : undefined;
       return {
         type: 'object',
         ...(properties !== undefined ? {properties} : {}),
@@ -518,7 +573,7 @@ function collectComponentSchemaParts(
   const atLeastOneOf: string[][] = [];
 
   const visit = (node: unknown): void => {
-    if (!isPlainObject(node) || visited.has(node)) return;
+    if (!isPlainRecord(node) || visited.has(node)) return;
     visited.add(node);
 
     const cRef = commonRefName(node['$ref']);
@@ -537,17 +592,17 @@ function collectComponentSchemaParts(
     if (description === undefined && typeof node['description'] === 'string') {
       description = node['description'];
     }
-    if (isPlainObject(node['properties'])) {
+    if (isPlainRecord(node['properties'])) {
       for (const [key, propSchema] of Object.entries(node['properties'])) {
         if (FORBIDDEN_COMPONENT_PARAM_NAMES.has(key)) {
           if (key === '@checks') checkable = true;
           continue;
         }
-        if (key === 'checks' && isPlainObject(propSchema)) {
+        if (key === 'checks' && isPlainRecord(propSchema)) {
           const items = propSchema['items'];
           if (
             propSchema['type'] === 'array' &&
-            isPlainObject(items) &&
+            isPlainRecord(items) &&
             commonRefName(items['$ref']) === 'CheckRule'
           ) {
             checkable = true;
@@ -556,12 +611,12 @@ function collectComponentSchemaParts(
         }
         if (
           key === 'accessibility' &&
-          isPlainObject(propSchema) &&
+          isPlainRecord(propSchema) &&
           commonRefName(propSchema['$ref']) === 'AccessibilityAttributes'
         ) {
           continue;
         }
-        if (!properties.has(key) && isPlainObject(propSchema)) {
+        if (!properties.has(key) && isPlainRecord(propSchema)) {
           properties.set(key, propSchema);
         }
       }
@@ -573,9 +628,9 @@ function collectComponentSchemaParts(
         }
       }
     }
-    const extracted = extractAtLeastOneOf(node['anyOf']);
+    const extracted = extractSingleAtLeastOneOfGroup(node['anyOf']);
     if (extracted) {
-      atLeastOneOf.push(...extracted);
+      atLeastOneOf.push(extracted);
     }
     if (Array.isArray(node['allOf'])) {
       // Visit specific component sub-schemas (declaring `component`) before mixins
@@ -584,8 +639,8 @@ function collectComponentSchemaParts(
       const mixins: unknown[] = [];
       for (const sub of node['allOf']) {
         if (
-          isPlainObject(sub) &&
-          isPlainObject(sub['properties']) &&
+          isPlainRecord(sub) &&
+          isPlainRecord(sub['properties']) &&
           Object.hasOwn(sub['properties'], 'component')
         ) {
           specific.push(sub);
@@ -624,7 +679,7 @@ function convertComponentSchema(
   const allowedChildren = Array.isArray(schema['allowedChildren'])
     ? (schema['allowedChildren'] as unknown[]).filter((s): s is string => typeof s === 'string')
     : undefined;
-  const metadata = isPlainObject(schema['metadata'])
+  const metadata = isPlainRecord(schema['metadata'])
     ? (schema['metadata'] as CatalogMetadata)
     : undefined;
   const deprecated = typeof schema['deprecated'] === 'boolean' ? schema['deprecated'] : undefined;
@@ -651,17 +706,17 @@ function convertFunctionSchema(
   ctx: ConversionContext,
 ): FunctionDefinition {
   const description = typeof rawFn['description'] === 'string' ? rawFn['description'] : undefined;
-  const fnProps = isPlainObject(rawFn['properties']) ? rawFn['properties'] : undefined;
+  const fnProps = isPlainRecord(rawFn['properties']) ? rawFn['properties'] : undefined;
   const constProp = (key: string): unknown => {
     const entry = fnProps?.[key];
-    return isPlainObject(entry) ? entry['const'] : undefined;
+    return isPlainRecord(entry) ? entry['const'] : undefined;
   };
 
   const rawReturn = rawFn['returnType'] ?? constProp('returnType');
   let returnType: FunctionReturnDefinition = 'any';
   if (typeof rawReturn === 'string' && FUNCTION_RETURN_SHORTHANDS.has(rawReturn)) {
     returnType = rawReturn as FunctionReturnShorthand;
-  } else if (isPlainObject(rawReturn)) {
+  } else if (isPlainRecord(rawReturn)) {
     returnType = convertJsonSchemaNode(rawReturn, false, ctx) as DataTypeDefinition;
   }
 
@@ -674,9 +729,9 @@ function convertFunctionSchema(
   const rawActivation = rawFn['requiresUserActivation'] ?? constProp('requiresUserActivation');
   const requiresUserActivation = typeof rawActivation === 'boolean' ? rawActivation : undefined;
 
-  const argsSchema = isPlainObject(fnProps?.['args'])
+  const argsSchema = isPlainRecord(fnProps?.['args'])
     ? fnProps['args']
-    : isPlainObject(rawFn['parameters'])
+    : isPlainRecord(rawFn['parameters'])
       ? rawFn['parameters']
       : undefined;
 
@@ -690,7 +745,7 @@ function convertFunctionSchema(
         ? (argsSchema['required'] as unknown[]).filter((r): r is string => typeof r === 'string')
         : [],
     );
-    if (isPlainObject(argsSchema['properties'])) {
+    if (isPlainRecord(argsSchema['properties'])) {
       parameters = Object.entries(argsSchema['properties']).map(([paramName, propRaw]) => {
         const typeDef = convertJsonSchemaNode(propRaw, false, ctx) as DataTypeDefinition;
         return {
@@ -700,21 +755,15 @@ function convertFunctionSchema(
         };
       });
     }
-    atLeastOneOf = extractAtLeastOneOf(argsSchema['anyOf']);
+    atLeastOneOf = extractAtLeastOneOf(argsSchema);
     if (typeof argsSchema['additionalProperties'] === 'boolean') {
       if (argsSchema['additionalProperties']) additionalParameters = true;
-    } else if (isPlainObject(argsSchema['additionalProperties'])) {
+    } else if (isPlainRecord(argsSchema['additionalProperties'])) {
       additionalParameters = convertJsonSchemaNode(
         argsSchema['additionalProperties'],
         false,
         ctx,
       ) as DataTypeDefinition;
-    } else if (
-      argsSchema['unevaluatedProperties'] !== false &&
-      argsSchema['additionalProperties'] === undefined &&
-      (!parameters || parameters.length === 0)
-    ) {
-      // Empty args object with no properties and no closure defaults to closed unless explicit.
     }
   }
 
@@ -740,12 +789,12 @@ function convertThemeToSurfaceProperties(
   rawTheme: unknown,
   ctx: ConversionContext,
 ): SurfacePropertiesDefinition | undefined {
-  if (!isPlainObject(rawTheme)) return undefined;
+  if (!isPlainRecord(rawTheme)) return undefined;
   const description =
     typeof rawTheme['description'] === 'string' ? rawTheme['description'] : undefined;
-  const isWrapper = rawTheme['type'] === 'object' || isPlainObject(rawTheme['properties']);
+  const isWrapper = rawTheme['type'] === 'object' || isPlainRecord(rawTheme['properties']);
   const propsObj = isWrapper
-    ? isPlainObject(rawTheme['properties'])
+    ? isPlainRecord(rawTheme['properties'])
       ? rawTheme['properties']
       : {}
     : rawTheme;
@@ -768,7 +817,7 @@ function convertThemeToSurfaceProperties(
   if (isWrapper) {
     if (typeof rawTheme['additionalProperties'] === 'boolean') {
       additionalProperties = rawTheme['additionalProperties'];
-    } else if (isPlainObject(rawTheme['additionalProperties'])) {
+    } else if (isPlainRecord(rawTheme['additionalProperties'])) {
       additionalProperties = convertJsonSchemaNode(
         rawTheme['additionalProperties'],
         false,
@@ -800,7 +849,7 @@ export function jsonSchemaToModel(
   rawDoc: Record<string, unknown>,
   options?: JsonSchemaToModelOptions,
 ): CatalogModel {
-  if (!isPlainObject(rawDoc)) {
+  if (!isPlainRecord(rawDoc)) {
     throw new A2uiCatalogError('Catalog JSON Schema document must be an object.');
   }
   const catalogId =
@@ -817,9 +866,9 @@ export function jsonSchemaToModel(
   const protocolVersion =
     options?.protocolVersion ??
     (typeof rawDoc['protocolVersion'] === 'string' ? rawDoc['protocolVersion'] : '0.9');
-  const rawDefs = isPlainObject(rawDoc['$defs'])
+  const rawDefs = isPlainRecord(rawDoc['$defs'])
     ? rawDoc['$defs']
-    : isPlainObject(rawDoc['definitions'])
+    : isPlainRecord(rawDoc['definitions'])
       ? rawDoc['definitions']
       : {};
 
@@ -830,9 +879,9 @@ export function jsonSchemaToModel(
   };
 
   const components: ComponentDefinition[] = [];
-  if (isPlainObject(rawDoc['components'])) {
+  if (isPlainRecord(rawDoc['components'])) {
     for (const [compName, compRaw] of Object.entries(rawDoc['components'])) {
-      if (compName === 'Surface' || !isPlainObject(compRaw)) continue;
+      if (compName === 'Surface' || !isPlainRecord(compRaw)) continue;
       components.push(convertComponentSchema(compName, compRaw, ctx));
     }
   }
@@ -840,12 +889,12 @@ export function jsonSchemaToModel(
   const functions: FunctionDefinition[] = [];
   if (Array.isArray(rawDoc['functions'])) {
     for (const fnRaw of rawDoc['functions']) {
-      if (!isPlainObject(fnRaw) || typeof fnRaw['name'] !== 'string') continue;
+      if (!isPlainRecord(fnRaw) || typeof fnRaw['name'] !== 'string') continue;
       functions.push(convertFunctionSchema(fnRaw['name'], fnRaw, ctx));
     }
-  } else if (isPlainObject(rawDoc['functions'])) {
+  } else if (isPlainRecord(rawDoc['functions'])) {
     for (const [fnName, fnRaw] of Object.entries(rawDoc['functions'])) {
-      if (!isPlainObject(fnRaw)) continue;
+      if (!isPlainRecord(fnRaw)) continue;
       functions.push(convertFunctionSchema(fnName, fnRaw, ctx));
     }
   }
@@ -865,7 +914,7 @@ export function jsonSchemaToModel(
     ...(typeof rawDoc['title'] === 'string' ? {title: rawDoc['title']} : {}),
     ...(typeof rawDoc['description'] === 'string' ? {description: rawDoc['description']} : {}),
     ...(typeof rawDoc['instructions'] === 'string' ? {instructions: rawDoc['instructions']} : {}),
-    ...(isPlainObject(rawDoc['metadata']) ? {metadata: rawDoc['metadata'] as CatalogMetadata} : {}),
+    ...(isPlainRecord(rawDoc['metadata']) ? {metadata: rawDoc['metadata'] as CatalogMetadata} : {}),
     ...(Object.keys(typesObj).length > 0 ? {types: typesObj} : {}),
     ...(surfaceProperties !== undefined ? {surfaceProperties} : {}),
     ...(components.length > 0 ? {components} : {}),
@@ -892,6 +941,85 @@ function attachMeta(target: Record<string, unknown>, meta: TypeMeta): Record<str
   if (meta.deprecated !== undefined) target['deprecated'] = meta.deprecated;
   if (meta.deprecatedReason !== undefined) target['deprecatedReason'] = meta.deprecatedReason;
   return target;
+}
+
+function applyAtLeastOneOf(
+  target: Record<string, unknown>,
+  groups: readonly (readonly string[])[] | undefined,
+): void {
+  if (!groups || groups.length === 0) return;
+  if (groups.length === 1) {
+    target['anyOf'] = groups[0].map(k => ({'required': [k]}));
+    return;
+  }
+  const branches = groups.map(g => ({'anyOf': g.map(k => ({'required': [k]}))}));
+  if (Array.isArray(target['allOf'])) {
+    (target['allOf'] as unknown[]).push(...branches);
+  } else {
+    target['allOf'] = branches;
+  }
+}
+
+function buildObjectSchemaBody(
+  properties: readonly ParameterDefinition[] | undefined,
+  atLeastOneOf: readonly (readonly string[])[] | undefined,
+  options: ModelToJsonSchemaOptions,
+  opts: {
+    readonly initialProps?: Record<string, unknown>;
+    readonly initialRequired?: string[];
+    readonly emitEmptyProps?: boolean;
+    readonly additionalRule?: boolean | TypeDefinition;
+    readonly defaultClosed?: boolean;
+    readonly closedKeyword?: 'additionalProperties' | 'unevaluatedProperties';
+  } = {},
+): {readonly schema: Record<string, unknown>; readonly requiredCount: number} {
+  const props: Record<string, unknown> = opts.initialProps ? {...opts.initialProps} : {};
+  const required: string[] = opts.initialRequired ? [...opts.initialRequired] : [];
+  for (const param of properties ?? []) {
+    props[param.name] = typeDefinitionToJsonSchema(param, options);
+    if (param.required) required.push(param.name);
+  }
+  const obj: Record<string, unknown> = {'type': 'object'};
+  if (opts.emitEmptyProps || Object.keys(props).length > 0) {
+    obj['properties'] = props;
+  }
+  if (required.length > 0) {
+    obj['required'] = required;
+  }
+  applyAtLeastOneOf(obj, atLeastOneOf);
+  const closedKey = opts.closedKeyword ?? 'additionalProperties';
+  if (opts.additionalRule === undefined) {
+    if (opts.defaultClosed) {
+      obj[closedKey] = false;
+    }
+  } else if (typeof opts.additionalRule === 'boolean') {
+    if (!opts.additionalRule) {
+      obj[closedKey] = false;
+    } else if (opts.defaultClosed === false) {
+      obj['additionalProperties'] = true;
+    }
+  } else {
+    obj['additionalProperties'] = typeDefinitionToJsonSchema(opts.additionalRule, options);
+  }
+  return {schema: obj, requiredCount: required.length};
+}
+
+/**
+ * Serializes a canonical {@link SurfacePropertiesDefinition} into a JSON Schema
+ * object (`$defs.theme` / v0.9 `theme`).
+ */
+export function surfacePropertiesToJsonSchema(
+  surfaceProperties: SurfacePropertiesDefinition,
+  options: ModelToJsonSchemaOptions = {},
+): Record<string, unknown> {
+  const {schema} = buildObjectSchemaBody(surfaceProperties.properties, undefined, options, {
+    additionalRule: surfaceProperties.additionalProperties,
+    defaultClosed: false,
+  });
+  if (surfaceProperties.description !== undefined) {
+    schema['description'] = surfaceProperties.description;
+  }
+  return schema;
 }
 
 /**
@@ -1027,32 +1155,16 @@ export function typeDefinitionToJsonSchema(
       return attachMeta(out, typeDef);
     }
     case 'object': {
-      const obj: Record<string, unknown> = {'type': 'object'};
-      if (typeDef.properties && typeDef.properties.length > 0) {
-        const props: Record<string, unknown> = {};
-        const req: string[] = [];
-        for (const p of typeDef.properties) {
-          props[p.name] = typeDefinitionToJsonSchema(p, options);
-          if (p.required) req.push(p.name);
-        }
-        obj['properties'] = props;
-        if (req.length > 0) obj['required'] = req;
-      }
-      if (typeDef.atLeastOneOf && typeDef.atLeastOneOf.length > 0) {
-        obj['anyOf'] = typeDef.atLeastOneOf.flatMap(group => group.map(k => ({'required': [k]})));
-      }
-      if (typeDef.additionalProperties === undefined) {
-        obj['additionalProperties'] = false;
-      } else if (typeof typeDef.additionalProperties === 'boolean') {
-        if (!typeDef.additionalProperties) {
-          obj['additionalProperties'] = false;
-        }
-      } else {
-        obj['additionalProperties'] = typeDefinitionToJsonSchema(
-          typeDef.additionalProperties,
-          options,
-        );
-      }
+      const {schema: obj} = buildObjectSchemaBody(
+        typeDef.properties,
+        typeDef.atLeastOneOf,
+        options,
+        {
+          additionalRule: typeDef.additionalProperties,
+          defaultClosed: true,
+          closedKeyword: 'additionalProperties',
+        },
+      );
       if (typeDef.default !== undefined) obj['default'] = typeDef.default;
       if (typeDef.dynamic) {
         return attachMeta(
@@ -1074,7 +1186,10 @@ export function typeDefinitionToJsonSchema(
         typeDef.items?.type === 'string' &&
         !typeDef.items.dynamic &&
         typeDef.items.format === undefined &&
-        typeDef.items.pattern === undefined
+        typeDef.items.pattern === undefined &&
+        typeDef.items.minLength === undefined &&
+        typeDef.items.maxLength === undefined &&
+        typeDef.items.default === undefined
       ) {
         return attachMeta(commonRef('DynamicStringList'), typeDef);
       }
@@ -1133,21 +1248,11 @@ export function componentDefinitionToJsonSchema(
 ): Record<string, unknown> {
   const commonUri = options.commonTypesUri ?? DEFAULT_COMMON_TYPES_URI;
   const atLeastV10 = isAtLeastVersion(options.protocolVersion ?? '1.0', '1.0');
-  const props: Record<string, unknown> = {'component': {'const': comp.name}};
-  const required: string[] = ['component'];
-  for (const param of comp.parameters ?? []) {
-    props[param.name] = typeDefinitionToJsonSchema(param, options);
-    if (param.required) required.push(param.name);
-  }
-
-  const body: Record<string, unknown> = {
-    'type': 'object',
-    'properties': props,
-    'required': required,
-  };
-  if (comp.atLeastOneOf && comp.atLeastOneOf.length > 0) {
-    body['anyOf'] = comp.atLeastOneOf.flatMap(group => group.map(k => ({'required': [k]})));
-  }
+  const {schema: body} = buildObjectSchemaBody(comp.parameters, comp.atLeastOneOf, options, {
+    initialProps: {'component': {'const': comp.name}},
+    initialRequired: ['component'],
+    emitEmptyProps: true,
+  });
 
   const mixins: Array<Record<string, unknown>> = [];
   if (!atLeastV10) {
@@ -1159,6 +1264,9 @@ export function componentDefinitionToJsonSchema(
 
   const out: Record<string, unknown> =
     mixins.length > 0 ? {'type': 'object', 'allOf': [...mixins, body]} : body;
+  if (!atLeastV10) {
+    out['unevaluatedProperties'] = false;
+  }
   if (comp.description !== undefined) out['description'] = comp.description;
   if (comp.allowedParents !== undefined) out['allowedParents'] = [...comp.allowedParents];
   if (comp.allowedChildren !== undefined) out['allowedChildren'] = [...comp.allowedChildren];
@@ -1175,25 +1283,17 @@ export function functionDefinitionToJsonSchema(
 ): Record<string, unknown> {
   const atLeastV10 = isAtLeastVersion(options.protocolVersion ?? '1.0', '1.0');
   const callKey = atLeastV10 ? '@call' : 'call';
-  const argsProps: Record<string, unknown> = {};
-  const argsRequired: string[] = [];
-  for (const param of fn.parameters ?? []) {
-    argsProps[param.name] = typeDefinitionToJsonSchema(param, options);
-    if (param.required) argsRequired.push(param.name);
-  }
-  const argsObj: Record<string, unknown> = {
-    'type': 'object',
-    'properties': argsProps,
-  };
-  if (argsRequired.length > 0) argsObj['required'] = argsRequired;
-  if (fn.atLeastOneOf && fn.atLeastOneOf.length > 0) {
-    argsObj['anyOf'] = fn.atLeastOneOf.flatMap(group => group.map(k => ({'required': [k]})));
-  }
-  if (fn.additionalParameters === undefined || fn.additionalParameters === false) {
-    argsObj['unevaluatedProperties'] = false;
-  } else if (fn.additionalParameters !== true) {
-    argsObj['additionalProperties'] = typeDefinitionToJsonSchema(fn.additionalParameters, options);
-  }
+  const {schema: argsObj, requiredCount: argsRequiredCount} = buildObjectSchemaBody(
+    fn.parameters,
+    fn.atLeastOneOf,
+    options,
+    {
+      emitEmptyProps: true,
+      additionalRule: fn.additionalParameters,
+      defaultClosed: true,
+      closedKeyword: 'unevaluatedProperties',
+    },
+  );
 
   const returnTypeValue =
     typeof fn.returnType === 'string'
@@ -1214,19 +1314,23 @@ export function functionDefinitionToJsonSchema(
     return item;
   }
 
+  const argsRequired = argsRequiredCount > 0 || (fn.atLeastOneOf?.length ?? 0) > 0;
   const fnProps: Record<string, unknown> = {
     [callKey]: {'const': fn.name},
     'args': argsObj,
   };
+  if (!atLeastV10) {
+    fnProps['returnType'] = {'const': returnTypeValue};
+  }
   const out: Record<string, unknown> = {
     'type': 'object',
     ...(fn.description !== undefined ? {'description': fn.description} : {}),
-    'returnType': returnTypeValue,
+    ...(atLeastV10 ? {'returnType': returnTypeValue} : {}),
     ...(fn.allowedCallers !== undefined ? {'allowedCallers': fn.allowedCallers} : {}),
     ...(fn.requiresUserActivation ? {'requiresUserActivation': true} : {}),
     'properties': fnProps,
-    'required':
-      argsRequired.length > 0 || (fn.atLeastOneOf?.length ?? 0) > 0 ? [callKey, 'args'] : [callKey],
+    'required': argsRequired ? [callKey, 'args'] : [callKey],
+    ...(!atLeastV10 ? {'unevaluatedProperties': false} : {}),
   };
   if (fn.deprecated !== undefined) out['deprecated'] = fn.deprecated;
   if (fn.deprecatedReason !== undefined) out['deprecatedReason'] = fn.deprecatedReason;
@@ -1297,27 +1401,7 @@ export function modelToJsonSchema(
   }
 
   if (model.surfaceProperties) {
-    const themeObj: Record<string, unknown> = {'type': 'object'};
-    if (model.surfaceProperties.description !== undefined) {
-      themeObj['description'] = model.surfaceProperties.description;
-    }
-    if (model.surfaceProperties.properties && model.surfaceProperties.properties.length > 0) {
-      const props: Record<string, unknown> = {};
-      const req: string[] = [];
-      for (const p of model.surfaceProperties.properties) {
-        props[p.name] = typeDefinitionToJsonSchema(p, resolvedOpts);
-        if (p.required) req.push(p.name);
-      }
-      themeObj['properties'] = props;
-      if (req.length > 0) themeObj['required'] = req;
-    }
-    if (model.surfaceProperties.additionalProperties !== undefined) {
-      themeObj['additionalProperties'] =
-        typeof model.surfaceProperties.additionalProperties === 'boolean'
-          ? model.surfaceProperties.additionalProperties
-          : typeDefinitionToJsonSchema(model.surfaceProperties.additionalProperties, resolvedOpts);
-    }
-    defs['theme'] = themeObj;
+    defs['theme'] = surfacePropertiesToJsonSchema(model.surfaceProperties, resolvedOpts);
   }
 
   out['$defs'] = defs;

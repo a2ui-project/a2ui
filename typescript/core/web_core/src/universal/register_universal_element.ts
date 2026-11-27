@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type {WebComponentImplementation} from './web_component_implementation.js';
+import type {WebComponentImplementationLike} from './web_component_implementation.js';
 
 let missingCustomElementsReported = false;
 
@@ -30,7 +30,7 @@ let missingCustomElementsReported = false;
  *
  * @param component The WebComponentImplementation defining the custom element.
  */
-export function registerUniversalElement(component: WebComponentImplementation): void {
+export function registerUniversalElement(component: WebComponentImplementationLike): void {
   if (typeof customElements === 'undefined') {
     if (!missingCustomElementsReported) {
       missingCustomElementsReported = true;

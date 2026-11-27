@@ -1344,7 +1344,7 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
       '1.0',
     );
     const fn = docCatalog.functions.get('quoteDoc')!;
-    const localArgs = fn.schema!.parse({symbol: 'GOOG'});
+    const localArgs = fn.schema.parse({symbol: 'GOOG'});
     proc = new MessageProcessor([docCatalog as any], undefined, {
       outboundListener: msg => {
         outbound.push(msg);

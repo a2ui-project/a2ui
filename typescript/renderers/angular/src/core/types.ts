@@ -17,9 +17,10 @@
 import {Signal} from '@angular/core';
 import {z} from 'zod';
 import {
-  ComponentApi,
+  ComponentApiLike,
   ComponentDefinition,
   ComponentParameterDefinition,
+  DataTypeDefinition,
   InferTypeDefinitionValue,
 } from '@a2ui/web_core';
 import {Child} from './component-binder.service';
@@ -115,32 +116,47 @@ export type ExtendedProps<ComponentProps extends {[key: string]: unknown}> =
       ? ComponentProps & CheckProps
       : ComponentProps;
 
-type DefinitionParameterToBoundProp<P extends ComponentParameterDefinition> = P extends {
+type DefinitionParameterToBoundProp<
+  P extends ComponentParameterDefinition,
+  Types extends Readonly<Record<string, DataTypeDefinition>> = Record<never, never>,
+> = P extends {
   readonly type: 'childList';
 }
   ? BoundProperty<Child[]>
   : P extends {readonly type: 'child'}
     ? BoundProperty<Child>
-    : BoundProperty<InferTypeDefinitionValue<P>>;
+    : BoundProperty<InferTypeDefinitionValue<P, Types>>;
 
-type DefinitionParametersToProps<Params extends readonly ComponentParameterDefinition[]> = {
+type DefinitionParametersToProps<
+  Params extends readonly ComponentParameterDefinition[],
+  Types extends Readonly<Record<string, DataTypeDefinition>> = Record<never, never>,
+> = {
   [P in Params[number] as P['required'] extends true
     ? P['name']
-    : never]: DefinitionParameterToBoundProp<P>;
+    : never]: DefinitionParameterToBoundProp<P, Types>;
 } & {
   [P in Params[number] as P['required'] extends true
     ? never
-    : P['name']]?: DefinitionParameterToBoundProp<P>;
+    : P['name']]?: DefinitionParameterToBoundProp<P, Types>;
 };
 
-type DefinitionToBoundProps<Def extends ComponentDefinition> =
-  Def['parameters'] extends readonly ComponentParameterDefinition[]
-    ? Def extends {readonly checkable: true}
-      ? DefinitionParametersToProps<Def['parameters']> & {
-          [K in keyof CheckProps]: BoundProperty<CheckProps[K]>;
-        }
-      : DefinitionParametersToProps<Def['parameters']>
-    : Record<string, BoundProperty<unknown>>;
+type BoundCheckProps = {
+  [K in keyof CheckProps]: BoundProperty<CheckProps[K]>;
+};
+
+type DefinitionBaseBoundProps<
+  Def extends ComponentDefinition,
+  Types extends Readonly<Record<string, DataTypeDefinition>> = Record<never, never>,
+> = Def['parameters'] extends readonly ComponentParameterDefinition[]
+  ? DefinitionParametersToProps<Def['parameters'], Types>
+  : Record<never, never>;
+
+type DefinitionToBoundProps<
+  Def extends ComponentDefinition,
+  Types extends Readonly<Record<string, DataTypeDefinition>> = Record<never, never>,
+> = Def extends {readonly checkable: true}
+  ? DefinitionBaseBoundProps<Def, Types> & BoundCheckProps
+  : DefinitionBaseBoundProps<Def, Types>;
 
 /**
  * Utility to convert a component Api Type to the props Type, where the
@@ -148,8 +164,9 @@ type DefinitionToBoundProps<Def extends ComponentDefinition> =
  * in a UI component
  *
  * Supports both canonical zero-dependency `ComponentDefinition` APIs (mapping
- * `child` / `childList` parameters directly without hardcoded field names) and
- * legacy Zod `schema` APIs.
+ * `child` / `childList` parameters directly without hardcoded field names, and
+ * accepting an optional catalog `Types` map to resolve local `ref` parameters)
+ * and legacy Zod `schema` APIs.
  *
  * @example
  * export const TextComponentApi = {
@@ -161,10 +178,11 @@ type DefinitionToBoundProps<Def extends ComponentDefinition> =
  * } satisfies ComponentApi;
  * export type TextComponentProps = ComponentApiToProps<typeof TextComponentApi>; // outputs { text: BoundProperty<string>; }
  */
-export type ComponentApiToProps<Api extends ComponentApi> = [Api] extends [
-  {readonly definition: infer Def extends ComponentDefinition},
-]
+export type ComponentApiToProps<
+  Api extends ComponentApiLike,
+  Types extends Readonly<Record<string, DataTypeDefinition>> = Record<never, never>,
+> = [Api] extends [{readonly definition: infer Def extends ComponentDefinition}]
   ? ComponentDefinition extends Def
     ? InferredInterfaceToProps<ExtendedProps<z.infer<NonNullable<Api['schema']>>>>
-    : DefinitionToBoundProps<Def>
+    : DefinitionToBoundProps<Def, Types>
   : InferredInterfaceToProps<ExtendedProps<z.infer<NonNullable<Api['schema']>>>>;

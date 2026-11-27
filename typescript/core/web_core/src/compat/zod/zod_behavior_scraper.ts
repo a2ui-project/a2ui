@@ -16,7 +16,7 @@
 
 import {z} from 'zod';
 
-import type {ModelBehaviorNode} from '../../catalog/model/model_semantics.js';
+import {hasActiveBehavior, type ModelBehaviorNode} from '../../catalog/model/model_semantics.js';
 import {isDynamicBooleanSchema} from '../../catalog/validation_result_coercion.js';
 import {
   type ChildRefAnalysisOptions,
@@ -38,25 +38,6 @@ const AT_ACCESSIBILITY = '@accessibility';
 const AT_CHECKS = '@checks';
 
 const CHILD_REF_STATIC_NODE: ModelBehaviorNode = Object.freeze({type: 'STATIC' as const});
-
-function hasActiveBehavior(node: ModelBehaviorNode): boolean {
-  switch (node.type) {
-    case 'STATIC':
-      return false;
-    case 'DYNAMIC':
-    case 'ACTION':
-    case 'STRUCTURAL':
-    case 'CHECKABLE':
-      return true;
-    case 'ARRAY':
-      return Boolean(node.templateFallback) || hasActiveBehavior(node.element);
-    case 'OBJECT':
-      return (
-        (node.catchall !== undefined && hasActiveBehavior(node.catchall)) ||
-        Object.values(node.shape).some(hasActiveBehavior)
-      );
-  }
-}
 
 const DEFAULT_OPTIONS_CACHE_KEY = {};
 const behaviorCache = new WeakMap<object, WeakMap<z.ZodTypeAny, ModelBehaviorNode>>();

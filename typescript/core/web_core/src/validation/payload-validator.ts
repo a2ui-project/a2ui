@@ -753,28 +753,42 @@ export class PayloadValidator {
 function derefModelType(
   typeDef: TypeDefinition,
   types: Readonly<Record<string, DataTypeDefinition>> | undefined,
-): TypeDefinition {
+  visited: ReadonlySet<string>,
+): {
+  readonly resolved: TypeDefinition;
+  readonly nextVisited: ReadonlySet<string>;
+  readonly cyclic: boolean;
+} {
   let current = typeDef;
-  const visited = new Set<string>();
+  let nextVisited = visited;
   while (current.type === 'ref') {
-    if (visited.has(current.ref)) return {type: 'any'};
+    if (nextVisited.has(current.ref)) {
+      return {resolved: {type: 'any'}, nextVisited, cyclic: true};
+    }
     const target = types?.[current.ref];
-    if (!target) return {type: 'any'};
-    visited.add(current.ref);
+    if (!target) {
+      return {resolved: {type: 'any'}, nextVisited, cyclic: false};
+    }
+    if (nextVisited === visited) {
+      nextVisited = new Set(visited);
+    }
+    (nextVisited as Set<string>).add(current.ref);
     current = target;
   }
-  return current;
+  return {resolved: current, nextVisited, cyclic: false};
 }
 
 function modelElementType(
   typeDef: TypeDefinition,
   types: Readonly<Record<string, DataTypeDefinition>> | undefined,
+  visited: ReadonlySet<string> = new Set(),
 ): TypeDefinition | undefined {
-  const resolved = derefModelType(typeDef, types);
+  const {resolved, nextVisited, cyclic} = derefModelType(typeDef, types, visited);
+  if (cyclic) return undefined;
   if (resolved.type === 'array') return resolved.items;
   if (resolved.type === 'union') {
     const itemVariants = resolved.variants
-      .map(v => modelElementType(v, types))
+      .map(v => modelElementType(v, types, nextVisited))
       .filter((v): v is TypeDefinition => v !== undefined);
     if (itemVariants.length === 1) return itemVariants[0];
     if (itemVariants.length > 1) return {type: 'union', variants: itemVariants, exclusive: false};
@@ -786,8 +800,10 @@ function modelPropertyType(
   typeDef: TypeDefinition,
   key: string,
   types: Readonly<Record<string, DataTypeDefinition>> | undefined,
+  visited: ReadonlySet<string> = new Set(),
 ): TypeDefinition | undefined {
-  const resolved = derefModelType(typeDef, types);
+  const {resolved, nextVisited, cyclic} = derefModelType(typeDef, types, visited);
+  if (cyclic) return undefined;
   if (resolved.type === 'object') {
     const declared = resolved.properties?.find(p => p.name === key);
     if (declared) return declared;
@@ -797,7 +813,7 @@ function modelPropertyType(
   }
   if (resolved.type === 'union') {
     const matches = resolved.variants
-      .map(v => modelPropertyType(v, key, types))
+      .map(v => modelPropertyType(v, key, types, nextVisited))
       .filter((v): v is TypeDefinition => v !== undefined);
     if (matches.length === 1) return matches[0];
     if (matches.length > 1) return {type: 'union', variants: matches, exclusive: false};

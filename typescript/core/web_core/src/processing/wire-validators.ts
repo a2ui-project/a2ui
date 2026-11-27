@@ -25,14 +25,15 @@
 import {normalizeVersionString} from '../common/semver.js';
 import {isValidUax31Identifier} from '../common/uax31.js';
 import {
-  isDataBindingValue,
-  isFunctionCallValue,
+  describeValueType,
+  isPlainRecord,
+  isValidRfc3339DateTime,
+} from '../catalog/model/format_validators.js';
+import {
+  validateCatalogValue,
   type ValidationIssue,
   type ValidationOutcome,
 } from '../catalog/model/model_validator.js';
-
-const ISO_DATETIME_OFFSET_RE =
-  /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/;
 
 const V10_VALIDATION_ERROR_CODES = new Set([
   'VALIDATION_FAILED',
@@ -40,24 +41,13 @@ const V10_VALIDATION_ERROR_CODES = new Set([
   'UNALLOWED_CHILD',
 ]);
 
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function receivedType(value: unknown): string {
-  if (value === undefined) return 'undefined';
-  if (value === null) return 'null';
-  if (Array.isArray(value)) return 'array';
-  return typeof value;
-}
-
 function pushTypeIssue(
   issues: ValidationIssue[],
   path: readonly (string | number)[],
   expected: string,
   value: unknown,
 ): void {
-  const rec = receivedType(value);
+  const rec = describeValueType(value);
   issues.push({
     path,
     code: 'invalid_type',
@@ -65,6 +55,19 @@ function pushTypeIssue(
     received: rec,
     message: value === undefined ? 'Required' : `Expected ${expected}, received ${rec}`,
   });
+}
+
+function checkV10Version(raw: Record<string, unknown>, issues: ValidationIssue[]): void {
+  const version = raw['version'];
+  if (version !== '1.0') {
+    issues.push({
+      path: ['version'],
+      code: version === undefined ? 'invalid_type' : 'invalid_literal',
+      expected: "'1.0'",
+      received: version === undefined ? 'undefined' : describeValueType(version),
+      message: version === undefined ? 'Required' : 'Invalid literal value, expected "1.0"',
+    });
+  }
 }
 
 function checkStrictKeys(
@@ -202,8 +205,8 @@ function checkV10FunctionCall(
     pushTypeIssue(issues, path, 'object', val);
     return;
   }
-  const hasAtCall = val['@call'] !== undefined;
-  const hasCall = val['call'] !== undefined;
+  const hasAtCall = Object.hasOwn(val, '@call') && val['@call'] !== undefined;
+  const hasCall = Object.hasOwn(val, 'call') && val['call'] !== undefined;
   if (hasAtCall && typeof val['@call'] !== 'string') {
     pushTypeIssue(issues, [...path, '@call'], 'string', val['@call']);
   }
@@ -215,6 +218,22 @@ function checkV10FunctionCall(
       path,
       code: 'custom',
       message: "Either '@call' or 'call' must be provided.",
+    });
+  } else if (hasAtCall && hasCall) {
+    issues.push({
+      path,
+      code: 'custom',
+      message: "Cannot specify both '@call' and 'call'.",
+    });
+  }
+  if (val['args'] !== undefined && !isPlainRecord(val['args'])) {
+    const received = describeValueType(val['args']);
+    issues.push({
+      path: [...path, 'args'],
+      code: 'invalid_type',
+      expected: 'object',
+      received,
+      message: `Function call must pass an object for 'args', received ${received}`,
     });
   }
   if (requireCatalogId) {
@@ -237,7 +256,7 @@ function checkFunctionResponse(
   checkRequiredString(val, 'functionCallId', path, issues);
   const hasValue = Object.hasOwn(val, 'value');
   const hasError = Object.hasOwn(val, 'error');
-  if (hasError && val['error'] !== undefined) {
+  if (hasError) {
     const errObj = val['error'];
     const errPath = [...path, 'error'];
     if (!isPlainRecord(errObj)) {
@@ -360,16 +379,7 @@ export function validateV10AgentToRendererMessage(
     pushTypeIssue(issues, [], 'object', raw);
     return {success: false, issues};
   }
-  const version = raw['version'];
-  if (version !== '1.0') {
-    issues.push({
-      path: ['version'],
-      code: version === undefined ? 'invalid_type' : 'invalid_literal',
-      expected: "'1.0'",
-      received: version === undefined ? 'undefined' : String(version),
-      message: version === undefined ? 'Required' : `Invalid literal value, expected "1.0"`,
-    });
-  }
+  checkV10Version(raw, issues);
 
   const knownActions = [
     'createSurface',
@@ -426,6 +436,9 @@ export function validateV10AgentToRendererMessage(
       checkStrictKeys(body, new Set(['surfaceId', 'path', 'value']), [actionKey], issues);
       checkRequiredString(body, 'surfaceId', [actionKey], issues);
       checkOptionalString(body, 'path', [actionKey], issues);
+      if (!Object.hasOwn(body, 'value')) {
+        pushTypeIssue(issues, [actionKey, 'value'], 'any', undefined);
+      }
       break;
     case 'deleteSurface':
       checkStrictKeys(body, new Set(['surfaceId']), [actionKey], issues);
@@ -459,15 +472,7 @@ export function validateV10ActionMessage(raw: unknown): ValidationOutcome<Record
     pushTypeIssue(issues, [], 'object', raw);
     return {success: false, issues};
   }
-  if (raw['version'] !== '1.0') {
-    issues.push({
-      path: ['version'],
-      code: 'invalid_literal',
-      expected: "'1.0'",
-      received: receivedType(raw['version']),
-      message: 'Invalid literal value, expected "1.0"',
-    });
-  }
+  checkV10Version(raw, issues);
   checkStrictKeys(raw, new Set(['version', 'action']), [], issues);
   const action = raw['action'];
   if (!isPlainRecord(action)) {
@@ -481,7 +486,7 @@ export function validateV10ActionMessage(raw: unknown): ValidationOutcome<Record
   const ts = action['timestamp'];
   if (typeof ts !== 'string') {
     pushTypeIssue(issues, ['action', 'timestamp'], 'string', ts);
-  } else if (!ISO_DATETIME_OFFSET_RE.test(ts) || Number.isNaN(Date.parse(ts))) {
+  } else if (!isValidRfc3339DateTime(ts)) {
     issues.push({
       path: ['action', 'timestamp'],
       code: 'invalid_string',
@@ -506,15 +511,7 @@ export function validateV10ErrorMessage(raw: unknown): ValidationOutcome<Record<
     pushTypeIssue(issues, [], 'object', raw);
     return {success: false, issues};
   }
-  if (raw['version'] !== '1.0') {
-    issues.push({
-      path: ['version'],
-      code: 'invalid_literal',
-      expected: "'1.0'",
-      received: receivedType(raw['version']),
-      message: 'Invalid literal value, expected "1.0"',
-    });
-  }
+  checkV10Version(raw, issues);
   checkStrictKeys(raw, new Set(['version', 'error']), [], issues);
   const err = raw['error'];
   if (!isPlainRecord(err)) {
@@ -528,7 +525,7 @@ export function validateV10ErrorMessage(raw: unknown): ValidationOutcome<Record<
     checkRequiredString(err, 'path', ['error'], issues);
     checkRequiredString(err, 'message', ['error'], issues);
   } else {
-    if (code === undefined) {
+    if (typeof code !== 'string') {
       pushTypeIssue(issues, ['error', 'code'], 'string', code);
     }
     checkRequiredString(err, 'message', ['error'], issues);
@@ -563,15 +560,7 @@ export function validateV10RendererFunctionResponseMessage(
     pushTypeIssue(issues, [], 'object', raw);
     return {success: false, issues};
   }
-  if (raw['version'] !== '1.0') {
-    issues.push({
-      path: ['version'],
-      code: 'invalid_literal',
-      expected: "'1.0'",
-      received: receivedType(raw['version']),
-      message: 'Invalid literal value, expected "1.0"',
-    });
-  }
+  checkV10Version(raw, issues);
   checkStrictKeys(raw, new Set(['version', 'rendererFunctionResponse']), [], issues);
   checkFunctionResponse(raw['rendererFunctionResponse'], ['rendererFunctionResponse'], issues);
   return issues.length === 0 ? {success: true, data: raw} : {success: false, issues};
@@ -625,46 +614,7 @@ export function validateAccessibilityAttributes(
   if (raw === undefined) {
     return {success: true, data: undefined};
   }
-  const issues: ValidationIssue[] = [];
-  if (!isPlainRecord(raw)) {
-    pushTypeIssue(issues, [], 'object', raw);
-    return {success: false, issues};
-  }
-  checkStrictKeys(raw, new Set(['label', 'description', 'live', 'hidden']), [], issues);
-  const checkDynStr = (key: string) => {
-    const val = raw[key];
-    if (
-      val !== undefined &&
-      typeof val !== 'string' &&
-      !isDataBindingValue(val, protocolVersion) &&
-      !isFunctionCallValue(val, protocolVersion)
-    ) {
-      pushTypeIssue(issues, [key], 'DynamicString', val);
-    }
-  };
-  checkDynStr('label');
-  checkDynStr('description');
-  if (raw['live'] !== undefined) {
-    const live = raw['live'];
-    if (live !== 'off' && live !== 'polite' && live !== 'assertive') {
-      issues.push({
-        path: ['live'],
-        code: 'invalid_enum_value',
-        options: ['off', 'polite', 'assertive'],
-        received: typeof live === 'string' ? live : receivedType(live),
-        message: `Invalid enum value. Expected 'off' | 'polite' | 'assertive', received '${String(live)}'`,
-      });
-    }
-  }
-  if (raw['hidden'] !== undefined) {
-    const hidden = raw['hidden'];
-    if (
-      typeof hidden !== 'boolean' &&
-      !isDataBindingValue(hidden, protocolVersion) &&
-      !isFunctionCallValue(hidden, protocolVersion)
-    ) {
-      pushTypeIssue(issues, ['hidden'], 'DynamicBoolean', hidden);
-    }
-  }
-  return issues.length === 0 ? {success: true, data: raw} : {success: false, issues};
+  return validateCatalogValue({type: 'accessibility'}, raw, {
+    protocolVersion,
+  }) as ValidationOutcome<Record<string, unknown> | undefined>;
 }
