@@ -69,9 +69,11 @@ from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.catalog import (
     ComponentApi,
     FunctionApi,
+    RawJsonSchemaType,
     analyze_component_definition_refs,
     build_component_ref_map,
     create_function_implementation,
+    function_definition_to_json_schema,
     has_raw_json_schema,
 )
 from a2ui.core.resolution import (
@@ -80,6 +82,9 @@ from a2ui.core.resolution import (
     classify_definition_behavior,
 )
 from a2ui.core.schema import ProtocolVersion
+from a2ui.core.validation import (
+    validate_component_against_definition,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -519,13 +524,18 @@ def test_catalog_document_codec_round_trip_and_auto_detect() -> None:
 
     doc_with_schema = cat.to_document(include_schema=True)
     assert doc_with_schema["$schema"] == CATALOG_DOCUMENT_SCHEMA_URI
-    assert Catalog.from_document(doc_with_schema).to_json() == doc_with_schema
+    reloaded_with_schema = Catalog.from_document(doc_with_schema)
+    assert reloaded_with_schema.to_document() == doc_with_schema
+    assert not is_catalog_document(reloaded_with_schema.to_json())
+    assert isinstance(reloaded_with_schema.to_json()["components"], dict)
 
     # Auto-detected by Catalog.from_json AND parsed by Catalog.from_document.
     loaded_auto = Catalog.from_json(doc)
     loaded_explicit = Catalog.from_document(doc)
-    assert loaded_auto.to_json() == doc
+    assert loaded_auto.to_document() == doc
     assert loaded_explicit.to_document() == doc
+    assert loaded_auto.to_json() == cat.to_json_schema()
+    assert loaded_explicit.to_json() == cat.to_json_schema()
 
     # Pruning via copy_with drops unused leaf types (Weight) while keeping
     # types still referenced by surfaceProperties (Spacing).
@@ -784,3 +794,549 @@ def test_component_and_function_api_from_definition_lazy_schema() -> None:
     assert fn_api.name == "double"
     assert fn_api.definition == fn_def
     assert fn_api.return_type == "number"
+
+
+def test_structural_cyclic_refs_and_diamond_dag_backtracking() -> None:
+    """Structural cyclic RefTypes terminate cleanly and shared diamond refs validate every sibling."""
+    types = {
+        "TreeNode": ObjectType(
+            properties=(
+                ParameterDefinition(name="label", type=StringType(), required=True),
+                ParameterDefinition(
+                    name="children",
+                    type=ArrayType(items=RefType(ref="TreeNode")),
+                ),
+            )
+        ),
+        "RecArr": ArrayType(items=RefType(ref="RecArr")),
+        "Leaf": IntegerType(min=0, max=10),
+    }
+    comp_def = ComponentDefinition(
+        name="TreeView",
+        parameters=(
+            ParameterDefinition(name="root", type=RefType(ref="TreeNode")),
+            ParameterDefinition(name="nested", type=RefType(ref="RecArr")),
+            ParameterDefinition(name="left", type=RefType(ref="Leaf")),
+            ParameterDefinition(name="right", type=RefType(ref="Leaf")),
+            ParameterDefinition(
+                name="items", type=ArrayType(items=RefType(ref="Leaf"))
+            ),
+        ),
+    )
+    model = CatalogModel(
+        catalog_id="https://example.com/cyclic/v1",
+        protocol_version="1.0",
+        types=types,
+        components=(comp_def,),
+    )
+    # Structural recursion is permitted by Catalog.from_model and document round-trip.
+    cat = Catalog.from_model(model)
+    doc = cat.to_document()
+    assert parse_catalog_document(doc) == model
+
+    # Walkers terminate cleanly without RecursionError.
+    ref_spec = analyze_component_definition_refs(comp_def, types)
+    assert ref_spec.single_refs == set()
+    assert ref_spec.list_refs == set()
+    assert ref_spec.nested_refs == {}
+    behavior = classify_definition_behavior(comp_def, types)
+    assert behavior is not None
+
+    # Valid recursive tree passes; invalid nested leaf fails; diamond siblings both validate.
+    assert (
+        validate_component_against_definition(
+            comp_def,
+            {
+                "id": "t1",
+                "component": "TreeView",
+                "root": {
+                    "label": "root",
+                    "children": [{"label": "child", "children": []}],
+                },
+                "left": 5,
+                "right": 7,
+                "items": [1, 2, 3],
+            },
+            comp_id="t1",
+            protocol_version=ProtocolVersion.V1_0,
+            types=types,
+        )
+        == []
+    )
+    bad_leaf_errors = validate_component_against_definition(
+        comp_def,
+        {
+            "id": "t2",
+            "component": "TreeView",
+            "root": {"label": "root", "children": [{"label": 123}]},
+        },
+        comp_id="t2",
+        protocol_version=ProtocolVersion.V1_0,
+        types=types,
+    )
+    assert bad_leaf_errors
+    # Diamond backtracking: sibling `right` and second array item must still be validated.
+    assert validate_component_against_definition(
+        comp_def,
+        {"id": "t3", "component": "TreeView", "left": 5, "right": 99},
+        comp_id="t3",
+        protocol_version=ProtocolVersion.V1_0,
+        types=types,
+    )
+    assert validate_component_against_definition(
+        comp_def,
+        {"id": "t4", "component": "TreeView", "items": [1, 99]},
+        comp_id="t4",
+        protocol_version=ProtocolVersion.V1_0,
+        types=types,
+    )
+
+    # Unguarded alias cycle in direct validator call terminates without RecursionError.
+    rec_union_types = {
+        "RecUnion": UnionType(variants=(RefType(ref="RecUnion"), StringType())),
+    }
+    rec_comp = ComponentDefinition(
+        name="U",
+        parameters=(ParameterDefinition(name="v", type=RefType(ref="RecUnion")),),
+    )
+    assert (
+        validate_component_against_definition(
+            rec_comp,
+            {"id": "u1", "component": "U", "v": "ok"},
+            comp_id="u1",
+            protocol_version=ProtocolVersion.V1_0,
+            types=rec_union_types,
+        )
+        == []
+    )
+    assert validate_component_against_definition(
+        rec_comp,
+        {"id": "u2", "component": "U", "v": 123},
+        comp_id="u2",
+        protocol_version=ProtocolVersion.V1_0,
+        types=rec_union_types,
+    )
+    rec_spec = analyze_component_definition_refs(rec_comp, rec_union_types)
+    assert rec_spec.single_refs == set()
+    assert classify_definition_behavior(rec_comp, rec_union_types) is not None
+
+    # Unguarded alias cycles are rejected by both parse_catalog_document and Catalog.from_model.
+    bad_cycle_model = CatalogModel(
+        catalog_id="https://example.com/bad_cycle/v1",
+        protocol_version="1.0",
+        types=rec_union_types,
+        components=(rec_comp,),
+    )
+    with pytest.raises(A2uiCatalogError, match="Circular"):
+        Catalog.from_model(bad_cycle_model)
+
+    # 25-level diamond DAG validates in linear O(V+E) time.
+    dag_types: dict[str, Any] = {"T25": {"type": "string"}}
+    for i in range(24, -1, -1):
+        dag_types[f"T{i}"] = {
+            "type": "union",
+            "variants": [
+                {"type": "ref", "ref": f"T{i + 1}"},
+                {"type": "ref", "ref": f"T{i + 1}"},
+            ],
+        }
+    parsed_dag = parse_catalog_document({
+        "formatVersion": "1.0",
+        "protocolVersion": "1.0",
+        "catalogId": "https://example.com/dag/v1",
+        "types": dag_types,
+        "components": [{
+            "name": "DagComp",
+            "parameters": [{"name": "x", "type": "ref", "ref": "T0"}],
+        }],
+    })
+    assert "T0" in parsed_dag.types
+
+    # Self-recursive JSON Schema $defs translates to RefType with zero RawJsonSchemaType fallback.
+    js_recursive = from_json_schema(
+        {
+            "catalogId": "https://example.com/js_rec/v1",
+            "protocolVersion": "1.0",
+            "$defs": {
+                "TreeNode": {
+                    "type": "object",
+                    "properties": {
+                        "label": {"type": "string"},
+                        "children": {
+                            "type": "array",
+                            "items": {"$ref": "#/$defs/TreeNode"},
+                        },
+                    },
+                }
+            },
+            "components": {
+                "Tree": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "Tree"},
+                        "root": {"$ref": "#/$defs/TreeNode"},
+                    },
+                    "required": ["component"],
+                }
+            },
+        },
+        protocol_version="1.0",
+    )
+    assert "TreeNode" in js_recursive.types
+    assert not has_raw_json_schema(js_recursive)
+
+
+def test_document_codec_strict_nulls_bounds_enums_reserved_names_and_regex() -> None:
+    """parse_catalog_document and Catalog.from_model enforce strict schema invariants."""
+    base: dict[str, Any] = {
+        "formatVersion": "1.0",
+        "protocolVersion": "1.0",
+        "catalogId": "https://example.com/strict/v1",
+        "components": [{"name": "Box", "parameters": []}],
+    }
+
+    # Explicit null on optional non-nullable keys is rejected.
+    for key in (
+        "protocolVersion",
+        "metadata",
+        "components",
+        "functions",
+        "types",
+        "surfaceProperties",
+    ):
+        bad = copy.deepcopy(base)
+        bad[key] = None
+        with pytest.raises(A2uiCatalogError):
+            parse_catalog_document(bad)
+    for comp_key in (
+        "parameters",
+        "allowedParents",
+        "allowedChildren",
+        "atLeastOneOf",
+        "metadata",
+    ):
+        bad = copy.deepcopy(base)
+        bad["components"] = [{"name": "Box", comp_key: None}]
+        with pytest.raises(A2uiCatalogError):
+            parse_catalog_document(bad)
+    bad_fmt = copy.deepcopy(base)
+    bad_fmt["components"] = [
+        {"name": "Box", "parameters": [{"name": "x", "type": "string", "format": None}]}
+    ]
+    with pytest.raises(A2uiCatalogError):
+        parse_catalog_document(bad_fmt)
+
+    # EnumType enforces default valueType="string" and default membership.
+    bad_enum_mix = copy.deepcopy(base)
+    bad_enum_mix["components"] = [
+        {"name": "Box", "parameters": [{"name": "x", "type": "enum", "values": [1, 2]}]}
+    ]
+    with pytest.raises(A2uiCatalogError, match="valueType"):
+        parse_catalog_document(bad_enum_mix)
+    bad_enum_default = copy.deepcopy(base)
+    bad_enum_default["components"] = [{
+        "name": "Box",
+        "parameters": [
+            {"name": "x", "type": "enum", "values": ["a", "b"], "default": "c"}
+        ],
+    }]
+    with pytest.raises(A2uiCatalogError, match="default"):
+        parse_catalog_document(bad_enum_default)
+
+    # Inverted bounds are rejected.
+    for bad_param in (
+        {"name": "x", "type": "string", "minLength": 5, "maxLength": 2},
+        {"name": "x", "type": "number", "min": 10, "max": 2},
+        {"name": "x", "type": "integer", "min": 10, "max": 2},
+        {"name": "x", "type": "array", "minItems": 5, "maxItems": 2},
+    ):
+        bad = copy.deepcopy(base)
+        bad["components"] = [{"name": "Box", "parameters": [bad_param]}]
+        with pytest.raises(A2uiCatalogError):
+            parse_catalog_document(bad)
+
+    # Reserved component parameter names "id" and "component" are rejected.
+    for reserved in ("id", "component"):
+        bad = copy.deepcopy(base)
+        bad["components"] = [
+            {"name": "Box", "parameters": [{"name": reserved, "type": "string"}]}
+        ]
+        with pytest.raises(A2uiCatalogError, match="reserved"):
+            parse_catalog_document(bad)
+        with pytest.raises(A2uiCatalogError, match="reserved"):
+            Catalog.from_model(
+                CatalogModel(
+                    catalog_id="https://example.com/strict/v1",
+                    protocol_version="1.0",
+                    components=(
+                        ComponentDefinition(
+                            name="Box",
+                            parameters=(
+                                ParameterDefinition(name=reserved, type=StringType()),
+                            ),
+                        ),
+                    ),
+                )
+            )
+
+    # Invalid and ReDoS regex patterns are rejected.
+    for bad_pat in ("[unclosed", "(a+)+$"):
+        bad = copy.deepcopy(base)
+        bad["components"] = [{
+            "name": "Box",
+            "parameters": [{"name": "x", "type": "string", "pattern": bad_pat}],
+        }]
+        with pytest.raises(A2uiCatalogError, match="pattern"):
+            parse_catalog_document(bad)
+
+    # Typed ComponentDefinition.additional_properties cannot serialize to Catalog Document.
+    typed_ap_model = CatalogModel(
+        catalog_id="https://example.com/typed_ap/v1",
+        protocol_version="1.0",
+        components=(
+            ComponentDefinition(name="Dyn", additional_properties=StringType()),
+        ),
+    )
+    with pytest.raises(A2uiCatalogError, match="additionalProperties"):
+        serialize_catalog_document(typed_ap_model)
+
+
+def test_model_validator_rfc3339_envelopes_parity_and_v09_rules() -> None:
+    """model_validator matches JSON Schema parity for RFC 3339, envelopes, refs, integers, and v0.9."""
+    comp = ComponentDefinition(
+        name="Widget",
+        checkable=True,
+        parameters=(
+            ParameterDefinition(name="d", type=StringType(format="date")),
+            ParameterDefinition(name="t", type=StringType(format="time")),
+            ParameterDefinition(name="dt", type=StringType(format="date-time")),
+            ParameterDefinition(name="n", type=IntegerType()),
+            ParameterDefinition(
+                name="u", type=ArrayType(items=AnyType(), unique_items=True)
+            ),
+            ParameterDefinition(
+                name="a",
+                type=UnionType(variants=(StringType(), ConstType(value=None))),
+            ),
+            ParameterDefinition(name="b", type=StringType()),
+            ParameterDefinition(
+                name="refUnion",
+                type=UnionType(variants=(RefType(ref="Missing"), IntegerType())),
+            ),
+            ParameterDefinition(
+                name="dynVal", type=AnyType(dynamic=True, nullable=False)
+            ),
+            ParameterDefinition(name="dynStr", type=StringType(dynamic=True)),
+        ),
+        at_least_one_of=(("a", "b"),),
+    )
+
+    # RFC 3339 date/time/date-time.
+    assert (
+        validate_component_against_definition(
+            comp,
+            {
+                "id": "w1",
+                "component": "Widget",
+                "a": None,
+                "d": "2024-02-29",
+                "t": "12:30:00.1234567z",
+                "dt": "2024-02-29t12:30:00.5+02:00",
+                "n": 1.0,
+                "u": [1, True],
+                "refUnion": 42,
+            },
+            comp_id="w1",
+            protocol_version=ProtocolVersion.V1_0,
+        )
+        == []
+    )
+    for bad_field, bad_val in (
+        ("d", "2024-02-31"),
+        ("d", "2023-02-29"),
+        ("t", "99:99:99Z"),
+        ("t", "12:30:00+99:99"),
+        ("t", "12:30:00"),
+        ("dt", "2024-02-31T12:00:00Z"),
+        ("dt", "2024-02-28T12:00:00"),
+        ("n", True),
+        ("n", 1.5),
+        ("u", [1, 1.0]),
+        ("refUnion", "not-an-int"),
+    ):
+        errs = validate_component_against_definition(
+            comp,
+            {"id": "w_bad", "component": "Widget", "a": "ok", bad_field: bad_val},
+            comp_id="w_bad",
+            protocol_version=ProtocolVersion.V1_0,
+        )
+        assert errs, f"Expected error for {bad_field}={bad_val!r}"
+
+    # Direct v1.0 envelope validation (@accessibility, @checks, @metadata, @catalogId).
+    assert (
+        validate_component_against_definition(
+            comp,
+            {
+                "id": "w_env",
+                "component": "Widget",
+                "a": "ok",
+                "@accessibility": {"label": "Save"},
+                "@checks": [
+                    {"condition": {"@call": "required"}, "message": "Required"}
+                ],
+                "@metadata": {"extensions": {"com_example_tag": 1}},
+                "@catalogId": "https://example.com/cat/v1",
+            },
+            comp_id="w_env",
+            protocol_version=ProtocolVersion.V1_0,
+        )
+        == []
+    )
+    # Conflicting @checks + checks is rejected.
+    assert validate_component_against_definition(
+        comp,
+        {
+            "id": "w_dup",
+            "component": "Widget",
+            "a": "ok",
+            "@checks": [],
+            "checks": [],
+        },
+        comp_id="w_dup",
+        protocol_version=ProtocolVersion.V1_0,
+    )
+    # Invalid @metadata.extensions key and null @catalogId are rejected.
+    assert validate_component_against_definition(
+        comp,
+        {
+            "id": "w_meta",
+            "component": "Widget",
+            "a": "ok",
+            "@metadata": {"extensions": {"not-valid-ident": 1}},
+        },
+        comp_id="w_meta",
+        protocol_version=ProtocolVersion.V1_0,
+    )
+    assert validate_component_against_definition(
+        comp,
+        {"id": "w_cat", "component": "Widget", "a": "ok", "@catalogId": None},
+        comp_id="w_cat",
+        protocol_version=ProtocolVersion.V1_0,
+    )
+    # @checks on non-checkable component is rejected.
+    non_checkable = ComponentDefinition(name="Plain")
+    assert validate_component_against_definition(
+        non_checkable,
+        {"id": "p1", "component": "Plain", "@checks": []},
+        comp_id="p1",
+        protocol_version=ProtocolVersion.V1_0,
+    )
+
+    # v0.9 DynamicValue disallows literal objects; v0.9 DynamicString rejects mismatched returnType.
+    assert validate_component_against_definition(
+        comp,
+        {"id": "v09_obj", "component": "Widget", "a": "ok", "dynVal": {"k": "v"}},
+        comp_id="v09_obj",
+        protocol_version=ProtocolVersion.V0_9,
+    )
+    assert validate_component_against_definition(
+        comp,
+        {
+            "id": "v09_rt",
+            "component": "Widget",
+            "a": "ok",
+            "dynStr": {"call": "calc", "returnType": "number"},
+        },
+        comp_id="v09_rt",
+        protocol_version=ProtocolVersion.V0_9,
+    )
+
+
+def test_raw_schema_return_type_ref_return_and_schema_setter_invalidation() -> None:
+    """Covers H5.2, H5.3, and M2 regressions."""
+    fn_raw_ret = FunctionDefinition(
+        name="rawRet",
+        return_type=RawJsonSchemaType(schema={"type": "string", "not": {"const": ""}}),
+    )
+    assert has_raw_json_schema(fn_raw_ret)
+
+    types = {"Score": NumberType(min=0, max=100)}
+    fn_ref_ret = FunctionDefinition(name="score", return_type=RefType(ref="Score"))
+    fn_api = FunctionApi.from_definition(fn_ref_ret, types=types)
+    assert fn_api.return_type == "number"
+    js_fn = function_definition_to_json_schema(fn_ref_ret, types=types)
+    assert js_fn["returnType"] == "number"
+
+    comp_api = ComponentApi(
+        name="Mutable",
+        schema={"type": "object", "properties": {"a": {"type": "string"}}},
+    )
+    assert [p.name for p in comp_api.definition.parameters] == ["a"]
+    comp_api.schema = {"type": "object", "properties": {"b": {"type": "integer"}}}
+    assert [p.name for p in comp_api.definition.parameters] == ["b"]
+
+
+def test_nested_validation_result_coercion_in_node_resolver() -> None:
+    """ValidationResult objects inside nested objects/arrays/unions are coerced via TypeDefinition."""
+    model = CatalogModel(
+        catalog_id="https://example.com/coerce/v1",
+        protocol_version="1.0",
+        components=(
+            ComponentDefinition(
+                name="Box",
+                parameters=(
+                    ParameterDefinition(
+                        name="nested",
+                        type=ObjectType(
+                            properties=(
+                                ParameterDefinition(
+                                    name="flags",
+                                    type=ArrayType(items=BooleanType(dynamic=True)),
+                                ),
+                            )
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        functions=(
+            FunctionDefinition(
+                name="checkOk",
+                return_type=ValidationResultReturnType(),
+            ),
+        ),
+    )
+    cat = Catalog.from_model(model).copy_with(
+        functions=[
+            create_function_implementation(
+                FunctionApi.from_definition(model.functions[0]),
+                lambda _args, _ctx, _sig: {"valid": True},
+            )
+        ],
+    )
+    processor = MessageProcessor([cat])
+    processor.process_messages([{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": cat.catalog_id,
+            "components": [{
+                "id": "root",
+                "component": "Box",
+                "nested": {"flags": [{"@call": "checkOk"}]},
+            }],
+        },
+    }])
+    surface = processor.model.get_surface("s1")
+    assert surface is not None
+    resolver = NodeResolver(surface)
+    root_node = resolver.root
+    assert root_node is not None
+    nested_prop = root_node.props["nested"]
+    resolved_nested = (
+        nested_prop.value if hasattr(nested_prop, "value") else nested_prop
+    )
+    flags = resolved_nested["flags"]
+    coerced_flags = [f.value if hasattr(f, "value") else f for f in flags]
+    assert coerced_flags == [True]
+    resolver.dispose()

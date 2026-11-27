@@ -31,6 +31,7 @@ from a2ui.core import (
     CatalogApi,
     ChildListType,
     ChildType,
+    ConstType,
     DataBindingType,
     EnumType,
     IntegerType,
@@ -40,14 +41,15 @@ from a2ui.core import (
     TypeDefinition,
     UnionType,
 )
-from a2ui.core.catalog import function_return_category
+from a2ui.core.catalog import RawJsonSchemaType, function_return_category
 from a2ui.core.common import is_at_least_version
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
     build_catalog_helpers,
     catalogs_defining,
-    check_mixed_catalogs,
     catalogs_protocol_version,
+    check_mixed_catalogs,
+    is_action_slot,
     normalize_prompt_example_messages,
     surface_catalog_id,
     to_message_dicts,
@@ -121,18 +123,18 @@ def _schema_allows_databinding(prop_schema: Any) -> bool:
 
 def _is_action(prop_schema: Any) -> bool:
     """Helper to check if a JSON schema represents an Action."""
-    if not isinstance(prop_schema, dict):
-        return False
-    if "$ref" in prop_schema:
-        return "Action" in prop_schema["$ref"]
-    if "oneOf" in prop_schema or "anyOf" in prop_schema or "allOf" in prop_schema:
-        subs = (
-            prop_schema.get("oneOf", [])
-            + prop_schema.get("anyOf", [])
-            + prop_schema.get("allOf", [])
-        )
-        return any(_is_action(sub) for sub in subs)
-    return False
+    return is_action_slot(prop_schema)
+
+
+def _ts_literal(val: Any) -> str:
+    """Formats a JSON primitive value as a TypeScript literal type."""
+    if isinstance(val, str):
+        return f"'{val}'"
+    if isinstance(val, bool):
+        return "true" if val else "false"
+    if val is None:
+        return "null"
+    return str(val)
 
 
 def _to_kebab_case(name: str) -> str:
@@ -356,13 +358,21 @@ class ElementalPromptGenerator(PromptGenerator):
         helper: CatalogSchemaHelper,
         prop_name: str,
         type_def: TypeDefinition,
+        visited_refs: frozenset[str] = frozenset(),
     ) -> str:
         """Maps a canonical `TypeDefinition` directly to a TypeScript type string."""
         if prop_name == "checks":
             return "FunctionCall[]"
 
-        resolved = helper.resolve_type(type_def)
-        allows_db = helper.type_allows_databinding(resolved)
+        resolved, next_visited, hit_cycle = helper.resolve_type_with_visited(
+            type_def, visited_refs
+        )
+        if hit_cycle:
+            return "any"
+        if isinstance(resolved, RawJsonSchemaType):
+            return self._map_schema_to_ts_type("", prop_name, dict(resolved.schema))
+
+        allows_db = helper.type_allows_databinding(resolved, next_visited)
         base_type = "any"
 
         if isinstance(resolved, ChildType):
@@ -379,30 +389,43 @@ class ElementalPromptGenerator(PromptGenerator):
             base_type = "number"
         elif isinstance(resolved, BooleanType):
             base_type = "boolean"
+        elif isinstance(resolved, ConstType):
+            base_type = _ts_literal(resolved.value)
         elif isinstance(resolved, EnumType):
-            base_type = " | ".join(f"'{v}'" for v in resolved.values)
+            base_type = " | ".join(_ts_literal(v) for v in resolved.values)
         elif isinstance(resolved, ArrayType):
             if resolved.items is not None:
-                item_resolved = helper.resolve_type(resolved.items)
-                if isinstance(item_resolved, ObjectType) and item_resolved.properties:
+                item_resolved, item_visited, item_cycle = (
+                    helper.resolve_type_with_visited(resolved.items, next_visited)
+                )
+                if item_cycle:
+                    base_type = "any[]"
+                elif isinstance(item_resolved, ObjectType) and item_resolved.properties:
                     sub_props = [
                         f"{sub.name}{'' if sub.required else '?'}:"
-                        f" {self._map_type_to_ts_type(helper, f'{prop_name}.{sub.name}', sub.type)}"
+                        f" {self._map_type_to_ts_type(helper, f'{prop_name}.{sub.name}', sub.type, item_visited)}"
                         for sub in item_resolved.properties
                     ]
                     base_type = f"Array<{{{'; '.join(sub_props)}}}>"
                 else:
-                    item_t = self._map_type_to_ts_type(helper, prop_name, item_resolved)
+                    item_t = self._map_type_to_ts_type(
+                        helper, prop_name, item_resolved, item_visited
+                    )
                     base_type = f"({item_t})[]" if "|" in item_t else f"{item_t}[]"
             else:
                 base_type = "any[]"
         elif isinstance(resolved, ObjectType):
-            if resolved.get_property("path") is not None:
+            if (
+                not helper.catalog_model._from_catalog_document
+                and len(resolved.properties) == 1
+                and resolved.properties[0].name == "path"
+                and isinstance(resolved.properties[0].type, StringType)
+            ):
                 base_type = "DataBinding"
             elif resolved.properties:
                 sub_props = [
                     f"{sub.name}{'' if sub.required else '?'}:"
-                    f" {self._map_type_to_ts_type(helper, f'{prop_name}.{sub.name}', sub.type)}"
+                    f" {self._map_type_to_ts_type(helper, f'{prop_name}.{sub.name}', sub.type, next_visited)}"
                     for sub in resolved.properties
                 ]
                 base_type = f"{{{'; '.join(sub_props)}}}"
@@ -411,7 +434,7 @@ class ElementalPromptGenerator(PromptGenerator):
         elif isinstance(resolved, UnionType):
             types: list[str] = []
             for variant in resolved.variants:
-                t = self._map_type_to_ts_type(helper, prop_name, variant)
+                t = self._map_type_to_ts_type(helper, prop_name, variant, next_visited)
                 if t != "any":
                     types.append(t)
             if types:
@@ -608,17 +631,12 @@ class ElementalPromptGenerator(PromptGenerator):
                         ts_prop_name = "on" + p[0].upper() + p[1:]
 
                 p_type = h.get_parameter_type(name, p)
-                if p_type is not None:
-                    ts_type = self._map_type_to_ts_type(h, p, p_type)
-                    p_desc = h.get_property_description(name, p)
-                else:
-                    p_schema = h.get_property_schema(name, p)
-                    ts_type = self._map_schema_to_ts_type(name, p, p_schema)
-                    p_desc = (
-                        p_schema.get("description")
-                        if isinstance(p_schema, dict)
-                        else None
-                    )
+                ts_type = (
+                    self._map_type_to_ts_type(h, p, p_type)
+                    if p_type is not None
+                    else "any"
+                )
+                p_desc = h.get_property_description(name, p)
                 opt_sign = "" if is_req else "?"
 
                 interface_lines.extend(self._to_comments(p_desc, indent="  "))
@@ -646,38 +664,23 @@ class ElementalPromptGenerator(PromptGenerator):
             reqs = h.get_function_required(name)
 
             fn_def = h.get_function_definition(name)
-            if fn_def is not None:
-                return_type = function_return_category(fn_def.return_type)
-                func_desc = fn_def.description
-                arg_decls = []
-                for p in props:
-                    is_req = p in reqs
-                    p_type_def = h.get_function_parameter_type(name, p)
-                    p_type = (
-                        self._map_type_to_ts_type(h, p, p_type_def)
-                        if p_type_def is not None
-                        else "any"
-                    )
-                    opt_sign = "" if is_req else "?"
-                    arg_decls.append(f"{p}{opt_sign}: {p_type}")
-            else:
-                func_schema = h.functions.get(name, {})
-                return_type = func_schema.get("returnType", "any")
-                func_desc = func_schema.get("description")
-
-                args_properties = (
-                    func_schema.get("properties", {})
-                    .get("args", {})
-                    .get("properties", {})
+            return_type = (
+                function_return_category(fn_def.return_type, h.types)
+                if fn_def is not None
+                else "any"
+            )
+            func_desc = fn_def.description if fn_def is not None else None
+            arg_decls = []
+            for p in props:
+                is_req = p in reqs
+                p_type_def = h.get_function_parameter_type(name, p)
+                p_type = (
+                    self._map_type_to_ts_type(h, p, p_type_def)
+                    if p_type_def is not None
+                    else "any"
                 )
-
-                arg_decls = []
-                for p in props:
-                    is_req = p in reqs
-                    p_schema = args_properties.get(p, {})
-                    p_type = self._map_schema_to_ts_type(name, p, p_schema)
-                    opt_sign = "" if is_req else "?"
-                    arg_decls.append(f"{p}{opt_sign}: {p_type}")
+                opt_sign = "" if is_req else "?"
+                arg_decls.append(f"{p}{opt_sign}: {p_type}")
 
             decl_lines = []
             decl_lines.extend(self._to_comments(func_desc))

@@ -36,6 +36,7 @@ import re
 from typing import Any, Literal
 
 from a2ui.core import A2uiCatalogError, ArrayType, BooleanType, CatalogApi
+from a2ui.core.catalog import RawJsonSchemaType
 from a2ui.core.common import is_at_least_version, to_protocol_version
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import (
@@ -390,31 +391,6 @@ def _property_schema_accepts_components(schema: Any) -> bool:
     return False
 
 
-def _function_allows_extra_args(fn_schema: Any) -> bool:
-    """Whether a function schema accepts arguments it does not declare.
-
-    The arguments are closed when the `args` object schema, at the top level
-    of the function schema or in one of its `allOf` parts, sets
-    `additionalProperties` or `unevaluatedProperties` to false. A function
-    without a schema is treated as open.
-    """
-    if not isinstance(fn_schema, dict):
-        return True
-    sub_schemas = [fn_schema, *fn_schema.get("allOf", [])]
-    for sub in sub_schemas:
-        if not isinstance(sub, dict) or not isinstance(sub.get("properties"), dict):
-            continue
-        args_schema = sub["properties"].get("args")
-        if not isinstance(args_schema, dict):
-            continue
-        if (
-            args_schema.get("additionalProperties") is False
-            or args_schema.get("unevaluatedProperties") is False
-        ):
-            return False
-    return True
-
-
 class _CompileContext:
     """Holds mutable state during compilation."""
 
@@ -475,15 +451,7 @@ class ElementalCompiler:
             tags: set[str] = set()
             for comp_name in helper.components:
                 for prop_name in helper.get_component_properties(comp_name):
-                    p_type = helper.get_parameter_type(comp_name, prop_name)
-                    accepts_comp = (
-                        helper.type_accepts_components(p_type)
-                        if p_type is not None
-                        else _property_schema_accepts_components(
-                            helper.get_property_schema(comp_name, prop_name)
-                        )
-                    )
-                    if accepts_comp:
+                    if helper.property_accepts_components(comp_name, prop_name):
                         tags.add(_component_tag(comp_name))
                         break
             self.container_tags_by_catalog[cat_id] = tags
@@ -1214,34 +1182,25 @@ class ElementalCompiler:
 
             # Parse value
             prop_type_def = comp_helper.get_parameter_type(comp_name, prop_name)
-            prop_schema = (
-                None
-                if prop_type_def is not None
-                else comp_helper.get_property_schema(comp_name, prop_name)
-            )
             if attr_val is None or attr_val == "":
                 # HTML boolean attribute shorthand (e.g., <ui-button disabled>)
-                if prop_type_def is not None:
-                    resolved_td = comp_helper.resolve_type(prop_type_def)
-                    is_plain_bool = (
-                        isinstance(resolved_td, BooleanType) and not resolved_td.dynamic
-                    )
-                else:
-                    is_plain_bool = bool(
-                        prop_schema and prop_schema.get("type") == "boolean"
-                    )
+                resolved_td = (
+                    comp_helper.resolve_type(prop_type_def)
+                    if prop_type_def is not None
+                    else None
+                )
+                is_plain_bool = (
+                    isinstance(resolved_td, BooleanType) and not resolved_td.dynamic
+                ) or (
+                    isinstance(resolved_td, RawJsonSchemaType)
+                    and resolved_td.schema.get("type") == "boolean"
+                )
                 parsed_val: Any = True if is_plain_bool else ""
             else:
                 parsed_val = self.expr_parser.parse(attr_val)
 
-            if isinstance(parsed_val, str) and (
-                prop_type_def is not None or prop_schema
-            ):
-                prop_type = (
-                    comp_helper.type_primitive_kind(prop_type_def)
-                    if prop_type_def is not None
-                    else _get_primitive_property_type(prop_schema)
-                )
+            if isinstance(parsed_val, str) and prop_type_def is not None:
+                prop_type = comp_helper.type_primitive_kind(prop_type_def)
                 # 1. Coerce boolean values
                 if prop_type == "boolean":
                     if parsed_val.lower() == "true":
@@ -1277,24 +1236,18 @@ class ElementalCompiler:
             # Post-process expression value (events, functions, etc.). A
             # function call resolves on its own, not against this component's
             # catalog.
-            is_action_prop = prop_name in ["action", "submitAction"] or (
-                comp_helper.type_is_action(prop_type_def)
-                if prop_type_def is not None
-                else _is_action_property(prop_schema)
-            )
+            is_action_prop = prop_name in [
+                "action",
+                "submitAction",
+            ] or comp_helper.type_is_action(prop_type_def)
             parsed_val = self._compile_value(
                 parsed_val,
                 is_action=is_action_prop,
             )
 
             # Handle option auto-expansion
-            if isinstance(parsed_val, list) and (
-                comp_helper.type_expects_option_objects(prop_type_def)
-                if prop_type_def is not None
-                else (
-                    prop_schema is not None
-                    and _schema_expects_option_objects(prop_schema)
-                )
+            if isinstance(parsed_val, list) and comp_helper.type_expects_option_objects(
+                prop_type_def
             ):
                 parsed_val = [
                     {"label": opt, "value": opt} if isinstance(opt, str) else opt
@@ -1312,11 +1265,7 @@ class ElementalCompiler:
 
             # Try case-insensitive matching for enums, raising ValueError if still invalid
             if isinstance(parsed_val, str):
-                enum_vals = (
-                    comp_helper.type_enum_values(prop_type_def)
-                    if prop_type_def is not None
-                    else _get_enum_values(prop_schema)
-                )
+                enum_vals = comp_helper.type_enum_values(prop_type_def)
                 if enum_vals is not None and parsed_val not in enum_vals:
                     matched = False
                     # Normalize to ignore casing, hyphens, and underscores
@@ -1426,19 +1375,18 @@ class ElementalCompiler:
                             slot_type = comp_helper.get_parameter_type(
                                 comp_name, slot_name
                             )
-                            if slot_type is not None:
-                                resolved_slot = comp_helper.resolve_type(slot_type)
-                                is_slot_array = (
-                                    isinstance(resolved_slot, ArrayType)
-                                    and not resolved_slot.dynamic
-                                )
-                            else:
-                                slot_schema = comp_helper.get_property_schema(
-                                    comp_name, slot_name
-                                )
-                                is_slot_array = bool(
-                                    slot_schema and slot_schema.get("type") == "array"
-                                )
+                            resolved_slot = (
+                                comp_helper.resolve_type(slot_type)
+                                if slot_type is not None
+                                else None
+                            )
+                            is_slot_array = (
+                                isinstance(resolved_slot, ArrayType)
+                                and not resolved_slot.dynamic
+                            ) or (
+                                isinstance(resolved_slot, RawJsonSchemaType)
+                                and resolved_slot.schema.get("type") == "array"
+                            )
                             if is_slot_array:
                                 if slot_name not in comp_dict:
                                     comp_dict[slot_name] = []

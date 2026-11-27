@@ -48,7 +48,7 @@ try:
 except ImportError:
     CATALOG_DOCUMENT_FORMAT_VERSION = "1.0"  # type: ignore[misc]
     CATALOG_DOCUMENT_SCHEMA_URI = (  # type: ignore[misc]
-        "https://a2ui.org/specification/catalog_schema/v1_0/catalog_schema.json"
+        "https://a2ui.org/specification/proposals/catalog_schema/catalog_schema.json"
     )
     a2ui_from_json_schema = None  # type: ignore[assignment]
     a2ui_parse_catalog_document = None  # type: ignore[assignment]
@@ -425,6 +425,84 @@ class CatalogAssembler:
                     "propertyName": "component"
                 }
 
+    def _flatten_external_refs_for_catalog_document(
+        self, data: dict[str, Any], source_uri: str
+    ) -> dict[str, Any]:
+        """Flattens non-`common_types.json` external `$ref`s into local `$defs` without mutating `self`."""
+        flattener = CatalogAssembler(
+            version=self.version,
+            local_basic_catalog_path=self.local_basic_catalog_path,
+            local_common_types_path=self.local_common_types_path,
+        )
+        flattener.file_cache = dict(self.file_cache)
+        processed = copy.deepcopy(data)
+        existing_defs = processed.get("$defs")
+        if isinstance(existing_defs, dict):
+            flattener.used_def_keys.update(existing_defs.keys())
+
+        def _walk(node: Any, current_base_uri: str, depth: int) -> Any:
+            if depth > flattener.max_depth:
+                raise CatalogError(
+                    f"Max recursion depth reached ({flattener.max_depth}) at"
+                    f" {current_base_uri}. Check for circular $ref dependencies."
+                )
+            if isinstance(node, dict):
+                ref = node.get("$ref")
+                if isinstance(ref, str):
+                    parsed_ref = urllib.parse.urlparse(ref)
+                    ref_name = Path(parsed_ref.path).name
+                    if ref_name == "common_types.json":
+                        pass
+                    elif ref_name == "catalog.json":
+                        node["$ref"] = f"#{parsed_ref.fragment}"
+                    elif ref.startswith("#") and current_base_uri == source_uri:
+                        pass
+                    else:
+                        if ref.startswith("#"):
+                            target_uri = current_base_uri
+                            fragment = ref.lstrip("#")
+                            stem = (
+                                Path(urllib.parse.urlparse(target_uri).path).stem
+                                if is_remote_uri(target_uri)
+                                else Path(target_uri).stem
+                            )
+                        else:
+                            target_uri, stem, fragment = flattener._resolve_ref_uri(
+                                ref, current_base_uri
+                            )
+                        full_ref_id = f"{target_uri}#{fragment}"
+                        if full_ref_id in flattener.ref_mapping:
+                            node["$ref"] = (
+                                f"#/$defs/{flattener.ref_mapping[full_ref_id]}"
+                            )
+                        else:
+                            file_data = flattener.fetch_json(
+                                target_uri, referrer=current_base_uri
+                            )
+                            target_subschema = flattener.resolve_json_pointer(
+                                file_data, fragment
+                            )
+                            def_key = flattener.get_def_key(stem, fragment)
+                            flattener.ref_mapping[full_ref_id] = def_key
+                            flattener.definitions[def_key] = _walk(
+                                copy.deepcopy(target_subschema), target_uri, depth + 1
+                            )
+                            node["$ref"] = f"#/$defs/{def_key}"
+                for key, value in node.items():
+                    if key != "$ref":
+                        node[key] = _walk(value, current_base_uri, depth)
+            elif isinstance(node, list):
+                for i, item in enumerate(node):
+                    node[i] = _walk(item, current_base_uri, depth)
+            return node
+
+        processed = _walk(processed, source_uri, 0)
+        if flattener.definitions:
+            merged_defs = dict(existing_defs) if isinstance(existing_defs, dict) else {}
+            merged_defs.update(flattener.definitions)
+            processed["$defs"] = merged_defs
+        return processed
+
     def _to_catalog_document_dict(
         self, data: dict[str, Any], source_uri: str
     ) -> dict[str, Any]:
@@ -455,7 +533,9 @@ class CatalogAssembler:
                 model = a2ui_from_json_schema(direct, protocol_version=self.version)
                 return a2ui_serialize_catalog_document(model)
             except Exception:
-                processed = self.process_schema(copy.deepcopy(data), source_uri)
+                processed = self._flatten_external_refs_for_catalog_document(
+                    data, source_uri
+                )
                 if not processed.get("catalogId"):
                     processed["catalogId"] = direct["catalogId"]
                 model = a2ui_from_json_schema(processed, protocol_version=self.version)

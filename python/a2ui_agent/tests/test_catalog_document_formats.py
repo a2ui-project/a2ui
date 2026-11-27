@@ -35,13 +35,16 @@ from a2ui.core import (
     ChildListType,
     ChildType,
     ComponentDefinition,
+    ConstType,
     EnumType,
     FunctionDefinition,
+    IntegerType,
     NumberType,
     ObjectType,
     ParameterDefinition,
     RefType,
     StringType,
+    UnionType,
     ValidationResultReturnType,
     VoidReturnType,
     is_catalog_document,
@@ -54,7 +57,7 @@ from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.inference_formats.express import ExpressFormat
 from a2ui.processor import CatalogConfig
 from a2ui.transformers.macros import MacroExpander, macro
-from a2ui.utils.catalog_resolver import resolve_catalogs
+from a2ui.utils import resolve_catalogs
 
 
 def _pure_catalog_document() -> dict[str, Any]:
@@ -270,20 +273,24 @@ def test_direct_json_and_pruning_transformers_with_catalog_document() -> None:
 
     direct = DirectJsonFormat([cat])
     prompt = direct.prompt_generator.generate()
-    assert "formatVersion" in prompt
+    # DirectJsonFormat emits JSON Schema matching Common Types Schema (not Catalog Document).
+    assert '"$defs"' in prompt
+    assert '"formatVersion"' not in prompt
     assert "Common Types Schema" in prompt
 
     pruned_comps = ComponentPruningTransformer(["Text"]).transform(cat)
     assert list(pruned_comps.components.keys()) == ["Text"]
-    assert is_catalog_document(pruned_comps.to_json())
+    assert not is_catalog_document(pruned_comps.to_json())
+    assert is_catalog_document(pruned_comps.to_document())
 
     pruned_fns = FunctionPruningTransformer(["openUrl"]).transform(cat)
     assert [f.name for f in pruned_fns.model.functions] == ["openUrl"]
-    assert is_catalog_document(pruned_fns.to_json())
+    assert not is_catalog_document(pruned_fns.to_json())
+    assert is_catalog_document(pruned_fns.to_document())
 
 
 def test_macro_expander_with_catalog_document_base() -> None:
-    """MacroExpander augments a Catalog Document base catalog cleanly via ComponentDefinition."""
+    """MacroExpander augments a Catalog Document base catalog cleanly."""
     base_doc = BasicCatalog("1.0").to_document()
     base_cat = Catalog.from_document(base_doc)
 
@@ -295,7 +302,8 @@ def test_macro_expander_with_catalog_document_base() -> None:
     expander = MacroExpander([GreetingCard], catalog_id=base_cat.catalog_id)
     inf_cat = expander.transform_to_inference_catalog(base_cat)
     assert "GreetingCard" in inf_cat.components
-    assert is_catalog_document(inf_cat.to_json())
+    assert not is_catalog_document(inf_cat.to_json())
+    assert is_catalog_document(inf_cat.to_document())
 
     express = ExpressFormat([inf_cat])
     msgs = express.create_parser().compile('root = GreetingCard("Welcome")')
@@ -321,7 +329,8 @@ def test_inline_catalog_resolver_accepts_catalog_document() -> None:
         BasicCatalog("1.0").catalog_id,
         inline_doc["catalogId"],
     ]
-    assert is_catalog_document(active[1].to_json())
+    assert not is_catalog_document(active[1].to_json())
+    assert is_catalog_document(active[1].to_document())
 
     # Malformed inline Catalog Document raises A2uiCatalogError.
     bad_doc = dict(inline_doc)
@@ -415,3 +424,105 @@ def test_pure_catalog_model_authoring_with_formats() -> None:
         'root = Alert("Heads up", "warn", _, _, Event("close"))'
     )
     assert len(msgs) == 1
+
+
+def test_dynamic_union_elemental_ts_mapping_cyclic_types_and_resolver_version_guard() -> (
+    None
+):
+    """Covers B2, H5.2, H6.1, H6.2, and M7 regressions in a2ui_agent."""
+    model = CatalogModel(
+        catalog_id="https://example.com/edge_formats/v1",
+        protocol_version="1.0",
+        types={
+            "Score": NumberType(min=0, max=100),
+            "TreeNode": ObjectType(
+                properties=(
+                    ParameterDefinition(name="label", type=StringType(), required=True),
+                    ParameterDefinition(
+                        name="children",
+                        type=ArrayType(items=RefType(ref="TreeNode")),
+                    ),
+                )
+            ),
+        },
+        components=(
+            ComponentDefinition(
+                name="EdgeWidget",
+                parameters=(
+                    ParameterDefinition(
+                        name="dynUnion",
+                        type=UnionType(
+                            variants=(StringType(), IntegerType()), dynamic=True
+                        ),
+                    ),
+                    ParameterDefinition(
+                        name="numEnum",
+                        type=EnumType(values=(1, 2, 3), value_type="number"),
+                    ),
+                    ParameterDefinition(
+                        name="boolEnum",
+                        type=EnumType(values=(True, False), value_type="boolean"),
+                    ),
+                    ParameterDefinition(
+                        name="tag",
+                        type=ConstType(value="fixed"),
+                    ),
+                    ParameterDefinition(
+                        name="fileRef",
+                        type=ObjectType(
+                            properties=(
+                                ParameterDefinition(
+                                    name="path", type=StringType(), required=True
+                                ),
+                                ParameterDefinition(name="size", type=IntegerType()),
+                            )
+                        ),
+                    ),
+                    ParameterDefinition(
+                        name="tree",
+                        type=RefType(ref="TreeNode"),
+                    ),
+                ),
+            ),
+        ),
+        functions=(
+            FunctionDefinition(name="getScore", return_type=RefType(ref="Score")),
+        ),
+    )
+    cat = Catalog.from_model(model)
+    helper = CatalogSchemaHelper(cat)
+    assert helper.property_allows_databinding("EdgeWidget", "dynUnion")
+
+    # Express accepts $path binding on UnionType(dynamic=True).
+    express = ExpressFormat([cat])
+    express_prompt = express.prompt_generator.generate()
+    assert "dynUnion? (static)" not in express_prompt
+    express_msgs = express.create_parser().compile("root = EdgeWidget($/val)")
+    assert len(express_msgs) == 1
+
+    # Elemental maps numeric/bool enums, ConstType, domain {path, size} objects,
+    # RefType function return_type, and structural cyclic TreeNode without RecursionError.
+    elemental = ElementalFormat([cat])
+    el_prompt = elemental.prompt_generator.generate()
+    assert "numEnum?: 1 | 2 | 3;" in el_prompt
+    assert "boolEnum?: true | false;" in el_prompt
+    assert "tag?: 'fixed';" in el_prompt
+    assert "fileRef?: {path: string; size?: number};" in el_prompt
+    assert "tree?: {label: string; children?: any[]};" in el_prompt
+    assert "function getScore(): number;" in el_prompt
+
+    # resolve_catalogs rejects inline Catalog Document whose protocolVersion mismatches capability key.
+    registered = CatalogConfig(catalog=BasicCatalog("1.0"))
+    mismatched_doc = _pure_catalog_document()
+    mismatched_doc["protocolVersion"] = "0.9"
+    with pytest.raises(A2uiCatalogError, match="protocolVersion"):
+        resolve_catalogs(
+            [registered],
+            {
+                "1.0": {
+                    "supportedCatalogIds": [BasicCatalog("1.0").catalog_id],
+                    "inlineCatalogs": [mismatched_doc],
+                }
+            },
+            accepts_inline_catalogs=True,
+        )

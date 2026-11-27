@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass
 import inspect
 from typing import (
@@ -33,7 +33,7 @@ from pydantic import BaseModel
 from ..exceptions import A2uiCatalogError
 
 if TYPE_CHECKING:
-    from .model import FunctionDefinition
+    from .model import DataTypeDefinition, FunctionDefinition
 
 AllowedCallers = Literal["rendererOnly", "agentOnly", "rendererOrAgent"]
 FunctionReturnType = Literal[
@@ -68,6 +68,7 @@ class FunctionApi:
         from_document: bool = False,
         *,
         definition: FunctionDefinition | None = None,
+        types: Mapping[str, DataTypeDefinition] | None = None,
     ):
         """Initializes the function API.
 
@@ -100,7 +101,7 @@ class FunctionApi:
             from .model import function_return_category
 
             if return_type in (None, "any"):
-                return_type = function_return_category(definition.return_type)
+                return_type = function_return_category(definition.return_type, types)
             if allowed_callers in (None, "rendererOnly"):
                 allowed_callers = definition.allowed_callers
             if not requires_user_activation:
@@ -121,9 +122,14 @@ class FunctionApi:
         self.from_document = from_document
 
     @classmethod
-    def from_definition(cls, definition: FunctionDefinition) -> FunctionApi:
+    def from_definition(
+        cls,
+        definition: FunctionDefinition,
+        *,
+        types: Mapping[str, DataTypeDefinition] | None = None,
+    ) -> FunctionApi:
         """Creates a `FunctionApi` purely from a canonical `FunctionDefinition`."""
-        return cls(name=definition.name, definition=definition)
+        return cls(name=definition.name, definition=definition, types=types)
 
     @property
     def definition(self) -> FunctionDefinition:
@@ -170,6 +176,7 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
         from_document: bool = False,
         *,
         definition: FunctionDefinition | None = None,
+        types: Mapping[str, DataTypeDefinition] | None = None,
     ):
         super().__init__(
             name=name,
@@ -181,6 +188,7 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
             is_definition=is_definition,
             from_document=from_document,
             definition=definition,
+            types=types,
         )
         self.execute_func = execute
 
@@ -189,9 +197,16 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
         cls,
         definition: FunctionDefinition,
         execute: Callable[[dict[str, Any], Any, Any | None], TReturn] | None = None,
+        *,
+        types: Mapping[str, DataTypeDefinition] | None = None,
     ) -> FunctionImplementation[TReturn]:
         """Creates a `FunctionImplementation` from a canonical `FunctionDefinition`."""
-        return cls(name=definition.name, execute=execute, definition=definition)
+        return cls(
+            name=definition.name,
+            execute=execute,
+            definition=definition,
+            types=types,
+        )
 
     def execute(
         self,
@@ -357,6 +372,7 @@ class AgentFunction(FunctionApi):
         requires_user_activation: bool | None = False,
         description: str | None = None,
         definition: FunctionDefinition | None = None,
+        types: Mapping[str, DataTypeDefinition] | None = None,
     ):
         """Initializes the agent function.
 
@@ -373,6 +389,7 @@ class AgentFunction(FunctionApi):
             description: What the function does, published in the catalog
                 schema and the prompt.
             definition: Optional canonical `FunctionDefinition`.
+            types: Optional catalog `types` map for resolving `RefType` return types.
 
         Raises:
             TypeError: If `handler` is not callable, or can't be called as
@@ -389,6 +406,7 @@ class AgentFunction(FunctionApi):
             requires_user_activation=requires_user_activation,
             description=description,
             definition=definition,
+            types=types,
         )
         self._handler = handler
         self._handler_takes_context = takes_context
@@ -400,9 +418,15 @@ class AgentFunction(FunctionApi):
         definition: FunctionDefinition,
         *,
         handler: AgentFunctionHandler,
+        types: Mapping[str, DataTypeDefinition] | None = None,
     ) -> AgentFunction:
         """Creates an `AgentFunction` from a canonical `FunctionDefinition`."""
-        return cls(name=definition.name, handler=handler, definition=definition)
+        return cls(
+            name=definition.name,
+            handler=handler,
+            definition=definition,
+            types=types,
+        )
 
     @property
     def handler(self) -> AgentFunctionHandler:

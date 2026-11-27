@@ -834,6 +834,7 @@ class _MacroMetadata:
                 include_component_const=effective_v1_0,
                 use_v1_0=effective_v1_0,
             ),
+            at_least_v10=effective_v1_0,
         )
 
 

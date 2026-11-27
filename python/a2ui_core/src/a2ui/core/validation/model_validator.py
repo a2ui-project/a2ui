@@ -25,7 +25,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 import copy
 import datetime
-import json
 import math
 import re
 from typing import Any, Final
@@ -57,38 +56,74 @@ from ..catalog.model import (
     TypeDefinition,
     UNSET,
     UnionType,
-    resolve_type_ref,
+    is_json_number,
+    resolve_type_ref_with_visited,
 )
+from ..common.metadata import validate_metadata
+from ..common.regex_subset import compile_guarded
 from ..common.semver import is_at_least_version
-from ..exceptions import A2uiErrorDetail
+from ..exceptions import A2uiErrorDetail, A2uiExpressionError, A2uiValidationError
 from ..schema import ProtocolVersion
-from .schema_validator import _ecma_search, _is_valid_uri
+from .schema_validator import _is_valid_uri
 
-_DATE_RE: Final[re.Pattern[str]] = re.compile(r"^\d{4}-\d{2}-\d{2}\Z")
-_TIME_RE: Final[re.Pattern[str]] = re.compile(
-    r"^\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})?\Z"
-)
+_DATE_RE: Final[re.Pattern[str]] = re.compile(r"^(\d{4})-(\d{2})-(\d{2})\Z")
+_TIME_BODY: Final[str] = r"(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?([Zz]|[+-](\d{2}):(\d{2}))"
+_TIME_RE: Final[re.Pattern[str]] = re.compile(rf"^{_TIME_BODY}\Z")
 _DATETIME_RE: Final[re.Pattern[str]] = re.compile(
-    r"^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})\Z"
+    rf"^(\d{{4}})-(\d{{2}})-(\d{{2}})[Tt ]{_TIME_BODY}\Z"
 )
 _EMAIL_RE: Final[re.Pattern[str]] = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+\Z")
 
 _V09_RETURN_TYPES: Final[frozenset[str]] = frozenset(
     {"string", "number", "boolean", "array", "object", "any", "void"}
 )
-_A11Y_LIVE_VALUES: Final[frozenset[str]] = frozenset({"off", "polite", "assertive"})
+
+_ACTION_EVENT_PARAMS_V09: Final[tuple[ParameterDefinition, ...]] = (
+    ParameterDefinition("name", StringType(), required=True),
+    ParameterDefinition(
+        "context",
+        ObjectType(additional_properties=AnyType(dynamic=True, nullable=False)),
+    ),
+)
+_ACTION_EVENT_PARAMS_V10: Final[tuple[ParameterDefinition, ...]] = (
+    *_ACTION_EVENT_PARAMS_V09,
+    ParameterDefinition("userMessage", StringType(dynamic=True)),
+)
+_CHECK_RULE_PARAMS_V10: Final[tuple[ParameterDefinition, ...]] = (
+    ParameterDefinition(
+        "condition",
+        UnionType(variants=(DataBindingType(), FunctionCallType())),
+        required=True,
+    ),
+    ParameterDefinition("message", StringType(), required=False),
+)
+_CHECK_RULE_PARAMS_V09: Final[tuple[ParameterDefinition, ...]] = (
+    ParameterDefinition("condition", BooleanType(dynamic=True), required=True),
+    ParameterDefinition("message", StringType(), required=True),
+)
+_A11Y_PARAMS_V09: Final[tuple[ParameterDefinition, ...]] = (
+    ParameterDefinition("label", StringType(dynamic=True)),
+    ParameterDefinition("description", StringType(dynamic=True)),
+)
+_A11Y_PARAMS_V10: Final[tuple[ParameterDefinition, ...]] = (
+    *_A11Y_PARAMS_V09,
+    ParameterDefinition("live", EnumType(values=("assertive", "off", "polite"))),
+    ParameterDefinition("hidden", BooleanType(dynamic=True)),
+)
+_CHECKS_ARRAY_TYPE: Final[ArrayType] = ArrayType(items=CheckRuleType())
 
 
-def _is_int(value: Any) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool)
+def _err(errors: list[A2uiErrorDetail], path: str, code: str, message: str) -> None:
+    errors.append(A2uiErrorDetail(path=path, code=code, message=message))
 
 
-def _is_number(value: Any) -> bool:
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-    )
+def _is_json_integer(value: Any) -> bool:
+    """JSON Schema Draft 2020-12 integer check (excludes `bool`, accepts whole floats)."""
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return True
+    return isinstance(value, float) and math.isfinite(value) and value.is_integer()
 
 
 def _exact_json_equal(a: Any, b: Any) -> bool:
@@ -99,38 +134,73 @@ def _exact_json_equal(a: Any, b: Any) -> bool:
     return type(a) is type(b) and bool(a == b)
 
 
+def _canonical_json_key(value: Any) -> Any:
+    """Produces a hashable JSON-equality key where `1 == 1.0` and `1 != True`."""
+    if value is None:
+        return ("null",)
+    if isinstance(value, bool):
+        return ("bool", value)
+    if isinstance(value, int):
+        return ("num", value)
+    if isinstance(value, float):
+        if math.isfinite(value) and value.is_integer():
+            return ("num", int(value))
+        return ("num", value)
+    if isinstance(value, str):
+        return ("str", value)
+    if isinstance(value, list):
+        return ("list", tuple(_canonical_json_key(item) for item in value))
+    if isinstance(value, dict):
+        return (
+            "dict",
+            tuple(
+                (k, _canonical_json_key(v))
+                for k, v in sorted(value.items(), key=lambda kv: str(kv[0]))
+            ),
+        )
+    return ("other", repr(value))
+
+
+def _check_date_parts(year: str, month: str, day: str) -> bool:
+    try:
+        datetime.date(int(year), int(month), int(day))
+        return True
+    except ValueError:
+        return False
+
+
+def _check_time_parts(
+    hh: str, mm: str, ss: str, off_hh: str | None, off_mm: str | None
+) -> bool:
+    if not (0 <= int(hh) <= 23 and 0 <= int(mm) <= 59 and 0 <= int(ss) <= 59):
+        return False
+    if off_hh is not None and off_mm is not None:
+        if not (0 <= int(off_hh) <= 23 and 0 <= int(off_mm) <= 59):
+            return False
+    return True
+
+
 def _check_string_format(fmt: str, value: str) -> bool:
+    """Validates RFC 3986 URI, RFC 3339 date/time/date-time (Python 3.10+), and email."""
     if fmt == "uri":
         return _is_valid_uri(value)
     if fmt == "date":
-        if not _DATE_RE.match(value):
-            return False
-        try:
-            datetime.date.fromisoformat(value)
-            return True
-        except ValueError:
-            return False
+        m = _DATE_RE.match(value)
+        return m is not None and _check_date_parts(m.group(1), m.group(2), m.group(3))
     if fmt == "time":
-        if not _TIME_RE.match(value):
-            return False
-        base = value.rstrip("Zz")
-        for sep in ("+", "-"):
-            if sep in base:
-                base = base.split(sep, 1)[0]
-        try:
-            datetime.time.fromisoformat(base)
-            return True
-        except ValueError:
-            return False
+        m = _TIME_RE.match(value)
+        return m is not None and _check_time_parts(
+            m.group(1), m.group(2), m.group(3), m.group(5), m.group(6)
+        )
     if fmt == "date-time":
-        if not _DATETIME_RE.match(value):
-            return False
-        iso = value[:-1] + "+00:00" if value[-1] in ("Z", "z") else value
-        try:
-            datetime.datetime.fromisoformat(iso)
-            return True
-        except ValueError:
-            return False
+        m = _DATETIME_RE.match(value)
+        return (
+            m is not None
+            and _check_date_parts(m.group(1), m.group(2), m.group(3))
+            and _check_time_parts(
+                m.group(4), m.group(5), m.group(6), m.group(8), m.group(9)
+            )
+        )
     if fmt == "email":
         return _EMAIL_RE.match(value) is not None
     # Unknown format strings are non-blocking per JSON Schema annotation rules.
@@ -144,7 +214,24 @@ def _is_valid_data_binding(value: Any, *, at_least_v10: bool) -> bool:
     return set(value.keys()) == {path_key} and isinstance(value[path_key], str)
 
 
-def _is_valid_function_call_envelope(value: Any, *, at_least_v10: bool) -> bool:
+def _expected_v09_return_type(type_def: TypeDefinition) -> str | None:
+    if isinstance(type_def, StringType):
+        return "string"
+    if isinstance(type_def, (NumberType, IntegerType)):
+        return "number"
+    if isinstance(type_def, BooleanType):
+        return "boolean"
+    if isinstance(type_def, ArrayType):
+        return "array"
+    return None
+
+
+def _is_valid_function_call_envelope(
+    value: Any,
+    *,
+    at_least_v10: bool,
+    expected_v09_return_type: str | None = None,
+) -> bool:
     if not isinstance(value, dict):
         return False
     if at_least_v10:
@@ -166,14 +253,19 @@ def _is_valid_function_call_envelope(value: Any, *, at_least_v10: bool) -> bool:
             return False
         if any(v is None for v in value["args"].values()):
             return False
-    if "returnType" in value and value["returnType"] not in _V09_RETURN_TYPES:
-        return False
+    if "returnType" in value:
+        rt = value["returnType"]
+        if rt not in _V09_RETURN_TYPES:
+            return False
+        if expected_v09_return_type is not None and rt != expected_v09_return_type:
+            return False
     return True
 
 
 def _is_valid_literal_object(value: dict[str, Any], *, at_least_v10: bool) -> bool:
+    # v0.9 DynamicValue only allows string | number | boolean | array | DataBinding | FunctionCall.
     if not at_least_v10:
-        return True
+        return False
     for k in value:
         if k in ("@path", "@call"):
             return False
@@ -186,17 +278,39 @@ def _join_path(prefix: str, segment: str | int) -> str:
     return f"{prefix}.{segment}" if prefix else str(segment)
 
 
+def _check_numeric_bounds(
+    value: int | float,
+    min_val: int | float | None,
+    max_val: int | float | None,
+    path: str,
+    errors: list[A2uiErrorDetail],
+) -> None:
+    if min_val is not None and value < min_val:
+        _err(
+            errors,
+            path,
+            "invalid_value",
+            f"{value!r} is less than the minimum of {min_val}",
+        )
+    if max_val is not None and value > max_val:
+        _err(
+            errors,
+            path,
+            "invalid_value",
+            f"{value!r} is greater than the maximum of {max_val}",
+        )
+
+
 def _validate_data_binding(
     value: Any, path: str, *, at_least_v10: bool, errors: list[A2uiErrorDetail]
 ) -> None:
     if not _is_valid_data_binding(value, at_least_v10=at_least_v10):
         key = "@path" if at_least_v10 else "path"
-        errors.append(
-            A2uiErrorDetail(
-                path=path,
-                code="type_mismatch",
-                message=f"Expected a DataBinding object with string '{key}'",
-            )
+        _err(
+            errors,
+            path,
+            "type_mismatch",
+            f"Expected a DataBinding object with string '{key}'",
         )
 
 
@@ -205,12 +319,11 @@ def _validate_function_call(
 ) -> None:
     if not _is_valid_function_call_envelope(value, at_least_v10=at_least_v10):
         key = "@call" if at_least_v10 else "call"
-        errors.append(
-            A2uiErrorDetail(
-                path=path,
-                code="type_mismatch",
-                message=f"Expected a FunctionCall object with string '{key}'",
-            )
+        _err(
+            errors,
+            path,
+            "type_mismatch",
+            f"Expected a FunctionCall object with string '{key}'",
         )
 
 
@@ -230,27 +343,25 @@ def _validate_object_members(
 
     for param in properties:
         if param.required and param.name not in value:
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="missing_field",
-                    message=f"'{param.name}' is a required property",
-                )
+            _err(
+                errors, path, "missing_field", f"'{param.name}' is a required property"
             )
 
     for group in at_least_one_of:
-        if not any(name in value and value[name] is not None for name in group):
+        if not any(name in value for name in group):
             joined = ", ".join(repr(n) for n in group)
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="invalid_value",
-                    message=f"At least one of {joined} must be provided",
-                )
+            _err(
+                errors,
+                path,
+                "invalid_value",
+                f"At least one of {joined} must be provided",
             )
 
     for key, val in value.items():
         if key in prop_map:
+            # Descending into a child value resets `visited_refs` so structural
+            # recursion (`TreeNode -> Object(children=Array(Ref(TreeNode)))`)
+            # validates finite JSON payloads to arbitrary depth.
             _validate_type(
                 prop_map[key].type,
                 val,
@@ -262,15 +373,11 @@ def _validate_object_members(
             )
         elif additional_properties is False:
             if not allow_unknown:
-                errors.append(
-                    A2uiErrorDetail(
-                        path=path,
-                        code="extra_field",
-                        message=(
-                            "Additional properties are not allowed"
-                            f" ('{key}' was unexpected)"
-                        ),
-                    )
+                _err(
+                    errors,
+                    path,
+                    "extra_field",
+                    f"Additional properties are not allowed ('{key}' was unexpected)",
                 )
         elif not isinstance(additional_properties, bool):
             _validate_type(
@@ -294,40 +401,24 @@ def _validate_action(
     errors: list[A2uiErrorDetail],
 ) -> None:
     if not isinstance(value, dict):
-        errors.append(
-            A2uiErrorDetail(
-                path=path,
-                code="type_mismatch",
-                message="Action must be an object",
-            )
-        )
+        _err(errors, path, "type_mismatch", "Action must be an object")
         return
     keys = set(value.keys())
     if keys == {"event"}:
         ev = value["event"]
         if not isinstance(ev, dict):
-            errors.append(
-                A2uiErrorDetail(
-                    path=_join_path(path, "event"),
-                    code="type_mismatch",
-                    message="Action 'event' must be an object",
-                )
+            _err(
+                errors,
+                _join_path(path, "event"),
+                "type_mismatch",
+                "Action 'event' must be an object",
             )
             return
-        ev_params: list[ParameterDefinition] = [
-            ParameterDefinition("name", StringType(), required=True),
-            ParameterDefinition(
-                "context",
-                ObjectType(additional_properties=AnyType(dynamic=True, nullable=False)),
-            ),
-        ]
-        if at_least_v10:
-            ev_params.append(
-                ParameterDefinition("userMessage", StringType(dynamic=True))
-            )
         _validate_object_members(
             ev,
-            properties=tuple(ev_params),
+            properties=(
+                _ACTION_EVENT_PARAMS_V10 if at_least_v10 else _ACTION_EVENT_PARAMS_V09
+            ),
             additional_properties=False,
             at_least_one_of=(),
             path=_join_path(path, "event"),
@@ -345,12 +436,11 @@ def _validate_action(
             errors=errors,
         )
         return
-    errors.append(
-        A2uiErrorDetail(
-            path=path,
-            code="invalid_value",
-            message="Action must contain exactly one of 'event' or 'functionCall'",
-        )
+    _err(
+        errors,
+        path,
+        "invalid_value",
+        "Action must contain exactly one of 'event' or 'functionCall'",
     )
 
 
@@ -364,26 +454,11 @@ def _validate_check_rule(
     errors: list[A2uiErrorDetail],
 ) -> None:
     if not isinstance(value, dict):
-        errors.append(
-            A2uiErrorDetail(
-                path=path,
-                code="type_mismatch",
-                message="CheckRule must be an object",
-            )
-        )
+        _err(errors, path, "type_mismatch", "CheckRule must be an object")
         return
-    cond_type: TypeDefinition = (
-        UnionType(variants=(DataBindingType(), FunctionCallType()))
-        if at_least_v10
-        else BooleanType(dynamic=True)
-    )
-    params = (
-        ParameterDefinition("condition", cond_type, required=True),
-        ParameterDefinition("message", StringType(), required=not at_least_v10),
-    )
     _validate_object_members(
         value,
-        properties=params,
+        properties=_CHECK_RULE_PARAMS_V10 if at_least_v10 else _CHECK_RULE_PARAMS_V09,
         additional_properties=False,
         at_least_one_of=(),
         path=path,
@@ -404,29 +479,11 @@ def _validate_accessibility(
     errors: list[A2uiErrorDetail],
 ) -> None:
     if not isinstance(value, dict):
-        errors.append(
-            A2uiErrorDetail(
-                path=path,
-                code="type_mismatch",
-                message="AccessibilityAttributes must be an object",
-            )
-        )
+        _err(errors, path, "type_mismatch", "AccessibilityAttributes must be an object")
         return
-    params: list[ParameterDefinition] = [
-        ParameterDefinition("label", StringType(dynamic=True)),
-        ParameterDefinition("description", StringType(dynamic=True)),
-    ]
-    if at_least_v10:
-        params.append(
-            ParameterDefinition(
-                "live",
-                EnumType(values=tuple(sorted(_A11Y_LIVE_VALUES))),
-            )
-        )
-        params.append(ParameterDefinition("hidden", BooleanType(dynamic=True)))
     _validate_object_members(
         value,
-        properties=tuple(params),
+        properties=_A11Y_PARAMS_V10 if at_least_v10 else _A11Y_PARAMS_V09,
         additional_properties=not at_least_v10,
         at_least_one_of=(),
         path=path,
@@ -435,6 +492,19 @@ def _validate_accessibility(
         allow_unknown=allow_unknown,
         errors=errors,
     )
+
+
+def _validate_envelope_metadata(
+    value: Any, path: str, errors: list[A2uiErrorDetail]
+) -> None:
+    if value is None:
+        _err(errors, path, "type_mismatch", f"'{path}' must be an object")
+        return
+    try:
+        validate_metadata(value, context=path)
+    except A2uiValidationError as err:
+        err_path = f"{path}.extensions" if ".extensions" in str(err) else path
+        _err(errors, err_path, "invalid_metadata", str(err))
 
 
 def _validate_type(
@@ -446,8 +516,30 @@ def _validate_type(
     types: Mapping[str, DataTypeDefinition] | None,
     allow_unknown: bool,
     errors: list[A2uiErrorDetail],
+    visited_refs: frozenset[str] = frozenset(),
 ) -> None:
-    resolved = resolve_type_ref(type_def, types)
+    resolved, next_visited, hit_cycle = resolve_type_ref_with_visited(
+        type_def, types, visited_refs
+    )
+
+    if hit_cycle:
+        ref_label = resolved.ref if isinstance(resolved, RefType) else str(resolved)
+        _err(
+            errors,
+            path,
+            "invalid_value",
+            f"Circular local type reference {ref_label!r}",
+        )
+        return
+
+    if isinstance(resolved, RefType):
+        _err(
+            errors,
+            path,
+            "invalid_value",
+            f"Unresolved local type reference {resolved.ref!r}",
+        )
+        return
 
     if isinstance(resolved, RawJsonSchemaType):
         return
@@ -462,43 +554,33 @@ def _validate_type(
 
     if isinstance(resolved, ChildType):
         if not isinstance(value, str):
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="type_mismatch",
-                    message=f"{value!r} is not of type 'string'",
-                )
-            )
+            _err(errors, path, "type_mismatch", f"{value!r} is not of type 'string'")
         return
 
     if isinstance(resolved, ChildListType):
         if isinstance(value, list):
             for idx, item in enumerate(value):
                 if not isinstance(item, str):
-                    errors.append(
-                        A2uiErrorDetail(
-                            path=_join_path(path, idx),
-                            code="type_mismatch",
-                            message=f"{item!r} is not of type 'string'",
-                        )
+                    _err(
+                        errors,
+                        _join_path(path, idx),
+                        "type_mismatch",
+                        f"{item!r} is not of type 'string'",
                     )
             return
-        if isinstance(value, dict):
-            if (
-                set(value.keys()) == {"path", "componentId"}
-                and isinstance(value["path"], str)
-                and isinstance(value["componentId"], str)
-            ):
-                return
-        errors.append(
-            A2uiErrorDetail(
-                path=path,
-                code="invalid_value",
-                message=(
-                    "ChildList must be an array of component ID strings or a"
-                    " template object with 'path' and 'componentId'"
-                ),
-            )
+        if (
+            isinstance(value, dict)
+            and set(value.keys()) == {"path", "componentId"}
+            and isinstance(value["path"], str)
+            and isinstance(value["componentId"], str)
+        ):
+            return
+        _err(
+            errors,
+            path,
+            "invalid_value",
+            "ChildList must be an array of component ID strings or a template"
+            " object with 'path' and 'componentId'",
         )
         return
 
@@ -537,25 +619,18 @@ def _validate_type(
 
     if isinstance(resolved, ConstType):
         if not _exact_json_equal(value, resolved.value):
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="invalid_value",
-                    message=f"{resolved.value!r} was expected, got {value!r}",
-                )
+            _err(
+                errors,
+                path,
+                "invalid_value",
+                f"{resolved.value!r} was expected, got {value!r}",
             )
         return
 
     if isinstance(resolved, AnyType):
         if value is None:
             if not resolved.nullable:
-                errors.append(
-                    A2uiErrorDetail(
-                        path=path,
-                        code="type_mismatch",
-                        message="Value must not be null",
-                    )
-                )
+                _err(errors, path, "type_mismatch", "Value must not be null")
             return
         if resolved.dynamic and not resolved.nullable:
             if isinstance(value, dict):
@@ -564,87 +639,82 @@ def _validate_type(
                 ) or _is_valid_function_call_envelope(value, at_least_v10=at_least_v10):
                     return
                 if not _is_valid_literal_object(value, at_least_v10=at_least_v10):
-                    errors.append(
-                        A2uiErrorDetail(
-                            path=path,
-                            code="invalid_value",
-                            message=(
-                                "DynamicValue object is neither a valid"
-                                " DataBinding/FunctionCall nor a literal object"
-                            ),
-                        )
+                    _err(
+                        errors,
+                        path,
+                        "invalid_value",
+                        "DynamicValue object is neither a valid"
+                        " DataBinding/FunctionCall nor a permitted literal object",
                     )
             elif isinstance(value, float) and not math.isfinite(value):
-                errors.append(
-                    A2uiErrorDetail(
-                        path=path,
-                        code="type_mismatch",
-                        message=f"{value!r} is not a finite number",
-                    )
+                _err(
+                    errors,
+                    path,
+                    "type_mismatch",
+                    f"{value!r} is not a finite number",
                 )
         return
 
     # Dynamic types accept a valid DataBinding or FunctionCall in place of a literal.
     if getattr(resolved, "dynamic", False) and isinstance(value, dict):
+        expected_v09_rt = None if at_least_v10 else _expected_v09_return_type(resolved)
         if _is_valid_data_binding(
             value, at_least_v10=at_least_v10
-        ) or _is_valid_function_call_envelope(value, at_least_v10=at_least_v10):
+        ) or _is_valid_function_call_envelope(
+            value,
+            at_least_v10=at_least_v10,
+            expected_v09_return_type=expected_v09_rt,
+        ):
             return
         call_key = "@call" if at_least_v10 else "call"
         path_key = "@path" if at_least_v10 else "path"
         if (call_key in value or path_key in value) and (
             at_least_v10 or not isinstance(resolved, ObjectType)
         ):
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="invalid_value",
-                    message=(
-                        f"Invalid dynamic binding or function call envelope: {value!r}"
-                    ),
-                )
+            _err(
+                errors,
+                path,
+                "invalid_value",
+                f"Invalid dynamic binding or function call envelope: {value!r}",
             )
             return
 
     if isinstance(resolved, StringType):
         if not isinstance(value, str):
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="type_mismatch",
-                    message=f"{value!r} is not of type 'string'",
-                )
-            )
+            _err(errors, path, "type_mismatch", f"{value!r} is not of type 'string'")
             return
         if resolved.min_length is not None and len(value) < resolved.min_length:
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="invalid_value",
-                    message=(
-                        f"{value!r} is shorter than minimum length"
-                        f" {resolved.min_length}"
-                    ),
-                )
+            _err(
+                errors,
+                path,
+                "invalid_value",
+                f"{value!r} is shorter than minimum length {resolved.min_length}",
             )
         if resolved.max_length is not None and len(value) > resolved.max_length:
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="invalid_value",
-                    message=(
-                        f"{value!r} is longer than maximum length {resolved.max_length}"
-                    ),
-                )
+            _err(
+                errors,
+                path,
+                "invalid_value",
+                f"{value!r} is longer than maximum length {resolved.max_length}",
             )
-        if resolved.pattern is not None and not _ecma_search(resolved.pattern, value):
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="type_mismatch",
-                    message=f"{value!r} does not match {resolved.pattern!r}",
+        if resolved.pattern is not None:
+            try:
+                compiled = compile_guarded(resolved.pattern)
+            except A2uiExpressionError:
+                _err(
+                    errors,
+                    path,
+                    "invalid_value",
+                    f"Invalid or unsafe regex pattern {resolved.pattern!r}",
                 )
-            )
+            else:
+                if compiled.search(value) is None:
+                    _err(
+                        errors,
+                        path,
+                        "type_mismatch",
+                        f"{value!r} does not match {resolved.pattern!r}",
+                    )
         if resolved.format is not None:
             formats = (
                 (resolved.format,)
@@ -653,144 +723,77 @@ def _validate_type(
             )
             if not any(_check_string_format(fmt, value) for fmt in formats):
                 fmt_label = formats[0] if len(formats) == 1 else " or ".join(formats)
-                errors.append(
-                    A2uiErrorDetail(
-                        path=path,
-                        code="type_mismatch",
-                        message=f"{value!r} is not a valid {fmt_label}",
-                    )
+                _err(
+                    errors,
+                    path,
+                    "type_mismatch",
+                    f"{value!r} is not a valid {fmt_label}",
                 )
         return
 
     if isinstance(resolved, NumberType):
-        if not _is_number(value):
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="type_mismatch",
-                    message=f"{value!r} is not of type 'number'",
-                )
-            )
+        if not is_json_number(value):
+            _err(errors, path, "type_mismatch", f"{value!r} is not of type 'number'")
             return
-        if resolved.min is not None and value < resolved.min:
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="invalid_value",
-                    message=f"{value!r} is less than the minimum of {resolved.min}",
-                )
-            )
-        if resolved.max is not None and value > resolved.max:
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="invalid_value",
-                    message=f"{value!r} is greater than the maximum of {resolved.max}",
-                )
-            )
+        _check_numeric_bounds(value, resolved.min, resolved.max, path, errors)
         return
 
     if isinstance(resolved, IntegerType):
-        if not _is_int(value):
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="type_mismatch",
-                    message=f"{value!r} is not of type 'integer'",
-                )
-            )
+        if not _is_json_integer(value):
+            _err(errors, path, "type_mismatch", f"{value!r} is not of type 'integer'")
             return
-        if resolved.min is not None and value < resolved.min:
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="invalid_value",
-                    message=f"{value!r} is less than the minimum of {resolved.min}",
-                )
-            )
-        if resolved.max is not None and value > resolved.max:
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="invalid_value",
-                    message=f"{value!r} is greater than the maximum of {resolved.max}",
-                )
-            )
+        _check_numeric_bounds(value, resolved.min, resolved.max, path, errors)
         return
 
     if isinstance(resolved, BooleanType):
         if not isinstance(value, bool):
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="type_mismatch",
-                    message=f"{value!r} is not of type 'boolean'",
-                )
-            )
+            _err(errors, path, "type_mismatch", f"{value!r} is not of type 'boolean'")
         return
 
     if isinstance(resolved, EnumType):
         if not any(_exact_json_equal(value, allowed) for allowed in resolved.values):
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="type_mismatch",
-                    message=f"{value!r} is not one of {list(resolved.values)!r}",
-                )
+            _err(
+                errors,
+                path,
+                "type_mismatch",
+                f"{value!r} is not one of {list(resolved.values)!r}",
             )
         return
 
     if isinstance(resolved, ArrayType):
         if not isinstance(value, list):
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="type_mismatch",
-                    message=f"{value!r} is not of type 'array'",
-                )
-            )
+            _err(errors, path, "type_mismatch", f"{value!r} is not of type 'array'")
             return
         if resolved.min_items is not None and len(value) < resolved.min_items:
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="invalid_value",
-                    message=(
-                        f"Array has {len(value)} item(s), minimum is"
-                        f" {resolved.min_items}"
-                    ),
-                )
+            _err(
+                errors,
+                path,
+                "invalid_value",
+                f"Array has {len(value)} item(s), minimum is {resolved.min_items}",
             )
         if resolved.max_items is not None and len(value) > resolved.max_items:
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="invalid_value",
-                    message=(
-                        f"Array has {len(value)} item(s), maximum is"
-                        f" {resolved.max_items}"
-                    ),
-                )
+            _err(
+                errors,
+                path,
+                "invalid_value",
+                f"Array has {len(value)} item(s), maximum is {resolved.max_items}",
             )
         if resolved.unique_items:
-            seen_items: set[str] = set()
+            seen_items: set[Any] = set()
             for item in value:
-                try:
-                    encoded = json.dumps(item, sort_keys=True)
-                except TypeError:
-                    encoded = repr(item)
-                if encoded in seen_items:
-                    errors.append(
-                        A2uiErrorDetail(
-                            path=path,
-                            code="invalid_value",
-                            message="Array contains non-unique elements",
-                        )
+                key = _canonical_json_key(item)
+                if key in seen_items:
+                    _err(
+                        errors,
+                        path,
+                        "invalid_value",
+                        "Array contains non-unique elements",
                     )
                     break
-                seen_items.add(encoded)
+                seen_items.add(key)
         if resolved.items is not None:
             for idx, item in enumerate(value):
+                # Reset `visited_refs` when descending into child elements.
                 _validate_type(
                     resolved.items,
                     item,
@@ -804,13 +807,7 @@ def _validate_type(
 
     if isinstance(resolved, ObjectType):
         if not isinstance(value, dict):
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="type_mismatch",
-                    message=f"{value!r} is not of type 'object'",
-                )
-            )
+            _err(errors, path, "type_mismatch", f"{value!r} is not of type 'object'")
             return
         _validate_object_members(
             value,
@@ -825,71 +822,70 @@ def _validate_type(
         )
         return
 
-    if isinstance(resolved, UnionType):
-        matches = 0
-        for variant in resolved.variants:
-            sub_errors: list[A2uiErrorDetail] = []
-            _validate_type(
-                variant,
-                value,
+    # UnionType: keep `next_visited` across same-value transitions so cyclic
+    # unions (`RecUnion -> Union([Ref(RecUnion), String])`) terminate cleanly.
+    matches = 0
+    for variant in resolved.variants:
+        sub_errors: list[A2uiErrorDetail] = []
+        _validate_type(
+            variant,
+            value,
+            path,
+            at_least_v10=at_least_v10,
+            types=types,
+            allow_unknown=allow_unknown,
+            errors=sub_errors,
+            visited_refs=next_visited,
+        )
+        if not sub_errors:
+            matches += 1
+    if resolved.exclusive:
+        if matches != 1:
+            _err(
+                errors,
                 path,
-                at_least_v10=at_least_v10,
-                types=types,
-                allow_unknown=allow_unknown,
-                errors=sub_errors,
+                "invalid_value",
+                f"{value!r} matched {matches} variants of exclusive union"
+                " (expected exactly 1)",
             )
-            if not sub_errors:
-                matches += 1
-        if resolved.exclusive:
-            if matches != 1:
-                errors.append(
-                    A2uiErrorDetail(
-                        path=path,
-                        code="invalid_value",
-                        message=(
-                            f"{value!r} matched {matches} variants of exclusive"
-                            " union (expected exactly 1)"
-                        ),
-                    )
-                )
-        elif matches < 1:
-            errors.append(
-                A2uiErrorDetail(
-                    path=path,
-                    code="invalid_value",
-                    message=f"{value!r} did not match any variant of union",
-                )
-            )
+    elif matches < 1:
+        _err(
+            errors,
+            path,
+            "invalid_value",
+            f"{value!r} did not match any variant of union",
+        )
 
 
 def _extract_default(
     type_def: TypeDefinition,
     types: Mapping[str, DataTypeDefinition] | None,
+    visited_refs: frozenset[str] = frozenset(),
 ) -> tuple[bool, Any]:
     if isinstance(type_def, RefType):
         if type_def.default is not UNSET:
             return True, copy.deepcopy(type_def.default)
-        resolved = resolve_type_ref(type_def, types)
-        if resolved is not type_def:
-            return _extract_default(resolved, types)
+        resolved, next_visited, hit_cycle = resolve_type_ref_with_visited(
+            type_def, types, visited_refs
+        )
+        if not hit_cycle and resolved is not type_def:
+            return _extract_default(resolved, types, next_visited)
         return False, None
     if isinstance(type_def, (AnyType, UnionType)):
         if type_def.default is not UNSET:
             return True, copy.deepcopy(type_def.default)
         return False, None
-    if isinstance(type_def, ArrayType):
-        if type_def.default is not None:
-            return True, copy.deepcopy(list(type_def.default))
-        return False, None
-    if isinstance(type_def, ObjectType):
-        if type_def.default is not None:
-            return True, copy.deepcopy(dict(type_def.default))
-        return False, None
-    if isinstance(
-        type_def, (StringType, NumberType, IntegerType, BooleanType, EnumType)
+    if isinstance(type_def, ArrayType) and type_def.default is not None:
+        return True, copy.deepcopy(list(type_def.default))
+    if isinstance(type_def, ObjectType) and type_def.default is not None:
+        return True, copy.deepcopy(dict(type_def.default))
+    if (
+        isinstance(
+            type_def, (StringType, NumberType, IntegerType, BooleanType, EnumType)
+        )
+        and type_def.default is not None
     ):
-        if type_def.default is not None:
-            return True, copy.deepcopy(type_def.default)
+        return True, copy.deepcopy(type_def.default)
     return False, None
 
 
@@ -903,11 +899,90 @@ def _apply_defaults_to_object(
             has_default, val = _extract_default(param.type, types)
             if has_default:
                 target[param.name] = val
-        resolved = resolve_type_ref(param.type, types)
-        if isinstance(resolved, ObjectType) and isinstance(
-            target.get(param.name), dict
+        resolved, _, hit_cycle = resolve_type_ref_with_visited(param.type, types)
+        if (
+            not hit_cycle
+            and isinstance(resolved, ObjectType)
+            and isinstance(target.get(param.name), dict)
         ):
             _apply_defaults_to_object(target[param.name], resolved.properties, types)
+
+
+def _validate_v10_component_envelopes(
+    comp_def: ComponentDefinition,
+    props: dict[str, Any],
+    *,
+    prefix: str,
+    types: Mapping[str, DataTypeDefinition] | None,
+    allow_unknown: bool,
+    errors: list[A2uiErrorDetail],
+) -> None:
+    """Strips and validates v1.0 `@`-prefixed and legacy bare envelope fields."""
+    custom = comp_def.custom_envelope_properties
+    for bare_key, at_key in (
+        ("metadata", "@metadata"),
+        ("catalogId", "@catalogId"),
+        ("accessibility", "@accessibility"),
+        ("checks", "@checks"),
+    ):
+        has_at = at_key in props
+        has_bare = bare_key in props and bare_key not in custom
+        if has_at and has_bare:
+            _err(
+                errors,
+                f"{prefix}.{at_key}",
+                "conflicting_properties",
+                f"Component cannot specify both '{at_key}' and legacy '{bare_key}'.",
+            )
+            props.pop(at_key, None)
+            props.pop(bare_key, None)
+            continue
+
+        active_key = at_key if has_at else (bare_key if has_bare else None)
+        if active_key is None:
+            continue
+        val = props.pop(active_key)
+        field_path = f"{prefix}.{active_key}"
+
+        if bare_key == "catalogId":
+            if not isinstance(val, str):
+                _err(
+                    errors,
+                    field_path,
+                    "type_mismatch",
+                    f"'{active_key}' must be a string",
+                )
+        elif bare_key == "metadata":
+            _validate_envelope_metadata(val, field_path, errors)
+        elif bare_key == "accessibility":
+            _validate_accessibility(
+                val,
+                field_path,
+                at_least_v10=True,
+                types=types,
+                allow_unknown=allow_unknown,
+                errors=errors,
+            )
+        elif bare_key == "checks":
+            if not comp_def.checkable:
+                if not allow_unknown:
+                    _err(
+                        errors,
+                        field_path,
+                        "extra_field",
+                        "Additional properties are not allowed"
+                        f" ('{active_key}' was unexpected)",
+                    )
+            else:
+                _validate_type(
+                    _CHECKS_ARRAY_TYPE,
+                    val,
+                    field_path,
+                    at_least_v10=True,
+                    types=types,
+                    allow_unknown=allow_unknown,
+                    errors=errors,
+                )
 
 
 def validate_component_against_definition(
@@ -927,24 +1002,18 @@ def validate_component_against_definition(
     errors: list[A2uiErrorDetail] = []
 
     props = dict(comp)
-    # Strip envelope fields handled by PayloadValidator / MessageProcessor.
-    for key in ("id", "component"):
-        props.pop(key, None)
+    props.pop("id", None)
+    props.pop("component", None)
     if at_least_v10:
-        custom = comp_def.custom_envelope_properties
-        for key in ("catalogId", "metadata", "accessibility", "checks"):
-            if key in props and key not in custom:
-                val = props.pop(key)
-                if key == "catalogId" and not isinstance(val, str):
-                    errors.append(
-                        A2uiErrorDetail(
-                            path=f"{prefix}.catalogId",
-                            code="type_mismatch",
-                            message="'catalogId' must be a string",
-                        )
-                    )
+        _validate_v10_component_envelopes(
+            comp_def,
+            props,
+            prefix=prefix,
+            types=types,
+            allow_unknown=allow_unknown,
+            errors=errors,
+        )
     else:
-        # Pre-1.0 envelope mixins (`accessibility` on all components, `checks` on checkable).
         if "accessibility" in props and comp_def.get_parameter("accessibility") is None:
             _validate_accessibility(
                 props.pop("accessibility"),
@@ -959,10 +1028,9 @@ def validate_component_against_definition(
             and "checks" in props
             and comp_def.get_parameter("checks") is None
         ):
-            checks_val = props.pop("checks")
             _validate_type(
-                ArrayType(items=CheckRuleType()),
-                checks_val,
+                _CHECKS_ARRAY_TYPE,
+                props.pop("checks"),
                 f"{prefix}.checks",
                 at_least_v10=False,
                 types=types,

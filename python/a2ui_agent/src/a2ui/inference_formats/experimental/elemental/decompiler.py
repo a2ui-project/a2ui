@@ -123,17 +123,6 @@ def _decompile_string_in_expr(val: str) -> str:
     return f"'{escaped}'"
 
 
-def _is_action_ref(s: Any) -> bool:
-    if isinstance(s, dict):
-        if "$ref" in s and "Action" in s["$ref"]:
-            return True
-        for k in ["oneOf", "anyOf", "allOf"]:
-            if k in s and isinstance(s[k], list):
-                if any(_is_action_ref(sub) for sub in s[k]):
-                    return True
-    return False
-
-
 def _get_action_properties(helper: CatalogSchemaHelper, comp_name: str) -> list[str]:
     """Retrieves all property names of a component that represent Actions."""
     return [
@@ -483,13 +472,9 @@ class ElementalDecompiler:
             for prop_name in props_to_check:
                 if prop_name in c:
                     val = c[prop_name]
-                    p_type = comp_helper.get_parameter_type(comp_name, prop_name)
-                    is_comp_ref = prop_name == "template" or (
-                        comp_helper.type_accepts_components(p_type)
-                        if p_type is not None
-                        else _is_component_reference_property(
-                            comp_helper.get_property_schema(comp_name, prop_name)
-                        )
+                    is_comp_ref = (
+                        prop_name == "template"
+                        or comp_helper.property_accepts_components(comp_name, prop_name)
                     )
                     if is_comp_ref:
                         if isinstance(val, list):
@@ -574,13 +559,8 @@ class ElementalDecompiler:
             if prop_name == "options" and _is_contractable_options(val):
                 val = _contract_options(val)
 
-            p_type = comp_helper.get_parameter_type(comp_name, prop_name)
-            is_ref = prop_name == "template" or (
-                comp_helper.type_accepts_components(p_type)
-                if p_type is not None
-                else _is_component_reference_property(
-                    comp_helper.get_property_schema(comp_name, prop_name)
-                )
+            is_ref = prop_name == "template" or comp_helper.property_accepts_components(
+                comp_name, prop_name
             )
 
             if is_ref:

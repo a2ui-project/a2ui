@@ -250,18 +250,53 @@ def json_schema_properties(schema: dict[str, Any]) -> dict[str, Any] | None:
     return parameters if isinstance(parameters, dict) else None
 
 
-def _coerce_for_type_definition(type_def: Any, types_map: Any, value: Any) -> Any:
+def _union_contains_dynamic_boolean(
+    variants: tuple[Any, ...],
+    types_map: Any,
+    visited_refs: frozenset[str],
+) -> bool:
+    from ..catalog.model import (
+        BooleanType,
+        UnionType,
+        resolve_type_ref_with_visited,
+    )
+
+    for variant in variants:
+        resolved, next_visited, hit_cycle = resolve_type_ref_with_visited(
+            variant, types_map, visited_refs
+        )
+        if hit_cycle:
+            continue
+        if isinstance(resolved, BooleanType) and resolved.dynamic:
+            return True
+        if isinstance(resolved, UnionType) and _union_contains_dynamic_boolean(
+            resolved.variants, types_map, next_visited
+        ):
+            return True
+    return False
+
+
+def _coerce_for_type_definition(
+    type_def: Any,
+    types_map: Any,
+    value: Any,
+    visited_refs: frozenset[str] = frozenset(),
+) -> Any:
     from ..catalog.model import (
         ArrayType,
         BooleanType,
         ObjectType,
         UnionType,
-        resolve_type_ref,
+        resolve_type_ref_with_visited,
     )
 
     if type_def is None:
         return value
-    resolved = resolve_type_ref(type_def, types_map)
+    resolved, next_visited, hit_cycle = resolve_type_ref_with_visited(
+        type_def, types_map, visited_refs
+    )
+    if hit_cycle:
+        return value
     if isinstance(resolved, BooleanType) and resolved.dynamic:
         return coerce_dynamic_boolean(value)
     if (
@@ -289,12 +324,15 @@ def _coerce_for_type_definition(type_def: Any, types_map: Any, value: Any) -> An
             for k, v in value.items()
         }
     if isinstance(resolved, UnionType):
-        if any(
-            isinstance(resolve_type_ref(v, types_map), BooleanType)
-            and getattr(resolve_type_ref(v, types_map), "dynamic", False)
-            for v in resolved.variants
-        ):
+        if _union_contains_dynamic_boolean(resolved.variants, types_map, next_visited):
             return coerce_dynamic_boolean(value)
+        if isinstance(value, (list, dict)):
+            for variant in resolved.variants:
+                coerced = _coerce_for_type_definition(
+                    variant, types_map, value, next_visited
+                )
+                if coerced is not value:
+                    return coerced
     return value
 
 

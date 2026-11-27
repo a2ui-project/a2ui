@@ -19,11 +19,11 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 import copy
 from dataclasses import replace
-import math
 import re
 from typing import Any, Final, cast
 
 from ..common.metadata import clone_metadata
+from ..common.regex_subset import analyze_regex
 from ..common.semver import is_at_least_version, to_canonical_version
 from ..common.uax31 import is_valid_uax31_identifier
 from ..exceptions import A2uiCatalogError
@@ -65,6 +65,8 @@ from .model import (
     UnionType,
     contains_ui_type,
     function_return_category,
+    is_json_int,
+    is_json_number,
 )
 
 _JSON_SCHEMA_DIALECT: Final[str] = "https://json-schema.org/draft/2020-12/schema"
@@ -75,12 +77,6 @@ _COMMON_REF_RE: Final[re.Pattern[str]] = re.compile(
 _LOCAL_DEF_RE: Final[re.Pattern[str]] = re.compile(
     r"^#/(?:\$defs|definitions)/([^/]+)\Z"
 )
-
-_STANDARD_MIXIN_DEFS: Final[frozenset[str]] = frozenset({
-    "ComponentCommon",
-    "Checkable",
-    "ComponentCommonMetadata",
-})
 
 _STRUCTURAL_DEFS: Final[frozenset[str]] = frozenset({
     "anyComponent",
@@ -113,9 +109,16 @@ _AT_ENVELOPE_KEYS: Final[frozenset[str]] = frozenset(
     {"@metadata", "@catalogId", "@accessibility", "@checks"}
 )
 
-_STANDARD_CATALOG_ID_DESCRIPTION: Final[str] = (
-    "The catalog ID for this component, overriding any surface-level default catalogId."
-)
+_WIRE_RETURN_TYPES: Final[frozenset[str]] = frozenset({
+    "string",
+    "number",
+    "boolean",
+    "array",
+    "object",
+    "validationResult",
+    "any",
+    "void",
+})
 
 _UNTRANSLATABLE_KEYWORDS: Final[frozenset[str]] = frozenset({
     "patternProperties",
@@ -155,17 +158,38 @@ _TYPE_KEYWORDS: Final[frozenset[str]] = frozenset({
     "prefixItems",
 })
 
+_DATA_COMMON_TYPES: Final[dict[str, TypeDefinition]] = {
+    "DynamicString": StringType(dynamic=True),
+    "DynamicNumber": NumberType(dynamic=True),
+    "DynamicBoolean": BooleanType(dynamic=True),
+    "DynamicStringList": ArrayType(items=StringType(), dynamic=True),
+    "DynamicValue": AnyType(dynamic=True, nullable=False),
+    "DataBinding": DataBindingType(),
+    "FunctionCall": FunctionCallType(),
+    "CallId": StringType(),
+    "Extensions": ObjectType(
+        additional_properties=AnyType(dynamic=True, nullable=True)
+    ),
+}
 
-def _is_int(value: Any) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool)
+# Maps UI common types to `(component_type, data_context_fallback_or_None)`.
+_UI_COMMON_TYPES: Final[dict[str, tuple[TypeDefinition, TypeDefinition | None]]] = {
+    "Child": (ChildType(), StringType()),
+    "ComponentId": (ChildType(), StringType()),
+    "ChildList": (ChildListType(), ArrayType(items=StringType())),
+    "Action": (ActionType(), None),
+    "CheckRule": (CheckRuleType(), None),
+    "AccessibilityAttributes": (AccessibilityType(), None),
+}
 
-
-def _is_number(value: Any) -> bool:
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-    )
+_SIMPLE_COMMON_REF_BY_TYPE: Final[dict[type[TypeDefinition], str]] = {
+    DataBindingType: "DataBinding",
+    FunctionCallType: "FunctionCall",
+    ChildListType: "ChildList",
+    ActionType: "Action",
+    CheckRuleType: "CheckRule",
+    AccessibilityType: "AccessibilityAttributes",
+}
 
 
 def _extract_common_ref_name(ref: str, local_defs: Mapping[str, Any]) -> str | None:
@@ -226,9 +250,7 @@ def _is_standard_mixin_property(
 
 
 def _is_object_or_ref_branch(sub: Any) -> bool:
-    if not isinstance(sub, Mapping):
-        return False
-    return (
+    return isinstance(sub, Mapping) and (
         "$ref" in sub
         or sub.get("type") == "object"
         or isinstance(sub.get("properties"), Mapping)
@@ -237,9 +259,7 @@ def _is_object_or_ref_branch(sub: Any) -> bool:
 
 
 def _is_flattened_action_branch(branch: Any) -> bool:
-    if not isinstance(branch, Mapping):
-        return False
-    if branch.get("type") not in (None, "object"):
+    if not isinstance(branch, Mapping) or branch.get("type") not in (None, "object"):
         return False
     props = branch.get("properties")
     reqs = branch.get("required")
@@ -257,38 +277,61 @@ def _is_data_binding_schema(
     local_defs: Mapping[str, Any],
     *,
     at_least_v10: bool = True,
+    visited: frozenset[str] = frozenset(),
 ) -> bool:
     if not isinstance(branch, Mapping):
         return False
     ref = branch.get("$ref")
-    if (
-        isinstance(ref, str)
-        and _extract_common_ref_name(ref, local_defs) == "DataBinding"
-    ):
-        return True
+    if isinstance(ref, str):
+        if _extract_common_ref_name(ref, local_defs) == "DataBinding":
+            return True
+        local_name = _extract_local_def_name(ref)
+        if (
+            local_name is not None
+            and local_name in local_defs
+            and local_name not in visited
+        ):
+            return _is_data_binding_schema(
+                local_defs[local_name],
+                local_defs,
+                at_least_v10=at_least_v10,
+                visited=visited | {local_name},
+            )
     if branch.get("type") not in (None, "object"):
         return False
     props = branch.get("properties")
     reqs = branch.get("required")
     if isinstance(props, Mapping) and isinstance(reqs, list):
         path_key = "@path" if at_least_v10 else "path"
-        if set(props) == {path_key} and path_key in reqs:
-            return True
+        return set(props) == {path_key} and path_key in reqs
     return False
 
 
-def _is_function_call_schema(branch: Any, local_defs: Mapping[str, Any]) -> bool:
+def _is_function_call_schema(
+    branch: Any,
+    local_defs: Mapping[str, Any],
+    visited: frozenset[str] = frozenset(),
+) -> bool:
     if not isinstance(branch, Mapping):
         return False
     ref = branch.get("$ref")
-    if (
-        isinstance(ref, str)
-        and _extract_common_ref_name(ref, local_defs) == "FunctionCall"
-    ):
-        return True
+    if isinstance(ref, str):
+        if _extract_common_ref_name(ref, local_defs) == "FunctionCall":
+            return True
+        local_name = _extract_local_def_name(ref)
+        if (
+            local_name is not None
+            and local_name in local_defs
+            and local_name not in visited
+        ):
+            return _is_function_call_schema(
+                local_defs[local_name],
+                local_defs,
+                visited=visited | {local_name},
+            )
     all_of = branch.get("allOf")
     if isinstance(all_of, list) and any(
-        _is_function_call_schema(sub, local_defs) for sub in all_of
+        _is_function_call_schema(sub, local_defs, visited) for sub in all_of
     ):
         return True
     props = branch.get("properties")
@@ -309,12 +352,12 @@ def _extract_if_then_string_formats(
     branch: Mapping[str, Any],
 ) -> str | tuple[str, ...] | None:
     """Recognizes `{if: {type: 'string'}, then: {format | oneOf: [{format: ...}]}}`."""
-    allowed = {"if", "then"}
-    if not set(branch.keys()) <= allowed:
+    if not set(branch.keys()) <= {"if", "then"}:
         return None
-    if_node = branch.get("if")
+    if branch.get("if") != {"type": "string"}:
+        return None
     then_node = branch.get("then")
-    if if_node != {"type": "string"} or not isinstance(then_node, Mapping):
+    if not isinstance(then_node, Mapping):
         return None
     if set(then_node.keys()) == {"format"} and isinstance(then_node["format"], str):
         return then_node["format"]
@@ -334,9 +377,7 @@ def _extract_if_then_string_formats(
     return None
 
 
-def _extract_at_least_one_of_branch(
-    any_of: Any,
-) -> tuple[str, ...] | None:
+def _extract_at_least_one_of_branch(any_of: Any) -> tuple[str, ...] | None:
     """Recognizes `anyOf: [{required: [a]}, {required: [b]}]` -> `('a', 'b')`."""
     if not isinstance(any_of, list) or not any_of:
         return None
@@ -371,17 +412,17 @@ def _apply_common_metadata(
         updates["deprecated"] = True
     if deprecated_reason is not None and type_def.deprecated_reason is None:
         updates["deprecated_reason"] = deprecated_reason
-    if default_val is not UNSET:
+    if default_val is not UNSET and not isinstance(type_def, RawJsonSchemaType):
         if isinstance(type_def, StringType) and isinstance(default_val, str):
             updates["default"] = default_val
-        elif isinstance(type_def, NumberType) and _is_number(default_val):
+        elif isinstance(type_def, NumberType) and is_json_number(default_val):
             updates["default"] = default_val
-        elif isinstance(type_def, IntegerType) and _is_int(default_val):
+        elif isinstance(type_def, IntegerType) and is_json_int(default_val):
             updates["default"] = default_val
         elif isinstance(type_def, BooleanType) and isinstance(default_val, bool):
             updates["default"] = default_val
         elif isinstance(type_def, EnumType) and (
-            isinstance(default_val, (str, bool)) or _is_number(default_val)
+            isinstance(default_val, (str, bool)) or is_json_number(default_val)
         ):
             updates["default"] = default_val
         elif isinstance(type_def, (AnyType, RefType, UnionType)):
@@ -394,7 +435,6 @@ def _apply_common_metadata(
 
 
 def _make_dynamic(type_def: TypeDefinition) -> TypeDefinition | None:
-    """Returns a dynamic variant of `type_def`, or None if `type_def` has no `dynamic` flag."""
     if isinstance(
         type_def,
         (
@@ -414,41 +454,18 @@ def _make_dynamic(type_def: TypeDefinition) -> TypeDefinition | None:
 
 
 def _common_type_from_name(name: str, *, allow_ui_types: bool) -> TypeDefinition | None:
-    if name == "DynamicString":
-        return StringType(dynamic=True)
-    if name == "DynamicNumber":
-        return NumberType(dynamic=True)
-    if name == "DynamicBoolean":
-        return BooleanType(dynamic=True)
-    if name == "DynamicStringList":
-        return ArrayType(items=StringType(), dynamic=True)
-    if name == "DynamicValue":
-        return AnyType(dynamic=True, nullable=False)
-    if name == "DataBinding":
-        return DataBindingType()
-    if name == "FunctionCall":
-        return FunctionCallType()
-    if name in ("Child", "ComponentId"):
-        return ChildType() if allow_ui_types else StringType()
-    if name == "ChildList":
-        return ChildListType() if allow_ui_types else ArrayType(items=StringType())
-    if name == "Action":
-        return ActionType() if allow_ui_types else None
-    if name == "CheckRule":
-        return CheckRuleType() if allow_ui_types else None
-    if name == "AccessibilityAttributes":
-        return AccessibilityType() if allow_ui_types else None
-    if name == "CallId":
-        return StringType()
-    if name == "Extensions":
-        return ObjectType(additional_properties=AnyType(dynamic=True, nullable=True))
+    if name in _DATA_COMMON_TYPES:
+        return _DATA_COMMON_TYPES[name]
+    if name in _UI_COMMON_TYPES:
+        ui_type, fallback = _UI_COMMON_TYPES[name]
+        return ui_type if allow_ui_types else fallback
     return None
 
 
 def _infer_enum_value_type(values: Sequence[EnumValue]) -> EnumValueType:
     if values and all(isinstance(v, bool) for v in values):
         return "boolean"
-    if values and all(_is_number(v) for v in values):
+    if values and all(is_json_number(v) for v in values):
         return "number"
     return "string"
 
@@ -460,21 +477,22 @@ def _schema_for_primitive_type(
     local_defs: Mapping[str, Any],
     leaf_type_names: frozenset[str],
     allow_ui_types: bool,
-    at_least_v10: bool = True,
+    at_least_v10: bool,
     visited: frozenset[str],
 ) -> TypeDefinition:
     if kind == "string":
         fmt = schema.get("format")
+        pattern = schema["pattern"] if isinstance(schema.get("pattern"), str) else None
+        if pattern is not None and not analyze_regex(pattern).ok:
+            return RawJsonSchemaType(schema=copy.deepcopy(dict(schema)))
         return StringType(
             format=fmt if isinstance(fmt, str) and fmt else None,
-            pattern=schema["pattern"]
-            if isinstance(schema.get("pattern"), str)
-            else None,
+            pattern=pattern,
             min_length=schema["minLength"]
-            if _is_int(schema.get("minLength"))
+            if is_json_int(schema.get("minLength"))
             else None,
             max_length=schema["maxLength"]
-            if _is_int(schema.get("maxLength"))
+            if is_json_int(schema.get("maxLength"))
             else None,
             default=schema["default"]
             if isinstance(schema.get("default"), str)
@@ -482,15 +500,17 @@ def _schema_for_primitive_type(
         )
     if kind == "number":
         return NumberType(
-            min=schema["minimum"] if _is_number(schema.get("minimum")) else None,
-            max=schema["maximum"] if _is_number(schema.get("maximum")) else None,
-            default=schema["default"] if _is_number(schema.get("default")) else None,
+            min=schema["minimum"] if is_json_number(schema.get("minimum")) else None,
+            max=schema["maximum"] if is_json_number(schema.get("maximum")) else None,
+            default=schema["default"]
+            if is_json_number(schema.get("default"))
+            else None,
         )
     if kind == "integer":
         return IntegerType(
-            min=schema["minimum"] if _is_int(schema.get("minimum")) else None,
-            max=schema["maximum"] if _is_int(schema.get("maximum")) else None,
-            default=schema["default"] if _is_int(schema.get("default")) else None,
+            min=schema["minimum"] if is_json_int(schema.get("minimum")) else None,
+            max=schema["maximum"] if is_json_int(schema.get("maximum")) else None,
+            default=schema["default"] if is_json_int(schema.get("default")) else None,
         )
     if kind == "boolean":
         return BooleanType(
@@ -521,8 +541,12 @@ def _schema_for_primitive_type(
         )
         return ArrayType(
             items=items,
-            min_items=schema["minItems"] if _is_int(schema.get("minItems")) else None,
-            max_items=schema["maxItems"] if _is_int(schema.get("maxItems")) else None,
+            min_items=schema["minItems"]
+            if is_json_int(schema.get("minItems"))
+            else None,
+            max_items=schema["maxItems"]
+            if is_json_int(schema.get("maxItems"))
+            else None,
             unique_items=bool(schema.get("uniqueItems", False)),
             default=default_arr,
         )
@@ -544,7 +568,7 @@ def _object_type_from_json_schema(
     local_defs: Mapping[str, Any],
     leaf_type_names: frozenset[str],
     allow_ui_types: bool,
-    at_least_v10: bool = True,
+    at_least_v10: bool,
     visited: frozenset[str],
 ) -> TypeDefinition:
     if allow_ui_types and _is_flattened_action_branch(schema):
@@ -619,16 +643,236 @@ def _object_type_from_json_schema(
     )
 
 
+def _parse_type_core(
+    schema: Mapping[str, Any],
+    *,
+    defs: Mapping[str, Any],
+    leaf_type_names: frozenset[str],
+    allow_ui_types: bool,
+    at_least_v10: bool,
+    visited: frozenset[str],
+) -> TypeDefinition:
+    def _recurse(
+        sub: Mapping[str, Any], *, next_visited: frozenset[str] = visited
+    ) -> TypeDefinition:
+        return type_definition_from_json_schema(
+            sub,
+            local_defs=defs,
+            leaf_type_names=leaf_type_names,
+            allow_ui_types=allow_ui_types,
+            at_least_v10=at_least_v10,
+            visited=next_visited,
+        )
+
+    def _raw() -> RawJsonSchemaType:
+        return RawJsonSchemaType(schema=copy.deepcopy(dict(schema)))
+
+    if any(k in schema for k in _UNTRANSLATABLE_KEYWORDS):
+        return _raw()
+
+    # $ref handling.
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        common_name = _extract_common_ref_name(ref, defs)
+        if common_name is not None:
+            common_t = _common_type_from_name(
+                common_name, allow_ui_types=allow_ui_types
+            )
+            if common_t is not None:
+                return common_t
+        local_name = _extract_local_def_name(ref)
+        if local_name is not None:
+            if local_name in leaf_type_names:
+                return RefType(ref=local_name)
+            if local_name in defs and local_name not in visited:
+                target = defs[local_name]
+                if isinstance(target, Mapping):
+                    return _recurse(target, next_visited=visited | {local_name})
+        return _raw()
+
+    # allOf handling (constrained DynamicString like DateTimeInput.min/max, wrapper, or merged objects).
+    all_of = schema.get("allOf")
+    if isinstance(all_of, list) and all_of:
+        if len(all_of) == 2 and all(isinstance(b, Mapping) for b in all_of):
+            fmt_constraint = _extract_if_then_string_formats(all_of[1])
+            if fmt_constraint is not None:
+                base_t = _recurse(all_of[0])
+                if isinstance(base_t, StringType):
+                    return replace(base_t, format=fmt_constraint)
+        if len(all_of) == 1 and isinstance(all_of[0], Mapping):
+            return _recurse(all_of[0])
+        if all(isinstance(b, Mapping) for b in all_of):
+            merged_props: dict[str, ParameterDefinition] = {}
+            merged_at_least: list[tuple[str, ...]] = []
+            ap_closed = False
+            can_merge = True
+            for branch in all_of:
+                bt = _recurse(branch)
+                branch_visited = visited
+                while (
+                    isinstance(bt, RefType)
+                    and bt.ref in defs
+                    and bt.ref not in branch_visited
+                ):
+                    branch_visited = branch_visited | {bt.ref}
+                    bt = type_definition_from_json_schema(
+                        defs[bt.ref],
+                        local_defs=defs,
+                        leaf_type_names=leaf_type_names,
+                        allow_ui_types=allow_ui_types,
+                        at_least_v10=at_least_v10,
+                        visited=branch_visited,
+                    )
+                if isinstance(bt, ObjectType):
+                    for p in bt.properties:
+                        merged_props[p.name] = p
+                    merged_at_least.extend(bt.at_least_one_of)
+                    if bt.additional_properties is False:
+                        ap_closed = True
+                else:
+                    can_merge = False
+                    break
+            if can_merge and merged_props:
+                closed = (
+                    ap_closed
+                    or schema.get("additionalProperties") is False
+                    or schema.get("unevaluatedProperties") is False
+                )
+                return ObjectType(
+                    properties=tuple(merged_props.values()),
+                    additional_properties=False if closed else True,
+                    at_least_one_of=tuple(merged_at_least),
+                )
+        return _raw()
+
+    # oneOf / anyOf handling.
+    for comb_key, exclusive in (("oneOf", True), ("anyOf", False)):
+        branches = schema.get(comb_key)
+        if isinstance(branches, list) and branches:
+            if comb_key == "anyOf" and (
+                schema.get("type") == "object" or "properties" in schema
+            ):
+                break
+            if allow_ui_types and all(_is_flattened_action_branch(b) for b in branches):
+                return ActionType()
+            has_db = any(
+                _is_data_binding_schema(b, defs, at_least_v10=at_least_v10)
+                for b in branches
+            )
+            has_fc = any(_is_function_call_schema(b, defs) for b in branches)
+            if has_db and has_fc:
+                non_dyn = [
+                    b
+                    for b in branches
+                    if not _is_data_binding_schema(b, defs, at_least_v10=at_least_v10)
+                    and not _is_function_call_schema(b, defs)
+                ]
+                if len(non_dyn) == 1 and isinstance(non_dyn[0], Mapping):
+                    dyn_t = _make_dynamic(_recurse(non_dyn[0]))
+                    if dyn_t is not None:
+                        return dyn_t
+                elif len(non_dyn) >= 2 and all(isinstance(b, Mapping) for b in non_dyn):
+                    return UnionType(
+                        variants=tuple(_recurse(b) for b in non_dyn),
+                        exclusive=exclusive,
+                        dynamic=True,
+                    )
+            if len(branches) >= 2 and all(isinstance(b, Mapping) for b in branches):
+                return UnionType(
+                    variants=tuple(_recurse(b) for b in branches), exclusive=exclusive
+                )
+            if len(branches) == 1 and isinstance(branches[0], Mapping):
+                return _recurse(branches[0])
+            return _raw()
+
+    # const handling.
+    if "const" in schema:
+        val = schema["const"]
+        if val is None or isinstance(val, (str, bool)) or is_json_number(val):
+            return ConstType(value=cast(ConstValue, val))
+        return _raw()
+
+    # enum handling.
+    if isinstance(schema.get("enum"), list) and schema["enum"]:
+        raw_enum = schema["enum"]
+        if all(isinstance(v, (str, bool)) or is_json_number(v) for v in raw_enum):
+            vals = tuple(cast(list[EnumValue], raw_enum))
+            raw_type = schema.get("type")
+            vt: EnumValueType = (
+                cast(EnumValueType, raw_type)
+                if raw_type in ("string", "number", "boolean")
+                else _infer_enum_value_type(vals)
+            )
+            return EnumType(values=vals, value_type=vt)
+        return _raw()
+
+    # Explicit type (string or multi-type array).
+    s_type = schema.get("type")
+    if isinstance(s_type, list) and s_type and all(isinstance(t, str) for t in s_type):
+        variants = tuple(
+            _schema_for_primitive_type(
+                t,
+                schema,
+                local_defs=defs,
+                leaf_type_names=leaf_type_names,
+                allow_ui_types=allow_ui_types,
+                at_least_v10=at_least_v10,
+                visited=visited,
+            )
+            for t in s_type
+        )
+        return variants[0] if len(variants) == 1 else UnionType(variants=variants)
+
+    if isinstance(s_type, str):
+        return _schema_for_primitive_type(
+            s_type,
+            schema,
+            local_defs=defs,
+            leaf_type_names=leaf_type_names,
+            allow_ui_types=allow_ui_types,
+            at_least_v10=at_least_v10,
+            visited=visited,
+        )
+
+    # Implicit object or array schema (properties / items without explicit type).
+    if "properties" in schema or "additionalProperties" in schema:
+        return _object_type_from_json_schema(
+            schema,
+            local_defs=defs,
+            leaf_type_names=leaf_type_names,
+            allow_ui_types=allow_ui_types,
+            at_least_v10=at_least_v10,
+            visited=visited,
+        )
+    if "items" in schema:
+        return _schema_for_primitive_type(
+            "array",
+            schema,
+            local_defs=defs,
+            leaf_type_names=leaf_type_names,
+            allow_ui_types=allow_ui_types,
+            at_least_v10=at_least_v10,
+            visited=visited,
+        )
+
+    # Unconstrained `{}` -> dynamic nullable any.
+    if not any(k in schema for k in _TYPE_KEYWORDS):
+        return AnyType(dynamic=True, nullable=True)
+
+    return _raw()
+
+
 def type_definition_from_json_schema(
     schema: Mapping[str, Any],
     *,
-    local_defs: Mapping[str, Any] = {},
+    local_defs: Mapping[str, Any] | None = None,
     leaf_type_names: frozenset[str] = frozenset(),
     allow_ui_types: bool = True,
     at_least_v10: bool = True,
     visited: frozenset[str] = frozenset(),
 ) -> TypeDefinition:
     """Translates a JSON Schema fragment into a canonical `TypeDefinition`."""
+    defs = local_defs if local_defs is not None else {}
     description = (
         schema["description"] if isinstance(schema.get("description"), str) else None
     )
@@ -642,431 +886,33 @@ def type_definition_from_json_schema(
 
     # Preserve catalog-local leaf type references previously inlined with marker.
     marker = schema.get(CATALOG_DEF_MARKER)
-    if isinstance(marker, str) and marker in leaf_type_names:
-        # Only attach override description if it differs from the leaf type's own.
-        leaf_raw = local_defs.get(marker)
+    if isinstance(marker, str) and marker in leaf_type_names and marker not in visited:
+        leaf_raw = defs.get(marker)
         leaf_desc = (
             leaf_raw.get("description") if isinstance(leaf_raw, Mapping) else None
         )
-        ref_desc = description if description != leaf_desc else None
         return RefType(
             ref=marker,
             default=copy.deepcopy(default_val) if default_val is not UNSET else UNSET,
-            description=ref_desc,
+            description=description if description != leaf_desc else None,
             deprecated=deprecated,
             deprecated_reason=deprecated_reason,
         )
 
-    # Check for untranslatable JSON Schema keywords (except recognized allOf if/then).
-    if any(k in schema for k in _UNTRANSLATABLE_KEYWORDS):
-        return RawJsonSchemaType(
-            schema=copy.deepcopy(dict(schema)),
-            description=description,
-            deprecated=deprecated,
-            deprecated_reason=deprecated_reason,
-        )
-
-    # $ref handling.
-    ref = schema.get("$ref")
-    if isinstance(ref, str):
-        common_name = _extract_common_ref_name(ref, local_defs)
-        if common_name is not None:
-            common_t = _common_type_from_name(
-                common_name, allow_ui_types=allow_ui_types
-            )
-            if common_t is not None:
-                return _apply_common_metadata(
-                    common_t,
-                    description=description,
-                    deprecated=deprecated,
-                    deprecated_reason=deprecated_reason,
-                    default_val=default_val,
-                )
-        local_name = _extract_local_def_name(ref)
-        if local_name is not None:
-            if local_name in leaf_type_names:
-                return RefType(
-                    ref=local_name,
-                    default=(
-                        copy.deepcopy(default_val)
-                        if default_val is not UNSET
-                        else UNSET
-                    ),
-                    description=description,
-                    deprecated=deprecated,
-                    deprecated_reason=deprecated_reason,
-                )
-            if local_name in local_defs and local_name not in visited:
-                target = local_defs[local_name]
-                if isinstance(target, Mapping):
-                    resolved = type_definition_from_json_schema(
-                        target,
-                        local_defs=local_defs,
-                        leaf_type_names=leaf_type_names,
-                        allow_ui_types=allow_ui_types,
-                        visited=visited | {local_name},
-                    )
-                    return _apply_common_metadata(
-                        resolved,
-                        description=description,
-                        deprecated=deprecated,
-                        deprecated_reason=deprecated_reason,
-                        default_val=default_val,
-                    )
-        return RawJsonSchemaType(
-            schema=copy.deepcopy(dict(schema)),
-            description=description,
-            deprecated=deprecated,
-            deprecated_reason=deprecated_reason,
-        )
-
-    # allOf handling (constrained DynamicString like DateTimeInput.min/max, or single wrapper).
-    all_of = schema.get("allOf")
-    if isinstance(all_of, list) and all_of:
-        if len(all_of) == 2 and all(isinstance(b, Mapping) for b in all_of):
-            b0, b1 = all_of[0], all_of[1]
-            fmt_constraint = _extract_if_then_string_formats(b1)
-            if fmt_constraint is not None:
-                base_t = type_definition_from_json_schema(
-                    b0,
-                    local_defs=local_defs,
-                    leaf_type_names=leaf_type_names,
-                    allow_ui_types=allow_ui_types,
-                    visited=visited,
-                )
-                if isinstance(base_t, StringType):
-                    return _apply_common_metadata(
-                        replace(base_t, format=fmt_constraint),
-                        description=description,
-                        deprecated=deprecated,
-                        deprecated_reason=deprecated_reason,
-                        default_val=default_val,
-                    )
-        if len(all_of) == 1 and isinstance(all_of[0], Mapping):
-            inner = type_definition_from_json_schema(
-                all_of[0],
-                local_defs=local_defs,
-                leaf_type_names=leaf_type_names,
-                allow_ui_types=allow_ui_types,
-                visited=visited,
-            )
-            return _apply_common_metadata(
-                inner,
-                description=description,
-                deprecated=deprecated,
-                deprecated_reason=deprecated_reason,
-                default_val=default_val,
-            )
-        # Try merging allOf of pure object schemas.
-        if all(isinstance(b, Mapping) for b in all_of):
-            merged_props: dict[str, ParameterDefinition] = {}
-            merged_at_least: list[tuple[str, ...]] = []
-            ap_closed = False
-            can_merge = True
-            for branch in all_of:
-                bt = type_definition_from_json_schema(
-                    branch,
-                    local_defs=local_defs,
-                    leaf_type_names=leaf_type_names,
-                    allow_ui_types=allow_ui_types,
-                    visited=visited,
-                )
-                if isinstance(bt, ObjectType):
-                    for p in bt.properties:
-                        merged_props[p.name] = p
-                    merged_at_least.extend(bt.at_least_one_of)
-                    if bt.additional_properties is False:
-                        ap_closed = True
-                else:
-                    can_merge = False
-                    break
-            if can_merge and merged_props:
-                return _apply_common_metadata(
-                    ObjectType(
-                        properties=tuple(merged_props.values()),
-                        additional_properties=False
-                        if (
-                            ap_closed
-                            or schema.get("additionalProperties") is False
-                            or schema.get("unevaluatedProperties") is False
-                        )
-                        else True,
-                        at_least_one_of=tuple(merged_at_least),
-                    ),
-                    description=description,
-                    deprecated=deprecated,
-                    deprecated_reason=deprecated_reason,
-                    default_val=default_val,
-                )
-        return RawJsonSchemaType(
-            schema=copy.deepcopy(dict(schema)),
-            description=description,
-            deprecated=deprecated,
-            deprecated_reason=deprecated_reason,
-        )
-
-    # oneOf / anyOf handling.
-    for comb_key, exclusive in (("oneOf", True), ("anyOf", False)):
-        branches = schema.get(comb_key)
-        if isinstance(branches, list) and branches:
-            # Skip anyOf if this is actually an object schema with required-anyOf.
-            if comb_key == "anyOf" and (
-                schema.get("type") == "object" or "properties" in schema
-            ):
-                break
-            if allow_ui_types and all(_is_flattened_action_branch(b) for b in branches):
-                return _apply_common_metadata(
-                    ActionType(),
-                    description=description,
-                    deprecated=deprecated,
-                    deprecated_reason=deprecated_reason,
-                    default_val=default_val,
-                )
-            has_db = any(
-                _is_data_binding_schema(b, local_defs, at_least_v10=at_least_v10)
-                for b in branches
-            )
-            has_fc = any(_is_function_call_schema(b, local_defs) for b in branches)
-            if has_db and has_fc:
-                non_dyn = [
-                    b
-                    for b in branches
-                    if not _is_data_binding_schema(
-                        b, local_defs, at_least_v10=at_least_v10
-                    )
-                    and not _is_function_call_schema(b, local_defs)
-                ]
-                if len(non_dyn) == 1 and isinstance(non_dyn[0], Mapping):
-                    base_t = type_definition_from_json_schema(
-                        non_dyn[0],
-                        local_defs=local_defs,
-                        leaf_type_names=leaf_type_names,
-                        allow_ui_types=allow_ui_types,
-                        at_least_v10=at_least_v10,
-                        visited=visited,
-                    )
-                    dyn_t = _make_dynamic(base_t)
-                    if dyn_t is not None:
-                        return _apply_common_metadata(
-                            dyn_t,
-                            description=description,
-                            deprecated=deprecated,
-                            deprecated_reason=deprecated_reason,
-                            default_val=default_val,
-                        )
-                elif len(non_dyn) >= 2 and all(isinstance(b, Mapping) for b in non_dyn):
-                    variants = tuple(
-                        type_definition_from_json_schema(
-                            b,
-                            local_defs=local_defs,
-                            leaf_type_names=leaf_type_names,
-                            allow_ui_types=allow_ui_types,
-                            at_least_v10=at_least_v10,
-                            visited=visited,
-                        )
-                        for b in non_dyn
-                    )
-                    return _apply_common_metadata(
-                        UnionType(variants=variants, exclusive=exclusive, dynamic=True),
-                        description=description,
-                        deprecated=deprecated,
-                        deprecated_reason=deprecated_reason,
-                        default_val=default_val,
-                    )
-            if len(branches) >= 2 and all(isinstance(b, Mapping) for b in branches):
-                variants = tuple(
-                    type_definition_from_json_schema(
-                        b,
-                        local_defs=local_defs,
-                        leaf_type_names=leaf_type_names,
-                        allow_ui_types=allow_ui_types,
-                        at_least_v10=at_least_v10,
-                        visited=visited,
-                    )
-                    for b in branches
-                )
-                return _apply_common_metadata(
-                    UnionType(variants=variants, exclusive=exclusive),
-                    description=description,
-                    deprecated=deprecated,
-                    deprecated_reason=deprecated_reason,
-                    default_val=default_val,
-                )
-            if len(branches) == 1 and isinstance(branches[0], Mapping):
-                inner = type_definition_from_json_schema(
-                    branches[0],
-                    local_defs=local_defs,
-                    leaf_type_names=leaf_type_names,
-                    allow_ui_types=allow_ui_types,
-                    visited=visited,
-                )
-                return _apply_common_metadata(
-                    inner,
-                    description=description,
-                    deprecated=deprecated,
-                    deprecated_reason=deprecated_reason,
-                    default_val=default_val,
-                )
-            return RawJsonSchemaType(
-                schema=copy.deepcopy(dict(schema)),
-                description=description,
-                deprecated=deprecated,
-                deprecated_reason=deprecated_reason,
-            )
-
-    # const handling.
-    if "const" in schema:
-        val = schema["const"]
-        if val is None or isinstance(val, (str, bool)) or _is_number(val):
-            return ConstType(
-                value=cast(ConstValue, val),
-                description=description,
-                deprecated=deprecated,
-                deprecated_reason=deprecated_reason,
-            )
-        return RawJsonSchemaType(
-            schema=copy.deepcopy(dict(schema)),
-            description=description,
-            deprecated=deprecated,
-            deprecated_reason=deprecated_reason,
-        )
-
-    # enum handling.
-    if isinstance(schema.get("enum"), list) and schema["enum"]:
-        raw_enum = schema["enum"]
-        if all(isinstance(v, (str, bool)) or _is_number(v) for v in raw_enum):
-            vals = tuple(cast(list[EnumValue], raw_enum))
-            raw_type = schema.get("type")
-            vt: EnumValueType = (
-                cast(EnumValueType, raw_type)
-                if raw_type in ("string", "number", "boolean")
-                else _infer_enum_value_type(vals)
-            )
-            return _apply_common_metadata(
-                EnumType(values=vals, value_type=vt),
-                description=description,
-                deprecated=deprecated,
-                deprecated_reason=deprecated_reason,
-                default_val=default_val,
-            )
-        return RawJsonSchemaType(
-            schema=copy.deepcopy(dict(schema)),
-            description=description,
-            deprecated=deprecated,
-            deprecated_reason=deprecated_reason,
-        )
-
-    # Multi-type array (e.g. {"type": ["boolean", "object"]}).
-    s_type = schema.get("type")
-    if isinstance(s_type, list) and s_type:
-        if len(s_type) == 1 and isinstance(s_type[0], str):
-            base = _schema_for_primitive_type(
-                s_type[0],
-                schema,
-                local_defs=local_defs,
-                leaf_type_names=leaf_type_names,
-                allow_ui_types=allow_ui_types,
-                at_least_v10=at_least_v10,
-                visited=visited,
-            )
-            return _apply_common_metadata(
-                base,
-                description=description,
-                deprecated=deprecated,
-                deprecated_reason=deprecated_reason,
-                default_val=default_val,
-            )
-        if all(isinstance(t, str) for t in s_type):
-            variants = tuple(
-                _schema_for_primitive_type(
-                    t,
-                    schema,
-                    local_defs=local_defs,
-                    leaf_type_names=leaf_type_names,
-                    allow_ui_types=allow_ui_types,
-                    at_least_v10=at_least_v10,
-                    visited=visited,
-                )
-                for t in s_type
-            )
-            return _apply_common_metadata(
-                UnionType(variants=variants, exclusive=True),
-                description=description,
-                deprecated=deprecated,
-                deprecated_reason=deprecated_reason,
-                default_val=default_val,
-            )
-
-    if isinstance(s_type, str):
-        base = _schema_for_primitive_type(
-            s_type,
-            schema,
-            local_defs=local_defs,
-            leaf_type_names=leaf_type_names,
-            allow_ui_types=allow_ui_types,
-            at_least_v10=at_least_v10,
-            visited=visited,
-        )
-        return _apply_common_metadata(
-            base,
-            description=description,
-            deprecated=deprecated,
-            deprecated_reason=deprecated_reason,
-            default_val=default_val,
-        )
-
-    # Implicit object or array schema (properties / items without explicit type).
-    if "properties" in schema or "additionalProperties" in schema:
-        base = _object_type_from_json_schema(
-            schema,
-            local_defs=local_defs,
-            leaf_type_names=leaf_type_names,
-            allow_ui_types=allow_ui_types,
-            at_least_v10=at_least_v10,
-            visited=visited,
-        )
-        return _apply_common_metadata(
-            base,
-            description=description,
-            deprecated=deprecated,
-            deprecated_reason=deprecated_reason,
-            default_val=default_val,
-        )
-
-    if "items" in schema:
-        base = _schema_for_primitive_type(
-            "array",
-            schema,
-            local_defs=local_defs,
-            leaf_type_names=leaf_type_names,
-            allow_ui_types=allow_ui_types,
-            at_least_v10=at_least_v10,
-            visited=visited,
-        )
-        return _apply_common_metadata(
-            base,
-            description=description,
-            deprecated=deprecated,
-            deprecated_reason=deprecated_reason,
-            default_val=default_val,
-        )
-
-    # Unconstrained `{}` (possibly with description/default) -> dynamic nullable any.
-    if not any(k in schema for k in _TYPE_KEYWORDS):
-        return AnyType(
-            dynamic=True,
-            nullable=True,
-            default=copy.deepcopy(default_val) if default_val is not UNSET else UNSET,
-            description=description,
-            deprecated=deprecated,
-            deprecated_reason=deprecated_reason,
-        )
-
-    return RawJsonSchemaType(
-        schema=copy.deepcopy(dict(schema)),
+    result = _parse_type_core(
+        schema,
+        defs=defs,
+        leaf_type_names=leaf_type_names,
+        allow_ui_types=allow_ui_types,
+        at_least_v10=at_least_v10,
+        visited=visited,
+    )
+    return _apply_common_metadata(
+        result,
         description=description,
         deprecated=deprecated,
         deprecated_reason=deprecated_reason,
+        default_val=default_val,
     )
 
 
@@ -1085,10 +931,9 @@ def _collect_component_all_of_branches(
     specific: list[Mapping[str, Any]] = []
     mixins: list[Mapping[str, Any]] = []
     is_checkable = False
-    has_untranslatable = False
-
-    if any(k in schema for k in _UNTRANSLATABLE_KEYWORDS) or "oneOf" in schema:
-        has_untranslatable = True
+    has_untranslatable = (
+        any(k in schema for k in _UNTRANSLATABLE_KEYWORDS) or "oneOf" in schema
+    )
 
     ref = schema.get("$ref")
     if isinstance(ref, str):
@@ -1145,7 +990,7 @@ def component_definition_from_json_schema(
     name: str,
     schema: Mapping[str, Any],
     *,
-    local_defs: Mapping[str, Any] = {},
+    local_defs: Mapping[str, Any] | None = None,
     leaf_type_names: frozenset[str] = frozenset(),
     allowed_parents: Sequence[str] | None = None,
     allowed_children: Sequence[str] | None = None,
@@ -1154,9 +999,10 @@ def component_definition_from_json_schema(
     at_least_v10: bool = True,
 ) -> ComponentDefinition:
     """Translates a component JSON Schema dict into a `ComponentDefinition`."""
+    defs = local_defs if local_defs is not None else {}
     mixins_tracker = used_mixins if used_mixins is not None else set()
     specific, mixins, is_checkable, has_untranslatable = (
-        _collect_component_all_of_branches(schema, local_defs, set(), mixins_tracker)
+        _collect_component_all_of_branches(schema, defs, set(), mixins_tracker)
     )
     ordered_branches = [*specific, *mixins]
 
@@ -1181,21 +1027,28 @@ def component_definition_from_json_schema(
     at_least_groups: list[tuple[str, ...]] = []
     explicit_ap: bool | TypeDefinition = False
     saw_closure = "unevaluatedProperties" in schema or "additionalProperties" in schema
-    root_closure = (
-        schema["unevaluatedProperties"]
-        if "unevaluatedProperties" in schema
-        else schema.get("additionalProperties")
-    )
-    if root_closure is True:
-        explicit_ap = True
-    elif isinstance(root_closure, Mapping):
-        explicit_ap = type_definition_from_json_schema(
-            root_closure,
-            local_defs=local_defs,
-            leaf_type_names=leaf_type_names,
-            allow_ui_types=True,
-            at_least_v10=at_least_v10,
+
+    def _apply_closure(node: Mapping[str, Any]) -> None:
+        nonlocal explicit_ap, saw_closure
+        if "unevaluatedProperties" in node or "additionalProperties" in node:
+            saw_closure = True
+        raw_ap = (
+            node["unevaluatedProperties"]
+            if "unevaluatedProperties" in node
+            else node.get("additionalProperties")
         )
+        if isinstance(raw_ap, bool):
+            explicit_ap = raw_ap
+        elif isinstance(raw_ap, Mapping):
+            explicit_ap = type_definition_from_json_schema(
+                raw_ap,
+                local_defs=defs,
+                leaf_type_names=leaf_type_names,
+                allow_ui_types=True,
+                at_least_v10=at_least_v10,
+            )
+
+    _apply_closure(schema)
 
     for branch in ordered_branches:
         if "anyOf" in branch:
@@ -1208,29 +1061,9 @@ def component_definition_from_json_schema(
 
         raw_reqs = branch.get("required")
         if isinstance(raw_reqs, list):
-            for r in raw_reqs:
-                if isinstance(r, str):
-                    required_names.add(r)
+            required_names.update(r for r in raw_reqs if isinstance(r, str))
 
-        if "unevaluatedProperties" in branch or "additionalProperties" in branch:
-            saw_closure = True
-        raw_ap = (
-            branch["unevaluatedProperties"]
-            if "unevaluatedProperties" in branch
-            else branch.get("additionalProperties")
-        )
-        if raw_ap is True:
-            explicit_ap = True
-        elif raw_ap is False:
-            explicit_ap = False
-        elif isinstance(raw_ap, Mapping):
-            explicit_ap = type_definition_from_json_schema(
-                raw_ap,
-                local_defs=local_defs,
-                leaf_type_names=leaf_type_names,
-                allow_ui_types=True,
-                at_least_v10=at_least_v10,
-            )
+        _apply_closure(branch)
 
         raw_props = branch.get("properties")
         if isinstance(raw_props, Mapping):
@@ -1265,22 +1098,20 @@ def component_definition_from_json_schema(
     if not saw_closure and at_least_v10:
         explicit_ap = True
 
-    params: list[ParameterDefinition] = []
-    for p_name, p_schema in prop_schemas.items():
-        p_type = type_definition_from_json_schema(
-            p_schema,
-            local_defs=local_defs,
-            leaf_type_names=leaf_type_names,
-            allow_ui_types=True,
-            at_least_v10=at_least_v10,
+    params = tuple(
+        ParameterDefinition(
+            name=p_name,
+            type=type_definition_from_json_schema(
+                p_schema,
+                local_defs=defs,
+                leaf_type_names=leaf_type_names,
+                allow_ui_types=True,
+                at_least_v10=at_least_v10,
+            ),
+            required=p_name in required_names,
         )
-        params.append(
-            ParameterDefinition(
-                name=p_name,
-                type=p_type,
-                required=p_name in required_names,
-            )
-        )
+        for p_name, p_schema in prop_schemas.items()
+    )
 
     eff_parents = (
         tuple(allowed_parents)
@@ -1314,7 +1145,7 @@ def component_definition_from_json_schema(
         name=name,
         description=description,
         checkable=is_checkable,
-        parameters=tuple(params),
+        parameters=params,
         at_least_one_of=tuple(at_least_groups),
         allowed_parents=eff_parents,
         allowed_children=eff_children,
@@ -1332,32 +1163,14 @@ def _declared_return_type_from_schema(
     if not isinstance(schema, Mapping):
         return "any"
     top = schema.get("returnType")
-    if isinstance(top, str) and top in (
-        "string",
-        "number",
-        "boolean",
-        "array",
-        "object",
-        "validationResult",
-        "any",
-        "void",
-    ):
+    if isinstance(top, str) and top in _WIRE_RETURN_TYPES:
         return cast(FunctionReturnType, top)
     props = schema.get("properties")
     if isinstance(props, Mapping):
         rt = props.get("returnType")
         if isinstance(rt, Mapping):
             const_rt = rt.get("const")
-            if isinstance(const_rt, str) and const_rt in (
-                "string",
-                "number",
-                "boolean",
-                "array",
-                "object",
-                "validationResult",
-                "any",
-                "void",
-            ):
+            if isinstance(const_rt, str) and const_rt in _WIRE_RETURN_TYPES:
                 return cast(FunctionReturnType, const_rt)
     return "any"
 
@@ -1374,13 +1187,10 @@ def _extract_args_schema_from_function_schema(
         synth: dict[str, Any] = {
             "type": "object",
             "properties": dict(schema["parameters"]),
+            "additionalProperties": schema.get("additionalProperties", False),
         }
         if isinstance(schema.get("required"), list):
             synth["required"] = list(schema["required"])
-        if "additionalProperties" in schema:
-            synth["additionalProperties"] = schema["additionalProperties"]
-        else:
-            synth["additionalProperties"] = False
         return synth, fn_defs
 
     props = schema.get("properties")
@@ -1398,7 +1208,6 @@ def _extract_args_schema_from_function_schema(
             if isinstance(args_obj.get("$defs"), Mapping):
                 fn_defs.update(args_obj["$defs"])
             return args_obj, fn_defs
-        # Function declares `@call` with no `args` property -> accepts open/no args.
         return None, fn_defs
 
     if isinstance(schema.get("args"), Mapping) and not isinstance(props, Mapping):
@@ -1407,7 +1216,6 @@ def _extract_args_schema_from_function_schema(
             fn_defs.update(args_obj["$defs"])
         return args_obj, fn_defs
 
-    # Raw args object schema (or empty `{}`).
     return schema, fn_defs
 
 
@@ -1419,11 +1227,12 @@ def function_definition_from_json_schema(
     allowed_callers: AllowedCallers | None = None,
     requires_user_activation: bool | None = None,
     description: str | None = None,
-    local_defs: Mapping[str, Any] = {},
+    local_defs: Mapping[str, Any] | None = None,
     leaf_type_names: frozenset[str] = frozenset(),
     at_least_v10: bool = True,
 ) -> FunctionDefinition:
     """Translates a function JSON Schema dict into a `FunctionDefinition`."""
+    defs = local_defs if local_defs is not None else {}
     eff_return: FunctionReturnDefinition = (
         return_type
         if return_type is not None
@@ -1453,91 +1262,59 @@ def function_definition_from_json_schema(
             else None
         )
     )
-    deprecated = (
-        bool(schema.get("deprecated", False)) if isinstance(schema, Mapping) else False
-    )
-    deprecated_reason = (
-        schema["x-deprecated-reason"]
-        if isinstance(schema, Mapping)
-        and isinstance(schema.get("x-deprecated-reason"), str)
-        else None
-    )
+    common_kwargs: dict[str, Any] = {
+        "name": name,
+        "return_type": eff_return,
+        "description": eff_desc,
+        "allowed_callers": eff_callers,
+        "requires_user_activation": eff_ua,
+        "deprecated": (
+            bool(schema.get("deprecated", False))
+            if isinstance(schema, Mapping)
+            else False
+        ),
+        "deprecated_reason": (
+            schema["x-deprecated-reason"]
+            if isinstance(schema, Mapping)
+            and isinstance(schema.get("x-deprecated-reason"), str)
+            else None
+        ),
+    }
 
-    if schema is None or not isinstance(schema, Mapping) or not schema:
-        return FunctionDefinition(
-            name=name,
-            return_type=eff_return,
-            description=eff_desc,
-            allowed_callers=eff_callers,
-            requires_user_activation=eff_ua,
-            additional_parameters=True,
-            deprecated=deprecated,
-            deprecated_reason=deprecated_reason,
-        )
+    if not isinstance(schema, Mapping) or not schema:
+        return FunctionDefinition(**common_kwargs, additional_parameters=True)
 
     args_schema, fn_defs = _extract_args_schema_from_function_schema(schema)
     if args_schema is None or not args_schema:
-        return FunctionDefinition(
-            name=name,
-            return_type=eff_return,
-            description=eff_desc,
-            allowed_callers=eff_callers,
-            requires_user_activation=eff_ua,
-            additional_parameters=True,
-            deprecated=deprecated,
-            deprecated_reason=deprecated_reason,
-        )
+        return FunctionDefinition(**common_kwargs, additional_parameters=True)
 
-    combined_defs = {**local_defs, **fn_defs}
     args_type = type_definition_from_json_schema(
         args_schema,
-        local_defs=combined_defs,
+        local_defs={**defs, **fn_defs},
         leaf_type_names=leaf_type_names,
         allow_ui_types=False,
         at_least_v10=at_least_v10,
     )
     if isinstance(args_type, ObjectType):
         return FunctionDefinition(
-            name=name,
-            return_type=eff_return,
-            description=eff_desc,
-            allowed_callers=eff_callers,
-            requires_user_activation=eff_ua,
+            **common_kwargs,
             parameters=args_type.properties,
             at_least_one_of=args_type.at_least_one_of,
             additional_parameters=args_type.additional_properties,
-            deprecated=deprecated,
-            deprecated_reason=deprecated_reason,
         )
     if isinstance(args_type, AnyType):
-        return FunctionDefinition(
-            name=name,
-            return_type=eff_return,
-            description=eff_desc,
-            allowed_callers=eff_callers,
-            requires_user_activation=eff_ua,
-            additional_parameters=True,
-            deprecated=deprecated,
-            deprecated_reason=deprecated_reason,
-        )
-
+        return FunctionDefinition(**common_kwargs, additional_parameters=True)
     return FunctionDefinition(
-        name=name,
-        return_type=eff_return,
-        description=eff_desc,
-        allowed_callers=eff_callers,
-        requires_user_activation=eff_ua,
-        deprecated=deprecated,
-        deprecated_reason=deprecated_reason,
-        raw_args_schema=copy.deepcopy(dict(args_schema)),
+        **common_kwargs, raw_args_schema=copy.deepcopy(dict(args_schema))
     )
 
 
 def surface_properties_from_json_schema(
     theme_schema: Mapping[str, Any] | None,
     *,
-    local_defs: Mapping[str, Any] = {},
+    local_defs: Mapping[str, Any] | None = None,
     leaf_type_names: frozenset[str] = frozenset(),
+    at_least_v10: bool = True,
 ) -> SurfacePropertiesDefinition | None:
     """Translates a catalog `theme` / `styles` schema into `SurfacePropertiesDefinition`."""
     if not isinstance(theme_schema, Mapping) or not theme_schema:
@@ -1547,6 +1324,7 @@ def surface_properties_from_json_schema(
         local_defs=local_defs,
         leaf_type_names=leaf_type_names,
         allow_ui_types=False,
+        at_least_v10=at_least_v10,
     )
     if isinstance(obj_t, ObjectType):
         return SurfacePropertiesDefinition(
@@ -1570,7 +1348,11 @@ def extract_leaf_types_from_defs(
     excluded_names: frozenset[str] = frozenset(),
     at_least_v10: bool = True,
 ) -> dict[str, DataTypeDefinition]:
-    """Translates non-structural, non-mixin catalog `$defs` into `CatalogModel.types`."""
+    """Translates non-structural, non-mixin catalog `$defs` into `CatalogModel.types`.
+
+    Preserves self-recursive `$defs` (such as `TreeNode` referencing
+    `#/$defs/TreeNode` inside its own `properties` or `items`) as `RefType`.
+    """
     candidate_names = frozenset(
         name
         for name, val in defs.items()
@@ -1581,21 +1363,38 @@ def extract_leaf_types_from_defs(
         and name not in excluded_names
         and is_valid_uax31_identifier(name)
     )
-    leaf_types: dict[str, DataTypeDefinition] = {}
-    for name in defs:
-        if name not in candidate_names:
-            continue
-        parsed = type_definition_from_json_schema(
-            defs[name],
-            local_defs=defs,
-            leaf_type_names=candidate_names - {name},
-            allow_ui_types=False,
-            at_least_v10=at_least_v10,
-            visited=frozenset({name}),
-        )
-        if not contains_ui_type(parsed):
-            leaf_types[name] = cast(DataTypeDefinition, parsed)
-    return leaf_types
+    # Parse with `allow_ui_types=True` so `$defs` aliasing UI common types
+    # (such as `Child`, `ComponentId`, `ChildList`, `Action`) are detected as
+    # UI-bearing and excluded from `CatalogModel.types` (inlined on components
+    # instead of silently downgraded to `StringType`).
+    active_names: set[str] = set(candidate_names)
+    while True:
+        leaf_types: dict[str, DataTypeDefinition] = {}
+        dropped: set[str] = set()
+        frozen_active = frozenset(active_names)
+        for name in defs:
+            if name not in frozen_active:
+                continue
+            raw_def = defs[name]
+            # Strip a self-referential inlining marker at the root so the
+            # definition body is parsed while nested `$ref: "#/$defs/<name>"`
+            # still produces `RefType(name)` for structural recursion.
+            if isinstance(raw_def, Mapping) and raw_def.get(CATALOG_DEF_MARKER) == name:
+                raw_def = {k: v for k, v in raw_def.items() if k != CATALOG_DEF_MARKER}
+            parsed = type_definition_from_json_schema(
+                raw_def,
+                local_defs=defs,
+                leaf_type_names=frozen_active,
+                allow_ui_types=True,
+                at_least_v10=at_least_v10,
+            )
+            if contains_ui_type(parsed):
+                dropped.add(name)
+            else:
+                leaf_types[name] = cast(DataTypeDefinition, parsed)
+        if not dropped:
+            return leaf_types
+        active_names -= dropped
 
 
 def from_json_schema(
@@ -1620,9 +1419,8 @@ def from_json_schema(
     raw_defs = catalog_schema.get("$defs")
     defs_map: dict[str, Any] = dict(raw_defs) if isinstance(raw_defs, Mapping) else {}
 
-    # First pass: discover which local `$defs` are used as component `allOf` mixins
-    # (e.g. v0.9 `CatalogComponentCommon`), so they are inlined rather than emitted
-    # as standalone `types` entries.
+    # Discover local `$defs` used as component `allOf` mixins (e.g. v0.9
+    # `CatalogComponentCommon`) so they are inlined instead of emitted in `types`.
     used_mixins: set[str] = set()
     raw_components = catalog_schema.get("components")
     if isinstance(raw_components, Mapping):
@@ -1699,6 +1497,7 @@ def from_json_schema(
         theme_raw,
         local_defs=defs_map,
         leaf_type_names=leaf_type_names,
+        at_least_v10=at_least_v10,
     )
 
     def _str_or_none(key: str) -> str | None:
@@ -1748,8 +1547,7 @@ def _attach_json_schema_meta(
 
 
 def _wrap_dynamic_one_of(
-    literal_schema: dict[str, Any],
-    common_types_uri: str,
+    literal_schema: dict[str, Any], common_types_uri: str
 ) -> dict[str, Any]:
     return {
         "oneOf": [
@@ -1760,9 +1558,7 @@ def _wrap_dynamic_one_of(
     }
 
 
-def _emit_at_least_one_of(
-    groups: tuple[tuple[str, ...], ...],
-) -> dict[str, Any]:
+def _emit_at_least_one_of(groups: tuple[tuple[str, ...], ...]) -> dict[str, Any]:
     if not groups:
         return {}
     if len(groups) == 1:
@@ -1770,6 +1566,41 @@ def _emit_at_least_one_of(
     return {
         "allOf": [{"anyOf": [{"required": [name]} for name in grp]} for grp in groups]
     }
+
+
+def _object_members_to_json_schema(
+    properties: tuple[ParameterDefinition, ...],
+    additional_properties: bool | TypeDefinition,
+    at_least_one_of: tuple[tuple[str, ...], ...],
+    *,
+    at_least_v10: bool,
+    common_types_uri: str,
+    closed_key: str = "additionalProperties",
+) -> dict[str, Any]:
+    out: dict[str, Any] = {"type": "object"}
+    if properties:
+        out["properties"] = {
+            p.name: type_definition_to_json_schema(
+                p.type, at_least_v10=at_least_v10, common_types_uri=common_types_uri
+            )
+            for p in properties
+        }
+        reqs = [p.name for p in properties if p.required]
+        if reqs:
+            out["required"] = reqs
+    if at_least_one_of:
+        out.update(_emit_at_least_one_of(at_least_one_of))
+    if additional_properties is False:
+        out[closed_key] = False
+    elif additional_properties is True:
+        out["additionalProperties"] = True
+    else:
+        out["additionalProperties"] = type_definition_to_json_schema(
+            additional_properties,
+            at_least_v10=at_least_v10,
+            common_types_uri=common_types_uri,
+        )
+    return out
 
 
 def type_definition_to_json_schema(
@@ -1782,6 +1613,24 @@ def type_definition_to_json_schema(
     if isinstance(type_def, RawJsonSchemaType):
         return copy.deepcopy(dict(type_def.schema))
 
+    simple_ref = _SIMPLE_COMMON_REF_BY_TYPE.get(type(type_def))
+    if simple_ref is not None:
+        return _attach_json_schema_meta(
+            {"$ref": _common_ref(simple_ref, common_types_uri)}, type_def
+        )
+    if isinstance(type_def, ChildType):
+        ref_name = "Child" if at_least_v10 else "ComponentId"
+        return _attach_json_schema_meta(
+            {"$ref": _common_ref(ref_name, common_types_uri)}, type_def
+        )
+    if isinstance(type_def, RefType):
+        node: dict[str, Any] = {"$ref": f"#/$defs/{type_def.ref}"}
+        if type_def.default is not UNSET:
+            node["default"] = copy.deepcopy(type_def.default)
+        return _attach_json_schema_meta(node, type_def)
+    if isinstance(type_def, ConstType):
+        return _attach_json_schema_meta({"const": type_def.value}, type_def)
+
     if isinstance(type_def, StringType):
         has_constraints = (
             type_def.format is not None
@@ -1790,9 +1639,7 @@ def type_definition_to_json_schema(
             or type_def.max_length is not None
         )
         if type_def.dynamic and not has_constraints:
-            node: dict[str, Any] = {
-                "$ref": _common_ref("DynamicString", common_types_uri)
-            }
+            node = {"$ref": _common_ref("DynamicString", common_types_uri)}
         elif (
             type_def.dynamic
             and isinstance(type_def.format, tuple)
@@ -1828,12 +1675,12 @@ def type_definition_to_json_schema(
             node["default"] = type_def.default
         return _attach_json_schema_meta(node, type_def)
 
-    if isinstance(type_def, NumberType):
+    if isinstance(type_def, (NumberType, IntegerType)):
         has_bounds = type_def.min is not None or type_def.max is not None
-        if type_def.dynamic and not has_bounds:
+        if isinstance(type_def, NumberType) and type_def.dynamic and not has_bounds:
             node = {"$ref": _common_ref("DynamicNumber", common_types_uri)}
         else:
-            lit = {"type": "number"}
+            lit = {"type": type_def.type}
             if type_def.min is not None:
                 lit["minimum"] = type_def.min
             if type_def.max is not None:
@@ -1845,22 +1692,12 @@ def type_definition_to_json_schema(
             node["default"] = type_def.default
         return _attach_json_schema_meta(node, type_def)
 
-    if isinstance(type_def, IntegerType):
-        lit = {"type": "integer"}
-        if type_def.min is not None:
-            lit["minimum"] = type_def.min
-        if type_def.max is not None:
-            lit["maximum"] = type_def.max
-        node = _wrap_dynamic_one_of(lit, common_types_uri) if type_def.dynamic else lit
-        if type_def.default is not None:
-            node["default"] = type_def.default
-        return _attach_json_schema_meta(node, type_def)
-
     if isinstance(type_def, BooleanType):
-        if type_def.dynamic:
-            node = {"$ref": _common_ref("DynamicBoolean", common_types_uri)}
-        else:
-            node = {"type": "boolean"}
+        node = (
+            {"$ref": _common_ref("DynamicBoolean", common_types_uri)}
+            if type_def.dynamic
+            else {"type": "boolean"}
+        )
         if type_def.default is not None:
             node["default"] = type_def.default
         return _attach_json_schema_meta(node, type_def)
@@ -1872,61 +1709,15 @@ def type_definition_to_json_schema(
             node["default"] = type_def.default
         return _attach_json_schema_meta(node, type_def)
 
-    if isinstance(type_def, ConstType):
-        node = {"const": type_def.value}
-        return _attach_json_schema_meta(node, type_def)
-
     if isinstance(type_def, AnyType):
-        if type_def.dynamic and not type_def.nullable:
-            node = {"$ref": _common_ref("DynamicValue", common_types_uri)}
-        else:
-            node = {}
+        node = (
+            {"$ref": _common_ref("DynamicValue", common_types_uri)}
+            if type_def.dynamic and not type_def.nullable
+            else {}
+        )
         if type_def.default is not UNSET:
             node["default"] = copy.deepcopy(type_def.default)
         return _attach_json_schema_meta(node, type_def)
-
-    if isinstance(type_def, DataBindingType):
-        return _attach_json_schema_meta(
-            {"$ref": _common_ref("DataBinding", common_types_uri)}, type_def
-        )
-
-    if isinstance(type_def, FunctionCallType):
-        return _attach_json_schema_meta(
-            {"$ref": _common_ref("FunctionCall", common_types_uri)}, type_def
-        )
-
-    if isinstance(type_def, RefType):
-        node = {"$ref": f"#/$defs/{type_def.ref}"}
-        if type_def.default is not UNSET:
-            node["default"] = copy.deepcopy(type_def.default)
-        return _attach_json_schema_meta(node, type_def)
-
-    if isinstance(type_def, ChildType):
-        ref_name = "Child" if at_least_v10 else "ComponentId"
-        return _attach_json_schema_meta(
-            {"$ref": _common_ref(ref_name, common_types_uri)}, type_def
-        )
-
-    if isinstance(type_def, ChildListType):
-        return _attach_json_schema_meta(
-            {"$ref": _common_ref("ChildList", common_types_uri)}, type_def
-        )
-
-    if isinstance(type_def, ActionType):
-        return _attach_json_schema_meta(
-            {"$ref": _common_ref("Action", common_types_uri)}, type_def
-        )
-
-    if isinstance(type_def, CheckRuleType):
-        return _attach_json_schema_meta(
-            {"$ref": _common_ref("CheckRule", common_types_uri)}, type_def
-        )
-
-    if isinstance(type_def, AccessibilityType):
-        return _attach_json_schema_meta(
-            {"$ref": _common_ref("AccessibilityAttributes", common_types_uri)},
-            type_def,
-        )
 
     if isinstance(type_def, ArrayType):
         is_plain_dynamic_str_list = (
@@ -1965,35 +1756,20 @@ def type_definition_to_json_schema(
         return _attach_json_schema_meta(node, type_def)
 
     if isinstance(type_def, ObjectType):
-        lit = {"type": "object"}
-        if type_def.properties:
-            lit["properties"] = {
-                p.name: type_definition_to_json_schema(
-                    p.type,
-                    at_least_v10=at_least_v10,
-                    common_types_uri=common_types_uri,
-                )
-                for p in type_def.properties
-            }
-            reqs = [p.name for p in type_def.properties if p.required]
-            if reqs:
-                lit["required"] = reqs
-        if type_def.at_least_one_of:
-            lit.update(_emit_at_least_one_of(type_def.at_least_one_of))
-        if isinstance(type_def.additional_properties, bool):
-            lit["additionalProperties"] = type_def.additional_properties
-        else:
-            lit["additionalProperties"] = type_definition_to_json_schema(
-                type_def.additional_properties,
-                at_least_v10=at_least_v10,
-                common_types_uri=common_types_uri,
-            )
+        lit = _object_members_to_json_schema(
+            type_def.properties,
+            type_def.additional_properties,
+            type_def.at_least_one_of,
+            at_least_v10=at_least_v10,
+            common_types_uri=common_types_uri,
+        )
         node = _wrap_dynamic_one_of(lit, common_types_uri) if type_def.dynamic else lit
         if type_def.default is not None:
             node["default"] = copy.deepcopy(dict(type_def.default))
         return _attach_json_schema_meta(node, type_def)
 
     # UnionType
+    assert isinstance(type_def, UnionType)
     comb_key = "oneOf" if type_def.exclusive else "anyOf"
     variants = [
         type_definition_to_json_schema(
@@ -2031,11 +1807,7 @@ def component_definition_to_json_schema(
         if param.required:
             reqs.append(param.name)
 
-    body: dict[str, Any] = {
-        "type": "object",
-        "properties": props,
-        "required": reqs,
-    }
+    body: dict[str, Any] = {"type": "object", "properties": props, "required": reqs}
     if comp_def.at_least_one_of:
         body.update(_emit_at_least_one_of(comp_def.at_least_one_of))
     if comp_def.additional_properties is True:
@@ -2048,16 +1820,17 @@ def component_definition_to_json_schema(
         )
 
     if at_least_v10:
-        if comp_def.checkable:
-            schema: dict[str, Any] = {
+        schema: dict[str, Any] = (
+            {
                 "type": "object",
                 "allOf": [
                     {"$ref": _common_ref("Checkable", common_types_uri)},
                     body,
                 ],
             }
-        else:
-            schema = body
+            if comp_def.checkable
+            else body
+        )
     else:
         all_of: list[dict[str, Any]] = [
             {"$ref": _common_ref("ComponentCommon", common_types_uri)}
@@ -2091,44 +1864,25 @@ def function_definition_to_json_schema(
     *,
     at_least_v10: bool = True,
     common_types_uri: str = "common_types.json",
+    types: Mapping[str, DataTypeDefinition] | None = None,
 ) -> dict[str, Any]:
     """Synthesizes a function call JSON Schema dict from a `FunctionDefinition`."""
-    ret_cat = function_return_category(fn_def.return_type)
+    ret_cat = function_return_category(fn_def.return_type, types)
     call_key = "@call" if at_least_v10 else "call"
 
     if fn_def.raw_args_schema is not None:
         args_schema = copy.deepcopy(dict(fn_def.raw_args_schema))
     else:
-        args_schema = {"type": "object"}
-        if fn_def.parameters:
-            args_schema["properties"] = {
-                p.name: type_definition_to_json_schema(
-                    p.type,
-                    at_least_v10=at_least_v10,
-                    common_types_uri=common_types_uri,
-                )
-                for p in fn_def.parameters
-            }
-            reqs = [p.name for p in fn_def.parameters if p.required]
-            if reqs:
-                args_schema["required"] = reqs
-        if fn_def.at_least_one_of:
-            args_schema.update(_emit_at_least_one_of(fn_def.at_least_one_of))
-        if fn_def.additional_parameters is False:
-            args_schema["unevaluatedProperties"] = False
-        elif fn_def.additional_parameters is True:
-            args_schema["additionalProperties"] = True
-        else:
-            args_schema["additionalProperties"] = type_definition_to_json_schema(
-                fn_def.additional_parameters,
-                at_least_v10=at_least_v10,
-                common_types_uri=common_types_uri,
-            )
+        args_schema = _object_members_to_json_schema(
+            fn_def.parameters,
+            fn_def.additional_parameters,
+            fn_def.at_least_one_of,
+            at_least_v10=at_least_v10,
+            common_types_uri=common_types_uri,
+            closed_key="unevaluatedProperties",
+        )
 
-    props: dict[str, Any] = {
-        call_key: {"const": fn_def.name},
-        "args": args_schema,
-    }
+    props: dict[str, Any] = {call_key: {"const": fn_def.name}, "args": args_schema}
     schema: dict[str, Any] = {"type": "object"}
     if fn_def.description is not None:
         schema["description"] = fn_def.description
@@ -2142,13 +1896,12 @@ def function_definition_to_json_schema(
         props["returnType"] = {"const": ret_cat}
     schema["properties"] = props
     req_call = [call_key]
-    if fn_def.parameters or fn_def.at_least_one_of or at_least_v10:
-        if (
-            at_least_v10
-            or any(p.required for p in fn_def.parameters)
-            or fn_def.at_least_one_of
-        ):
-            req_call.append("args")
+    if (
+        at_least_v10
+        or any(p.required for p in fn_def.parameters)
+        or fn_def.at_least_one_of
+    ):
+        req_call.append("args")
     schema["required"] = req_call
     if not at_least_v10:
         schema["unevaluatedProperties"] = False
@@ -2168,29 +1921,15 @@ def surface_properties_to_json_schema(
     """Synthesizes a JSON Schema object for `SurfacePropertiesDefinition`."""
     if surface_props.raw_schema is not None:
         return copy.deepcopy(dict(surface_props.raw_schema))
-    schema: dict[str, Any] = {"type": "object"}
+    schema = _object_members_to_json_schema(
+        surface_props.properties,
+        surface_props.additional_properties,
+        (),
+        at_least_v10=at_least_v10,
+        common_types_uri=common_types_uri,
+    )
     if surface_props.description is not None:
         schema["description"] = surface_props.description
-    if surface_props.properties:
-        schema["properties"] = {
-            p.name: type_definition_to_json_schema(
-                p.type,
-                at_least_v10=at_least_v10,
-                common_types_uri=common_types_uri,
-            )
-            for p in surface_props.properties
-        }
-        reqs = [p.name for p in surface_props.properties if p.required]
-        if reqs:
-            schema["required"] = reqs
-    if isinstance(surface_props.additional_properties, bool):
-        schema["additionalProperties"] = surface_props.additional_properties
-    else:
-        schema["additionalProperties"] = type_definition_to_json_schema(
-            surface_props.additional_properties,
-            at_least_v10=at_least_v10,
-            common_types_uri=common_types_uri,
-        )
     return schema
 
 
@@ -2237,6 +1976,7 @@ def to_json_schema(
                 fn,
                 at_least_v10=at_least_v10,
                 common_types_uri=common_types_uri,
+                types=model.types,
             )
             for fn in model.functions
         }
@@ -2253,21 +1993,19 @@ def to_json_schema(
         else:
             defs["theme"] = theme_doc
 
-    if model.components:
-        defs["anyComponent"] = {
+    defs["anyComponent"] = (
+        {
             "oneOf": [{"$ref": f"#/components/{c.name}"} for c in model.components],
             "discriminator": {"propertyName": "component"},
         }
-    else:
-        defs["anyComponent"] = {"not": {}}
-
-    if model.functions:
-        defs["anyFunction"] = {
-            "oneOf": [{"$ref": f"#/functions/{f.name}"} for f in model.functions]
-        }
-    else:
-        defs["anyFunction"] = {"not": {}}
-
+        if model.components
+        else {"not": {}}
+    )
+    defs["anyFunction"] = (
+        {"oneOf": [{"$ref": f"#/functions/{f.name}"} for f in model.functions]}
+        if model.functions
+        else {"not": {}}
+    )
     for type_name, type_def in model.types.items():
         defs[type_name] = type_definition_to_json_schema(
             type_def,

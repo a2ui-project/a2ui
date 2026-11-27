@@ -57,10 +57,10 @@ from ..schema.common_types_schema import (
 from ._spec_shape import SpecSchema, SpecShaper, v08_document_schema
 from .components import ComponentApi, ComponentImplementation, ModelComponentApi
 from .document_codec import (
-    CATALOG_DOCUMENT_SCHEMA_URI,
     is_catalog_document,
     parse_catalog_document,
     serialize_catalog_document,
+    validate_catalog_model,
 )
 from .functions import (
     AgentFunction,
@@ -94,6 +94,7 @@ from .model import (
     SurfacePropertiesDefinition,
     TypeDefinition,
     UnionType,
+    iter_child_types,
 )
 from .pydantic_adapter import (
     component_definition_from_model,
@@ -1438,12 +1439,18 @@ def get_declared_component_properties(
         if isinstance(getattr(catalog, "components", None), Mapping)
         else None
     )
+    comp_def: ComponentDefinition | None = None
     if isinstance(comp_entry, ComponentApi) and comp_entry._explicit_definition:
         comp_def = comp_entry.definition
+    elif isinstance(catalog, Catalog) and catalog._from_catalog_document:
+        comp_def = catalog.get_component_definition(comp_type)
+    if comp_def is not None:
         declared_from_def: set[str] = {"id", "component"}
         declared_from_def.update(p.name for p in comp_def.parameters)
         if comp_def.checkable:
-            declared_from_def.add("checks")
+            pv = getattr(catalog, "protocol_version", None)
+            is_v10 = pv is None or is_at_least_version(pv, ProtocolVersion.V1_0)
+            declared_from_def.add("@checks" if is_v10 else "checks")
         return frozenset(declared_from_def)
     model_cls = (
         getattr(comp_entry, "schema", None)
@@ -3019,12 +3026,9 @@ class Catalog(Generic[TComponent, TFunction]):
         return copy.deepcopy(cached)
 
     def _build_document(self) -> dict[str, Any]:
-        """Assembles the catalog document that `to_json` returns."""
+        """Assembles the JSON Schema catalog document that `to_json` returns."""
         if self._from_catalog_document:
-            return serialize_catalog_document(
-                self.model,
-                include_schema=self.schema_dialect == CATALOG_DOCUMENT_SCHEMA_URI,
-            )
+            return self.to_json_schema()
         # The protocol reserves the `@` namespace for system functions.
         system_names = set(system_functions_for(self.protocol_version))
         functions = {
@@ -3447,6 +3451,7 @@ class Catalog(Generic[TComponent, TFunction]):
                     self.theme_schema,
                     local_defs=self.defs,
                     leaf_type_names=leaf_type_names,
+                    at_least_v10=at_least_v10,
                 )
 
         pv_str = (
@@ -3460,6 +3465,7 @@ class Catalog(Generic[TComponent, TFunction]):
             catalog_id=self.catalog_id,
             protocol_version=canonical_pv,
             format_version=CATALOG_DOCUMENT_FORMAT_VERSION,
+            schema_uri=self.schema_dialect if self._from_catalog_document else None,
             title=self.title,
             description=self.description,
             instructions=self.instructions,
@@ -3518,27 +3524,11 @@ class Catalog(Generic[TComponent, TFunction]):
 
         No JSON Schema dicts are constructed eagerly.
         """
-        if not model.catalog_id:
-            raise A2uiCatalogError("CatalogModel.catalog_id must be non-empty.")
-        for comp in model.components:
-            if comp.name == "Surface":
-                raise A2uiCatalogError(
-                    "Component name 'Surface' is reserved and forbidden."
-                )
-        for fn in model.functions:
-            if fn.name.startswith("@"):
-                raise A2uiCatalogError(
-                    f"Function name '{fn.name}' cannot start with '@'."
-                )
-            if fn.requires_user_activation and fn.allowed_callers != "rendererOnly":
-                raise A2uiCatalogError(
-                    f"Function '{fn.name}' declares requiresUserActivation=true with"
-                    f" allowedCallers='{fn.allowed_callers}';"
-                    " requiresUserActivation=true requires"
-                    " allowedCallers='rendererOnly'."
-                )
+        validate_catalog_model(model)
         components = [ComponentApi.from_definition(c) for c in model.components]
-        functions = [FunctionApi.from_definition(f) for f in model.functions]
+        functions = [
+            FunctionApi.from_definition(f, types=model.types) for f in model.functions
+        ]
         at_least_v10 = is_at_least_version(model.protocol_version, ProtocolVersion.V1_0)
         theme_loc: ThemeLocation | None = (
             ("theme" if at_least_v10 else "$defs")
@@ -3553,7 +3543,9 @@ class Catalog(Generic[TComponent, TFunction]):
             instructions=model.instructions,
             title=model.title,
             description=model.description,
-            schema_dialect=schema_dialect,
+            schema_dialect=(
+                schema_dialect if schema_dialect is not None else model.schema_uri
+            ),
             theme_location=theme_loc,
             types=model.types,
             surface_properties=model.surface_properties,
@@ -4041,16 +4033,9 @@ def _function_entries(raw: Any, catalog_id: str) -> list[tuple[str, dict[str, An
 def _collect_type_refs_from_type(type_def: TypeDefinition, out: set[str]) -> None:
     if isinstance(type_def, RefType):
         out.add(type_def.ref)
-    elif isinstance(type_def, ObjectType):
-        for p in type_def.properties:
-            _collect_type_refs_from_type(p.type, out)
-        if not isinstance(type_def.additional_properties, bool):
-            _collect_type_refs_from_type(type_def.additional_properties, out)
-    elif isinstance(type_def, ArrayType) and type_def.items is not None:
-        _collect_type_refs_from_type(type_def.items, out)
-    elif isinstance(type_def, UnionType):
-        for v in type_def.variants:
-            _collect_type_refs_from_type(v, out)
+        return
+    for child in iter_child_types(type_def):
+        _collect_type_refs_from_type(child, out)
 
 
 def _reachable_model_types(
@@ -4062,20 +4047,18 @@ def _reachable_model_types(
     """Returns names in `types_map` transitively referenced by entries."""
     seeds: set[str] = set()
     for comp in components:
-        if getattr(comp, "_explicit_definition", False):
-            for p in comp.definition.parameters:
+        comp_def = getattr(comp, "definition", None)
+        if isinstance(comp_def, ComponentDefinition):
+            for p in comp_def.parameters:
                 _collect_type_refs_from_type(p.type, seeds)
+            if not isinstance(comp_def.additional_properties, bool):
+                _collect_type_refs_from_type(comp_def.additional_properties, seeds)
     for fn in functions:
-        if getattr(fn, "_explicit_definition", False):
-            fn_def = fn.definition
+        fn_def = getattr(fn, "definition", None)
+        if isinstance(fn_def, FunctionDefinition):
             if isinstance(
                 fn_def.return_type,
-                (
-                    RefType,
-                    ObjectType,
-                    ArrayType,
-                    UnionType,
-                ),
+                (RefType, ObjectType, ArrayType, UnionType),
             ):
                 _collect_type_refs_from_type(fn_def.return_type, seeds)
             for p in fn_def.parameters:

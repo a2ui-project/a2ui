@@ -21,8 +21,9 @@ formats, and document codecs (Catalog Documents, JSON Schema, Pydantic models).
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
+import math
 from typing import Any, Final, Literal, TypeAlias
 
 from .functions import AllowedCallers, FunctionReturnType
@@ -491,6 +492,34 @@ class CatalogModel:
         return {f.name: f for f in self.functions}
 
 
+def is_json_int(value: Any) -> bool:
+    """Returns True for Python `int` values excluding `bool`."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def is_json_number(value: Any) -> bool:
+    """Returns True for finite JSON numeric values (`int` or `float`, excluding `bool`)."""
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return True
+    return isinstance(value, float) and math.isfinite(value)
+
+
+def iter_child_types(type_def: TypeDefinition) -> Iterator[TypeDefinition]:
+    """Yields direct child `TypeDefinition` nodes of composite types."""
+    if isinstance(type_def, ObjectType):
+        for prop in type_def.properties:
+            yield prop.type
+        if not isinstance(type_def.additional_properties, bool):
+            yield type_def.additional_properties
+    elif isinstance(type_def, ArrayType):
+        if type_def.items is not None:
+            yield type_def.items
+    elif isinstance(type_def, UnionType):
+        yield from type_def.variants
+
+
 def is_ui_type(type_def: TypeDefinition) -> bool:
     """Returns whether `type_def` is directly a component-only UI type."""
     return isinstance(
@@ -503,17 +532,33 @@ def contains_ui_type(type_def: TypeDefinition) -> bool:
     """Returns whether `type_def` or any nested child uses a component-only UI type."""
     if is_ui_type(type_def):
         return True
-    if isinstance(type_def, ObjectType):
-        if any(contains_ui_type(p.type) for p in type_def.properties):
-            return True
-        if not isinstance(type_def.additional_properties, bool):
-            return contains_ui_type(type_def.additional_properties)
-        return False
-    if isinstance(type_def, ArrayType):
-        return type_def.items is not None and contains_ui_type(type_def.items)
-    if isinstance(type_def, UnionType):
-        return any(contains_ui_type(v) for v in type_def.variants)
-    return False
+    return any(contains_ui_type(child) for child in iter_child_types(type_def))
+
+
+def resolve_type_ref_with_visited(
+    type_def: TypeDefinition,
+    types: Mapping[str, DataTypeDefinition] | None,
+    visited_refs: frozenset[str] = frozenset(),
+) -> tuple[TypeDefinition, frozenset[str], bool]:
+    """Follows `RefType` chains in `types`, tracking visited refs to prevent cycles.
+
+    Returns `(resolved, next_visited, hit_cycle)`. If `type_def` reaches a ref
+    already in `visited_refs`, returns `(current_ref, next_visited, True)`.
+    If a ref is missing from `types`, returns `(current_ref, next_visited, False)`.
+    """
+    if not types or not isinstance(type_def, RefType):
+        return type_def, visited_refs, False
+    seen = set(visited_refs)
+    current: TypeDefinition = type_def
+    while isinstance(current, RefType):
+        if current.ref in seen:
+            return current, frozenset(seen), True
+        target = types.get(current.ref)
+        if target is None:
+            return current, frozenset(seen), False
+        seen.add(current.ref)
+        current = target
+    return current, frozenset(seen), False
 
 
 def resolve_type_ref(
@@ -521,16 +566,8 @@ def resolve_type_ref(
     types: Mapping[str, DataTypeDefinition] | None,
 ) -> TypeDefinition:
     """Follows `RefType` chains in `types` until reaching a concrete type."""
-    if not types:
-        return type_def
-    visited: set[str] = set()
-    current: TypeDefinition = type_def
-    while isinstance(current, RefType):
-        if current.ref in visited or current.ref not in types:
-            return current
-        visited.add(current.ref)
-        current = types[current.ref]
-    return current
+    resolved, _, _ = resolve_type_ref_with_visited(type_def, types)
+    return resolved
 
 
 def _type_has_raw_json_schema(
@@ -545,26 +582,10 @@ def _type_has_raw_json_schema(
             visited.add(type_def.ref)
             return _type_has_raw_json_schema(types[type_def.ref], types, visited)
         return False
-    if isinstance(type_def, ObjectType):
-        if any(
-            _type_has_raw_json_schema(p.type, types, visited)
-            for p in type_def.properties
-        ):
-            return True
-        if not isinstance(type_def.additional_properties, bool):
-            return _type_has_raw_json_schema(
-                type_def.additional_properties, types, visited
-            )
-        return False
-    if isinstance(type_def, ArrayType):
-        return type_def.items is not None and _type_has_raw_json_schema(
-            type_def.items, types, visited
-        )
-    if isinstance(type_def, UnionType):
-        return any(
-            _type_has_raw_json_schema(v, types, visited) for v in type_def.variants
-        )
-    return False
+    return any(
+        _type_has_raw_json_schema(child, types, visited)
+        for child in iter_child_types(type_def)
+    )
 
 
 def has_raw_json_schema(
@@ -602,6 +623,10 @@ def has_raw_json_schema(
         return False
     if isinstance(node, FunctionDefinition):
         if node.raw_args_schema is not None:
+            return True
+        if not isinstance(
+            node.return_type, (str, VoidReturnType, ValidationResultReturnType)
+        ) and _type_has_raw_json_schema(node.return_type, types, visited):
             return True
         if any(
             _type_has_raw_json_schema(p.type, types, visited) for p in node.parameters
@@ -700,6 +725,10 @@ __all__ = [
     "contains_ui_type",
     "function_return_category",
     "has_raw_json_schema",
+    "is_json_int",
+    "is_json_number",
     "is_ui_type",
+    "iter_child_types",
     "resolve_type_ref",
+    "resolve_type_ref_with_visited",
 ]

@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import copy
 import functools
 import logging
 import re
@@ -373,15 +374,33 @@ def _validated_entry(
         # validate the remaining capability fields via `entry_model`.
         validated_positions: dict[int, Any] = {}
         legacy_inlines: list[Any] = []
+        entry_ver: ProtocolVersion | None
+        try:
+            entry_ver = to_protocol_version(key)
+        except ValueError:
+            entry_ver = None
         for idx, item in enumerate(raw_inlines):
             if is_catalog_document(item):
                 try:
-                    parse_catalog_document(item)
-                except (A2uiCatalogError, A2uiValidationError) as e:
+                    parsed_doc = parse_catalog_document(item)
+                    if entry_ver is not None and "protocolVersion" in item:
+                        doc_ver = to_protocol_version(parsed_doc.protocol_version)
+                        same_family = doc_ver == entry_ver or (
+                            doc_ver in (ProtocolVersion.V0_9, ProtocolVersion.V0_9_1)
+                            and entry_ver
+                            in (ProtocolVersion.V0_9, ProtocolVersion.V0_9_1)
+                        )
+                        if not same_family:
+                            raise A2uiCatalogError(
+                                "Catalog Document protocolVersion"
+                                f" {parsed_doc.protocol_version!r} is incompatible"
+                                f" with '{key}' capabilities."
+                            )
+                except (A2uiCatalogError, A2uiValidationError, ValueError) as e:
                     raise A2uiCatalogError(
                         f"Invalid inline catalog in '{key}' renderer capabilities: {e}"
                     ) from e
-                validated_positions[idx] = item
+                validated_positions[idx] = copy.deepcopy(dict(item))
             else:
                 legacy_inlines.append(item)
         sanitized = dict(entry)

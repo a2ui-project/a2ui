@@ -732,13 +732,8 @@ class ExpressDecompiler:
                     continue
 
                 if prop_name in c:
-                    p_type = comp_helper.get_parameter_type(comp_name, prop_name)
-                    is_comp_ref = (
-                        comp_helper.type_accepts_components(p_type)
-                        if p_type is not None
-                        else _is_component_reference_property(
-                            comp_helper.get_property_schema(comp_name, prop_name)
-                        )
+                    is_comp_ref = comp_helper.property_accepts_components(
+                        comp_name, prop_name
                     )
                     val_str = self._decompile_value(
                         c[prop_name],

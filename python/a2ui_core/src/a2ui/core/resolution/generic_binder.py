@@ -42,7 +42,7 @@ from ..catalog.model import (
     TypeDefinition,
     UnionType,
     has_raw_json_schema,
-    resolve_type_ref,
+    resolve_type_ref_with_visited,
 )
 from ..common import Subscription
 from ..common.events import enqueue_or_run
@@ -366,9 +366,14 @@ def classify_schema_behavior(
 def classify_type_behavior(
     type_def: TypeDefinition,
     types: Mapping[str, DataTypeDefinition] | None = None,
+    visited_refs: frozenset[str] = frozenset(),
 ) -> BehaviorNode:
     """Directly classifies a canonical `TypeDefinition` into a `BehaviorNode`."""
-    resolved = resolve_type_ref(type_def, types)
+    resolved, next_visited, hit_cycle = resolve_type_ref_with_visited(
+        type_def, types, visited_refs
+    )
+    if hit_cycle:
+        return BehaviorNode(BehaviorType.STATIC)
     if isinstance(resolved, RawJsonSchemaType):
         return classify_schema_behavior(dict(resolved.schema))
     if isinstance(resolved, (DataBindingType, FunctionCallType)):
@@ -397,7 +402,7 @@ def classify_type_behavior(
         if resolved.dynamic:
             return BehaviorNode(BehaviorType.DYNAMIC)
         elem = (
-            classify_type_behavior(resolved.items, types)
+            classify_type_behavior(resolved.items, types, next_visited)
             if resolved.items is not None
             else BehaviorNode(BehaviorType.STATIC)
         )
@@ -408,28 +413,34 @@ def classify_type_behavior(
         if resolved.dynamic:
             return BehaviorNode(BehaviorType.DYNAMIC)
         shape = {
-            p.name: classify_type_behavior(p.type, types) for p in resolved.properties
+            p.name: classify_type_behavior(p.type, types, next_visited)
+            for p in resolved.properties
         }
         return BehaviorNode(BehaviorType.OBJECT, shape=shape)
     if isinstance(resolved, UnionType):
         if resolved.dynamic:
-            literal_variants = [resolve_type_ref(v, types) for v in resolved.variants]
+            literal_variants = [
+                resolve_type_ref_with_visited(v, types, next_visited)[0]
+                for v in resolved.variants
+            ]
             is_bool = bool(literal_variants) and all(
                 isinstance(v, BooleanType) for v in literal_variants
             )
             return BehaviorNode(BehaviorType.DYNAMIC, is_boolean=is_bool)
-        literal_non_dyn = [
-            resolve_type_ref(v, types)
+        resolved_variants = [
+            resolve_type_ref_with_visited(v, types, next_visited)[0]
             for v in resolved.variants
-            if not isinstance(
-                resolve_type_ref(v, types), (DataBindingType, FunctionCallType)
-            )
+        ]
+        literal_non_dyn = [
+            rv
+            for rv in resolved_variants
+            if not isinstance(rv, (DataBindingType, FunctionCallType))
         ]
         is_bool_union = bool(literal_non_dyn) and all(
             isinstance(v, BooleanType) for v in literal_non_dyn
         )
         for variant in resolved.variants:
-            node = classify_type_behavior(variant, types)
+            node = classify_type_behavior(variant, types, next_visited)
             if node.type in _SPECIAL_BEHAVIORS:
                 if (
                     node.type == BehaviorType.DYNAMIC

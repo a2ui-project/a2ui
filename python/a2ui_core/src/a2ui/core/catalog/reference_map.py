@@ -383,6 +383,7 @@ class ComponentRefSpec:
 def _type_contains_child_ref(
     type_def: TypeDefinition,
     types_map: Mapping[str, DataTypeDefinition] | None,
+    visited_refs: frozenset[str] = frozenset(),
 ) -> tuple[bool, bool, set[str]]:
     """Classifies a `TypeDefinition` into `(is_single, is_list, nested_child_keys)`."""
     from .model import (
@@ -391,29 +392,41 @@ def _type_contains_child_ref(
         ChildType,
         ObjectType,
         UnionType,
-        resolve_type_ref,
+        resolve_type_ref_with_visited,
     )
 
-    resolved = resolve_type_ref(type_def, types_map)
+    resolved, next_visited, hit_cycle = resolve_type_ref_with_visited(
+        type_def, types_map, visited_refs
+    )
+    if hit_cycle:
+        return False, False, set()
     if isinstance(resolved, ChildType):
         return True, False, set()
     if isinstance(resolved, ChildListType):
         return False, True, set()
     if isinstance(resolved, ArrayType) and resolved.items is not None:
-        item = resolve_type_ref(resolved.items, types_map)
+        item, item_visited, item_cycle = resolve_type_ref_with_visited(
+            resolved.items, types_map, next_visited
+        )
+        if item_cycle:
+            return False, False, set()
         if isinstance(item, (ChildType, ChildListType)):
             return False, True, set()
         if isinstance(item, ObjectType):
             nested: set[str] = set()
             for sub in item.properties:
-                s_single, s_list, _ = _type_contains_child_ref(sub.type, types_map)
+                s_single, s_list, _ = _type_contains_child_ref(
+                    sub.type, types_map, item_visited
+                )
                 if s_single or s_list:
                     nested.add(sub.name)
             if nested:
                 return False, True, nested
     if isinstance(resolved, UnionType):
         for variant in resolved.variants:
-            v_single, v_list, v_nested = _type_contains_child_ref(variant, types_map)
+            v_single, v_list, v_nested = _type_contains_child_ref(
+                variant, types_map, next_visited
+            )
             if v_single or v_list:
                 return v_single, v_list, v_nested
     return False, False, set()

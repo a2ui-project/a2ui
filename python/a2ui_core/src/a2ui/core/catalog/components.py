@@ -90,6 +90,8 @@ class ComponentApi:
     @schema.setter
     def schema(self, value: dict[str, Any]) -> None:
         self._schema = value
+        if not self._explicit_definition:
+            self._definition = None
 
     @property
     def definition(self) -> ComponentDefinition:

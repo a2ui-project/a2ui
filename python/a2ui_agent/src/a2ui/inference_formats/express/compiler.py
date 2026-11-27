@@ -37,6 +37,7 @@ from a2ui.core import (
     NumberType,
     TypeDefinition,
 )
+from a2ui.core.catalog import RawJsonSchemaType
 from a2ui.core.common import is_at_least_version, is_valid_uax31_identifier
 from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
 from a2ui.inference_formats._shared import (
@@ -45,8 +46,6 @@ from a2ui.inference_formats._shared import (
     catalogs_defining,
     catalogs_protocol_version,
     check_mixed_catalogs,
-    combinator_subschemas,
-    is_action_slot,
     surface_catalog_id,
     to_message_models,
 )
@@ -110,21 +109,16 @@ _EVENT_KEYWORDS = ("userMessage", "context")
 
 @dataclass(frozen=True)
 class _ValueSlot:
-    """The catalog type/schema declared at a value's position, with the helper that owns it."""
+    """The catalog type declared at a value's position, with the helper that owns it."""
 
-    schema: dict[str, Any] | None
+    type_def: TypeDefinition
     helper: CatalogSchemaHelper
-    type_def: TypeDefinition | None = None
 
     def ref_type(self) -> str | None:
-        if self.type_def is not None:
-            return self.helper.type_semantic_kind(self.type_def)
-        return _schema_ref_type(self.schema)
+        return self.helper.type_semantic_kind(self.type_def)
 
     def is_action(self) -> bool:
-        if self.type_def is not None:
-            return self.helper.type_is_action(self.type_def)
-        return is_action_slot(self.schema)
+        return self.helper.type_is_action(self.type_def)
 
 
 def _item_slot(slot: _ValueSlot | None) -> _ValueSlot | None:
@@ -135,11 +129,8 @@ def _item_slot(slot: _ValueSlot | None) -> _ValueSlot | None:
     """
     if slot is None:
         return None
-    if slot.type_def is not None:
-        item_type = slot.helper.resolve_item_type(slot.type_def)
-        return _ValueSlot(None, slot.helper, item_type) if item_type else None
-    schema = slot.helper.resolve_item_schema(slot.schema)
-    return _ValueSlot(schema, slot.helper) if schema else None
+    item_type = slot.helper.resolve_item_type(slot.type_def)
+    return _ValueSlot(item_type, slot.helper) if item_type is not None else None
 
 
 def _property_slot(slot: _ValueSlot | None, name: str) -> _ValueSlot | None:
@@ -150,33 +141,8 @@ def _property_slot(slot: _ValueSlot | None, name: str) -> _ValueSlot | None:
     """
     if slot is None:
         return None
-    if slot.type_def is not None:
-        prop_type = slot.helper.resolve_property_type(slot.type_def, name)
-        return _ValueSlot(None, slot.helper, prop_type) if prop_type else None
-    schema = slot.helper.resolve_property_schema(slot.schema, name)
-    return _ValueSlot(schema, slot.helper) if schema else None
-
-
-def _schema_ref_type(schema: Any) -> str | None:
-    """Returns 'ChildList', 'Child', or 'Action' if `schema` references one."""
-    if not isinstance(schema, dict):
-        return None
-    ref = schema.get("$ref")
-    if isinstance(ref, str):
-        if "ChildList" in ref:
-            return "ChildList"
-        if "Child" in ref or "ComponentId" in ref:
-            return "Child"
-        if "Action" in ref:
-            return "Action"
-    for key in ("oneOf", "anyOf", "allOf"):
-        subs = schema.get(key)
-        if isinstance(subs, list):
-            for sub in subs:
-                res = _schema_ref_type(sub)
-                if res:
-                    return res
-    return None
+    prop_type = slot.helper.resolve_property_type(slot.type_def, name)
+    return _ValueSlot(prop_type, slot.helper) if prop_type is not None else None
 
 
 def _component_id(var_name: str, ast: Any, *, at_least_v10: bool = False) -> str:
@@ -307,54 +273,6 @@ def _set_nested_path(d: dict[str, Any], path_str: str, val: Any) -> None:
     current[idx] = val
 
 
-def _is_direct_databinding_schema(
-    schema: dict[str, Any], path_key: str = "@path"
-) -> bool:
-    """Returns whether `schema` directly declares a dynamic or data-binding shape."""
-    ref = schema.get("$ref")
-    if isinstance(ref, str) and ("DataBinding" in ref or "Dynamic" in ref):
-        return True
-    if schema.get("type") not in (None, "object"):
-        return False
-    props = schema.get("properties")
-    reqs = schema.get("required")
-    return (
-        isinstance(props, dict)
-        and set(props) == {path_key}
-        and isinstance(reqs, list)
-        and path_key in reqs
-    )
-
-
-def _schema_allows_databinding(
-    schema: Any, path_key: str = "@path", visited: set[int] | None = None
-) -> bool:
-    """Recursively checks if a property's schema allows a dynamic DataBinding ref.
-
-    Args:
-        schema: The JSON schema dict for the target property.
-        path_key: The wire key for data bindings (`@path` in v1.0+, `path` before).
-        visited: Seen schema object IDs for cycle and diamond-DAG deduplication.
-
-    Returns:
-        True if the schema permits dynamic databinding; False otherwise.
-    """
-    if not isinstance(schema, dict):
-        return False
-    if visited is None:
-        visited = set()
-    obj_id = id(schema)
-    if obj_id in visited:
-        return False
-    visited.add(obj_id)
-    if _is_direct_databinding_schema(schema, path_key):
-        return True
-    return any(
-        _schema_allows_databinding(sub, path_key, visited)
-        for sub in combinator_subschemas(schema, ("allOf", "oneOf", "anyOf"))
-    )
-
-
 def _allows_databinding_at_ast_type(
     node: Any,
     type_def: TypeDefinition | None,
@@ -394,55 +312,6 @@ def _allows_databinding_at_ast_type(
             )
             if not _allows_databinding_at_ast_type(
                 v, sub_type, comp_helper, raw_symbols, seen
-            ):
-                return False
-        return True
-    return True
-
-
-def _allows_databinding_at_ast(
-    node: Any,
-    schema: Any,
-    comp_helper: CatalogSchemaHelper,
-    raw_symbols: dict[str, Any],
-    path_key: str,
-    seen: frozenset[str] = frozenset(),
-) -> bool:
-    """Validates positionally that every `$path` binding in `node` is permitted by `schema`."""
-    if isinstance(node, PathNode):
-        return schema is None or _schema_allows_databinding(schema, path_key)
-    if isinstance(node, VariableNode):
-        if node.name in seen or node.name not in raw_symbols:
-            return True
-        return _allows_databinding_at_ast(
-            raw_symbols[node.name],
-            schema,
-            comp_helper,
-            raw_symbols,
-            path_key,
-            seen | {node.name},
-        )
-    if isinstance(node, list):
-        item_schema = (
-            comp_helper.resolve_item_schema(schema)
-            if isinstance(schema, dict)
-            else None
-        )
-        return all(
-            _allows_databinding_at_ast(
-                item, item_schema, comp_helper, raw_symbols, path_key, seen
-            )
-            for item in node
-        )
-    if isinstance(node, dict):
-        for k, v in node.items():
-            sub_schema = (
-                comp_helper.resolve_property_schema(schema, k)
-                if isinstance(schema, dict)
-                else None
-            )
-            if not _allows_databinding_at_ast(
-                v, sub_schema, comp_helper, raw_symbols, path_key, seen
             ):
                 return False
         return True
@@ -541,45 +410,6 @@ def _has_databinding(
     if isinstance(node, list):
         return any(_has_databinding(v, raw_symbols, seen) for v in node)
     return False
-
-
-def _schema_has_label_value(sub: Any, visited: set[int] | None = None) -> bool:
-    """Returns whether an item schema (or its combinators) declares `label` and `value`."""
-    if not isinstance(sub, dict):
-        return False
-    if visited is None:
-        visited = set()
-    obj_id = id(sub)
-    if obj_id in visited:
-        return False
-    visited.add(obj_id)
-    props = sub.get("properties")
-    if isinstance(props, dict) and "label" in props and "value" in props:
-        return True
-    return any(
-        _schema_has_label_value(s, visited)
-        for s in combinator_subschemas(sub, ("allOf", "oneOf", "anyOf"))
-    )
-
-
-def _schema_expects_option_objects(
-    schema: Any, visited: set[int] | None = None
-) -> bool:
-    """Checks if a property's schema expects a list of objects with label/value properties."""
-    if not isinstance(schema, dict):
-        return False
-    if visited is None:
-        visited = set()
-    obj_id = id(schema)
-    if obj_id in visited:
-        return False
-    visited.add(obj_id)
-    if "items" in schema:
-        return _schema_has_label_value(schema["items"])
-    return any(
-        _schema_expects_option_objects(sub, visited)
-        for sub in combinator_subschemas(schema, ("allOf", "oneOf", "anyOf"))
-    )
 
 
 _IDENT_START = r"a-zA-Z_"
@@ -2227,11 +2057,6 @@ class ExpressCompiler:
                 continue
 
             prop_type_def = comp_helper.get_parameter_type(comp_name, prop_name)
-            prop_schema = (
-                None
-                if prop_type_def is not None
-                else comp_helper.get_property_schema(comp_name, prop_name)
-            )
             prop_type = comp_helper.get_property_type(comp_name, prop_name)
             if prop_type is None and not comp_helper.common_types_loaded:
                 if prop_name == "child":
@@ -2240,9 +2065,9 @@ class ExpressCompiler:
                     prop_type = "ChildList"
 
             value_slot = (
-                _ValueSlot(None, comp_helper, prop_type_def)
+                _ValueSlot(prop_type_def, comp_helper)
                 if prop_type_def is not None
-                else (_ValueSlot(prop_schema, comp_helper) if prop_schema else None)
+                else None
             )
             mapped_val = self._compile_value(
                 arg,
@@ -2257,23 +2082,16 @@ class ExpressCompiler:
                 ),
                 slot=value_slot,
             )
-            if _has_databinding(arg, raw_symbols):
-                if prop_type_def is not None:
-                    if not _allows_databinding_at_ast_type(
-                        arg, prop_type_def, comp_helper, raw_symbols
-                    ):
-                        raise ExpressForbiddenDatabindingError(comp_name, prop_name)
-                elif prop_schema and not _allows_databinding_at_ast(
-                    arg, prop_schema, comp_helper, raw_symbols, ctx.path_key
-                ):
-                    raise ExpressForbiddenDatabindingError(comp_name, prop_name)
-            if isinstance(mapped_val, list) and (
-                comp_helper.type_expects_option_objects(prop_type_def)
-                if prop_type_def is not None
-                else (
-                    prop_schema is not None
-                    and _schema_expects_option_objects(prop_schema)
+            if (
+                prop_type_def is not None
+                and _has_databinding(arg, raw_symbols)
+                and not _allows_databinding_at_ast_type(
+                    arg, prop_type_def, comp_helper, raw_symbols
                 )
+            ):
+                raise ExpressForbiddenDatabindingError(comp_name, prop_name)
+            if isinstance(mapped_val, list) and comp_helper.type_expects_option_objects(
+                prop_type_def
             ):
                 mapped_val = [
                     {"label": opt, "value": opt} if isinstance(opt, str) else opt
@@ -2405,20 +2223,16 @@ class ExpressCompiler:
                 continue
             prop_name = check_props[prop_target_idx]
             fn_p_type = chk_helper.get_function_parameter_type(check_name, prop_name)
-            if fn_p_type is not None:
-                resolved_fn_p = chk_helper.resolve_type(fn_p_type)
-                is_static_non_str = (
-                    isinstance(resolved_fn_p, (IntegerType, NumberType, BooleanType))
-                    and not resolved_fn_p.dynamic
-                )
-            else:
-                prop_schema = chk_helper.get_function_property_schema(
-                    check_name, prop_name
-                )
-                is_static_non_str = bool(
-                    prop_schema
-                    and prop_schema.get("type") in ["integer", "number", "boolean"]
-                )
+            resolved_fn_p = (
+                chk_helper.resolve_type(fn_p_type) if fn_p_type is not None else None
+            )
+            is_static_non_str = (
+                isinstance(resolved_fn_p, (IntegerType, NumberType, BooleanType))
+                and not resolved_fn_p.dynamic
+            ) or (
+                isinstance(resolved_fn_p, RawJsonSchemaType)
+                and resolved_fn_p.schema.get("type") in ("integer", "number", "boolean")
+            )
             if isinstance(c_arg, str) and is_static_non_str:
                 message_val = c_arg
                 break

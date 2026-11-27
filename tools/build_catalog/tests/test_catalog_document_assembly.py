@@ -250,6 +250,91 @@ class TestCatalogDocumentAssembly(unittest.TestCase):
         self.assertEqual(len(schema["functions"]), 5)
         self.assertIn("anyComponent", schema["$defs"])
 
+    def test_convert_json_schema_with_external_ref_and_common_types_to_catalog_document(
+        self,
+    ) -> None:
+        """External local $refs flatten cleanly without mangling common_types.json refs or self state."""
+        self._write_json(
+            "shared_types.json",
+            {
+                "$defs": {
+                    "Severity": {
+                        "type": "string",
+                        "enum": ["info", "warning", "error"],
+                    },
+                    "AlertBadge": {
+                        "type": "object",
+                        "properties": {
+                            "label": {
+                                "$ref": "common_types.json#/$defs/DynamicString",
+                            },
+                            "severity": {
+                                "$ref": "#/$defs/Severity",
+                            },
+                        },
+                        "required": ["label"],
+                    },
+                }
+            },
+        )
+        cat_path = self._write_json(
+            "custom_with_ext.json",
+            {
+                "catalogId": "https://example.com/ext_catalog/v1",
+                "protocolVersion": "1.0",
+                "$defs": {
+                    "LocalTag": {
+                        "type": "string",
+                        "minLength": 1,
+                    },
+                },
+                "components": {
+                    "Notice": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "Notice"},
+                            "title": {
+                                "$ref": "common_types.json#/$defs/DynamicString",
+                            },
+                            "tag": {"$ref": "#/$defs/LocalTag"},
+                            "badge": {
+                                "$ref": "./shared_types.json#/$defs/AlertBadge",
+                            },
+                        },
+                        "required": ["component", "title"],
+                    }
+                },
+            },
+        )
+        assembler = CatalogAssembler(version="1.0")
+        doc = assembler.assemble(
+            "ExtNotice",
+            [str(cat_path)],
+            catalog_id="https://example.com/ext_notice/v1",
+            output_format="catalog-document",
+        )
+        self.assertTrue(is_catalog_document_dict(doc))
+        self.assertEqual(assembler.definitions, {})
+        self.assertEqual(assembler.ref_mapping, {})
+        notice = next(c for c in doc["components"] if c["name"] == "Notice")
+        params = {p["name"]: p for p in notice["parameters"]}
+        self.assertEqual(params["title"]["type"], "string")
+        self.assertTrue(params["title"]["dynamic"])
+        self.assertEqual(params["tag"]["type"], "ref")
+        self.assertEqual(params["tag"]["ref"], "LocalTag")
+        self.assertEqual(params["badge"]["type"], "ref")
+        self.assertEqual(params["badge"]["ref"], "shared_types_AlertBadge")
+        badge_type = doc["types"]["shared_types_AlertBadge"]
+        badge_props = {p["name"]: p for p in badge_type["properties"]}
+        self.assertEqual(badge_props["label"]["type"], "string")
+        self.assertTrue(badge_props["label"]["dynamic"])
+        self.assertEqual(badge_props["severity"]["type"], "ref")
+        self.assertEqual(badge_props["severity"]["ref"], "shared_types_Severity")
+        self.assertEqual(
+            doc["types"]["shared_types_Severity"]["values"],
+            ["info", "warning", "error"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -109,6 +109,7 @@ from .model import (
     has_raw_json_schema,
     is_ui_type,
     resolve_type_ref,
+    resolve_type_ref_with_visited,
 )
 from .pydantic_adapter import (
     component_definition_from_model,
@@ -221,6 +222,7 @@ __all__ = [
     "is_valid_uax31_identifier",
     "parse_catalog_document",
     "resolve_type_ref",
+    "resolve_type_ref_with_visited",
     "serialize_catalog_document",
     "surface_properties_from_json_schema",
     "surface_properties_from_model",

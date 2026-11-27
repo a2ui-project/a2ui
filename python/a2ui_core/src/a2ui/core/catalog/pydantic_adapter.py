@@ -88,54 +88,34 @@ from .model import (
     TypeDefinition,
     UnionType,
     contains_ui_type,
+    is_json_int,
+    is_json_number,
 )
 
 _ENVELOPE_BASE_NAMES: Final[frozenset[str]] = frozenset(
     {"ComponentCommon", "Checkable"}
 )
-
 _AT_ENVELOPE_KEYS: Final[frozenset[str]] = frozenset(
     {"@metadata", "@catalogId", "@accessibility", "@checks"}
 )
+_ACTION_WRAPPER_NAMES: Final[tuple[str, ...]] = (
+    "ActionEventWrapper",
+    "ActionFunctionCallWrapper",
+)
 
 
-def _is_data_binding_class(tp: Any) -> bool:
+def _is_model_named(tp: Any, names: str | tuple[str, ...]) -> bool:
+    if not (isinstance(tp, type) and issubclass(tp, BaseModel)):
+        return False
+    return tp.__name__ == names if isinstance(names, str) else tp.__name__ in names
+
+
+def _own_docstring(model_cls: type[BaseModel]) -> str | None:
+    raw_doc = model_cls.__dict__.get("__doc__")
     return (
-        isinstance(tp, type)
-        and issubclass(tp, BaseModel)
-        and tp.__name__ == "DataBinding"
-    )
-
-
-def _is_function_call_class(tp: Any) -> bool:
-    return (
-        isinstance(tp, type)
-        and issubclass(tp, BaseModel)
-        and tp.__name__ == "FunctionCall"
-    )
-
-
-def _is_accessibility_class(tp: Any) -> bool:
-    return (
-        isinstance(tp, type)
-        and issubclass(tp, BaseModel)
-        and tp.__name__ == "AccessibilityAttributes"
-    )
-
-
-def _is_check_rule_class(tp: Any) -> bool:
-    return (
-        isinstance(tp, type)
-        and issubclass(tp, BaseModel)
-        and tp.__name__ == "CheckRule"
-    )
-
-
-def _is_action_wrapper_class(tp: Any) -> bool:
-    return (
-        isinstance(tp, type)
-        and issubclass(tp, BaseModel)
-        and tp.__name__ in ("ActionEventWrapper", "ActionFunctionCallWrapper")
+        inspect.cleandoc(raw_doc)
+        if isinstance(raw_doc, str) and raw_doc.strip()
+        else None
     )
 
 
@@ -163,62 +143,30 @@ def _unwrap_annotated_and_aliases(
     return current, metadata, alias_name
 
 
-def _extract_field_constraints(
-    metadata: Sequence[Any], field_info: FieldInfo | None = None
-) -> dict[str, Any]:
-    """Collects typed constraints, descriptions, formats, and CatalogDef markers."""
-    info: dict[str, Any] = {}
-    all_meta: list[Any] = list(metadata)
-    if field_info is not None:
-        all_meta.extend(field_info.metadata)
-        if field_info.description is not None:
-            info["description"] = field_info.description
-        if field_info.deprecated:
-            info["deprecated"] = True
-            if isinstance(field_info.deprecated, str):
-                info["deprecated_reason"] = field_info.deprecated
-        extra = field_info.json_schema_extra
-        if isinstance(extra, Mapping):
-            if "default" in extra:
-                info["default"] = extra["default"]
-            if isinstance(extra.get("format"), str):
-                info["format"] = extra["format"]
-        elif isinstance(extra, SchemaKeywords):
-            all_meta.append(extra)
-        if (
-            field_info.default is not PydanticUndefined
-            and field_info.default is not None
-            and "default" not in info
-        ):
-            info["default"] = field_info.default
-
-    for item in all_meta:
-        if isinstance(item, CatalogDef):
-            info["catalog_def"] = item.name
-        elif isinstance(item, FieldInfo):
-            if item.description is not None and "description" not in info:
-                info["description"] = item.description
-            if item.deprecated:
-                info["deprecated"] = True
-                if isinstance(item.deprecated, str):
-                    info["deprecated_reason"] = item.deprecated
-            if (
-                item.default is not PydanticUndefined
-                and item.default is not None
-                and "default" not in info
-            ):
-                info["default"] = item.default
-            if isinstance(item.json_schema_extra, Mapping):
-                if "default" in item.json_schema_extra and "default" not in info:
-                    info["default"] = item.json_schema_extra["default"]
-                if isinstance(item.json_schema_extra.get("format"), str):
-                    info["format"] = item.json_schema_extra["format"]
-            for sub_m in item.metadata:
-                _collect_constraint_item(sub_m, info)
-        else:
-            _collect_constraint_item(item, info)
-
-    return info
+def _collect_field_info(
+    fi: FieldInfo, info: dict[str, Any], extra_meta: list[Any]
+) -> None:
+    if fi.description is not None and "description" not in info:
+        info["description"] = fi.description
+    if fi.deprecated:
+        info["deprecated"] = True
+        if isinstance(fi.deprecated, str):
+            info["deprecated_reason"] = fi.deprecated
+    extra = fi.json_schema_extra
+    if isinstance(extra, Mapping):
+        if "default" in extra and "default" not in info:
+            info["default"] = extra["default"]
+        if isinstance(extra.get("format"), str):
+            info["format"] = extra["format"]
+    elif isinstance(extra, SchemaKeywords):
+        extra_meta.append(extra)
+    if (
+        fi.default is not PydanticUndefined
+        and fi.default is not None
+        and "default" not in info
+    ):
+        info["default"] = fi.default
+    extra_meta.extend(fi.metadata)
 
 
 def _collect_constraint_item(item: Any, info: dict[str, Any]) -> None:
@@ -243,18 +191,18 @@ def _collect_constraint_item(item: Any, info: dict[str, Any]) -> None:
             info["format"] = kw["format"]
         if isinstance(kw.get("pattern"), str):
             info["pattern"] = kw["pattern"]
-        if isinstance(kw.get("minLength"), int):
+        if is_json_int(kw.get("minLength")):
             info["min_length"] = kw["minLength"]
-        if isinstance(kw.get("maxLength"), int):
+        if is_json_int(kw.get("maxLength")):
             info["max_length"] = kw["maxLength"]
-        if "minimum" in kw:
-            info["min"] = kw["minimum"]
-        if "maximum" in kw:
-            info["max"] = kw["maximum"]
-        if "minItems" in kw:
-            info["min_items"] = kw["minItems"]
-        if "maxItems" in kw:
-            info["max_items"] = kw["maxItems"]
+        for src, dst in (
+            ("minimum", "min"),
+            ("maximum", "max"),
+            ("minItems", "min_items"),
+            ("maxItems", "max_items"),
+        ):
+            if src in kw:
+                info[dst] = kw[src]
     elif isinstance(item, SpecAllOf):
         for branch in item.schemas:
             if isinstance(branch, Mapping):
@@ -263,9 +211,30 @@ def _collect_constraint_item(item: Any, info: dict[str, Any]) -> None:
                     info["format"] = fmt
 
 
+def _extract_field_constraints(
+    metadata: Sequence[Any], field_info: FieldInfo | None = None
+) -> dict[str, Any]:
+    """Collects typed constraints, descriptions, formats, and CatalogDef markers."""
+    info: dict[str, Any] = {}
+    queue: list[Any] = list(metadata)
+    if field_info is not None:
+        _collect_field_info(field_info, info, queue)
+
+    idx = 0
+    while idx < len(queue):
+        item = queue[idx]
+        idx += 1
+        if isinstance(item, CatalogDef):
+            info["catalog_def"] = item.name
+        elif isinstance(item, FieldInfo):
+            _collect_field_info(item, info, queue)
+        else:
+            _collect_constraint_item(item, info)
+    return info
+
+
 def _apply_constraints(
-    type_def: TypeDefinition,
-    constraints: Mapping[str, Any],
+    type_def: TypeDefinition, constraints: Mapping[str, Any]
 ) -> TypeDefinition:
     updates: dict[str, Any] = {}
     if "description" in constraints and type_def.description is None:
@@ -275,58 +244,50 @@ def _apply_constraints(
     if "deprecated_reason" in constraints:
         updates["deprecated_reason"] = constraints["deprecated_reason"]
 
+    default = constraints.get("default")
     if isinstance(type_def, StringType):
-        if "format" in constraints and type_def.format is None:
-            updates["format"] = constraints["format"]
-        if "pattern" in constraints and type_def.pattern is None:
-            updates["pattern"] = constraints["pattern"]
-        if "min_length" in constraints and type_def.min_length is None:
-            updates["min_length"] = constraints["min_length"]
-        if "max_length" in constraints and type_def.max_length is None:
-            updates["max_length"] = constraints["max_length"]
-        if isinstance(constraints.get("default"), str):
-            updates["default"] = constraints["default"]
+        for key in ("format", "pattern", "min_length", "max_length"):
+            if key in constraints and getattr(type_def, key) is None:
+                updates[key] = constraints[key]
+        if isinstance(default, str):
+            updates["default"] = default
     elif isinstance(type_def, NumberType):
-        if "min" in constraints and type_def.min is None:
-            updates["min"] = constraints["min"]
-        if "max" in constraints and type_def.max is None:
-            updates["max"] = constraints["max"]
-        if isinstance(constraints.get("default"), (int, float)) and not isinstance(
-            constraints.get("default"), bool
-        ):
-            updates["default"] = constraints["default"]
+        for key in ("min", "max"):
+            if key in constraints and getattr(type_def, key) is None:
+                updates[key] = constraints[key]
+        if is_json_number(default):
+            updates["default"] = default
     elif isinstance(type_def, IntegerType):
-        if "min" in constraints and type_def.min is None:
-            updates["min"] = int(constraints["min"])
-        if "max" in constraints and type_def.max is None:
-            updates["max"] = int(constraints["max"])
-        if isinstance(constraints.get("default"), int) and not isinstance(
-            constraints.get("default"), bool
-        ):
-            updates["default"] = constraints["default"]
+        for key in ("min", "max"):
+            if key in constraints and getattr(type_def, key) is None:
+                updates[key] = int(constraints[key])
+        if is_json_int(default):
+            updates["default"] = default
     elif isinstance(type_def, BooleanType):
-        if isinstance(constraints.get("default"), bool):
-            updates["default"] = constraints["default"]
+        if isinstance(default, bool):
+            updates["default"] = default
     elif isinstance(type_def, EnumType):
-        if "default" in constraints and constraints["default"] is not None:
-            updates["default"] = constraints["default"]
+        if default is not None:
+            updates["default"] = default
     elif isinstance(type_def, ArrayType):
-        if "min_items" in constraints and type_def.min_items is None:
-            updates["min_items"] = constraints["min_items"]
-        elif "min_length" in constraints and type_def.min_items is None:
-            updates["min_items"] = constraints["min_length"]
-        if "max_items" in constraints and type_def.max_items is None:
-            updates["max_items"] = constraints["max_items"]
-        elif "max_length" in constraints and type_def.max_items is None:
-            updates["max_items"] = constraints["max_length"]
-        if isinstance(constraints.get("default"), (list, tuple)):
-            updates["default"] = tuple(copy.deepcopy(constraints["default"]))
+        if type_def.min_items is None:
+            if "min_items" in constraints:
+                updates["min_items"] = constraints["min_items"]
+            elif "min_length" in constraints:
+                updates["min_items"] = constraints["min_length"]
+        if type_def.max_items is None:
+            if "max_items" in constraints:
+                updates["max_items"] = constraints["max_items"]
+            elif "max_length" in constraints:
+                updates["max_items"] = constraints["max_length"]
+        if isinstance(default, (list, tuple)):
+            updates["default"] = tuple(copy.deepcopy(default))
     elif isinstance(type_def, ObjectType):
-        if isinstance(constraints.get("default"), Mapping):
-            updates["default"] = copy.deepcopy(dict(constraints["default"]))
+        if isinstance(default, Mapping):
+            updates["default"] = copy.deepcopy(dict(default))
     elif isinstance(type_def, (AnyType, RefType, UnionType)):
         if "default" in constraints:
-            updates["default"] = copy.deepcopy(constraints["default"])
+            updates["default"] = copy.deepcopy(default)
 
     return replace(type_def, **updates) if updates else type_def
 
@@ -360,7 +321,7 @@ def type_definition_from_annotation(
     inner, meta, alias_name = _unwrap_annotated_and_aliases(annotation)
     constraints = _extract_field_constraints(meta, field_info)
 
-    # Strip Optional (`T | None`) at the top level while preserving nested Annotated metadata.
+    # Strip Optional (`T | None`) at top level while preserving nested Annotated metadata.
     origin = get_origin(inner)
     if origin is Union or origin is types.UnionType:
         raw_args = get_args(inner)
@@ -371,27 +332,26 @@ def type_definition_from_annotation(
                     non_none[0]
                 )
                 merged_meta = [*sub_meta, *meta]
-                inner = sub_inner
-                meta = merged_meta
+                inner, meta = sub_inner, merged_meta
                 alias_name = alias_name or sub_alias
                 constraints = _extract_field_constraints(merged_meta, field_info)
-                origin = get_origin(inner)
             else:
                 inner = cast(Any, Union)[tuple(non_none)]
-                origin = get_origin(inner)
 
     # Handle CatalogDef("Weight") leaf type marker.
     catalog_def_name = constraints.get("catalog_def")
     if isinstance(catalog_def_name, str) and extracted_types is not None:
         leaf_constraints = {k: v for k, v in constraints.items() if k != "catalog_def"}
-        leaf_type = _convert_core_annotation(
-            inner,
-            alias_name=alias_name,
-            allow_ui_types=False,
-            extracted_types=extracted_types,
-            visited_models=visited_models,
+        leaf_type = _apply_constraints(
+            _convert_core_annotation(
+                inner,
+                alias_name=alias_name,
+                allow_ui_types=False,
+                extracted_types=extracted_types,
+                visited_models=visited_models,
+            ),
+            leaf_constraints,
         )
-        leaf_type = _apply_constraints(leaf_type, leaf_constraints)
         if not contains_ui_type(leaf_type):
             if catalog_def_name not in extracted_types:
                 extracted_types[catalog_def_name] = cast(DataTypeDefinition, leaf_type)
@@ -437,9 +397,8 @@ def _convert_core_annotation(
     if alias_name == "Extensions":
         return ObjectType(additional_properties=AnyType(dynamic=True, nullable=True))
 
-    if inner is Any or inner is object:
+    if inner in (Any, object):
         return AnyType(dynamic=True, nullable=True)
-
     if inner is bool:
         return BooleanType()
     if inner is int:
@@ -454,13 +413,13 @@ def _convert_core_annotation(
             return ChildType() if allow_ui_types else StringType()
         if issubclass(inner, (ListReference, TemplateChildList)):
             return ChildListType() if allow_ui_types else ArrayType(items=StringType())
-        if _is_data_binding_class(inner):
+        if _is_model_named(inner, "DataBinding"):
             return DataBindingType()
-        if _is_function_call_class(inner):
+        if _is_model_named(inner, "FunctionCall"):
             return FunctionCallType()
-        if _is_accessibility_class(inner) and allow_ui_types:
+        if _is_model_named(inner, "AccessibilityAttributes") and allow_ui_types:
             return AccessibilityType()
-        if _is_check_rule_class(inner) and allow_ui_types:
+        if _is_model_named(inner, "CheckRule") and allow_ui_types:
             return CheckRuleType()
         if issubclass(inner, enum.Enum):
             vals = tuple(cast(EnumValue, m.value) for m in inner)
@@ -482,15 +441,50 @@ def _convert_core_annotation(
         vals = tuple(cast(EnumValue, v) for v in args)
         return EnumType(values=vals, value_type=_infer_enum_value_type(vals))
 
-    if origin in (list, Sequence, tuple):
-        if args:
-            elem = type_definition_from_annotation(
-                args[0],
+    if origin is tuple:
+        if not args:
+            return ArrayType()
+        if len(args) == 1 and args[0] == ():
+            return ArrayType(min_items=0, max_items=0)
+        if len(args) == 2 and args[1] is Ellipsis:
+            return ArrayType(
+                items=type_definition_from_annotation(
+                    args[0],
+                    allow_ui_types=allow_ui_types,
+                    extracted_types=extracted_types,
+                    visited_models=visited_models,
+                )
+            )
+        elem_types = [
+            type_definition_from_annotation(
+                a,
                 allow_ui_types=allow_ui_types,
                 extracted_types=extracted_types,
                 visited_models=visited_models,
             )
-            return ArrayType(items=elem)
+            for a in args
+        ]
+        unique_elems: list[TypeDefinition] = []
+        for et in elem_types:
+            if et not in unique_elems:
+                unique_elems.append(et)
+        item_t: TypeDefinition = (
+            unique_elems[0]
+            if len(unique_elems) == 1
+            else UnionType(variants=tuple(unique_elems), exclusive=False)
+        )
+        return ArrayType(items=item_t, min_items=len(args), max_items=len(args))
+
+    if origin in (list, Sequence):
+        if args:
+            return ArrayType(
+                items=type_definition_from_annotation(
+                    args[0],
+                    allow_ui_types=allow_ui_types,
+                    extracted_types=extracted_types,
+                    visited_models=visited_models,
+                )
+            )
         return ArrayType()
 
     if origin in (dict, Mapping):
@@ -537,72 +531,72 @@ def _convert_union_annotation(
 
     unwrapped_members = [_unwrap_annotated_and_aliases(a)[0] for a in non_none]
 
-    # Recognize Action = ActionEventWrapper | ActionFunctionCallWrapper.
-    if allow_ui_types and all(_is_action_wrapper_class(m) for m in unwrapped_members):
+    if allow_ui_types and all(
+        _is_model_named(m, _ACTION_WRAPPER_NAMES) for m in unwrapped_members
+    ):
         return ActionType()
 
-    # Recognize ChildList = list[ComponentId] | TemplateChildList.
     if allow_ui_types and any(
         isinstance(m, type) and issubclass(m, (ListReference, TemplateChildList))
         for m in unwrapped_members
     ):
         return ChildListType()
 
-    # Recognize Dynamic* unions: `<literal(s)> | DataBinding | FunctionCall`.
-    has_db = any(_is_data_binding_class(m) for m in unwrapped_members)
-    has_fc = any(_is_function_call_class(m) for m in unwrapped_members)
+    has_db = any(_is_model_named(m, "DataBinding") for m in unwrapped_members)
+    has_fc = any(_is_model_named(m, "FunctionCall") for m in unwrapped_members)
     if has_db and has_fc:
         literal_branches = [
             raw
             for raw, unwrapped in zip(non_none, unwrapped_members)
-            if not _is_data_binding_class(unwrapped)
-            and not _is_function_call_class(unwrapped)
+            if not _is_model_named(unwrapped, ("DataBinding", "FunctionCall"))
         ]
         if _is_dynamic_value_branches(literal_branches):
             return AnyType(dynamic=True, nullable=False)
-        # StrictFloat | StrictInt | DataBinding | FunctionCall -> NumberType(dynamic=True)
-        lit_unwrapped = [_unwrap_annotated_and_aliases(b)[0] for b in literal_branches]
-        if set(lit_unwrapped) == {int, float}:
+        if {_unwrap_annotated_and_aliases(b)[0] for b in literal_branches} == {
+            int,
+            float,
+        }:
             return NumberType(dynamic=True)
         if len(literal_branches) == 1:
-            lit_t = type_definition_from_annotation(
-                literal_branches[0],
+            dyn_t = _make_dynamic(
+                type_definition_from_annotation(
+                    literal_branches[0],
+                    allow_ui_types=allow_ui_types,
+                    extracted_types=extracted_types,
+                    visited_models=visited_models,
+                )
+            )
+            if dyn_t is not None:
+                return dyn_t
+
+    if set(unwrapped_members) == {int, float}:
+        return NumberType()
+
+    return UnionType(
+        variants=tuple(
+            type_definition_from_annotation(
+                a,
                 allow_ui_types=allow_ui_types,
                 extracted_types=extracted_types,
                 visited_models=visited_models,
             )
-            dyn_t = _make_dynamic(lit_t)
-            if dyn_t is not None:
-                return dyn_t
-
-    # Collapse `int | float` -> `NumberType`.
-    if set(unwrapped_members) == {int, float}:
-        return NumberType()
-
-    variants = tuple(
-        type_definition_from_annotation(
-            a,
-            allow_ui_types=allow_ui_types,
-            extracted_types=extracted_types,
-            visited_models=visited_models,
-        )
-        for a in non_none
+            for a in non_none
+        ),
+        exclusive=True,
     )
-    return UnionType(variants=variants, exclusive=True)
 
 
 def _extract_model_at_least_one_of(
     model_cls: type[BaseModel],
 ) -> tuple[tuple[str, ...], ...]:
     extra = model_cls.model_config.get("json_schema_extra")
-    if isinstance(extra, SchemaKeywords):
-        kw = extra.keywords
-        if "anyOf" in kw:
-            grp = _extract_at_least_one_of_branch(kw["anyOf"])
-            if grp is not None:
-                return (grp,)
-    elif isinstance(extra, Mapping) and "anyOf" in extra:
-        grp = _extract_at_least_one_of_branch(extra["anyOf"])
+    kw = (
+        extra.keywords
+        if isinstance(extra, SchemaKeywords)
+        else (extra if isinstance(extra, Mapping) else None)
+    )
+    if kw is not None and "anyOf" in kw:
+        grp = _extract_at_least_one_of_branch(kw["anyOf"])
         if grp is not None:
             return (grp,)
     return ()
@@ -616,11 +610,12 @@ def _model_additional_properties(model_cls: type[BaseModel]) -> bool:
         return False
     schema_extra = model_cls.model_config.get("json_schema_extra")
     if isinstance(schema_extra, SchemaKeywords):
-        if schema_extra.keywords.get("unevaluatedProperties") is False:
+        if (
+            schema_extra.keywords.get("unevaluatedProperties") is False
+            or schema_extra.keywords.get("additionalProperties") is False
+        ):
             return False
-        if schema_extra.keywords.get("additionalProperties") is False:
-            return False
-    return False
+    return True
 
 
 def _object_type_from_model(
@@ -633,34 +628,25 @@ def _object_type_from_model(
     if model_cls in visited_models:
         return ObjectType(additional_properties=True)
     next_visited = visited_models | {model_cls}
-    params: list[ParameterDefinition] = []
-    for field_name, field_info in model_cls.model_fields.items():
-        wire_name = field_info.alias or field_name
-        p_type = type_definition_from_annotation(
-            field_info.annotation,
-            field_info=field_info,
-            allow_ui_types=allow_ui_types,
-            extracted_types=extracted_types,
-            visited_models=next_visited,
+    params = tuple(
+        ParameterDefinition(
+            name=field_info.alias or field_name,
+            type=type_definition_from_annotation(
+                field_info.annotation,
+                field_info=field_info,
+                allow_ui_types=allow_ui_types,
+                extracted_types=extracted_types,
+                visited_models=next_visited,
+            ),
+            required=field_info.is_required(),
         )
-        params.append(
-            ParameterDefinition(
-                name=wire_name,
-                type=p_type,
-                required=field_info.is_required(),
-            )
-        )
-    raw_doc = model_cls.__dict__.get("__doc__")
-    doc = (
-        inspect.cleandoc(raw_doc)
-        if isinstance(raw_doc, str) and raw_doc.strip()
-        else None
+        for field_name, field_info in model_cls.model_fields.items()
     )
     return ObjectType(
-        properties=tuple(params),
+        properties=params,
         additional_properties=_model_additional_properties(model_cls),
         at_least_one_of=_extract_model_at_least_one_of(model_cls),
-        description=doc,
+        description=_own_docstring(model_cls),
     )
 
 
@@ -691,10 +677,9 @@ def _ordered_component_fields(
     for field_name, field_info in model_cls.model_fields.items():
         if _is_inherited_envelope_field(model_cls, field_name, field_info):
             continue
-        if field_name in own_annotations:
-            own.append((field_name, field_info))
-        else:
-            inherited.append((field_name, field_info))
+        (own if field_name in own_annotations else inherited).append(
+            (field_name, field_info)
+        )
     return [*own, *inherited]
 
 
@@ -718,36 +703,28 @@ def component_definition_from_model(
             raw_name = model_cls.__name__
             comp_name = raw_name[:-9] if raw_name.endswith("Component") else raw_name
 
-    is_checkable = any(base.__name__ == "Checkable" for base in model_cls.__mro__)
-    params: list[ParameterDefinition] = []
-    for field_name, field_info in _ordered_component_fields(model_cls):
-        wire_name = field_info.alias or field_name
-        p_type = type_definition_from_annotation(
-            field_info.annotation,
-            field_info=field_info,
-            allow_ui_types=True,
-            extracted_types=extracted_types,
-            visited_models=frozenset({model_cls}),
+    is_checkable = any(
+        base.__name__ == "Checkable" for base in model_cls.__mro__
+    ) or any((fi.alias or fn) == "@checks" for fn, fi in model_cls.model_fields.items())
+    params = tuple(
+        ParameterDefinition(
+            name=field_info.alias or field_name,
+            type=type_definition_from_annotation(
+                field_info.annotation,
+                field_info=field_info,
+                allow_ui_types=True,
+                extracted_types=extracted_types,
+                visited_models=frozenset({model_cls}),
+            ),
+            required=field_info.is_required(),
         )
-        params.append(
-            ParameterDefinition(
-                name=wire_name,
-                type=p_type,
-                required=field_info.is_required(),
-            )
-        )
-
-    raw_doc = model_cls.__dict__.get("__doc__")
-    description = (
-        inspect.cleandoc(raw_doc)
-        if isinstance(raw_doc, str) and raw_doc.strip()
-        else None
+        for field_name, field_info in _ordered_component_fields(model_cls)
     )
     return ComponentDefinition(
         name=comp_name,
-        description=description,
+        description=_own_docstring(model_cls),
         checkable=is_checkable,
-        parameters=tuple(params),
+        parameters=params,
         at_least_one_of=_extract_model_at_least_one_of(model_cls),
         allowed_parents=(
             tuple(allowed_parents) if allowed_parents is not None else None

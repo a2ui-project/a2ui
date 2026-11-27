@@ -46,7 +46,7 @@ import json
 import re
 from typing import Any, Literal
 
-from a2ui.core import ArrayType, CatalogApi, ObjectType
+from a2ui.core import CatalogApi
 from a2ui.core.common import is_at_least_version
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import (
@@ -64,7 +64,7 @@ from a2ui.utils.component_envelope import (
     is_envelope_key,
 )
 
-from .compiler import child_props, positional_child_target, ref_kind
+from .compiler import child_props, positional_child_target
 
 _SIMPLE_KEY = re.compile(r"[A-Za-z_][\w-]*")
 _SIMPLE_ABS_PATH = re.compile(r"(/[\w-]+)+")
@@ -389,30 +389,10 @@ class AtomDecompiler:
         comp_type = comp.get("component", "")
         if helper is None or comp_type not in helper.components:
             return set()
-        p_type = helper.get_parameter_type(comp_type, key)
-        if p_type is not None:
-            resolved = helper.resolve_type(p_type)
-            if (
-                not isinstance(resolved, ArrayType)
-                or resolved.dynamic
-                or resolved.items is None
-            ):
-                return set()
-            items = helper.resolve_type(resolved.items)
-            if not isinstance(items, ObjectType) or not items.properties:
-                return set()
-            return {
-                p.name
-                for p in items.properties
-                if helper.type_semantic_kind(p.type) == "Child"
-            }
-        schema = helper.get_property_schema(comp_type, key) or {}
-        raw_items = schema.get("items") if schema.get("type") == "array" else None
-        if not isinstance(raw_items, Mapping) or not isinstance(
-            raw_items.get("properties"), Mapping
-        ):
-            return set()
-        return {k for k, s in raw_items["properties"].items() if ref_kind(s) == "Child"}
+        item_keys = helper.type_object_list_keys(
+            helper.get_parameter_type(comp_type, key)
+        )
+        return set(item_keys[0]) if item_keys is not None else set()
 
     def _decompile_components(
         self,

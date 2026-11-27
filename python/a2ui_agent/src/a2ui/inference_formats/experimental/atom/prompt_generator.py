@@ -99,22 +99,6 @@ You MUST surround the entire A2UI Atom block with sentinel tags `<a2ui>` and `</
 """
 
 
-def _get_schema_enum(prop_schema: Any) -> list[Any] | None:
-    """Helper to recursively find enum definitions inside a JSON schema."""
-    if not isinstance(prop_schema, dict):
-        return None
-    enum_val = prop_schema.get("enum")
-    if isinstance(enum_val, list):
-        return list(enum_val)
-    if "oneOf" in prop_schema or "anyOf" in prop_schema:
-        subs = prop_schema.get("oneOf", []) + prop_schema.get("anyOf", [])
-        for sub in subs:
-            enum_val = _get_schema_enum(sub)
-            if enum_val:
-                return enum_val
-    return None
-
-
 class AtomPromptGenerator(PromptGenerator):
     """Generates system prompts, grammar instructions, and component catalog signatures for Atom format.
 
@@ -326,18 +310,8 @@ class AtomPromptGenerator(PromptGenerator):
                 arg_label = f":{p}{opt_suffix}"
                 ordered_args.append(arg_label)
 
-                p_type = h.get_parameter_type(name, p)
-                if p_type is not None:
-                    p_desc = h.get_property_description(name, p)
-                    enum_vals = h.type_enum_values(p_type)
-                else:
-                    p_schema = h.get_property_schema(name, p)
-                    p_desc = (
-                        p_schema.get("description")
-                        if isinstance(p_schema, dict)
-                        else None
-                    )
-                    enum_vals = _get_schema_enum(p_schema)
+                p_desc = h.get_property_description(name, p)
+                enum_vals = h.type_enum_values(h.get_parameter_type(name, p))
 
                 if p_desc or enum_vals:
                     p_line_parts = []
@@ -378,18 +352,8 @@ class AtomPromptGenerator(PromptGenerator):
                 arg_label = f":{p}{opt_suffix}"
                 ordered_args.append(arg_label)
 
-                fn_p_type = h.get_function_parameter_type(name, p)
-                if fn_p_type is not None:
-                    p_desc = h.get_function_property_description(name, p)
-                    enum_vals = h.type_enum_values(fn_p_type)
-                else:
-                    p_schema = h.get_function_property_schema(name, p)
-                    p_desc = (
-                        p_schema.get("description")
-                        if isinstance(p_schema, dict)
-                        else None
-                    )
-                    enum_vals = _get_schema_enum(p_schema)
+                p_desc = h.get_function_property_description(name, p)
+                enum_vals = h.type_enum_values(h.get_function_parameter_type(name, p))
 
                 if p_desc or enum_vals:
                     p_line_parts = []

@@ -31,9 +31,8 @@ from a2ui.core import (
     Catalog,
     CatalogApi,
 )
-from a2ui.core.catalog import ComponentApi
 from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
-from a2ui.inference_formats._shared.schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats._shared import CatalogSchemaHelper
 from a2ui.transformers.macros.macro import (
     MacroVersionFamily,
     _MacroMetadata,
@@ -394,28 +393,6 @@ class MacroExpander:
         if is_v1_0:
             for m in self.macros:
                 _validate_v1_0_macro_name(m.name)
-
-        if isinstance(base_catalog, Catalog) and getattr(
-            base_catalog, "_from_catalog_document", False
-        ):
-            kept_components: dict[str, ComponentApi] = dict(base_catalog.components)
-            if self.passthrough_components is not None:
-                kept_components = {
-                    k: v
-                    for k, v in kept_components.items()
-                    if k in self.passthrough_components
-                }
-            for m in self.macros:
-                if m.name in kept_components:
-                    raise A2uiCatalogError(
-                        f"Macro component '{m.name}' collides with an existing"
-                        " component in the base catalog."
-                    )
-                kept_components[m.name] = ComponentApi.from_definition(
-                    m.to_component_definition(use_v1_0=is_v1_0)
-                )
-            self._register_base_components(base_catalog)
-            return base_catalog.copy_with(components=list(kept_components.values()))
 
         schema_copy: dict[str, Any] = base_catalog.to_json()
         comps_map: dict[str, Any] = dict(schema_copy.get(CATALOG_COMPONENTS_KEY, {}))
