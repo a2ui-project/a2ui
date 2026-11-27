@@ -18,7 +18,7 @@
 
 ## Unreleased
 
-- Add `ComponentImplementation.define` and `ComponentImplementation.fromDefinition` so Flutter widget components can be authored with `a2ui_core`'s `ParameterDefinition` and `ComponentDefinition` APIs without importing `json_schema_builder`.
+- Add `ComponentImplementation.define` and `ComponentImplementation.fromDefinition` so Flutter widget components can be authored with `a2ui_core`'s `ParameterDefinition` and `ComponentDefinition` APIs without importing `json_schema_builder` ([#4430](https://github.com/a2ui-project/a2ui/pull/4430)).
 
 ## 0.5.0
 

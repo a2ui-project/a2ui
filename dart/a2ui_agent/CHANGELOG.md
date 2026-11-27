@@ -12,7 +12,7 @@
   ([#3400](https://github.com/a2ui-project/a2ui/issues/3400),
   [#4184](https://github.com/a2ui-project/a2ui/pull/4184)).
 - (v0_9_1) `DirectJsonPromptGenerator` gives the v0.9.1 agent-to-renderer schema the `$id` `https://a2ui.org/specification/v0_9_1/server_to_client.json`, which `specification/v0_9_1/json/server_to_client.json` declares. It gave it v0.9's `$id` ([#3974](https://github.com/a2ui-project/a2ui/issues/3974), [#3975](https://github.com/a2ui-project/a2ui/pull/3975)).
-- Support Catalog Documents (`formatVersion: "1.0"`) and canonical `CatalogModel` definitions across `FileSystemCatalogProvider`, Express prompt generation, and `AgentFunction` default application, while retaining compatibility with legacy JSON Schema catalogs.
+- Support Catalog Documents (`formatVersion: "1.0"`) and canonical `CatalogModel` definitions across `FileSystemCatalogProvider`, Express prompt generation, and `AgentFunction` default application, while retaining compatibility with legacy JSON Schema catalogs ([#4430](https://github.com/a2ui-project/a2ui/pull/4430)).
 
 ## 0.5.0
 
