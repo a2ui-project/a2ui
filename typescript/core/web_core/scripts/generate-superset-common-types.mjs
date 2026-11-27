@@ -115,6 +115,34 @@ export function findRequiredInAllProperties(schemas, propNames) {
   return required;
 }
 
+/**
+ * Whether a JSON Schema object definition accepts only the properties it
+ * declares under `properties`.
+ *
+ * `patternProperties`, and an `additionalProperties` schema beside
+ * `unevaluatedProperties: false`, admit keys that `properties` does not list,
+ * so a definition using either is not closed in this sense.
+ *
+ * @param {object} schema The object definition to inspect.
+ * @returns {boolean} True when the definition is closed.
+ */
+export function isClosedObjectSchema(schema) {
+  if (schema.patternProperties !== undefined) return false;
+  if (schema.additionalProperties === false) return true;
+  return schema.unevaluatedProperties === false && schema.additionalProperties === undefined;
+}
+
+/**
+ * Merges the definitions of one object type across versions into a superset.
+ *
+ * The superset declares every property any version declares, and requires a
+ * property only when every version does. It stays closed to undeclared
+ * properties only when every version is closed: a version that accepts extra
+ * properties keeps the superset open, so payloads of that version still parse.
+ *
+ * @param {Array<object>} schemas Object definitions in chronological order.
+ * @returns {object} The merged superset object definition.
+ */
 export function mergeObjectSchemas(schemas) {
   const merged = {type: 'object', properties: {}};
   const propNames = collectAllPropertyNames(schemas);
@@ -127,6 +155,9 @@ export function mergeObjectSchemas(schemas) {
   const required = findRequiredInAllProperties(schemas, propNames);
   if (required.length > 0) {
     merged.required = required;
+  }
+  if (schemas.every(isClosedObjectSchema)) {
+    merged.additionalProperties = false;
   }
   return merged;
 }

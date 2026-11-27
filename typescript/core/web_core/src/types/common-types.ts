@@ -228,6 +228,7 @@ export const CheckRuleSchema = z
       ),
     'message': z.string().describe('Optional fallback error message.').optional(),
   })
+  .strict()
   .describe(
     'REF:common_types.json#/$defs/CheckRule|A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object or a boolean (which is coerced to a validation result object).',
   );
