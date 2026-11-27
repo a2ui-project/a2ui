@@ -22,7 +22,8 @@
   `A2UICore`, with `Catalog.fromDocument(_:functions:)`, `Catalog.fromJSON(_:)`,
   `Catalog.toDocument()`, `Catalog.toJSON(protocolVersion:componentEnvelopeRef:)`,
   `AnyComponentAPI(definition:)`, `FunctionAPI(definition:)`, and
-  `ComponentImplementation(definition:builder:)` in `A2UISwiftUI`.
+  `ComponentImplementation(definition:builder:)` in `A2UISwiftUI`
+  ([#4429](https://github.com/a2ui-project/a2ui/pull/4429)).
 
 ## 0.12.0
 
