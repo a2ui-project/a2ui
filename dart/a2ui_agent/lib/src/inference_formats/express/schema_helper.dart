@@ -24,6 +24,9 @@ class CatalogSchemaHelper {
 
   final CatalogApi catalog;
 
+  /// Canonical JSON-Schema-free catalog model backing Express queries.
+  CatalogModel get model => catalog.model;
+
   /// Checks a compiled component against its schema in [catalog].
   late final PayloadValidator<ComponentApi, FunctionApi> validator =
       PayloadValidator(catalog: catalog);
@@ -33,6 +36,187 @@ class CatalogSchemaHelper {
   bool isComponent(String name) => catalog.components.containsKey(name);
 
   bool isFunction(String name) => catalog.functions.containsKey(name);
+
+  /// Whether [component] was defined directly via a canonical
+  /// [ComponentDefinition] without any raw JSON Schema fallback.
+  bool isCanonicalComponent(String component) {
+    final ComponentApi? api = catalog.components[component];
+    return api != null &&
+        api.hasCanonicalDefinition &&
+        !api.definition.containsRawJsonSchema;
+  }
+
+  /// The canonical [ComponentDefinition] for [name], or `null`.
+  ComponentDefinition? componentDefinition(String name) {
+    final ComponentApi? api = catalog.components[name];
+    if (api != null && api.hasCanonicalDefinition) return api.definition;
+    return model.component(name);
+  }
+
+  /// The canonical [FunctionDefinition] for [name], or `null`.
+  FunctionDefinition? functionDefinition(String name) {
+    final FunctionApi? api = catalog.functions[name];
+    if (api != null && api.hasCanonicalDefinition) {
+      return api.functionDefinition;
+    }
+    return model.function(name);
+  }
+
+  /// The canonical [ParameterDefinition] for [property] of [component], or
+  /// `null`.
+  ParameterDefinition? parameterDefinition(String component, String property) =>
+      componentDefinition(component)?.parameter(property);
+
+  /// Resolves a [RefType] chain against [catalog]'s local `types`.
+  TypeDefinition resolveType(TypeDefinition type) {
+    final Map<String, TypeDefinition> types = catalog.types;
+    var current = type;
+    final visited = <String>{};
+    while (current is RefType &&
+        visited.add(current.ref) &&
+        types.containsKey(current.ref)) {
+      current = types[current.ref]!;
+    }
+    return current;
+  }
+
+  /// Whether [type] represents a child component ID reference.
+  bool isTypeComponentId(TypeDefinition type) =>
+      _isTypeComponentId(type, Set<Object>.identity());
+
+  bool _isTypeComponentId(TypeDefinition type, Set<Object> visited) {
+    final TypeDefinition resolved = resolveType(type);
+    if (!visited.add(resolved)) return false;
+    try {
+      return switch (resolved) {
+        ChildType() => true,
+        UnionType(:final variants) => variants.any(
+          (v) => _isTypeComponentId(v, visited),
+        ),
+        _ => false,
+      };
+    } finally {
+      visited.remove(resolved);
+    }
+  }
+
+  /// Whether [type] represents a child list.
+  bool isTypeChildList(TypeDefinition type) =>
+      _isTypeChildList(type, Set<Object>.identity());
+
+  bool _isTypeChildList(TypeDefinition type, Set<Object> visited) {
+    final TypeDefinition resolved = resolveType(type);
+    if (!visited.add(resolved)) return false;
+    try {
+      return switch (resolved) {
+        ChildListType() => true,
+        UnionType(:final variants) => variants.any(
+          (v) => _isTypeChildList(v, visited),
+        ),
+        _ => false,
+      };
+    } finally {
+      visited.remove(resolved);
+    }
+  }
+
+  /// Whether [type] represents an interaction action.
+  bool isTypeAction(TypeDefinition type) =>
+      _isTypeAction(type, Set<Object>.identity());
+
+  bool _isTypeAction(TypeDefinition type, Set<Object> visited) {
+    final TypeDefinition resolved = resolveType(type);
+    if (!visited.add(resolved)) return false;
+    try {
+      return switch (resolved) {
+        ActionType() => true,
+        UnionType(:final variants) => variants.any(
+          (v) => _isTypeAction(v, visited),
+        ),
+        _ => false,
+      };
+    } finally {
+      visited.remove(resolved);
+    }
+  }
+
+  /// Whether [type] accepts a data binding (dynamic value, binding, or
+  /// `ChildList` template).
+  bool typeAllowsBinding(TypeDefinition type) =>
+      _typeAllowsBinding(type, Set<Object>.identity());
+
+  bool _typeAllowsBinding(TypeDefinition type, Set<Object> visited) {
+    final TypeDefinition resolved = resolveType(type);
+    if (!visited.add(resolved)) return false;
+    try {
+      return switch (resolved) {
+        DataBindingType() || ChildListType() => true,
+        UnionType(:final dynamic, :final variants) =>
+          dynamic || variants.any((v) => _typeAllowsBinding(v, visited)),
+        _ => resolved.isDynamic,
+      };
+    } finally {
+      visited.remove(resolved);
+    }
+  }
+
+  /// Allowed enum values of [type], or `null` if [type] is not an enum.
+  List<Object>? typeEnumValues(TypeDefinition type) =>
+      _typeEnumValues(type, Set<Object>.identity());
+
+  List<Object>? _typeEnumValues(TypeDefinition type, Set<Object> visited) {
+    final TypeDefinition resolved = resolveType(type);
+    if (!visited.add(resolved)) return null;
+    try {
+      if (resolved is EnumType) return resolved.values;
+      if (resolved is UnionType) {
+        for (final TypeDefinition v in resolved.variants) {
+          if (_typeEnumValues(v, visited) case final List<Object> values) {
+            return values;
+          }
+        }
+      }
+      return null;
+    } finally {
+      visited.remove(resolved);
+    }
+  }
+
+  /// Extracts user-defined nested object or array-of-objects properties from a
+  /// canonical [TypeDefinition], ignoring protocol wire types (`DataBinding`,
+  /// `FunctionCall`, `Action`, `ChildList`) by construction.
+  ({bool isArray, List<ParameterDefinition> properties})?
+  structuredTypeProperties(TypeDefinition type) =>
+      _structuredTypeProperties(type, Set<Object>.identity());
+
+  ({bool isArray, List<ParameterDefinition> properties})?
+  _structuredTypeProperties(TypeDefinition type, Set<Object> visited) {
+    final TypeDefinition resolved = resolveType(type);
+    if (!visited.add(resolved)) return null;
+    try {
+      switch (resolved) {
+        case ObjectType(:final properties) when properties.isNotEmpty:
+          return (isArray: false, properties: properties);
+        case ArrayType(:final items) when items != null:
+          final TypeDefinition elem = resolveType(items);
+          if (elem is ObjectType && elem.properties.isNotEmpty) {
+            return (isArray: true, properties: elem.properties);
+          }
+          return null;
+        case UnionType(:final variants):
+          for (final v in variants) {
+            if (_structuredTypeProperties(v, visited) case final found?) {
+              return found;
+            }
+          }
+          return null;
+        default:
+          return null;
+      }
+    } finally {
+      visited.remove(resolved);
+    }
+  }
 
   /// The system functions the catalog's protocol version defines, such as
   /// `@index` from v1.0, keyed by name. See [systemFunctionSchemas].
@@ -61,8 +245,20 @@ class CatalogSchemaHelper {
   bool isCheckable(String component) => _signature(component).isCheckable;
 
   /// The schema of one of [properties].
-  Map<String, Object?>? propertySchema(String component, String property) =>
-      _signature(component).schemas[property];
+  Map<String, Object?>? propertySchema(String component, String property) {
+    final _ComponentSignature sig = _signature(component);
+    if (sig.schemas.containsKey(property)) return sig.schemas[property];
+    // For canonical components, materialize a single property's JSON Schema
+    // lazily only if a legacy schema consumer asks for it.
+    final ParameterDefinition? param = parameterDefinition(component, property);
+    if (param == null) return null;
+    final bool v1 =
+        catalog.protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
+    return sig.schemas[property] = JsonSchemaCodec.typeDefinitionToJsonSchema(
+      param.type,
+      atLeastV1: v1,
+    );
+  }
 
   /// Whether common types were loaded into the catalog validation schema.
   bool get commonTypesLoaded =>
@@ -190,8 +386,11 @@ class CatalogSchemaHelper {
     return resolve(schema);
   }
 
-  /// The component's own description, if its schema has one.
+  /// The component's own description, if its definition or schema has one.
   String? componentDescription(String component) {
+    if (model.component(component)?.description case final String description) {
+      return description;
+    }
     final Map<String, Object?> schema = catalog
         .resolvedComponentSchema(component)!
         .value;
@@ -224,16 +423,27 @@ class CatalogSchemaHelper {
   }
 
   /// The function's parameters, in schema order.
-  List<String> parameters(String function) => [
-    ..._parameterSchemas(function).keys,
-  ];
+  List<String> parameters(String function) {
+    if (model.function(function) case final FunctionDefinition def
+        when def.parameters.isNotEmpty) {
+      return [for (final ParameterDefinition p in def.parameters) p.name];
+    }
+    return [..._parameterSchemas(function).keys];
+  }
 
   /// The parameters the function requires.
-  List<String> requiredParameters(String function) => [
-    for (final Object? name
-        in _argumentSchema(function)['required'] as List<Object?>? ?? const [])
-      name! as String,
-  ];
+  List<String> requiredParameters(String function) {
+    if (model.function(function) case final FunctionDefinition def
+        when def.parameters.isNotEmpty) {
+      return def.requiredParameters;
+    }
+    return [
+      for (final Object? name
+          in _argumentSchema(function)['required'] as List<Object?>? ??
+              const [])
+        name! as String,
+    ];
+  }
 
   /// The schema of one of [parameters].
   Map<String, Object?>? parameterSchema(String function, String parameter) =>
@@ -249,69 +459,93 @@ class CatalogSchemaHelper {
     };
   }
 
-  _ComponentSignature _signature(String component) => _components.putIfAbsent(
-    component,
-    () {
-      final Map<String, Object?> schema = catalog
-          .resolvedComponentSchema(component)!
-          .value;
-      final List<Map<String, Object?>> subschemas = _subschemas(schema);
-      final schemas = <String, Map<String, Object?>>{};
-      final required = <String>[];
-      var isCheckable = false;
-      for (final sub in subschemas) {
-        _properties(sub).forEach((name, value) {
-          if (value is Map) schemas[name] = value.cast<String, Object?>();
-        });
-        for (final Object? name in sub['required'] as List<Object?>? ?? []) {
-          required.add(name! as String);
-        }
-        if (_refName(sub)?.endsWith('Checkable') ?? false) isCheckable = true;
-        if (_properties(sub).containsKey('@checks') ||
-            _isStandardChecksSchema(_properties(sub)['checks'])) {
-          isCheckable = true;
-        }
-      }
-      final bool v1 =
-          catalog.protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
-      const structural = {
-        'component',
-        'id',
-        '@catalogId',
-        '@metadata',
-        '@accessibility',
-        '@checks',
-      };
-      schemas.removeWhere(
-        (name, propSchema) =>
-            structural.contains(name) ||
-            (name == 'checks' &&
-                (isCheckable || !v1) &&
-                _isStandardChecksSchema(propSchema)) ||
-            (name == 'accessibility' &&
-                (!v1 || _isStandardAccessibilitySchema(propSchema))) ||
-            (name == 'metadata' && v1 && _isStandardMetadataSchema(propSchema)),
-      );
-      final List<String> specificProperties = [
-        for (final key in schemas.keys)
-          if (key != 'weight') key,
+  _ComponentSignature _signature(
+    String component,
+  ) => _components.putIfAbsent(component, () {
+    // Canonical components build their signature directly from
+    // ComponentDefinition without materializing or flattening JSON Schema.
+    if (isCanonicalComponent(component)) {
+      final ComponentDefinition def = catalog.components[component]!.definition;
+      final List<String> specific = [
+        for (final ParameterDefinition p in def.parameters)
+          if (p.name != 'weight' && p.type is! AccessibilityType) p.name,
       ];
-      final List<String> commonProperties = [
-        for (final key in const ['weight'])
-          if (schemas.containsKey(key)) key,
+      final List<String> common = [
+        for (final ParameterDefinition p in def.parameters)
+          if (p.name == 'weight') p.name,
       ];
-      final orderedProperties = [...specificProperties, ...commonProperties];
+      final ordered = [...specific, ...common];
+      final Set<String> reqSet = def.requiredParameters.toSet();
       return _ComponentSignature(
-        properties: orderedProperties,
+        properties: ordered,
         required: [
-          for (final String name in orderedProperties)
-            if (required.contains(name)) name,
+          for (final String name in ordered)
+            if (reqSet.contains(name)) name,
         ],
-        schemas: schemas,
-        isCheckable: isCheckable,
+        schemas: <String, Map<String, Object?>>{},
+        isCheckable: def.checkable,
       );
-    },
-  );
+    }
+
+    final Map<String, Object?> schema = catalog
+        .resolvedComponentSchema(component)!
+        .value;
+    final List<Map<String, Object?>> subschemas = _subschemas(schema);
+    final schemas = <String, Map<String, Object?>>{};
+    final required = <String>[];
+    var isCheckable = false;
+    for (final sub in subschemas) {
+      _properties(sub).forEach((name, value) {
+        if (value is Map) schemas[name] = value.cast<String, Object?>();
+      });
+      for (final Object? name in sub['required'] as List<Object?>? ?? []) {
+        required.add(name! as String);
+      }
+      if (_refName(sub)?.endsWith('Checkable') ?? false) isCheckable = true;
+      if (_properties(sub).containsKey('@checks') ||
+          _isStandardChecksSchema(_properties(sub)['checks'])) {
+        isCheckable = true;
+      }
+    }
+    final bool v1 =
+        catalog.protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
+    const structural = {
+      'component',
+      'id',
+      '@catalogId',
+      '@metadata',
+      '@accessibility',
+      '@checks',
+    };
+    schemas.removeWhere(
+      (name, propSchema) =>
+          structural.contains(name) ||
+          (name == 'checks' &&
+              (isCheckable || !v1) &&
+              _isStandardChecksSchema(propSchema)) ||
+          (name == 'accessibility' &&
+              (!v1 || _isStandardAccessibilitySchema(propSchema))) ||
+          (name == 'metadata' && v1 && _isStandardMetadataSchema(propSchema)),
+    );
+    final List<String> specificProperties = [
+      for (final key in schemas.keys)
+        if (key != 'weight') key,
+    ];
+    final List<String> commonProperties = [
+      for (final key in const ['weight'])
+        if (schemas.containsKey(key)) key,
+    ];
+    final orderedProperties = [...specificProperties, ...commonProperties];
+    return _ComponentSignature(
+      properties: orderedProperties,
+      required: [
+        for (final String name in orderedProperties)
+          if (required.contains(name)) name,
+      ],
+      schemas: schemas,
+      isCheckable: isCheckable,
+    );
+  });
 }
 
 bool _isStandardChecksSchema(Object? propSchema) {

@@ -15,6 +15,9 @@
 import 'dart:collection';
 import 'dart:convert';
 
+import '../core/catalog.dart';
+import '../model/catalog_model.dart';
+import '../model/type_definition.dart';
 import '../validation/common_types.g.dart';
 
 /// How a component property names its child components.
@@ -90,6 +93,157 @@ final class ComponentRefMap {
              commonTypes: commonTypes,
            ).fields(),
        });
+
+  ComponentRefMap._(this._byType);
+
+  /// Classifies child-reference properties directly from a canonical
+  /// [CatalogModel] without inspecting JSON Schema.
+  factory ComponentRefMap.fromModel(CatalogModel model) => ComponentRefMap._(
+    Map.unmodifiable({
+      for (final ComponentDefinition component in model.components)
+        component.name: _fieldsFromComponentDefinition(component, model.types),
+    }),
+  );
+
+  /// Classifies child-reference properties for every component in [catalog].
+  ///
+  /// Canonical components walk [ComponentDefinition.parameters] directly;
+  /// legacy raw-schema components fall back to [ReferenceSchemaReader].
+  factory ComponentRefMap.fromCatalog(
+    Catalog<ComponentApi, FunctionApi> catalog,
+  ) {
+    final Map<String, TypeDefinition> types = catalog.canonicalTypes;
+    Map<String, Object?>? validationDoc;
+    final byType = <String, RefFields>{};
+    for (final MapEntry<String, ComponentApi> entry
+        in catalog.components.entries) {
+      final ComponentApi api = entry.value;
+      if (api.hasCanonicalDefinition && !api.definition.containsRawJsonSchema) {
+        byType[entry.key] = _fieldsFromComponentDefinition(
+          api.definition,
+          types,
+        );
+      } else {
+        validationDoc ??= catalog.validationSchema;
+        byType[entry.key] = ReferenceSchemaReader(
+          catalog.resolvedComponentSchema(entry.key)!.value,
+          document: validationDoc,
+          commonTypes: catalog.commonTypesSchema,
+        ).fields();
+      }
+    }
+    return ComponentRefMap._(Map.unmodifiable(byType));
+  }
+
+  static RefFields _fieldsFromComponentDefinition(
+    ComponentDefinition component,
+    Map<String, TypeDefinition> types,
+  ) {
+    final result = <String, RefKind>{};
+    for (final ParameterDefinition param in component.parameters) {
+      final RefKind? kind = _refKindForType(param.type, types, <String>{});
+      if (kind != null) result[param.name] = kind;
+    }
+    return Map.unmodifiable(result);
+  }
+
+  static RefKind? _refKindForType(
+    TypeDefinition type,
+    Map<String, TypeDefinition> types,
+    Set<String> visitedRefs,
+  ) => switch (type) {
+    ChildType() => const SingleRef(),
+    ChildListType() => const ListRef(),
+    RefType(:final ref) when visitedRefs.add(ref) && types.containsKey(ref) =>
+      _refKindForType(types[ref]!, types, visitedRefs),
+    ArrayType(:final items) when items != null => _arrayItemRefKind(
+      items,
+      types,
+      visitedRefs,
+    ),
+    UnionType(:final variants) => _unionRefKind(variants, types, visitedRefs),
+    _ => null,
+  };
+
+  static RefKind? _arrayItemRefKind(
+    TypeDefinition items,
+    Map<String, TypeDefinition> types,
+    Set<String> visitedRefs,
+  ) {
+    final TypeDefinition resolved = _deref(items, types, visitedRefs);
+    if (resolved is ChildType || resolved is ChildListType) {
+      return const ListRef();
+    }
+    if (resolved is ObjectType) {
+      final Map<String, RefKind> nested = _nestedObjectRefs(
+        resolved,
+        types,
+        visitedRefs,
+      );
+      return nested.isEmpty ? null : NestedRef(Map.unmodifiable(nested));
+    }
+    if (resolved is UnionType) {
+      var includesIds = false;
+      final nested = <String, RefKind>{};
+      for (final TypeDefinition v in resolved.variants) {
+        final TypeDefinition target = _deref(v, types, Set.of(visitedRefs));
+        if (target is ChildType) {
+          includesIds = true;
+        } else if (target is ObjectType) {
+          nested.addAll(_nestedObjectRefs(target, types, Set.of(visitedRefs)));
+        }
+      }
+      if (nested.isNotEmpty) {
+        return NestedRef(Map.unmodifiable(nested), includesIds: includesIds);
+      }
+      if (includesIds) return const ListRef();
+    }
+    return null;
+  }
+
+  static Map<String, RefKind> _nestedObjectRefs(
+    ObjectType obj,
+    Map<String, TypeDefinition> types,
+    Set<String> visitedRefs,
+  ) => <String, RefKind>{
+    for (final ParameterDefinition prop in obj.properties)
+      if (_refKindForType(prop.type, types, Set.of(visitedRefs))
+          case final RefKind kind)
+        prop.name: kind,
+  };
+
+  static RefKind? _unionRefKind(
+    List<TypeDefinition> variants,
+    Map<String, TypeDefinition> types,
+    Set<String> visitedRefs,
+  ) {
+    for (final v in variants) {
+      if (_refKindForType(v, types, Set.of(visitedRefs)) case final ListRef r) {
+        return r;
+      }
+    }
+    for (final v in variants) {
+      if (_refKindForType(v, types, Set.of(visitedRefs))
+          case final RefKind kind) {
+        return kind;
+      }
+    }
+    return null;
+  }
+
+  static TypeDefinition _deref(
+    TypeDefinition type,
+    Map<String, TypeDefinition> types,
+    Set<String> visitedRefs,
+  ) {
+    var current = type;
+    while (current is RefType &&
+        visitedRefs.add(current.ref) &&
+        types.containsKey(current.ref)) {
+      current = types[current.ref]!;
+    }
+    return current;
+  }
 
   /// The reference properties of each component type, by type name.
   Map<String, RefFields> get byType => _byType;

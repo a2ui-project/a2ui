@@ -249,25 +249,49 @@ String _componentSignatures(CatalogSchemaHelper helper) {
   final callKey = isV1 ? '@call' : 'call';
   final signatures = <String>[];
   for (final String name in helper.catalog.components.keys.toList()..sort()) {
+    final bool isCanonical = helper.isCanonicalComponent(name);
     final List<String> required = helper.requiredProperties(name);
     final arguments = <String>[];
     final details = <String>[];
     for (final String property in helper.properties(name)) {
-      final Map<String, Object?>? schema = helper.propertySchema(
+      final ParameterDefinition? paramDef = helper.parameterDefinition(
         name,
         property,
       );
+      final Map<String, Object?>? schema = isCanonical
+          ? null
+          : helper.propertySchema(name, property);
       final optional = required.contains(property) ? '' : '?';
-      final annotation = isComponentId(schema)
-          ? ' (component ID)'
-          : isAction(schema)
-          ? ' (action)'
-          : allowsBinding(schema, pathKey: pathKey)
-          ? ''
-          : ' (static)';
+      final bool useCanonicalParam =
+          paramDef != null &&
+          (isCanonical ||
+              schema == null ||
+              !_isUnstructuredFallback(paramDef.type, schema, helper));
+      final annotation = useCanonicalParam
+          ? (helper.isTypeComponentId(paramDef.type)
+                ? ' (component ID)'
+                : helper.isTypeAction(paramDef.type)
+                ? ' (action)'
+                : helper.typeAllowsBinding(paramDef.type)
+                ? ''
+                : ' (static)')
+          : (isComponentId(schema)
+                ? ' (component ID)'
+                : isAction(schema)
+                ? ' (action)'
+                : allowsBinding(schema, pathKey: pathKey)
+                ? ''
+                : ' (static)');
       arguments.add('$property$optional$annotation');
-      if (_propertyDetail(property, schema, pathKey: pathKey, callKey: callKey)
-          case final String detail) {
+      final String? detail = useCanonicalParam
+          ? _canonicalPropertyDetail(property, paramDef, helper)
+          : _propertyDetail(
+              property,
+              schema,
+              pathKey: pathKey,
+              callKey: callKey,
+            );
+      if (detail != null) {
         details.add(detail);
       }
     }
@@ -287,6 +311,150 @@ String _componentSignatures(CatalogSchemaHelper helper) {
     signatures.add(signature.toString());
   }
   return signatures.join('\n');
+}
+
+/// Returns `true` when [type] is or contains an internal raw-schema fallback or
+/// a legacy inline wire-envelope object (e.g. a locally flattened `DataBinding`
+/// or `Action` object schema without `$ref`).
+bool _isUnstructuredFallback(
+  TypeDefinition type,
+  Map<String, Object?> schema,
+  CatalogSchemaHelper helper,
+) {
+  if (_typeHasFallbackOrFlattenedEnvelope(
+    type,
+    helper,
+    Set<Object>.identity(),
+  )) {
+    return true;
+  }
+  return _containsFlattenedEnvelope(schema, Set<Object>.identity());
+}
+
+bool _typeHasFallbackOrFlattenedEnvelope(
+  TypeDefinition type,
+  CatalogSchemaHelper helper,
+  Set<Object> visited,
+) {
+  final TypeDefinition resolved = helper.resolveType(type);
+  if (!visited.add(resolved)) return false;
+  switch (resolved) {
+    case StringType() ||
+        NumberType() ||
+        IntegerType() ||
+        BooleanType() ||
+        EnumType() ||
+        ConstType() ||
+        AnyType() ||
+        DataBindingType() ||
+        FunctionCallType() ||
+        ChildType() ||
+        ChildListType() ||
+        ActionType() ||
+        CheckRuleType() ||
+        AccessibilityType():
+      return false;
+    case RefType():
+      // Unresolved ref (cycle or missing def).
+      return true;
+    case ObjectType(:final properties):
+      if (properties.length == 1) {
+        final String key = properties.single.name;
+        if (key == '@path' ||
+            key == 'path' ||
+            key == 'event' ||
+            key == 'functionCall') {
+          return true;
+        }
+      }
+      final Set<String> names = {for (final p in properties) p.name};
+      if (names.contains('@call') ||
+          (names.contains('call') && names.contains('args'))) {
+        return true;
+      }
+      return properties.any(
+        (p) => _typeHasFallbackOrFlattenedEnvelope(p.type, helper, visited),
+      );
+    case ArrayType(:final items):
+      return items != null &&
+          _typeHasFallbackOrFlattenedEnvelope(items, helper, visited);
+    case UnionType(:final variants):
+      return variants.any(
+        (v) => _typeHasFallbackOrFlattenedEnvelope(v, helper, visited),
+      );
+    case RawJsonSchemaType():
+      return true;
+  }
+}
+
+bool _containsFlattenedEnvelope(
+  Map<String, Object?> schema,
+  Set<Object> visited,
+) {
+  if (!visited.add(schema)) return false;
+  if (schema['properties'] case final Map<Object?, Object?> props) {
+    if (props.length == 1 &&
+        (props.containsKey('@path') ||
+            props.containsKey('path') ||
+            props.containsKey('event') ||
+            props.containsKey('functionCall'))) {
+      return true;
+    }
+    if (props.containsKey('@call') ||
+        (props.containsKey('call') && props.containsKey('args'))) {
+      return true;
+    }
+  }
+  for (final key in const ['oneOf', 'anyOf', 'allOf']) {
+    if (schema[key] case final List<Object?> branches) {
+      for (final b in branches) {
+        if (b is Map<Object?, Object?> &&
+            _containsFlattenedEnvelope(b.cast<String, Object?>(), visited)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+/// Formats property documentation directly from a canonical
+/// [ParameterDefinition] without scraping JSON Schema wire envelopes.
+String? _canonicalPropertyDetail(
+  String property,
+  ParameterDefinition param,
+  CatalogSchemaHelper helper,
+) {
+  final TypeDefinition resolved = helper.resolveType(param.type);
+  final String? description = param.description ?? resolved.description;
+  final List<Object>? enumValues = helper.typeEnumValues(param.type);
+  final parts = <String>[
+    ?description,
+    if (enumValues != null)
+      "Must be one of: ${enumValues.map((v) => "'$v'").join(', ')}",
+  ];
+  final ({bool isArray, List<ParameterDefinition> properties})? structured =
+      enumValues == null ? helper.structuredTypeProperties(param.type) : null;
+  if (parts.isEmpty && structured == null) return null;
+  final line = StringBuffer('  - $property: ${parts.join(' ')}');
+  if (structured != null) {
+    final String heading = switch ((structured.isArray, parts.isEmpty)) {
+      (false, true) => 'Map with keys:',
+      (false, false) => '\n    Map keys:',
+      (true, true) => 'List of maps with keys:',
+      (true, false) => '\n    List of maps keys:',
+    };
+    final String renderedKeys = [
+      for (final ParameterDefinition child in structured.properties)
+        if (child.description ?? helper.resolveType(child.type).description
+            case final String desc)
+          '    * ${child.name} - $desc'
+        else
+          '    * ${child.name}',
+    ].join('\n');
+    line.write('$heading\n$renderedKeys');
+  }
+  return line.toString();
 }
 
 const Set<String> _commonTypeDefNames = {

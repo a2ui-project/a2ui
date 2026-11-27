@@ -24,6 +24,9 @@ import '../core/component_model.dart';
 import '../core/messages.dart';
 import '../core/metadata.dart';
 import '../core/validation_result.dart';
+import '../model/catalog_model.dart';
+import '../model/json_schema_codec.dart';
+import '../model/type_definition.dart';
 import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
 import '../primitives/reactivity.dart';
@@ -83,7 +86,17 @@ class ChildNode {
 /// resolved output updates automatically when underlying data changes.
 class GenericBinder {
   final ComponentContext context;
-  final Schema schema;
+  final Schema? _schema;
+  final ComponentDefinition? _definition;
+  late final Schema _resolvedSchema =
+      _schema ??
+      Schema.fromMap(
+        JsonSchemaCodec.componentDefinitionToJsonSchema(
+          _definition!,
+          atLeastV1: context.dataContext.atLeastV10,
+        ),
+      );
+  Schema get schema => _resolvedSchema;
   late final BehaviorNode _behaviorTree;
   late final ReferenceSchemaReader _schemaReader;
 
@@ -108,7 +121,9 @@ class GenericBinder {
   /// [WritableBinding] whose value is null.
   ReadonlySignal<Map<String, dynamic>> get resolvedProps => _resolvedProps;
 
-  GenericBinder(this.context, this.schema) {
+  GenericBinder(this.context, Schema schema)
+    : _schema = schema,
+      _definition = null {
     final Catalog<ComponentApi, FunctionImplementation> catalog = context
         .surface
         .resolveCatalog(context.componentModel.catalog);
@@ -123,6 +138,166 @@ class GenericBinder {
     );
     _resolvedProps = signal<Map<String, dynamic>>({});
     connect();
+  }
+
+  /// Creates a [GenericBinder] directly from a canonical [ComponentDefinition],
+  /// compiling its [BehaviorNode] tree via exhaustive pattern matching over
+  /// [TypeDefinition] without touching JSON Schema.
+  GenericBinder.fromDefinition(
+    this.context,
+    ComponentDefinition definition, {
+    Map<String, TypeDefinition> types = const {},
+  }) : _schema = null,
+       _definition = definition {
+    final rootShape = <String, BehaviorNode>{
+      for (final ParameterDefinition param in definition.parameters)
+        param.name: _compileBehavior(param.type, types, <String>{}),
+    };
+    _behaviorTree = _withEnvelopeMixins(
+      BehaviorNode(Behavior.object, shape: rootShape),
+      isCheckable: definition.checkable,
+    );
+    _resolvedProps = signal<Map<String, dynamic>>({});
+    connect();
+  }
+
+  static BehaviorNode _compileBehavior(
+    TypeDefinition type,
+    Map<String, TypeDefinition> types,
+    Set<String> visitedRefs,
+  ) => switch (type) {
+    RefType(:final ref) =>
+      visitedRefs.add(ref) && types.containsKey(ref)
+          ? _compileBehavior(types[ref]!, types, visitedRefs)
+          : BehaviorNode(Behavior.static),
+    ActionType() => BehaviorNode(Behavior.action),
+    ChildListType() => BehaviorNode(Behavior.structural),
+    ChildType() => BehaviorNode(Behavior.static),
+    CheckRuleType() => BehaviorNode(Behavior.checkable),
+    AccessibilityType() => BehaviorNode(
+      Behavior.object,
+      shape: {
+        'label': BehaviorNode(Behavior.dynamic),
+        'description': BehaviorNode(Behavior.dynamic),
+        'hidden': BehaviorNode(Behavior.dynamic, isBoolean: true),
+      },
+    ),
+    DataBindingType() || FunctionCallType() => BehaviorNode(Behavior.dynamic),
+    BooleanType(dynamic: true) => BehaviorNode(
+      Behavior.dynamic,
+      isBoolean: true,
+    ),
+    StringType(dynamic: true) ||
+    NumberType(dynamic: true) ||
+    IntegerType(dynamic: true) ||
+    EnumType(dynamic: true) ||
+    AnyType(dynamic: true) ||
+    ObjectType(dynamic: true) ||
+    ArrayType(dynamic: true) => BehaviorNode(Behavior.dynamic),
+    UnionType(:final variants, :final dynamic) => _compileUnionBehavior(
+      variants,
+      dynamic: dynamic,
+      types: types,
+      visitedRefs: visitedRefs,
+    ),
+    ArrayType(:final items) => _compileArrayBehavior(items, types, visitedRefs),
+    ObjectType(:final properties) => BehaviorNode(
+      Behavior.object,
+      shape: {
+        for (final ParameterDefinition prop in properties)
+          prop.name: _compileBehavior(prop.type, types, Set.of(visitedRefs)),
+      },
+    ),
+    StringType() ||
+    NumberType() ||
+    IntegerType() ||
+    BooleanType() ||
+    EnumType() ||
+    ConstType() ||
+    AnyType() ||
+    RawJsonSchemaType() => BehaviorNode(Behavior.static),
+  };
+
+  static BehaviorNode _compileArrayBehavior(
+    TypeDefinition? items,
+    Map<String, TypeDefinition> types,
+    Set<String> visitedRefs,
+  ) {
+    if (items == null) return BehaviorNode(Behavior.static);
+    final TypeDefinition target = _derefType(items, types, Set.of(visitedRefs));
+    if (target is CheckRuleType) return BehaviorNode(Behavior.checkable);
+    return BehaviorNode(
+      Behavior.array,
+      element: _compileBehavior(items, types, Set.of(visitedRefs)),
+    );
+  }
+
+  static BehaviorNode _compileUnionBehavior(
+    List<TypeDefinition> variants, {
+    required bool dynamic,
+    required Map<String, TypeDefinition> types,
+    required Set<String> visitedRefs,
+  }) {
+    final List<TypeDefinition> resolved = [
+      for (final TypeDefinition v in variants)
+        _derefType(v, types, Set.of(visitedRefs)),
+    ];
+    if (resolved.any((v) => v is ChildListType)) {
+      return BehaviorNode(Behavior.structural);
+    }
+    if (resolved.any((v) => v is CheckRuleType)) {
+      return BehaviorNode(Behavior.checkable);
+    }
+    if (resolved.any((v) => v is ActionType)) {
+      return BehaviorNode(Behavior.action);
+    }
+    final bool hasDynamic =
+        dynamic ||
+        resolved.any((v) => v is DataBindingType || v is FunctionCallType);
+    if (hasDynamic) {
+      final bool hasBool = resolved.any((v) => v is BooleanType);
+      final bool hasNonBoolLiteral = resolved.any(
+        (v) =>
+            v is! BooleanType &&
+            v is! DataBindingType &&
+            v is! FunctionCallType &&
+            !(v is ConstType && v.value == null),
+      );
+      return BehaviorNode(
+        Behavior.dynamic,
+        isBoolean: hasBool && !hasNonBoolLiteral,
+      );
+    }
+    final mergedShape = <String, BehaviorNode>{};
+    var anyObject = false;
+    for (final v in resolved) {
+      if (v is ObjectType) {
+        anyObject = true;
+        for (final ParameterDefinition prop in v.properties) {
+          mergedShape[prop.name] = _compileBehavior(
+            prop.type,
+            types,
+            Set.of(visitedRefs),
+          );
+        }
+      }
+    }
+    if (anyObject) return BehaviorNode(Behavior.object, shape: mergedShape);
+    return BehaviorNode(Behavior.static);
+  }
+
+  static TypeDefinition _derefType(
+    TypeDefinition type,
+    Map<String, TypeDefinition> types,
+    Set<String> visited,
+  ) {
+    var current = type;
+    while (current is RefType &&
+        visited.add(current.ref) &&
+        types.containsKey(current.ref)) {
+      current = types[current.ref]!;
+    }
+    return current;
   }
 
   /// Connects to the component model for updates. No-op after [dispose].

@@ -23,7 +23,7 @@ library;
 
 import 'dart:io';
 
-import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_core/a2ui_core.dart' show A2uiProtocolVersion;
 import 'package:path/path.dart' as p;
 
 import '../../analyzer/catalog_analyzer.dart' show capitalize;

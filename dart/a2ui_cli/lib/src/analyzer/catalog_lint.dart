@@ -14,6 +14,8 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
+import 'catalog_document_lint.dart';
+
 /// Severity level of a [CatalogLintFinding].
 enum LintSeverity {
   /// A protocol or schema violation that makes the catalog invalid.
@@ -148,6 +150,9 @@ String _unescapePointer(String token) =>
 /// on agent-callable functions, and redundant `ComponentCommon` or
 /// `FunctionCommon` wrapping.
 List<CatalogLintFinding> lintCatalog(Map<String, Object?> catalogJson) {
+  if (isCatalogDocument(catalogJson)) {
+    return lintCatalogDocument(catalogJson);
+  }
   final findings = <CatalogLintFinding>[];
 
   final Object? rawId = catalogJson['catalogId'];

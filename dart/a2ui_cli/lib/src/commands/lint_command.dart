@@ -45,7 +45,7 @@ class LintCommand extends Command<int> {
         'catalog',
         abbr: 'c',
         mandatory: true,
-        help: 'Path to the catalog JSON Schema file.',
+        help: 'Path to the catalog document or JSON Schema file.',
       )
       ..addFlag(
         'fatal-warnings',
