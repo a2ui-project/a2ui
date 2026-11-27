@@ -140,7 +140,7 @@ See [Actions and Functions](../actions-and-functions/) and [`callRendererFunctio
 
 Metadata payloads exchanged via transport handshakes or per-message transport metadata (rather than as [A2UI messages](#a2ui-message)) that advertise which [catalogs](#catalog) each side supports:
 
-1. Renderer capabilities ([`renderer_capabilities.json`](../../specification/v1.0/schemas/#renderer_capabilities.json), sent under the `a2uiRendererCapabilities` metadata key in v1.0; [`client_capabilities.json`](../../specification/v0.9.1/schemas/#client_capabilities.json) under `a2uiClientCapabilities` in v0.9.1) declare `supportedCatalogIds` and optional `inlineCatalogs` nested under the protocol version key (`"1.0"` in v1.0, `"v0.9"` in v0.9.1).
+1. Renderer capabilities ([`renderer_capabilities.json`](/specification/v1.0/schemas/#renderer_capabilities.json), sent under the `a2uiRendererCapabilities` metadata key in v1.0; [`client_capabilities.json`](/specification/v0.9.1/schemas/#client_capabilities.json) under `a2uiClientCapabilities` in v0.9.1) declare `supportedCatalogIds` and optional `inlineCatalogs` nested under the protocol version key (`"1.0"` in v1.0, `"v0.9.1"` in v0.9.1, or `"v0.9"` in v0.9).
 2. Agent capabilities ([`agent_capabilities.json`](../../specification/v1.0/schemas/#agent_capabilities.json) in v1.0; [`server_capabilities.json`](../../specification/v0.9.1/schemas/#server_capabilities.json) in v0.9.1) declare the agent's `supportedCatalogIds` and `acceptsInlineCatalogs` flag.
 
 See [Overview: How A2UI Works](../overview/) and [Capabilities and metadata](../../specification/v1.0-a2ui/#capabilities-and-metadata) in the protocol specification.

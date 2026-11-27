@@ -927,7 +927,7 @@ def prepare_negotiated_turn(
 <details>
 <summary>Wire format: inbound renderer capabilities metadata</summary>
 
-Client renderers attach their supported [capabilities](../../concepts/glossary/#capabilities) in transport [metadata](../../concepts/messages/#metadata) (`a2uiRendererCapabilities` under `"1.0"` in `v1.0`, or `a2uiClientCapabilities` under `"v0.9"` in `v0.9.1`):
+Client renderers attach their supported [capabilities](../../concepts/glossary/#capabilities) in transport [metadata](../../concepts/messages/#metadata) (`a2uiRendererCapabilities` under `"1.0"` in `v1.0`, or `a2uiClientCapabilities` under `"v0.9.1"` in `v0.9.1`; clients can include an optional `"v0.9"` entry beside `"v0.9.1"` for agents that read `"v0.9"`, such as `@a2ui/agent` and Dart `readRendererCapabilities`):
 
 <SchemaChips
   items={[
@@ -968,6 +968,9 @@ Client renderers attach their supported [capabilities](../../concepts/glossary/#
 {
   "metadata": {
     "a2uiClientCapabilities": {
+      "v0.9.1": {
+        "supportedCatalogIds": ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
+      },
       "v0.9": {
         "supportedCatalogIds": ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
       }

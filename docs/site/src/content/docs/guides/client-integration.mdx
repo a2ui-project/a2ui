@@ -1277,7 +1277,7 @@ extension A2UISessionController {
   </TabItem>
   <TabItem label="Jetpack Compose">
 
-Because `1.0.0-alpha02` targets A2UI `v0.9.1`, capabilities are advertised under `a2uiClientCapabilities` (keyed by `"v0.9"`):
+Because `1.0.0-alpha02` targets A2UI `v0.9.1`, capabilities are advertised under `a2uiClientCapabilities`. This release sends only the `"v0.9"` entry, without the `"v0.9.1"` entry shown in the wire format below:
 
 ```kotlin
 import androidx.a2ui.model.protocol.A2uiClientCapabilities
@@ -1299,7 +1299,7 @@ fun buildCapabilitiesMetadata(): Map<String, Map<String, Any?>> {
 <details>
 <summary>Wire format: renderer capabilities metadata</summary>
 
-`buildCapabilitiesMetadata()` produces the transport metadata envelope below (`"1.0"` in `v1.0`, `"v0.9"` in `v0.9.1`):
+`buildCapabilitiesMetadata()` produces the transport metadata envelope below (`"1.0"` in `v1.0`, `"v0.9.1"` with an optional `"v0.9"` entry for dual-version compatibility in `v0.9.1`):
 
 <SchemaChips
   items={[
@@ -1340,6 +1340,9 @@ fun buildCapabilitiesMetadata(): Map<String, Map<String, Any?>> {
 {
   "metadata": {
     "a2uiClientCapabilities": {
+      "v0.9.1": {
+        "supportedCatalogIds": ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
+      },
       "v0.9": {
         "supportedCatalogIds": ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
       }

@@ -845,8 +845,10 @@ The `a2uiClientCapabilities` object in the A2A `Message`'s `metadata` field foll
 
 **Properties:**
 
-- `supportedCatalogIds` (array of strings, required): String identifiers of supported catalogs.
-- `inlineCatalogs`: An array of inline catalog definitions provided directly by the client (useful for custom or ad-hoc components and functions).
+- `v0.9.1` (object, required): The capability structure for version 0.9.1 of the A2UI protocol.
+  - `supportedCatalogIds` (array of strings, required): String identifiers of supported catalogs.
+  - `inlineCatalogs` (array, optional): An array of inline catalog definitions provided directly by the client (useful for custom or ad-hoc components and functions).
+- `v0.9` (object, optional): The capability structure for version 0.9 of the A2UI protocol, which a client supporting both versions may include alongside `v0.9.1`, using the same `supportedCatalogIds` and `inlineCatalogs` properties.
 
 #### Client data model
 
