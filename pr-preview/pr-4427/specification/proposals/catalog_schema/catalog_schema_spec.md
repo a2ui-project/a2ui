@@ -60,6 +60,17 @@ Additional identifier invariants:
 1. Component names MUST NOT equal `"Surface"` (reserved for the top-level surface container).
 2. Function names cannot begin with `"@"` (already excluded by UAX #31; reserved for system functions such as `@index`).
 3. Sibling names inside `components`, `functions`, `parameters`, and `properties` MUST be unique within their enclosing array.
+4. Component `parameters` MUST NOT declare reserved wire-envelope keys `"id"` or `"component"`.
+
+### Semantic validation invariants
+
+Conformant parsers and linters MUST enforce the following invariants beyond raw JSON Schema structure:
+
+1. **Local `ref` resolution and cycles:** Every `{"type": "ref", "ref": "<Name>"}` MUST resolve to a key in root `types`. Structural recursion guarded by an `object` or `array` boundary (for example, `TreeNode -> object { next?: ref("TreeNode") }` or `NestedList -> array<ref("NestedList")>`) is valid. Unguarded alias cycles (for example, `A -> ref("B") -> ref("A")`, or `A -> union([ref("A"), string])`) are invalid and MUST be rejected.
+2. **Closed keys and explicit `null`:** Unknown properties and explicit `null` values on optional non-nullable fields MUST be rejected.
+3. **Bounds and patterns:** `min <= max`, `minLength <= maxLength`, and `minItems <= maxItems` MUST hold whenever both endpoints are present. Numeric values (`min`, `max`, `default`, `const`) MUST be finite. `StringType.pattern` MUST be a valid regular expression.
+4. **Enum homogeneity and defaults:** Every element of `EnumType.values` MUST match `valueType` (default `"string"`). When `default` is present on an `EnumType`, it MUST appear in `values`. On `AnyType`, `default: null` is valid only when `nullable: true`.
+5. **Runtime constraint semantics:** `minLength` and `maxLength` count Unicode code points (scalar values), not UTF-16 code units. `date`, `time`, and `date-time` string formats follow strict RFC 3339 (valid calendar dates without rollover such as rejecting `2024-02-31`, mandatory timezone offset on `time` and `date-time`, accepting `T`/`t` and `Z`/`z`). `uri` requires an explicit RFC 3986 scheme prefix. `IntegerType` rejects booleans and accepts whole-number JSON numbers (such as `1` and `1.0`).
 
 ---
 
@@ -161,7 +172,7 @@ SDKs provide a dedicated JSON Schema adapter so existing v0.9, v0.9.1, and v1.0 
    - Copy `allowedParents`, `allowedChildren`, `metadata`, `description`, `deprecated`, and `deprecatedReason` (mapped to `x-deprecated-reason`).
 4. For each `FunctionDefinition`:
    - Emit wire `FunctionCallValidationSchema` with `"@call": {"const": "<name>"}` (or `"call"` for v0.9) and `"args"` closed with `"unevaluatedProperties": false` (or `additionalProperties` per `additionalParameters`).
-   - Emit `atLeastOneOf` groups as `anyOf: [{"required": [...]}, ...]` (or nested in `allOf` if multiple groups exist).
+   - Emit `atLeastOneOf` with one group `[["min", "max"]]` as `"anyOf": [{"required": ["min"]}, {"required": ["max"]}]`. Emit multiple groups `[["a", "b"], ["c", "d"]]` conjunctively as `"allOf": [{"anyOf": [{"required": ["a"]}, {"required": ["b"]}]}, {"anyOf": [{"required": ["c"]}, {"required": ["d"]}]}]` so every group is satisfied simultaneously.
    - Map `returnType` to its v1.0 category string (`"integer"` widens to `"number"` for v1.0 enum compatibility; structured `DataType` return schemas map to their top-level type category).
    - Emit `allowedCallers` (when non-default) and `requiresUserActivation` (when `true`).
 5. Synthesize `$defs.anyComponent` (with `discriminator: {"propertyName": "component"}`) and `$defs.anyFunction` (`{"not": {}}` when `functions` is empty).
