@@ -242,9 +242,9 @@ When re-exporting `DataBinding`, `ActionEvent`, `FunctionCall`, `CheckRule`, and
 
 ### Part 3: Code generator emitter (dart/a2ui_cli)
 
-The A2UI CLI ([`dart/a2ui_cli`](../../dart/a2ui_cli/)) is a single Dart codebase that generates catalog builder code for all supported target languages. New languages are supported by adding an emitter under [`dart/a2ui_cli/lib/src/emitters/<lang>/`](../../dart/a2ui_cli/lib/src/emitters/) consuming the CLI's shared `CatalogSpec` representation.
+The A2UI CLI ([`dart/a2ui_cli`](../../dart/a2ui_cli/)) is a single Dart codebase that generates catalog builder code for all supported target languages. New languages are supported by adding an emitter under [`dart/a2ui_cli/lib/src/emitters/<lang>/`](../../dart/a2ui_cli/lib/src/emitters/) consuming the CLI's shared `AnalysedCatalog` / `CatalogSpec` representation.
 
-Catalog files (such as `builder/v0_9/catalogs/basic.<ext>`) are generated from the catalog JSON schema by `dart/a2ui_cli` and are never edited by hand. Emitters follow these rules:
+Catalog files (such as `builder/v0_9/catalogs/basic.<ext>`) are generated from a catalog file (either a [`Catalog Document`](../../specification/proposals/catalog_schema/catalog_schema.json) or a legacy JSON Schema `catalog.json`, normalized through `a2ui_core`'s canonical `CatalogModel` per [`catalog_document_representation`](catalog_document_representation.blueprint.md)) by `dart/a2ui_cli` and are never edited by hand. Emitters follow these rules:
 
 1. **Strict directory separation**: Hand-written runtime code lives in `builder/core/` and `builder/<version>/`; generated catalogs live in `builder/<version>/catalogs/`.
 2. **Component classes**: Emit one class per catalog component, inheriting from `ComponentBuilderNode`, setting `component = "<ComponentName>"`, and mapping properties to their builder types (`Child`, `ChildList`, `DynamicString`, `Action`, open enum).

@@ -182,7 +182,7 @@ class A2uiSurface extends StatefulWidget {
 
 ### 4.2 ComponentImplementation
 
-`ComponentImplementation` is the most important framework-specific contract. It pairs a component's schema and type name with the framework-native rendering function.
+`ComponentImplementation` is the most important framework-specific contract. It pairs a component's API definition and type name with the framework-native rendering function. When [`catalog_document_representation`](../features/catalog_document_representation.blueprint.md) is implemented, implementations may be authored from a canonical `ComponentDefinition` without importing Zod, `json_schema_builder`, or `JSONSchema`, while existing `schema`-based constructors remain supported.
 
 ```typescript
 // Generic Contract
