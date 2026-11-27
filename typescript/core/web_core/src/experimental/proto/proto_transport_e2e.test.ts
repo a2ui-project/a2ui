@@ -34,6 +34,7 @@ import {NodeResolver} from '../../resolution/node-resolver.js';
 import {ResolvedBinding} from '../../resolution/resolved-binding.js';
 import type {ActionPayload} from '../../state/surface-model.js';
 import {
+  MAX_PROTO_DEPTH,
   ProtoTransportAdapter,
   ProtoWireReader,
   ProtoWireWriter,
@@ -42,12 +43,14 @@ import {
   decodeAgentToRendererMessage,
   decodeDynamicString,
   decodeProtoStruct,
+  decodeProtoValue,
   decodeRendererToAgentMessage,
   encodeAction,
   encodeAgentToRendererMessage,
   encodeDynamicString,
   encodeLengthDelimitedFrame,
   encodeProtoStruct,
+  encodeProtoValue,
   encodeRendererToAgentMessage,
   type ComponentProtoDecoder,
   type OpaqueValueProtoDecoder,
@@ -840,5 +843,177 @@ describe('Experimental Protobuf Transport End-to-End Suite', () => {
       },
     });
     redactedProcessor.dispose();
+  });
+
+  it('B4 & H2.5: hardens wire codec against deep recursion DoS, __proto__ pollution, wire-type mismatches, varint bounds, invalid UTF-8, and raw class instances', () => {
+    // 1. Deeply nested ListValue (> MAX_PROTO_DEPTH) throws A2uiValidationError (not RangeError).
+    let nested = encodeProtoValue(1);
+    for (let i = 0; i < MAX_PROTO_DEPTH + 10; i++) {
+      const listBytes = new ProtoWireWriter().writeBytes(1, nested).finish();
+      nested = new ProtoWireWriter().writeBytes(6, listBytes).finish();
+    }
+    assert.throws(() => decodeProtoValue(nested), A2uiValidationError);
+
+    // 2. Action.context wire map key "__proto__" does NOT pollute prototype.
+    const pollutedActionBytes = new ProtoWireWriter()
+      .writeMessage(1, evW => {
+        evW.writeString(1, 'click');
+        evW.writeMessage(3, mapW => {
+          mapW.writeString(1, '__proto__');
+          mapW.writeBytes(
+            2,
+            new ProtoWireWriter().writeBytes(1, encodeProtoValue({polluted: true})).finish(),
+          );
+        });
+      })
+      .finish();
+    const decodedAction = decodeAction(pollutedActionBytes);
+    assert.ok('event' in decodedAction && decodedAction.event.context);
+    assert.equal(Object.getPrototypeOf(decodedAction.event.context), Object.prototype);
+    assert.equal(Object.hasOwn(decodedAction.event.context!, '__proto__'), true);
+
+    // 3. Wire-type mismatch in decodeProtoValue (tag 2 number_value encoded as VARINT) throws!
+    const badWireValue = new ProtoWireWriter()
+      .writeTag(2, WireType.VARINT)
+      .writeRawVarint(42)
+      .finish();
+    assert.throws(() => decodeProtoValue(badWireValue), A2uiValidationError);
+
+    // 4. Varint bounds: writeRawVarint rejects > uint64; readRawVarint rejects 10th byte > 0x01.
+    assert.throws(() => new ProtoWireWriter().writeRawVarint(1n << 70n), A2uiValidationError);
+    const badVarint10 = new Uint8Array([
+      0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02,
+    ]);
+    assert.throws(() => new ProtoWireReader(badVarint10).readRawVarint(), A2uiValidationError);
+
+    // 5. Invalid UTF-8 throws A2uiValidationError (not native TypeError).
+    const invalidUtf8 = new ProtoWireWriter().writeBytes(1, new Uint8Array([0xff, 0xfe])).finish();
+    const reader = new ProtoWireReader(invalidUtf8);
+    reader.readTag();
+    assert.throws(() => reader.readString(), A2uiValidationError);
+
+    // 6. Edition 2023 delimited group (SGROUP/EGROUP) is skipped cleanly; stray EGROUP throws.
+    const withGroup = new ProtoWireWriter()
+      .writeTag(99, WireType.SGROUP)
+      .writeString(1, 'ignored')
+      .writeTag(99, WireType.EGROUP)
+      .writeString(1, 'kept')
+      .finish();
+    assert.equal(decodeDynamicString(withGroup), 'kept');
+    const strayEgroup = new ProtoWireWriter().writeTag(99, WireType.EGROUP).finish();
+    assert.throws(() => decodeDynamicString(strayEgroup), A2uiValidationError);
+
+    // 7. H2.5: encodeProtoValue rejects non-plain class instances & cyclic objects.
+    const urlInstance = TrustedResourceUrl.fromProto(
+      TrustedResourceUrl.toProtoBytesForTestServer('https://safe.example/x'),
+    );
+    assert.throws(() => encodeProtoValue(urlInstance), A2uiValidationError);
+    const cyclic: Record<string, unknown> = {};
+    cyclic['self'] = cyclic;
+    assert.throws(() => encodeProtoValue(cyclic), A2uiValidationError);
+  });
+
+  it('H3: enforces version on all Proto ops, atomic batch pre-validation in processOperations, non-empty surfaceId, and blocks Struct envelope spoofing', () => {
+    const urlSpec: OpaqueTypeSpec<TrustedResourceUrl> = {
+      name: 'trusted-resource-url',
+      isInstance: (v): v is TrustedResourceUrl =>
+        v instanceof TrustedResourceUrl && v.verifyBrand(),
+    };
+    const catalog = buildTestCatalog(new Map([['trusted-resource-url', urlSpec]]));
+    const processor = new MessageProcessor([catalog], undefined, {
+      version: '1.0',
+      validationConfig: {...STRICT_VALIDATION, targetVersion: '1.0'},
+    });
+    const adapter = new ProtoTransportAdapter();
+
+    // 1. Create a valid surface first.
+    processor.processOperations(
+      adapter.decode(
+        encodeAgentToRendererMessage({
+          version: '1.0',
+          kind: 'createSurface',
+          createSurface: {surfaceId: 'h3-surf', catalogId: catalog.id},
+        }),
+      ),
+    );
+
+    // 2. Wire version '0.8' on updateDataModel / updateComponents / deleteSurface is rejected!
+    for (const badFrame of [
+      encodeAgentToRendererMessage({
+        version: '0.8',
+        kind: 'updateDataModel',
+        updateDataModel: {surfaceId: 'h3-surf', path: '/a', value: 1},
+      }),
+      encodeAgentToRendererMessage({
+        version: '0.8',
+        kind: 'updateComponents',
+        updateComponents: {
+          surfaceId: 'h3-surf',
+          components: [
+            {id: 'root', component: 'StatusBadge', properties: {label: 'x', tone: 'info'}},
+          ],
+        },
+      }),
+      encodeAgentToRendererMessage({
+        version: '0.8',
+        kind: 'deleteSurface',
+        deleteSurface: {surfaceId: 'h3-surf'},
+      }),
+    ]) {
+      const ops = adapter.decode(badFrame);
+      assert.throws(() => processor.processOperations(ops), A2uiValidationError);
+    }
+
+    // 3. Batch pre-validation prevents partial state mutation when op #2 fails!
+    assert.throws(
+      () =>
+        processor.processOperations([
+          {type: 'createSurface', surfaceId: 'atomic-surf', catalogId: catalog.id, version: '1.0'},
+          {type: 'updateDataModel', surfaceId: 'atomic-surf', path: '/a', value: 1, version: '0.8'},
+        ]),
+      A2uiValidationError,
+    );
+    assert.equal(processor.getSurface('atomic-surf'), undefined);
+
+    // 4. Empty surfaceId and malformed non-operation entries are rejected cleanly!
+    assert.throws(
+      () =>
+        processor.processOperations([
+          {type: 'updateDataModel', surfaceId: '', path: '/a', value: 1, version: '1.0'},
+        ]),
+      A2uiValidationError,
+    );
+    assert.throws(
+      () => processor.processOperations([{notAnOp: true} as unknown as never]),
+      A2uiValidationError,
+    );
+
+    // 5. Component.properties Struct containing envelope keys (@catalogId, @checks, etc.) is rejected!
+    for (const forbiddenKey of [
+      '@catalogId',
+      '@accessibility',
+      '@metadata',
+      '@checks',
+      'component',
+      'id',
+    ]) {
+      const spoofedFrame = encodeAgentToRendererMessage({
+        version: '1.0',
+        kind: 'updateComponents',
+        updateComponents: {
+          surfaceId: 'h3-surf',
+          components: [
+            {
+              id: 'root',
+              component: 'StatusBadge',
+              properties: {label: 'ok', tone: 'info', [forbiddenKey]: 'spoofed'},
+            },
+          ],
+        },
+      });
+      assert.throws(() => adapter.decode(spoofedFrame), A2uiValidationError);
+    }
+
+    processor.dispose();
   });
 });

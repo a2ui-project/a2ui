@@ -20,6 +20,7 @@ import {
   extractDefinitionRefFields,
   type ModelRefFields,
 } from '../catalog/model/model_semantics.js';
+import {type OpaqueTypeRegistry, resolveStrictOpaqueSpecs} from '../catalog/model/opaque_types.js';
 import {
   AnyFunctionImplementation,
   Catalog,
@@ -29,7 +30,7 @@ import {
 } from '../catalog/types.js';
 import {Subscription} from '../common/events.js';
 import {isAtLeastVersion} from '../common/semver.js';
-import {A2uiStateError} from '../errors.js';
+import {A2uiStateError, A2uiValidationError} from '../errors.js';
 import {computed, getValue, peekValue, setValue, Signal, signal} from '../reactivity/signals.js';
 import {ComponentModel} from '../state/component-model.js';
 import {SurfaceModel} from '../state/surface-model.js';
@@ -76,6 +77,9 @@ interface NodeRecord {
   binderSub?: {unsubscribe(): void};
   /** The most recent per-component resolution from the binder. */
   lastBinderProps?: NodeProps;
+  /** The most recent rawPayload observed during materialization, for reactive prop emission. */
+  lastRawPayload?: unknown;
+  hasLastRawPayload?: boolean;
   /** Children this node currently references, keyed by edge. This parent owns their disposal. */
   childEdges: Map<string, MutableComponentNode>;
 }
@@ -360,7 +364,9 @@ export class NodeResolver<
           undefined,
           'unknown-type',
           computed(() => (model.metadataSignal ? getValue(model.metadataSignal) : model.metadata)),
-          model.rawPayload,
+          computed(() =>
+            model.rawPayloadSignal ? getValue(model.rawPayloadSignal) : model.rawPayload,
+          ),
         ),
         {edgeKey, parent, occurrence, refFields: EMPTY_REF_FIELDS, componentModel: model},
       ).node;
@@ -399,7 +405,9 @@ export class NodeResolver<
         context,
         'resolved',
         computed(() => (model.metadataSignal ? getValue(model.metadataSignal) : model.metadata)),
-        model.rawPayload,
+        computed(() =>
+          model.rawPayloadSignal ? getValue(model.rawPayloadSignal) : model.rawPayload,
+        ),
       ),
       {
         edgeKey,
@@ -590,9 +598,11 @@ export class NodeResolver<
     if (record.node.disposed) {
       return;
     }
-    if (record.componentModel) {
-      record.node.setRawPayload(record.componentModel.rawPayload);
-    }
+    const nextRawPayload = record.componentModel?.rawPayload;
+    const rawPayloadChanged =
+      Boolean(record.hasLastRawPayload) && !Object.is(record.lastRawPayload, nextRawPayload);
+    record.lastRawPayload = nextRawPayload;
+    record.hasLastRawPayload = true;
     const raw = record.lastBinderProps ?? record.binder?.snapshot ?? {};
     const modelProps = record.componentModel?.properties;
     // Prune omitted keys here too in case materialize runs before the binder's
@@ -750,6 +760,9 @@ export class NodeResolver<
     }
     record.childEdges = newEdges;
 
+    const compOpaqueTypes = record.componentModel
+      ? this.catalogFor(record.componentModel)?.opaqueTypes
+      : undefined;
     const wrapped =
       record.behavior && record.node.context
         ? (wrapDynamicValues(
@@ -757,6 +770,7 @@ export class NodeResolver<
             record.behavior,
             modelProps ?? {},
             record.node.context.dataContext,
+            compOpaqueTypes,
           ) as NodeProps)
         : next;
 
@@ -770,7 +784,7 @@ export class NodeResolver<
       // and its writable bindings, which the payload declares only there.
       wrapped['accessibility'] = wrapped['@accessibility'];
     }
-    record.node.setProps(wrapped);
+    record.node.setProps(wrapped, rawPayloadChanged);
   }
 
   /** Disposes a node and, through parent-scoped ownership, its subtree. */
@@ -855,6 +869,7 @@ function wrapDynamicValues(
   behavior: BehaviorNode,
   raw: unknown,
   dataContext: DataContext,
+  opaqueTypes?: OpaqueTypeRegistry,
 ): unknown {
   if (isComponentNode(value)) {
     return value;
@@ -873,6 +888,25 @@ function wrapDynamicValues(
       if (path === undefined) {
         return new ResolvedBinding(value);
       }
+      const specs = resolveStrictOpaqueSpecs(behavior.opaqueFormats, opaqueTypes);
+      if (specs) {
+        return new WritableBinding(
+          value,
+          newValue => {
+            if (newValue !== undefined && !specs.some(s => s.isInstance(newValue))) {
+              const expected = specs.map(s => s.name).join(' | ');
+              const msg = `Cannot write unbranded value to opaque binding '${path}' (expected ${expected}).`;
+              void dataContext.surface?.dispatchError?.({
+                code: 'VALIDATION_ERROR',
+                message: msg,
+              });
+              throw new A2uiValidationError(msg);
+            }
+            dataContext.set(path, newValue);
+          },
+          path,
+        );
+      }
       return new WritableBinding(value, newValue => dataContext.set(path, newValue), path);
     }
     case 'ARRAY': {
@@ -881,7 +915,7 @@ function wrapDynamicValues(
       }
       const rawItems = Array.isArray(raw) ? raw : [];
       return value.map((item, index) =>
-        wrapDynamicValues(item, behavior.element, rawItems[index], dataContext),
+        wrapDynamicValues(item, behavior.element, rawItems[index], dataContext, opaqueTypes),
       );
     }
     case 'OBJECT': {
@@ -916,7 +950,7 @@ function wrapDynamicValues(
         const childBehavior = Object.hasOwn(behavior.shape, key)
           ? behavior.shape[key]
           : (behavior.catchall ?? {type: 'STATIC'});
-        out[key] = wrapDynamicValues(item, childBehavior, rawRecord[key], dataContext);
+        out[key] = wrapDynamicValues(item, childBehavior, rawRecord[key], dataContext, opaqueTypes);
       }
       // The binder guarantees every dynamic property a setter even when the
       // payload omits it. Represent an omitted one as a read-only binding of

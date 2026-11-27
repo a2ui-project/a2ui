@@ -17,21 +17,34 @@
 import assert from 'node:assert/strict';
 import {describe, it} from 'node:test';
 
-import {Catalog, defineComponentApi, type ModelFunctionImplementation} from '../types.js';
-import {a2uiType, defineCatalog, defineComponent, defineParameter} from './catalog_builders.js';
+import {
+  Catalog,
+  createFunctionImplementation,
+  defineComponentApi,
+  type ModelFunctionImplementation,
+} from '../types.js';
+import {
+  a2uiType,
+  defineCatalog,
+  defineComponent,
+  defineFunction,
+  defineParameter,
+  defineSurfaceProperties,
+} from './catalog_builders.js';
 import {validateCatalogValue, validateComponentProperties} from './model_validator.js';
 import {
+  mergeOpaqueTypeRegistries,
   serializeOpaqueValuesForAgent,
   type OpaqueTypeRegistry,
   type OpaqueTypeSpec,
 } from './opaque_types.js';
-import {A2uiValidationError} from '../../errors.js';
+import {A2uiDataError, A2uiRecursionError, A2uiValidationError} from '../../errors.js';
 import {MessageProcessor, STRICT_VALIDATION} from '../../processing/message-processor.js';
-import type {InternalOperation} from '../../processing/operations.js';
-import {peekValue} from '../../reactivity/signals.js';
+import {INTERNAL_RAW_PAYLOAD, type InternalOperation} from '../../processing/operations.js';
+import {effect, getValue, peekValue} from '../../reactivity/signals.js';
 import {NodeResolver} from '../../resolution/node-resolver.js';
-import {ResolvedBinding} from '../../resolution/resolved-binding.js';
-import type {ActionPayload} from '../../state/surface-model.js';
+import {ResolvedBinding, WritableBinding} from '../../resolution/resolved-binding.js';
+import type {A2uiErrorPayload, ActionPayload} from '../../state/surface-model.js';
 
 const BRAND_SECRET = Symbol('TrustedResourceUrl.secret');
 
@@ -339,7 +352,7 @@ describe('Opaque / branded host value types and core transport hooks', () => {
             component: 'DomainWidget',
             headline: 'Q4 Campaign',
             mode: 'compact',
-            rawPayload: compiledProtoV1,
+            [INTERNAL_RAW_PAYLOAD]: compiledProtoV1,
           },
         ],
       },
@@ -365,7 +378,7 @@ describe('Opaque / branded host value types and core transport hooks', () => {
             component: 'DomainWidget',
             headline: 'Q4 Campaign',
             mode: 'expanded',
-            rawPayload: compiledProtoV2,
+            [INTERNAL_RAW_PAYLOAD]: compiledProtoV2,
           },
         ],
       },
@@ -373,7 +386,7 @@ describe('Opaque / branded host value types and core transport hooks', () => {
     assert.equal(compModel.rawPayload, compiledProtoV2);
     assert.equal(node.rawPayload, compiledProtoV2);
 
-    // Passing rawPayload NEVER skips CatalogModel property validation!
+    // Passing INTERNAL_RAW_PAYLOAD NEVER skips CatalogModel property validation!
     assert.throws(
       () =>
         processor.processOperations([
@@ -386,7 +399,7 @@ describe('Opaque / branded host value types and core transport hooks', () => {
                 component: 'DomainWidget',
                 headline: 'Bad Mode',
                 mode: 'not-a-valid-enum',
-                rawPayload: compiledProtoV2,
+                [INTERNAL_RAW_PAYLOAD]: compiledProtoV2,
               },
             ],
           },
@@ -395,6 +408,617 @@ describe('Opaque / branded host value types and core transport hooks', () => {
     );
 
     resolver.dispose();
+    processor.dispose();
+  });
+
+  it('B1: blocks raw spoofed strings via createSurface.dataModel, updateDataModel, WritableBinding.set, and @call', async () => {
+    const echoFn = createFunctionImplementation(
+      defineFunction({
+        name: 'echoStr',
+        returnType: 'string',
+        parameters: [defineParameter('v', a2uiType.string(), {required: true})],
+      }),
+      args => String(args['v']),
+    );
+    const model = defineCatalog({
+      catalogId: 'https://example.com/b1/v1',
+      protocolVersion: '1.0',
+      components: [
+        defineComponent({
+          name: 'SafeIFrame',
+          parameters: [
+            defineParameter(
+              'src',
+              a2uiType.string({format: 'trusted-resource-url', dynamic: true}),
+              {
+                required: true,
+              },
+            ),
+            defineParameter(
+              'altSrc',
+              a2uiType.string({format: 'trusted-resource-url', dynamic: true}),
+            ),
+          ],
+        }),
+      ],
+      functions: [
+        defineFunction({
+          name: 'agentSpoofUrl',
+          returnType: 'string',
+          parameters: [],
+        }),
+      ],
+    });
+    const baseCatalog = Catalog.fromModel(model, {
+      opaqueTypes: new Map([['trusted-resource-url', safeUrlSpec]]),
+    });
+    const catalog = baseCatalog.copyWith({
+      functions: [echoFn, ...baseCatalog.functions.values()],
+    });
+
+    let capturedAgentCallId: string | undefined;
+    const processor = new MessageProcessor([catalog], undefined, {
+      version: '1.0',
+      validationConfig: STRICT_VALIDATION,
+      outboundListener: msg => {
+        if ('callAgentFunction' in msg) {
+          capturedAgentCallId = msg.callAgentFunction.functionCallId;
+        }
+      },
+    });
+
+    // 1. Spoofed raw string in createSurface.dataModel is rejected at resolution time.
+    processor.processOperations([
+      {
+        type: 'createSurface',
+        surfaceId: 's-b1',
+        catalogId: catalog.id,
+        version: '1.0',
+        dataModel: {frame: {src: 'javascript:alert(1)'}},
+        components: [
+          {
+            id: 'root',
+            component: 'SafeIFrame',
+            src: {'@path': '/frame/src'},
+            altSrc: {'@call': 'echoStr', args: {v: 'javascript:alert(2)'}},
+          },
+        ],
+      },
+    ]);
+
+    const surface = processor.getSurface('s-b1')!;
+    const surfaceErrors: A2uiErrorPayload[] = [];
+    surface.onError.subscribe(err => {
+      surfaceErrors.push(err);
+    });
+
+    const resolver = new NodeResolver(surface);
+    const node = peekValue(resolver.rootNode)!;
+    const initialProps = peekValue(node.props);
+    const srcBinding = initialProps['src'] as WritableBinding<unknown>;
+    const altBinding = initialProps['altSrc'] as ResolvedBinding<unknown>;
+    assert.equal(srcBinding.value, undefined);
+    assert.equal(altBinding.value, undefined);
+    assert.ok(surfaceErrors.some(e => e.code === 'VALIDATION_ERROR' && /src/.test(e.message)));
+    assert.ok(surfaceErrors.some(e => e.code === 'VALIDATION_ERROR' && /altSrc/.test(e.message)));
+
+    // 2. Authentic branded update succeeds reactively.
+    const authentic = MockTrustedResourceUrl.fromTrustedWire('https://trusted.example/app');
+    processor.processOperations([
+      {type: 'updateDataModel', surfaceId: 's-b1', path: '/frame/src', value: authentic},
+    ]);
+    const validBinding = peekValue(node.props)['src'] as WritableBinding<unknown>;
+    assert.equal(validBinding.value, authentic);
+
+    // 3. WritableBinding.set with raw spoofed string throws and leaves authentic instance intact.
+    assert.throws(() => validBinding.set('javascript:alert(3)'), A2uiValidationError);
+    assert.equal((peekValue(node.props)['src'] as WritableBinding<unknown>).value, authentic);
+
+    // 4. Subsequent updateDataModel with raw string blocks delivery to node.props.src.value.
+    processor.processMessages([
+      {
+        version: '1.0',
+        updateDataModel: {
+          surfaceId: 's-b1',
+          path: '/frame/src',
+          value: 'javascript:alert(4)',
+        },
+      },
+    ]);
+    assert.equal((peekValue(node.props)['src'] as WritableBinding<unknown>).value, undefined);
+
+    // 5. Async agent @call returning a raw JSON string is also blocked from node.props.
+    processor.processOperations([
+      {
+        type: 'updateComponents',
+        surfaceId: 's-b1',
+        components: [
+          {
+            id: 'root',
+            component: 'SafeIFrame',
+            src: {'@call': 'agentSpoofUrl'},
+          },
+        ],
+      },
+    ]);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.ok(capturedAgentCallId);
+    processor.processOperations([
+      {
+        type: 'agentFunctionResponse',
+        functionCallId: capturedAgentCallId!,
+        version: '1.0',
+        value: 'javascript:alert(5)',
+      },
+    ]);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal((peekValue(node.props)['src'] as ResolvedBinding<unknown>).value, undefined);
+
+    resolver.dispose();
+    processor.dispose();
+  });
+
+  it('B2: treats opaque branded instances as atomic leaves in DataModel get() and set()', () => {
+    class ClosureStyleTrustedUrl {
+      // Mirrors Closure/safevalues own field (e.g. privateDoNotAccessOrElseWrappedResourceUrl).
+      privateWrappedUrl: string;
+      readonly #brand = BRAND_SECRET;
+      constructor(url: string) {
+        this.privateWrappedUrl = url;
+      }
+      isAuthentic(): boolean {
+        return this.#brand === BRAND_SECRET;
+      }
+    }
+
+    const spec: OpaqueTypeSpec<ClosureStyleTrustedUrl> = {
+      name: 'trusted-resource-url',
+      isInstance(v: unknown): v is ClosureStyleTrustedUrl {
+        return v instanceof ClosureStyleTrustedUrl && v.isAuthentic();
+      },
+    };
+    const model = defineCatalog({
+      catalogId: 'https://example.com/b2/v1',
+      protocolVersion: '1.0',
+      components: [
+        defineComponent({
+          name: 'SafeIFrame',
+          parameters: [
+            defineParameter(
+              'src',
+              a2uiType.string({format: 'trusted-resource-url', dynamic: true}),
+              {
+                required: true,
+              },
+            ),
+          ],
+        }),
+      ],
+    });
+    const catalog = Catalog.fromModel(model, {
+      opaqueTypes: new Map([['trusted-resource-url', spec]]),
+    });
+    const processor = new MessageProcessor([catalog], undefined, {version: '1.0'});
+    const realUrl = new ClosureStyleTrustedUrl('https://safe.example/doc');
+
+    processor.processOperations([
+      {
+        type: 'createSurface',
+        surfaceId: 's-b2',
+        catalogId: catalog.id,
+        version: '1.0',
+        dataModel: {frame: {src: realUrl}},
+      },
+    ]);
+    const surface = processor.getSurface('s-b2')!;
+
+    // Reading sub-paths inside an opaque instance must NOT leak internal fields.
+    assert.equal(surface.dataModel.get('/frame/src'), realUrl);
+    assert.equal(surface.dataModel.get('/frame/src/privateWrappedUrl'), undefined);
+
+    // Writing sub-paths inside an opaque instance must throw and NEVER mutate it in place.
+    assert.throws(
+      () => surface.dataModel.set('/frame/src/privateWrappedUrl', 'javascript:pwned()'),
+      A2uiDataError,
+    );
+    assert.throws(
+      () =>
+        processor.processMessages([
+          {
+            version: '1.0',
+            updateDataModel: {
+              surfaceId: 's-b2',
+              path: '/frame/src/privateWrappedUrl',
+              value: 'javascript:pwned()',
+            },
+          },
+        ]),
+      A2uiDataError,
+    );
+    assert.equal(realUrl.privateWrappedUrl, 'https://safe.example/doc');
+    processor.dispose();
+  });
+
+  it('B3: prevents untrusted JSON rawPayload spoofing and preserves recursion depth checks & legitimate rawPayload props', () => {
+    const standardWidget = defineComponentApi(
+      defineComponent({
+        name: 'PlainWidget',
+        parameters: [defineParameter('title', a2uiType.string(), {required: true})],
+      }),
+    );
+    const customRawWidget = defineComponentApi(
+      defineComponent({
+        name: 'CustomRawWidget',
+        parameters: [defineParameter('rawPayload', a2uiType.string(), {required: true})],
+      }),
+    );
+    const catalog = new Catalog(
+      'https://example.com/b3/v1',
+      '1.0',
+      [standardWidget, customRawWidget],
+      [] as ModelFunctionImplementation[],
+    );
+    const processor = new MessageProcessor([catalog], undefined, {
+      version: '1.0',
+      validationConfig: STRICT_VALIDATION,
+    });
+
+    processor.processMessages([
+      {version: '1.0', createSurface: {surfaceId: 's-b3', catalogId: catalog.id}},
+    ]);
+
+    // 1. Untrusted JSON with bare `"rawPayload"` fails strict validation (cannot spoof!).
+    assert.throws(
+      () =>
+        processor.processMessages([
+          {
+            version: '1.0',
+            updateComponents: {
+              surfaceId: 's-b3',
+              components: [
+                {
+                  id: 'root',
+                  component: 'PlainWidget',
+                  title: 'Hello',
+                  rawPayload: {injected: 'from-untrusted-json'},
+                },
+              ],
+            },
+          },
+        ]),
+      A2uiValidationError,
+    );
+
+    // 2. Deeply nested `"rawPayload"` in JSON cannot bypass MAX_GLOBAL_DEPTH!
+    let deep: Record<string, unknown> = {leaf: true};
+    for (let i = 0; i < 80; i++) {
+      deep = {nested: deep};
+    }
+    assert.throws(
+      () =>
+        processor.processMessages([
+          {
+            version: '1.0',
+            updateDataModel: {
+              surfaceId: 's-b3',
+              path: '/x',
+              value: {rawPayload: deep},
+            },
+          },
+        ]),
+      A2uiRecursionError,
+    );
+
+    // 3. A component legitimately declaring a `rawPayload` property works alongside out-of-band INTERNAL_RAW_PAYLOAD!
+    const wireMarker = {wire: 'compiled'};
+    processor.processOperations([
+      {
+        type: 'updateComponents',
+        surfaceId: 's-b3',
+        version: '1.0',
+        components: [
+          {
+            id: 'root',
+            component: 'CustomRawWidget',
+            rawPayload: 'user-prop-value',
+            [INTERNAL_RAW_PAYLOAD]: wireMarker,
+          },
+        ],
+      },
+    ]);
+    const comp = processor.getSurface('s-b3')!.componentsModel.get('root')!;
+    assert.equal(comp.properties['rawPayload'], 'user-prop-value');
+    assert.equal(comp.rawPayload, wireMarker);
+
+    processor.dispose();
+  });
+
+  it('H1 & H2: preserves opaque brands in agent call cache, sanitizes RPC responses & callAgentFunction, guards cycles, and merges colliding format specs', async () => {
+    class AltTrustedUrl {
+      readonly #u: string;
+      constructor(u: string) {
+        this.#u = u;
+      }
+      toAlt(): string {
+        return this.#u;
+      }
+    }
+    const altSpec: OpaqueTypeSpec<AltTrustedUrl> = {
+      name: 'trusted-resource-url',
+      isInstance(v: unknown): v is AltTrustedUrl {
+        return v instanceof AltTrustedUrl;
+      },
+      serializeForAgent(v: AltTrustedUrl): unknown {
+        // Also tests recursive sanitization of serializeForAgent output!
+        return {
+          alt: v.toAlt(),
+          nestedSecret: MockTrustedResourceUrl.fromTrustedWire('https://secret.internal'),
+        };
+      },
+    };
+
+    // Multi-catalog merge with colliding format key preserves BOTH specs.
+    const merged = mergeOpaqueTypeRegistries([
+      {opaqueTypes: new Map([['trusted-resource-url', redactedUrlSpec]])},
+      {opaqueTypes: new Map([['trusted-resource-url', altSpec]])},
+    ]);
+    assert.ok(merged);
+    const altInst = new AltTrustedUrl('https://alt.example');
+    const primaryInst = MockTrustedResourceUrl.fromTrustedWire('https://primary.example');
+    assert.deepEqual(serializeOpaqueValuesForAgent({a: altInst, b: primaryInst}, merged), {
+      a: {alt: 'https://alt.example'},
+    });
+
+    // Cycle & depth guards in serializeOpaqueValuesForAgent.
+    const cyclic: Record<string, unknown> = {};
+    cyclic['self'] = cyclic;
+    assert.throws(() => serializeOpaqueValuesForAgent(cyclic, merged), A2uiValidationError);
+    let deepObj: Record<string, unknown> = {ok: 1};
+    for (let i = 0; i < 70; i++) deepObj = {child: deepObj};
+    assert.throws(() => serializeOpaqueValuesForAgent(deepObj, merged), A2uiValidationError);
+
+    // H1: SurfaceModel.callAgentFunction cache preserves branded class instances!
+    const returnOpaqueFn = createFunctionImplementation(
+      defineFunction({
+        name: 'getUrl',
+        returnType: 'any',
+        allowedCallers: 'rendererOrAgent',
+        parameters: [],
+      }),
+      () => MockTrustedResourceUrl.fromTrustedWire('https://renderer-secret.example/path'),
+    );
+    const catA = Catalog.fromModel(
+      defineCatalog({
+        catalogId: 'https://example.com/h1h2/v1',
+        protocolVersion: '1.0',
+        surfaceProperties: defineSurfaceProperties({
+          properties: [defineParameter('accent', a2uiType.string({pattern: '^#[0-9a-f]{6}$'}))],
+        }),
+        components: [defineComponent({name: 'Box', parameters: []})],
+      }),
+      {
+        opaqueTypes: new Map([['trusted-resource-url', safeUrlSpec]]),
+      },
+    ).copyWith({functions: [returnOpaqueFn]});
+
+    const outboundMessages: unknown[] = [];
+    const processor = new MessageProcessor([catA], undefined, {
+      version: '1.0',
+      validationConfig: STRICT_VALIDATION,
+      outboundListener: msg => {
+        outboundMessages.push(msg);
+      },
+    });
+
+    // Also verifies Catalog.fromModel surfaceProperties theme validation (Medium fix)!
+    assert.throws(
+      () =>
+        processor.processOperations([
+          {
+            type: 'createSurface',
+            surfaceId: 'bad-theme',
+            catalogId: catA.id,
+            version: '1.0',
+            theme: {accent: 'not-a-hex-color'},
+          },
+        ]),
+      A2uiValidationError,
+    );
+
+    processor.processOperations([
+      {type: 'createSurface', surfaceId: 's-h1', catalogId: catA.id, version: '1.0'},
+    ]);
+    const surface = processor.getSurface('s-h1')!;
+
+    let remoteCallCount = 0;
+    const brandedAnswer = MockTrustedResourceUrl.fromTrustedWire('https://cached.example/ok');
+    surface.agentFunctionCaller = async () => {
+      remoteCallCount++;
+      return {url: brandedAnswer};
+    };
+
+    const [first, coalesced] = await Promise.all([
+      surface.callAgentFunction({'@call': 'fetchUrl', catalogId: catA.id, args: {}}),
+      surface.callAgentFunction({'@call': 'fetchUrl', catalogId: catA.id, args: {}}),
+    ]);
+    const cached = await surface.callAgentFunction({
+      '@call': 'fetchUrl',
+      catalogId: catA.id,
+      args: {},
+    });
+    assert.equal(remoteCallCount, 1);
+    assert.equal((first as {url: unknown}).url instanceof MockTrustedResourceUrl, true);
+    assert.equal((coalesced as {url: unknown}).url instanceof MockTrustedResourceUrl, true);
+    assert.equal((cached as {url: unknown}).url instanceof MockTrustedResourceUrl, true);
+
+    // H2.1: RpcHandler.executeFunctionSafely sanitizes opaque return values!
+    const responses = await processor.processMessagesAsync([
+      {
+        version: '1.0',
+        callRendererFunction: {
+          surfaceId: 's-h1',
+          functionCallId: 'fc-opaque-1',
+          callFunction: {'@call': 'getUrl', catalogId: catA.id},
+        },
+      },
+    ]);
+    assert.equal(responses.length, 1);
+    assert.deepEqual(responses[0].rendererFunctionResponse.value, {
+      trustedUrl: 'https://renderer-secret.example/path',
+    });
+
+    // H2.2: MessageProcessor.callAgentFunction sanitizes opaque args!
+    outboundMessages.length = 0;
+    const pendingCall = processor.callAgentFunction(
+      's-h1',
+      {
+        '@call': 'remoteEcho',
+        args: {src: MockTrustedResourceUrl.fromTrustedWire('https://arg.example/a')},
+      },
+      {functionCallId: 'fc-agent-arg-1', timeoutMs: 2000},
+    );
+    assert.equal(outboundMessages.length, 1);
+    const sent = outboundMessages[0] as {
+      callAgentFunction: {callFunction: {args: Record<string, unknown>}};
+    };
+    assert.deepEqual(sent.callAgentFunction.callFunction.args, {
+      src: {trustedUrl: 'https://arg.example/a'},
+    });
+    processor.processOperations([
+      {
+        type: 'agentFunctionResponse',
+        functionCallId: 'fc-agent-arg-1',
+        version: '1.0',
+        value: 'ok',
+      },
+    ]);
+    assert.equal(await pendingCall, 'ok');
+
+    processor.dispose();
+  });
+
+  it('H4: triggers reactive updates on rawPayload-only changes for both resolved and unknown-type nodes', () => {
+    const widgetApi = defineComponentApi(
+      defineComponent({
+        name: 'ReactiveWidget',
+        parameters: [defineParameter('label', a2uiType.string(), {required: true})],
+      }),
+    );
+    const catalog = new Catalog(
+      'https://example.com/h4/v1',
+      '1.0',
+      [widgetApi],
+      [] as ModelFunctionImplementation[],
+    );
+    const processor = new MessageProcessor([catalog], undefined, {
+      version: '1.0',
+      validationConfig: {allowUnknownElements: true, allowOrphanComponents: true},
+    });
+
+    const p1 = {rev: 1};
+    const p2 = {rev: 2};
+    const u1 = {unknownRev: 1};
+    const u2 = {unknownRev: 2};
+
+    processor.processOperations([
+      {
+        type: 'createSurface',
+        surfaceId: 's-h4',
+        catalogId: catalog.id,
+        version: '1.0',
+        components: [
+          {
+            id: 'root',
+            component: 'ReactiveWidget',
+            label: 'SameLabel',
+            [INTERNAL_RAW_PAYLOAD]: p1,
+          },
+        ],
+      },
+    ]);
+
+    const surface = processor.getSurface('s-h4')!;
+    const resolver = new NodeResolver(surface);
+    const node = peekValue(resolver.rootNode)!;
+
+    const observedRaw: unknown[] = [];
+    const observedPropEmissions: number[] = [];
+    const disposeRaw = effect(() => {
+      observedRaw.push(node.rawPayload);
+    });
+    const disposeProps = effect(() => {
+      void getValue(node.props);
+      observedPropEmissions.push(observedPropEmissions.length + 1);
+    });
+    assert.deepEqual(observedRaw, [p1]);
+    assert.equal(observedPropEmissions.length, 1);
+
+    // Update ONLY rawPayload with identical properties -> BOTH rawPayload & props react!
+    processor.processOperations([
+      {
+        type: 'updateComponents',
+        surfaceId: 's-h4',
+        version: '1.0',
+        components: [
+          {
+            id: 'root',
+            component: 'ReactiveWidget',
+            label: 'SameLabel',
+            [INTERNAL_RAW_PAYLOAD]: p2,
+          },
+        ],
+      },
+    ]);
+    assert.deepEqual(observedRaw, [p1, p2]);
+    assert.equal(observedPropEmissions.length, 2);
+
+    // Also test an 'unknown-type' node (no GenericBinder): rawPayloadSignal stays live!
+    processor.processOperations([
+      {
+        type: 'createSurface',
+        surfaceId: 's-h4-unk',
+        catalogId: catalog.id,
+        version: '1.0',
+        components: [
+          {
+            id: 'root',
+            component: 'UnregisteredWidget',
+            [INTERNAL_RAW_PAYLOAD]: u1,
+          },
+        ],
+      },
+    ]);
+    const unkResolver = new NodeResolver(processor.getSurface('s-h4-unk')!);
+    const unkNode = peekValue(unkResolver.rootNode)!;
+    assert.equal(unkNode.state, 'unknown-type');
+    const observedUnk: unknown[] = [];
+    const disposeUnk = effect(() => {
+      observedUnk.push(getValue(unkNode.rawPayloadSignal));
+    });
+    assert.deepEqual(observedUnk, [u1]);
+
+    processor.processOperations([
+      {
+        type: 'updateComponents',
+        surfaceId: 's-h4-unk',
+        version: '1.0',
+        components: [
+          {
+            id: 'root',
+            component: 'UnregisteredWidget',
+            [INTERNAL_RAW_PAYLOAD]: u2,
+          },
+        ],
+      },
+    ]);
+    assert.deepEqual(observedUnk, [u1, u2]);
+    assert.equal(unkNode.rawPayload, u2);
+
+    disposeRaw();
+    disposeProps();
+    disposeUnk();
+    resolver.dispose();
+    unkResolver.dispose();
     processor.dispose();
   });
 });

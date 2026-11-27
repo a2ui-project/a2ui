@@ -134,8 +134,10 @@ export {
   type ModelRefKind,
 } from './model_semantics.js';
 export {
+  MAX_OPAQUE_SERIALIZE_DEPTH,
   findMatchingOpaqueSpec,
   mergeOpaqueTypeRegistries,
+  resolveStrictOpaqueSpecs,
   serializeOpaqueValuesForAgent,
   type OpaqueTypeRegistry,
   type OpaqueTypeSpec,

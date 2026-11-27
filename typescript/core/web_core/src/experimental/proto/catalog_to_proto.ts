@@ -234,7 +234,15 @@ class TagAllocator {
     }
 
     const usedTags = new Set<number>(Object.values(prevMap));
-    const currentNames = new Set(fields.map(f => f.name));
+    const currentNames = new Set<string>();
+    for (const f of fields) {
+      if (currentNames.has(f.name)) {
+        throw new A2uiProtoCodegenError(
+          `Duplicate field name '${f.name}' requested for message '${messageKey}'.`,
+        );
+      }
+      currentNames.add(f.name);
+    }
     const allocated = new Map<string, number>();
     const outTags: Record<string, number> = {};
     const outWireTypes: Record<string, string> = {};
@@ -383,14 +391,59 @@ function indentLines(lines: readonly string[], spaces: number): string[] {
   return lines.map(line => (line.length > 0 ? `${pad}${line}` : ''));
 }
 
+function sanitizeComment(text: string): string {
+  return text.replace(/[\r\n]+/g, ' ').trim();
+}
+
+function claimUniqueTypeName(preferred: string, used: Set<string>): string {
+  if (!used.has(preferred)) {
+    used.add(preferred);
+    return preferred;
+  }
+  let suffix = 2;
+  while (used.has(`${preferred}${suffix}`)) {
+    suffix++;
+  }
+  const candidate = `${preferred}${suffix}`;
+  used.add(candidate);
+  return candidate;
+}
+
+function claimUniqueFieldName(
+  preferred: string,
+  used: Set<string>,
+  fallbackSuffix?: number,
+): string {
+  if (!used.has(preferred)) {
+    used.add(preferred);
+    return preferred;
+  }
+  if (fallbackSuffix !== undefined) {
+    const tagged = `${preferred}_${fallbackSuffix}`;
+    if (!used.has(tagged)) {
+      used.add(tagged);
+      return tagged;
+    }
+  }
+  let suffix = 2;
+  while (used.has(`${preferred}_${suffix}`)) {
+    suffix++;
+  }
+  const candidate = `${preferred}_${suffix}`;
+  used.add(candidate);
+  return candidate;
+}
+
 function formatConstraintComment(typeDef: TypeDefinition): string | undefined {
   const notes: string[] = [];
   if (typeDef.type === 'string') {
     if (typeDef.format !== undefined) {
-      const fmts = Array.isArray(typeDef.format) ? typeDef.format.join(' | ') : typeDef.format;
-      notes.push(`format=${fmts}`);
+      const fmts = Array.isArray(typeDef.format)
+        ? typeDef.format.join(' | ')
+        : String(typeDef.format);
+      notes.push(`format=${sanitizeComment(fmts)}`);
     }
-    if (typeDef.pattern !== undefined) notes.push(`pattern=${typeDef.pattern}`);
+    if (typeDef.pattern !== undefined) notes.push(`pattern=${sanitizeComment(typeDef.pattern)}`);
     if (typeDef.minLength !== undefined) notes.push(`minLength=${typeDef.minLength}`);
     if (typeDef.maxLength !== undefined) notes.push(`maxLength=${typeDef.maxLength}`);
   } else if (typeDef.type === 'number' || typeDef.type === 'integer') {
@@ -403,7 +456,7 @@ function formatConstraintComment(typeDef: TypeDefinition): string | undefined {
   } else if (typeDef.type === 'child') {
     notes.push('A2UI Child component ID');
   }
-  return notes.length > 0 ? notes.join(', ') : undefined;
+  return notes.length > 0 ? sanitizeComment(notes.join(', ')) : undefined;
 }
 
 /**
@@ -424,13 +477,57 @@ export function generateProtoFromCatalogModel(
   let needsStructImport = false;
   const opaqueFormatProtos = options.opaqueFormatProtos ?? {};
 
+  // Pre-compute top-level proto symbol names for catalog-local `types` so
+  // `{ type: 'ref' }` preserves `dynamic: true` wrappers on enums and objects.
+  const topLevelUsedNames = new Set<string>();
+  const topLevelRefTargets = new Map<
+    string,
+    {
+      readonly baseName: string;
+      readonly dynamicName?: string;
+      readonly protoType: string;
+      readonly wireSignature: string;
+    }
+  >();
+  for (const [typeName, typeDef] of Object.entries(model.types ?? {})) {
+    const baseName = claimUniqueTypeName(toPascalCase(typeName), topLevelUsedNames);
+    const hasTopLevelDynamicWrapper =
+      (typeDef.type === 'enum' && Boolean(typeDef.dynamic)) ||
+      (typeDef.type === 'object' &&
+        (typeDef.properties?.length ?? 0) > 0 &&
+        Boolean(typeDef.dynamic));
+    if (hasTopLevelDynamicWrapper) {
+      const dynamicName = claimUniqueTypeName(`Dynamic${baseName}`, topLevelUsedNames);
+      topLevelRefTargets.set(typeName, {
+        baseName,
+        dynamicName,
+        protoType: dynamicName,
+        wireSignature: `ref:${dynamicName}`,
+      });
+    } else {
+      topLevelRefTargets.set(typeName, {
+        baseName,
+        protoType: baseName,
+        wireSignature: `ref:${baseName}`,
+      });
+    }
+  }
+
   const emitEnumBlock = (
     enumName: string,
     enumKey: string,
     enumDef: EnumTypeDefinition,
   ): {readonly block: GeneratedNestedBlock; readonly protoType: string} => {
-    const stringValues = enumDef.values.map(v => String(v));
-    const {numbers, retired} = allocator.allocateEnumValues(enumKey, stringValues);
+    const uniqueValues: string[] = [];
+    const seenValues = new Set<string>();
+    for (const v of enumDef.values) {
+      const strVal = String(v);
+      if (!seenValues.has(strVal)) {
+        seenValues.add(strVal);
+        uniqueValues.push(strVal);
+      }
+    }
+    const {numbers, retired} = allocator.allocateEnumValues(enumKey, uniqueValues);
     const prefix = toUpperSnakeCase(enumName);
     const lines: string[] = [`enum ${enumName} {`];
     lines.push(`  ${prefix}_UNSPECIFIED = 0;`);
@@ -438,11 +535,15 @@ export function generateProtoFromCatalogModel(
       lines.push(`  ${formatReservedTags(retired)}`);
     }
     const usedIdentifiers = new Set<string>([`${prefix}_UNSPECIFIED`]);
-    for (const rawVal of stringValues) {
+    for (const rawVal of uniqueValues) {
       const num = numbers.get(rawVal)!;
       let ident = `${prefix}_${toUpperSnakeCase(rawVal)}`;
       if (usedIdentifiers.has(ident)) {
         ident = `${ident}_${num}`;
+      }
+      let extra = 2;
+      while (usedIdentifiers.has(ident)) {
+        ident = `${prefix}_${toUpperSnakeCase(rawVal)}_${num}_${extra++}`;
       }
       usedIdentifiers.add(ident);
       lines.push(`  ${ident} = ${num};`);
@@ -474,6 +575,8 @@ export function generateProtoFromCatalogModel(
     checkable?: boolean,
   ): GeneratedNestedBlock => {
     const nestedBlocks: GeneratedNestedBlock[] = [];
+    const usedNestedTypes = new Set<string>([msgName]);
+    const claimNested = (preferred: string) => claimUniqueTypeName(preferred, usedNestedTypes);
     const resolvedFields: Array<{
       readonly param: ParameterDefinition;
       readonly resolved: ResolvedFieldType;
@@ -484,6 +587,7 @@ export function generateProtoFromCatalogModel(
         param,
         `${msgKey}.${toPascalCase(param.name)}`,
         toPascalCase(param.name),
+        claimNested,
       );
       nestedBlocks.push(...resolved.nestedBlocks);
       resolvedFields.push({param, resolved});
@@ -494,19 +598,29 @@ export function generateProtoFromCatalogModel(
       resolvedFields.map(f => ({name: f.param.name, wireSignature: f.resolved.wireSignature})),
     );
 
-    const allocated: AllocatedField[] = resolvedFields.map(({param, resolved}) => ({
-      paramName: param.name,
-      protoFieldName: toSnakeCase(param.name),
-      tag: tags.get(param.name)!,
-      protoType: resolved.protoType,
-      repeated: resolved.repeated,
-      mapKeyType: resolved.mapKeyType,
-      comment: resolved.comment,
-    }));
-
-    // Emit fields sorted by tag number so reordering parameters in CatalogModel
-    // produces stable, readable wire declarations while keeping tags identical.
-    allocated.sort((a, b) => a.tag - b.tag);
+    // Sort by tag number before disambiguating snake_case field names so
+    // parameter reorders in CatalogModel keep 100% deterministic field names.
+    const sortedByTag = [...resolvedFields].sort(
+      (a, b) => tags.get(a.param.name)! - tags.get(b.param.name)!,
+    );
+    const usedProtoFieldNames = new Set<string>();
+    const allocated: AllocatedField[] = sortedByTag.map(({param, resolved}) => {
+      const tag = tags.get(param.name)!;
+      const protoFieldName = claimUniqueFieldName(
+        toSnakeCase(param.name),
+        usedProtoFieldNames,
+        tag,
+      );
+      return {
+        paramName: param.name,
+        protoFieldName,
+        tag,
+        protoType: resolved.protoType,
+        repeated: resolved.repeated,
+        mapKeyType: resolved.mapKeyType,
+        comment: resolved.comment,
+      };
+    });
 
     const lines: string[] = [`message ${msgName} {`];
     if (checkable) {
@@ -514,7 +628,7 @@ export function generateProtoFromCatalogModel(
     }
     if (atLeastOneOf && atLeastOneOf.length > 0) {
       const groups = atLeastOneOf.map(g => `[${g.join(', ')}]`).join(', ');
-      lines.push(`  // CatalogModel constraint: atLeastOneOf ${groups}`);
+      lines.push(`  // CatalogModel constraint: atLeastOneOf ${sanitizeComment(groups)}`);
     }
     if (retired.length > 0) {
       lines.push(`  ${formatReservedTags(retired)}`);
@@ -525,7 +639,7 @@ export function generateProtoFromCatalogModel(
     }
     for (const field of allocated) {
       if (field.comment) {
-        lines.push(`  // ${field.comment}`);
+        lines.push(`  // ${sanitizeComment(field.comment)}`);
       }
       if (field.mapKeyType) {
         lines.push(
@@ -547,14 +661,22 @@ export function generateProtoFromCatalogModel(
     unionDef: UnionTypeDefinition,
   ): GeneratedNestedBlock => {
     const nestedBlocks: GeneratedNestedBlock[] = [];
+    const usedNestedTypes = new Set<string>([unionName]);
+    const claimNested = (preferred: string) => claimUniqueTypeName(preferred, usedNestedTypes);
+    const usedVariantNames = new Set<string>();
     const variantSpecs: Array<{
       readonly name: string;
       readonly protoType: string;
       readonly wireSignature: string;
     }> = [];
 
+    let hasExplicitDataBinding = false;
+    let hasExplicitFunctionCall = false;
+
     for (let i = 0; i < unionDef.variants.length; i++) {
       const variant = unionDef.variants[i];
+      if (variant.type === 'dataBinding') hasExplicitDataBinding = true;
+      if (variant.type === 'functionCall') hasExplicitFunctionCall = true;
       const variantHint =
         variant.type === 'ref'
           ? toPascalCase(variant.ref)
@@ -568,14 +690,14 @@ export function generateProtoFromCatalogModel(
           ? `${variantHint}${i + 1}`
           : variantHint;
       const variantKey = `${unionKey}.${variantBaseName}`;
-      const resolved = resolveFieldType(variant, variantKey, variantBaseName);
+      const resolved = resolveFieldType(variant, variantKey, variantBaseName, claimNested);
       nestedBlocks.push(...resolved.nestedBlocks);
 
       // Protobuf forbids `repeated` and `map` directly inside `oneof`; wrap them in a message.
       let oneofProtoType = resolved.protoType;
       let wireSig = resolved.wireSignature;
       if (resolved.mapKeyType) {
-        const mapWrapper = `${variantBaseName}Map`;
+        const mapWrapper = claimNested(`${variantBaseName}Map`);
         nestedBlocks.push({
           lines: [
             `message ${mapWrapper} {`,
@@ -586,7 +708,7 @@ export function generateProtoFromCatalogModel(
         oneofProtoType = mapWrapper;
         wireSig = `map_wrapper<${resolved.mapKeyType},${resolved.wireSignature}>`;
       } else if (resolved.repeated) {
-        const listWrapper = `${variantBaseName}List`;
+        const listWrapper = claimNested(`${variantBaseName}List`);
         nestedBlocks.push({
           lines: [`message ${listWrapper} {`, `  repeated ${resolved.protoType} values = 1;`, '}'],
         });
@@ -594,26 +716,39 @@ export function generateProtoFromCatalogModel(
         wireSig = `list_wrapper<${resolved.wireSignature}>`;
       }
 
+      const uniqueFieldName = claimUniqueFieldName(
+        toSnakeCase(variantBaseName),
+        usedVariantNames,
+        i + 1,
+      );
       variantSpecs.push({
-        name: toSnakeCase(variantBaseName),
+        name: uniqueFieldName,
         protoType: oneofProtoType,
         wireSignature: wireSig,
       });
     }
 
     if (unionDef.dynamic) {
-      variantSpecs.push(
-        {
-          name: 'data_binding',
+      if (!hasExplicitDataBinding) {
+        const bindingFieldName = !usedVariantNames.has('data_binding')
+          ? claimUniqueFieldName('data_binding', usedVariantNames)
+          : claimUniqueFieldName('a2ui_data_binding', usedVariantNames);
+        variantSpecs.push({
+          name: bindingFieldName,
           protoType: 'a2ui.v1_0.DataBinding',
           wireSignature: 'a2ui.v1_0.DataBinding',
-        },
-        {
-          name: 'function_call',
+        });
+      }
+      if (!hasExplicitFunctionCall) {
+        const callFieldName = !usedVariantNames.has('function_call')
+          ? claimUniqueFieldName('function_call', usedVariantNames)
+          : claimUniqueFieldName('a2ui_function_call', usedVariantNames);
+        variantSpecs.push({
+          name: callFieldName,
           protoType: 'a2ui.v1_0.FunctionCall',
           wireSignature: 'a2ui.v1_0.FunctionCall',
-        },
-      );
+        });
+      }
     }
 
     const {tags, retired} = allocator.allocateMessageFields(
@@ -643,18 +778,24 @@ export function generateProtoFromCatalogModel(
     typeDef: TypeDefinition,
     qualifiedKey: string,
     suggestedName: string,
+    claimNested: (preferred: string) => string,
   ): ResolvedFieldType => {
     const comment = formatConstraintComment(typeDef);
     switch (typeDef.type) {
       case 'string': {
-        const singleFormat = typeof typeDef.format === 'string' ? typeDef.format : undefined;
+        const singleFormat =
+          typeof typeDef.format === 'string'
+            ? typeDef.format
+            : Array.isArray(typeDef.format) && typeDef.format.length === 1
+              ? typeDef.format[0]
+              : undefined;
         const opaqueMapping = singleFormat ? opaqueFormatProtos[singleFormat] : undefined;
         if (opaqueMapping) {
           if (opaqueMapping.importPath) {
             extraImports.add(opaqueMapping.importPath);
           }
           if (typeDef.dynamic) {
-            const wrapperName = `Dynamic${suggestedName}`;
+            const wrapperName = claimNested(`Dynamic${suggestedName}`);
             return {
               protoType: wrapperName,
               wireSignature: `dynamic_opaque:${opaqueMapping.protoType}`,
@@ -704,13 +845,14 @@ export function generateProtoFromCatalogModel(
             protoType: scalar,
             wireSignature: scalar,
             repeated: false,
-            comment: `enum values: ${typeDef.values.map(String).join(' | ')}`,
+            comment: sanitizeComment(`enum values: ${typeDef.values.map(String).join(' | ')}`),
             nestedBlocks: [],
           };
         }
-        const {block, protoType} = emitEnumBlock(suggestedName, qualifiedKey, typeDef);
+        const enumTypeName = claimNested(suggestedName);
+        const {block, protoType} = emitEnumBlock(enumTypeName, qualifiedKey, typeDef);
         if (typeDef.dynamic) {
-          const wrapperName = `Dynamic${suggestedName}`;
+          const wrapperName = claimNested(`Dynamic${enumTypeName}`);
           return {
             protoType: wrapperName,
             wireSignature: `dynamic_enum:${qualifiedKey}`,
@@ -741,7 +883,7 @@ export function generateProtoFromCatalogModel(
           protoType,
           wireSignature: `const:${protoType}`,
           repeated: false,
-          comment: `const=${JSON.stringify(typeDef.value)}`,
+          comment: sanitizeComment(`const=${JSON.stringify(typeDef.value)}`),
           nestedBlocks: [],
         };
       }
@@ -821,6 +963,16 @@ export function generateProtoFromCatalogModel(
           nestedBlocks: [],
         };
       case 'ref': {
+        const target = topLevelRefTargets.get(typeDef.ref);
+        if (target) {
+          return {
+            protoType: target.protoType,
+            wireSignature: target.wireSignature,
+            repeated: false,
+            comment,
+            nestedBlocks: [],
+          };
+        }
         const refTypeName = toPascalCase(typeDef.ref);
         return {
           protoType: refTypeName,
@@ -835,6 +987,7 @@ export function generateProtoFromCatalogModel(
         const hasProps = (objDef.properties?.length ?? 0) > 0;
         if (
           !hasProps &&
+          !objDef.dynamic &&
           objDef.additionalProperties &&
           typeof objDef.additionalProperties === 'object'
         ) {
@@ -842,22 +995,47 @@ export function generateProtoFromCatalogModel(
             objDef.additionalProperties,
             `${qualifiedKey}.Value`,
             `${suggestedName}Value`,
+            claimNested,
           );
-          if (!valResolved.repeated && !valResolved.mapKeyType && !objDef.dynamic) {
-            return {
-              protoType: valResolved.protoType,
-              wireSignature: `map<string,${valResolved.wireSignature}>`,
-              repeated: false,
-              mapKeyType: 'string',
-              comment,
-              nestedBlocks: valResolved.nestedBlocks,
-            };
+          let mapValType = valResolved.protoType;
+          let mapValWireSig = valResolved.wireSignature;
+          const mapNestedBlocks = [...valResolved.nestedBlocks];
+          if (valResolved.mapKeyType) {
+            const innerMapWrapper = claimNested(`${suggestedName}ValueMap`);
+            mapNestedBlocks.push({
+              lines: [
+                `message ${innerMapWrapper} {`,
+                `  map<${valResolved.mapKeyType}, ${valResolved.protoType}> entries = 1;`,
+                '}',
+              ],
+            });
+            mapValType = innerMapWrapper;
+            mapValWireSig = `map_wrapper<${valResolved.mapKeyType},${valResolved.wireSignature}>`;
+          } else if (valResolved.repeated) {
+            const innerListWrapper = claimNested(`${suggestedName}ValueList`);
+            mapNestedBlocks.push({
+              lines: [
+                `message ${innerListWrapper} {`,
+                `  repeated ${valResolved.protoType} items = 1;`,
+                '}',
+              ],
+            });
+            mapValType = innerListWrapper;
+            mapValWireSig = `list_wrapper<${valResolved.wireSignature}>`;
           }
+          return {
+            protoType: mapValType,
+            wireSignature: `map<string,${mapValWireSig}>`,
+            repeated: false,
+            mapKeyType: 'string',
+            comment,
+            nestedBlocks: mapNestedBlocks,
+          };
         }
         if (!hasProps) {
           needsStructImport = true;
           if (objDef.dynamic) {
-            const wrapperName = `Dynamic${suggestedName}`;
+            const wrapperName = claimNested(`Dynamic${suggestedName}`);
             return {
               protoType: wrapperName,
               wireSignature: 'dynamic_struct',
@@ -874,24 +1052,25 @@ export function generateProtoFromCatalogModel(
             nestedBlocks: [],
           };
         }
+        const msgTypeName = claimNested(suggestedName);
         const msgBlock = emitObjectMessageBlock(
-          suggestedName,
+          msgTypeName,
           qualifiedKey,
           objDef.properties!,
           objDef.atLeastOneOf,
         );
         if (objDef.dynamic) {
-          const wrapperName = `Dynamic${suggestedName}`;
+          const wrapperName = claimNested(`Dynamic${msgTypeName}`);
           return {
             protoType: wrapperName,
             wireSignature: `dynamic_msg:${qualifiedKey}`,
             repeated: false,
             comment,
-            nestedBlocks: [msgBlock, emitDynamicWrapperBlock(wrapperName, suggestedName)],
+            nestedBlocks: [msgBlock, emitDynamicWrapperBlock(wrapperName, msgTypeName)],
           };
         }
         return {
-          protoType: suggestedName,
+          protoType: msgTypeName,
           wireSignature: `msg:${qualifiedKey}`,
           repeated: false,
           comment,
@@ -899,11 +1078,19 @@ export function generateProtoFromCatalogModel(
         };
       }
       case 'array': {
+        const singleItemFormat =
+          typeDef.items?.type === 'string'
+            ? typeof typeDef.items.format === 'string'
+              ? typeDef.items.format
+              : Array.isArray(typeDef.items.format) && typeDef.items.format.length === 1
+                ? typeDef.items.format[0]
+                : undefined
+            : undefined;
         if (
           typeDef.dynamic &&
           typeDef.items?.type === 'string' &&
           !typeDef.items.dynamic &&
-          !(typeof typeDef.items.format === 'string' && opaqueFormatProtos[typeDef.items.format])
+          !(singleItemFormat && opaqueFormatProtos[singleItemFormat])
         ) {
           return {
             protoType: 'a2ui.v1_0.DynamicStringList',
@@ -915,39 +1102,70 @@ export function generateProtoFromCatalogModel(
         }
         const itemTypeDef: TypeDefinition = typeDef.items ?? {type: 'any', nullable: true};
         const itemName = `${suggestedName}Item`;
-        const itemResolved = resolveFieldType(itemTypeDef, `${qualifiedKey}.${itemName}`, itemName);
-        if (typeDef.dynamic) {
-          const listName = `${suggestedName}List`;
-          const wrapperName = `Dynamic${suggestedName}`;
-          const listBlock: GeneratedNestedBlock = {
+        const itemResolved = resolveFieldType(
+          itemTypeDef,
+          `${qualifiedKey}.${itemName}`,
+          itemName,
+          claimNested,
+        );
+
+        // Protobuf forbids `repeated repeated T` (2D arrays) and `repeated map<K, V>`;
+        // wrap nested repeated/map elements in a helper message so structure is preserved.
+        let elementProtoType = itemResolved.protoType;
+        let elementWireSig = itemResolved.wireSignature;
+        const elementNestedBlocks = [...itemResolved.nestedBlocks];
+        if (itemResolved.mapKeyType) {
+          const mapWrapper = claimNested(`${itemName}Map`);
+          elementNestedBlocks.push({
             lines: [
-              `message ${listName} {`,
-              `  repeated ${itemResolved.protoType} values = 1;`,
+              `message ${mapWrapper} {`,
+              `  map<${itemResolved.mapKeyType}, ${itemResolved.protoType}> entries = 1;`,
               '}',
             ],
+          });
+          elementProtoType = mapWrapper;
+          elementWireSig = `map_wrapper<${itemResolved.mapKeyType},${itemResolved.wireSignature}>`;
+        } else if (itemResolved.repeated) {
+          const listWrapper = claimNested(`${itemName}List`);
+          elementNestedBlocks.push({
+            lines: [
+              `message ${listWrapper} {`,
+              `  repeated ${itemResolved.protoType} items = 1;`,
+              '}',
+            ],
+          });
+          elementProtoType = listWrapper;
+          elementWireSig = `list_wrapper<${itemResolved.wireSignature}>`;
+        }
+
+        if (typeDef.dynamic) {
+          const listName = claimNested(`${suggestedName}List`);
+          const wrapperName = claimNested(`Dynamic${suggestedName}`);
+          const listBlock: GeneratedNestedBlock = {
+            lines: [`message ${listName} {`, `  repeated ${elementProtoType} values = 1;`, '}'],
           };
           return {
             protoType: wrapperName,
-            wireSignature: `dynamic_list:${itemResolved.wireSignature}`,
+            wireSignature: `dynamic_list:${elementWireSig}`,
             repeated: false,
             comment,
             nestedBlocks: [
-              ...itemResolved.nestedBlocks,
+              ...elementNestedBlocks,
               listBlock,
               emitDynamicWrapperBlock(wrapperName, listName),
             ],
           };
         }
         return {
-          protoType: itemResolved.protoType,
-          wireSignature: `repeated:${itemResolved.wireSignature}`,
+          protoType: elementProtoType,
+          wireSignature: `repeated:${elementWireSig}`,
           repeated: true,
           comment,
-          nestedBlocks: itemResolved.nestedBlocks,
+          nestedBlocks: elementNestedBlocks,
         };
       }
       case 'union': {
-        const unionName = `${suggestedName}Union`;
+        const unionName = claimNested(`${suggestedName}Union`);
         const unionBlock = emitUnionMessageBlock(unionName, qualifiedKey, typeDef);
         return {
           protoType: unionName,
@@ -971,30 +1189,45 @@ export function generateProtoFromCatalogModel(
   };
 
   const emitTopLevelType = (name: string, typeDef: DataTypeDefinition): string[] => {
-    const pascalName = toPascalCase(name);
+    const target = topLevelRefTargets.get(name)!;
+    const pascalName = target.baseName;
     if (typeDef.type === 'enum') {
       const {block} = emitEnumBlock(pascalName, `types.${pascalName}`, typeDef);
-      if (typeDef.dynamic) {
+      if (target.dynamicName) {
         return [
           ...block.lines,
           '',
-          ...emitDynamicWrapperBlock(`Dynamic${pascalName}`, pascalName).lines,
+          ...emitDynamicWrapperBlock(target.dynamicName, pascalName).lines,
         ];
       }
       return block.lines;
     }
     if (typeDef.type === 'object' && (typeDef.properties?.length ?? 0) > 0) {
-      return emitObjectMessageBlock(
+      const objBlock = emitObjectMessageBlock(
         pascalName,
         `types.${pascalName}`,
         typeDef.properties!,
         typeDef.atLeastOneOf,
-      ).lines;
+      );
+      if (target.dynamicName) {
+        return [
+          ...objBlock.lines,
+          '',
+          ...emitDynamicWrapperBlock(target.dynamicName, pascalName).lines,
+        ];
+      }
+      return objBlock.lines;
     }
     if (typeDef.type === 'union') {
       return emitUnionMessageBlock(pascalName, `types.${pascalName}`, typeDef).lines;
     }
-    const inner = resolveFieldType(typeDef, `types.${pascalName}.Value`, `${pascalName}Value`);
+    const usedNested = new Set<string>([pascalName]);
+    const inner = resolveFieldType(
+      typeDef,
+      `types.${pascalName}.Value`,
+      `${pascalName}Value`,
+      preferred => claimUniqueTypeName(preferred, usedNested),
+    );
     const {tags, retired} = allocator.allocateMessageFields(`types.${pascalName}`, [
       {name: 'value', wireSignature: inner.wireSignature},
     ]);
@@ -1007,7 +1240,7 @@ export function generateProtoFromCatalogModel(
       lines.push('');
     }
     if (inner.comment) {
-      lines.push(`  // ${inner.comment}`);
+      lines.push(`  // ${sanitizeComment(inner.comment)}`);
     }
     const fieldDecl = inner.mapKeyType
       ? `map<${inner.mapKeyType}, ${inner.protoType}> value = ${tags.get('value')!};`
@@ -1052,9 +1285,9 @@ export function generateProtoFromCatalogModel(
     );
     bodySections.push('');
     for (const comp of components) {
-      const msgName = toPascalCase(comp.name);
+      const msgName = claimUniqueTypeName(toPascalCase(comp.name), topLevelUsedNames);
       if (comp.description) {
-        bodySections.push(`// ${comp.description.replace(/\s+/g, ' ').trim()}`);
+        bodySections.push(`// ${sanitizeComment(comp.description.replace(/\s+/g, ' '))}`);
       }
       const block = emitObjectMessageBlock(
         msgName,
@@ -1069,21 +1302,28 @@ export function generateProtoFromCatalogModel(
   }
 
   const envelopeImport = options.envelopeImportPath ?? 'a2ui/v1_0/envelope.proto';
+  const needsEnvelopeImport = bodySections.some(
+    line => !line.trimStart().startsWith('//') && line.includes('a2ui.v1_0.'),
+  );
   const headerLines: string[] = [
-    `// Generated from A2UI CatalogModel: ${model.catalogId}`,
+    `// Generated from A2UI CatalogModel: ${sanitizeComment(model.catalogId)}`,
     'edition = "2023";',
     '',
     `package ${options.protoPackage};`,
     '',
-    `import "${envelopeImport}";`,
   ];
+  if (needsEnvelopeImport) {
+    headerLines.push(`import "${envelopeImport}";`);
+  }
   if (needsStructImport) {
     headerLines.push('import "google/protobuf/struct.proto";');
   }
   for (const imp of [...extraImports].sort()) {
     headerLines.push(`import "${imp}";`);
   }
-  headerLines.push('');
+  if (needsEnvelopeImport || needsStructImport || extraImports.size > 0) {
+    headerLines.push('');
+  }
 
   return {
     protoSource: [...headerLines, ...bodySections].join('\n'),

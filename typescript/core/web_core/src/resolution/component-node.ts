@@ -17,7 +17,7 @@
 import {EventEmitter, EventSource} from '../common/events.js';
 import type {A2uiMetadata, ActionDispatchOptions} from '../common/metadata.js';
 import type {ComponentApiLike} from '../catalog/types.js';
-import {computed, Signal, signal, peekValue, setValue} from '../reactivity/signals.js';
+import {computed, getValue, Signal, signal, peekValue, setValue} from '../reactivity/signals.js';
 import {ResolvedBinding} from './resolved-binding.js';
 import type {ComponentContext} from './component-context.js';
 import {nextNodeId} from './node-id.js';
@@ -108,9 +108,15 @@ export interface ComponentNode<
    */
   readonly metadata: Signal<A2uiMetadata | undefined>;
   /**
-   * Optional static transport escape hatch carrying the raw wire payload
-   * (e.g. a compiled Protobuf message) for bespoke 1P domain widgets.
-   * Static snapshot only — not reactive to `@path` data model updates.
+   * Read-only reactive signal reflecting the optional transport escape hatch
+   * carrying the raw wire payload (e.g. a compiled Protobuf message) for
+   * bespoke 1P domain widgets. Updates in place on `updateComponents` even when
+   * `properties` are unchanged or the node is `'unknown-type'`.
+   */
+  readonly rawPayloadSignal: Signal<unknown>;
+  /**
+   * Reactive getter reading `rawPayloadSignal` for ergonomic access inside
+   * reactive effects/computeds or synchronous snapshots.
    */
   readonly rawPayload?: unknown;
   /** Fires exactly once, when this node is disposed. */
@@ -172,8 +178,8 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
   readonly state: NodeState;
   readonly props: Signal<TProps>;
   readonly metadata: Signal<A2uiMetadata | undefined>;
+  readonly rawPayloadSignal: Signal<unknown>;
 
-  private _rawPayload?: unknown;
   private readonly _onDestroyed = new EventEmitter<void>();
   readonly onDestroyed: EventSource<void> = this._onDestroyed;
 
@@ -203,7 +209,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
     context?: ComponentContext,
     state: NodeState = 'resolved',
     metadata: Signal<A2uiMetadata | undefined> = computed(() => undefined),
-    rawPayload?: unknown,
+    rawPayloadSignal: Signal<unknown> = computed(() => undefined),
   ) {
     this.instanceId = instanceId;
     this.componentId = componentId;
@@ -214,19 +220,12 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
     this.context = context;
     this.state = state;
     this.metadata = metadata;
-    this._rawPayload = rawPayload;
+    this.rawPayloadSignal = rawPayloadSignal;
   }
 
-  /** Optional static raw wire payload attached to the underlying component model. */
+  /** Reactive getter reading `rawPayloadSignal` attached to the underlying component model. */
   get rawPayload(): unknown {
-    return this._rawPayload;
-  }
-
-  /** Updates the stored static raw payload when the underlying component model updates in place. */
-  setRawPayload(value: unknown): void {
-    if (!this._disposed) {
-      this._rawPayload = value;
-    }
+    return getValue(this.rawPayloadSignal);
   }
 
   /** Whether this node has been disposed. */
@@ -273,16 +272,20 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
   }
 
   /**
-   * Replaces resolved properties, emitting only when a shallow comparison detects a change.
+   * Replaces resolved properties, emitting when a shallow comparison detects a
+   * change or when `forceEmit` is set (for example on a `rawPayload`-only update).
    *
    * @param next Next property dictionary.
+   * @param forceEmit Whether to force a signal emission with a fresh object identity.
    */
-  setProps(next: TProps): void {
+  setProps(next: TProps, forceEmit = false): void {
     if (this._disposed) {
       return;
     }
     const previous = peekValue(this.props);
-    if (!shallowEqual(previous, next)) {
+    if (forceEmit) {
+      setValue(this.props, {...next} as TProps);
+    } else if (!shallowEqual(previous, next)) {
       setValue(this.props, next);
     }
   }

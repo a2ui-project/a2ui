@@ -40,6 +40,7 @@ export {
   type ReverseCodegenOptions,
 } from './proto_to_catalog.js';
 export {
+  MAX_PROTO_DEPTH,
   ProtoWireReader,
   ProtoWireWriter,
   WireType,

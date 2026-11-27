@@ -244,8 +244,7 @@ function traverseRecursionAndPaths(item: unknown, globalDepth: number): void {
       }
     }
 
-    for (const [k, v] of Object.entries(obj)) {
-      if (k === 'rawPayload') continue;
+    for (const v of Object.values(obj)) {
       traverseRecursionAndPaths(v, globalDepth + 1);
     }
   }

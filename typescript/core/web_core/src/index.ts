@@ -153,6 +153,7 @@ export {
   formatZodIssue,
   MessageProcessor,
   INTERNAL_OPERATION_TYPES,
+  INTERNAL_RAW_PAYLOAD,
   isInternalOperation,
   type InternalAgentFunctionResponseOp,
   type InternalCallRendererFunctionOp,

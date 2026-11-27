@@ -298,17 +298,20 @@ export function protoDescriptorToCatalogModel(
   const emittedTypes: Record<string, DataTypeDefinition> = {};
 
   interface LookupScope {
+    readonly prefix: string;
     readonly messages: ReadonlyMap<string, ProtoMessageDescriptor>;
     readonly enums: ReadonlyMap<string, ProtoEnumDescriptor>;
     readonly parent?: LookupScope;
   }
 
   const rootScope: LookupScope = {
+    prefix: descriptor.package,
     messages: topLevelMessages,
     enums: topLevelEnums,
   };
 
   const makeChildScope = (msg: ProtoMessageDescriptor, parent: LookupScope): LookupScope => {
+    const prefix = parent.prefix ? `${parent.prefix}.${msg.name}` : msg.name;
     const msgs = new Map<string, ProtoMessageDescriptor>();
     for (const nested of msg.nestedMessages ?? []) {
       msgs.set(nested.name, nested);
@@ -317,7 +320,47 @@ export function protoDescriptorToCatalogModel(
     for (const nested of msg.nestedEnums ?? []) {
       enums.set(nested.name, nested);
     }
-    return {messages: msgs, enums, parent};
+    return {prefix, messages: msgs, enums, parent};
+  };
+
+  // Resolve dotted relative/same-package paths (e.g. `Outer.Inner` or `pkg.Outer.Inner`)
+  // without blindly falling back to short suffixes of external packages like `google.type.Money`.
+  const resolveDottedMessage = (
+    segments: readonly string[],
+    startScope: LookupScope,
+  ): {readonly msg: ProtoMessageDescriptor; readonly qualifiedName: string} | undefined => {
+    const first = startScope.messages.get(segments[0]);
+    if (!first) return undefined;
+    let curMsg: ProtoMessageDescriptor = first;
+    let curPrefix = startScope.prefix ? `${startScope.prefix}.${curMsg.name}` : curMsg.name;
+    for (let i = 1; i < segments.length; i++) {
+      const next: ProtoMessageDescriptor | undefined = curMsg.nestedMessages?.find(
+        m => m.name === segments[i],
+      );
+      if (!next) return undefined;
+      curMsg = next;
+      curPrefix = `${curPrefix}.${curMsg.name}`;
+    }
+    return {msg: curMsg, qualifiedName: curPrefix};
+  };
+
+  const resolveDottedEnum = (
+    segments: readonly string[],
+    startScope: LookupScope,
+  ): {readonly enumDesc: ProtoEnumDescriptor; readonly isTopLevel: boolean} | undefined => {
+    if (segments.length === 1) {
+      const found = startScope.enums.get(segments[0]);
+      if (found) {
+        return {enumDesc: found, isTopLevel: startScope.parent === undefined};
+      }
+      return undefined;
+    }
+    const parentResolved = resolveDottedMessage(segments.slice(0, -1), startScope);
+    if (!parentResolved) return undefined;
+    const found = parentResolved.msg.nestedEnums?.find(
+      e => e.name === segments[segments.length - 1],
+    );
+    return found ? {enumDesc: found, isTopLevel: false} : undefined;
   };
 
   const findEnum = (
@@ -325,41 +368,37 @@ export function protoDescriptorToCatalogModel(
     scope: LookupScope,
   ): {enumDesc: ProtoEnumDescriptor; isTopLevel: boolean} | undefined => {
     const norm = normalizeTypeName(name);
+    if (pkgPrefix && norm.startsWith(pkgPrefix)) {
+      const rel = norm.slice(pkgPrefix.length).split('.');
+      const fromPkg = resolveDottedEnum(rel, rootScope);
+      if (fromPkg) return fromPkg;
+    }
+    const segments = norm.split('.');
     let cur: LookupScope | undefined = scope;
     while (cur) {
-      const found = cur.enums.get(norm);
-      if (found) {
-        return {enumDesc: found, isTopLevel: cur.parent === undefined};
-      }
+      const found = resolveDottedEnum(segments, cur);
+      if (found) return found;
       cur = cur.parent;
-    }
-    // Try short suffix match for qualified names within the same package.
-    const shortName = norm.split('.').pop()!;
-    let curShort: LookupScope | undefined = scope;
-    while (curShort) {
-      const found = curShort.enums.get(shortName);
-      if (found) {
-        return {enumDesc: found, isTopLevel: curShort.parent === undefined};
-      }
-      curShort = curShort.parent;
     }
     return undefined;
   };
 
-  const findMessage = (name: string, scope: LookupScope): ProtoMessageDescriptor | undefined => {
+  const findMessage = (
+    name: string,
+    scope: LookupScope,
+  ): {readonly msg: ProtoMessageDescriptor; readonly qualifiedName: string} | undefined => {
     const norm = normalizeTypeName(name);
+    if (pkgPrefix && norm.startsWith(pkgPrefix)) {
+      const rel = norm.slice(pkgPrefix.length).split('.');
+      const fromPkg = resolveDottedMessage(rel, rootScope);
+      if (fromPkg) return fromPkg;
+    }
+    const segments = norm.split('.');
     let cur: LookupScope | undefined = scope;
     while (cur) {
-      const found = cur.messages.get(norm);
+      const found = resolveDottedMessage(segments, cur);
       if (found) return found;
       cur = cur.parent;
-    }
-    const shortName = norm.split('.').pop()!;
-    let curShort: LookupScope | undefined = scope;
-    while (curShort) {
-      const found = curShort.messages.get(shortName);
-      if (found) return found;
-      curShort = curShort.parent;
     }
     return undefined;
   };
@@ -503,13 +542,14 @@ export function protoDescriptorToCatalogModel(
 
     // Resolve local/nested message descriptors.
     if (typeName) {
-      const targetMsg = findMessage(typeName, scope);
-      if (targetMsg) {
-        if (visitedMessages.has(targetMsg.name)) {
+      const resolvedMsg = findMessage(typeName, scope);
+      if (resolvedMsg) {
+        const {msg: targetMsg, qualifiedName} = resolvedMsg;
+        if (visitedMessages.has(qualifiedName)) {
           return {type: 'object', additionalProperties: true};
         }
         const nextVisited = new Set(visitedMessages);
-        nextVisited.add(targetMsg.name);
+        nextVisited.add(qualifiedName);
 
         // Unwrap `Dynamic<Enum>` or `Dynamic<SecurityProto>` wrapper messages cleanly!
         const unwrappedLiteral = unwrapDynamicWrapperMessage(targetMsg);
@@ -575,8 +615,34 @@ export function protoDescriptorToCatalogModel(
   const explicitSet = options.componentMessages ? new Set(options.componentMessages) : undefined;
   const helperNames = new Set<string>();
   if (!explicitSet) {
+    const referencedTopLevel = new Set<string>();
+    const collectRefs = (msg: ProtoMessageDescriptor, scope: LookupScope): void => {
+      const childScope = makeChildScope(msg, scope);
+      for (const field of msg.fields) {
+        const refType = field.mapValue?.typeName ?? field.typeName;
+        if (refType && (field.kind === 'message' || field.mapValue?.kind === 'message')) {
+          const found = findMessage(refType, childScope);
+          if (found && topLevelMessages.get(found.msg.name) === found.msg) {
+            referencedTopLevel.add(found.msg.name);
+          }
+        }
+      }
+      for (const nested of msg.nestedMessages ?? []) {
+        collectRefs(nested, childScope);
+      }
+    };
     for (const msg of descriptor.messages) {
       if (unwrapDynamicWrapperMessage(msg)) {
+        helperNames.add(msg.name);
+      }
+      collectRefs(msg, rootScope);
+    }
+    for (const msg of descriptor.messages) {
+      if (
+        referencedTopLevel.has(msg.name) &&
+        !msg.componentName &&
+        !/(?:PropsProto|ComponentProto)$/.test(msg.name)
+      ) {
         helperNames.add(msg.name);
       }
     }
@@ -589,7 +655,8 @@ export function protoDescriptorToCatalogModel(
     } else if (helperNames.has(msg.name)) {
       continue;
     }
-    const visited = new Set<string>([msg.name]);
+    const rootQualified = pkgPrefix ? `${pkgPrefix}${msg.name}` : msg.name;
+    const visited = new Set<string>([rootQualified]);
     const parameters = convertMessageFields(msg, rootScope, visited);
     components.push({
       name: deriveComponentName(msg),

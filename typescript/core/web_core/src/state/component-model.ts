@@ -30,7 +30,7 @@ import {peekValue, setValue, signal, Signal} from '../reactivity/signals.js';
  */
 export class ComponentModel {
   private _properties: Record<string, any>;
-  private _rawPayload?: unknown;
+  private readonly _rawPayloadSignal: Signal<unknown>;
   private readonly _onUpdated = new EventEmitter<ComponentModel>();
   private readonly _onMetadataChanged = new EventEmitter<A2uiMetadata | undefined>();
   private readonly _metadataSignal: Signal<A2uiMetadata | undefined>;
@@ -74,9 +74,19 @@ export class ComponentModel {
     rawPayload?: unknown,
   ) {
     this._properties = initialProperties;
-    this._rawPayload = rawPayload;
+    this._rawPayloadSignal = signal<unknown>(rawPayload);
     this.catalog = catalog as Catalog<any, any>;
     this._metadataSignal = signal<A2uiMetadata | undefined>(cloneMetadata(metadata));
+  }
+
+  /**
+   * Internal raw-payload signal used by `NodeResolver` to derive reactive
+   * `ComponentNode.rawPayloadSignal` / `ComponentNode.rawPayload`.
+   *
+   * @internal
+   */
+  get rawPayloadSignal(): Signal<unknown> {
+    return this._rawPayloadSignal;
   }
 
   /**
@@ -84,7 +94,7 @@ export class ComponentModel {
    * (e.g. a compiled Protobuf message) for bespoke 1P domain widgets.
    */
   get rawPayload(): unknown {
-    return this._rawPayload;
+    return peekValue(this._rawPayloadSignal);
   }
 
   /**
@@ -200,13 +210,13 @@ export class ComponentModel {
   ): void {
     const nextMeta = cloneMetadata(newMetadata);
     const propsChanged = !jsonValueEquals(this._properties, newProperties);
-    const rawPayloadChanged = !Object.is(this._rawPayload, newRawPayload);
+    const rawPayloadChanged = !Object.is(peekValue(this._rawPayloadSignal), newRawPayload);
     const metaChanged = !metadataEquals(peekValue(this._metadataSignal), nextMeta);
     if (propsChanged) {
       this._properties = newProperties;
     }
     if (rawPayloadChanged) {
-      this._rawPayload = newRawPayload;
+      setValue(this._rawPayloadSignal, newRawPayload);
     }
     if (metaChanged) {
       setValue(this._metadataSignal, nextMeta);

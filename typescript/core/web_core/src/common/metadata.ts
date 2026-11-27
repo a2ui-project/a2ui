@@ -42,9 +42,13 @@ export interface ActionDispatchOptions {
   readonly metadata?: A2uiMetadata;
 }
 
-/** Checks whether a value is a non-null, non-array plain object. */
+/** Checks whether a value is a non-null, non-array plain literal object. */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
 }
 
 /** Validates an `extensions` map and its UAX #31 keys. */

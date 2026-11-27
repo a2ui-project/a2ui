@@ -222,14 +222,6 @@ export class PayloadValidator {
       ? splitComponentEnvelope(comp, layout)
       : {properties: stripStructuralKeys(comp), mixins: {}};
     const properties = split.properties;
-    const declaresRawPayload = componentApi
-      ? componentApi.definition
-        ? Boolean(componentApi.definition.parameters?.some(p => p.name === 'rawPayload'))
-        : Boolean(componentApi.schema && getKnownSchemaKeys(componentApi.schema)?.has('rawPayload'))
-      : false;
-    if (!declaresRawPayload && Object.hasOwn(properties, 'rawPayload')) {
-      delete properties['rawPayload'];
-    }
     const rawCatalogId = split.mixins.catalogId?.value;
     const componentCatalogId = typeof rawCatalogId === 'string' ? rawCatalogId : undefined;
 

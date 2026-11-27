@@ -16,7 +16,11 @@
 
 import {A2uiValidationError} from '../../errors.js';
 import type {ProtocolVersion} from '../../processing/adapters/base.js';
-import type {InternalComponentPayload, InternalOperation} from '../../processing/operations.js';
+import {
+  INTERNAL_RAW_PAYLOAD,
+  type InternalComponentPayload,
+  type InternalOperation,
+} from '../../processing/operations.js';
 import {
   decodeAgentToRendererMessage,
   decodeLengthDelimitedFrames,
@@ -72,6 +76,15 @@ export interface ProtoTransportAdapterOptions {
   readonly defaultVersion?: ProtocolVersion;
 }
 
+const RESERVED_STRUCT_ENVELOPE_KEYS = new Set([
+  'id',
+  'component',
+  '@catalogId',
+  '@accessibility',
+  '@metadata',
+  '@checks',
+]);
+
 function bareTypeName(typeUrl: string): string {
   const slash = typeUrl.lastIndexOf('/');
   return slash >= 0 ? typeUrl.slice(slash + 1) : typeUrl;
@@ -126,6 +139,7 @@ export class ProtoTransportAdapter {
             ...(cs.rootId !== undefined ? {rootId: cs.rootId} : {}),
             ...(cs.theme !== undefined ? {theme: cs.theme} : {}),
             version,
+            envelopeContext: {version, surfaceId: cs.surfaceId, actionType: 'createSurface'},
           },
         ];
       }
@@ -136,6 +150,8 @@ export class ProtoTransportAdapter {
             type: 'updateComponents',
             surfaceId: uc.surfaceId,
             components: uc.components.map(c => this.decodeComponent(c)),
+            version,
+            envelopeContext: {version, surfaceId: uc.surfaceId, actionType: 'updateComponents'},
           },
         ];
       }
@@ -153,6 +169,8 @@ export class ProtoTransportAdapter {
             surfaceId: ud.surfaceId,
             ...(ud.path !== undefined ? {path: ud.path} : {}),
             value,
+            version,
+            envelopeContext: {version, surfaceId: ud.surfaceId, actionType: 'updateDataModel'},
           },
         ];
       }
@@ -161,6 +179,12 @@ export class ProtoTransportAdapter {
           {
             type: 'deleteSurface',
             surfaceId: wire.deleteSurface.surfaceId,
+            version,
+            envelopeContext: {
+              version,
+              surfaceId: wire.deleteSurface.surfaceId,
+              actionType: 'deleteSurface',
+            },
           },
         ];
       }
@@ -177,6 +201,12 @@ export class ProtoTransportAdapter {
               ? {catalogId: crf.callFunction.catalogId}
               : {}),
             args: crf.callFunction.args ?? {},
+            envelopeContext: {
+              version,
+              ...(crf.surfaceId !== undefined ? {surfaceId: crf.surfaceId} : {}),
+              functionCallId: crf.functionCallId,
+              actionType: 'callRendererFunction',
+            },
           },
         ];
       }
@@ -191,6 +221,11 @@ export class ProtoTransportAdapter {
             ...(afr.error !== undefined
               ? {error: {code: afr.error.code, message: afr.error.message}}
               : {}),
+            envelopeContext: {
+              version,
+              functionCallId: afr.functionCallId,
+              actionType: 'agentFunctionResponse',
+            },
           },
         ];
       }
@@ -273,19 +308,39 @@ export class ProtoTransportAdapter {
       properties = decoded.properties;
       rawPayload = decoded.rawPayload;
     } else if (wire.properties !== undefined) {
+      for (const key of Object.keys(wire.properties)) {
+        if (RESERVED_STRUCT_ENVELOPE_KEYS.has(key)) {
+          throw new A2uiValidationError(
+            `Component.properties Struct for '${wire.id}' must not contain envelope field '${key}'; set it on the Component protobuf envelope instead.`,
+          );
+        }
+      }
       properties = wire.properties;
     }
 
-    const payload: InternalComponentPayload = {
-      ...properties,
-      id: wire.id,
-      ...(wire.component !== undefined ? {component: wire.component} : {}),
-      ...(wire.catalogId !== undefined ? {'@catalogId': wire.catalogId} : {}),
-      ...(wire.accessibility !== undefined ? {'@accessibility': wire.accessibility} : {}),
-      ...(wire.metadata !== undefined ? {'@metadata': wire.metadata} : {}),
-      ...(wire.checks !== undefined && wire.checks.length > 0 ? {'@checks': wire.checks} : {}),
-      ...(rawPayload !== undefined ? {rawPayload} : {}),
-    };
-    return payload;
+    const payload: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(properties)) {
+      Object.defineProperty(payload, key, {
+        value: val,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
+    payload['id'] = wire.id;
+    if (wire.component !== undefined) payload['component'] = wire.component;
+    if (wire.catalogId !== undefined) payload['@catalogId'] = wire.catalogId;
+    if (wire.accessibility !== undefined) payload['@accessibility'] = wire.accessibility;
+    if (wire.metadata !== undefined) payload['@metadata'] = wire.metadata;
+    if (wire.checks !== undefined && wire.checks.length > 0) payload['@checks'] = wire.checks;
+    if (rawPayload !== undefined) {
+      Object.defineProperty(payload, INTERNAL_RAW_PAYLOAD, {
+        value: rawPayload,
+        enumerable: false,
+        writable: false,
+        configurable: true,
+      });
+    }
+    return payload as InternalComponentPayload;
   }
 }

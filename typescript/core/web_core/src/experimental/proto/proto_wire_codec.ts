@@ -17,18 +17,65 @@
 import {A2uiValidationError} from '../../errors.js';
 import {ENVELOPE_TAGS} from './envelope_proto.js';
 
+function isPlainLiteralObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder('utf-8', {fatal: true});
+
+/** Maximum nesting depth permitted when encoding or decoding recursive Protobuf messages. */
+export const MAX_PROTO_DEPTH = 64;
+
+const MAX_PROTO_FIELD_NUMBER = 536_870_911; // (1 << 29) - 1
+const MIN_SIGNED_INT64 = -(1n << 63n);
+const MAX_UNSIGNED_INT64 = 0xffffffffffffffffn;
 
 /** Standard Protobuf binary wire types. */
 export const WireType = {
   VARINT: 0,
   FIXED64: 1,
   LEN: 2,
+  SGROUP: 3,
+  EGROUP: 4,
   FIXED32: 5,
 } as const;
 
 export type WireType = (typeof WireType)[keyof typeof WireType];
+
+function assertDepth(depth: number): void {
+  if (depth > MAX_PROTO_DEPTH) {
+    throw new A2uiValidationError(
+      `Protobuf recursion depth limit exceeded: depth > ${MAX_PROTO_DEPTH}.`,
+    );
+  }
+}
+
+function assertWireType(
+  fieldNumber: number,
+  actual: WireType,
+  expected: WireType,
+  context: string,
+): void {
+  if (actual !== expected) {
+    throw new A2uiValidationError(
+      `Malformed protobuf ${context}: field ${fieldNumber} expected wire type ${expected}, received ${actual}.`,
+    );
+  }
+}
+
+function defineOwnProperty(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+}
 
 /** Decoded `google.protobuf.Any` message (`string type_url = 1; bytes value = 2;`). */
 export interface ProtoAny {
@@ -58,7 +105,13 @@ export class ProtoWireWriter {
   }
 
   writeRawVarint(value: number | bigint): this {
+    if (typeof value === 'number' && !Number.isFinite(value)) {
+      throw new A2uiValidationError(`Invalid non-finite protobuf varint value: ${value}.`);
+    }
     let v = typeof value === 'bigint' ? value : BigInt(Math.trunc(value));
+    if (v < MIN_SIGNED_INT64 || v > MAX_UNSIGNED_INT64) {
+      throw new A2uiValidationError(`Protobuf varint out of 64-bit range: ${v.toString()}.`);
+    }
     if (v < 0n) {
       // Standard Protobuf 64-bit two's complement representation for negative varints.
       v = BigInt.asUintN(64, v);
@@ -151,26 +204,26 @@ export class ProtoWireReader {
     let shift = 0n;
     while (this.pos < this.bytes.byteLength) {
       const byte = this.bytes[this.pos++];
+      if (shift === 63n && ((byte & 0x80) !== 0 || byte > 0x01)) {
+        throw new A2uiValidationError('Malformed protobuf varint: exceeded 64 bits.');
+      }
       result |= BigInt(byte & 0x7f) << shift;
       if ((byte & 0x80) === 0) {
         return result;
       }
       shift += 7n;
-      if (shift > 63n) {
-        throw new A2uiValidationError('Malformed protobuf varint: exceeded 64 bits.');
-      }
     }
     throw new A2uiValidationError('Truncated protobuf varint.');
   }
 
   readTag(): {readonly fieldNumber: number; readonly wireType: WireType} {
     const raw = this.readRawVarint();
-    const fieldNumber = Number(raw >> 3n);
+    const rawFieldNumber = raw >> 3n;
     const wireType = Number(raw & 0x7n) as WireType;
-    if (fieldNumber <= 0) {
-      throw new A2uiValidationError(`Invalid protobuf field number: ${fieldNumber}.`);
+    if (rawFieldNumber < 1n || rawFieldNumber > BigInt(MAX_PROTO_FIELD_NUMBER)) {
+      throw new A2uiValidationError(`Invalid protobuf field number: ${rawFieldNumber.toString()}.`);
     }
-    return {fieldNumber, wireType};
+    return {fieldNumber: Number(rawFieldNumber), wireType};
   }
 
   readBool(): boolean {
@@ -208,22 +261,36 @@ export class ProtoWireReader {
   }
 
   readBytes(): Uint8Array {
-    const len = Number(this.readRawVarint());
+    const rawLen = this.readRawVarint();
+    if (rawLen > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new A2uiValidationError(
+        `Truncated protobuf length-delimited field: length ${rawLen.toString()} exceeds buffer.`,
+      );
+    }
+    const len = Number(rawLen);
     if (len < 0 || this.pos + len > this.bytes.byteLength) {
       throw new A2uiValidationError(
         `Truncated protobuf length-delimited field: expected ${len} byte(s).`,
       );
     }
-    const slice = this.bytes.subarray(this.pos, this.pos + len);
+    const copy = this.bytes.slice(this.pos, this.pos + len);
     this.pos += len;
-    return slice;
+    return copy;
   }
 
   readString(): string {
-    return textDecoder.decode(this.readBytes());
+    const bytes = this.readBytes();
+    try {
+      return textDecoder.decode(bytes);
+    } catch (err: unknown) {
+      throw new A2uiValidationError(
+        `Invalid UTF-8 in protobuf string field: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
-  skipField(wireType: WireType): void {
+  skipField(wireType: WireType, depth = 0): void {
+    assertDepth(depth);
     switch (wireType) {
       case WireType.VARINT:
         this.readRawVarint();
@@ -234,6 +301,20 @@ export class ProtoWireReader {
       case WireType.LEN:
         this.readBytes();
         break;
+      case WireType.SGROUP: {
+        while (this.hasMore()) {
+          const inner = this.readTag();
+          if (inner.wireType === WireType.EGROUP) {
+            return;
+          }
+          this.skipField(inner.wireType, depth + 1);
+        }
+        throw new A2uiValidationError('Unterminated protobuf delimited group (missing EGROUP).');
+      }
+      case WireType.EGROUP:
+        throw new A2uiValidationError(
+          'Unexpected protobuf EGROUP wire type without matching SGROUP.',
+        );
       case WireType.FIXED32:
         this.readFloat();
         break;
@@ -279,18 +360,21 @@ export function encodeAny(anyMsg: ProtoAny): Uint8Array {
   return w.finish();
 }
 
-export function decodeAny(bytes: Uint8Array): ProtoAny {
+export function decodeAny(bytes: Uint8Array, depth = 0): ProtoAny {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   let typeUrl = '';
   let value: Uint8Array = new Uint8Array(0);
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === 1 && wireType === WireType.LEN) {
+    if (fieldNumber === 1) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'google.protobuf.Any');
       typeUrl = r.readString();
-    } else if (fieldNumber === 2 && wireType === WireType.LEN) {
+    } else if (fieldNumber === 2) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'google.protobuf.Any');
       value = r.readBytes();
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, depth + 1);
     }
   }
   return {typeUrl, value};
@@ -300,7 +384,8 @@ export function decodeAny(bytes: Uint8Array): ProtoAny {
 // google.protobuf.Value / Struct / ListValue
 // ============================================================================
 
-export function encodeProtoValue(value: unknown): Uint8Array {
+function encodeProtoValueInner(value: unknown, seen: Set<object>, depth: number): Uint8Array {
+  assertDepth(depth);
   const w = new ProtoWireWriter();
   if (value === null || value === undefined) {
     w.writeEnum(1, 0); // NullValue.NULL_VALUE = 0
@@ -311,9 +396,13 @@ export function encodeProtoValue(value: unknown): Uint8Array {
   } else if (typeof value === 'boolean') {
     w.writeBool(4, value);
   } else if (Array.isArray(value)) {
-    w.writeBytes(6, encodeProtoListValue(value));
+    w.writeBytes(6, encodeProtoListValueInner(value, seen, depth + 1));
+  } else if (isPlainLiteralObject(value)) {
+    w.writeBytes(5, encodeProtoStructInner(value, seen, depth + 1));
   } else if (typeof value === 'object') {
-    w.writeBytes(5, encodeProtoStruct(value as Record<string, unknown>));
+    throw new A2uiValidationError(
+      'Cannot encode non-plain class instance as google.protobuf.Value; serialize opaque values or use google.protobuf.Any.',
+    );
   } else {
     throw new A2uiValidationError(
       `Unsupported value type for google.protobuf.Value: ${typeof value}.`,
@@ -322,99 +411,160 @@ export function encodeProtoValue(value: unknown): Uint8Array {
   return w.finish();
 }
 
-export function decodeProtoValue(bytes: Uint8Array): unknown {
+export function encodeProtoValue(value: unknown): Uint8Array {
+  return encodeProtoValueInner(value, new Set<object>(), 0);
+}
+
+export function decodeProtoValue(bytes: Uint8Array, depth = 0): unknown {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   let result: unknown = null;
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
     switch (fieldNumber) {
       case 1:
+        assertWireType(fieldNumber, wireType, WireType.VARINT, 'google.protobuf.Value');
         r.readEnum();
         result = null;
         break;
       case 2:
+        assertWireType(fieldNumber, wireType, WireType.FIXED64, 'google.protobuf.Value');
         result = r.readDouble();
         break;
       case 3:
+        assertWireType(fieldNumber, wireType, WireType.LEN, 'google.protobuf.Value');
         result = r.readString();
         break;
       case 4:
+        assertWireType(fieldNumber, wireType, WireType.VARINT, 'google.protobuf.Value');
         result = r.readBool();
         break;
       case 5:
-        result = decodeProtoStruct(r.readBytes());
+        assertWireType(fieldNumber, wireType, WireType.LEN, 'google.protobuf.Value');
+        result = decodeProtoStruct(r.readBytes(), depth + 1);
         break;
       case 6:
-        result = decodeProtoListValue(r.readBytes());
+        assertWireType(fieldNumber, wireType, WireType.LEN, 'google.protobuf.Value');
+        result = decodeProtoListValue(r.readBytes(), depth + 1);
         break;
       default:
-        r.skipField(wireType);
+        r.skipField(wireType, depth + 1);
     }
   }
   return result;
 }
 
-export function encodeProtoListValue(values: readonly unknown[]): Uint8Array {
-  const w = new ProtoWireWriter();
-  for (const item of values) {
-    w.writeBytes(1, encodeProtoValue(item));
+function encodeProtoListValueInner(
+  values: readonly unknown[],
+  seen: Set<object>,
+  depth: number,
+): Uint8Array {
+  assertDepth(depth);
+  if (seen.has(values)) {
+    throw new A2uiValidationError('Cannot encode cyclic array into google.protobuf.ListValue.');
   }
-  return w.finish();
+  seen.add(values);
+  try {
+    const w = new ProtoWireWriter();
+    for (const item of values) {
+      w.writeBytes(1, encodeProtoValueInner(item, seen, depth + 1));
+    }
+    return w.finish();
+  } finally {
+    seen.delete(values);
+  }
 }
 
-export function decodeProtoListValue(bytes: Uint8Array): unknown[] {
+export function encodeProtoListValue(values: readonly unknown[]): Uint8Array {
+  return encodeProtoListValueInner(values, new Set<object>(), 0);
+}
+
+export function decodeProtoListValue(bytes: Uint8Array, depth = 0): unknown[] {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   const out: unknown[] = [];
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === 1 && wireType === WireType.LEN) {
-      out.push(decodeProtoValue(r.readBytes()));
+    if (fieldNumber === 1) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'google.protobuf.ListValue');
+      out.push(decodeProtoValue(r.readBytes(), depth + 1));
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, depth + 1);
     }
   }
   return out;
 }
 
-export function encodeProtoStruct(obj: Readonly<Record<string, unknown>>): Uint8Array {
-  const w = new ProtoWireWriter();
-  for (const [k, v] of Object.entries(obj)) {
-    if (v === undefined) continue;
-    w.writeMessage(1, entry => {
-      entry.writeString(1, k);
-      entry.writeBytes(2, encodeProtoValue(v));
-    });
+function encodeProtoStructInner(
+  obj: Readonly<Record<string, unknown>>,
+  seen: Set<object>,
+  depth: number,
+): Uint8Array {
+  assertDepth(depth);
+  if (!isPlainLiteralObject(obj)) {
+    throw new A2uiValidationError(
+      'Cannot encode non-plain class instance as google.protobuf.Struct; serialize opaque values or use google.protobuf.Any.',
+    );
   }
-  return w.finish();
+  if (seen.has(obj)) {
+    throw new A2uiValidationError('Cannot encode cyclic object into google.protobuf.Struct.');
+  }
+  seen.add(obj);
+  try {
+    const w = new ProtoWireWriter();
+    for (const [k, v] of Object.entries(obj)) {
+      if (v === undefined) continue;
+      w.writeMessage(1, entry => {
+        entry.writeString(1, k);
+        entry.writeBytes(2, encodeProtoValueInner(v, seen, depth + 1));
+      });
+    }
+    return w.finish();
+  } finally {
+    seen.delete(obj);
+  }
 }
 
-export function decodeProtoStruct(bytes: Uint8Array): Record<string, unknown> {
+export function encodeProtoStruct(obj: Readonly<Record<string, unknown>>): Uint8Array {
+  return encodeProtoStructInner(obj, new Set<object>(), 0);
+}
+
+export function decodeProtoStruct(bytes: Uint8Array, depth = 0): Record<string, unknown> {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   const out: Record<string, unknown> = {};
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === 1 && wireType === WireType.LEN) {
+    if (fieldNumber === 1) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'google.protobuf.Struct');
       const entryReader = new ProtoWireReader(r.readBytes());
       let key = '';
       let val: unknown = null;
       while (entryReader.hasMore()) {
         const entryTag = entryReader.readTag();
-        if (entryTag.fieldNumber === 1 && entryTag.wireType === WireType.LEN) {
+        if (entryTag.fieldNumber === 1) {
+          assertWireType(
+            entryTag.fieldNumber,
+            entryTag.wireType,
+            WireType.LEN,
+            'google.protobuf.Struct.FieldsEntry',
+          );
           key = entryReader.readString();
-        } else if (entryTag.fieldNumber === 2 && entryTag.wireType === WireType.LEN) {
-          val = decodeProtoValue(entryReader.readBytes());
+        } else if (entryTag.fieldNumber === 2) {
+          assertWireType(
+            entryTag.fieldNumber,
+            entryTag.wireType,
+            WireType.LEN,
+            'google.protobuf.Struct.FieldsEntry',
+          );
+          val = decodeProtoValue(entryReader.readBytes(), depth + 1);
         } else {
-          entryReader.skipField(entryTag.wireType);
+          entryReader.skipField(entryTag.wireType, depth + 1);
         }
       }
-      Object.defineProperty(out, key, {
-        value: val,
-        enumerable: true,
-        writable: true,
-        configurable: true,
-      });
+      defineOwnProperty(out, key, val);
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, depth + 1);
     }
   }
   return out;
@@ -428,15 +578,17 @@ export function encodeDataBinding(path: string): Uint8Array {
   return new ProtoWireWriter().writeString(ENVELOPE_TAGS.DataBinding.path, path).finish();
 }
 
-export function decodeDataBinding(bytes: Uint8Array): {'@path': string} {
+export function decodeDataBinding(bytes: Uint8Array, depth = 0): {'@path': string} {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   let path = '';
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === ENVELOPE_TAGS.DataBinding.path && wireType === WireType.LEN) {
+    if (fieldNumber === ENVELOPE_TAGS.DataBinding.path) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'DataBinding');
       path = r.readString();
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, depth + 1);
     }
   }
   return {'@path': path};
@@ -460,21 +612,25 @@ export function encodeFunctionCall(fc: WireFunctionCall): Uint8Array {
   return w.finish();
 }
 
-export function decodeFunctionCall(bytes: Uint8Array): WireFunctionCall {
+export function decodeFunctionCall(bytes: Uint8Array, depth = 0): WireFunctionCall {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   let call = '';
   let catalogId: string | undefined;
   let args: Record<string, unknown> | undefined;
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === ENVELOPE_TAGS.FunctionCall.call && wireType === WireType.LEN) {
+    if (fieldNumber === ENVELOPE_TAGS.FunctionCall.call) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'FunctionCall');
       call = r.readString();
-    } else if (fieldNumber === ENVELOPE_TAGS.FunctionCall.catalogId && wireType === WireType.LEN) {
+    } else if (fieldNumber === ENVELOPE_TAGS.FunctionCall.catalogId) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'FunctionCall');
       catalogId = r.readString();
-    } else if (fieldNumber === ENVELOPE_TAGS.FunctionCall.args && wireType === WireType.LEN) {
-      args = decodeProtoStruct(r.readBytes());
+    } else if (fieldNumber === ENVELOPE_TAGS.FunctionCall.args) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'FunctionCall');
+      args = decodeProtoStruct(r.readBytes(), depth + 1);
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, depth + 1);
     }
   }
   return {
@@ -518,19 +674,24 @@ export function encodeDynamicString(
 
 export function decodeDynamicString(
   bytes: Uint8Array,
+  depth = 0,
 ): string | {'@path': string} | WireFunctionCall {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   let out: string | {'@path': string} | WireFunctionCall = '';
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === ENVELOPE_TAGS.Dynamic.literal && wireType === WireType.LEN) {
+    if (fieldNumber === ENVELOPE_TAGS.Dynamic.literal) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'DynamicString');
       out = r.readString();
-    } else if (fieldNumber === ENVELOPE_TAGS.Dynamic.dataBinding && wireType === WireType.LEN) {
-      out = decodeDataBinding(r.readBytes());
-    } else if (fieldNumber === ENVELOPE_TAGS.Dynamic.functionCall && wireType === WireType.LEN) {
-      out = decodeFunctionCall(r.readBytes());
+    } else if (fieldNumber === ENVELOPE_TAGS.Dynamic.dataBinding) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'DynamicString');
+      out = decodeDataBinding(r.readBytes(), depth + 1);
+    } else if (fieldNumber === ENVELOPE_TAGS.Dynamic.functionCall) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'DynamicString');
+      out = decodeFunctionCall(r.readBytes(), depth + 1);
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, depth + 1);
     }
   }
   return out;
@@ -552,19 +713,24 @@ export function encodeDynamicNumber(
 
 export function decodeDynamicNumber(
   bytes: Uint8Array,
+  depth = 0,
 ): number | {'@path': string} | WireFunctionCall {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   let out: number | {'@path': string} | WireFunctionCall = 0;
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === ENVELOPE_TAGS.Dynamic.literal && wireType === WireType.FIXED64) {
+    if (fieldNumber === ENVELOPE_TAGS.Dynamic.literal) {
+      assertWireType(fieldNumber, wireType, WireType.FIXED64, 'DynamicNumber');
       out = r.readDouble();
-    } else if (fieldNumber === ENVELOPE_TAGS.Dynamic.dataBinding && wireType === WireType.LEN) {
-      out = decodeDataBinding(r.readBytes());
-    } else if (fieldNumber === ENVELOPE_TAGS.Dynamic.functionCall && wireType === WireType.LEN) {
-      out = decodeFunctionCall(r.readBytes());
+    } else if (fieldNumber === ENVELOPE_TAGS.Dynamic.dataBinding) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'DynamicNumber');
+      out = decodeDataBinding(r.readBytes(), depth + 1);
+    } else if (fieldNumber === ENVELOPE_TAGS.Dynamic.functionCall) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'DynamicNumber');
+      out = decodeFunctionCall(r.readBytes(), depth + 1);
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, depth + 1);
     }
   }
   return out;
@@ -586,19 +752,24 @@ export function encodeDynamicBoolean(
 
 export function decodeDynamicBoolean(
   bytes: Uint8Array,
+  depth = 0,
 ): boolean | {'@path': string} | WireFunctionCall {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   let out: boolean | {'@path': string} | WireFunctionCall = false;
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === ENVELOPE_TAGS.Dynamic.literal && wireType === WireType.VARINT) {
+    if (fieldNumber === ENVELOPE_TAGS.Dynamic.literal) {
+      assertWireType(fieldNumber, wireType, WireType.VARINT, 'DynamicBoolean');
       out = r.readBool();
-    } else if (fieldNumber === ENVELOPE_TAGS.Dynamic.dataBinding && wireType === WireType.LEN) {
-      out = decodeDataBinding(r.readBytes());
-    } else if (fieldNumber === ENVELOPE_TAGS.Dynamic.functionCall && wireType === WireType.LEN) {
-      out = decodeFunctionCall(r.readBytes());
+    } else if (fieldNumber === ENVELOPE_TAGS.Dynamic.dataBinding) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'DynamicBoolean');
+      out = decodeDataBinding(r.readBytes(), depth + 1);
+    } else if (fieldNumber === ENVELOPE_TAGS.Dynamic.functionCall) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'DynamicBoolean');
+      out = decodeFunctionCall(r.readBytes(), depth + 1);
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, depth + 1);
     }
   }
   return out;
@@ -616,19 +787,23 @@ export function encodeDynamicValue(val: unknown): Uint8Array {
   return w.finish();
 }
 
-export function decodeDynamicValue(bytes: Uint8Array): unknown {
+export function decodeDynamicValue(bytes: Uint8Array, depth = 0): unknown {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   let out: unknown = null;
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === ENVELOPE_TAGS.Dynamic.literal && wireType === WireType.LEN) {
-      out = decodeProtoValue(r.readBytes());
-    } else if (fieldNumber === ENVELOPE_TAGS.Dynamic.dataBinding && wireType === WireType.LEN) {
-      out = decodeDataBinding(r.readBytes());
-    } else if (fieldNumber === ENVELOPE_TAGS.Dynamic.functionCall && wireType === WireType.LEN) {
-      out = decodeFunctionCall(r.readBytes());
+    if (fieldNumber === ENVELOPE_TAGS.Dynamic.literal) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'DynamicValue');
+      out = decodeProtoValue(r.readBytes(), depth + 1);
+    } else if (fieldNumber === ENVELOPE_TAGS.Dynamic.dataBinding) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'DynamicValue');
+      out = decodeDataBinding(r.readBytes(), depth + 1);
+    } else if (fieldNumber === ENVELOPE_TAGS.Dynamic.functionCall) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'DynamicValue');
+      out = decodeFunctionCall(r.readBytes(), depth + 1);
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, depth + 1);
     }
   }
   return out;
@@ -656,46 +831,46 @@ export function encodeChildList(val: WireChildList): Uint8Array {
   return w.finish();
 }
 
-export function decodeChildList(bytes: Uint8Array): WireChildList {
+export function decodeChildList(bytes: Uint8Array, depth = 0): WireChildList {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   let out: WireChildList = [];
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === ENVELOPE_TAGS.ChildList.staticList && wireType === WireType.LEN) {
+    if (fieldNumber === ENVELOPE_TAGS.ChildList.staticList) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'ChildList');
       const lr = new ProtoWireReader(r.readBytes());
       const ids: string[] = [];
       while (lr.hasMore()) {
         const lt = lr.readTag();
-        if (lt.fieldNumber === ENVELOPE_TAGS.StringList.values && lt.wireType === WireType.LEN) {
+        if (lt.fieldNumber === ENVELOPE_TAGS.StringList.values) {
+          assertWireType(lt.fieldNumber, lt.wireType, WireType.LEN, 'StringList');
           ids.push(lr.readString());
         } else {
-          lr.skipField(lt.wireType);
+          lr.skipField(lt.wireType, depth + 1);
         }
       }
       out = ids;
-    } else if (fieldNumber === ENVELOPE_TAGS.ChildList.template && wireType === WireType.LEN) {
+    } else if (fieldNumber === ENVELOPE_TAGS.ChildList.template) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'ChildList');
       const tr = new ProtoWireReader(r.readBytes());
       let componentId = '';
       let path = '';
       while (tr.hasMore()) {
         const tt = tr.readTag();
-        if (
-          tt.fieldNumber === ENVELOPE_TAGS.ChildListTemplate.componentId &&
-          tt.wireType === WireType.LEN
-        ) {
+        if (tt.fieldNumber === ENVELOPE_TAGS.ChildListTemplate.componentId) {
+          assertWireType(tt.fieldNumber, tt.wireType, WireType.LEN, 'ChildListTemplate');
           componentId = tr.readString();
-        } else if (
-          tt.fieldNumber === ENVELOPE_TAGS.ChildListTemplate.path &&
-          tt.wireType === WireType.LEN
-        ) {
+        } else if (tt.fieldNumber === ENVELOPE_TAGS.ChildListTemplate.path) {
+          assertWireType(tt.fieldNumber, tt.wireType, WireType.LEN, 'ChildListTemplate');
           path = tr.readString();
         } else {
-          tr.skipField(tt.wireType);
+          tr.skipField(tt.wireType, depth + 1);
         }
       }
       out = {componentId, path};
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, depth + 1);
     }
   }
   return out;
@@ -737,46 +912,47 @@ export function encodeAction(action: WireAction): Uint8Array {
   return w.finish();
 }
 
-export function decodeAction(bytes: Uint8Array): WireAction {
+export function decodeAction(bytes: Uint8Array, depth = 0): WireAction {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   let out: WireAction = {event: {name: ''}};
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === ENVELOPE_TAGS.Action.event && wireType === WireType.LEN) {
+    if (fieldNumber === ENVELOPE_TAGS.Action.event) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'Action');
       const er = new ProtoWireReader(r.readBytes());
       let name = '';
       let userMessage: string | {'@path': string} | WireFunctionCall | undefined;
       let context: Record<string, unknown> | undefined;
       while (er.hasMore()) {
         const et = er.readTag();
-        if (et.fieldNumber === ENVELOPE_TAGS.ActionEvent.name && et.wireType === WireType.LEN) {
+        if (et.fieldNumber === ENVELOPE_TAGS.ActionEvent.name) {
+          assertWireType(et.fieldNumber, et.wireType, WireType.LEN, 'ActionEvent');
           name = er.readString();
-        } else if (
-          et.fieldNumber === ENVELOPE_TAGS.ActionEvent.userMessage &&
-          et.wireType === WireType.LEN
-        ) {
-          userMessage = decodeDynamicString(er.readBytes());
-        } else if (
-          et.fieldNumber === ENVELOPE_TAGS.ActionEvent.context &&
-          et.wireType === WireType.LEN
-        ) {
+        } else if (et.fieldNumber === ENVELOPE_TAGS.ActionEvent.userMessage) {
+          assertWireType(et.fieldNumber, et.wireType, WireType.LEN, 'ActionEvent');
+          userMessage = decodeDynamicString(er.readBytes(), depth + 1);
+        } else if (et.fieldNumber === ENVELOPE_TAGS.ActionEvent.context) {
+          assertWireType(et.fieldNumber, et.wireType, WireType.LEN, 'ActionEvent');
           const mr = new ProtoWireReader(er.readBytes());
           let k = '';
           let v: unknown = null;
           while (mr.hasMore()) {
             const mt = mr.readTag();
-            if (mt.fieldNumber === 1 && mt.wireType === WireType.LEN) {
+            if (mt.fieldNumber === 1) {
+              assertWireType(mt.fieldNumber, mt.wireType, WireType.LEN, 'ActionEvent.ContextEntry');
               k = mr.readString();
-            } else if (mt.fieldNumber === 2 && mt.wireType === WireType.LEN) {
-              v = decodeDynamicValue(mr.readBytes());
+            } else if (mt.fieldNumber === 2) {
+              assertWireType(mt.fieldNumber, mt.wireType, WireType.LEN, 'ActionEvent.ContextEntry');
+              v = decodeDynamicValue(mr.readBytes(), depth + 1);
             } else {
-              mr.skipField(mt.wireType);
+              mr.skipField(mt.wireType, depth + 1);
             }
           }
           context ??= {};
-          context[k] = v;
+          defineOwnProperty(context, k, v);
         } else {
-          er.skipField(et.wireType);
+          er.skipField(et.wireType, depth + 1);
         }
       }
       out = {
@@ -786,10 +962,11 @@ export function decodeAction(bytes: Uint8Array): WireAction {
           ...(context !== undefined ? {context} : {}),
         },
       };
-    } else if (fieldNumber === ENVELOPE_TAGS.Action.functionCall && wireType === WireType.LEN) {
-      out = {functionCall: decodeFunctionCall(r.readBytes())};
+    } else if (fieldNumber === ENVELOPE_TAGS.Action.functionCall) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'Action');
+      out = {functionCall: decodeFunctionCall(r.readBytes(), depth + 1)};
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, depth + 1);
     }
   }
   return out;
@@ -813,20 +990,24 @@ export function encodeCheckRule(rule: WireCheckRule): Uint8Array {
   return w.finish();
 }
 
-export function decodeCheckRule(bytes: Uint8Array): WireCheckRule {
+export function decodeCheckRule(bytes: Uint8Array, depth = 0): WireCheckRule {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   let condition: {'@path': string} | WireFunctionCall = {'@path': ''};
   let message: string | undefined;
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === ENVELOPE_TAGS.CheckRule.dataBinding && wireType === WireType.LEN) {
-      condition = decodeDataBinding(r.readBytes());
-    } else if (fieldNumber === ENVELOPE_TAGS.CheckRule.functionCall && wireType === WireType.LEN) {
-      condition = decodeFunctionCall(r.readBytes());
-    } else if (fieldNumber === ENVELOPE_TAGS.CheckRule.message && wireType === WireType.LEN) {
+    if (fieldNumber === ENVELOPE_TAGS.CheckRule.dataBinding) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'CheckRule');
+      condition = decodeDataBinding(r.readBytes(), depth + 1);
+    } else if (fieldNumber === ENVELOPE_TAGS.CheckRule.functionCall) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'CheckRule');
+      condition = decodeFunctionCall(r.readBytes(), depth + 1);
+    } else if (fieldNumber === ENVELOPE_TAGS.CheckRule.message) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'CheckRule');
       message = r.readString();
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, depth + 1);
     }
   }
   return {condition, ...(message !== undefined ? {message} : {})};
@@ -863,6 +1044,11 @@ export function encodeAccessibilityAttributes(acc: WireAccessibilityAttributes):
     );
   }
   if (acc.live !== undefined) {
+    if (!Object.hasOwn(LIVE_REGION_TO_ENUM, acc.live)) {
+      throw new A2uiValidationError(
+        `Invalid AccessibilityAttributes.live value: '${String(acc.live)}'.`,
+      );
+    }
     w.writeEnum(ENVELOPE_TAGS.AccessibilityAttributes.live, LIVE_REGION_TO_ENUM[acc.live]);
   }
   if (acc.hidden !== undefined) {
@@ -871,7 +1057,11 @@ export function encodeAccessibilityAttributes(acc: WireAccessibilityAttributes):
   return w.finish();
 }
 
-export function decodeAccessibilityAttributes(bytes: Uint8Array): WireAccessibilityAttributes {
+export function decodeAccessibilityAttributes(
+  bytes: Uint8Array,
+  depth = 0,
+): WireAccessibilityAttributes {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   let label: string | {'@path': string} | WireFunctionCall | undefined;
   let description: string | {'@path': string} | WireFunctionCall | undefined;
@@ -879,25 +1069,20 @@ export function decodeAccessibilityAttributes(bytes: Uint8Array): WireAccessibil
   let hidden: boolean | {'@path': string} | WireFunctionCall | undefined;
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === ENVELOPE_TAGS.AccessibilityAttributes.label && wireType === WireType.LEN) {
-      label = decodeDynamicString(r.readBytes());
-    } else if (
-      fieldNumber === ENVELOPE_TAGS.AccessibilityAttributes.description &&
-      wireType === WireType.LEN
-    ) {
-      description = decodeDynamicString(r.readBytes());
-    } else if (
-      fieldNumber === ENVELOPE_TAGS.AccessibilityAttributes.live &&
-      wireType === WireType.VARINT
-    ) {
+    if (fieldNumber === ENVELOPE_TAGS.AccessibilityAttributes.label) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'AccessibilityAttributes');
+      label = decodeDynamicString(r.readBytes(), depth + 1);
+    } else if (fieldNumber === ENVELOPE_TAGS.AccessibilityAttributes.description) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'AccessibilityAttributes');
+      description = decodeDynamicString(r.readBytes(), depth + 1);
+    } else if (fieldNumber === ENVELOPE_TAGS.AccessibilityAttributes.live) {
+      assertWireType(fieldNumber, wireType, WireType.VARINT, 'AccessibilityAttributes');
       live = ENUM_TO_LIVE_REGION[r.readEnum()];
-    } else if (
-      fieldNumber === ENVELOPE_TAGS.AccessibilityAttributes.hidden &&
-      wireType === WireType.LEN
-    ) {
-      hidden = decodeDynamicBoolean(r.readBytes());
+    } else if (fieldNumber === ENVELOPE_TAGS.AccessibilityAttributes.hidden) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'AccessibilityAttributes');
+      hidden = decodeDynamicBoolean(r.readBytes(), depth + 1);
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, depth + 1);
     }
   }
   return {
@@ -920,15 +1105,17 @@ function encodeMetadataProto(metadata: Readonly<Record<string, unknown>>): Uint8
   return w.finish();
 }
 
-function decodeMetadataProto(bytes: Uint8Array): Record<string, unknown> {
+function decodeMetadataProto(bytes: Uint8Array, depth = 0): Record<string, unknown> {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   let extensions: Record<string, unknown> | undefined;
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === ENVELOPE_TAGS.Metadata.extensions && wireType === WireType.LEN) {
-      extensions = decodeProtoStruct(r.readBytes());
+    if (fieldNumber === ENVELOPE_TAGS.Metadata.extensions) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'Metadata');
+      extensions = decodeProtoStruct(r.readBytes(), depth + 1);
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, depth + 1);
     }
   }
   return extensions !== undefined ? {extensions} : {};
@@ -1075,7 +1262,8 @@ export function encodeComponentEnvelope(comp: WireComponentEnvelope): Uint8Array
   return w.finish();
 }
 
-export function decodeComponentEnvelope(bytes: Uint8Array): WireComponentEnvelope {
+export function decodeComponentEnvelope(bytes: Uint8Array, depth = 0): WireComponentEnvelope {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   const T = ENVELOPE_TAGS.Component;
   let id = '';
@@ -1089,26 +1277,34 @@ export function decodeComponentEnvelope(bytes: Uint8Array): WireComponentEnvelop
 
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === T.id && wireType === WireType.LEN) {
+    if (fieldNumber === T.id) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'Component');
       id = r.readString();
-    } else if (fieldNumber === T.component && wireType === WireType.LEN) {
+    } else if (fieldNumber === T.component) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'Component');
       component = r.readString();
-    } else if (fieldNumber === T.catalogId && wireType === WireType.LEN) {
+    } else if (fieldNumber === T.catalogId) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'Component');
       catalogId = r.readString();
-    } else if (fieldNumber === T.accessibility && wireType === WireType.LEN) {
-      accessibility = decodeAccessibilityAttributes(r.readBytes());
-    } else if (fieldNumber === T.metadata && wireType === WireType.LEN) {
-      metadata = decodeMetadataProto(r.readBytes());
-    } else if (fieldNumber === T.checks && wireType === WireType.LEN) {
-      checks.push(decodeCheckRule(r.readBytes()));
-    } else if (fieldNumber === T.typedPayload && wireType === WireType.LEN) {
-      typedPayload = decodeAny(r.readBytes());
+    } else if (fieldNumber === T.accessibility) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'Component');
+      accessibility = decodeAccessibilityAttributes(r.readBytes(), depth + 1);
+    } else if (fieldNumber === T.metadata) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'Component');
+      metadata = decodeMetadataProto(r.readBytes(), depth + 1);
+    } else if (fieldNumber === T.checks) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'Component');
+      checks.push(decodeCheckRule(r.readBytes(), depth + 1));
+    } else if (fieldNumber === T.typedPayload) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'Component');
+      typedPayload = decodeAny(r.readBytes(), depth + 1);
       properties = undefined;
-    } else if (fieldNumber === T.properties && wireType === WireType.LEN) {
-      properties = decodeProtoStruct(r.readBytes());
+    } else if (fieldNumber === T.properties) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'Component');
+      properties = decodeProtoStruct(r.readBytes(), depth + 1);
       typedPayload = undefined;
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, depth + 1);
     }
   }
 
@@ -1131,18 +1327,21 @@ function encodeFunctionError(err: {readonly code: string; readonly message: stri
   return w.finish();
 }
 
-function decodeFunctionError(bytes: Uint8Array): {code: string; message: string} {
+function decodeFunctionError(bytes: Uint8Array, depth = 0): {code: string; message: string} {
+  assertDepth(depth);
   const r = new ProtoWireReader(bytes);
   let code = '';
   let message = '';
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === ENVELOPE_TAGS.FunctionError.code && wireType === WireType.LEN) {
+    if (fieldNumber === ENVELOPE_TAGS.FunctionError.code) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'FunctionError');
       code = r.readString();
-    } else if (fieldNumber === ENVELOPE_TAGS.FunctionError.message && wireType === WireType.LEN) {
+    } else if (fieldNumber === ENVELOPE_TAGS.FunctionError.message) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'FunctionError');
       message = r.readString();
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, depth + 1);
     }
   }
   return {code, message};
@@ -1244,9 +1443,11 @@ export function decodeAgentToRendererMessage(bytes: Uint8Array): WireAgentToRend
 
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === T.version && wireType === WireType.LEN) {
+    if (fieldNumber === T.version) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'AgentToRendererMessage');
       version = r.readString();
-    } else if (fieldNumber === T.createSurface && wireType === WireType.LEN) {
+    } else if (fieldNumber === T.createSurface) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'AgentToRendererMessage');
       const cr = new ProtoWireReader(r.readBytes());
       const CT = ENVELOPE_TAGS.CreateSurface;
       let surfaceId = '';
@@ -1259,24 +1460,32 @@ export function decodeAgentToRendererMessage(bytes: Uint8Array): WireAgentToRend
       let theme: Record<string, unknown> | undefined;
       while (cr.hasMore()) {
         const ct = cr.readTag();
-        if (ct.fieldNumber === CT.surfaceId && ct.wireType === WireType.LEN) {
+        if (ct.fieldNumber === CT.surfaceId) {
+          assertWireType(ct.fieldNumber, ct.wireType, WireType.LEN, 'CreateSurface');
           surfaceId = cr.readString();
-        } else if (ct.fieldNumber === CT.catalogId && ct.wireType === WireType.LEN) {
+        } else if (ct.fieldNumber === CT.catalogId) {
+          assertWireType(ct.fieldNumber, ct.wireType, WireType.LEN, 'CreateSurface');
           catalogId = cr.readString();
-        } else if (ct.fieldNumber === CT.sendDataModel && ct.wireType === WireType.VARINT) {
+        } else if (ct.fieldNumber === CT.sendDataModel) {
+          assertWireType(ct.fieldNumber, ct.wireType, WireType.VARINT, 'CreateSurface');
           sendDataModel = cr.readBool();
-        } else if (ct.fieldNumber === CT.components && ct.wireType === WireType.LEN) {
-          components.push(decodeComponentEnvelope(cr.readBytes()));
-        } else if (ct.fieldNumber === CT.dataModel && ct.wireType === WireType.LEN) {
-          dataModel = decodeProtoStruct(cr.readBytes());
-        } else if (ct.fieldNumber === CT.metadata && ct.wireType === WireType.LEN) {
-          metadata = decodeMetadataProto(cr.readBytes());
-        } else if (ct.fieldNumber === CT.rootId && ct.wireType === WireType.LEN) {
+        } else if (ct.fieldNumber === CT.components) {
+          assertWireType(ct.fieldNumber, ct.wireType, WireType.LEN, 'CreateSurface');
+          components.push(decodeComponentEnvelope(cr.readBytes(), 1));
+        } else if (ct.fieldNumber === CT.dataModel) {
+          assertWireType(ct.fieldNumber, ct.wireType, WireType.LEN, 'CreateSurface');
+          dataModel = decodeProtoStruct(cr.readBytes(), 1);
+        } else if (ct.fieldNumber === CT.metadata) {
+          assertWireType(ct.fieldNumber, ct.wireType, WireType.LEN, 'CreateSurface');
+          metadata = decodeMetadataProto(cr.readBytes(), 1);
+        } else if (ct.fieldNumber === CT.rootId) {
+          assertWireType(ct.fieldNumber, ct.wireType, WireType.LEN, 'CreateSurface');
           rootId = cr.readString();
-        } else if (ct.fieldNumber === CT.theme && ct.wireType === WireType.LEN) {
-          theme = decodeProtoStruct(cr.readBytes());
+        } else if (ct.fieldNumber === CT.theme) {
+          assertWireType(ct.fieldNumber, ct.wireType, WireType.LEN, 'CreateSurface');
+          theme = decodeProtoStruct(cr.readBytes(), 1);
         } else {
-          cr.skipField(ct.wireType);
+          cr.skipField(ct.wireType, 1);
         }
       }
       decoded = {
@@ -1292,23 +1501,27 @@ export function decodeAgentToRendererMessage(bytes: Uint8Array): WireAgentToRend
           ...(theme !== undefined ? {theme} : {}),
         },
       };
-    } else if (fieldNumber === T.updateComponents && wireType === WireType.LEN) {
+    } else if (fieldNumber === T.updateComponents) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'AgentToRendererMessage');
       const ur = new ProtoWireReader(r.readBytes());
       const UT = ENVELOPE_TAGS.UpdateComponents;
       let surfaceId = '';
       const components: WireComponentEnvelope[] = [];
       while (ur.hasMore()) {
         const ut = ur.readTag();
-        if (ut.fieldNumber === UT.surfaceId && ut.wireType === WireType.LEN) {
+        if (ut.fieldNumber === UT.surfaceId) {
+          assertWireType(ut.fieldNumber, ut.wireType, WireType.LEN, 'UpdateComponents');
           surfaceId = ur.readString();
-        } else if (ut.fieldNumber === UT.components && ut.wireType === WireType.LEN) {
-          components.push(decodeComponentEnvelope(ur.readBytes()));
+        } else if (ut.fieldNumber === UT.components) {
+          assertWireType(ut.fieldNumber, ut.wireType, WireType.LEN, 'UpdateComponents');
+          components.push(decodeComponentEnvelope(ur.readBytes(), 1));
         } else {
-          ur.skipField(ut.wireType);
+          ur.skipField(ut.wireType, 1);
         }
       }
       decoded = {kind: 'updateComponents', updateComponents: {surfaceId, components}};
-    } else if (fieldNumber === T.updateDataModel && wireType === WireType.LEN) {
+    } else if (fieldNumber === T.updateDataModel) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'AgentToRendererMessage');
       const dr = new ProtoWireReader(r.readBytes());
       const DT = ENVELOPE_TAGS.UpdateDataModel;
       let surfaceId = '';
@@ -1318,20 +1531,24 @@ export function decodeAgentToRendererMessage(bytes: Uint8Array): WireAgentToRend
       let typedValue: ProtoAny | undefined;
       while (dr.hasMore()) {
         const dt = dr.readTag();
-        if (dt.fieldNumber === DT.surfaceId && dt.wireType === WireType.LEN) {
+        if (dt.fieldNumber === DT.surfaceId) {
+          assertWireType(dt.fieldNumber, dt.wireType, WireType.LEN, 'UpdateDataModel');
           surfaceId = dr.readString();
-        } else if (dt.fieldNumber === DT.path && dt.wireType === WireType.LEN) {
+        } else if (dt.fieldNumber === DT.path) {
+          assertWireType(dt.fieldNumber, dt.wireType, WireType.LEN, 'UpdateDataModel');
           path = dr.readString();
-        } else if (dt.fieldNumber === DT.value && dt.wireType === WireType.LEN) {
+        } else if (dt.fieldNumber === DT.value) {
+          assertWireType(dt.fieldNumber, dt.wireType, WireType.LEN, 'UpdateDataModel');
           hasValue = true;
-          value = decodeProtoValue(dr.readBytes());
+          value = decodeProtoValue(dr.readBytes(), 1);
           typedValue = undefined;
-        } else if (dt.fieldNumber === DT.typedValue && dt.wireType === WireType.LEN) {
-          typedValue = decodeAny(dr.readBytes());
+        } else if (dt.fieldNumber === DT.typedValue) {
+          assertWireType(dt.fieldNumber, dt.wireType, WireType.LEN, 'UpdateDataModel');
+          typedValue = decodeAny(dr.readBytes(), 1);
           hasValue = false;
           value = undefined;
         } else {
-          dr.skipField(dt.wireType);
+          dr.skipField(dt.wireType, 1);
         }
       }
       decoded = {
@@ -1343,22 +1560,22 @@ export function decodeAgentToRendererMessage(bytes: Uint8Array): WireAgentToRend
           ...(typedValue !== undefined ? {typedValue} : {}),
         },
       };
-    } else if (fieldNumber === T.deleteSurface && wireType === WireType.LEN) {
+    } else if (fieldNumber === T.deleteSurface) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'AgentToRendererMessage');
       const dr = new ProtoWireReader(r.readBytes());
       let surfaceId = '';
       while (dr.hasMore()) {
         const dt = dr.readTag();
-        if (
-          dt.fieldNumber === ENVELOPE_TAGS.DeleteSurface.surfaceId &&
-          dt.wireType === WireType.LEN
-        ) {
+        if (dt.fieldNumber === ENVELOPE_TAGS.DeleteSurface.surfaceId) {
+          assertWireType(dt.fieldNumber, dt.wireType, WireType.LEN, 'DeleteSurface');
           surfaceId = dr.readString();
         } else {
-          dr.skipField(dt.wireType);
+          dr.skipField(dt.wireType, 1);
         }
       }
       decoded = {kind: 'deleteSurface', deleteSurface: {surfaceId}};
-    } else if (fieldNumber === T.callRendererFunction && wireType === WireType.LEN) {
+    } else if (fieldNumber === T.callRendererFunction) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'AgentToRendererMessage');
       const fr = new ProtoWireReader(r.readBytes());
       const FT = ENVELOPE_TAGS.CallRendererFunction;
       let surfaceId: string | undefined;
@@ -1366,14 +1583,17 @@ export function decodeAgentToRendererMessage(bytes: Uint8Array): WireAgentToRend
       let callFunction: WireFunctionCall = {'@call': ''};
       while (fr.hasMore()) {
         const ft = fr.readTag();
-        if (ft.fieldNumber === FT.surfaceId && ft.wireType === WireType.LEN) {
+        if (ft.fieldNumber === FT.surfaceId) {
+          assertWireType(ft.fieldNumber, ft.wireType, WireType.LEN, 'CallRendererFunction');
           surfaceId = fr.readString();
-        } else if (ft.fieldNumber === FT.functionCallId && ft.wireType === WireType.LEN) {
+        } else if (ft.fieldNumber === FT.functionCallId) {
+          assertWireType(ft.fieldNumber, ft.wireType, WireType.LEN, 'CallRendererFunction');
           functionCallId = fr.readString();
-        } else if (ft.fieldNumber === FT.callFunction && ft.wireType === WireType.LEN) {
-          callFunction = decodeFunctionCall(fr.readBytes());
+        } else if (ft.fieldNumber === FT.callFunction) {
+          assertWireType(ft.fieldNumber, ft.wireType, WireType.LEN, 'CallRendererFunction');
+          callFunction = decodeFunctionCall(fr.readBytes(), 1);
         } else {
-          fr.skipField(ft.wireType);
+          fr.skipField(ft.wireType, 1);
         }
       }
       decoded = {
@@ -1384,7 +1604,8 @@ export function decodeAgentToRendererMessage(bytes: Uint8Array): WireAgentToRend
           callFunction,
         },
       };
-    } else if (fieldNumber === T.agentFunctionResponse && wireType === WireType.LEN) {
+    } else if (fieldNumber === T.agentFunctionResponse) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'AgentToRendererMessage');
       const rr = new ProtoWireReader(r.readBytes());
       const RT = ENVELOPE_TAGS.AgentFunctionResponse;
       let functionCallId = '';
@@ -1393,18 +1614,21 @@ export function decodeAgentToRendererMessage(bytes: Uint8Array): WireAgentToRend
       let error: {code: string; message: string} | undefined;
       while (rr.hasMore()) {
         const rt = rr.readTag();
-        if (rt.fieldNumber === RT.functionCallId && rt.wireType === WireType.LEN) {
+        if (rt.fieldNumber === RT.functionCallId) {
+          assertWireType(rt.fieldNumber, rt.wireType, WireType.LEN, 'AgentFunctionResponse');
           functionCallId = rr.readString();
-        } else if (rt.fieldNumber === RT.value && rt.wireType === WireType.LEN) {
+        } else if (rt.fieldNumber === RT.value) {
+          assertWireType(rt.fieldNumber, rt.wireType, WireType.LEN, 'AgentFunctionResponse');
           hasValue = true;
-          value = decodeProtoValue(rr.readBytes());
+          value = decodeProtoValue(rr.readBytes(), 1);
           error = undefined;
-        } else if (rt.fieldNumber === RT.error && rt.wireType === WireType.LEN) {
-          error = decodeFunctionError(rr.readBytes());
+        } else if (rt.fieldNumber === RT.error) {
+          assertWireType(rt.fieldNumber, rt.wireType, WireType.LEN, 'AgentFunctionResponse');
+          error = decodeFunctionError(rr.readBytes(), 1);
           hasValue = false;
           value = undefined;
         } else {
-          rr.skipField(rt.wireType);
+          rr.skipField(rt.wireType, 1);
         }
       }
       decoded = {
@@ -1416,7 +1640,7 @@ export function decodeAgentToRendererMessage(bytes: Uint8Array): WireAgentToRend
         },
       };
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, 1);
     }
   }
 
@@ -1505,9 +1729,11 @@ export function decodeRendererToAgentMessage(bytes: Uint8Array): WireRendererToA
 
   while (r.hasMore()) {
     const {fieldNumber, wireType} = r.readTag();
-    if (fieldNumber === T.version && wireType === WireType.LEN) {
+    if (fieldNumber === T.version) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'RendererToAgentMessage');
       version = r.readString();
-    } else if (fieldNumber === T.action && wireType === WireType.LEN) {
+    } else if (fieldNumber === T.action) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'RendererToAgentMessage');
       const ar = new ProtoWireReader(r.readBytes());
       const AT = ENVELOPE_TAGS.ActionMessage;
       let name = '';
@@ -1520,24 +1746,32 @@ export function decodeRendererToAgentMessage(bytes: Uint8Array): WireRendererToA
       let metadata: Record<string, unknown> | undefined;
       while (ar.hasMore()) {
         const at = ar.readTag();
-        if (at.fieldNumber === AT.name && at.wireType === WireType.LEN) {
+        if (at.fieldNumber === AT.name) {
+          assertWireType(at.fieldNumber, at.wireType, WireType.LEN, 'ActionMessage');
           name = ar.readString();
-        } else if (at.fieldNumber === AT.surfaceId && at.wireType === WireType.LEN) {
+        } else if (at.fieldNumber === AT.surfaceId) {
+          assertWireType(at.fieldNumber, at.wireType, WireType.LEN, 'ActionMessage');
           surfaceId = ar.readString();
-        } else if (at.fieldNumber === AT.sourceComponentId && at.wireType === WireType.LEN) {
+        } else if (at.fieldNumber === AT.sourceComponentId) {
+          assertWireType(at.fieldNumber, at.wireType, WireType.LEN, 'ActionMessage');
           sourceComponentId = ar.readString();
-        } else if (at.fieldNumber === AT.timestamp && at.wireType === WireType.LEN) {
+        } else if (at.fieldNumber === AT.timestamp) {
+          assertWireType(at.fieldNumber, at.wireType, WireType.LEN, 'ActionMessage');
           timestamp = ar.readString();
-        } else if (at.fieldNumber === AT.context && at.wireType === WireType.LEN) {
-          context = decodeProtoStruct(ar.readBytes());
-        } else if (at.fieldNumber === AT.catalogId && at.wireType === WireType.LEN) {
+        } else if (at.fieldNumber === AT.context) {
+          assertWireType(at.fieldNumber, at.wireType, WireType.LEN, 'ActionMessage');
+          context = decodeProtoStruct(ar.readBytes(), 1);
+        } else if (at.fieldNumber === AT.catalogId) {
+          assertWireType(at.fieldNumber, at.wireType, WireType.LEN, 'ActionMessage');
           catalogId = ar.readString();
-        } else if (at.fieldNumber === AT.userMessage && at.wireType === WireType.LEN) {
+        } else if (at.fieldNumber === AT.userMessage) {
+          assertWireType(at.fieldNumber, at.wireType, WireType.LEN, 'ActionMessage');
           userMessage = ar.readString();
-        } else if (at.fieldNumber === AT.metadata && at.wireType === WireType.LEN) {
-          metadata = decodeMetadataProto(ar.readBytes());
+        } else if (at.fieldNumber === AT.metadata) {
+          assertWireType(at.fieldNumber, at.wireType, WireType.LEN, 'ActionMessage');
+          metadata = decodeMetadataProto(ar.readBytes(), 1);
         } else {
-          ar.skipField(at.wireType);
+          ar.skipField(at.wireType, 1);
         }
       }
       decoded = {
@@ -1553,7 +1787,8 @@ export function decodeRendererToAgentMessage(bytes: Uint8Array): WireRendererToA
           ...(metadata !== undefined ? {metadata} : {}),
         },
       };
-    } else if (fieldNumber === T.callAgentFunction && wireType === WireType.LEN) {
+    } else if (fieldNumber === T.callAgentFunction) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'RendererToAgentMessage');
       const cr = new ProtoWireReader(r.readBytes());
       const CT = ENVELOPE_TAGS.CallAgentFunction;
       let surfaceId = '';
@@ -1561,21 +1796,25 @@ export function decodeRendererToAgentMessage(bytes: Uint8Array): WireRendererToA
       let callFunction: WireFunctionCall = {'@call': ''};
       while (cr.hasMore()) {
         const ct = cr.readTag();
-        if (ct.fieldNumber === CT.surfaceId && ct.wireType === WireType.LEN) {
+        if (ct.fieldNumber === CT.surfaceId) {
+          assertWireType(ct.fieldNumber, ct.wireType, WireType.LEN, 'CallAgentFunction');
           surfaceId = cr.readString();
-        } else if (ct.fieldNumber === CT.functionCallId && ct.wireType === WireType.LEN) {
+        } else if (ct.fieldNumber === CT.functionCallId) {
+          assertWireType(ct.fieldNumber, ct.wireType, WireType.LEN, 'CallAgentFunction');
           functionCallId = cr.readString();
-        } else if (ct.fieldNumber === CT.callFunction && ct.wireType === WireType.LEN) {
-          callFunction = decodeFunctionCall(cr.readBytes());
+        } else if (ct.fieldNumber === CT.callFunction) {
+          assertWireType(ct.fieldNumber, ct.wireType, WireType.LEN, 'CallAgentFunction');
+          callFunction = decodeFunctionCall(cr.readBytes(), 1);
         } else {
-          cr.skipField(ct.wireType);
+          cr.skipField(ct.wireType, 1);
         }
       }
       decoded = {
         kind: 'callAgentFunction',
         callAgentFunction: {surfaceId, functionCallId, callFunction},
       };
-    } else if (fieldNumber === T.rendererFunctionResponse && wireType === WireType.LEN) {
+    } else if (fieldNumber === T.rendererFunctionResponse) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'RendererToAgentMessage');
       const rr = new ProtoWireReader(r.readBytes());
       const RT = ENVELOPE_TAGS.RendererFunctionResponse;
       let functionCallId = '';
@@ -1584,18 +1823,21 @@ export function decodeRendererToAgentMessage(bytes: Uint8Array): WireRendererToA
       let error: {code: string; message: string} | undefined;
       while (rr.hasMore()) {
         const rt = rr.readTag();
-        if (rt.fieldNumber === RT.functionCallId && rt.wireType === WireType.LEN) {
+        if (rt.fieldNumber === RT.functionCallId) {
+          assertWireType(rt.fieldNumber, rt.wireType, WireType.LEN, 'RendererFunctionResponse');
           functionCallId = rr.readString();
-        } else if (rt.fieldNumber === RT.value && rt.wireType === WireType.LEN) {
+        } else if (rt.fieldNumber === RT.value) {
+          assertWireType(rt.fieldNumber, rt.wireType, WireType.LEN, 'RendererFunctionResponse');
           hasValue = true;
-          value = decodeProtoValue(rr.readBytes());
+          value = decodeProtoValue(rr.readBytes(), 1);
           error = undefined;
-        } else if (rt.fieldNumber === RT.error && rt.wireType === WireType.LEN) {
-          error = decodeFunctionError(rr.readBytes());
+        } else if (rt.fieldNumber === RT.error) {
+          assertWireType(rt.fieldNumber, rt.wireType, WireType.LEN, 'RendererFunctionResponse');
+          error = decodeFunctionError(rr.readBytes(), 1);
           hasValue = false;
           value = undefined;
         } else {
-          rr.skipField(rt.wireType);
+          rr.skipField(rt.wireType, 1);
         }
       }
       decoded = {
@@ -1606,7 +1848,8 @@ export function decodeRendererToAgentMessage(bytes: Uint8Array): WireRendererToA
           ...(error !== undefined ? {error} : {}),
         },
       };
-    } else if (fieldNumber === T.error && wireType === WireType.LEN) {
+    } else if (fieldNumber === T.error) {
+      assertWireType(fieldNumber, wireType, WireType.LEN, 'RendererToAgentMessage');
       const er = new ProtoWireReader(r.readBytes());
       const ET = ENVELOPE_TAGS.ErrorMessage;
       const DT = ENVELOPE_TAGS.ErrorDetail;
@@ -1618,33 +1861,45 @@ export function decodeRendererToAgentMessage(bytes: Uint8Array): WireRendererToA
       const details: Array<{path: string; code: string; message: string}> = [];
       while (er.hasMore()) {
         const et = er.readTag();
-        if (et.fieldNumber === ET.code && et.wireType === WireType.LEN) {
+        if (et.fieldNumber === ET.code) {
+          assertWireType(et.fieldNumber, et.wireType, WireType.LEN, 'ErrorMessage');
           code = er.readString();
-        } else if (et.fieldNumber === ET.message && et.wireType === WireType.LEN) {
+        } else if (et.fieldNumber === ET.message) {
+          assertWireType(et.fieldNumber, et.wireType, WireType.LEN, 'ErrorMessage');
           message = er.readString();
-        } else if (et.fieldNumber === ET.surfaceId && et.wireType === WireType.LEN) {
+        } else if (et.fieldNumber === ET.surfaceId) {
+          assertWireType(et.fieldNumber, et.wireType, WireType.LEN, 'ErrorMessage');
           surfaceId = er.readString();
-        } else if (et.fieldNumber === ET.functionCallId && et.wireType === WireType.LEN) {
+        } else if (et.fieldNumber === ET.functionCallId) {
+          assertWireType(et.fieldNumber, et.wireType, WireType.LEN, 'ErrorMessage');
           functionCallId = er.readString();
-        } else if (et.fieldNumber === ET.path && et.wireType === WireType.LEN) {
+        } else if (et.fieldNumber === ET.path) {
+          assertWireType(et.fieldNumber, et.wireType, WireType.LEN, 'ErrorMessage');
           path = er.readString();
-        } else if (et.fieldNumber === ET.details && et.wireType === WireType.LEN) {
+        } else if (et.fieldNumber === ET.details) {
+          assertWireType(et.fieldNumber, et.wireType, WireType.LEN, 'ErrorMessage');
           const dr = new ProtoWireReader(er.readBytes());
           let dp = '';
           let dc = '';
           let dm = '';
           while (dr.hasMore()) {
             const dt = dr.readTag();
-            if (dt.fieldNumber === DT.path && dt.wireType === WireType.LEN) dp = dr.readString();
-            else if (dt.fieldNumber === DT.code && dt.wireType === WireType.LEN)
+            if (dt.fieldNumber === DT.path) {
+              assertWireType(dt.fieldNumber, dt.wireType, WireType.LEN, 'ErrorDetail');
+              dp = dr.readString();
+            } else if (dt.fieldNumber === DT.code) {
+              assertWireType(dt.fieldNumber, dt.wireType, WireType.LEN, 'ErrorDetail');
               dc = dr.readString();
-            else if (dt.fieldNumber === DT.message && dt.wireType === WireType.LEN)
+            } else if (dt.fieldNumber === DT.message) {
+              assertWireType(dt.fieldNumber, dt.wireType, WireType.LEN, 'ErrorDetail');
               dm = dr.readString();
-            else dr.skipField(dt.wireType);
+            } else {
+              dr.skipField(dt.wireType, 1);
+            }
           }
           details.push({path: dp, code: dc, message: dm});
         } else {
-          er.skipField(et.wireType);
+          er.skipField(et.wireType, 1);
         }
       }
       decoded = {
@@ -1659,7 +1914,7 @@ export function decodeRendererToAgentMessage(bytes: Uint8Array): WireRendererToA
         },
       };
     } else {
-      r.skipField(wireType);
+      r.skipField(wireType, 1);
     }
   }
 

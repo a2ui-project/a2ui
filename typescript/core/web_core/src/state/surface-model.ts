@@ -845,18 +845,40 @@ function assertMaxAgentCallCacheEntries(value: number): void {
 
 /**
  * Copies an agent answer so callers that share it, or read it from the cache,
- * cannot change each other's value by mutating it.
+ * cannot change each other's value by mutating it, while preserving non-plain
+ * branded/opaque class instances intact without stripping prototypes or private fields.
  */
-function cloneAnswer<V>(value: V): V {
-  if (value === null || typeof value !== 'object') {
+function cloneAnswer<V>(value: V, seen = new WeakMap<object, unknown>()): V {
+  if (value === null || value === undefined || typeof value !== 'object') {
     return value;
   }
-  try {
-    return structuredClone(value);
-  } catch {
-    // Not cloneable (such as a value holding a function): shared as it is.
-    return value;
+  if (seen.has(value)) {
+    return seen.get(value) as V;
   }
+  if (Array.isArray(value)) {
+    const out: unknown[] = [];
+    seen.set(value, out);
+    for (const item of value) {
+      out.push(cloneAnswer(item, seen));
+    }
+    return out as unknown as V;
+  }
+  const proto = Object.getPrototypeOf(value);
+  if (proto === Object.prototype || proto === null) {
+    const out: Record<string, unknown> = {};
+    seen.set(value, out);
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      Object.defineProperty(out, k, {
+        value: cloneAnswer(v, seen),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
+    return out as V;
+  }
+  // Preserve branded / opaque class instances by reference.
+  return value;
 }
 
 /**

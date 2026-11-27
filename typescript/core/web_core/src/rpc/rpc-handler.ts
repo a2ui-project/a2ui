@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+import {
+  mergeOpaqueTypeRegistries,
+  serializeOpaqueValuesForAgent,
+} from '../catalog/model/opaque_types.js';
 import {Catalog, type FunctionApi, FunctionImplementation} from '../catalog/types.js';
 import {DataContext, MAX_DYNAMIC_VALUE_DEPTH} from '../resolution/data-context.js';
 import {
@@ -813,7 +817,13 @@ export class RpcHandler {
     try {
       const rawResult = await Promise.resolve(funcImpl.execute(args, context));
       const unwrapped = isSignal(rawResult) ? getValue(rawResult) : rawResult;
-      const value = unwrapped !== undefined ? unwrapped : null;
+      const opaqueTypes = mergeOpaqueTypeRegistries([
+        context?.surface?.defaultCatalog,
+        ...(context?.surface?.availableCatalogs?.values() ?? []),
+        ...this.catalogs,
+      ]);
+      const sanitized = serializeOpaqueValuesForAgent(unwrapped, opaqueTypes);
+      const value = sanitized !== undefined ? sanitized : null;
       return {
         version: respVersion,
         rendererFunctionResponse: {

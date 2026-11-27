@@ -27,9 +27,11 @@ import {
   type ModelBehaviorNode,
 } from '../catalog/model/model_semantics.js';
 import {coerceModelDynamicBoolean} from '../catalog/model/model_validator.js';
+import {type OpaqueTypeSpec, resolveStrictOpaqueSpecs} from '../catalog/model/opaque_types.js';
 import {ActionDispatchOptions} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {findFailedArgument, isPlainObject, isThenable, settleDeep} from '../common/settle_deep.js';
+import {A2uiValidationError} from '../errors.js';
 import {effect, getValue, peekValue} from '../reactivity/signals.js';
 import type {
   Action,
@@ -520,15 +522,55 @@ export class GenericBinder<T> {
     this.notify();
   }
 
+  private opaqueSpecsFor(
+    opaqueFormats: readonly string[] | undefined,
+  ): readonly OpaqueTypeSpec[] | undefined {
+    const catalog =
+      this.context.componentModel?.catalog ??
+      this.context.dataContext?.surface?.defaultCatalog ??
+      this.context.dataContext?.surface?.catalog;
+    return resolveStrictOpaqueSpecs(opaqueFormats, catalog?.opaqueTypes);
+  }
+
+  private enforceOpaqueValue(
+    resolved: unknown,
+    specs: readonly OpaqueTypeSpec[] | undefined,
+    path: string[],
+    dispatchError: boolean,
+  ): unknown {
+    if (!specs || resolved === undefined) {
+      return resolved;
+    }
+    if (specs.some(spec => spec.isInstance(resolved))) {
+      return resolved;
+    }
+    if (dispatchError) {
+      const expected = specs.map(s => s.name).join(' | ');
+      const compId = this.context.componentModel?.id ?? 'unknown';
+      const propPath = path.join('.');
+      const received = resolved === null ? 'null' : typeof resolved;
+      void this.context.dataContext?.surface?.dispatchError?.({
+        code: 'VALIDATION_ERROR',
+        message: `Component '${compId}' property '${propPath}' requires an authentic opaque value (${expected}); rejected unbranded ${received}.`,
+      });
+    }
+    return undefined;
+  }
+
   private bindDynamicValue(
     value: unknown,
     path: string[],
     isSync: boolean,
     isBoolean?: boolean,
+    opaqueFormats?: readonly string[],
   ): unknown {
-    const coerce = isBoolean ? coerceModelDynamicBoolean : (v: unknown) => v;
+    const specs = this.opaqueSpecsFor(opaqueFormats);
+    const transform = (raw: unknown, notifyError: boolean): unknown => {
+      const coerced = isBoolean ? coerceModelDynamicBoolean(raw) : raw;
+      return this.enforceOpaqueValue(coerced, specs, path, notifyError);
+    };
     const bound = this.context.dataContext.subscribeDynamicValue(value, newVal => {
-      this.updateDeepValue(path, coerce(newVal));
+      this.updateDeepValue(path, transform(newVal, true));
       this.notify();
     });
 
@@ -537,7 +579,7 @@ export class GenericBinder<T> {
     } else {
       bound.unsubscribe();
     }
-    return coerce(bound.value);
+    return transform(bound.value, !isSync);
   }
 
   /**
@@ -913,9 +955,19 @@ export class GenericBinder<T> {
       if (childBehavior.type === 'DYNAMIC') {
         const setterName = `set${k.charAt(0).toUpperCase() + k.slice(1)}`;
         const rawPropValue = valObj[k];
+        const specs = this.opaqueSpecsFor(childBehavior.opaqueFormats);
         result[setterName] = (newValue: unknown) => {
           const pathVal = this.getWritableBindingPath(rawPropValue);
           if (pathVal !== undefined) {
+            if (specs && newValue !== undefined && !specs.some(s => s.isInstance(newValue))) {
+              const expected = specs.map(s => s.name).join(' | ');
+              const msg = `Cannot write unbranded value to opaque binding '${pathVal}' (expected ${expected}).`;
+              void this.context.dataContext?.surface?.dispatchError?.({
+                code: 'VALIDATION_ERROR',
+                message: msg,
+              });
+              throw new A2uiValidationError(msg);
+            }
             this.context.dataContext.set(pathVal, newValue);
           }
         };
@@ -923,6 +975,7 @@ export class GenericBinder<T> {
     }
 
     if (catchall?.type === 'DYNAMIC') {
+      const catchallSpecs = this.opaqueSpecsFor(catchall.opaqueFormats);
       for (const [k, v] of Object.entries(valObj)) {
         if (!Object.hasOwn(shape, k) && k.length > 0) {
           const pathVal = this.getWritableBindingPath(v);
@@ -930,6 +983,19 @@ export class GenericBinder<T> {
             const setterName = `set${k.charAt(0).toUpperCase() + k.slice(1)}`;
             if (!Object.hasOwn(valObj, setterName)) {
               result[setterName] = (newValue: unknown) => {
+                if (
+                  catchallSpecs &&
+                  newValue !== undefined &&
+                  !catchallSpecs.some(s => s.isInstance(newValue))
+                ) {
+                  const expected = catchallSpecs.map(s => s.name).join(' | ');
+                  const msg = `Cannot write unbranded value to opaque binding '${pathVal}' (expected ${expected}).`;
+                  void this.context.dataContext?.surface?.dispatchError?.({
+                    code: 'VALIDATION_ERROR',
+                    message: msg,
+                  });
+                  throw new A2uiValidationError(msg);
+                }
                 this.context.dataContext.set(pathVal, newValue);
               };
             }
@@ -950,14 +1016,21 @@ export class GenericBinder<T> {
   ): unknown {
     if (
       value === undefined ||
-      (value === null && !(behavior.type === 'DYNAMIC' && behavior.isBoolean))
+      (value === null &&
+        !(behavior.type === 'DYNAMIC' && (behavior.isBoolean || behavior.opaqueFormats)))
     ) {
       return value;
     }
 
     switch (behavior.type) {
       case 'DYNAMIC':
-        return this.bindDynamicValue(value, path, isSync, behavior.isBoolean);
+        return this.bindDynamicValue(
+          value,
+          path,
+          isSync,
+          behavior.isBoolean,
+          behavior.opaqueFormats,
+        );
 
       case 'ACTION':
         if (typeof value !== 'object' || Array.isArray(value)) return value;

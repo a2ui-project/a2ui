@@ -24,7 +24,7 @@ import type {
 
 /** Runtime behavior node consumed by `GenericBinder` and `NodeResolver`. */
 export type ModelBehaviorNode =
-  | {type: 'DYNAMIC'; isBoolean?: boolean}
+  | {type: 'DYNAMIC'; isBoolean?: boolean; opaqueFormats?: readonly string[]}
   | {type: 'ACTION'}
   | {type: 'STRUCTURAL'}
   | {type: 'CHECKABLE'}
@@ -127,6 +127,36 @@ export function hasActiveBehavior(node: ModelBehaviorNode): boolean {
   }
 }
 
+function extractStringFormats(
+  format: string | readonly string[] | undefined,
+): readonly string[] | undefined {
+  if (format === undefined) return undefined;
+  const list = Array.isArray(format) ? format : [format];
+  const nonEmpty = list.filter((f): f is string => typeof f === 'string' && f.length > 0);
+  return nonEmpty.length > 0 ? nonEmpty : undefined;
+}
+
+function extractUnionOpaqueFormats(
+  variants: readonly TypeDefinition[],
+): readonly string[] | undefined {
+  const literalVariants = variants.filter(
+    v => v.type !== 'dataBinding' && v.type !== 'functionCall',
+  );
+  if (literalVariants.length === 0) return undefined;
+  const formats: string[] = [];
+  for (const variant of literalVariants) {
+    if (variant.type !== 'string') return undefined;
+    const f = extractStringFormats(variant.format);
+    if (!f) return undefined;
+    for (const entry of f) {
+      if (!formats.includes(entry)) {
+        formats.push(entry);
+      }
+    }
+  }
+  return formats.length > 0 ? formats : undefined;
+}
+
 function typeToBehavior(
   typeDef: TypeDefinition,
   types: Readonly<Record<string, DataTypeDefinition>> | undefined,
@@ -150,7 +180,11 @@ function typeToBehavior(
       return {type: 'DYNAMIC'};
     case 'boolean':
       return resolved.dynamic ? {type: 'DYNAMIC', isBoolean: true} : {type: 'STATIC'};
-    case 'string':
+    case 'string': {
+      if (!resolved.dynamic) return {type: 'STATIC'};
+      const formats = extractStringFormats(resolved.format);
+      return formats ? {type: 'DYNAMIC', opaqueFormats: formats} : {type: 'DYNAMIC'};
+    }
     case 'number':
     case 'integer':
     case 'enum':
@@ -186,11 +220,14 @@ function typeToBehavior(
         : {type: 'OBJECT', shape};
     }
     case 'union': {
-      if (resolved.dynamic) return {type: 'DYNAMIC'};
       const variantRefs = resolved.variants
         .map(v => resolveRef(v, types, nextVisited))
         .filter(r => !r.cyclic);
       const variants = variantRefs.map(r => r.resolved);
+      if (resolved.dynamic) {
+        const opaqueFormats = extractUnionOpaqueFormats(variants);
+        return opaqueFormats ? {type: 'DYNAMIC', opaqueFormats} : {type: 'DYNAMIC'};
+      }
       if (variants.some(v => v.type === 'action')) return {type: 'ACTION'};
       const hasDynamicVariant = variants.some(
         v =>
@@ -203,7 +240,11 @@ function typeToBehavior(
           v => v.type === 'boolean' || v.type === 'dataBinding' || v.type === 'functionCall',
         );
         const hasBoolean = variants.some(v => v.type === 'boolean');
-        return allBoolean && hasBoolean ? {type: 'DYNAMIC', isBoolean: true} : {type: 'DYNAMIC'};
+        if (allBoolean && hasBoolean) {
+          return {type: 'DYNAMIC', isBoolean: true};
+        }
+        const opaqueFormats = extractUnionOpaqueFormats(variants);
+        return opaqueFormats ? {type: 'DYNAMIC', opaqueFormats} : {type: 'DYNAMIC'};
       }
       if (variants.some(v => v.type === 'childList')) {
         const arrayRef = variantRefs.find(r => r.resolved.type === 'array');

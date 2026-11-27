@@ -64,6 +64,8 @@ import {defaultVersionAdapterFactory} from './adapters/factory.js';
 import {compareSemVer, isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {isPlainObject} from '../common/settle_deep.js';
 import {
+  INTERNAL_RAW_PAYLOAD,
+  InternalComponentPayload,
   InternalOperation,
   InternalCreateSurfaceOp,
   InternalUpdateComponentsOp,
@@ -99,7 +101,7 @@ import {
   RpcHandler,
 } from '../rpc/index.js';
 import {toOutboundActionMessage} from './outbound-envelope.js';
-import {DataContext, getKnownSchemaKeys} from '../resolution/data-context.js';
+import {DataContext} from '../resolution/data-context.js';
 import {
   MAX_GLOBAL_DEPTH,
   RELAXED_PATH_PATTERN,
@@ -347,7 +349,30 @@ export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
     call: FunctionCall,
     options?: CallOptions,
   ): Promise<TRes> {
-    return this.rpc.callAgentFunction<TRes>(surfaceId, call, options);
+    let sanitizedCall = call;
+    if (call.args !== undefined) {
+      const surface = this.model.getSurface(surfaceId);
+      const opaqueTypes = mergeOpaqueTypeRegistries([
+        surface?.defaultCatalog,
+        ...(surface?.availableCatalogs.values() ?? []),
+        ...this.registeredCatalogs,
+      ]);
+      if (opaqueTypes && opaqueTypes.size > 0) {
+        try {
+          const sanitized = serializeOpaqueValuesForAgent(call.args, opaqueTypes);
+          sanitizedCall = {
+            ...call,
+            args:
+              sanitized && typeof sanitized === 'object' && !Array.isArray(sanitized)
+                ? (sanitized as Record<string, unknown>)
+                : {},
+          };
+        } catch (err: unknown) {
+          return Promise.reject(err);
+        }
+      }
+    }
+    return this.rpc.callAgentFunction<TRes>(surfaceId, sanitizedCall, options);
   }
 
   /**
@@ -711,14 +736,30 @@ export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
       const initialContext: ErrorEnvelopeContext = {version: this.defaultVersion};
       let currentContext = initialContext;
       try {
-        for (const op of operations) {
+        if (!Array.isArray(operations)) {
+          throw new A2uiValidationError('processOperations expects an array of operations.');
+        }
+        // Phase 1: pre-validate every operation in the batch before mutating any state,
+        // matching `processMessages`'s `prepareOperations` invariant.
+        for (let i = 0; i < operations.length; i++) {
+          const op = operations[i];
+          if (!isInternalOperation(op)) {
+            throw new A2uiValidationError(
+              `Invalid operation at index ${i}: expected a normalized InternalOperation.`,
+            );
+          }
           currentContext = this.contextFromOperation(op, initialContext);
+          this.validateOperationEnvelope(op);
           if (this.validationConfig) {
             validateRecursionAndPaths(op);
           }
           if (this.validationConfig?.targetVersion) {
             this.validateTargetVersion(op);
           }
+        }
+        // Phase 2: execute validated operations sequentially.
+        for (const op of operations) {
+          currentContext = this.contextFromOperation(op, initialContext);
           this.processOperation(op, options);
         }
       } catch (err: unknown) {
@@ -728,6 +769,43 @@ export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
         }
       }
     });
+  }
+
+  private validateOperationEnvelope(op: InternalOperation): void {
+    switch (op.type) {
+      case 'createSurface':
+      case 'updateComponents':
+      case 'updateDataModel':
+      case 'deleteSurface':
+        if (typeof op.surfaceId !== 'string' || op.surfaceId.length === 0) {
+          throw new A2uiValidationError(
+            `Operation '${op.type}' requires a non-empty string 'surfaceId'.`,
+            [{path: '/surfaceId', code: 'missing_field', message: 'Missing surfaceId.'}],
+            'VALIDATION_ERROR',
+            {path: '/surfaceId'},
+          );
+        }
+        break;
+      case 'callRendererFunction':
+        if (typeof op.functionCallId !== 'string' || op.functionCallId.length === 0) {
+          throw new A2uiValidationError(
+            "Operation 'callRendererFunction' requires a non-empty string 'functionCallId'.",
+          );
+        }
+        if (typeof op.call !== 'string' || op.call.length === 0) {
+          throw new A2uiValidationError(
+            "Operation 'callRendererFunction' requires a non-empty string 'call'.",
+          );
+        }
+        break;
+      case 'agentFunctionResponse':
+        if (typeof op.functionCallId !== 'string' || op.functionCallId.length === 0) {
+          throw new A2uiValidationError(
+            "Operation 'agentFunctionResponse' requires a non-empty string 'functionCallId'.",
+          );
+        }
+        break;
+    }
   }
 
   /**
@@ -1251,7 +1329,7 @@ export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
     catalog: Catalog<T> | undefined,
     surfaceId: string,
   ): unknown {
-    if (!theme || !catalog?.themeSchema) {
+    if (!theme || (!catalog?.themeSchema && !catalog?.surfaceProperties)) {
       return theme;
     }
     try {
@@ -1722,14 +1800,11 @@ export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
 
     // `@catalogId` and `@metadata` hold no calls; the component's own
     // properties, `@accessibility` and `@checks` may.
-    const schema = this.componentSchema(comp, surface, componentCatalog);
-    const declaresRawPayload = componentDeclaresRawPayload(schema);
     const {properties, mixins} = splitComponentEnvelope(
       comp,
       this.componentLayout(comp, surface, componentCatalog),
     );
     for (const [key, value] of Object.entries(properties)) {
-      if (!declaresRawPayload && key === 'rawPayload') continue;
       visit(value, `/${key}`);
     }
     for (const mixin of [mixins.accessibility, mixins.checks]) {
@@ -1776,12 +1851,8 @@ export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
     const state = componentPayloadState(comp, surface.protocolVersion, schema, {
       defaultCatalogSchema: this.componentSchema(comp, surface, surface.defaultCatalog),
     });
-    const declaresRawPayload = componentDeclaresRawPayload(schema);
-    const rawPayload = !declaresRawPayload ? comp['rawPayload'] : undefined;
-    const properties =
-      !declaresRawPayload && Object.hasOwn(state.properties, 'rawPayload')
-        ? (({rawPayload: _raw, ...rest}) => rest)(state.properties)
-        : state.properties;
+    const rawPayload = (comp as InternalComponentPayload)[INTERNAL_RAW_PAYLOAD];
+    const properties = state.properties;
     const metadata = extractComponentMetadata(state.metadata);
     const existing = surface.componentsModel.get(id);
 
@@ -1946,14 +2017,6 @@ export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
       throw err;
     }
   }
-}
-
-function componentDeclaresRawPayload(schema: ComponentApiLike | undefined): boolean {
-  if (!schema) return false;
-  if (schema.definition) {
-    return Boolean(schema.definition.parameters?.some(p => p.name === 'rawPayload'));
-  }
-  return Boolean(schema.schema && getKnownSchemaKeys(schema.schema)?.has('rawPayload'));
 }
 
 function extractComponentMetadata(rawMetadata: unknown): A2uiMetadata | undefined {

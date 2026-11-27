@@ -18,6 +18,10 @@ import assert from 'node:assert/strict';
 import {describe, it} from 'node:test';
 
 import {
+  a2uiType,
+  defineCatalog,
+  defineComponent,
+  defineParameter,
   parseCatalogDocument,
   serializeCatalogDocument,
   type CatalogModel,
@@ -434,5 +438,189 @@ describe('Experimental Protobuf Codegen (Forward CatalogModel -> .proto & Revers
       variants: [{type: 'string'}, {type: 'integer'}],
     });
     assert.equal(serializeCatalogDocument(reversed)['formatVersion'], '1.0');
+  });
+
+  it('B5: handles dynamic union name collisions, snake_case & nested type collisions, 2D arrays / arrays of maps, dynamic top-level refs, duplicate enum values, and comment sanitization', () => {
+    // Raw CatalogModel literal (bypassing defineCatalog's enum dedup check) to
+    // also prove generateProtoFromCatalogModel handles duplicate enum values safely.
+    const edgeModel: CatalogModel = {
+      formatVersion: '1.0',
+      catalogId: 'https://example.com/edge\ninjected-line/v1',
+      protocolVersion: '1.0',
+      types: {
+        DataBinding: a2uiType.object([defineParameter('customKey', a2uiType.string())]),
+        Status: {
+          type: 'enum',
+          values: ['active', 'active', 'in-progress', 'in_progress'],
+          valueType: 'string',
+          dynamic: true,
+        },
+        DynamicCardData: a2uiType.object([defineParameter('title', a2uiType.string())], {
+          dynamic: true,
+        }),
+      },
+      components: [
+        defineComponent({
+          name: 'EdgeWidget',
+          parameters: [
+            // Dynamic union with ref named DataBinding AND explicit dataBinding variant.
+            defineParameter(
+              'choice',
+              a2uiType.union(
+                [a2uiType.ref('DataBinding'), a2uiType.dataBinding(), a2uiType.string()],
+                {dynamic: true},
+              ),
+            ),
+            // Duplicate snake_case parameters.
+            defineParameter('fooBar', a2uiType.string()),
+            defineParameter('foo_bar', a2uiType.string()),
+            // Nested type collision: enum foo (dynamic -> DynamicFoo) + object dynamicFoo.
+            defineParameter('foo', a2uiType.enum(['a', 'b'], {dynamic: true})),
+            defineParameter(
+              'dynamicFoo',
+              a2uiType.object([defineParameter('x', a2uiType.number())]),
+            ),
+            // 2D array and array of maps (must wrap in helper messages, not flatten!).
+            defineParameter('matrix', a2uiType.array(a2uiType.array(a2uiType.number()))),
+            defineParameter(
+              'records',
+              a2uiType.array(a2uiType.object([], {additionalProperties: a2uiType.integer()})),
+            ),
+            // Refs to top-level dynamic enum and dynamic object.
+            defineParameter('status', a2uiType.ref('Status')),
+            defineParameter('card', a2uiType.ref('DynamicCardData')),
+            // Newline in pattern must not break `//` comments.
+            defineParameter('code', a2uiType.string({pattern: '^a\nb$'})),
+          ],
+        }),
+      ],
+    };
+
+    const {protoSource} = generateProtoFromCatalogModel(edgeModel, {
+      protoPackage: 'a2ui.test.edge.v1',
+    });
+
+    // 1. Dynamic union has no duplicate `data_binding` field names or duplicate `= 1` tags!
+    const oneofMatch = protoSource.match(
+      /message ChoiceUnion \{[\s\S]*?oneof variant \{([\s\S]*?)\}/,
+    );
+    assert.ok(oneofMatch);
+    const variantLines = oneofMatch![1]
+      .split('\n')
+      .map(l => l.trim())
+      .filter(Boolean);
+    const variantNames = variantLines.map(l => l.match(/\s+([a-z0-9_]+)\s*=\s*(\d+);/)![1]);
+    const variantTags = variantLines.map(l => l.match(/\s+([a-z0-9_]+)\s*=\s*(\d+);/)![2]);
+    assert.equal(new Set(variantNames).size, variantNames.length);
+    assert.equal(new Set(variantTags).size, variantTags.length);
+    // Explicit dataBinding was already present, so only 1 a2ui.v1_0.DataBinding branch exists!
+    assert.equal(variantLines.filter(l => l.includes('a2ui.v1_0.DataBinding')).length, 1);
+    assert.equal(variantLines.filter(l => l.includes('a2ui.v1_0.FunctionCall')).length, 1);
+
+    // 2. Duplicate snake_case parameters disambiguated (`foo_bar` and `foo_bar_<tag>`).
+    assert.match(protoSource, /string foo_bar = \d+;/);
+    assert.match(protoSource, /string foo_bar_\d+ = \d+;/);
+
+    // 3. Nested type collision resolved (`message DynamicFoo` and `message DynamicFoo2`).
+    assert.match(protoSource, /message DynamicFoo \{/);
+    assert.match(protoSource, /message DynamicFoo2 \{/);
+
+    // 4. 2D array & array-of-maps wrapped in helper messages (no flattened `repeated double matrix`).
+    assert.match(protoSource, /message MatrixItemList \{\s*repeated double items = 1;/);
+    assert.match(protoSource, /repeated MatrixItemList matrix = \d+;/);
+    assert.match(protoSource, /message RecordsItemMap \{\s*map<string, int64> entries = 1;/);
+    assert.match(protoSource, /repeated RecordsItemMap records = \d+;/);
+
+    // 5. Top-level dynamic enum & dynamic object refs use `DynamicStatus` and `DynamicDynamicCardData`.
+    assert.match(protoSource, /message DynamicStatus \{/);
+    assert.match(protoSource, /DynamicStatus status = \d+;/);
+    assert.match(protoSource, /message DynamicDynamicCardData \{/);
+    assert.match(protoSource, /DynamicDynamicCardData card = \d+;/);
+
+    // 6. Duplicate enum values deduplicated (only one `STATUS_ACTIVE = 1;` and distinct `in-progress` vs `in_progress`).
+    const activeMatches = protoSource.match(/STATUS_ACTIVE\b/g) ?? [];
+    assert.equal(activeMatches.length, 1);
+    assert.match(protoSource, /STATUS_IN_PROGRESS = 2;/);
+    assert.match(protoSource, /STATUS_IN_PROGRESS_3 = 3;/);
+
+    // 7. Newlines in comments sanitized so no bare `injected-line` or `b$` leaks onto a new line.
+    assert.doesNotMatch(protoSource, /^injected-line/m);
+    assert.doesNotMatch(protoSource, /^b\$/m);
+
+    // 8. Pure scalar catalog omits unused `a2ui/v1_0/envelope.proto` import.
+    const pureScalar = defineCatalog({
+      catalogId: 'https://example.com/scalar/v1',
+      protocolVersion: '1.0',
+      components: [
+        defineComponent({
+          name: 'Tiny',
+          parameters: [defineParameter('count', a2uiType.integer())],
+        }),
+      ],
+    });
+    const scalarOut = generateProtoFromCatalogModel(pureScalar, {
+      protoPackage: 'a2ui.test.scalar.v1',
+    });
+    assert.doesNotMatch(scalarOut.protoSource, /import "a2ui\/v1_0\/envelope\.proto"/);
+  });
+
+  it('proto_to_catalog avoids cross-package suffix collisions, helper-as-component leakage, and false nested cycle detection', () => {
+    const desc: ProtoFileDescriptor = {
+      package: 'acme.ui.v1',
+      messages: [
+        {
+          name: 'Money',
+          fields: [{name: 'units', number: 1, kind: 'int64'}],
+        },
+        {
+          name: 'InvoicePropsProto',
+          fields: [
+            {name: 'local_amount', number: 1, kind: 'message', typeName: 'Money'},
+            {name: 'external_amount', number: 2, kind: 'message', typeName: 'google.type.Money'},
+            {name: 'section_a', number: 3, kind: 'message', typeName: 'SectionA'},
+            {name: 'section_b', number: 4, kind: 'message', typeName: 'SectionB'},
+          ],
+          nestedMessages: [
+            {
+              name: 'SectionA',
+              fields: [{name: 'item', number: 1, kind: 'message', typeName: 'Item'}],
+              nestedMessages: [
+                {name: 'Item', fields: [{name: 'a_label', number: 1, kind: 'string'}]},
+              ],
+            },
+            {
+              name: 'SectionB',
+              fields: [{name: 'item', number: 1, kind: 'message', typeName: 'Item'}],
+              nestedMessages: [
+                {name: 'Item', fields: [{name: 'b_count', number: 1, kind: 'int32'}]},
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const model = protoDescriptorToCatalogModel(desc, {
+      catalogId: 'https://example.com/invoice/v1',
+    });
+    // Helper `Money` is NOT emitted as a standalone A2UI component.
+    assert.deepEqual(
+      model.components?.map(c => c.name),
+      ['Invoice'],
+    );
+    const params = new Map((model.components![0].parameters ?? []).map(p => [p.name, p]));
+    // Local `Money` resolved to structured object with `units`.
+    const localAmount = params.get('localAmount') as {type: string; properties?: {name: string}[]};
+    assert.equal(localAmount.type, 'object');
+    assert.deepEqual(
+      localAmount.properties?.map(p => p.name),
+      ['units'],
+    );
+    // External `google.type.Money` did NOT falsely match local `Money`.
+    assert.deepEqual(params.get('externalAmount'), {
+      name: 'externalAmount',
+      type: 'object',
+      additionalProperties: true,
+    });
   });
 });
