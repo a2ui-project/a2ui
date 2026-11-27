@@ -24,6 +24,9 @@ class CatalogSchemaHelper {
 
   final CatalogApi catalog;
 
+  /// Canonical JSON-Schema-free catalog model backing Express queries.
+  CatalogModel get model => catalog.model;
+
   /// Checks a compiled component against its schema in [catalog].
   late final PayloadValidator<ComponentApi, FunctionApi> validator =
       PayloadValidator(catalog: catalog);
@@ -33,6 +36,101 @@ class CatalogSchemaHelper {
   bool isComponent(String name) => catalog.components.containsKey(name);
 
   bool isFunction(String name) => catalog.functions.containsKey(name);
+
+  /// The canonical [ComponentDefinition] for [name], or `null`.
+  ComponentDefinition? componentDefinition(String name) =>
+      model.component(name);
+
+  /// The canonical [FunctionDefinition] for [name], or `null`.
+  FunctionDefinition? functionDefinition(String name) => model.function(name);
+
+  /// The canonical [ParameterDefinition] for [property] of [component], or
+  /// `null`.
+  ParameterDefinition? parameterDefinition(String component, String property) =>
+      model.component(component)?.parameter(property);
+
+  /// Resolves a [RefType] chain against [model]'s local `types`.
+  TypeDefinition resolveType(TypeDefinition type) =>
+      model.resolveType(type) ?? type;
+
+  /// Whether [type] represents a child component ID reference.
+  bool isTypeComponentId(TypeDefinition type) {
+    final TypeDefinition resolved = resolveType(type);
+    return switch (resolved) {
+      ChildType() => true,
+      UnionType(:final variants) => variants.any(isTypeComponentId),
+      _ => false,
+    };
+  }
+
+  /// Whether [type] represents a child list.
+  bool isTypeChildList(TypeDefinition type) {
+    final TypeDefinition resolved = resolveType(type);
+    return switch (resolved) {
+      ChildListType() => true,
+      UnionType(:final variants) => variants.any(isTypeChildList),
+      _ => false,
+    };
+  }
+
+  /// Whether [type] represents an interaction action.
+  bool isTypeAction(TypeDefinition type) {
+    final TypeDefinition resolved = resolveType(type);
+    return switch (resolved) {
+      ActionType() => true,
+      UnionType(:final variants) => variants.any(isTypeAction),
+      _ => false,
+    };
+  }
+
+  /// Whether [type] accepts a data binding (dynamic value, binding, or
+  /// `ChildList` template).
+  bool typeAllowsBinding(TypeDefinition type) {
+    final TypeDefinition resolved = resolveType(type);
+    return switch (resolved) {
+      DataBindingType() || ChildListType() => true,
+      UnionType(:final dynamic, :final variants) =>
+        dynamic || variants.any(typeAllowsBinding),
+      _ => resolved.isDynamic,
+    };
+  }
+
+  /// Allowed enum values of [type], or `null` if [type] is not an enum.
+  List<Object>? typeEnumValues(TypeDefinition type) {
+    final TypeDefinition resolved = resolveType(type);
+    if (resolved is EnumType) return resolved.values;
+    if (resolved is UnionType) {
+      for (final TypeDefinition v in resolved.variants) {
+        if (typeEnumValues(v) case final List<Object> values) return values;
+      }
+    }
+    return null;
+  }
+
+  /// Extracts user-defined nested object or array-of-objects properties from a
+  /// canonical [TypeDefinition], ignoring protocol wire types (`DataBinding`,
+  /// `FunctionCall`, `Action`, `ChildList`) by construction.
+  ({bool isArray, List<ParameterDefinition> properties})?
+  structuredTypeProperties(TypeDefinition type) {
+    final TypeDefinition resolved = resolveType(type);
+    switch (resolved) {
+      case ObjectType(:final properties) when properties.isNotEmpty:
+        return (isArray: false, properties: properties);
+      case ArrayType(:final items) when items != null:
+        final TypeDefinition elem = resolveType(items);
+        if (elem is ObjectType && elem.properties.isNotEmpty) {
+          return (isArray: true, properties: elem.properties);
+        }
+        return null;
+      case UnionType(:final variants):
+        for (final v in variants) {
+          if (structuredTypeProperties(v) case final found?) return found;
+        }
+        return null;
+      default:
+        return null;
+    }
+  }
 
   /// The system functions the catalog's protocol version defines, such as
   /// `@index` from v1.0, keyed by name. See [systemFunctionSchemas].
@@ -190,8 +288,11 @@ class CatalogSchemaHelper {
     return resolve(schema);
   }
 
-  /// The component's own description, if its schema has one.
+  /// The component's own description, if its definition or schema has one.
   String? componentDescription(String component) {
+    if (model.component(component)?.description case final String description) {
+      return description;
+    }
     final Map<String, Object?> schema = catalog
         .resolvedComponentSchema(component)!
         .value;
@@ -224,16 +325,27 @@ class CatalogSchemaHelper {
   }
 
   /// The function's parameters, in schema order.
-  List<String> parameters(String function) => [
-    ..._parameterSchemas(function).keys,
-  ];
+  List<String> parameters(String function) {
+    if (model.function(function) case final FunctionDefinition def
+        when def.parameters.isNotEmpty) {
+      return [for (final ParameterDefinition p in def.parameters) p.name];
+    }
+    return [..._parameterSchemas(function).keys];
+  }
 
   /// The parameters the function requires.
-  List<String> requiredParameters(String function) => [
-    for (final Object? name
-        in _argumentSchema(function)['required'] as List<Object?>? ?? const [])
-      name! as String,
-  ];
+  List<String> requiredParameters(String function) {
+    if (model.function(function) case final FunctionDefinition def
+        when def.parameters.isNotEmpty) {
+      return def.requiredParameters;
+    }
+    return [
+      for (final Object? name
+          in _argumentSchema(function)['required'] as List<Object?>? ??
+              const [])
+        name! as String,
+    ];
+  }
 
   /// The schema of one of [parameters].
   Map<String, Object?>? parameterSchema(String function, String parameter) =>

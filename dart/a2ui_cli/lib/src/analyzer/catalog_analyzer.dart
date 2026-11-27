@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_core/a2ui_core.dart' as core;
 
 import 'catalog_reader.dart';
 import 'types.dart';
@@ -22,6 +22,9 @@ String capitalize(String s) {
   return s[0].toUpperCase() + s.substring(1);
 }
 
+/// Analyzes a catalog's canonical [core.CatalogModel] into named enums,
+/// deduplicated object models, and typed component/function signatures for
+/// target-language code emitters.
 class CatalogAnalyzer {
   final Map<String, EnumType> _enums = {};
   final Map<String, AnalysedObjectModel> _objectModels = {};
@@ -29,14 +32,13 @@ class CatalogAnalyzer {
 
   /// Every type name the emitter will declare, in one namespace.
   ///
-  /// Enums, inline object models and components all become top-level Python
+  /// Enums, inline object models, and components all become top-level
   /// declarations in the same module, so a name claimed by one must not be
-  /// handed to another. `Icon.name`, a `oneOf` of an icon enum and a custom
-  /// SVG object, produces exactly that clash.
+  /// handed to another.
   final Set<String> _reservedNames = {};
 
-  /// Analyzes a [CatalogApi] for code generation.
-  static AnalysedCatalog analyze(CatalogApi catalog) =>
+  /// Analyzes a [core.CatalogApi] for code generation.
+  static AnalysedCatalog analyze(core.CatalogApi catalog) =>
       CatalogAnalyzer().analyzeCatalog(CodegenCatalog(catalog));
 
   /// Analyzes a [CodegenCatalog] for code generation.
@@ -44,27 +46,25 @@ class CatalogAnalyzer {
       CatalogAnalyzer().analyzeCatalog(catalog);
 
   AnalysedCatalog analyzeCatalog(CodegenCatalog catalog) {
+    final core.CatalogModel model = catalog.model;
     _enums.clear();
     _objectModels.clear();
-    _isV10 = catalog.catalog.protocolVersion == A2uiProtocolVersion.v1_0;
+    _isV10 = model.protocolVersion == core.A2uiProtocolVersion.v1_0;
     _reservedNames
       ..clear()
-      ..addAll(catalog.components.keys);
+      ..addAll(model.components.map((c) => c.name));
 
-    final components = <String, AnalysedComponentApi>{};
-    for (final MapEntry<String, CatalogComponentDefinition> entry
-        in catalog.components.entries) {
-      components[entry.key] = _analyzeComponent(entry.key, entry.value);
-    }
-
-    final functions = <String, AnalysedFunctionApi>{};
-    for (final MapEntry<String, CatalogFunctionDefinition> entry
-        in catalog.functions.entries) {
-      functions[entry.key] = _analyzeFunction(entry.key, entry.value);
-    }
+    final components = <String, AnalysedComponentApi>{
+      for (final core.ComponentDefinition comp in model.components)
+        comp.name: _analyzeComponent(comp, model),
+    };
+    final functions = <String, AnalysedFunctionApi>{
+      for (final core.FunctionDefinition fn in model.functions)
+        fn.name: _analyzeFunction(fn, model),
+    };
 
     return AnalysedCatalog(
-      catalogId: catalog.id,
+      catalogId: model.catalogId,
       specVersion: catalog.version,
       components: components,
       functions: functions,
@@ -74,435 +74,308 @@ class CatalogAnalyzer {
   }
 
   AnalysedComponentApi _analyzeComponent(
-    String name,
-    CatalogComponentDefinition comp,
+    core.ComponentDefinition comp,
+    core.CatalogModel model,
   ) {
     final properties = <String, PropertyDescriptor>{};
     final requiredProps = <String>[];
-    var isCheckable = false;
 
-    final String? description = comp.description;
-    final Map<String, dynamic> rawProps = comp.properties;
-    final Set<String> reqSet = comp.requiredProperties;
+    for (final core.ParameterDefinition param in comp.parameters) {
+      if (param.required) requiredProps.add(param.name);
+      properties[param.name] = _analyzeParameter(comp.name, param, model);
+    }
 
-    for (final MapEntry<String, dynamic> entry in rawProps.entries) {
-      final String propName = entry.key;
-      if (propName == '@accessibility' ||
-          propName == '@metadata' ||
-          propName == '@catalogId') {
-        continue;
-      }
-      if (propName == 'isValid' ||
-          ((propName == 'checks' || propName == '@checks') &&
-              entry.value is Map &&
-              (entry.value as Map)['type'] == 'array')) {
-        isCheckable = true;
-      }
-
-      final propMap = entry.value is Map
-          ? Map<String, dynamic>.from(entry.value as Map)
-          : <String, dynamic>{};
-
-      final bool isRequired = reqSet.contains(propName);
-      if (isRequired) {
-        requiredProps.add(propName);
-      }
-
-      final PropertyDescriptor analyzed = _analyzePropertySchema(
-        name,
-        propName,
-        propMap,
-        isRequired: isRequired,
+    if (comp.checkable) {
+      final checksKey = _isV10 ? '@checks' : 'checks';
+      properties.putIfAbsent(
+        checksKey,
+        () => PropertyDescriptor(
+          name: checksKey,
+          type: const ListType(CheckRuleType()),
+          isRequired: false,
+        ),
       );
-      properties[propName] = analyzed;
     }
 
     return AnalysedComponentApi(
-      name: name,
-      description: description,
+      name: comp.name,
+      description: comp.description,
       properties: properties,
       requiredProperties: requiredProps,
-      isCheckable: isCheckable,
+      isCheckable: comp.checkable,
     );
   }
 
   AnalysedFunctionApi _analyzeFunction(
-    String name,
-    CatalogFunctionDefinition fn,
+    core.FunctionDefinition fn,
+    core.CatalogModel model,
   ) {
     final parameters = <String, PropertyDescriptor>{};
     final requiredParams = <String>[];
 
-    final String? description = fn.description;
-    final Map<String, dynamic> rawParams = fn.parameters;
-    final Set<String> reqSet = fn.requiredParameters;
-
-    for (final MapEntry<String, dynamic> entry in rawParams.entries) {
-      final String paramName = entry.key;
-      final paramMap = entry.value is Map
-          ? Map<String, dynamic>.from(entry.value as Map)
-          : <String, dynamic>{};
-
-      final bool isRequired = reqSet.contains(paramName);
-      if (isRequired) {
-        requiredParams.add(paramName);
-      }
-
-      final PropertyDescriptor analyzed = _analyzePropertySchema(
-        name,
-        paramName,
-        paramMap,
-        isRequired: isRequired,
-      );
-      parameters[paramName] = analyzed;
+    for (final core.ParameterDefinition param in fn.parameters) {
+      if (param.required) requiredParams.add(param.name);
+      parameters[param.name] = _analyzeParameter(fn.name, param, model);
     }
 
     return AnalysedFunctionApi(
-      name: name,
-      description: description,
+      name: fn.name,
+      description: fn.description,
       parameters: parameters,
       requiredParameters: requiredParams,
-      returnType: _returnTypeToTypeDescriptor(fn.returnType),
+      returnType: _returnTypeToTypeDescriptor(fn.returnType.returnType),
     );
   }
 
-  PropertyDescriptor _analyzePropertySchema(
+  PropertyDescriptor _analyzeParameter(
+    String parentName,
+    core.ParameterDefinition param,
+    core.CatalogModel model,
+  ) {
+    final core.TypeDefinition rawType = param.type;
+    final core.TypeDefinition resolved = model.resolveType(rawType) ?? rawType;
+    final String? description = rawType.description ?? resolved.description;
+    final Object? defaultValue = rawType.hasDefault
+        ? rawType.defaultValue
+        : resolved.defaultValue;
+    return PropertyDescriptor(
+      name: param.name,
+      type: _analyzeType(parentName, param.name, resolved, model),
+      description: description,
+      defaultValue: defaultValue,
+      isRequired: param.required,
+    );
+  }
+
+  TypeDescriptor _analyzeType(
     String parentName,
     String propName,
-    Map<String, dynamic> schema, {
-    required bool isRequired,
-  }) {
-    final dynamic defaultValue = schema['default'];
-    final rawDescription = schema['description'] as String?;
-
-    // Check REF pointer in description
-    final RegExpMatch? refMatch = rawDescription != null
-        ? RegExp(r'REF:([^|]+)(?:\|(.*))?').firstMatch(rawDescription)
-        : null;
-
-    final String? cleanDescription = refMatch != null
-        ? (refMatch.group(2) ??
-              rawDescription!.replaceAll(RegExp(r'REF:[^|]+(\|)?'), ''))
-        : rawDescription;
-
-    final String refPath =
-        refMatch?.group(1) ?? (schema[r'$ref'] as String? ?? '');
-    final String defName = refPath.isNotEmpty ? refPath.split('/').last : '';
-
-    if (defName.isNotEmpty) {
-      if (defName == 'AccessibilityAttributes') {
-        return PropertyDescriptor(
-          name: propName,
-          type: const AccessibilityType(),
-          description: cleanDescription,
-          defaultValue: defaultValue,
-          isRequired: isRequired,
-        );
-      }
-      if (defName == 'ChildList') {
-        return PropertyDescriptor(
-          name: propName,
-          type: const ComponentListType(),
-          description: cleanDescription,
-          defaultValue: defaultValue,
-          isRequired: isRequired,
-        );
-      }
-      if (defName == 'ComponentId' || (_isV10 && defName == 'Child')) {
-        return PropertyDescriptor(
-          name: propName,
-          type: const ComponentRefType(),
-          description: cleanDescription,
-          defaultValue: defaultValue,
-          isRequired: isRequired,
-        );
-      }
-      if (defName == 'Action') {
-        return PropertyDescriptor(
-          name: propName,
-          type: const ActionType(),
-          description: cleanDescription,
-          defaultValue: defaultValue,
-          isRequired: isRequired,
-        );
-      }
-      if (defName == 'CheckRule') {
-        return PropertyDescriptor(
-          name: propName,
-          type: const CheckRuleType(),
-          description: cleanDescription,
-          defaultValue: defaultValue,
-          isRequired: isRequired,
-        );
-      }
-      if (defName == 'DataBinding') {
-        return PropertyDescriptor(
-          name: propName,
-          type: const DataBindingType(),
-          description: cleanDescription,
-          defaultValue: defaultValue,
-          isRequired: isRequired,
-        );
-      }
-      if (defName == 'DynamicStringList') {
-        return PropertyDescriptor(
-          name: propName,
-          type: const DynamicType(
-            ListType(PrimitiveType(PrimitiveKind.string)),
+    core.TypeDefinition type,
+    core.CatalogModel model,
+  ) {
+    final core.TypeDefinition resolved = model.resolveType(type) ?? type;
+    return switch (resolved) {
+      core.AccessibilityType() => const AccessibilityType(),
+      core.ChildListType() => const ComponentListType(),
+      core.ChildType() => const ComponentRefType(),
+      core.ActionType() => const ActionType(),
+      core.CheckRuleType() => const CheckRuleType(),
+      core.DataBindingType() => const DataBindingType(),
+      core.FunctionCallType() => const DynamicType(
+        PrimitiveType(PrimitiveKind.any),
+      ),
+      // Multi-format dynamic strings (e.g. DateTimeInput.min/max) previously
+      // used `allOf: [DynamicString, {if/then}]` which fell back to `Any` in
+      // checked-in Python goldens; keep parity until those goldens regenerate.
+      core.StringType(dynamic: true, formats: final List<String> formats)
+          when formats.length > 1 =>
+        const PrimitiveType(PrimitiveKind.any),
+      core.StringType(:final dynamic) => _wrapDynamic(
+        const PrimitiveType(PrimitiveKind.string),
+        dynamic,
+      ),
+      core.NumberType(:final dynamic) || core.IntegerType(:final dynamic) =>
+        _wrapDynamic(const PrimitiveType(PrimitiveKind.float), dynamic),
+      core.BooleanType(:final dynamic) => _wrapDynamic(
+        const PrimitiveType(PrimitiveKind.boolean),
+        dynamic,
+      ),
+      core.AnyType(dynamic: true, nullable: false) => const DynamicType(
+        PrimitiveType(PrimitiveKind.any),
+      ),
+      core.AnyType() => const PrimitiveType(PrimitiveKind.any),
+      core.ConstType(:final value) => switch (value) {
+        String() => const PrimitiveType(PrimitiveKind.string),
+        num() => const PrimitiveType(PrimitiveKind.float),
+        bool() => const PrimitiveType(PrimitiveKind.boolean),
+        _ => const PrimitiveType(PrimitiveKind.any),
+      },
+      core.EnumType(:final values, :final dynamic, :final description) =>
+        _wrapDynamic(
+          _registerEnum(
+            parentName,
+            propName,
+            values.map((v) => v.toString()).toList(),
+            description: description,
           ),
-          description: cleanDescription,
-          defaultValue: defaultValue,
-          isRequired: isRequired,
-        );
-      }
-      if (defName == 'DynamicString') {
-        return PropertyDescriptor(
-          name: propName,
-          type: const DynamicType(PrimitiveType(PrimitiveKind.string)),
-          description: cleanDescription,
-          defaultValue: defaultValue,
-          isRequired: isRequired,
-        );
-      }
-      if (defName == 'DynamicNumber') {
-        return PropertyDescriptor(
-          name: propName,
-          type: const DynamicType(PrimitiveType(PrimitiveKind.float)),
-          description: cleanDescription,
-          defaultValue: defaultValue,
-          isRequired: isRequired,
-        );
-      }
-      if (defName == 'DynamicBoolean') {
-        return PropertyDescriptor(
-          name: propName,
-          type: const DynamicType(PrimitiveType(PrimitiveKind.boolean)),
-          description: cleanDescription,
-          defaultValue: defaultValue,
-          isRequired: isRequired,
-        );
-      }
-      if (defName == 'DynamicValue') {
-        return PropertyDescriptor(
-          name: propName,
-          type: const DynamicType(PrimitiveType(PrimitiveKind.any)),
-          description: cleanDescription,
-          defaultValue: defaultValue,
-          isRequired: isRequired,
-        );
-      }
-    }
-
-    // Check enum
-    if (schema['enum'] is List) {
-      final List<String> values = (schema['enum'] as List)
-          .map((e) => e.toString())
-          .toList();
-      var preferred = '$parentName${capitalize(propName)}';
-      if ((parentName == 'Row' || parentName == 'Column') &&
-          (propName == 'justify' || propName == 'align')) {
-        preferred = 'Flex${capitalize(propName)}';
-      }
-
-      // The same enum reached through two components (Row.justify and
-      // Column.justify) is one type; only a different value set earns a
-      // different name.
-      var enumName = preferred;
-      var suffix = 2;
-      while (_reservedNames.contains(enumName)) {
-        final EnumType? existing = _enums[enumName];
-        if (existing != null && _sameValues(existing.values, values)) break;
-        enumName = '$preferred$suffix';
-        suffix++;
-      }
-
-      final enumType = EnumType(
-        name: enumName,
-        values: values,
-        description: cleanDescription,
-      );
-      _enums[enumName] = enumType;
-      _reservedNames.add(enumName);
-
-      return PropertyDescriptor(
-        name: propName,
-        type: enumType,
-        description: cleanDescription,
-        defaultValue: defaultValue,
-        isRequired: isRequired,
-      );
-    }
-
-    // Check anyOf / oneOf
-    final Object? unionList = schema['anyOf'] ?? schema['oneOf'];
-    if (unionList is List && unionList.isNotEmpty) {
-      var hasDataBindingOrFn = false;
-      final baseTypes = <TypeDescriptor>[];
-
-      for (final Object? item in unionList) {
-        if (item is Map) {
-          final itemMap = Map<String, dynamic>.from(item);
-          final String itemRef =
-              itemMap[r'$ref'] as String? ??
-              itemMap['description'] as String? ??
-              '';
-          final String itemDef = itemRef.isNotEmpty
-              ? itemRef.split('/').last
-              : '';
-          if (itemDef == 'DataBinding' ||
-              itemDef == 'FunctionCall' ||
-              itemDef == 'functionCall') {
-            hasDataBindingOrFn = true;
-          } else {
-            final TypeDescriptor t = _analyzePropertySchema(
-              parentName,
-              propName,
-              itemMap,
-              isRequired: false,
-            ).type;
-            if (t is! DynamicType &&
-                t is! DataBindingType &&
-                t is! ActionType) {
-              baseTypes.add(t);
-            }
-          }
-        }
-      }
-
-      // Every branch is kept. Dropping all but one would quietly narrow the
-      // authoring API below what the catalog actually permits.
-      if (baseTypes.isNotEmpty) {
-        final TypeDescriptor base = baseTypes.length == 1
-            ? baseTypes.first
-            : UnionType(baseTypes);
-        return PropertyDescriptor(
-          name: propName,
-          type: hasDataBindingOrFn ? DynamicType(base) : base,
-          description: cleanDescription,
-          defaultValue: defaultValue,
-          isRequired: isRequired,
-        );
-      }
-      if (hasDataBindingOrFn) {
-        return PropertyDescriptor(
-          name: propName,
-          type: const DynamicType(PrimitiveType(PrimitiveKind.any)),
-          description: cleanDescription,
-          defaultValue: defaultValue,
-          isRequired: isRequired,
-        );
-      }
-    }
-
-    // Check type
-    final Object? typeRaw = schema['type'];
-    final typeStr = typeRaw is List
-        ? typeRaw.firstWhere((t) => t != 'null', orElse: () => 'any') as String?
-        : typeRaw as String?;
-    if (typeStr == 'string') {
-      return PropertyDescriptor(
-        name: propName,
-        type: const PrimitiveType(PrimitiveKind.string),
-        description: cleanDescription,
-        defaultValue: defaultValue,
-        isRequired: isRequired,
-      );
-    }
-
-    if (typeStr == 'integer' || typeStr == 'number') {
-      return PropertyDescriptor(
-        name: propName,
-        type: const PrimitiveType(PrimitiveKind.float),
-        description: cleanDescription,
-        defaultValue: defaultValue,
-        isRequired: isRequired,
-      );
-    }
-
-    if (typeStr == 'boolean') {
-      return PropertyDescriptor(
-        name: propName,
-        type: const PrimitiveType(PrimitiveKind.boolean),
-        description: cleanDescription,
-        defaultValue: defaultValue,
-        isRequired: isRequired,
-      );
-    }
-
-    if (typeStr == 'array') {
-      final itemsMap = schema['items'] is Map
-          ? Map<String, dynamic>.from(schema['items'] as Map)
-          : <String, dynamic>{};
-      final String itemRef =
-          itemsMap[r'$ref'] as String? ??
-          itemsMap['description'] as String? ??
-          '';
-      final String itemDef = itemRef.isNotEmpty ? itemRef.split('/').last : '';
-
-      if (itemDef == 'ComponentId' || (_isV10 && itemDef == 'Child')) {
-        return PropertyDescriptor(
-          name: propName,
-          type: const ComponentListType(),
-          description: cleanDescription,
-          defaultValue: defaultValue,
-          isRequired: isRequired,
-        );
-      }
-
-      final ObjectModelType? itemModel = _registerObjectModel(
-        _itemModelName(parentName, propName),
-        itemsMap,
-        fallbackDescription: cleanDescription,
-      );
-      if (itemModel != null) {
-        return PropertyDescriptor(
-          name: propName,
-          type: ListType(itemModel),
-          description: cleanDescription,
-          defaultValue: defaultValue,
-          isRequired: isRequired,
-        );
-      }
-
-      final PropertyDescriptor elemProp = _analyzePropertySchema(
+          dynamic,
+        ),
+      core.ArrayType(:final items, :final dynamic, :final description) =>
+        _analyzeArray(
+          parentName,
+          propName,
+          items,
+          model,
+          isDynamic: dynamic,
+          fallbackDescription: description,
+        ),
+      core.ObjectType(:final properties, :final dynamic) => _wrapDynamic(
+        properties.isEmpty
+            ? const MapType(PrimitiveType(PrimitiveKind.any))
+            : _registerObjectModel(
+                '$parentName${capitalize(propName)}',
+                resolved,
+                model,
+              ),
+        dynamic,
+      ),
+      core.UnionType(:final variants, :final dynamic) => _analyzeUnion(
         parentName,
-        '${propName}Item',
-        itemsMap,
-        isRequired: true,
-      );
-      return PropertyDescriptor(
-        name: propName,
-        type: ListType(elemProp.type),
-        description: cleanDescription,
-        defaultValue: defaultValue,
-        isRequired: isRequired,
-      );
-    }
-
-    if (typeStr == 'object') {
-      final ObjectModelType? model = _registerObjectModel(
-        '$parentName${capitalize(propName)}',
-        schema,
-      );
-      return PropertyDescriptor(
-        name: propName,
-        type: model ?? const MapType(PrimitiveType(PrimitiveKind.any)),
-        description: cleanDescription,
-        defaultValue: defaultValue,
-        isRequired: isRequired,
-      );
-    }
-
-    return PropertyDescriptor(
-      name: propName,
-      type: const PrimitiveType(PrimitiveKind.any),
-      description: cleanDescription,
-      defaultValue: defaultValue,
-      isRequired: isRequired,
-    );
+        propName,
+        variants,
+        model,
+        isDynamic: dynamic,
+      ),
+      core.RefType() ||
+      core.TypeDefinition() => const PrimitiveType(PrimitiveKind.any),
+    };
   }
 
-  /// Best-effort English singularisation, used only to name generated models.
+  TypeDescriptor _analyzeArray(
+    String parentName,
+    String propName,
+    core.TypeDefinition? items,
+    core.CatalogModel model, {
+    required bool isDynamic,
+    String? fallbackDescription,
+  }) {
+    if (items == null) {
+      return _wrapDynamic(
+        const ListType(PrimitiveType(PrimitiveKind.any)),
+        isDynamic,
+      );
+    }
+    final core.TypeDefinition resolved = model.resolveType(items) ?? items;
+    if (resolved is core.ChildType) return const ComponentListType();
+    if (resolved is core.ObjectType && resolved.properties.isNotEmpty) {
+      final ObjectModelType itemModel = _registerObjectModel(
+        _itemModelName(parentName, propName),
+        resolved,
+        model,
+        fallbackDescription: fallbackDescription,
+      );
+      return _wrapDynamic(ListType(itemModel), isDynamic);
+    }
+    final TypeDescriptor elem = _analyzeType(
+      parentName,
+      '${propName}Item',
+      resolved,
+      model,
+    );
+    return _wrapDynamic(ListType(elem), isDynamic);
+  }
+
+  TypeDescriptor _analyzeUnion(
+    String parentName,
+    String propName,
+    List<core.TypeDefinition> variants,
+    core.CatalogModel model, {
+    required bool isDynamic,
+  }) {
+    var hasDynamic = isDynamic;
+    final baseTypes = <TypeDescriptor>[];
+
+    for (final variant in variants) {
+      final core.TypeDefinition resolved =
+          model.resolveType(variant) ?? variant;
+      if (resolved is core.DataBindingType ||
+          resolved is core.FunctionCallType) {
+        hasDynamic = true;
+        continue;
+      }
+      if (resolved is core.ConstType && resolved.value == null) continue;
+      final TypeDescriptor analyzed = _analyzeType(
+        parentName,
+        propName,
+        resolved,
+        model,
+      );
+      if (analyzed is! DynamicType &&
+          analyzed is! DataBindingType &&
+          analyzed is! ActionType) {
+        baseTypes.add(analyzed);
+      }
+    }
+
+    if (baseTypes.isNotEmpty) {
+      final TypeDescriptor base = baseTypes.length == 1
+          ? baseTypes.first
+          : UnionType(baseTypes);
+      return _wrapDynamic(base, hasDynamic);
+    }
+    if (hasDynamic) {
+      return const DynamicType(PrimitiveType(PrimitiveKind.any));
+    }
+    return const PrimitiveType(PrimitiveKind.any);
+  }
+
+  static TypeDescriptor _wrapDynamic(TypeDescriptor inner, bool isDynamic) =>
+      isDynamic ? DynamicType(inner) : inner;
+
+  EnumType _registerEnum(
+    String parentName,
+    String propName,
+    List<String> values, {
+    String? description,
+  }) {
+    var preferred = '$parentName${capitalize(propName)}';
+    if ((parentName == 'Row' || parentName == 'Column') &&
+        (propName == 'justify' || propName == 'align')) {
+      preferred = 'Flex${capitalize(propName)}';
+    }
+
+    var enumName = preferred;
+    var suffix = 2;
+    while (_reservedNames.contains(enumName)) {
+      final EnumType? existing = _enums[enumName];
+      if (existing != null && _sameValues(existing.values, values)) break;
+      enumName = '$preferred$suffix';
+      suffix++;
+    }
+
+    final enumType = EnumType(
+      name: enumName,
+      values: values,
+      description: description,
+    );
+    _enums[enumName] = enumType;
+    _reservedNames.add(enumName);
+    return enumType;
+  }
+
+  ObjectModelType _registerObjectModel(
+    String preferredName,
+    core.ObjectType obj,
+    core.CatalogModel model, {
+    String? fallbackDescription,
+  }) {
+    var name = preferredName;
+    final properties = <String, PropertyDescriptor>{
+      for (final core.ParameterDefinition prop in obj.properties)
+        prop.name: _analyzeParameter(name, prop, model),
+    };
+
+    var suffix = 2;
+    while (_reservedNames.contains(name)) {
+      final AnalysedObjectModel? existing = _objectModels[name];
+      if (existing != null && _sameShape(existing.properties, properties)) {
+        return ObjectModelType(name);
+      }
+      name = suffix == 2
+          ? '$preferredName${capitalize(properties.keys.first)}'
+          : '$preferredName$suffix';
+      suffix++;
+    }
+
+    _objectModels[name] = AnalysedObjectModel(
+      name: name,
+      description: obj.description ?? fallbackDescription,
+      properties: properties,
+    );
+    _reservedNames.add(name);
+    return ObjectModelType(name);
+  }
+
   static String _singular(String name) {
     if (name.length < 2 || !name.endsWith('s')) return name;
     if (name.endsWith('ies')) return '${name.substring(0, name.length - 3)}y';
@@ -516,12 +389,6 @@ class CatalogAnalyzer {
     return name.substring(0, name.length - 1);
   }
 
-  /// Names the model generated for the items of an array property.
-  ///
-  /// `Tabs.tabs` would otherwise become `TabsTab`, so a property whose singular
-  /// already matches its parent is suffixed instead: `TabItem`. Everything else
-  /// is qualified by its parent, giving names like `ChoicePickerOption` that
-  /// stay unique across the catalog.
   static String _itemModelName(String parentName, String propName) {
     final String base = capitalize(_singular(propName));
     if (_singular(parentName).toLowerCase() == base.toLowerCase()) {
@@ -530,120 +397,44 @@ class CatalogAnalyzer {
     return '$parentName$base';
   }
 
-  /// Registers an inline object schema as a named model, if it has properties.
-  ///
-  /// Returns null for objects with no declared properties: those carry no
-  /// structure worth a class and stay an untyped mapping.
-  ObjectModelType? _registerObjectModel(
-    String preferredName,
-    Map<String, dynamic> schema, {
-    String? fallbackDescription,
-  }) {
-    if (schema['properties'] is! Map) return null;
-    final rawProps = Map<String, dynamic>.from(schema['properties'] as Map);
-    if (rawProps.isEmpty) return null;
-
-    final Set<String> reqSet = schema['required'] is List
-        ? (schema['required'] as List).map((e) => e.toString()).toSet()
-        : <String>{};
-
-    var name = preferredName;
-    final properties = <String, PropertyDescriptor>{};
-    for (final MapEntry<String, dynamic> entry in rawProps.entries) {
-      final propMap = entry.value is Map
-          ? Map<String, dynamic>.from(entry.value as Map)
-          : <String, dynamic>{};
-      properties[entry.key] = _analyzePropertySchema(
-        name,
-        entry.key,
-        propMap,
-        isRequired: reqSet.contains(entry.key),
-      );
-    }
-
-    // Two unrelated objects can land on the same preferred name, and an enum
-    // may already have claimed it. Reuse the existing model when the shapes
-    // agree; otherwise qualify by the property that distinguishes this one,
-    // so `Icon.name`'s custom-SVG branch reads as `IconNameSvgPath`.
-    var suffix = 2;
-    while (_reservedNames.contains(name)) {
-      final AnalysedObjectModel? existing = _objectModels[name];
-      if (existing != null && _sameShape(existing.properties, properties)) {
-        return ObjectModelType(name);
-      }
-      if (suffix == 2) {
-        name = '$preferredName${capitalize(properties.keys.first)}';
-      } else {
-        name = '$preferredName$suffix';
-      }
-      suffix++;
-    }
-
-    _objectModels[name] = AnalysedObjectModel(
-      name: name,
-      description: schema['description'] as String? ?? fallbackDescription,
-      properties: properties,
-    );
-    _reservedNames.add(name);
-    return ObjectModelType(name);
-  }
-
-  /// Compares enum value sets, ignoring declaration order.
-  ///
-  /// `Row.justify` and `Column.justify` list the same values in a different
-  /// order. They are the same type, and a `Literal` does not care about order.
-  static bool _sameValues(List<String> a, List<String> b) {
-    if (a.length != b.length) return false;
-    return a.toSet().containsAll(b);
-  }
+  static bool _sameValues(List<String> a, List<String> b) =>
+      a.length == b.length && a.toSet().containsAll(b);
 
   static bool _sameType(TypeDescriptor a, TypeDescriptor b) {
     if (a.runtimeType != b.runtimeType) return false;
     return switch ((a, b)) {
       (
-        PrimitiveType(primitive: final PrimitiveKind pa),
-        PrimitiveType(primitive: final PrimitiveKind pb),
+        PrimitiveType(primitive: final pa),
+        PrimitiveType(primitive: final pb),
       ) =>
         pa == pb,
+      (EnumType(values: final va), EnumType(values: final vb)) => _sameValues(
+        va,
+        vb,
+      ),
       (
-        EnumType(values: final List<String> va),
-        EnumType(values: final List<String> vb),
+        ComponentRefType(allowedComponents: final ca),
+        ComponentRefType(allowedComponents: final cb),
       ) =>
-        va.length == vb.length && va.toSet().containsAll(vb),
+        _sameValues(ca, cb),
       (
-        ComponentRefType(allowedComponents: final List<String> ca),
-        ComponentRefType(allowedComponents: final List<String> cb),
+        ComponentListType(allowedComponents: final ca),
+        ComponentListType(allowedComponents: final cb),
       ) =>
-        ca.length == cb.length && ca.toSet().containsAll(cb),
-      (
-        ComponentListType(allowedComponents: final List<String> ca),
-        ComponentListType(allowedComponents: final List<String> cb),
-      ) =>
-        ca.length == cb.length && ca.toSet().containsAll(cb),
-      (
-        DynamicType(inner: final TypeDescriptor ia),
-        DynamicType(inner: final TypeDescriptor ib),
-      ) =>
-        _sameType(ia, ib),
-      (
-        ObjectModelType(name: final String na),
-        ObjectModelType(name: final String nb),
-      ) =>
+        _sameValues(ca, cb),
+      (DynamicType(inner: final ia), DynamicType(inner: final ib)) => _sameType(
+        ia,
+        ib,
+      ),
+      (ObjectModelType(name: final na), ObjectModelType(name: final nb)) =>
         na == nb,
-      (
-        ListType(elementType: final TypeDescriptor ea),
-        ListType(elementType: final TypeDescriptor eb),
-      ) =>
+      (ListType(elementType: final ea), ListType(elementType: final eb)) =>
         _sameType(ea, eb),
-      (
-        MapType(valueType: final TypeDescriptor va),
-        MapType(valueType: final TypeDescriptor vb),
-      ) =>
-        _sameType(va, vb),
-      (
-        UnionType(options: final List<TypeDescriptor> oa),
-        UnionType(options: final List<TypeDescriptor> ob),
-      ) =>
+      (MapType(valueType: final va), MapType(valueType: final vb)) => _sameType(
+        va,
+        vb,
+      ),
+      (UnionType(options: final oa), UnionType(options: final ob)) =>
         oa.length == ob.length &&
             oa.every((o) => ob.any((other) => _sameType(o, other))),
       _ => true,
@@ -664,22 +455,19 @@ class CatalogAnalyzer {
     return true;
   }
 
-  TypeDescriptor _returnTypeToTypeDescriptor(A2uiReturnType ret) {
-    switch (ret) {
-      case A2uiReturnType.string:
-        return const PrimitiveType(PrimitiveKind.string);
-      case A2uiReturnType.number:
-        return const PrimitiveType(PrimitiveKind.float);
-      case A2uiReturnType.boolean:
-        return const PrimitiveType(PrimitiveKind.boolean);
-      case A2uiReturnType.array:
-        return const ListType(PrimitiveType(PrimitiveKind.any));
-      case A2uiReturnType.object:
-      case A2uiReturnType.validationResult:
-        return const MapType(PrimitiveType(PrimitiveKind.any));
-      case A2uiReturnType.any:
-      case A2uiReturnType.void_:
-        return const PrimitiveType(PrimitiveKind.any);
-    }
-  }
+  static TypeDescriptor _returnTypeToTypeDescriptor(core.A2uiReturnType ret) =>
+      switch (ret) {
+        core.A2uiReturnType.string => const PrimitiveType(PrimitiveKind.string),
+        core.A2uiReturnType.number => const PrimitiveType(PrimitiveKind.float),
+        core.A2uiReturnType.boolean => const PrimitiveType(
+          PrimitiveKind.boolean,
+        ),
+        core.A2uiReturnType.array => const ListType(
+          PrimitiveType(PrimitiveKind.any),
+        ),
+        core.A2uiReturnType.object || core.A2uiReturnType.validationResult =>
+          const MapType(PrimitiveType(PrimitiveKind.any)),
+        core.A2uiReturnType.any ||
+        core.A2uiReturnType.void_ => const PrimitiveType(PrimitiveKind.any),
+      };
 }

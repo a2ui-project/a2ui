@@ -417,7 +417,11 @@ class NodeResolver<T extends ComponentApi> {
     }
 
     _clearDispatched(componentId, dataPath);
-    final Schema schema = catalog.resolvedComponentSchema(model.type)!;
+    final bool useCanonical =
+        api.hasCanonicalDefinition && !api.definition.containsRawJsonSchema;
+    final Schema? schema = useCanonical
+        ? null
+        : catalog.resolvedComponentSchema(model.type)!;
     final context = ComponentContext(
       _surface,
       model,
@@ -447,7 +451,13 @@ class NodeResolver<T extends ComponentApi> {
     );
     final GenericBinder binder;
     try {
-      binder = GenericBinder(context, schema);
+      binder = useCanonical
+          ? GenericBinder.fromDefinition(
+              context,
+              api.definition,
+              types: catalog.canonicalTypes,
+            )
+          : GenericBinder(context, schema!);
     } catch (_) {
       _disposeNode(record.node);
       rethrow;

@@ -44,8 +44,10 @@ class NodeKey extends ValueKey<String> {
 
 /// A catalog component with a Flutter implementation.
 ///
-/// [schema] is what payloads are validated against and what the node
-/// resolver reads to find child references, actions and dynamic values;
+/// Authors can define components directly with typed [ParameterDefinition]s
+/// using [ComponentImplementation.define] or
+/// [ComponentImplementation.fromDefinition] (requiring no `json_schema_builder`
+/// import), or pass a legacy JSON Schema via [ComponentImplementation].
 /// [builder] turns a resolved node of this component into a widget.
 class ComponentImplementation extends ComponentApi {
   /// Builds the widget for a resolved node of this component.
@@ -57,7 +59,31 @@ class ComponentImplementation extends ComponentApi {
     required this.builder,
     super.allowedParents,
     super.allowedChildren,
+    super.metadata,
   });
+
+  /// Creates a [ComponentImplementation] backed directly by a canonical
+  /// [ComponentDefinition] with no `json_schema_builder` dependency.
+  ComponentImplementation.fromDefinition(
+    super.definition, {
+    required this.builder,
+  }) : super.fromDefinition();
+
+  /// Ergonomically defines a Flutter component implementation using typed
+  /// [ParameterDefinition]s without importing `json_schema_builder`.
+  ComponentImplementation.define({
+    required super.name,
+    super.description,
+    super.checkable,
+    super.parameters,
+    super.atLeastOneOf,
+    super.allowedParents,
+    super.allowedChildren,
+    super.metadata,
+    super.deprecated,
+    super.deprecatedReason,
+    required this.builder,
+  }) : super.define();
 }
 
 /// A catalog whose components carry Flutter implementations.

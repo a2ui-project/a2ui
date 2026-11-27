@@ -180,6 +180,23 @@ final class AgentFunctionRegistry {
             config: ValidationConfig.strict,
           ),
         );
+    // The arguments of a callAgentFunction are already resolved: they are
+    // plain JSON, in which a key such as `@type` is data rather than a
+    // directive, so they are checked against the schema as values and not
+    // walked as component expressions. Defaults are applied only once the
+    // caller's own arguments have passed.
+    _checkArgNames(fn.name, rawArgs);
+    validator.validateFunctionArgs(fn.name, rawArgs);
+    final FunctionDefinition? canonicalDef = catalog.model.function(fn.name);
+    if (canonicalDef != null &&
+        fn.definition == null &&
+        canonicalDef.parameters.isNotEmpty) {
+      return _applyCanonicalDefaults(
+        rawArgs,
+        canonicalDef.parameters,
+        catalog.model.types,
+      );
+    }
     final Map<String, Object?> resolvedSchema = _resolvedArgSchemas.putIfAbsent(
       (catalog.id, fn.name),
       () => resolveSchemaRefs(
@@ -188,15 +205,59 @@ final class AgentFunctionRegistry {
         commonTypes: PayloadValidator.commonTypesFor(A2uiProtocolVersion.v1_0),
       ),
     );
-
-    // The arguments of a callAgentFunction are already resolved: they are
-    // plain JSON, in which a key such as `@type` is data rather than a
-    // directive, so they are checked against the schema as values and not
-    // walked as component expressions. Defaults are applied only once the
-    // caller's own arguments have passed.
-    _checkArgNames(fn.name, rawArgs);
-    validator.validateFunctionArgs(fn.name, rawArgs);
     return _applySchemaDefaults(rawArgs, resolvedSchema);
+  }
+
+  static Map<String, dynamic> _applyCanonicalDefaults(
+    Map<String, dynamic> args,
+    List<ParameterDefinition> parameters,
+    Map<String, TypeDefinition> types,
+  ) {
+    final result = <String, dynamic>{
+      for (final MapEntry<String, dynamic> entry in args.entries)
+        entry.key: _deepCopyJson(entry.value),
+    };
+    _populateCanonicalObjectDefaults(result, parameters, types);
+    return result;
+  }
+
+  static void _populateCanonicalObjectDefaults(
+    Map<String, dynamic> target,
+    List<ParameterDefinition> parameters,
+    Map<String, TypeDefinition> types,
+  ) {
+    for (final param in parameters) {
+      final TypeDefinition resolved = _resolveCanonicalType(param.type, types);
+      if (!target.containsKey(param.name)) {
+        if (param.hasDefault) {
+          target[param.name] = _deepCopyJson(param.defaultValue);
+        } else if (resolved.hasDefault) {
+          target[param.name] = _deepCopyJson(resolved.defaultValue);
+        }
+      } else if (target[param.name] is Map && resolved is ObjectType) {
+        final rawNested = target[param.name]! as Map<Object?, Object?>;
+        final nested = <String, dynamic>{
+          for (final MapEntry<Object?, Object?> e in rawNested.entries)
+            '${e.key}': e.value,
+        };
+        target[param.name] = nested;
+        _populateCanonicalObjectDefaults(nested, resolved.properties, types);
+      }
+    }
+  }
+
+  static TypeDefinition _resolveCanonicalType(
+    TypeDefinition type,
+    Map<String, TypeDefinition> types,
+  ) {
+    var current = type;
+    final visited = <String>{};
+    while (current is RefType &&
+        visited.add(current.ref) &&
+        types.containsKey(current.ref)) {
+      current = types[current.ref]!;
+    }
+    return current;
   }
 
   /// The most arguments a call may pass, as `PayloadValidator` allows.

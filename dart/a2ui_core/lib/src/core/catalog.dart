@@ -17,6 +17,10 @@ import 'dart:async';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:meta/meta.dart';
 
+import '../model/catalog_document_codec.dart';
+import '../model/catalog_model.dart';
+import '../model/json_schema_codec.dart';
+import '../model/type_definition.dart';
 import '../primitives/cancellation.dart';
 import '../primitives/common_types_documents.dart';
 import '../primitives/errors.dart';
@@ -29,27 +33,66 @@ import '../validation/schema_resolution.dart';
 import 'metadata.dart';
 import 'v09_inline_catalog.dart';
 
+export '../model/catalog_model.dart' show A2uiReturnType, AllowedCallers;
+
 /// A definition of a UI component's API.
 ///
-/// Carries the component's name and JSON schema, plus the composition
-/// constraints a catalog document may give it, so it is what
-/// [Catalog.fromJson] produces directly. A renderer that attaches behaviour
-/// subclasses it.
+/// Carries the component's name and either a canonical [ComponentDefinition]
+/// (authored via [ComponentApi.define] or [ComponentApi.fromDefinition]) or a
+/// legacy JSON [Schema] (authored via [ComponentApi] or [Catalog.fromJson]),
+/// plus composition constraints. A renderer that attaches behaviour subclasses
+/// it.
 class ComponentApi {
+  static final Expando<Map<String, Object?>> _cachedSchemas =
+      Expando<Map<String, Object?>>();
+  static final Expando<ComponentDefinition> _cachedDefinitions =
+      Expando<ComponentDefinition>();
+
   final String name;
+
+  final Schema? _schema;
+  final ComponentDefinition? _definition;
 
   /// The JSON schema of the component's definition.
   ///
   /// For a component read by [Catalog.fromJson], this is the definition as
   /// the catalog document wrote it: `allOf` mixins, local `#/$defs/...` and
   /// `common_types.json` references, descriptions and closure keywords are
-  /// all kept, so [Catalog.toJson] writes it back unchanged. Only
-  /// `allowedParents` and `allowedChildren` are taken out, into
-  /// [allowedParents] and [allowedChildren].
+  /// all kept, so [Catalog.toJson] writes it back unchanged. For a component
+  /// created with [ComponentApi.define] or [ComponentApi.fromDefinition], this
+  /// is materialized lazily from [definition].
   ///
   /// Renderers and validators work with the flattened form instead, which
   /// [Catalog.resolvedComponentSchemas] holds.
-  final Schema schema;
+  Schema get schema =>
+      _schema ??
+      Schema.fromMap(
+        _cachedSchemas[this] ??=
+            JsonSchemaCodec.componentDefinitionToJsonSchema(
+              _definition!,
+              atLeastV1: true,
+            ),
+      );
+
+  /// The canonical, JSON-Schema-free [ComponentDefinition] for this component.
+  ///
+  /// For components created via [ComponentApi.define] or
+  /// [ComponentApi.fromDefinition], returns the definition directly. For
+  /// legacy schema-backed components, translates [schema] lazily.
+  ComponentDefinition get definition =>
+      _definition ??
+      (_cachedDefinitions[this] ??= JsonSchemaCodec.componentSchemaToDefinition(
+        name,
+        _schema!.value,
+        allowedParents: allowedParents,
+        allowedChildren: allowedChildren,
+        metadata: metadata,
+      ));
+
+  /// Whether this component was constructed directly from a canonical
+  /// [ComponentDefinition] rather than a raw JSON [Schema].
+  @internal
+  bool get hasCanonicalDefinition => _definition != null;
 
   /// The component types that may contain this one, from the definition's
   /// `allowedParents`, or null when any parent is allowed.
@@ -67,75 +110,49 @@ class ComponentApi {
 
   const ComponentApi({
     required this.name,
-    required this.schema,
+    required Schema this._schema,
     this.allowedParents,
     this.allowedChildren,
     this.metadata,
-  });
-}
+  }) : _definition = null;
 
-/// The type of value a function returns.
-enum A2uiReturnType {
-  string,
-  number,
-  boolean,
-  array,
-  object,
+  /// Creates a [ComponentApi] backed directly by a canonical
+  /// [ComponentDefinition] with no `json_schema_builder` dependency.
+  ComponentApi.fromDefinition(ComponentDefinition definition)
+    : name = definition.name,
+      _schema = null,
+      _definition = definition,
+      allowedParents = definition.allowedParents,
+      allowedChildren = definition.allowedChildren,
+      metadata = definition.metadata;
 
-  /// A structured [ValidationResult] (`{valid, message?, code?, severity?}`).
-  ///
-  /// Defined by protocol 1.0 catalog definitions. The v0.9 wire schemas do not
-  /// accept it, so a catalog whose effective protocol version is below 1.0
-  /// must not declare it; a v0.9 renderer's validator rejects messages that
-  /// carry it.
-  validationResult,
-  any,
-  void_;
-
-  /// The JSON value used in the A2UI protocol.
-  String get jsonValue => this == void_ ? 'void' : name;
-
-  /// Parses from the JSON string representation, falling back to [any] for
-  /// unrecognized or extension return types (such as a name a future protocol
-  /// version adds).
-  static A2uiReturnType fromJson(String value) {
-    if (value == 'void') return void_;
-    for (final A2uiReturnType candidate in values) {
-      if (candidate.name == value) return candidate;
-    }
-    return any;
-  }
-}
-
-/// Which side of the protocol may invoke a function: the `allowedCallers`
-/// of a catalog function definition.
-enum AllowedCallers {
-  /// Only the renderer, from its own dynamic values and actions. The default.
-  rendererOnly('rendererOnly'),
-
-  /// Only the agent, through `callRendererFunction`.
-  agentOnly('agentOnly'),
-
-  /// Either side.
-  rendererOrAgent('rendererOrAgent');
-
-  const AllowedCallers(this.jsonValue);
-
-  /// The value as it appears in a catalog document.
-  final String jsonValue;
-
-  /// Parses a catalog document value.
-  ///
-  /// Throws [A2uiCatalogError] for a value the protocol does not define.
-  static AllowedCallers fromJson(String value) {
-    for (final AllowedCallers candidate in values) {
-      if (candidate.jsonValue == value) return candidate;
-    }
-    throw A2uiCatalogError(
-      "Unknown allowedCallers value '$value'; expected one of "
-      '${values.map((v) => v.jsonValue).join(', ')}.',
-    );
-  }
+  /// Ergonomically defines a component API using typed [ParameterDefinition]s
+  /// without importing `json_schema_builder`.
+  ComponentApi.define({
+    required String name,
+    String? description,
+    bool checkable = false,
+    List<ParameterDefinition> parameters = const [],
+    List<List<String>>? atLeastOneOf,
+    List<String>? allowedParents,
+    List<String>? allowedChildren,
+    Map<String, Object?>? metadata,
+    bool deprecated = false,
+    String? deprecatedReason,
+  }) : this.fromDefinition(
+         ComponentDefinition(
+           name: name,
+           description: description,
+           checkable: checkable,
+           parameters: parameters,
+           atLeastOneOf: atLeastOneOf,
+           allowedParents: allowedParents,
+           allowedChildren: allowedChildren,
+           metadata: metadata,
+           deprecated: deprecated,
+           deprecatedReason: deprecatedReason,
+         ),
+       );
 }
 
 /// A definition of a UI function's API.
@@ -144,14 +161,54 @@ enum AllowedCallers {
 /// directly. Renderers that also evaluate the function supply a
 /// [FunctionImplementation] instead.
 class FunctionApi {
+  static final Expando<Map<String, Object?>> _cachedArgumentSchemas =
+      Expando<Map<String, Object?>>();
+  static final Expando<FunctionDefinition> _cachedFunctionDefinitions =
+      Expando<FunctionDefinition>();
+
   final String name;
   final A2uiReturnType returnType;
+
+  final Schema? _argumentSchema;
+  final FunctionDefinition? _functionDefinition;
 
   /// The JSON schema of the function's `args`.
   ///
   /// For a function read by [Catalog.fromJson], this is the schema as the
-  /// catalog document wrote it, with its references kept.
-  final Schema argumentSchema;
+  /// catalog document wrote it, with its references kept. For a function
+  /// created with [FunctionApi.define] or [FunctionApi.fromDefinition], this
+  /// is materialized lazily from [functionDefinition].
+  Schema get argumentSchema =>
+      _argumentSchema ??
+      Schema.fromMap(
+        _cachedArgumentSchemas[this] ??=
+            JsonSchemaCodec.functionDefinitionToArgumentSchema(
+              _functionDefinition!,
+              atLeastV1: true,
+            ),
+      );
+
+  /// The canonical, JSON-Schema-free [FunctionDefinition] for this function.
+  ///
+  /// Kept separate from [definition], which holds the raw authored JSON Schema
+  /// map for legacy round-tripping.
+  FunctionDefinition get functionDefinition =>
+      _functionDefinition ??
+      (_cachedFunctionDefinitions[this] ??=
+          JsonSchemaCodec.functionSchemaToDefinition(
+            name: name,
+            argumentSchema: _argumentSchema!.value,
+            returnType: returnType,
+            description: description,
+            allowedCallers: declaredAllowedCallers,
+            requiresUserActivation: declaredRequiresUserActivation,
+          ));
+
+  /// Whether this function was constructed directly from a canonical
+  /// [FunctionDefinition] rather than a raw JSON [Schema].
+  @internal
+  bool get hasCanonicalDefinition => _functionDefinition != null;
+
   final String? description;
 
   /// The `allowedCallers` the definition declares, or null when it declares
@@ -183,12 +240,71 @@ class FunctionApi {
   /// [Catalog.fromJson].
   const FunctionApi({
     required this.name,
-    required this.argumentSchema,
+    required Schema this._argumentSchema,
     this.returnType = A2uiReturnType.any,
     this.description,
     AllowedCallers? allowedCallers,
     bool? requiresUserActivation,
     this.definition,
+  }) : _functionDefinition = null,
+       declaredAllowedCallers = allowedCallers,
+       declaredRequiresUserActivation = requiresUserActivation;
+
+  /// Creates a [FunctionApi] backed directly by a canonical
+  /// [FunctionDefinition] with no `json_schema_builder` dependency.
+  FunctionApi.fromDefinition(FunctionDefinition functionDefinition)
+    : name = functionDefinition.name,
+      _argumentSchema = null,
+      _functionDefinition = functionDefinition,
+      returnType = functionDefinition.returnType.returnType,
+      description = functionDefinition.description,
+      declaredAllowedCallers = functionDefinition.declaredAllowedCallers,
+      declaredRequiresUserActivation =
+          functionDefinition.declaredRequiresUserActivation,
+      definition = null;
+
+  /// Ergonomically defines a function API using typed [ParameterDefinition]s
+  /// without importing `json_schema_builder`.
+  FunctionApi.define({
+    required String name,
+    List<ParameterDefinition> parameters = const [],
+    FunctionReturnDefinition? returnTypeDefinition,
+    A2uiReturnType returnType = A2uiReturnType.any,
+    String? description,
+    AllowedCallers? allowedCallers,
+    bool? requiresUserActivation,
+    List<List<String>>? atLeastOneOf,
+    bool additionalParameters = false,
+    TypeDefinition? additionalParametersType,
+    bool deprecated = false,
+    String? deprecatedReason,
+  }) : this.fromDefinition(
+         FunctionDefinition(
+           name: name,
+           description: description,
+           returnType:
+               returnTypeDefinition ??
+               FunctionReturnDefinition.shorthand(returnType),
+           allowedCallers: allowedCallers,
+           requiresUserActivation: requiresUserActivation,
+           parameters: parameters,
+           atLeastOneOf: atLeastOneOf,
+           additionalParameters: additionalParameters,
+           additionalParametersType: additionalParametersType,
+           deprecated: deprecated,
+           deprecatedReason: deprecatedReason,
+         ),
+       );
+
+  const FunctionApi._preserve({
+    required this.name,
+    required this._argumentSchema,
+    required this._functionDefinition,
+    required this.returnType,
+    required this.description,
+    required AllowedCallers? allowedCallers,
+    required bool? requiresUserActivation,
+    required this.definition,
   }) : declaredAllowedCallers = allowedCallers,
        declaredRequiresUserActivation = requiresUserActivation;
 
@@ -213,6 +329,28 @@ abstract class FunctionImplementation extends FunctionApi {
     super.requiresUserActivation,
     super.definition,
   });
+
+  /// Creates a [FunctionImplementation] backed by a canonical
+  /// [FunctionDefinition].
+  FunctionImplementation.fromDefinition(super.functionDefinition)
+    : super.fromDefinition();
+
+  /// Ergonomically defines a [FunctionImplementation] using typed
+  /// [ParameterDefinition]s without importing `json_schema_builder`.
+  FunctionImplementation.define({
+    required super.name,
+    super.parameters,
+    super.returnTypeDefinition,
+    super.returnType,
+    super.description,
+    super.allowedCallers,
+    super.requiresUserActivation,
+    super.atLeastOneOf,
+    super.additionalParameters,
+    super.additionalParametersType,
+    super.deprecated,
+    super.deprecatedReason,
+  }) : super.define();
 
   /// Executes the function. Can return a static value or a [ReadonlySignal].
   Object? execute(
@@ -283,9 +421,36 @@ class AgentFunction extends FunctionApi {
     required this.handler,
   }) : declaration = null;
 
+  /// Creates a standalone [AgentFunction] backed by a canonical
+  /// [FunctionDefinition].
+  AgentFunction.fromDefinition(
+    super.functionDefinition, {
+    required this.handler,
+  }) : declaration = null,
+       super.fromDefinition();
+
+  /// Ergonomically defines a standalone [AgentFunction] using typed
+  /// [ParameterDefinition]s without importing `json_schema_builder`.
+  AgentFunction.define({
+    required super.name,
+    super.parameters,
+    super.returnTypeDefinition,
+    super.returnType = A2uiReturnType.any,
+    super.description,
+    super.requiresUserActivation,
+    super.atLeastOneOf,
+    super.additionalParameters,
+    super.additionalParametersType,
+    super.deprecated,
+    super.deprecatedReason,
+    required this.handler,
+  }) : declaration = null,
+       super.define();
+
   const AgentFunction._fromApi({
     required super.name,
     required super.argumentSchema,
+    required super.functionDefinition,
     required super.returnType,
     required super.description,
     required super.allowedCallers,
@@ -293,7 +458,7 @@ class AgentFunction extends FunctionApi {
     required super.definition,
     required this.handler,
     required FunctionApi this.declaration,
-  });
+  }) : super._preserve();
 
   /// Attaches [handler] to an existing schema-only [FunctionApi] declaration,
   /// such as one read by [Catalog.fromJson].
@@ -329,7 +494,8 @@ class AgentFunction extends FunctionApi {
     }
     return AgentFunction._fromApi(
       name: api.name,
-      argumentSchema: api.argumentSchema,
+      argumentSchema: api._argumentSchema,
+      functionDefinition: api._functionDefinition,
       returnType: api.returnType,
       description: api.description,
       allowedCallers: api.declaredAllowedCallers,
@@ -349,6 +515,9 @@ class AgentFunction extends FunctionApi {
   AgentFunction withHandler(AgentFunctionHandler handler) {
     final FunctionApi? declaration = this.declaration;
     if (declaration != null) return AgentFunction.fromApi(declaration, handler);
+    if (_functionDefinition case final FunctionDefinition def) {
+      return AgentFunction.fromDefinition(def, handler: handler);
+    }
     return AgentFunction(
       name: name,
       argumentSchema: argumentSchema,
@@ -473,6 +642,123 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// in more than one way.
   final _DocumentLayout _layout;
 
+  /// Canonical catalog-local reusable leaf data types when declared through
+  /// [CatalogModel], [Catalog.fromDocument], or `Catalog(..., types: ...)`.
+  final Map<String, TypeDefinition> _canonicalTypes;
+
+  /// Canonical surface-level data properties when declared through
+  /// [CatalogModel], [Catalog.fromDocument], or
+  /// `Catalog(..., surfaceProperties: ...)`.
+  final SurfacePropertiesDefinition? _surfaceProperties;
+
+  /// Optional catalog-level metadata (`{extensions: {...}}`).
+  final Map<String, Object?>? _metadata;
+
+  /// Optional `$schema` URI preserved from a parsed Catalog Document.
+  final String? _documentSchemaUri;
+
+  /// Package-internal access to canonical catalog-local reusable types without
+  /// forcing legacy JSON Schema translation.
+  @internal
+  Map<String, TypeDefinition> get canonicalTypes => _canonicalTypes;
+
+  /// Package-internal access to canonical [SurfacePropertiesDefinition] when
+  /// explicitly supplied, or `null`.
+  @internal
+  SurfacePropertiesDefinition? get canonicalSurfaceProperties =>
+      _surfaceProperties;
+
+  /// The canonical, JSON-Schema-free [CatalogModel] representing this catalog.
+  ///
+  /// For catalogs constructed via [Catalog.fromModel], [Catalog.fromDocument],
+  /// or canonical `.define(...)` APIs, this returns the canonical definitions
+  /// directly. For legacy JSON Schema catalogs, it translates on demand via
+  /// [JsonSchemaCodec] and caches the result.
+  late final CatalogModel model = _buildModel();
+
+  CatalogModel _buildModel() {
+    final bool atLeastV1 = _isAtLeastV1;
+    final Map<String, TypeDefinition> resolvedTypes = _canonicalTypes.isNotEmpty
+        ? _canonicalTypes
+        : JsonSchemaCodec.extractLeafTypes(definitions, atLeastV1: atLeastV1);
+    final SurfacePropertiesDefinition? resolvedSurfaceProps =
+        _surfaceProperties ??
+        (themeSchema != null
+            ? JsonSchemaCodec.surfacePropertiesFromJsonSchema(
+                themeSchema!.value,
+                definitions: definitions,
+                knownTypes: resolvedTypes,
+                atLeastV1: atLeastV1,
+              )
+            : null);
+    final Map<String, Object?>? resolvedMetadata =
+        _metadata ??
+        (_otherFields['metadata'] is Map
+            ? (_otherFields['metadata']! as Map).cast<String, Object?>()
+            : null);
+    final bool needsLegacyDoc =
+        components.values.any((c) => !c.hasCanonicalDefinition) ||
+        functions.values.any((f) => !f.hasCanonicalDefinition);
+    final Map<String, Object?>? legacyDoc = needsLegacyDoc ? _document : null;
+
+    return CatalogModel(
+      schemaUri: _documentSchemaUri,
+      catalogId: id,
+      protocolVersion: protocolVersion,
+      declaredProtocolVersion: _declaredProtocolVersion,
+      title: title,
+      description: description,
+      instructions: instructions,
+      metadata: resolvedMetadata,
+      types: Map.unmodifiable(resolvedTypes),
+      surfaceProperties: resolvedSurfaceProps,
+      components: List.unmodifiable([
+        for (final C comp in components.values)
+          if (comp.hasCanonicalDefinition)
+            comp.definition
+          else
+            JsonSchemaCodec.componentSchemaToDefinition(
+              comp.name,
+              comp.schema.value,
+              definitions: definitions,
+              rootDoc: legacyDoc,
+              knownTypes: resolvedTypes,
+              atLeastV1: atLeastV1,
+              allowedParents: comp.allowedParents,
+              allowedChildren: comp.allowedChildren,
+              metadata: comp.metadata,
+              isCheckableHint: isComponentCheckable(comp.name),
+            ),
+      ]),
+      functions: List.unmodifiable([
+        for (final F fn in functions.values)
+          if (fn.hasCanonicalDefinition)
+            fn.functionDefinition
+          else
+            JsonSchemaCodec.functionSchemaToDefinition(
+              name: fn.name,
+              argumentSchema: fn.argumentSchema.value,
+              returnType: fn.returnType,
+              description: fn.description,
+              allowedCallers: fn.declaredAllowedCallers,
+              requiresUserActivation: fn.declaredRequiresUserActivation,
+              definitions: definitions,
+              rootDoc: legacyDoc,
+              knownTypes: resolvedTypes,
+              atLeastV1: atLeastV1,
+            ),
+      ]),
+    );
+  }
+
+  /// Serializes this catalog to an A2UI Catalog Document
+  /// (`formatVersion: "1.0"`).
+  Map<String, Object?> toDocument() => serializeCatalogDocument(model);
+
+  /// Emits a clean spec-compliant JSON Schema catalog document from [model].
+  Map<String, Object?> toJsonSchema() =>
+      JsonSchemaCodec.toJsonSchema(model, protocolVersion: protocolVersion);
+
   /// The component name the protocol reserves for the surface itself.
   static const String reservedComponentName = 'Surface';
 
@@ -492,18 +778,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// Which properties of each component type reference other components.
   ///
   /// Graph validation and node resolution both read this map, so a child
-  /// reference the validator checks is one the resolver mounts. It is built
-  /// from [resolvedComponentSchemas], [validationSchema] and
-  /// [commonTypesSchema] on first access and then cached; a catalog is not
-  /// expected to change its components after that.
-  late final ComponentRefMap refMap = ComponentRefMap(
-    {
-      for (final MapEntry<String, C> entry in components.entries)
-        entry.key: _flatOf(entry.value).schema.value,
-    },
-    document: validationSchema,
-    commonTypes: commonTypesSchema,
-  );
+  /// reference the validator checks is one the resolver mounts. Built directly
+  /// from canonical [ComponentDefinition]s when available, falling back to
+  /// [ReferenceSchemaReader] for legacy raw-schema components.
+  late final ComponentRefMap refMap = ComponentRefMap.fromCatalog(this);
 
   /// Throws [A2uiCatalogError] when two components or two functions share a
   /// name, when a component is named [reservedComponentName], when a
@@ -532,11 +810,27 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     String? instructions,
     String? schemaDialect = jsonSchemaDialect,
     Map<String, Object?> definitions = const {},
+    Map<String, TypeDefinition> types = const {},
+    SurfacePropertiesDefinition? surfaceProperties,
+    Map<String, Object?>? metadata,
   }) : this._(
          id: id,
          components: components,
          functions: functions,
-         themeSchema: themeSchema,
+         themeSchema:
+             themeSchema ??
+             (surfaceProperties == null
+                 ? null
+                 : Schema.fromMap(
+                     JsonSchemaCodec.surfacePropertiesToJsonSchema(
+                       surfaceProperties,
+                       atLeastV1:
+                           protocolVersion?.isAtLeast(
+                             A2uiProtocolVersion.v1_0,
+                           ) ??
+                           false,
+                     ),
+                   )),
          schemaDialect: schemaDialect,
          schemaId: schemaId,
          title: title,
@@ -546,10 +840,93 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
              ? protocolVersion?.semverValue
              : null,
          instructions: instructions,
-         definitions: definitions,
-         otherFields: const {},
+         definitions: definitions.isEmpty && types.isNotEmpty
+             ? <String, Object?>{
+                 for (final MapEntry<String, TypeDefinition> entry
+                     in types.entries)
+                   entry.key: JsonSchemaCodec.typeDefinitionToJsonSchema(
+                     entry.value,
+                     atLeastV1:
+                         protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+                         false,
+                   ),
+               }
+             : definitions,
+         otherFields: metadata != null
+             ? <String, Object?>{'metadata': metadata}
+             : const {},
          layout: const _DocumentLayout(),
+         canonicalTypes: types,
+         surfaceProperties: surfaceProperties,
+         metadata: metadata,
        );
+
+  /// Creates a schema-only [CatalogApi] directly from a canonical
+  /// [CatalogModel].
+  static CatalogApi fromModel(CatalogModel model) {
+    final bool atLeastV1 =
+        model.protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
+    final Map<String, Object?> defs = {
+      for (final MapEntry<String, TypeDefinition> entry in model.types.entries)
+        entry.key: JsonSchemaCodec.typeDefinitionToJsonSchema(
+          entry.value,
+          atLeastV1: atLeastV1,
+        ),
+    };
+    final Schema? theme = model.surfaceProperties == null
+        ? null
+        : Schema.fromMap(
+            JsonSchemaCodec.surfacePropertiesToJsonSchema(
+              model.surfaceProperties!,
+              atLeastV1: atLeastV1,
+            ),
+          );
+    return Catalog<ComponentApi, FunctionApi>._(
+      id: model.catalogId,
+      components: [
+        for (final ComponentDefinition comp in model.components)
+          ComponentApi.fromDefinition(comp),
+      ],
+      functions: [
+        for (final FunctionDefinition fn in model.functions)
+          FunctionApi.fromDefinition(fn),
+      ],
+      themeSchema: theme,
+      schemaDialect: jsonSchemaDialect,
+      schemaId: null,
+      title: model.title,
+      description: model.description,
+      protocolVersion: model.protocolVersion,
+      declaredProtocolVersion:
+          model.declaredProtocolVersion ?? model.protocolVersion?.semverValue,
+      instructions: model.instructions,
+      definitions: defs,
+      otherFields: model.metadata != null
+          ? <String, Object?>{'metadata': model.metadata}
+          : const {},
+      layout: const _DocumentLayout(),
+      canonicalTypes: model.types,
+      surfaceProperties: model.surfaceProperties,
+      metadata: model.metadata,
+      documentSchemaUri: model.schemaUri,
+    );
+  }
+
+  /// Parses an A2UI Catalog Document (`formatVersion: "1.0"`) into a
+  /// schema-only [CatalogApi].
+  static CatalogApi fromDocument(
+    Map<String, Object?> json, {
+    String? expectedCatalogId,
+    A2uiProtocolVersion? protocolVersion,
+    String? catalogId,
+  }) => fromModel(
+    parseCatalogDocument(
+      json,
+      expectedCatalogId: expectedCatalogId,
+      protocolVersion: protocolVersion,
+      catalogId: catalogId,
+    ),
+  );
 
   Catalog._({
     required this.id,
@@ -566,10 +943,18 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     required Map<String, Object?> definitions,
     required Map<String, Object?> otherFields,
     required this._layout,
+    Map<String, TypeDefinition> canonicalTypes = const {},
+    this._surfaceProperties,
+    Map<String, Object?>? metadata,
+    this._documentSchemaUri,
   }) : components = _indexComponents(id, components),
        functions = _indexFunctions(id, functions, protocolVersion, definitions),
        definitions = _frozenCopy(definitions)! as Map<String, Object?>,
-       _otherFields = _frozenCopy(otherFields)! as Map<String, Object?>;
+       _otherFields = _frozenCopy(otherFields)! as Map<String, Object?>,
+       _canonicalTypes = Map.unmodifiable(canonicalTypes),
+       _metadata = metadata == null
+           ? null
+           : _frozenCopy(metadata)! as Map<String, Object?>;
 
   /// Adds [agentFunctions] to [functions].
   ///
@@ -710,10 +1095,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             item.name,
             context: "function identifier '${item.name}'",
           );
-          for (final String arg in _agentFunctionParameterNames(
-            item.argumentSchema.value,
-            definitions,
-          )) {
+          final Iterable<String> argNames = item.hasCanonicalDefinition
+              ? item.functionDefinition.parameters.map((p) => p.name)
+              : _agentFunctionParameterNames(
+                  item.argumentSchema.value,
+                  definitions,
+                );
+          for (final arg in argNames) {
             assertUax31Identifier(
               arg,
               context: "argument identifier '$arg' in function '${item.name}'",
@@ -722,13 +1110,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         } on A2uiCatalogError catch (error) {
           throw A2uiCatalogError(error.message, catalogId: catalogId);
         }
-        _checkLocalDefs(
-          catalogId,
-          item.name,
-          _localDefs(item.argumentSchema.value),
-          definitions,
-          localDefOwners,
-        );
+        if (!item.hasCanonicalDefinition) {
+          _checkLocalDefs(
+            catalogId,
+            item.name,
+            _localDefs(item.argumentSchema.value),
+            definitions,
+            localDefOwners,
+          );
+        }
       }
       if (!allowsV1Features &&
           item.returnType == A2uiReturnType.validationResult) {
@@ -916,6 +1306,14 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     A2uiProtocolVersion? protocolVersion,
     String? catalogId,
   }) {
+    if (isCatalogDocument(json)) {
+      return fromDocument(
+        json,
+        expectedCatalogId: expectedCatalogId,
+        protocolVersion: protocolVersion,
+        catalogId: catalogId,
+      );
+    }
     final Object? rawId = catalogId ?? json['catalogId'];
     if (rawId is! String || rawId.isEmpty) {
       throw A2uiCatalogError(
@@ -1657,6 +2055,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   @internal
   Set<String> customComponentProperties(String name) =>
       switch (components[name]) {
+        final C component
+            when component.hasCanonicalDefinition &&
+                !component.definition.containsRawJsonSchema =>
+          {
+            for (final ParameterDefinition p in component.definition.parameters)
+              p.name,
+          },
         final C component => _flatOf(component).customProperties,
         null => const <String>{},
       };
@@ -1665,6 +2070,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// array property.
   @internal
   bool isComponentCheckable(String name) => switch (components[name]) {
+    final C component
+        when component.hasCanonicalDefinition &&
+            !component.definition.containsRawJsonSchema =>
+      component.definition.checkable,
     final C component => _flatOf(component).isCheckable,
     null => false,
   };
@@ -1682,7 +2091,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   _FlatComponent _flatOf(ComponentApi component) =>
       _flatComponents[component] ??= _flatten(
         component.name,
-        component.schema.value,
+        component.hasCanonicalDefinition
+            ? JsonSchemaCodec.componentDefinitionToJsonSchema(
+                component.definition,
+                atLeastV1: _isAtLeastV1,
+              )
+            : component.schema.value,
       );
 
   /// [compMap], the schema of the component [compName], flattened as
@@ -3347,6 +3761,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                   ? true
                   : _layout.writesFunctionUnion),
       ),
+      canonicalTypes: _canonicalTypes,
+      surfaceProperties: themeSchema != null ? null : _surfaceProperties,
+      metadata: _metadata,
+      documentSchemaUri: _documentSchemaUri,
     );
   }
 
@@ -3445,6 +3863,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       ),
       otherFields: _otherFields,
       layout: _layout,
+      canonicalTypes: _canonicalTypes,
+      surfaceProperties: _surfaceProperties,
+      metadata: _metadata,
+      documentSchemaUri: _documentSchemaUri,
     );
   }
 
@@ -3527,6 +3949,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       definitions: entries.definitions,
       otherFields: entries._otherFields,
       layout: entries._layout,
+      canonicalTypes: entries._canonicalTypes,
+      surfaceProperties: entries._surfaceProperties,
     );
   }
 

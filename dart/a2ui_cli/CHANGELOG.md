@@ -1,5 +1,9 @@
 # [a2ui_cli](https://pub.dev/packages/a2ui_cli) Changelog
 
+## Unreleased
+
+- Support Catalog Documents (`formatVersion: "1.0"`) alongside legacy JSON Schema catalogs in `a2ui codegen` and `a2ui lint`, add `CodegenCatalog.model`, `CodegenCatalog.componentDefinition`, and `CodegenCatalog.functionDefinition`, and back `CatalogAnalyzer` directly on `a2ui_core`'s canonical `CatalogModel` and sealed `TypeDefinition` AST.
+
 ## 0.5.0
 
 - **Breaking:** Requires `a2ui_core` `^0.9.0` (`a2ui_cli` exposes `a2ui_core`

@@ -34,6 +34,45 @@ export 'src/core/surface_group_model.dart';
 export 'src/core/surface_model.dart';
 export 'src/core/validation_result.dart';
 export 'src/expressions/expression_parser.dart';
+// Canonical JSON-Schema-free catalog model & codecs.
+export 'src/model/catalog_document_codec.dart'
+    show
+        CatalogDocumentCodec,
+        isCatalogDocument,
+        parseCatalogDocument,
+        serializeCatalogDocument;
+export 'src/model/catalog_model.dart'
+    show
+        CatalogModel,
+        ComponentDefinition,
+        FunctionDefinition,
+        FunctionReturnDefinition,
+        SurfacePropertiesDefinition,
+        catalogDocumentFormatVersion;
+export 'src/model/json_schema_codec.dart' show JsonSchemaCodec;
+export 'src/model/type_definition.dart'
+    show
+        AccessibilityType,
+        ActionType,
+        AnyType,
+        ArrayType,
+        BooleanType,
+        CheckRuleType,
+        ChildListType,
+        ChildType,
+        ConstType,
+        DataBindingType,
+        EnumType,
+        EnumValueType,
+        FunctionCallType,
+        IntegerType,
+        NumberType,
+        ObjectType,
+        ParameterDefinition,
+        RefType,
+        StringType,
+        TypeDefinition,
+        UnionType;
 export 'src/primitives/cancellation.dart';
 export 'src/primitives/errors.dart';
 // Event notifications for discrete lifecycle events.

@@ -24,6 +24,7 @@ import '../core/common.dart';
 import '../core/data_model.dart';
 import '../core/surface_model.dart';
 import '../core/validation_result.dart';
+import '../model/canonical_validator.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/reactivity.dart';
@@ -2196,10 +2197,15 @@ extension CatalogInvokerExtension
       );
     }
     assertCatalogFunctionPermissions(fn, name, context);
-    final Map<String, dynamic> callArgs = coerceValidationResultArgs(
-      fn.argumentSchema.value,
-      args,
-    );
+    final Map<String, dynamic> callArgs =
+        fn.hasCanonicalDefinition &&
+            !fn.functionDefinition.containsRawJsonSchema
+        ? CanonicalValidator.coerceFunctionArgs(
+            fn.functionDefinition,
+            canonicalTypes,
+            args,
+          )
+        : coerceValidationResultArgs(fn.argumentSchema.value, args);
     final List<ValidationError> errors = argumentErrors(fn, callArgs);
     if (errors.isNotEmpty) {
       throw A2uiExpressionError(
@@ -2270,6 +2276,20 @@ extension CatalogInvokerExtension
     FunctionImplementation fn,
     Map<String, Object?> args,
   ) {
+    if (fn.hasCanonicalDefinition &&
+        !fn.functionDefinition.containsRawJsonSchema) {
+      final bool atLeastV1 =
+          protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
+      return CanonicalValidator(
+        types: canonicalTypes,
+        atLeastV1: atLeastV1,
+      ).validateFunctionArgs(
+        fn.functionDefinition,
+        args,
+        ignoreNullArgs: true,
+        allowValidationResultInBool: atLeastV1,
+      );
+    }
     final Set<String> unresolved = {
       for (final MapEntry<String, Object?> entry in args.entries)
         if (entry.value == null) entry.key,

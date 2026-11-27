@@ -16,6 +16,9 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:meta/meta.dart';
 
 import '../core/catalog.dart';
+import '../model/canonical_validator.dart';
+import '../model/catalog_model.dart';
+import '../model/type_definition.dart';
 import '../primitives/common_types_documents.dart' as documents;
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
@@ -138,9 +141,21 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// Whether [catalog] declares v1.0 or later, selecting the v1.0 rules.
   final bool _v1;
 
+  /// Whether the caller passed a custom [commonTypesSchema] override.
+  final bool _hasCustomCommonTypes;
+
   /// The other protocol version's `common_types.json`, consulted for a type
   /// [commonTypesSchema] lacks; null when the caller overrode the document.
   final Map<String, Object?>? _fallbackCommonTypes;
+
+  late final CanonicalValidator _canonicalValidator = CanonicalValidator(
+    types: catalog.canonicalTypes,
+    atLeastV1: _v1,
+    functions: {
+      for (final F fn in catalog.functions.values)
+        if (fn.hasCanonicalDefinition) fn.name: fn.functionDefinition,
+    },
+  );
 
   /// [catalog]'s component schemas with their `$ref`s inlined, on first use.
   Map<String, Schema>? _resolvedComponents;
@@ -170,6 +185,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
              A2uiProtocolVersion.v1_0,
            ) ??
            false,
+       _hasCustomCommonTypes = commonTypesSchema != null,
        _fallbackCommonTypes = commonTypesSchema == null
            ? commonTypesFor(
                ((protocolVersion ?? catalog.protocolVersion)?.isAtLeast(
@@ -272,18 +288,24 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       _checkV1EnvelopeConflicts(component, customProps, id);
       _checkComponentCallEnvelopes(component, customProps, id);
     }
-    final Schema? schema = _resolvedComponentSchemas[type];
-    if (schema == null && !config.allowUnknownElements) {
+    final C? api = catalog.components[type];
+    final bool useCanonical =
+        !_hasCustomCommonTypes &&
+        api != null &&
+        api.hasCanonicalDefinition &&
+        !api.definition.containsRawJsonSchema;
+    final Schema? schema = useCanonical
+        ? null
+        : _resolvedComponentSchemas[type];
+    final bool exists = useCanonical || schema != null;
+    if (!exists && !config.allowUnknownElements) {
       _throwDetail(
         '/component',
         'invalid_value',
         "Catalog '${catalog.id}' declares no component named '$type'.",
       );
     }
-    if (_v1 &&
-        schema != null &&
-        !isCheckable &&
-        component.containsKey('@checks')) {
+    if (_v1 && exists && !isCheckable && component.containsKey('@checks')) {
       _throwDetail(
         '/@checks',
         'extra_forbidden',
@@ -292,10 +314,15 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       );
     }
 
-    final Set<String> declared = schema == null
+    final Set<String> declared = useCanonical
+        ? {
+            for (final ParameterDefinition p in api.definition.parameters)
+              p.name,
+          }
+        : schema == null
         ? const {}
         : _declaredProperties(schema.value);
-    final bool allowEnvelopeChecks = schema == null || isCheckable;
+    final bool allowEnvelopeChecks = !exists || isCheckable;
     final List<String> envelopeKeys = _v1
         ? _v1EnvelopeKeysFor(customProps, allowChecks: allowEnvelopeChecks)
         : _v0_9EnvelopeKeys;
@@ -320,7 +347,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       rendererCall: true,
     );
 
-    if (schema == null) {
+    if (!exists) {
       if (_v1) {
         _validateV1EnvelopeFields(
           component,
@@ -333,15 +360,23 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       return;
     }
 
-    _throwOnErrors(
-      Schema.fromMap(
-        _withoutEnvelopeRequirements(schema.value, envelopeKeys, target),
-      ).validateSync(target, strictFormat: true),
-      "Component '$id' does not match the '$type' schema in catalog "
-      "'${catalog.id}'",
-    );
-
-    _checkUnknownProperties(target, declared, schema, id, type);
+    if (useCanonical) {
+      _throwOnErrors(
+        _canonicalValidator.validateComponentProperties(api.definition, target),
+        "Component '$id' does not match the '$type' schema in catalog "
+        "'${catalog.id}'",
+      );
+      _checkUnknownProperties(target, declared, null, id, type);
+    } else {
+      _throwOnErrors(
+        Schema.fromMap(
+          _withoutEnvelopeRequirements(schema!.value, envelopeKeys, target),
+        ).validateSync(target, strictFormat: true),
+        "Component '$id' does not match the '$type' schema in catalog "
+        "'${catalog.id}'",
+      );
+      _checkUnknownProperties(target, declared, schema, id, type);
+    }
     if (_v1) {
       _validateV1EnvelopeFields(
         component,
@@ -349,6 +384,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         id,
         componentCatalogId: componentCatalogId,
         checkable: isCheckable,
+        useCanonical: useCanonical,
       );
     }
   }
@@ -462,7 +498,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   void _checkUnknownProperties(
     Map<String, Object?> target,
     Set<String> declared,
-    Schema schema,
+    Schema? schema,
     Object? id,
     String type,
   ) {
@@ -480,7 +516,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     }
     if (config.allowUnknownElements ||
         declared.isEmpty ||
-        schema.value['additionalProperties'] == true) {
+        schema?.value['additionalProperties'] == true) {
       return;
     }
     for (final String key in target.keys) {
@@ -501,6 +537,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     Object? id, {
     required Object? componentCatalogId,
     required bool checkable,
+    bool useCanonical = false,
   }) {
     final fields = <(String, String)>[
       ('@accessibility', 'accessibility'),
@@ -523,11 +560,20 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           rendererCall: true,
         );
       }
+      final List<ValidationError> envErrors = useCanonical
+          ? switch (schemaKey) {
+              'accessibility' => _canonicalValidator.validateAccessibility(
+                value,
+              ),
+              'checks' => _canonicalValidator.validateChecks(value),
+              _ => _canonicalValidator.validateMetadata(value),
+            }
+          : _resolvedEnvelopeSchemas[schemaKey]!.validateSync(
+              value,
+              strictFormat: true,
+            );
       _throwOnErrors(
-        _resolvedEnvelopeSchemas[schemaKey]!.validateSync(
-          value,
-          strictFormat: true,
-        ),
+        envErrors,
         "Component '$id' has an invalid '$wireKey'",
         path: '/$wireKey',
       );
@@ -680,8 +726,14 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     bool rendererCall = false,
   }) {
     final where = componentId == null ? '' : "In component '$componentId': ";
-    final Schema? schema = _resolvedFunctionSchemas[name];
-    if (schema == null) {
+    final F? fn = catalog.functions[name];
+    final bool useCanonical =
+        !_hasCustomCommonTypes &&
+        fn != null &&
+        fn.hasCanonicalDefinition &&
+        !fn.functionDefinition.containsRawJsonSchema;
+    final Schema? schema = useCanonical ? null : _resolvedFunctionSchemas[name];
+    if (!useCanonical && schema == null) {
       if (config.allowUnknownElements) return;
       final msg =
           "${where}Unrecognized function '$name': Catalog '${catalog.id}' "
@@ -719,10 +771,9 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       );
     }
 
-    final List<ValidationError> errors = schema.validateSync(
-      args,
-      strictFormat: true,
-    );
+    final List<ValidationError> errors = useCanonical
+        ? _canonicalValidator.validateFunctionArgs(fn.functionDefinition, args)
+        : schema!.validateSync(args, strictFormat: true);
     if (errors.isNotEmpty) {
       final argsPrefix = (path != null && path.isNotEmpty)
           ? '$path/args'
@@ -749,8 +800,21 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   ///
   /// Throws [A2uiValidationError] if the theme does not match the schema.
   void validateTheme(Map<String, Object?>? theme) {
+    if (theme == null) return;
+    final SurfacePropertiesDefinition? surfaceProps =
+        catalog.canonicalSurfaceProperties;
+    if (!_hasCustomCommonTypes &&
+        surfaceProps != null &&
+        !surfaceProps.containsRawJsonSchema) {
+      _throwOnErrors(
+        _canonicalValidator.validateSurfaceProperties(surfaceProps, theme),
+        "Theme does not match the theme schema in catalog '${catalog.id}'",
+        path: '/theme',
+      );
+      return;
+    }
     final Schema? schema = catalog.themeSchema;
-    if (schema == null || theme == null) return;
+    if (schema == null) return;
 
     _throwOnErrors(
       schema.validateSync(theme, strictFormat: true),

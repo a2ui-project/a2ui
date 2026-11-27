@@ -17,7 +17,7 @@ library;
 
 import 'package:a2ui_core/a2ui_core.dart';
 
-/// A component definition parsed from a catalog JSON Schema.
+/// A component definition parsed from a catalog document or JSON Schema.
 class CatalogComponentDefinition {
   final ComponentApi component;
 
@@ -25,11 +25,19 @@ class CatalogComponentDefinition {
   /// [Catalog.resolvedComponentSchemas].
   final Map<String, dynamic> schema;
 
-  CatalogComponentDefinition(this.component, this.schema);
+  /// The canonical, JSON-Schema-free [ComponentDefinition].
+  final ComponentDefinition componentDefinition;
+
+  CatalogComponentDefinition(
+    this.component,
+    this.schema, [
+    ComponentDefinition? componentDefinition,
+  ]) : componentDefinition = componentDefinition ?? component.definition;
 
   String get name => component.name;
 
-  String? get description => schema['description'] as String?;
+  String? get description =>
+      componentDefinition.description ?? (schema['description'] as String?);
 
   Map<String, dynamic> get rawSchema => schema;
 
@@ -42,15 +50,22 @@ class CatalogComponentDefinition {
           .toSet();
 }
 
-/// A function definition parsed from a catalog JSON Schema.
+/// A function definition parsed from a catalog document or JSON Schema.
 class CatalogFunctionDefinition {
   final FunctionApi function;
 
-  CatalogFunctionDefinition(this.function);
+  /// The canonical, JSON-Schema-free [FunctionDefinition].
+  final FunctionDefinition functionDefinition;
+
+  CatalogFunctionDefinition(
+    this.function, [
+    FunctionDefinition? functionDefinition,
+  ]) : functionDefinition = functionDefinition ?? function.functionDefinition;
 
   String get name => function.name;
 
   String? get description =>
+      functionDefinition.description ??
       function.description ??
       (function.argumentSchema.value['description'] as String?);
 
@@ -69,7 +84,7 @@ class CatalogFunctionDefinition {
           .toSet();
 }
 
-/// A catalog JSON Schema parsed for code generation, backed by a2ui_core's [Catalog].
+/// A catalog parsed for code generation, backed by a2ui_core's [Catalog].
 class CodegenCatalog {
   final CatalogApi catalog;
 
@@ -77,6 +92,9 @@ class CodegenCatalog {
 
   factory CodegenCatalog.fromJson(Map<String, dynamic> json) =>
       CodegenCatalog(Catalog.fromJson(json));
+
+  /// The canonical, JSON-Schema-free [CatalogModel].
+  CatalogModel get model => catalog.model;
 
   String get id => catalog.id;
 
@@ -87,11 +105,12 @@ class CodegenCatalog {
       c.name: CatalogComponentDefinition(
         c,
         catalog.resolvedComponentSchemas[c.name]!.value,
+        model.component(c.name),
       ),
   };
 
   Map<String, CatalogFunctionDefinition> get functions => {
     for (final f in catalog.functions.values)
-      f.name: CatalogFunctionDefinition(f),
+      f.name: CatalogFunctionDefinition(f, model.function(f.name)),
   };
 }

@@ -42,7 +42,7 @@ class CodegenCommand extends Command<int> {
         'catalog',
         abbr: 'c',
         mandatory: true,
-        help: 'Path to the catalog JSON Schema file.',
+        help: 'Path to the catalog document or JSON Schema file.',
       )
       ..addOption(
         'out',
@@ -100,9 +100,10 @@ class CodegenCommand extends Command<int> {
     // Checked on the document, before `Catalog.fromJson` applies its own
     // version rules, so an unsupported catalog gets this message.
     final Object? declaredVersion = catalogJson['protocolVersion'];
+    final defaultVersion = isCatalogDocument(catalogJson) ? '1.0' : 'v0.9.1';
     final String specVersion = declaredVersion is String
         ? declaredVersion
-        : 'v0.9.1';
+        : defaultVersion;
     final A2uiProtocolVersion? parsedVersion =
         A2uiProtocolVersion.tryParseSemVer(specVersion);
     if (!supportedCodegenVersions.contains(parsedVersion)) {
