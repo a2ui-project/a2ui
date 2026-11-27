@@ -848,8 +848,9 @@ The `a2uiClientCapabilities` object in the metadata follows the [`client_capabil
 
 **Properties:**
 
-- `supportedCatalogIds` (array of strings, required): String identifiers of supported catalogs.
-- `inlineCatalogs`: An array of inline catalog definitions provided directly by the client (useful for custom or ad-hoc components and functions).
+- `v0.9` (object, required): The capability structure for version 0.9 of the A2UI protocol.
+  - `supportedCatalogIds` (array of strings, required): String identifiers of supported catalogs.
+  - `inlineCatalogs` (array, optional): An array of inline catalog definitions provided directly by the client (useful for custom or ad-hoc components and functions).
 
 #### Client data model
 
