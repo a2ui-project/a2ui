@@ -40,8 +40,10 @@ export {
   scrapeSchemaBehavior,
   type BehaviorNode,
   type GenerateSetters,
+  type GenericBinderTarget,
   type ResolveA2uiProp,
   type ResolveA2uiProps,
+  type ResolveDefinitionProps,
   type ResolvedChildRef,
 } from './generic-binder.js';
 export {

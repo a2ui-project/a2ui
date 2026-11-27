@@ -26,7 +26,14 @@ import {
   isTemplateRefObject,
   unwrapZodField,
 } from '../resolution/ref-fields.js';
-import type {Catalog, ComponentApi, FunctionApi} from './types.js';
+import {extractDefinitionRefFields} from './model/model_semantics.js';
+import type {
+  Catalog,
+  ComponentApi,
+  ComponentApiLike,
+  FunctionApi,
+  FunctionApiLike,
+} from './types.js';
 
 export {type ChildRefAnalysisOptions, extractRefDefName};
 
@@ -642,21 +649,22 @@ function inspectComponentSchema(
  * @returns ComponentRefMap containing single, list, and nested reference properties.
  */
 export function buildComponentRefMap<
-  T extends ComponentApi = ComponentApi,
-  F extends FunctionApi = FunctionApi,
+  T extends ComponentApiLike = ComponentApi,
+  F extends FunctionApiLike = FunctionApi,
 >(
   catalogOrComponents: Catalog<T, F> | ReadonlyArray<T> | ReadonlyMap<string, T>,
   options: ChildRefAnalysisOptions,
 ): ComponentRefMap {
   const refMap: ComponentRefMap = {};
   const maybeCatalog = catalogOrComponents as {components?: ReadonlyMap<string, T>};
-  const componentApis: ReadonlyArray<ComponentApi> =
+  const componentApis: ReadonlyArray<ComponentApiLike> =
     typeof maybeCatalog?.components?.values === 'function'
       ? Array.from(maybeCatalog.components.values())
       : Array.isArray(catalogOrComponents)
         ? catalogOrComponents
         : Array.from((catalogOrComponents as ReadonlyMap<string, T>).values());
 
+  const catalogTypes = (catalogOrComponents as {types?: Catalog<T, F>['types']})?.types;
   for (const compApi of componentApis) {
     const acc: ChildRefAccumulator = {
       singleRefs: new Set<string>(),
@@ -664,7 +672,22 @@ export function buildComponentRefMap<
       nestedRefs: {},
     };
 
-    inspectComponentSchema(compApi.schema, acc, options);
+    if (compApi.definition) {
+      for (const [key, refKind] of extractDefinitionRefFields(compApi.definition, catalogTypes)) {
+        if (refKind.kind === 'single') {
+          acc.singleRefs.add(key);
+        } else if (refKind.kind === 'list') {
+          acc.listRefs.add(key);
+        } else {
+          acc.listRefs.add(key);
+          for (const subKey of refKind.keys) {
+            addNestedRef(acc, key, subKey);
+          }
+        }
+      }
+    } else {
+      inspectComponentSchema(compApi.schema, acc, options);
+    }
 
     refMap[compApi.name] = {
       singleRefs: acc.singleRefs,

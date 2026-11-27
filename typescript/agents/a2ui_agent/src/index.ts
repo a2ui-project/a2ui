@@ -40,6 +40,7 @@ export {
   type AgentFunctionContext,
   type AgentFunctionHandler,
   type AgentFunctionInit,
+  type AnyCatalogApi,
   Catalog,
   type CatalogApi,
   type CatalogInterface,

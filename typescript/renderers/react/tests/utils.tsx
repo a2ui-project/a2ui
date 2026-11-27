@@ -17,7 +17,14 @@
 import React from 'react';
 import {render} from '@testing-library/react';
 import {z} from 'zod';
-import {SurfaceModel, ComponentModel, Catalog, extractRefFields} from '@a2ui/web_core';
+import {
+  Catalog,
+  type ComponentApiLike,
+  ComponentModel,
+  extractRefFields,
+  SurfaceModel,
+} from '@a2ui/web_core';
+import {extractDefinitionRefFields} from '@a2ui/web_core/catalog/model';
 import {BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiSurface} from '../src/A2uiSurface';
 import {createComponentImplementation} from '../src/adapter';
@@ -90,7 +97,7 @@ export function renderA2uiComponent(
     surface.componentsModel.addComponent(childModel);
   }
 
-  for (const id of referencedChildIds(impl.schema, initialProperties)) {
+  for (const id of referencedChildIds(impl, initialProperties)) {
     if (!surface.componentsModel.get(id)) {
       surface.componentsModel.addComponent(new ComponentModel(id, STUB_TYPE, {}, catalog));
     }
@@ -117,7 +124,7 @@ export function renderA2uiComponent(
  * properties the resolver will try to resolve.
  */
 function referencedChildIds(
-  schema: z.ZodTypeAny,
+  api: ComponentApiLike,
   properties: Record<string, unknown>,
 ): Set<string> {
   const ids = new Set<string>();
@@ -127,7 +134,13 @@ function referencedChildIds(
     }
   };
 
-  for (const [key, ref] of extractRefFields(schema)) {
+  const refFields = api.definition
+    ? extractDefinitionRefFields(api.definition)
+    : api.schema
+      ? extractRefFields(api.schema)
+      : new Map();
+
+  for (const [key, ref] of refFields) {
     const value = properties[key];
     switch (ref.kind) {
       case 'single':

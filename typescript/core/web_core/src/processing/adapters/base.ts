@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
-import {InternalOperation} from '../operations.js';
-import {A2uiValidationError} from '../../errors.js';
-import {formatZodIssue} from '../format-zod-issue.js';
-import {extractEnvelopeErrorContext, mapErrorToRendererMessage} from '../message-error-mapper.js';
+import {
+  formatValidationIssue,
+  type ValidationIssue,
+  type ValidationOutcome,
+} from '../../catalog/model/model_validator.js';
 import {SemVer, normalizeVersionString, toSemVer, toCanonicalVersion} from '../../common/semver.js';
+import {A2uiValidationError} from '../../errors.js';
+import {extractEnvelopeErrorContext, mapErrorToRendererMessage} from '../message-error-mapper.js';
+import {InternalOperation} from '../operations.js';
 
 /**
  * Union of supported A2UI protocol version strings.
@@ -184,37 +187,54 @@ function validateActionSurfaceIds(
   }
 }
 
+/** Structural legacy schema contract for subclasses still using Zod (such as v0.8). */
+export interface LegacyEnvelopeSchema {
+  safeParse(value: unknown):
+    | {readonly success: true; readonly data: unknown}
+    | {
+        readonly success: false;
+        readonly error: {
+          readonly issues: readonly unknown[];
+        };
+      };
+}
+
 /**
- * Narrows a root-level `invalid_union` `ZodError` to the union branch matching `actionKey`
+ * Narrows a root-level `invalid_union` issue list to the union branch matching `actionKey`
  * when the envelope defines a single native action key, avoiding unrelated union-branch noise.
  */
-function selectActionUnionError(
-  error: z.ZodError,
+function selectActionUnionIssues(
+  issues: readonly ValidationIssue[],
   actionKey: string,
   nativeActionKeys: readonly string[],
-): z.ZodError {
-  if (error.issues.length !== 1) {
-    return error;
+): readonly ValidationIssue[] {
+  if (issues.length !== 1) {
+    return issues;
   }
-  const rootIssue = error.issues[0];
-  if (rootIssue.code !== z.ZodIssueCode.invalid_union || rootIssue.path.length !== 0) {
-    return error;
+  const rootIssue = issues[0];
+  if (
+    rootIssue.code !== 'invalid_union' ||
+    rootIssue.path.length !== 0 ||
+    !Array.isArray(rootIssue.unionErrors)
+  ) {
+    return issues;
   }
   const matchingBranches = rootIssue.unionErrors.filter(
     branchErr =>
       !branchErr.issues.some(
-        issue =>
-          (issue.code === z.ZodIssueCode.unrecognized_keys &&
+        (issue: ValidationIssue) =>
+          (issue.code === 'unrecognized_keys' &&
             issue.path.length === 0 &&
+            Array.isArray(issue.keys) &&
             issue.keys.includes(actionKey)) ||
-          (issue.code === z.ZodIssueCode.invalid_type &&
+          (issue.code === 'invalid_type' &&
             issue.path.length === 1 &&
             issue.path[0] !== actionKey &&
             nativeActionKeys.includes(String(issue.path[0])) &&
             issue.received === 'undefined'),
       ),
   );
-  return matchingBranches.length === 1 ? matchingBranches[0] : error;
+  return matchingBranches.length === 1 ? matchingBranches[0].issues : issues;
 }
 
 /**
@@ -223,7 +243,28 @@ function selectActionUnionError(
  */
 export abstract class BaseVersionAdapter implements VersionAdapter {
   abstract readonly version: ProtocolVersion;
-  protected abstract readonly schema: z.ZodTypeAny;
+  /**
+   * Optional legacy Zod schema for subclasses that have not overridden
+   * {@link validateEnvelope} (for example the deprecated v0.8 adapter).
+   */
+  protected readonly schema?: LegacyEnvelopeSchema;
+
+  /**
+   * Validates a prepared wire envelope payload without requiring Zod.
+   *
+   * Defaults to delegating to `this.schema.safeParse` when a legacy subclass
+   * supplies `schema`.
+   */
+  protected validateEnvelope(payload: Record<string, unknown>): ValidationOutcome<unknown> {
+    if (!this.schema) {
+      return {success: true, data: payload};
+    }
+    const parsed = this.schema.safeParse(payload);
+    if (parsed.success) {
+      return {success: true, data: parsed.data};
+    }
+    return {success: false, issues: parsed.error.issues as readonly ValidationIssue[]};
+  }
 
   /** Canonical catalog protocol versions compatible with this adapter. */
   get compatibleCatalogVersions(): ReadonlySet<string> {
@@ -293,18 +334,18 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
     }
 
     const preparedPayload = this.preparePayloadForValidation(msgObj, options);
-    const parseResult = this.schema.safeParse(preparedPayload);
+    const parseResult = this.validateEnvelope(preparedPayload);
     if (!parseResult.success) {
-      const scopedError = selectActionUnionError(
-        parseResult.error,
+      const scopedIssues = selectActionUnionIssues(
+        parseResult.issues,
         presentNativeKeys[0],
         nativeActionKeys,
       );
-      const formattedErrors = scopedError.errors.map(formatZodIssue).join('; ');
+      const formattedErrors = scopedIssues.map(formatValidationIssue).join('; ');
       const envCtx = extractEnvelopeErrorContext(msgObj, this.version);
       const preliminaryErr = new A2uiValidationError(
         `Invalid ${this.version} message: ${formattedErrors}`,
-        scopedError,
+        {issues: scopedIssues, errors: scopedIssues},
         'VALIDATION_ERROR',
       );
       const mapped = mapErrorToRendererMessage(preliminaryErr, envCtx);

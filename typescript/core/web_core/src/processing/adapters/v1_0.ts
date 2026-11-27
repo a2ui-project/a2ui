@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-import {BaseVersionAdapter, ProtocolVersion} from './base.js';
+import type {ValidationOutcome} from '../../catalog/model/model_validator.js';
+import {A2uiValidationError} from '../../errors.js';
 import {
   InternalComponentPayload,
   InternalOperation,
   INTERNAL_OPERATION_TYPES,
 } from '../operations.js';
-import {A2uiValidationError} from '../../errors.js';
-import {AgentToRendererMessageSchema} from '../../v1_0/schema/agent-to-renderer.js';
+import {validateV10AgentToRendererMessage} from '../wire-validators.js';
+import {BaseVersionAdapter, ProtocolVersion} from './base.js';
 
 function assertObjectArgs(
   cf: Record<string, unknown>,
@@ -68,7 +69,12 @@ function extractCallRendererFunctionOp(
  */
 export class V1Point0Adapter extends BaseVersionAdapter {
   readonly version: ProtocolVersion = '1.0';
-  protected readonly schema = AgentToRendererMessageSchema;
+
+  protected override validateEnvelope(
+    payload: Record<string, unknown>,
+  ): ValidationOutcome<unknown> {
+    return validateV10AgentToRendererMessage(payload);
+  }
 
   protected getNativeActionKeys(): string[] {
     return [...INTERNAL_OPERATION_TYPES];

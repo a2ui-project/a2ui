@@ -33,6 +33,8 @@
 import {z} from 'zod';
 import {A2uiValidationError} from '../errors.js';
 import {isAtLeastVersion} from '../common/semver.js';
+import {isComponentDefinition, type ComponentDefinition} from './model/catalog_model.js';
+import {definitionEnvelopeLayout} from './model/model_semantics.js';
 import {getSpecAnnotation} from './spec_annotations.js';
 import * as CommonTypes from '../types/common-types.js';
 import * as V09CommonTypes from '../v0_9/schema/common-types.js';
@@ -262,8 +264,25 @@ function isStandardMixinProperty(
  * @param schema The component's schema, if known.
  * @returns The component's mixin layout.
  */
-export function componentMixinLayout(schema: z.ZodTypeAny | undefined): ComponentMixinLayout {
-  if (!schema) return EMPTY_LAYOUT;
+/** Target accepted by envelope-layout helpers: a canonical definition, a ComponentApi, or a legacy Zod schema. */
+export type ComponentEnvelopeTarget =
+  | ComponentDefinition
+  | {readonly definition?: ComponentDefinition; readonly schema?: unknown}
+  | z.ZodTypeAny
+  | undefined;
+
+export function componentMixinLayout(target: ComponentEnvelopeTarget): ComponentMixinLayout {
+  if (!target) return EMPTY_LAYOUT;
+  if (isComponentDefinition(target)) {
+    return definitionEnvelopeLayout(target);
+  }
+  if (typeof target === 'object' && 'definition' in target && target.definition) {
+    return definitionEnvelopeLayout(target.definition);
+  }
+  const schema = (
+    typeof target === 'object' && 'schema' in target && !('_def' in target) ? target.schema : target
+  ) as z.ZodTypeAny | undefined;
+  if (!schema || typeof schema !== 'object' || !('_def' in schema)) return EMPTY_LAYOUT;
   const cached = layoutCache.get(schema);
   if (cached) return cached;
   const declared = collectDeclaredProperties(schema);
@@ -304,14 +323,14 @@ export function componentMixinLayout(schema: z.ZodTypeAny | undefined): Componen
  *
  * @param layout The component's layout in the catalog it resolved to.
  * @param comp The raw component object.
- * @param defaultCatalogSchema The component's schema in the surface's
+ * @param defaultCatalogSchema The component's definition, API, or schema in the surface's
  *   default catalog, if that catalog defines its type.
  * @returns `layout`, or a copy that treats the bare `catalogId` as the mixin.
  */
 export function routeLegacyCatalogId(
   layout: ComponentMixinLayout,
   comp: Readonly<Record<string, unknown>>,
-  defaultCatalogSchema: z.ZodTypeAny | undefined,
+  defaultCatalogSchema: ComponentEnvelopeTarget,
 ): ComponentMixinLayout {
   if (
     !layout.customKeys.has('catalogId') ||
@@ -430,8 +449,8 @@ export interface ComponentPayloadState {
 export function componentPayloadState(
   comp: Readonly<Record<string, unknown>>,
   protocolVersion: string | undefined,
-  schema: z.ZodTypeAny | undefined,
-  options?: {readonly defaultCatalogSchema: z.ZodTypeAny | undefined},
+  schema: ComponentEnvelopeTarget,
+  options?: {readonly defaultCatalogSchema: ComponentEnvelopeTarget},
 ): ComponentPayloadState {
   if (!isAtLeastVersion(protocolVersion, '1.0')) {
     const {id: _id, component: _component, ...properties} = comp;

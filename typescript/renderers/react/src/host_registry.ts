@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import type {ComponentApi, ComponentNode, SurfaceModel} from '@a2ui/web_core';
+import type {ComponentApiLike, ComponentNode, SurfaceModel} from '@a2ui/web_core';
 import type {ReactHostElement} from './catalog/react_host_element';
-import type {ReactComponentImplementation} from './react_component_implementation';
+import type {ReactComponentImplementationLike} from './react_component_implementation';
 
 /** A connected host and the node it currently holds. */
 export interface HostEntry {
   readonly host: ReactHostElement;
-  readonly node: ComponentNode<ReactComponentImplementation>;
+  readonly node: ComponentNode<ReactComponentImplementationLike>;
 }
 
 /**
@@ -32,9 +32,9 @@ export interface HostEntry {
 export class HostOwner {
   // Nominal: only `new HostOwner()` is one.
   declare private readonly nominal: never;
-  surface?: SurfaceModel<ComponentApi>;
+  surface?: SurfaceModel<ComponentApiLike>;
 
-  constructor(surface?: SurfaceModel<ComponentApi>) {
+  constructor(surface?: SurfaceModel<ComponentApiLike>) {
     this.surface = surface;
   }
 }
@@ -75,10 +75,10 @@ export function ownerAbove(element: Element): HostOwner | null {
  * content portals the entry, so the React tree nests the way the DOM does.
  */
 export class HostRegistry {
-  private static readonly registries = new WeakMap<SurfaceModel<ComponentApi>, HostRegistry>();
+  private static readonly registries = new WeakMap<SurfaceModel<ComponentApiLike>, HostRegistry>();
 
   /** The registry of `surface`; hosts find it through their node's context. */
-  static forSurface(surface: SurfaceModel<ComponentApi>): HostRegistry {
+  static forSurface(surface: SurfaceModel<ComponentApiLike>): HostRegistry {
     let registry = HostRegistry.registries.get(surface);
     if (!registry) {
       registry = new HostRegistry();
@@ -93,7 +93,7 @@ export class HostRegistry {
 
   add(
     host: ReactHostElement,
-    node: ComponentNode<ReactComponentImplementation>,
+    node: ComponentNode<ReactComponentImplementationLike>,
     owner: HostOwner | null,
   ): void {
     const current = this.hosts.get(host);

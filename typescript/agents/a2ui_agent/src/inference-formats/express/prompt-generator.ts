@@ -21,7 +21,12 @@
  * signatures and instruction blocks.
  */
 
-import {AgentToRendererMessage, CatalogApi, isAtLeastVersion} from '../../internal/web-core.js';
+import {
+  AgentToRendererMessage,
+  type AnyCatalogApi,
+  type CatalogApi,
+  isAtLeastVersion,
+} from '../../internal/web-core.js';
 import {PromptGenerator} from '../../prompt/generator.js';
 import {agentCallableFunctions} from '../../utils/agent-callable.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
@@ -421,18 +426,18 @@ export class ExpressPromptGenerator extends PromptGenerator {
    * @param version Optional wire protocol version override.
    */
   constructor(
-    catalogs: CatalogApi[],
+    catalogs: AnyCatalogApi[],
     examples?: Record<string, AgentToRendererMessage[] | AgentToRendererMessage[][] | string>,
     private readonly allowedMessages?: readonly string[],
     version?: string,
   ) {
-    super(catalogs);
+    super(catalogs as CatalogApi[]);
     this.version = resolveExpressVersion(this.catalogs, version);
     this.examples = examples;
     this.helpers = buildSchemaHelpers(this.catalogs, this.version);
   }
 
-  private getHelper(catalog: CatalogApi): CatalogSchemaHelper {
+  private getHelper(catalog: AnyCatalogApi): CatalogSchemaHelper {
     let helper = this.helpers.get(catalog.id);
     if (!helper) {
       const version = toWireProtocolVersion(catalog.protocolVersion);
@@ -621,7 +626,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
     );
   }
 
-  protected renderCatalogInstructions(catalog: CatalogApi): string {
+  protected renderCatalogInstructions(catalog: AnyCatalogApi): string {
     const helper = this.getHelper(catalog);
     const compSigs = this.generateComponentSignatures(helper);
     const funcSigs = this.generateFunctionSignatures(helper);
@@ -660,7 +665,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
   private replaceJsonBlockInInstructions(
     match: string,
     jsonContent: string,
-    catalog: CatalogApi,
+    catalog: AnyCatalogApi,
   ): string {
     try {
       // Python's json.loads keeps `1500.00` as the float 1500.0, which the decompiler
@@ -960,14 +965,14 @@ export class ExpressPromptGenerator extends PromptGenerator {
       .join('\n');
   }
 
-  transformExamples(rawExamplesMarkdown: string, catalog?: CatalogApi): string {
+  transformExamples(rawExamplesMarkdown: string, catalog?: AnyCatalogApi): string {
     const pattern = /```json\s*\n([\s\S]*?)\n```/g;
     return rawExamplesMarkdown.replace(pattern, (match, jsonContent) =>
       this.replaceJsonBlock(match, jsonContent, catalog),
     );
   }
 
-  private replaceJsonBlock(match: string, jsonContent: string, catalog?: CatalogApi): string {
+  private replaceJsonBlock(match: string, jsonContent: string, catalog?: AnyCatalogApi): string {
     try {
       const parsed = JSON.parse(jsonContent.trim());
       const messages: unknown[] = Array.isArray(parsed)
@@ -1000,7 +1005,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
    * @param messages The messages of one example.
    * @param catalog Optional catalog the example belongs to, used as the default catalog.
    */
-  private decompileMessages(messages: AgentToRendererMessage[], catalog?: CatalogApi): string {
+  private decompileMessages(messages: AgentToRendererMessage[], catalog?: AnyCatalogApi): string {
     const decompiler = new ExpressDecompiler(this.catalogs, this.version);
     const helper = catalog ? this.getHelper(catalog) : undefined;
     const normalized = withDefaultCatalog(messages, catalog?.id, this.version === '1.0', helper);
@@ -1009,7 +1014,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
     ]);
   }
 
-  protected renderExamples(catalog: CatalogApi): string {
+  protected renderExamples(catalog: AnyCatalogApi): string {
     if (!this.examples || !this.examples[catalog.id]) {
       return '';
     }

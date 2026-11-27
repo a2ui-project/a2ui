@@ -15,7 +15,7 @@
  */
 
 import {A2uiRecursionError, A2uiValidationError} from '../errors.js';
-import {Catalog, type ComponentApi} from '../catalog/types.js';
+import {Catalog, type ComponentApiLike, type FunctionApiLike} from '../catalog/types.js';
 import {ProtocolVersion} from '../processing/adapters/base.js';
 
 /** Maximum permitted nesting depth for JSON objects and array structures. */
@@ -120,7 +120,7 @@ function* extractPointers(
   }
 }
 
-function getOrCreateRefMap(catalog: Catalog<ComponentApi>): ComponentRefMap {
+function getOrCreateRefMap(catalog: Catalog<ComponentApiLike, FunctionApiLike>): ComponentRefMap {
   return catalog.componentRefMap;
 }
 
@@ -138,7 +138,7 @@ function getOrCreateRefMap(catalog: Catalog<ComponentApi>): ComponentRefMap {
  */
 export function* getComponentReferences(
   component: Record<string, unknown>,
-  catalogOrRefMap: Catalog<ComponentApi> | ComponentRefMap,
+  catalogOrRefMap: Catalog<ComponentApiLike, FunctionApiLike> | ComponentRefMap,
 ): Generator<[string, string]> {
   if (!component || typeof component !== 'object') {
     return;

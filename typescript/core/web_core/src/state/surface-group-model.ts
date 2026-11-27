@@ -15,7 +15,7 @@
  */
 
 import {SurfaceModel, ActionPayload, A2uiErrorPayload} from './surface-model.js';
-import {ComponentApi} from '../catalog/types.js';
+import {ComponentApiLike} from '../catalog/types.js';
 import {EventEmitter, EventSource, Subscription} from '../common/events.js';
 
 /**
@@ -23,7 +23,7 @@ import {EventEmitter, EventSource, Subscription} from '../common/events.js';
  *
  * @template T Component API type definition.
  */
-export class SurfaceGroupModel<T extends ComponentApi> {
+export class SurfaceGroupModel<T extends ComponentApiLike> {
   private surfaces: Map<string, SurfaceModel<T>> = new Map();
   private surfaceUnsubscribers: Map<string, Subscription> = new Map();
   private surfaceErrorUnsubscribers: Map<string, Subscription> = new Map();

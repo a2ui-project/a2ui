@@ -25,7 +25,12 @@ import {
 } from 'lit';
 import {property} from 'lit/decorators.js';
 
-import {Catalog, ComponentApi, type InferredComponentApiSchemaType} from '../catalog/types.js';
+import {
+  Catalog,
+  ComponentApi,
+  type ComponentApiLike,
+  type InferredComponentApiSchemaType,
+} from '../catalog/types.js';
 import {type A2uiMetadata, type Extensions} from '../common/metadata.js';
 import {peekValue} from '../reactivity/signals.js';
 import {ComponentContext} from '../resolution/component-context.js';
@@ -91,7 +96,7 @@ export type ResolvedChildList = A2uiChildRef[];
  * to the unified Node Layer resolution pipeline.
  */
 export abstract class A2uiLitElement<
-  Api extends ComponentApi = ComponentApi,
+  Api extends ComponentApiLike = ComponentApi,
   Props = ResolveA2uiProps<InferredComponentApiSchemaType<Api>>,
 > extends LitElement {
   /**

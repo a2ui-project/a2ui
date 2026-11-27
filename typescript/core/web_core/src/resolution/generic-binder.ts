@@ -14,20 +14,24 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
-
-import {componentMixinLayout} from '../catalog/component_envelope.js';
+import {getLegacySchemaAdapter} from '../catalog/legacy_schema_adapter.js';
 import {
-  coerceDynamicBoolean,
-  isDynamicBooleanSchema,
-} from '../catalog/validation_result_coercion.js';
+  isComponentDefinition,
+  type ComponentDefinition,
+  type DataTypeDefinition,
+} from '../catalog/model/catalog_model.js';
+import type {ResolveDefinitionProps} from '../catalog/model/infer_definition_props.js';
+import {
+  definitionEnvelopeLayout,
+  definitionToBehavior,
+  type ModelBehaviorNode,
+} from '../catalog/model/model_semantics.js';
+import {coerceModelDynamicBoolean} from '../catalog/model/model_validator.js';
 import {ActionDispatchOptions} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
 import {effect, getValue, peekValue} from '../reactivity/signals.js';
-import {type ChildRefKind} from '../types/child-ref-helpers.js';
-import {
-  AccessibilityAttributesSchema,
+import type {
   Action,
   CheckRule,
   ChildList,
@@ -41,17 +45,9 @@ import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {ComponentContext} from './component-context.js';
 import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
 import {resolveSignalKeepingPending} from './data-context-internal.js';
-import {
-  type ChildRefAnalysisOptions,
-  type UnwrappedZodField,
-  canSchemaHoldListRef,
-  canSchemaHoldObjectOrArray,
-  extractRefFields,
-  getUnionOptions,
-  isSingleChildPropertySchema,
-  isTemplateRefObject,
-  unwrapZodField,
-} from './ref-fields.js';
+import type {ChildRefAnalysisOptions} from './ref-fields.js';
+
+export type {ResolveDefinitionProps};
 
 /** The outcome of one check rule. */
 interface CheckRuleResult {
@@ -61,90 +57,49 @@ interface CheckRuleResult {
   severity: 'error' | 'warning' | 'info';
 }
 
-// --- Schema Scraping ---
-
 /**
- * Represents the intended runtime behavior of a property parsed from its Zod
- * schema.
+ * Represents the intended runtime behavior of a component property.
  *
- * - DYNAMIC: The property can be bound to the DataModel (e.g. DynamicString).
- *   The Binder will automatically subscribe to data changes and emit primitive
- *   values.
- * - ACTION: The property represents a user interaction (e.g. Action). The
- *   Binder will resolve deep payload bindings and output a ready-to-call () =>
- *   void closure.
- * - STRUCTURAL: The property dictates the rendering of child components (e.g.
- *   ChildList). The Binder outputs lists of objects containing { id, basePath }
- *   for structural layout.
- * - CHECKABLE: Special property for handling validation arrays (e.g. checks).
- *   The Binder will reactively evaluate the rules and inject isValid and
- *   validationErrors booleans into the parent object.
- * - STATIC: A primitive value that requires no reactive subscription or
- *   resolution.
- * - OBJECT / ARRAY: Recursive traversal nodes for complex nested schemas.
+ * Derived directly from a canonical {@link ComponentDefinition} via
+ * `definitionToBehavior` (zero-dependency), or via the registered legacy
+ * schema adapter for Zod-backed components.
  */
-export type BehaviorNode =
-  | {type: 'DYNAMIC'; isBoolean?: boolean}
-  | {type: 'ACTION'}
-  | {type: 'STRUCTURAL'}
-  | {type: 'CHECKABLE'}
-  | {type: 'STATIC'}
-  | {type: 'OBJECT'; shape: Record<string, BehaviorNode>; catchall?: BehaviorNode}
-  | {type: 'ARRAY'; element: BehaviorNode; templateFallback?: boolean};
+export type BehaviorNode = ModelBehaviorNode;
 
-type ObjectBehaviorNode = Extract<BehaviorNode, {type: 'OBJECT'}>;
+const AT_ACCESSIBILITY = '@accessibility';
+const AT_CHECKS = '@checks';
 
-/**
- * Sentinel `STATIC` node for single-child component reference slots so composite
- * object merges with a dynamic `catchall` keep child IDs `STATIC` without
- * changing the external `{type: 'STATIC'}` node shape.
- */
-const CHILD_REF_STATIC_NODE: BehaviorNode = Object.freeze({type: 'STATIC' as const});
+const BEHAVIOR_NODE_TYPES = new Set([
+  'DYNAMIC',
+  'ACTION',
+  'STRUCTURAL',
+  'CHECKABLE',
+  'STATIC',
+  'OBJECT',
+  'ARRAY',
+]);
 
-function hasActiveBehavior(node: BehaviorNode): boolean {
-  switch (node.type) {
-    case 'STATIC':
-      return false;
-    case 'DYNAMIC':
-    case 'ACTION':
-    case 'STRUCTURAL':
-    case 'CHECKABLE':
-      return true;
-    case 'ARRAY':
-      return Boolean(node.templateFallback) || hasActiveBehavior(node.element);
-    case 'OBJECT':
-      return (
-        (node.catchall !== undefined && hasActiveBehavior(node.catchall)) ||
-        Object.values(node.shape).some(hasActiveBehavior)
-      );
-  }
+function isBehaviorNode(value: unknown): value is BehaviorNode {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    typeof (value as {type?: unknown}).type === 'string' &&
+    BEHAVIOR_NODE_TYPES.has((value as {type: string}).type) &&
+    !('_def' in value)
+  );
 }
 
-const DEFAULT_OPTIONS_CACHE_KEY = {};
-const behaviorCache = new WeakMap<object, WeakMap<z.ZodTypeAny, BehaviorNode>>();
-const componentBehaviorCache = new WeakMap<object, WeakMap<z.ZodTypeAny, BehaviorNode>>();
-
-function getOptionsBehaviorCache(
-  store: WeakMap<object, WeakMap<z.ZodTypeAny, BehaviorNode>>,
-  options?: ChildRefAnalysisOptions,
-): WeakMap<z.ZodTypeAny, BehaviorNode> {
-  const key = options ?? DEFAULT_OPTIONS_CACHE_KEY;
-  let map = store.get(key);
-  if (!map) {
-    map = new WeakMap<z.ZodTypeAny, BehaviorNode>();
-    store.set(key, map);
-  }
-  return map;
-}
-
-function makeObjectBehavior(
-  shape: Record<string, BehaviorNode>,
-  catchall?: BehaviorNode,
-): ObjectBehaviorNode {
-  return catchall && catchall.type !== 'STATIC'
-    ? {type: 'OBJECT', shape, catchall}
-    : {type: 'OBJECT', shape};
-}
+/** Input accepted by the {@link GenericBinder} constructor. */
+export type GenericBinderTarget =
+  | ComponentDefinition
+  | {
+      readonly definition?: ComponentDefinition;
+      readonly types?: Readonly<Record<string, DataTypeDefinition>>;
+      readonly schema?: unknown;
+    }
+  | BehaviorNode
+  | unknown;
 
 function resolveChildRefOptions(
   protocolVersion: string | undefined,
@@ -161,880 +116,53 @@ function resolveChildRefOptions(
   return V08_CHILD_REF_OPTIONS;
 }
 
-function augmentRootObjectShape(
-  schema: z.ZodTypeAny | undefined,
-  baseShape: Record<string, BehaviorNode>,
-  options?: ChildRefAnalysisOptions,
-): Record<string, BehaviorNode> {
-  const nextShape: Record<string, BehaviorNode> = {...baseShape};
-  for (const [key, refKind] of extractRefFields(schema, options)) {
-    if (refKind.kind === 'single') {
-      if (nextShape[key]?.type === 'DYNAMIC') {
-        nextShape[key] = CHILD_REF_STATIC_NODE;
-      }
-    } else if (refKind.kind === 'list' && nextShape[key]?.type !== 'STRUCTURAL') {
-      const current = nextShape[key];
-      nextShape[key] =
-        current?.type === 'ARRAY' && hasActiveBehavior(current.element)
-          ? {type: 'ARRAY', element: current.element, templateFallback: true}
-          : {type: 'STRUCTURAL'};
-    } else if (
-      refKind.kind === 'nested' &&
-      (!Object.hasOwn(nextShape, key) || nextShape[key]?.type === 'STATIC')
-    ) {
-      nextShape[key] = {type: 'STRUCTURAL'};
-    }
-  }
-  const accessibility = getFieldBehavior(AccessibilityAttributesSchema, new Set(), options);
-  if (!Object.hasOwn(nextShape, 'accessibility')) {
-    nextShape.accessibility = accessibility;
-  }
-  if (!Object.hasOwn(nextShape, AT_ACCESSIBILITY)) {
-    nextShape[AT_ACCESSIBILITY] = accessibility;
-  }
-  if (!Object.hasOwn(nextShape, AT_CHECKS)) {
-    nextShape[AT_CHECKS] = {type: 'CHECKABLE'};
-  }
-  return nextShape;
-}
-
-/** Key under which a v1.0 component stores its accessibility attributes. */
-const AT_ACCESSIBILITY = '@accessibility';
-/** Key under which a v1.0 component stores its check rules. */
-const AT_CHECKS = '@checks';
-
 /**
- * Traverses a Zod schema tree to build a `BehaviorNode` map.
+ * Traverses a legacy Zod schema tree to build a `BehaviorNode` map.
  *
- * Enables GenericBinder to determine how to handle raw JSON properties
- * without hardcoding logic for specific component types.
- *
- * @param schema Zod schema to inspect.
- * @param options Optional child-reference analysis options forwarded to ref extraction.
- * @returns Root BehaviorNode describing schema properties.
+ * Delegates to the registered {@link LegacySchemaAdapter} so `generic-binder`
+ * has no direct runtime dependency on Zod. For canonical definitions, call
+ * `definitionToBehavior(def)` directly.
  */
 export function scrapeSchemaBehavior(
-  schema: z.ZodTypeAny | undefined,
+  schema: unknown,
   options?: ChildRefAnalysisOptions,
 ): BehaviorNode {
   if (!schema) {
     return {type: 'STATIC'};
   }
-  const cache = getOptionsBehaviorCache(behaviorCache, options);
-  const cached = cache.get(schema);
-  if (cached) {
-    return cached;
+  if (isComponentDefinition(schema)) {
+    return definitionToBehavior(schema);
   }
-  const behavior = getFieldBehavior(schema, new Set(), options);
-  const result: BehaviorNode =
-    behavior.type === 'OBJECT'
-      ? makeObjectBehavior(
-          augmentRootObjectShape(schema, behavior.shape, options),
-          behavior.catchall,
-        )
-      : behavior;
-  cache.set(schema, result);
-  return result;
+  const adapter = getLegacySchemaAdapter();
+  if (!adapter) {
+    return {type: 'STATIC'};
+  }
+  return adapter.scrapeSchemaBehavior(schema, options);
 }
 
 /**
- * Builds the root object `BehaviorNode` for a component's property map,
- * normalizing open non-object component schemas (`z.record(...)`, `z.any()`,
- * `z.unknown()`) into `{ type: 'OBJECT', shape }` with structural child-list
- * and `accessibility` behaviors attached.
+ * Builds the root object `BehaviorNode` for a component's property map.
+ *
+ * Accepts either a canonical {@link ComponentDefinition} (resolved directly
+ * without Zod) or a legacy Zod schema (delegated to {@link LegacySchemaAdapter}).
  */
 export function scrapeComponentBehavior(
-  schema: z.ZodTypeAny | undefined,
+  schema: unknown,
   options?: ChildRefAnalysisOptions,
 ): BehaviorNode {
-  if (!schema) {
-    return makeObjectBehavior(augmentRootObjectShape(undefined, {}, options));
+  if (isComponentDefinition(schema)) {
+    return definitionToBehavior(schema);
   }
-  const cache = getOptionsBehaviorCache(componentBehaviorCache, options);
-  const cached = cache.get(schema);
-  if (cached) {
-    return cached;
-  }
-  const scraped = scrapeSchemaBehavior(schema, options);
-  const result: BehaviorNode =
-    scraped.type === 'OBJECT'
-      ? scraped
-      : makeObjectBehavior(augmentRootObjectShape(schema, {}, options));
-  cache.set(schema, result);
-  return result;
-}
-
-/**
- * Extracts the definition name from a schema's REF: description, if present.
- * Walks wrapper and pipeline chains to locate the first `REF:` description.
- */
-function getRefDefName(type: z.ZodTypeAny, visited = new Set<z.ZodTypeAny>()): string {
-  const field = unwrapZodField(type);
-  if (field.firstRefDefName) {
-    return field.firstRefDefName;
-  }
-  for (const s of field.traversed) {
-    if (visited.has(s)) {
-      return '';
-    }
-  }
-  if (field.schema?._def?.typeName === 'ZodPipeline') {
-    const nextVisited = new Set(visited);
-    for (const s of field.traversed) {
-      nextVisited.add(s);
-    }
-    const def = field.schema._def as {in: z.ZodTypeAny; out: z.ZodTypeAny};
-    const inRef = getRefDefName(def['in'], nextVisited);
-    if (inRef) {
-      return inRef;
-    }
-    if (!unwrapZodField(def['in']).hasTransform) {
-      return getRefDefName(def['out'], nextVisited);
-    }
-  }
-  return '';
-}
-
-function hasChildRefKind(
-  type: z.ZodTypeAny,
-  kind: ChildRefKind,
-  visited = new Set<z.ZodTypeAny>(),
-): boolean {
-  const field = unwrapZodField(type);
-  if (field.refs.has(kind)) {
-    return true;
-  }
-  for (const s of field.traversed) {
-    if (visited.has(s)) {
-      return false;
-    }
-  }
-  if (field.schema?._def?.typeName === 'ZodPipeline') {
-    const nextVisited = new Set(visited);
-    for (const s of field.traversed) {
-      nextVisited.add(s);
-    }
-    const def = field.schema._def as {in: z.ZodTypeAny; out: z.ZodTypeAny};
-    if (hasChildRefKind(def['in'], kind, nextVisited)) {
-      return true;
-    }
-    if (!unwrapZodField(def['in']).hasTransform) {
-      return hasChildRefKind(def['out'], kind, nextVisited);
-    }
-  }
-  return false;
-}
-
-function somePipelineLeaf(
-  schema: z.ZodTypeAny,
-  predicate: (leaf: z.ZodTypeAny) => boolean,
-  visited = new Set<z.ZodTypeAny>(),
-): boolean {
-  const field = unwrapZodField(schema);
-  for (const s of field.traversed) {
-    if (visited.has(s)) {
-      return false;
-    }
-  }
-  if (field.schema?._def?.typeName === 'ZodPipeline') {
-    const nextVisited = new Set(visited);
-    for (const s of field.traversed) {
-      nextVisited.add(s);
-    }
-    const def = field.schema._def as {in: z.ZodTypeAny; out: z.ZodTypeAny};
-    if (somePipelineLeaf(def['in'], predicate, nextVisited)) {
-      return true;
-    }
-    const inField = unwrapZodField(def['in']);
-    if (!inField.hasTransform || canSchemaHoldObjectOrArray(def['in'])) {
-      return somePipelineLeaf(def['out'], predicate, nextVisited);
-    }
-    return false;
-  }
-  return predicate(field.schema);
-}
-
-function isSingleChildField(prop: z.ZodTypeAny, options?: ChildRefAnalysisOptions): boolean {
-  if (hasChildRefKind(prop, 'component-id')) return true;
-  const refDef = getRefDefName(prop);
-  return (
-    refDef === 'ComponentId' ||
-    refDef === 'Child' ||
-    Boolean(refDef && options?.childRefNames?.has(refDef))
-  );
-}
-
-/**
- * Checks whether a schema represents a checkable validation rule or list of rules.
- */
-function isCheckableField(type: z.ZodTypeAny, unwrapped?: UnwrappedZodField): boolean {
-  const defName = unwrapped?.firstRefDefName || getRefDefName(type);
-  if (defName === 'Checkable' || defName === 'CheckRule') {
-    return true;
-  }
-
-  return somePipelineLeaf(type, leaf => {
-    if (leaf?._def?.typeName === 'ZodArray') {
-      return getRefDefName(leaf._def.type as z.ZodTypeAny) === 'CheckRule';
-    }
-    return false;
-  });
-}
-
-function isActionOption(option: z.ZodTypeAny): boolean {
-  if (getRefDefName(option) === 'Action') return true;
-  return somePipelineLeaf(option, current => {
-    if (current?._def?.typeName !== 'ZodObject') return false;
-    // Like each branch of the spec's `Action`, an inline action object has
-    // `event` or `functionCall` as its only key.
-    const shape = (current as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
-    const keys = Object.keys(shape);
-    return keys.length === 1 && (keys[0] === 'event' || keys[0] === 'functionCall');
-  });
-}
-
-function isDynamicOption(option: z.ZodTypeAny, options?: ChildRefAnalysisOptions): boolean {
-  const refDef = getRefDefName(option);
-  if (refDef === 'DataBinding' || refDef === 'FunctionCall' || refDef.startsWith('Dynamic')) {
-    return true;
-  }
-  return somePipelineLeaf(option, current => {
-    if (current?._def?.typeName !== 'ZodObject') return false;
-    const shape = (current as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
-    const hasComponentId =
-      isTemplateRefObject(current) ||
-      Object.values(shape).some(prop => isSingleChildField(prop, options));
-    return (
-      (Object.hasOwn(shape, '@path') ||
-        Object.hasOwn(shape, 'path') ||
-        Object.hasOwn(shape, '@call') ||
-        Object.hasOwn(shape, 'call')) &&
-      !hasComponentId
-    );
-  });
-}
-
-function isChildListOption(option: z.ZodTypeAny, options?: ChildRefAnalysisOptions): boolean {
-  const refDef = getRefDefName(option);
-  if (
-    hasChildRefKind(option, 'child-list') ||
-    refDef === 'ChildList' ||
-    Boolean(refDef && options?.childListRefNames?.has(refDef))
-  ) {
-    return true;
-  }
-  return somePipelineLeaf(option, current => isTemplateRefObject(current));
-}
-
-function isArrayOption(option: z.ZodTypeAny): boolean {
-  return somePipelineLeaf(option, current => current?._def?.typeName === 'ZodArray');
-}
-
-function hasSingleChildObjectField(
-  option: z.ZodTypeAny,
-  options?: ChildRefAnalysisOptions,
-): boolean {
-  return somePipelineLeaf(option, current => {
-    if (current?._def?.typeName !== 'ZodObject') return false;
-    const shape = (current as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
-    return Object.values(shape).some(prop => isSingleChildField(prop, options));
-  });
-}
-
-function isDynamicDef(defName: string, typeName?: string): boolean {
-  if (defName === 'DataBinding' || defName === 'FunctionCall') {
-    return true;
-  }
-  return defName.startsWith('Dynamic') && typeName !== 'ZodObject' && typeName !== 'ZodArray';
-}
-
-function isBooleanOrNullishOption(option: z.ZodTypeAny): boolean {
-  return somePipelineLeaf(option, leaf => {
-    const typeName = leaf?._def?.typeName as string | undefined;
-    return typeName === 'ZodBoolean' || typeName === 'ZodNull' || typeName === 'ZodUndefined';
-  });
-}
-
-function flattenUnionOptions(
-  unionOptions: readonly z.ZodTypeAny[],
-  visited = new Set<z.ZodTypeAny>(),
-): z.ZodTypeAny[] {
-  const result: z.ZodTypeAny[] = [];
-  for (const opt of unionOptions) {
-    const unwrapped = unwrapZodField(opt);
-    let seen = false;
-    for (const s of unwrapped.traversed) {
-      if (visited.has(s)) {
-        seen = true;
-        break;
-      }
-    }
-    if (seen) {
-      continue;
-    }
-    const nextVisited = new Set(visited);
-    for (const s of unwrapped.traversed) {
-      nextVisited.add(s);
-    }
-    if (!unwrapped.firstRefDefName && unwrapped.refs.size === 0) {
-      const nested = getUnionOptions(unwrapped.schema);
-      if (nested) {
-        result.push(...flattenUnionOptions(nested, nextVisited));
-        continue;
-      }
-      if (unwrapped.schema?._def?.typeName === 'ZodPipeline') {
-        const def = unwrapped.schema._def as {in: z.ZodTypeAny; out: z.ZodTypeAny};
-        const inField = unwrapZodField(def['in']);
-        const inTypeName = inField.schema?._def?.typeName as string | undefined;
-        if (!inField.hasTransform && (inTypeName === 'ZodAny' || inTypeName === 'ZodUnknown')) {
-          result.push(...flattenUnionOptions([def['out']], nextVisited));
-          continue;
-        }
-      }
-    }
-    result.push(opt);
-  }
-  return result;
-}
-
-function hasBooleanLeaf(option: z.ZodTypeAny): boolean {
-  return somePipelineLeaf(
-    option,
-    leaf => (leaf?._def?.typeName as string | undefined) === 'ZodBoolean',
-  );
-}
-
-function matchUnionBehavior(
-  unionOptions: z.ZodTypeAny[],
-  options?: ChildRefAnalysisOptions,
-): BehaviorNode | undefined {
-  const flatOptions = flattenUnionOptions(unionOptions);
-  if (flatOptions.some(isActionOption)) return {type: 'ACTION'};
-  if (flatOptions.some(opt => isDynamicOption(opt, options))) {
-    const dynamicOptions = flatOptions.filter(opt => isDynamicOption(opt, options));
-    const literalOptions = flatOptions.filter(opt => !isDynamicOption(opt, options));
-    const hasNonBooleanDynamic = dynamicOptions.some(opt => {
-      const refDef = getRefDefName(opt);
-      return refDef.startsWith('Dynamic') && refDef !== 'DynamicBoolean';
-    });
-    const hasBooleanSource =
-      dynamicOptions.some(
-        opt => getRefDefName(opt) === 'DynamicBoolean' || isDynamicBooleanSchema(opt),
-      ) || literalOptions.some(hasBooleanLeaf);
-    const isBoolean =
-      !hasNonBooleanDynamic && hasBooleanSource && literalOptions.every(isBooleanOrNullishOption);
-    return isBoolean ? {type: 'DYNAMIC', isBoolean: true} : {type: 'DYNAMIC'};
-  }
-  if (
-    flatOptions.some(opt => isChildListOption(opt, options)) ||
-    (flatOptions.some(isArrayOption) &&
-      flatOptions.some(opt => hasSingleChildObjectField(opt, options)))
-  ) {
-    return {type: 'STRUCTURAL'};
-  }
-  return undefined;
-}
-
-function mergePropertyWithCatchall(
-  explicitVal: BehaviorNode,
-  catchallVal: BehaviorNode,
-): BehaviorNode {
-  if (explicitVal === CHILD_REF_STATIC_NODE) {
-    return CHILD_REF_STATIC_NODE;
-  }
-  if (explicitVal.type === 'STATIC') {
-    return catchallVal;
-  }
-  if (
-    explicitVal.type === 'OBJECT' ||
-    explicitVal.type === 'ARRAY' ||
-    explicitVal.type === 'DYNAMIC'
-  ) {
-    return mergeIntersectedBehaviors(explicitVal, catchallVal);
-  }
-  return explicitVal;
-}
-
-const BEHAVIOR_PRECEDENCE: Record<BehaviorNode['type'], number> = {
-  ACTION: 5,
-  CHECKABLE: 4,
-  STRUCTURAL: 3,
-  ARRAY: 2,
-  OBJECT: 2,
-  DYNAMIC: 1,
-  STATIC: 0,
-};
-
-function mergeIntersectedBehaviors(left: BehaviorNode, right: BehaviorNode): BehaviorNode {
-  if (left.type === 'STATIC' && right.type === 'STATIC') {
-    return left === CHILD_REF_STATIC_NODE || right === CHILD_REF_STATIC_NODE
-      ? CHILD_REF_STATIC_NODE
-      : {type: 'STATIC'};
-  }
-  if (left.type === 'STATIC') return right;
-  if (right.type === 'STATIC') return left;
-  if (left.type === 'OBJECT' && right.type === 'OBJECT') {
-    const allKeys = new Set<string>([...Object.keys(left.shape), ...Object.keys(right.shape)]);
-    const shape: Record<string, BehaviorNode> = {};
-    for (const key of allKeys) {
-      const hasLeft = Object.hasOwn(left.shape, key);
-      const hasRight = Object.hasOwn(right.shape, key);
-      let merged: BehaviorNode | undefined;
-      if (hasLeft && hasRight) {
-        merged = mergeIntersectedBehaviors(left.shape[key], right.shape[key]);
-      } else if (hasLeft) {
-        merged = right.catchall
-          ? mergePropertyWithCatchall(left.shape[key], right.catchall)
-          : left.shape[key];
-      } else if (hasRight) {
-        merged = left.catchall
-          ? mergePropertyWithCatchall(right.shape[key], left.catchall)
-          : right.shape[key];
-      }
-      if (merged !== undefined) {
-        shape[key] = merged;
-      }
-    }
-    const catchall =
-      left.catchall && right.catchall
-        ? mergeIntersectedBehaviors(left.catchall, right.catchall)
-        : (left.catchall ?? right.catchall);
-    return makeObjectBehavior(shape, catchall);
-  }
-  if (left.type === 'ARRAY' && right.type === 'ARRAY') {
-    const element = mergeIntersectedBehaviors(left.element, right.element);
-    return left.templateFallback && right.templateFallback
-      ? {type: 'ARRAY', element, templateFallback: true}
-      : {type: 'ARRAY', element};
-  }
-  if (left.type === 'DYNAMIC' && right.type === 'DYNAMIC') {
-    return left.isBoolean || right.isBoolean
-      ? {type: 'DYNAMIC', isBoolean: true}
-      : {type: 'DYNAMIC'};
-  }
-  if (!hasActiveBehavior(left) && hasActiveBehavior(right)) {
-    return right;
-  }
-  if (!hasActiveBehavior(right) && hasActiveBehavior(left)) {
-    return left;
-  }
-  return BEHAVIOR_PRECEDENCE[right.type] > BEHAVIOR_PRECEDENCE[left.type] ? right : left;
-}
-
-function mergeUnionPropertyBehaviors(left: BehaviorNode, right: BehaviorNode): BehaviorNode {
-  if (left.type === right.type) {
-    if (left.type === 'OBJECT' && right.type === 'OBJECT') {
-      return mergeUnionObjectBehaviors([left, right]);
-    }
-    if (left.type === 'ARRAY' && right.type === 'ARRAY') {
-      const element = mergeUnionPropertyBehaviors(left.element, right.element);
-      return left.templateFallback || right.templateFallback
-        ? {type: 'ARRAY', element, templateFallback: true}
-        : {type: 'ARRAY', element};
-    }
-    if (left.type === 'DYNAMIC' && right.type === 'DYNAMIC') {
-      return left.isBoolean && right.isBoolean
-        ? {type: 'DYNAMIC', isBoolean: true}
-        : {type: 'DYNAMIC'};
-    }
-    return left === CHILD_REF_STATIC_NODE || right === CHILD_REF_STATIC_NODE
-      ? CHILD_REF_STATIC_NODE
-      : left;
-  }
-  if (left.type === 'STRUCTURAL' && right.type === 'ARRAY') {
-    return hasActiveBehavior(right.element)
-      ? {type: 'ARRAY', element: right.element, templateFallback: true}
-      : {type: 'STRUCTURAL'};
-  }
-  if (left.type === 'ARRAY' && right.type === 'STRUCTURAL') {
-    return hasActiveBehavior(left.element)
-      ? {type: 'ARRAY', element: left.element, templateFallback: true}
-      : {type: 'STRUCTURAL'};
-  }
-  if (left.type === 'STATIC') {
-    return right.type === 'DYNAMIC' ? {type: 'DYNAMIC'} : right;
-  }
-  if (right.type === 'STATIC') {
-    return left.type === 'DYNAMIC' ? {type: 'DYNAMIC'} : left;
-  }
-  return {type: 'STATIC'};
-}
-
-function mergeUnionObjectBehaviors(objects: ObjectBehaviorNode[]): ObjectBehaviorNode {
-  const allKeys = new Set<string>();
-  for (const obj of objects) {
-    for (const key of Object.keys(obj.shape)) {
-      allKeys.add(key);
-    }
-  }
-  const mergedShape: Record<string, BehaviorNode> = {};
-  for (const key of allKeys) {
-    let acc: BehaviorNode | undefined;
-    let hasChildRef = false;
-    for (const obj of objects) {
-      if (Object.hasOwn(obj.shape, key)) {
-        const candidate = obj.shape[key];
-        if (candidate === CHILD_REF_STATIC_NODE) {
-          hasChildRef = true;
-        }
-        acc = acc === undefined ? candidate : mergeUnionPropertyBehaviors(acc, candidate);
-      }
-    }
-    if (acc !== undefined) {
-      mergedShape[key] = acc.type === 'STATIC' && hasChildRef ? CHILD_REF_STATIC_NODE : acc;
-    }
-  }
-  let mergedCatchall: BehaviorNode | undefined;
-  if (objects.some(obj => obj.catchall !== undefined)) {
-    for (const obj of objects) {
-      const candidate = obj.catchall ?? {type: 'STATIC'};
-      mergedCatchall =
-        mergedCatchall === undefined
-          ? candidate
-          : mergeUnionPropertyBehaviors(mergedCatchall, candidate);
-    }
-  }
-  return makeObjectBehavior(mergedShape, mergedCatchall);
-}
-
-function canObjectSchemaPassKey(
-  schema: z.ZodTypeAny | undefined,
-  key: string,
-  visited = new Set<z.ZodTypeAny>(),
-): boolean {
-  if (!schema) {
-    return true;
-  }
-  const unwrapped = unwrapZodField(schema);
-  for (const s of unwrapped.traversed) {
-    if (visited.has(s)) {
-      return true;
-    }
-  }
-  const nextVisited = new Set(visited);
-  for (const s of unwrapped.traversed) {
-    nextVisited.add(s);
-  }
-  const current = unwrapped.schema;
-  const typeName = current?._def?.typeName as string | undefined;
-  switch (typeName) {
-    case 'ZodObject': {
-      const shape = (current as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
-      if (Object.hasOwn(shape, key)) {
-        return true;
-      }
-      const def = current._def as {unknownKeys?: string; catchall?: z.ZodTypeAny};
-      if (def['unknownKeys'] === 'passthrough') {
-        return true;
-      }
-      return Boolean(def['catchall'] && def['catchall']._def?.typeName !== 'ZodNever');
-    }
-    case 'ZodIntersection': {
-      const def = current._def as {left: z.ZodTypeAny; right: z.ZodTypeAny};
-      return (
-        canObjectSchemaPassKey(def.left, key, nextVisited) &&
-        canObjectSchemaPassKey(def.right, key, nextVisited)
-      );
-    }
-    case 'ZodPipeline': {
-      const def = current._def as {in: z.ZodTypeAny; out: z.ZodTypeAny};
-      const inField = unwrapZodField(def['in']);
-      if (inField.hasTransform) {
-        const inIsObject = (inField.schema?._def?.typeName as string | undefined) === 'ZodObject';
-        return (
-          (!inIsObject || canObjectSchemaPassKey(def['in'], key, nextVisited)) &&
-          canObjectSchemaPassKey(def['out'], key, nextVisited)
-        );
-      }
-      return (
-        canObjectSchemaPassKey(def['in'], key, nextVisited) &&
-        canObjectSchemaPassKey(def['out'], key, nextVisited)
-      );
-    }
-    case 'ZodUnion':
-    case 'ZodDiscriminatedUnion': {
-      const opts = getUnionOptions(current) ?? [];
-      return opts.some(opt => canObjectSchemaPassKey(opt, key, nextVisited));
-    }
-    default:
-      return true;
-  }
-}
-
-function allowsUnknownObjectKeys(
-  schema: z.ZodTypeAny | undefined,
-  visited = new Set<z.ZodTypeAny>(),
-): boolean {
-  return canObjectSchemaPassKey(schema, '__a2ui_unknown_key_probe__', visited);
-}
-
-function getArrayElementSchema(schema: z.ZodTypeAny | undefined): z.ZodTypeAny | undefined {
-  if (!schema) {
-    return undefined;
-  }
-  const current = unwrapZodField(schema).schema;
-  return (current?._def?.typeName as string | undefined) === 'ZodArray'
-    ? (current._def.type as z.ZodTypeAny)
-    : undefined;
-}
-
-function filterPipedBehavior(
-  behavior: BehaviorNode,
-  inSchema: z.ZodTypeAny | undefined,
-  outSchema: z.ZodTypeAny | undefined,
-  visited: Set<z.ZodTypeAny>,
-  ignoreInConstraints = false,
-): BehaviorNode {
-  if (behavior.type === 'OBJECT') {
-    const shape: Record<string, BehaviorNode> = {};
-    for (const [key, propBehavior] of Object.entries(behavior.shape)) {
-      if (
-        (ignoreInConstraints || canObjectSchemaPassKey(inSchema, key, visited)) &&
-        canObjectSchemaPassKey(outSchema, key, visited)
-      ) {
-        shape[key] = propBehavior;
-      }
-    }
-    const catchall =
-      behavior.catchall &&
-      (ignoreInConstraints || allowsUnknownObjectKeys(inSchema, visited)) &&
-      allowsUnknownObjectKeys(outSchema, visited)
-        ? behavior.catchall
-        : undefined;
-    return makeObjectBehavior(shape, catchall);
-  }
-  if (behavior.type === 'ARRAY') {
-    const element = filterPipedBehavior(
-      behavior.element,
-      getArrayElementSchema(inSchema),
-      getArrayElementSchema(outSchema),
-      visited,
-      ignoreInConstraints,
-    );
-    return behavior.templateFallback
-      ? {type: 'ARRAY', element, templateFallback: true}
-      : {type: 'ARRAY', element};
-  }
-  return behavior;
-}
-
-function pipeBehaviors(
-  inSchema: z.ZodTypeAny,
-  outSchema: z.ZodTypeAny,
-  visited: Set<z.ZodTypeAny>,
-  options?: ChildRefAnalysisOptions,
-): BehaviorNode {
-  const inField = unwrapZodField(inSchema);
-  const inBehavior = getFieldBehavior(inSchema, visited, options);
-  const outBehavior = getFieldBehavior(outSchema, visited, options);
-  if (inField.hasTransform) {
-    if (!canSchemaHoldObjectOrArray(inSchema) && !hasActiveBehavior(inBehavior)) {
-      return inBehavior;
-    }
-    const combined =
-      inBehavior.type === 'OBJECT' || inBehavior.type === 'ARRAY' || !hasActiveBehavior(inBehavior)
-        ? mergeIntersectedBehaviors(inBehavior, outBehavior)
-        : inBehavior;
-    return filterPipedBehavior(combined, inSchema, outSchema, visited, true);
-  }
-  return filterPipedBehavior(
-    mergeIntersectedBehaviors(inBehavior, outBehavior),
-    inSchema,
-    outSchema,
-    visited,
-  );
-}
-
-function matchObjectVariantUnionBehavior(
-  unionOptions: z.ZodTypeAny[],
-  visited: Set<z.ZodTypeAny>,
-  options?: ChildRefAnalysisOptions,
-): BehaviorNode {
-  const nonNullish = flattenUnionOptions(unionOptions).filter(opt => {
-    const typeName = unwrapZodField(opt).schema?._def?.typeName as string | undefined;
-    return typeName !== 'ZodNull' && typeName !== 'ZodUndefined';
-  });
-  if (nonNullish.length === 0) {
-    return {type: 'STATIC'};
-  }
-  const branchBehaviors = nonNullish.map(opt => getFieldBehavior(opt, visited, options));
-  if (branchBehaviors.every((b): b is ObjectBehaviorNode => b.type === 'OBJECT')) {
-    return mergeUnionObjectBehaviors(branchBehaviors);
-  }
-  const arrayBehaviors = branchBehaviors.filter(
-    (b): b is Extract<BehaviorNode, {type: 'ARRAY'}> => b.type === 'ARRAY',
-  );
-  if (
-    arrayBehaviors.length > 0 &&
-    branchBehaviors.every(b => b.type === 'ARRAY' || b.type === 'STATIC')
-  ) {
-    const merged = arrayBehaviors
-      .slice(1)
-      .reduce<BehaviorNode>((acc, cur) => mergeUnionPropertyBehaviors(acc, cur), arrayBehaviors[0]);
-    return hasActiveBehavior(merged) ? merged : {type: 'STATIC'};
-  }
-  return {type: 'STATIC'};
-}
-
-function scrapeObjectShape(
-  objShape: Record<string, z.ZodTypeAny>,
-  visited: Set<z.ZodTypeAny>,
-  options?: ChildRefAnalysisOptions,
-): Record<string, BehaviorNode> {
-  const shape: Record<string, BehaviorNode> = {};
-  for (const [key, value] of Object.entries(objShape)) {
-    const behavior = getFieldBehavior(value, visited, options);
-    shape[key] =
-      behavior.type === 'STATIC' && isSingleChildPropertySchema(key, value, options)
-        ? CHILD_REF_STATIC_NODE
-        : behavior;
-  }
-  return shape;
-}
-
-/**
- * Recursively maps a Zod schema to its corresponding BehaviorNode.
- *
- * @param type Zod schema to inspect.
- * @param visited Set of already visited schemas on the current branch for cycle detection.
- * @param options Optional child-reference analysis options.
- * @returns Behavior node representing runtime handling for the schema.
- */
-function getFieldBehavior(
-  type: z.ZodTypeAny | undefined,
-  visited = new Set<z.ZodTypeAny>(),
-  options?: ChildRefAnalysisOptions,
-  inArray = false,
-): BehaviorNode {
-  if (!type) {
-    return {type: 'STATIC'};
-  }
-  const field = unwrapZodField(type);
-  for (const s of field.traversed) {
-    if (visited.has(s)) {
-      return {type: 'STATIC'};
-    }
-  }
-  const nextVisited = new Set(visited);
-  for (const s of field.traversed) {
-    nextVisited.add(s);
-  }
-
-  const defName = field.firstRefDefName || getRefDefName(type);
-
-  if (isCheckableField(type, field)) {
-    return {type: 'CHECKABLE'};
-  }
-
-  if (defName === 'Action') {
-    return {type: 'ACTION'};
-  }
-
-  const current = field.schema;
-  if (!current?._def) {
-    return {type: 'STATIC'};
-  }
-
-  const unionOptions = getUnionOptions(current);
-  const marksOuterChildList =
-    (field.refs.has('child-list') ||
-      hasChildRefKind(type, 'child-list') ||
-      defName === 'ChildList' ||
-      Boolean(defName && options?.childListRefNames?.has(defName))) &&
-    canSchemaHoldListRef(type, options);
-
-  if (!unionOptions && marksOuterChildList) {
-    return {type: 'STRUCTURAL'};
-  }
-
-  const typeName = current._def.typeName as string;
-
-  if (isDynamicDef(defName, typeName)) {
-    return isDynamicBooleanSchema(type) || defName === 'DynamicBoolean'
-      ? {type: 'DYNAMIC', isBoolean: true}
-      : {type: 'DYNAMIC'};
-  }
-
-  if (typeName === 'ZodPipeline') {
-    const def = current._def as {in: z.ZodTypeAny; out: z.ZodTypeAny};
-    const merged = pipeBehaviors(def['in'], def['out'], nextVisited, options);
-    return merged.type === 'STRUCTURAL' && !canSchemaHoldListRef(current, options)
-      ? {type: 'STATIC'}
-      : merged;
-  }
-
-  if (typeName === 'ZodIntersection') {
-    const def = current._def as {left: z.ZodTypeAny; right: z.ZodTypeAny};
-    const merged = mergeIntersectedBehaviors(
-      getFieldBehavior(def.left, nextVisited, options, inArray),
-      getFieldBehavior(def.right, nextVisited, options, inArray),
-    );
-    return merged.type === 'STRUCTURAL' && !canSchemaHoldListRef(current, options)
-      ? {type: 'STATIC'}
-      : merged;
-  }
-
-  // Structural matching for A2UI primitives and variant unions using typeName to avoid dual-module instanceof issues
-  if (unionOptions) {
-    const unionBehavior =
-      matchUnionBehavior(unionOptions, options) ??
-      (marksOuterChildList ? ({type: 'STRUCTURAL'} as const) : undefined);
-    if (unionBehavior) {
-      if (unionBehavior.type === 'STRUCTURAL') {
-        const flatOptions = flattenUnionOptions(unionOptions);
-        let mergedElement: BehaviorNode | undefined;
-        for (const opt of flatOptions) {
-          if (!isChildListOption(opt, options) && isArrayOption(opt)) {
-            const branchBehavior = getFieldBehavior(opt, nextVisited, options);
-            if (branchBehavior.type === 'ARRAY') {
-              mergedElement =
-                mergedElement === undefined
-                  ? branchBehavior.element
-                  : mergeUnionPropertyBehaviors(mergedElement, branchBehavior.element);
-            }
-          }
-        }
-        if (mergedElement && hasActiveBehavior(mergedElement)) {
-          return {type: 'ARRAY', element: mergedElement, templateFallback: true};
-        }
-      }
-      return unionBehavior;
-    }
-    return matchObjectVariantUnionBehavior(unionOptions, nextVisited, options);
-  }
-
-  // Recursive array scraping
-  if (typeName === 'ZodArray') {
+  const adapter = getLegacySchemaAdapter();
+  if (!adapter) {
     return {
-      type: 'ARRAY',
-      element: getFieldBehavior(current._def.type as z.ZodTypeAny, nextVisited, options, true),
+      type: 'OBJECT',
+      shape: {
+        '@checks': {type: 'CHECKABLE'},
+      },
     };
   }
-
-  if (typeName === 'ZodRecord') {
-    const valueType = (current._def as {valueType?: z.ZodTypeAny})['valueType'];
-    return makeObjectBehavior(
-      {},
-      valueType ? getFieldBehavior(valueType, nextVisited, options) : undefined,
-    );
-  }
-
-  // Recursive object scraping
-  if (typeName === 'ZodObject') {
-    if (!inArray && isTemplateRefObject(current)) {
-      return {type: 'STRUCTURAL'};
-    }
-    const rawShape = (current as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
-    const rawCatchall = (current._def as {catchall?: z.ZodTypeAny})['catchall'];
-    const catchall =
-      rawCatchall && (rawCatchall._def?.typeName as string | undefined) !== 'ZodNever'
-        ? getFieldBehavior(rawCatchall, nextVisited, options)
-        : undefined;
-    return makeObjectBehavior(scrapeObjectShape(rawShape, nextVisited, options), catchall);
-  }
-
-  // Fallback
-  return {type: 'STATIC'};
+  return adapter.scrapeComponentBehavior(schema, options);
 }
 
 /** Types recognized as dynamic data bindings or expression function calls. */
@@ -1298,23 +426,59 @@ export class GenericBinder<T> {
   >;
 
   /**
-   * Creates a new binder for the given component context and schema.
+   * Creates a new binder for the given component context and canonical
+   * {@link ComponentDefinition}, precomputed {@link BehaviorNode}, or legacy Zod schema.
    *
    * @param context Component context providing state and event dispatching.
-   * @param schema Zod schema defining the component properties.
+   * @param schema Canonical ComponentDefinition, `{definition, types}` wrapper, BehaviorNode, or legacy Zod schema.
    * @param options Optional child-reference analysis options overriding protocol-version defaults.
    */
-  constructor(context: ComponentContext, schema: z.ZodTypeAny, options?: ChildRefAnalysisOptions) {
+  constructor(
+    context: ComponentContext,
+    schema: GenericBinderTarget,
+    options?: ChildRefAnalysisOptions,
+  ) {
     this.context = context;
-    const resolvedOptions =
-      options ??
-      resolveChildRefOptions(
-        context.componentModel?.catalog?.protocolVersion ??
-          context.dataContext?.surface?.protocolVersion ??
-          context.dataContext?.surface?.defaultCatalog?.protocolVersion,
+    if (isBehaviorNode(schema)) {
+      this.behaviorTree = schema;
+      this.mirrorsAccessibility = true;
+    } else if (isComponentDefinition(schema)) {
+      const catalogTypes = context.componentModel?.catalog?.types;
+      this.behaviorTree = definitionToBehavior(schema, catalogTypes);
+      this.mirrorsAccessibility = !definitionEnvelopeLayout(schema).customKeys.has('accessibility');
+    } else if (
+      typeof schema === 'object' &&
+      schema !== null &&
+      'definition' in schema &&
+      (schema as {definition?: ComponentDefinition}).definition
+    ) {
+      const wrapper = schema as {
+        definition: ComponentDefinition;
+        types?: Readonly<Record<string, DataTypeDefinition>>;
+      };
+      this.behaviorTree = definitionToBehavior(
+        wrapper.definition,
+        wrapper.types ?? context.componentModel?.catalog?.types,
       );
-    this.behaviorTree = scrapeComponentBehavior(schema, resolvedOptions);
-    this.mirrorsAccessibility = !componentMixinLayout(schema).customKeys.has('accessibility');
+      this.mirrorsAccessibility = !definitionEnvelopeLayout(wrapper.definition).customKeys.has(
+        'accessibility',
+      );
+    } else {
+      const legacySchema =
+        typeof schema === 'object' && schema !== null && 'schema' in schema && !('_def' in schema)
+          ? (schema as {schema?: unknown}).schema
+          : schema;
+      const resolvedOptions =
+        options ??
+        resolveChildRefOptions(
+          context.componentModel?.catalog?.protocolVersion ??
+            context.dataContext?.surface?.protocolVersion ??
+            context.dataContext?.surface?.defaultCatalog?.protocolVersion,
+        );
+      this.behaviorTree = scrapeComponentBehavior(legacySchema, resolvedOptions);
+      const layout = getLegacySchemaAdapter()?.componentMixinLayout(legacySchema);
+      this.mirrorsAccessibility = !(layout?.customKeys.has('accessibility') ?? false);
+    }
     this.resolveInitialProps();
   }
 
@@ -1362,7 +526,7 @@ export class GenericBinder<T> {
     isSync: boolean,
     isBoolean?: boolean,
   ): unknown {
-    const coerce = isBoolean ? coerceDynamicBoolean : (v: unknown) => v;
+    const coerce = isBoolean ? coerceModelDynamicBoolean : (v: unknown) => v;
     const bound = this.context.dataContext.subscribeDynamicValue(value, newVal => {
       this.updateDeepValue(path, coerce(newVal));
       this.notify();

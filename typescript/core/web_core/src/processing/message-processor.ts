@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
-import {zodToJsonSchema} from 'zod-to-json-schema';
 import {SurfaceModel, ActionListener, type ActionPayload} from '../state/surface-model.js';
-import {Catalog, ComponentApi} from '../catalog/types.js';
-import {exclusiveUnionOverride} from '../catalog/exclusive_union.js';
-import {cleanSchemaNode} from '../catalog/schema_generator.js';
+import {getLegacySchemaAdapter} from '../catalog/legacy_schema_adapter.js';
+import {
+  surfacePropertiesToJsonSchema,
+  typeDefinitionToJsonSchema,
+} from '../catalog/model/json_schema_codec.js';
+import {Catalog, ComponentApi, ComponentApiLike} from '../catalog/types.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
 import {SurfaceComponentsModel} from '../state/surface-components-model.js';
@@ -219,7 +221,7 @@ export {formatZodIssue};
  *
  * @template T Concrete type of the ComponentApi.
  */
-export class MessageProcessor<T extends ComponentApi = ComponentApi> {
+export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
   readonly rpc: RpcHandler;
   private readonly adapterRegistry: VersionAdapterResolver;
@@ -440,20 +442,22 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     catalog: Catalog<T>,
     componentEnvelopeRef = 'common_types.json#/$defs/ComponentCommon',
   ): Record<string, unknown> {
+    const legacyAdapter = getLegacySchemaAdapter();
+    const codecOpts = {protocolVersion: '0.9'};
     const components: Record<string, unknown> = {};
     for (const [name, comp] of catalog.components.entries()) {
       let props: Record<string, unknown> = {};
       let reqList: string[] = [];
-      if (comp.schema && typeof comp.schema === 'object' && 'safeParse' in comp.schema) {
-        const rawZod = zodToJsonSchema(comp.schema, {
-          target: 'jsonSchema2019-09',
-          $refStrategy: 'none',
-          override: exclusiveUnionOverride,
-        }) as Record<string, unknown>;
-        cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
-        props = (rawZod.properties as Record<string, unknown>) || {};
-        reqList = Array.isArray(rawZod.required)
-          ? (rawZod.required as string[]).filter(r => r !== 'component' && r !== 'id')
+      if (comp.definition) {
+        for (const param of comp.definition.parameters ?? []) {
+          props[param.name] = typeDefinitionToJsonSchema(param, codecOpts);
+          if (param.required) reqList.push(param.name);
+        }
+      } else if (comp.schema && legacyAdapter?.isLegacySchema(comp.schema)) {
+        const rawZod = legacyAdapter.schemaToJsonSchema(comp.schema);
+        props = (rawZod['properties'] as Record<string, unknown>) || {};
+        reqList = Array.isArray(rawZod['required'])
+          ? (rawZod['required'] as string[]).filter(r => r !== 'component' && r !== 'id')
           : [];
       }
       const {component: _ignoredComp, id: _ignoredId, ...sanitizedProps} = props;
@@ -474,14 +478,20 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     const functions: Array<Record<string, unknown>> = [];
     for (const fn of catalog.functions.values()) {
       let paramSchema: Record<string, unknown> = {type: 'object', properties: {}};
-      if (fn.schema && typeof fn.schema === 'object' && 'safeParse' in fn.schema) {
-        const rawZod = zodToJsonSchema(fn.schema, {
-          target: 'jsonSchema2019-09',
-          $refStrategy: 'none',
-          override: exclusiveUnionOverride,
-        }) as Record<string, unknown>;
-        cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
-        paramSchema = rawZod;
+      if (fn.definition) {
+        const fnProps: Record<string, unknown> = {};
+        const fnReq: string[] = [];
+        for (const param of fn.definition.parameters ?? []) {
+          fnProps[param.name] = typeDefinitionToJsonSchema(param, codecOpts);
+          if (param.required) fnReq.push(param.name);
+        }
+        paramSchema = {
+          type: 'object',
+          properties: fnProps,
+          ...(fnReq.length > 0 ? {required: fnReq} : {}),
+        };
+      } else if (fn.schema && legacyAdapter?.isLegacySchema(fn.schema)) {
+        paramSchema = legacyAdapter.schemaToJsonSchema(fn.schema);
       }
       functions.push({
         name: fn.name,
@@ -492,14 +502,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     let theme: Record<string, unknown> | undefined;
-    if (catalog.themeSchema) {
-      const rawTheme = zodToJsonSchema(catalog.themeSchema, {
-        target: 'jsonSchema2019-09',
-        $refStrategy: 'none',
-        override: exclusiveUnionOverride,
-      }) as Record<string, unknown>;
-      cleanSchemaNode(rawTheme, undefined, {stripAdditionalProperties: true});
-      theme = (rawTheme.properties as Record<string, unknown>) || undefined;
+    if (catalog.themeSchema && legacyAdapter?.isLegacySchema(catalog.themeSchema)) {
+      const rawTheme = legacyAdapter.schemaToJsonSchema(catalog.themeSchema);
+      theme = (rawTheme['properties'] as Record<string, unknown>) || undefined;
+    } else if (catalog.surfaceProperties?.properties?.length) {
+      const rawTheme = surfacePropertiesToJsonSchema(catalog.surfaceProperties, codecOpts);
+      theme = (rawTheme['properties'] as Record<string, unknown>) || undefined;
     }
 
     return {
@@ -1484,12 +1492,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     );
   }
 
-  /** Returns the schema of a component's type in `catalog`, if any. */
+  /** Returns the catalog API entry of a component's type in `catalog`, if any. */
   private componentSchema(
     comp: Record<string, unknown>,
     surface: SurfaceModel<T>,
     catalog: Catalog<T> | undefined,
-  ): ComponentApi['schema'] | undefined {
+  ): ComponentApiLike | undefined {
     const {id, component} = comp;
     const type =
       typeof component === 'string' && component
@@ -1497,7 +1505,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         : typeof id === 'string'
           ? surface.componentsModel.get(id)?.type
           : undefined;
-    return type ? catalog?.components.get(type)?.schema : undefined;
+    return type ? catalog?.components.get(type) : undefined;
   }
 
   /**
@@ -1883,7 +1891,7 @@ function extractComponentMetadata(rawMetadata: unknown): A2uiMetadata | undefine
   return undefined;
 }
 
-function resolveSurfaceDefaultCatalog<T extends ComponentApi>(
+function resolveSurfaceDefaultCatalog<T extends ComponentApiLike>(
   catalogs: ReadonlyArray<Catalog<T>>,
   catalogId: string | undefined,
   msgVersion: string | undefined,

@@ -49,7 +49,36 @@ import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import {IndexImplementation} from '../v1_0/functions/system_functions.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
+import {registerZodSchemaAdapter} from '../compat/zod/zod_schema_adapter.js';
+import {getLegacySchemaAdapter} from './legacy_schema_adapter.js';
+import {
+  isCatalogDocument,
+  parseCatalogDocument,
+  serializeCatalogDocument as serializeCanonicalCatalogDocument,
+  validateComponentDefinition,
+  validateFunctionDefinition,
+} from './model/catalog_document.js';
+import {
+  CATALOG_DOCUMENT_FORMAT_VERSION,
+  functionReturnTypeName,
+  type CatalogMetadata,
+  type CatalogModel,
+  type ComponentDefinition,
+  type DataTypeDefinition,
+  type FunctionDefinition,
+  type SurfacePropertiesDefinition,
+} from './model/catalog_model.js';
+import type {ResolveFunctionDefinitionArgs} from './model/infer_definition_props.js';
+import {jsonSchemaToModel, modelToJsonSchema} from './model/json_schema_codec.js';
+import {buildModelReferenceMap} from './model/model_semantics.js';
+import {
+  coerceModelDynamicBooleans,
+  formatValidationIssue,
+  validateFunctionArguments,
+} from './model/model_validator.js';
 import {coerceDynamicBooleans} from './validation_result_coercion.js';
+
+registerZodSchemaAdapter();
 
 export type {ComponentChildRefs};
 export {AgentFunction, isAgentFunction};
@@ -88,15 +117,23 @@ export type InferA2uiReturnType<T extends string> = T extends keyof A2uiReturnTy
   : unknown;
 
 /**
- * Specification and schema for an A2UI function API.
+ * Shared structural contract for both legacy Zod-backed {@link FunctionApi}
+ * and canonical zero-dependency {@link ModelFunctionApi} entries.
  */
-export interface FunctionApi {
+export interface FunctionApiLike<Def extends FunctionDefinition = FunctionDefinition> {
   /** Name of the function as it appears in A2UI JSON payloads. */
   readonly name: string;
   /** Return type identifier for the function. */
   readonly returnType: A2uiReturnType;
-  /** Zod schema validating the function's input arguments. */
-  readonly schema: z.ZodTypeAny;
+  /**
+   * Legacy Zod schema validating the function's input arguments.
+   *
+   * Optional when the function is defined via the canonical zero-dependency
+   * {@link definition} model.
+   */
+  readonly schema?: z.ZodTypeAny;
+  /** Canonical zero-dependency semantic function definition. */
+  readonly definition?: Def;
   /** Allowed caller contexts for the function. */
   readonly allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
   /** Whether the function requires explicit user interaction before execution. */
@@ -105,12 +142,34 @@ export interface FunctionApi {
   readonly description?: string;
 }
 
+/**
+ * Specification and schema for an A2UI function API.
+ */
+export interface FunctionApi<
+  Def extends FunctionDefinition = FunctionDefinition,
+> extends FunctionApiLike<Def> {
+  /** Zod schema validating the function's input arguments. */
+  readonly schema: z.ZodTypeAny;
+}
+
+/**
+ * Canonical zero-dependency function API backed by a {@link FunctionDefinition}.
+ */
+export interface ModelFunctionApi<
+  Def extends FunctionDefinition = FunctionDefinition,
+> extends FunctionApiLike<Def> {
+  /** Canonical zero-dependency semantic function definition. */
+  readonly definition: Def;
+}
+
 export type {JsonSchemaObject};
 
 /**
  * A function implementation that can be registered with a catalog or evaluator.
  */
-export interface FunctionImplementation extends FunctionApi {
+export interface FunctionImplementation<
+  Def extends FunctionDefinition = FunctionDefinition,
+> extends FunctionApi<Def> {
   /**
    * Executes the function logic with the provided arguments and context.
    *
@@ -127,6 +186,24 @@ export interface FunctionImplementation extends FunctionApi {
 }
 
 /**
+ * Canonical zero-dependency function implementation backed by a {@link FunctionDefinition}.
+ */
+export interface ModelFunctionImplementation<
+  Def extends FunctionDefinition = FunctionDefinition,
+> extends ModelFunctionApi<Def> {
+  execute(
+    args: Record<string, unknown>,
+    context: DataContext,
+    abortSignal?: AbortSignal,
+  ): unknown | Signal<unknown>;
+}
+
+/** Union of legacy Zod and canonical zero-dependency function implementations. */
+export type AnyFunctionImplementation<Def extends FunctionDefinition = FunctionDefinition> =
+  | FunctionImplementation<Def>
+  | ModelFunctionImplementation<Def>;
+
+/**
  * Recursively unwraps dynamic wire AST nodes into their evaluated runtime values.
  */
 export type ResolvedDynamic<T> = T extends (infer U)[]
@@ -141,63 +218,147 @@ export type ResolvedDynamic<T> = T extends (infer U)[]
 export type ResolvedFunctionArgs<Schema extends z.ZodTypeAny> = z.infer<Schema>;
 
 /**
- * Creates a typed FunctionImplementation from an API definition and an execution callback.
+ * Accepted input shapes for {@link createFunctionImplementation}: a legacy Zod
+ * function API, a canonical zero-dependency {@link FunctionApi} carrying
+ * `definition`, or a bare {@link FunctionDefinition}.
+ */
+export type FunctionImplementationInput =
+  | FunctionDefinition
+  | {
+      readonly name: string;
+      readonly returnType?: A2uiReturnType;
+      readonly schema?: z.ZodTypeAny;
+      readonly definition?: FunctionDefinition;
+      readonly allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
+      readonly requiresUserActivation?: boolean;
+      readonly description?: string;
+    };
+
+type InferFunctionInputArgs<Api> = [Api] extends [{readonly schema: infer S extends z.ZodTypeAny}]
+  ? ResolvedFunctionArgs<S>
+  : [Api] extends [{readonly definition: infer D extends FunctionDefinition}]
+    ? ResolveFunctionDefinitionArgs<D>
+    : [Api] extends [FunctionDefinition]
+      ? ResolveFunctionDefinitionArgs<Api>
+      : Record<string, unknown>;
+
+type InferFunctionInputReturn<Api> = [Api] extends [
+  {readonly returnType: infer R extends A2uiReturnType},
+]
+  ? InferA2uiReturnType<R>
+  : unknown;
+
+/**
+ * Creates a typed FunctionImplementation from either a legacy Zod API definition
+ * or a canonical zero-dependency {@link FunctionDefinition} / {@link FunctionApi}
+ * and an execution callback.
  *
- * @param api The function API definition containing name, schema, and metadata.
+ * @param api The function API or canonical definition.
  * @param execute The execution handler callback.
  * @returns A complete FunctionImplementation object.
  */
-export function createFunctionImplementation<
-  Schema extends z.ZodTypeAny = z.ZodTypeAny,
-  TReturn extends A2uiReturnType = A2uiReturnType,
->(
-  api: {
-    name: string;
-    returnType: TReturn;
-    schema: Schema;
-    allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
-    requiresUserActivation?: boolean;
-    description?: string;
-  },
+export function createFunctionImplementation<const Api extends FunctionImplementationInput>(
+  api: Api,
   execute: (
-    args: ResolvedFunctionArgs<Schema>,
+    args: InferFunctionInputArgs<Api>,
     context: DataContext,
     abortSignal?: AbortSignal,
-  ) => InferA2uiReturnType<TReturn> | Signal<InferA2uiReturnType<TReturn>>,
-): FunctionImplementation {
+  ) => InferFunctionInputReturn<Api> | Signal<InferFunctionInputReturn<Api>>,
+): [Api] extends [{readonly schema: z.ZodTypeAny}]
+  ? FunctionImplementation
+  : ModelFunctionImplementation {
+  const isBareDefinition =
+    !('schema' in api) &&
+    !('definition' in api) &&
+    'returnType' in api &&
+    api.returnType !== undefined;
+  const def = isBareDefinition
+    ? (api as FunctionDefinition)
+    : (api as {definition?: FunctionDefinition}).definition;
+  const returnType =
+    typeof api.returnType === 'string'
+      ? api.returnType
+      : def
+        ? functionReturnTypeName(def.returnType)
+        : 'any';
   return {
     name: api.name,
-    returnType: api.returnType,
-    schema: api.schema,
-    allowedCallers: api.allowedCallers,
-    requiresUserActivation: api.requiresUserActivation,
-    description: api.description,
+    returnType,
+    ...('schema' in api && api.schema !== undefined ? {schema: api.schema} : {}),
+    ...(def !== undefined ? {definition: def} : {}),
+    allowedCallers: api.allowedCallers ?? def?.allowedCallers,
+    requiresUserActivation: api.requiresUserActivation ?? def?.requiresUserActivation,
+    description: api.description ?? def?.description,
     execute: execute as (
       args: Record<string, unknown>,
       ctx: DataContext,
       ab?: AbortSignal,
     ) => unknown,
-  };
+  } as unknown as [Api] extends [{readonly schema: z.ZodTypeAny}]
+    ? FunctionImplementation
+    : ModelFunctionImplementation;
+}
+
+/**
+ * Wraps a canonical zero-dependency {@link ComponentDefinition} as a {@link ModelComponentApi}
+ * ready for registration in a {@link Catalog} or framework renderer without importing Zod.
+ */
+export function defineComponentApi<const Def extends ComponentDefinition>(
+  def: Def,
+): ModelComponentApi<Def> {
+  validateComponentDefinition(def);
+  return Object.freeze({
+    name: def.name,
+    definition: def,
+    ...(def.allowedParents !== undefined ? {allowedParents: [...def.allowedParents]} : {}),
+    ...(def.allowedChildren !== undefined ? {allowedChildren: [...def.allowedChildren]} : {}),
+    ...(def.metadata !== undefined ? {metadata: def.metadata} : {}),
+  }) as ModelComponentApi<Def>;
+}
+
+/**
+ * Wraps a canonical zero-dependency {@link FunctionDefinition} as a {@link ModelFunctionApi}
+ * without importing Zod.
+ */
+export function defineFunctionApi<const Def extends FunctionDefinition>(
+  def: Def,
+): ModelFunctionApi<Def> {
+  validateFunctionDefinition(def);
+  return Object.freeze({
+    name: def.name,
+    returnType: functionReturnTypeName(def.returnType),
+    definition: def,
+    ...(def.allowedCallers !== undefined ? {allowedCallers: def.allowedCallers} : {}),
+    ...(def.requiresUserActivation !== undefined
+      ? {requiresUserActivation: def.requiresUserActivation}
+      : {}),
+    ...(def.description !== undefined ? {description: def.description} : {}),
+  }) as ModelFunctionApi<Def>;
 }
 
 import {FunctionInvoker} from './function_invoker.js';
 
 /**
- * Contract for a component's capabilities and properties, independent of rendering implementation.
- *
- * @template Schema The Zod schema type for the component's properties.
+ * Shared structural contract for both legacy Zod-backed {@link ComponentApi}
+ * and canonical zero-dependency {@link ModelComponentApi} entries.
  */
-export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
+export interface ComponentApiLike<
+  Schema extends z.ZodTypeAny | undefined = z.ZodTypeAny | undefined,
+  Def extends ComponentDefinition = ComponentDefinition,
+> {
   /** Name of the component as it appears in A2UI JSON (e.g., 'Button'). */
   name: string;
 
   /**
-   * Zod schema describing the properties of this component.
+   * Legacy Zod schema describing the properties of this component.
    *
-   * Must include catalog-specific common properties (e.g. 'weight', 'accessibility')
-   * and must omit envelope fields like 'component' or 'id'.
+   * Optional when the component is defined via the canonical zero-dependency
+   * {@link definition} model.
    */
-  readonly schema: Schema;
+  readonly schema?: Schema;
+
+  /** Canonical zero-dependency semantic component definition. */
+  readonly definition?: Def;
 
   /** Optional allowed parent component types (e.g. ['Column', 'Surface']). */
   readonly allowedParents?: string[];
@@ -210,12 +371,41 @@ export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
 }
 
 /**
+ * Contract for a component's capabilities and properties, independent of rendering implementation.
+ *
+ * @template Schema The legacy Zod schema type for the component's properties.
+ * @template Def The optional canonical zero-dependency {@link ComponentDefinition}.
+ */
+export interface ComponentApi<
+  Schema extends z.ZodTypeAny = z.ZodTypeAny,
+  Def extends ComponentDefinition = ComponentDefinition,
+> extends ComponentApiLike<Schema, Def> {
+  /** Zod schema describing the properties of this component. */
+  readonly schema: Schema;
+}
+
+/**
+ * Canonical zero-dependency component API backed by a {@link ComponentDefinition}.
+ */
+export interface ModelComponentApi<
+  Def extends ComponentDefinition = ComponentDefinition,
+> extends ComponentApiLike<z.ZodTypeAny | undefined, Def> {
+  /** Canonical zero-dependency semantic component definition. */
+  readonly definition: Def;
+}
+
+/**
  * Infers the schema type from a ComponentApi.
  *
- * Uses `z.infer` on the `schema` property of a `ComponentApi` object to access
- * component properties with type safety.
+ * Uses `z.infer` on the `schema` property of a legacy Zod `ComponentApi` object.
  */
-export type InferredComponentApiSchemaType<Api extends ComponentApi> = z.infer<Api['schema']>;
+export type InferredComponentApiSchemaType<Api extends ComponentApiLike> = [
+  NonNullable<Api['schema']>,
+] extends [never]
+  ? Record<string, unknown>
+  : NonNullable<Api['schema']> extends z.ZodTypeAny
+    ? z.infer<NonNullable<Api['schema']>>
+    : Record<string, unknown>;
 
 /**
  * The `anyComponent` and `anyFunction` unions a catalog document carries in
@@ -328,10 +518,18 @@ export interface CatalogDocumentOptions {
 export interface CatalogOptions extends CatalogDocumentOptions {
   /** Schema for this catalog's theme parameters. */
   themeSchema?: z.ZodTypeAny;
+  /** Canonical catalog-local reusable leaf data types (referenced by `{ type: 'ref' }`). */
+  types?: Readonly<Record<string, DataTypeDefinition>>;
+  /** Canonical surface-level properties definition (maps to v0.9 `theme`). */
+  surfaceProperties?: SurfacePropertiesDefinition;
+  /** Catalog-level metadata (`{ extensions?: ... }`). */
+  metadata?: CatalogMetadata;
+  /** The Catalog Document's `$schema` URI when loaded from a v1.0 Catalog Document. */
+  documentSchemaUri?: string;
 }
 
 /** Options for {@link Catalog.copyWith}. */
-export interface CopyWithCatalogOptions<T extends ComponentApi, F extends FunctionApi> {
+export interface CopyWithCatalogOptions<T extends ComponentApiLike, F extends FunctionApiLike> {
   /** Replacement catalog ID. Defaults to this catalog's ID. */
   catalogId?: string;
   /** Replacement protocol version. Defaults to this catalog's protocol version. */
@@ -359,7 +557,7 @@ export interface CopyWithCatalogOptions<T extends ComponentApi, F extends Functi
 }
 
 /** What `Catalog.derive` builds a catalog from. */
-export interface DeriveCatalogOptions<T extends ComponentApi, F extends FunctionApi> {
+export interface DeriveCatalogOptions<T extends ComponentApiLike, F extends FunctionApiLike> {
   /** The ID of the new catalog. */
   catalogId: string;
   /**
@@ -384,8 +582,8 @@ export interface DeriveCatalogOptions<T extends ComponentApi, F extends Function
  * renaming during compilation.
  */
 export declare interface CatalogInterface<
-  T extends ComponentApi = ComponentApi,
-  F extends FunctionApi = FunctionImplementation,
+  T extends ComponentApiLike = ComponentApi,
+  F extends FunctionApiLike = FunctionImplementation,
 > {
   /** Unique identifier for the catalog (usually a URI). */
   readonly id: string;
@@ -401,12 +599,20 @@ export declare interface CatalogInterface<
   readonly rendererFunctions: ReadonlyMap<string, F>;
   /** Schema for theme parameters used by this catalog. */
   readonly themeSchema?: z.ZodTypeAny;
+  /** Canonical catalog-local reusable leaf data types. */
+  readonly types?: Readonly<Record<string, DataTypeDefinition>>;
+  /** Canonical surface-level properties definition (maps to v0.9 `theme`). */
+  readonly surfaceProperties?: SurfacePropertiesDefinition;
+  /** Catalog-level metadata (`{ extensions?: ... }`). */
+  readonly metadata?: CatalogMetadata;
   /** System instructions or usage guidelines for this catalog. */
   readonly instructions?: string;
   /** Invoker callback that delegates to this catalog's registered functions. */
   readonly invoker: FunctionInvoker;
   /** The document's `$schema`, if known. */
   readonly schemaUri?: string;
+  /** The Catalog Document's `$schema` URI, if loaded from a v1.0 Catalog Document. */
+  readonly documentSchemaUri?: string;
   /** The document's `$id`, if known. */
   readonly schemaId?: string;
   /** The document's `title`, if known. */
@@ -441,8 +647,10 @@ export declare interface CatalogInterface<
    * @deprecated Use `validationSchema` instead.
    */
   readonly catalogSchema: Record<string, unknown>;
-  /** Unbundled catalog document for this catalog. */
+  /** Unbundled JSON Schema catalog document for this catalog. */
   toJson(): Record<string, unknown>;
+  /** Canonical Catalog Document (`formatVersion: "1.0"`) for this catalog. */
+  toDocument?(): Record<string, unknown>;
   /** Component reference map for child reference extraction and topology validation. */
   readonly componentRefMap: ComponentRefMap;
 }
@@ -471,8 +679,8 @@ export declare interface CatalogInterface<
  * of a built-in basic catalog equals its published document.
  */
 export class Catalog<
-  T extends ComponentApi,
-  F extends FunctionApi = FunctionImplementation,
+  T extends ComponentApiLike,
+  F extends FunctionApiLike = FunctionImplementation,
 > implements CatalogInterface<T, F> {
   /** Unique identifier for the catalog. */
   readonly id: string;
@@ -511,6 +719,15 @@ export class Catalog<
    */
   readonly themeSchema?: z.ZodTypeAny;
 
+  /** Canonical catalog-local reusable leaf data types. */
+  readonly types?: Readonly<Record<string, DataTypeDefinition>>;
+
+  /** Canonical surface-level properties definition (maps to v0.9 `theme`). */
+  readonly surfaceProperties?: SurfacePropertiesDefinition;
+
+  /** Catalog-level metadata (`{ extensions?: ... }`). */
+  readonly metadata?: CatalogMetadata;
+
   /**
    * Optional system instructions or usage guidelines for this catalog.
    */
@@ -523,6 +740,8 @@ export class Catalog<
 
   /** The document's `$schema`, if known. */
   readonly schemaUri?: string;
+  /** The Catalog Document's `$schema` URI, if loaded from a v1.0 Catalog Document. */
+  readonly documentSchemaUri?: string;
 
   /** The document's `$id`, if known. */
   readonly schemaId?: string;
@@ -629,6 +848,132 @@ export class Catalog<
   }
 
   /**
+   * Returns this catalog as a canonical in-memory {@link CatalogModel}.
+   *
+   * Entries carrying a canonical `definition` are used directly. Legacy entries
+   * loaded from JSON Schema or authored with Zod schemas are converted
+   * losslessly through the JSON Schema / Zod model adapters.
+   */
+  toModel(): CatalogModel {
+    const allCanonical =
+      [...this.components.values()].every(c => c.definition !== undefined) &&
+      [...this.functions.values()].every(f => f.definition !== undefined) &&
+      (!this.themeSchema || this.surfaceProperties !== undefined);
+
+    if (allCanonical) {
+      const components = [...this.components.values()].map(c => c.definition!);
+      const functions = [...this.functions.values()].map(f => f.definition!);
+      return {
+        ...(this.documentSchemaUri !== undefined ? {$schema: this.documentSchemaUri} : {}),
+        formatVersion: CATALOG_DOCUMENT_FORMAT_VERSION,
+        catalogId: this.id,
+        protocolVersion: String(this.protocolVersion),
+        ...(this.title !== undefined ? {title: this.title} : {}),
+        ...(this.description !== undefined ? {description: this.description} : {}),
+        ...(this.instructions !== undefined ? {instructions: this.instructions} : {}),
+        ...(this.metadata !== undefined ? {metadata: this.metadata} : {}),
+        ...(this.types !== undefined && Object.keys(this.types).length > 0
+          ? {types: this.types}
+          : {}),
+        ...(this.surfaceProperties !== undefined
+          ? {surfaceProperties: this.surfaceProperties}
+          : {}),
+        ...(components.length > 0 ? {components} : {}),
+        ...(functions.length > 0 ? {functions} : {}),
+      };
+    }
+
+    // For legacy JSON-Schema-loaded or Zod-defined catalogs, convert from
+    // `toJson()` so catalog-local `$defs`, `Checkable` mixins, `atLeastOneOf`,
+    // and spec annotations are preserved cleanly, while keeping any explicit
+    // canonical `definition` entries authoritative.
+    const converted = jsonSchemaToModel(this.toJson(), {
+      protocolVersion: String(this.protocolVersion),
+      catalogId: this.id,
+    });
+    const convertedComps = new Map((converted.components ?? []).map(c => [c.name, c]));
+    const convertedFns = new Map((converted.functions ?? []).map(f => [f.name, f]));
+    const legacyAdapter = getLegacySchemaAdapter();
+
+    const components: ComponentDefinition[] = [];
+    for (const comp of this.components.values()) {
+      if (comp.definition) {
+        components.push(comp.definition);
+      } else {
+        const fromJson = convertedComps.get(comp.name);
+        if (fromJson) {
+          components.push(fromJson);
+        } else if (comp.schema && legacyAdapter) {
+          components.push(
+            legacyAdapter.componentSchemaToDefinition(comp.name, comp.schema, {
+              allowedParents: comp.allowedParents,
+              allowedChildren: comp.allowedChildren,
+              metadata: comp.metadata,
+            }),
+          );
+        } else {
+          components.push({name: comp.name});
+        }
+      }
+    }
+
+    const functions: FunctionDefinition[] = [];
+    for (const fn of this.functions.values()) {
+      if (fn.definition) {
+        functions.push(fn.definition);
+      } else {
+        const fromJson = convertedFns.get(fn.name);
+        if (fromJson) {
+          functions.push(fromJson);
+        } else if (fn.schema && legacyAdapter) {
+          functions.push(
+            legacyAdapter.functionSchemaToDefinition(fn.name, fn.returnType, fn.schema, {
+              description: fn.description,
+              allowedCallers: fn.allowedCallers,
+              requiresUserActivation: fn.requiresUserActivation,
+            }),
+          );
+        } else {
+          functions.push({name: fn.name, returnType: 'any'});
+        }
+      }
+    }
+
+    const mergedTypes =
+      this.types || converted.types
+        ? {...(converted.types ?? {}), ...(this.types ?? {})}
+        : undefined;
+    const surfaceProperties =
+      this.surfaceProperties ??
+      converted.surfaceProperties ??
+      (this.themeSchema && legacyAdapter
+        ? legacyAdapter.themeSchemaToSurfaceProperties(this.themeSchema)
+        : undefined);
+
+    return {
+      formatVersion: CATALOG_DOCUMENT_FORMAT_VERSION,
+      catalogId: this.id,
+      protocolVersion: String(this.protocolVersion),
+      ...(this.title !== undefined ? {title: this.title} : {}),
+      ...(this.description !== undefined ? {description: this.description} : {}),
+      ...(this.instructions !== undefined ? {instructions: this.instructions} : {}),
+      ...(this.metadata !== undefined ? {metadata: this.metadata} : {}),
+      ...(mergedTypes && Object.keys(mergedTypes).length > 0 ? {types: mergedTypes} : {}),
+      ...(surfaceProperties !== undefined ? {surfaceProperties} : {}),
+      ...(components.length > 0 ? {components} : {}),
+      ...(functions.length > 0 ? {functions} : {}),
+    };
+  }
+
+  /**
+   * Serializes this catalog into the canonical Catalog Document JSON format
+   * (`formatVersion: "1.0"`).
+   */
+  toDocument(): Record<string, unknown> {
+    return serializeCanonicalCatalogDocument(this.toModel());
+  }
+
+  /**
    * Returns a catalog with this catalog's ID, version, theme and
    * document-level fields, and the given entries instead of its own.
    *
@@ -640,7 +985,7 @@ export class Catalog<
    * @param functions The functions of the new catalog.
    * @returns A new catalog.
    */
-  withEntries<U extends ComponentApi = T, G extends FunctionApi = F>(
+  withEntries<U extends ComponentApiLike = T, G extends FunctionApiLike = F>(
     components: U[],
     functions: G[],
   ): Catalog<U, G> {
@@ -668,7 +1013,7 @@ export class Catalog<
    *   `$defs` entry that the catalog's `$defs`, or another agent function's,
    *   defines differently.
    */
-  copyWith<U extends ComponentApi = T, G extends FunctionApi = F>(
+  copyWith<U extends ComponentApiLike = T, G extends FunctionApiLike = F>(
     options: CopyWithCatalogOptions<U, G> = {},
   ): Catalog<U, G> {
     const nextComponents: U[] =
@@ -724,7 +1069,7 @@ export class Catalog<
    * @returns A new catalog.
    * @throws {A2uiCatalogError} If a name is not an entry of this catalog.
    */
-  derive<U extends ComponentApi = T, G extends FunctionApi = F>(
+  derive<U extends ComponentApiLike = T, G extends FunctionApiLike = F>(
     options: DeriveCatalogOptions<U, G>,
   ): Catalog<T | U, F | G> {
     const pick = <Own extends {name: string}, Extra extends {name: string}>(
@@ -755,7 +1100,7 @@ export class Catalog<
    * Builds a catalog with this catalog's version, theme and layout, the given
    * entries and the given fields that describe the catalog.
    */
-  private rebuild<U extends ComponentApi, G extends FunctionApi>(
+  private rebuild<U extends ComponentApiLike, G extends FunctionApiLike>(
     components: U[],
     functions: G[],
     described: {
@@ -796,6 +1141,7 @@ export class Catalog<
         themeSchema: described.themeSchema ?? this.themeSchema,
         instructions: described.instructions,
         schemaUri: this.schemaUri,
+        documentSchemaUri: this.documentSchemaUri,
         schemaId: described.schemaId,
         title: described.title,
         description: described.description,
@@ -814,6 +1160,9 @@ export class Catalog<
         commonTypesUri: this.commonTypesUri,
         themeLocation: this.themeLocation,
         defModels: this.defModels,
+        types: this.types,
+        surfaceProperties: this.surfaceProperties,
+        metadata: this.metadata,
       },
     );
   }
@@ -825,12 +1174,20 @@ export class Catalog<
    */
   get componentRefMap(): ComponentRefMap {
     if (!this._componentRefMap) {
-      const options = isAtLeastVersion(this.protocolVersion, '1.0')
-        ? V10_CHILD_REF_OPTIONS
-        : isAtLeastVersion(this.protocolVersion, '0.9')
-          ? V09_CHILD_REF_OPTIONS
-          : V08_CHILD_REF_OPTIONS;
-      this._componentRefMap = buildComponentRefMap(this, options);
+      const comps = [...this.components.values()];
+      if (comps.every(c => c.definition !== undefined)) {
+        this._componentRefMap = buildModelReferenceMap(
+          comps.map(c => c.definition!),
+          this.types,
+        );
+      } else {
+        const options = isAtLeastVersion(this.protocolVersion, '1.0')
+          ? V10_CHILD_REF_OPTIONS
+          : isAtLeastVersion(this.protocolVersion, '0.9')
+            ? V09_CHILD_REF_OPTIONS
+            : V08_CHILD_REF_OPTIONS;
+        this._componentRefMap = buildComponentRefMap(this, options);
+      }
     }
     return this._componentRefMap;
   }
@@ -976,8 +1333,14 @@ export class Catalog<
     this.rendererFunctions = rendererFuncMap;
 
     this.themeSchema = options.themeSchema;
+    this.types = options.types ? frozenJson(options.types) : undefined;
+    this.surfaceProperties = options.surfaceProperties
+      ? frozenJson(options.surfaceProperties)
+      : undefined;
+    this.metadata = options.metadata ? frozenJson(options.metadata) : undefined;
     this.instructions = options.instructions ?? resolvedInstructions;
     this.schemaUri = options.schemaUri;
+    this.documentSchemaUri = options.documentSchemaUri;
     this.schemaId = options.schemaId;
     this.title = options.title;
     this.description = options.description;
@@ -1021,11 +1384,34 @@ export class Catalog<
    *   other than itself or `common_types.json`, such as another catalog. Such
    *   a reference is never fetched.
    */
+  /**
+   * Constructs a schema-only `Catalog` from a canonical Catalog Document
+   * (`formatVersion: "1.0"`) with zero Zod compilation.
+   *
+   * @param doc Serialized Catalog Document JSON object.
+   * @param protocolVersion Optional protocol version override.
+   * @param catalogId Optional catalog ID override.
+   * @returns A new Catalog populated with canonical `ComponentDefinition` and `FunctionDefinition` entries.
+   * @throws {A2uiCatalogError} If `doc` violates any Catalog Document rule.
+   */
+  static fromDocument(
+    doc: Record<string, unknown>,
+    protocolVersion?: string,
+    catalogId?: string,
+  ): Catalog<ModelComponentApi, ModelFunctionApi> {
+    const model = parseCatalogDocument(doc, {protocolVersion, catalogId});
+    return buildCatalogFromModel(model, false) as Catalog<ModelComponentApi, ModelFunctionApi>;
+  }
+
   static fromJson(
     json: Record<string, any>,
     protocolVersion?: string,
     catalogId?: string,
   ): CatalogApi {
+    if (isCatalogDocument(json)) {
+      const model = parseCatalogDocument(json, {protocolVersion, catalogId});
+      return buildCatalogFromModel(model, true) as CatalogApi;
+    }
     const {
       id,
       protocolVersion: resolvedVersion,
@@ -1061,11 +1447,90 @@ export class Catalog<
 export type CatalogApi = Catalog<ComponentApi, FunctionApi>;
 
 /**
+ * Supertype accepting both legacy Zod-backed {@link CatalogApi} instances and
+ * canonical zero-dependency catalogs built via {@link Catalog.fromDocument} or
+ * {@link defineComponentApi}.
+ */
+export type AnyCatalogApi = Catalog<ComponentApiLike, FunctionApiLike>;
+
+function buildCatalogFromModel(
+  model: CatalogModel,
+  lazyZodSchemas: boolean,
+): Catalog<ComponentApiLike, FunctionApiLike> {
+  const resolvedVersion = model.protocolVersion ?? '1.0';
+  let lazyParsed: ReturnType<typeof parseCatalogSchema> | undefined;
+  const ensureLegacyParsed = (): ReturnType<typeof parseCatalogSchema> => {
+    if (!lazyParsed) {
+      lazyParsed = parseCatalogSchema(modelToJsonSchema(model), resolvedVersion, model.catalogId);
+    }
+    return lazyParsed;
+  };
+  const attachLazySchema = (
+    entry: Record<string, unknown>,
+    kind: 'components' | 'functions',
+    name: string,
+  ): void => {
+    let cachedSchema: z.ZodTypeAny | undefined;
+    Object.defineProperty(entry, 'schema', {
+      enumerable: true,
+      get(): z.ZodTypeAny {
+        if (!cachedSchema) {
+          const found = ensureLegacyParsed()[kind].find(e => e.name === name);
+          cachedSchema = found?.schema ?? z.record(z.any());
+        }
+        return cachedSchema;
+      },
+    });
+  };
+  const components: ComponentApiLike[] = (model.components ?? []).map(def => {
+    const entry: Record<string, unknown> = {
+      name: def.name,
+      definition: def,
+      ...(def.allowedParents !== undefined ? {allowedParents: [...def.allowedParents]} : {}),
+      ...(def.allowedChildren !== undefined ? {allowedChildren: [...def.allowedChildren]} : {}),
+      ...(def.metadata !== undefined ? {metadata: def.metadata} : {}),
+    };
+    if (lazyZodSchemas) {
+      attachLazySchema(entry, 'components', def.name);
+    }
+    return entry as unknown as ComponentApiLike;
+  });
+  const functions: FunctionApiLike[] = (model.functions ?? []).map(def => {
+    const entry: Record<string, unknown> = {
+      name: def.name,
+      returnType: functionReturnTypeName(def.returnType),
+      definition: def,
+      ...(def.allowedCallers !== undefined ? {allowedCallers: def.allowedCallers} : {}),
+      ...(def.requiresUserActivation !== undefined
+        ? {requiresUserActivation: def.requiresUserActivation}
+        : {}),
+      ...(def.description !== undefined ? {description: def.description} : {}),
+    };
+    if (lazyZodSchemas) {
+      attachLazySchema(entry, 'functions', def.name);
+    }
+    return entry as unknown as FunctionApiLike;
+  });
+  return new Catalog(model.catalogId, resolvedVersion, components, functions, {
+    documentSchemaUri: model.$schema,
+    title: model.title,
+    description: model.description,
+    instructions: model.instructions,
+    metadata: model.metadata,
+    types: model.types,
+    surfaceProperties: model.surfaceProperties,
+  });
+}
+
+/**
  * Throws if two of `functions` share a name. Checked when the list holds an
  * agent function, so an agent function can't silently replace another
  * function, or be replaced by one.
  */
-function assertUniqueFunctionNames(catalogId: string, functions: ReadonlyArray<FunctionApi>): void {
+function assertUniqueFunctionNames(
+  catalogId: string,
+  functions: ReadonlyArray<FunctionApiLike>,
+): void {
   const seen = new Set<string>();
   for (const fn of functions) {
     if (seen.has(fn.name)) {
@@ -1130,7 +1595,7 @@ function assertAgentFunctionDefsAgree(
  *   another function, or a `fromApi` agent function wraps a declaration
  *   `functions` doesn't have.
  */
-function mergeAgentFunctions<F extends FunctionApi>(
+function mergeAgentFunctions<F extends FunctionApiLike>(
   catalogId: string,
   functions: ReadonlyArray<F>,
   agentFunctions: ReadonlyArray<AgentFunction> | undefined,
@@ -1181,7 +1646,7 @@ function mergeAgentFunctions<F extends FunctionApi>(
   return merged;
 }
 
-function createCatalogInvoker<F extends FunctionApi>(
+function createCatalogInvoker<F extends FunctionApiLike>(
   catalogId: string,
   protocolVersion: ProtocolVersion | string,
   functions: ReadonlyMap<string, F>,
@@ -1204,7 +1669,16 @@ function createCatalogInvoker<F extends FunctionApi>(
           ? ctx.surface
           : undefined;
       if (surface?.agentFunctionCaller) {
-        return routeToAgent(surface, catalogId, name, fn, rawArgs, ctx, abortSignal);
+        return routeToAgent(
+          surface,
+          catalogId,
+          name,
+          fn,
+          rawArgs,
+          ctx,
+          abortSignal,
+          catalog?.types,
+        );
       }
     }
 
@@ -1227,8 +1701,30 @@ function createCatalogInvoker<F extends FunctionApi>(
 
     return whenArgumentsSettle(rawArgs, abortSignal, resolvedArgs => {
       try {
-        const args = coerceDynamicBooleans(fn.schema, resolvedArgs);
-        const safeArgs = fn.schema.parse(args);
+        let safeArgs: Record<string, unknown>;
+        if (fn.definition) {
+          const coerced = coerceModelDynamicBooleans(fn.definition, resolvedArgs, catalog?.types);
+          const outcome = validateFunctionArguments(fn.definition, coerced ?? {}, {
+            types: catalog?.types,
+            protocolVersion,
+            applyDefaults: true,
+            coerceDynamicBoolean: true,
+          });
+          if (!outcome.success) {
+            const msg = outcome.issues.map(formatValidationIssue).join('; ');
+            throw new A2uiExpressionError(
+              `Validation failed for function '${name}': ${msg}`,
+              name,
+              outcome.issues,
+            );
+          }
+          safeArgs = outcome.data;
+        } else if (fn.schema) {
+          const args = coerceDynamicBooleans(fn.schema, resolvedArgs);
+          safeArgs = fn.schema.parse(args) as Record<string, unknown>;
+        } else {
+          safeArgs = (resolvedArgs ?? {}) as Record<string, unknown>;
+        }
         return execute.call(fn, safeArgs, callCtx, abortSignal);
       } catch (e: any) {
         if (e?.name === 'ZodError' || e instanceof z.ZodError) {
@@ -1287,10 +1783,11 @@ function routeToAgent(
   surface: SurfaceModel<any, any>,
   catalogId: string,
   name: string,
-  fn: FunctionApi | undefined,
+  fn: FunctionApiLike | undefined,
   rawArgs: unknown,
   ctx: DataContext,
   abortSignal: AbortSignal | undefined,
+  catalogTypes?: Readonly<Record<string, DataTypeDefinition>>,
 ): unknown {
   if (fn) {
     assertCallerBoundary(fn, ctx);
@@ -1300,16 +1797,36 @@ function routeToAgent(
   return whenArgumentsSettle(rawArgs, abortSignal, resolvedArgs => {
     let args = (resolvedArgs ?? {}) as Record<string, unknown>;
     if (fn) {
-      args = coerceDynamicBooleans(fn.schema, args) as Record<string, unknown>;
-      const parsed = fn.schema.safeParse(args);
-      if (!parsed.success) {
-        throw new A2uiExpressionError(
-          `Validation failed for function '${name}': ${parsed.error.message}`,
-          name,
-          parsed.error.errors,
-        );
+      if (fn.definition) {
+        const types = catalogTypes ?? surface.defaultCatalog?.types;
+        const coerced = coerceModelDynamicBooleans(fn.definition, args, types);
+        const parsed = validateFunctionArguments(fn.definition, coerced ?? {}, {
+          types,
+          protocolVersion: surface.protocolVersion,
+          applyDefaults: true,
+          coerceDynamicBoolean: true,
+        });
+        if (!parsed.success) {
+          const msg = parsed.issues.map(formatValidationIssue).join('; ');
+          throw new A2uiExpressionError(
+            `Validation failed for function '${name}': ${msg}`,
+            name,
+            parsed.issues,
+          );
+        }
+        args = parsed.data;
+      } else if (fn.schema) {
+        args = coerceDynamicBooleans(fn.schema, args) as Record<string, unknown>;
+        const parsed = fn.schema.safeParse(args);
+        if (!parsed.success) {
+          throw new A2uiExpressionError(
+            `Validation failed for function '${name}': ${parsed.error.message}`,
+            name,
+            parsed.error.errors,
+          );
+        }
+        args = parsed.data as Record<string, unknown>;
       }
-      args = parsed.data as Record<string, unknown>;
     }
     return surface.callAgentFunction({'@call': name, catalogId, args}, {abortSignal, bypassCache});
   });
@@ -1322,7 +1839,7 @@ function routeToAgent(
  *
  * @internal
  */
-export function assertFunctionPermissions(fn: FunctionApi, ctx: DataContext | undefined): void {
+export function assertFunctionPermissions(fn: FunctionApiLike, ctx: DataContext | undefined): void {
   assertCallerBoundary(fn, ctx);
   assertUserActivation(fn, ctx);
 }
@@ -1331,7 +1848,7 @@ export function assertFunctionPermissions(fn: FunctionApi, ctx: DataContext | un
  * Enforces `allowedCallers` against the active caller (`agent` when `ctx` was
  * initiated by `callRendererFunction`, `renderer` otherwise).
  */
-function assertCallerBoundary(fn: FunctionApi, ctx: DataContext | undefined): void {
+function assertCallerBoundary(fn: FunctionApiLike, ctx: DataContext | undefined): void {
   if (fn.name?.startsWith('@')) return;
   const boundary = fn.allowedCallers ?? 'rendererOnly';
   if (ctx instanceof DataContext && isAgentCaller(ctx)) {
@@ -1352,7 +1869,7 @@ function assertCallerBoundary(fn: FunctionApi, ctx: DataContext | undefined): vo
   }
 }
 
-function assertUserActivation(fn: FunctionApi, ctx: DataContext | undefined): void {
+function assertUserActivation(fn: FunctionApiLike, ctx: DataContext | undefined): void {
   if (!fn.requiresUserActivation) return;
   const isAgent = Boolean(ctx instanceof DataContext && isAgentCaller(ctx));
   const isPassive =

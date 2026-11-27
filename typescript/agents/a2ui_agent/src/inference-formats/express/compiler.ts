@@ -28,7 +28,7 @@ import {
   isValidUax31Identifier,
   normalizeVersionString,
   type AgentToRendererMessage,
-  type CatalogApi,
+  type AnyCatalogApi,
 } from '../../internal/web-core.js';
 import {
   buildSchemaHelpers,
@@ -1275,14 +1275,14 @@ export class ExpressScopeSession {
  */
 export class ExpressCompiler {
   readonly helpers: Map<string, CatalogSchemaHelper>;
-  readonly catalogs: CatalogApi[];
+  readonly catalogs: AnyCatalogApi[];
   readonly version: string;
 
   /**
    * @param catalogs The active catalog, or several.
    * @param version The protocol version to emit. Defaults to the catalogs' version.
    */
-  constructor(catalogs: CatalogApi | CatalogApi[], version?: string) {
+  constructor(catalogs: AnyCatalogApi | AnyCatalogApi[], version?: string) {
     this.catalogs = toCatalogList(catalogs);
     this.version = resolveExpressVersion(this.catalogs, version);
     this.helpers = buildSchemaHelpers(this.catalogs, this.version);

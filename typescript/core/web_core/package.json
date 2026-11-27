@@ -30,6 +30,14 @@
       "types": "./dist/src/catalog/index.d.ts",
       "default": "./dist/src/catalog/index.js"
     },
+    "./catalog/model": {
+      "types": "./dist/src/catalog/model/index.d.ts",
+      "default": "./dist/src/catalog/model/index.js"
+    },
+    "./zod": {
+      "types": "./dist/src/compat/zod/index.d.ts",
+      "default": "./dist/src/compat/zod/index.js"
+    },
     "./state": {
       "types": "./dist/src/state/index.d.ts",
       "default": "./dist/src/state/index.js"

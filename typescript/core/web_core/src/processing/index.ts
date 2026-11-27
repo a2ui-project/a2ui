@@ -56,6 +56,16 @@ export {
   BaseVersionAdapter,
 } from './adapters/base.js';
 export {
+  validateAccessibilityAttributes,
+  validateAgentToRendererEnvelope,
+  validateComponentMetadata,
+  validateV09AgentToRendererMessage,
+  validateV10ActionMessage,
+  validateV10AgentToRendererMessage,
+  validateV10ErrorMessage,
+  validateV10RendererFunctionResponseMessage,
+} from './wire-validators.js';
+export {
   type A2uiErrorDetail,
   type A2uiErrorContext,
   A2uiError,

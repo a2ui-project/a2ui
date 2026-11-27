@@ -23,7 +23,7 @@
 import {
   A2uiValidationError,
   AgentToRendererMessage,
-  CatalogApi,
+  type AnyCatalogApi,
   compareSemVer,
   isValidUax31Identifier,
 } from '../../internal/web-core.js';
@@ -269,7 +269,7 @@ function decompileReference(componentId: string, varNames: ReadonlyMap<string, s
  */
 export class ExpressDecompiler {
   readonly helpers: Map<string, CatalogSchemaHelper>;
-  readonly catalogs: CatalogApi[];
+  readonly catalogs: AnyCatalogApi[];
   readonly protocolVersion: string;
   private readonly soleCatalogId: string | undefined;
   private readonly isV1: boolean;
@@ -278,7 +278,7 @@ export class ExpressDecompiler {
    * @param catalogs The catalog, or several.
    * @param protocolVersion The protocol version of the messages.
    */
-  constructor(catalogs: CatalogApi | CatalogApi[], protocolVersion: string) {
+  constructor(catalogs: AnyCatalogApi | AnyCatalogApi[], protocolVersion: string) {
     this.catalogs = toCatalogList(catalogs);
     checkMixedCatalogs(this.catalogs);
     this.protocolVersion = protocolVersion;

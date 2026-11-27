@@ -22,7 +22,17 @@
  */
 
 import {A2uiCatalogError} from '../../errors.js';
-import {CatalogApi, V09_STANDARD_DEFS, V10_STANDARD_DEFS} from '../../internal/web-core.js';
+import {
+  type AnyCatalogApi,
+  type ComponentDefinition,
+  type DataTypeDefinition,
+  definitionEnvelopeLayout,
+  type FunctionDefinition,
+  type TypeDefinition,
+  typeDefinitionToJsonSchema,
+  V09_STANDARD_DEFS,
+  V10_STANDARD_DEFS,
+} from '../../internal/web-core.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 
 const COMMON_DEF_REGEX = /(?:^|\/)common_types\.json#\/(?:\$defs|definitions)\/(\w+)$/;
@@ -401,6 +411,10 @@ export class CatalogSchemaHelper {
    */
   readonly systemFunctions: ReadonlyMap<string, Record<string, unknown>>;
 
+  private readonly protocolVersion: string;
+  private readonly catalogTypes?: Readonly<Record<string, DataTypeDefinition>>;
+  private readonly componentDefs = new Map<string, ComponentDefinition>();
+  private readonly functionDefs = new Map<string, FunctionDefinition>();
   private readonly componentProperties = new Map<string, string[]>();
   private readonly componentRequired = new Map<string, string[]>();
   private readonly checkRuleProperties = new Map<string, string>();
@@ -413,7 +427,19 @@ export class CatalogSchemaHelper {
   private readonly systemFunctionProperties = new Map<string, string[]>();
   private readonly systemFunctionRequired = new Map<string, string[]>();
 
-  constructor(catalog: CatalogApi, protocolVersion: string) {
+  constructor(catalog: AnyCatalogApi, protocolVersion: string) {
+    this.protocolVersion = protocolVersion;
+    this.catalogTypes = catalog.types;
+    for (const [name, compApi] of catalog.components) {
+      if (compApi.definition) {
+        this.componentDefs.set(name, compApi.definition);
+      }
+    }
+    for (const [name, fnApi] of catalog.functions) {
+      if (fnApi.definition) {
+        this.functionDefs.set(name, fnApi.definition);
+      }
+    }
     this.catalog = catalog.toJson();
     try {
       this.commonTypes = {$defs: standardDefsFor(protocolVersion)};
@@ -585,6 +611,88 @@ export class CatalogSchemaHelper {
     return commonDefName(itemsRef) === 'CheckRule';
   }
 
+  private findModelEnum(
+    typeDef: TypeDefinition,
+    visited: Set<string> = new Set(),
+  ): string[] | undefined {
+    if (typeDef.type === 'ref') {
+      if (visited.has(typeDef.ref)) return undefined;
+      visited.add(typeDef.ref);
+      const target = this.catalogTypes?.[typeDef.ref];
+      return target ? this.findModelEnum(target, visited) : undefined;
+    }
+    if (typeDef.type === 'enum') {
+      return typeDef.values.map(v => String(v));
+    }
+    if (typeDef.type === 'union') {
+      for (const variant of typeDef.variants) {
+        const res = this.findModelEnum(variant, new Set(visited));
+        if (res) return res;
+      }
+    }
+    return undefined;
+  }
+
+  private loadComponentFromDefinition(name: string, def: ComponentDefinition): void {
+    const layout = definitionEnvelopeLayout(def);
+    const customEnvelope = new Set<string>(layout.customKeys);
+
+    const checkRuleArraySchema: Record<string, unknown> = {
+      type: 'array',
+      items: {$ref: 'common_types.json#/$defs/CheckRule'},
+    };
+    const isCheckRuleParam = (t: TypeDefinition): boolean =>
+      t.type === 'array' && t.items !== undefined && t.items.type === 'checkRule';
+
+    let ownCheckProp: string | undefined;
+    const params = def.parameters ?? [];
+    for (const p of params) {
+      if (isCheckRuleParam(p)) {
+        ownCheckProp = p.name;
+        break;
+      }
+    }
+    if (ownCheckProp === 'checks') {
+      customEnvelope.delete('checks');
+    }
+    this.customEnvelopeProperties.set(name, customEnvelope);
+
+    let checkProp = ownCheckProp;
+    if (!checkProp && def.checkable) {
+      checkProp = 'checks';
+      this.inheritedCheckRulePropertyNames.set(name, 'checks');
+      this.inheritedCheckRuleSchemas.set(name, checkRuleArraySchema);
+    }
+    if (checkProp) {
+      this.checkRuleProperties.set(name, checkProp);
+    }
+
+    const orderedKeys: string[] = [];
+    const reqs: string[] = [];
+    for (const p of params) {
+      if (p.name === 'id' || p.name === 'component' || AT_ENVELOPE_MIXIN_KEYS.has(p.name)) {
+        continue;
+      }
+      if (p.name === 'checks' && !customEnvelope.has('checks')) {
+        continue;
+      }
+      orderedKeys.push(p.name);
+      if (p.required) {
+        reqs.push(p.name);
+      }
+      const enumValues = this.findModelEnum(p);
+      if (enumValues) {
+        this.componentPropertyEnums.set(`${name}.${p.name}`, enumValues);
+      }
+    }
+    if (checkProp && !customEnvelope.has(checkProp) && !orderedKeys.includes(checkProp)) {
+      orderedKeys.push(checkProp);
+    }
+
+    this.componentProperties.set(name, orderedKeys);
+    this.componentRequired.set(name, reqs);
+  }
+
   private loadMappings(): void {
     const findEnum = (s: unknown, visited: Set<unknown> = new Set()): string[] | undefined => {
       if (!s || typeof s !== 'object' || visited.has(s)) {
@@ -629,6 +737,11 @@ export class CatalogSchemaHelper {
     };
 
     for (const [name, schema] of this.components.entries()) {
+      const def = this.componentDefs.get(name);
+      if (def) {
+        this.loadComponentFromDefinition(name, def);
+        continue;
+      }
       const props: Record<string, unknown> = {};
       const reqs: string[] = [];
 
@@ -795,6 +908,19 @@ export class CatalogSchemaHelper {
     }
 
     for (const [name, schema] of this.functions.entries()) {
+      const fnDef = this.functionDefs.get(name);
+      if (fnDef) {
+        const params = fnDef.parameters ?? [];
+        this.functionProperties.set(
+          name,
+          params.map(p => p.name),
+        );
+        this.functionRequired.set(
+          name,
+          params.filter(p => p.required).map(p => p.name),
+        );
+        continue;
+      }
       const [props, reqs] = this.functionSignature(schema);
       this.functionProperties.set(name, props);
       this.functionRequired.set(name, reqs);
@@ -917,6 +1043,16 @@ export class CatalogSchemaHelper {
    * Retrieves the JSON schema for a specific function argument property.
    */
   getFunctionPropertySchema(fnName: string, propName: string): Record<string, unknown> | undefined {
+    const fnDef = this.functionDefs.get(fnName);
+    if (fnDef) {
+      const param = (fnDef.parameters ?? []).find(p => p.name === propName);
+      if (!param) {
+        return undefined;
+      }
+      return this.dereferenceLocalSchema(
+        typeDefinitionToJsonSchema(param, {protocolVersion: this.protocolVersion}),
+      );
+    }
     const fnSchema = this.functionSchema(fnName);
     if (!fnSchema) {
       return undefined;
@@ -969,6 +1105,10 @@ export class CatalogSchemaHelper {
    * Retrieves the description of the component from its catalog schema.
    */
   getComponentDescription(name: string): string | undefined {
+    const def = this.componentDefs.get(name);
+    if (def) {
+      return def.description;
+    }
     const schema = this.components.get(name);
     if (!schema) {
       return undefined;
@@ -1000,6 +1140,10 @@ export class CatalogSchemaHelper {
    * Retrieves the description of a catalog or system function.
    */
   getFunctionDescription(name: string): string | undefined {
+    const def = this.functionDefs.get(name);
+    if (def) {
+      return def.description;
+    }
     const schema = this.functionSchema(name);
     if (!schema) {
       return undefined;
@@ -1019,6 +1163,19 @@ export class CatalogSchemaHelper {
     componentName: string,
     propertyName: string,
   ): Record<string, unknown> | undefined {
+    const def = this.componentDefs.get(componentName);
+    if (def) {
+      const param = (def.parameters ?? []).find(p => p.name === propertyName);
+      if (param) {
+        return this.dereferenceLocalSchema(
+          typeDefinitionToJsonSchema(param, {protocolVersion: this.protocolVersion}),
+        );
+      }
+      if (propertyName === 'checks' && def.checkable) {
+        return {type: 'array', items: {$ref: 'common_types.json#/$defs/CheckRule'}};
+      }
+      return undefined;
+    }
     const schema = this.components.get(componentName);
     if (!schema) {
       return undefined;
@@ -1092,9 +1249,11 @@ export class CatalogSchemaHelper {
     if (!propName) {
       return undefined;
     }
-    const own = this.getPropertySchema(componentName, propName);
-    if (own) {
-      return own;
+    if (!this.getCustomEnvelopeProperties(componentName).has(propName)) {
+      const own = this.getPropertySchema(componentName, propName);
+      if (own) {
+        return own;
+      }
     }
     return this.inheritedCheckRuleSchemas.get(componentName);
   }

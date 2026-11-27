@@ -14,7 +14,19 @@
  * limitations under the License.
  */
 
-import {Catalog, ComponentApi, FunctionImplementation} from '../catalog/types.js';
+import {getLegacySchemaAdapter} from '../catalog/legacy_schema_adapter.js';
+import {
+  definitionToBehavior,
+  extractDefinitionRefFields,
+  type ModelRefFields,
+} from '../catalog/model/model_semantics.js';
+import {
+  AnyFunctionImplementation,
+  Catalog,
+  ComponentApi,
+  ComponentApiLike,
+  FunctionImplementation,
+} from '../catalog/types.js';
 import {Subscription} from '../common/events.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {A2uiStateError} from '../errors.js';
@@ -39,13 +51,12 @@ import {
   getSafeChildList,
   scrapeComponentBehavior,
 } from './generic-binder.js';
-import {extractRefFields, RefFields} from './ref-fields.js';
 import {ResolvedBinding, sameBinding, WritableBinding} from './resolved-binding.js';
 
 const ROOT_COMPONENT_ID = 'root';
 const ROOT_DATA_PATH = '/';
 
-const EMPTY_REF_FIELDS: RefFields = new Map();
+const EMPTY_REF_FIELDS: ModelRefFields = new Map();
 
 interface NodeRecord {
   readonly node: MutableComponentNode;
@@ -55,7 +66,7 @@ interface NodeRecord {
   readonly occurrence: number;
   /** The node whose props reference this one; undefined for the root. */
   readonly parent?: MutableComponentNode;
-  readonly refFields: RefFields;
+  readonly refFields: ModelRefFields;
   /** The scraped behavior tree for the component's schema; positions it
    *  classifies as DYNAMIC resolve to {@link ResolvedBinding}s in node
    *  props. Absent on placeholders. */
@@ -79,8 +90,8 @@ interface NodeRecord {
  * Construction requires a catalog whose functions are executable (`F extends FunctionImplementation`).
  */
 export class NodeResolver<
-  C extends ComponentApi = ComponentApi,
-  F extends FunctionImplementation = FunctionImplementation,
+  C extends ComponentApiLike = ComponentApi,
+  F extends AnyFunctionImplementation = FunctionImplementation,
 > {
   /** The resolved root of the tree, or undefined until the root component arrives. */
   readonly rootNode: Signal<ComponentNode<C> | undefined>;
@@ -366,7 +377,16 @@ export class NodeResolver<
       : isAtLeastVersion(compCatalog?.protocolVersion, '0.9')
         ? V09_CHILD_REF_OPTIONS
         : V08_CHILD_REF_OPTIONS;
-    const binder = new GenericBinder<NodeProps>(context, api.schema, refOptions);
+    const binderTarget = api.definition
+      ? {definition: api.definition, types: compCatalog?.types}
+      : api.schema;
+    const binder = new GenericBinder<NodeProps>(context, binderTarget, refOptions);
+    const refFields = api.definition
+      ? extractDefinitionRefFields(api.definition, compCatalog?.types)
+      : (getLegacySchemaAdapter()?.extractRefFields(api.schema, refOptions) ?? EMPTY_REF_FIELDS);
+    const behavior = api.definition
+      ? definitionToBehavior(api.definition, compCatalog?.types)
+      : scrapeComponentBehavior(api.schema, refOptions);
     const record = this.registerNode(
       new MutableComponentNode(
         instanceIdFor(componentId, dataPath, occurrence),
@@ -383,8 +403,8 @@ export class NodeResolver<
         edgeKey,
         parent,
         occurrence,
-        refFields: extractRefFields(api.schema, refOptions),
-        behavior: scrapeComponentBehavior(api.schema, refOptions),
+        refFields,
+        behavior,
         componentModel: model,
         binder,
       },
@@ -421,7 +441,7 @@ export class NodeResolver<
       edgeKey: string;
       parent?: MutableComponentNode;
       occurrence: number;
-      refFields: RefFields;
+      refFields: ModelRefFields;
       behavior?: BehaviorNode;
       componentModel?: ComponentModel;
       binder?: GenericBinder<NodeProps>;
@@ -580,7 +600,11 @@ export class NodeResolver<
     // Ordinal per (componentId, dataPath) within this rebuild, so repeated
     // references to one component get distinct instance ids.
     const occurrences = new Map<string, number>();
-    const resolveChild = (slot: string, componentId: string, dataPath: string): ComponentNode => {
+    const resolveChild = (
+      slot: string,
+      componentId: string,
+      dataPath: string,
+    ): ComponentNode<ComponentApiLike> => {
       const occurrenceKey = `${escapeIdPart(componentId)}@${escapeIdPart(dataPath)}`;
       const occurrence = (occurrences.get(occurrenceKey) ?? 0) + 1;
       occurrences.set(occurrenceKey, occurrence);

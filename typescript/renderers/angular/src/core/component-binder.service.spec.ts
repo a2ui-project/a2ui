@@ -22,9 +22,14 @@ import {
   ComponentModel,
   NodeResolver,
   SurfaceModel,
+  defineComponent,
+  defineComponentApi,
   getValue,
+  signal,
 } from '@a2ui/web_core';
+import {t} from '@a2ui/web_core/catalog/model';
 import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import type {ComponentApiToProps} from './types';
 
 /**
  * Helper to construct instances of SurfaceModel, ComponentModel, and ComponentContext.
@@ -657,6 +662,100 @@ describe('ComponentBinder', () => {
 
       binder.unbind(bound);
       expect(unsubscribedCount).toBeGreaterThan(0);
+    });
+
+    it('uses canonical ComponentDefinition ref fields for custom slots without mangling string props', () => {
+      const PanelApi = defineComponentApi(
+        defineComponent({
+          name: 'Panel',
+          parameters: [
+            t.param('headerSlot', t.child()),
+            t.param('cards', t.childList()),
+            t.param('content', t.string()),
+            t.param(
+              'tabs',
+              t.array(t.object([t.param('title', t.string()), t.param('pane', t.child())])),
+            ),
+          ],
+        }),
+      );
+
+      // Compile-time checks: parameterless checkable component preserves CheckProps,
+      // and optional catalog Types resolves local refs.
+      const CheckOnlyApi = defineComponentApi(
+        defineComponent({name: 'CheckOnly', checkable: true}),
+      );
+      type CheckOnlyProps = ComponentApiToProps<typeof CheckOnlyApi>;
+      const checkKeys: Array<keyof CheckOnlyProps> = [
+        'isValid',
+        'validationErrors',
+        'validationResults',
+      ];
+      expect(checkKeys.length).toBe(3);
+
+      const RefApi = defineComponentApi(
+        defineComponent({
+          name: 'RefComp',
+          parameters: [t.param('tone', t.ref('Tone'), {required: true})],
+        }),
+      );
+      const CatalogTypes = {Tone: t.enum(['info', 'warn'])} as const;
+      type RefProps = ComponentApiToProps<typeof RefApi, typeof CatalogTypes>;
+      const assertToneType = (p: RefProps): 'info' | 'warn' => p.tone.value();
+      expect(typeof assertToneType).toBe('function');
+      expect(CheckOnlyApi.name).toBe('CheckOnly');
+      expect(RefApi.name).toBe('RefComp');
+      expect(CatalogTypes.Tone.type).toBe('enum');
+
+      const catalog = new Catalog('def-catalog', '1.0', [PanelApi]);
+      const surface = new SurfaceModel('def-surface', catalog);
+      const model = new ComponentModel(
+        'root',
+        'Panel',
+        {
+          headerSlot: 'hdr',
+          cards: {componentId: 'card-tpl', path: '/cards'},
+          content: 'plain-text-not-a-child-id',
+          tabs: [{title: 'First', pane: 'pane-1'}],
+        },
+        catalog,
+      );
+      surface.componentsModel.addComponent(model);
+      const context = new ComponentContext(surface, 'root');
+      const fakeNode = {
+        instanceId: 'root',
+        id: 'n1',
+        componentId: 'root',
+        type: 'Panel',
+        dataPath: '/',
+        impl: PanelApi,
+        context,
+        state: 'resolved' as const,
+        props: signal({
+          headerSlot: 'hdr',
+          cards: ['c1', 'c2'],
+          content: 'plain-text-not-a-child-id',
+          tabs: [{title: 'First', pane: 'pane-1'}],
+        }),
+        metadata: signal(undefined),
+        onDestroyed: {subscribe: () => ({unsubscribe: () => {}})},
+        disposed: false,
+        isPlaceholder: false,
+        addCleanup: () => {},
+        toJSON: () => ({}),
+      };
+
+      const bound = binder.bindNode(fakeNode);
+      expect(bound['cards'].template).toEqual({id: 'card-tpl', path: '/cards'});
+      expect(bound['cards'].value()).toEqual([
+        {id: 'c1', basePath: '/'},
+        {id: 'c2', basePath: '/'},
+      ]);
+      expect(bound['headerSlot'].value()).toEqual({id: 'hdr', basePath: '/'});
+      expect(bound['content'].value()).toBe('plain-text-not-a-child-id');
+      expect(bound['tabs'].value()).toEqual([
+        {title: 'First', pane: {id: 'pane-1', basePath: '/'}},
+      ]);
     });
   });
 });

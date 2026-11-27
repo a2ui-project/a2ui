@@ -28,7 +28,13 @@ import {
 } from './schema_serializer.js';
 import {isShorthandParameterMap} from './schema_loader.js';
 import {schemaRequiresArgs, standardDefsForVersion} from './spec_shape.js';
-import type {CatalogInterface, ComponentApi, FunctionApi} from './types.js';
+import type {
+  CatalogInterface,
+  ComponentApi,
+  ComponentApiLike,
+  FunctionApi,
+  FunctionApiLike,
+} from './types.js';
 
 /**
  * Resolves the appropriate standard $defs dictionary based on options or catalog configuration.
@@ -40,7 +46,7 @@ import type {CatalogInterface, ComponentApi, FunctionApi} from './types.js';
  * version falls back to the v0.9 definitions.
  */
 function getStandardDefsForCatalog(
-  catalog: CatalogInterface<ComponentApi, FunctionApi>,
+  catalog: CatalogInterface<ComponentApiLike, FunctionApiLike>,
   options?: GenerateValidationSchemaOptions,
 ): Record<string, unknown> {
   if (options?.standardDefs) {
@@ -499,7 +505,7 @@ function authoredTheme(model: CatalogDocumentModel): Readonly<JsonObject> | unde
     : {type: 'object', properties: theme};
 }
 
-function isV08Catalog(catalog: CatalogInterface<ComponentApi, FunctionApi>): boolean {
+function isV08Catalog(catalog: CatalogInterface<ComponentApiLike, FunctionApiLike>): boolean {
   const version = toCanonicalVersion(catalog.protocolVersion) ?? catalog.protocolVersion;
   return version === '0.8' || catalog.id.includes('v0_8') || catalog.id.includes('v0.8');
 }
@@ -514,7 +520,7 @@ function isV08Catalog(catalog: CatalogInterface<ComponentApi, FunctionApi>): boo
  * written.
  */
 function processTheme(
-  catalog: CatalogInterface<ComponentApi, FunctionApi>,
+  catalog: CatalogInterface<ComponentApiLike, FunctionApiLike>,
   defs: JsonObject,
   generated: unknown[],
   context: SourceContext,
@@ -588,7 +594,7 @@ function mergeGeneratedDefs(raw: JsonObject, defs: JsonObject, generated: unknow
  * Extracts raw Zod properties, required fields, and definitions from a component API schema.
  */
 function extractZodComponentSchema(
-  comp: ComponentApi,
+  comp: ComponentApiLike,
   defs: JsonObject,
   generated: unknown[],
 ): {
@@ -624,7 +630,7 @@ function extractZodComponentSchema(
  * Returns the description on a component's Zod schema, ignoring internal
  * `REF:` markers.
  */
-function zodComponentDescription(comp: ComponentApi): string | undefined {
+function zodComponentDescription(comp: ComponentApiLike): string | undefined {
   const zodDescription = (comp.schema as {description?: unknown} | undefined)?.description;
   return typeof zodDescription === 'string' && !zodDescription.startsWith('REF:')
     ? zodDescription
@@ -651,7 +657,7 @@ function authoredClosure(source: Readonly<JsonObject>): unknown {
  */
 function processSingleComponent(
   name: string,
-  comp: ComponentApi,
+  comp: ComponentApiLike,
   defs: JsonObject,
   generated: unknown[],
   context: SourceContext,
@@ -724,7 +730,7 @@ function processSingleComponent(
 }
 
 function processComponents(
-  catalog: CatalogInterface<ComponentApi, FunctionApi>,
+  catalog: CatalogInterface<ComponentApiLike, FunctionApiLike>,
   schema: JsonObject,
   defs: JsonObject,
   generated: unknown[],
@@ -764,7 +770,7 @@ function processComponents(
  */
 function buildFunctionArgsSchema(
   name: string,
-  fn: FunctionApi,
+  fn: FunctionApiLike,
   defs: JsonObject,
   generated: unknown[],
   context: SourceContext,
@@ -807,7 +813,7 @@ function buildFunctionArgsSchema(
  */
 function processSingleFunction(
   name: string,
-  fn: FunctionApi,
+  fn: FunctionApiLike,
   defs: JsonObject,
   generated: unknown[],
   context: SourceContext,
@@ -849,7 +855,7 @@ function processSingleFunction(
 }
 
 function processFunctions(
-  catalog: CatalogInterface<ComponentApi, FunctionApi>,
+  catalog: CatalogInterface<ComponentApiLike, FunctionApiLike>,
   schema: JsonObject,
   defs: JsonObject,
   generated: unknown[],
@@ -1012,8 +1018,8 @@ function collectReferencedDefs(
  * @returns Specification-compliant A2UI Catalog JSON Schema object.
  */
 export function generateValidationSchema<
-  T extends ComponentApi = ComponentApi,
-  F extends FunctionApi = FunctionApi,
+  T extends ComponentApiLike = ComponentApi,
+  F extends FunctionApiLike = FunctionApi,
 >(catalog: CatalogInterface<T, F>, options?: GenerateValidationSchemaOptions): JsonObject {
   const schema: JsonObject = {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
