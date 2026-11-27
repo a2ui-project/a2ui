@@ -1,0 +1,185 @@
+{
+  "$schema": "../catalog_schema.json",
+  "formatVersion": "1.0",
+  "catalogId": "https://example.com/catalogs/complex-example-v1",
+  "protocolVersion": "1.0",
+  "title": "Complex Catalog Document Example",
+  "description": "An illustrative catalog example showcasing nested objects, arrays, dynamic values, local leaf types, composition constraints, and structured function return types.",
+  "types": {
+    "BadgeVariant": {
+      "type": "enum",
+      "values": ["info", "success", "warning"],
+      "default": "info",
+      "description": "Badge color variant."
+    }
+  },
+  "surfaceProperties": {
+    "description": "Optional surface branding properties.",
+    "properties": [
+      {
+        "name": "agentDisplayName",
+        "type": "string",
+        "description": "Display name of the agent generating this surface."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "ChoicePicker",
+      "description": "Selection input component accepting a complex nested list of options with badges and categories.",
+      "checkable": true,
+      "parameters": [
+        {
+          "name": "options",
+          "type": "array",
+          "required": true,
+          "description": "Nested list of option objects.",
+          "items": {
+            "type": "object",
+            "properties": [
+              {
+                "name": "label",
+                "type": "string",
+                "dynamic": true,
+                "required": true,
+                "description": "Display label for the choice."
+              },
+              {
+                "name": "value",
+                "type": "string",
+                "required": true,
+                "description": "Value stored when choice is selected."
+              },
+              {
+                "name": "category",
+                "type": "string",
+                "description": "Category group name for grouping choices."
+              },
+              {
+                "name": "badge",
+                "type": "object",
+                "description": "Optional nested badge configuration object.",
+                "properties": [
+                  {
+                    "name": "text",
+                    "type": "string",
+                    "dynamic": true,
+                    "required": true,
+                    "description": "Badge text label."
+                  },
+                  {
+                    "name": "variant",
+                    "type": "ref",
+                    "ref": "BadgeVariant",
+                    "description": "Badge color variant."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "value",
+          "type": "array",
+          "items": {"type": "string"},
+          "dynamic": true,
+          "required": true,
+          "description": "Selected values bound to the data model."
+        },
+        {
+          "name": "variant",
+          "type": "enum",
+          "values": ["multipleSelection", "mutuallyExclusive"],
+          "default": "mutuallyExclusive",
+          "description": "Selection behavior."
+        }
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "name": "filterData",
+      "description": "Filters a data array using a complex nested criteria object and returns matching record objects.",
+      "returnType": {
+        "type": "array",
+        "description": "Array of filtered item record objects.",
+        "items": {
+          "type": "object",
+          "description": "Matching item record.",
+          "properties": [
+            {
+              "name": "id",
+              "type": "string",
+              "required": true,
+              "description": "Unique record identifier."
+            },
+            {
+              "name": "score",
+              "type": "number",
+              "description": "Calculated relevance score."
+            }
+          ]
+        }
+      },
+      "allowedCallers": "rendererOnly",
+      "parameters": [
+        {
+          "name": "items",
+          "type": "array",
+          "required": true,
+          "description": "The list of items to filter.",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        {
+          "name": "criteria",
+          "type": "object",
+          "required": true,
+          "description": "Nested filter criteria specification.",
+          "properties": [
+            {
+              "name": "operator",
+              "type": "enum",
+              "values": ["AND", "OR"],
+              "default": "AND",
+              "description": "Logical operator combining rules."
+            },
+            {
+              "name": "rules",
+              "type": "array",
+              "required": true,
+              "description": "List of rule objects.",
+              "items": {
+                "type": "object",
+                "properties": [
+                  {
+                    "name": "field",
+                    "type": "string",
+                    "required": true,
+                    "description": "Property field name to evaluate."
+                  },
+                  {
+                    "name": "match",
+                    "type": "enum",
+                    "values": ["equals", "contains", "greaterThan"],
+                    "default": "equals",
+                    "description": "Comparison operator."
+                  },
+                  {
+                    "name": "targetValue",
+                    "type": "any",
+                    "dynamic": true,
+                    "required": true,
+                    "description": "Value to match against."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

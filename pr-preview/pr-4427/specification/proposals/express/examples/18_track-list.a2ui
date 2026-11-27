@@ -1,0 +1,16 @@
+$/playlistName = "Focus Flow"
+$/tracks = [{number: 1, art: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=50&h=50&fit=crop", title: "Weightless", artist: "Marconi Union", duration: "8:09"}, {number: 2, art: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=50&h=50&fit=crop", title: "Clair de Lune", artist: "Debussy", duration: "5:12"}, {number: 3, art: "https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=50&h=50&fit=crop", title: "Ambient Light", artist: "Brian Eno", duration: "6:45"}]
+root = Card(main_column)
+main_column = Column([header, divider, tracks_list])
+header = Row([playlist_icon, playlist_name], _, "center")
+playlist_icon = Icon("play")
+playlist_name = Text($/playlistName)
+divider = Divider()
+tracks_list = Column(_template($/tracks, track_item_template))
+track_item_template = Row([track_num, track_art, track_info, track_duration], _, "center")
+track_num = Text(formatNumber($number), "caption")
+track_art = Image($art, _, "cover")
+track_info = Column([track_title, track_artist])
+track_title = Text($title, "body")
+track_artist = Text($artist, "caption")
+track_duration = Text($duration, "caption")
