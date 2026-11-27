@@ -1,0 +1,942 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared/shared.dart';
+import 'package:ui/src/model/analysis_draft.dart';
+import 'package:ui/src/model/applier.dart';
+import 'package:ui/src/model/github_item.dart';
+import 'package:ui/src/model/log_entry.dart';
+import 'package:ui/src/model/triage_controller.dart';
+import 'package:ui/src/model/triage_item.dart';
+
+import '../../support/fake_github.dart';
+
+void main() {
+  late FakeGitHub github;
+  late TriageController controller;
+
+  setUp(() {
+    github = FakeGitHub([
+      itemNode(21, pr: true, createdAt: day(1)),
+      itemNode(20, pr: true, createdAt: day(1), linked: [11]),
+      // Opened before 10, but updated after it.
+      itemNode(11, createdAt: day(1), updatedAt: day(3), linked: [20]),
+      itemNode(10, createdAt: day(2)),
+      itemNode(30, labels: ['P1'], createdAt: day(1)),
+      itemNode(
+        40,
+        labels: [needsTriageLabel, needsTeamInputLabel],
+        createdAt: day(5),
+      ),
+      itemNode(41, pr: true, labels: [needsTeamInputLabel], createdAt: day(4)),
+      // Draft PRs are not in the queue, whatever their labels.
+      itemNode(50, pr: true, draft: true, createdAt: day(1)),
+      itemNode(
+        51,
+        pr: true,
+        draft: true,
+        labels: [needsTeamInputLabel],
+        createdAt: day(1),
+      ),
+    ]);
+    controller = TriageController(connect: () async => github.service());
+  });
+
+  tearDown(() => controller.dispose());
+
+  List<int> numbers(List<TriageItem> items) => [
+    for (final i in items) i.number,
+  ];
+
+  List<String> names(List<TriageItem> items) => [
+    for (final i in items) i.shortName,
+  ];
+
+  GitHubItem url(String path) =>
+      GitHubItem.tryParse('https://github.com/a2ui-project/a2ui/$path')!;
+
+  test('loads the queue without draft PRs, in groups: issues with open PRs, '
+      'issues without open PRs, PRs with issues, then PRs without issues, '
+      'least recently updated first', () async {
+    await controller.start();
+
+    expect(controller.isConnected, isTrue);
+    expect(numbers(controller.newItems), [11, 10, 20, 21]);
+    expect(numbers(controller.teamInputItems), [40, 41]);
+    expect(controller.selected, isNull);
+    expect(controller.remaining, 6);
+    expect(controller.repositoryInfo(a2uiRepository).labels, contains('P1'));
+  });
+
+  test('triages the PRs on genui in the same groups as the items of a2ui, '
+      'and changes them on genui', () async {
+    github.genuiItems
+      // The same number as an issue on a2ui.
+      ..[10] = itemNode(
+        10,
+        repository: genuiRepository,
+        pr: true,
+        createdAt: day(3),
+      )
+      ..[11] = itemNode(
+        11,
+        repository: genuiRepository,
+        pr: true,
+        labels: [needsTeamInputLabel],
+        createdAt: day(6),
+      )
+      ..[13] = itemNode(
+        13,
+        repository: genuiRepository,
+        pr: true,
+        draft: true,
+        createdAt: day(1),
+      )
+      // Issues on genui are not in the queue.
+      ..[12] = itemNode(12, repository: genuiRepository);
+
+    await controller.start();
+
+    expect(names(controller.newItems), [
+      '#11',
+      '#10',
+      '#20',
+      '#21',
+      'genui #10',
+    ]);
+    expect(names(controller.teamInputItems), ['#40', '#41', 'genui #11']);
+    expect(controller.remaining, 8);
+    expect(controller.item(genui(10))!.name, 'genui PR #10');
+    expect(controller.item(a2ui(10))!.name, 'Issue #10');
+    expect(
+      controller.repositoryInfo(genuiRepository).labels,
+      isNot(contains('type: bug')),
+    );
+
+    controller
+      ..select(genui(10))
+      ..draftFor(
+        controller.item(genui(10))!,
+        const TriageAnalysis(addedLabels: ['P2'], reply: 'Thanks!'),
+      );
+    await controller.apply(controller.item(genui(10))!);
+
+    expect(github.calls, [
+      'POST flutter/genui/issues/10/comments '
+          '${jsonEncode({'body': '${replyHeading}Thanks!'})}',
+      'DELETE flutter/genui/issues/10/labels/status%3A%20needs-triage',
+      'POST flutter/genui/issues/10/labels {"labels":["P2"]}',
+    ]);
+    expect(controller.session.isApplied(genui(10)), isTrue);
+    expect(controller.session.isApplied(a2ui(10)), isFalse);
+    expect(controller.item(genui(10))!.labels, contains('P2'));
+    expect(controller.item(a2ui(10))!.labels, isNot(contains('P2')));
+
+    await controller.open(
+      GitHubItem.tryParse('https://github.com/flutter/genui/issues/12')!,
+    );
+    expect(controller.selected!.name, 'genui Issue #12');
+    expect(names(controller.opened), ['genui #12']);
+  });
+
+  test('lists the items with an analysis first', () async {
+    github.items[12] = itemNode(
+      12,
+      createdAt: day(9),
+      comments: [
+        commentNode(
+          analysisComment(
+            'root = TriageAnalysis(summary="S", '
+            'suggestion="T")',
+          ),
+          at: day(9),
+        ),
+      ],
+    );
+
+    await controller.start();
+
+    // 12 is the most recently updated issue without open PRs, but the only one
+    // with an analysis.
+    expect(numbers(controller.newItems), [11, 12, 10, 20, 21]);
+  });
+
+  test('deselects the selected item', () async {
+    await controller.start();
+    controller.select(a2ui(11));
+
+    controller.deselect();
+
+    expect(controller.selected, isNull);
+  });
+
+  test('groups an item with all its linked items, loading the ones that '
+      'are not in the queue', () async {
+    // The PR closes the issue, but does not need triage.
+    github
+      ..items[12] = itemNode(12, createdAt: day(5), linked: [31])
+      ..items[31] = itemNode(31, pr: true, labels: [], linked: [12]);
+    await controller.start();
+    final TriageItem issue = controller.item(a2ui(12))!;
+
+    expect(numbers(controller.group(issue)), [12]);
+    await controller.loadLinked(issue);
+    expect(numbers(controller.group(issue)), [12, 31]);
+    // Item 11 is linked to PR 20, which is in the queue.
+    expect(numbers(controller.group(controller.item(a2ui(11))!)), [11, 20]);
+  });
+
+  test('reports a failure to connect, and can try again', () async {
+    var fail = true;
+    controller = TriageController(
+      connect: () async {
+        if (fail) throw const GitHubException('No token.');
+        return github.service();
+      },
+    );
+
+    await controller.start();
+    expect(controller.isConnected, isFalse);
+    expect(controller.error, 'No token.');
+
+    fail = false;
+    await controller.start();
+    expect(controller.isConnected, isTrue);
+    expect(controller.error, isNull);
+  });
+
+  test('opens an item requested before the items loaded', () async {
+    await controller.open(url('issues/11'));
+    await controller.start();
+
+    expect(controller.selected!.number, 11);
+  });
+
+  test('opens an item that is not in the queue', () async {
+    await controller.start();
+    await controller.open(url('issues/30'));
+
+    expect(controller.selected!.number, 30);
+    expect(numbers(controller.opened), [30]);
+    expect(controller.remaining, 6);
+  });
+
+  test('applies the draft, then selects the next item', () async {
+    await controller.start();
+    controller.select(a2ui(10));
+    final TriageItem item = controller.selected!;
+    controller.draftFor(item, const TriageAnalysis(addedLabels: ['P2']));
+
+    await controller.apply(item);
+
+    expect(controller.lastResult(a2ui(10))!.succeeded, isTrue);
+    expect(controller.session.isApplied(a2ui(10)), isTrue);
+    expect(controller.selected!.number, 20);
+    expect(controller.remaining, 5);
+    // The item shows its new labels, and stays in its place until a refresh.
+    expect(controller.item(a2ui(10))!.labels, contains('P2'));
+    expect(numbers(controller.newItems), [11, 10, 20, 21]);
+  });
+
+  test('selects the next item before the apply finishes', () async {
+    await controller.start();
+    controller.select(a2ui(10));
+    final TriageItem item = controller.selected!;
+    controller.draftFor(item, const TriageAnalysis(addedLabels: ['P2']));
+    final Completer<void> hold = github.hold = Completer<void>();
+
+    final Future<void> applying = controller.apply(item);
+
+    expect(controller.selected!.number, 20);
+    expect(controller.isApplying(a2ui(10)), isTrue);
+    expect(controller.session.isApplied(a2ui(10)), isFalse);
+
+    hold.complete();
+    github.hold = null;
+    await applying;
+    expect(controller.isApplying(a2ui(10)), isFalse);
+    expect(controller.session.isApplied(a2ui(10)), isTrue);
+    expect(controller.selected!.number, 20);
+  });
+
+  test('Shift-click adds items to the selection and takes them out', () async {
+    await controller.start();
+    controller.select(a2ui(10), group: ItemGroup.newItems);
+
+    controller.toggleInSelection(a2ui(20), ItemGroup.newItems);
+    expect(controller.selected, isNull);
+    expect(numbers(controller.multiSelection), [10, 20]);
+    expect(controller.isInMultiSelection(a2ui(20), ItemGroup.newItems), isTrue);
+    expect(
+      controller.isInMultiSelection(a2ui(20), ItemGroup.teamInput),
+      isFalse,
+    );
+
+    controller
+      ..toggleInSelection(a2ui(11), ItemGroup.newItems)
+      ..toggleInSelection(a2ui(20), ItemGroup.newItems);
+    expect(numbers(controller.multiSelection), [10, 11]);
+
+    // A selection of one item is the selected item.
+    controller.toggleInSelection(a2ui(10), ItemGroup.newItems);
+    expect(controller.multiSelection, isEmpty);
+    expect(controller.selected!.number, 11);
+    expect(controller.selectedGroup, ItemGroup.newItems);
+
+    controller.toggleInSelection(a2ui(11), ItemGroup.newItems);
+    expect(controller.selected, isNull);
+    expect(controller.multiSelection, isEmpty);
+
+    // A plain click selects one item again.
+    controller
+      ..toggleInSelection(a2ui(10), ItemGroup.newItems)
+      ..toggleInSelection(a2ui(21), ItemGroup.newItems)
+      ..select(a2ui(20), group: ItemGroup.newItems);
+    expect(controller.multiSelection, isEmpty);
+    expect(controller.selected!.number, 20);
+  });
+
+  test('applies the drafts of several selected items, then selects the next '
+      'item after the first one', () async {
+    await controller.start();
+    controller
+      ..select(a2ui(20), group: ItemGroup.newItems)
+      ..toggleInSelection(a2ui(10), ItemGroup.newItems)
+      ..toggleInSelection(a2ui(11), ItemGroup.newItems);
+    final List<TriageItem> items = controller.multiSelection;
+    controller
+      ..draftFor(items[0], const TriageAnalysis(addedLabels: ['P3']))
+      ..draftFor(items[1], const TriageAnalysis(addedLabels: ['P2']));
+
+    await controller.applyAll(items);
+
+    expect(controller.session.isApplied(a2ui(20)), isTrue);
+    expect(controller.session.isApplied(a2ui(10)), isTrue);
+    expect(controller.session.isApplied(a2ui(11)), isTrue);
+    expect(github.calls, contains('POST issues/20/labels {"labels":["P3"]}'));
+    expect(github.calls, contains('POST issues/10/labels {"labels":["P2"]}'));
+    // #11 is the first of them in the list, and #21 the next one that is
+    // not applied.
+    expect(controller.multiSelection, isEmpty);
+    expect(controller.selected!.number, 21);
+  });
+
+  test('refresh and Hide triaged keep the selected items that are still '
+      'listed', () async {
+    await controller.start();
+    controller
+      ..select(a2ui(10), group: ItemGroup.newItems)
+      ..toggleInSelection(a2ui(11), ItemGroup.newItems)
+      ..toggleInSelection(a2ui(21), ItemGroup.newItems);
+    // #21 no longer needs triage.
+    github.items[21] = itemNode(21, pr: true, labels: const []);
+
+    await controller.refresh();
+    expect(numbers(controller.multiSelection), [10, 11]);
+
+    controller.draftFor(
+      controller.item(a2ui(10))!,
+      const TriageAnalysis(addedLabels: ['P2']),
+    );
+    await controller.apply(controller.item(a2ui(10))!);
+    controller
+      ..select(a2ui(10), group: ItemGroup.newItems)
+      ..toggleInSelection(a2ui(11), ItemGroup.newItems)
+      ..hideTriaged();
+    // #10 left Needs triage, so #11 is the only one selected.
+    expect(controller.multiSelection, isEmpty);
+    expect(controller.selected!.number, 11);
+  });
+
+  test('moves on from a failed item, and posts its reply once', () async {
+    github.unassignable.add('stranger');
+    await controller.start();
+    controller.select(a2ui(10));
+    final TriageItem item = controller.selected!;
+    controller.draftFor(
+      item,
+      const TriageAnalysis(reply: 'Thanks!', newAssignees: ['stranger']),
+    );
+
+    await controller.apply(item);
+    expect(controller.lastResult(a2ui(10))!.succeeded, isFalse);
+    expect(controller.selected!.number, 20);
+    expect(controller.session.isApplied(a2ui(10)), isFalse);
+
+    controller.select(a2ui(10));
+
+    controller.draftFor(item, const TriageAnalysis()).newAssignees = [];
+    await controller.apply(controller.item(a2ui(10))!);
+
+    expect(controller.lastResult(a2ui(10))!.succeeded, isTrue);
+    expect(github.calls.where((c) => c.contains('comments')), hasLength(1));
+
+    // The log has both applies, with every step, the reply and the error.
+    final List<LogEntry> log = controller.logOf(a2ui(10));
+    expect(log.map((LogEntry e) => e.title), [
+      'Some changes failed',
+      'Applied the suggestion',
+    ]);
+    expect(log.first.failed, isTrue);
+    // The reply, removing "status: needs-triage", and the assignee.
+    expect(log.first.steps.map((StepResult s) => s.status), [
+      StepStatus.done,
+      StepStatus.done,
+      StepStatus.failed,
+    ]);
+    expect(log.first.steps.first.text, '${replyHeading}Thanks!');
+    expect(log.first.steps.last.description, 'Assign: stranger');
+    expect(log.first.steps.last.error, isNotNull);
+    expect(log.last.failed, isFalse);
+    expect(log.last.steps.first.description, 'Post the reply: already posted');
+    expect(log.last.steps.first.status, StepStatus.skipped);
+  });
+
+  test('refresh drops triaged items and resets the drafts of changed '
+      'items', () async {
+    await controller.start();
+    controller
+      ..draftFor(controller.item(a2ui(10))!, const TriageAnalysis(reply: 'A'))
+      ..draftFor(controller.item(a2ui(11))!, const TriageAnalysis(reply: 'B'));
+    github
+      ..change(10, (item) => item['title'] = 'Renamed')
+      ..change(20, (item) => item['labels'] = {'nodes': <Object?>[]})
+      ..items[50] = itemNode(50, createdAt: day(4));
+
+    await controller.refresh();
+
+    // Item 10 was updated last, so it moves after 50.
+    expect(numbers(controller.newItems), [11, 50, 10, 21]);
+    expect(controller.changedOnGitHub(a2ui(10)), isTrue);
+    expect(controller.changedOnGitHub(a2ui(11)), isFalse);
+    expect(controller.item(a2ui(10))!.title, 'Renamed');
+    const empty = TriageAnalysis();
+    expect(
+      controller.draftFor(controller.item(a2ui(10))!, empty).reply.text,
+      '',
+    );
+    expect(controller.logOf(a2ui(10)).single.title, contains('changed on'));
+    expect(controller.logOf(a2ui(11)), isEmpty);
+    expect(
+      controller.draftFor(controller.item(a2ui(11))!, empty).reply.text,
+      'B',
+    );
+  });
+
+  test('refreshItems loads the given items again, resets the drafts of the '
+      'changed ones, and keeps the list as it is', () async {
+    await controller.start();
+    final TriageItem item10 = controller.item(a2ui(10))!;
+    final TriageItem item11 = controller.item(a2ui(11))!;
+    controller
+      ..draftFor(item10, const TriageAnalysis(reply: 'A'))
+      ..draftFor(item11, const TriageAnalysis(reply: 'B'));
+    github
+      ..change(10, (item) => item['labels'] = {'nodes': <Object?>[]})
+      ..change(21, (item) => item['title'] = 'Renamed')
+      ..items[50] = itemNode(50, createdAt: day(4));
+
+    await controller.refreshItems([item10, item11]);
+
+    // Item 10 no longer needs triage, but stays in its place until a
+    // refresh, and the new item 50 shows only after one.
+    expect(numbers(controller.newItems), [11, 10, 20, 21]);
+    expect(controller.item(a2ui(10))!.needsTriage, isFalse);
+    expect(controller.changedOnGitHub(a2ui(10)), isTrue);
+    expect(controller.changedOnGitHub(a2ui(11)), isFalse);
+    expect(controller.logOf(a2ui(10)).single.title, contains('changed on'));
+    const empty = TriageAnalysis();
+    expect(
+      controller.draftFor(controller.item(a2ui(10))!, empty).reply.text,
+      '',
+    );
+    expect(
+      controller.draftFor(controller.item(a2ui(11))!, empty).reply.text,
+      'B',
+    );
+    // Not one of the given items.
+    expect(controller.item(a2ui(21))!.title, isNot('Renamed'));
+    expect(controller.changedOnGitHub(a2ui(21)), isFalse);
+  });
+
+  test('refreshItems marks the items that left their group on GitHub as '
+      'handled, until a refresh', () async {
+    await controller.start();
+    expect(controller.remaining, 6);
+    github
+      ..change(10, (item) => item['labels'] = {'nodes': <Object?>[]})
+      ..change(11, (item) => item['title'] = 'Renamed');
+
+    await controller.refreshItems([
+      controller.item(a2ui(10))!,
+      controller.item(a2ui(11))!,
+    ]);
+
+    expect(controller.leftOnGitHub(a2ui(10)), isTrue);
+    expect(controller.leftOnGitHub(a2ui(11)), isFalse);
+    expect(controller.isHandled(a2ui(10)), isTrue);
+    expect(controller.session.isHandled(a2ui(10)), isFalse);
+    expect(controller.remaining, 5);
+    expect(controller.hasTriaged, isTrue);
+
+    await controller.refresh();
+
+    expect(controller.leftOnGitHub(a2ui(10)), isFalse);
+    expect(numbers(controller.newItems), isNot(contains(10)));
+  });
+
+  test('removeFromList takes the item out of the list until a refresh, and '
+      'selects the next one', () async {
+    await controller.start();
+    controller.select(a2ui(11));
+
+    controller.removeFromList(controller.item(a2ui(11))!);
+
+    expect(numbers(controller.newItems), [10, 20, 21]);
+    expect(controller.selected?.number, 10);
+    expect(controller.isHandled(a2ui(11)), isTrue);
+    expect(controller.remaining, 5);
+    expect(github.calls, isEmpty);
+
+    await controller.refresh();
+
+    expect(numbers(controller.newItems), [11, 10, 20, 21]);
+    expect(controller.isHandled(a2ui(11)), isFalse);
+  });
+
+  test('refresh does not take the triager own changes for others', () async {
+    await controller.start();
+    controller.draftFor(
+      controller.item(a2ui(10))!,
+      const TriageAnalysis(addedLabels: ['P2']),
+    );
+    await controller.apply(controller.item(a2ui(10))!);
+
+    await controller.refresh();
+
+    expect(controller.changedOnGitHub(a2ui(10)), isFalse);
+  });
+
+  test('applying to an item that needs team input keeps the label, and '
+      'the item in its group', () async {
+    await controller.start();
+    controller.draftFor(
+      controller.item(a2ui(40))!,
+      const TriageAnalysis(addedLabels: ['P2']),
+    );
+
+    await controller.apply(controller.item(a2ui(40))!);
+
+    expect(github.calls, [
+      'DELETE issues/40/labels/status%3A%20needs-triage',
+      'POST issues/40/labels {"labels":["P2"]}',
+    ]);
+    expect(controller.item(a2ui(40))!.needsTeamInput, isTrue);
+    expect(numbers(controller.teamInputItems), [40, 41]);
+    expect(controller.session.isApplied(a2ui(40)), isTrue);
+  });
+
+  test('applying a suggestion that adds the label keeps it', () async {
+    await controller.start();
+    controller.draftFor(
+      controller.item(a2ui(40))!,
+      const TriageAnalysis(addedLabels: [needsTeamInputLabel]),
+    );
+
+    await controller.apply(controller.item(a2ui(40))!);
+
+    expect(github.calls, [
+      'DELETE issues/40/labels/status%3A%20needs-triage',
+      'POST issues/40/labels {"labels":["status: needs-team-input"]}',
+    ]);
+    expect(controller.session.isSentToTeam(a2ui(40)), isTrue);
+  });
+
+  test('applying a suggestion that adds the label lists the item under '
+      'Needs team input too', () async {
+    await controller.start();
+    controller.select(a2ui(10));
+    controller.draftFor(
+      controller.item(a2ui(10))!,
+      const TriageAnalysis(addedLabels: [needsTeamInputLabel]),
+    );
+
+    await controller.apply(controller.item(a2ui(10))!);
+
+    expect(github.calls, [
+      'DELETE issues/10/labels/status%3A%20needs-triage',
+      'POST issues/10/labels {"labels":["status: needs-team-input"]}',
+    ]);
+    // The item stays in its group, and is also under Needs team input.
+    expect(numbers(controller.newItems), [11, 10, 20, 21]);
+    expect(numbers(controller.teamInputItems), [10, 40, 41]);
+    expect(controller.selected!.number, 20);
+    expect(controller.selectedGroup, ItemGroup.newItems);
+    expect(controller.remaining, 5);
+    expect(controller.session.isSentToTeam(a2ui(10)), isTrue);
+  });
+
+  test(
+    'selects the next item in the group in which the item was selected',
+    () async {
+      await controller.start();
+      controller.draftFor(
+        controller.item(a2ui(10))!,
+        const TriageAnalysis(addedLabels: [needsTeamInputLabel]),
+      );
+      await controller.apply(controller.item(a2ui(10))!);
+      // Listed in Needs triage and in Needs team input.
+      controller.select(a2ui(10));
+      expect(controller.selectedGroup, ItemGroup.newItems);
+      controller.select(a2ui(10), group: ItemGroup.teamInput);
+      final TriageItem item = controller.selected!;
+      controller.draftFor(item, const TriageAnalysis(addedLabels: ['P2']));
+
+      await controller.apply(item);
+
+      // Not #20, which comes after #10 in Needs triage.
+      expect(controller.selected!.number, 40);
+      expect(controller.selectedGroup, ItemGroup.teamInput);
+    },
+  );
+
+  test('lists an item opened by URL under Needs team input after applying '
+      'a suggestion that adds the label', () async {
+    await controller.start();
+    await controller.open(url('issues/30'));
+    controller.draftFor(
+      controller.item(a2ui(30))!,
+      const TriageAnalysis(addedLabels: [needsTeamInputLabel]),
+    );
+
+    await controller.apply(controller.item(a2ui(30))!);
+
+    expect(
+      github.calls,
+      contains('POST issues/30/labels {"labels":["status: needs-team-input"]}'),
+    );
+    expect(numbers(controller.opened), [30]);
+    expect(numbers(controller.teamInputItems), [30, 40, 41]);
+  });
+  test(
+    'hides the applied items that left their group, until a refresh',
+    () async {
+      github.unassignable.add('stranger');
+      await controller.start();
+      expect(controller.hasTriaged, isFalse);
+      controller
+        ..draftFor(
+          controller.item(a2ui(10))!,
+          const TriageAnalysis(addedLabels: ['P2']),
+        )
+        ..draftFor(
+          controller.item(a2ui(11))!,
+          const TriageAnalysis(addedLabels: [needsTeamInputLabel]),
+        )
+        ..draftFor(
+          controller.item(a2ui(40))!,
+          const TriageAnalysis(removedLabels: [needsTeamInputLabel]),
+        )
+        // Fails, so it is not triaged, though it loses "status: needs-triage".
+        ..draftFor(
+          controller.item(a2ui(21))!,
+          const TriageAnalysis(newAssignees: ['stranger']),
+        );
+      await controller.applyAll([
+        for (final n in [10, 11, 40, 21]) controller.item(a2ui(n))!,
+      ]);
+      controller.select(a2ui(10));
+      expect(controller.hasTriaged, isTrue);
+
+      controller.hideTriaged();
+
+      expect(numbers(controller.newItems), [20, 21]);
+      // #11 was sent to the team, so it left only Needs triage.
+      expect(numbers(controller.teamInputItems), [11, 41]);
+      expect(controller.hasTriaged, isFalse);
+      expect(controller.selected, isNull);
+
+      await controller.refresh();
+
+      expect(numbers(controller.newItems), [20]);
+      expect(numbers(controller.teamInputItems), [11, 41]);
+    },
+  );
+
+  test('hides an item opened by URL that the triager sent to the team only '
+      'from Not in the queue', () async {
+    await controller.start();
+    await controller.open(url('issues/30'));
+    controller.draftFor(
+      controller.item(a2ui(30))!,
+      const TriageAnalysis(addedLabels: [needsTeamInputLabel]),
+    );
+    await controller.apply(controller.item(a2ui(30))!);
+    controller.select(a2ui(30), group: ItemGroup.notInQueue);
+
+    controller.hideTriaged();
+
+    expect(controller.opened, isEmpty);
+    expect(numbers(controller.teamInputItems), [30, 40, 41]);
+    // Still selected, now in the group that has it.
+    expect(controller.selected!.number, 30);
+    expect(controller.selectedGroup, ItemGroup.teamInput);
+  });
+
+  test('posts a new reply to an item it posted a reply to before', () async {
+    await controller.start();
+    final TriageItem item = controller.item(a2ui(10))!;
+    controller.draftFor(item, const TriageAnalysis(reply: 'A question?'));
+    await controller.apply(item);
+
+    controller.draftFor(item).reply.text = 'Thanks for the answer.';
+    await controller.apply(controller.item(a2ui(10))!);
+
+    expect(github.calls.where((c) => c.contains('comments')), [
+      contains('A question?'),
+      contains('Thanks for the answer.'),
+    ]);
+  });
+
+  test('a refresh while an item is applied keeps its draft, and the '
+      'items after it are applied too', () async {
+    await controller.start();
+    final TriageItem item10 = controller.item(a2ui(10))!;
+    final TriageItem item11 = controller.item(a2ui(11))!;
+    controller
+      ..draftFor(item10, const TriageAnalysis(addedLabels: ['P2']))
+      ..draftFor(item11, const TriageAnalysis(addedLabels: ['P3']));
+    final Completer<void> hold = github.hold = Completer<void>();
+
+    final Future<void> applying = controller.applyAll([item10, item11]);
+    expect(controller.isApplyingAny, isTrue);
+    // Another change on GitHub, which a refresh sees.
+    github.change(11, (item) => item['title'] = 'Renamed');
+    await controller.refresh();
+    hold.complete();
+    github.hold = null;
+    await applying;
+
+    expect(controller.isApplyingAny, isFalse);
+    expect(controller.changedOnGitHub(a2ui(11)), isFalse);
+    expect(github.calls, [
+      contains('issues/10/labels/status'),
+      'POST issues/10/labels {"labels":["P2"]}',
+      contains('issues/11/labels/status'),
+      'POST issues/11/labels {"labels":["P3"]}',
+    ]);
+  });
+
+  test('an item opened while a refresh runs stays opened', () async {
+    await controller.start();
+    final Completer<void> hold = github.holdSearch = Completer<void>();
+    final Future<void> refreshing = controller.refresh();
+    await controller.open(url('issues/30'));
+    expect(controller.loading, isTrue);
+    hold.complete();
+    github.holdSearch = null;
+    await refreshing;
+
+    expect(numbers(controller.opened), [30]);
+    expect(controller.loading, isFalse);
+  });
+
+  test('an item removed from the list comes back when it is opened by URL, '
+      'and applying it selects the next item', () async {
+    await controller.start();
+    controller.removeFromList(controller.item(a2ui(10))!);
+
+    await controller.open(url('issues/10'));
+    expect(controller.selected!.number, 10);
+    expect(numbers(controller.newItems), contains(10));
+
+    controller.draftFor(
+      controller.selected!,
+      const TriageAnalysis(addedLabels: ['P2']),
+    );
+    await controller.apply(controller.selected!);
+
+    expect(controller.lastResult(a2ui(10))!.succeeded, isTrue);
+    expect(controller.isApplyingAny, isFalse);
+  });
+
+  test('an unexpected error in a load ends the load and shows it', () async {
+    await controller.start();
+    github.change(30, (item) => item.remove('title'));
+
+    await controller.open(url('issues/30'));
+
+    expect(controller.loading, isFalse);
+    expect(controller.error, isNotNull);
+  });
+
+  test('an unexpected error after an apply ends the apply', () async {
+    await controller.start();
+    final TriageItem item = controller.item(a2ui(10))!;
+    controller.draftFor(item, const TriageAnalysis(addedLabels: ['P2']));
+    // The item cannot be read again after the apply.
+    github.change(10, (item) => item.remove('title'));
+
+    await controller.apply(item);
+
+    expect(controller.isApplyingAny, isFalse);
+    expect(controller.lastResult(a2ui(10))!.succeeded, isTrue);
+  });
+
+  test(
+    'loads a linked PR in another repository from that repository',
+    () async {
+      github
+        ..genuiItems[1086] = itemNode(
+          1086,
+          repository: genuiRepository,
+          pr: true,
+          labels: const [],
+        )
+        ..items[1086] = itemNode(
+          1086,
+          pr: true,
+          state: 'MERGED',
+          labels: const [],
+        )
+        ..items[4378] = itemNode(4378, crossLinked: [genui(1086)]);
+      await controller.start();
+      final TriageItem issue = controller.item(a2ui(4378))!;
+
+      await controller.loadLinked(issue);
+
+      expect(names(controller.group(issue)), ['#4378', 'genui #1086']);
+    },
+  );
+
+  test('starts the draft of a linked item that was triaged already empty, '
+      'so that a group apply leaves it as it is', () async {
+    github.items[12] = itemNode(
+      12,
+      pr: true,
+      labels: const ['P2'],
+      linked: [11],
+      comments: [
+        commentNode(
+          analysisComment(
+            'root = TriageAnalysis(summary="A", suggestion="B", '
+            'added_labels=["P1"])',
+          ),
+          at: day(1),
+        ),
+      ],
+    );
+    github.change(11, (item) {
+      item['closedByPullRequestsReferences'] = {
+        'nodes': [
+          for (final n in [20, 12])
+            {
+              'number': n,
+              'state': 'OPEN',
+              'repository': {'nameWithOwner': a2uiRepository},
+            },
+        ],
+      };
+    });
+    await controller.start();
+    final TriageItem issue = controller.item(a2ui(11))!;
+    await controller.loadLinked(issue);
+    final TriageItem pr = controller.group(issue).last;
+    expect(pr.number, 12);
+
+    expect(controller.draftFor(pr).hasChanges, isFalse);
+  });
+
+  test(
+    'a PR draft closes it without a reason, whatever the analysis says',
+    () async {
+      await controller.start();
+      final TriageItem pr = controller.item(a2ui(21))!;
+
+      final AnalysisDraft draft = controller.draftFor(
+        pr,
+        const TriageAnalysis(closeAs: TriageCloseReason.duplicate),
+      );
+
+      expect(draft.closeAs, TriageCloseReason.completed);
+      expect(draft.problem, isNull);
+    },
+  );
+
+  test("a draft's reply has no heading, which the apply adds", () async {
+    await controller.start();
+    final TriageItem item = controller.item(a2ui(10))!;
+
+    final AnalysisDraft draft = controller.draftFor(
+      item,
+      const TriageAnalysis(reply: '**From triage:**\n\nThanks!'),
+    );
+    expect(draft.reply.text, 'Thanks!');
+
+    await controller.apply(item);
+    expect(
+      github.calls.first,
+      'POST issues/10/comments ${jsonEncode({'body': '${replyHeading}Thanks!'})}',
+    );
+  });
+
+  test('a PR that becomes a draft leaves the queue, and a draft PR opened by '
+      'URL stays out of it', () async {
+    await controller.start();
+    await controller.open(url('pull/50'));
+    github.change(21, (item) => item['isDraft'] = true);
+
+    await controller.refreshItems([
+      controller.item(a2ui(21))!,
+      controller.item(a2ui(50))!,
+    ]);
+
+    expect(controller.leftOnGitHub(a2ui(21)), isTrue);
+    expect(controller.leftOnGitHub(a2ui(50)), isFalse);
+  });
+
+  test('loads a linked item again after its load failed', () async {
+    github
+      ..items[60] = itemNode(60, pr: true, labels: const [])
+      ..items[12] = itemNode(12, linked: [60]);
+    await controller.start();
+    final TriageItem issue = controller.item(a2ui(12))!;
+    // The item cannot be read.
+    github.items[60]!.remove('title');
+    await controller.loadLinked(issue);
+
+    github.items[60]!['title'] = 'Item 60';
+    await controller.loadLinked(issue);
+
+    expect(names(controller.group(issue)), ['#12', '#60']);
+  });
+
+  test('a load that ends after the controller is disposed does not '
+      'notify', () async {
+    final disposed = TriageController(connect: () async => github.service());
+    await disposed.start();
+    final Completer<void> hold = github.holdSearch = Completer<void>();
+    final Future<void> refreshing = disposed.refresh();
+
+    disposed.dispose();
+    hold.complete();
+    github.holdSearch = null;
+
+    await expectLater(refreshing, completes);
+  });
+}

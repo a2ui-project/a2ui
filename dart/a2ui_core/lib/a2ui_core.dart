@@ -82,9 +82,12 @@ export 'src/resolution/component_node.dart'
 export 'src/resolution/data_context.dart'
     hide
         createSurfaceDataContext,
+        dataContextForAgentCall,
         dataContextWithCallCatalog,
         dataContextWithoutAgentCalls,
-        disposeSurfaceAgentCalls;
+        disposeSurfaceAgentCalls,
+        isInvalidFunctionCallError,
+        unwrapSignalError;
 export 'src/resolution/generic_binder.dart';
 export 'src/resolution/node_resolver.dart';
 export 'src/resolution/resolved_binding.dart';

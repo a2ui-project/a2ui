@@ -16,9 +16,9 @@
 # PRs so that items needing attention are easy to find. The label is fully
 # owned by this automation and reconciled on every run.
 #
-# The flagging rules are implemented in
-# ./tools/internal/triage/flagging/triage.mts and described in
-# https://github.com/a2ui-project/a2ui/blob/main/tools/internal/triage/blueprints/flagging.blueprint.md
+# The flagging rules are implemented in ./tools/internal/triage/pkgs/flagger and
+# described in
+# https://github.com/a2ui-project/a2ui/blob/main/tools/internal/triage/blueprints/features/flagger.blueprint.md
 
 name: Flag/Unflag issues and PRs
 
@@ -75,6 +75,9 @@ jobs:
     # 2026-08-21. A standard runner starts in seconds, and this job only calls
     # the GitHub API, so it has no use for the larger pool.
     runs-on: ubuntu-latest
+    # Runs queue behind each other (see concurrency above), so a hung run
+    # must not hold up the next ones for hours.
+    timeout-minutes: 15
     # Requires issue and PR write permissions for automated labeling and comment management
     permissions:
       contents: read
@@ -83,9 +86,9 @@ jobs:
 
     steps:
       # Always run the rules from main. A PR review event otherwise checks out
-      # the PR's merge commit, whose copy of triage.mts can predate a rule
+      # the PR's merge commit, whose copy of the flagger can predate a rule
       # change, and the two copies then add and remove each other's labels on
-      # every run. It also keeps a PR's own edits to the script from running
+      # every run. It also keeps a PR's own edits to the flagger from running
       # with this job's write token.
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -93,15 +96,45 @@ jobs:
           ref: main
           persist-credentials: false
 
-      - name: Reconcile triage flag labels
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      - uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
         with:
-          script: |
-            const path = require('path');
-            const { pathToFileURL } = require('url');
+          sdk: stable
 
-            const filePath = path.resolve('./tools/internal/triage/flagging/triage.mts');
-            const fileUrl = pathToFileURL(filePath).href;
+      # The flagger needs only Dart packages, so a workspace of just those
+      # spares this job the Flutter SDK that the full workspace needs. The job
+      # runs on every issue event, so its start-up time matters.
+      - name: Configure pure-Dart workspace
+        shell: bash
+        run: |
+          cat > pubspec.yaml << 'EOF'
+          name: a2ui_monorepo
+          publish_to: none
+          environment:
+            sdk: ">=3.13.0 <4.0.0"
+          workspace:
+            - dart/a2ui_core
+            - dart/a2ui_agent
+            - tools/internal/triage/pkgs/shared
+            - tools/internal/triage/pkgs/flagger
+          dev_dependencies:
+            lints: ^6.1.0
+          EOF
 
-            const importedModule = await import(fileUrl);
-            await importedModule.default({ github, context });
+      # The flagger's dependencies include the A2UI packages, which the job
+      # would otherwise download on every issue event.
+      - name: Cache pub dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-triage-pub-${{ hashFiles('dart/a2ui_core/pubspec.yaml', 'dart/a2ui_agent/pubspec.yaml', 'tools/internal/triage/pkgs/shared/pubspec.yaml', 'tools/internal/triage/pkgs/flagger/pubspec.yaml') }}
+          restore-keys: ${{ runner.os }}-triage-pub-
+
+      - name: Install dependencies
+        working-directory: tools/internal/triage/pkgs/flagger
+        run: dart pub get
+
+      - name: Reconcile triage flag labels
+        working-directory: tools/internal/triage/pkgs/flagger
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: dart run bin/flagger.dart

@@ -26,10 +26,12 @@ from .extension import (
 )
 from .parts import (
     A2UI_MIME_TYPE,
+    A2uiDataPartView,
     DEPRECATED_A2UI_MIME_TYPE,
     create_a2ui_part,
     create_a2ui_parts,
     extract_a2ui_json_to_parts,
+    get_a2ui_data,
     get_a2ui_datapart,
     get_a2ui_messages,
     is_a2ui_part,
@@ -41,6 +43,7 @@ from .parts import (
 __all__ = [
     "A2UI_EXTENSION_BASE_URI",
     "A2UI_MIME_TYPE",
+    "A2uiDataPartView",
     "AGENT_EXTENSION_ACCEPTS_INLINE_CATALOGS_KEY",
     "AGENT_EXTENSION_SUPPORTED_CATALOG_IDS_KEY",
     "DEPRECATED_A2UI_MIME_TYPE",
@@ -48,6 +51,7 @@ __all__ = [
     "create_a2ui_parts",
     "extract_a2ui_json_to_parts",
     "get_a2ui_agent_extension",
+    "get_a2ui_data",
     "get_a2ui_datapart",
     "get_a2ui_messages",
     "get_a2ui_extension_uri",

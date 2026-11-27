@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import logging
 from typing import Any
 
@@ -22,6 +24,8 @@ from a2a.types import AgentCard, AgentExtension
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import ProtocolVersion
 from a2ui.utils import to_version_number
+
+from . import _compat
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +74,7 @@ def get_a2ui_agent_extension(
     if supported_catalog_ids:
         params[AGENT_EXTENSION_SUPPORTED_CATALOG_IDS_KEY] = supported_catalog_ids
 
-    return AgentExtension(
+    return _compat.make_agent_extension(
         uri=get_a2ui_extension_uri(version),
         description="Provides agent driven UI using the A2UI JSON format.",
         params=params if params else None,
@@ -175,7 +179,7 @@ def try_activate_a2ui_extension(
         requested_extensions, agent_advertised_extensions
     )
     if selected_uri:
-        context.add_activated_extension(selected_uri)
+        _compat.add_activated_extension(context, selected_uri)
         return _protocol_version_of(selected_uri)
 
     return None
