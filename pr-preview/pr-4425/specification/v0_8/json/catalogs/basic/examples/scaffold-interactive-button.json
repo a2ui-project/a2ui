@@ -1,0 +1,60 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-interactive-button",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title", "action_button"]
+              },
+              "distribution": "center",
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "title",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Click the button below"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "action_button",
+          "component": {
+            "Button": {
+              "child": "button_label",
+              "primary": true,
+              "action": {
+                "name": "button_clicked"
+              }
+            }
+          }
+        },
+        {
+          "id": "button_label",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Click Me"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-interactive-button",
+      "root": "root"
+    }
+  }
+]

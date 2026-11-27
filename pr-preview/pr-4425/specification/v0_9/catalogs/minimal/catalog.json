@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v0_9/catalogs/minimal/catalog.json",
+  "title": "A2UI Minimal Catalog",
+  "description": "A minimal A2UI catalog for testing renderers.",
+  "catalogId": "https://a2ui.org/specification/v0_9/catalogs/minimal/catalog.json",
+  "components": {
+    "Text": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"},
+        {"$ref": "#/$defs/CatalogComponentCommon"},
+        {
+          "type": "object",
+          "properties": {
+            "component": {"const": "Text"},
+            "text": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "variant": {
+              "type": "string",
+              "enum": ["h1", "h2", "h3", "h4", "h5", "caption", "body"]
+            }
+          },
+          "required": ["component", "text"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Row": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"},
+        {"$ref": "#/$defs/CatalogComponentCommon"},
+        {
+          "type": "object",
+          "properties": {
+            "component": {"const": "Row"},
+            "children": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+            },
+            "justify": {
+              "type": "string",
+              "enum": [
+                "center",
+                "end",
+                "spaceAround",
+                "spaceBetween",
+                "spaceEvenly",
+                "start",
+                "stretch"
+              ]
+            },
+            "align": {
+              "type": "string",
+              "enum": ["start", "center", "end", "stretch"]
+            }
+          },
+          "required": ["component", "children"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Column": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"},
+        {"$ref": "#/$defs/CatalogComponentCommon"},
+        {
+          "type": "object",
+          "properties": {
+            "component": {"const": "Column"},
+            "children": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+            },
+            "justify": {
+              "type": "string",
+              "enum": [
+                "start",
+                "center",
+                "end",
+                "spaceBetween",
+                "spaceAround",
+                "spaceEvenly",
+                "stretch"
+              ]
+            },
+            "align": {
+              "type": "string",
+              "enum": ["center", "end", "start", "stretch"]
+            }
+          },
+          "required": ["component", "children"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Button": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"},
+        {"$ref": "#/$defs/CatalogComponentCommon"},
+        {"$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"},
+        {
+          "type": "object",
+          "properties": {
+            "component": {"const": "Button"},
+            "child": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+            },
+            "variant": {
+              "type": "string",
+              "enum": ["primary", "borderless"]
+            },
+            "action": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"
+            }
+          },
+          "required": ["component", "child", "action"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "TextField": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"},
+        {"$ref": "#/$defs/CatalogComponentCommon"},
+        {"$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"},
+        {
+          "type": "object",
+          "properties": {
+            "component": {"const": "TextField"},
+            "label": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            },
+            "variant": {
+              "type": "string",
+              "enum": ["longText", "number", "shortText", "obscured"]
+            },
+            "validationRegexp": {"type": "string"}
+          },
+          "required": ["component", "label"]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  },
+  "functions": {
+    "capitalize": {
+      "type": "object",
+      "description": "Converts an input string to a capitalized version.",
+      "properties": {
+        "call": {"const": "capitalize"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["value"],
+          "unevaluatedProperties": false
+        },
+        "returnType": {"const": "string"}
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "CatalogComponentCommon": {
+      "type": "object",
+      "properties": {
+        "weight": {"type": "number"}
+      }
+    },
+    "theme": {
+      "type": "object",
+      "properties": {
+        "primaryColor": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}
+      },
+      "additionalProperties": true
+    },
+    "anyComponent": {
+      "oneOf": [
+        {"$ref": "#/components/Text"},
+        {"$ref": "#/components/Row"},
+        {"$ref": "#/components/Column"},
+        {"$ref": "#/components/Button"},
+        {"$ref": "#/components/TextField"}
+      ],
+      "discriminator": {"propertyName": "component"}
+    },
+    "anyFunction": {
+      "oneOf": [{"$ref": "#/functions/capitalize"}]
+    }
+  }
+}
