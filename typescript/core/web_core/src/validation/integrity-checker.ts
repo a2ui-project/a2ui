@@ -16,6 +16,7 @@
 
 import {A2uiRecursionError, A2uiValidationError} from '../errors.js';
 import {Catalog, type ComponentApiLike, type FunctionApiLike} from '../catalog/types.js';
+import {isPlainObject} from '../common/settle_deep.js';
 import {ProtocolVersion} from '../processing/adapters/base.js';
 
 /** Maximum permitted nesting depth for JSON objects and array structures. */
@@ -234,8 +235,8 @@ function traverseRecursionAndPaths(item: unknown, globalDepth: number): void {
     return;
   }
 
-  if (typeof item === 'object' && item !== null) {
-    const obj = item as Record<string, unknown>;
+  if (isPlainObject(item)) {
+    const obj = item;
     // v1.0 binds data with `@path`; earlier versions and templates use `path`.
     for (const path of [obj.path, obj['@path']]) {
       if (typeof path === 'string' && !RELAXED_PATH_PATTERN.test(path)) {
@@ -243,7 +244,8 @@ function traverseRecursionAndPaths(item: unknown, globalDepth: number): void {
       }
     }
 
-    for (const v of Object.values(obj)) {
+    for (const [k, v] of Object.entries(obj)) {
+      if (k === 'rawPayload') continue;
       traverseRecursionAndPaths(v, globalDepth + 1);
     }
   }

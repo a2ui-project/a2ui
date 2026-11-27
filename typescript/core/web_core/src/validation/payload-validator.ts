@@ -39,6 +39,7 @@ import {
 import type {CatalogInterface, ComponentApi, FunctionApi} from '../catalog/types.js';
 import {validateMetadata} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
+import {isPlainObject} from '../common/settle_deep.js';
 import {isValidUax31Identifier} from '../common/uax31.js';
 import {A2uiErrorDetail, A2uiValidationError} from '../errors.js';
 import {
@@ -221,6 +222,14 @@ export class PayloadValidator {
       ? splitComponentEnvelope(comp, layout)
       : {properties: stripStructuralKeys(comp), mixins: {}};
     const properties = split.properties;
+    const declaresRawPayload = componentApi
+      ? componentApi.definition
+        ? Boolean(componentApi.definition.parameters?.some(p => p.name === 'rawPayload'))
+        : Boolean(componentApi.schema && getKnownSchemaKeys(componentApi.schema)?.has('rawPayload'))
+      : false;
+    if (!declaresRawPayload && Object.hasOwn(properties, 'rawPayload')) {
+      delete properties['rawPayload'];
+    }
     const rawCatalogId = split.mixins.catalogId?.value;
     const componentCatalogId = typeof rawCatalogId === 'string' ? rawCatalogId : undefined;
 
@@ -270,6 +279,7 @@ export class PayloadValidator {
       ? validateComponentProperties(componentApi.definition, properties, {
           types: this.catalog.types,
           protocolVersion: String(this.catalog.protocolVersion),
+          opaqueTypes: this.catalog.opaqueTypes,
         })
       : validateLegacySchema(componentApi.schema, properties);
 
@@ -506,11 +516,11 @@ export class PayloadValidator {
       return;
     }
 
-    if (typeof val !== 'object' || val === null) {
+    if (!isPlainObject(val)) {
       return;
     }
 
-    const record = val as Record<string, unknown>;
+    const record = val;
     if (this.enforceIdentifiers) {
       this.validateRecordDirectives(record, currentPath);
     }
@@ -688,6 +698,7 @@ export class PayloadValidator {
       ? validateFunctionArguments(fn.definition, args ?? {}, {
           types: this.catalog.types,
           protocolVersion: String(this.catalog.protocolVersion),
+          opaqueTypes: this.catalog.opaqueTypes,
         })
       : validateLegacySchema(fn.schema, args ?? {});
 
@@ -718,6 +729,7 @@ export class PayloadValidator {
       : validateSurfaceProperties(surfaceProps!, theme, {
           types: this.catalog.types,
           protocolVersion: String(this.catalog.protocolVersion),
+          opaqueTypes: this.catalog.opaqueTypes,
         });
     if (!result.success) {
       const formattedErrors = result.issues.map(formatValidationIssue).join(', ');

@@ -107,6 +107,12 @@ export interface ComponentNode<
    * Read with `getValue`/`peekValue`.
    */
   readonly metadata: Signal<A2uiMetadata | undefined>;
+  /**
+   * Optional static transport escape hatch carrying the raw wire payload
+   * (e.g. a compiled Protobuf message) for bespoke 1P domain widgets.
+   * Static snapshot only — not reactive to `@path` data model updates.
+   */
+  readonly rawPayload?: unknown;
   /** Fires exactly once, when this node is disposed. */
   readonly onDestroyed: EventSource<void>;
   /** Whether this node has been disposed. */
@@ -167,6 +173,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
   readonly props: Signal<TProps>;
   readonly metadata: Signal<A2uiMetadata | undefined>;
 
+  private _rawPayload?: unknown;
   private readonly _onDestroyed = new EventEmitter<void>();
   readonly onDestroyed: EventSource<void> = this._onDestroyed;
 
@@ -196,6 +203,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
     context?: ComponentContext,
     state: NodeState = 'resolved',
     metadata: Signal<A2uiMetadata | undefined> = computed(() => undefined),
+    rawPayload?: unknown,
   ) {
     this.instanceId = instanceId;
     this.componentId = componentId;
@@ -206,6 +214,19 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
     this.context = context;
     this.state = state;
     this.metadata = metadata;
+    this._rawPayload = rawPayload;
+  }
+
+  /** Optional static raw wire payload attached to the underlying component model. */
+  get rawPayload(): unknown {
+    return this._rawPayload;
+  }
+
+  /** Updates the stored static raw payload when the underlying component model updates in place. */
+  setRawPayload(value: unknown): void {
+    if (!this._disposed) {
+      this._rawPayload = value;
+    }
   }
 
   /** Whether this node has been disposed. */

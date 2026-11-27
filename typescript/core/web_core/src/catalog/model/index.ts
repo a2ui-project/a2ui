@@ -134,6 +134,13 @@ export {
   type ModelRefKind,
 } from './model_semantics.js';
 export {
+  findMatchingOpaqueSpec,
+  mergeOpaqueTypeRegistries,
+  serializeOpaqueValuesForAgent,
+  type OpaqueTypeRegistry,
+  type OpaqueTypeSpec,
+} from './opaque_types.js';
+export {
   componentDefinitionToJsonSchema,
   functionDefinitionToJsonSchema,
   jsonSchemaToModel,

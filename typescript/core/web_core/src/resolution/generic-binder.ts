@@ -29,7 +29,7 @@ import {
 import {coerceModelDynamicBoolean} from '../catalog/model/model_validator.js';
 import {ActionDispatchOptions} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
-import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
+import {findFailedArgument, isPlainObject, isThenable, settleDeep} from '../common/settle_deep.js';
 import {effect, getValue, peekValue} from '../reactivity/signals.js';
 import type {
   Action,
@@ -554,10 +554,11 @@ export class GenericBinder<T> {
     if (typeof val !== 'object' || val === null) return val;
     if (depth > MAX_DYNAMIC_VALUE_DEPTH) return undefined;
 
+    if (Array.isArray(val)) return val.map(item => this.resolveDeepSync(item, depth + 1));
+    if (!isPlainObject(val)) return val;
     if ('path' in val || 'call' in val || '@path' in val || '@call' in val) {
       return this.context.dataContext.resolveDynamicValue(val, depth);
     }
-    if (Array.isArray(val)) return val.map(item => this.resolveDeepSync(item, depth + 1));
     const res: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(val)) {
       res[k] = this.resolveDeepSync(v, depth + 1);
@@ -1089,6 +1090,9 @@ function jsonEquals(a: unknown, b: unknown): boolean {
       return false;
     }
     return a.every((item, index) => jsonEquals(item, b[index]));
+  }
+  if (!isPlainObject(a) || !isPlainObject(b)) {
+    return false;
   }
   const aKeys = Object.keys(a);
   const bKeys = Object.keys(b);

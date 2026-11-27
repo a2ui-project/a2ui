@@ -20,6 +20,10 @@ import {
   surfacePropertiesToJsonSchema,
   typeDefinitionToJsonSchema,
 } from '../catalog/model/json_schema_codec.js';
+import {
+  mergeOpaqueTypeRegistries,
+  serializeOpaqueValuesForAgent,
+} from '../catalog/model/opaque_types.js';
 import {Catalog, ComponentApi, ComponentApiLike} from '../catalog/types.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
@@ -58,6 +62,7 @@ import {
 } from '../state/validation-helpers.js';
 import {defaultVersionAdapterFactory} from './adapters/factory.js';
 import {compareSemVer, isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
+import {isPlainObject} from '../common/settle_deep.js';
 import {
   InternalOperation,
   InternalCreateSurfaceOp,
@@ -94,7 +99,7 @@ import {
   RpcHandler,
 } from '../rpc/index.js';
 import {toOutboundActionMessage} from './outbound-envelope.js';
-import {DataContext} from '../resolution/data-context.js';
+import {DataContext, getKnownSchemaKeys} from '../resolution/data-context.js';
 import {
   MAX_GLOBAL_DEPTH,
   RELAXED_PATH_PATTERN,
@@ -542,7 +547,7 @@ export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
       for (const surface of enabledSurfaces) {
         const catVer = surface.protocolVersion;
         if (!catVer || isCatalogVersionCompatible(catVer, version)) {
-          surfaces[surface.id] = surface.dataModel.get('/');
+          surfaces[surface.id] = this.serializeSurfaceDataModel(surface);
         }
       }
       if (Object.keys(surfaces).length === 0) {
@@ -580,12 +585,21 @@ export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
       versionsSet.size === 1 ? (versionsSet.values().next().value as ProtocolVersion) : '1.0';
     const surfaces: Record<string, unknown> = {};
     for (const surface of enabledSurfaces) {
-      surfaces[surface.id] = surface.dataModel.get('/');
+      surfaces[surface.id] = this.serializeSurfaceDataModel(surface);
     }
     return {
       version: verStr,
       surfaces,
     };
+  }
+
+  private serializeSurfaceDataModel(surface: SurfaceModel<T>): unknown {
+    const raw = surface.dataModel.get('/');
+    const opaqueTypes = mergeOpaqueTypeRegistries([
+      surface.defaultCatalog,
+      ...surface.availableCatalogs.values(),
+    ]);
+    return serializeOpaqueValuesForAgent(raw, opaqueTypes);
   }
 
   /**
@@ -670,6 +684,42 @@ export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
         for (const op of operations) {
           currentContext = this.contextFromOperation(op, initialContext);
           this.processOperation(op, context);
+        }
+      } catch (err: unknown) {
+        this.handleProcessingError(err, currentContext);
+        if (!this.reportErrorsOnly) {
+          throw err;
+        }
+      }
+    });
+  }
+
+  /**
+   * Directly processes a sequence of normalized {@link InternalOperation} instances
+   * produced by a transport adapter (such as Protobuf, FlatBuffers, or in-process RPC)
+   * without JSON envelope parsing.
+   *
+   * Routes directly through the exact sequential state machine, `CatalogModel` property
+   * validation, UAX #31 identifier checks, `allowedParents`/`allowedChildren`, recursion/path
+   * checks, and graph topology validation used by {@link processMessages}.
+   *
+   * @param operations Normalized operations to execute in order.
+   * @param options Optional execution context (`isUserActivated`, `validationConfig`).
+   */
+  processOperations(operations: readonly InternalOperation[], options?: ExecutionContext): void {
+    this.withValidationConfig(options, () => {
+      const initialContext: ErrorEnvelopeContext = {version: this.defaultVersion};
+      let currentContext = initialContext;
+      try {
+        for (const op of operations) {
+          currentContext = this.contextFromOperation(op, initialContext);
+          if (this.validationConfig) {
+            validateRecursionAndPaths(op);
+          }
+          if (this.validationConfig?.targetVersion) {
+            this.validateTargetVersion(op);
+          }
+          this.processOperation(op, options);
         }
       } catch (err: unknown) {
         this.handleProcessingError(err, currentContext);
@@ -1658,9 +1708,9 @@ export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
         }
         return;
       }
-      if (typeof node !== 'object' || node === null) return;
+      if (!isPlainObject(node)) return;
 
-      const record = node as Record<string, unknown>;
+      const record = node;
       const name = record['@call'];
       if (typeof name === 'string' && !name.startsWith('@')) {
         this.validateSingleNestedCall(record, name, surface, componentCatalog, currentPath);
@@ -1672,11 +1722,14 @@ export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
 
     // `@catalogId` and `@metadata` hold no calls; the component's own
     // properties, `@accessibility` and `@checks` may.
+    const schema = this.componentSchema(comp, surface, componentCatalog);
+    const declaresRawPayload = componentDeclaresRawPayload(schema);
     const {properties, mixins} = splitComponentEnvelope(
       comp,
       this.componentLayout(comp, surface, componentCatalog),
     );
     for (const [key, value] of Object.entries(properties)) {
+      if (!declaresRawPayload && key === 'rawPayload') continue;
       visit(value, `/${key}`);
     }
     for (const mixin of [mixins.accessibility, mixins.checks]) {
@@ -1719,13 +1772,16 @@ export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
     const {id, component} = comp;
     if (typeof id !== 'string') return;
     const targetCatalog = this.resolveComponentCatalog(comp, surface);
-    const state = componentPayloadState(
-      comp,
-      surface.protocolVersion,
-      this.componentSchema(comp, surface, targetCatalog),
-      {defaultCatalogSchema: this.componentSchema(comp, surface, surface.defaultCatalog)},
-    );
-    const properties = state.properties;
+    const schema = this.componentSchema(comp, surface, targetCatalog);
+    const state = componentPayloadState(comp, surface.protocolVersion, schema, {
+      defaultCatalogSchema: this.componentSchema(comp, surface, surface.defaultCatalog),
+    });
+    const declaresRawPayload = componentDeclaresRawPayload(schema);
+    const rawPayload = !declaresRawPayload ? comp['rawPayload'] : undefined;
+    const properties =
+      !declaresRawPayload && Object.hasOwn(state.properties, 'rawPayload')
+        ? (({rawPayload: _raw, ...rest}) => rest)(state.properties)
+        : state.properties;
     const metadata = extractComponentMetadata(state.metadata);
     const existing = surface.componentsModel.get(id);
 
@@ -1741,18 +1797,26 @@ export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
           properties,
           targetCatalog,
           metadata,
+          rawPayload,
         );
         surface.componentsModel.addComponent(newComponent);
       } else {
         batchWrite(() => {
-          existing.applyUpdate(properties, metadata);
+          existing.applyUpdate(properties, metadata, rawPayload);
         });
       }
     } else {
       if (typeof component !== 'string' || !component) {
         throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
       }
-      const newComponent = new ComponentModel(id, component, properties, targetCatalog, metadata);
+      const newComponent = new ComponentModel(
+        id,
+        component,
+        properties,
+        targetCatalog,
+        metadata,
+        rawPayload,
+      );
       surface.componentsModel.addComponent(newComponent);
     }
   }
@@ -1882,6 +1946,14 @@ export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
       throw err;
     }
   }
+}
+
+function componentDeclaresRawPayload(schema: ComponentApiLike | undefined): boolean {
+  if (!schema) return false;
+  if (schema.definition) {
+    return Boolean(schema.definition.parameters?.some(p => p.name === 'rawPayload'));
+  }
+  return Boolean(schema.schema && getKnownSchemaKeys(schema.schema)?.has('rawPayload'));
 }
 
 function extractComponentMetadata(rawMetadata: unknown): A2uiMetadata | undefined {

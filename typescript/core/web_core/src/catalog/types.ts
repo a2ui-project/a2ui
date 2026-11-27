@@ -76,6 +76,7 @@ import {
   formatValidationIssue,
   validateFunctionArguments,
 } from './model/model_validator.js';
+import type {OpaqueTypeRegistry, OpaqueTypeSpec} from './model/opaque_types.js';
 import {coerceDynamicBooleans} from './validation_result_coercion.js';
 
 registerZodSchemaAdapter();
@@ -526,6 +527,18 @@ export interface CatalogOptions extends CatalogDocumentOptions {
   metadata?: CatalogMetadata;
   /** The Catalog Document's `$schema` URI when loaded from a v1.0 Catalog Document. */
   documentSchemaUri?: string;
+  /** Host-registered branded / opaque value types keyed by `StringTypeDefinition.format` name. */
+  opaqueTypes?: ReadonlyMap<string, OpaqueTypeSpec>;
+}
+
+/** Options for {@link Catalog.fromModel} and {@link Catalog.fromDocument}. */
+export interface CatalogFromModelOptions {
+  /** Optional protocol version override. */
+  readonly protocolVersion?: string;
+  /** Optional catalog ID override. */
+  readonly catalogId?: string;
+  /** Host-registered branded / opaque value types keyed by `StringTypeDefinition.format` name. */
+  readonly opaqueTypes?: ReadonlyMap<string, OpaqueTypeSpec>;
 }
 
 /** Options for {@link Catalog.copyWith}. */
@@ -554,6 +567,8 @@ export interface CopyWithCatalogOptions<T extends ComponentApiLike, F extends Fu
   themeSchema?: z.ZodTypeAny;
   /** Replacement system instructions. Defaults to this catalog's instructions. */
   instructions?: string;
+  /** Replacement host opaque type registry. Defaults to this catalog's opaque types. */
+  opaqueTypes?: ReadonlyMap<string, OpaqueTypeSpec>;
 }
 
 /** What `Catalog.derive` builds a catalog from. */
@@ -605,6 +620,8 @@ export declare interface CatalogInterface<
   readonly surfaceProperties?: SurfacePropertiesDefinition;
   /** Catalog-level metadata (`{ extensions?: ... }`). */
   readonly metadata?: CatalogMetadata;
+  /** Host-registered branded / opaque value types keyed by `StringTypeDefinition.format` name. */
+  readonly opaqueTypes?: OpaqueTypeRegistry;
   /** System instructions or usage guidelines for this catalog. */
   readonly instructions?: string;
   /** Invoker callback that delegates to this catalog's registered functions. */
@@ -727,6 +744,9 @@ export class Catalog<
 
   /** Catalog-level metadata (`{ extensions?: ... }`). */
   readonly metadata?: CatalogMetadata;
+
+  /** Host-registered branded / opaque value types keyed by `StringTypeDefinition.format` name. */
+  readonly opaqueTypes?: OpaqueTypeRegistry;
 
   /**
    * Optional system instructions or usage guidelines for this catalog.
@@ -1047,6 +1067,7 @@ export class Catalog<
       title: this.title,
       description: this.description,
       instructions: options.instructions ?? this.instructions,
+      opaqueTypes: options.opaqueTypes ?? this.opaqueTypes,
     });
   }
 
@@ -1111,6 +1132,7 @@ export class Catalog<
       title?: string;
       description?: string;
       instructions?: string;
+      opaqueTypes?: OpaqueTypeRegistry;
     },
   ): Catalog<U, G> {
     const componentsChanged =
@@ -1163,6 +1185,7 @@ export class Catalog<
         types: this.types,
         surfaceProperties: this.surfaceProperties,
         metadata: this.metadata,
+        opaqueTypes: described.opaqueTypes ?? this.opaqueTypes,
       },
     );
   }
@@ -1338,6 +1361,10 @@ export class Catalog<
       ? frozenJson(options.surfaceProperties)
       : undefined;
     this.metadata = options.metadata ? frozenJson(options.metadata) : undefined;
+    this.opaqueTypes =
+      options.opaqueTypes && options.opaqueTypes.size > 0
+        ? new Map(options.opaqueTypes)
+        : undefined;
     this.instructions = options.instructions ?? resolvedInstructions;
     this.schemaUri = options.schemaUri;
     this.documentSchemaUri = options.documentSchemaUri;
@@ -1385,12 +1412,41 @@ export class Catalog<
    *   a reference is never fetched.
    */
   /**
+   * Constructs a schema-only `Catalog` directly from a canonical in-memory
+   * {@link CatalogModel} with zero Zod compilation.
+   *
+   * @param model Canonical catalog model.
+   * @param options Optional catalog ID, protocol version, and host opaque type registrations.
+   * @returns A new Catalog populated with canonical `ComponentDefinition` and `FunctionDefinition` entries.
+   */
+  static fromModel(
+    model: CatalogModel,
+    options?: CatalogFromModelOptions,
+  ): Catalog<ModelComponentApi, ModelFunctionApi> {
+    const effectiveModel: CatalogModel =
+      options?.protocolVersion !== undefined || options?.catalogId !== undefined
+        ? {
+            ...model,
+            ...(options.protocolVersion !== undefined
+              ? {protocolVersion: options.protocolVersion}
+              : {}),
+            ...(options.catalogId !== undefined ? {catalogId: options.catalogId} : {}),
+          }
+        : model;
+    return buildCatalogFromModel(effectiveModel, false, options?.opaqueTypes) as Catalog<
+      ModelComponentApi,
+      ModelFunctionApi
+    >;
+  }
+
+  /**
    * Constructs a schema-only `Catalog` from a canonical Catalog Document
    * (`formatVersion: "1.0"`) with zero Zod compilation.
    *
    * @param doc Serialized Catalog Document JSON object.
    * @param protocolVersion Optional protocol version override.
    * @param catalogId Optional catalog ID override.
+   * @param options Optional host opaque type registrations.
    * @returns A new Catalog populated with canonical `ComponentDefinition` and `FunctionDefinition` entries.
    * @throws {A2uiCatalogError} If `doc` violates any Catalog Document rule.
    */
@@ -1398,9 +1454,13 @@ export class Catalog<
     doc: Record<string, unknown>,
     protocolVersion?: string,
     catalogId?: string,
+    options?: {readonly opaqueTypes?: OpaqueTypeRegistry},
   ): Catalog<ModelComponentApi, ModelFunctionApi> {
     const model = parseCatalogDocument(doc, {protocolVersion, catalogId});
-    return buildCatalogFromModel(model, false) as Catalog<ModelComponentApi, ModelFunctionApi>;
+    return buildCatalogFromModel(model, false, options?.opaqueTypes) as Catalog<
+      ModelComponentApi,
+      ModelFunctionApi
+    >;
   }
 
   static fromJson(
@@ -1456,6 +1516,7 @@ export type AnyCatalogApi = Catalog<ComponentApiLike, FunctionApiLike>;
 function buildCatalogFromModel(
   model: CatalogModel,
   lazyZodSchemas: boolean,
+  opaqueTypes?: OpaqueTypeRegistry,
 ): Catalog<ComponentApiLike, FunctionApiLike> {
   const resolvedVersion = model.protocolVersion ?? '1.0';
   let lazyParsed: ReturnType<typeof parseCatalogSchema> | undefined;
@@ -1519,6 +1580,7 @@ function buildCatalogFromModel(
     metadata: model.metadata,
     types: model.types,
     surfaceProperties: model.surfaceProperties,
+    ...(opaqueTypes ? {opaqueTypes} : {}),
   });
 }
 
@@ -1678,6 +1740,7 @@ function createCatalogInvoker<F extends FunctionApiLike>(
           ctx,
           abortSignal,
           catalog?.types,
+          catalog?.opaqueTypes,
         );
       }
     }
@@ -1709,6 +1772,7 @@ function createCatalogInvoker<F extends FunctionApiLike>(
             protocolVersion,
             applyDefaults: true,
             coerceDynamicBoolean: true,
+            opaqueTypes: catalog?.opaqueTypes,
           });
           if (!outcome.success) {
             const msg = outcome.issues.map(formatValidationIssue).join('; ');
@@ -1788,6 +1852,7 @@ function routeToAgent(
   ctx: DataContext,
   abortSignal: AbortSignal | undefined,
   catalogTypes?: Readonly<Record<string, DataTypeDefinition>>,
+  catalogOpaqueTypes?: OpaqueTypeRegistry,
 ): unknown {
   if (fn) {
     assertCallerBoundary(fn, ctx);
@@ -1805,6 +1870,7 @@ function routeToAgent(
           protocolVersion: surface.protocolVersion,
           applyDefaults: true,
           coerceDynamicBoolean: true,
+          opaqueTypes: catalogOpaqueTypes ?? surface.defaultCatalog?.opaqueTypes,
         });
         if (!parsed.success) {
           const msg = parsed.issues.map(formatValidationIssue).join('; ');

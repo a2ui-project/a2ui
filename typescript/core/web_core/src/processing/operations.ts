@@ -25,6 +25,15 @@ export interface InternalComponentPayload {
   id: string;
   /** Component type name as defined in the catalog (e.g. `'Button'`, `'Column'`). */
   component?: string;
+  /**
+   * Optional static transport escape hatch carrying the raw wire payload
+   * (e.g. a compiled Protobuf message) for bespoke 1P domain widgets.
+   *
+   * Stripped before `CatalogModel` property validation (which always still runs)
+   * and forwarded onto `ComponentModel.rawPayload` and `ComponentNode.rawPayload`.
+   * Static snapshot only — not reactive to `@path` data model updates.
+   */
+  readonly rawPayload?: unknown;
   /** Additional component properties, children references, or data bindings. */
   [key: string]: unknown;
 }

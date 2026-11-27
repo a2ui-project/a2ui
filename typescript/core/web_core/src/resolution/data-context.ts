@@ -518,7 +518,10 @@ export class DataContext {
     if (Array.isArray(value)) {
       return value.some(item => this.containsDynamicValue(item));
     }
-    const rec = value as Record<string, unknown>;
+    if (!isPlainObject(value)) {
+      return false;
+    }
+    const rec = value;
     if (this.isDataBindingObject(rec) || this.isFunctionCallObject(rec)) {
       return true;
     }
@@ -614,7 +617,11 @@ export class DataContext {
       ) as V;
     }
 
-    const rec = value as Record<string, unknown>;
+    if (!isPlainObject(value)) {
+      return value as V;
+    }
+
+    const rec = value;
 
     if (this.isDataBindingObject(rec)) {
       const bindingPath = (rec['@path'] ?? rec.path) as string;
@@ -907,7 +914,11 @@ export class DataContext {
       return resultSig;
     }
 
-    const rec = value as Record<string, unknown>;
+    if (!isPlainObject(value)) {
+      return signal(value as V);
+    }
+
+    const rec = value;
 
     // 2. Path Check
     if (this.isDataBindingObject(rec)) {

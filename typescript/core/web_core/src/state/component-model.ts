@@ -30,6 +30,7 @@ import {peekValue, setValue, signal, Signal} from '../reactivity/signals.js';
  */
 export class ComponentModel {
   private _properties: Record<string, any>;
+  private _rawPayload?: unknown;
   private readonly _onUpdated = new EventEmitter<ComponentModel>();
   private readonly _onMetadataChanged = new EventEmitter<A2uiMetadata | undefined>();
   private readonly _metadataSignal: Signal<A2uiMetadata | undefined>;
@@ -62,6 +63,7 @@ export class ComponentModel {
    * @param catalog The catalog that defines this component's type. Omitting
    *   it is deprecated and kept only for pre-1.0 callers; pass the catalog.
    * @param metadata Optional component-level metadata envelope.
+   * @param rawPayload Optional static transport escape hatch (e.g. a compiled wire proto).
    */
   constructor(
     readonly id: string,
@@ -69,10 +71,20 @@ export class ComponentModel {
     initialProperties: Record<string, any>,
     catalog?: Catalog<any, any>,
     metadata?: A2uiMetadata,
+    rawPayload?: unknown,
   ) {
     this._properties = initialProperties;
+    this._rawPayload = rawPayload;
     this.catalog = catalog as Catalog<any, any>;
     this._metadataSignal = signal<A2uiMetadata | undefined>(cloneMetadata(metadata));
+  }
+
+  /**
+   * Optional static transport escape hatch carrying the raw wire payload
+   * (e.g. a compiled Protobuf message) for bespoke 1P domain widgets.
+   */
+  get rawPayload(): unknown {
+    return this._rawPayload;
   }
 
   /**
@@ -174,23 +186,32 @@ export class ComponentModel {
   }
 
   /**
-   * Atomically updates both properties and metadata before emitting update
-   * notifications, ensuring synchronous listeners never observe torn state.
+   * Atomically updates properties, metadata, and optional raw payload before emitting
+   * update notifications, ensuring synchronous listeners never observe torn state.
    *
    * @param newProperties Replacement component properties.
    * @param newMetadata Replacement component metadata envelope, or `undefined`.
+   * @param newRawPayload Replacement static raw payload, or `undefined`.
    */
-  applyUpdate(newProperties: Record<string, any>, newMetadata: A2uiMetadata | undefined): void {
+  applyUpdate(
+    newProperties: Record<string, any>,
+    newMetadata: A2uiMetadata | undefined,
+    newRawPayload?: unknown,
+  ): void {
     const nextMeta = cloneMetadata(newMetadata);
     const propsChanged = !jsonValueEquals(this._properties, newProperties);
+    const rawPayloadChanged = !Object.is(this._rawPayload, newRawPayload);
     const metaChanged = !metadataEquals(peekValue(this._metadataSignal), nextMeta);
     if (propsChanged) {
       this._properties = newProperties;
     }
+    if (rawPayloadChanged) {
+      this._rawPayload = newRawPayload;
+    }
     if (metaChanged) {
       setValue(this._metadataSignal, nextMeta);
     }
-    if (propsChanged) {
+    if (propsChanged || rawPayloadChanged) {
       void this._onUpdated.emit(this);
     }
     if (metaChanged) {

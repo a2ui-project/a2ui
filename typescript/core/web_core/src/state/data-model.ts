@@ -471,7 +471,13 @@ export class DataModel {
       if (Array.isArray(val)) {
         setValue(sig, val.slice());
       } else if (typeof val === 'object' && val !== null) {
-        setValue(sig, {...val});
+        const proto = Object.getPrototypeOf(val);
+        if (proto === Object.prototype || proto === null) {
+          setValue(sig, {...val});
+        } else {
+          // Preserve branded/opaque class instances intact without stripping their prototype.
+          setValue(sig, val);
+        }
       } else {
         setValue(sig, val);
       }

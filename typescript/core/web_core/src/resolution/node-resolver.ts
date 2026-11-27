@@ -360,6 +360,7 @@ export class NodeResolver<
           undefined,
           'unknown-type',
           computed(() => (model.metadataSignal ? getValue(model.metadataSignal) : model.metadata)),
+          model.rawPayload,
         ),
         {edgeKey, parent, occurrence, refFields: EMPTY_REF_FIELDS, componentModel: model},
       ).node;
@@ -398,6 +399,7 @@ export class NodeResolver<
         context,
         'resolved',
         computed(() => (model.metadataSignal ? getValue(model.metadataSignal) : model.metadata)),
+        model.rawPayload,
       ),
       {
         edgeKey,
@@ -587,6 +589,9 @@ export class NodeResolver<
   private materialize(record: NodeRecord): void {
     if (record.node.disposed) {
       return;
+    }
+    if (record.componentModel) {
+      record.node.setRawPayload(record.componentModel.rawPayload);
     }
     const raw = record.lastBinderProps ?? record.binder?.snapshot ?? {};
     const modelProps = record.componentModel?.properties;

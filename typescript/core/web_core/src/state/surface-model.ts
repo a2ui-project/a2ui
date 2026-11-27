@@ -16,6 +16,10 @@
 
 import {DataModel} from './data-model.js';
 import {
+  mergeOpaqueTypeRegistries,
+  serializeOpaqueValuesForAgent,
+} from '../catalog/model/opaque_types.js';
+import {
   Catalog,
   ComponentApi,
   ComponentApiLike,
@@ -500,7 +504,12 @@ export class SurfaceModel<
     }
     let args: Record<string, unknown>;
     try {
-      args = toJsonValue(call.args ?? {}) as Record<string, unknown>;
+      const opaqueTypes = mergeOpaqueTypeRegistries([
+        this.defaultCatalog,
+        ...this.availableCatalogs.values(),
+      ]);
+      const sanitizedArgs = serializeOpaqueValuesForAgent(call.args ?? {}, opaqueTypes);
+      args = toJsonValue(sanitizedArgs) as Record<string, unknown>;
     } catch (e: unknown) {
       return Promise.reject(
         new A2uiExpressionError(
@@ -715,7 +724,15 @@ export class SurfaceModel<
         return;
       }
       if (rawContext && typeof rawContext === 'object' && !Array.isArray(rawContext)) {
-        context = rawContext as Record<string, unknown>;
+        const opaqueTypes = mergeOpaqueTypeRegistries([
+          this.defaultCatalog,
+          ...this.availableCatalogs.values(),
+        ]);
+        const sanitized = serializeOpaqueValuesForAgent(rawContext, opaqueTypes);
+        context =
+          sanitized && typeof sanitized === 'object' && !Array.isArray(sanitized)
+            ? (sanitized as Record<string, unknown>)
+            : {};
       }
 
       if (eventPayload.userMessage !== undefined) {

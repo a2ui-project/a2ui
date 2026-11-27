@@ -33,6 +33,7 @@ import {
   isValidRfc3339Time,
   isValidUri,
 } from './format_validators.js';
+import type {OpaqueTypeRegistry, OpaqueTypeSpec} from './opaque_types.js';
 
 /**
  * Structured validation issue produced by zero-dependency validators.
@@ -69,6 +70,13 @@ export interface ValidateCatalogValueOptions {
    * `ValidationResult` `{ valid: boolean }` objects) before type checking.
    */
   readonly coerceDynamicBoolean?: boolean;
+  /**
+   * Host-registered branded / opaque value types keyed by `StringTypeDefinition.format`
+   * name (e.g. `'trusted-resource-url'`, `'safe-html'`). When a string parameter's
+   * `format` matches a registered entry, values passing `isInstance` are accepted
+   * and raw unbranded strings are rejected.
+   */
+  readonly opaqueTypes?: OpaqueTypeRegistry;
 }
 
 const MAX_VALIDATION_DEPTH = 128;
@@ -722,6 +730,44 @@ function validateNode(
       if (typeDef.dynamic && isDynamicWrapperValue(value, protocolVersion)) {
         return value;
       }
+      const formats =
+        typeDef.format === undefined
+          ? []
+          : Array.isArray(typeDef.format)
+            ? typeDef.format
+            : [typeDef.format];
+      const opaqueSpecs: OpaqueTypeSpec[] = [];
+      const stringFormats: string[] = [];
+      if (options.opaqueTypes && options.opaqueTypes.size > 0 && formats.length > 0) {
+        for (const fmt of formats) {
+          const spec = options.opaqueTypes.get(fmt);
+          if (spec) {
+            opaqueSpecs.push(spec);
+          } else {
+            stringFormats.push(fmt);
+          }
+        }
+      } else {
+        stringFormats.push(...formats);
+      }
+
+      if (opaqueSpecs.length > 0) {
+        if (opaqueSpecs.some(spec => spec.isInstance(value))) {
+          return value;
+        }
+        if (stringFormats.length === 0) {
+          const expectedNames = opaqueSpecs.map(s => s.name).join(' | ');
+          issues.push({
+            path,
+            code: 'invalid_type',
+            expected: `opaque(${expectedNames})`,
+            received: describeValueType(value),
+            message: `Expected branded opaque value (${expectedNames}), received ${describeValueType(value)}`,
+          });
+          return value;
+        }
+      }
+
       if (typeof value !== 'string') {
         issues.push({
           path,
@@ -769,13 +815,12 @@ function validateNode(
           });
         }
       }
-      if (typeDef.format !== undefined) {
-        const formats = Array.isArray(typeDef.format) ? typeDef.format : [typeDef.format];
-        if (!formats.some(fmt => checkStringFormat(value, fmt))) {
+      if (stringFormats.length > 0) {
+        if (!stringFormats.some(fmt => checkStringFormat(value, fmt))) {
           issues.push({
             path,
             code: 'invalid_string',
-            message: `Invalid string format; expected ${formats.join(' | ')}`,
+            message: `Invalid string format; expected ${stringFormats.join(' | ')}`,
           });
         }
       }

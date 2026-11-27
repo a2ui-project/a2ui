@@ -136,11 +136,24 @@ describe('Zod architectural dependency boundary', () => {
 
   it('keeps src/catalog/model/* 100% free of zod and zod-to-json-schema imports (direct and transitive)', () => {
     const modelFiles = collectTsFiles(join(webCoreRoot, 'src/catalog/model'), true);
-    assert.ok(modelFiles.length >= 8, 'expected canonical model modules');
+    assert.ok(modelFiles.length >= 9, 'expected canonical model modules including opaque_types.ts');
+    assert.ok(
+      modelFiles.some(f => f.endsWith('/opaque_types.ts')),
+      'expected opaque_types.ts in zero-Zod core model graph',
+    );
     for (const file of modelFiles) {
       assertNoZodImports(file);
     }
-    assertTransitiveZeroZod(join(webCoreRoot, 'src/catalog/model/index.ts'), webCoreRoot, 8);
+    assertTransitiveZeroZod(join(webCoreRoot, 'src/catalog/model/index.ts'), webCoreRoot, 9);
+  });
+
+  it('keeps src/experimental/proto/* 100% free of zod and zod-to-json-schema imports (direct and transitive)', () => {
+    const protoFiles = collectTsFiles(join(webCoreRoot, 'src/experimental/proto'), true);
+    assert.ok(protoFiles.length >= 6, 'expected experimental proto modules');
+    for (const file of protoFiles) {
+      assertNoZodImports(file);
+    }
+    assertTransitiveZeroZod(join(webCoreRoot, 'src/experimental/proto/index.ts'), webCoreRoot, 6);
   });
 
   it('keeps src/processing/wire-validators.ts transitively free of zod and zod-to-json-schema imports', () => {

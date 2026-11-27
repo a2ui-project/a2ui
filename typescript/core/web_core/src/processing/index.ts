@@ -34,6 +34,19 @@ export {
   MessageProcessor,
 } from './message-processor.js';
 export {
+  INTERNAL_OPERATION_TYPES,
+  isInternalOperation,
+  type InternalAgentFunctionResponseOp,
+  type InternalCallRendererFunctionOp,
+  type InternalComponentPayload,
+  type InternalCreateSurfaceOp,
+  type InternalDeleteSurfaceOp,
+  type InternalOperation,
+  type InternalOperationType,
+  type InternalUpdateComponentsOp,
+  type InternalUpdateDataModelOp,
+} from './operations.js';
+export {
   mapErrorToRendererMessage,
   extractEnvelopeErrorContext,
   normalizeJsonPointer,
