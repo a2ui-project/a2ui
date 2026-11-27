@@ -424,6 +424,7 @@ public enum CatalogJSONSchemaCodec {
       definition,
       envelopeRef: envelopeRef,
       context: ctx,
+      minimalV09Envelope: true,
       referencedDefs: &defsNeeded
     )
     if !version.isAtLeastV10 {
@@ -562,6 +563,7 @@ public enum CatalogJSONSchemaCodec {
     var required: Set<String> = []
     var atLeastOneOf: [[String]] = []
     var isCheckable = false
+    var declaresID = false
     var description: String?
     var hasUntranslatableRoot = false
     var allowsAdditionalProperties: Bool
@@ -611,7 +613,8 @@ public enum CatalogJSONSchemaCodec {
       deprecated: schema["deprecated"]?.boolValue ?? false,
       deprecatedReason: schema["x-deprecated-reason"]?.stringValue,
       rawJSONSchema: rawRoot,
-      allowsAdditionalProperties: state.allowsAdditionalProperties
+      allowsAdditionalProperties: state.allowsAdditionalProperties,
+      v09DeclaresID: state.allowsAdditionalProperties || state.declaresID
     )
   }
 
@@ -645,7 +648,10 @@ public enum CatalogJSONSchemaCodec {
         state.isCheckable = true
         return
       }
-      if refName == "ComponentCommon" { return }
+      if refName == "ComponentCommon" {
+        state.declaresID = true
+        return
+      }
       if ref.hasPrefix("#"), !context.visitedRefs.contains(ref),
         let target = resolveLocalPointer(ref, in: root) ?? context.localDefs[refName]
       {
@@ -662,6 +668,7 @@ public enum CatalogJSONSchemaCodec {
 
     if let props = obj["properties"]?.objectValue {
       let blockHasID = props["id"] != nil
+      if blockHasID { state.declaresID = true }
       for (key, value) in props {
         state.properties[key] = value
         state.propertyBlockHasID[key] = blockHasID
@@ -1458,6 +1465,7 @@ public enum CatalogJSONSchemaCodec {
     _ definition: ComponentDefinition,
     envelopeRef: String,
     context: EncodeContext,
+    minimalV09Envelope: Bool = false,
     referencedDefs: inout Set<String>
   ) -> JSONValue {
     if let raw = definition.rawJSONSchema { return raw }
@@ -1523,11 +1531,14 @@ public enum CatalogJSONSchemaCodec {
     if let desc = definition.description { inner["description"] = .string(desc) }
     applyAtLeastOneOf(definition.atLeastOneOf, to: &inner)
     allOfBranches.append(.object(inner))
-    var result: OrderedDictionary<String, JSONValue> = [
-      "type": .string("object"),
-      "allOf": .array(allOfBranches),
-      "unevaluatedProperties": .boolean(false),
-    ]
+    var result: OrderedDictionary<String, JSONValue> =
+      minimalV09Envelope
+      ? ["allOf": .array(allOfBranches)]
+      : [
+        "type": .string("object"),
+        "allOf": .array(allOfBranches),
+        "unevaluatedProperties": .boolean(false),
+      ]
     if definition.deprecated { result["deprecated"] = .boolean(true) }
     if let reason = definition.deprecatedReason { result["x-deprecated-reason"] = .string(reason) }
     return .object(result)
@@ -1668,7 +1679,7 @@ public enum CatalogJSONSchemaCodec {
       obj[useUnevaluatedForClosed ? "unevaluatedProperties" : "additionalProperties"] = .boolean(
         false)
     case .allowed:
-      obj["additionalProperties"] = .boolean(true)
+      break
     case .typed(let valueType):
       obj["additionalProperties"] = typeToJSONSchema(
         valueType,
@@ -2064,9 +2075,7 @@ public enum CatalogJSONSchemaCodec {
         ? A2UICommonSchema.v10URI(for: name)
         : A2UICommonSchema.uri(for: name)
     }
-    return context.version.isAtLeastV10
-      ? "common_types.json#/$defs/\(name)"
-      : "https://a2ui.org/specification/v0_9/common_types.json#/$defs/\(name)"
+    return "common_types.json#/$defs/\(name)"
   }
 
   private static func makeCatalogUnion(

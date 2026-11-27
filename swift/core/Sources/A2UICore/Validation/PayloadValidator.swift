@@ -297,16 +297,39 @@ public final class PayloadValidator: Sendable {
     )
 
     if definition.rawJSONSchema == nil {
-      let errors = ModelPayloadValidator.validateComponentProperties(
-        ownProperties,
-        definition: definition,
-        types: catalog.types,
-        protocolVersion: version,
-        allowUnknownElements: config.allowUnknownElements
+      var rawErrors: [A2UIErrorDetail] = []
+      if envelope == nil, !definition.v09DeclaresID, !config.allowUnknownElements,
+        component["id"] != nil
+      {
+        rawErrors.append(
+          A2UIErrorDetail(
+            path: "id",
+            code: "invalid_value",
+            message: "id: unknown property is not allowed"
+          )
+        )
+      }
+      rawErrors.append(
+        contentsOf: ModelPayloadValidator.validateComponentProperties(
+          ownProperties,
+          definition: definition,
+          types: catalog.types,
+          protocolVersion: version,
+          allowUnknownElements: config.allowUnknownElements
+        )
       )
-      guard !errors.isEmpty else { return }
-      let errorMessage = errors.map(\.message).joined(separator: "; ")
-      throw A2UIValidationError(errorMessage, details: errors)
+      guard !rawErrors.isEmpty else { return }
+      let details = rawErrors.map { detail in
+        let code = detail.code == "missing_field" ? "missing_field" : "invalid_value"
+        let path = detail.path.isEmpty ? "/\(type)" : detail.path
+        let msg =
+          detail.path.isEmpty
+          ? "Validation failed for component '\(type)': \(detail.message)"
+          : "Validation failed for component '\(type)' at '\(detail.path)': \(detail.message)"
+        return A2UIErrorDetail(path: path, code: code, message: msg)
+      }
+      let errorMessage = details.map(\.message).joined(separator: "; ")
+      throw A2UIValidationError(errorMessage, details: details)
     }
 
     // Targeted fallback for legacy components whose root schema contains untranslatable keywords

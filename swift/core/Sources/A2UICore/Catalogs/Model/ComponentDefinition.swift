@@ -55,6 +55,11 @@ public struct ComponentDefinition: Sendable, Equatable {
   /// Whether undeclared properties are permitted on legacy JSON Schema components.
   internal var allowsAdditionalProperties: Bool
 
+  /// Whether a legacy pre-v1.0 component schema accepts the envelope `id` key (true for all
+  /// canonical definitions and any schema that declares `id`, references `ComponentCommon`, or
+  /// permits additional properties).
+  internal var v09DeclaresID: Bool
+
   public init(
     name: String,
     description: String? = nil,
@@ -79,6 +84,7 @@ public struct ComponentDefinition: Sendable, Equatable {
     self.deprecatedReason = deprecatedReason
     self.rawJSONSchema = nil
     self.allowsAdditionalProperties = false
+    self.v09DeclaresID = true
   }
 
   internal init(
@@ -93,7 +99,8 @@ public struct ComponentDefinition: Sendable, Equatable {
     deprecated: Bool = false,
     deprecatedReason: String? = nil,
     rawJSONSchema: JSONValue?,
-    allowsAdditionalProperties: Bool
+    allowsAdditionalProperties: Bool,
+    v09DeclaresID: Bool = true
   ) {
     self.name = name
     self.description = description
@@ -107,6 +114,7 @@ public struct ComponentDefinition: Sendable, Equatable {
     self.deprecatedReason = deprecatedReason
     self.rawJSONSchema = rawJSONSchema
     self.allowsAdditionalProperties = allowsAdditionalProperties
+    self.v09DeclaresID = v09DeclaresID
   }
 
   /// Looks up a declared parameter by name.
