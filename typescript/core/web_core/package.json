@@ -30,6 +30,14 @@
       "types": "./dist/src/catalog/index.d.ts",
       "default": "./dist/src/catalog/index.js"
     },
+    "./catalog/model": {
+      "types": "./dist/src/catalog/model/index.d.ts",
+      "default": "./dist/src/catalog/model/index.js"
+    },
+    "./zod": {
+      "types": "./dist/src/compat/zod/index.d.ts",
+      "default": "./dist/src/compat/zod/index.js"
+    },
     "./state": {
       "types": "./dist/src/state/index.d.ts",
       "default": "./dist/src/state/index.js"
@@ -113,6 +121,10 @@
     "./universal": {
       "types": "./dist/src/universal/index.d.ts",
       "default": "./dist/src/universal/index.js"
+    },
+    "./experimental/proto": {
+      "types": "./dist/src/experimental/proto/index.d.ts",
+      "default": "./dist/src/experimental/proto/index.js"
     },
     "./data/*": {
       "types": "./dist/src/v0_8/data/*.d.ts",

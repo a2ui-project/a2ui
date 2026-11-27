@@ -18,6 +18,16 @@ import type {ProtocolVersion} from './adapters/base.js';
 import type {ErrorEnvelopeContext} from './message-error-mapper.js';
 
 /**
+ * Non-JSON-serializable symbol carrying an optional transport-layer raw wire payload
+ * (e.g. a compiled Protobuf message) out-of-band on an {@link InternalComponentPayload}.
+ *
+ * Carrying the escape hatch on a `Symbol` guarantees that untrusted JSON (`JSON.parse`)
+ * and Protobuf `Struct` payloads can never spoof `rawPayload`, bypass strict
+ * `CatalogModel` property validation, or evade `validateRecursionAndPaths` depth checks.
+ */
+export const INTERNAL_RAW_PAYLOAD: unique symbol = Symbol('a2ui.internalRawPayload');
+
+/**
  * Generic component representation within internal processing operations.
  */
 export interface InternalComponentPayload {
@@ -25,6 +35,14 @@ export interface InternalComponentPayload {
   id: string;
   /** Component type name as defined in the catalog (e.g. `'Button'`, `'Column'`). */
   component?: string;
+  /**
+   * Optional transport-layer escape hatch carrying the raw wire payload
+   * (e.g. a compiled Protobuf message) for bespoke 1P domain widgets.
+   *
+   * Stored out-of-band via {@link INTERNAL_RAW_PAYLOAD} so JSON and `Struct`
+   * payloads cannot spoof it and `CatalogModel` property validation always runs.
+   */
+  readonly [INTERNAL_RAW_PAYLOAD]?: unknown;
   /** Additional component properties, children references, or data bindings. */
   [key: string]: unknown;
 }
@@ -65,6 +83,8 @@ export interface InternalUpdateComponentsOp {
   readonly surfaceId: string;
   /** Component definitions to insert or update within the surface. */
   readonly components: InternalComponentPayload[];
+  /** Protocol version of the originating message envelope or adapter. */
+  readonly version?: string;
 }
 
 /**
@@ -79,6 +99,8 @@ export interface InternalUpdateDataModelOp {
   readonly path?: string;
   /** Data value to write at the target path. */
   readonly value: unknown;
+  /** Protocol version of the originating message envelope or adapter. */
+  readonly version?: string;
 }
 
 /**
@@ -89,6 +111,8 @@ export interface InternalDeleteSurfaceOp {
   readonly type: 'deleteSurface';
   /** Identifier of the surface to delete and dispose. */
   readonly surfaceId: string;
+  /** Protocol version of the originating message envelope or adapter. */
+  readonly version?: string;
 }
 
 /**

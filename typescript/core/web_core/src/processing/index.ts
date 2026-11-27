@@ -34,6 +34,20 @@ export {
   MessageProcessor,
 } from './message-processor.js';
 export {
+  INTERNAL_OPERATION_TYPES,
+  INTERNAL_RAW_PAYLOAD,
+  isInternalOperation,
+  type InternalAgentFunctionResponseOp,
+  type InternalCallRendererFunctionOp,
+  type InternalComponentPayload,
+  type InternalCreateSurfaceOp,
+  type InternalDeleteSurfaceOp,
+  type InternalOperation,
+  type InternalOperationType,
+  type InternalUpdateComponentsOp,
+  type InternalUpdateDataModelOp,
+} from './operations.js';
+export {
   mapErrorToRendererMessage,
   extractEnvelopeErrorContext,
   normalizeJsonPointer,
@@ -55,6 +69,16 @@ export {
   type KnownActionsProvider,
   BaseVersionAdapter,
 } from './adapters/base.js';
+export {
+  validateAccessibilityAttributes,
+  validateAgentToRendererEnvelope,
+  validateComponentMetadata,
+  validateV09AgentToRendererMessage,
+  validateV10ActionMessage,
+  validateV10AgentToRendererMessage,
+  validateV10ErrorMessage,
+  validateV10RendererFunctionResponseMessage,
+} from './wire-validators.js';
 export {
   type A2uiErrorDetail,
   type A2uiErrorContext,

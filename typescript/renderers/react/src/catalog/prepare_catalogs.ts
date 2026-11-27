@@ -16,16 +16,16 @@
 
 import type {Catalog, SurfaceModel} from '@a2ui/web_core';
 import {isWebComponentImplementation} from '@a2ui/web_core/universal';
-import type {ReactCatalogComponent} from '../react_component_implementation';
+import type {ReactCatalogComponentLike} from '../react_component_implementation';
 import {toWebComponent} from './to_web_component';
 
-const prepared = new WeakSet<Catalog<ReactCatalogComponent>>();
+const prepared = new WeakSet<Catalog<ReactCatalogComponentLike>>();
 
-function prepare(catalog: Catalog<ReactCatalogComponent>): void {
+function prepare(catalog: Catalog<ReactCatalogComponentLike>): void {
   if (prepared.has(catalog)) return;
 
   prepared.add(catalog);
-  const components = catalog.components as Map<string, ReactCatalogComponent>;
+  const components = catalog.components as Map<string, ReactCatalogComponentLike>;
   for (const [name, implementation] of components) {
     if (!isWebComponentImplementation(implementation)) {
       components.set(name, toWebComponent(implementation));
@@ -44,7 +44,7 @@ function prepare(catalog: Catalog<ReactCatalogComponent>): void {
  * mutation; this is the one place the React renderer writes to it, because
  * catalogs reach a surface through web_core, before React sees them.
  */
-export function prepareCatalogs(surface: SurfaceModel<ReactCatalogComponent>): void {
+export function prepareCatalogs(surface: SurfaceModel<ReactCatalogComponentLike>): void {
   if (surface.defaultCatalog) prepare(surface.defaultCatalog);
   for (const catalog of surface.availableCatalogs.values()) prepare(catalog);
 }

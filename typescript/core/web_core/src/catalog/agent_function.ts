@@ -19,6 +19,8 @@ import {z} from 'zod';
 import {A2uiCatalogError} from '../errors.js';
 import {AGENT_FUNCTION_BRAND, isAgentFunction} from './agent_function_brand.js';
 import {copyLoadedDefinition} from './json_entries.js';
+import type {FunctionDefinition} from './model/catalog_model.js';
+import {functionDefinitionToJsonSchema} from './model/json_schema_codec.js';
 import {
   convertFunctionArgsJsonSchemaToZod,
   functionParameterNames,
@@ -84,6 +86,8 @@ export interface AgentFunctionInit<
   readonly returnType?: TReturn;
   /** Zod schema or JSON Schema object validating the function's input arguments. */
   readonly schema?: Schema;
+  /** Optional canonical zero-dependency function definition. */
+  readonly definition?: FunctionDefinition;
   /** Whether the function requires explicit user interaction before execution. Defaults to `false`. */
   readonly requiresUserActivation?: boolean;
   /** Human-readable description of the function's purpose. */
@@ -150,6 +154,8 @@ export class AgentFunction<
   readonly returnType: A2uiReturnType;
   /** Zod schema validating the function's input arguments. */
   readonly schema: z.ZodTypeAny;
+  /** Canonical zero-dependency function definition, when declared via the catalog model. */
+  readonly definition?: FunctionDefinition;
   /** Agent-side handler callback. Use `withHandler` to bind another one. */
   readonly handler: AgentFunctionHandler<any, any>;
   /**
@@ -197,13 +203,23 @@ export class AgentFunction<
     const bound = (init as Partial<BoundDefsInit>)[BOUND_DEFS];
     this.name = init.name;
     this.returnType = init.returnType ?? 'any';
-    this.schema = bound ? bound.resolvedSchema : resolveAgentFunctionSchema(init.schema);
-    if (init.schema !== undefined && !isZodSchema(init.schema)) {
-      this.jsonSchema = init.schema;
-      // `init.schema` is also the document its local `#/$defs/...` resolve in.
+    const initSchema =
+      init.schema ??
+      (init.definition
+        ? ((
+            functionDefinitionToJsonSchema(init.definition)['properties'] as
+              | Record<string, unknown>
+              | undefined
+          )?.['args'] as Record<string, unknown> | undefined)
+        : undefined);
+    this.definition = init.definition;
+    this.schema = bound ? bound.resolvedSchema : resolveAgentFunctionSchema(initSchema);
+    if (initSchema !== undefined && !isZodSchema(initSchema)) {
+      this.jsonSchema = initSchema;
+      // `initSchema` is also the document its local `#/$defs/...` resolve in.
       this.declaredParameterNames = bound
         ? bound.declaredParameterNames
-        : functionParameterNames(init.schema, init.schema);
+        : functionParameterNames(initSchema, initSchema);
     }
     this.boundCatalogDefs = bound?.catalogDefs;
     this.handler = init.handler;
@@ -257,6 +273,7 @@ export class AgentFunction<
       name: api.name,
       returnType: api.returnType,
       schema: api.schema,
+      definition: api.definition,
       handler: handler as AgentFunctionHandler<any, any>,
       requiresUserActivation: api.requiresUserActivation,
       description: api.description,

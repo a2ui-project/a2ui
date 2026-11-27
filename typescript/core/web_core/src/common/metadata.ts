@@ -42,9 +42,13 @@ export interface ActionDispatchOptions {
   readonly metadata?: A2uiMetadata;
 }
 
-/** Checks whether a value is a non-null, non-array plain object. */
+/** Checks whether a value is a non-null, non-array plain literal object. */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
 }
 
 /** Validates an `extensions` map and its UAX #31 keys. */
@@ -189,8 +193,20 @@ function objectsEqual(a: Record<string, unknown>, b: Record<string, unknown>): b
   return true;
 }
 
+/** Checks whether a value is a plain literal object (excluding class instances and arrays). */
+function isPlainLiteralObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
 /**
  * Compares two JSON-compatible values for deep structural equality.
+ *
+ * Non-plain class instances (such as branded opaque values) compare by reference
+ * identity (`Object.is`) rather than enumerable keys.
  *
  * @param a First value.
  * @param b Second value.
@@ -201,7 +217,7 @@ export function jsonValueEquals(a: unknown, b: unknown): boolean {
   if (Array.isArray(a) && Array.isArray(b)) {
     return arraysEqual(a, b);
   }
-  if (isPlainObject(a) && isPlainObject(b)) {
+  if (isPlainLiteralObject(a) && isPlainLiteralObject(b)) {
     return objectsEqual(a, b);
   }
   return false;

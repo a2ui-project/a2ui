@@ -16,8 +16,8 @@
 
 import {EventEmitter, EventSource} from '../common/events.js';
 import type {A2uiMetadata, ActionDispatchOptions} from '../common/metadata.js';
-import type {ComponentApi} from '../catalog/types.js';
-import {computed, Signal, signal, peekValue, setValue} from '../reactivity/signals.js';
+import type {ComponentApiLike} from '../catalog/types.js';
+import {computed, getValue, Signal, signal, peekValue, setValue} from '../reactivity/signals.js';
 import {ResolvedBinding} from './resolved-binding.js';
 import type {ComponentContext} from './component-context.js';
 import {nextNodeId} from './node-id.js';
@@ -56,7 +56,7 @@ export type NodeProps = Record<string, unknown>;
  * reference is replaced. Does not emit when a child's internal properties change.
  */
 export interface ComponentNode<
-  C extends ComponentApi = ComponentApi,
+  C extends ComponentApiLike = ComponentApiLike,
   TProps extends NodeProps = NodeProps,
 > {
   /**
@@ -107,6 +107,18 @@ export interface ComponentNode<
    * Read with `getValue`/`peekValue`.
    */
   readonly metadata: Signal<A2uiMetadata | undefined>;
+  /**
+   * Read-only reactive signal reflecting the optional transport escape hatch
+   * carrying the raw wire payload (e.g. a compiled Protobuf message) for
+   * bespoke 1P domain widgets. Updates in place on `updateComponents` even when
+   * `properties` are unchanged or the node is `'unknown-type'`.
+   */
+  readonly rawPayloadSignal: Signal<unknown>;
+  /**
+   * Reactive getter reading `rawPayloadSignal` for ergonomic access inside
+   * reactive effects/computeds or synchronous snapshots.
+   */
+  readonly rawPayload?: unknown;
   /** Fires exactly once, when this node is disposed. */
   readonly onDestroyed: EventSource<void>;
   /** Whether this node has been disposed. */
@@ -151,7 +163,7 @@ export function isComponentNode(value: unknown): value is ComponentNode {
  * Used internally by the node resolver to construct, update, and dispose nodes.
  */
 export class MutableComponentNode<TProps extends NodeProps = NodeProps> implements ComponentNode<
-  ComponentApi,
+  ComponentApiLike,
   TProps
 > {
   readonly instanceId: string;
@@ -160,12 +172,13 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
   readonly type: string;
 
   readonly dataPath: string;
-  readonly impl: ComponentApi | undefined;
+  readonly impl: ComponentApiLike | undefined;
   /** @deprecated Read resolved values from props; adapters get the surface from their ambient context. Removed in the next breaking release. */
   readonly context: ComponentContext | undefined;
   readonly state: NodeState;
   readonly props: Signal<TProps>;
   readonly metadata: Signal<A2uiMetadata | undefined>;
+  readonly rawPayloadSignal: Signal<unknown>;
 
   private readonly _onDestroyed = new EventEmitter<void>();
   readonly onDestroyed: EventSource<void> = this._onDestroyed;
@@ -192,10 +205,11 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
     type: string,
     dataPath: string,
     initialProps: TProps,
-    impl?: ComponentApi,
+    impl?: ComponentApiLike,
     context?: ComponentContext,
     state: NodeState = 'resolved',
     metadata: Signal<A2uiMetadata | undefined> = computed(() => undefined),
+    rawPayloadSignal: Signal<unknown> = computed(() => undefined),
   ) {
     this.instanceId = instanceId;
     this.componentId = componentId;
@@ -206,6 +220,12 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
     this.context = context;
     this.state = state;
     this.metadata = metadata;
+    this.rawPayloadSignal = rawPayloadSignal;
+  }
+
+  /** Reactive getter reading `rawPayloadSignal` attached to the underlying component model. */
+  get rawPayload(): unknown {
+    return getValue(this.rawPayloadSignal);
   }
 
   /** Whether this node has been disposed. */
@@ -252,16 +272,20 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
   }
 
   /**
-   * Replaces resolved properties, emitting only when a shallow comparison detects a change.
+   * Replaces resolved properties, emitting when a shallow comparison detects a
+   * change or when `forceEmit` is set (for example on a `rawPayload`-only update).
    *
    * @param next Next property dictionary.
+   * @param forceEmit Whether to force a signal emission with a fresh object identity.
    */
-  setProps(next: TProps): void {
+  setProps(next: TProps, forceEmit = false): void {
     if (this._disposed) {
       return;
     }
     const previous = peekValue(this.props);
-    if (!shallowEqual(previous, next)) {
+    if (forceEmit) {
+      setValue(this.props, {...next} as TProps);
+    } else if (!shallowEqual(previous, next)) {
       setValue(this.props, next);
     }
   }

@@ -51,6 +51,17 @@ export const MAX_ARRAY_INDEX = 10000;
  */
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
+function isPlainContainer(val: unknown): val is Record<string, unknown> | unknown[] {
+  if (val === null || val === undefined || typeof val !== 'object') {
+    return false;
+  }
+  if (Array.isArray(val)) {
+    return true;
+  }
+  const proto = Object.getPrototypeOf(val);
+  return proto === Object.prototype || proto === null;
+}
+
 function cloneValue<T>(val: T): T {
   if (val === null || val === undefined || typeof val !== 'object') {
     return val;
@@ -163,6 +174,11 @@ export class DataModel {
         `Cannot set path '${path}': the data model root is a primitive value.`,
         path,
       );
+    } else if (!isPlainContainer(this.data)) {
+      throw new A2uiDataError(
+        `Cannot set path '${path}': the data model root is an opaque value and cannot be traversed.`,
+        path,
+      );
     }
     let current: any = this.data;
     for (let i = 0; i < segments.length; i++) {
@@ -184,15 +200,23 @@ export class DataModel {
           );
         }
 
-        // If we encounter a primitive where a container is expected, we cannot
-        // proceed. We allow undefined/null to be overwritten by a new
-        // container.
+        // If we encounter a primitive or opaque class instance where a container
+        // is expected, we cannot proceed. We allow undefined/null to be
+        // overwritten by a new container.
         const val = current[index];
-        if (val !== undefined && val !== null && typeof val !== 'object') {
-          throw new A2uiDataError(
-            `Cannot set path '${path}': segment '${segment}' is a primitive value.`,
-            path,
-          );
+        if (val !== undefined && val !== null) {
+          if (typeof val !== 'object') {
+            throw new A2uiDataError(
+              `Cannot set path '${path}': segment '${segment}' is a primitive value.`,
+              path,
+            );
+          }
+          if (!isPlainContainer(val)) {
+            throw new A2uiDataError(
+              `Cannot set path '${path}': segment '${segment}' is an opaque value and cannot be traversed.`,
+              path,
+            );
+          }
         }
 
         if (val === undefined || val === null) {
@@ -217,14 +241,22 @@ export class DataModel {
         const hasOwnProp = Object.prototype.hasOwnProperty.call(current, segment);
         if (hasOwnProp) {
           const propVal = current[segment];
-          // If we encounter a primitive where a container is expected, we
-          // cannot proceed. We allow undefined/null to be overwritten by a new
-          // container.
-          if (propVal !== undefined && propVal !== null && typeof propVal !== 'object') {
-            throw new A2uiDataError(
-              `Cannot set path '${path}': segment '${segment}' is a primitive value.`,
-              path,
-            );
+          // If we encounter a primitive or opaque class instance where a
+          // container is expected, we cannot proceed. We allow undefined/null
+          // to be overwritten by a new container.
+          if (propVal !== undefined && propVal !== null) {
+            if (typeof propVal !== 'object') {
+              throw new A2uiDataError(
+                `Cannot set path '${path}': segment '${segment}' is a primitive value.`,
+                path,
+              );
+            }
+            if (!isPlainContainer(propVal)) {
+              throw new A2uiDataError(
+                `Cannot set path '${path}': segment '${segment}' is an opaque value and cannot be traversed.`,
+                path,
+              );
+            }
           }
         }
 
@@ -333,7 +365,7 @@ export class DataModel {
     const segments = this.parsePath(path);
     let current: any = this.data;
     for (const segment of segments) {
-      if (current === undefined || current === null || typeof current !== 'object') {
+      if (!isPlainContainer(current)) {
         return undefined as T;
       }
 
@@ -471,7 +503,13 @@ export class DataModel {
       if (Array.isArray(val)) {
         setValue(sig, val.slice());
       } else if (typeof val === 'object' && val !== null) {
-        setValue(sig, {...val});
+        const proto = Object.getPrototypeOf(val);
+        if (proto === Object.prototype || proto === null) {
+          setValue(sig, {...val});
+        } else {
+          // Preserve branded/opaque class instances intact without stripping their prototype.
+          setValue(sig, val);
+        }
       } else {
         setValue(sig, val);
       }

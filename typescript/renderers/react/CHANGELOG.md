@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Support canonical zero-dependency `ComponentDefinition` APIs (`ComponentApiLike`) in `createComponentImplementation` (with an optional catalog `Types` type parameter for resolving local `ref`s), `createBinderlessComponentImplementation`, `toWebComponent`, and `A2uiSurface` via `pickComponentApiFields`, `ResolveDefinitionProps`, `ReactComponentImplementationLike`, and `ReactCatalogComponentLike`, preserving `definition` on implementations and inferring typed React props without Zod while keeping existing `ReactComponentImplementation` and `ReactCatalogComponent` contracts unchanged ([#4431](https://github.com/a2ui-project/a2ui/pull/4431)).
+
 ## 0.16.1
 
 - (v0_9) Fix `@a2ui/react` throwing `ReferenceError: HTMLElement is not defined` when imported without a DOM (server-side rendering, plain Node). The host element base class is now chosen when the module loads, so the import no longer needs `HTMLElement`. Regression in 0.13.0. [#3158](https://github.com/a2ui-project/a2ui/issues/3158), [#3197](https://github.com/a2ui-project/a2ui/pull/3197)

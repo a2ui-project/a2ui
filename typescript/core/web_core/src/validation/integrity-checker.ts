@@ -15,7 +15,8 @@
  */
 
 import {A2uiRecursionError, A2uiValidationError} from '../errors.js';
-import {Catalog, type ComponentApi} from '../catalog/types.js';
+import {Catalog, type ComponentApiLike, type FunctionApiLike} from '../catalog/types.js';
+import {isPlainObject} from '../common/settle_deep.js';
 import {ProtocolVersion} from '../processing/adapters/base.js';
 
 /** Maximum permitted nesting depth for JSON objects and array structures. */
@@ -120,7 +121,7 @@ function* extractPointers(
   }
 }
 
-function getOrCreateRefMap(catalog: Catalog<ComponentApi>): ComponentRefMap {
+function getOrCreateRefMap(catalog: Catalog<ComponentApiLike, FunctionApiLike>): ComponentRefMap {
   return catalog.componentRefMap;
 }
 
@@ -138,7 +139,7 @@ function getOrCreateRefMap(catalog: Catalog<ComponentApi>): ComponentRefMap {
  */
 export function* getComponentReferences(
   component: Record<string, unknown>,
-  catalogOrRefMap: Catalog<ComponentApi> | ComponentRefMap,
+  catalogOrRefMap: Catalog<ComponentApiLike, FunctionApiLike> | ComponentRefMap,
 ): Generator<[string, string]> {
   if (!component || typeof component !== 'object') {
     return;
@@ -234,8 +235,8 @@ function traverseRecursionAndPaths(item: unknown, globalDepth: number): void {
     return;
   }
 
-  if (typeof item === 'object' && item !== null) {
-    const obj = item as Record<string, unknown>;
+  if (isPlainObject(item)) {
+    const obj = item;
     // v1.0 binds data with `@path`; earlier versions and templates use `path`.
     for (const path of [obj.path, obj['@path']]) {
       if (typeof path === 'string' && !RELAXED_PATH_PATTERN.test(path)) {

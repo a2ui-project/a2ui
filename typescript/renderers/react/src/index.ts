@@ -22,7 +22,9 @@ export type {
   NodeViewProps,
   ReactA2uiComponentProps,
   ReactCatalogComponent,
+  ReactCatalogComponentLike,
   ReactComponentImplementation,
+  ReactComponentImplementationLike,
 } from './react_component_implementation';
 
 export {

@@ -14,21 +14,12 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
 import {A2uiCatalogError} from '../errors.js';
 import {
   A2uiValidationError,
   normalizeVersionString,
-  V09CreateSurfaceMessageSchema,
-  V09UpdateComponentsMessageSchema,
-  V09UpdateDataModelMessageSchema,
-  V09DeleteSurfaceMessageSchema,
-  V10CreateSurfaceMessageSchema,
-  V10UpdateComponentsMessageSchema,
-  V10UpdateDataModelMessageSchema,
-  V10DeleteSurfaceMessageSchema,
-  V10CallRendererFunctionMessageSchema,
-  V10AgentFunctionResponseMessageSchema,
+  validateAgentToRendererEnvelope,
+  type ValidationIssue,
 } from '../internal/web-core.js';
 import {
   MSG_TYPE_CREATE_SURFACE,
@@ -40,52 +31,42 @@ import {
 const MSG_TYPE_CALL_RENDERER_FUNCTION = 'callRendererFunction';
 const MSG_TYPE_AGENT_FUNCTION_RESPONSE = 'agentFunctionResponse';
 
-const V09_SCHEMAS: Record<string, z.ZodTypeAny> = {
-  [MSG_TYPE_CREATE_SURFACE]: V09CreateSurfaceMessageSchema,
-  [MSG_TYPE_UPDATE_COMPONENTS]: V09UpdateComponentsMessageSchema,
-  [MSG_TYPE_UPDATE_DATA_MODEL]: V09UpdateDataModelMessageSchema,
-  [MSG_TYPE_DELETE_SURFACE]: V09DeleteSurfaceMessageSchema,
-};
+const V09_MESSAGE_KEYS: readonly string[] = [
+  MSG_TYPE_CREATE_SURFACE,
+  MSG_TYPE_UPDATE_COMPONENTS,
+  MSG_TYPE_UPDATE_DATA_MODEL,
+  MSG_TYPE_DELETE_SURFACE,
+];
 
-const V10_SCHEMAS: Record<string, z.ZodTypeAny> = {
-  [MSG_TYPE_CREATE_SURFACE]: V10CreateSurfaceMessageSchema,
-  [MSG_TYPE_UPDATE_COMPONENTS]: V10UpdateComponentsMessageSchema,
-  [MSG_TYPE_UPDATE_DATA_MODEL]: V10UpdateDataModelMessageSchema,
-  [MSG_TYPE_DELETE_SURFACE]: V10DeleteSurfaceMessageSchema,
-  [MSG_TYPE_CALL_RENDERER_FUNCTION]: V10CallRendererFunctionMessageSchema,
-  [MSG_TYPE_AGENT_FUNCTION_RESPONSE]: V10AgentFunctionResponseMessageSchema,
-};
+const V10_MESSAGE_KEYS: readonly string[] = [
+  MSG_TYPE_CREATE_SURFACE,
+  MSG_TYPE_UPDATE_COMPONENTS,
+  MSG_TYPE_UPDATE_DATA_MODEL,
+  MSG_TYPE_DELETE_SURFACE,
+  MSG_TYPE_CALL_RENDERER_FUNCTION,
+  MSG_TYPE_AGENT_FUNCTION_RESPONSE,
+];
 
-/**
- * Returns the agent-to-renderer message schemas of a protocol version, keyed by the
- * envelope name each message carries (`createSurface`, `updateComponents`, and so on).
- *
- * The schemas are web_core's generated Zod models, so they always match the protocol
- * the renderer validates against.
- *
- * @param protocolVersion Protocol version in any spelling a catalog uses.
- * @throws {A2uiCatalogError} If the SDK has no message schemas for the version.
- */
-export function envelopeSchemasFor(protocolVersion: string): Record<string, z.ZodTypeAny> {
+function knownEnvelopeKeysFor(protocolVersion: string): readonly string[] {
   const normalized = normalizeVersionString(protocolVersion);
   if (normalized === '0.9' || normalized.startsWith('0.9.')) {
-    return V09_SCHEMAS;
+    return V09_MESSAGE_KEYS;
   }
   if (normalized === '1.0') {
-    return V10_SCHEMAS;
+    return V10_MESSAGE_KEYS;
   }
   throw new A2uiCatalogError(`No message schemas for protocol version '${protocolVersion}'.`);
 }
 
 /**
- * Formats a Zod error into an A2uiValidationError message.
+ * Formats zero-dependency validation issues into an A2uiValidationError message.
  *
- * When an underlying Zod issue represents a missing required property,
- * includes the phrase `'<key>' is a required property` to match the vocabulary
- * used by language-agnostic conformance assertions.
+ * When an underlying issue represents a missing required property, includes the
+ * phrase `'<key>' is a required property` to match the vocabulary used by
+ * language-agnostic conformance assertions.
  */
-function formatZodValidationErrorMessage(error: z.ZodError): string {
-  for (const issue of error.issues) {
+function formatValidationErrorMessage(issues: readonly ValidationIssue[]): string {
+  for (const issue of issues) {
     if (issue.code === 'invalid_type' && issue.received === 'undefined') {
       const key = issue.path[issue.path.length - 1];
       if (typeof key === 'string') {
@@ -94,7 +75,10 @@ function formatZodValidationErrorMessage(error: z.ZodError): string {
     }
   }
 
-  const primaryIssue = error.issues[0];
+  const primaryIssue = issues[0];
+  if (!primaryIssue) {
+    return 'Validation failed';
+  }
   const pathStr = primaryIssue.path.length > 0 ? ` at '${primaryIssue.path.join('.')}'` : '';
   return `Validation failed: ${primaryIssue.message}${pathStr}`;
 }
@@ -107,9 +91,7 @@ function formatZodValidationErrorMessage(error: z.ZodError): string {
  * @throws {A2uiValidationError} If validation fails or if the envelope key is unknown.
  */
 export function validateEnvelope(obj: Record<string, unknown>, protocolVersion: string): void {
-  const schemas = envelopeSchemasFor(protocolVersion);
-
-  const knownKeys = Object.keys(schemas);
+  const knownKeys = knownEnvelopeKeysFor(protocolVersion);
   const matchingKey = knownKeys.find(key => key in obj);
 
   if (!matchingKey) {
@@ -122,8 +104,11 @@ export function validateEnvelope(obj: Record<string, unknown>, protocolVersion: 
   // Validate the envelope exactly as received. The schema requires `version`, and Python
   // does not fill one in before validating (streaming_v09.py, _handle_complete_object), so
   // supplying a default here would accept envelopes Python rejects.
-  const result = schemas[matchingKey].safeParse(obj);
+  const result = validateAgentToRendererEnvelope(obj, protocolVersion);
+  if (!result) {
+    throw new A2uiCatalogError(`No message schemas for protocol version '${protocolVersion}'.`);
+  }
   if (!result.success) {
-    throw new A2uiValidationError(formatZodValidationErrorMessage(result.error));
+    throw new A2uiValidationError(formatValidationErrorMessage(result.issues));
   }
 }

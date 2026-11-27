@@ -14,11 +14,17 @@
  * limitations under the License.
  */
 
-import {zodToJsonSchema} from 'zod-to-json-schema';
 import {SurfaceModel, ActionListener, type ActionPayload} from '../state/surface-model.js';
-import {Catalog, ComponentApi} from '../catalog/types.js';
-import {exclusiveUnionOverride} from '../catalog/exclusive_union.js';
-import {cleanSchemaNode} from '../catalog/schema_generator.js';
+import {getLegacySchemaAdapter} from '../catalog/legacy_schema_adapter.js';
+import {
+  surfacePropertiesToJsonSchema,
+  typeDefinitionToJsonSchema,
+} from '../catalog/model/json_schema_codec.js';
+import {
+  mergeOpaqueTypeRegistries,
+  serializeOpaqueValuesForAgent,
+} from '../catalog/model/opaque_types.js';
+import {Catalog, ComponentApi, ComponentApiLike} from '../catalog/types.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
 import {SurfaceComponentsModel} from '../state/surface-components-model.js';
@@ -56,7 +62,10 @@ import {
 } from '../state/validation-helpers.js';
 import {defaultVersionAdapterFactory} from './adapters/factory.js';
 import {compareSemVer, isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
+import {isPlainObject} from '../common/settle_deep.js';
 import {
+  INTERNAL_RAW_PAYLOAD,
+  InternalComponentPayload,
   InternalOperation,
   InternalCreateSurfaceOp,
   InternalUpdateComponentsOp,
@@ -219,7 +228,7 @@ export {formatZodIssue};
  *
  * @template T Concrete type of the ComponentApi.
  */
-export class MessageProcessor<T extends ComponentApi = ComponentApi> {
+export class MessageProcessor<T extends ComponentApiLike = ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
   readonly rpc: RpcHandler;
   private readonly adapterRegistry: VersionAdapterResolver;
@@ -340,7 +349,30 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     call: FunctionCall,
     options?: CallOptions,
   ): Promise<TRes> {
-    return this.rpc.callAgentFunction<TRes>(surfaceId, call, options);
+    let sanitizedCall = call;
+    if (call.args !== undefined) {
+      const surface = this.model.getSurface(surfaceId);
+      const opaqueTypes = mergeOpaqueTypeRegistries([
+        surface?.defaultCatalog,
+        ...(surface?.availableCatalogs.values() ?? []),
+        ...this.registeredCatalogs,
+      ]);
+      if (opaqueTypes && opaqueTypes.size > 0) {
+        try {
+          const sanitized = serializeOpaqueValuesForAgent(call.args, opaqueTypes);
+          sanitizedCall = {
+            ...call,
+            args:
+              sanitized && typeof sanitized === 'object' && !Array.isArray(sanitized)
+                ? (sanitized as Record<string, unknown>)
+                : {},
+          };
+        } catch (err: unknown) {
+          return Promise.reject(err);
+        }
+      }
+    }
+    return this.rpc.callAgentFunction<TRes>(surfaceId, sanitizedCall, options);
   }
 
   /**
@@ -440,20 +472,22 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     catalog: Catalog<T>,
     componentEnvelopeRef = 'common_types.json#/$defs/ComponentCommon',
   ): Record<string, unknown> {
+    const legacyAdapter = getLegacySchemaAdapter();
+    const codecOpts = {protocolVersion: '0.9'};
     const components: Record<string, unknown> = {};
     for (const [name, comp] of catalog.components.entries()) {
       let props: Record<string, unknown> = {};
       let reqList: string[] = [];
-      if (comp.schema && typeof comp.schema === 'object' && 'safeParse' in comp.schema) {
-        const rawZod = zodToJsonSchema(comp.schema, {
-          target: 'jsonSchema2019-09',
-          $refStrategy: 'none',
-          override: exclusiveUnionOverride,
-        }) as Record<string, unknown>;
-        cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
-        props = (rawZod.properties as Record<string, unknown>) || {};
-        reqList = Array.isArray(rawZod.required)
-          ? (rawZod.required as string[]).filter(r => r !== 'component' && r !== 'id')
+      if (comp.definition) {
+        for (const param of comp.definition.parameters ?? []) {
+          props[param.name] = typeDefinitionToJsonSchema(param, codecOpts);
+          if (param.required) reqList.push(param.name);
+        }
+      } else if (comp.schema && legacyAdapter?.isLegacySchema(comp.schema)) {
+        const rawZod = legacyAdapter.schemaToJsonSchema(comp.schema);
+        props = (rawZod['properties'] as Record<string, unknown>) || {};
+        reqList = Array.isArray(rawZod['required'])
+          ? (rawZod['required'] as string[]).filter(r => r !== 'component' && r !== 'id')
           : [];
       }
       const {component: _ignoredComp, id: _ignoredId, ...sanitizedProps} = props;
@@ -474,14 +508,20 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     const functions: Array<Record<string, unknown>> = [];
     for (const fn of catalog.functions.values()) {
       let paramSchema: Record<string, unknown> = {type: 'object', properties: {}};
-      if (fn.schema && typeof fn.schema === 'object' && 'safeParse' in fn.schema) {
-        const rawZod = zodToJsonSchema(fn.schema, {
-          target: 'jsonSchema2019-09',
-          $refStrategy: 'none',
-          override: exclusiveUnionOverride,
-        }) as Record<string, unknown>;
-        cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
-        paramSchema = rawZod;
+      if (fn.definition) {
+        const fnProps: Record<string, unknown> = {};
+        const fnReq: string[] = [];
+        for (const param of fn.definition.parameters ?? []) {
+          fnProps[param.name] = typeDefinitionToJsonSchema(param, codecOpts);
+          if (param.required) fnReq.push(param.name);
+        }
+        paramSchema = {
+          type: 'object',
+          properties: fnProps,
+          ...(fnReq.length > 0 ? {required: fnReq} : {}),
+        };
+      } else if (fn.schema && legacyAdapter?.isLegacySchema(fn.schema)) {
+        paramSchema = legacyAdapter.schemaToJsonSchema(fn.schema);
       }
       functions.push({
         name: fn.name,
@@ -492,14 +532,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     let theme: Record<string, unknown> | undefined;
-    if (catalog.themeSchema) {
-      const rawTheme = zodToJsonSchema(catalog.themeSchema, {
-        target: 'jsonSchema2019-09',
-        $refStrategy: 'none',
-        override: exclusiveUnionOverride,
-      }) as Record<string, unknown>;
-      cleanSchemaNode(rawTheme, undefined, {stripAdditionalProperties: true});
-      theme = (rawTheme.properties as Record<string, unknown>) || undefined;
+    if (catalog.themeSchema && legacyAdapter?.isLegacySchema(catalog.themeSchema)) {
+      const rawTheme = legacyAdapter.schemaToJsonSchema(catalog.themeSchema);
+      theme = (rawTheme['properties'] as Record<string, unknown>) || undefined;
+    } else if (catalog.surfaceProperties?.properties?.length) {
+      const rawTheme = surfacePropertiesToJsonSchema(catalog.surfaceProperties, codecOpts);
+      theme = (rawTheme['properties'] as Record<string, unknown>) || undefined;
     }
 
     return {
@@ -534,7 +572,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       for (const surface of enabledSurfaces) {
         const catVer = surface.protocolVersion;
         if (!catVer || isCatalogVersionCompatible(catVer, version)) {
-          surfaces[surface.id] = surface.dataModel.get('/');
+          surfaces[surface.id] = this.serializeSurfaceDataModel(surface);
         }
       }
       if (Object.keys(surfaces).length === 0) {
@@ -572,12 +610,21 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       versionsSet.size === 1 ? (versionsSet.values().next().value as ProtocolVersion) : '1.0';
     const surfaces: Record<string, unknown> = {};
     for (const surface of enabledSurfaces) {
-      surfaces[surface.id] = surface.dataModel.get('/');
+      surfaces[surface.id] = this.serializeSurfaceDataModel(surface);
     }
     return {
       version: verStr,
       surfaces,
     };
+  }
+
+  private serializeSurfaceDataModel(surface: SurfaceModel<T>): unknown {
+    const raw = surface.dataModel.get('/');
+    const opaqueTypes = mergeOpaqueTypeRegistries([
+      surface.defaultCatalog,
+      ...surface.availableCatalogs.values(),
+    ]);
+    return serializeOpaqueValuesForAgent(raw, opaqueTypes);
   }
 
   /**
@@ -670,6 +717,95 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         }
       }
     });
+  }
+
+  /**
+   * Directly processes a sequence of normalized {@link InternalOperation} instances
+   * produced by a transport adapter (such as Protobuf, FlatBuffers, or in-process RPC)
+   * without JSON envelope parsing.
+   *
+   * Routes directly through the exact sequential state machine, `CatalogModel` property
+   * validation, UAX #31 identifier checks, `allowedParents`/`allowedChildren`, recursion/path
+   * checks, and graph topology validation used by {@link processMessages}.
+   *
+   * @param operations Normalized operations to execute in order.
+   * @param options Optional execution context (`isUserActivated`, `validationConfig`).
+   */
+  processOperations(operations: readonly InternalOperation[], options?: ExecutionContext): void {
+    this.withValidationConfig(options, () => {
+      const initialContext: ErrorEnvelopeContext = {version: this.defaultVersion};
+      let currentContext = initialContext;
+      try {
+        if (!Array.isArray(operations)) {
+          throw new A2uiValidationError('processOperations expects an array of operations.');
+        }
+        // Phase 1: pre-validate every operation in the batch before mutating any state,
+        // matching `processMessages`'s `prepareOperations` invariant.
+        for (let i = 0; i < operations.length; i++) {
+          const op = operations[i];
+          if (!isInternalOperation(op)) {
+            throw new A2uiValidationError(
+              `Invalid operation at index ${i}: expected a normalized InternalOperation.`,
+            );
+          }
+          currentContext = this.contextFromOperation(op, initialContext);
+          this.validateOperationEnvelope(op);
+          if (this.validationConfig) {
+            validateRecursionAndPaths(op);
+          }
+          if (this.validationConfig?.targetVersion) {
+            this.validateTargetVersion(op);
+          }
+        }
+        // Phase 2: execute validated operations sequentially.
+        for (const op of operations) {
+          currentContext = this.contextFromOperation(op, initialContext);
+          this.processOperation(op, options);
+        }
+      } catch (err: unknown) {
+        this.handleProcessingError(err, currentContext);
+        if (!this.reportErrorsOnly) {
+          throw err;
+        }
+      }
+    });
+  }
+
+  private validateOperationEnvelope(op: InternalOperation): void {
+    switch (op.type) {
+      case 'createSurface':
+      case 'updateComponents':
+      case 'updateDataModel':
+      case 'deleteSurface':
+        if (typeof op.surfaceId !== 'string' || op.surfaceId.length === 0) {
+          throw new A2uiValidationError(
+            `Operation '${op.type}' requires a non-empty string 'surfaceId'.`,
+            [{path: '/surfaceId', code: 'missing_field', message: 'Missing surfaceId.'}],
+            'VALIDATION_ERROR',
+            {path: '/surfaceId'},
+          );
+        }
+        break;
+      case 'callRendererFunction':
+        if (typeof op.functionCallId !== 'string' || op.functionCallId.length === 0) {
+          throw new A2uiValidationError(
+            "Operation 'callRendererFunction' requires a non-empty string 'functionCallId'.",
+          );
+        }
+        if (typeof op.call !== 'string' || op.call.length === 0) {
+          throw new A2uiValidationError(
+            "Operation 'callRendererFunction' requires a non-empty string 'call'.",
+          );
+        }
+        break;
+      case 'agentFunctionResponse':
+        if (typeof op.functionCallId !== 'string' || op.functionCallId.length === 0) {
+          throw new A2uiValidationError(
+            "Operation 'agentFunctionResponse' requires a non-empty string 'functionCallId'.",
+          );
+        }
+        break;
+    }
   }
 
   /**
@@ -1193,7 +1329,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     catalog: Catalog<T> | undefined,
     surfaceId: string,
   ): unknown {
-    if (!theme || !catalog?.themeSchema) {
+    if (!theme || (!catalog?.themeSchema && !catalog?.surfaceProperties)) {
       return theme;
     }
     try {
@@ -1484,12 +1620,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     );
   }
 
-  /** Returns the schema of a component's type in `catalog`, if any. */
+  /** Returns the catalog API entry of a component's type in `catalog`, if any. */
   private componentSchema(
     comp: Record<string, unknown>,
     surface: SurfaceModel<T>,
     catalog: Catalog<T> | undefined,
-  ): ComponentApi['schema'] | undefined {
+  ): ComponentApiLike | undefined {
     const {id, component} = comp;
     const type =
       typeof component === 'string' && component
@@ -1497,7 +1633,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         : typeof id === 'string'
           ? surface.componentsModel.get(id)?.type
           : undefined;
-    return type ? catalog?.components.get(type)?.schema : undefined;
+    return type ? catalog?.components.get(type) : undefined;
   }
 
   /**
@@ -1650,9 +1786,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         }
         return;
       }
-      if (typeof node !== 'object' || node === null) return;
+      if (!isPlainObject(node)) return;
 
-      const record = node as Record<string, unknown>;
+      const record = node;
       const name = record['@call'];
       if (typeof name === 'string' && !name.startsWith('@')) {
         this.validateSingleNestedCall(record, name, surface, componentCatalog, currentPath);
@@ -1711,12 +1847,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     const {id, component} = comp;
     if (typeof id !== 'string') return;
     const targetCatalog = this.resolveComponentCatalog(comp, surface);
-    const state = componentPayloadState(
-      comp,
-      surface.protocolVersion,
-      this.componentSchema(comp, surface, targetCatalog),
-      {defaultCatalogSchema: this.componentSchema(comp, surface, surface.defaultCatalog)},
-    );
+    const schema = this.componentSchema(comp, surface, targetCatalog);
+    const state = componentPayloadState(comp, surface.protocolVersion, schema, {
+      defaultCatalogSchema: this.componentSchema(comp, surface, surface.defaultCatalog),
+    });
+    const rawPayload = (comp as InternalComponentPayload)[INTERNAL_RAW_PAYLOAD];
     const properties = state.properties;
     const metadata = extractComponentMetadata(state.metadata);
     const existing = surface.componentsModel.get(id);
@@ -1733,18 +1868,26 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
           properties,
           targetCatalog,
           metadata,
+          rawPayload,
         );
         surface.componentsModel.addComponent(newComponent);
       } else {
         batchWrite(() => {
-          existing.applyUpdate(properties, metadata);
+          existing.applyUpdate(properties, metadata, rawPayload);
         });
       }
     } else {
       if (typeof component !== 'string' || !component) {
         throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
       }
-      const newComponent = new ComponentModel(id, component, properties, targetCatalog, metadata);
+      const newComponent = new ComponentModel(
+        id,
+        component,
+        properties,
+        targetCatalog,
+        metadata,
+        rawPayload,
+      );
       surface.componentsModel.addComponent(newComponent);
     }
   }
@@ -1883,7 +2026,7 @@ function extractComponentMetadata(rawMetadata: unknown): A2uiMetadata | undefine
   return undefined;
 }
 
-function resolveSurfaceDefaultCatalog<T extends ComponentApi>(
+function resolveSurfaceDefaultCatalog<T extends ComponentApiLike>(
   catalogs: ReadonlyArray<Catalog<T>>,
   catalogId: string | undefined,
   msgVersion: string | undefined,

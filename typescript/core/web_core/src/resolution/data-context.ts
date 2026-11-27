@@ -24,7 +24,8 @@ import {
   setValue,
   peekValue,
 } from '../reactivity/signals.js';
-import {z} from 'zod';
+import {getLegacySchemaAdapter} from '../catalog/legacy_schema_adapter.js';
+import {getFunctionDefinitionParameterNames} from '../catalog/model/model_semantics.js';
 import {DataModel, DataSubscription} from '../state/data-model.js';
 import {type FunctionCall, type Action} from '../types/common-types.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
@@ -58,8 +59,6 @@ import {
   type DataContextFlags,
 } from './data-context-internal.js';
 
-const schemaKeysCache = new WeakMap<z.ZodTypeAny, Set<string> | null>();
-
 /** Identifier of the built-in catalog holding the v1.0 system functions. */
 const SYSTEM_FUNCTION_CATALOG_ID = 'a2ui:system-functions';
 
@@ -83,87 +82,19 @@ function getSystemFunctionCatalog(): Catalog<any> {
 }
 
 /**
- * Extracts declared property keys from a Zod schema representing an object with fixed keys.
+ * Extracts declared property keys from a legacy Zod schema representing an object with fixed keys.
  *
- * Traverses Zod wrappers (`ZodEffects`, `ZodOptional`, `ZodNullable`, `ZodDefault`,
- * `ZodCatch`, `ZodIntersection`, `ZodUnion`, `ZodDiscriminatedUnion`) and returns the set
- * of allowed key names.
+ * Delegates to the registered {@link LegacySchemaAdapter} so `data-context` has no
+ * direct runtime dependency on Zod.
  *
- * @param schema Zod schema to inspect.
+ * @param schema Legacy schema to inspect.
  * @returns Set of allowed property names, or `null` if arbitrary keys are permitted or undetermined.
  */
-export function getKnownSchemaKeys(schema: z.ZodTypeAny): Set<string> | null {
-  if (schemaKeysCache.has(schema)) {
-    return schemaKeysCache.get(schema) as Set<string> | null;
-  }
-
-  const result = ((): Set<string> | null => {
-    let current: any = schema;
-    while (current) {
-      if (current instanceof z.ZodObject || current._def?.typeName === 'ZodObject') {
-        // If passthrough is enabled, arbitrary keys are allowed.
-        if (current._def?.unknownKeys === 'passthrough') {
-          return null;
-        }
-        const shape = typeof current.shape === 'function' ? current.shape() : current.shape;
-        if (shape && typeof shape === 'object') {
-          return new Set(Object.keys(shape));
-        }
-        return null;
-      }
-      if (current instanceof z.ZodEffects || current._def?.typeName === 'ZodEffects') {
-        current = current._def.schema;
-        continue;
-      }
-      if (
-        current instanceof z.ZodOptional ||
-        current instanceof z.ZodNullable ||
-        current._def?.typeName === 'ZodOptional' ||
-        current._def?.typeName === 'ZodNullable'
-      ) {
-        current = current._def.innerType;
-        continue;
-      }
-      if (current instanceof z.ZodDefault || current._def?.typeName === 'ZodDefault') {
-        current = current._def.innerType;
-        continue;
-      }
-      if (current instanceof z.ZodCatch || current._def?.typeName === 'ZodCatch') {
-        current = current._def.innerType;
-        continue;
-      }
-      if (current instanceof z.ZodIntersection || current._def?.typeName === 'ZodIntersection') {
-        const leftKeys = getKnownSchemaKeys(current._def.left);
-        const rightKeys = getKnownSchemaKeys(current._def.right);
-        if (!leftKeys || !rightKeys) {
-          return null;
-        }
-        return new Set([...leftKeys, ...rightKeys]);
-      }
-      if (
-        current instanceof z.ZodUnion ||
-        current instanceof z.ZodDiscriminatedUnion ||
-        current._def?.typeName === 'ZodUnion' ||
-        current._def?.typeName === 'ZodDiscriminatedUnion'
-      ) {
-        const options: Iterable<z.ZodTypeAny> = current._def.options;
-        const allKeys = new Set<string>();
-        for (const opt of options) {
-          const k = getKnownSchemaKeys(opt);
-          if (!k) return null; // If any union branch allows arbitrary keys, do not filter.
-          for (const key of k) {
-            allKeys.add(key);
-          }
-        }
-        return allKeys;
-      }
-      return null;
-    }
+export function getKnownSchemaKeys(schema: unknown): Set<string> | null {
+  if (!schema || typeof schema !== 'object') {
     return null;
-  })();
-
-  schemaKeysCache.set(schema, result);
-  return result;
+  }
+  return getLegacySchemaAdapter()?.getKnownSchemaKeys(schema) ?? null;
 }
 
 /**
@@ -202,13 +133,13 @@ export function validateFunctionArgs(
     isAtLeastVersion(catalog.protocolVersion, SpecVersion.V1_0)
       ? IndexApi
       : undefined);
-  if (!fn?.schema) {
-    return;
-  }
-
-  const knownKeys = getKnownSchemaKeys(fn.schema);
+  const knownKeys = fn?.definition
+    ? getFunctionDefinitionParameterNames(fn.definition)
+    : fn?.schema
+      ? getKnownSchemaKeys(fn.schema)
+      : null;
   if (!knownKeys) {
-    // Schema allows arbitrary keys (e.g. passthrough)
+    // Schema allows arbitrary keys (e.g. passthrough) or no function schema is available.
     return;
   }
 
@@ -587,7 +518,10 @@ export class DataContext {
     if (Array.isArray(value)) {
       return value.some(item => this.containsDynamicValue(item));
     }
-    const rec = value as Record<string, unknown>;
+    if (!isPlainObject(value)) {
+      return false;
+    }
+    const rec = value;
     if (this.isDataBindingObject(rec) || this.isFunctionCallObject(rec)) {
       return true;
     }
@@ -683,7 +617,11 @@ export class DataContext {
       ) as V;
     }
 
-    const rec = value as Record<string, unknown>;
+    if (!isPlainObject(value)) {
+      return value as V;
+    }
+
+    const rec = value;
 
     if (this.isDataBindingObject(rec)) {
       const bindingPath = (rec['@path'] ?? rec.path) as string;
@@ -976,7 +914,11 @@ export class DataContext {
       return resultSig;
     }
 
-    const rec = value as Record<string, unknown>;
+    if (!isPlainObject(value)) {
+      return signal(value as V);
+    }
+
+    const rec = value;
 
     // 2. Path Check
     if (this.isDataBindingObject(rec)) {
@@ -1781,15 +1723,12 @@ export class DataContext {
   private dispatchExpressionError(e: unknown, name: string): void {
     if (!this.surface || this.surface.disposed) return;
     if (isCancellation(e)) return;
-    if (
-      e instanceof z.ZodError ||
-      (typeof e === 'object' && e !== null && (e as {name?: string}).name === 'ZodError')
-    ) {
-      const zodErr = e as z.ZodError;
+    if (typeof e === 'object' && e !== null && (e as {name?: string}).name === 'ZodError') {
+      const zodErr = e as {message?: string; errors?: unknown; issues?: unknown};
       const err = new A2uiExpressionError(
-        `Validation failed for function '${name}': ${zodErr.message}`,
+        `Validation failed for function '${name}': ${zodErr.message ?? ''}`,
         name,
-        zodErr.errors ?? (zodErr as unknown as {issues?: unknown}).issues,
+        zodErr.errors ?? zodErr.issues,
       );
       this.surface.dispatchError({
         code: 'EXPRESSION_ERROR',

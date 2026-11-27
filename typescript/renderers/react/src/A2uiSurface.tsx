@@ -31,13 +31,13 @@ import {prepareCatalogs} from './catalog/prepare_catalogs';
 import {MarkdownComponentContext, useMarkdownRenderer} from './markdown-context';
 import {registerMarkdownHostRenderer} from './markdown_hosts';
 import {ChildElement, HostedChildren, SurfaceContext, useA2uiSurface} from './node-view';
-import type {ReactCatalogComponent} from './react_component_implementation';
+import type {ReactCatalogComponentLike} from './react_component_implementation';
 import {useSyncExternalStore} from './use_sync_external_store';
 
 export {useA2uiSurface};
 
 export const A2uiSurface: React.FC<{
-  surface: SurfaceModel<ReactCatalogComponent>;
+  surface: SurfaceModel<ReactCatalogComponentLike>;
 }> = ({surface}) => {
   // web_core's basic catalog reads its markdown renderer from a module-level
   // slot. A layout effect sets it during commit, so it is in place before any
@@ -66,7 +66,7 @@ export const A2uiSurface: React.FC<{
   // The factory reads nothing; the dependency exists to reset the box when
   // the surface is swapped.
   const box = useMemo(
-    () => ({resolver: undefined as NodeResolver<ReactCatalogComponent> | undefined}),
+    () => ({resolver: undefined as NodeResolver<ReactCatalogComponentLike> | undefined}),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [surface],
   );

@@ -25,18 +25,27 @@
 
 import type React from 'react';
 import type {ZodTypeAny} from 'zod';
-import type {A2uiMetadata, ComponentApi, ComponentContext, ComponentNode} from '@a2ui/web_core';
-import type {WebComponentImplementation} from '@a2ui/web_core/universal';
+import type {
+  A2uiMetadata,
+  ComponentApiLike,
+  ComponentContext,
+  ComponentDefinition,
+  ComponentNode,
+} from '@a2ui/web_core';
+import type {
+  WebComponentImplementation,
+  WebComponentImplementationLike,
+} from '@a2ui/web_core/universal';
 
 /** Renders a resolved child node, or falls back for an unresolved id. */
 export type NodeBuildChild = (
-  child: ComponentNode<ReactCatalogComponent> | string,
+  child: ComponentNode<ReactCatalogComponentLike> | string,
   basePath?: string,
 ) => React.ReactNode;
 
 /** What a component implementation's `view` receives from the node surface. */
 export type NodeViewProps = {
-  node: ComponentNode<ReactCatalogComponent>;
+  node: ComponentNode<ReactCatalogComponentLike>;
   buildChild: NodeBuildChild;
 };
 
@@ -67,10 +76,11 @@ export type ReactRenderProps = {
   validationErrorsRef?: (element: Element | null) => void;
 };
 
-/** A catalog entry implemented as a React component. */
-export interface ReactComponentImplementation<
-  Schema extends ZodTypeAny = ZodTypeAny,
-> extends ComponentApi<Schema> {
+/** Shared structural contract for both legacy Zod-backed and zero-dependency React catalog entries. */
+export interface ReactComponentImplementationLike<
+  Schema extends ZodTypeAny | undefined = ZodTypeAny | undefined,
+  Def extends ComponentDefinition = ComponentDefinition,
+> extends ComponentApiLike<Schema, Def> {
   /**
    * The framework-specific rendering wrapper.
    *
@@ -86,10 +96,23 @@ export interface ReactComponentImplementation<
   view?: React.FC<NodeViewProps>;
 }
 
+/** A catalog entry implemented as a React component. */
+export interface ReactComponentImplementation<
+  Schema extends ZodTypeAny = ZodTypeAny,
+> extends ReactComponentImplementationLike<Schema> {
+  /** Zod schema describing the properties of this component. */
+  readonly schema: Schema;
+}
+
 /** Any entry a React catalog can hold: a React component or a Web Component. */
 export type ReactCatalogComponent<Schema extends ZodTypeAny = ZodTypeAny> =
   | ReactComponentImplementation<Schema>
   | WebComponentImplementation<Schema>;
+
+/** Any legacy Zod or canonical zero-dependency entry a React catalog can hold. */
+export type ReactCatalogComponentLike =
+  | ReactComponentImplementationLike
+  | WebComponentImplementationLike;
 
 /** What the generic binder hands a presentational React component. */
 export type ReactA2uiComponentProps<T> = {

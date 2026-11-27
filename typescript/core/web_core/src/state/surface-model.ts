@@ -15,7 +15,17 @@
  */
 
 import {DataModel} from './data-model.js';
-import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from '../catalog/types.js';
+import {
+  mergeOpaqueTypeRegistries,
+  serializeOpaqueValuesForAgent,
+} from '../catalog/model/opaque_types.js';
+import {
+  Catalog,
+  ComponentApi,
+  ComponentApiLike,
+  FunctionApiLike,
+  FunctionImplementation,
+} from '../catalog/types.js';
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {canonicalJsonKey, toJsonValue} from '../common/canonical_json.js';
 import {EventEmitter, EventSource} from '../common/events.js';
@@ -161,8 +171,8 @@ export type AgentFunctionCaller = (call: AgentFunctionCall) => Promise<unknown>;
  *   implementations.
  */
 export class SurfaceModel<
-  T extends ComponentApi = ComponentApi,
-  F extends FunctionApi = FunctionImplementation,
+  T extends ComponentApiLike = ComponentApi,
+  F extends FunctionApiLike = FunctionImplementation,
 > {
   /** Data model for this surface. */
   readonly dataModel: DataModel;
@@ -494,7 +504,12 @@ export class SurfaceModel<
     }
     let args: Record<string, unknown>;
     try {
-      args = toJsonValue(call.args ?? {}) as Record<string, unknown>;
+      const opaqueTypes = mergeOpaqueTypeRegistries([
+        this.defaultCatalog,
+        ...this.availableCatalogs.values(),
+      ]);
+      const sanitizedArgs = serializeOpaqueValuesForAgent(call.args ?? {}, opaqueTypes);
+      args = toJsonValue(sanitizedArgs) as Record<string, unknown>;
     } catch (e: unknown) {
       return Promise.reject(
         new A2uiExpressionError(
@@ -709,7 +724,15 @@ export class SurfaceModel<
         return;
       }
       if (rawContext && typeof rawContext === 'object' && !Array.isArray(rawContext)) {
-        context = rawContext as Record<string, unknown>;
+        const opaqueTypes = mergeOpaqueTypeRegistries([
+          this.defaultCatalog,
+          ...this.availableCatalogs.values(),
+        ]);
+        const sanitized = serializeOpaqueValuesForAgent(rawContext, opaqueTypes);
+        context =
+          sanitized && typeof sanitized === 'object' && !Array.isArray(sanitized)
+            ? (sanitized as Record<string, unknown>)
+            : {};
       }
 
       if (eventPayload.userMessage !== undefined) {
@@ -822,18 +845,40 @@ function assertMaxAgentCallCacheEntries(value: number): void {
 
 /**
  * Copies an agent answer so callers that share it, or read it from the cache,
- * cannot change each other's value by mutating it.
+ * cannot change each other's value by mutating it, while preserving non-plain
+ * branded/opaque class instances intact without stripping prototypes or private fields.
  */
-function cloneAnswer<V>(value: V): V {
-  if (value === null || typeof value !== 'object') {
+function cloneAnswer<V>(value: V, seen = new WeakMap<object, unknown>()): V {
+  if (value === null || value === undefined || typeof value !== 'object') {
     return value;
   }
-  try {
-    return structuredClone(value);
-  } catch {
-    // Not cloneable (such as a value holding a function): shared as it is.
-    return value;
+  if (seen.has(value)) {
+    return seen.get(value) as V;
   }
+  if (Array.isArray(value)) {
+    const out: unknown[] = [];
+    seen.set(value, out);
+    for (const item of value) {
+      out.push(cloneAnswer(item, seen));
+    }
+    return out as unknown as V;
+  }
+  const proto = Object.getPrototypeOf(value);
+  if (proto === Object.prototype || proto === null) {
+    const out: Record<string, unknown> = {};
+    seen.set(value, out);
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      Object.defineProperty(out, k, {
+        value: cloneAnswer(v, seen),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
+    return out as V;
+  }
+  // Preserve branded / opaque class instances by reference.
+  return value;
 }
 
 /**

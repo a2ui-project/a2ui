@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import {ComponentApi, type InferredComponentApiSchemaType} from '../../../catalog/types.js';
+import {
+  type ComponentApiLike,
+  type InferredComponentApiSchemaType,
+} from '../../../catalog/types.js';
 import type {ResolveA2uiProps} from '../../../resolution/generic-binder.js';
 import {A2uiLitElement} from '../../index.js';
 import {computeColorVariant, injectBasicCatalogStyles} from '../styles/default.js';
@@ -44,10 +47,9 @@ interface CommonResolvedProps {
  *     version the element supports. Props are inferred from each API's schema.
  * @internal
  */
-export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> extends A2uiLitElement<
-  Api,
-  ResolveA2uiProps<InferredComponentApiSchemaType<Api>>
-> {
+export abstract class BasicCatalogA2uiLitElement<
+  Api extends ComponentApiLike,
+> extends A2uiLitElement<Api, ResolveA2uiProps<InferredComponentApiSchemaType<Api>>> {
   /**
    * Lifecycle hook invoked when the element is connected to the DOM.
    * Injects global basic catalog CSS.

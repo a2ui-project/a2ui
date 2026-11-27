@@ -14,10 +14,23 @@
  * limitations under the License.
  */
 
-import {Catalog, ComponentApi, FunctionImplementation} from '../catalog/types.js';
+import {getLegacySchemaAdapter} from '../catalog/legacy_schema_adapter.js';
+import {
+  definitionToBehavior,
+  extractDefinitionRefFields,
+  type ModelRefFields,
+} from '../catalog/model/model_semantics.js';
+import {type OpaqueTypeRegistry, resolveStrictOpaqueSpecs} from '../catalog/model/opaque_types.js';
+import {
+  AnyFunctionImplementation,
+  Catalog,
+  ComponentApi,
+  ComponentApiLike,
+  FunctionImplementation,
+} from '../catalog/types.js';
 import {Subscription} from '../common/events.js';
 import {isAtLeastVersion} from '../common/semver.js';
-import {A2uiStateError} from '../errors.js';
+import {A2uiStateError, A2uiValidationError} from '../errors.js';
 import {computed, getValue, peekValue, setValue, Signal, signal} from '../reactivity/signals.js';
 import {ComponentModel} from '../state/component-model.js';
 import {SurfaceModel} from '../state/surface-model.js';
@@ -39,13 +52,12 @@ import {
   getSafeChildList,
   scrapeComponentBehavior,
 } from './generic-binder.js';
-import {extractRefFields, RefFields} from './ref-fields.js';
 import {ResolvedBinding, sameBinding, WritableBinding} from './resolved-binding.js';
 
 const ROOT_COMPONENT_ID = 'root';
 const ROOT_DATA_PATH = '/';
 
-const EMPTY_REF_FIELDS: RefFields = new Map();
+const EMPTY_REF_FIELDS: ModelRefFields = new Map();
 
 interface NodeRecord {
   readonly node: MutableComponentNode;
@@ -55,7 +67,7 @@ interface NodeRecord {
   readonly occurrence: number;
   /** The node whose props reference this one; undefined for the root. */
   readonly parent?: MutableComponentNode;
-  readonly refFields: RefFields;
+  readonly refFields: ModelRefFields;
   /** The scraped behavior tree for the component's schema; positions it
    *  classifies as DYNAMIC resolve to {@link ResolvedBinding}s in node
    *  props. Absent on placeholders. */
@@ -65,6 +77,9 @@ interface NodeRecord {
   binderSub?: {unsubscribe(): void};
   /** The most recent per-component resolution from the binder. */
   lastBinderProps?: NodeProps;
+  /** The most recent rawPayload observed during materialization, for reactive prop emission. */
+  lastRawPayload?: unknown;
+  hasLastRawPayload?: boolean;
   /** Children this node currently references, keyed by edge. This parent owns their disposal. */
   childEdges: Map<string, MutableComponentNode>;
 }
@@ -79,8 +94,8 @@ interface NodeRecord {
  * Construction requires a catalog whose functions are executable (`F extends FunctionImplementation`).
  */
 export class NodeResolver<
-  C extends ComponentApi = ComponentApi,
-  F extends FunctionImplementation = FunctionImplementation,
+  C extends ComponentApiLike = ComponentApi,
+  F extends AnyFunctionImplementation = FunctionImplementation,
 > {
   /** The resolved root of the tree, or undefined until the root component arrives. */
   readonly rootNode: Signal<ComponentNode<C> | undefined>;
@@ -349,6 +364,9 @@ export class NodeResolver<
           undefined,
           'unknown-type',
           computed(() => (model.metadataSignal ? getValue(model.metadataSignal) : model.metadata)),
+          computed(() =>
+            model.rawPayloadSignal ? getValue(model.rawPayloadSignal) : model.rawPayload,
+          ),
         ),
         {edgeKey, parent, occurrence, refFields: EMPTY_REF_FIELDS, componentModel: model},
       ).node;
@@ -366,7 +384,16 @@ export class NodeResolver<
       : isAtLeastVersion(compCatalog?.protocolVersion, '0.9')
         ? V09_CHILD_REF_OPTIONS
         : V08_CHILD_REF_OPTIONS;
-    const binder = new GenericBinder<NodeProps>(context, api.schema, refOptions);
+    const binderTarget = api.definition
+      ? {definition: api.definition, types: compCatalog?.types}
+      : api.schema;
+    const binder = new GenericBinder<NodeProps>(context, binderTarget, refOptions);
+    const refFields = api.definition
+      ? extractDefinitionRefFields(api.definition, compCatalog?.types)
+      : (getLegacySchemaAdapter()?.extractRefFields(api.schema, refOptions) ?? EMPTY_REF_FIELDS);
+    const behavior = api.definition
+      ? definitionToBehavior(api.definition, compCatalog?.types)
+      : scrapeComponentBehavior(api.schema, refOptions);
     const record = this.registerNode(
       new MutableComponentNode(
         instanceIdFor(componentId, dataPath, occurrence),
@@ -378,13 +405,16 @@ export class NodeResolver<
         context,
         'resolved',
         computed(() => (model.metadataSignal ? getValue(model.metadataSignal) : model.metadata)),
+        computed(() =>
+          model.rawPayloadSignal ? getValue(model.rawPayloadSignal) : model.rawPayload,
+        ),
       ),
       {
         edgeKey,
         parent,
         occurrence,
-        refFields: extractRefFields(api.schema, refOptions),
-        behavior: scrapeComponentBehavior(api.schema, refOptions),
+        refFields,
+        behavior,
         componentModel: model,
         binder,
       },
@@ -421,7 +451,7 @@ export class NodeResolver<
       edgeKey: string;
       parent?: MutableComponentNode;
       occurrence: number;
-      refFields: RefFields;
+      refFields: ModelRefFields;
       behavior?: BehaviorNode;
       componentModel?: ComponentModel;
       binder?: GenericBinder<NodeProps>;
@@ -568,6 +598,11 @@ export class NodeResolver<
     if (record.node.disposed) {
       return;
     }
+    const nextRawPayload = record.componentModel?.rawPayload;
+    const rawPayloadChanged =
+      Boolean(record.hasLastRawPayload) && !Object.is(record.lastRawPayload, nextRawPayload);
+    record.lastRawPayload = nextRawPayload;
+    record.hasLastRawPayload = true;
     const raw = record.lastBinderProps ?? record.binder?.snapshot ?? {};
     const modelProps = record.componentModel?.properties;
     // Prune omitted keys here too in case materialize runs before the binder's
@@ -580,7 +615,11 @@ export class NodeResolver<
     // Ordinal per (componentId, dataPath) within this rebuild, so repeated
     // references to one component get distinct instance ids.
     const occurrences = new Map<string, number>();
-    const resolveChild = (slot: string, componentId: string, dataPath: string): ComponentNode => {
+    const resolveChild = (
+      slot: string,
+      componentId: string,
+      dataPath: string,
+    ): ComponentNode<ComponentApiLike> => {
       const occurrenceKey = `${escapeIdPart(componentId)}@${escapeIdPart(dataPath)}`;
       const occurrence = (occurrences.get(occurrenceKey) ?? 0) + 1;
       occurrences.set(occurrenceKey, occurrence);
@@ -721,6 +760,9 @@ export class NodeResolver<
     }
     record.childEdges = newEdges;
 
+    const compOpaqueTypes = record.componentModel
+      ? this.catalogFor(record.componentModel)?.opaqueTypes
+      : undefined;
     const wrapped =
       record.behavior && record.node.context
         ? (wrapDynamicValues(
@@ -728,6 +770,7 @@ export class NodeResolver<
             record.behavior,
             modelProps ?? {},
             record.node.context.dataContext,
+            compOpaqueTypes,
           ) as NodeProps)
         : next;
 
@@ -741,7 +784,7 @@ export class NodeResolver<
       // and its writable bindings, which the payload declares only there.
       wrapped['accessibility'] = wrapped['@accessibility'];
     }
-    record.node.setProps(wrapped);
+    record.node.setProps(wrapped, rawPayloadChanged);
   }
 
   /** Disposes a node and, through parent-scoped ownership, its subtree. */
@@ -826,6 +869,7 @@ function wrapDynamicValues(
   behavior: BehaviorNode,
   raw: unknown,
   dataContext: DataContext,
+  opaqueTypes?: OpaqueTypeRegistry,
 ): unknown {
   if (isComponentNode(value)) {
     return value;
@@ -844,6 +888,25 @@ function wrapDynamicValues(
       if (path === undefined) {
         return new ResolvedBinding(value);
       }
+      const specs = resolveStrictOpaqueSpecs(behavior.opaqueFormats, opaqueTypes);
+      if (specs) {
+        return new WritableBinding(
+          value,
+          newValue => {
+            if (newValue !== undefined && !specs.some(s => s.isInstance(newValue))) {
+              const expected = specs.map(s => s.name).join(' | ');
+              const msg = `Cannot write unbranded value to opaque binding '${path}' (expected ${expected}).`;
+              void dataContext.surface?.dispatchError?.({
+                code: 'VALIDATION_ERROR',
+                message: msg,
+              });
+              throw new A2uiValidationError(msg);
+            }
+            dataContext.set(path, newValue);
+          },
+          path,
+        );
+      }
       return new WritableBinding(value, newValue => dataContext.set(path, newValue), path);
     }
     case 'ARRAY': {
@@ -852,7 +915,7 @@ function wrapDynamicValues(
       }
       const rawItems = Array.isArray(raw) ? raw : [];
       return value.map((item, index) =>
-        wrapDynamicValues(item, behavior.element, rawItems[index], dataContext),
+        wrapDynamicValues(item, behavior.element, rawItems[index], dataContext, opaqueTypes),
       );
     }
     case 'OBJECT': {
@@ -887,7 +950,7 @@ function wrapDynamicValues(
         const childBehavior = Object.hasOwn(behavior.shape, key)
           ? behavior.shape[key]
           : (behavior.catchall ?? {type: 'STATIC'});
-        out[key] = wrapDynamicValues(item, childBehavior, rawRecord[key], dataContext);
+        out[key] = wrapDynamicValues(item, childBehavior, rawRecord[key], dataContext, opaqueTypes);
       }
       // The binder guarantees every dynamic property a setter even when the
       // payload omits it. Represent an omitted one as a read-only binding of

@@ -17,7 +17,7 @@
 import type {ComponentContext, ComponentNode} from '@a2ui/web_core';
 import {type A2uiWebComponentElement, bindHostAccessibility} from '@a2ui/web_core/universal';
 import {HostRegistry, isReactRendered, ownerAbove} from '../host_registry';
-import type {ReactComponentImplementation} from '../react_component_implementation';
+import type {ReactComponentImplementationLike} from '../react_component_implementation';
 import {hostRefsOf} from './host_accessibility';
 
 /**
@@ -33,7 +33,7 @@ import {hostRefsOf} from './host_accessibility';
  * `host_accessibility.ts`).
  */
 export interface ReactHostElement extends A2uiWebComponentElement {
-  node?: ComponentNode<ReactComponentImplementation>;
+  node?: ComponentNode<ReactComponentImplementationLike>;
 }
 
 // Importing this module must not need a DOM, so it can load during server-side rendering and in
@@ -46,9 +46,9 @@ const ElementBase: typeof HTMLElement =
 export class ReactWcHost extends ElementBase implements ReactHostElement {
   /** @deprecated Assign `node` instead. */
   context?: ComponentContext;
-  private _node?: ComponentNode<ReactComponentImplementation>;
+  private _node?: ComponentNode<ReactComponentImplementationLike>;
   private registry?: HostRegistry;
-  private accessibilityNode?: ComponentNode<ReactComponentImplementation>;
+  private accessibilityNode?: ComponentNode<ReactComponentImplementationLike>;
   private stopAccessibility?: () => void;
 
   connectedCallback() {
@@ -69,14 +69,14 @@ export class ReactWcHost extends ElementBase implements ReactHostElement {
     });
   }
 
-  set node(node: ComponentNode<ReactComponentImplementation> | undefined) {
+  set node(node: ComponentNode<ReactComponentImplementationLike> | undefined) {
     this._node = node;
     this.context = node?.context;
     this.register();
     this.bindAccessibility();
   }
 
-  get node(): ComponentNode<ReactComponentImplementation> | undefined {
+  get node(): ComponentNode<ReactComponentImplementationLike> | undefined {
     return this._node;
   }
 

@@ -15,7 +15,7 @@
  */
 
 import {componentPayloadState} from '../catalog/component_envelope.js';
-import {Catalog, ComponentApi} from '../catalog/types.js';
+import {Catalog, ComponentApi, ComponentApiLike} from '../catalog/types.js';
 import {A2uiValidationError} from '../errors.js';
 import {
   getComponentReferences,
@@ -30,7 +30,7 @@ import {SurfaceModel} from './surface-model.js';
 /**
  * Resolves the catalog a raw component definition belongs to on `surface`.
  */
-export type ResolveComponentCatalog<T extends ComponentApi = ComponentApi> = (
+export type ResolveComponentCatalog<T extends ComponentApiLike = ComponentApi> = (
   comp: Record<string, unknown>,
   surface: SurfaceModel<T>,
 ) => Catalog<T>;
@@ -47,14 +47,14 @@ export interface RecordedGraphBound {
  * A batch of components as `validateCandidateTopology` reads it: each
  * component's child references, type and catalog, keyed by id.
  */
-interface BatchGraph<T extends ComponentApi> {
+interface BatchGraph<T extends ComponentApiLike> {
   children: Map<string, string[]>;
   types: Map<string, string>;
   catalogs: Map<string, Catalog<T>>;
 }
 
 /** Whether each catalog declares `allowedParents` or `allowedChildren`. */
-const catalogRules = new WeakMap<Catalog<ComponentApi>, boolean>();
+const catalogRules = new WeakMap<Catalog<ComponentApiLike>, boolean>();
 
 /**
  * Checks the composition constraints and, under a `validationConfig`, the
@@ -80,7 +80,7 @@ const catalogRules = new WeakMap<Catalog<ComponentApi>, boolean>();
  * @returns The bound of the surface with the batch applied, to record once
  *     it is applied, or undefined when there is none to record.
  */
-export function validateComponentGraph<T extends ComponentApi>(
+export function validateComponentGraph<T extends ComponentApiLike>(
   surface: SurfaceModel<T>,
   newComponents: Array<Record<string, unknown>>,
   validationConfig: ValidationConfig | undefined,
@@ -175,7 +175,7 @@ export function defersGraphChecks(validationConfig: ValidationConfig | undefined
  *     and composition checks read differently; such a batch is checked
  *     against the whole surface.
  */
-function batchGraph<T extends ComponentApi>(
+function batchGraph<T extends ComponentApiLike>(
   surface: SurfaceModel<T>,
   newComponents: Array<Record<string, unknown>>,
   resolveCatalog: ResolveComponentCatalog<T>,
@@ -191,8 +191,8 @@ function batchGraph<T extends ComponentApi>(
     const {properties} = componentPayloadState(
       comp,
       surface.protocolVersion,
-      catalog.components.get(type)?.schema,
-      {defaultCatalogSchema: surface.defaultCatalog?.components.get(type)?.schema},
+      catalog.components.get(type),
+      {defaultCatalogSchema: surface.defaultCatalog?.components.get(type)},
     );
     const children = Array.from(
       getComponentReferences({...properties, id, component: type}, catalog.componentRefMap),
@@ -219,7 +219,7 @@ function batchGraph<T extends ComponentApi>(
  * children, receiving one per message, is then checked against one child
  * per message rather than all of them.
  */
-function compositionHolds<T extends ComponentApi>(
+function compositionHolds<T extends ComponentApiLike>(
   surface: SurfaceModel<T>,
   batch: BatchGraph<T>,
   previousChildren: ReadonlyMap<string, readonly string[]>,
@@ -301,12 +301,12 @@ function compositionHolds<T extends ComponentApi>(
  * `allowedParents` or `allowedChildren`. When none does, the composition
  * check has nothing to check.
  */
-function hasCompositionRules<T extends ComponentApi>(
+function hasCompositionRules<T extends ComponentApiLike>(
   surface: SurfaceModel<T>,
-  batchCatalogs: Iterable<Catalog<ComponentApi>>,
+  batchCatalogs: Iterable<Catalog<ComponentApiLike>>,
   validationConfig: ValidationConfig | undefined,
 ): boolean {
-  const declaresRules = (catalog: Catalog<ComponentApi>) => {
+  const declaresRules = (catalog: Catalog<ComponentApiLike>) => {
     let rules = catalogRules.get(catalog);
     if (rules === undefined) {
       rules = Array.from(catalog.components.values()).some(
@@ -332,7 +332,7 @@ function hasCompositionRules<T extends ComponentApi>(
   // components. Components added through the processor resolve their
   // catalogs on the surface, so only one added from outside it can come
   // from another catalog.
-  const surfaceCatalogs = new Set<Catalog<ComponentApi>>(surface.availableCatalogs.values());
+  const surfaceCatalogs = new Set<Catalog<ComponentApiLike>>(surface.availableCatalogs.values());
   if (surface.defaultCatalog) surfaceCatalogs.add(surface.defaultCatalog);
   for (const catalog of surfaceCatalogs) {
     if (declaresRules(catalog)) return true;
@@ -346,7 +346,7 @@ function hasCompositionRules<T extends ComponentApi>(
 }
 
 /** The id of the component the surface holds directly, which `allowedParents` checks against `Surface`. */
-function compositionRootId<T extends ComponentApi>(
+function compositionRootId<T extends ComponentApiLike>(
   surface: SurfaceModel<T>,
   validationConfig: ValidationConfig | undefined,
 ): string {
@@ -443,7 +443,7 @@ function validateChildConstraints(
   }
 }
 
-function buildCompositionTopology<T extends ComponentApi>(
+function buildCompositionTopology<T extends ComponentApiLike>(
   surface: SurfaceModel<T>,
   newComponents: Array<Record<string, unknown>>,
   resolveCatalog: ResolveComponentCatalog<T>,
@@ -481,7 +481,9 @@ function buildCompositionTopology<T extends ComponentApi>(
       typeMap.set(id, compType);
     }
     const compDef = {id, component: compType, ...props};
-    const refs = Array.from(getComponentReferences(compDef, compCatalog as Catalog<ComponentApi>));
+    const refs = Array.from(
+      getComponentReferences(compDef, compCatalog as Catalog<ComponentApiLike>),
+    );
     if (refs.length > 0) {
       childMap.set(
         id,
@@ -511,7 +513,7 @@ function buildCompositionTopology<T extends ComponentApi>(
  * Validates `allowedParents` and `allowedChildren` composition constraints
  * across the surface with `newComponents` applied.
  */
-export function validateCompositionConstraints<T extends ComponentApi>(
+export function validateCompositionConstraints<T extends ComponentApiLike>(
   surface: SurfaceModel<T>,
   newComponents: Array<Record<string, unknown>>,
   resolveCatalog: ResolveComponentCatalog<T>,
@@ -574,7 +576,7 @@ export function validateCompositionConstraints<T extends ComponentApi>(
  * @returns When `collectGraph` is set, each component of that surface with
  *     the ids it references; otherwise, or without a config, undefined.
  */
-export function validateCandidateTopology<T extends ComponentApi>(
+export function validateCandidateTopology<T extends ComponentApiLike>(
   surface: SurfaceModel<T>,
   newComponents: Array<Record<string, unknown>>,
   resolveCatalog: ResolveComponentCatalog<T>,
@@ -604,8 +606,8 @@ export function validateCandidateTopology<T extends ComponentApi>(
     const {properties} = componentPayloadState(
       comp,
       surface.protocolVersion,
-      targetCatalog.components.get(componentType)?.schema,
-      {defaultCatalogSchema: surface.defaultCatalog?.components.get(componentType)?.schema},
+      targetCatalog.components.get(componentType),
+      {defaultCatalogSchema: surface.defaultCatalog?.components.get(componentType)},
     );
 
     if (existing) {

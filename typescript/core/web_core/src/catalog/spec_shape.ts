@@ -461,7 +461,7 @@ export class SpecShaper {
     defs?: Readonly<Record<string, unknown>>,
     catalogDefs?: Map<string, z.ZodTypeAny>,
   ): JsonObject {
-    const args = this.toJson(fn.schema, catalogDefs);
+    const args = fn.schema ? this.toJson(fn.schema, catalogDefs) : {type: 'object', properties: {}};
     const argsRequired = schemaRequiresArgs(args, defs);
     const result: JsonObject = {type: 'object'};
     if (fn.description) result['description'] = fn.description;

@@ -18,7 +18,7 @@ import {DataContext} from './data-context.js';
 import {ComponentModel} from '../state/component-model.js';
 import type {SurfaceModel} from '../state/surface-model.js';
 import type {SurfaceComponentsModel} from '../state/surface-components-model.js';
-import type {ComponentApi} from '../catalog/types.js';
+import type {ComponentApiLike, FunctionApiLike} from '../catalog/types.js';
 import type {A2uiMetadata} from '../common/metadata.js';
 import type {Action} from '../types/common-types.js';
 import {A2uiStateError} from '../errors.js';
@@ -52,7 +52,7 @@ export class ComponentContext {
    * @param index Optional explicit collection iteration index.
    */
   constructor(
-    surface: SurfaceModel<ComponentApi>,
+    surface: SurfaceModel<ComponentApiLike, FunctionApiLike>,
     componentId: string,
     dataModelBasePath: string = '/',
     parentDataContext?: DataContext,

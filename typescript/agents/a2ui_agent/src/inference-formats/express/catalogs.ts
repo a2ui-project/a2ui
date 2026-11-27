@@ -19,7 +19,7 @@
  */
 
 import {A2uiCatalogError} from '../../errors.js';
-import {CatalogApi, compareSemVer} from '../../internal/web-core.js';
+import {type AnyCatalogApi, compareSemVer} from '../../internal/web-core.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 import {
   ExpressUnknownComponentError,
@@ -36,7 +36,7 @@ import {CatalogSchemaHelper} from './schema-helper.js';
  * @returns The catalogs as a list.
  * @throws A2uiCatalogError if the list is empty.
  */
-export function toCatalogList(catalogs: CatalogApi | CatalogApi[]): CatalogApi[] {
+export function toCatalogList<C extends AnyCatalogApi>(catalogs: C | C[]): C[] {
   const list = Array.isArray(catalogs) ? catalogs : [catalogs];
   if (list.length === 0) {
     throw new A2uiCatalogError('Express requires at least one catalog.');
@@ -61,7 +61,7 @@ function versionLine(version: string): string {
  * @throws A2uiCatalogError if catalog IDs are duplicated, versions span release lines,
  *     or multiple catalogs are used below v1.0.
  */
-export function checkMixedCatalogs(catalogs: CatalogApi[]): string {
+export function checkMixedCatalogs(catalogs: readonly AnyCatalogApi[]): string {
   if (catalogs.length === 0) {
     throw new A2uiCatalogError('Express requires at least one catalog.');
   }
@@ -101,7 +101,10 @@ export function checkMixedCatalogs(catalogs: CatalogApi[]): string {
  * @returns The requested version, or the first catalog's version.
  * @throws A2uiCatalogError if the catalogs, or the requested version, span release lines.
  */
-export function resolveExpressVersion(catalogs: CatalogApi[], requested?: string): string {
+export function resolveExpressVersion(
+  catalogs: readonly AnyCatalogApi[],
+  requested?: string,
+): string {
   const version = checkMixedCatalogs(catalogs);
   if (!requested) {
     return version;
@@ -122,7 +125,7 @@ export function resolveExpressVersion(catalogs: CatalogApi[], requested?: string
  * components need no `catalogId`. With several, the surface is not bound to one
  * catalog; components and function calls carry their own `catalogId`.
  */
-export function surfaceCatalogId(catalogs: CatalogApi[]): string | undefined {
+export function surfaceCatalogId(catalogs: readonly AnyCatalogApi[]): string | undefined {
   return catalogs.length === 1 ? catalogs[0].id : undefined;
 }
 
@@ -152,7 +155,7 @@ export function catalogsDefining(
  * @returns The helpers, in catalog order.
  */
 export function buildSchemaHelpers(
-  catalogs: CatalogApi[],
+  catalogs: readonly AnyCatalogApi[],
   version: string,
 ): Map<string, CatalogSchemaHelper> {
   return new Map(catalogs.map(catalog => [catalog.id, new CatalogSchemaHelper(catalog, version)]));
@@ -164,7 +167,7 @@ export function buildSchemaHelpers(
 export function unknownCatalogError(
   target: string,
   catalogId: string,
-  catalogs: readonly CatalogApi[],
+  catalogs: readonly AnyCatalogApi[],
 ): ExpressValidationError {
   const active = catalogs.map(c => `'${c.id}'`).join(', ');
   return new ExpressValidationError(

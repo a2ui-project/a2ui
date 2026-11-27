@@ -15,7 +15,22 @@
  */
 
 import type {z} from 'zod';
-import type {ComponentApi} from '../catalog/types.js';
+import type {ComponentDefinition} from '../catalog/model/catalog_model.js';
+import type {ComponentApi, ComponentApiLike} from '../catalog/types.js';
+
+/**
+ * Shared structural contract for both legacy Zod-backed {@link WebComponentImplementation}
+ * and canonical zero-dependency model-backed Web Component implementations.
+ */
+export interface WebComponentImplementationLike<
+  Schema extends z.ZodTypeAny | undefined = z.ZodTypeAny | undefined,
+  Def extends ComponentDefinition = ComponentDefinition,
+> extends ComponentApiLike<Schema, Def> {
+  /** The HTML tag name of the Custom Element registered for this component. */
+  readonly tagName: string;
+  /** The CustomElementConstructor implementing this component. */
+  readonly element: CustomElementConstructor;
+}
 
 /**
  * An implementation of a UI component using Web Components (Custom Elements).

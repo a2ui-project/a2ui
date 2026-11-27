@@ -61,7 +61,7 @@ function normalizeV08Component(comp: unknown): InternalComponentPayload {
  */
 export class V0Point8Adapter extends BaseVersionAdapter {
   readonly version: ProtocolVersion = 'v0.8';
-  protected readonly schema = A2uiMessageSchema;
+  protected override readonly schema = A2uiMessageSchema;
 
   protected getNativeActionKeys(): string[] {
     return ['beginRendering', 'surfaceUpdate', 'dataModelUpdate', 'deleteSurface'];
