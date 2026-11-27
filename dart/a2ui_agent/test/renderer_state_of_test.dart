@@ -83,6 +83,69 @@ void main() {
       expect(processor.model.getSurface('s')!.componentsModel.size, 2);
     });
 
+    test('takes the catalogs the processor holds when the state is made', () {
+      final CatalogApi basicV1 = BasicCatalog.v1_0();
+      const extraCatalogId = 'https://example.com/extra';
+      const laterCatalogId = 'https://example.com/later';
+      final CatalogApi extraCatalog = Catalog.fromJson({
+        'catalogId': extraCatalogId,
+        'protocolVersion': '1.0',
+        'components': {
+          'Badge': {
+            'type': 'object',
+            'properties': {
+              'id': {'type': 'string'},
+              'component': {'const': 'Badge'},
+              'label': {'type': 'string'},
+            },
+            'required': ['id', 'component', 'label'],
+          },
+        },
+        'functions': <String, Object?>{},
+      });
+      final CatalogApi laterCatalog = Catalog.fromJson({
+        'catalogId': laterCatalogId,
+        'protocolVersion': '1.0',
+        'components': <String, Object?>{},
+        'functions': <String, Object?>{},
+      });
+
+      final processor =
+          MessageProcessor<ComponentApi>(
+            catalogs: [basicV1.withFunctions(const <FunctionImplementation>[])],
+          )..addCatalog(
+            extraCatalog.withFunctions(const <FunctionImplementation>[]),
+          );
+      final state = RendererState.of(processor);
+
+      expect(state.catalogs.map((c) => c.id), [basicV1.id, extraCatalogId]);
+
+      state.checkTopology(
+        state.apply([
+          CreateSurfaceMessage(
+            version: '1.0',
+            surfaceId: 's',
+            catalogId: extraCatalogId,
+          ),
+          UpdateComponentsMessage(
+            version: '1.0',
+            surfaceId: 's',
+            components: [
+              {'id': 'root', 'component': 'Badge', 'label': 'Added'},
+            ],
+          ),
+        ]),
+      );
+
+      expect(state.getSurface('s'), same(processor.model.getSurface('s')));
+      expect(processor.model.getSurface('s')!.componentsModel.size, 1);
+
+      processor.addCatalog(
+        laterCatalog.withFunctions(const <FunctionImplementation>[]),
+      );
+      expect(state.catalogs.map((c) => c.id), [basicV1.id, extraCatalogId]);
+    });
+
     test("checks messages by its own rules, whatever the processor's", () {
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [rendererBasic],
