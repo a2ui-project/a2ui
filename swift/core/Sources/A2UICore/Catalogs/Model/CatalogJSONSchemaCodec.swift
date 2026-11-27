@@ -153,7 +153,8 @@ public enum CatalogJSONSchemaCodec {
           knownTypeNames: finalTypeNames,
           allowedParents: parents,
           allowedChildren: children,
-          metadata: meta
+          metadata: meta,
+          defaultAllowsAdditionalProperties: !isV10
         )
         components.append(compDef)
       }
@@ -212,7 +213,8 @@ public enum CatalogJSONSchemaCodec {
     knownTypeNames: Set<String> = [],
     allowedParents: [String]? = nil,
     allowedChildren: [String]? = nil,
-    metadata: [String: JSONValue]? = nil
+    metadata: [String: JSONValue]? = nil,
+    defaultAllowsAdditionalProperties: Bool = true
   ) -> ComponentDefinition {
     var mergedDefs = localDefs
     if let schemaDefs = schema["$defs"]?.objectValue {
@@ -221,7 +223,9 @@ public enum CatalogJSONSchemaCodec {
       }
     }
 
-    var state = ComponentExtractionState()
+    var state = ComponentExtractionState(
+      allowsAdditionalProperties: defaultAllowsAdditionalProperties
+    )
     extractComponentSchema(
       schema,
       root: schema,
@@ -243,6 +247,8 @@ public enum CatalogJSONSchemaCodec {
     let resolvedMetadata = metadata ?? schema["metadata"]?.dictionaryValue
     let description = schema["description"]?.stringValue ?? state.description
     let deprecated = schema["deprecated"]?.boolValue ?? false
+    let untranslatableSchema: JSONValue? =
+      state.hasUntranslatableRoot ? Optional(schema) : Optional<JSONValue>.none
 
     return ComponentDefinition(
       name: name,
@@ -255,7 +261,7 @@ public enum CatalogJSONSchemaCodec {
       metadata: resolvedMetadata,
       deprecated: deprecated,
       deprecatedReason: nil,
-      rawJSONSchema: state.hasUntranslatableRoot ? schema : nil,
+      rawJSONSchema: untranslatableSchema,
       allowsAdditionalProperties: state.allowsAdditionalProperties
     )
   }
@@ -887,6 +893,10 @@ public enum CatalogJSONSchemaCodec {
       || obj["unevaluatedProperties"]?.boolValue == false
     {
       state.allowsAdditionalProperties = false
+    } else if obj["additionalProperties"]?.boolValue == true
+      || obj["unevaluatedProperties"]?.boolValue == true
+    {
+      state.allowsAdditionalProperties = true
     }
 
     for key in obj.keys where untranslatableObjectKeywords.contains(key) {
@@ -1142,6 +1152,9 @@ public enum CatalogJSONSchemaCodec {
     )
     let resolvedDescription = description ?? obj["description"]?.stringValue
 
+    let untranslatableSchema: JSONValue? =
+      hasUntranslatable ? Optional(argsSchema) : Optional<JSONValue>.none
+
     return FunctionDefinition(
       name: name,
       description: resolvedDescription,
@@ -1152,7 +1165,7 @@ public enum CatalogJSONSchemaCodec {
       atLeastOneOf: atLeastOneOf,
       additionalParameters: additional,
       deprecated: obj["deprecated"]?.boolValue ?? false,
-      rawJSONSchema: hasUntranslatable ? argsSchema : nil
+      rawJSONSchema: untranslatableSchema
     )
   }
 

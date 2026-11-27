@@ -721,8 +721,12 @@ struct CatalogModelTests {
     #expect(inlineCatalog["catalogId"] == .string(loaded.id))
     #expect(inlineCatalog["$defs"]?["Weight"]?["type"] == .string("number"))
     #expect(
-      inlineCatalog["components"]?["Label"]?["properties"]?["text"]?["$ref"]
+      inlineCatalog["components"]?["Input"]?["properties"]?["label"]?["$ref"]
         == .string("common_types.json#/$defs/DynamicString"))
+    #expect(
+      inlineCatalog["components"]?["Label"]?["properties"]?["text"]?["oneOf"]?.arrayValue?.first?[
+        "minLength"
+      ] == .integer(1))
     #expect(inlineCatalog["functions"]?["inRange"]?["returnType"] == .string("validationResult"))
   }
 

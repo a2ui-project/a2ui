@@ -107,6 +107,7 @@ struct BasicCatalogDocumentRoundTripTests {
     let doc = try loaded.toDocument()
     let fromDoc = try Catalog.fromDocument(doc)
     #expect(fromDoc.model == loaded.model)
+    #expect(try fromDoc.toDocument() == doc)
 
     let validator = PayloadValidator(catalog: fromDoc, config: .strict)
 
@@ -186,7 +187,12 @@ struct BasicCatalogDocumentRoundTripTests {
     #expect(loaded.surfaceProperties?.property(named: "primaryColor") != nil)
 
     let doc = try loaded.toDocument()
+    #expect(doc["protocolVersion"] == .string("0.9.1"))
     let fromDoc = try Catalog.fromDocument(doc)
-    #expect(fromDoc.model == loaded.model)
+    #expect(fromDoc.model.protocolVersion == "0.9.1")
+    #expect(fromDoc.model.components == loaded.model.components)
+    #expect(fromDoc.model.functions == loaded.model.functions)
+    #expect(fromDoc.model.surfaceProperties == loaded.model.surfaceProperties)
+    #expect(try fromDoc.toDocument() == doc)
   }
 }
