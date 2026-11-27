@@ -93,6 +93,19 @@ for (const types of [CommonTypes, V09CommonTypes, V10CommonTypes]) {
 }
 
 /**
+ * The shared `AccessibilityAttributes` schema, closed to undeclared keys as
+ * v1.0 requires.
+ *
+ * The shared schema itself stays open, because v0.9 and v0.9.1 accept
+ * undeclared keys there. Closing it, rather than switching to the v1.0 wire
+ * schema, keeps every other check the shared schema makes on the attribute
+ * values.
+ */
+export const V10AccessibilityAttributesSchema = markStandardMixinSchema(
+  CommonTypes.AccessibilityAttributesSchema.strict(),
+);
+
+/**
  * How a component's schema declares the envelope mixins.
  */
 export interface ComponentMixinLayout {

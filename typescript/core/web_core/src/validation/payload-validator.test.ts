@@ -933,6 +933,20 @@ describe('PayloadValidator', () => {
             ],
             unevaluatedProperties: false,
           },
+          Common: {
+            type: 'object',
+            allOf: [
+              {$ref: 'common_types.json#/$defs/ComponentCommon'},
+              {type: 'object', properties: {label: {type: 'string'}}},
+            ],
+            unevaluatedProperties: false,
+          },
+        },
+        functions: {
+          formatText: {
+            returnType: 'string',
+            parameters: {type: 'object', properties: {}, additionalProperties: false},
+          },
         },
       });
     }
@@ -988,6 +1002,32 @@ describe('PayloadValidator', () => {
           A2uiValidationError,
         );
       });
+
+      it('accepts undeclared accessibility keys, which the schema leaves open', () => {
+        for (const component of ['Plain', 'Common']) {
+          assert.doesNotThrow(
+            () =>
+              validator.validateComponent({
+                id: 'root',
+                component,
+                accessibility: {label: 'Name', color: 'red'},
+              }),
+            component,
+          );
+        }
+      });
+
+      it('rejects an undeclared key in a check rule', () => {
+        assert.throws(
+          () =>
+            validator.validateComponent({
+              id: 'root',
+              component: 'Checked',
+              checks: [{condition: true, message: 'Required', color: 1}],
+            }),
+          /Unrecognized key\(s\) in object: 'color'/,
+        );
+      });
     });
 
     describe('from v1.0', () => {
@@ -1012,6 +1052,72 @@ describe('PayloadValidator', () => {
             checks: [{condition: true, message: 'Required'}],
           }),
         );
+      });
+
+      it('rejects an undeclared key in the accessibility attributes (#4435)', () => {
+        // `Plain` leaves the mixin to the validator; `Common` declares it by
+        // composing `ComponentCommon`, so its own schema checks it.
+        for (const component of ['Plain', 'Common']) {
+          for (const key of ['@accessibility', 'accessibility']) {
+            assert.throws(
+              () =>
+                validator.validateComponent({
+                  id: 'root',
+                  component,
+                  [key]: {label: 'Name', color: 'red'},
+                }),
+              (err: unknown) => {
+                assert.ok(err instanceof A2uiValidationError);
+                assert.match(err.message, /Unrecognized key\(s\) in object: 'color'/);
+                return true;
+              },
+              `${component} ${key}`,
+            );
+          }
+        }
+      });
+
+      it('still rejects an undeclared key on a function call in the accessibility attributes', () => {
+        for (const component of ['Plain', 'Common']) {
+          assert.doesNotThrow(
+            () =>
+              validator.validateComponent({
+                'id': 'root',
+                'component': component,
+                '@accessibility': {label: {'@call': 'formatText', 'args': {}}},
+              }),
+            component,
+          );
+          assert.throws(
+            () =>
+              validator.validateComponent({
+                'id': 'root',
+                'component': component,
+                '@accessibility': {label: {'@call': 'formatText', 'args': {}, 'color': 1}},
+              }),
+            A2uiValidationError,
+            component,
+          );
+        }
+      });
+
+      it('rejects an undeclared key in a check rule (#4435)', () => {
+        for (const key of ['@checks', 'checks']) {
+          assert.throws(
+            () =>
+              validator.validateComponent({
+                id: 'root',
+                component: 'Checked',
+                [key]: [{condition: {'@path': '/name'}, message: 'Required', color: 1}],
+              }),
+            (err: unknown) => {
+              assert.ok(err instanceof A2uiValidationError);
+              assert.match(err.message, /Unrecognized key\(s\) in object: 'color'/);
+              return true;
+            },
+            key,
+          );
+        }
       });
 
       it('validates @metadata extension keys as UAX #31 identifiers (#3466)', () => {

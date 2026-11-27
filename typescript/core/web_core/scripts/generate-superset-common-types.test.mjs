@@ -16,7 +16,7 @@
 
 import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
-import {inlineAllOfRefs} from './generate-superset-common-types.mjs';
+import {inlineAllOfRefs, mergeObjectSchemas} from './generate-superset-common-types.mjs';
 
 describe('inlineAllOfRefs', () => {
   it('correctly resolves shared base in diamond inheritance without skipping sibling branches', () => {
@@ -82,5 +82,44 @@ describe('inlineAllOfRefs', () => {
       b: {type: 'string'},
       root: {type: 'string'},
     });
+  });
+});
+
+describe('mergeObjectSchemas', () => {
+  const open = {type: 'object', properties: {label: {type: 'string'}}};
+  const closed = {
+    type: 'object',
+    properties: {label: {type: 'string'}, hidden: {type: 'boolean'}},
+    additionalProperties: false,
+  };
+
+  it('keeps the superset closed when every version is closed', () => {
+    const unevaluated = {
+      type: 'object',
+      properties: {label: {type: 'string'}},
+      unevaluatedProperties: false,
+    };
+
+    const merged = mergeObjectSchemas([unevaluated, closed]);
+
+    assert.equal(merged.additionalProperties, false);
+    assert.deepStrictEqual(Object.keys(merged.properties), ['label', 'hidden']);
+  });
+
+  it('leaves the superset open when any version is open', () => {
+    const merged = mergeObjectSchemas([open, closed]);
+
+    assert.equal('additionalProperties' in merged, false);
+  });
+
+  it('leaves the superset open when a version admits keys beyond its properties', () => {
+    const additional = {...closed, additionalProperties: true, unevaluatedProperties: false};
+    const pattern = {...closed, patternProperties: {'^x_': {type: 'string'}}};
+
+    for (const admitting of [additional, pattern]) {
+      const merged = mergeObjectSchemas([closed, admitting]);
+
+      assert.equal('additionalProperties' in merged, false);
+    }
   });
 });

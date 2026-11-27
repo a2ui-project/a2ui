@@ -21,7 +21,7 @@ import {isAtLeastVersion} from '../common/semver.js';
 import {assertUax31Identifier} from '../common/uax31.js';
 import {A2uiCatalogError} from '../errors.js';
 import {CommonSchemas, ComponentCommonSchema} from '../types/common-types.js';
-import {markStandardMixinSchema} from './component_envelope.js';
+import {V10AccessibilityAttributesSchema, markStandardMixinSchema} from './component_envelope.js';
 import {exclusiveUnion} from './exclusive_union.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
 import {
@@ -810,7 +810,13 @@ function componentCommonMixinProperties(isAtLeastV10: boolean): Record<string, z
     const bareKey = key.replace(/^@/, '');
     if (bareKey === 'id' || bareKey === 'catalogId') continue;
     if (bareKey === 'metadata' && !isAtLeastV10) continue;
-    properties[key] = markStandardMixinSchema(schema as z.ZodTypeAny);
+    // v1.0 closes `AccessibilityAttributes` to undeclared keys, which the
+    // shared schema cannot do while earlier versions leave it open.
+    const mixinSchema =
+      isAtLeastV10 && bareKey === 'accessibility'
+        ? V10AccessibilityAttributesSchema.optional()
+        : (schema as z.ZodTypeAny);
+    properties[key] = markStandardMixinSchema(mixinSchema);
   }
   return properties;
 }

@@ -27,6 +27,7 @@ import {
   ComponentMixinLayout,
   ComponentMixinValue,
   SplitComponent,
+  V10AccessibilityAttributesSchema,
   componentMixinLayout,
   splitComponentEnvelope,
 } from '../catalog/component_envelope.js';
@@ -419,8 +420,10 @@ export class PayloadValidator {
           }
           break;
         case 'accessibility':
+          // v1.0 closes `AccessibilityAttributes` to undeclared keys, which the
+          // shared schema cannot do while earlier versions leave it open.
           this.parseEnvelopeValue(
-            AccessibilityAttributesSchema.optional(),
+            V10AccessibilityAttributesSchema.optional(),
             mixin.value,
             path,
             subject,
@@ -429,7 +432,7 @@ export class PayloadValidator {
             mixin.value,
             componentCatalogId,
             path,
-            AccessibilityAttributesSchema,
+            V10AccessibilityAttributesSchema,
           );
           break;
         case 'checks':
